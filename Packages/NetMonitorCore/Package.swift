@@ -13,9 +13,13 @@ let package = Package(
             targets: ["NetMonitorCore"]
         ),
     ],
+    dependencies: [
+        .package(path: "../NetworkScanKit")
+    ],
     targets: [
         .target(
             name: "NetMonitorCore",
+            dependencies: ["NetworkScanKit"],
             path: "Sources/NetMonitorCore",
             swiftSettings: [
                 .swiftLanguageMode(.v6)
