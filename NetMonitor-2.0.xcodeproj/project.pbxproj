@@ -1,0 +1,759 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		0CD56C70CFF8CBC0519F6B09 /* NetworkScanKit in Frameworks */ = {isa = PBXBuildFile; productRef = 388FA7FB80CF030C402B66D5 /* NetworkScanKit */; };
+		34402C29A62FFE42C44A8B1D /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 101F26E4BECFFBFB3797E920 /* ContentView.swift */; };
+		556710009414ECC8ED17683B /* NetMonitor_iOSTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B552D58968F75459B0868D2 /* NetMonitor_iOSTests.swift */; };
+		5A2C35B8FC5D5AA70DAC1BCC /* NetmonitorApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70325EC83FD1A8358DB60D64 /* NetmonitorApp.swift */; };
+		68D9A9FF7937E73FE6F19BAF /* NetMonitorApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 756B774BD29446B68DEA41E3 /* NetMonitorApp.swift */; };
+		7F687E2AC8DF228885E5FCE3 /* NetMonitor_macOSTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1ED30F91ABCADD39A629C18A /* NetMonitor_macOSTests.swift */; };
+		910D3D44366C735C9602B17E /* NetworkScanKit in Frameworks */ = {isa = PBXBuildFile; productRef = C0F47FE6FA4E6294CF46C936 /* NetworkScanKit */; };
+		D17CB2AACF029D603F8B3375 /* NetMonitorCore in Frameworks */ = {isa = PBXBuildFile; productRef = 14829B830C3C5DDA15673A6B /* NetMonitorCore */; };
+		F2B39A0257A701E3D43D2737 /* NetMonitorCore in Frameworks */ = {isa = PBXBuildFile; productRef = 2444F3328A44BCB7297D4E29 /* NetMonitorCore */; };
+		F6C65057555A7B3848C63A35 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFFFC1B4D003723AC37ADE9E /* ContentView.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		B281D88E101141DB7F4049F1 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 4FB80C4151AD239413B6733F /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 1F7C65C74B339FCF977C4759;
+			remoteInfo = "NetMonitor-macOS";
+		};
+		E282969DAF3D18AFA509F001 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 4FB80C4151AD239413B6733F /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = B151786BC5800BC9BC47A22C;
+			remoteInfo = "NetMonitor-iOS";
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		016F16F5B8551E19BA9B89C0 /* NetMonitorCore */ = {isa = PBXFileReference; lastKnownFileType = folder; name = NetMonitorCore; path = Packages/NetMonitorCore; sourceTree = SOURCE_ROOT; };
+		040158ED31B51401B56621DB /* NetMonitor-iOS.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = "NetMonitor-iOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		101F26E4BECFFBFB3797E920 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		1BFA32A2D8AD16EEFF35C181 /* NetMonitor-macOSTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "NetMonitor-macOSTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		1ED30F91ABCADD39A629C18A /* NetMonitor_macOSTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetMonitor_macOSTests.swift; sourceTree = "<group>"; };
+		4B552D58968F75459B0868D2 /* NetMonitor_iOSTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetMonitor_iOSTests.swift; sourceTree = "<group>"; };
+		5754DDE3B9CAA800C43BE5B9 /* NetMonitor-iOSTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = "NetMonitor-iOSTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		70325EC83FD1A8358DB60D64 /* NetmonitorApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetmonitorApp.swift; sourceTree = "<group>"; };
+		756B774BD29446B68DEA41E3 /* NetMonitorApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetMonitorApp.swift; sourceTree = "<group>"; };
+		BFFFC1B4D003723AC37ADE9E /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		D62C76BE608EADB467F2B149 /* NetworkScanKit */ = {isa = PBXFileReference; lastKnownFileType = folder; name = NetworkScanKit; path = Packages/NetworkScanKit; sourceTree = SOURCE_ROOT; };
+		D8D1C5A8A2026164E837DC8B /* NetMonitor-macOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "NetMonitor-macOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		40A9F7662DD07B1719E30913 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F2B39A0257A701E3D43D2737 /* NetMonitorCore in Frameworks */,
+				0CD56C70CFF8CBC0519F6B09 /* NetworkScanKit in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		72EFE52898663F0A61ABF857 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D17CB2AACF029D603F8B3375 /* NetMonitorCore in Frameworks */,
+				910D3D44366C735C9602B17E /* NetworkScanKit in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		0D32924BA35DB2FCB5CC0DEB /* Widget */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			path = Widget;
+			sourceTree = "<group>";
+		};
+		0D4D0765E3E667C3E2CDAD0C /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				101F26E4BECFFBFB3797E920 /* ContentView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		10E4CCBCC6C445B127309731 /* ViewModels */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			path = ViewModels;
+			sourceTree = "<group>";
+		};
+		12A4AC81526173A670D52622 /* Platform */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			path = Platform;
+			sourceTree = "<group>";
+		};
+		3AA158436BB2A7CC57BF8632 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				040158ED31B51401B56621DB /* NetMonitor-iOS.app */,
+				5754DDE3B9CAA800C43BE5B9 /* NetMonitor-iOSTests.xctest */,
+				D8D1C5A8A2026164E837DC8B /* NetMonitor-macOS.app */,
+				1BFA32A2D8AD16EEFF35C181 /* NetMonitor-macOSTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		50CDFC6BE439B5530EEB9DFE /* Packages */ = {
+			isa = PBXGroup;
+			children = (
+				016F16F5B8551E19BA9B89C0 /* NetMonitorCore */,
+				D62C76BE608EADB467F2B149 /* NetworkScanKit */,
+			);
+			path = Packages;
+			sourceTree = "<group>";
+		};
+		64D57CD1D21B76AC83EB6CAB /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				BFFFC1B4D003723AC37ADE9E /* ContentView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		8ADC0224E069D52C552AC244 /* NetMonitor-iOSTests */ = {
+			isa = PBXGroup;
+			children = (
+				4B552D58968F75459B0868D2 /* NetMonitor_iOSTests.swift */,
+			);
+			path = "NetMonitor-iOSTests";
+			sourceTree = "<group>";
+		};
+		911A63FF886A2DF3CD7FD6B3 /* Platform */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			path = Platform;
+			sourceTree = "<group>";
+		};
+		93AF8BA829380A1F74B3080F = {
+			isa = PBXGroup;
+			children = (
+				973AB169728F6ABD6C6481E2 /* NetMonitor-iOS */,
+				ADD8F8FED92436E970118F97 /* NetMonitor-macOS */,
+				50CDFC6BE439B5530EEB9DFE /* Packages */,
+				D6D58277EF9117F7081C68E0 /* Tests */,
+				3AA158436BB2A7CC57BF8632 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		973AB169728F6ABD6C6481E2 /* NetMonitor-iOS */ = {
+			isa = PBXGroup;
+			children = (
+				B0DAECD1C045E382C76FE56E /* App */,
+				12A4AC81526173A670D52622 /* Platform */,
+				10E4CCBCC6C445B127309731 /* ViewModels */,
+				0D4D0765E3E667C3E2CDAD0C /* Views */,
+				0D32924BA35DB2FCB5CC0DEB /* Widget */,
+			);
+			path = "NetMonitor-iOS";
+			sourceTree = "<group>";
+		};
+		ADD8F8FED92436E970118F97 /* NetMonitor-macOS */ = {
+			isa = PBXGroup;
+			children = (
+				D1264DF84316245CAF09F833 /* App */,
+				911A63FF886A2DF3CD7FD6B3 /* Platform */,
+				64D57CD1D21B76AC83EB6CAB /* Views */,
+			);
+			path = "NetMonitor-macOS";
+			sourceTree = "<group>";
+		};
+		B0DAECD1C045E382C76FE56E /* App */ = {
+			isa = PBXGroup;
+			children = (
+				70325EC83FD1A8358DB60D64 /* NetmonitorApp.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		D1264DF84316245CAF09F833 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				756B774BD29446B68DEA41E3 /* NetMonitorApp.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		D6D58277EF9117F7081C68E0 /* Tests */ = {
+			isa = PBXGroup;
+			children = (
+				8ADC0224E069D52C552AC244 /* NetMonitor-iOSTests */,
+				EB8CAB1CD898FE75D7DED009 /* NetMonitor-macOSTests */,
+			);
+			path = Tests;
+			sourceTree = "<group>";
+		};
+		EB8CAB1CD898FE75D7DED009 /* NetMonitor-macOSTests */ = {
+			isa = PBXGroup;
+			children = (
+				1ED30F91ABCADD39A629C18A /* NetMonitor_macOSTests.swift */,
+			);
+			path = "NetMonitor-macOSTests";
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		1F7C65C74B339FCF977C4759 /* NetMonitor-macOS */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A2488BAF43E3180C8A442C89 /* Build configuration list for PBXNativeTarget "NetMonitor-macOS" */;
+			buildPhases = (
+				0A69C4D81868801AD156AF6A /* Sources */,
+				40A9F7662DD07B1719E30913 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = "NetMonitor-macOS";
+			packageProductDependencies = (
+				2444F3328A44BCB7297D4E29 /* NetMonitorCore */,
+				388FA7FB80CF030C402B66D5 /* NetworkScanKit */,
+			);
+			productName = "NetMonitor-macOS";
+			productReference = D8D1C5A8A2026164E837DC8B /* NetMonitor-macOS.app */;
+			productType = "com.apple.product-type.application";
+		};
+		55DBFE8BA4B4B55A24D71850 /* NetMonitor-macOSTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 78D734772E967CCF032C3A12 /* Build configuration list for PBXNativeTarget "NetMonitor-macOSTests" */;
+			buildPhases = (
+				7CFE9A5F2A78402AEE96A53F /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				49E5A2C3B24B1F0CDA0623E8 /* PBXTargetDependency */,
+			);
+			name = "NetMonitor-macOSTests";
+			packageProductDependencies = (
+			);
+			productName = "NetMonitor-macOSTests";
+			productReference = 1BFA32A2D8AD16EEFF35C181 /* NetMonitor-macOSTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		B151786BC5800BC9BC47A22C /* NetMonitor-iOS */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = ECFDBF239A68C89B10D0BB5F /* Build configuration list for PBXNativeTarget "NetMonitor-iOS" */;
+			buildPhases = (
+				51F41E664F89550B3C7052B8 /* Sources */,
+				72EFE52898663F0A61ABF857 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = "NetMonitor-iOS";
+			packageProductDependencies = (
+				14829B830C3C5DDA15673A6B /* NetMonitorCore */,
+				C0F47FE6FA4E6294CF46C936 /* NetworkScanKit */,
+			);
+			productName = "NetMonitor-iOS";
+			productReference = 040158ED31B51401B56621DB /* NetMonitor-iOS.app */;
+			productType = "com.apple.product-type.application";
+		};
+		BA9349CB56A8E5516B5F9B7C /* NetMonitor-iOSTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 9FCF4DF887ED2A48453D8715 /* Build configuration list for PBXNativeTarget "NetMonitor-iOSTests" */;
+			buildPhases = (
+				20779BD7FAE12479C7F68989 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				488CC7436050C2FF07AD8B82 /* PBXTargetDependency */,
+			);
+			name = "NetMonitor-iOSTests";
+			packageProductDependencies = (
+			);
+			productName = "NetMonitor-iOSTests";
+			productReference = 5754DDE3B9CAA800C43BE5B9 /* NetMonitor-iOSTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		4FB80C4151AD239413B6733F /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1600;
+				TargetAttributes = {
+					1F7C65C74B339FCF977C4759 = {
+						DevelopmentTeam = 32XZRDTGK3;
+						ProvisioningStyle = Automatic;
+					};
+					55DBFE8BA4B4B55A24D71850 = {
+						DevelopmentTeam = 32XZRDTGK3;
+					};
+					B151786BC5800BC9BC47A22C = {
+						DevelopmentTeam = 32XZRDTGK3;
+						ProvisioningStyle = Automatic;
+					};
+					BA9349CB56A8E5516B5F9B7C = {
+						DevelopmentTeam = 32XZRDTGK3;
+					};
+				};
+			};
+			buildConfigurationList = 21FF443B62CD5C892E54B0AC /* Build configuration list for PBXProject "NetMonitor-2.0" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 93AF8BA829380A1F74B3080F;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				A3D1C217DDAE38F2108EBEA7 /* XCLocalSwiftPackageReference "Packages/NetMonitorCore" */,
+				7BC6C0B438625FC120B3E9C4 /* XCLocalSwiftPackageReference "Packages/NetworkScanKit" */,
+			);
+			preferredProjectObjectVersion = 77;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				B151786BC5800BC9BC47A22C /* NetMonitor-iOS */,
+				BA9349CB56A8E5516B5F9B7C /* NetMonitor-iOSTests */,
+				1F7C65C74B339FCF977C4759 /* NetMonitor-macOS */,
+				55DBFE8BA4B4B55A24D71850 /* NetMonitor-macOSTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		0A69C4D81868801AD156AF6A /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F6C65057555A7B3848C63A35 /* ContentView.swift in Sources */,
+				68D9A9FF7937E73FE6F19BAF /* NetMonitorApp.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		20779BD7FAE12479C7F68989 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				556710009414ECC8ED17683B /* NetMonitor_iOSTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		51F41E664F89550B3C7052B8 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				34402C29A62FFE42C44A8B1D /* ContentView.swift in Sources */,
+				5A2C35B8FC5D5AA70DAC1BCC /* NetmonitorApp.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		7CFE9A5F2A78402AEE96A53F /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				7F687E2AC8DF228885E5FCE3 /* NetMonitor_macOSTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		488CC7436050C2FF07AD8B82 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = B151786BC5800BC9BC47A22C /* NetMonitor-iOS */;
+			targetProxy = E282969DAF3D18AFA509F001 /* PBXContainerItemProxy */;
+		};
+		49E5A2C3B24B1F0CDA0623E8 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 1F7C65C74B339FCF977C4759 /* NetMonitor-macOS */;
+			targetProxy = B281D88E101141DB7F4049F1 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		0D513A80888F6032F74E8FA1 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = "NetMonitor-macOS/Resources/NetMonitor-macOS.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				DEVELOPMENT_TEAM = 32XZRDTGK3;
+				INFOPLIST_FILE = "NetMonitor-macOS/Resources/Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.jbcrane.NetMonitor;
+				SDKROOT = macosx;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		0E14CCD6BE916FB52B06935F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		5D29F02D2D0ABA97E70F0F5D /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = "NetMonitor-macOS/Resources/NetMonitor-macOS.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				DEVELOPMENT_TEAM = 32XZRDTGK3;
+				INFOPLIST_FILE = "NetMonitor-macOS/Resources/Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.jbcrane.NetMonitor;
+				SDKROOT = macosx;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		5E2EFF7042524E017FD0DB22 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				DEVELOPMENT_TEAM = 32XZRDTGK3;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.NetMonitor-macOSTests";
+				SDKROOT = macosx;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/NetMonitor-macOS.app/Contents/MacOS/NetMonitor-macOS";
+			};
+			name = Release;
+		};
+		73BF91E4D482556D9AF8885E /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				DEVELOPMENT_TEAM = 32XZRDTGK3;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.NetMonitor-macOSTests";
+				SDKROOT = macosx;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/NetMonitor-macOS.app/Contents/MacOS/NetMonitor-macOS";
+			};
+			name = Debug;
+		};
+		7EC357DB1F6BC7CF07B9AFF6 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				DEVELOPMENT_TEAM = 32XZRDTGK3;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "com.NetMonitor-iOSTests";
+				SDKROOT = iphoneos;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/NetMonitor-iOS.app/NetMonitor-iOS";
+			};
+			name = Release;
+		};
+		835D3D59A0AE54E9A78C8090 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				DEVELOPMENT_TEAM = 32XZRDTGK3;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "com.NetMonitor-iOSTests";
+				SDKROOT = iphoneos;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/NetMonitor-iOS.app/NetMonitor-iOS";
+			};
+			name = Debug;
+		};
+		8529696C406AF443863694FB /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		913F9A11E93E6D3C7F410D1C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 32XZRDTGK3;
+				INFOPLIST_FILE = "NetMonitor-iOS/Resources/Info.plist";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.blakemiller.netmonitor;
+				SDKROOT = iphoneos;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		C87E3540A98DC61B077D458F /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 32XZRDTGK3;
+				INFOPLIST_FILE = "NetMonitor-iOS/Resources/Info.plist";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.blakemiller.netmonitor;
+				SDKROOT = iphoneos;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		21FF443B62CD5C892E54B0AC /* Build configuration list for PBXProject "NetMonitor-2.0" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				8529696C406AF443863694FB /* Debug */,
+				0E14CCD6BE916FB52B06935F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		78D734772E967CCF032C3A12 /* Build configuration list for PBXNativeTarget "NetMonitor-macOSTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				73BF91E4D482556D9AF8885E /* Debug */,
+				5E2EFF7042524E017FD0DB22 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		9FCF4DF887ED2A48453D8715 /* Build configuration list for PBXNativeTarget "NetMonitor-iOSTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				835D3D59A0AE54E9A78C8090 /* Debug */,
+				7EC357DB1F6BC7CF07B9AFF6 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		A2488BAF43E3180C8A442C89 /* Build configuration list for PBXNativeTarget "NetMonitor-macOS" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				5D29F02D2D0ABA97E70F0F5D /* Debug */,
+				0D513A80888F6032F74E8FA1 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		ECFDBF239A68C89B10D0BB5F /* Build configuration list for PBXNativeTarget "NetMonitor-iOS" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C87E3540A98DC61B077D458F /* Debug */,
+				913F9A11E93E6D3C7F410D1C /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		7BC6C0B438625FC120B3E9C4 /* XCLocalSwiftPackageReference "Packages/NetworkScanKit" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/NetworkScanKit;
+		};
+		A3D1C217DDAE38F2108EBEA7 /* XCLocalSwiftPackageReference "Packages/NetMonitorCore" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/NetMonitorCore;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		14829B830C3C5DDA15673A6B /* NetMonitorCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = NetMonitorCore;
+		};
+		2444F3328A44BCB7297D4E29 /* NetMonitorCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = NetMonitorCore;
+		};
+		388FA7FB80CF030C402B66D5 /* NetworkScanKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = NetworkScanKit;
+		};
+		C0F47FE6FA4E6294CF46C936 /* NetworkScanKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = NetworkScanKit;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 4FB80C4151AD239413B6733F /* Project object */;
+}

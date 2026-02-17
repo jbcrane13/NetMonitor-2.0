@@ -1,0 +1,111 @@
+name: NetMonitor-2.0
+options:
+  bundleIdPrefix: com
+  deploymentTarget:
+    macOS: "15.0"
+    iOS: "18.0"
+  xcodeVersion: "16"
+  generateEmptyDirectories: true
+  createIntermediateGroups: true
+
+packages:
+  NetMonitorCore:
+    path: Packages/NetMonitorCore
+  NetworkScanKit:
+    path: Packages/NetworkScanKit
+
+targets:
+  NetMonitor-macOS:
+    type: application
+    platform: macOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: NetMonitor-macOS
+        includes:
+          - "**/*.swift"
+    info:
+      path: NetMonitor-macOS/Resources/Info.plist
+      properties:
+        CFBundleName: NetMonitor Pro
+        CFBundleDisplayName: NetMonitor Pro
+        CFBundleShortVersionString: "2.0"
+        CFBundleVersion: "1"
+        LSMinimumSystemVersion: "15.0"
+        NSPrincipalClass: NSApplication
+        NSHighResolutionCapable: true
+    entitlements:
+      path: NetMonitor-macOS/Resources/NetMonitor-macOS.entitlements
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.jbcrane.NetMonitor
+        DEVELOPMENT_TEAM: 32XZRDTGK3
+        SWIFT_VERSION: 6.0
+        SWIFT_STRICT_CONCURRENCY: complete
+        CODE_SIGN_STYLE: Automatic
+        MACOSX_DEPLOYMENT_TARGET: "15.0"
+        CODE_SIGN_ENTITLEMENTS: NetMonitor-macOS/Resources/NetMonitor-macOS.entitlements
+    dependencies:
+      - package: NetMonitorCore
+      - package: NetworkScanKit
+
+  NetMonitor-iOS:
+    type: application
+    platform: iOS
+    deploymentTarget: "18.0"
+    sources:
+      - path: NetMonitor-iOS
+        includes:
+          - "**/*.swift"
+    info:
+      path: NetMonitor-iOS/Resources/Info.plist
+      properties:
+        CFBundleName: Netmonitor
+        CFBundleDisplayName: Netmonitor
+        CFBundleShortVersionString: "2.0"
+        CFBundleVersion: "1"
+        UILaunchScreen:
+          UIColorName: ""
+          UIImageName: ""
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.blakemiller.netmonitor
+        DEVELOPMENT_TEAM: 32XZRDTGK3
+        SWIFT_VERSION: 6.0
+        SWIFT_STRICT_CONCURRENCY: complete
+        CODE_SIGN_STYLE: Automatic
+        IPHONEOS_DEPLOYMENT_TARGET: "18.0"
+    dependencies:
+      - package: NetMonitorCore
+      - package: NetworkScanKit
+
+  NetMonitor-macOSTests:
+    type: bundle.unit-test
+    platform: macOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: Tests/NetMonitor-macOSTests
+    settings:
+      base:
+        DEVELOPMENT_TEAM: 32XZRDTGK3
+        SWIFT_VERSION: 6.0
+        SWIFT_STRICT_CONCURRENCY: complete
+    dependencies:
+      - target: NetMonitor-macOS
+
+  NetMonitor-iOSTests:
+    type: bundle.unit-test
+    platform: iOS
+    deploymentTarget: "18.0"
+    sources:
+      - path: Tests/NetMonitor-iOSTests
+    settings:
+      base:
+        DEVELOPMENT_TEAM: 32XZRDTGK3
+        SWIFT_VERSION: 6.0
+        SWIFT_STRICT_CONCURRENCY: complete
+    dependencies:
+      - target: NetMonitor-iOS
