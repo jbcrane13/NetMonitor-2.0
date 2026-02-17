@@ -175,3 +175,30 @@ public protocol MACVendorLookupServiceProtocol: AnyObject, Sendable {
 public protocol DeviceNameResolverProtocol: Sendable {
     func resolve(ipAddress: String) async -> String?
 }
+
+// MARK: - Mac Companion Types
+
+/// Connection state for the Mac companion service.
+public enum MacConnectionState: Sendable, Equatable {
+    case disconnected
+    case browsing
+    case connecting
+    case connected
+    case error(String)
+
+    public var isConnected: Bool {
+        if case .connected = self { return true }
+        return false
+    }
+}
+
+/// Minimal protocol for the Mac companion connection service.
+/// Full implementation lives in platform targets (MacConnectionService on iOS,
+/// CompanionService on macOS). Only the subset used by DeviceDiscoveryService
+/// is required here.
+@MainActor
+public protocol MacConnectionServiceProtocol: AnyObject {
+    var connectionState: MacConnectionState { get }
+    var lastDeviceList: DeviceListPayload? { get }
+    func send(command: CommandPayload) async
+}
