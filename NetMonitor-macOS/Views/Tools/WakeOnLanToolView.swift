@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import NetMonitorCore
 import SwiftData
 
 struct WakeOnLanToolView: View {
@@ -19,7 +20,7 @@ struct WakeOnLanToolView: View {
     @State private var isError = false
     @State private var wakeTask: Task<Void, Never>?
 
-    private let wakeService = WakeOnLanService()
+    private let wakeService = WakeOnLANService()
 
     // Filter devices that have MAC addresses
     private var devicesWithMAC: [LocalDevice] {
@@ -164,20 +165,16 @@ struct WakeOnLanToolView: View {
         isError = false
 
         wakeTask = Task {
-            do {
-                try await wakeService.wake(macAddress: macAddress, broadcastAddress: broadcastAddress)
-
-                await MainActor.run {
+            let success = await wakeService.wake(macAddress: macAddress, broadcastAddress: broadcastAddress, port: 9)
+            await MainActor.run {
+                if success {
                     resultMessage = "Magic packet sent successfully to \(macAddress)"
                     isError = false
-                    isSending = false
-                }
-            } catch {
-                await MainActor.run {
-                    resultMessage = "Failed to send magic packet: \(error.localizedDescription)"
+                } else {
+                    resultMessage = "Failed to send magic packet to \(macAddress)"
                     isError = true
-                    isSending = false
                 }
+                isSending = false
             }
         }
     }

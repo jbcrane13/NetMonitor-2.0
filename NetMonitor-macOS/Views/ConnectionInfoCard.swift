@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import NetMonitorCore
 
 struct ConnectionInfoCard: View {
     @State private var connectionInfo: ConnectionInfo?
@@ -70,7 +71,7 @@ struct ConnectionInfoCard: View {
                         Spacer()
 
                         // Connection Type Badge
-                        Text(info.connectionType.rawValue)
+                        Text(info.connectionType.displayName)
                             .font(.caption2)
                             .fontWeight(.medium)
                             .padding(.horizontal, 8)
@@ -150,7 +151,7 @@ struct ConnectionInfoCard: View {
             return "cable.connector"
         case .cellular:
             return "antenna.radiowaves.left.and.right"
-        case .unknown:
+        case .none:
             return "network.slash"
         }
     }
@@ -167,7 +168,7 @@ struct ConnectionInfoCard: View {
             return "Ethernet Connected"
         case .cellular:
             return "Cellular Connected"
-        case .unknown:
+        case .none:
             return "Unknown Network"
         }
     }

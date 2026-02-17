@@ -8,7 +8,7 @@ struct DeviceRowView: View {
         HStack(spacing: 12) {
             // Status indicator
             Circle()
-                .fill(device.isOnline ? Color.green : Color.gray)
+                .fill(device.status == .online ? Color.green : Color.gray)
                 .frame(width: 8, height: 8)
 
             // Device icon

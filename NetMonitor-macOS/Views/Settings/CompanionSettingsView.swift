@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import NetMonitorCore
 
 struct CompanionSettingsView: View {
     @AppStorage("netmonitor.companion.enabled") private var companionEnabled = true

@@ -96,7 +96,7 @@ final class CompanionMessageHandler {
                 hostname: device.hostname,
                 vendor: device.vendor,
                 deviceType: device.deviceType.rawValue,
-                isOnline: device.isOnline
+                isOnline: device.status == .online
             )
         }
 

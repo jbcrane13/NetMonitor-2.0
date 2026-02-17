@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import NetMonitorCore
 
 /// Available network tools
 enum NetworkTool: String, CaseIterable, Identifiable {

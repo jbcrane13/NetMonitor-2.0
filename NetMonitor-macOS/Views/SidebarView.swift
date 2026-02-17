@@ -1,4 +1,5 @@
 import SwiftUI
+import NetMonitorCore
 import SwiftData
 
 struct SidebarView: View {

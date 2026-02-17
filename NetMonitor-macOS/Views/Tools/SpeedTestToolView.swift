@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import NetMonitorCore
 import libkern
 
 struct SpeedTestToolView: View {

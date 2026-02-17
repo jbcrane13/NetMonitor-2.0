@@ -142,7 +142,7 @@ struct PingToolView: View {
         pingTask = Task {
             var results: [PingResult] = []
 
-            let stream = pingService.ping(host: host, count: count, timeout: 5)
+            let stream = await pingService.ping(host: host, count: count, timeout: 5)
             for await result in stream {
                 guard !Task.isCancelled else { break }
                 results.append(result)

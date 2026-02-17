@@ -1,4 +1,5 @@
 import SwiftUI
+import NetMonitorCore
 import SwiftData
 import Charts
 
@@ -119,14 +120,13 @@ struct StatisticItem: View {
 
 #if DEBUG
 #Preview {
-    let container = PreviewContainer().container
-    let target = NetworkTarget(
-        name: "Test",
-        host: "1.1.1.1",
-        targetProtocol: .icmp
+    let config = ModelConfiguration(isStoredInMemoryOnly: true)
+    let container = try! ModelContainer(
+        for: NetworkTarget.self, TargetMeasurement.self,
+        configurations: config
     )
+    let target = NetworkTarget(name: "Test", host: "1.1.1.1", targetProtocol: .icmp)
     container.mainContext.insert(target)
-
     return TargetStatisticsView(target: target)
         .modelContainer(container)
         .frame(width: 600)

@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import NetMonitorCore
 
 struct ISPInfoCard: View {
 

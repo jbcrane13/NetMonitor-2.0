@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import NetMonitorCore
 
 /// Displays real-time monitoring statistics in a horizontal bar
 struct QuickStatsBar: View {
@@ -145,7 +146,7 @@ private struct StatItem: View {
         tcpService: tcpService
     )
 
-    return QuickStatsBar()
+    QuickStatsBar()
         .padding()
         .modelContainer(container)
         .environment(session)

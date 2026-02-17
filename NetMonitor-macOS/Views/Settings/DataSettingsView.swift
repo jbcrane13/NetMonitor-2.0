@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import NetMonitorCore
 import SwiftData
 import UniformTypeIdentifiers
 import os

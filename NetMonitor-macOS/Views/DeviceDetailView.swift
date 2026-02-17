@@ -78,12 +78,12 @@ struct DeviceDetailView: View {
         HStack(spacing: 16) {
             ZStack {
                 Circle()
-                    .fill(device.isOnline ? Color.green.opacity(0.2) : Color.gray.opacity(0.2))
+                    .fill(device.status == .online ? Color.green.opacity(0.2) : Color.gray.opacity(0.2))
                     .frame(width: 64, height: 64)
 
                 Image(systemName: device.deviceType.iconName)
                     .font(.title)
-                    .foregroundStyle(device.isOnline ? .green : .gray)
+                    .foregroundStyle(device.status == .online ? .green : .gray)
             }
 
             VStack(alignment: .leading, spacing: 4) {
@@ -99,10 +99,10 @@ struct DeviceDetailView: View {
 
                 HStack(spacing: 8) {
                     Circle()
-                        .fill(device.isOnline ? Color.green : Color.gray)
+                        .fill(device.status == .online ? Color.green : Color.gray)
                         .frame(width: 8, height: 8)
 
-                    Text(device.isOnline ? "Online" : "Offline")
+                    Text(device.status == .online ? "Online" : "Offline")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
@@ -401,7 +401,7 @@ struct DeviceDetailView: View {
         guard let discoveryCoordinator else { return }
         let cachedServices = await discoveryCoordinator.bonjourScanner.discoveredServices
         let deviceServices = cachedServices.filter { service in
-            service.ipAddress == device.ipAddress
+            service.addresses.contains(device.ipAddress)
         }
 
         // Update bonjourServices with the service types found

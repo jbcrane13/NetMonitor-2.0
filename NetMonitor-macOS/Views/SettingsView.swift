@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import NetMonitorCore
 
 /// Settings tab options
 enum SettingsTab: String, CaseIterable, Identifiable {

@@ -1,4 +1,5 @@
 import SwiftUI
+import NetMonitorCore
 
 /// A view that displays live elapsed monitoring duration
 struct LiveDurationView: View {

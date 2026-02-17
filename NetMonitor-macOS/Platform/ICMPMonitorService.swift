@@ -12,7 +12,7 @@ actor ICMPMonitorService: NetworkMonitorService {
             throw NetworkMonitorError.invalidHost("Target protocol must be ICMP")
         }
 
-        let stream = pingService.ping(host: request.host, count: 1, timeout: request.timeout)
+        let stream = await pingService.ping(host: request.host, count: 1, timeout: request.timeout)
 
         var lastResult: PingResult?
         for await result in stream {

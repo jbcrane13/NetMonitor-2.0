@@ -1,4 +1,5 @@
 import SwiftUI
+import NetMonitorCore
 import SwiftData
 
 struct DashboardView: View {
@@ -192,7 +193,7 @@ struct TargetStatusCard: View {
         tcpService: tcpService
     )
     
-    return DashboardView()
+    DashboardView()
         .modelContainer(container)
         .environment(session)
 }

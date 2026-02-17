@@ -1,4 +1,5 @@
 import SwiftUI
+import NetMonitorCore
 import SwiftData
 import AppKit
 import Darwin
@@ -38,7 +39,7 @@ struct DevicesView: View {
         var result = devices
 
         if filterOnlineOnly {
-            result = result.filter { $0.isOnline }
+            result = result.filter { $0.status == .online }
         }
 
         if !searchText.isEmpty {
@@ -59,7 +60,7 @@ struct DevicesView: View {
         case .ipAddress:
             result.sort { compareIPAddresses($0.ipAddress, $1.ipAddress) }
         case .status:
-            result.sort { ($0.isOnline ? 0 : 1) < ($1.isOnline ? 0 : 1) }
+            result.sort { ($0.status == .online ? 0 : 1) < ($1.status == .online ? 0 : 1) }
         }
 
         return result
@@ -438,26 +439,22 @@ struct DevicePingSheet: View {
         pingResults.append("PING \(device.ipAddress) (5 packets)...")
 
         pingTask = Task {
-            let pingService = ProcessPingService()
-            do {
-                for try await line in await pingService.pingStream(host: device.ipAddress, count: 5) {
-                    await MainActor.run {
-                        if let latency = line.latency {
-                            pingResults.append("\(line.bytes) bytes from \(line.host): icmp_seq=\(line.sequenceNumber) ttl=\(line.ttl ?? 0) time=\(String(format: "%.2f", latency)) ms")
-                        } else {
-                            pingResults.append("Request timeout for icmp_seq \(line.sequenceNumber)")
-                        }
+            let pingService = PingService()
+            let stream = await pingService.ping(host: device.ipAddress, count: 5, timeout: 5)
+            for await result in stream {
+                guard !Task.isCancelled else { break }
+                await MainActor.run {
+                    if result.isTimeout {
+                        pingResults.append("Request timeout for icmp_seq \(result.sequence)")
+                    } else {
+                        let ip = result.ipAddress ?? result.host
+                        pingResults.append("\(result.size) bytes from \(ip): icmp_seq=\(result.sequence) ttl=\(result.ttl) time=\(result.timeText)")
                     }
                 }
-                await MainActor.run {
-                    pingResults.append("--- Ping completed ---")
-                    isPinging = false
-                }
-            } catch {
-                await MainActor.run {
-                    pingResults.append("Error: \(error.localizedDescription)")
-                    isPinging = false
-                }
+            }
+            await MainActor.run {
+                pingResults.append("--- Ping completed ---")
+                isPinging = false
             }
         }
     }

@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import NetMonitorCore
 
 /// DNS record types
 enum DNSRecordType: String, CaseIterable {

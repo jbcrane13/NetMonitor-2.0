@@ -1,3 +1,4 @@
+import NetMonitorCore
 import Foundation
 
 // MARK: - Network Monitor Protocol

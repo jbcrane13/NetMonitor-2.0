@@ -2,6 +2,7 @@ import SwiftUI
 import NetMonitorCore
 
 /// Observable state for Wake on LAN actions with alert support.
+@MainActor
 @Observable
 final class WakeOnLanAction {
     private(set) var alertMessage: String?
@@ -9,7 +10,6 @@ final class WakeOnLanAction {
 
     private let service = WakeOnLANService()
 
-    @MainActor
     func wake(device: LocalDevice) async {
         guard !device.macAddress.isEmpty else {
             alertMessage = "Cannot wake \(device.displayName): No MAC address"
@@ -26,7 +26,6 @@ final class WakeOnLanAction {
         showAlert = true
     }
 
-    @MainActor
     func wake(macAddress: String, displayName: String) async {
         let success = await service.wake(macAddress: macAddress, broadcastAddress: "255.255.255.255", port: 9)
         if success {

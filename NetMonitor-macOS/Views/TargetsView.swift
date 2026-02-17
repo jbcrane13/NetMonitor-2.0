@@ -1,4 +1,5 @@
 import SwiftUI
+import NetMonitorCore
 import SwiftData
 import os
 

@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import NetMonitorCore
 
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext

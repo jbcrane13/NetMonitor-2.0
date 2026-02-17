@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import NetMonitorCore
 
 struct BonjourBrowserToolView: View {
     @Environment(\.appAccentColor) private var accentColor
@@ -120,7 +121,7 @@ struct BonjourBrowserToolView: View {
                         .font(.body)
                         .foregroundStyle(.primary)
 
-                    if let hostname = service.hostname {
+                    if let hostname = service.hostName {
                         Text(hostname)
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -184,9 +185,9 @@ struct BonjourBrowserToolView: View {
                     Label("Connection", systemImage: "network")
                         .font(.headline)
 
-                    detailRow(label: "Hostname", value: service.hostname ?? "Unknown")
+                    detailRow(label: "Hostname", value: service.hostName ?? "Unknown")
 
-                    if let ip = service.ipAddress {
+                    if let ip = service.addresses.first {
                         detailRow(label: "IP Address", value: ip)
                     }
 
@@ -199,14 +200,14 @@ struct BonjourBrowserToolView: View {
                 }
 
                 // TXT Records
-                if !service.txtRecord.isEmpty {
+                if !service.txtRecords.isEmpty {
                     Divider()
 
                     VStack(alignment: .leading, spacing: 8) {
                         Label("TXT Records", systemImage: "doc.text")
                             .font(.headline)
 
-                        ForEach(service.txtRecord.sorted(by: { $0.key < $1.key }), id: \.key) { key, value in
+                        ForEach(service.txtRecords.sorted(by: { $0.key < $1.key }), id: \.key) { key, value in
                             detailRow(label: key, value: value)
                         }
                     }
@@ -269,19 +270,23 @@ struct BonjourBrowserToolView: View {
         selectedService = nil
         errorMessage = nil
 
-        browseTask = Task {
-            await discoveryService.startDiscovery()
+        browseTask = Task { @MainActor in
+            let stream = discoveryService.discoveryStream(serviceType: nil)
+            services = []
 
-            // Wait for discovery to populate services
-            try? await Task.sleep(for: .seconds(5))
-
-            let discovered = await discoveryService.discoveredServices
-            await discoveryService.stopDiscovery()
-
-            await MainActor.run {
-                services = discovered
-                isScanning = false
+            // Collect discoveries for up to 10 seconds
+            let collectTask = Task { @MainActor in
+                for await service in stream {
+                    guard !Task.isCancelled else { break }
+                    if !services.contains(where: { $0.id == service.id }) {
+                        services.append(service)
+                    }
+                }
             }
+            try? await Task.sleep(for: .seconds(10))
+            collectTask.cancel()
+            await discoveryService.stopDiscovery()
+            isScanning = false
         }
     }
 

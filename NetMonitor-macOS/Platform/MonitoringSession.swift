@@ -94,10 +94,10 @@ final class MonitoringSession {
             startMonitoringTarget(target)
         }
 
-        pruneTimer = Task { [weak self] in
+        pruneTimer = Task<Void, Never> { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(3600))
-                await self?.pruneOldMeasurements()
+                if let self { await self.pruneOldMeasurements() }
             }
         }
     }
@@ -143,8 +143,8 @@ final class MonitoringSession {
 
     private func startMonitoringTarget(_ target: NetworkTarget) {
         monitoringTasks[target.id]?.cancel()
-        let task = Task { [weak self] in
-            await self?.monitorTarget(target)
+        let task = Task<Void, Never> { [weak self] in
+            if let self { await self.monitorTarget(target) }
         }
         monitoringTasks[target.id] = task
     }

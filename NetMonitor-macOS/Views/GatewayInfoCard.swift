@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import NetMonitorCore
 
 struct GatewayInfoCard: View {
     @State private var gatewayIP: String?
@@ -17,7 +18,7 @@ struct GatewayInfoCard: View {
 
     @State private var shellRunner = ShellCommandRunner()
     @State private var macVendorService = MACVendorLookupService()
-    @State private var pingService = ProcessPingService()
+    @State private var pingService = ShellPingService()
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
