@@ -16,6 +16,8 @@ public actor PingService: PingServiceProtocol {
     /// actor's isolation domain is safe — DispatchQueue itself is Sendable.
     private nonisolated let pingQueue = DispatchQueue(label: "com.netmonitor.ping", qos: .userInteractive)
 
+    public init() {}
+
     // MARK: - Public API
 
     public func ping(

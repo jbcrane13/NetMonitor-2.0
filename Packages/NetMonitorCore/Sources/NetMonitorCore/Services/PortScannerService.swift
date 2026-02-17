@@ -6,7 +6,9 @@ public actor PortScannerService: PortScannerServiceProtocol {
     private var isRunning = false
     private var activeRunID: UUID?
     private let maxConcurrent = 20
-    
+
+    public init() {}
+
     public func scan(
         host: String,
         ports: [Int],

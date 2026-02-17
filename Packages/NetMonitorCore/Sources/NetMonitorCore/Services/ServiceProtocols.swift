@@ -24,12 +24,14 @@ public struct SpeedTestData: Sendable {
     public let uploadSpeed: Double     // Mbps
     public let latency: Double         // ms
     public let jitter: Double?         // ms
+    public let serverName: String?     // optional test server name
 
-    public init(downloadSpeed: Double, uploadSpeed: Double, latency: Double, jitter: Double? = nil) {
+    public init(downloadSpeed: Double, uploadSpeed: Double, latency: Double, jitter: Double? = nil, serverName: String? = nil) {
         self.downloadSpeed = downloadSpeed
         self.uploadSpeed = uploadSpeed
         self.latency = latency
         self.jitter = jitter
+        self.serverName = serverName
     }
 }
 
@@ -200,5 +202,26 @@ public enum MacConnectionState: Sendable, Equatable {
 public protocol MacConnectionServiceProtocol: AnyObject {
     var connectionState: MacConnectionState { get }
     var lastDeviceList: DeviceListPayload? { get }
+    /// The name of the currently connected Mac (nil when not connected).
+    var connectedMacName: String? { get }
+    /// Whether the service is currently browsing for Macs.
+    var isBrowsing: Bool { get }
+    /// Macs discovered on the local network (visible for UI pairing).
+    var discoveredMacs: [DiscoveredMac] { get }
     func send(command: CommandPayload) async
+}
+
+/// Minimal representation of a discovered Mac peer on the LAN.
+public struct DiscoveredMac: Identifiable, Sendable, Equatable {
+    public let id: String
+    public let name: String
+
+    public init(id: String, name: String) {
+        self.id = id
+        self.name = name
+    }
+
+    public static func == (lhs: DiscoveredMac, rhs: DiscoveredMac) -> Bool {
+        lhs.id == rhs.id && lhs.name == rhs.name
+    }
 }

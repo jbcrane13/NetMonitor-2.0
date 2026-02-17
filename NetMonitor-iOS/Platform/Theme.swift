@@ -1,0 +1,165 @@
+import SwiftUI
+import NetMonitorCore
+
+// MARK: - App Theme
+/// Centralized theme configuration for NetMonitor iOS
+/// Implements iOS 26 Liquid Glass design aesthetic
+enum Theme {
+    
+    // MARK: - Colors
+    enum Colors {
+        // Background gradient colors
+        static let backgroundGradientStart = Color(hex: "0F172A") // slate-900
+        static let backgroundGradientEnd = Color(hex: "1E3A5F")   // blue-900
+
+        // Primary accent — reads from ThemeManager for reactive updates
+        @MainActor static var accent: Color { ThemeManager.shared.accent }
+        @MainActor static var accentLight: Color { ThemeManager.shared.accentLight }
+        
+        // Semantic colors
+        static let success = Color(hex: "10B981")     // emerald-500
+        static let warning = Color(hex: "F59E0B")     // amber-500
+        static let error = Color(hex: "EF4444")       // red-500
+        static let info = Color(hex: "3B82F6")        // blue-500
+        
+        // Text colors
+        static let textPrimary = Color.white
+        static let textSecondary = Color.white.opacity(0.6)
+        static let textTertiary = Color.white.opacity(0.4)
+        
+        // Glass card colors - subtle tint for true glass effect
+        @MainActor static var glassBackground: Color { accentLight.opacity(0.05) }
+        static let glassBorder = Color.white.opacity(0.15)
+        static let glassHighlight = Color.white.opacity(0.1)
+        
+        // Status colors
+        static let online = success
+        static let offline = error
+        static let idle = Color.gray
+
+        // MARK: - Latency Color Helper
+        /// Returns appropriate color based on latency value
+        /// - Parameter ms: Latency in milliseconds
+        /// - Returns: Green (<50ms), Warning (50-150ms), Error (>150ms)
+        static func latencyColor(ms: Double) -> Color {
+            switch ms {
+            case ..<50: return success
+            case 50..<150: return warning
+            default: return error
+            }
+        }
+    }
+
+    // MARK: - Gradients
+    enum Gradients {
+        static let background = LinearGradient(
+            colors: [Colors.backgroundGradientStart, Colors.backgroundGradientEnd],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+        
+        @MainActor static var accentGlow: LinearGradient {
+            LinearGradient(
+                colors: [Colors.accent.opacity(0.5), Colors.accent.opacity(0)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        }
+        
+        static let cardShine = LinearGradient(
+            colors: [Colors.glassHighlight, Color.clear],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+    }
+    
+    // MARK: - Layout
+    enum Layout {
+        static let cardCornerRadius: CGFloat = 20
+        static let buttonCornerRadius: CGFloat = 12
+        static let smallCornerRadius: CGFloat = 8
+
+        static let cardPadding: CGFloat = 16
+        static let screenPadding: CGFloat = 16
+        static let itemSpacing: CGFloat = 12
+        static let sectionSpacing: CGFloat = 20
+
+        static let iconSize: CGFloat = 24
+        static let largeIconSize: CGFloat = 32
+        static let smallIconSize: CGFloat = 16
+
+        // Component-specific constants
+        static let topologyHeight: CGFloat = 300
+        static let maxTopologyDevices: Int = 8
+        static let signalBarWidth: CGFloat = 4
+        static let heroFontSize: CGFloat = 36
+        static let resultColumnSmall: CGFloat = 30
+        static let resultColumnMedium: CGFloat = 50
+        static let resultColumnLarge: CGFloat = 60
+    }
+
+    // MARK: - Thresholds
+    enum Thresholds {
+        static let latencyGood: Double = 50
+        static let latencyWarning: Double = 150
+    }
+    
+    // MARK: - Shadows
+    enum Shadows {
+        static let card = Color.black.opacity(0.2)
+        static let cardRadius: CGFloat = 15
+        static let cardY: CGFloat = 5
+        
+        @MainActor static var glow: Color { Colors.accent.opacity(0.3) }
+        static let glowRadius: CGFloat = 20
+    }
+    
+    // MARK: - Animation
+    enum Animation {
+        static let standard = SwiftUI.Animation.easeInOut(duration: 0.3)
+        static let quick = SwiftUI.Animation.easeInOut(duration: 0.15)
+        static let spring = SwiftUI.Animation.spring(response: 0.4, dampingFraction: 0.7)
+        static let pulse = SwiftUI.Animation.easeInOut(duration: 1.5).repeatForever(autoreverses: true)
+    }
+}
+
+// MARK: - Color Hex Extension
+extension Color {
+    init(hex: String) {
+        let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+        var int: UInt64 = 0
+        Scanner(string: hex).scanHexInt64(&int)
+        let a, r, g, b: UInt64
+        switch hex.count {
+        case 3: // RGB (12-bit)
+            (a, r, g, b) = (255, (int >> 8) * 17, (int >> 4 & 0xF) * 17, (int & 0xF) * 17)
+        case 6: // RGB (24-bit)
+            (a, r, g, b) = (255, int >> 16, int >> 8 & 0xFF, int & 0xFF)
+        case 8: // ARGB (32-bit)
+            (a, r, g, b) = (int >> 24, int >> 16 & 0xFF, int >> 8 & 0xFF, int & 0xFF)
+        default:
+            (a, r, g, b) = (255, 0, 0, 0)
+        }
+        self.init(
+            .sRGB,
+            red: Double(r) / 255,
+            green: Double(g) / 255,
+            blue: Double(b) / 255,
+            opacity: Double(a) / 255
+        )
+    }
+}
+
+// MARK: - Themed Background Modifier
+struct ThemedBackground: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .background(Theme.Gradients.background.ignoresSafeArea())
+    }
+}
+
+extension View {
+    func themedBackground() -> some View {
+        modifier(ThemedBackground())
+    }
+}
