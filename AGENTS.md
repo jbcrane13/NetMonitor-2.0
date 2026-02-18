@@ -38,3 +38,50 @@ bd sync               # Sync with git
 - NEVER say "ready to push when you are" - YOU must push
 - If push fails, resolve and retry until it succeeds
 
+<!-- MANUAL: Project documentation below -->
+
+---
+
+## Project Overview
+
+NetMonitor-2.0 is a monorepo containing macOS and iOS network monitoring apps sharing a core Swift package.
+
+**Build tool:** XcodeGen — run `xcodegen generate` after modifying `project.yml`.
+**Swift:** 6.0 with strict concurrency (`SWIFT_STRICT_CONCURRENCY: complete`).
+**Targets:** macOS 15.0, iOS 18.0.
+
+## Dependency Chain
+
+```
+NetMonitor-macOS ─┐
+                  ├─→ NetMonitorCore ─→ NetworkScanKit
+NetMonitor-iOS  ──┘
+```
+
+## Key Directories
+
+| Path | Purpose |
+|------|---------|
+| `Packages/NetMonitorCore/` | Shared models, protocols, and services |
+| `Packages/NetworkScanKit/` | Multi-phase network device discovery engine |
+| `NetMonitor-macOS/` | macOS app (SwiftData, menu bar, shell services) |
+| `NetMonitor-iOS/` | iOS app (companion, widget, liquid glass UI) |
+| `docs/` | Architecture docs, ADRs, companion protocol spec |
+
+## Build Commands
+
+```bash
+xcodegen generate                                    # Regenerate .xcodeproj from project.yml
+xcodebuild -scheme NetMonitor-macOS -configuration Debug build
+xcodebuild -scheme NetMonitor-iOS -configuration Debug build
+xcodebuild test -scheme NetMonitor-macOS
+xcodebuild test -scheme NetMonitor-iOS
+```
+
+## Core Patterns
+
+- **Service protocols** defined in `NetMonitorCore/Services/ServiceProtocols.swift`; implemented per-platform
+- **AsyncStream<T>** for streaming results (ping, port scan, traceroute)
+- **@MainActor @Observable** ViewModels (iOS) — views contain no business logic
+- All service protocols are `Sendable`; strict Swift 6 concurrency enforced
+
