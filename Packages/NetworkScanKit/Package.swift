@@ -9,5 +9,10 @@ let package = Package(
     ],
     targets: [
         .target(name: "NetworkScanKit"),
+        .testTarget(
+            name: "NetworkScanKitTests",
+            dependencies: ["NetworkScanKit"],
+            path: "Tests/NetworkScanKitTests"
+        ),
     ]
 )

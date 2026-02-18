@@ -95,6 +95,7 @@ targets:
         DEVELOPMENT_TEAM: 32XZRDTGK3
         SWIFT_VERSION: 6.0
         SWIFT_STRICT_CONCURRENCY: complete
+        GENERATE_INFOPLIST_FILE: YES
     dependencies:
       - target: NetMonitor-macOS
 
@@ -109,5 +110,8 @@ targets:
         DEVELOPMENT_TEAM: 32XZRDTGK3
         SWIFT_VERSION: 6.0
         SWIFT_STRICT_CONCURRENCY: complete
+        GENERATE_INFOPLIST_FILE: YES
     dependencies:
       - target: NetMonitor-iOS
+      - package: NetMonitorCore
+      - package: NetworkScanKit

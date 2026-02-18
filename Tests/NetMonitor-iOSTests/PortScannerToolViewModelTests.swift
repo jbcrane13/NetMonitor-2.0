@@ -1,0 +1,136 @@
+import Testing
+@testable import NetMonitor_iOS
+import NetMonitorCore
+
+@Suite("PortScannerToolViewModel")
+@MainActor
+struct PortScannerToolViewModelTests {
+
+    @Test func initialState() {
+        let vm = PortScannerToolViewModel(portScannerService: MockPortScannerService())
+        #expect(vm.host == "")
+        #expect(vm.portPreset == .common)
+        #expect(vm.isRunning == false)
+        #expect(vm.results.isEmpty)
+        #expect(vm.errorMessage == nil)
+        #expect(vm.scannedCount == 0)
+    }
+
+    @Test func initialHostIsSet() {
+        let vm = PortScannerToolViewModel(portScannerService: MockPortScannerService(), initialHost: "10.0.0.1")
+        #expect(vm.host == "10.0.0.1")
+    }
+
+    @Test func effectivePortsForCommonPreset() {
+        let vm = PortScannerToolViewModel(portScannerService: MockPortScannerService())
+        vm.portPreset = .common
+        #expect(!vm.effectivePorts.isEmpty)
+        #expect(vm.effectivePorts.contains(80))
+        #expect(vm.effectivePorts.contains(443))
+    }
+
+    @Test func effectivePortsForCustomPresetUsesCustomRange() {
+        let vm = PortScannerToolViewModel(portScannerService: MockPortScannerService())
+        vm.portPreset = .custom
+        vm.customRange = PortRange(start: 8000, end: 8005)
+        #expect(vm.effectivePorts == [8000, 8001, 8002, 8003, 8004, 8005])
+    }
+
+    @Test func totalPortsMatchesEffectivePorts() {
+        let vm = PortScannerToolViewModel(portScannerService: MockPortScannerService())
+        vm.portPreset = .custom
+        vm.customRange = PortRange(start: 100, end: 109)
+        #expect(vm.totalPorts == 10)
+        #expect(vm.totalPorts == vm.effectivePorts.count)
+    }
+
+    @Test func progressIsZeroInitially() {
+        let vm = PortScannerToolViewModel(portScannerService: MockPortScannerService())
+        #expect(vm.progress == 0.0)
+    }
+
+    @Test func progressCalculation() {
+        let vm = PortScannerToolViewModel(portScannerService: MockPortScannerService())
+        vm.portPreset = .custom
+        vm.customRange = PortRange(start: 1, end: 10) // 10 ports
+        vm.scannedCount = 5
+        #expect(vm.progress == 0.5)
+    }
+
+    @Test func progressIsZeroWhenNoPortsDefined() {
+        let vm = PortScannerToolViewModel(portScannerService: MockPortScannerService())
+        vm.portPreset = .custom
+        vm.customRange = PortRange(start: 100, end: 50) // invalid range → 0 ports
+        #expect(vm.totalPorts == 0)
+        #expect(vm.progress == 0.0)
+    }
+
+    @Test func openPortsFiltersOnlyOpenState() {
+        let vm = PortScannerToolViewModel(portScannerService: MockPortScannerService())
+        vm.results = [
+            PortScanResult(port: 80, state: .open),
+            PortScanResult(port: 8080, state: .closed),
+            PortScanResult(port: 443, state: .open),
+            PortScanResult(port: 9090, state: .filtered)
+        ]
+        #expect(vm.openPorts.count == 2)
+        #expect(vm.openPorts.map(\.port).contains(80))
+        #expect(vm.openPorts.map(\.port).contains(443))
+    }
+
+    @Test func canStartScanFalseWhenHostEmpty() {
+        let vm = PortScannerToolViewModel(portScannerService: MockPortScannerService())
+        vm.host = ""
+        #expect(vm.canStartScan == false)
+    }
+
+    @Test func canStartScanTrueWithValidHostAndPorts() {
+        let vm = PortScannerToolViewModel(portScannerService: MockPortScannerService())
+        vm.host = "192.168.1.1"
+        vm.portPreset = .common
+        #expect(vm.canStartScan == true)
+    }
+
+    @Test func canStartScanFalseWhileRunning() {
+        let vm = PortScannerToolViewModel(portScannerService: MockPortScannerService())
+        vm.host = "192.168.1.1"
+        vm.isRunning = true
+        #expect(vm.canStartScan == false)
+    }
+
+    @Test func canStartScanFalseWithNoPortsInCustomRange() {
+        let vm = PortScannerToolViewModel(portScannerService: MockPortScannerService())
+        vm.host = "192.168.1.1"
+        vm.portPreset = .custom
+        vm.customRange = PortRange(start: 500, end: 10) // invalid → 0 ports
+        #expect(vm.canStartScan == false)
+    }
+
+    @Test func clearResultsResetsState() {
+        let vm = PortScannerToolViewModel(portScannerService: MockPortScannerService())
+        vm.results = [PortScanResult(port: 80, state: .open)]
+        vm.scannedCount = 42
+        vm.errorMessage = "failed"
+        vm.clearResults()
+        #expect(vm.results.isEmpty)
+        #expect(vm.scannedCount == 0)
+        #expect(vm.errorMessage == nil)
+    }
+
+    @Test func startScanSetsIsRunningImmediately() {
+        let vm = PortScannerToolViewModel(portScannerService: MockPortScannerService())
+        vm.host = "192.168.1.1"
+        vm.portPreset = .common
+        vm.startScan()
+        #expect(vm.isRunning == true)
+    }
+
+    @Test func stopScanSetsIsRunningFalse() {
+        let vm = PortScannerToolViewModel(portScannerService: MockPortScannerService())
+        vm.host = "192.168.1.1"
+        vm.portPreset = .common
+        vm.startScan()
+        vm.stopScan()
+        #expect(vm.isRunning == false)
+    }
+}
