@@ -73,6 +73,7 @@ struct AcknowledgementItem: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Theme.Colors.glassBackground)
         .clipShape(RoundedRectangle(cornerRadius: Theme.Layout.cardCornerRadius))
+        .accessibilityIdentifier("acknowledgements_item_\(name.lowercased().replacingOccurrences(of: " ", with: "_"))")
     }
 }
 

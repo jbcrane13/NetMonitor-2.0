@@ -23,6 +23,7 @@ struct SidebarView: View {
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
                         .background(badgeColor(for: section), in: Capsule())
+                        .accessibilityIdentifier("sidebar_badge_\(section.rawValue.lowercased())")
                 }
             }
             .tag(section)

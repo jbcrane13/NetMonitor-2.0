@@ -60,6 +60,7 @@ struct QuickStatsBar: View {
         .padding(compactMode ? 8 : 16)
         .background(.ultraThinMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 12))
+        .accessibilityIdentifier("dashboard_quickStats_bar")
     }
 
     // MARK: - Computed Properties
@@ -127,6 +128,7 @@ private struct StatItem: View {
                     .font(.headline)
             }
         }
+        .accessibilityIdentifier("dashboard_stat_\(label.lowercased().replacingOccurrences(of: " ", with: "_"))")
     }
 }
 

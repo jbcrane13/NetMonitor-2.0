@@ -51,20 +51,25 @@ struct DashboardView: View {
                     .background(.orange.opacity(0.1))
                     .clipShape(RoundedRectangle(cornerRadius: 8))
                     .padding(.horizontal)
+                    .accessibilityIdentifier("dashboard_label_errorMessage")
                 }
 
                 // Network Info Cards
                 HStack(spacing: 16) {
                     ConnectionInfoCard()
+                        .accessibilityIdentifier("dashboard_card_connection")
                     GatewayInfoCard()
+                        .accessibilityIdentifier("dashboard_card_gateway")
                 }
                 .padding(.horizontal)
 
                 QuickStatsBar()
                     .padding(.horizontal)
+                    .accessibilityIdentifier("dashboard_card_quickStats")
 
                 ISPInfoCard()
                     .padding(.horizontal)
+                    .accessibilityIdentifier("dashboard_card_isp")
 
                 // Monitoring Status
                 if targets.isEmpty {
@@ -73,6 +78,7 @@ struct DashboardView: View {
                         systemImage: "target",
                         description: Text("Add network targets in the Targets section to start monitoring")
                     )
+                    .accessibilityIdentifier("dashboard_label_noTargets")
                 } else {
                     // Target Status Cards
                     LazyVGrid(columns: [
@@ -84,6 +90,7 @@ struct DashboardView: View {
                                 target: target,
                                 measurement: session?.latestMeasurement(for: target.id)
                             )
+                            .accessibilityIdentifier("dashboard_card_target_\(target.id)")
                         }
                     }
                     .padding(.horizontal)

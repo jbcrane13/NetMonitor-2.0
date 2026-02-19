@@ -151,6 +151,7 @@ struct GatewayInfoCard: View {
         .padding()
         .background(.ultraThinMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 12))
+        .accessibilityIdentifier("gateway_card")
         .task {
             await refreshGatewayInfo()
         }

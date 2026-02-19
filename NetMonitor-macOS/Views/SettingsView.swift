@@ -46,6 +46,7 @@ struct SettingsView: View {
             }
             .listStyle(.sidebar)
             .frame(width: 200)
+            .accessibilityIdentifier("settings_sidebar")
 
             Divider()
 

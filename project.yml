@@ -115,3 +115,33 @@ targets:
       - target: NetMonitor-iOS
       - package: NetMonitorCore
       - package: NetworkScanKit
+
+  NetMonitor-macOSUITests:
+    type: bundle.ui-testing
+    platform: macOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: Tests/NetMonitor-macOSUITests
+    settings:
+      base:
+        DEVELOPMENT_TEAM: 32XZRDTGK3
+        SWIFT_VERSION: 6.0
+        SWIFT_STRICT_CONCURRENCY: complete
+        GENERATE_INFOPLIST_FILE: YES
+    dependencies:
+      - target: NetMonitor-macOS
+
+  NetMonitor-iOSUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    deploymentTarget: "18.0"
+    sources:
+      - path: Tests/NetMonitor-iOSUITests
+    settings:
+      base:
+        DEVELOPMENT_TEAM: 32XZRDTGK3
+        SWIFT_VERSION: 6.0
+        SWIFT_STRICT_CONCURRENCY: complete
+        GENERATE_INFOPLIST_FILE: YES
+    dependencies:
+      - target: NetMonitor-iOS

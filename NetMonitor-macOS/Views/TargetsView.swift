@@ -45,6 +45,7 @@ struct TargetsView: View {
                     systemImage: "target",
                     description: Text("Add network targets to monitor")
                 )
+                .accessibilityIdentifier("targets_label_empty")
             } else {
                 List(selection: $selectedTarget) {
                     ForEach(sortedTargets) { target in
@@ -64,6 +65,7 @@ struct TargetsView: View {
                                 }
                                 .tint(target.isEnabled ? .orange : .green)
                             }
+                            .accessibilityIdentifier("targets_row_\(target.id)")
                             .contextMenu {
                                 Button(role: .destructive) {
                                     targetToDelete = target
@@ -71,6 +73,7 @@ struct TargetsView: View {
                                 } label: {
                                     Label("Delete Target", systemImage: "trash")
                                 }
+                                .accessibilityIdentifier("targets_menu_delete")
                             }
                     }
                     .onDelete(perform: deleteTargets)
@@ -203,6 +206,7 @@ struct TargetRow: View {
 
                 Toggle("Enabled", isOn: $target.isEnabled)
                     .labelsHidden()
+                    .accessibilityIdentifier("targets_toggle_enabled_\(target.id)")
             }
         }
         .padding(.vertical, 4)

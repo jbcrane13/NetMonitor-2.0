@@ -137,6 +137,7 @@ struct SpeedTestToolView: View {
                 }
                 .pickerStyle(.segmented)
                 .frame(width: 180)
+                .accessibilityIdentifier("speedTest_picker_duration")
             }
             .padding(.horizontal, 4)
 
@@ -213,6 +214,7 @@ struct SpeedTestToolView: View {
                         .foregroundStyle(Theme.Colors.error)
                 }
             }
+            .accessibilityIdentifier("speedTest_error")
         }
     }
 
@@ -268,6 +270,7 @@ private struct SpeedTestHistoryRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
+
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 12) {
                     Label(result.downloadSpeedText, systemImage: "arrow.down")
@@ -296,6 +299,7 @@ private struct SpeedTestHistoryRow: View {
                 .font(.caption2)
                 .foregroundStyle(Theme.Colors.textTertiary)
         }
+        .accessibilityIdentifier("speedTest_historyRow_\(result.id)")
     }
 }
 

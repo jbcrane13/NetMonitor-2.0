@@ -80,6 +80,7 @@ struct TargetStatisticsView: View {
         .padding()
         .background(.ultraThinMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 12))
+        .accessibilityIdentifier("target_statistics_card")
     }
 
     // MARK: - Statistics (extracted to TargetMeasurement model for testability)
@@ -115,6 +116,7 @@ struct StatisticItem: View {
                     .foregroundStyle(.secondary)
             }
         }
+        .accessibilityIdentifier("target_statistics_item_\(title.lowercased().replacingOccurrences(of: " ", with: "_"))")
     }
 }
 

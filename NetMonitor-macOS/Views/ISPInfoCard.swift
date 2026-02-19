@@ -129,6 +129,7 @@ struct ISPInfoCard: View {
         .padding()
         .background(.ultraThinMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 12))
+        .accessibilityIdentifier("isp_card")
         .task {
             await loadISPInfo()
         }

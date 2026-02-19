@@ -131,6 +131,7 @@ struct DeviceDetailView: View {
         .padding()
         .background(.ultraThinMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 12))
+        .accessibilityIdentifier("device_detail_card_header")
     }
 
     // MARK: - Network Info Card
@@ -155,6 +156,7 @@ struct DeviceDetailView: View {
         .padding()
         .background(.ultraThinMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 12))
+        .accessibilityIdentifier("device_detail_card_networkInfo")
     }
 
     // MARK: - Manufacturer Section
@@ -183,6 +185,7 @@ struct DeviceDetailView: View {
         .padding()
         .background(.ultraThinMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 12))
+        .accessibilityIdentifier("device_detail_card_hardware")
     }
 
     // MARK: - Timeline Section
@@ -211,6 +214,7 @@ struct DeviceDetailView: View {
         .padding()
         .background(.ultraThinMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 12))
+        .accessibilityIdentifier("device_detail_card_timeline")
     }
 
     // MARK: - Services Section
@@ -240,6 +244,7 @@ struct DeviceDetailView: View {
         .padding()
         .background(.ultraThinMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 12))
+        .accessibilityIdentifier("device_detail_card_services")
     }
 
     // MARK: - Notes Card
@@ -274,6 +279,7 @@ struct DeviceDetailView: View {
         .padding()
         .background(.ultraThinMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 12))
+        .accessibilityIdentifier("device_detail_card_notes")
     }
 
     // MARK: - Actions Section
@@ -324,6 +330,7 @@ struct DeviceDetailView: View {
         .padding()
         .background(.ultraThinMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 12))
+        .accessibilityIdentifier("device_detail_card_actions")
     }
 
     // MARK: - Helper Views

@@ -97,6 +97,7 @@ struct DevicesView: View {
                     description: Text("Choose a device from the list to view details")
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .accessibilityIdentifier("devices_label_selectDevice")
             }
         }
         .navigationTitle("Devices")
@@ -130,6 +131,7 @@ struct DevicesView: View {
                     systemImage: "network",
                     description: Text("Click Scan to discover devices on your network")
                 )
+                .accessibilityIdentifier("devices_label_empty")
             } else {
                 List(filteredDevices, selection: $selectedDevice) { device in
                     DeviceRowView(device: device)
@@ -139,6 +141,7 @@ struct DevicesView: View {
                         }
                 }
                 .listStyle(.inset)
+                .accessibilityIdentifier("devices_list")
             }
         }
         .overlay {
@@ -418,10 +421,12 @@ struct DevicePingSheet: View {
                     }
                 }
                 .buttonStyle(.borderedProminent)
+                .accessibilityIdentifier("devices_ping_button_run")
             }
             .padding()
         }
         .frame(width: 600, height: 500)
+        .accessibilityIdentifier("devices_sheet_ping")
         .onAppear {
             if !isPinging && pingResults.isEmpty {
                 runPing()
@@ -586,10 +591,12 @@ struct DevicePortScanSheet: View {
                     }
                 }
                 .buttonStyle(.borderedProminent)
+                .accessibilityIdentifier("devices_portScan_button_scan")
             }
             .padding()
         }
         .frame(width: 500, height: 600)
+        .accessibilityIdentifier("devices_sheet_portScan")
         .onAppear {
             if !isScanning && portScanResults.isEmpty {
                 runPortScan()

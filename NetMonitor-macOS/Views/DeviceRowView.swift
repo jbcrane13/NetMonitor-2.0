@@ -49,5 +49,6 @@ struct DeviceRowView: View {
             }
         }
         .padding(.vertical, 4)
+        .accessibilityIdentifier("devices_row_\(device.ipAddress)")
     }
 }

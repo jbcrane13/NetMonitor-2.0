@@ -111,6 +111,7 @@ struct ConnectionInfoCard: View {
         .padding()
         .background(.ultraThinMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 12))
+        .accessibilityIdentifier("connection_card")
         .task {
             await loadConnectionInfo()
         }

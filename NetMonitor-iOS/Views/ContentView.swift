@@ -36,18 +36,21 @@ struct ContentView: View {
                     Label(Tab.dashboard.title, systemImage: Tab.dashboard.icon)
                 }
                 .tag(Tab.dashboard)
-            
+                .accessibilityIdentifier("contentView_tab_dashboard")
+
             NetworkMapView()
                 .tabItem {
                     Label(Tab.map.title, systemImage: Tab.map.icon)
                 }
                 .tag(Tab.map)
-            
+                .accessibilityIdentifier("contentView_tab_map")
+
             ToolsView()
                 .tabItem {
                     Label(Tab.tools.title, systemImage: Tab.tools.icon)
                 }
                 .tag(Tab.tools)
+                .accessibilityIdentifier("contentView_tab_tools")
         }
         .tint(themeManager.accent)
         .accessibilityIdentifier("screen_main")

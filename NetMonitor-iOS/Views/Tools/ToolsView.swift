@@ -280,6 +280,7 @@ struct SetTargetSheet: View {
                         dismiss()
                     }
                     .foregroundStyle(Theme.Colors.textSecondary)
+                    .accessibilityIdentifier("setTarget_button_cancel")
                 }
             }
             .onAppear {

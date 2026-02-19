@@ -34,6 +34,7 @@ struct MenuBarPopoverView: View {
             footer
         }
         .frame(width: 320)
+        .accessibilityIdentifier("menubar_popover")
     }
 
     // MARK: - Header
@@ -70,6 +71,7 @@ struct MenuBarPopoverView: View {
             }
             .buttonStyle(.borderless)
             .help(session.isMonitoring ? "Stop Monitoring" : "Start Monitoring")
+            .accessibilityIdentifier("menubar_button_monitoringToggle")
         }
         .padding()
     }
@@ -83,18 +85,21 @@ struct MenuBarPopoverView: View {
                 label: "Online",
                 color: .green
             )
+            .accessibilityIdentifier("menubar_stat_online")
 
             statItem(
                 value: "\(offlineTargetCount)",
                 label: "Offline",
                 color: .red
             )
+            .accessibilityIdentifier("menubar_stat_offline")
 
             statItem(
                 value: averageLatencyString,
                 label: "Avg Latency",
                 color: .blue
             )
+            .accessibilityIdentifier("menubar_stat_latency")
         }
         .padding()
     }
@@ -192,6 +197,7 @@ struct MenuBarPopoverView: View {
                 onClose()
             }
             .buttonStyle(.borderless)
+            .accessibilityIdentifier("menubar_button_openApp")
 
             Spacer()
 
