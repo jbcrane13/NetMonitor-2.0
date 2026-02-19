@@ -1,4 +1,5 @@
 import SwiftUI
+import Charts
 import NetMonitorCore
 
 /// Ping tool view for testing host reachability
@@ -16,6 +17,7 @@ struct PingToolView: View {
             VStack(spacing: Theme.Layout.sectionSpacing) {
                 PingInputSection(viewModel: viewModel)
                 controlSection
+                latencyChartSection
                 resultsSection
                 statisticsSection
             }
@@ -54,6 +56,97 @@ struct PingToolView: View {
                     viewModel.clearResults()
                 }
             }
+        }
+    }
+
+    // MARK: - Latency Chart
+
+    @ViewBuilder
+    private var latencyChartSection: some View {
+        if viewModel.successfulPings.count >= 2 {
+            VStack(alignment: .leading, spacing: Theme.Layout.itemSpacing) {
+                HStack {
+                    Text("Latency")
+                        .font(.headline)
+                        .foregroundStyle(Theme.Colors.textPrimary)
+                    Spacer()
+                }
+
+                HStack(spacing: 0) {
+                    chartStatItem(label: "Avg", value: viewModel.liveAvgLatency)
+                    Spacer()
+                    chartStatItem(label: "Min", value: viewModel.liveMinLatency, color: Theme.Colors.success)
+                    Spacer()
+                    chartStatItem(label: "Max", value: viewModel.liveMaxLatency, color: Theme.Colors.warning)
+                }
+
+                GlassCard {
+                    Chart(viewModel.successfulPings) { result in
+                        LineMark(
+                            x: .value("Ping", result.sequence),
+                            y: .value("ms", result.time)
+                        )
+                        .foregroundStyle(Color(hex: "007AFF"))
+                        .interpolationMethod(.catmullRom)
+                        .lineStyle(StrokeStyle(lineWidth: 2))
+
+                        AreaMark(
+                            x: .value("Ping", result.sequence),
+                            y: .value("ms", result.time)
+                        )
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [Color(hex: "007AFF").opacity(0.3), Color(hex: "007AFF").opacity(0.02)],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        )
+                        .interpolationMethod(.catmullRom)
+                    }
+                    .chartYScale(domain: 0...viewModel.chartYAxisMax)
+                    .chartYAxis {
+                        AxisMarks(position: .leading) { value in
+                            AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
+                                .foregroundStyle(Color.white.opacity(0.1))
+                            AxisValueLabel {
+                                if let v = value.as(Double.self) {
+                                    Text(String(format: "%.0f", v))
+                                        .font(.caption2)
+                                        .foregroundStyle(Color.white.opacity(0.5))
+                                }
+                            }
+                        }
+                    }
+                    .chartXAxis {
+                        AxisMarks { value in
+                            AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
+                                .foregroundStyle(Color.white.opacity(0.1))
+                            AxisValueLabel {
+                                if let v = value.as(Int.self) {
+                                    Text("\(v)")
+                                        .font(.caption2)
+                                        .foregroundStyle(Color.white.opacity(0.5))
+                                }
+                            }
+                        }
+                    }
+                    .frame(height: 180)
+                    .padding(.vertical, 8)
+                }
+            }
+            .accessibilityIdentifier("pingTool_section_latencyChart")
+        }
+    }
+
+    private func chartStatItem(label: String, value: Double, color: Color = Theme.Colors.textPrimary) -> some View {
+        VStack(spacing: 2) {
+            Text(String(format: "%.1f ms", value))
+                .font(.system(.subheadline, design: .rounded))
+                .fontWeight(.semibold)
+                .foregroundStyle(color)
+            Text(label)
+                .font(.caption2)
+                .foregroundStyle(Theme.Colors.textSecondary)
         }
     }
 

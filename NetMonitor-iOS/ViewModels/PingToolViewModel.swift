@@ -8,7 +8,7 @@ final class PingToolViewModel {
     // MARK: - Input Properties
 
     var host: String = ""
-    var pingCount: Int = UserDefaults.standard.object(forKey: AppSettings.Keys.defaultPingCount) as? Int ?? 4
+    var pingCount: Int = UserDefaults.standard.object(forKey: AppSettings.Keys.defaultPingCount) as? Int ?? 20
 
     // MARK: - State Properties
 
@@ -87,5 +87,35 @@ final class PingToolViewModel {
         results.removeAll()
         statistics = nil
         errorMessage = nil
+    }
+
+    // MARK: - Chart Data
+
+    var successfulPings: [PingResult] {
+        results.filter { !$0.isTimeout }
+    }
+
+    var liveAvgLatency: Double {
+        let times = successfulPings.map(\.time)
+        guard !times.isEmpty else { return 0 }
+        return times.reduce(0, +) / Double(times.count)
+    }
+
+    var liveMinLatency: Double {
+        successfulPings.map(\.time).min() ?? 0
+    }
+
+    var liveMaxLatency: Double {
+        successfulPings.map(\.time).max() ?? 0
+    }
+
+    /// Y-axis max using P95 to clip first-ping DNS spikes and other outliers.
+    var chartYAxisMax: Double {
+        let times = successfulPings.map(\.time).sorted()
+        guard times.count >= 2 else { return max((times.first ?? 10) * 1.2, 1) }
+        let p95Index = Int(Double(times.count - 1) * 0.95)
+        let p95 = times[p95Index]
+        let median = times[times.count / 2]
+        return max(p95, median * 1.5) * 1.15
     }
 }

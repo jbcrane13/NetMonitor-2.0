@@ -1,11 +1,13 @@
 import SwiftUI
+import Charts
 import NetMonitorCore
 
 struct PingToolView: View {
     @State private var host = ""
-    @State private var count = 5
+    @State private var count = 20
     @State private var isRunning = false
     @State private var outputLines: [String] = []
+    @State private var pingResults: [PingResult] = []
     @State private var statistics: PingStatistics?
     @State private var errorMessage: String?
     @State private var pingTask: Task<Void, Never>?
@@ -35,10 +37,11 @@ struct PingToolView: View {
                 .accessibilityIdentifier("ping_textfield_host")
 
             Picker("Count", selection: $count) {
-                Text("1").tag(1)
                 Text("5").tag(5)
                 Text("10").tag(10)
                 Text("20").tag(20)
+                Text("50").tag(50)
+                Text("100").tag(100)
             }
             .frame(width: 80)
             .disabled(isRunning)
@@ -54,38 +57,159 @@ struct PingToolView: View {
         .padding()
     }
 
+    // MARK: - Output Area
+
     private var outputArea: some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 2) {
-                    ForEach(Array(outputLines.enumerated()), id: \.offset) { index, line in
-                        Text(line)
-                            .font(.system(.body, design: .monospaced))
-                            .textSelection(.enabled)
-                            .id(index)
-                    }
-
-                    if let error = errorMessage {
-                        Text(error)
-                            .font(.system(.body, design: .monospaced))
-                            .foregroundStyle(.red)
-                    }
-
-                    if let stats = statistics {
-                        summaryView(stats)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding()
+        VStack(spacing: 0) {
+            if chartableResults.count >= 2 {
+                latencyChartView
+                Divider()
             }
-            .background(Color.black.opacity(0.2))
-            .onChange(of: outputLines.count) { _, _ in
-                if let lastIndex = outputLines.indices.last {
-                    proxy.scrollTo(lastIndex, anchor: .bottom)
+
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 2) {
+                        ForEach(Array(outputLines.enumerated()), id: \.offset) { index, line in
+                            Text(line)
+                                .font(.system(.body, design: .monospaced))
+                                .textSelection(.enabled)
+                                .id(index)
+                        }
+
+                        if let error = errorMessage {
+                            Text(error)
+                                .font(.system(.body, design: .monospaced))
+                                .foregroundStyle(.red)
+                        }
+
+                        if let stats = statistics {
+                            summaryView(stats)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding()
+                }
+                .background(Color.black.opacity(0.2))
+                .onChange(of: outputLines.count) { _, _ in
+                    if let lastIndex = outputLines.indices.last {
+                        proxy.scrollTo(lastIndex, anchor: .bottom)
+                    }
                 }
             }
         }
     }
+
+    // MARK: - Latency Chart
+
+    private var chartableResults: [PingResult] {
+        pingResults.filter { !$0.isTimeout }
+    }
+
+    private var liveAvg: Double {
+        let times = chartableResults.map(\.time)
+        guard !times.isEmpty else { return 0 }
+        return times.reduce(0, +) / Double(times.count)
+    }
+
+    private var liveMin: Double {
+        chartableResults.map(\.time).min() ?? 0
+    }
+
+    private var liveMax: Double {
+        chartableResults.map(\.time).max() ?? 0
+    }
+
+    /// Y-axis max using P95 to clip first-ping DNS spikes and other outliers.
+    private var chartYMax: Double {
+        let times = chartableResults.map(\.time).sorted()
+        guard times.count >= 2 else { return max((times.first ?? 10) * 1.2, 1) }
+        let p95Index = Int(Double(times.count - 1) * 0.95)
+        let p95 = times[p95Index]
+        let median = times[times.count / 2]
+        return max(p95, median * 1.5) * 1.15
+    }
+
+    private var latencyChartView: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Latency")
+                    .font(.headline)
+                Spacer()
+                HStack(spacing: 16) {
+                    chartStat("Avg", liveAvg, .primary)
+                    chartStat("Min", liveMin, .green)
+                    chartStat("Max", liveMax, .orange)
+                }
+            }
+
+            Chart(chartableResults) { result in
+                LineMark(
+                    x: .value("Ping", result.sequence),
+                    y: .value("ms", result.time)
+                )
+                .foregroundStyle(Color.blue)
+                .interpolationMethod(.catmullRom)
+                .lineStyle(StrokeStyle(lineWidth: 2))
+
+                AreaMark(
+                    x: .value("Ping", result.sequence),
+                    y: .value("ms", result.time)
+                )
+                .foregroundStyle(
+                    LinearGradient(
+                        colors: [Color.blue.opacity(0.3), Color.blue.opacity(0.02)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+                .interpolationMethod(.catmullRom)
+            }
+            .chartYScale(domain: 0...chartYMax)
+            .chartYAxis {
+                AxisMarks(position: .leading) { value in
+                    AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
+                        .foregroundStyle(Color.secondary.opacity(0.3))
+                    AxisValueLabel {
+                        if let v = value.as(Double.self) {
+                            Text(String(format: "%.0f", v))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            }
+            .chartXAxis {
+                AxisMarks { value in
+                    AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
+                        .foregroundStyle(Color.secondary.opacity(0.3))
+                    AxisValueLabel {
+                        if let v = value.as(Int.self) {
+                            Text("\(v)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            }
+            .frame(height: 150)
+        }
+        .padding()
+        .background(Color.black.opacity(0.1))
+    }
+
+    private func chartStat(_ label: String, _ value: Double, _ color: Color) -> some View {
+        HStack(spacing: 4) {
+            Text(label)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Text(String(format: "%.1f ms", value))
+                .font(.system(.caption, design: .monospaced))
+                .fontWeight(.medium)
+                .foregroundStyle(color)
+        }
+    }
+
+    // MARK: - Summary
 
     private func summaryView(_ stats: PingStatistics) -> some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -101,6 +225,8 @@ struct PingToolView: View {
             }
         }
     }
+
+    // MARK: - Footer
 
     private var footer: some View {
         HStack {
@@ -121,6 +247,7 @@ struct PingToolView: View {
             if !outputLines.isEmpty && !isRunning {
                 Button("Clear") {
                     outputLines.removeAll()
+                    pingResults.removeAll()
                     statistics = nil
                     errorMessage = nil
                 }
@@ -130,24 +257,28 @@ struct PingToolView: View {
         .padding()
     }
 
+    // MARK: - Actions
+
     private func runPing() {
         guard !host.isEmpty else { return }
         isRunning = true
         outputLines.removeAll()
+        pingResults.removeAll()
         statistics = nil
         errorMessage = nil
 
         outputLines.append("PING \(host) (\(count) packets)...")
 
         pingTask = Task {
-            var results: [PingResult] = []
+            var localResults: [PingResult] = []
 
             let stream = await pingService.ping(host: host, count: count, timeout: 5)
             for await result in stream {
                 guard !Task.isCancelled else { break }
-                results.append(result)
+                localResults.append(result)
 
                 await MainActor.run {
+                    pingResults.append(result)
                     if result.isTimeout {
                         outputLines.append("Request timeout for icmp_seq \(result.sequence)")
                     } else {
@@ -159,7 +290,7 @@ struct PingToolView: View {
                 }
             }
 
-            let stats = await pingService.calculateStatistics(results, requestedCount: count)
+            let stats = await pingService.calculateStatistics(localResults, requestedCount: count)
             await MainActor.run {
                 statistics = stats
                 isRunning = false
