@@ -15,6 +15,8 @@ struct SettingsView: View {
     @State private var showingExportSheet = false
     @State private var exportFileURL: URL?
     @State private var showingPairingSheet = false
+    @State private var highLatencyAlertEnabled =
+        (UserDefaults.standard.object(forKey: AppSettings.Keys.highLatencyAlertEnabled) as? Bool) ?? false
     @State var connectionService = MacConnectionService.shared
 
     var body: some View {
@@ -105,14 +107,14 @@ struct SettingsView: View {
 
             // MARK: - Notification Settings Section
             Section {
-                Toggle(isOn: $viewModel.highLatencyAlertEnabled) {
+                Toggle(isOn: $highLatencyAlertEnabled) {
                     Text("High Latency Alerts")
                         .foregroundStyle(Theme.Colors.textPrimary)
                 }
                 .tint(Theme.Colors.accent)
                 .accessibilityIdentifier("settings_toggle_highLatencyAlert")
 
-                if viewModel.highLatencyAlertEnabled {
+                if highLatencyAlertEnabled {
                     HStack {
                         Text("Threshold")
                             .foregroundStyle(Theme.Colors.textPrimary)
@@ -122,6 +124,7 @@ struct SettingsView: View {
                                 in: 50...500,
                                 step: 50)
                             .foregroundStyle(Theme.Colors.accent)
+                            .accessibilityIdentifier("settings_stepper_highLatencyThresholdControl")
                     }
                     .accessibilityIdentifier("settings_stepper_highLatencyThreshold")
                 }
@@ -329,6 +332,15 @@ struct SettingsView: View {
         }
         .sheet(isPresented: $showingPairingSheet) {
             MacPairingView()
+        }
+        .onAppear {
+            highLatencyAlertEnabled = viewModel.highLatencyAlertEnabled
+        }
+        .onChange(of: highLatencyAlertEnabled) {
+            viewModel.highLatencyAlertEnabled = highLatencyAlertEnabled
+        }
+        .onChange(of: viewModel.highLatencyAlertEnabled) {
+            highLatencyAlertEnabled = viewModel.highLatencyAlertEnabled
         }
     }
 

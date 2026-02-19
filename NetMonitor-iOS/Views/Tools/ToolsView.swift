@@ -160,7 +160,6 @@ struct QuickActionsSection: View {
                 }
             }
         }
-        .accessibilityIdentifier("tools_section_quickActions")
         .sheet(isPresented: $showingTargetSheet) {
             SetTargetSheet()
         }

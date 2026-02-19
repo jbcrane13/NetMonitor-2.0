@@ -7,6 +7,22 @@ import BackgroundTasks
 struct NetmonitorApp: App {
     @AppStorage("selectedTheme") private var selectedTheme: String = "system"
 
+    private static var isUITesting: Bool {
+        let args = ProcessInfo.processInfo.arguments
+        if args.contains("--uitesting") || args.contains("--uitesting-reset") {
+            return true
+        }
+
+        let env = ProcessInfo.processInfo.environment
+        if env["UITEST_MODE"] == "1" ||
+            env["XCUITest"] == "1" ||
+            env["XCTestConfigurationFilePath"] != nil {
+            return true
+        }
+
+        return false
+    }
+
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             PairedMac.self,
@@ -17,7 +33,7 @@ struct NetmonitorApp: App {
         ])
         let modelConfiguration = ModelConfiguration(
             schema: schema,
-            isStoredInMemoryOnly: false,
+            isStoredInMemoryOnly: Self.isUITesting,
             allowsSave: true
         )
 
@@ -39,6 +55,12 @@ struct NetmonitorApp: App {
                 .preferredColorScheme(resolvedColorScheme)
                 .accessibilityIdentifier("screen_main")
                 .onAppear {
+                    UITestBootstrap.configureIfNeeded()
+
+                    if Self.isUITesting {
+                        return
+                    }
+
                     // Start network monitor early so the first dashboard render
                     // sees real connectivity instead of the default "No Connection".
                     _ = NetworkMonitorService.shared
