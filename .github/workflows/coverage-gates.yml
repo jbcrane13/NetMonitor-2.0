@@ -1,0 +1,32 @@
+name: Coverage Gates
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  coverage:
+    runs-on: macos-15
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run coverage collection and gate checks
+        run: scripts/coverage/collect-and-gate.sh
+
+      - name: Upload coverage artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-gate-artifacts
+          path: |
+            build/coverage/coverage-summary.json
+            build/coverage/coverage-summary.md
+            build/coverage/NetMonitor-iOS-coverage.json
+            build/coverage/NetMonitor-macOS-coverage.json
+            build/coverage/NetMonitorCore-coverage.json
+            build/coverage/NetworkScanKit-coverage.json
