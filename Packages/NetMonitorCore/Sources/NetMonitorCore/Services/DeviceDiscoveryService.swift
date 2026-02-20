@@ -65,13 +65,22 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
     public func scanNetwork(subnet: String? = nil) async {
         guard !isScanning else { return }
         let task = Task {
-            await self.performScan(subnet: subnet)
+            await self.performScan(subnet: subnet, profile: nil)
         }
         scanTask = task
         await task.value
     }
 
-    private func performScan(subnet: String? = nil) async {
+    public func scanNetwork(profile: NetworkProfile?) async {
+        guard !isScanning else { return }
+        let task = Task {
+            await self.performScan(subnet: nil, profile: profile)
+        }
+        scanTask = task
+        await task.value
+    }
+
+    private func performScan(subnet: String? = nil, profile: NetworkProfile? = nil) async {
         await engine.reset()
         isScanning = true
         scanProgress = 0
@@ -84,7 +93,12 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
             lastScanDate = Date()
         }
 
-        let scanTarget = makeScanTarget(subnet: subnet)
+        let scanTarget: ScanTarget
+        if let profile {
+            scanTarget = makeScanTarget(profile: profile)
+        } else {
+            scanTarget = makeScanTarget(subnet: subnet)
+        }
 
         // If paired with Mac, kick off its scan early (it runs in parallel)
         let macConnected = macConnectionService?.connectionState.isConnected ?? false
@@ -96,12 +110,13 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
         let bonjourService = BonjourDiscoveryService()
         bonjourService.startDiscovery()
 
-        // Build ScanContext
+        // Build ScanContext — use the profile's interface for local IP detection
         let filter = scanTarget.filter
+        let interfaceName = profile?.interfaceName ?? "en0"
         let context = ScanContext(
             hosts: scanTarget.hosts,
             subnetFilter: { filter.contains(ipAddress: $0) },
-            localIP: NetworkUtilities.detectLocalIPAddress()
+            localIP: NetworkUtilities.detectLocalIPAddress(interface: interfaceName)
         )
 
         // Build pipeline with Bonjour service provider
@@ -161,6 +176,11 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
     }
 
     // MARK: - Scan Target Planning
+
+    private nonisolated func makeScanTarget(profile: NetworkProfile) -> ScanTarget {
+        let hosts = profile.network.hostAddresses(limit: maxHostsPerScan)
+        return ScanTarget(hosts: hosts, filter: .network(profile.network))
+    }
 
     private nonisolated func makeScanTarget(subnet: String?) -> ScanTarget {
         let localIP = NetworkUtilities.detectLocalIPAddress()

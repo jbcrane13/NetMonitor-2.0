@@ -81,7 +81,7 @@ enum LocalDeviceDiscoveryError: Error, Sendable {
 
 /// Protocol for local ARP-based device discovery services.
 protocol LocalDeviceScanner: Actor {
-    func scanNetwork() async throws -> [LocalDiscoveredDevice]
+    func scanNetwork(interface: String?) async throws -> [LocalDiscoveredDevice]
     func stopScan()
     var isScanning: Bool { get }
 }

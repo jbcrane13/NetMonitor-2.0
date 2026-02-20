@@ -19,7 +19,7 @@ actor ARPScannerService: LocalDeviceScanner {
 
     // MARK: - DeviceDiscoveryService
 
-    func scanNetwork() async throws -> [LocalDiscoveredDevice] {
+    func scanNetwork(interface: String? = nil) async throws -> [LocalDiscoveredDevice] {
         guard !isScanning else {
             throw LocalDeviceDiscoveryError.networkUnavailable
         }
@@ -28,7 +28,7 @@ actor ARPScannerService: LocalDeviceScanner {
         defer { isScanning = false }
 
         // Get local network info
-        guard let networkInfo = getLocalNetworkInfo() else {
+        guard let networkInfo = getLocalNetworkInfo(preferredInterface: interface) else {
             throw LocalDeviceDiscoveryError.networkUnavailable
         }
 
@@ -190,7 +190,7 @@ actor ARPScannerService: LocalDeviceScanner {
     }
 
     /// Get local network information using getifaddrs
-    private func getLocalNetworkInfo() -> NetworkInfo? {
+    private func getLocalNetworkInfo(preferredInterface: String? = nil) -> NetworkInfo? {
         var ifaddr: UnsafeMutablePointer<ifaddrs>?
 
         guard getifaddrs(&ifaddr) == 0, let firstAddr = ifaddr else {
@@ -202,6 +202,13 @@ actor ARPScannerService: LocalDeviceScanner {
         var localIP: String?
         var subnetMask: String?
 
+        let targetInterfaces: Set<String>
+        if let preferred = preferredInterface {
+            targetInterfaces = [preferred]
+        } else {
+            targetInterfaces = ["en0", "en1"]
+        }
+
         var current = firstAddr
         while true {
             let interface = current.pointee
@@ -211,8 +218,7 @@ actor ARPScannerService: LocalDeviceScanner {
             if interface.ifa_addr.pointee.sa_family == UInt8(AF_INET) {
                 let name = String(cString: interface.ifa_name)
 
-                // Look for en0 (WiFi) or en1 (Ethernet)
-                if name == "en0" || name == "en1" {
+                if targetInterfaces.contains(name) {
                     // Check if interface is up and running
                     if (flags & IFF_UP) != 0 && (flags & IFF_RUNNING) != 0 {
                         // Get IP address

@@ -9,7 +9,20 @@ final class DashboardViewModel {
     private(set) var isRefreshing = false
     private(set) var sessionStartTime: Date
     private var autoRefreshTask: Task<Void, Never>?
-    
+
+    // MARK: - Network Selection
+
+    /// Available network interfaces for scanning.
+    private(set) var availableNetworks: [NetworkProfile] = []
+
+    /// Currently selected network profile. `nil` means auto-detect (default behavior).
+    var selectedNetworkID: String?
+
+    var selectedNetwork: NetworkProfile? {
+        guard let id = selectedNetworkID else { return nil }
+        return availableNetworks.first { $0.id == id }
+    }
+
     let networkMonitor: any NetworkMonitorServiceProtocol
     let wifiService: any WiFiInfoServiceProtocol
     let gatewayService: any GatewayServiceProtocol
@@ -103,10 +116,14 @@ final class DashboardViewModel {
         await publicIPService.fetchPublicIP(forceRefresh: forceIP)
     }
     
-    func startDeviceScan() async {
-        await deviceDiscoveryService.scanNetwork(subnet: nil)
+    func refreshAvailableNetworks() {
+        availableNetworks = NetworkProfileManager.detectActiveProfiles()
     }
-    
+
+    func startDeviceScan() async {
+        await deviceDiscoveryService.scanNetwork(profile: selectedNetwork)
+    }
+
     func stopDeviceScan() {
         deviceDiscoveryService.stopScan()
     }

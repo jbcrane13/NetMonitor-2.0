@@ -39,6 +39,9 @@ final class DeviceDiscoveryCoordinator {
 
     // MARK: - Public API
 
+    /// The interface name to scan, or nil for auto-detect.
+    var selectedInterface: String?
+
     func startScan() {
         guard !isScanning else { return }
         isScanning = true
@@ -50,7 +53,7 @@ final class DeviceDiscoveryCoordinator {
 
                 // Phase 1: ARP Scan
                 scanProgress = 0.1
-                let arpDevices = try await arpScanner.scanNetwork()
+                let arpDevices = try await arpScanner.scanNetwork(interface: selectedInterface)
                 try Task.checkCancellation()
                 scanProgress = 0.6
 

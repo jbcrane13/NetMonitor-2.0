@@ -14,6 +14,8 @@ struct DevicesView: View {
     @State private var filterOnlineOnly: Bool = false
     @State private var sortOrder: DeviceSortOrder = .lastSeen
     @State private var wolAction = WakeOnLanAction()
+    @State private var availableNetworks: [NetworkProfile] = []
+    @State private var selectedNetworkID: String?
 
     // Context menu action state
     @State private var deviceToPing: LocalDevice?
@@ -183,12 +185,29 @@ struct DevicesView: View {
     private var toolbarContent: some ToolbarContent {
         ToolbarItem(placement: .primaryAction) {
             Button {
+                coordinator?.selectedInterface = selectedNetworkID
                 coordinator?.startScan()
             } label: {
                 Label("Scan", systemImage: "antenna.radiowaves.left.and.right")
             }
             .disabled(coordinator?.isScanning == true)
             .accessibilityIdentifier("devices_button_scan")
+        }
+
+        ToolbarItem(placement: .automatic) {
+            Picker("Network", selection: $selectedNetworkID) {
+                Label("Auto", systemImage: "sparkles")
+                    .tag(String?.none)
+                ForEach(availableNetworks) { profile in
+                    Label(profile.displayName, systemImage: profile.connectionType.iconName)
+                        .tag(Optional(profile.id))
+                }
+            }
+            .pickerStyle(.menu)
+            .accessibilityIdentifier("devices_picker_network")
+            .onAppear {
+                availableNetworks = NetworkProfileManager.detectActiveProfiles()
+            }
         }
 
         ToolbarItem(placement: .automatic) {

@@ -230,6 +230,10 @@ final class MockDeviceDiscoveryService: DeviceDiscoveryServiceProtocol, @uncheck
         await MainActor.run { scanCallCount += 1 }
     }
 
+    func scanNetwork(profile: NetworkProfile?) async {
+        await MainActor.run { scanCallCount += 1 }
+    }
+
     @MainActor func stopScan() {}
 }
 

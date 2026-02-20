@@ -127,6 +127,7 @@ public protocol DeviceDiscoveryServiceProtocol: AnyObject, Sendable {
     @MainActor var scanPhase: ScanDisplayPhase { get }
     @MainActor var lastScanDate: Date? { get }
     func scanNetwork(subnet: String?) async
+    func scanNetwork(profile: NetworkProfile?) async
     @MainActor func stopScan()
 }
 

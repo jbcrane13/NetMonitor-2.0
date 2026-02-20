@@ -7,7 +7,7 @@ public enum NetworkUtilities {
 
     // MARK: - IPv4Network
 
-    public struct IPv4Network: Sendable {
+    public struct IPv4Network: Sendable, Equatable, Hashable {
         public let networkAddress: UInt32
         public let broadcastAddress: UInt32
         public let interfaceAddress: UInt32
@@ -161,7 +161,7 @@ public enum NetworkUtilities {
         return value
     }
 
-    static func uint32ToIPv4(_ value: UInt32) -> String {
+    public static func uint32ToIPv4(_ value: UInt32) -> String {
         "\((value >> 24) & 0xFF).\((value >> 16) & 0xFF).\((value >> 8) & 0xFF).\(value & 0xFF)"
     }
 }

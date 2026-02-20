@@ -320,7 +320,7 @@ struct ISPCard: View {
 }
 
 struct LocalDevicesCard: View {
-    let viewModel: DashboardViewModel
+    @Bindable var viewModel: DashboardViewModel
 
     var body: some View {
         NavigationLink(destination: DeviceListView(discoveredDevices: viewModel.discoveredDevices)) {
@@ -340,6 +340,25 @@ struct LocalDevicesCard: View {
                             Image(systemName: "chevron.right")
                                 .font(.caption)
                                 .foregroundStyle(Theme.Colors.textTertiary)
+                        }
+                    }
+
+                    // Network selector
+                    if viewModel.availableNetworks.count > 1 {
+                        HStack {
+                            Image(systemName: "network")
+                                .font(.caption)
+                                .foregroundStyle(Theme.Colors.textSecondary)
+                            Picker("Network", selection: $viewModel.selectedNetworkID) {
+                                Text("Auto").tag(String?.none)
+                                ForEach(viewModel.availableNetworks) { profile in
+                                    Label(profile.displayName, systemImage: profile.connectionType.iconName)
+                                        .tag(Optional(profile.id))
+                                }
+                            }
+                            .pickerStyle(.menu)
+                            .tint(Theme.Colors.accent)
+                            .accessibilityIdentifier("dashboard_picker_network")
                         }
                     }
 
@@ -378,6 +397,9 @@ struct LocalDevicesCard: View {
             }
         }
         .buttonStyle(PlainButtonStyle())
+        .onAppear {
+            viewModel.refreshAvailableNetworks()
+        }
         .accessibilityIdentifier("dashboard_card_localDevices")
     }
 }
