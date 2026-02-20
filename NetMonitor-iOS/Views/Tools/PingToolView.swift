@@ -74,11 +74,15 @@ struct PingToolView: View {
 
                 HStack(spacing: 0) {
                     chartStatItem(label: "Avg", value: viewModel.liveAvgLatency)
+                        .accessibilityIdentifier("pingTool_stat_avg")
                     Spacer()
                     chartStatItem(label: "Min", value: viewModel.liveMinLatency, color: Theme.Colors.success)
+                        .accessibilityIdentifier("pingTool_stat_min")
                     Spacer()
                     chartStatItem(label: "Max", value: viewModel.liveMaxLatency, color: Theme.Colors.warning)
+                        .accessibilityIdentifier("pingTool_stat_max")
                 }
+                .accessibilityIdentifier("pingTool_stat_bar")
 
                 GlassCard {
                     Chart(viewModel.successfulPings) { result in
@@ -132,6 +136,7 @@ struct PingToolView: View {
                     }
                     .frame(height: 180)
                     .padding(.vertical, 8)
+                    .accessibilityIdentifier("pingTool_chart_latency")
                 }
             }
             .accessibilityIdentifier("pingTool_section_latencyChart")

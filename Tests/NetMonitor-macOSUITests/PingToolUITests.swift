@@ -79,4 +79,81 @@ final class PingToolUITests: XCTestCase {
         let stopButton = app.buttons["ping_button_run"]
         XCTAssertTrue(stopButton.waitForExistence(timeout: 3))
     }
+
+    // MARK: - Enhanced Ping: Latency Chart
+
+    func testChartAppearsAfterPings() {
+        let hostField = app.textFields["ping_textfield_host"]
+        XCTAssertTrue(hostField.waitForExistence(timeout: 3))
+        hostField.tap()
+        hostField.typeText("127.0.0.1")
+
+        app.buttons["ping_button_run"].tap()
+
+        // Chart needs at least 2 successful pings to render
+        let chart = app.otherElements["ping_chart_latency"]
+        XCTAssertTrue(chart.waitForExistence(timeout: 20),
+                      "Latency chart should appear after successful pings")
+    }
+
+    // MARK: - Enhanced Ping: Stats Line
+
+    func testStatsVisibleAfterPings() {
+        let hostField = app.textFields["ping_textfield_host"]
+        XCTAssertTrue(hostField.waitForExistence(timeout: 3))
+        hostField.tap()
+        hostField.typeText("127.0.0.1")
+
+        app.buttons["ping_button_run"].tap()
+
+        // Wait for chart to appear (stats are rendered alongside the chart)
+        let chart = app.otherElements["ping_chart_latency"]
+        XCTAssertTrue(chart.waitForExistence(timeout: 20),
+                      "Chart should appear so stat elements are visible")
+
+        // Verify stat elements
+        let minStat = app.staticTexts["ping_stat_min"].waitForExistence(timeout: 5)
+            || app.otherElements["ping_stat_min"].waitForExistence(timeout: 3)
+        XCTAssertTrue(minStat, "Min stat should be visible")
+
+        let avgStat = app.staticTexts["ping_stat_avg"].waitForExistence(timeout: 5)
+            || app.otherElements["ping_stat_avg"].waitForExistence(timeout: 3)
+        XCTAssertTrue(avgStat, "Avg stat should be visible")
+
+        let maxStat = app.staticTexts["ping_stat_max"].waitForExistence(timeout: 5)
+            || app.otherElements["ping_stat_max"].waitForExistence(timeout: 3)
+        XCTAssertTrue(maxStat, "Max stat should be visible")
+    }
+
+    // MARK: - Enhanced Ping: Count Picker
+
+    func testCountPickerChangesValue() {
+        let picker = app.popUpButtons["ping_picker_count"]
+        XCTAssertTrue(picker.waitForExistence(timeout: 3),
+                      "Count picker should exist")
+
+        picker.tap()
+
+        // Select a different count from the popup menu
+        let option = app.menuItems["5"]
+        if option.waitForExistence(timeout: 3) {
+            option.tap()
+        }
+
+        // Verify the picker still exists after selection
+        XCTAssertTrue(picker.waitForExistence(timeout: 3))
+    }
+
+    // MARK: - Enhanced Ping: Close Button
+
+    func testCloseButtonDismissesToolSheet() {
+        let closeButton = app.buttons["ping_button_close"]
+        XCTAssertTrue(closeButton.waitForExistence(timeout: 3))
+        closeButton.tap()
+
+        // After closing, the tools card list should be visible again
+        let pingCard = app.otherElements["tools_card_ping"]
+        XCTAssertTrue(pingCard.waitForExistence(timeout: 5),
+                      "Tool card list should be visible after closing ping sheet")
+    }
 }

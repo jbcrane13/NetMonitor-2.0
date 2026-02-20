@@ -4,7 +4,7 @@ import NetMonitorCore
 
 struct PingToolView: View {
     @State private var host = ""
-    @State private var count = 20
+    @AppStorage("netmonitor.ping.defaultCount") private var count = 20
     @State private var isRunning = false
     @State private var outputLines: [String] = []
     @State private var pingResults: [PingResult] = []
@@ -120,13 +120,15 @@ struct PingToolView: View {
     }
 
     /// Y-axis max using P95 to clip first-ping DNS spikes and other outliers.
+    /// Returns at least 10 so the chart never collapses to a sliver.
     private var chartYMax: Double {
         let times = chartableResults.map(\.time).sorted()
-        guard times.count >= 2 else { return max((times.first ?? 10) * 1.2, 1) }
+        guard let first = times.first else { return 10 }
+        guard times.count >= 2 else { return max(first * 1.2, 10) }
         let p95Index = Int(Double(times.count - 1) * 0.95)
         let p95 = times[p95Index]
         let median = times[times.count / 2]
-        return max(p95, median * 1.5) * 1.15
+        return max(max(p95, median * 1.5) * 1.15, 10)
     }
 
     private var latencyChartView: some View {
@@ -137,8 +139,11 @@ struct PingToolView: View {
                 Spacer()
                 HStack(spacing: 16) {
                     chartStat("Avg", liveAvg, .primary)
+                        .accessibilityIdentifier("ping_stat_avg")
                     chartStat("Min", liveMin, .green)
+                        .accessibilityIdentifier("ping_stat_min")
                     chartStat("Max", liveMax, .orange)
+                        .accessibilityIdentifier("ping_stat_max")
                 }
             }
 
@@ -192,6 +197,7 @@ struct PingToolView: View {
                 }
             }
             .frame(height: 150)
+            .accessibilityIdentifier("ping_chart_latency")
         }
         .padding()
         .background(Color.black.opacity(0.1))
@@ -290,6 +296,7 @@ struct PingToolView: View {
                 }
             }
 
+            guard !Task.isCancelled else { return }
             let stats = await pingService.calculateStatistics(localResults, requestedCount: count)
             await MainActor.run {
                 statistics = stats

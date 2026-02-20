@@ -8,7 +8,9 @@ final class PingToolViewModel {
     // MARK: - Input Properties
 
     var host: String = ""
-    var pingCount: Int = UserDefaults.standard.object(forKey: AppSettings.Keys.defaultPingCount) as? Int ?? 20
+    var pingCount: Int = UserDefaults.standard.object(forKey: AppSettings.Keys.defaultPingCount) as? Int ?? 20 {
+        didSet { UserDefaults.standard.set(pingCount, forKey: AppSettings.Keys.defaultPingCount) }
+    }
 
     // MARK: - State Properties
 
@@ -56,8 +58,11 @@ final class PingToolViewModel {
             )
 
             for await result in stream {
+                guard !Task.isCancelled else { break }
                 results.append(result)
             }
+
+            guard !Task.isCancelled else { return }
 
             // Calculate statistics after completion
             statistics = await pingService.calculateStatistics(results, requestedCount: pingCount)
@@ -110,12 +115,14 @@ final class PingToolViewModel {
     }
 
     /// Y-axis max using P95 to clip first-ping DNS spikes and other outliers.
+    /// Returns at least 10 so the chart never collapses to a sliver.
     var chartYAxisMax: Double {
         let times = successfulPings.map(\.time).sorted()
-        guard times.count >= 2 else { return max((times.first ?? 10) * 1.2, 1) }
+        guard let first = times.first else { return 10 }
+        guard times.count >= 2 else { return max(first * 1.2, 10) }
         let p95Index = Int(Double(times.count - 1) * 0.95)
         let p95 = times[p95Index]
         let median = times[times.count / 2]
-        return max(p95, median * 1.5) * 1.15
+        return max(max(p95, median * 1.5) * 1.15, 10)
     }
 }
