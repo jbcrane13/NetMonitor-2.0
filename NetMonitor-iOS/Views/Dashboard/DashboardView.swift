@@ -3,6 +3,7 @@ import NetMonitorCore
 
 struct DashboardView: View {
     @State private var viewModel = DashboardViewModel()
+    @State private var isAddNetworkSheetPresented = false
     
     var body: some View {
         NavigationStack {
@@ -14,11 +15,21 @@ struct DashboardView: View {
 
                     WiFiCard(viewModel: viewModel)
 
+                    ActiveNetworkCard(
+                        viewModel: viewModel,
+                        onAddNetwork: {
+                            isAddNetworkSheetPresented = true
+                        }
+                    )
+
                     GatewayCard(viewModel: viewModel)
 
                     ISPCard(viewModel: viewModel)
 
-                    LocalDevicesCard(viewModel: viewModel)
+                    LocalDevicesCard(
+                        viewModel: viewModel,
+                        selectedNetwork: viewModel.activeNetwork
+                    )
                 }
                 .padding(.horizontal, Theme.Layout.screenPadding)
                 .padding(.top, Theme.Layout.smallCornerRadius)
@@ -44,11 +55,22 @@ struct DashboardView: View {
                 await viewModel.refresh(forceIP: true)
             }
             .task {
+                viewModel.refreshAvailableNetworks()
                 await viewModel.refresh(forceIP: true)
                 viewModel.startAutoRefresh()
             }
             .onDisappear {
                 viewModel.stopAutoRefresh()
+            }
+            .sheet(isPresented: $isAddNetworkSheetPresented, onDismiss: {
+                viewModel.refreshAvailableNetworks()
+            }) {
+                AddNetworkSheet(
+                    discoveredDevices: viewModel.discoveredDevices,
+                    gatewayHint: viewModel.gateway?.ipAddress
+                ) { gateway, subnet, name in
+                    await viewModel.addNetworkProfile(gateway: gateway, subnet: subnet, name: name)
+                }
             }
         }
         .accessibilityIdentifier("screen_dashboard")
@@ -221,6 +243,79 @@ struct WiFiCard: View {
     }
 }
 
+struct ActiveNetworkCard: View {
+    @Bindable var viewModel: DashboardViewModel
+    let onAddNetwork: () -> Void
+
+    private var networkSelectionBinding: Binding<UUID?> {
+        Binding(
+            get: { viewModel.selectedNetworkID },
+            set: { newValue in
+                Task {
+                    await viewModel.selectNetwork(id: newValue)
+                }
+            }
+        )
+    }
+
+    var body: some View {
+        GlassCard {
+            VStack(alignment: .leading, spacing: Theme.Layout.itemSpacing) {
+                HStack {
+                    Image(systemName: viewModel.activeNetwork?.connectionType.iconName ?? "network")
+                        .foregroundStyle(Theme.Colors.accent)
+                    Text("Active Network")
+                        .font(.headline)
+                        .foregroundStyle(Theme.Colors.textPrimary)
+                    Spacer()
+                    GlassIconButton(icon: "plus", size: 32) {
+                        onAddNetwork()
+                    }
+                    .accessibilityIdentifier("dashboard_button_addNetwork")
+                    .accessibilityLabel("Add Network")
+                }
+
+                if let activeNetwork = viewModel.activeNetwork {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(activeNetwork.displayName)
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                            .foregroundStyle(Theme.Colors.textPrimary)
+                        Text("\(activeNetwork.gatewayIP) • \(activeNetwork.subnet)")
+                            .font(.caption)
+                            .foregroundStyle(Theme.Colors.textSecondary)
+                    }
+                } else {
+                    Text("Auto-detecting current network")
+                        .font(.caption)
+                        .foregroundStyle(Theme.Colors.textSecondary)
+                }
+
+                HStack {
+                    Image(systemName: "arrow.triangle.swap")
+                        .foregroundStyle(Theme.Colors.textSecondary)
+                    Picker("Network", selection: networkSelectionBinding) {
+                        Label("Auto", systemImage: "sparkles")
+                            .tag(UUID?.none)
+                        ForEach(viewModel.availableNetworks) { profile in
+                            Label(profile.displayName, systemImage: profile.connectionType.iconName)
+                                .tag(Optional(profile.id))
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .tint(Theme.Colors.accent)
+                    .accessibilityIdentifier("dashboard_picker_network")
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .onAppear {
+            viewModel.refreshAvailableNetworks()
+        }
+        .accessibilityIdentifier("dashboard_card_activeNetwork")
+    }
+}
+
 struct GatewayCard: View {
     let viewModel: DashboardViewModel
     
@@ -321,9 +416,15 @@ struct ISPCard: View {
 
 struct LocalDevicesCard: View {
     @Bindable var viewModel: DashboardViewModel
+    let selectedNetwork: NetworkProfile?
 
     var body: some View {
-        NavigationLink(destination: DeviceListView(discoveredDevices: viewModel.discoveredDevices)) {
+        NavigationLink(
+            destination: DeviceListView(
+                discoveredDevices: viewModel.discoveredDevices,
+                networkProfile: selectedNetwork
+            )
+        ) {
             GlassCard {
                 VStack(alignment: .leading, spacing: Theme.Layout.itemSpacing) {
                     HStack {
@@ -340,25 +441,6 @@ struct LocalDevicesCard: View {
                             Image(systemName: "chevron.right")
                                 .font(.caption)
                                 .foregroundStyle(Theme.Colors.textTertiary)
-                        }
-                    }
-
-                    // Network selector
-                    if viewModel.availableNetworks.count > 1 {
-                        HStack {
-                            Image(systemName: "network")
-                                .font(.caption)
-                                .foregroundStyle(Theme.Colors.textSecondary)
-                            Picker("Network", selection: $viewModel.selectedNetworkID) {
-                                Text("Auto").tag(UUID?.none)
-                                ForEach(viewModel.availableNetworks) { profile in
-                                    Label(profile.displayName, systemImage: profile.connectionType.iconName)
-                                        .tag(Optional(profile.id))
-                                }
-                            }
-                            .pickerStyle(.menu)
-                            .tint(Theme.Colors.accent)
-                            .accessibilityIdentifier("dashboard_picker_network")
                         }
                     }
 

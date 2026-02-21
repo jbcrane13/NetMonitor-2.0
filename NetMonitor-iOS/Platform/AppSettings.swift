@@ -26,6 +26,7 @@ enum AppSettings {
         // MARK: Monitoring
         static let autoRefreshInterval      = "autoRefreshInterval"
         static let backgroundRefreshEnabled = "backgroundRefreshEnabled"
+        static let selectedNetworkProfileID = "selectedNetworkProfileID"
 
         // MARK: Notifications
         static let targetDownAlertEnabled   = "targetDownAlertEnabled"

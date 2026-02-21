@@ -5,6 +5,7 @@ import NetworkScanKit
 struct NetworkMapView: View {
     @State private var viewModel = NetworkMapViewModel()
     @State private var sortOrder: DeviceSortOrder = .ip
+    @State private var isAddNetworkSheetPresented = false
 
     private var sortedDevices: [DiscoveredDevice] {
         let devices = viewModel.discoveredDevices
@@ -25,6 +26,17 @@ struct NetworkMapView: View {
                 return $0.source == .local
             }
         }
+    }
+
+    private var networkSelectionBinding: Binding<UUID?> {
+        Binding(
+            get: { viewModel.selectedNetworkID },
+            set: { newValue in
+                Task {
+                    await viewModel.selectNetwork(id: newValue)
+                }
+            }
+        )
     }
 
     var body: some View {
@@ -65,7 +77,18 @@ struct NetworkMapView: View {
                 }
             }
             .task {
+                viewModel.refreshAvailableNetworks()
                 await viewModel.startScan(forceRefresh: false)
+            }
+            .sheet(isPresented: $isAddNetworkSheetPresented, onDismiss: {
+                viewModel.refreshAvailableNetworks()
+            }) {
+                AddNetworkSheet(
+                    discoveredDevices: viewModel.discoveredDevices,
+                    gatewayHint: viewModel.gateway?.ipAddress
+                ) { gateway, subnet, name in
+                    await viewModel.addNetworkProfile(gateway: gateway, subnet: subnet, name: name)
+                }
             }
         }
         .accessibilityIdentifier("screen_networkMap")
@@ -75,52 +98,78 @@ struct NetworkMapView: View {
 
     private var networkSummary: some View {
         GlassCard {
-            HStack(spacing: 16) {
-                // Gateway info
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 6) {
-                        Image(systemName: "wifi.router")
-                            .foregroundStyle(Theme.Colors.accent)
-                        Text("Gateway")
-                            .font(.caption)
-                            .foregroundStyle(Theme.Colors.textSecondary)
+            VStack(alignment: .leading, spacing: Theme.Layout.itemSpacing) {
+                HStack {
+                    Image(systemName: viewModel.activeNetwork?.connectionType.iconName ?? "network")
+                        .foregroundStyle(Theme.Colors.accent)
+                    Picker("Network", selection: networkSelectionBinding) {
+                        Label("Auto", systemImage: "sparkles")
+                            .tag(UUID?.none)
+                        ForEach(viewModel.availableNetworks) { profile in
+                            Label(profile.displayName, systemImage: profile.connectionType.iconName)
+                                .tag(Optional(profile.id))
+                        }
                     }
-                    Text(viewModel.gateway?.ipAddress ?? "Detecting…")
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                        .fontDesign(.monospaced)
-                        .foregroundStyle(Theme.Colors.textPrimary)
+                    .pickerStyle(.menu)
+                    .tint(Theme.Colors.accent)
+                    .accessibilityIdentifier("networkMap_picker_network")
+
+                    Spacer()
+
+                    GlassIconButton(icon: "plus", size: 32) {
+                        isAddNetworkSheetPresented = true
+                    }
+                    .accessibilityIdentifier("networkMap_button_addNetwork")
+                    .accessibilityLabel("Add Network")
                 }
 
-                Spacer()
-
-                // Mac companion status
-                if viewModel.macConnectionService.connectionState.isConnected {
-                    VStack(alignment: .trailing, spacing: 4) {
+                HStack(spacing: 16) {
+                    // Gateway info
+                    VStack(alignment: .leading, spacing: 4) {
                         HStack(spacing: 6) {
-                            Image(systemName: "desktopcomputer")
-                                .foregroundStyle(Theme.Colors.success)
-                            Text("Mac Paired")
+                            Image(systemName: "wifi.router")
+                                .foregroundStyle(Theme.Colors.accent)
+                            Text("Gateway")
                                 .font(.caption)
                                 .foregroundStyle(Theme.Colors.textSecondary)
                         }
-                        Text(viewModel.macConnectionService.connectedMacName ?? "Connected")
+                        Text(viewModel.gateway?.ipAddress ?? "Detecting…")
                             .font(.subheadline)
                             .fontWeight(.medium)
-                            .foregroundStyle(Theme.Colors.success)
+                            .fontDesign(.monospaced)
+                            .foregroundStyle(Theme.Colors.textPrimary)
                     }
-                } else {
-                    VStack(alignment: .trailing, spacing: 4) {
-                        HStack(spacing: 6) {
-                            Image(systemName: "iphone")
-                                .foregroundStyle(Theme.Colors.textTertiary)
-                            Text("Standalone")
-                                .font(.caption)
-                                .foregroundStyle(Theme.Colors.textSecondary)
+
+                    Spacer()
+
+                    // Mac companion status
+                    if viewModel.macConnectionService.connectionState.isConnected {
+                        VStack(alignment: .trailing, spacing: 4) {
+                            HStack(spacing: 6) {
+                                Image(systemName: "desktopcomputer")
+                                    .foregroundStyle(Theme.Colors.success)
+                                Text("Mac Paired")
+                                    .font(.caption)
+                                    .foregroundStyle(Theme.Colors.textSecondary)
+                            }
+                            Text(viewModel.macConnectionService.connectedMacName ?? "Connected")
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                                .foregroundStyle(Theme.Colors.success)
                         }
-                        Text("iOS only")
-                            .font(.subheadline)
-                            .foregroundStyle(Theme.Colors.textTertiary)
+                    } else {
+                        VStack(alignment: .trailing, spacing: 4) {
+                            HStack(spacing: 6) {
+                                Image(systemName: "iphone")
+                                    .foregroundStyle(Theme.Colors.textTertiary)
+                                Text("Standalone")
+                                    .font(.caption)
+                                    .foregroundStyle(Theme.Colors.textSecondary)
+                            }
+                            Text("iOS only")
+                                .font(.subheadline)
+                                .foregroundStyle(Theme.Colors.textTertiary)
+                        }
                     }
                 }
             }

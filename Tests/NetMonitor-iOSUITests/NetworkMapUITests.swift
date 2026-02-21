@@ -30,6 +30,27 @@ final class NetworkMapUITests: XCTestCase {
         XCTAssertTrue(app.otherElements["networkMap_summary"].waitForExistence(timeout: 5))
     }
 
+    func testNetworkPickerExists() throws {
+        XCTAssertTrue(app.buttons["Add Network"].firstMatch.waitForExistence(timeout: 5))
+    }
+
+    func testAddNetworkSheetShowsManualFields() throws {
+        let addButton = app.buttons["Add Network"].firstMatch
+        XCTAssertTrue(addButton.waitForExistence(timeout: 5))
+        addButton.tap()
+
+        XCTAssertTrue(app.navigationBars["Add Network"].waitForExistence(timeout: 5))
+
+        let manualTab = app.segmentedControls.buttons["Manual"]
+        if manualTab.waitForExistence(timeout: 3) {
+            manualTab.tap()
+        }
+
+        XCTAssertTrue(app.textFields["network_sheet_field_gateway"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.textFields["network_sheet_field_cidr"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.textFields["network_sheet_field_name"].waitForExistence(timeout: 3))
+    }
+
     // MARK: - Sort Controls
 
     func testSortPickerExists() throws {

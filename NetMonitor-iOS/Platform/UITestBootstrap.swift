@@ -41,6 +41,7 @@ enum UITestBootstrap {
             AppSettings.Keys.showDetailedResults,
             AppSettings.Keys.autoRefreshInterval,
             AppSettings.Keys.backgroundRefreshEnabled,
+            AppSettings.Keys.selectedNetworkProfileID,
             AppSettings.Keys.targetDownAlertEnabled,
             AppSettings.Keys.highLatencyAlertEnabled,
             AppSettings.Keys.highLatencyThreshold,
@@ -48,7 +49,8 @@ enum UITestBootstrap {
             AppSettings.Keys.selectedTheme,
             AppSettings.Keys.selectedAccentColor,
             AppSettings.Keys.webBrowserRecentURLs,
-            "targetManager_savedTargets"
+            "targetManager_savedTargets",
+            "netmonitor.networkProfiles"
         ]
 
         for key in keysToClear {

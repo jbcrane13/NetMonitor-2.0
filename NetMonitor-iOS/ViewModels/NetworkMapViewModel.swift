@@ -10,22 +10,49 @@ final class NetworkMapViewModel {
     /// Cached devices that persist across tab switches
     private(set) var cachedDevices: [DiscoveredDevice] = []
     private var lastCacheDate: Date?
+    private let networkProfileManager: NetworkProfileManager
+    private let pingService: any PingServiceProtocol
+    private let userDefaults: UserDefaults
 
     let deviceDiscoveryService: any DeviceDiscoveryServiceProtocol
     let gatewayService: any GatewayServiceProtocol
     let bonjourService: any BonjourDiscoveryServiceProtocol
     let macConnectionService: any MacConnectionServiceProtocol
 
+    private(set) var availableNetworks: [NetworkProfile] = []
+    private(set) var selectedNetworkID: UUID?
+
+    var selectedNetwork: NetworkProfile? {
+        guard let selectedNetworkID else { return nil }
+        return availableNetworks.first { $0.id == selectedNetworkID }
+    }
+
+    var activeNetwork: NetworkProfile? {
+        selectedNetwork
+            ?? networkProfileManager.activeProfile
+            ?? availableNetworks.first(where: { $0.isLocal })
+            ?? availableNetworks.first
+    }
+
     init(
         deviceDiscoveryService: any DeviceDiscoveryServiceProtocol = DeviceDiscoveryService.shared,
         gatewayService: any GatewayServiceProtocol = GatewayService(),
         bonjourService: any BonjourDiscoveryServiceProtocol = BonjourDiscoveryService(),
-        macConnectionService: any MacConnectionServiceProtocol = MacConnectionService.shared
+        macConnectionService: any MacConnectionServiceProtocol = MacConnectionService.shared,
+        networkProfileManager: NetworkProfileManager = NetworkProfileManager(),
+        pingService: any PingServiceProtocol = PingService(),
+        userDefaults: UserDefaults = .standard
     ) {
         self.deviceDiscoveryService = deviceDiscoveryService
         self.gatewayService = gatewayService
         self.bonjourService = bonjourService
         self.macConnectionService = macConnectionService
+        self.networkProfileManager = networkProfileManager
+        self.pingService = pingService
+        self.userDefaults = userDefaults
+
+        refreshAvailableNetworks()
+        restoreSelectedNetwork()
     }
 
     var discoveredDevices: [DiscoveredDevice] {
@@ -79,7 +106,7 @@ final class NetworkMapViewModel {
         if !forceRefresh, !cachedDevices.isEmpty {
             return
         }
-        await deviceDiscoveryService.scanNetwork(subnet: nil)
+        await deviceDiscoveryService.scanNetwork(profile: selectedNetwork)
         // Cache the results after scan completes
         let results = deviceDiscoveryService.discoveredDevices
         if !results.isEmpty {
@@ -105,7 +132,120 @@ final class NetworkMapViewModel {
     }
 
     func refresh() async {
+        refreshAvailableNetworks()
         await gatewayService.detectGateway()
         await startScan(forceRefresh: true)
+    }
+
+    func refreshAvailableNetworks() {
+        networkProfileManager.detectLocalNetwork()
+        availableNetworks = networkProfileManager.profiles.sorted(by: sortProfiles)
+        if let selectedNetworkID, !availableNetworks.contains(where: { $0.id == selectedNetworkID }) {
+            clearSelectedNetwork()
+        }
+    }
+
+    @discardableResult
+    func selectNetwork(id: UUID?) async -> Bool {
+        if selectedNetworkID == id {
+            return true
+        }
+
+        if let id {
+            if !availableNetworks.contains(where: { $0.id == id }) {
+                refreshAvailableNetworks()
+            }
+
+            guard networkProfileManager.switchProfile(id: id) else {
+                return false
+            }
+
+            selectedNetworkID = id
+            persistSelectedNetwork()
+        } else {
+            clearSelectedNetwork()
+        }
+
+        cachedDevices = []
+        await startScan(forceRefresh: true)
+        return true
+    }
+
+    /// Adds a network profile after validating the gateway is reachable.
+    /// - Returns: `nil` on success, or a user-facing error message.
+    func addNetworkProfile(gateway: String, subnet: String, name: String) async -> String? {
+        let trimmedGateway = gateway.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedSubnet = subnet.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !trimmedGateway.isEmpty, !trimmedSubnet.isEmpty else {
+            return "Gateway and CIDR are required."
+        }
+
+        let isReachable = await isHostReachable(trimmedGateway)
+        guard isReachable else {
+            return "Gateway did not respond to ICMP validation."
+        }
+
+        guard let profile = networkProfileManager.addProfile(
+            gateway: trimmedGateway,
+            subnet: trimmedSubnet,
+            name: trimmedName
+        ) else {
+            return "Invalid network details. Check gateway IP and CIDR."
+        }
+
+        refreshAvailableNetworks()
+        _ = networkProfileManager.switchProfile(id: profile.id)
+        selectedNetworkID = profile.id
+        persistSelectedNetwork()
+
+        cachedDevices = []
+        await startScan(forceRefresh: true)
+        return nil
+    }
+
+    // MARK: - Private
+
+    private func restoreSelectedNetwork() {
+        guard let rawValue = userDefaults.string(forKey: AppSettings.Keys.selectedNetworkProfileID),
+              let persistedID = UUID(uuidString: rawValue),
+              availableNetworks.contains(where: { $0.id == persistedID }),
+              networkProfileManager.switchProfile(id: persistedID) else {
+            userDefaults.removeObject(forKey: AppSettings.Keys.selectedNetworkProfileID)
+            return
+        }
+
+        selectedNetworkID = persistedID
+    }
+
+    private func clearSelectedNetwork() {
+        selectedNetworkID = nil
+        persistSelectedNetwork()
+    }
+
+    private func persistSelectedNetwork() {
+        if let selectedNetworkID {
+            userDefaults.set(selectedNetworkID.uuidString, forKey: AppSettings.Keys.selectedNetworkProfileID)
+        } else {
+            userDefaults.removeObject(forKey: AppSettings.Keys.selectedNetworkProfileID)
+        }
+    }
+
+    private func isHostReachable(_ host: String) async -> Bool {
+        let pingStream = await pingService.ping(host: host, count: 2, timeout: 1.5)
+        for await result in pingStream {
+            if !result.isTimeout {
+                return true
+            }
+        }
+        return false
+    }
+
+    private func sortProfiles(_ lhs: NetworkProfile, _ rhs: NetworkProfile) -> Bool {
+        if lhs.isLocal != rhs.isLocal {
+            return lhs.isLocal
+        }
+        return lhs.displayName.localizedCaseInsensitiveCompare(rhs.displayName) == .orderedAscending
     }
 }

@@ -55,6 +55,14 @@ final class DashboardUITests: XCTestCase {
         XCTAssertTrue(app.otherElements["dashboard_card_gateway"].waitForExistence(timeout: 5))
     }
 
+    func testActiveNetworkCardExists() throws {
+        XCTAssertTrue(app.staticTexts["Active Network"].waitForExistence(timeout: 5))
+    }
+
+    func testNetworkPickerExists() throws {
+        XCTAssertTrue(app.staticTexts["Active Network"].waitForExistence(timeout: 5))
+    }
+
     func testISPCardExists() throws {
         let ispCard = app.otherElements["dashboard_card_isp"]
         app.swipeUp()
@@ -76,6 +84,25 @@ final class DashboardUITests: XCTestCase {
             devicesCard.tap()
             XCTAssertTrue(app.otherElements["deviceList_screen"].waitForExistence(timeout: 5))
         }
+    }
+
+    func testDeviceListShowsNetworkBadge() throws {
+        let devicesCard = app.otherElements["dashboard_card_localDevices"]
+        app.swipeUp()
+        guard devicesCard.waitForExistence(timeout: 5) else { return }
+
+        devicesCard.tap()
+        XCTAssertTrue(app.otherElements["deviceList_screen"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.otherElements["deviceList_badge_network"].waitForExistence(timeout: 5))
+    }
+
+    func testAddNetworkButtonPresentsSheet() throws {
+        let addButton = app.buttons["Add Network"].firstMatch
+        XCTAssertTrue(addButton.waitForExistence(timeout: 5))
+        addButton.tap()
+
+        XCTAssertTrue(app.navigationBars["Add Network"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.segmentedControls.firstMatch.exists)
     }
 
     // MARK: - Pull to Refresh

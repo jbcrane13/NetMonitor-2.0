@@ -225,13 +225,21 @@ final class MockDeviceDiscoveryService: DeviceDiscoveryServiceProtocol, @uncheck
     @MainActor var scanPhase: ScanDisplayPhase = .idle
     @MainActor var lastScanDate: Date? = nil
     @MainActor var scanCallCount = 0
+    @MainActor var lastScannedSubnet: String? = nil
+    @MainActor var lastScannedProfile: NetworkProfile? = nil
 
     func scanNetwork(subnet: String?) async {
-        await MainActor.run { scanCallCount += 1 }
+        await MainActor.run {
+            scanCallCount += 1
+            lastScannedSubnet = subnet
+        }
     }
 
     func scanNetwork(profile: NetworkProfile?) async {
-        await MainActor.run { scanCallCount += 1 }
+        await MainActor.run {
+            scanCallCount += 1
+            lastScannedProfile = profile
+        }
     }
 
     @MainActor func stopScan() {}

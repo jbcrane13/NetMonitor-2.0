@@ -11,6 +11,7 @@ enum DeviceSortOrder: String, CaseIterable {
 
 struct DeviceListView: View {
     let discoveredDevices: [DiscoveredDevice]
+    let networkProfile: NetworkProfile?
     @State private var sortOrder: DeviceSortOrder = .ip
 
     private var sortedDevices: [DiscoveredDevice] {
@@ -49,6 +50,28 @@ struct DeviceListView: View {
                         Text("\(discoveredDevices.count) devices")
                             .font(.subheadline)
                             .foregroundStyle(Theme.Colors.textSecondary)
+
+                        if let networkProfile {
+                            Label(networkProfile.displayName, systemImage: networkProfile.connectionType.iconName)
+                                .font(.caption)
+                                .foregroundStyle(Theme.Colors.accent)
+                                .lineLimit(1)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(Theme.Colors.accent.opacity(0.16))
+                                .clipShape(Capsule())
+                                .accessibilityIdentifier("deviceList_badge_network")
+                        } else {
+                            Label("Auto", systemImage: "sparkles")
+                                .font(.caption)
+                                .foregroundStyle(Theme.Colors.accent)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(Theme.Colors.accent.opacity(0.16))
+                                .clipShape(Capsule())
+                                .accessibilityIdentifier("deviceList_badge_network")
+                        }
+
                         Spacer()
                         Picker("Sort", selection: $sortOrder) {
                             ForEach(DeviceSortOrder.allCases, id: \.self) { order in
@@ -125,10 +148,13 @@ struct DeviceListView: View {
 
 #Preview {
     NavigationStack {
-        DeviceListView(discoveredDevices: [
-            DiscoveredDevice(ipAddress: "192.168.1.1", latency: 5.2, discoveredAt: Date()),
-            DiscoveredDevice(ipAddress: "192.168.1.100", latency: 12.8, discoveredAt: Date()),
-            DiscoveredDevice(ipAddress: "192.168.1.200", latency: 8.1, discoveredAt: Date())
-        ])
+        DeviceListView(
+            discoveredDevices: [
+                DiscoveredDevice(ipAddress: "192.168.1.1", latency: 5.2, discoveredAt: Date()),
+                DiscoveredDevice(ipAddress: "192.168.1.100", latency: 12.8, discoveredAt: Date()),
+                DiscoveredDevice(ipAddress: "192.168.1.200", latency: 8.1, discoveredAt: Date())
+            ],
+            networkProfile: nil
+        )
     }
 }

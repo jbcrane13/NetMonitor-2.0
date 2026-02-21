@@ -12,14 +12,33 @@ struct NetworkMapViewModelTests {
         deviceDiscovery: MockDeviceDiscoveryService = MockDeviceDiscoveryService(),
         gatewayService: MockGatewayService = MockGatewayService(),
         bonjourService: MockBonjourDiscoveryService = MockBonjourDiscoveryService(),
-        macConnection: MockMacConnectionService = MockMacConnectionService()
+        macConnection: MockMacConnectionService = MockMacConnectionService(),
+        pingService: any PingServiceProtocol = MockPingService(),
+        networkProfileManager: NetworkProfileManager? = nil,
+        userDefaults: UserDefaults? = nil
     ) -> NetworkMapViewModel {
-        NetworkMapViewModel(
+        let defaults = userDefaults ?? makeUserDefaults()
+        let manager = networkProfileManager ?? NetworkProfileManager(
+            userDefaults: defaults,
+            activeProfilesProvider: { [] }
+        )
+
+        return NetworkMapViewModel(
             deviceDiscoveryService: deviceDiscovery,
             gatewayService: gatewayService,
             bonjourService: bonjourService,
-            macConnectionService: macConnection
+            macConnectionService: macConnection,
+            networkProfileManager: manager,
+            pingService: pingService,
+            userDefaults: defaults
         )
+    }
+
+    func makeUserDefaults() -> UserDefaults {
+        let suiteName = "NetworkMapViewModelTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        return defaults
     }
 
     @Test func initialState() {
@@ -137,5 +156,48 @@ struct NetworkMapViewModelTests {
         vm.startBonjourDiscovery()
         vm.stopBonjourDiscovery()
         #expect(bonjour.stopCallCount == 1)
+    }
+
+    @Test func selectNetworkTriggersScanWithSelectedProfile() async {
+        let defaults = makeUserDefaults()
+        let manager = NetworkProfileManager(
+            userDefaults: defaults,
+            activeProfilesProvider: { [] }
+        )
+        let profile = manager.addProfile(gateway: "172.16.1.1", subnet: "172.16.1.0/24", name: "Branch")
+        #expect(profile != nil)
+        guard let profile else { return }
+
+        let discovery = MockDeviceDiscoveryService()
+        let vm = makeVM(
+            deviceDiscovery: discovery,
+            networkProfileManager: manager,
+            userDefaults: defaults
+        )
+
+        let switched = await vm.selectNetwork(id: profile.id)
+        #expect(switched == true)
+        #expect(vm.selectedNetworkID == profile.id)
+        #expect(discovery.scanCallCount == 1)
+        #expect(discovery.lastScannedProfile?.id == profile.id)
+    }
+
+    @Test func addNetworkProfileRequiresReachableGateway() async {
+        let pingService = MockPingService()
+        pingService.mockResults = [
+            PingResult(sequence: 1, host: "192.168.88.1", ttl: 64, time: 0.0, isTimeout: true)
+        ]
+
+        let discovery = MockDeviceDiscoveryService()
+        let vm = makeVM(deviceDiscovery: discovery, pingService: pingService)
+
+        let error = await vm.addNetworkProfile(
+            gateway: "192.168.88.1",
+            subnet: "192.168.88.0/24",
+            name: "Blocked"
+        )
+
+        #expect(error != nil)
+        #expect(discovery.scanCallCount == 0)
     }
 }

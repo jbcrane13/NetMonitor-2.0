@@ -14,16 +14,35 @@ struct DashboardViewModelTests {
         gatewayService: MockGatewayService = MockGatewayService(),
         publicIPService: MockPublicIPService = MockPublicIPService(),
         deviceDiscovery: MockDeviceDiscoveryService = MockDeviceDiscoveryService(),
-        macConnection: MockMacConnectionService = MockMacConnectionService()
+        macConnection: MockMacConnectionService = MockMacConnectionService(),
+        pingService: any PingServiceProtocol = MockPingService(),
+        networkProfileManager: NetworkProfileManager? = nil,
+        userDefaults: UserDefaults? = nil
     ) -> DashboardViewModel {
-        DashboardViewModel(
+        let defaults = userDefaults ?? makeUserDefaults()
+        let manager = networkProfileManager ?? NetworkProfileManager(
+            userDefaults: defaults,
+            activeProfilesProvider: { [] }
+        )
+
+        return DashboardViewModel(
             networkMonitor: networkMonitor,
             wifiService: wifiService,
             gatewayService: gatewayService,
             publicIPService: publicIPService,
             deviceDiscoveryService: deviceDiscovery,
-            macConnectionService: macConnection
+            macConnectionService: macConnection,
+            networkProfileManager: manager,
+            pingService: pingService,
+            userDefaults: defaults
         )
+    }
+
+    func makeUserDefaults() -> UserDefaults {
+        let suiteName = "DashboardViewModelTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        return defaults
     }
 
     @Test func isConnectedDelegatesToNetworkMonitor() {
@@ -135,5 +154,80 @@ struct DashboardViewModelTests {
         let vm = makeVM(gatewayService: gatewayService)
         await vm.refresh()
         #expect(gatewayService.detectCallCount == 1)
+    }
+
+    @Test func selectNetworkSwitchesProfileAndScansWithProfileContext() async {
+        let defaults = makeUserDefaults()
+        let manager = NetworkProfileManager(
+            userDefaults: defaults,
+            activeProfilesProvider: { [] }
+        )
+        let profile = manager.addProfile(gateway: "10.20.30.1", subnet: "10.20.30.0/24", name: "Lab")
+        #expect(profile != nil)
+        guard let profile else { return }
+
+        let discovery = MockDeviceDiscoveryService()
+        let vm = makeVM(
+            deviceDiscovery: discovery,
+            networkProfileManager: manager,
+            userDefaults: defaults
+        )
+
+        let switched = await vm.selectNetwork(id: profile.id)
+        #expect(switched == true)
+        #expect(vm.selectedNetworkID == profile.id)
+        #expect(discovery.scanCallCount == 1)
+        #expect(discovery.lastScannedProfile?.id == profile.id)
+    }
+
+    @Test func addNetworkProfileRejectsUnreachableGateway() async {
+        let pingService = MockPingService()
+        pingService.mockResults = [
+            PingResult(sequence: 1, host: "10.0.0.1", ttl: 64, time: 0, isTimeout: true)
+        ]
+
+        let discovery = MockDeviceDiscoveryService()
+        let vm = makeVM(deviceDiscovery: discovery, pingService: pingService)
+
+        let error = await vm.addNetworkProfile(
+            gateway: "10.0.0.1",
+            subnet: "10.0.0.0/24",
+            name: "Unreachable"
+        )
+
+        #expect(error != nil)
+        #expect(discovery.scanCallCount == 0)
+    }
+
+    @Test func addNetworkProfileAddsProfileAndScansWhenGatewayReachable() async {
+        let defaults = makeUserDefaults()
+        let manager = NetworkProfileManager(
+            userDefaults: defaults,
+            activeProfilesProvider: { [] }
+        )
+
+        let pingService = MockPingService()
+        pingService.mockResults = [
+            PingResult(sequence: 1, host: "10.0.0.1", ttl: 64, time: 1.2, isTimeout: false)
+        ]
+
+        let discovery = MockDeviceDiscoveryService()
+        let vm = makeVM(
+            deviceDiscovery: discovery,
+            pingService: pingService,
+            networkProfileManager: manager,
+            userDefaults: defaults
+        )
+
+        let error = await vm.addNetworkProfile(
+            gateway: "10.0.0.1",
+            subnet: "10.0.0.0/24",
+            name: "Office LAN"
+        )
+
+        #expect(error == nil)
+        #expect(discovery.scanCallCount == 1)
+        #expect(discovery.lastScannedProfile?.gatewayIP == "10.0.0.1")
+        #expect(vm.selectedNetworkID == discovery.lastScannedProfile?.id)
     }
 }
