@@ -107,7 +107,7 @@ struct PingToolView: View {
                         )
                         .interpolationMethod(.catmullRom)
                     }
-                    .chartYScale(domain: 0...viewModel.chartYAxisMax)
+                    .chartYScale(domain: viewModel.chartYAxisMin...viewModel.chartYAxisMax)
                     .chartYAxis {
                         AxisMarks(position: .leading) { value in
                             AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
@@ -134,7 +134,7 @@ struct PingToolView: View {
                             }
                         }
                     }
-                    .frame(height: 180)
+                    .frame(height: 280)
                     .padding(.vertical, 8)
                     .accessibilityIdentifier("pingTool_chart_latency")
                 }

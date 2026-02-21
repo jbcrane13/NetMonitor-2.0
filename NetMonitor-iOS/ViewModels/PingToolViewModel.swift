@@ -114,8 +114,20 @@ final class PingToolViewModel {
         successfulPings.map(\.time).max() ?? 0
     }
 
+    /// Y-axis min floored below the P5 value so variance is visually prominent.
+    /// Always at least 0 (never negative latency).
+    var chartYAxisMin: Double {
+        let times = successfulPings.map(\.time).sorted()
+        guard times.count >= 2 else { return 0 }
+        let p5Index = Int(Double(times.count - 1) * 0.05)
+        let p5 = times[p5Index]
+        // Floor to ~80% of P5, rounded down to nearest 5ms, but never below 0
+        let floor = max((p5 * 0.8), 0)
+        return (floor / 5).rounded(.down) * 5
+    }
+
     /// Y-axis max using P95 to clip first-ping DNS spikes and other outliers.
-    /// Returns at least 10 so the chart never collapses to a sliver.
+    /// Returns at least chartYAxisMin + 10 so the chart never collapses to a sliver.
     var chartYAxisMax: Double {
         let times = successfulPings.map(\.time).sorted()
         guard let first = times.first else { return 10 }
@@ -123,6 +135,7 @@ final class PingToolViewModel {
         let p95Index = Int(Double(times.count - 1) * 0.95)
         let p95 = times[p95Index]
         let median = times[times.count / 2]
-        return max(max(p95, median * 1.5) * 1.15, 10)
+        let rawMax = max(p95, median * 1.5) * 1.15
+        return max(rawMax, chartYAxisMin + 10)
     }
 }
