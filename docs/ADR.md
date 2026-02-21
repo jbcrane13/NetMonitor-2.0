@@ -296,4 +296,42 @@ NetMonitor-2.0/
 
 ---
 
+## ADR-018: iOS Phase 3 network switcher and add-network validation flow
+**Date:** 2026-02-21  
+**Status:** Active  
+**Bead:** NM2-lb5  
+**Decision:** Use a shared iOS interaction model where Dashboard and Network Map both:
+- expose the same network picker behavior (`Auto` or explicit `NetworkProfile`)
+- persist selected profile ID in `UserDefaults` (`AppSettings.Keys.selectedNetworkProfileID`)
+- trigger profile-scoped scans immediately on switch
+- gate manual network creation behind gateway reachability validation (ICMP-primary ping stream)
+
+**Context:**  
+Phase 3 required iOS UI parity for multi-network monitoring without introducing divergent behavior across screens. Before this, network profile switching, add-network flows, and scan triggering were not consistently wired through ViewModels. The shipped Phase 3 implementation needed to guarantee that selecting or creating a profile immediately changed scan context, and that invalid remote networks were blocked before being persisted.
+
+**Consequences:**
+- `DashboardViewModel` and `NetworkMapViewModel` now own the same selection lifecycle:
+  - refresh/sort available profiles (`local` first, then name)
+  - restore persisted selection when valid
+  - clear invalid persisted IDs when profiles disappear
+- `selectNetwork(id:)` in both ViewModels now calls `NetworkProfileManager.switchProfile(id:)` and immediately runs a profile-scoped scan:
+  - Dashboard: `deviceDiscoveryService.scanNetwork(profile: selectedNetwork)`
+  - Network Map: clears cached devices, then `startScan(forceRefresh: true)` with selected profile
+- Add-network creation is centralized behind async validation:
+  - trims user input
+  - requires non-empty gateway + CIDR
+  - runs `PingService.ping(host:count:timeout:)` (`count: 2`, `timeout: 1.5s`)
+  - rejects with user-facing error when gateway is unreachable
+- New `AddNetworkSheet` provides two sources:
+  - "From Discovered Devices" (candidate /24 networks inferred from discovered IPs and gateway hint)
+  - "Manual" (gateway, CIDR, display name + Validate & Add action)
+- Device lists now show active network context via a network badge in `DeviceListView`
+- Test coverage was expanded for this decision surface:
+  - Unit: `Tests/NetMonitor-iOSTests/DashboardViewModelTests.swift`
+  - Unit: `Tests/NetMonitor-iOSTests/NetworkMapViewModelTests.swift`
+  - UI: `Tests/NetMonitor-iOSUITests/DashboardUITests.swift`
+  - UI: `Tests/NetMonitor-iOSUITests/NetworkMapUITests.swift`
+
+---
+
 *To add a new ADR: append with the next number, include date, status, decision, context, and consequences. Reference the bead ID if applicable.*
