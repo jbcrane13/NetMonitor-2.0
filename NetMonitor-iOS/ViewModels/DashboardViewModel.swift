@@ -16,7 +16,7 @@ final class DashboardViewModel {
     private(set) var availableNetworks: [NetworkProfile] = []
 
     /// Currently selected network profile. `nil` means auto-detect (default behavior).
-    var selectedNetworkID: String?
+    var selectedNetworkID: UUID?
 
     var selectedNetwork: NetworkProfile? {
         guard let id = selectedNetworkID else { return nil }
@@ -118,6 +118,9 @@ final class DashboardViewModel {
     
     func refreshAvailableNetworks() {
         availableNetworks = NetworkProfileManager.detectActiveProfiles()
+        if let selectedNetworkID, !availableNetworks.contains(where: { $0.id == selectedNetworkID }) {
+            self.selectedNetworkID = nil
+        }
     }
 
     func startDeviceScan() async {

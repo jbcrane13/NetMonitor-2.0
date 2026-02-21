@@ -112,7 +112,7 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
 
         // Build ScanContext — use the profile's interface for local IP detection
         let filter = scanTarget.filter
-        let interfaceName = profile?.interfaceName ?? "en0"
+        let interfaceName = (profile?.interfaceName.isEmpty == false) ? (profile?.interfaceName ?? "en0") : "en0"
         let context = ScanContext(
             hosts: scanTarget.hosts,
             subnetFilter: { filter.contains(ipAddress: $0) },

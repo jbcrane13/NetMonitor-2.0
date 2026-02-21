@@ -15,7 +15,7 @@ struct DevicesView: View {
     @State private var sortOrder: DeviceSortOrder = .lastSeen
     @State private var wolAction = WakeOnLanAction()
     @State private var availableNetworks: [NetworkProfile] = []
-    @State private var selectedNetworkID: String?
+    @State private var selectedNetworkID: UUID?
 
     // Context menu action state
     @State private var deviceToPing: LocalDevice?
@@ -66,6 +66,11 @@ struct DevicesView: View {
         }
 
         return result
+    }
+
+    private var selectedNetwork: NetworkProfile? {
+        guard let selectedNetworkID else { return nil }
+        return availableNetworks.first { $0.id == selectedNetworkID }
     }
 
     /// Compare IP addresses numerically (192.168.2.3 < 192.168.2.10)
@@ -185,7 +190,7 @@ struct DevicesView: View {
     private var toolbarContent: some ToolbarContent {
         ToolbarItem(placement: .primaryAction) {
             Button {
-                coordinator?.selectedInterface = selectedNetworkID
+                coordinator?.selectedInterface = selectedNetwork?.interfaceName
                 coordinator?.startScan()
             } label: {
                 Label("Scan", systemImage: "antenna.radiowaves.left.and.right")
@@ -197,7 +202,7 @@ struct DevicesView: View {
         ToolbarItem(placement: .automatic) {
             Picker("Network", selection: $selectedNetworkID) {
                 Label("Auto", systemImage: "sparkles")
-                    .tag(String?.none)
+                    .tag(UUID?.none)
                 ForEach(availableNetworks) { profile in
                     Label(profile.displayName, systemImage: profile.connectionType.iconName)
                         .tag(Optional(profile.id))

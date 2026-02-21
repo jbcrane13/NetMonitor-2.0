@@ -350,7 +350,7 @@ struct LocalDevicesCard: View {
                                 .font(.caption)
                                 .foregroundStyle(Theme.Colors.textSecondary)
                             Picker("Network", selection: $viewModel.selectedNetworkID) {
-                                Text("Auto").tag(String?.none)
+                                Text("Auto").tag(UUID?.none)
                                 ForEach(viewModel.availableNetworks) { profile in
                                     Label(profile.displayName, systemImage: profile.connectionType.iconName)
                                         .tag(Optional(profile.id))

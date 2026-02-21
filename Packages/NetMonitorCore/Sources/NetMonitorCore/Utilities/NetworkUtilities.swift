@@ -7,7 +7,7 @@ public enum NetworkUtilities {
 
     // MARK: - IPv4Network
 
-    public struct IPv4Network: Sendable, Equatable, Hashable {
+    public struct IPv4Network: Codable, Sendable, Equatable, Hashable {
         public let networkAddress: UInt32
         public let broadcastAddress: UInt32
         public let interfaceAddress: UInt32
