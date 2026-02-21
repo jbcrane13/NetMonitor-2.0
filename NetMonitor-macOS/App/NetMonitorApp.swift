@@ -11,6 +11,7 @@ struct NetMonitorApp: App {
     @State private var companionHandler: CompanionMessageHandler?
     @State private var menuBarController: MenuBarController?
     @State private var notificationService: NotificationService?
+    @State private var networkProfileManager: NetworkProfileManager?
 
     @AppStorage("autoStartMonitoring") private var autoStartMonitoring = false
     @AppStorage("netmonitor.appearance.accentColor") private var accentColorHex = "#06B6D4"
@@ -69,6 +70,7 @@ struct NetMonitorApp: App {
                     ContentView()
                         .environment(monitoringSession)
                         .environment(deviceDiscovery)
+                        .environment(networkProfileManager)
                 } else {
                     ProgressView("Starting NetMonitor…")
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -116,6 +118,8 @@ struct NetMonitorApp: App {
             let httpService = HTTPMonitorService()
             let icmpService = ICMPMonitorService()
             let tcpService = TCPMonitorService()
+            let profileManager = NetworkProfileManager()
+            networkProfileManager = profileManager
             monitoringSession = MonitoringSession(
                 modelContext: context,
                 httpService: httpService,
@@ -125,7 +129,8 @@ struct NetMonitorApp: App {
             deviceDiscovery = DeviceDiscoveryCoordinator(
                 modelContext: context,
                 arpScanner: ARPScannerService(),
-                bonjourScanner: BonjourDiscoveryService()
+                bonjourScanner: BonjourDiscoveryService(),
+                networkProfileManager: profileManager
             )
             return
         }
@@ -138,6 +143,8 @@ struct NetMonitorApp: App {
         let arpScanner = ARPScannerService()
         let bonjourScanner = BonjourDiscoveryService()
         let wakeOnLanService = WakeOnLANService()
+        let profileManager = NetworkProfileManager()
+        networkProfileManager = profileManager
 
         if monitoringSession == nil {
             monitoringSession = MonitoringSession(
@@ -152,7 +159,8 @@ struct NetMonitorApp: App {
             deviceDiscovery = DeviceDiscoveryCoordinator(
                 modelContext: context,
                 arpScanner: arpScanner,
-                bonjourScanner: bonjourScanner
+                bonjourScanner: bonjourScanner,
+                networkProfileManager: profileManager
             )
         }
 

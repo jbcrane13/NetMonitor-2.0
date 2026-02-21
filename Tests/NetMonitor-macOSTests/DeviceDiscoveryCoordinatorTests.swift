@@ -76,7 +76,8 @@ struct DeviceDiscoveryCoordinatorTests {
         DeviceDiscoveryCoordinator(
             modelContext: context,
             arpScanner: ARPScannerService(timeout: 0.05),
-            bonjourScanner: BonjourDiscoveryService()
+            bonjourScanner: BonjourDiscoveryService(),
+            networkProfileManager: NetworkProfileManager()
         )
     }
 

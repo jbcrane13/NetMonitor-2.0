@@ -2,31 +2,79 @@ import SwiftUI
 import NetMonitorCore
 import SwiftData
 
+enum SidebarSelection: Hashable {
+    case network(UUID)
+    case section(NavigationSection)
+}
+
 struct SidebarView: View {
-    @Binding var selection: NavigationSection?
+    @Binding var selection: SidebarSelection?
+    var onAddNetwork: () -> Void = {}
+    
+    @Environment(NetworkProfileManager.self) private var profileManager
     @Environment(MonitoringSession.self) private var monitoringSession: MonitoringSession?
     @Query private var targets: [NetworkTarget]
 
     var body: some View {
-        List(NavigationSection.allCases, selection: $selection) { section in
-            HStack {
-                Label(section.rawValue, systemImage: section.iconName)
-                    .accessibilityIdentifier("sidebar_\(section.rawValue.lowercased())")
+        List(selection: $selection) {
+            Section {
+                ForEach(profileManager.profiles) { profile in
+                    HStack {
+                        Label(profile.displayName, systemImage: profile.connectionType.iconName)
+                            .accessibilityIdentifier("sidebar_network_\(profile.id)")
 
-                Spacer()
+                        Spacer()
 
-                if let badge = badgeText(for: section) {
-                    Text(badge)
-                        .font(.caption2)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(badgeColor(for: section), in: Capsule())
-                        .accessibilityIdentifier("sidebar_badge_\(section.rawValue.lowercased())")
+                        if profileManager.activeProfile?.id == profile.id {
+                            Text("Active")
+                                .font(.caption2)
+                                .fontWeight(.semibold)
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Color.green, in: Capsule())
+                                .accessibilityIdentifier("sidebar_network_badge_\(profile.id)")
+                        }
+                    }
+                    .tag(SidebarSelection.network(profile.id))
+                }
+            } header: {
+                HStack {
+                    Text("Networks")
+                    Spacer()
+                    Button(action: onAddNetwork) {
+                        Image(systemName: "plus")
+                            .font(.caption)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("sidebar_add_network")
                 }
             }
-            .tag(section)
+            .accessibilityIdentifier("sidebar_networks_section")
+
+            Section("Navigation") {
+                ForEach(NavigationSection.allCases) { section in
+                    HStack {
+                        Label(section.rawValue, systemImage: section.iconName)
+                            .accessibilityIdentifier("sidebar_\(section.rawValue.lowercased())")
+
+                        Spacer()
+
+                        if let badge = badgeText(for: section) {
+                            Text(badge)
+                                .font(.caption2)
+                                .fontWeight(.semibold)
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(badgeColor(for: section), in: Capsule())
+                                .accessibilityIdentifier("sidebar_badge_\(section.rawValue.lowercased())")
+                        }
+                    }
+                    .tag(SidebarSelection.section(section))
+                }
+            }
+            .accessibilityIdentifier("sidebar_navigation_section")
         }
         .navigationTitle("NetMonitor")
         .frame(minWidth: 220)
@@ -62,7 +110,8 @@ struct SidebarView: View {
 }
 
 #Preview {
-    @Previewable @State var selection: NavigationSection? = .dashboard
+    @Previewable @State var selection: SidebarSelection? = .section(.dashboard)
 
     SidebarView(selection: $selection)
+        .environment(NetworkProfileManager())
 }

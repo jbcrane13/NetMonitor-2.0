@@ -1,52 +1,34 @@
-//
-//  ContentView.swift
-//  NetMonitor
-//
-//  Created on 2026-01-10.
-//
-
 import SwiftUI
 import NetMonitorCore
 
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(MonitoringSession.self) private var session: MonitoringSession?
-    @State private var selectedSection: NavigationSection? = .dashboard
+    @Environment(DeviceDiscoveryCoordinator.self) private var deviceDiscovery: DeviceDiscoveryCoordinator?
+    @Environment(NetworkProfileManager.self) private var profileManager: NetworkProfileManager?
+    @State private var selectedSection: SidebarSelection?
     @State private var localSession: MonitoringSession?
+    @State private var selectedNetworkProfile: NetworkProfile?
+    @State private var showingAddNetworkSheet = false
 
-    /// The active session - prefers environment, falls back to local
     private var activeSession: MonitoringSession? {
         session ?? localSession
     }
 
     var body: some View {
         NavigationSplitView {
-            SidebarView(selection: $selectedSection)
+            SidebarView(
+                selection: $selectedSection,
+                onAddNetwork: { showingAddNetworkSheet = true }
+            )
         } detail: {
-            switch selectedSection {
-            case .dashboard:
-                DashboardView()
-                    .accessibilityIdentifier("detail_dashboard")
-            case .targets:
-                TargetsView()
-                    .accessibilityIdentifier("detail_targets")
-            case .devices:
-                DevicesView()
-                    .accessibilityIdentifier("detail_devices")
-            case .tools:
-                ToolsView()
-                    .accessibilityIdentifier("detail_tools")
-            case .settings:
-                SettingsView()
-                    .accessibilityIdentifier("detail_settings")
-            case nil:
-                Text("Select a section")
-                    .accessibilityIdentifier("detail_empty")
-            }
+            detailView
         }
         .frame(minWidth: 1000, minHeight: 600)
+        .sheet(isPresented: $showingAddNetworkSheet) {
+            AddNetworkSheet()
+        }
         .task {
-            // Create local session only if not provided via environment
             if session == nil && localSession == nil {
                 let httpService = HTTPMonitorService()
                 let icmpService = ICMPMonitorService()
@@ -58,6 +40,63 @@ struct ContentView: View {
                     tcpService: tcpService
                 )
             }
+        }
+        .onChange(of: selectedSection, initial: true) {
+            if case .network(let networkID) = selectedSection {
+                selectedNetworkProfile = profileManager?.profiles.first(where: { $0.id == networkID })
+            } else {
+                selectedNetworkProfile = nil
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var detailView: some View {
+        switch selectedSection {
+        case .network:
+            if selectedNetworkProfile != nil {
+                NetworkDetailView(
+                    profile: Binding(
+                        get: { selectedNetworkProfile! },
+                        set: { selectedNetworkProfile = $0 }
+                    ),
+                    scanAction: {
+                        if let profile = selectedNetworkProfile {
+                            deviceDiscovery?.scanNetwork(profile)
+                        }
+                    }
+                )
+                .accessibilityIdentifier("detail_network")
+            } else {
+                Text("Network not found")
+                    .accessibilityIdentifier("detail_network_not_found")
+            }
+        case .section(let section):
+            sectionView(for: section)
+        case nil:
+            Text("Select a section")
+                .accessibilityIdentifier("detail_empty")
+        }
+    }
+
+    @ViewBuilder
+    private func sectionView(for section: NavigationSection) -> some View {
+        switch section {
+        case .dashboard:
+            DashboardView()
+                .accessibilityIdentifier("detail_dashboard")
+        case .targets:
+            TargetsView()
+                .accessibilityIdentifier("detail_targets")
+        case .devices:
+            DevicesView()
+                .accessibilityIdentifier("detail_devices")
+        case .tools:
+            ToolsView()
+                .accessibilityIdentifier("detail_tools")
+        case .settings:
+            SettingsView()
+                .accessibilityIdentifier("detail_settings")
         }
     }
 }
