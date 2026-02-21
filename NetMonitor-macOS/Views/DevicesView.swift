@@ -190,8 +190,11 @@ struct DevicesView: View {
     private var toolbarContent: some ToolbarContent {
         ToolbarItem(placement: .primaryAction) {
             Button {
-                coordinator?.selectedInterface = selectedNetwork?.interfaceName
-                coordinator?.startScan()
+                if let profile = selectedNetwork {
+                    coordinator?.scanNetwork(profile)
+                } else {
+                    coordinator?.startScan()
+                }
             } label: {
                 Label("Scan", systemImage: "antenna.radiowaves.left.and.right")
             }

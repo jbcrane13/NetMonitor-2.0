@@ -13,6 +13,13 @@ public enum NetworkUtilities {
         public let interfaceAddress: UInt32
         public let netmask: UInt32
 
+        public init(networkAddress: UInt32, broadcastAddress: UInt32, interfaceAddress: UInt32, netmask: UInt32) {
+            self.networkAddress = networkAddress
+            self.broadcastAddress = broadcastAddress
+            self.interfaceAddress = interfaceAddress
+            self.netmask = netmask
+        }
+
         public var prefixLength: Int { netmask.nonzeroBitCount }
 
         /// Returns whether the given IPv4 address belongs to this network.
@@ -150,7 +157,7 @@ public enum NetworkUtilities {
 
     // MARK: - Helpers
 
-    static func ipv4ToUInt32(_ address: String) -> UInt32? {
+    public static func ipv4ToUInt32(_ address: String) -> UInt32? {
         let parts = address.split(separator: ".")
         guard parts.count == 4 else { return nil }
         var value: UInt32 = 0

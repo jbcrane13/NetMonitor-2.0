@@ -294,4 +294,15 @@ public final class NetworkProfileManager {
         case .none: return 3
         }
     }
+
+    public func updateProfileScanInfo(id: UUID, lastScanned: Date, deviceCount: Int) {
+        if let index = profiles.firstIndex(where: { $0.id == id }) {
+            profiles[index].lastScanned = lastScanned
+            profiles[index].deviceCount = deviceCount
+            if activeProfile?.id == id {
+                activeProfile = profiles[index]
+            }
+            persistProfiles()
+        }
+    }
 }

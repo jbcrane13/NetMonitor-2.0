@@ -3,8 +3,6 @@ import SwiftData
 import NetMonitorCore
 import os
 
-/// Coordinates device discovery using ARP scanning + Bonjour discovery,
-/// and persists results into LocalDevice SwiftData models.
 @MainActor
 @Observable
 final class DeviceDiscoveryCoordinator {
@@ -13,12 +11,14 @@ final class DeviceDiscoveryCoordinator {
     private(set) var discoveredDevices: [LocalDevice] = []
     private(set) var lastScanTime: Date?
     private(set) var scanProgress: Double = 0.0
+    private(set) var networkProfile: NetworkProfile?
 
     private let modelContext: ModelContext
     private let arpScanner: ARPScannerService
     let bonjourScanner: BonjourDiscoveryService
     private let nameResolver: DeviceNameResolver
     private let macVendorService: MACVendorLookupService
+    let networkProfileManager: NetworkProfileManager
 
     private var scanTask: Task<Void, Never>?
 
@@ -27,37 +27,38 @@ final class DeviceDiscoveryCoordinator {
         arpScanner: ARPScannerService,
         bonjourScanner: BonjourDiscoveryService,
         nameResolver: DeviceNameResolver = DeviceNameResolver(),
-        macVendorService: MACVendorLookupService = MACVendorLookupService()
+        macVendorService: MACVendorLookupService = MACVendorLookupService(),
+        networkProfileManager: NetworkProfileManager
     ) {
         self.modelContext = modelContext
         self.arpScanner = arpScanner
         self.bonjourScanner = bonjourScanner
         self.nameResolver = nameResolver
         self.macVendorService = macVendorService
+        self.networkProfileManager = networkProfileManager
         loadPersistedDevices()
     }
 
-    // MARK: - Public API
-
-    /// The interface name to scan, or nil for auto-detect.
-    var selectedInterface: String?
+    var selectedInterface: String? {
+        networkProfile?.interfaceName
+    }
 
     func startScan() {
         guard !isScanning else { return }
         isScanning = true
         scanProgress = 0.0
 
+        let profileID = networkProfile?.id
+
         scanTask = Task {
             do {
                 try Task.checkCancellation()
 
-                // Phase 1: ARP Scan
                 scanProgress = 0.1
                 let arpDevices = try await arpScanner.scanNetwork(interface: selectedInterface)
                 try Task.checkCancellation()
                 scanProgress = 0.6
 
-                // Phase 2: Bonjour — collect a window of discoveries
                 var bonjourDevices: [LocalDiscoveredDevice] = []
                 let bonjourStream = await bonjourScanner.discoveryStream(serviceType: nil)
                 let bonjourTask = Task {
@@ -71,7 +72,6 @@ final class DeviceDiscoveryCoordinator {
                         }
                     }
                 }
-                // Give Bonjour 5 seconds
                 try? await Task.sleep(for: .seconds(5))
                 bonjourTask.cancel()
                 await bonjourScanner.stopDiscovery()
@@ -79,7 +79,6 @@ final class DeviceDiscoveryCoordinator {
                 try Task.checkCancellation()
                 scanProgress = 0.9
 
-                // Merge results
                 let allDiscovered = mergeDiscoveryResults(arp: arpDevices, bonjour: bonjourDevices)
                 mergeDiscoveredDevices(allDiscovered)
 
@@ -92,13 +91,25 @@ final class DeviceDiscoveryCoordinator {
 
                 scanProgress = 1.0
                 lastScanTime = Date()
+
+                if let profileID {
+                    networkProfileManager.updateProfileScanInfo(
+                        id: profileID,
+                        lastScanned: Date(),
+                        deviceCount: discoveredDevices.count
+                    )
+                }
             } catch is CancellationError {
-                // Cancelled gracefully
             } catch {
                 Logger.discovery.error("Scan error: \(error, privacy: .public)")
             }
             isScanning = false
         }
+    }
+
+    func scanNetwork(_ profile: NetworkProfile) {
+        networkProfile = profile
+        startScan()
     }
 
     func stopScan() {
@@ -110,8 +121,6 @@ final class DeviceDiscoveryCoordinator {
         }
         isScanning = false
     }
-
-    // MARK: - Private
 
     func mergeDiscoveredDevices(_ devices: [LocalDiscoveredDevice]) {
         for discovered in devices {
