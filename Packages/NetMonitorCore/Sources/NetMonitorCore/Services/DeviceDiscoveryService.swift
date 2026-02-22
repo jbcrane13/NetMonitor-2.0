@@ -41,20 +41,64 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
 
     private let engine = ScanEngine()
     private let macConnectionService: (any MacConnectionServiceProtocol)?
+    private let userDefaults: UserDefaults
 
     private var scanTask: Task<Void, Never>?
+    private var cachedDevicesByProfileID: [String: [DiscoveredDevice]] = [:]
 
-    public init(macConnectionService: (any MacConnectionServiceProtocol)? = nil) {
+    private static let deviceCacheStorageKey = "netmonitor.deviceCacheByProfileID"
+
+    public init(
+        macConnectionService: (any MacConnectionServiceProtocol)? = nil,
+        userDefaults: UserDefaults = .standard
+    ) {
         self.macConnectionService = macConnectionService
+        self.userDefaults = userDefaults
+        loadCachedDevices()
     }
 
     private let maxHostsPerScan = 1024
 
+    private nonisolated func cacheKey(for profile: NetworkProfile?) -> String {
+        profile?.id.uuidString ?? "auto"
+    }
+
+    private nonisolated func withProfile(_ device: DiscoveredDevice, profileID: UUID?) -> DiscoveredDevice {
+        DiscoveredDevice(
+            id: device.id,
+            ipAddress: device.ipAddress,
+            hostname: device.hostname,
+            vendor: device.vendor,
+            macAddress: device.macAddress,
+            latency: device.latency,
+            discoveredAt: device.discoveredAt,
+            source: device.source,
+            networkProfileID: profileID
+        )
+    }
+
+    private func loadCachedDevices() {
+        guard let data = userDefaults.data(forKey: Self.deviceCacheStorageKey),
+              let decoded = try? JSONDecoder().decode([String: [DiscoveredDevice]].self, from: data) else {
+            return
+        }
+        cachedDevicesByProfileID = decoded
+    }
+
+    private func persistCachedDevices() {
+        guard let data = try? JSONEncoder().encode(cachedDevicesByProfileID) else { return }
+        userDefaults.set(data, forKey: Self.deviceCacheStorageKey)
+    }
+
     // MARK: - Batched UI update helpers
 
     /// Flush accumulated devices and progress to UI.
-    private func flushToMainActor(progress: Double? = nil, phase: ScanDisplayPhase? = nil) async {
-        let devices = await engine.accumulator.snapshot()
+    private func flushToMainActor(
+        progress: Double? = nil,
+        phase: ScanDisplayPhase? = nil,
+        profileID: UUID? = nil
+    ) async {
+        let devices = await engine.accumulator.snapshot().map { withProfile($0, profileID: profileID) }
         self.discoveredDevices = devices
         if let progress { self.scanProgress = progress }
         if let phase { self.scanPhase = phase }
@@ -81,11 +125,15 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
     }
 
     private func performScan(subnet: String? = nil, profile: NetworkProfile? = nil) async {
+        let cacheKey = cacheKey(for: profile)
+        let staleDevices = cachedDevicesByProfileID[cacheKey] ?? []
+        let profileID = profile?.id
+
         await engine.reset()
         isScanning = true
         scanProgress = 0
         scanPhase = .arpScan
-        discoveredDevices = []
+        discoveredDevices = staleDevices
 
         defer {
             isScanning = false
@@ -144,7 +192,7 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
             await MainActor.run {
                 guard let self else { return }
                 self.scanProgress = progress
-                self.discoveredDevices = snapshot
+                self.discoveredDevices = snapshot.map { self.withProfile($0, profileID: profileID) }
                 if let phase = ScanDisplayPhase(rawValue: phaseName) {
                     self.scanPhase = phase
                 }
@@ -160,12 +208,18 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
             await macConnectionService?.send(command: CommandPayload(action: .refreshDevices))
             try? await Task.sleep(for: .seconds(1))
         }
-        await mergeCompanionDevices(filter: scanTarget.filter)
-        await flushToMainActor(progress: 0.95)
+        await mergeCompanionDevices(filter: scanTarget.filter, profileID: profileID)
+        await flushToMainActor(progress: 0.95, profileID: profileID)
 
         // Final sort and flush
-        let sorted = await engine.accumulator.sortedSnapshot()
-        discoveredDevices = sorted
+        let sorted = await engine.accumulator.sortedSnapshot().map { withProfile($0, profileID: profileID) }
+        if sorted.isEmpty, !staleDevices.isEmpty {
+            discoveredDevices = staleDevices
+        } else {
+            discoveredDevices = sorted
+            cachedDevicesByProfileID[cacheKey] = sorted
+            persistCachedDevices()
+        }
         scanProgress = 1.0
         scanPhase = .done
     }
@@ -173,6 +227,10 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
     public func stopScan() {
         isScanning = false
         scanTask?.cancel()
+    }
+
+    public func cachedDevices(for profile: NetworkProfile?) -> [DiscoveredDevice] {
+        cachedDevicesByProfileID[cacheKey(for: profile)] ?? []
     }
 
     // MARK: - Scan Target Planning
@@ -223,7 +281,7 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
     // MARK: - Mac Companion Merge
 
     /// Merge devices discovered by the paired Mac into accumulated results.
-    private func mergeCompanionDevices(filter: ScanFilter) async {
+    private func mergeCompanionDevices(filter: ScanFilter, profileID: UUID?) async {
         let macDevices = macConnectionService?.lastDeviceList?.devices
         guard let macDevices else { return }
 
@@ -237,7 +295,8 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
                 macAddress: macDevice.macAddress.isEmpty ? nil : macDevice.macAddress,
                 latency: nil,
                 discoveredAt: Date(),
-                source: .macCompanion
+                source: .macCompanion,
+                networkProfileID: profileID
             ))
         }
     }

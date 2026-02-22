@@ -9,6 +9,7 @@ public enum CompanionMessage: Codable, Sendable {
     case statusUpdate(StatusUpdatePayload)
     case targetList(TargetListPayload)
     case deviceList(DeviceListPayload)
+    case networkProfile(NetworkProfilePayload)
     case command(CommandPayload)
     case toolResult(ToolResultPayload)
     case error(ErrorPayload)
@@ -25,6 +26,7 @@ public enum CompanionMessage: Codable, Sendable {
         case statusUpdate
         case targetList
         case deviceList
+        case networkProfile
         case command
         case toolResult
         case error
@@ -44,6 +46,8 @@ public enum CompanionMessage: Codable, Sendable {
             self = .targetList(try container.decode(TargetListPayload.self, forKey: .payload))
         case .deviceList:
             self = .deviceList(try container.decode(DeviceListPayload.self, forKey: .payload))
+        case .networkProfile:
+            self = .networkProfile(try container.decode(NetworkProfilePayload.self, forKey: .payload))
         case .command:
             self = .command(try container.decode(CommandPayload.self, forKey: .payload))
         case .toolResult:
@@ -69,6 +73,9 @@ public enum CompanionMessage: Codable, Sendable {
             try container.encode(payload, forKey: .payload)
         case .deviceList(let payload):
             try container.encode(MessageType.deviceList, forKey: .type)
+            try container.encode(payload, forKey: .payload)
+        case .networkProfile(let payload):
+            try container.encode(MessageType.networkProfile, forKey: .type)
             try container.encode(payload, forKey: .payload)
         case .command(let payload):
             try container.encode(MessageType.command, forKey: .type)
@@ -154,6 +161,28 @@ public struct DeviceListPayload: Codable, Sendable {
 
     public init(devices: [DeviceInfo]) {
         self.devices = devices
+    }
+}
+
+public struct NetworkProfilePayload: Codable, Sendable {
+    public let name: String
+    public let gatewayIP: String
+    public let subnet: String
+    public let interfaceName: String
+    public let sourceDeviceName: String?
+
+    public init(
+        name: String,
+        gatewayIP: String,
+        subnet: String,
+        interfaceName: String,
+        sourceDeviceName: String? = nil
+    ) {
+        self.name = name
+        self.gatewayIP = gatewayIP
+        self.subnet = subnet
+        self.interfaceName = interfaceName
+        self.sourceDeviceName = sourceDeviceName
     }
 }
 

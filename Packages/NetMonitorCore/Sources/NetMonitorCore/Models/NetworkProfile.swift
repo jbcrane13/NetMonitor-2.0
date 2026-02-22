@@ -44,6 +44,9 @@ public struct NetworkProfile: Identifiable, Codable, Sendable, Hashable {
     /// Last known device count for this profile.
     public var deviceCount: Int?
 
+    /// Last known gateway reachability for this profile.
+    public var gatewayReachable: Bool?
+
     private enum CodingKeys: String, CodingKey {
         case id
         case interfaceName
@@ -57,6 +60,7 @@ public struct NetworkProfile: Identifiable, Codable, Sendable, Hashable {
         case discoveryMethod
         case lastScanned
         case deviceCount
+        case gatewayReachable
     }
 
     /// Backward-compatible initializer used by interface enumeration call sites.
@@ -83,6 +87,7 @@ public struct NetworkProfile: Identifiable, Codable, Sendable, Hashable {
         self.discoveryMethod = .auto
         self.lastScanned = nil
         self.deviceCount = nil
+        self.gatewayReachable = nil
     }
 
     public init(
@@ -97,7 +102,8 @@ public struct NetworkProfile: Identifiable, Codable, Sendable, Hashable {
         isLocal: Bool,
         discoveryMethod: DiscoveryMethod,
         lastScanned: Date? = nil,
-        deviceCount: Int? = nil
+        deviceCount: Int? = nil,
+        gatewayReachable: Bool? = nil
     ) {
         self.id = id
         self.interfaceName = interfaceName
@@ -111,6 +117,7 @@ public struct NetworkProfile: Identifiable, Codable, Sendable, Hashable {
         self.discoveryMethod = discoveryMethod
         self.lastScanned = lastScanned
         self.deviceCount = deviceCount
+        self.gatewayReachable = gatewayReachable
     }
 
     public init(from decoder: Decoder) throws {
@@ -144,6 +151,7 @@ public struct NetworkProfile: Identifiable, Codable, Sendable, Hashable {
             ?? (isLocal ? .auto : .manual)
         lastScanned = try container.decodeIfPresent(Date.self, forKey: .lastScanned)
         deviceCount = try container.decodeIfPresent(Int.self, forKey: .deviceCount)
+        gatewayReachable = try container.decodeIfPresent(Bool.self, forKey: .gatewayReachable)
     }
 
     /// Subnet in CIDR notation (e.g., "192.168.1.0/24").

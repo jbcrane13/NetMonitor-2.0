@@ -91,7 +91,11 @@ final class DashboardViewModel {
     }
     
     var discoveredDevices: [DiscoveredDevice] {
-        deviceDiscoveryService.discoveredDevices
+        let currentDevices = scopedDevices(from: deviceDiscoveryService.discoveredDevices)
+        if !currentDevices.isEmpty {
+            return currentDevices
+        }
+        return scopedDevices(from: deviceDiscoveryService.cachedDevices(for: activeNetwork))
     }
     
     var deviceCount: Int {
@@ -104,6 +108,22 @@ final class DashboardViewModel {
     
     var isScanning: Bool {
         deviceDiscoveryService.isScanning
+    }
+
+    var activeNetworkLastScanned: Date? {
+        activeNetwork?.lastScanned
+    }
+
+    var activeNetworkDeviceCount: Int? {
+        activeNetwork?.deviceCount
+    }
+
+    var activeNetworkGatewayReachable: Bool? {
+        activeNetwork?.gatewayReachable
+    }
+
+    var isShowingStaleActiveNetworkData: Bool {
+        (activeNetwork?.gatewayReachable == false) && (activeNetwork?.lastScanned != nil)
     }
     
     var sessionDuration: String {
@@ -144,7 +164,9 @@ final class DashboardViewModel {
     }
 
     func startDeviceScan() async {
-        await deviceDiscoveryService.scanNetwork(profile: selectedNetwork)
+        let profile = activeNetwork
+        await deviceDiscoveryService.scanNetwork(profile: profile)
+        updateScanMetadata(for: profile)
     }
 
     func stopDeviceScan() {
@@ -181,6 +203,10 @@ final class DashboardViewModel {
             selectedNetworkID = id
             persistSelectedNetwork()
         } else {
+            networkProfileManager.detectLocalNetwork()
+            if let localID = networkProfileManager.profiles.first(where: { $0.isLocal })?.id {
+                _ = networkProfileManager.switchProfile(id: localID)
+            }
             clearSelectedNetwork()
         }
 
@@ -289,5 +315,22 @@ final class DashboardViewModel {
             return lhs.isLocal
         }
         return lhs.displayName.localizedCaseInsensitiveCompare(rhs.displayName) == .orderedAscending
+    }
+
+    private func scopedDevices(from devices: [DiscoveredDevice]) -> [DiscoveredDevice] {
+        let activeProfileID = activeNetwork?.id
+        return devices.filter { $0.networkProfileID == activeProfileID }
+    }
+
+    private func updateScanMetadata(for profile: NetworkProfile?) {
+        guard let profile else { return }
+        let scoped = scopedDevices(from: deviceDiscoveryService.discoveredDevices)
+        networkProfileManager.updateProfileScanInfo(
+            id: profile.id,
+            lastScanned: Date(),
+            deviceCount: scoped.count,
+            gatewayReachable: scoped.contains(where: { $0.ipAddress == profile.gatewayIP })
+        )
+        refreshAvailableNetworks()
     }
 }

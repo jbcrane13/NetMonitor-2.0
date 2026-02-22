@@ -126,6 +126,7 @@ public protocol DeviceDiscoveryServiceProtocol: AnyObject, Sendable {
     @MainActor var scanProgress: Double { get }
     @MainActor var scanPhase: ScanDisplayPhase { get }
     @MainActor var lastScanDate: Date? { get }
+    @MainActor func cachedDevices(for profile: NetworkProfile?) -> [DiscoveredDevice]
     func scanNetwork(subnet: String?) async
     func scanNetwork(profile: NetworkProfile?) async
     @MainActor func stopScan()

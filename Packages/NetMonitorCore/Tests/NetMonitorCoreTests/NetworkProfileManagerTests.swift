@@ -57,9 +57,12 @@ struct NetworkProfileManagerTests {
             activeProfilesProvider: { [localProfile] in [localProfile] }
         )
 
-        #expect(managerB.profiles.contains(where: {
-            $0.gatewayIP == "10.1.0.1" && $0.subnet == "10.1.0.0/24" && $0.name == "Office"
-        }))
+        let containsOffice = managerB.profiles.contains { profile in
+            profile.gatewayIP == "10.1.0.1" &&
+            profile.subnet == "10.1.0.0/24" &&
+            profile.name == "Office"
+        }
+        #expect(containsOffice)
     }
 
     @Test("Local network detection creates/updates a local profile")
@@ -141,6 +144,88 @@ struct NetworkProfileManagerTests {
             activeProfilesProvider: { [] }
         )
         #expect(manager.activeProfile?.id == localProfile.id)
+    }
+
+    @Test("Companion sync upserts companion profile")
+    @MainActor
+    func companionProfileUpsert() {
+        let (defaults, suiteName) = makeUserDefaults()
+        defer { clear(defaults, suiteName: suiteName) }
+
+        let localProfile = makeProfile(
+            interfaceName: "en0",
+            ipAddress: "192.168.1.10",
+            connectionType: .wifi,
+            subnet: "192.168.1.0/24"
+        )
+        let manager = NetworkProfileManager(
+            userDefaults: defaults,
+            activeProfilesProvider: { [localProfile] in [localProfile] }
+        )
+
+        let first = manager.upsertCompanionProfile(
+            gateway: "10.0.0.1",
+            subnet: "10.0.0.0/24",
+            name: "Office Network",
+            interfaceName: "en5"
+        )
+        #expect(first != nil)
+        #expect(first?.discoveryMethod == .companion)
+        #expect(first?.isLocal == false)
+
+        let second = manager.upsertCompanionProfile(
+            gateway: "10.0.0.1",
+            subnet: "10.0.0.0/24",
+            name: "Office Network Updated",
+            interfaceName: "en5"
+        )
+        #expect(second?.id == first?.id)
+        #expect(manager.profiles.filter { $0.discoveryMethod == .companion }.count == 1)
+        #expect(manager.profiles.first(where: { $0.id == second?.id })?.name == "Office Network Updated")
+    }
+
+    @Test("Integration: local and remote scan metadata stay separated")
+    @MainActor
+    func scanMetadataSeparationAcrossProfiles() {
+        let (defaults, suiteName) = makeUserDefaults()
+        defer { clear(defaults, suiteName: suiteName) }
+
+        let localProfile = makeProfile(
+            interfaceName: "en0",
+            ipAddress: "192.168.1.25",
+            connectionType: .wifi,
+            subnet: "192.168.1.0/24"
+        )
+        let manager = NetworkProfileManager(
+            userDefaults: defaults,
+            activeProfilesProvider: { [localProfile] in [localProfile] }
+        )
+        let remote = manager.addProfile(gateway: "10.20.0.1", subnet: "10.20.0.0/24", name: "Remote Lab")
+        #expect(remote != nil)
+        guard let remote else { return }
+
+        let localDate = Date().addingTimeInterval(-120)
+        let remoteDate = Date()
+        manager.updateProfileScanInfo(
+            id: localProfile.id,
+            lastScanned: localDate,
+            deviceCount: 12,
+            gatewayReachable: true
+        )
+        manager.updateProfileScanInfo(
+            id: remote.id,
+            lastScanned: remoteDate,
+            deviceCount: 3,
+            gatewayReachable: false
+        )
+
+        let updatedLocal = manager.profiles.first(where: { $0.id == localProfile.id })
+        let updatedRemote = manager.profiles.first(where: { $0.id == remote.id })
+        #expect(updatedLocal?.deviceCount == 12)
+        #expect(updatedLocal?.gatewayReachable == true)
+        #expect(updatedRemote?.deviceCount == 3)
+        #expect(updatedRemote?.gatewayReachable == false)
+        #expect(updatedLocal?.subnet != updatedRemote?.subnet)
     }
 
     // MARK: - Helpers

@@ -6,10 +6,6 @@ import NetworkScanKit
 @Observable
 final class NetworkMapViewModel {
     var selectedDeviceIP: String?
-
-    /// Cached devices that persist across tab switches
-    private(set) var cachedDevices: [DiscoveredDevice] = []
-    private var lastCacheDate: Date?
     private let networkProfileManager: NetworkProfileManager
     private let pingService: any PingServiceProtocol
     private let userDefaults: UserDefaults
@@ -56,12 +52,11 @@ final class NetworkMapViewModel {
     }
 
     var discoveredDevices: [DiscoveredDevice] {
-        // Return service devices if a scan is active or just finished, otherwise cached
-        let serviceDevices = deviceDiscoveryService.discoveredDevices
+        let serviceDevices = scopedDevices(from: deviceDiscoveryService.discoveredDevices)
         if !serviceDevices.isEmpty {
             return serviceDevices
         }
-        return cachedDevices
+        return scopedDevices(from: deviceDiscoveryService.cachedDevices(for: activeNetwork))
     }
 
     var isScanning: Bool {
@@ -92,6 +87,22 @@ final class NetworkMapViewModel {
         gatewayService.gateway
     }
 
+    var activeNetworkLastScanned: Date? {
+        activeNetwork?.lastScanned
+    }
+
+    var activeNetworkDeviceCount: Int? {
+        activeNetwork?.deviceCount
+    }
+
+    var activeNetworkGatewayReachable: Bool? {
+        activeNetwork?.gatewayReachable
+    }
+
+    var isShowingStaleActiveNetworkData: Bool {
+        (activeNetwork?.gatewayReachable == false) && (activeNetwork?.lastScanned != nil)
+    }
+
     var bonjourServices: [BonjourService] {
         bonjourService.discoveredServices
     }
@@ -103,16 +114,12 @@ final class NetworkMapViewModel {
         }
         
         // Skip device scan if we already have cached results and not forcing refresh
-        if !forceRefresh, !cachedDevices.isEmpty {
+        if !forceRefresh, !discoveredDevices.isEmpty {
             return
         }
-        await deviceDiscoveryService.scanNetwork(profile: selectedNetwork)
-        // Cache the results after scan completes
-        let results = deviceDiscoveryService.discoveredDevices
-        if !results.isEmpty {
-            cachedDevices = results
-            lastCacheDate = Date()
-        }
+        let profile = activeNetwork
+        await deviceDiscoveryService.scanNetwork(profile: profile)
+        updateScanMetadata(for: profile)
     }
 
     func stopScan() {
@@ -163,10 +170,12 @@ final class NetworkMapViewModel {
             selectedNetworkID = id
             persistSelectedNetwork()
         } else {
+            networkProfileManager.detectLocalNetwork()
+            if let localID = networkProfileManager.profiles.first(where: { $0.isLocal })?.id {
+                _ = networkProfileManager.switchProfile(id: localID)
+            }
             clearSelectedNetwork()
         }
-
-        cachedDevices = []
         await startScan(forceRefresh: true)
         return true
     }
@@ -200,7 +209,6 @@ final class NetworkMapViewModel {
         selectedNetworkID = profile.id
         persistSelectedNetwork()
 
-        cachedDevices = []
         await startScan(forceRefresh: true)
         return nil
     }
@@ -247,5 +255,22 @@ final class NetworkMapViewModel {
             return lhs.isLocal
         }
         return lhs.displayName.localizedCaseInsensitiveCompare(rhs.displayName) == .orderedAscending
+    }
+
+    private func scopedDevices(from devices: [DiscoveredDevice]) -> [DiscoveredDevice] {
+        let activeProfileID = activeNetwork?.id
+        return devices.filter { $0.networkProfileID == activeProfileID }
+    }
+
+    private func updateScanMetadata(for profile: NetworkProfile?) {
+        guard let profile else { return }
+        let scoped = scopedDevices(from: deviceDiscoveryService.discoveredDevices)
+        networkProfileManager.updateProfileScanInfo(
+            id: profile.id,
+            lastScanned: Date(),
+            deviceCount: scoped.count,
+            gatewayReachable: scoped.contains(where: { $0.ipAddress == profile.gatewayIP })
+        )
+        refreshAvailableNetworks()
     }
 }

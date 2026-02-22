@@ -116,6 +116,8 @@ struct NetworkDetailView: View {
                 infoRow(label: "Last Scanned", value: "Never")
             }
 
+            infoRow(label: "Gateway Reachability", value: gatewayReachabilityLabel)
+
             infoRow(label: "Local Network", value: profile.isLocal ? "Yes" : "No")
         }
         .padding()
@@ -189,6 +191,14 @@ struct NetworkDetailView: View {
         }
     }
 
+    private var gatewayReachabilityLabel: String {
+        switch profile.gatewayReachable {
+        case true: "Reachable"
+        case false: "Offline (showing stale data)"
+        case nil: "Unknown"
+        }
+    }
+
     private func relativeTime(from date: Date) -> String {
         let interval = Date().timeIntervalSince(date)
         if interval < 60 { return "Just now" }
@@ -227,7 +237,8 @@ struct NetworkDetailView: View {
         isLocal: true,
         discoveryMethod: .auto,
         lastScanned: Date().addingTimeInterval(-3600),
-        deviceCount: 12
+        deviceCount: 12,
+        gatewayReachable: true
     )
 
     NetworkDetailView(profile: .constant(profile)) {

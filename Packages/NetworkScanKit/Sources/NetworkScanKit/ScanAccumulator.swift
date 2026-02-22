@@ -23,13 +23,15 @@ public actor ScanAccumulator {
         let existing = devices[idx]
         guard existing.latency == nil else { return }
         devices[idx] = DiscoveredDevice(
+            id: existing.id,
             ipAddress: existing.ipAddress,
             hostname: existing.hostname,
             vendor: existing.vendor,
             macAddress: existing.macAddress,
             latency: latency,
             discoveredAt: existing.discoveredAt,
-            source: existing.source
+            source: existing.source,
+            networkProfileID: existing.networkProfileID
         )
     }
 
@@ -57,13 +59,15 @@ public actor ScanAccumulator {
         guard let idx = indexByIP[ip] else { return }
         let existing = devices[idx]
         devices[idx] = DiscoveredDevice(
+            id: existing.id,
             ipAddress: existing.ipAddress,
             hostname: existing.hostname,
             vendor: existing.vendor,
             macAddress: existing.macAddress,
             latency: latency,
             discoveredAt: existing.discoveredAt,
-            source: existing.source
+            source: existing.source,
+            networkProfileID: existing.networkProfileID
         )
     }
 
@@ -84,13 +88,15 @@ public actor ScanAccumulator {
 
     private static func merged(existing: DiscoveredDevice, incoming: DiscoveredDevice) -> DiscoveredDevice {
         DiscoveredDevice(
+            id: existing.id,
             ipAddress: existing.ipAddress,
             hostname: existing.hostname ?? incoming.hostname,
             vendor: existing.vendor ?? incoming.vendor,
             macAddress: existing.macAddress ?? incoming.macAddress,
             latency: existing.latency ?? incoming.latency,
             discoveredAt: existing.discoveredAt,
-            source: existing.source
+            source: existing.source,
+            networkProfileID: existing.networkProfileID ?? incoming.networkProfileID
         )
     }
 }

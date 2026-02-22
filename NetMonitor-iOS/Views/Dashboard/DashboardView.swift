@@ -59,6 +59,9 @@ struct DashboardView: View {
                 await viewModel.refresh(forceIP: true)
                 viewModel.startAutoRefresh()
             }
+            .onReceive(NotificationCenter.default.publisher(for: .networkProfilesDidChange)) { _ in
+                viewModel.refreshAvailableNetworks()
+            }
             .onDisappear {
                 viewModel.stopAutoRefresh()
             }
@@ -284,6 +287,26 @@ struct ActiveNetworkCard: View {
                         Text("\(activeNetwork.gatewayIP) • \(activeNetwork.subnet)")
                             .font(.caption)
                             .foregroundStyle(Theme.Colors.textSecondary)
+
+                        HStack(spacing: 8) {
+                            Text("Devices: \(viewModel.activeNetworkDeviceCount ?? 0)")
+                                .font(.caption2)
+                                .foregroundStyle(Theme.Colors.textSecondary)
+                            Text("Gateway: \(gatewayStatusText)")
+                                .font(.caption2)
+                                .foregroundStyle(gatewayStatusColor)
+                            if let lastScanned = viewModel.activeNetworkLastScanned {
+                                Text("Scanned \(lastScanned, style: .relative)")
+                                    .font(.caption2)
+                                    .foregroundStyle(Theme.Colors.textSecondary)
+                            }
+                        }
+
+                        if viewModel.isShowingStaleActiveNetworkData {
+                            Text("Gateway offline - showing last known devices")
+                                .font(.caption2)
+                                .foregroundStyle(Theme.Colors.warning)
+                        }
                     }
                 } else {
                     Text("Auto-detecting current network")
@@ -313,6 +336,22 @@ struct ActiveNetworkCard: View {
             viewModel.refreshAvailableNetworks()
         }
         .accessibilityIdentifier("dashboard_card_activeNetwork")
+    }
+
+    private var gatewayStatusText: String {
+        switch viewModel.activeNetworkGatewayReachable {
+        case true: return "Reachable"
+        case false: return "Offline"
+        case nil: return "Unknown"
+        }
+    }
+
+    private var gatewayStatusColor: Color {
+        switch viewModel.activeNetworkGatewayReachable {
+        case true: return Theme.Colors.success
+        case false: return Theme.Colors.error
+        case nil: return Theme.Colors.textSecondary
+        }
     }
 }
 

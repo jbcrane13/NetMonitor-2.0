@@ -36,7 +36,7 @@ final class DeviceDiscoveryCoordinator {
         self.nameResolver = nameResolver
         self.macVendorService = macVendorService
         self.networkProfileManager = networkProfileManager
-        loadPersistedDevices()
+        loadPersistedDevices(for: effectiveProfileID())
     }
 
     var selectedInterface: String? {
@@ -48,7 +48,8 @@ final class DeviceDiscoveryCoordinator {
         isScanning = true
         scanProgress = 0.0
 
-        let profileID = networkProfile?.id
+        let profileID = effectiveProfileID()
+        loadPersistedDevices(for: profileID)
 
         scanTask = Task {
             do {
@@ -80,23 +81,29 @@ final class DeviceDiscoveryCoordinator {
                 scanProgress = 0.9
 
                 let allDiscovered = mergeDiscoveryResults(arp: arpDevices, bonjour: bonjourDevices)
-                mergeDiscoveredDevices(allDiscovered)
+                mergeDiscoveredDevices(allDiscovered, profileID: profileID)
 
                 try Task.checkCancellation()
                 scanProgress = 0.95
 
-                await resolveDeviceNames()
-                await resolveDeviceVendors()
-                markOfflineDevices(currentIPs: Set(allDiscovered.map(\.ipAddress)))
+                await resolveDeviceNames(profileID: profileID)
+                await resolveDeviceVendors(profileID: profileID)
+                markOfflineDevices(currentIPs: Set(allDiscovered.map(\.ipAddress)), profileID: profileID)
 
                 scanProgress = 1.0
                 lastScanTime = Date()
 
                 if let profileID {
+                    let gatewayIP = networkProfile?.gatewayIP
+                        ?? networkProfileManager.profiles.first(where: { $0.id == profileID })?.gatewayIP
+                    let gatewayReachable = gatewayIP.map { gateway in
+                        allDiscovered.contains(where: { $0.ipAddress == gateway })
+                    }
                     networkProfileManager.updateProfileScanInfo(
                         id: profileID,
                         lastScanned: Date(),
-                        deviceCount: discoveredDevices.count
+                        deviceCount: discoveredDevices.count,
+                        gatewayReachable: gatewayReachable
                     )
                 }
             } catch is CancellationError {
@@ -109,6 +116,8 @@ final class DeviceDiscoveryCoordinator {
 
     func scanNetwork(_ profile: NetworkProfile) {
         networkProfile = profile
+        _ = networkProfileManager.switchProfile(id: profile.id)
+        loadPersistedDevices(for: profile.id)
         startScan()
     }
 
@@ -122,15 +131,23 @@ final class DeviceDiscoveryCoordinator {
         isScanning = false
     }
 
-    func mergeDiscoveredDevices(_ devices: [LocalDiscoveredDevice]) {
+    func mergeDiscoveredDevices(_ devices: [LocalDiscoveredDevice], profileID: UUID?) {
         for discovered in devices {
             let predicate: Predicate<LocalDevice>
             if !discovered.macAddress.isEmpty {
                 let mac = discovered.macAddress
-                predicate = #Predicate<LocalDevice> { $0.macAddress == mac }
+                if let profileID {
+                    predicate = #Predicate<LocalDevice> { $0.networkProfileID == profileID && $0.macAddress == mac }
+                } else {
+                    predicate = #Predicate<LocalDevice> { $0.networkProfileID == nil && $0.macAddress == mac }
+                }
             } else {
                 let ip = discovered.ipAddress
-                predicate = #Predicate<LocalDevice> { $0.ipAddress == ip }
+                if let profileID {
+                    predicate = #Predicate<LocalDevice> { $0.networkProfileID == profileID && $0.ipAddress == ip }
+                } else {
+                    predicate = #Predicate<LocalDevice> { $0.networkProfileID == nil && $0.ipAddress == ip }
+                }
             }
 
             let descriptor = FetchDescriptor<LocalDevice>(predicate: predicate)
@@ -149,7 +166,8 @@ final class DeviceDiscoveryCoordinator {
                     macAddress: discovered.macAddress,
                     hostname: discovered.hostname,
                     vendor: nil,
-                    deviceType: .unknown
+                    deviceType: .unknown,
+                    networkProfileID: profileID
                 )
                 modelContext.insert(newDevice)
             }
@@ -158,11 +176,14 @@ final class DeviceDiscoveryCoordinator {
         do { try modelContext.save() } catch {
             Logger.discovery.error("Failed to save discovered devices: \(error)")
         }
-        loadPersistedDevices()
+        loadPersistedDevices(for: profileID)
     }
 
-    func markOfflineDevices(currentIPs: Set<String>) {
+    func markOfflineDevices(currentIPs: Set<String>, profileID: UUID?) {
         for device in discoveredDevices {
+            if device.networkProfileID != profileID {
+                continue
+            }
             if !currentIPs.contains(device.ipAddress) {
                 device.status = .offline
             }
@@ -170,12 +191,12 @@ final class DeviceDiscoveryCoordinator {
         do { try modelContext.save() } catch {
             Logger.discovery.error("Failed to save offline status: \(error)")
         }
+        loadPersistedDevices(for: profileID)
     }
 
-    private func resolveDeviceNames() async {
-        let predicate = #Predicate<LocalDevice> { $0.hostname == nil || $0.hostname == "" }
-        let descriptor = FetchDescriptor<LocalDevice>(predicate: predicate)
-        guard let devices = try? modelContext.fetch(descriptor) else { return }
+    private func resolveDeviceNames(profileID: UUID?) async {
+        let devices = fetchDevices(for: profileID).filter { $0.hostname == nil || $0.hostname == "" }
+        guard !devices.isEmpty else { return }
 
         await withTaskGroup(of: (UUID, String?).self) { group in
             var activeCount = 0
@@ -204,10 +225,11 @@ final class DeviceDiscoveryCoordinator {
         }
     }
 
-    private func resolveDeviceVendors() async {
-        let predicate = #Predicate<LocalDevice> { !$0.macAddress.isEmpty && ($0.vendor == nil || $0.vendor == "") }
-        let descriptor = FetchDescriptor<LocalDevice>(predicate: predicate)
-        guard let devices = try? modelContext.fetch(descriptor) else { return }
+    private func resolveDeviceVendors(profileID: UUID?) async {
+        let devices = fetchDevices(for: profileID).filter {
+            !$0.macAddress.isEmpty && ($0.vendor == nil || $0.vendor == "")
+        }
+        guard !devices.isEmpty else { return }
 
         await withTaskGroup(of: (UUID, String?).self) { group in
             var activeCount = 0
@@ -235,11 +257,22 @@ final class DeviceDiscoveryCoordinator {
         }
     }
 
-    private func loadPersistedDevices() {
-        let descriptor = FetchDescriptor<LocalDevice>(
-            sortBy: [SortDescriptor(\.lastSeen, order: .reverse)]
-        )
-        discoveredDevices = (try? modelContext.fetch(descriptor)) ?? []
+    private func loadPersistedDevices(for profileID: UUID?) {
+        let devices = fetchDevices(for: profileID)
+        discoveredDevices = devices.sorted { $0.lastSeen > $1.lastSeen }
+    }
+
+    private func fetchDevices(for profileID: UUID?) -> [LocalDevice] {
+        let descriptor: FetchDescriptor<LocalDevice>
+        if let profileID {
+            let predicate = #Predicate<LocalDevice> { $0.networkProfileID == profileID }
+            descriptor = FetchDescriptor<LocalDevice>(predicate: predicate)
+        } else {
+            let predicate = #Predicate<LocalDevice> { $0.networkProfileID == nil }
+            descriptor = FetchDescriptor<LocalDevice>(predicate: predicate)
+        }
+
+        return (try? modelContext.fetch(descriptor)) ?? []
     }
 
     private func mergeDiscoveryResults(
@@ -262,5 +295,9 @@ final class DeviceDiscoveryCoordinator {
             }
         }
         return Array(merged.values)
+    }
+
+    private func effectiveProfileID() -> UUID? {
+        networkProfile?.id ?? networkProfileManager.activeProfile?.id
     }
 }

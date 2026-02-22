@@ -678,6 +678,21 @@ struct LocalDeviceTests {
         #expect(device.status == .online)
         #expect(device.lastLatency == 10.0)
     }
+
+    @Test("networkProfileID stores per-network association")
+    @MainActor
+    func networkProfileIDAssociation() throws {
+        let container = try makeContainer()
+        let context = ModelContext(container)
+        let profileID = UUID()
+        let device = LocalDevice(
+            ipAddress: "192.168.1.5",
+            macAddress: "AA:BB:CC:DD:EE:FF",
+            networkProfileID: profileID
+        )
+        context.insert(device)
+        #expect(device.networkProfileID == profileID)
+    }
 }
 
 // MARK: - NetworkTarget Tests

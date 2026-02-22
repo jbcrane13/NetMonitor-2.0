@@ -1,7 +1,7 @@
 import Foundation
 
 /// The method by which a device was discovered on the network.
-public enum DeviceSource: Sendable {
+public enum DeviceSource: String, Codable, Sendable {
     case local
     case macCompanion
     case bonjour
@@ -9,8 +9,8 @@ public enum DeviceSource: Sendable {
 }
 
 /// A device found during a network scan.
-public struct DiscoveredDevice: Identifiable, Sendable {
-    public let id = UUID()
+public struct DiscoveredDevice: Identifiable, Codable, Sendable {
+    public let id: UUID
     public let ipAddress: String
     public let hostname: String?
     public let vendor: String?
@@ -18,9 +18,11 @@ public struct DiscoveredDevice: Identifiable, Sendable {
     public let latency: Double?
     public let discoveredAt: Date
     public let source: DeviceSource
+    public let networkProfileID: UUID?
 
     /// Convenience init for local TCP probe (backward compatible).
-    public init(ipAddress: String, latency: Double, discoveredAt: Date) {
+    public init(ipAddress: String, latency: Double, discoveredAt: Date, networkProfileID: UUID? = nil) {
+        self.id = UUID()
         self.ipAddress = ipAddress
         self.hostname = nil
         self.vendor = nil
@@ -28,18 +30,22 @@ public struct DiscoveredDevice: Identifiable, Sendable {
         self.latency = latency
         self.discoveredAt = discoveredAt
         self.source = .local
+        self.networkProfileID = networkProfileID
     }
 
     /// Full init with all fields.
     public init(
+        id: UUID = UUID(),
         ipAddress: String,
         hostname: String?,
         vendor: String?,
         macAddress: String?,
         latency: Double?,
         discoveredAt: Date,
-        source: DeviceSource
+        source: DeviceSource,
+        networkProfileID: UUID? = nil
     ) {
+        self.id = id
         self.ipAddress = ipAddress
         self.hostname = hostname
         self.vendor = vendor
@@ -47,6 +53,7 @@ public struct DiscoveredDevice: Identifiable, Sendable {
         self.latency = latency
         self.discoveredAt = discoveredAt
         self.source = source
+        self.networkProfileID = networkProfileID
     }
 
     public var displayName: String {

@@ -23,6 +23,7 @@ public final class LocalDevice {
     public var manufacturer: String?
     public var openPorts: [Int]?
     public var discoveredServices: [String]?
+    public var networkProfileID: UUID?
 
     public init(
         id: UUID = UUID(),
@@ -40,7 +41,8 @@ public final class LocalDevice {
         resolvedHostname: String? = nil,
         manufacturer: String? = nil,
         openPorts: [Int]? = nil,
-        discoveredServices: [String]? = nil
+        discoveredServices: [String]? = nil,
+        networkProfileID: UUID? = nil
     ) {
         self.id = id
         self.ipAddress = ipAddress
@@ -60,6 +62,7 @@ public final class LocalDevice {
         self.manufacturer = manufacturer
         self.openPorts = openPorts
         self.discoveredServices = discoveredServices
+        self.networkProfileID = networkProfileID
     }
 
     public var displayName: String {

@@ -38,7 +38,7 @@ struct DevicesView: View {
     }
 
     var filteredDevices: [LocalDevice] {
-        var result = devices
+        var result = devices.filter { $0.networkProfileID == activeProfileID }
 
         if filterOnlineOnly {
             result = result.filter { $0.status == .online }
@@ -71,6 +71,12 @@ struct DevicesView: View {
     private var selectedNetwork: NetworkProfile? {
         guard let selectedNetworkID else { return nil }
         return availableNetworks.first { $0.id == selectedNetworkID }
+    }
+
+    private var activeProfileID: UUID? {
+        selectedNetworkID
+            ?? coordinator?.networkProfile?.id
+            ?? coordinator?.networkProfileManager.activeProfile?.id
     }
 
     /// Compare IP addresses numerically (192.168.2.3 < 192.168.2.10)
@@ -126,13 +132,17 @@ struct DevicesView: View {
                 set: { if !$0 { deviceToScan = nil } }
             ))
         }
+        .onReceive(NotificationCenter.default.publisher(for: .networkProfilesDidChange)) { _ in
+            availableNetworks = coordinator?.networkProfileManager.profiles
+                ?? NetworkProfileManager.detectActiveProfiles()
+        }
     }
 
     // MARK: - Device List
 
     private var deviceList: some View {
         Group {
-            if devices.isEmpty && coordinator?.isScanning != true {
+            if filteredDevices.isEmpty && coordinator?.isScanning != true {
                 ContentUnavailableView(
                     "No Devices Found",
                     systemImage: "network",
@@ -214,7 +224,8 @@ struct DevicesView: View {
             .pickerStyle(.menu)
             .accessibilityIdentifier("devices_picker_network")
             .onAppear {
-                availableNetworks = NetworkProfileManager.detectActiveProfiles()
+                availableNetworks = coordinator?.networkProfileManager.profiles
+                    ?? NetworkProfileManager.detectActiveProfiles()
             }
         }
 
@@ -252,7 +263,7 @@ struct DevicesView: View {
             } label: {
                 Label("Clear List", systemImage: "trash")
             }
-            .disabled(devices.isEmpty)
+            .disabled(filteredDevices.isEmpty)
             .accessibilityIdentifier("devices_button_clear")
         }
 
@@ -279,7 +290,7 @@ struct DevicesView: View {
 
     private func clearDevices() {
         selectedDevice = nil
-        for device in devices {
+        for device in filteredDevices {
             modelContext.delete(device)
         }
         try? modelContext.save()

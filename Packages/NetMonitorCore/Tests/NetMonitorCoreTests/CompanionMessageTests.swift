@@ -117,6 +117,28 @@ struct CompanionMessageCodableTests {
         #expect(p.devices[0].isOnline == true)
     }
 
+    @Test func networkProfileRoundTrip() throws {
+        let payload = NetworkProfilePayload(
+            name: "Office LAN",
+            gatewayIP: "10.10.0.1",
+            subnet: "10.10.0.0/24",
+            interfaceName: "en0",
+            sourceDeviceName: "Blake's MacBook Pro"
+        )
+        let msg = CompanionMessage.networkProfile(payload)
+        let data = try CompanionMessage.jsonEncoder.encode(msg)
+        let decoded = try CompanionMessage.decode(from: data)
+        guard case .networkProfile(let p) = decoded else {
+            Issue.record("Expected .networkProfile")
+            return
+        }
+        #expect(p.name == "Office LAN")
+        #expect(p.gatewayIP == "10.10.0.1")
+        #expect(p.subnet == "10.10.0.0/24")
+        #expect(p.interfaceName == "en0")
+        #expect(p.sourceDeviceName == "Blake's MacBook Pro")
+    }
+
     @Test func commandRoundTrip() throws {
         let payload = CommandPayload(action: .scanDevices, parameters: ["subnet": "192.168.1.0/24"])
         let msg = CompanionMessage.command(payload)

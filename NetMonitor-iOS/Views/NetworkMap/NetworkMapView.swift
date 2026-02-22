@@ -80,6 +80,9 @@ struct NetworkMapView: View {
                 viewModel.refreshAvailableNetworks()
                 await viewModel.startScan(forceRefresh: false)
             }
+            .onReceive(NotificationCenter.default.publisher(for: .networkProfilesDidChange)) { _ in
+                viewModel.refreshAvailableNetworks()
+            }
             .sheet(isPresented: $isAddNetworkSheetPresented, onDismiss: {
                 viewModel.refreshAvailableNetworks()
             }) {
@@ -172,10 +175,46 @@ struct NetworkMapView: View {
                         }
                     }
                 }
+
+                HStack(spacing: 10) {
+                    Text("Devices: \(viewModel.activeNetworkDeviceCount ?? 0)")
+                        .font(.caption2)
+                        .foregroundStyle(Theme.Colors.textSecondary)
+                    Text("Gateway: \(gatewayStatusText)")
+                        .font(.caption2)
+                        .foregroundStyle(gatewayStatusColor)
+                    if let lastScanned = viewModel.activeNetworkLastScanned {
+                        Text("Scanned \(lastScanned, style: .relative)")
+                            .font(.caption2)
+                            .foregroundStyle(Theme.Colors.textSecondary)
+                    }
+                }
+
+                if viewModel.isShowingStaleActiveNetworkData {
+                    Text("Gateway offline - showing last known devices")
+                        .font(.caption2)
+                        .foregroundStyle(Theme.Colors.warning)
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .accessibilityIdentifier("networkMap_summary")
+    }
+
+    private var gatewayStatusText: String {
+        switch viewModel.activeNetworkGatewayReachable {
+        case true: return "Reachable"
+        case false: return "Offline"
+        case nil: return "Unknown"
+        }
+    }
+
+    private var gatewayStatusColor: Color {
+        switch viewModel.activeNetworkGatewayReachable {
+        case true: return Theme.Colors.success
+        case false: return Theme.Colors.error
+        case nil: return Theme.Colors.textSecondary
+        }
     }
 
     // MARK: - Sort Bar

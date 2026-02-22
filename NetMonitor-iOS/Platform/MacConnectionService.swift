@@ -53,6 +53,7 @@ final class MacConnectionService: MacConnectionServiceProtocol {
     private var lastConnectedEndpoint: NWEndpoint?
     private var lastConnectedMacName: String?
     private var shouldAutoReconnect = false
+    private let networkProfileManager: NetworkProfileManager
 
     // MARK: - Constants
 
@@ -60,6 +61,10 @@ final class MacConnectionService: MacConnectionServiceProtocol {
     private static let heartbeatInterval: TimeInterval = 15
     private static let reconnectDelay: TimeInterval = 5
     private static let heartbeatVersion = "1.0"
+
+    private init(networkProfileManager: NetworkProfileManager = NetworkProfileManager()) {
+        self.networkProfileManager = networkProfileManager
+    }
 
     // Note: cleanup is handled by disconnect() and stopBrowsing() which
     // should be called before the service is released.
@@ -194,6 +199,9 @@ final class MacConnectionService: MacConnectionServiceProtocol {
             receiveBuffer = Data()
             startHeartbeat()
             scheduleReceive()
+            Task { [weak self] in
+                await self?.sendLocalNetworkProfile()
+            }
 
         case .failed(let error):
             connectionState = .error(error.localizedDescription)
@@ -299,6 +307,16 @@ final class MacConnectionService: MacConnectionServiceProtocol {
             lastTargetList = payload
         case .deviceList(let payload):
             lastDeviceList = payload
+        case .networkProfile(let payload):
+            let companionName = payload.sourceDeviceName.map { "\($0) Network" } ?? payload.name
+            if networkProfileManager.upsertCompanionProfile(
+                gateway: payload.gatewayIP,
+                subnet: payload.subnet,
+                name: companionName,
+                interfaceName: payload.interfaceName
+            ) != nil {
+                NotificationCenter.default.post(name: .networkProfilesDidChange, object: nil)
+            }
         case .toolResult(let payload):
             Self.logger.info("Tool result: \(payload.tool) - \(payload.success)")
         case .error(let payload):
@@ -310,6 +328,23 @@ final class MacConnectionService: MacConnectionServiceProtocol {
             // Commands are outbound only from iOS; ignore if received
             break
         }
+    }
+
+    private func sendLocalNetworkProfile() async {
+        networkProfileManager.detectLocalNetwork()
+        guard let profile = networkProfileManager.profiles.first(where: { $0.isLocal })
+                ?? networkProfileManager.activeProfile else {
+            return
+        }
+
+        let payload = NetworkProfilePayload(
+            name: profile.displayName,
+            gatewayIP: profile.gatewayIP,
+            subnet: profile.subnet,
+            interfaceName: profile.interfaceName,
+            sourceDeviceName: ProcessInfo.processInfo.hostName
+        )
+        await sendMessage(.networkProfile(payload))
     }
 
     // MARK: - Heartbeat

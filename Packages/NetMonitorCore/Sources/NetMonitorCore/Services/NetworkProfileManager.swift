@@ -91,6 +91,87 @@ public final class NetworkProfileManager {
         return profile
     }
 
+    /// Adds or updates a profile discovered via companion handshake.
+    @discardableResult
+    public func upsertCompanionProfile(
+        gateway: String,
+        subnet: String,
+        name: String,
+        interfaceName: String? = nil
+    ) -> NetworkProfile? {
+        guard let gatewayValue = NetworkUtilities.ipv4ToUInt32(gateway),
+              let cidr = Self.parseCIDR(subnet) else {
+            return nil
+        }
+
+        guard gatewayValue >= cidr.networkAddress, gatewayValue <= cidr.broadcastAddress else {
+            return nil
+        }
+
+        let normalizedInterface = interfaceName?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        let resolvedInterface = (normalizedInterface?.isEmpty == false)
+            ? normalizedInterface!
+            : "companion-\(gateway)"
+        let resolvedName = name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? "Companion \(cidr.cidr)"
+            : name.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        let network = NetworkUtilities.IPv4Network(
+            networkAddress: cidr.networkAddress,
+            broadcastAddress: cidr.broadcastAddress,
+            interfaceAddress: gatewayValue,
+            netmask: cidr.netmask
+        )
+        let connectionType = Self.inferConnectionType(for: resolvedInterface)
+
+        if let existingIndex = profiles.firstIndex(where: {
+            ($0.gatewayIP == gateway && $0.subnet == cidr.cidr) ||
+            ($0.discoveryMethod == .companion && $0.interfaceName == resolvedInterface)
+        }) {
+            var existing = profiles[existingIndex]
+            existing.name = resolvedName
+            existing.interfaceName = resolvedInterface
+            existing.ipAddress = gateway
+            existing.network = network
+            existing.connectionType = connectionType
+            existing.gatewayIP = gateway
+            existing.subnet = cidr.cidr
+            existing.isLocal = false
+            existing.discoveryMethod = .companion
+            profiles[existingIndex] = existing
+
+            if activeProfile?.id == existing.id {
+                activeProfile = existing
+            }
+
+            persistProfiles()
+            return existing
+        }
+
+        let profile = NetworkProfile(
+            id: UUID(),
+            interfaceName: resolvedInterface,
+            ipAddress: gateway,
+            network: network,
+            connectionType: connectionType,
+            name: resolvedName,
+            gatewayIP: gateway,
+            subnet: cidr.cidr,
+            isLocal: false,
+            discoveryMethod: .companion
+        )
+        profiles.append(profile)
+
+        if activeProfile == nil {
+            activeProfile = profile
+        }
+
+        persistProfiles()
+        return profile
+    }
+
     @discardableResult
     public func removeProfile(id: UUID) -> Bool {
         guard let index = profiles.firstIndex(where: { $0.id == id }) else {
@@ -295,10 +376,18 @@ public final class NetworkProfileManager {
         }
     }
 
-    public func updateProfileScanInfo(id: UUID, lastScanned: Date, deviceCount: Int) {
+    public func updateProfileScanInfo(
+        id: UUID,
+        lastScanned: Date,
+        deviceCount: Int,
+        gatewayReachable: Bool? = nil
+    ) {
         if let index = profiles.firstIndex(where: { $0.id == id }) {
             profiles[index].lastScanned = lastScanned
             profiles[index].deviceCount = deviceCount
+            if let gatewayReachable {
+                profiles[index].gatewayReachable = gatewayReachable
+            }
             if activeProfile?.id == id {
                 activeProfile = profiles[index]
             }

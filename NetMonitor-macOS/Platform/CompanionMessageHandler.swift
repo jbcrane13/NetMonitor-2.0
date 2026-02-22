@@ -19,19 +19,22 @@ final class CompanionMessageHandler {
     private let deviceDiscovery: DeviceDiscoveryCoordinator
     private let wakeOnLanService: WakeOnLANService
     private let icmpService: ICMPMonitorService
+    private let networkProfileManager: NetworkProfileManager
 
     init(
         modelContext: ModelContext,
         monitoringSession: MonitoringSession,
         deviceDiscovery: DeviceDiscoveryCoordinator,
         wakeOnLanService: WakeOnLANService,
-        icmpService: ICMPMonitorService
+        icmpService: ICMPMonitorService,
+        networkProfileManager: NetworkProfileManager
     ) {
         self.modelContext = modelContext
         self.monitoringSession = monitoringSession
         self.deviceDiscovery = deviceDiscovery
         self.wakeOnLanService = wakeOnLanService
         self.icmpService = icmpService
+        self.networkProfileManager = networkProfileManager
     }
 
     /// Process an incoming message and return an optional response
@@ -42,6 +45,9 @@ final class CompanionMessageHandler {
 
         case .heartbeat:
             return .heartbeat(HeartbeatPayload())
+
+        case .networkProfile(let payload):
+            return handleNetworkProfileSync(payload)
 
         default:
             return nil
@@ -206,5 +212,33 @@ final class CompanionMessageHandler {
                 result: "Failed to wake \(mac): \(error.localizedDescription)"
             ))
         }
+    }
+
+    private func handleNetworkProfileSync(_ payload: NetworkProfilePayload) -> CompanionMessage? {
+        let companionName = payload.sourceDeviceName.map { "\($0) Network" } ?? payload.name
+        guard networkProfileManager.upsertCompanionProfile(
+            gateway: payload.gatewayIP,
+            subnet: payload.subnet,
+            name: companionName,
+            interfaceName: payload.interfaceName
+        ) != nil else {
+            return nil
+        }
+
+        NotificationCenter.default.post(name: .networkProfilesDidChange, object: nil)
+        networkProfileManager.detectLocalNetwork()
+        guard let localProfile = networkProfileManager.profiles.first(where: { $0.isLocal })
+                ?? networkProfileManager.activeProfile else {
+            return nil
+        }
+
+        let response = NetworkProfilePayload(
+            name: localProfile.displayName,
+            gatewayIP: localProfile.gatewayIP,
+            subnet: localProfile.subnet,
+            interfaceName: localProfile.interfaceName,
+            sourceDeviceName: Host.current().localizedName
+        )
+        return .networkProfile(response)
     }
 }

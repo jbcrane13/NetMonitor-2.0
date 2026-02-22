@@ -39,7 +39,7 @@ struct NetMonitorApp: App {
     }
 
     var sharedModelContainer: ModelContainer = {
-        let schema = Schema(versionedSchema: SchemaV1.self)
+        let schema = Schema(versionedSchema: SchemaV2.self)
         let modelConfiguration = ModelConfiguration(
             schema: schema,
             isStoredInMemoryOnly: false,
@@ -172,7 +172,8 @@ struct NetMonitorApp: App {
                 monitoringSession: session,
                 deviceDiscovery: discovery,
                 wakeOnLanService: wakeOnLanService,
-                icmpService: icmpService
+                icmpService: icmpService,
+                networkProfileManager: profileManager
             )
 
             companionService = CompanionService()

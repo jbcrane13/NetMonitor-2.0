@@ -14,13 +14,27 @@ enum SchemaV1: VersionedSchema {
     }
 }
 
+enum SchemaV2: VersionedSchema {
+    static let versionIdentifier = Schema.Version(2, 0, 0)
+
+    static var models: [any PersistentModel.Type] {
+        [
+            NetworkTarget.self,
+            TargetMeasurement.self,
+            LocalDevice.self,
+            SessionRecord.self
+        ]
+    }
+}
+
 enum NetMonitorMigrationPlan: SchemaMigrationPlan {
     static var schemas: [any VersionedSchema.Type] {
-        [SchemaV1.self]
+        [SchemaV1.self, SchemaV2.self]
     }
 
     static var stages: [MigrationStage] {
-        // No migrations yet
-        []
+        [
+            .lightweight(fromVersion: SchemaV1.self, toVersion: SchemaV2.self)
+        ]
     }
 }
