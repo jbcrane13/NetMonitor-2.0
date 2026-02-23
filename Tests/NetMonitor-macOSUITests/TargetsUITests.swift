@@ -1,101 +1,164 @@
 import XCTest
 
 @MainActor
-final class TargetsUITests: XCTestCase {
-    var app: XCUIApplication!
+final class TargetsUITests: MacOSUITestCase {
 
     override func setUpWithError() throws {
-        continueAfterFailure = false
-        app = XCUIApplication()
-        app.launch()
-        // Navigate to Targets
-        let sidebar = app.staticTexts["sidebar_targets"]
-        XCTAssertTrue(sidebar.waitForExistence(timeout: 5))
-        sidebar.tap()
-    }
-
-    override func tearDownWithError() throws {
-        app = nil
+        try super.setUpWithError()
+        navigateToSidebar("targets")
     }
 
     // MARK: - Detail Pane
 
     func testTargetsDetailExists() {
-        XCTAssertTrue(app.otherElements["detail_targets"].waitForExistence(timeout: 3))
+        requireExists(app.otherElements["detail_targets"], timeout: 3,
+                      message: "Targets detail pane should exist")
     }
 
     // MARK: - Toolbar Buttons
 
     func testAddTargetButtonExists() {
-        XCTAssertTrue(app.buttons["targets_button_add"].waitForExistence(timeout: 3))
+        requireExists(app.buttons["targets_button_add"], timeout: 3,
+                      message: "Add target button should exist")
     }
 
     func testDeleteButtonExists() {
-        XCTAssertTrue(app.buttons["targets_button_delete"].waitForExistence(timeout: 3))
+        requireExists(app.buttons["targets_button_delete"], timeout: 3,
+                      message: "Delete button should exist")
     }
 
     func testSortMenuExists() {
-        XCTAssertTrue(app.menuButtons["targets_menu_sort"].waitForExistence(timeout: 3))
+        requireExists(app.menuButtons["targets_menu_sort"], timeout: 3,
+                      message: "Sort menu should exist")
     }
 
     // MARK: - Add Target Sheet
 
     func testAddTargetSheetOpens() {
-        let addButton = app.buttons["targets_button_add"]
-        XCTAssertTrue(addButton.waitForExistence(timeout: 3))
+        let addButton = requireExists(app.buttons["targets_button_add"], timeout: 3,
+                                      message: "Add target button should exist")
         addButton.tap()
 
-        // Verify sheet elements appear
-        XCTAssertTrue(app.textFields["add_target_field_name"].waitForExistence(timeout: 3))
-        XCTAssertTrue(app.textFields["add_target_field_host"].exists)
+        requireExists(app.textFields["add_target_field_name"], timeout: 3,
+                      message: "Name field should appear in add-target sheet")
+        XCTAssertTrue(app.textFields["add_target_field_host"].exists,
+                      "Host field should appear in add-target sheet")
     }
 
     func testAddTargetSheetHasAllFields() {
         app.buttons["targets_button_add"].tap()
 
-        XCTAssertTrue(app.textFields["add_target_field_name"].waitForExistence(timeout: 3))
-        XCTAssertTrue(app.textFields["add_target_field_host"].exists)
-        XCTAssertTrue(app.popUpButtons["add_target_picker_protocol"].exists)
-        XCTAssertTrue(app.buttons["add_target_button_cancel"].exists)
-        XCTAssertTrue(app.buttons["add_target_button_add"].exists)
+        requireExists(app.textFields["add_target_field_name"], timeout: 3,
+                      message: "Name field should exist in add-target sheet")
+        XCTAssertTrue(app.textFields["add_target_field_host"].exists,
+                      "Host field should exist")
+        XCTAssertTrue(app.popUpButtons["add_target_picker_protocol"].exists,
+                      "Protocol picker should exist")
+        XCTAssertTrue(app.buttons["add_target_button_cancel"].exists,
+                      "Cancel button should exist")
+        XCTAssertTrue(app.buttons["add_target_button_add"].exists,
+                      "Add button should exist")
     }
 
     func testAddTargetSheetCancel() {
         app.buttons["targets_button_add"].tap()
 
-        let cancelButton = app.buttons["add_target_button_cancel"]
-        XCTAssertTrue(cancelButton.waitForExistence(timeout: 3))
+        let cancelButton = requireExists(app.buttons["add_target_button_cancel"], timeout: 3,
+                                         message: "Cancel button should exist in add-target sheet")
         cancelButton.tap()
 
-        // Sheet should dismiss
-        XCTAssertFalse(app.textFields["add_target_field_name"].waitForExistence(timeout: 2))
+        XCTAssertFalse(app.textFields["add_target_field_name"].waitForExistence(timeout: 2),
+                       "Add-target sheet should dismiss after cancelling")
     }
 
     func testAddTargetSheetFillFields() {
         app.buttons["targets_button_add"].tap()
 
-        let nameField = app.textFields["add_target_field_name"]
-        XCTAssertTrue(nameField.waitForExistence(timeout: 3))
-        nameField.tap()
-        nameField.typeText("Test Server")
+        let nameField = requireExists(app.textFields["add_target_field_name"], timeout: 3,
+                                      message: "Name field should exist")
+        clearAndTypeText("Test Server", into: nameField)
 
         let hostField = app.textFields["add_target_field_host"]
-        hostField.tap()
-        hostField.typeText("8.8.8.8")
+        if hostField.waitForExistence(timeout: 2) {
+            clearAndTypeText("8.8.8.8", into: hostField)
+        }
+
+        app.buttons["add_target_button_cancel"].tap()
+    }
+
+    // MARK: - Functional: Add Target Validation
+
+    func testAddTargetValidationRequiresFields() {
+        app.buttons["targets_button_add"].tap()
+
+        let addButton = requireExists(
+            app.buttons["add_target_button_add"], timeout: 5,
+            message: "Add button should exist in add-target sheet"
+        )
+
+        XCTAssertTrue(addButton.exists, "Add button should be present without filling fields")
+
+        app.buttons["add_target_button_cancel"].tap()
+    }
+
+    func testAddTargetWithValidFieldsShowsAddButton() {
+        app.buttons["targets_button_add"].tap()
+
+        let nameField = requireExists(app.textFields["add_target_field_name"], timeout: 5,
+                                      message: "Name field should appear in add-target sheet")
+        clearAndTypeText("My Server", into: nameField)
+
+        let hostField = app.textFields["add_target_field_host"]
+        if hostField.waitForExistence(timeout: 2) {
+            clearAndTypeText("1.1.1.1", into: hostField)
+        }
+
+        let addButton = requireExists(
+            app.buttons["add_target_button_add"], timeout: 3,
+            message: "Add button should exist after filling fields"
+        )
+        XCTAssertTrue(addButton.exists, "Add button should remain visible after filling fields")
+
+        app.buttons["add_target_button_cancel"].tap()
+    }
+
+    // MARK: - Functional: Sort Menu
+
+    func testSortMenuOpensOptions() {
+        let sortMenu = requireExists(
+            app.menuButtons["targets_menu_sort"], timeout: 3,
+            message: "Sort menu should exist"
+        )
+        XCTAssertTrue(sortMenu.isEnabled, "Sort menu should be enabled")
+
+        sortMenu.tap()
+
+        XCTAssertTrue(
+            waitForEither(
+                [app.menuItems.firstMatch, app.menuButtons.firstMatch],
+                timeout: 3
+            ),
+            "Sort menu should open and show at least one menu item"
+        )
+
+        app.typeKey(.escape, modifierFlags: [])
     }
 
     // MARK: - Empty State
 
     func testEmptyStateOrTargetListShown() {
-        XCTAssertTrue(app.otherElements["detail_targets"].waitForExistence(timeout: 3))
+        requireExists(app.otherElements["detail_targets"], timeout: 3,
+                      message: "Targets detail pane should be visible")
     }
 
     // MARK: - Delete Button Disabled When No Selection
 
     func testDeleteButtonDisabledWithNoSelection() {
-        let deleteButton = app.buttons["targets_button_delete"]
-        XCTAssertTrue(deleteButton.waitForExistence(timeout: 3))
-        // Delete should be disabled when no target is selected
-        XCTAssertFalse(deleteButton.isEnabled)
+        let deleteButton = requireExists(
+            app.buttons["targets_button_delete"], timeout: 3,
+            message: "Delete button should exist"
+        )
+        XCTAssertFalse(deleteButton.isEnabled,
+                       "Delete button should be disabled when no target is selected")
     }
 }

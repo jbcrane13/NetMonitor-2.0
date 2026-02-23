@@ -33,7 +33,7 @@ struct DeviceDiscoveryCoordinatorTests {
                 macAddress: "",
                 hostname: "camera.local"
             )
-        ])
+        ], profileID: nil)
 
         let devices = try context.fetch(FetchDescriptor<LocalDevice>())
         #expect(devices.count == 2)
@@ -52,17 +52,12 @@ struct DeviceDiscoveryCoordinatorTests {
         let (container, context) = try makeInMemoryStore()
         _ = container
 
-        let onlineDevice = LocalDevice(ipAddress: "192.168.1.2", macAddress: "00:00:00:00:00:02")
-        let disappearingDevice = LocalDevice(ipAddress: "192.168.1.3", macAddress: "00:00:00:00:00:03")
-        onlineDevice.status = .online
-        disappearingDevice.status = .online
-
-        context.insert(onlineDevice)
-        context.insert(disappearingDevice)
-        try context.save()
-
         let coordinator = makeCoordinator(context: context)
-        coordinator.markOfflineDevices(currentIPs: Set(["192.168.1.2"]))
+        coordinator.mergeDiscoveredDevices([
+            LocalDiscoveredDevice(ipAddress: "192.168.1.2", macAddress: "00:00:00:00:00:02", hostname: nil),
+            LocalDiscoveredDevice(ipAddress: "192.168.1.3", macAddress: "00:00:00:00:00:03", hostname: nil)
+        ], profileID: nil)
+        coordinator.markOfflineDevices(currentIPs: Set(["192.168.1.2"]), profileID: nil)
 
         let devices = try context.fetch(FetchDescriptor<LocalDevice>())
         let stillOnline = devices.first { $0.ipAddress == "192.168.1.2" }

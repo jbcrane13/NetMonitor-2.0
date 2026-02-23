@@ -1,109 +1,169 @@
 import XCTest
 
-final class WebBrowserToolUITests: XCTestCase {
-    var app: XCUIApplication!
+@MainActor
+final class WebBrowserToolUITests: IOSUITestCase {
 
     override func setUpWithError() throws {
-        continueAfterFailure = false
-        app = XCUIApplication()
-        app.launch()
-        app.tabBars.buttons["Tools"].tap()
-        let webBrowserCard = app.otherElements["tools_card_web_browser"]
-        if webBrowserCard.waitForExistence(timeout: 5) {
-            webBrowserCard.tap()
-        }
-    }
-
-    override func tearDownWithError() throws {
-        app = nil
+        try super.setUpWithError()
+        openWebBrowser()
     }
 
     // MARK: - Screen Existence
 
     func testWebBrowserScreenExists() throws {
-        XCTAssertTrue(app.otherElements["screen_webBrowser"].waitForExistence(timeout: 5))
+        requireExists(ui("screen_webBrowser"), message: "Web browser screen should exist")
     }
 
     func testNavigationTitleExists() throws {
-        XCTAssertTrue(app.navigationBars["Web Browser"].waitForExistence(timeout: 5))
+        requireExists(app.navigationBars["Web Browser"], message: "Web Browser navigation title should exist")
     }
 
     // MARK: - Input Elements
 
     func testURLInputFieldExists() throws {
-        XCTAssertTrue(app.textFields["webBrowser_input_url"].waitForExistence(timeout: 5))
+        requireExists(app.textFields["webBrowser_input_url"], message: "URL input field should exist")
     }
 
     func testOpenButtonExists() throws {
-        XCTAssertTrue(app.buttons["webBrowser_button_open"].waitForExistence(timeout: 5))
+        requireExists(app.buttons["webBrowser_button_open"], message: "Open button should exist")
     }
 
     // MARK: - Bookmarks Section
 
     func testBookmarksSectionExists() throws {
-        XCTAssertTrue(app.otherElements["webBrowser_section_bookmarks"].waitForExistence(timeout: 5))
+        requireExists(ui("webBrowser_section_bookmarks"), message: "Bookmarks section should exist")
     }
 
     func testRouterAdminBookmarkExists() throws {
-        let bookmark = app.otherElements["webBrowser_bookmark_router_admin"]
-        XCTAssertTrue(bookmark.waitForExistence(timeout: 5) ||
-                      app.buttons["webBrowser_bookmark_router_admin"].waitForExistence(timeout: 3))
+        XCTAssertTrue(
+            ui("webBrowser_bookmark_router_admin").waitForExistence(timeout: 5) ||
+            app.buttons["webBrowser_bookmark_router_admin"].waitForExistence(timeout: 3),
+            "Router Admin bookmark should exist"
+        )
     }
 
     func testSpeedTestBookmarkExists() throws {
-        let bookmark = app.otherElements["webBrowser_bookmark_speed_test"]
-        XCTAssertTrue(bookmark.waitForExistence(timeout: 5) ||
-                      app.buttons["webBrowser_bookmark_speed_test"].waitForExistence(timeout: 3))
+        XCTAssertTrue(
+            ui("webBrowser_bookmark_speed_test").waitForExistence(timeout: 5) ||
+            app.buttons["webBrowser_bookmark_speed_test"].waitForExistence(timeout: 3),
+            "Speed Test bookmark should exist"
+        )
     }
 
     // MARK: - Input Interaction
 
     func testTypeURL() throws {
-        let urlField = app.textFields["webBrowser_input_url"]
-        XCTAssertTrue(urlField.waitForExistence(timeout: 5))
-        urlField.tap()
-        urlField.typeText("https://example.com")
-        XCTAssertEqual(urlField.value as? String, "https://example.com")
+        let urlField = requireExists(app.textFields["webBrowser_input_url"], message: "URL field should exist")
+        clearAndTypeText("https://example.com", into: urlField)
+        XCTAssertEqual(urlField.value as? String, "https://example.com", "URL field should contain typed URL")
     }
 
     // MARK: - Open URL
 
     func testOpenURLPresentsSafari() throws {
-        let urlField = app.textFields["webBrowser_input_url"]
-        XCTAssertTrue(urlField.waitForExistence(timeout: 5))
-        urlField.tap()
-        urlField.typeText("https://example.com")
+        let urlField = requireExists(app.textFields["webBrowser_input_url"], message: "URL field should exist")
+        clearAndTypeText("https://example.com", into: urlField)
 
         app.buttons["webBrowser_button_open"].tap()
 
-        // Safari view controller should be presented
-        // It appears as a sheet; wait for it
-        sleep(2)
-        // The Safari view may not have specific accessibility IDs,
-        // but the app should still be in foreground
-        XCTAssertTrue(app.wait(for: .runningForeground, timeout: 5))
+        XCTAssertTrue(
+            app.wait(for: .runningForeground, timeout: 5),
+            "App should remain in foreground after opening URL"
+        )
     }
 
     // MARK: - Recent URLs
 
     func testClearRecentButtonExists() throws {
-        // First open a URL to create recent history
-        let urlField = app.textFields["webBrowser_input_url"]
-        if urlField.waitForExistence(timeout: 5) {
-            urlField.tap()
-            urlField.typeText("https://example.com")
-            app.buttons["webBrowser_button_open"].tap()
-            sleep(2)
-            // Dismiss Safari if presented
-            if app.buttons["Done"].exists {
-                app.buttons["Done"].tap()
-            }
-            // Check for clear recent button
-            app.swipeUp()
-            let clearRecent = app.buttons["webBrowser_button_clearRecent"]
-            // May or may not exist depending on state
-            XCTAssertTrue(clearRecent.exists || app.otherElements["webBrowser_section_recent"].exists ||
-                          app.otherElements["screen_webBrowser"].exists)
+        let urlField = requireExists(app.textFields["webBrowser_input_url"], message: "URL field should exist")
+        clearAndTypeText("https://example.com", into: urlField)
+        app.buttons["webBrowser_button_open"].tap()
+
+        if app.buttons["Done"].waitForExistence(timeout: 3) {
+            app.buttons["Done"].tap()
         }
+
+        scrollToElement(app.buttons["webBrowser_button_clearRecent"])
+        let clearRecent = app.buttons["webBrowser_button_clearRecent"]
+        XCTAssertTrue(
+            clearRecent.exists || ui("webBrowser_section_recent").exists || ui("screen_webBrowser").exists,
+            "After opening a URL, clear recent button, recent section, or web browser screen should exist"
+        )
+    }
+
+    // MARK: - Functional Tests
+
+    func testBookmarkTapFillsURLField() {
+        let routerBookmark = ui("webBrowser_bookmark_router_admin")
+        let bookmarkButton = app.buttons["webBrowser_bookmark_router_admin"]
+
+        let bookmark: XCUIElement
+        if routerBookmark.waitForExistence(timeout: 5) {
+            bookmark = routerBookmark
+        } else if bookmarkButton.waitForExistence(timeout: 3) {
+            bookmark = bookmarkButton
+        } else {
+            let firstBookmarkRow = app.cells.matching(
+                NSPredicate(format: "identifier BEGINSWITH 'webBrowser_bookmark_'")
+            ).firstMatch
+            guard firstBookmarkRow.waitForExistence(timeout: 5) else {
+                XCTFail("No bookmark rows found to tap")
+                return
+            }
+            bookmark = firstBookmarkRow
+        }
+
+        bookmark.tap()
+
+        let urlField = requireExists(
+            app.textFields["webBrowser_input_url"],
+            timeout: 5,
+            message: "URL field should exist after tapping bookmark"
+        )
+        let fieldValue = urlField.value as? String ?? ""
+        XCTAssertFalse(
+            fieldValue.isEmpty || fieldValue == urlField.placeholderValue,
+            "URL field should be populated after tapping a bookmark"
+        )
+    }
+
+    func testOpenButtonEnabledAfterURLEntry() {
+        let urlField = requireExists(app.textFields["webBrowser_input_url"], message: "URL field should exist")
+        let openButton = requireExists(app.buttons["webBrowser_button_open"], message: "Open button should exist")
+
+        clearAndTypeText("", into: urlField)
+        XCTAssertFalse(openButton.isEnabled, "Open button should be disabled when URL field is empty")
+
+        clearAndTypeText("https://example.com", into: urlField)
+        XCTAssertTrue(openButton.isEnabled, "Open button should be enabled after entering a URL")
+    }
+
+    func testBookmarkSectionVisible() {
+        requireExists(
+            ui("webBrowser_section_bookmarks"),
+            message: "Bookmarks section should be visible on web browser screen"
+        )
+
+        let bookmarkRows = app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier BEGINSWITH 'webBrowser_bookmark_'")
+        )
+        XCTAssertGreaterThan(bookmarkRows.count, 0, "Bookmarks section should contain at least one bookmark row")
+    }
+
+    // MARK: - Helpers
+
+    private func openWebBrowser() {
+        requireExists(app.tabBars.buttons["Tools"], message: "Tools tab should exist").tap()
+        requireExists(ui("screen_tools"), timeout: 8, message: "Tools root should be visible")
+
+        let card = ui("tools_card_web_browser")
+        scrollToElement(card)
+        requireExists(card, timeout: 8, message: "Web browser tool card should exist").tap()
+
+        requireExists(ui("screen_webBrowser"), timeout: 8, message: "Web browser screen should open from tools grid")
+    }
+
+    private func ui(_ identifier: String) -> XCUIElement {
+        app.descendants(matching: .any)[identifier]
     }
 }

@@ -1,103 +1,120 @@
 import XCTest
 
-final class TracerouteToolUITests: XCTestCase {
-    var app: XCUIApplication!
+@MainActor
+final class TracerouteToolUITests: IOSUITestCase {
 
-    override func setUpWithError() throws {
-        continueAfterFailure = false
-        app = XCUIApplication()
-        app.launch()
+    private func navigateToTracerouteTool() {
         app.tabBars.buttons["Tools"].tap()
         let tracerouteCard = app.otherElements["tools_card_traceroute"]
-        if tracerouteCard.waitForExistence(timeout: 5) {
-            tracerouteCard.tap()
-        }
-    }
-
-    override func tearDownWithError() throws {
-        app = nil
+        scrollToElement(tracerouteCard)
+        requireExists(tracerouteCard, timeout: 8, message: "Traceroute tool card should exist")
+        tracerouteCard.tap()
+        requireExists(app.otherElements["screen_tracerouteTool"], timeout: 8, message: "Traceroute tool screen should appear")
     }
 
     // MARK: - Screen Existence
 
     func testTracerouteScreenExists() throws {
-        XCTAssertTrue(app.otherElements["screen_tracerouteTool"].waitForExistence(timeout: 5))
+        navigateToTracerouteTool()
+        requireExists(app.otherElements["screen_tracerouteTool"], message: "Traceroute screen should exist")
     }
 
     func testNavigationTitleExists() throws {
-        XCTAssertTrue(app.navigationBars["Traceroute"].waitForExistence(timeout: 5))
+        navigateToTracerouteTool()
+        requireExists(app.navigationBars["Traceroute"], message: "Traceroute navigation bar should exist")
     }
 
     // MARK: - Input Elements
 
     func testHostInputFieldExists() throws {
-        XCTAssertTrue(app.textFields["tracerouteTool_input_host"].waitForExistence(timeout: 5))
+        navigateToTracerouteTool()
+        requireExists(app.textFields["tracerouteTool_input_host"], message: "Host input field should exist")
     }
 
     func testMaxHopsPickerExists() throws {
-        XCTAssertTrue(app.buttons["tracerouteTool_picker_maxHops"].waitForExistence(timeout: 5) ||
-                      app.otherElements["tracerouteTool_picker_maxHops"].waitForExistence(timeout: 3))
+        navigateToTracerouteTool()
+        let pickerExists = app.buttons["tracerouteTool_picker_maxHops"].waitForExistence(timeout: 5)
+            || app.otherElements["tracerouteTool_picker_maxHops"].waitForExistence(timeout: 3)
+        XCTAssertTrue(pickerExists, "Max hops picker should exist")
     }
 
     func testRunButtonExists() throws {
-        XCTAssertTrue(app.buttons["tracerouteTool_button_run"].waitForExistence(timeout: 5))
+        navigateToTracerouteTool()
+        requireExists(app.buttons["tracerouteTool_button_run"], message: "Run button should exist")
     }
 
     // MARK: - Input Interaction
 
     func testTypeHostAddress() throws {
+        navigateToTracerouteTool()
         let hostField = app.textFields["tracerouteTool_input_host"]
-        XCTAssertTrue(hostField.waitForExistence(timeout: 5))
-        hostField.tap()
-        hostField.typeText("google.com")
+        clearAndTypeText("google.com", into: hostField)
         XCTAssertEqual(hostField.value as? String, "google.com")
     }
 
     // MARK: - Trace Execution
 
     func testStartTrace() throws {
-        let hostField = app.textFields["tracerouteTool_input_host"]
-        XCTAssertTrue(hostField.waitForExistence(timeout: 5))
-        hostField.tap()
-        hostField.typeText("8.8.8.8")
-
-        let runButton = app.buttons["tracerouteTool_button_run"]
-        XCTAssertTrue(runButton.waitForExistence(timeout: 3))
-        runButton.tap()
-
-        // Hops section should appear
+        navigateToTracerouteTool()
+        clearAndTypeText("8.8.8.8", into: app.textFields["tracerouteTool_input_host"])
+        app.buttons["tracerouteTool_button_run"].tap()
         let hopsSection = app.otherElements["tracerouteTool_section_hops"]
-        XCTAssertTrue(hopsSection.waitForExistence(timeout: 15))
+        XCTAssertTrue(hopsSection.waitForExistence(timeout: 15), "Hops section should appear after starting trace")
     }
 
     func testHopRowsAppear() throws {
-        let hostField = app.textFields["tracerouteTool_input_host"]
-        XCTAssertTrue(hostField.waitForExistence(timeout: 5))
-        hostField.tap()
-        hostField.typeText("8.8.8.8")
-
+        navigateToTracerouteTool()
+        clearAndTypeText("8.8.8.8", into: app.textFields["tracerouteTool_input_host"])
         app.buttons["tracerouteTool_button_run"].tap()
-
-        // At least hop 1 should appear
         let firstHop = app.otherElements["tracerouteTool_hop_1"]
-        XCTAssertTrue(firstHop.waitForExistence(timeout: 15))
+        XCTAssertTrue(firstHop.waitForExistence(timeout: 15), "First hop row should appear")
     }
 
     func testClearResultsButton() throws {
-        let hostField = app.textFields["tracerouteTool_input_host"]
-        XCTAssertTrue(hostField.waitForExistence(timeout: 5))
-        hostField.tap()
-        hostField.typeText("8.8.8.8")
-
+        navigateToTracerouteTool()
+        clearAndTypeText("8.8.8.8", into: app.textFields["tracerouteTool_input_host"])
         app.buttons["tracerouteTool_button_run"].tap()
-
         let hopsSection = app.otherElements["tracerouteTool_section_hops"]
         if hopsSection.waitForExistence(timeout: 15) {
             let clearButton = app.buttons["tracerouteTool_button_clear"]
             if clearButton.waitForExistence(timeout: 30) {
                 clearButton.tap()
-                XCTAssertFalse(hopsSection.exists)
+                XCTAssertTrue(waitForDisappearance(hopsSection, timeout: 5), "Hops section should disappear after clear")
             }
+        }
+    }
+
+    // MARK: - Max Hops Picker
+
+    func testMaxHopsPickerExistsOnScreen() throws {
+        navigateToTracerouteTool()
+        let pickerButton = app.buttons["tracerouteTool_picker_maxHops"]
+        let pickerElement = app.otherElements["tracerouteTool_picker_maxHops"]
+        let pickerExists = pickerButton.waitForExistence(timeout: 5) || pickerElement.waitForExistence(timeout: 3)
+        XCTAssertTrue(pickerExists, "Max hops picker should be visible on the traceroute tool screen")
+    }
+
+    // MARK: - Hops Section After Run
+
+    func testTracerouteHopsSectionAppearsAfterRun() throws {
+        navigateToTracerouteTool()
+        clearAndTypeText("1.1.1.1", into: app.textFields["tracerouteTool_input_host"])
+        app.buttons["tracerouteTool_button_run"].tap()
+
+        let hopsSection = app.otherElements["tracerouteTool_section_hops"]
+        let stopButton = app.buttons["Stop Trace"]
+
+        XCTAssertTrue(
+            waitForEither([hopsSection, stopButton], timeout: 20),
+            "Traceroute should show hops section or running state after starting"
+        )
+
+        if hopsSection.exists {
+            let firstHop = app.otherElements["tracerouteTool_hop_1"]
+            XCTAssertTrue(
+                firstHop.waitForExistence(timeout: 10),
+                "At least one hop row should appear in the hops section"
+            )
         }
     }
 }

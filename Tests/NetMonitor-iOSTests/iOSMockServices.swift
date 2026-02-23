@@ -110,14 +110,15 @@ final class MockPortScannerService: PortScannerServiceProtocol, @unchecked Senda
 
 // MARK: - Mock Bonjour Discovery Service
 
+@MainActor
 final class MockBonjourDiscoveryService: BonjourDiscoveryServiceProtocol, @unchecked Sendable {
-    @MainActor var discoveredServices: [BonjourService] = []
-    @MainActor var isDiscovering: Bool = false
-    @MainActor var startCallCount = 0
-    @MainActor var stopCallCount = 0
-    @MainActor var mockStreamServices: [BonjourService] = []
+    var discoveredServices: [BonjourService] = []
+    var isDiscovering: Bool = false
+    var startCallCount = 0
+    var stopCallCount = 0
+    var mockStreamServices: [BonjourService] = []
 
-    @MainActor func discoveryStream(serviceType: String?) -> AsyncStream<BonjourService> {
+    func discoveryStream(serviceType: String?) -> AsyncStream<BonjourService> {
         let services = mockStreamServices
         return AsyncStream { continuation in
             for service in services { continuation.yield(service) }
@@ -125,17 +126,17 @@ final class MockBonjourDiscoveryService: BonjourDiscoveryServiceProtocol, @unche
         }
     }
 
-    @MainActor func startDiscovery(serviceType: String?) {
+    func startDiscovery(serviceType: String?) {
         startCallCount += 1
         isDiscovering = true
     }
 
-    @MainActor func stopDiscovery() {
+    func stopDiscovery() {
         stopCallCount += 1
         isDiscovering = false
     }
 
-    func resolveService(_ service: BonjourService) async -> BonjourService? {
+    nonisolated func resolveService(_ service: BonjourService) async -> BonjourService? {
         return service
     }
 }
@@ -177,6 +178,7 @@ final class MockNetworkMonitorService: NetworkMonitorServiceProtocol {
     var isExpensive: Bool = false
     var isConstrained: Bool = false
     var statusText: String = "Connected via Wi-Fi"
+    var vpnInfo: VPNInfo? = nil
 
     func startMonitoring() {}
     func stopMonitoring() {}
@@ -218,31 +220,32 @@ final class MockPublicIPService: PublicIPServiceProtocol {
 
 // MARK: - Mock Device Discovery Service
 
+@MainActor
 final class MockDeviceDiscoveryService: DeviceDiscoveryServiceProtocol, @unchecked Sendable {
-    @MainActor var discoveredDevices: [DiscoveredDevice] = []
-    @MainActor var isScanning: Bool = false
-    @MainActor var scanProgress: Double = 0.0
-    @MainActor var scanPhase: ScanDisplayPhase = .idle
-    @MainActor var lastScanDate: Date? = nil
-    @MainActor var scanCallCount = 0
-    @MainActor var lastScannedSubnet: String? = nil
-    @MainActor var lastScannedProfile: NetworkProfile? = nil
+    var discoveredDevices: [DiscoveredDevice] = []
+    var isScanning: Bool = false
+    var scanProgress: Double = 0.0
+    var scanPhase: ScanDisplayPhase = .idle
+    var lastScanDate: Date? = nil
+    var scanCallCount = 0
+    var lastScannedSubnet: String? = nil
+    var lastScannedProfile: NetMonitorCore.NetworkProfile? = nil
 
     func scanNetwork(subnet: String?) async {
-        await MainActor.run {
-            scanCallCount += 1
-            lastScannedSubnet = subnet
-        }
+        scanCallCount += 1
+        lastScannedSubnet = subnet
     }
 
-    func scanNetwork(profile: NetworkProfile?) async {
-        await MainActor.run {
-            scanCallCount += 1
-            lastScannedProfile = profile
-        }
+    func scanNetwork(profile: NetMonitorCore.NetworkProfile?) async {
+        scanCallCount += 1
+        lastScannedProfile = profile
     }
 
-    @MainActor func stopScan() {}
+    func cachedDevices(for profile: NetMonitorCore.NetworkProfile?) -> [DiscoveredDevice] {
+        discoveredDevices
+    }
+
+    func stopScan() {}
 }
 
 // MARK: - Mock Mac Connection Service

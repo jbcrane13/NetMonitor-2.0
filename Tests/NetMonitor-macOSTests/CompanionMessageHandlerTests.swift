@@ -127,7 +127,7 @@ struct CompanionMessageHandlerTests {
                 macAddress: "AA:BB:CC:DD:EE:44",
                 hostname: "office-printer.local"
             )
-        ])
+        ], profileID: nil)
 
         let message = handler.generateDeviceList()
         guard case .deviceList(let payload) = message else {
@@ -158,12 +158,13 @@ struct CompanionMessageHandlerTests {
         let container = try ModelContainer(for: schema, configurations: [config])
         let context = container.mainContext
 
+        let networkProfileManager = NetworkProfileManager()
         let monitoringSession = MonitoringSession(modelContext: context)
         let deviceDiscovery = DeviceDiscoveryCoordinator(
             modelContext: context,
             arpScanner: ARPScannerService(timeout: 0.05),
             bonjourScanner: BonjourDiscoveryService(),
-            networkProfileManager: NetworkProfileManager()
+            networkProfileManager: networkProfileManager
         )
 
         let handler = CompanionMessageHandler(
@@ -171,7 +172,8 @@ struct CompanionMessageHandlerTests {
             monitoringSession: monitoringSession,
             deviceDiscovery: deviceDiscovery,
             wakeOnLanService: WakeOnLANService(),
-            icmpService: ICMPMonitorService()
+            icmpService: ICMPMonitorService(),
+            networkProfileManager: networkProfileManager
         )
 
         return (container, context, handler, deviceDiscovery, monitoringSession)

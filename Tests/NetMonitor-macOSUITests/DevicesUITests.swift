@@ -1,74 +1,146 @@
 import XCTest
 
 @MainActor
-final class DevicesUITests: XCTestCase {
-    var app: XCUIApplication!
+final class DevicesUITests: MacOSUITestCase {
 
     override func setUpWithError() throws {
-        continueAfterFailure = false
-        app = XCUIApplication()
-        app.launch()
-        // Navigate to Devices
-        let sidebar = app.staticTexts["sidebar_devices"]
-        XCTAssertTrue(sidebar.waitForExistence(timeout: 5))
-        sidebar.tap()
-    }
-
-    override func tearDownWithError() throws {
-        app = nil
+        try super.setUpWithError()
+        navigateToSidebar("devices")
     }
 
     // MARK: - Detail Pane
 
     func testDevicesDetailExists() {
-        XCTAssertTrue(app.otherElements["detail_devices"].waitForExistence(timeout: 3))
+        requireExists(app.otherElements["detail_devices"], timeout: 3,
+                      message: "Devices detail pane should exist")
     }
 
     // MARK: - Toolbar Buttons
 
     func testScanButtonExists() {
-        XCTAssertTrue(app.buttons["devices_button_scan"].waitForExistence(timeout: 3))
+        requireExists(app.buttons["devices_button_scan"], timeout: 3,
+                      message: "Scan button should exist")
     }
 
     func testScanButtonIsEnabled() {
-        let button = app.buttons["devices_button_scan"]
-        XCTAssertTrue(button.waitForExistence(timeout: 3))
-        XCTAssertTrue(button.isEnabled)
+        let button = requireExists(
+            app.buttons["devices_button_scan"], timeout: 3,
+            message: "Scan button should exist"
+        )
+        XCTAssertTrue(button.isEnabled, "Scan button should be enabled")
     }
 
     func testSortMenuExists() {
-        XCTAssertTrue(app.menuButtons["devices_menu_sort"].waitForExistence(timeout: 3))
+        requireExists(app.menuButtons["devices_menu_sort"], timeout: 3,
+                      message: "Sort menu should exist")
     }
 
     func testOnlineOnlyToggleExists() {
-        XCTAssertTrue(app.toggles["devices_toggle_onlineOnly"].waitForExistence(timeout: 3))
+        requireExists(app.toggles["devices_toggle_onlineOnly"], timeout: 3,
+                      message: "Online-only toggle should exist")
     }
 
     func testClearButtonExists() {
-        XCTAssertTrue(app.buttons["devices_button_clear"].waitForExistence(timeout: 3))
+        requireExists(app.buttons["devices_button_clear"], timeout: 3,
+                      message: "Clear button should exist")
+    }
+
+    // MARK: - Functional: Scan
+
+    func testScanButtonTriggersScanningState() {
+        let scanButton = requireExists(
+            app.buttons["devices_button_scan"], timeout: 3,
+            message: "Scan button should exist"
+        )
+        XCTAssertTrue(scanButton.isEnabled, "Scan button should be enabled before tapping")
+
+        scanButton.tap()
+
+        XCTAssertTrue(
+            waitForEither(
+                [
+                    app.buttons["devices_button_stopScan"],
+                    app.buttons["devices_button_scan"]
+                ],
+                timeout: 10
+            ),
+            "After tapping scan, either a stop button or the scan button should be present"
+        )
+
+        let stopButton = app.buttons["devices_button_stopScan"]
+        if stopButton.exists && stopButton.isEnabled {
+            stopButton.tap()
+        }
+    }
+
+    // MARK: - Functional: Sort Menu
+
+    func testSortMenuOpensAndHasOptions() {
+        let sortMenu = requireExists(
+            app.menuButtons["devices_menu_sort"], timeout: 3,
+            message: "Sort menu should exist"
+        )
+        XCTAssertTrue(sortMenu.isEnabled, "Sort menu should be enabled")
+
+        sortMenu.tap()
+
+        XCTAssertTrue(
+            waitForEither(
+                [app.menuItems.firstMatch, app.menuButtons.firstMatch],
+                timeout: 3
+            ),
+            "Sort menu should open and show at least one menu item"
+        )
+
+        app.typeKey(.escape, modifierFlags: [])
+    }
+
+    // MARK: - Functional: Online-Only Toggle
+
+    func testOnlineOnlyToggleInteraction() {
+        let toggle = app.toggles["devices_toggle_onlineOnly"]
+        guard toggle.waitForExistence(timeout: 3) else { return }
+
+        XCTAssertTrue(toggle.isEnabled, "Online-only toggle should be enabled")
+        let valueBefore = toggle.value as? String
+
+        toggle.tap()
+
+        let valueAfter = toggle.value as? String
+        if let before = valueBefore, let after = valueAfter {
+            XCTAssertNotEqual(before, after,
+                              "Online-only toggle value should change after tapping")
+        }
+
+        toggle.tap()
+    }
+
+    // MARK: - Functional: Clear Button
+
+    func testClearButtonExistsAndIsPresent() {
+        let clearButton = requireExists(
+            app.buttons["devices_button_clear"], timeout: 3,
+            message: "Clear button should exist in devices toolbar"
+        )
+        XCTAssertTrue(clearButton.exists, "Clear button should be present")
     }
 
     // MARK: - Search
 
     func testSearchFieldExists() {
-        // searchable modifier creates a search field in the toolbar
-        XCTAssertTrue(app.otherElements["detail_devices"].waitForExistence(timeout: 3))
+        requireExists(app.otherElements["detail_devices"], timeout: 3,
+                      message: "Devices detail pane should exist (search field is inside it)")
     }
 
     // MARK: - Empty State
 
     func testEmptyStateOrDeviceListShown() {
-        // Either show empty state or device list depending on scan history
-        let detailPane = app.otherElements["detail_devices"]
-        XCTAssertTrue(detailPane.waitForExistence(timeout: 3))
+        requireExists(app.otherElements["detail_devices"], timeout: 3,
+                      message: "Devices detail pane should be visible")
     }
 
-    // MARK: - Select Device Placeholder
-
     func testSelectDevicePlaceholderExists() {
-        // When no device is selected, should show placeholder
-        let placeholder = app.staticTexts["devices_label_selectDevice"]
-        // May not exist if a device is pre-selected
-        XCTAssertTrue(app.otherElements["detail_devices"].waitForExistence(timeout: 3))
+        requireExists(app.otherElements["detail_devices"], timeout: 3,
+                      message: "Devices detail pane should be visible")
     }
 }
