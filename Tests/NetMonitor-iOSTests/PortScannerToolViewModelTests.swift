@@ -133,4 +133,33 @@ struct PortScannerToolViewModelTests {
         vm.stopScan()
         #expect(vm.isRunning == false)
     }
+
+    @Test func stopScanCallsService() async throws {
+        let mock = MockPortScannerService()
+        let vm = PortScannerToolViewModel(portScannerService: mock)
+        vm.host = "192.168.1.1"
+        vm.portPreset = .common
+        vm.startScan()
+        vm.stopScan()
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(mock.stopCallCount == 1)
+    }
+
+    @Test func scanResultsAccumulateOpenPorts() async throws {
+        let mock = MockPortScannerService()
+        mock.mockResults = [
+            PortScanResult(port: 80, state: .open),
+            PortScanResult(port: 443, state: .open),
+            PortScanResult(port: 8080, state: .closed)
+        ]
+        let vm = PortScannerToolViewModel(portScannerService: mock)
+        vm.host = "192.168.1.1"
+        vm.portPreset = .custom
+        vm.customRange = PortRange(start: 80, end: 8080)
+        vm.startScan()
+        try await Task.sleep(for: .milliseconds(200))
+        #expect(vm.results.count == 2)
+        #expect(vm.results.map(\.port).contains(80))
+        #expect(vm.results.map(\.port).contains(443))
+    }
 }

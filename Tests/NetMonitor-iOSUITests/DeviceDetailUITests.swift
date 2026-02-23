@@ -1,33 +1,24 @@
 import XCTest
 
-final class DeviceDetailUITests: XCTestCase {
-    var app: XCUIApplication!
-
-    override func setUpWithError() throws {
-        continueAfterFailure = false
-        app = XCUIApplication()
-        app.launch()
-        // Navigate to Map tab to find devices
-        app.tabBars.buttons["Map"].tap()
-    }
-
-    override func tearDownWithError() throws {
-        app = nil
-    }
+@MainActor
+final class DeviceDetailUITests: IOSUITestCase {
 
     // MARK: - Network Map Screen
 
     func testNetworkMapScreenExists() throws {
+        navigateToMap()
         XCTAssertTrue(app.otherElements["screen_networkMap"].waitForExistence(timeout: 5))
     }
 
     func testScanButtonExists() throws {
+        navigateToMap()
         XCTAssertTrue(app.buttons["networkMap_button_scan"].waitForExistence(timeout: 5))
     }
 
     // MARK: - Device Detail (requires a discovered device)
 
     func testDeviceDetailScreenIdentifier() throws {
+        navigateToMap()
         // Tap scan to discover devices
         let scanButton = app.buttons["networkMap_button_scan"]
         if scanButton.waitForExistence(timeout: 5) {
@@ -94,9 +85,84 @@ final class DeviceDetailUITests: XCTestCase {
         }
     }
 
+    // MARK: - Functional Tests
+
+    func testDeviceDetailScreenElements() throws {
+        navigateToMap()
+
+        let scanButton = app.buttons["networkMap_button_scan"]
+        guard scanButton.waitForExistence(timeout: 5) else { return }
+        scanButton.tap()
+
+        let firstDeviceRow = app.otherElements
+            .matching(NSPredicate(format: "identifier BEGINSWITH 'networkMap_row_'"))
+            .firstMatch
+
+        guard firstDeviceRow.waitForExistence(timeout: 10) else { return }
+
+        firstDeviceRow.tap()
+
+        guard app.otherElements["screen_deviceDetail"].waitForExistence(timeout: 8) else {
+            XCTFail("Device detail screen should appear after tapping a device row")
+            return
+        }
+
+        let ipRow = app.otherElements["deviceDetail_row_ipAddress"]
+        let hostnameRow = app.otherElements["deviceDetail_row_hostname"]
+        let networkInfoTitle = app.staticTexts["deviceDetail_label_networkInfoTitle"]
+
+        XCTAssertTrue(
+            ipRow.exists || hostnameRow.exists || networkInfoTitle.exists,
+            "Device detail should show IP address, hostname, or network info section"
+        )
+    }
+
+    func testDeviceDetailClosesBackToList() throws {
+        navigateToMap()
+
+        let scanButton = app.buttons["networkMap_button_scan"]
+        guard scanButton.waitForExistence(timeout: 5) else { return }
+        scanButton.tap()
+
+        let firstDeviceRow = app.otherElements
+            .matching(NSPredicate(format: "identifier BEGINSWITH 'networkMap_row_'"))
+            .firstMatch
+
+        guard firstDeviceRow.waitForExistence(timeout: 10) else { return }
+
+        firstDeviceRow.tap()
+
+        guard app.otherElements["screen_deviceDetail"].waitForExistence(timeout: 8) else {
+            XCTFail("Device detail screen should appear after tapping a device row")
+            return
+        }
+
+        let backButton = app.navigationBars.buttons.firstMatch
+        if backButton.waitForExistence(timeout: 3) {
+            backButton.tap()
+        } else {
+            app.swipeRight()
+        }
+
+        let mapScreen = app.otherElements["screen_networkMap"]
+        let deviceListScreen = app.otherElements["screen_deviceList"]
+        XCTAssertTrue(
+            mapScreen.waitForExistence(timeout: 5) || deviceListScreen.waitForExistence(timeout: 5),
+            "Should return to network map or device list after dismissing device detail"
+        )
+    }
+
     // MARK: - Helpers
 
+    private func navigateToMap() {
+        let mapTab = app.tabBars.buttons["Map"]
+        if mapTab.waitForExistence(timeout: 5) {
+            mapTab.tap()
+        }
+    }
+
     private func navigateToFirstDevice() {
+        navigateToMap()
         let scanButton = app.buttons["networkMap_button_scan"]
         if scanButton.waitForExistence(timeout: 5) {
             scanButton.tap()

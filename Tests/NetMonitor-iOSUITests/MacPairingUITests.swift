@@ -1,33 +1,19 @@
 import XCTest
 
-final class MacPairingUITests: XCTestCase {
-    var app: XCUIApplication!
-
-    override func setUpWithError() throws {
-        continueAfterFailure = false
-        app = XCUIApplication()
-        app.launch()
-        // Navigate to Settings, then open Mac pairing sheet
-        let settingsButton = app.buttons["dashboard_button_settings"]
-        if settingsButton.waitForExistence(timeout: 5) {
-            settingsButton.tap()
-        }
-    }
-
-    override func tearDownWithError() throws {
-        app = nil
-    }
+@MainActor
+final class MacPairingUITests: IOSUITestCase {
 
     // MARK: - Settings Connection Section
 
     func testSettingsScreenExists() throws {
+        openSettings()
         XCTAssertTrue(app.otherElements["screen_settings"].waitForExistence(timeout: 5))
     }
 
     // MARK: - Mac Pairing Sheet
 
     func testOpenPairingSheet() throws {
-        // The ConnectionSettingsSection has a Connect to Mac button
+        openSettings()
         let pairButton = app.buttons["settings_button_connectMac"]
         if pairButton.waitForExistence(timeout: 5) {
             pairButton.tap()
@@ -36,19 +22,18 @@ final class MacPairingUITests: XCTestCase {
     }
 
     func testPairingScreenElements() throws {
+        openSettings()
         openPairingSheet()
         if app.otherElements["screen_macPairing"].waitForExistence(timeout: 5) {
-            // Cancel button should exist
             XCTAssertTrue(app.buttons["pairing_cancel"].exists)
-            // Navigation title
             XCTAssertTrue(app.navigationBars["Connect to Mac"].exists)
         }
     }
 
     func testSearchingIndicator() throws {
+        openSettings()
         openPairingSheet()
         if app.otherElements["screen_macPairing"].waitForExistence(timeout: 5) {
-            // Either searching indicator, empty state, or discovered macs
             let searching = app.otherElements["pairing_searching"]
             let empty = app.otherElements["pairing_empty"]
             let macList = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'pairing_mac_'")).firstMatch
@@ -57,12 +42,12 @@ final class MacPairingUITests: XCTestCase {
     }
 
     func testManualConnectionToggle() throws {
+        openSettings()
         openPairingSheet()
         if app.otherElements["screen_macPairing"].waitForExistence(timeout: 5) {
             let manualToggle = app.buttons["pairing_manual_toggle"]
             if manualToggle.waitForExistence(timeout: 5) {
                 manualToggle.tap()
-                // Manual entry fields should appear
                 XCTAssertTrue(app.textFields["pairing_manual_host"].waitForExistence(timeout: 3))
                 XCTAssertTrue(app.textFields["pairing_manual_port"].exists)
                 XCTAssertTrue(app.buttons["pairing_manual_connect"].exists ||
@@ -72,6 +57,7 @@ final class MacPairingUITests: XCTestCase {
     }
 
     func testManualHostInput() throws {
+        openSettings()
         openPairingSheet()
         if app.otherElements["screen_macPairing"].waitForExistence(timeout: 5) {
             let manualToggle = app.buttons["pairing_manual_toggle"]
@@ -88,15 +74,75 @@ final class MacPairingUITests: XCTestCase {
     }
 
     func testCancelDismissesPairingSheet() throws {
+        openSettings()
         openPairingSheet()
         if app.otherElements["screen_macPairing"].waitForExistence(timeout: 5) {
             app.buttons["pairing_cancel"].tap()
-            // Should return to settings
             XCTAssertTrue(app.otherElements["screen_settings"].waitForExistence(timeout: 5))
         }
     }
 
+    // MARK: - Functional Tests
+
+    func testMacPairingScreenElementsVisible() throws {
+        openSettings()
+
+        let pairButton = app.buttons["settings_button_connectMac"]
+        guard pairButton.waitForExistence(timeout: 5) else { return }
+        pairButton.tap()
+
+        guard app.otherElements["screen_macPairing"].waitForExistence(timeout: 8) else {
+            XCTFail("Mac pairing screen should appear after tapping Connect to Mac")
+            return
+        }
+
+        let cancelButton = app.buttons["pairing_cancel"]
+        let searchingIndicator = app.otherElements["pairing_searching"]
+        let emptyState = app.otherElements["pairing_empty"]
+        let qrCode = app.otherElements["pairing_qrCode"]
+
+        XCTAssertTrue(
+            cancelButton.exists || searchingIndicator.exists || emptyState.exists || qrCode.exists,
+            "Mac pairing screen should show cancel button, discovery state, or QR code"
+        )
+    }
+
+    func testMacPairingCancelReturnToSettings() throws {
+        openSettings()
+
+        let pairButton = app.buttons["settings_button_connectMac"]
+        guard pairButton.waitForExistence(timeout: 5) else { return }
+        pairButton.tap()
+
+        guard app.otherElements["screen_macPairing"].waitForExistence(timeout: 8) else {
+            XCTFail("Mac pairing screen should appear after tapping Connect to Mac")
+            return
+        }
+
+        let cancelButton = app.buttons["pairing_cancel"]
+        guard cancelButton.waitForExistence(timeout: 5) else { return }
+        cancelButton.tap()
+
+        XCTAssertTrue(
+            app.otherElements["screen_settings"].waitForExistence(timeout: 5),
+            "Settings screen should reappear after cancelling Mac pairing"
+        )
+    }
+
     // MARK: - Helpers
+
+    private func openSettings() {
+        requireExists(app.tabBars.buttons["Dashboard"], message: "Dashboard tab should exist").tap()
+
+        let settingsButton = app.buttons["dashboard_button_settings"]
+        if settingsButton.waitForExistence(timeout: 3) {
+            settingsButton.tap()
+        } else {
+            requireExists(app.navigationBars.buttons.firstMatch, message: "A navigation bar button should exist for settings").tap()
+        }
+
+        requireExists(app.otherElements["screen_settings"], timeout: 8, message: "Settings screen should open")
+    }
 
     private func openPairingSheet() {
         let pairButton = app.buttons["settings_button_connectMac"]

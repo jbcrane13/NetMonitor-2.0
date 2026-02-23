@@ -99,4 +99,17 @@ struct BonjourDiscoveryToolViewModelTests {
         vm.stopDiscovery()
         #expect(mock.stopCallCount >= 1)
     }
+
+    @Test func discoveredServicesPopulatedFromMockAfterPolling() async throws {
+        let mock = MockBonjourDiscoveryService()
+        mock.mockStreamServices = [
+            BonjourService(name: "Web Server", type: "_http._tcp"),
+            BonjourService(name: "SSH Host", type: "_ssh._tcp")
+        ]
+        mock.discoveredServices = mock.mockStreamServices
+        let vm = BonjourDiscoveryToolViewModel(bonjourService: mock)
+        vm.startDiscovery()
+        try await Task.sleep(for: .milliseconds(500))
+        #expect(vm.services.count == 2)
+    }
 }
