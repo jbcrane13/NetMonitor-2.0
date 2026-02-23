@@ -82,3 +82,6 @@ test_fixes.swift
 beads/
 .beads/dolt/
 .env.txt
+
+# But track the issues export for syncing
+!.beads/issues.jsonl
