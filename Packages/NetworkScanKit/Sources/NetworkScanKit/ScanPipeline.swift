@@ -46,4 +46,35 @@ public struct ScanPipeline: Sendable {
             Step(phases: [ReverseDNSScanPhase()], concurrent: false),
         ])
     }
+    
+    /// Creates a pipeline for the specified scan strategy.
+    ///
+    /// - `.full`: Standard 4-step pipeline with all discovery methods (ARP, Bonjour, TCP, SSDP, ICMP, DNS)
+    /// - `.remote`: Streamlined 2-step pipeline for remote subnets (TCP Probe + ICMP, then Reverse DNS)
+    ///
+    /// - Parameters:
+    ///   - strategy: The scan strategy to use
+    ///   - bonjourServiceProvider: Optional provider for Bonjour services (used only for `.full`)
+    ///   - bonjourStopProvider: Optional callback to stop Bonjour browser (used only for `.full`)
+    /// - Returns: A pipeline configured for the specified strategy
+    public static func forStrategy(
+        _ strategy: ScanStrategy,
+        bonjourServiceProvider: @escaping @Sendable () async -> [BonjourServiceInfo] = { [] },
+        bonjourStopProvider: (@Sendable () async -> Void)? = nil
+    ) -> ScanPipeline {
+        switch strategy {
+        case .full:
+            return standard(
+                bonjourServiceProvider: bonjourServiceProvider,
+                bonjourStopProvider: bonjourStopProvider
+            )
+        case .remote:
+            return ScanPipeline(steps: [
+                // Step 1: TCP Probe for device discovery (concurrent not needed - single phase)
+                Step(phases: [TCPProbeScanPhase()], concurrent: false),
+                // Step 2: ICMP Latency + Reverse DNS concurrent
+                Step(phases: [ICMPLatencyPhase(), ReverseDNSScanPhase()], concurrent: true),
+            ])
+        }
+    }
 }

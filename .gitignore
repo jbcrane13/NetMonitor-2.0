@@ -81,3 +81,4 @@ test_fixes.swift
 .beads/
 beads/
 .beads/dolt/
+.env.txt

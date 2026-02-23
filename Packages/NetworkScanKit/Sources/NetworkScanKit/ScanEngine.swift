@@ -11,17 +11,17 @@ public actor ScanEngine {
         self.accumulator = ScanAccumulator()
     }
 
-    /// Run a complete scan using the given pipeline and context.
-    ///
-    /// - Parameters:
-    ///   - pipeline: Defines phase ordering and concurrency.
-    ///   - context: Shared scan context (hosts, subnet filter, local IP).
-    ///   - onProgress: Called with `(overallProgress, phaseDisplayName)` as scanning proceeds.
-    /// - Returns: Sorted array of all discovered devices.
     /// Maximum time any single phase is allowed to run before being cancelled.
     /// Prevents a broken NWConnection / NECP state from hanging the entire pipeline.
     private static let phaseTimeout: Duration = .seconds(30)
 
+    /// Run a complete scan using the given pipeline and context.
+    ///
+    /// - Parameters:
+    ///   - pipeline: Defines phase ordering and concurrency.
+    ///   - context: Shared scan context (hosts, subnet filter, local IP, strategy).
+    ///   - onProgress: Called with `(overallProgress, phaseDisplayName)` as scanning proceeds.
+    /// - Returns: Sorted array of all discovered devices.
     public func scan(
         pipeline: ScanPipeline,
         context: ScanContext,
@@ -71,6 +71,31 @@ public actor ScanEngine {
         }
 
         return await accumulator.sortedSnapshot()
+    }
+
+    /// Run a complete scan using the strategy from context, automatically building the appropriate pipeline.
+    ///
+    /// This is a convenience method that creates the pipeline based on `context.scanStrategy`.
+    /// For `.full` strategy, you can optionally provide Bonjour service callbacks.
+    ///
+    /// - Parameters:
+    ///   - context: Shared scan context (hosts, subnet filter, local IP, strategy).
+    ///   - bonjourServiceProvider: Optional provider for Bonjour services (used only for `.full` strategy).
+    ///   - bonjourStopProvider: Optional callback to stop Bonjour browser (used only for `.full` strategy).
+    ///   - onProgress: Called with `(overallProgress, phaseDisplayName)` as scanning proceeds.
+    /// - Returns: Sorted array of all discovered devices.
+    public func scan(
+        context: ScanContext,
+        bonjourServiceProvider: @escaping @Sendable () async -> [BonjourServiceInfo] = { [] },
+        bonjourStopProvider: (@Sendable () async -> Void)? = nil,
+        onProgress: @escaping @Sendable (Double, String) async -> Void
+    ) async -> [DiscoveredDevice] {
+        let pipeline = ScanPipeline.forStrategy(
+            context.scanStrategy,
+            bonjourServiceProvider: bonjourServiceProvider,
+            bonjourStopProvider: bonjourStopProvider
+        )
+        return await scan(pipeline: pipeline, context: context, onProgress: onProgress)
     }
 
     /// Run an async operation with a timeout. If the operation exceeds the
