@@ -111,4 +111,15 @@ class IOSUITestCase: XCTestCase {
         let coordinate = element.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5))
         coordinate.tap()
     }
+
+    func waitForEither(_ elements: [XCUIElement], timeout: TimeInterval) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if elements.contains(where: { $0.exists }) {
+                return true
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+        }
+        return false
+    }
 }

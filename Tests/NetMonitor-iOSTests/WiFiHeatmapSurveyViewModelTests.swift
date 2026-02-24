@@ -1,4 +1,6 @@
 import Testing
+import Foundation
+import CoreGraphics
 @testable import NetMonitor_iOS
 import NetMonitorCore
 

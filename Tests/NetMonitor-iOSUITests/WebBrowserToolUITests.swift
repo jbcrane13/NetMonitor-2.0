@@ -3,8 +3,8 @@ import XCTest
 @MainActor
 final class WebBrowserToolUITests: IOSUITestCase {
 
-    override func setUpWithError() throws {
-        try super.setUpWithError()
+    override func setUp() async throws {
+        try await super.setUp()
         openWebBrowser()
     }
 

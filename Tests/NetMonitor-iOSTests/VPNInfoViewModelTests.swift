@@ -5,7 +5,6 @@ import NetMonitorCore
 
 // MARK: - Mock VPN Service
 
-@MainActor
 private final class MockVPNDetectionService: VPNDetectionServiceProtocol, @unchecked Sendable {
     var mockStatus: VPNStatus = .inactive
     var startCallCount = 0

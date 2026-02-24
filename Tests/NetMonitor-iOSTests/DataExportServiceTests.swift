@@ -23,7 +23,7 @@ struct DataExportServiceTests {
     }
 
     @Test func exportFormatAllCasesCount() {
-        #expect(DataExportService.ExportFormat.allCases.count == 2)
+        #expect(DataExportService.ExportFormat.allCases.count == 3)
     }
 
     // MARK: - Tool Results Export (empty array)

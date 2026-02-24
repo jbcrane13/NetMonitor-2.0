@@ -1,4 +1,6 @@
 import XCTest
+@testable import NetMonitor_iOS
+import NetMonitorCore
 
 /// Tests for PDFReportGenerator — verifies PDF output format and non-nil generation.
 /// These tests use empty arrays to avoid SwiftData @Model init requirements.

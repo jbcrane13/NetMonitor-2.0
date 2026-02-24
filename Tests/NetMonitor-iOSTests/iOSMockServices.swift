@@ -178,7 +178,6 @@ final class MockNetworkMonitorService: NetworkMonitorServiceProtocol {
     var isExpensive: Bool = false
     var isConstrained: Bool = false
     var statusText: String = "Connected via Wi-Fi"
-    var vpnInfo: VPNInfo? = nil
 
     func startMonitoring() {}
     func stopMonitoring() {}
