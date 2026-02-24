@@ -15,7 +15,7 @@ public actor SSLCertificateService: SSLCertificateServiceProtocol {
         }
 
         let inspector = CertificateDelegate()
-        var config = URLSessionConfiguration.ephemeral
+        let config = URLSessionConfiguration.ephemeral
         config.timeoutIntervalForRequest = 15
         config.timeoutIntervalForResource = 20
         let session = URLSession(configuration: config, delegate: inspector, delegateQueue: nil)
@@ -49,7 +49,7 @@ public actor SSLCertificateService: SSLCertificateServiceProtocol {
 
         var validFrom = Date.distantPast
         var validTo = Date.distantFuture
-        var issuer = "Unknown"
+        let issuer = "Unknown"
 
         // SecCertificateCopyValues was removed in macOS 15 SDK; use DER parsing on all platforms.
         if let dates = parseDERValidityDates(from: cert) {

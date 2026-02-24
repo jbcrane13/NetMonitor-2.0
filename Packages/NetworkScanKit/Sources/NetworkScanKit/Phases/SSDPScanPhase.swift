@@ -106,7 +106,7 @@ public struct SSDPScanPhase: ScanPhase, Sendable {
 
         // Receive loop using AsyncStream
         let responses = AsyncStream<Data> { continuation in
-            func receiveNext() {
+            @Sendable func receiveNext() {
                 connection.receive(minimumIncompleteLength: 1, maximumLength: 4096) { data, _, isComplete, _ in
                     if let data {
                         continuation.yield(data)

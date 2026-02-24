@@ -200,13 +200,17 @@ public final class DNSLookupService: DNSLookupServiceProtocol {
 
         source.resume()
 
+        // UnsafeMutableRawPointer is not Sendable; capture via nonisolated(unsafe) local
+        // to suppress the Swift 6 Sendability error. The pointer is valid for the lifetime
+        // of this closure — the QueryContext is released exactly once inside it.
+        nonisolated(unsafe) let rawPtrSend = rawPtr
         DispatchQueue.global().asyncAfter(deadline: .now() + 5.0) {
             source.cancel()
             Task {
                 guard await resumeState.tryResume() else { return }
                 continuation.resume(throwing: DNSError.timeout)
             }
-            Unmanaged<QueryContext>.fromOpaque(rawPtr).release()
+            Unmanaged<QueryContext>.fromOpaque(rawPtrSend).release()
         }
     }
 

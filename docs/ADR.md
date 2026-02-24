@@ -13,6 +13,7 @@ A running log of significant architecture and design decisions. Both Daneel (Ope
 **Context:** Multiple agents and Blake all modify the project; merge conflicts in `.xcodeproj` are painful.  
 **Consequences:**
 - Run `xcodegen generate` after any project.yml change
+- Run `xcodegen generate` after adding **any new source file**, even if `project.yml` itself didn't change — the xcodeproj won't know about the file otherwise and "Cannot find type in scope" errors result at build time (confirmed 2026-02-24: `EventListenerService.swift` was added without regenerating)
 - Build settings like `DEVELOPMENT_TEAM`, `CODE_SIGN_ENTITLEMENTS` must be in `project.yml` or they get wiped on regeneration
 - `.xcodeproj` is gitignored (regenerated)
 
@@ -331,6 +332,50 @@ Phase 3 required iOS UI parity for multi-network monitoring without introducing 
   - Unit: `Tests/NetMonitor-iOSTests/NetworkMapViewModelTests.swift`
   - UI: `Tests/NetMonitor-iOSUITests/DashboardUITests.swift`
   - UI: `Tests/NetMonitor-iOSUITests/NetworkMapUITests.swift`
+
+---
+
+## ADR-019: Swift 6 Sendability patterns for low-level C interop
+**Date:** 2026-02-24  
+**Status:** Active  
+**Decision:** Establish three concrete patterns for Swift 6 Sendability issues that arise at the C/BSD boundary, codified from the 2.0 post-feature build fixes.
+
+**Context:**  
+After Phase 3/feature work landed, several Swift 6 strict-concurrency errors and deprecation warnings surfaced across `NetworkScanKit` and `NetMonitorCore`. These are architectural patterns that will recur whenever low-level networking code is added.
+
+**Pattern 1 — Recursive local functions in `AsyncStream` continuations**  
+`AsyncStream.init` takes a `@Sendable` closure. Any local function called from inside it (including recursively) must be marked `@Sendable` or the compiler emits "Concurrently-executed local function must be marked as `@Sendable`" + "Capture of `X` with non-Sendable type `() -> ()` in a `@Sendable` closure." Fix: add `@Sendable` to the function declaration.
+```swift
+// ✅ Correct
+@Sendable func receiveNext() { ... receiveNext() }
+```
+
+**Pattern 2 — `UnsafeMutableRawPointer` captured in `@Sendable` closures**  
+`UnsafeMutableRawPointer` is not `Sendable`. `DispatchQueue.asyncAfter` (and similar DispatchQueue/GCD APIs) take `@Sendable` closures in Swift 6. If a raw pointer needs to be captured, introduce a `nonisolated(unsafe)` local copy immediately before the closure. The `nonisolated(unsafe)` annotation suppresses the Sendability check — use only when you can reason that the pointer's lifetime and ownership are clear and the closure is the sole consumer.
+```swift
+nonisolated(unsafe) let rawPtrSend = rawPtr
+DispatchQueue.global().asyncAfter(...) {
+    Unmanaged<T>.fromOpaque(rawPtrSend).release()
+}
+```
+
+**Pattern 3 — `nonisolated(unsafe)` on types that gained `Sendable` conformance**  
+`NWConnection` gained `Sendable` conformance in a recent Network.framework update. Any `nonisolated(unsafe)` annotation on an `NWConnection` constant is now flagged as unnecessary. When the compiler emits "'nonisolated(unsafe)' is unnecessary for a constant with 'Sendable' type", just remove the annotation (and any associated SAFETY comment). Similarly, periodically audit other `nonisolated(unsafe)` markers — framework types pick up `Sendable` conformance silently over OS versions.
+
+**Pattern 4 — Deprecated `String(cString: [CChar])` with C buffers**  
+`String(cString:)` on `[CChar]` (and `[UInt8]`) arrays is deprecated in Swift 6. The correct replacement for `inet_ntop`/`getnameinfo`/similar C APIs that write null-terminated UTF-8 into a `[CChar]` buffer:
+```swift
+// Deprecated
+let s = String(cString: buffer)
+// ✅ Correct
+let s = String(decoding: buffer.prefix(while: { $0 != 0 }).map { UInt8(bitPattern: $0) }, as: UTF8.self)
+```
+The `.prefix(while:)` trims the null terminator; `.map { UInt8(bitPattern:) }` reinterprets `CChar` (signed) as `UInt8` (unsigned) for the `UTF8.self` decoder.
+
+**Consequences:**
+- All new C-interop code should apply these patterns at write time, not as post-hoc fixes
+- `nonisolated(unsafe)` should be reviewed on every new OS SDK bump — types gain `Sendable` without warning
+- The `String(decoding:as:)` pattern is slightly more verbose but correct and warning-free
 
 ---
 

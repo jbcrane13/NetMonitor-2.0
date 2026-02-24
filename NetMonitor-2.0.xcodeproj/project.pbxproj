@@ -28,6 +28,7 @@
 		0CE3332D94D12F5FAE0FA18A /* VPNInfoViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C164B5AC392FB3AC879093A /* VPNInfoViewModel.swift */; };
 		0F9552B30FDB65877438BC40 /* NetMonitorIOSUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C013B807313C6826599BFFF1 /* NetMonitorIOSUITests.swift */; };
 		108FB9030E26AEF7FC42E5CA /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DBF9FC031FCDD455C699F85 /* Theme.swift */; };
+		11F76385EE74B30CB84A4E4B /* EventListenerService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7EFDAA7B926E1597541829DB /* EventListenerService.swift */; };
 		11F9D548CD3803D22AACED4B /* ColorExtension.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C54539A07BDA0DD3A962299 /* ColorExtension.swift */; };
 		1307F4C4980ACC2D81AEBC60 /* DeviceDiscoveryCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9ABDDE5D7F62221ED44B711 /* DeviceDiscoveryCoordinatorTests.swift */; };
 		149760505993AD328F8B9B66 /* TCPMonitorService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E87FC6613ED347223FA691D0 /* TCPMonitorService.swift */; };
@@ -450,6 +451,7 @@
 		7D0ADD3CBD049CE99AD4A94E /* DataExportServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataExportServiceTests.swift; sourceTree = "<group>"; };
 		7D8559206E245645DD40D375 /* GeoTraceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeoTraceView.swift; sourceTree = "<group>"; };
 		7EED0AE800C74EEAF77F9DF5 /* ToolRunButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolRunButton.swift; sourceTree = "<group>"; };
+		7EFDAA7B926E1597541829DB /* EventListenerService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventListenerService.swift; sourceTree = "<group>"; };
 		7F7EC6402D2DF48B18A56FB6 /* DashboardViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardViewModel.swift; sourceTree = "<group>"; };
 		7FE55D064CFB3CE51457346A /* ScheduledScanViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduledScanViewModelTests.swift; sourceTree = "<group>"; };
 		7FEBEA87C402A3FB6AB1C6C5 /* WakeOnLanActionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WakeOnLanActionTests.swift; sourceTree = "<group>"; };
@@ -711,6 +713,7 @@
 				BF59316A7FACA0F164BBDD46 /* BackgroundTaskService.swift */,
 				F5A0A2582C0B7312FA42748E /* DataExportService.swift */,
 				2ABF8651A3EB16DD9B71D2A6 /* DataMaintenanceService.swift */,
+				7EFDAA7B926E1597541829DB /* EventListenerService.swift */,
 				11ECEB0143FB17F5EE8C4EB4 /* GatewayService.swift */,
 				DDEDB32CF47D675F61CF5563 /* GeoFenceManager.swift */,
 				431FA615915AAEDF20F196DC /* GlassCard.swift */,
@@ -1530,6 +1533,7 @@
 				85EE6279FE466C8293D9C413 /* DeviceDetailViewModel.swift in Sources */,
 				8F7A9368E876A861DAE933F1 /* DeviceListView.swift in Sources */,
 				CD3296C39EEED39B4AEF5FE1 /* EmptyStateView.swift in Sources */,
+				11F76385EE74B30CB84A4E4B /* EventListenerService.swift in Sources */,
 				02F1D11D8040B5ABE82A311B /* GatewayService.swift in Sources */,
 				99C5EDA2716DD0A167CDA299 /* GeoFenceManager.swift in Sources */,
 				5FC64C5871664175BBE36AF6 /* GeoFenceSettingsView.swift in Sources */,

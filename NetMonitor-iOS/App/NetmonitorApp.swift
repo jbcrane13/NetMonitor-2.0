@@ -65,6 +65,9 @@ struct NetmonitorApp: App {
                     // sees real connectivity instead of the default "No Connection".
                     _ = NetworkMonitorService.shared
 
+                    // Start event listener to log connectivity/device changes for Timeline.
+                    EventListenerService.shared.start()
+
                     BackgroundTaskService.shared.registerTasks()
                     BackgroundTaskService.shared.scheduleRefreshTask()
                     BackgroundTaskService.shared.scheduleSyncTask()

@@ -402,6 +402,6 @@ actor ICMPSocket {
         var buffer = [CChar](repeating: 0, count: Int(INET_ADDRSTRLEN))
         let result = inet_ntop(AF_INET, &addrCopy.sin_addr, &buffer, socklen_t(INET_ADDRSTRLEN))
         guard result != nil else { return nil }
-        return String(cString: buffer)
+        return String(decoding: buffer.prefix(while: { $0 != 0 }).map { UInt8(bitPattern: $0) }, as: UTF8.self)
     }
 }

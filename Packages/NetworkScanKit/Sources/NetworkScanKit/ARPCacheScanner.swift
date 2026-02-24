@@ -214,7 +214,7 @@ public enum ARPCacheScanner: Sendable {
             guard inet_ntop(AF_INET, &ipAddr, &ipBuf, socklen_t(INET_ADDRSTRLEN)) != nil else {
                 return nil
             }
-            let ip = String(cString: ipBuf)
+            let ip = String(decoding: ipBuf.prefix(while: { $0 != 0 }).map { UInt8(bitPattern: $0) }, as: UTF8.self)
 
             // Advance past the first sockaddr (4-byte aligned)
             let saLen1 = Int(sin.sin_len)
