@@ -56,7 +56,7 @@ struct ScanContextTests {
 
     @Test("networkProfile is stored when provided")
     func networkProfileStored() {
-        let profile = NetworkProfile(id: "home-5ghz", name: "Home 5GHz", subnetCIDR: "192.168.1.0/24")
+        let profile = NetworkScanProfile(id: "home-5ghz", name: "Home 5GHz", subnetCIDR: "192.168.1.0/24")
         let ctx = ScanContext(
             hosts: [],
             subnetFilter: { _ in true },
@@ -98,7 +98,7 @@ struct ScanContextTests {
 
     @Test("full context with all parameters")
     func fullContext() {
-        let profile = NetworkProfile(id: "office", name: "Office Network")
+        let profile = NetworkScanProfile(id: "office", name: "Office Network")
         let ctx = ScanContext(
             hosts: ["10.0.0.1"],
             subnetFilter: { ip in ip.hasPrefix("10.0.") },

@@ -12,7 +12,7 @@ public enum ScanStrategy: Sendable, Equatable {
 }
 
 /// Identifies a network profile for scan context.
-public struct NetworkProfile: Sendable, Equatable, Identifiable {
+public struct NetworkScanProfile: Sendable, Equatable, Identifiable {
     public let id: String
     public let name: String
     public let subnetCIDR: String?
