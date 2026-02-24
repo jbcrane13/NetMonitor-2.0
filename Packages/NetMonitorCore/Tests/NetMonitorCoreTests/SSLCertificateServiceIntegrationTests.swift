@@ -86,4 +86,61 @@ struct SSLCertificateServiceIntegrationTests {
         let info = try await service.checkCertificate(domain: "github.com")
         #expect(info.daysUntilExpiry >= 0, "Days until expiry must be non-negative")
     }
+
+    // MARK: - Issuer field limitation
+
+    @Test("issuer is 'Unknown' — DER parser does not extract issuer (known limitation)", .tags(.integration))
+    func issuerIsUnknown() async throws {
+        // SSLCertificateService.parseCertificate hardcodes issuer = "Unknown" because
+        // SecCertificateCopyValues was removed in macOS 15 SDK and the DER walker
+        // skips the issuer Name field. This test documents the behavior so that
+        // future issuer-parsing improvements can update the expected value.
+        let service = SSLCertificateService()
+        let info = try await service.checkCertificate(domain: "apple.com")
+        #expect(info.issuer == "Unknown",
+                "Issuer should be 'Unknown' (known limitation), got '\(info.issuer)'")
+    }
+
+    // MARK: - Concurrent requests
+
+    @Test("Concurrent cert checks for different domains do not crash", .tags(.integration))
+    func concurrentCertChecksNoCrash() async throws {
+        let service = SSLCertificateService()
+        let domains = ["apple.com", "github.com", "google.com"]
+
+        try await withThrowingTaskGroup(of: SSLCertificateInfo.self) { group in
+            for domain in domains {
+                group.addTask {
+                    try await service.checkCertificate(domain: domain)
+                }
+            }
+            var results: [SSLCertificateInfo] = []
+            for try await info in group {
+                results.append(info)
+            }
+            #expect(results.count == domains.count,
+                    "Should get one result per domain, got \(results.count)")
+            for info in results {
+                #expect(info.isValid, "All major domains should have valid certs")
+            }
+        }
+    }
+
+    // MARK: - DER date parsing validation
+
+    @Test("validFrom and validTo are not sentinel values for a real cert", .tags(.integration))
+    func derDatesAreNotSentinels() async throws {
+        let service = SSLCertificateService()
+        let info = try await service.checkCertificate(domain: "apple.com")
+        // If DER parsing fails, parseCertificate falls back to distantPast/distantFuture
+        #expect(info.validFrom != Date.distantPast,
+                "validFrom should not be .distantPast (DER parsing likely failed)")
+        #expect(info.validTo != Date.distantFuture,
+                "validTo should not be .distantFuture (DER parsing likely failed)")
+        // Dates should be reasonable (within last 5 years to 5 years ahead)
+        let fiveYearsAgo = Calendar.current.date(byAdding: .year, value: -5, to: Date())!
+        let fiveYearsAhead = Calendar.current.date(byAdding: .year, value: 5, to: Date())!
+        #expect(info.validFrom > fiveYearsAgo, "validFrom should be within last 5 years")
+        #expect(info.validTo < fiveYearsAhead, "validTo should be within next 5 years")
+    }
 }

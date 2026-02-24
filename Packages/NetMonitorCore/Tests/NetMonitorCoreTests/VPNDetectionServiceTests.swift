@@ -94,4 +94,104 @@ struct VPNDetectionServiceTests {
         // Calling stop twice should also be safe
         service.stopMonitoring()
     }
+
+    @Test("startMonitoring is idempotent — calling twice does not crash")
+    func startMonitoringIdempotent() {
+        let service = VPNDetectionService()
+        service.startMonitoring()
+        service.startMonitoring()
+        service.stopMonitoring()
+    }
+
+    @Test("Multiple stream listeners receive initial status")
+    func multipleStreamListeners() async {
+        let service = VPNDetectionService()
+        let stream1 = service.statusStream()
+        let stream2 = service.statusStream()
+
+        var it1 = stream1.makeAsyncIterator()
+        var it2 = stream2.makeAsyncIterator()
+
+        let first1 = await it1.next()
+        let first2 = await it2.next()
+
+        #expect(first1 != nil)
+        #expect(first2 != nil)
+        #expect(first1?.isActive == false)
+        #expect(first2?.isActive == false)
+    }
+}
+
+// MARK: - VPNProtocolType Edge Cases
+
+@Suite("VPNProtocolType - Edge Cases")
+struct VPNProtocolTypeEdgeCaseTests {
+
+    @Test("Empty interface name maps to .unknown")
+    func emptyStringMapsToUnknown() {
+        #expect(VPNProtocolType.from(interfaceName: "") == .unknown)
+    }
+
+    @Test("Uppercase UTUN maps to .other (case-insensitive prefix check)")
+    func uppercaseUtunMapsToOther() {
+        // VPNProtocolType.from lowercases the input before prefix matching
+        #expect(VPNProtocolType.from(interfaceName: "UTUN0") == .other)
+    }
+
+    @Test("utun without number suffix still maps to .other")
+    func utunWithoutNumberMapsToOther() {
+        #expect(VPNProtocolType.from(interfaceName: "utun") == .other)
+    }
+
+    @Test("ipsec with long suffix still maps to .ipsec")
+    func ipsecLongSuffix() {
+        #expect(VPNProtocolType.from(interfaceName: "ipsec123456") == .ipsec)
+    }
+
+    @Test("Mixed case PPP maps to .pptp")
+    func mixedCasePPP() {
+        #expect(VPNProtocolType.from(interfaceName: "Ppp0") == .pptp)
+    }
+
+    @Test("en0 is not a VPN interface")
+    func en0NotVPN() {
+        #expect(VPNProtocolType.from(interfaceName: "en0") == .unknown)
+    }
+
+    @Test("lo0 loopback is not a VPN interface")
+    func loopbackNotVPN() {
+        #expect(VPNProtocolType.from(interfaceName: "lo0") == .unknown)
+    }
+
+    @Test("bridge interface is not a VPN interface")
+    func bridgeNotVPN() {
+        #expect(VPNProtocolType.from(interfaceName: "bridge0") == .unknown)
+    }
+}
+
+// MARK: - VPNStatus Equality
+
+@Suite("VPNStatus - Equatable")
+struct VPNStatusEqualityTests {
+
+    @Test("Two active statuses with same fields are equal")
+    func activeStatusesEqual() {
+        let date = Date()
+        let a = VPNStatus(isActive: true, interfaceName: "utun2", protocolType: .wireguard, connectedSince: date)
+        let b = VPNStatus(isActive: true, interfaceName: "utun2", protocolType: .wireguard, connectedSince: date)
+        #expect(a == b)
+    }
+
+    @Test("Active and inactive statuses are not equal")
+    func activeAndInactiveNotEqual() {
+        let active = VPNStatus(isActive: true, interfaceName: "utun0", protocolType: .other)
+        #expect(active != VPNStatus.inactive)
+    }
+
+    @Test("Different protocol types are not equal")
+    func differentProtocolsNotEqual() {
+        let a = VPNStatus(isActive: true, interfaceName: "utun0", protocolType: .wireguard)
+        let b = VPNStatus(isActive: true, interfaceName: "utun0", protocolType: .ipsec)
+        #expect(a != b)
+    }
 }

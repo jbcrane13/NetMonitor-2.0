@@ -52,4 +52,71 @@ struct DNSLookupServiceIntegrationTests {
         #expect(errorSurfaced, "Invalid domain must surface an error — not return valid records silently")
         #expect(service.isLoading == false, "isLoading must be false after failed lookup")
     }
+
+    // MARK: - Deeper result validation
+
+    @Test("A record values for apple.com look like valid IPv4 addresses", .tags(.integration))
+    @MainActor
+    func aRecordValuesLookLikeIPv4() async {
+        let service = DNSLookupService()
+        let result = await service.lookup(domain: "apple.com", recordType: .a, server: nil)
+        guard let result = result, !result.records.isEmpty else {
+            Issue.record("Expected A records for apple.com")
+            return
+        }
+        for record in result.records where record.type == .a {
+            let parts = record.value.split(separator: ".")
+            #expect(parts.count == 4,
+                    "IPv4 address should have 4 octets, got '\(record.value)'")
+        }
+    }
+
+    @Test("Resolves apple.com AAAA record — returns IPv6 address(es)", .tags(.integration))
+    @MainActor
+    func resolvesAAAARecord() async {
+        let service = DNSLookupService()
+        let result = await service.lookup(domain: "apple.com", recordType: .aaaa, server: nil)
+        // apple.com should have AAAA records; verify non-crash and valid type
+        if let result = result, !result.records.isEmpty {
+            #expect(result.records.allSatisfy { $0.type == .aaaa },
+                    "AAAA query should only return AAAA records")
+            for record in result.records {
+                #expect(record.value.contains(":"),
+                        "IPv6 address should contain colons, got '\(record.value)'")
+            }
+        }
+        // Some environments may not resolve AAAA — not a failure
+    }
+
+    @Test("queryTime is positive after successful lookup", .tags(.integration))
+    @MainActor
+    func queryTimeIsPositive() async {
+        let service = DNSLookupService()
+        let result = await service.lookup(domain: "apple.com", recordType: .a, server: nil)
+        #expect(result != nil)
+        if let result = result {
+            #expect(result.queryTime > 0, "queryTime must be > 0, got \(result.queryTime)")
+        }
+    }
+
+    @Test("lastResult is updated after successful lookup", .tags(.integration))
+    @MainActor
+    func lastResultUpdatedAfterLookup() async {
+        let service = DNSLookupService()
+        #expect(service.lastResult == nil, "lastResult should be nil before first lookup")
+        _ = await service.lookup(domain: "apple.com", recordType: .a, server: nil)
+        #expect(service.lastResult != nil, "lastResult must be non-nil after successful lookup")
+        #expect(service.lastResult?.domain == "apple.com")
+    }
+
+    @Test("server field defaults to 'System DNS' when nil is passed", .tags(.integration))
+    @MainActor
+    func serverDefaultsToSystemDNS() async {
+        let service = DNSLookupService()
+        let result = await service.lookup(domain: "apple.com", recordType: .a, server: nil)
+        if let result = result {
+            #expect(result.server == "System DNS",
+                    "Server should default to 'System DNS', got '\(result.server)'")
+        }
+    }
 }

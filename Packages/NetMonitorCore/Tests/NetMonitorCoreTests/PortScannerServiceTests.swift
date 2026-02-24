@@ -183,3 +183,61 @@ struct PortScannerServiceIntegrationTests {
         #expect(true)
     }
 }
+
+// MARK: - PortScanResult Field Storage Tests
+// (commonServiceName and displayName already tested in ToolModelsTests.swift)
+
+@Suite("PortScanResult - Field Storage")
+struct PortScanResultFieldTests {
+
+    @Test("init stores port and state correctly")
+    func initStoresPortAndState() {
+        let result = PortScanResult(port: 443, state: .closed)
+        #expect(result.port == 443)
+        #expect(result.state == .closed)
+    }
+
+    @Test("open port result stores responseTime when provided")
+    func openPortResponseTime() {
+        let result = PortScanResult(port: 80, state: .open, responseTime: 12.5)
+        #expect(result.responseTime == 12.5)
+    }
+
+    @Test("closed port result has nil responseTime by default")
+    func closedPortNilResponseTime() {
+        let result = PortScanResult(port: 80, state: .closed)
+        #expect(result.responseTime == nil)
+    }
+
+    @Test("banner is nil by default")
+    func bannerNilByDefault() {
+        let result = PortScanResult(port: 22, state: .open)
+        #expect(result.banner == nil)
+    }
+
+    @Test("banner stores provided value")
+    func bannerStoresValue() {
+        let result = PortScanResult(port: 22, state: .open, banner: "SSH-2.0-OpenSSH")
+        #expect(result.banner == "SSH-2.0-OpenSSH")
+    }
+
+    @Test("each result has a unique id")
+    func uniqueIds() {
+        let a = PortScanResult(port: 80, state: .open)
+        let b = PortScanResult(port: 80, state: .open)
+        #expect(a.id != b.id)
+    }
+}
+
+// MARK: - PortState Raw Values
+
+@Suite("PortState - Raw Values")
+struct PortStateRawValueTests {
+
+    @Test("raw values match expected strings")
+    func rawValues() {
+        #expect(PortState.open.rawValue == "open")
+        #expect(PortState.closed.rawValue == "closed")
+        #expect(PortState.filtered.rawValue == "filtered")
+    }
+}
