@@ -1,4 +1,5 @@
 import Foundation
+import os.log
 
 /// Pings a target from multiple global locations using the check-host.net API.
 ///
@@ -9,6 +10,7 @@ import Foundation
 public final class WorldPingService: WorldPingServiceProtocol, @unchecked Sendable {
     private let session: URLSession
     private let baseURL = "https://check-host.net"
+    private let logger = Logger(subsystem: "com.netmonitor", category: "WorldPingService")
 
     public init(session: URLSession = .shared) {
         self.session = session
@@ -24,7 +26,14 @@ public final class WorldPingService: WorldPingServiceProtocol, @unchecked Sendab
                         continuation.yield(result)
                     }
                 } catch {
-                    // Stream ends empty on network/API errors
+                    logger.error("World ping failed: \(error.localizedDescription)")
+                    continuation.yield(WorldPingLocationResult(
+                        id: "error",
+                        country: "Error",
+                        city: error.localizedDescription,
+                        latencyMs: nil,
+                        isSuccess: false
+                    ))
                 }
                 continuation.finish()
             }
@@ -45,6 +54,7 @@ public final class WorldPingService: WorldPingServiceProtocol, @unchecked Sendab
 
         var request = URLRequest(url: url)
         request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("NetMonitor/2.0", forHTTPHeaderField: "User-Agent")
         request.timeoutInterval = 15
 
         let (data, _) = try await session.data(for: request)

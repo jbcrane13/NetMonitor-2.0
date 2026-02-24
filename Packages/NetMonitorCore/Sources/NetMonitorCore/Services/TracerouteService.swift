@@ -104,6 +104,7 @@ public actor TracerouteService: TracerouteServiceProtocol {
             await performTCPFallback(
                 host: host,
                 targetIP: targetIP,
+                maxHops: maxHops,
                 timeout: timeout,
                 continuation: continuation
             )
@@ -196,32 +197,59 @@ public actor TracerouteService: TracerouteServiceProtocol {
 
     // MARK: - TCP Fallback
 
-    /// When ICMP sockets are unavailable (e.g., Simulator), probe the destination
-    /// directly with TCP. Reports only the destination hop — no fake intermediate IPs.
+    /// Multi-hop TCP traceroute for when ICMP sockets are unavailable (e.g., iOS Simulator,
+    /// restricted sandbox). Sends TCP SYN probes with incrementing TTL values to the target.
+    ///
+    /// Intermediate routers that decrement TTL to zero send ICMP Time Exceeded back, but
+    /// our TCP socket cannot receive that ICMP error — so intermediate hops show as timeouts
+    /// (like `* * *` in standard traceroute output). When TTL is large enough to reach the
+    /// destination, the connect() either succeeds or is refused (RST), revealing the endpoint.
+    ///
+    /// This is the same behaviour as `tcptraceroute` on macOS/Linux: timeouts for intermediate
+    /// routers that don't respond to TCP, real RTT when the destination is reached.
     private nonisolated func performTCPFallback(
         host: String,
         targetIP: String,
+        maxHops: Int,
         timeout: TimeInterval,
         continuation: AsyncStream<TracerouteHop>.Continuation
     ) async {
-        let result = tcpProbe(host: targetIP, port: 443, timeout: timeout)
+        // Try port 443 first; common ports most likely to elicit a reply at the destination
+        let port: UInt16 = 443
 
-        switch result {
-        case .connected(let rtt), .refused(let rtt):
+        for ttl in 1...maxHops {
+            // Check actor-isolated `isRunning` without blocking the cooperative pool
+            let running = await self.isRunning
+            guard running else { break }
+
+            var probeTimes: [Double] = []
+            var destinationReached = false
+
+            // Send probesPerHop probes at this TTL, matching standard traceroute behaviour
+            for _ in 0..<probesPerHop {
+                let result = tcpProbe(host: targetIP, port: port, timeout: timeout, ttl: Int32(ttl))
+                switch result {
+                case .connected(let rtt), .refused(let rtt):
+                    probeTimes.append(rtt)
+                    destinationReached = true
+                case .timeout, .error:
+                    // Intermediate hop dropped packet (TTL expired) or no response — keep going
+                    break
+                }
+            }
+
+            let allTimeout = probeTimes.isEmpty
+
             continuation.yield(TracerouteHop(
-                hopNumber: 1,
-                ipAddress: targetIP,
-                hostname: host == targetIP ? nil : host,
-                times: [rtt]
+                hopNumber: ttl,
+                // We can only identify the destination IP; intermediate routers are unknown via TCP
+                ipAddress: destinationReached ? targetIP : nil,
+                hostname: destinationReached && host != targetIP ? host : nil,
+                times: probeTimes,
+                isTimeout: allTimeout
             ))
-        case .timeout, .error:
-            continuation.yield(TracerouteHop(
-                hopNumber: 1,
-                ipAddress: targetIP,
-                hostname: host == targetIP ? nil : host,
-                times: [],
-                isTimeout: true
-            ))
+
+            if destinationReached { break }
         }
     }
 
@@ -235,15 +263,31 @@ public actor TracerouteService: TracerouteServiceProtocol {
     }
 
     /// Attempts a TCP connection to measure reachability and latency.
+    ///
+    /// - Parameters:
+    ///   - host: IPv4 address string of the target.
+    ///   - port: TCP port to connect to.
+    ///   - timeout: How long to wait for the connect to complete.
+    ///   - ttl: Optional IP TTL to set before connecting. Pass a value ≥ 1 for
+    ///     traceroute-style probing — the packet will be dropped by the router at
+    ///     that hop count, causing a timeout here while routers along the path
+    ///     see (and silently discard) the probe.
     private nonisolated func tcpProbe(
         host: String,
         port: UInt16,
-        timeout: TimeInterval
+        timeout: TimeInterval,
+        ttl: Int32? = nil
     ) -> ProbeResult {
         let startTime = ContinuousClock.now
 
         let fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)
         guard fd >= 0 else { return .error }
+
+        // Set IP TTL before connecting when performing traceroute probes
+        if let ttlValue = ttl {
+            var t = ttlValue
+            setsockopt(fd, IPPROTO_IP, IP_TTL, &t, socklen_t(MemoryLayout<Int32>.size))
+        }
 
         // Set non-blocking
         let flags = fcntl(fd, F_GETFL, 0)
@@ -333,7 +377,7 @@ public actor TracerouteService: TracerouteServiceProtocol {
                 }
 
                 if result == 0 {
-                    let name = String(cString: hostname)
+                    let name = String(decoding: hostname.prefix(while: { $0 != 0 }).map { UInt8(bitPattern: $0) }, as: UTF8.self)
                     // Don't return the IP address itself as a "hostname"
                     if name != ipAddress {
                         continuation.resume(returning: name)
