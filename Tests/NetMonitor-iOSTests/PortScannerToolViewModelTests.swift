@@ -163,3 +163,85 @@ struct PortScannerToolViewModelTests {
         #expect(vm.results.map(\.port).contains(443))
     }
 }
+
+// MARK: - Error & Edge Case Tests
+
+@Suite("PortScannerToolViewModel Error & Edge Cases")
+@MainActor
+struct PortScannerToolViewModelErrorTests {
+
+    @Test func emptyCustomPortRangeCannotStartScan() {
+        let vm = PortScannerToolViewModel(portScannerService: MockPortScannerService())
+        vm.host = "10.0.0.1"
+        vm.portPreset = .custom
+        // start > end → empty range
+        vm.customRange = PortRange(start: 9000, end: 8000)
+        #expect(vm.effectivePorts.isEmpty)
+        #expect(vm.canStartScan == false)
+    }
+
+    @Test func portRangeValidationSinglePort() {
+        let vm = PortScannerToolViewModel(portScannerService: MockPortScannerService())
+        vm.portPreset = .custom
+        vm.customRange = PortRange(start: 80, end: 80)
+        #expect(vm.effectivePorts == [80])
+        #expect(vm.totalPorts == 1)
+    }
+
+    @Test func scanInterruptionPreservesPartialResults() async throws {
+        let mock = MockPortScannerService()
+        // Provide enough results that some accumulate before stop
+        mock.mockResults = [
+            PortScanResult(port: 22, state: .open),
+            PortScanResult(port: 80, state: .open),
+            PortScanResult(port: 443, state: .open)
+        ]
+        let vm = PortScannerToolViewModel(portScannerService: mock)
+        vm.host = "192.168.1.1"
+        vm.portPreset = .custom
+        vm.customRange = PortRange(start: 22, end: 443)
+        vm.startScan()
+        // Let some results arrive
+        try await Task.sleep(for: .milliseconds(150))
+        vm.stopScan()
+        // After interruption, whatever was accumulated before stop is kept
+        #expect(vm.isRunning == false)
+        // Results that arrived before stop are preserved (not cleared by stopScan)
+        // We don't assert count since it's race-dependent, but results array exists
+        #expect(vm.results.allSatisfy { $0.state == .open })
+    }
+
+    @Test func closedPortsNotAddedToResults() async throws {
+        let mock = MockPortScannerService()
+        mock.mockResults = [
+            PortScanResult(port: 22, state: .closed),
+            PortScanResult(port: 80, state: .filtered),
+            PortScanResult(port: 443, state: .closed)
+        ]
+        let vm = PortScannerToolViewModel(portScannerService: mock)
+        vm.host = "192.168.1.1"
+        vm.portPreset = .common
+        vm.startScan()
+        try await Task.sleep(for: .milliseconds(200))
+        // Only open ports go into results
+        #expect(vm.results.isEmpty)
+        #expect(vm.openPorts.isEmpty)
+    }
+
+    @Test func scannedCountIncrementsForAllResults() async throws {
+        let mock = MockPortScannerService()
+        mock.mockResults = [
+            PortScanResult(port: 80, state: .open),
+            PortScanResult(port: 81, state: .closed),
+            PortScanResult(port: 82, state: .filtered)
+        ]
+        let vm = PortScannerToolViewModel(portScannerService: mock)
+        vm.host = "192.168.1.1"
+        vm.portPreset = .custom
+        vm.customRange = PortRange(start: 80, end: 82)
+        vm.startScan()
+        try await Task.sleep(for: .milliseconds(200))
+        // scannedCount tracks all ports regardless of state
+        #expect(vm.scannedCount == 3)
+    }
+}

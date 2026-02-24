@@ -103,6 +103,76 @@ struct SSLCertificateMonitorViewModelTests {
     }
 }
 
+// MARK: - Extended SSL Certificate Monitor Tests
+
+@Suite("SSLCertificateMonitorViewModel Extended")
+@MainActor
+struct SSLCertificateMonitorViewModelExtendedTests {
+
+    @Test func refreshAllUpdatesTrackedDomains() async {
+        let tracker = MockCertificateExpirationTracker()
+        // Pre-populate tracker with a domain
+        await tracker.addDomain("example.com", port: 443, notes: nil)
+        let vm = SSLCertificateMonitorViewModel(tracker: tracker)
+
+        await vm.refreshAll()
+
+        #expect(vm.isLoading == false)
+        #expect(vm.trackedDomains.count == 1)
+        #expect(vm.trackedDomains.first?.domain == "example.com")
+    }
+
+    @Test func watchListRoundTripPreservesNotes() async {
+        let tracker = MockCertificateExpirationTracker()
+        let vm = SSLCertificateMonitorViewModel(tracker: tracker)
+
+        vm.currentResult = DomainExpirationStatus(domain: "secure.example.com", port: 443)
+        vm.notes = "Production cert"
+
+        await vm.addToWatchList()
+
+        // Notes are cleared after add
+        #expect(vm.notes == "")
+        // Domain appears in tracked list with correct notes
+        let domain = vm.trackedDomains.first { $0.domain == "secure.example.com" }
+        #expect(domain?.notes == "Production cert")
+    }
+
+    @Test func queryDoesNotRunWhenDomainIsEmpty() async {
+        let tracker = MockCertificateExpirationTracker()
+        let vm = SSLCertificateMonitorViewModel(tracker: tracker)
+        vm.domain = ""
+
+        await vm.queryDomain()
+
+        #expect(vm.currentResult == nil)
+        #expect(vm.isLoading == false)
+    }
+
+    @Test func loadTrackedDomainsPopulatesTrackedDomains() async {
+        let tracker = MockCertificateExpirationTracker()
+        await tracker.addDomain("alpha.com", port: 443, notes: nil)
+        await tracker.addDomain("beta.com", port: 443, notes: nil)
+
+        let vm = SSLCertificateMonitorViewModel(tracker: tracker)
+        await vm.loadTrackedDomains()
+
+        #expect(vm.trackedDomains.count == 2)
+    }
+
+    @Test func removeFromWatchListRemovesDomain() async {
+        let tracker = MockCertificateExpirationTracker()
+        let vm = SSLCertificateMonitorViewModel(tracker: tracker)
+
+        vm.currentResult = DomainExpirationStatus(domain: "toremove.com", port: 443)
+        await vm.addToWatchList()
+        #expect(vm.trackedDomains.count == 1)
+
+        await vm.removeFromWatchList(domain: "toremove.com")
+        #expect(vm.trackedDomains.isEmpty)
+    }
+}
+
 private actor MockCertificateExpirationTracker: CertificateExpirationTrackerProtocol {
     private var trackedByID: [String: DomainExpirationStatus] = [:]
     private var refreshByDomain: [String: DomainExpirationStatus?] = [:]

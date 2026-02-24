@@ -133,3 +133,69 @@ struct SettingsViewModelTests {
         #expect(!vm.cacheSize.isEmpty)
     }
 }
+
+// MARK: - Additional Edge Case Tests
+
+@Suite("SettingsViewModel Additional")
+@MainActor
+struct SettingsViewModelAdditionalTests {
+
+    @Test func accentColorPersistsViaThemeManager() {
+        let vm = SettingsViewModel()
+        let original = vm.selectedAccentColor
+        defer {
+            vm.selectedAccentColor = original
+        }
+        vm.selectedAccentColor = "blue"
+        #expect(ThemeManager.shared.selectedAccentColor == "blue")
+
+        vm.selectedAccentColor = "green"
+        #expect(ThemeManager.shared.selectedAccentColor == "green")
+    }
+
+    @Test func accentColorRoundTrip() {
+        let vm = SettingsViewModel()
+        let original = vm.selectedAccentColor
+        defer {
+            vm.selectedAccentColor = original
+        }
+        vm.selectedAccentColor = "purple"
+        // Reading back via a fresh SettingsViewModel reflects the persisted value
+        let vm2 = SettingsViewModel()
+        #expect(vm2.selectedAccentColor == "purple")
+    }
+
+    @Test func selectedThemePersistsToUserDefaults() {
+        let vm = SettingsViewModel()
+        vm.selectedTheme = "light"
+        #expect(UserDefaults.standard.string(forKey: AppSettings.Keys.selectedTheme) == "light")
+        // Cleanup
+        UserDefaults.standard.removeObject(forKey: AppSettings.Keys.selectedTheme)
+    }
+
+    @Test func highLatencyThresholdPersists() {
+        let vm = SettingsViewModel()
+        vm.highLatencyThreshold = 250
+        #expect(UserDefaults.standard.object(forKey: AppSettings.Keys.highLatencyThreshold) as? Int == 250)
+        // Cleanup
+        UserDefaults.standard.removeObject(forKey: AppSettings.Keys.highLatencyThreshold)
+    }
+
+    @Test func autoRefreshIntervalPersists() {
+        let vm = SettingsViewModel()
+        vm.autoRefreshInterval = 120
+        #expect(UserDefaults.standard.object(forKey: AppSettings.Keys.autoRefreshInterval) as? Int == 120)
+        // Cleanup
+        UserDefaults.standard.removeObject(forKey: AppSettings.Keys.autoRefreshInterval)
+    }
+
+    @Test func isClearingCacheStartsFalse() {
+        let vm = SettingsViewModel()
+        #expect(vm.isClearingCache == false)
+    }
+
+    @Test func clearCacheSuccessStartsFalse() {
+        let vm = SettingsViewModel()
+        #expect(vm.clearCacheSuccess == false)
+    }
+}

@@ -141,3 +141,92 @@ struct GeoFenceSettingsViewModelTests {
         context.defaults.removePersistentDomain(forName: context.suiteName)
     }
 }
+
+// MARK: - GeoFenceManager Edge Case Tests
+
+@Suite("GeoFenceManager Edge Cases")
+@MainActor
+struct GeoFenceManagerEdgeCaseTests {
+
+    @Test func addGeofenceAppearsInList() {
+        let manager = GeoFenceManager()
+        let initialCount = manager.geofences.count
+        let entry = GeoFenceEntry(
+            name: "TestFence-\(UUID().uuidString)",
+            latitude: 37.3317,
+            longitude: -122.0301,
+            radius: 200,
+            triggerOn: .enter
+        )
+        manager.addGeofence(entry)
+        #expect(manager.geofences.count == initialCount + 1)
+        #expect(manager.geofences.contains(where: { $0.id == entry.id }))
+        // Cleanup
+        manager.removeGeofence(entry)
+    }
+
+    @Test func removeGeofenceRemovesFromList() {
+        let manager = GeoFenceManager()
+        let entry = GeoFenceEntry(
+            name: "RemoveFence-\(UUID().uuidString)",
+            latitude: 37.0,
+            longitude: -122.0,
+            radius: 150,
+            triggerOn: .exit
+        )
+        manager.addGeofence(entry)
+        #expect(manager.geofences.contains(where: { $0.id == entry.id }))
+        manager.removeGeofence(entry)
+        #expect(!manager.geofences.contains(where: { $0.id == entry.id }))
+    }
+
+    @Test func toggleEnabledFlipsEnabledState() {
+        let manager = GeoFenceManager()
+        let entry = GeoFenceEntry(
+            name: "ToggleFence-\(UUID().uuidString)",
+            latitude: 37.0,
+            longitude: -122.0,
+            radius: 200,
+            isEnabled: true
+        )
+        manager.addGeofence(entry)
+        guard let index = manager.geofences.firstIndex(where: { $0.id == entry.id }) else {
+            Issue.record("Entry not found after add")
+            return
+        }
+        let waEnabled = manager.geofences[index].isEnabled
+        manager.toggleEnabled(manager.geofences[index])
+        #expect(manager.geofences[index].isEnabled == !waEnabled)
+        // Cleanup
+        manager.removeGeofence(manager.geofences[index])
+    }
+
+    @Test func radiusIsClampedToMinimum() {
+        let entry = GeoFenceEntry(
+            name: "SmallFence",
+            latitude: 0,
+            longitude: 0,
+            radius: 10 // below minimum of 100
+        )
+        #expect(entry.radius == 100)
+    }
+
+    @Test func radiusIsClampedToMaximum() {
+        let entry = GeoFenceEntry(
+            name: "HugeFence",
+            latitude: 0,
+            longitude: 0,
+            radius: 99999 // above maximum of 5000
+        )
+        #expect(entry.radius == 5000)
+    }
+
+    @Test func isAuthorizedFalseByDefault() {
+        let manager = GeoFenceManager()
+        // In test environment, location permission is not granted
+        // authorizationStatus defaults to .notDetermined
+        if manager.authorizationStatus == .notDetermined {
+            #expect(manager.isAuthorized == false)
+        }
+    }
+}

@@ -79,3 +79,46 @@ struct ContinuationTrackerTests {
         #expect(results.filter { !$0 }.count == 49)
     }
 }
+
+// MARK: - ContinuationTracker Extended Tests
+
+@Suite("ContinuationTracker Extended")
+struct ContinuationTrackerExtendedTests {
+
+    @Test func concurrentRegistrationSafetyUnderHighContention() async {
+        // Spawn 200 concurrent tasks all racing to be the first to resume.
+        // Only exactly one must succeed regardless of concurrency level.
+        let tracker = ContinuationTracker()
+        let results = await withTaskGroup(of: Bool.self) { group in
+            for _ in 0..<200 {
+                group.addTask { tracker.tryResume() }
+            }
+            var collected: [Bool] = []
+            for await result in group { collected.append(result) }
+            return collected
+        }
+        let successCount = results.filter { $0 }.count
+        let failureCount = results.filter { !$0 }.count
+        #expect(successCount == 1)
+        #expect(failureCount == 199)
+        // The tracker must reflect resumed state after all tasks finish
+        #expect(tracker.hasResumed)
+    }
+
+    @Test func repeatedResetAndResumeRemainsSafe() async {
+        // Simulate a tracker being reused across multiple call cycles.
+        let tracker = ContinuationTracker()
+        for _ in 0..<10 {
+            tracker.reset()
+            let results = await withTaskGroup(of: Bool.self) { group in
+                for _ in 0..<20 {
+                    group.addTask { tracker.tryResume() }
+                }
+                var collected: [Bool] = []
+                for await r in group { collected.append(r) }
+                return collected
+            }
+            #expect(results.filter { $0 }.count == 1)
+        }
+    }
+}

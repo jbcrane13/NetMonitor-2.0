@@ -1,4 +1,6 @@
 import XCTest
+import Testing
+@testable import NetMonitor_iOS
 @testable import NetMonitorCore
 
 @MainActor
@@ -180,5 +182,65 @@ final class SubnetCalculatorToolViewModelTests: XCTestCase {
     func testExamplesNotEmpty() {
         let vm = SubnetCalculatorToolViewModel()
         XCTAssertFalse(vm.examples.isEmpty)
+    }
+}
+
+// MARK: - Swift Testing Suite
+
+@Suite("SubnetCalculatorToolViewModel Edge Cases")
+@MainActor
+struct SubnetCalculatorToolViewModelEdgeCaseTests {
+
+    @Test func invalidCIDRFormatSetsError() {
+        let vm = SubnetCalculatorToolViewModel()
+        vm.cidrInput = "not-a-cidr"
+        vm.calculate()
+        #expect(vm.subnetInfo == nil)
+        #expect(vm.errorMessage != nil)
+    }
+
+    @Test func slash32SubnetHasOneUsableHost() {
+        let vm = SubnetCalculatorToolViewModel()
+        vm.cidrInput = "10.0.0.1/32"
+        vm.calculate()
+        #expect(vm.subnetInfo != nil)
+        #expect(vm.subnetInfo?.usableHosts == 1)
+        // For /32, network == broadcast == host
+        #expect(vm.subnetInfo?.networkAddress == vm.subnetInfo?.broadcastAddress)
+    }
+
+    @Test func slash32FirstAndLastHostMatchNetworkAddress() {
+        let vm = SubnetCalculatorToolViewModel()
+        vm.cidrInput = "192.168.50.1/32"
+        vm.calculate()
+        #expect(vm.subnetInfo?.firstHost == "192.168.50.1")
+        #expect(vm.subnetInfo?.lastHost == "192.168.50.1")
+    }
+
+    @Test func prefixAbove32SetsError() {
+        let vm = SubnetCalculatorToolViewModel()
+        vm.cidrInput = "192.168.1.0/33"
+        vm.calculate()
+        #expect(vm.subnetInfo == nil)
+        #expect(vm.errorMessage != nil)
+    }
+
+    @Test func negativePrefixSetsError() {
+        let vm = SubnetCalculatorToolViewModel()
+        vm.cidrInput = "192.168.1.0/-1"
+        vm.calculate()
+        #expect(vm.subnetInfo == nil)
+        #expect(vm.errorMessage != nil)
+    }
+
+    @Test func clearResetsAllFields() {
+        let vm = SubnetCalculatorToolViewModel()
+        vm.cidrInput = "10.0.0.0/8"
+        vm.calculate()
+        #expect(vm.subnetInfo != nil)
+        vm.clear()
+        #expect(vm.cidrInput == "")
+        #expect(vm.subnetInfo == nil)
+        #expect(vm.errorMessage == nil)
     }
 }

@@ -95,3 +95,77 @@ struct TracerouteToolViewModelTests {
         #expect(vm.isRunning == false)
     }
 }
+
+// MARK: - Error & Edge Case Tests
+
+@Suite("TracerouteToolViewModel Error & Edge Cases")
+@MainActor
+struct TracerouteToolViewModelErrorTests {
+
+    @Test func allTimeoutHopsAreAccumulated() async throws {
+        let mock = MockTracerouteService()
+        // Timeout hops have isTimeout: true
+        mock.mockHops = [
+            TracerouteHop(hopNumber: 1, ipAddress: nil, isTimeout: true),
+            TracerouteHop(hopNumber: 2, ipAddress: nil, isTimeout: true),
+            TracerouteHop(hopNumber: 3, ipAddress: "8.8.8.8", isTimeout: false)
+        ]
+        let vm = TracerouteToolViewModel(tracerouteService: mock)
+        vm.host = "google.com"
+        vm.startTrace()
+        try await Task.sleep(for: .milliseconds(200))
+        #expect(vm.completedHops == 3)
+        #expect(vm.hops[0].isTimeout == true)
+        #expect(vm.hops[1].isTimeout == true)
+        #expect(vm.hops[2].isTimeout == false)
+    }
+
+    @Test func maxHopsReachedStopsAtConfiguredLimit() async throws {
+        let mock = MockTracerouteService()
+        mock.mockHops = (1...15).map { TracerouteHop(hopNumber: $0, ipAddress: "10.0.0.\($0)") }
+        let vm = TracerouteToolViewModel(tracerouteService: mock)
+        vm.host = "example.com"
+        vm.maxHops = 15
+        vm.startTrace()
+        try await Task.sleep(for: .milliseconds(200))
+        // Service returned 15 hops matching the maxHops setting
+        #expect(vm.completedHops == 15)
+        #expect(vm.isRunning == false)
+    }
+
+    @Test func emptyHopsAfterTraceDoesNotSetErrorMessage() async throws {
+        // The service returns no hops (e.g. unreachable host)
+        let mock = MockTracerouteService()
+        mock.mockHops = []
+        let vm = TracerouteToolViewModel(tracerouteService: mock)
+        vm.host = "unreachable.invalid"
+        vm.startTrace()
+        try await Task.sleep(for: .milliseconds(200))
+        #expect(vm.hops.isEmpty)
+        #expect(vm.isRunning == false)
+        // ViewModel does not set an error message on its own for empty results
+        #expect(vm.errorMessage == nil)
+    }
+
+    @Test func clearResultsAlsoRemovesTimeoutHops() {
+        let vm = TracerouteToolViewModel(tracerouteService: MockTracerouteService())
+        vm.hops = [
+            TracerouteHop(hopNumber: 1, ipAddress: nil),
+            TracerouteHop(hopNumber: 2, ipAddress: "1.2.3.4")
+        ]
+        vm.errorMessage = "timeout"
+        vm.clearResults()
+        #expect(vm.hops.isEmpty)
+        #expect(vm.errorMessage == nil)
+    }
+
+    @Test func stopTraceDuringRunCallsServiceStop() async throws {
+        let mock = MockTracerouteService()
+        let vm = TracerouteToolViewModel(tracerouteService: mock)
+        vm.host = "google.com"
+        vm.startTrace()
+        vm.stopTrace()
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(mock.stopCallCount == 1)
+    }
+}

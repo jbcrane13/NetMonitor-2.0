@@ -1,4 +1,5 @@
 import Testing
+import Foundation
 @testable import NetMonitorCore
 
 // MARK: - NetworkStatus
@@ -227,5 +228,119 @@ struct ISPInfoLocationTextTests {
     @Test func allNilLocationReturnsNil() {
         let isp = ISPInfo(publicIP: "8.8.8.8", city: nil, region: nil, country: nil, countryCode: nil)
         #expect(isp.locationText == nil)
+    }
+}
+
+// MARK: - NetworkProfile Extended Tests
+
+@Suite("NetworkProfile Extended")
+struct NetworkProfileExtendedTests {
+
+    private func makeNetwork() -> NetworkUtilities.IPv4Network {
+        // 192.168.1.0/24
+        NetworkUtilities.IPv4Network(
+            networkAddress: 0xC0A80100,
+            broadcastAddress: 0xC0A801FF,
+            interfaceAddress: 0xC0A80101,
+            netmask: 0xFFFFFF00
+        )
+    }
+
+    private func makeProfile(id: UUID = UUID()) -> NetworkProfile {
+        NetworkProfile(
+            id: id,
+            interfaceName: "en0",
+            ipAddress: "192.168.1.1",
+            network: makeNetwork(),
+            connectionType: .wifi,
+            name: "Home Wi-Fi",
+            gatewayIP: "192.168.1.1",
+            subnet: "192.168.1.0/24",
+            isLocal: true,
+            discoveryMethod: .auto
+        )
+    }
+
+    // MARK: - Equatable
+
+    @Test func equatableSameIDIsEqual() {
+        let id = UUID()
+        let p1 = makeProfile(id: id)
+        let p2 = makeProfile(id: id)
+        #expect(p1 == p2)
+    }
+
+    @Test func equatableDifferentIDIsNotEqual() {
+        let p1 = makeProfile(id: UUID())
+        let p2 = makeProfile(id: UUID())
+        #expect(p1 != p2)
+    }
+
+    // MARK: - Hashable (Set storage)
+
+    @Test func hashableAllowsSetDeduplication() {
+        let id = UUID()
+        let p1 = makeProfile(id: id)
+        let p2 = makeProfile(id: id)
+        let p3 = makeProfile(id: UUID())
+        let set: Set<NetworkProfile> = [p1, p2, p3]
+        #expect(set.count == 2)
+    }
+
+    @Test func hashableSetContainment() {
+        let id = UUID()
+        let profile = makeProfile(id: id)
+        var set: Set<NetworkProfile> = []
+        set.insert(profile)
+        #expect(set.contains(profile))
+    }
+
+    // MARK: - Codable Round-Trip
+
+    @Test func codableRoundTrip() throws {
+        let id = UUID()
+        let original = makeProfile(id: id)
+        let encoded = try JSONEncoder().encode(original)
+        let decoded = try JSONDecoder().decode(NetworkProfile.self, from: encoded)
+
+        #expect(decoded.id == id)
+        #expect(decoded.interfaceName == "en0")
+        #expect(decoded.ipAddress == "192.168.1.1")
+        #expect(decoded.connectionType == .wifi)
+        #expect(decoded.name == "Home Wi-Fi")
+        #expect(decoded.gatewayIP == "192.168.1.1")
+        #expect(decoded.subnet == "192.168.1.0/24")
+        #expect(decoded.isLocal == true)
+        #expect(decoded.discoveryMethod == .auto)
+    }
+
+    @Test func codableRoundTripPreservesOptionalFields() throws {
+        let scannedDate = Date(timeIntervalSinceReferenceDate: 1_500_000)
+        var profile = makeProfile()
+        profile = NetworkProfile(
+            id: profile.id,
+            interfaceName: profile.interfaceName,
+            ipAddress: profile.ipAddress,
+            network: profile.network,
+            connectionType: profile.connectionType,
+            name: profile.name,
+            gatewayIP: profile.gatewayIP,
+            subnet: profile.subnet,
+            isLocal: profile.isLocal,
+            discoveryMethod: profile.discoveryMethod,
+            lastScanned: scannedDate,
+            deviceCount: 12,
+            gatewayReachable: true
+        )
+
+        let encoded = try JSONEncoder().encode(profile)
+        let decoded = try JSONDecoder().decode(NetworkProfile.self, from: encoded)
+
+        #expect(decoded.deviceCount == 12)
+        #expect(decoded.gatewayReachable == true)
+        #expect(decoded.lastScanned != nil)
+        if let ts = decoded.lastScanned {
+            #expect(abs(ts.timeIntervalSince(scannedDate)) < 0.001)
+        }
     }
 }

@@ -232,3 +232,140 @@ struct NetworkUtilitiesTests {
         // nil is valid when no network interface is available in test environment
     }
 }
+
+// MARK: - IPv4Network Extended Tests
+
+@Suite("IPv4Network Extended")
+struct IPv4NetworkExtendedTests {
+
+    // MARK: - CIDR Parsing via prefixLength
+
+    @Test func prefixLength8ForClassANetmask() {
+        // 10.0.0.0/8
+        let net = NetworkUtilities.IPv4Network(
+            networkAddress: 0x0A000000,
+            broadcastAddress: 0x0AFFFFFF,
+            interfaceAddress: 0x0A000001,
+            netmask: 0xFF000000
+        )
+        #expect(net.prefixLength == 8)
+    }
+
+    @Test func prefixLength16ForClassBNetmask() {
+        // 172.16.0.0/16
+        let net = NetworkUtilities.IPv4Network(
+            networkAddress: 0xAC100000,
+            broadcastAddress: 0xAC10FFFF,
+            interfaceAddress: 0xAC100001,
+            netmask: 0xFFFF0000
+        )
+        #expect(net.prefixLength == 16)
+    }
+
+    @Test func prefixLength24ForClassCNetmask() {
+        // 192.168.1.0/24
+        let net = NetworkUtilities.IPv4Network(
+            networkAddress: 0xC0A80100,
+            broadcastAddress: 0xC0A801FF,
+            interfaceAddress: 0xC0A80164,
+            netmask: 0xFFFFFF00
+        )
+        #expect(net.prefixLength == 24)
+    }
+
+    @Test func prefixLength32ForHostRoute() {
+        // 192.168.1.1/32 — single host
+        let addr: UInt32 = 0xC0A80101
+        let net = NetworkUtilities.IPv4Network(
+            networkAddress: addr,
+            broadcastAddress: addr,
+            interfaceAddress: addr,
+            netmask: 0xFFFFFFFF
+        )
+        #expect(net.prefixLength == 32)
+    }
+
+    // MARK: - Equatable
+
+    @Test func equalNetworksAreEqual() {
+        let net1 = NetworkUtilities.IPv4Network(
+            networkAddress: 0xC0A80100,
+            broadcastAddress: 0xC0A801FF,
+            interfaceAddress: 0xC0A80101,
+            netmask: 0xFFFFFF00
+        )
+        let net2 = NetworkUtilities.IPv4Network(
+            networkAddress: 0xC0A80100,
+            broadcastAddress: 0xC0A801FF,
+            interfaceAddress: 0xC0A80101,
+            netmask: 0xFFFFFF00
+        )
+        #expect(net1 == net2)
+    }
+
+    @Test func networksWithDifferentInterfaceAddressAreNotEqual() {
+        let net1 = NetworkUtilities.IPv4Network(
+            networkAddress: 0xC0A80100,
+            broadcastAddress: 0xC0A801FF,
+            interfaceAddress: 0xC0A80101,
+            netmask: 0xFFFFFF00
+        )
+        let net2 = NetworkUtilities.IPv4Network(
+            networkAddress: 0xC0A80100,
+            broadcastAddress: 0xC0A801FF,
+            interfaceAddress: 0xC0A80164,
+            netmask: 0xFFFFFF00
+        )
+        #expect(net1 != net2)
+    }
+
+    // MARK: - Hashable (Set deduplication)
+
+    @Test func hashableSetDeduplicatesIdenticalNetworks() {
+        let net1 = NetworkUtilities.IPv4Network(
+            networkAddress: 0xC0A80100,
+            broadcastAddress: 0xC0A801FF,
+            interfaceAddress: 0xC0A80101,
+            netmask: 0xFFFFFF00
+        )
+        let net2 = NetworkUtilities.IPv4Network(
+            networkAddress: 0xC0A80100,
+            broadcastAddress: 0xC0A801FF,
+            interfaceAddress: 0xC0A80101,
+            netmask: 0xFFFFFF00
+        )
+        let net3 = NetworkUtilities.IPv4Network(
+            networkAddress: 0x0A000000,
+            broadcastAddress: 0x0AFFFFFF,
+            interfaceAddress: 0x0A000001,
+            netmask: 0xFF000000
+        )
+        let set: Set<NetworkUtilities.IPv4Network> = [net1, net2, net3]
+        #expect(set.count == 2)
+    }
+
+    // MARK: - Invalid CIDR (via prefixLength boundary)
+
+    @Test func zeroNetmaskGivesPrefixLengthZero() {
+        // A netmask of 0 (prefix /0) is technically valid but unusual
+        let net = NetworkUtilities.IPv4Network(
+            networkAddress: 0x00000000,
+            broadcastAddress: 0xFFFFFFFF,
+            interfaceAddress: 0xC0A80101,
+            netmask: 0x00000000
+        )
+        #expect(net.prefixLength == 0)
+    }
+
+    @Test func hostAddressesEmptyForNetworkWithNoRoom() {
+        // broadcastAddress == networkAddress: no hosts
+        let addr: UInt32 = 0xC0A80101
+        let net = NetworkUtilities.IPv4Network(
+            networkAddress: addr,
+            broadcastAddress: addr,
+            interfaceAddress: addr,
+            netmask: 0xFFFFFFFF
+        )
+        #expect(net.hostAddresses(limit: 10).isEmpty)
+    }
+}

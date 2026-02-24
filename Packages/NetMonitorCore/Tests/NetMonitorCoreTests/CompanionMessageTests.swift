@@ -265,3 +265,132 @@ struct CommandActionTests {
         }
     }
 }
+
+// MARK: - CompanionMessage Additional Cases
+
+@Suite("CompanionMessage Additional Cases")
+struct CompanionMessageAdditionalCasesTests {
+
+    private let fixedDate = Date(timeIntervalSinceReferenceDate: 1_000_000.0)
+
+    // MARK: - ToolResult Payload
+
+    @Test func toolResultFailureRoundTrip() throws {
+        let payload = ToolResultPayload(tool: "traceroute", success: false, result: "Timeout", timestamp: fixedDate)
+        let msg = CompanionMessage.toolResult(payload)
+        let data = try CompanionMessage.jsonEncoder.encode(msg)
+        let decoded = try CompanionMessage.decode(from: data)
+        guard case .toolResult(let p) = decoded else {
+            Issue.record("Expected .toolResult")
+            return
+        }
+        #expect(p.tool == "traceroute")
+        #expect(p.success == false)
+        #expect(p.result == "Timeout")
+        #expect(abs(p.timestamp.timeIntervalSince(fixedDate)) < 0.001)
+    }
+
+    // MARK: - Error Payload
+
+    @Test func errorPayloadWithKnownCodeRoundTrip() throws {
+        let payload = ErrorPayload(code: "MISSING_PARAMETER", message: "host is required", timestamp: fixedDate)
+        let msg = CompanionMessage.error(payload)
+        let data = try CompanionMessage.jsonEncoder.encode(msg)
+        let decoded = try CompanionMessage.decode(from: data)
+        guard case .error(let p) = decoded else {
+            Issue.record("Expected .error")
+            return
+        }
+        #expect(p.code == "MISSING_PARAMETER")
+        #expect(p.message == "host is required")
+    }
+
+    // MARK: - NetworkProfile Payload
+
+    @Test func networkProfileWithNilSourceDeviceNameRoundTrip() throws {
+        let payload = NetworkProfilePayload(
+            name: "Home Network",
+            gatewayIP: "192.168.0.1",
+            subnet: "192.168.0.0/24",
+            interfaceName: "en1",
+            sourceDeviceName: nil
+        )
+        let msg = CompanionMessage.networkProfile(payload)
+        let data = try CompanionMessage.jsonEncoder.encode(msg)
+        let decoded = try CompanionMessage.decode(from: data)
+        guard case .networkProfile(let p) = decoded else {
+            Issue.record("Expected .networkProfile")
+            return
+        }
+        #expect(p.name == "Home Network")
+        #expect(p.gatewayIP == "192.168.0.1")
+        #expect(p.subnet == "192.168.0.0/24")
+        #expect(p.interfaceName == "en1")
+        #expect(p.sourceDeviceName == nil)
+    }
+
+    // MARK: - TargetList with multiple targets
+
+    @Test func targetListWithMultipleTargetsRoundTrip() throws {
+        let targets = [
+            TargetInfo(id: UUID(), name: "DNS", host: "8.8.8.8", port: nil, protocol: "icmp",
+                       isEnabled: true, isReachable: true, latency: 5.0),
+            TargetInfo(id: UUID(), name: "HTTP", host: "example.com", port: 80, protocol: "tcp",
+                       isEnabled: false, isReachable: nil, latency: nil),
+        ]
+        let msg = CompanionMessage.targetList(TargetListPayload(targets: targets))
+        let data = try CompanionMessage.jsonEncoder.encode(msg)
+        let decoded = try CompanionMessage.decode(from: data)
+        guard case .targetList(let p) = decoded else {
+            Issue.record("Expected .targetList")
+            return
+        }
+        #expect(p.targets.count == 2)
+        let http = p.targets.first { $0.name == "HTTP" }
+        #expect(http?.port == 80)
+        #expect(http?.isEnabled == false)
+        #expect(http?.isReachable == nil)
+        #expect(http?.latency == nil)
+    }
+
+    // MARK: - DeviceList with nil optional fields
+
+    @Test func deviceListWithNilHostnameAndVendorRoundTrip() throws {
+        let device = DeviceInfo(
+            id: UUID(),
+            ipAddress: "10.0.0.5",
+            macAddress: "DE:AD:BE:EF:00:01",
+            hostname: nil,
+            vendor: nil,
+            deviceType: "router",
+            isOnline: true
+        )
+        let msg = CompanionMessage.deviceList(DeviceListPayload(devices: [device]))
+        let data = try CompanionMessage.jsonEncoder.encode(msg)
+        let decoded = try CompanionMessage.decode(from: data)
+        guard case .deviceList(let p) = decoded else {
+            Issue.record("Expected .deviceList")
+            return
+        }
+        #expect(p.devices.count == 1)
+        #expect(p.devices[0].hostname == nil)
+        #expect(p.devices[0].vendor == nil)
+        #expect(p.devices[0].ipAddress == "10.0.0.5")
+    }
+
+    // MARK: - Malformed JSON
+
+    @Test func malformedJsonThrowsDecodingError() {
+        let badData = Data("{ \"type\": \"unknownType\", \"payload\": {} }".utf8)
+        #expect(throws: (any Error).self) {
+            _ = try CompanionMessage.decode(from: badData)
+        }
+    }
+
+    @Test func emptyJsonObjectThrowsDecodingError() {
+        let badData = Data("{}".utf8)
+        #expect(throws: (any Error).self) {
+            _ = try CompanionMessage.decode(from: badData)
+        }
+    }
+}

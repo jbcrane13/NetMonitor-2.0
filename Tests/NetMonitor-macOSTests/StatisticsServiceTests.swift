@@ -326,3 +326,113 @@ struct StatisticsServiceTests {
         #expect(overall.offlineTargets == 1)
     }
 }
+
+// MARK: - StatisticsService Extended Tests
+
+@Suite("StatisticsService Extended")
+struct StatisticsServiceExtendedTests {
+
+    let service = StatisticsService()
+    let targetID = UUID()
+
+    // MARK: - Metric Aggregation Over Time Window
+
+    @Test func latencyAggregationIgnoresOutOfWindowMeasurements() async {
+        let now = Date()
+        // One measurement inside the 2-min window, one outside
+        let inWindow = TargetMeasurement(timestamp: now.addingTimeInterval(-60), latency: 20.0, isReachable: true)
+        let outOfWindow = TargetMeasurement(timestamp: now.addingTimeInterval(-300), latency: 200.0, isReachable: true)
+
+        let stats = await service.calculate(
+            for: targetID,
+            targetName: "Test",
+            measurements: [inWindow, outOfWindow],
+            window: .twoMinutes
+        )
+        #expect(stats.totalChecks == 1)
+        #expect(stats.averageLatency == 20.0)
+        #expect(stats.minLatency == 20.0)
+        #expect(stats.maxLatency == 20.0)
+    }
+
+    @Test func latencyMinAndMaxAreCorrectOverWindow() async {
+        let now = Date()
+        let measurements = [
+            TargetMeasurement(timestamp: now.addingTimeInterval(-30), latency: 5.0, isReachable: true),
+            TargetMeasurement(timestamp: now.addingTimeInterval(-60), latency: 95.0, isReachable: true),
+            TargetMeasurement(timestamp: now.addingTimeInterval(-90), latency: 50.0, isReachable: true),
+        ]
+
+        let stats = await service.calculate(
+            for: targetID,
+            targetName: "Test",
+            measurements: measurements,
+            window: .twoMinutes
+        )
+        #expect(stats.totalChecks == 3)
+        #expect(stats.minLatency == 5.0)
+        #expect(stats.maxLatency == 95.0)
+        #expect(abs((stats.averageLatency ?? 0) - 50.0) < 0.001)
+    }
+
+    // MARK: - Empty Data → Zero Metrics
+
+    @Test func emptyDataYieldsZeroTotalChecks() async {
+        let stats = await service.calculate(
+            for: targetID,
+            targetName: "Empty",
+            measurements: [],
+            window: .twoMinutes
+        )
+        #expect(stats.totalChecks == 0)
+        #expect(stats.failedChecks == 0)
+        #expect(stats.successfulChecks == 0)
+    }
+
+    @Test func emptyDataYieldsZeroUptimeAndNilLatency() async {
+        let stats = await service.calculate(
+            for: targetID,
+            targetName: "Empty",
+            measurements: [],
+            window: .allTime
+        )
+        #expect(stats.uptimePercentage == 0.0)
+        #expect(stats.averageLatency == nil)
+        #expect(stats.minLatency == nil)
+        #expect(stats.maxLatency == nil)
+    }
+
+    // MARK: - Data Point Accuracy
+
+    @Test func singleMeasurementLatencyIsExact() async {
+        let measurements = [TargetMeasurement(latency: 42.5, isReachable: true)]
+        let stats = await service.calculate(
+            for: targetID,
+            targetName: "Precise",
+            measurements: measurements,
+            window: .allTime
+        )
+        #expect(stats.averageLatency == 42.5)
+        #expect(stats.minLatency == 42.5)
+        #expect(stats.maxLatency == 42.5)
+        #expect(stats.uptimePercentage == 100.0)
+    }
+
+    @Test func unreachableMeasurementExcludedFromLatencyButCountedInTotal() async {
+        let measurements = [
+            TargetMeasurement(latency: 10.0, isReachable: true),
+            TargetMeasurement(isReachable: false),   // no latency
+        ]
+        let stats = await service.calculate(
+            for: targetID,
+            targetName: "Mixed",
+            measurements: measurements,
+            window: .allTime
+        )
+        #expect(stats.totalChecks == 2)
+        #expect(stats.failedChecks == 1)
+        #expect(stats.successfulChecks == 1)
+        // Only the reachable measurement contributes to latency
+        #expect(stats.averageLatency == 10.0)
+    }
+}

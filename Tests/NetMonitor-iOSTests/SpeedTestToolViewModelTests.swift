@@ -100,3 +100,69 @@ struct SpeedTestToolViewModelTests {
         #expect(mock.stopCallCount == 1)
     }
 }
+
+// MARK: - Error & Edge Case Tests
+
+@Suite("SpeedTestToolViewModel Error & Edge Cases")
+@MainActor
+struct SpeedTestToolViewModelErrorTests {
+
+    @Test func stopTestResetsPhaseToIdle() {
+        let mock = MockSpeedTestService()
+        let vm = SpeedTestToolViewModel(service: mock)
+        vm.isRunning = true
+        vm.phase = .upload
+        vm.stopTest()
+        #expect(vm.phase == .idle)
+        #expect(vm.isRunning == false)
+    }
+
+    @Test func stopTestCallsServiceStopTwice() {
+        let mock = MockSpeedTestService()
+        let vm = SpeedTestToolViewModel(service: mock)
+        vm.stopTest()
+        vm.stopTest()
+        #expect(mock.stopCallCount == 2)
+    }
+
+    @Test func phaseTextForAllPhases() {
+        let vm = SpeedTestToolViewModel(service: MockSpeedTestService())
+        let cases: [(SpeedTestPhase, String)] = [
+            (.idle, "Ready"),
+            (.latency, "Measuring latency..."),
+            (.download, "Testing download..."),
+            (.upload, "Testing upload..."),
+            (.complete, "Complete")
+        ]
+        for (phase, expected) in cases {
+            vm.phase = phase
+            #expect(vm.phaseText == expected)
+        }
+    }
+
+    @Test func initialErrorMessageIsNil() {
+        let vm = SpeedTestToolViewModel(service: MockSpeedTestService())
+        #expect(vm.errorMessage == nil)
+    }
+
+    @Test func stopTestDoesNotAffectErrorMessage() {
+        let mock = MockSpeedTestService()
+        let vm = SpeedTestToolViewModel(service: mock)
+        vm.errorMessage = "connection lost"
+        vm.stopTest()
+        // errorMessage is not cleared by stopTest — it persists until next run
+        #expect(vm.errorMessage == "connection lost")
+    }
+
+    @Test func downloadSpeedTextFormatsZeroCorrectly() {
+        let vm = SpeedTestToolViewModel(service: MockSpeedTestService())
+        vm.downloadSpeed = 0
+        #expect(vm.downloadSpeedText == "0.0 Mbps")
+    }
+
+    @Test func uploadSpeedTextFormatsZeroCorrectly() {
+        let vm = SpeedTestToolViewModel(service: MockSpeedTestService())
+        vm.uploadSpeed = 0
+        #expect(vm.uploadSpeedText == "0.0 Mbps")
+    }
+}

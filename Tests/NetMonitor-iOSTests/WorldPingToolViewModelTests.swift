@@ -1,4 +1,6 @@
 import XCTest
+import Testing
+@testable import NetMonitor_iOS
 @testable import NetMonitorCore
 
 // MARK: - Mock Service
@@ -194,5 +196,94 @@ final class WorldPingToolViewModelTests: XCTestCase {
         // Should be sorted by latency ascending
         let latencies = vm.results.compactMap { $0.latencyMs }
         XCTAssertEqual(latencies, latencies.sorted())
+    }
+}
+
+// MARK: - Swift Testing Suite
+
+private final class MockWorldPingServiceSwift: WorldPingServiceProtocol, @unchecked Sendable {
+    var mockResults: [WorldPingLocationResult] = []
+
+    func ping(host: String, maxNodes: Int) async -> AsyncStream<WorldPingLocationResult> {
+        let results = mockResults
+        return AsyncStream { continuation in
+            for result in results { continuation.yield(result) }
+            continuation.finish()
+        }
+    }
+}
+
+@Suite("WorldPingToolViewModel Edge Cases")
+@MainActor
+struct WorldPingToolViewModelEdgeCaseTests {
+
+    private func makeResult(
+        id: String,
+        latencyMs: Double? = 42.0,
+        isSuccess: Bool = true
+    ) -> WorldPingLocationResult {
+        WorldPingLocationResult(id: id, country: "USA", city: "New York", latencyMs: latencyMs, isSuccess: isSuccess)
+    }
+
+    @Test func emptyResultsSetsErrorMessage() async throws {
+        let mock = MockWorldPingServiceSwift()
+        mock.mockResults = []
+        let vm = WorldPingToolViewModel(service: mock)
+        vm.hostInput = "unreachable.invalid"
+        vm.run()
+        try await Task.sleep(for: .milliseconds(200))
+        #expect(vm.results.isEmpty)
+        #expect(vm.errorMessage != nil)
+        #expect(vm.isRunning == false)
+    }
+
+    @Test func partialResultsWithSomeFailures() async throws {
+        let mock = MockWorldPingServiceSwift()
+        mock.mockResults = [
+            makeResult(id: "n1", latencyMs: 20, isSuccess: true),
+            makeResult(id: "n2", latencyMs: nil, isSuccess: false),
+            makeResult(id: "n3", latencyMs: 50, isSuccess: true)
+        ]
+        let vm = WorldPingToolViewModel(service: mock)
+        vm.hostInput = "test.com"
+        vm.run()
+        try await Task.sleep(for: .milliseconds(200))
+        #expect(vm.results.count == 3)
+        #expect(vm.successCount == 2)
+        // average only counts successful nodes with latency
+        let avg = vm.averageLatencyMs
+        #expect(avg != nil)
+        #expect(abs((avg ?? 0) - 35.0) < 0.01)
+    }
+
+    @Test func stopClearsIsRunning() {
+        let mock = MockWorldPingServiceSwift()
+        let vm = WorldPingToolViewModel(service: mock)
+        vm.hostInput = "test.com"
+        vm.run()
+        vm.stop()
+        #expect(vm.isRunning == false)
+    }
+
+    @Test func clearAfterRunResetsAllState() async throws {
+        let mock = MockWorldPingServiceSwift()
+        mock.mockResults = [makeResult(id: "n1")]
+        let vm = WorldPingToolViewModel(service: mock)
+        vm.hostInput = "test.com"
+        vm.run()
+        try await Task.sleep(for: .milliseconds(200))
+        vm.clear()
+        #expect(vm.results.isEmpty)
+        #expect(vm.errorMessage == nil)
+        #expect(vm.isRunning == false)
+    }
+
+    @Test func canRunFalseWhileRunning() {
+        let mock = MockWorldPingServiceSwift()
+        let vm = WorldPingToolViewModel(service: mock)
+        vm.hostInput = "test.com"
+        vm.run()
+        #expect(vm.canRun == false)
+        vm.stop()
     }
 }

@@ -97,3 +97,68 @@ struct DNSLookupToolViewModelTests {
         #expect(vm.isLoading == false)
     }
 }
+
+// MARK: - Error & Edge Case Tests
+
+@Suite("DNSLookupToolViewModel Error & Edge Cases")
+@MainActor
+struct DNSLookupToolViewModelErrorTests {
+
+    @Test func emptyDomainPreventsLookupFromStarting() async {
+        let mock = MockDNSLookupService()
+        mock.mockResult = DNSQueryResult(domain: "example.com", server: "8.8.8.8", queryType: .a, records: [], queryTime: 1)
+        let vm = DNSLookupToolViewModel(dnsService: mock)
+        vm.domain = ""
+        await vm.lookup()
+        // result must remain nil — lookup was blocked
+        #expect(vm.result == nil)
+    }
+
+    @Test func whitespaceOnlyDomainPreventsLookup() async {
+        let mock = MockDNSLookupService()
+        mock.mockResult = DNSQueryResult(domain: "test.com", server: "8.8.8.8", queryType: .a, records: [], queryTime: 1)
+        let vm = DNSLookupToolViewModel(dnsService: mock)
+        vm.domain = "   "
+        await vm.lookup()
+        #expect(vm.result == nil)
+        #expect(vm.isLoading == false)
+    }
+
+    @Test func clearResultsResetsAllStateIncludingDomain() async {
+        let mock = MockDNSLookupService()
+        mock.mockResult = DNSQueryResult(domain: "example.com", server: "8.8.8.8", queryType: .a, records: [], queryTime: 5)
+        let vm = DNSLookupToolViewModel(dnsService: mock)
+        vm.domain = "example.com"
+        await vm.lookup()
+        #expect(vm.result != nil)
+
+        vm.clearResults()
+        #expect(vm.result == nil)
+        #expect(vm.errorMessage == nil)
+        // domain input is preserved (not part of clearResults)
+        #expect(vm.domain == "example.com")
+    }
+
+    @Test func clearResultsAfterErrorClearsErrorMessage() async {
+        let mock = MockDNSLookupService()
+        mock.mockResult = nil
+        mock.lastError = "Lookup failed"
+        let vm = DNSLookupToolViewModel(dnsService: mock)
+        vm.domain = "bad.invalid"
+        await vm.lookup()
+        #expect(vm.errorMessage != nil)
+
+        vm.clearResults()
+        #expect(vm.errorMessage == nil)
+        #expect(vm.result == nil)
+    }
+
+    @Test func lookupSetsLoadingFalseAfterCompletion() async {
+        let mock = MockDNSLookupService()
+        mock.mockResult = nil
+        let vm = DNSLookupToolViewModel(dnsService: mock)
+        vm.domain = "example.com"
+        await vm.lookup()
+        #expect(vm.isLoading == false)
+    }
+}
