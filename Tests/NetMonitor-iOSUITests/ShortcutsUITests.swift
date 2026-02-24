@@ -59,4 +59,33 @@ final class ShortcutsUITests: XCTestCase {
             )
         }
     }
+
+    // MARK: - Tools Grid Content
+
+    @MainActor
+    func testToolsGridShowsMultipleToolCards() {
+        let toolsTab = app.tabBars.buttons["Tools"]
+        guard toolsTab.exists else { return }
+        toolsTab.tap()
+
+        // Verify multiple tool cards are visible (not just one)
+        // Tools grid should have at least 4 tools visible
+        let toolButtons = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'tools_'"))
+        XCTAssertGreaterThan(toolButtons.count, 3, "Tools grid should show multiple tool cards")
+    }
+
+    @MainActor
+    func testPingToolNavigationShowsInputField() {
+        let toolsTab = app.tabBars.buttons["Tools"]
+        guard toolsTab.exists else { return }
+        toolsTab.tap()
+
+        let pingCell = app.buttons.matching(identifier: "tools_grid_ping").firstMatch
+        guard pingCell.waitForExistence(timeout: 3) else { return }
+        pingCell.tap()
+
+        // Verify we actually navigated to ping tool with its input field
+        let hostInput = app.textFields["pingTool_input_host"]
+        XCTAssertTrue(hostInput.waitForExistence(timeout: 5), "Ping tool should show host input after navigation")
+    }
 }

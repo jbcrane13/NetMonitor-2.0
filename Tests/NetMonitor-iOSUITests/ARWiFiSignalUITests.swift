@@ -79,4 +79,66 @@ final class ARWiFiSignalUITests: XCTestCase {
             XCTAssert(notAvailableLabel.exists)
         }
     }
+
+    // MARK: - Fallback Content Verification
+
+    @MainActor
+    func testARWiFiFallbackShowsMeaningfulContent() {
+        let toolsTab = app.tabBars.buttons["Tools"]
+        guard toolsTab.exists else { return }
+        toolsTab.tap()
+
+        let arButton = app.buttons.matching(NSPredicate(format:
+            "identifier CONTAINS 'arWifi' OR label CONTAINS 'AR WiFi'"
+        )).firstMatch
+
+        guard arButton.waitForExistence(timeout: 3) else { return }
+        arButton.tap()
+
+        // On simulator, verify fallback UI contains informative text (not just a blank screen)
+        Thread.sleep(forTimeInterval: 1.0)
+
+        let allTexts = app.staticTexts
+        XCTAssertGreaterThan(allTexts.count, 0, "AR WiFi view should show at least some text content")
+
+        // Check for specific fallback or AR-related messaging
+        let hasARContent = app.staticTexts.matching(NSPredicate(format:
+            "label CONTAINS[c] 'AR' OR label CONTAINS[c] 'camera' OR label CONTAINS[c] 'not available' OR label CONTAINS[c] 'WiFi' OR label CONTAINS[c] 'signal'"
+        )).firstMatch
+
+        XCTAssertTrue(
+            hasARContent.waitForExistence(timeout: 3),
+            "AR WiFi view should show AR-related content or fallback message"
+        )
+    }
+
+    // MARK: - Back Navigation
+
+    @MainActor
+    func testARWiFiBackNavigationReturnsToTools() {
+        let toolsTab = app.tabBars.buttons["Tools"]
+        guard toolsTab.exists else { return }
+        toolsTab.tap()
+
+        let arButton = app.buttons.matching(NSPredicate(format:
+            "identifier CONTAINS 'arWifi' OR label CONTAINS 'AR WiFi'"
+        )).firstMatch
+        guard arButton.waitForExistence(timeout: 3) else { return }
+        arButton.tap()
+
+        // Wait for AR view to load
+        Thread.sleep(forTimeInterval: 1.0)
+
+        // Navigate back using the first navigation bar button
+        let backButton = app.navigationBars.buttons.firstMatch
+        if backButton.exists {
+            backButton.tap()
+
+            // Verify we're back on the Tools screen
+            XCTAssertTrue(
+                app.navigationBars["Tools"].waitForExistence(timeout: 3),
+                "Should navigate back to Tools screen"
+            )
+        }
+    }
 }

@@ -61,6 +61,54 @@ final class SSLCertificateMonitorUITests: IOSUITestCase {
         )
     }
 
+    func testSSLQueryResultShowsCertificateDetails() {
+        openSSLMonitor()
+        clearAndTypeText("google.com", into: app.textFields["ssl_monitor_input_domain"])
+        app.buttons["ssl_monitor_button_query"].tap()
+
+        // Wait for result — either SSL card with details or error
+        XCTAssertTrue(
+            waitForEither([
+                ui("ssl_monitor_ssl_card"),
+                ui("ssl_monitor_error"),
+                ui("ssl_monitor_whois_card"),
+                app.buttons["ssl_monitor_button_add"]
+            ], timeout: 20),
+            "SSL query for google.com should produce a visible success or error outcome"
+        )
+
+        // If ssl_card appeared, verify it contains issuer/expiry/valid info
+        let sslCard = ui("ssl_monitor_ssl_card")
+        if sslCard.exists {
+            let hasDetails = app.staticTexts.matching(NSPredicate(format:
+                "label CONTAINS[c] 'issuer' OR label CONTAINS[c] 'expir' OR label CONTAINS[c] 'valid' OR label CONTAINS[c] 'google'"
+            )).firstMatch.exists
+            XCTAssertTrue(hasDetails, "SSL card should contain certificate details such as issuer or expiry")
+        }
+        // Accept error as valid outcome (network may be unavailable on simulator)
+    }
+
+    func testSSLMonitorSegmentSwitchChangesContent() {
+        openSSLMonitor()
+
+        // Start on Query tab — verify query input visible
+        let queryInput = app.textFields["ssl_monitor_input_domain"]
+        requireExists(queryInput, message: "Query input should be visible on Query tab")
+
+        // Switch to Watch List tab
+        let watchListSegment = app.segmentedControls.buttons.matching(
+            NSPredicate(format: "label BEGINSWITH 'Watch List'")
+        ).firstMatch
+        requireExists(watchListSegment, message: "Watch List segment should exist").tap()
+
+        // Verify watch list content is now shown
+        let watchListSection = ui("ssl_monitor_watchlist_section")
+        requireExists(watchListSection, message: "Watch list should be visible after segment switch")
+
+        // Verify query input is no longer hittable (content actually changed)
+        XCTAssertFalse(queryInput.isHittable, "Query input should not be hittable on Watch List tab")
+    }
+
     private func openSSLMonitor() {
         openToolsRoot()
 

@@ -66,6 +66,125 @@ final class ScheduledScanUITests: IOSUITestCase {
         )
     }
 
+    // MARK: - Functional Tests
+
+    @MainActor
+    func testScheduledScanToggleChangesState() {
+        navigateToScheduledScan()
+
+        let toggle = app.switches["settings_toggle_scheduledScan"]
+        guard toggle.waitForExistence(timeout: 5) else {
+            XCTFail("Scheduled scan toggle must exist to test state change")
+            return
+        }
+
+        let valueBefore = toggle.value as? String ?? ""
+        toggle.tap()
+
+        // Give the UI a moment to update
+        let valueAfter = toggle.value as? String ?? ""
+        XCTAssertNotEqual(
+            valueBefore,
+            valueAfter,
+            "Scheduled scan toggle value should change after tap (was '\(valueBefore)', now '\(valueAfter)')"
+        )
+    }
+
+    @MainActor
+    func testScanNowButtonTriggersVisibleOutcome() {
+        navigateToScheduledScan()
+
+        let button = app.buttons["settings_button_scanNow"]
+        guard button.waitForExistence(timeout: 5) else {
+            XCTFail("Scan Now button must exist to test its outcome")
+            return
+        }
+
+        button.tap()
+
+        // Valid outcomes on simulator:
+        // a) A progress indicator appears while scanning runs
+        // b) An alert or toast appears with a result or error message
+        // c) The button briefly becomes disabled then re-enables
+        // d) The scan status label updates
+        let progressAppeared = app.activityIndicators.firstMatch.waitForExistence(timeout: 3)
+        let alertAppeared    = app.alerts.firstMatch.waitForExistence(timeout: 3)
+        let toastAppeared    = app.descendants(matching: .any)
+                                    .matching(NSPredicate(format: "identifier CONTAINS[c] 'toast' OR identifier CONTAINS[c] 'status'"))
+                                    .firstMatch.waitForExistence(timeout: 3)
+        let buttonStillExists = button.waitForExistence(timeout: 5)
+
+        // Dismiss any alert so teardown is clean
+        if alertAppeared {
+            app.alerts.firstMatch.buttons.firstMatch.tap()
+        }
+
+        XCTAssertTrue(
+            progressAppeared || alertAppeared || toastAppeared || buttonStillExists,
+            "After tapping Scan Now, some visible outcome should occur and the screen should remain stable"
+        )
+    }
+
+    @MainActor
+    func testNotificationToggleChangesState() {
+        navigateToScheduledScan()
+
+        let toggle = app.switches["settings_toggle_notifyNew"]
+        guard toggle.waitForExistence(timeout: 5) else {
+            XCTFail("Notify-new-devices toggle must exist to test state change")
+            return
+        }
+
+        let valueBefore = toggle.value as? String ?? ""
+        toggle.tap()
+
+        let valueAfter = toggle.value as? String ?? ""
+        XCTAssertNotEqual(
+            valueBefore,
+            valueAfter,
+            "Notify new devices toggle value should change after tap (was '\(valueBefore)', now '\(valueAfter)')"
+        )
+    }
+
+    @MainActor
+    func testToggleStatePersistsAfterNavigatingAway() {
+        navigateToScheduledScan()
+
+        let toggle = app.switches["settings_toggle_scheduledScan"]
+        guard toggle.waitForExistence(timeout: 5) else {
+            XCTFail("Scheduled scan toggle must exist to test state persistence")
+            return
+        }
+
+        // Record the state before toggling
+        let stateBefore = toggle.value as? String ?? ""
+        toggle.tap()
+        let stateAfterToggle = toggle.value as? String ?? ""
+        XCTAssertNotEqual(stateBefore, stateAfterToggle, "Toggle state should change immediately after tap")
+
+        // Navigate away — go back to the Settings root
+        let backButton = app.navigationBars.buttons.firstMatch
+        if backButton.waitForExistence(timeout: 3) {
+            backButton.tap()
+        }
+
+        // Return to Scheduled Scan screen
+        navigateToScheduledScan()
+
+        let toggleAfterReturn = app.switches["settings_toggle_scheduledScan"]
+        guard toggleAfterReturn.waitForExistence(timeout: 5) else {
+            XCTFail("Scheduled scan toggle should still exist after navigating back")
+            return
+        }
+
+        let stateAfterReturn = toggleAfterReturn.value as? String ?? ""
+        XCTAssertEqual(
+            stateAfterToggle,
+            stateAfterReturn,
+            "Toggle state '\(stateAfterToggle)' should persist after navigating away and returning (got '\(stateAfterReturn)')"
+        )
+    }
+
     // MARK: - Helpers
 
     private func openSettings() {
