@@ -18,6 +18,10 @@ enum NetworkTool: String, CaseIterable, Identifiable {
     case speedTest = "Speed Test"
     case bonjourBrowser = "Bonjour Browser"
     case wakeOnLan = "Wake on LAN"
+    case subnetCalculator = "Subnet Calculator"
+    case worldPing = "World Ping"
+    case geoTrace = "Geo Trace"
+    case sslMonitor = "SSL Monitor"
 
     var id: String { rawValue }
 
@@ -31,6 +35,10 @@ enum NetworkTool: String, CaseIterable, Identifiable {
         case .speedTest: return "speedometer"
         case .bonjourBrowser: return "bonjour"
         case .wakeOnLan: return "power"
+        case .subnetCalculator: return "square.split.bottomrightquarter"
+        case .worldPing: return "globe.americas"
+        case .geoTrace: return "map"
+        case .sslMonitor: return "lock.shield"
         }
     }
 
@@ -44,6 +52,10 @@ enum NetworkTool: String, CaseIterable, Identifiable {
         case .speedTest: return "Measure connection speed"
         case .bonjourBrowser: return "Discover local services"
         case .wakeOnLan: return "Wake network devices"
+        case .subnetCalculator: return "Calculate subnet ranges"
+        case .worldPing: return "Global latency check"
+        case .geoTrace: return "Visual route on map"
+        case .sslMonitor: return "Certificate expiry check"
         }
     }
 }
@@ -93,6 +105,14 @@ struct ToolsView: View {
             BonjourBrowserToolView()
         case .wakeOnLan:
             WakeOnLanToolView()
+        case .subnetCalculator:
+            SubnetCalculatorToolView()
+        case .worldPing:
+            WorldPingToolView()
+        case .geoTrace:
+            GeoTraceView()
+        case .sslMonitor:
+            SSLCertificateMonitorView()
         }
     }
 }

@@ -1,7 +1,7 @@
-# NetworkScanKit Phases
+<!-- Parent: ../AGENTS.md -->
+<!-- Generated: 2026-02-15 -->
 
-**Parent:** [../AGENTS.md](../AGENTS.md)
-**Generated:** 2026-02-15
+# NetworkScanKit Phases
 
 ## Purpose
 

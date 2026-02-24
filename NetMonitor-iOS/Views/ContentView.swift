@@ -11,20 +11,23 @@ struct ContentView: View {
         case dashboard
         case map
         case tools
-        
+        case timeline
+
         var title: String {
             switch self {
             case .dashboard: "Dashboard"
             case .map: "Map"
             case .tools: "Tools"
+            case .timeline: "Timeline"
             }
         }
-        
+
         var icon: String {
             switch self {
             case .dashboard: "gauge.with.dots.needle.bottom.50percent"
             case .map: "network"
             case .tools: "wrench.and.screwdriver"
+            case .timeline: "clock.arrow.circlepath"
             }
         }
     }
@@ -51,6 +54,13 @@ struct ContentView: View {
                 }
                 .tag(Tab.tools)
                 .accessibilityIdentifier("contentView_tab_tools")
+
+            TimelineView()
+                .tabItem {
+                    Label(Tab.timeline.title, systemImage: Tab.timeline.icon)
+                }
+                .tag(Tab.timeline)
+                .accessibilityIdentifier("contentView_tab_timeline")
         }
         .tint(themeManager.accent)
         .accessibilityIdentifier("screen_main")

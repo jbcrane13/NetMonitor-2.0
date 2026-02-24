@@ -180,6 +180,237 @@ public protocol DeviceNameResolverProtocol: Sendable {
     func resolve(ipAddress: String) async -> String?
 }
 
+// MARK: - New Feature Supporting Types
+
+/// Result of a subnet calculation.
+public struct SubnetInfo: Sendable {
+    public let cidr: String
+    public let networkAddress: String
+    public let broadcastAddress: String
+    public let subnetMask: String
+    public let firstHost: String
+    public let lastHost: String
+    public let usableHosts: Int
+    public let prefixLength: Int
+
+    public init(cidr: String, networkAddress: String, broadcastAddress: String, subnetMask: String, firstHost: String, lastHost: String, usableHosts: Int, prefixLength: Int) {
+        self.cidr = cidr
+        self.networkAddress = networkAddress
+        self.broadcastAddress = broadcastAddress
+        self.subnetMask = subnetMask
+        self.firstHost = firstHost
+        self.lastHost = lastHost
+        self.usableHosts = usableHosts
+        self.prefixLength = prefixLength
+    }
+}
+
+/// A single location result from a world ping check.
+public struct WorldPingLocationResult: Sendable, Identifiable {
+    public let id: String
+    public let country: String
+    public let city: String
+    public let latencyMs: Double?
+    public let isSuccess: Bool
+
+    public init(id: String, country: String, city: String, latencyMs: Double?, isSuccess: Bool) {
+        self.id = id
+        self.country = country
+        self.city = city
+        self.latencyMs = latencyMs
+        self.isSuccess = isSuccess
+    }
+}
+
+/// Geographic location info for an IP address.
+public struct GeoLocation: Sendable {
+    public let ip: String
+    public let country: String
+    public let countryCode: String
+    public let region: String
+    public let city: String
+    public let latitude: Double
+    public let longitude: Double
+    public let isp: String?
+
+    public init(ip: String, country: String, countryCode: String, region: String, city: String, latitude: Double, longitude: Double, isp: String? = nil) {
+        self.ip = ip
+        self.country = country
+        self.countryCode = countryCode
+        self.region = region
+        self.city = city
+        self.latitude = latitude
+        self.longitude = longitude
+        self.isp = isp
+    }
+}
+
+/// SSL certificate information for a domain.
+public struct SSLCertificateInfo: Sendable {
+    public let domain: String
+    public let issuer: String
+    public let subject: String
+    public let validFrom: Date
+    public let validTo: Date
+    public let isValid: Bool
+    public let daysUntilExpiry: Int
+
+    public init(domain: String, issuer: String, subject: String, validFrom: Date, validTo: Date, isValid: Bool, daysUntilExpiry: Int) {
+        self.domain = domain
+        self.issuer = issuer
+        self.subject = subject
+        self.validFrom = validFrom
+        self.validTo = validTo
+        self.isValid = isValid
+        self.daysUntilExpiry = daysUntilExpiry
+    }
+}
+
+/// A recorded signal strength data point for WiFi heatmapping.
+public struct HeatmapDataPoint: Sendable, Codable {
+    public let x: Double
+    public let y: Double
+    public let signalStrength: Int
+    public let timestamp: Date
+
+    public init(x: Double, y: Double, signalStrength: Int, timestamp: Date = Date()) {
+        self.x = x
+        self.y = y
+        self.signalStrength = signalStrength
+        self.timestamp = timestamp
+    }
+}
+
+/// Aggregated network health score.
+public struct NetworkHealthScore: Sendable {
+    public let score: Int          // 0-100
+    public let grade: String       // A/B/C/D/F
+    public let latencyMs: Double?
+    public let packetLoss: Double?
+    public let downloadSpeed: Double?
+    public let uploadSpeed: Double?
+    public let details: [String: String]
+
+    public init(score: Int, grade: String, latencyMs: Double? = nil, packetLoss: Double? = nil, downloadSpeed: Double? = nil, uploadSpeed: Double? = nil, details: [String: String] = [:]) {
+        self.score = score
+        self.grade = grade
+        self.latencyMs = latencyMs
+        self.packetLoss = packetLoss
+        self.downloadSpeed = downloadSpeed
+        self.uploadSpeed = uploadSpeed
+        self.details = details
+    }
+}
+
+/// Difference between two consecutive network scans.
+public struct ScanDiff: Sendable {
+    public let newDevices: [DiscoveredDevice]
+    public let removedDevices: [DiscoveredDevice]
+    public let changedDevices: [DiscoveredDevice]
+    public let scannedAt: Date
+
+    public init(newDevices: [DiscoveredDevice], removedDevices: [DiscoveredDevice], changedDevices: [DiscoveredDevice], scannedAt: Date = Date()) {
+        self.newDevices = newDevices
+        self.removedDevices = removedDevices
+        self.changedDevices = changedDevices
+        self.scannedAt = scannedAt
+    }
+}
+
+// MARK: - New Feature Service Protocols
+
+/// Protocol for subnet calculation.
+public protocol SubnetCalculatorServiceProtocol: AnyObject, Sendable {
+    func calculate(cidr: String) -> SubnetInfo?
+}
+
+/// Protocol for world ping (global latency checks via external API).
+public protocol WorldPingServiceProtocol: AnyObject, Sendable {
+    func ping(host: String, maxNodes: Int) async -> AsyncStream<WorldPingLocationResult>
+}
+
+/// Protocol for IP geolocation lookup.
+public protocol GeoLocationServiceProtocol: AnyObject, Sendable {
+    func lookup(ip: String) async throws -> GeoLocation
+}
+
+/// Protocol for SSL certificate inspection.
+public protocol SSLCertificateServiceProtocol: AnyObject, Sendable {
+    func checkCertificate(domain: String) async throws -> SSLCertificateInfo
+}
+
+/// Protocol for WiFi signal heatmap surveys.
+public protocol WiFiHeatmapServiceProtocol: AnyObject, Sendable {
+    func startSurvey()
+    func recordDataPoint(signalStrength: Int, x: Double, y: Double)
+    func getSurveyData() -> [HeatmapDataPoint]
+    func stopSurvey()
+}
+
+/// Protocol for computing an overall network health score.
+public protocol NetworkHealthScoreServiceProtocol: AnyObject, Sendable {
+    func calculateScore() async -> NetworkHealthScore
+}
+
+/// Protocol for scheduling recurring scans and detecting changes.
+@MainActor
+public protocol ScanSchedulerServiceProtocol: AnyObject, Sendable {
+    func scheduleNextScan(interval: TimeInterval)
+    func getLastScanDiff() -> ScanDiff?
+    /// Compare `current` devices against the stored baseline and return the diff.
+    func computeDiff(current: [DiscoveredDevice]) -> ScanDiff
+}
+
+// MARK: - SSL / Domain Expiration Types
+
+/// Aggregated expiration status for a tracked domain (SSL cert + WHOIS registrar data).
+public struct DomainExpirationStatus: Sendable, Identifiable {
+    public let id: String
+    public let domain: String
+    public let port: Int
+    public let notes: String?
+    public let sslCertificate: SSLCertificateInfo?
+    public let sslError: String?
+    public let whoisResult: WHOISResult?
+    public let whoisError: String?
+
+    public init(
+        domain: String,
+        port: Int,
+        notes: String? = nil,
+        sslCertificate: SSLCertificateInfo? = nil,
+        sslError: String? = nil,
+        whoisResult: WHOISResult? = nil,
+        whoisError: String? = nil
+    ) {
+        self.id = "\(domain):\(port)"
+        self.domain = domain
+        self.port = port
+        self.notes = notes
+        self.sslCertificate = sslCertificate
+        self.sslError = sslError
+        self.whoisResult = whoisResult
+        self.whoisError = whoisError
+    }
+
+    public var sslDaysUntilExpiration: Int? { sslCertificate?.daysUntilExpiry }
+
+    public var domainDaysUntilExpiration: Int? {
+        guard let expDate = whoisResult?.expirationDate else { return nil }
+        return Calendar.current.dateComponents([.day], from: Date(), to: expDate).day.map { max(0, $0) }
+    }
+}
+
+/// Protocol for tracking SSL certificate and domain expiration across multiple domains.
+public protocol CertificateExpirationTrackerProtocol: AnyObject, Sendable {
+    func addDomain(_ domain: String, port: Int?, notes: String?) async
+    func removeDomain(_ domain: String) async
+    func refreshDomain(_ domain: String) async -> DomainExpirationStatus?
+    func refreshAllDomains() async -> [DomainExpirationStatus]
+    func getAllTrackedDomains() async -> [DomainExpirationStatus]
+    func getExpiringDomains(daysThreshold: Int) async -> [DomainExpirationStatus]
+}
+
 // MARK: - Mac Companion Types
 
 /// Connection state for the Mac companion service.

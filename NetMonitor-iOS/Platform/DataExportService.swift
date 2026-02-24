@@ -10,6 +10,7 @@ enum DataExportService {
     enum ExportFormat: String, CaseIterable, Sendable {
         case json = "JSON"
         case csv = "CSV"
+        case pdf = "PDF"
 
         var fileExtension: String {
             rawValue.lowercased()
@@ -19,8 +20,24 @@ enum DataExportService {
             switch self {
             case .json: "application/json"
             case .csv: "text/csv"
+            case .pdf: "application/pdf"
             }
         }
+    }
+
+    // MARK: - PDF Report Export
+
+    /// Generates a full-network PDF report combining devices, tool results, and speed tests.
+    static func exportFullReportAsPDF(
+        devices: [LocalDevice],
+        toolResults: [ToolResult],
+        speedTests: [SpeedTestResult]
+    ) -> Data? {
+        PDFReportGenerator.generateNetworkReport(
+            devices: devices,
+            toolResults: toolResults,
+            speedTests: speedTests
+        )
     }
 
     // MARK: - Tool Results Export
@@ -31,6 +48,8 @@ enum DataExportService {
             return exportToolResultsJSON(results)
         case .csv:
             return exportToolResultsCSV(results)
+        case .pdf:
+            return nil
         }
     }
 
@@ -70,6 +89,8 @@ enum DataExportService {
             return exportSpeedTestsJSON(results)
         case .csv:
             return exportSpeedTestsCSV(results)
+        case .pdf:
+            return nil
         }
     }
 
@@ -110,6 +131,8 @@ enum DataExportService {
             return exportDevicesJSON(devices)
         case .csv:
             return exportDevicesCSV(devices)
+        case .pdf:
+            return nil
         }
     }
 

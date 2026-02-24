@@ -14,6 +14,7 @@ struct SettingsView: View {
     @State private var showingClearCacheAlert = false
     @State private var showingExportSheet = false
     @State private var exportFileURL: URL?
+    @State private var showingPDFExport = false
     @State private var showingPairingSheet = false
     @State private var highLatencyAlertEnabled =
         (UserDefaults.standard.object(forKey: AppSettings.Keys.highLatencyAlertEnabled) as? Bool) ?? false
@@ -134,6 +135,21 @@ struct SettingsView: View {
             }
             .listRowBackground(Theme.Colors.glassBackground)
 
+            // MARK: - Automation Section
+            Section {
+                NavigationLink {
+                    GeoFenceSettingsView()
+                } label: {
+                    Label("GeoFence", systemImage: "location.circle")
+                        .foregroundStyle(Theme.Colors.textPrimary)
+                }
+                .accessibilityIdentifier("settings_link_geofence")
+            } header: {
+                Text("Automation")
+                    .foregroundStyle(Theme.Colors.textSecondary)
+            }
+            .listRowBackground(Theme.Colors.glassBackground)
+
             // MARK: - Appearance Section
             Section {
                 Picker("Accent Color", selection: $viewModel.selectedAccentColor) {
@@ -172,6 +188,25 @@ struct SettingsView: View {
                     }
                     .accessibilityIdentifier("settings_export_\(option.rawValue)")
                 }
+
+                Button {
+                    exportFullReportAsPDF()
+                } label: {
+                    HStack {
+                        Label("Export Full Report as PDF", systemImage: "arrow.up.doc.fill")
+                            .foregroundStyle(Theme.Colors.textPrimary)
+                        Spacer()
+                        Text("PDF")
+                            .font(.caption)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(Theme.Colors.error.opacity(0.8))
+                            .clipShape(Capsule())
+                    }
+                }
+                .accessibilityIdentifier("export_button_pdf")
             } header: {
                 Text("Data Export")
                     .foregroundStyle(Theme.Colors.textSecondary)
@@ -342,6 +377,17 @@ struct SettingsView: View {
         .onChange(of: viewModel.highLatencyAlertEnabled) {
             highLatencyAlertEnabled = viewModel.highLatencyAlertEnabled
         }
+    }
+
+    private func exportFullReportAsPDF() {
+        guard let data = DataExportService.exportFullReportAsPDF(
+            devices: Array(devices),
+            toolResults: Array(toolResults),
+            speedTests: Array(speedTestResults)
+        ),
+        let url = DataExportService.writeToTempFile(data: data, name: "netmonitor-report", ext: "pdf") else { return }
+        exportFileURL = url
+        showingExportSheet = true
     }
 
     private func exportData(option: ExportOption, format: DataExportService.ExportFormat) {

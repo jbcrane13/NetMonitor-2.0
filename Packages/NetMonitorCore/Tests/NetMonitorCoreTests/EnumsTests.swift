@@ -157,7 +157,7 @@ struct ToolTypeTests {
     }
 
     @Test func allCasesAreCovered() {
-        #expect(ToolType.allCases.count == 9)
+        #expect(ToolType.allCases.count == 19)
     }
 }
 

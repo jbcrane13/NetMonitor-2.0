@@ -69,8 +69,7 @@
 | **Speed Test** | Parallel download/upload measurement |
 | **Wake on LAN** | Magic packet sender |
 
-### 2.0 New Features (Completed 2026-02-23)
-| Feature | Description |
+### 2.0 New Features | Feature | Description |
 |---------|-------------|
 | **GeoTrace** | Visual traceroute with MapKit hop visualization |
 | **Subnet Calculator** | CIDR math, subnet ranges |
@@ -80,6 +79,7 @@
 | **GeoFence** | Location-triggered network context |
 | **Timeline/Event History** | Historical records |
 | **SSL Monitor** | HTTPS certificate monitoring |
+| **WiFi Heatmapping** | Signal mapping |
 | **WiFi Heatmapping** | Signal mapping |
 
 ### macOS-Specific Features

@@ -1,0 +1,253 @@
+import SwiftUI
+import NetMonitorCore
+
+/// World Ping tool — pings a host from global locations via check-host.net
+struct WorldPingToolView: View {
+    @State private var viewModel = WorldPingToolViewModel()
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: Theme.Layout.sectionSpacing) {
+                WorldPingInputSection(viewModel: viewModel)
+                controlSection
+
+                if let error = viewModel.errorMessage {
+                    errorCard(error)
+                }
+
+                if viewModel.isRunning && viewModel.results.isEmpty {
+                    loadingSection
+                }
+
+                if viewModel.hasResults {
+                    statsBar
+                    resultsSection
+                }
+            }
+            .padding(.horizontal, Theme.Layout.screenPadding)
+            .padding(.bottom, Theme.Layout.sectionSpacing)
+        }
+        .themedBackground()
+        .navigationTitle("World Ping")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
+        .accessibilityIdentifier("screen_worldPingTool")
+    }
+
+    // MARK: - Controls
+
+    private var controlSection: some View {
+        HStack(spacing: Theme.Layout.itemSpacing) {
+            ToolRunButton(
+                title: "Run World Ping",
+                icon: "globe.americas",
+                isRunning: viewModel.isRunning,
+                stopTitle: "Stop",
+                action: {
+                    if viewModel.isRunning {
+                        viewModel.stop()
+                    } else {
+                        viewModel.run()
+                    }
+                }
+            )
+            .disabled(!viewModel.canRun && !viewModel.isRunning)
+            .tint(.teal)
+            .accessibilityIdentifier("worldPing_button_run")
+
+            if viewModel.hasResults && !viewModel.isRunning {
+                ToolClearButton(accessibilityID: "worldPing_button_clear") {
+                    viewModel.clear()
+                }
+            }
+        }
+    }
+
+    // MARK: - Loading
+
+    private var loadingSection: some View {
+        GlassCard {
+            HStack(spacing: 12) {
+                ProgressView()
+                    .progressViewStyle(CircularProgressViewStyle(tint: .teal))
+                Text("Pinging from global nodes…")
+                    .font(.subheadline)
+                    .foregroundStyle(Theme.Colors.textSecondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    // MARK: - Stats Bar
+
+    @ViewBuilder
+    private var statsBar: some View {
+        HStack(spacing: 0) {
+            statItem(label: "Nodes", value: "\(viewModel.results.count)")
+            Spacer()
+            statItem(label: "Success", value: "\(viewModel.successCount)")
+            Spacer()
+            if let avg = viewModel.averageLatencyMs {
+                statItem(label: "Avg", value: String(format: "%.0f ms", avg))
+                Spacer()
+            }
+            if let best = viewModel.bestLatencyMs {
+                statItem(label: "Best", value: String(format: "%.0f ms", best), color: Theme.Colors.success)
+            }
+        }
+        .padding(.horizontal, 4)
+    }
+
+    private func statItem(label: String, value: String, color: Color = Theme.Colors.textPrimary) -> some View {
+        VStack(spacing: 2) {
+            Text(value)
+                .font(.system(.subheadline, design: .rounded))
+                .fontWeight(.semibold)
+                .foregroundStyle(color)
+            Text(label)
+                .font(.caption2)
+                .foregroundStyle(Theme.Colors.textSecondary)
+        }
+    }
+
+    // MARK: - Results
+
+    @ViewBuilder
+    private var resultsSection: some View {
+        VStack(alignment: .leading, spacing: Theme.Layout.itemSpacing) {
+            Text("Results")
+                .font(.headline)
+                .foregroundStyle(Theme.Colors.textPrimary)
+
+            GlassCard {
+                VStack(spacing: 0) {
+                    ForEach(Array(viewModel.results.enumerated()), id: \.element.id) { index, result in
+                        WorldPingLocationRow(result: result)
+
+                        if index < viewModel.results.count - 1 {
+                            Divider()
+                                .background(Theme.Colors.glassBorder)
+                                .padding(.vertical, 5)
+                        }
+                    }
+                }
+            }
+        }
+        .accessibilityIdentifier("worldPing_section_results")
+    }
+
+    // MARK: - Error Card
+
+    private func errorCard(_ message: String) -> some View {
+        GlassCard {
+            HStack(spacing: 12) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(Theme.Colors.error)
+                Text(message)
+                    .font(.subheadline)
+                    .foregroundStyle(Theme.Colors.textPrimary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+}
+
+// MARK: - Input Section
+
+private struct WorldPingInputSection: View {
+    @Bindable var viewModel: WorldPingToolViewModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Theme.Layout.itemSpacing) {
+            Text("Host")
+                .font(.headline)
+                .foregroundStyle(Theme.Colors.textPrimary)
+
+            ToolInputField(
+                text: $viewModel.hostInput,
+                placeholder: "e.g. google.com or 8.8.8.8",
+                icon: "globe.americas",
+                keyboardType: .URL,
+                accessibilityID: "worldPing_input_host",
+                onSubmit: {
+                    if viewModel.canRun {
+                        viewModel.run()
+                    }
+                }
+            )
+        }
+    }
+}
+
+// MARK: - Location Row
+
+private struct WorldPingLocationRow: View {
+    let result: WorldPingLocationResult
+
+    var body: some View {
+        HStack(spacing: Theme.Layout.itemSpacing) {
+            // Status indicator
+            Circle()
+                .fill(result.isSuccess ? Theme.Colors.success : Theme.Colors.error)
+                .frame(width: 8, height: 8)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(result.city)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .foregroundStyle(Theme.Colors.textPrimary)
+                Text(result.country)
+                    .font(.caption)
+                    .foregroundStyle(Theme.Colors.textSecondary)
+            }
+
+            Spacer()
+
+            if let latency = result.latencyMs {
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text(String(format: "%.0f ms", latency))
+                        .font(.system(.subheadline, design: .monospaced))
+                        .fontWeight(.medium)
+                        .foregroundStyle(Theme.Colors.latencyColor(ms: latency))
+
+                    // Mini latency bar
+                    LatencyBar(latencyMs: latency, maxMs: 300)
+                        .frame(width: 50, height: 4)
+                        .clipShape(Capsule())
+                }
+            } else {
+                Text("No response")
+                    .font(.caption)
+                    .foregroundStyle(Theme.Colors.textTertiary)
+            }
+        }
+        .accessibilityIdentifier("worldPing_location_row")
+    }
+}
+
+// MARK: - Latency Bar
+
+private struct LatencyBar: View {
+    let latencyMs: Double
+    let maxMs: Double
+
+    var body: some View {
+        GeometryReader { geo in
+            ZStack(alignment: .leading) {
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(Theme.Colors.glassBorder)
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(Theme.Colors.latencyColor(ms: latencyMs))
+                    .frame(width: geo.size.width * CGFloat(min(1.0, latencyMs / maxMs)))
+            }
+        }
+    }
+}
+
+// MARK: - Preview
+
+#Preview {
+    NavigationStack {
+        WorldPingToolView()
+    }
+}

@@ -42,6 +42,11 @@ enum ToolDestination: Hashable {
     case wakeOnLAN
     case webBrowser
     case networkMonitor
+    case subnetCalculator
+    case worldPing
+    case geoTrace
+    case sslMonitor
+    case wifiHeatmap
 
     @ViewBuilder
     @MainActor
@@ -68,6 +73,16 @@ enum ToolDestination: Hashable {
             WebBrowserToolView()
         case .networkMonitor:
             NetworkMapView()
+        case .subnetCalculator:
+            SubnetCalculatorToolView()
+        case .worldPing:
+            WorldPingToolView()
+        case .geoTrace:
+            GeoTraceView()
+        case .sslMonitor:
+            SSLCertificateMonitorView()
+        case .wifiHeatmap:
+            WiFiHeatmapSurveyView()
         }
     }
 }
@@ -347,7 +362,12 @@ struct ToolsGridSection: View {
         ToolItem(name: "Bonjour", icon: "bonjour", color: Theme.Colors.accent, description: "Discover services", destination: .bonjour),
         ToolItem(name: "Speed Test", icon: "speedometer", color: Theme.Colors.success, description: "Test bandwidth", destination: .speedTest),
         ToolItem(name: "WHOIS", icon: "doc.text.magnifyingglass", color: Theme.Colors.info, description: "Domain information", destination: .whois),
-        ToolItem(name: "Wake on LAN", icon: "power", color: Theme.Colors.error, description: "Wake devices remotely", destination: .wakeOnLAN)
+        ToolItem(name: "Wake on LAN", icon: "power", color: Theme.Colors.error, description: "Wake devices remotely", destination: .wakeOnLAN),
+        ToolItem(name: "Subnet Calc", icon: "square.split.bottomrightquarter", color: .purple, description: "Calculate subnet ranges", destination: .subnetCalculator),
+        ToolItem(name: "World Ping", icon: "globe.americas", color: .teal, description: "Global latency check", destination: .worldPing),
+        ToolItem(name: "Geo Trace", icon: "map", color: .mint, description: "Visual route on map", destination: .geoTrace),
+        ToolItem(name: "SSL Monitor", icon: "lock.shield", color: .green, description: "Certificate expiry check", destination: .sslMonitor),
+        ToolItem(name: "WiFi Heatmap", icon: "wifi.circle", color: .blue, description: "Signal strength survey", destination: .wifiHeatmap)
     ]
 
     private let columns = [

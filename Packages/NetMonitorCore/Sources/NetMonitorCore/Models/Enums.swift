@@ -169,6 +169,16 @@ public enum ToolType: String, Codable, CaseIterable, Sendable {
     case whois
     case wakeOnLan
     case networkScan
+    case subnetCalculator
+    case worldPing
+    case geoTrace
+    case sslMonitor
+    case wifiHeatmap
+    case networkHealthScore
+    case networkTimeline
+    case scheduledScan
+    case vpnInfo
+    case exportPdf
 
     public var iconName: String {
         switch self {
@@ -181,6 +191,16 @@ public enum ToolType: String, Codable, CaseIterable, Sendable {
         case .whois: "doc.text.magnifyingglass"
         case .wakeOnLan: "power"
         case .networkScan: "network"
+        case .subnetCalculator: "square.split.bottomrightquarter"
+        case .worldPing: "globe.americas"
+        case .geoTrace: "map"
+        case .sslMonitor: "lock.shield"
+        case .wifiHeatmap: "wifi.circle"
+        case .networkHealthScore: "heart.text.square"
+        case .networkTimeline: "clock.arrow.circlepath"
+        case .scheduledScan: "calendar.badge.clock"
+        case .vpnInfo: "network.badge.shield.half.filled"
+        case .exportPdf: "arrow.up.doc"
         }
     }
 
@@ -195,6 +215,16 @@ public enum ToolType: String, Codable, CaseIterable, Sendable {
         case .whois: "WHOIS"
         case .wakeOnLan: "Wake on LAN"
         case .networkScan: "Network Scan"
+        case .subnetCalculator: "Subnet Calculator"
+        case .worldPing: "World Ping"
+        case .geoTrace: "Geo Trace"
+        case .sslMonitor: "SSL Monitor"
+        case .wifiHeatmap: "WiFi Heatmap"
+        case .networkHealthScore: "Network Health Score"
+        case .networkTimeline: "Network Timeline"
+        case .scheduledScan: "Scheduled Scan"
+        case .vpnInfo: "VPN Info"
+        case .exportPdf: "Export PDF"
         }
     }
 
@@ -210,6 +240,16 @@ public enum ToolType: String, Codable, CaseIterable, Sendable {
         case .whois: .blue
         case .wakeOnLan: .red
         case .networkScan: .accentColor
+        case .subnetCalculator: .purple
+        case .worldPing: .teal
+        case .geoTrace: .mint
+        case .sslMonitor: .green
+        case .wifiHeatmap: .blue
+        case .networkHealthScore: .red
+        case .networkTimeline: .indigo
+        case .scheduledScan: .orange
+        case .vpnInfo: .cyan
+        case .exportPdf: .gray
         }
     }
 #endif

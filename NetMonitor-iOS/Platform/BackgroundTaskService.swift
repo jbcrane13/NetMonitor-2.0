@@ -15,6 +15,7 @@ final class BackgroundTaskService {
 
     static let refreshTaskIdentifier = "com.blakemiller.netmonitor.refresh"
     static let syncTaskIdentifier = "com.blakemiller.netmonitor.sync"
+    static let scheduledNetworkScanTaskIdentifier = "com.blakemiller.netmonitor.scheduledNetworkScan"
 
     private init() {}
 
@@ -30,6 +31,12 @@ final class BackgroundTaskService {
         BGTaskScheduler.shared.register(forTaskWithIdentifier: Self.syncTaskIdentifier, using: .main) { task in
             Task { @MainActor in
                 await self.handleSyncTask(task as! BGProcessingTask)
+            }
+        }
+
+        BGTaskScheduler.shared.register(forTaskWithIdentifier: Self.scheduledNetworkScanTaskIdentifier, using: .main) { task in
+            Task { @MainActor in
+                await self.handleScheduledNetworkScanTask(task as! BGProcessingTask)
             }
         }
     }
@@ -307,6 +314,72 @@ final class BackgroundTaskService {
             group.cancelAll()
             connection.cancel()
             return result ?? false
+        }
+    }
+
+    func scheduleNetworkScanTask() {
+        guard (UserDefaults.standard.object(forKey: "scheduledScan_enabled") as? Bool) == true else {
+            BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: Self.scheduledNetworkScanTaskIdentifier)
+            return
+        }
+        let intervalRaw = UserDefaults.standard.integer(forKey: "scheduledScan_interval")
+        let interval = TimeInterval(intervalRaw > 0 ? intervalRaw : 3600)
+        let request = BGProcessingTaskRequest(identifier: Self.scheduledNetworkScanTaskIdentifier)
+        request.earliestBeginDate = Date(timeIntervalSinceNow: max(15 * 60, interval))
+        request.requiresNetworkConnectivity = true
+        request.requiresExternalPower = false
+        do {
+            try BGTaskScheduler.shared.submit(request)
+        } catch {
+            Self.logger.error("Failed to schedule network scan task: \(error)")
+        }
+    }
+
+    private func handleScheduledNetworkScanTask(_ task: BGProcessingTask) async {
+        scheduleNetworkScanTask()
+
+        guard (UserDefaults.standard.object(forKey: "scheduledScan_enabled") as? Bool) == true else {
+            task.setTaskCompleted(success: true)
+            return
+        }
+
+        var taskCancelled = false
+        let completionGuard = OSAllocatedUnfairLock(initialState: false)
+        func complete(_ success: Bool) {
+            let shouldComplete = completionGuard.withLock { didComplete -> Bool in
+                guard !didComplete else { return false }
+                didComplete = true
+                return true
+            }
+            if shouldComplete { task.setTaskCompleted(success: success) }
+        }
+        defer { complete(!taskCancelled) }
+
+        task.expirationHandler = {
+            Task { @MainActor in
+                taskCancelled = true
+                complete(false)
+            }
+        }
+
+        await DeviceDiscoveryService.shared.scanNetwork(subnet: nil)
+        guard !taskCancelled else { return }
+
+        let devices = DeviceDiscoveryService.shared.discoveredDevices
+        let diff = ScanSchedulerService.shared.computeDiff(current: devices)
+
+        let notifyNew     = (UserDefaults.standard.object(forKey: "scheduledScan_notifyNew") as? Bool) ?? true
+        let notifyMissing = (UserDefaults.standard.object(forKey: "scheduledScan_notifyMissing") as? Bool) ?? true
+
+        if notifyNew {
+            for device in diff.newDevices {
+                NotificationService.shared.notifyNewDevice(ipAddress: device.ipAddress, hostname: device.hostname)
+            }
+        }
+        if notifyMissing {
+            for device in diff.removedDevices {
+                NotificationService.shared.notifyTargetDown(name: device.displayName, host: device.ipAddress)
+            }
         }
     }
 

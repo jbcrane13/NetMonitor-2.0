@@ -26,6 +26,8 @@ struct DashboardView: View {
 
                     ISPCard(viewModel: viewModel)
 
+                    VPNInfoView()
+
                     LocalDevicesCard(
                         viewModel: viewModel,
                         selectedNetwork: viewModel.activeNetwork

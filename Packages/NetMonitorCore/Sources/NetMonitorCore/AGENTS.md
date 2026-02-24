@@ -1,4 +1,4 @@
-<!-- Parent: ../AGENTS.md -->
+<!-- Parent: ../../AGENTS.md -->
 <!-- Generated: 2026-02-18 -->
 
 # NetMonitorCore Sources
