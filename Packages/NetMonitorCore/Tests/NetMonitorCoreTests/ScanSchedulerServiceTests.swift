@@ -3,11 +3,14 @@ import Testing
 import NetworkScanKit
 @testable import NetMonitorCore
 
-@Suite("ScanSchedulerService")
+// .serialized: prevents parallel test execution within this suite.
+// ScanSchedulerService persists baseline to UserDefaults.standard — parallel
+// tests race on that shared key, causing state bleed between tests.
+@Suite("ScanSchedulerService", .serialized)
 struct ScanSchedulerServiceTests {
 
-    /// Swift Testing creates a fresh struct for every @Test, so this init()
-    /// runs before each test — guarantees a clean UserDefaults baseline state.
+    /// Runs before each test (Swift Testing creates a fresh struct per @Test).
+    /// Clears UserDefaults baseline so every test starts from a clean slate.
     init() {
         UserDefaults.standard.removeObject(forKey: "scanScheduler_baseline")
     }
