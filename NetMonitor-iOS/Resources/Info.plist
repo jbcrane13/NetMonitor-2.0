@@ -22,6 +22,10 @@
 	<string>2.0</string>
 	<key>CFBundleVersion</key>
 	<string>1</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>NetMonitor uses your location in the background to trigger GeoFence alerts when you enter or exit defined zones.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>NetMonitor uses your location to display WiFi network information and monitor GeoFence zones.</string>
 	<key>UILaunchScreen</key>
 	<dict>
 		<key>UIColorName</key>
