@@ -37,7 +37,7 @@ targets:
       path: NetMonitor-macOS/Resources/NetMonitor-macOS.entitlements
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.jbcrane.NetMonitor
+        PRODUCT_BUNDLE_IDENTIFIER: com.netmonitor.NetMonitor
         DEVELOPMENT_TEAM: 32XZRDTGK3
         SWIFT_VERSION: 6.0
         SWIFT_STRICT_CONCURRENCY: complete
