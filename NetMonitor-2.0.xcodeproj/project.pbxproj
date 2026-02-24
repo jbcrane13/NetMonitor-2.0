@@ -73,6 +73,7 @@
 		4535749A6ABEA495B758D569 /* BonjourDiscoveryToolViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E2DDEE169D6930C49B355DF /* BonjourDiscoveryToolViewModelTests.swift */; };
 		46A2AA640F5B4C1E7ED80A14 /* ToolsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FF4F9ADB872CDB93DAA9636 /* ToolsView.swift */; };
 		4742A7592B450248C4D6ED08 /* DNSLookupToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F5198C609C014DE725344B3 /* DNSLookupToolView.swift */; };
+		476B35D66E0D7DED478D1FEF /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = ADE8B26F50AFCAD208AC99F0 /* Assets.xcassets */; };
 		48F7A9075D2952F3E64F7899 /* WHOISToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02D429D7F12642A26F1D2045 /* WHOISToolView.swift */; };
 		4937EB6D1A9EBB7B43A1DA48 /* WHOISToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4896033C2D35E7BEF7BE38F4 /* WHOISToolView.swift */; };
 		4BF1F7DE0E4B22FB33B7CA9D /* PingToolUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC3C86DC4C3ED5C3FB4B4DBB /* PingToolUITests.swift */; };
@@ -382,6 +383,7 @@
 		A250E7592344D3DD67910685 /* DataSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataSettingsView.swift; sourceTree = "<group>"; };
 		A7191F3156FFC451BBDAA904 /* DefaultTargetsProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefaultTargetsProvider.swift; sourceTree = "<group>"; };
 		AC3C86DC4C3ED5C3FB4B4DBB /* PingToolUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PingToolUITests.swift; sourceTree = "<group>"; };
+		ADE8B26F50AFCAD208AC99F0 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		AEF5692D7F6FBF3F5506C69E /* NetMonitor-iOSUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = "NetMonitor-iOSUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		B36F41C60900EB945E888E23 /* TracerouteToolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TracerouteToolView.swift; sourceTree = "<group>"; };
 		B6DBA0C16A1DE7F77F218E6A /* WHOISToolUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WHOISToolUITests.swift; sourceTree = "<group>"; };
@@ -563,6 +565,14 @@
 				3FE1A85A0AC80D9B08D16B53 /* WiFiInfoService.swift */,
 			);
 			path = Platform;
+			sourceTree = "<group>";
+		};
+		15D3E6CBB4D81C39C3076E2A /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				ADE8B26F50AFCAD208AC99F0 /* Assets.xcassets */,
+			);
+			path = Resources;
 			sourceTree = "<group>";
 		};
 		3AA158436BB2A7CC57BF8632 /* Products */ = {
@@ -823,6 +833,7 @@
 				87DBFB32E1330098799857E3 /* MenuBar */,
 				911A63FF886A2DF3CD7FD6B3 /* Platform */,
 				A2DE8DFED425243FF30F8905 /* Preview */,
+				15D3E6CBB4D81C39C3076E2A /* Resources */,
 				8FAD381936AE9D15D57F6A17 /* Utilities */,
 				64D57CD1D21B76AC83EB6CAB /* Views */,
 			);
@@ -925,6 +936,7 @@
 			buildConfigurationList = A2488BAF43E3180C8A442C89 /* Build configuration list for PBXNativeTarget "NetMonitor-macOS" */;
 			buildPhases = (
 				0A69C4D81868801AD156AF6A /* Sources */,
+				49FFD1135A9E95A8334E001A /* Resources */,
 				40A9F7662DD07B1719E30913 /* Frameworks */,
 			);
 			buildRules = (
@@ -1103,6 +1115,14 @@
 			buildActionMask = 2147483647;
 			files = (
 				AEB3064D7A031FFFDE3BFC3C /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		49FFD1135A9E95A8334E001A /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				476B35D66E0D7DED478D1FEF /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
