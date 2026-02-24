@@ -86,3 +86,4 @@ beads/
 # But track the issues export for syncing
 !.beads/issues.jsonl
 !.beads/metadata.json
+.env
