@@ -8,8 +8,11 @@ public actor GeoLocationService: GeoLocationServiceProtocol {
 
     private var cache: [String: GeoLocation] = [:]
     private let baseURL = "http://ip-api.com/json"
+    private let session: URLSession
 
-    public init() {}
+    public init(session: URLSession = .shared) {
+        self.session = session
+    }
 
     public func lookup(ip: String) async throws -> GeoLocation {
         let cleanIP = ip.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -22,7 +25,7 @@ public actor GeoLocationService: GeoLocationServiceProtocol {
             throw URLError(.badURL)
         }
 
-        let (data, response) = try await URLSession.shared.data(from: url)
+        let (data, response) = try await session.data(from: url)
 
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
             throw GeoLocationError.httpError

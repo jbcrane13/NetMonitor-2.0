@@ -15,7 +15,7 @@ private final class MockWorldPingService: WorldPingServiceProtocol, @unchecked S
             Task {
                 for result in results {
                     if self.shouldDelay {
-                        try? await Task.sleep(for: .milliseconds(10))
+                        try await Task.sleep(for: .milliseconds(10))
                     }
                     continuation.yield(result)
                 }
@@ -65,7 +65,7 @@ final class WorldPingToolViewModelTests: XCTestCase {
         XCTAssertFalse(vm.canRun)
     }
 
-    func testRun_populatesResults() async {
+    func testRun_populatesResults() async throws {
         let mock = MockWorldPingService()
         mock.mockResults = [
             makeResult(id: "de1", city: "Frankfurt", latencyMs: 30),
@@ -76,28 +76,28 @@ final class WorldPingToolViewModelTests: XCTestCase {
         vm.run()
 
         // Wait for task to complete
-        try? await Task.sleep(for: .milliseconds(200))
+        try await Task.sleep(for: .milliseconds(200))
 
         XCTAssertFalse(vm.results.isEmpty)
         XCTAssertFalse(vm.isRunning)
         XCTAssertNil(vm.errorMessage)
     }
 
-    func testRun_emptyResults_setsError() async {
+    func testRun_emptyResults_setsError() async throws {
         let mock = MockWorldPingService()
         mock.mockResults = []
         let vm = WorldPingToolViewModel(service: mock)
         vm.hostInput = "unreachable.invalid"
         vm.run()
 
-        try? await Task.sleep(for: .milliseconds(200))
+        try await Task.sleep(for: .milliseconds(200))
 
         XCTAssertTrue(vm.results.isEmpty)
         XCTAssertNotNil(vm.errorMessage)
         XCTAssertFalse(vm.isRunning)
     }
 
-    func testAverageLatency_withSuccessfulResults() async {
+    func testAverageLatency_withSuccessfulResults() async throws {
         let mock = MockWorldPingService()
         mock.mockResults = [
             makeResult(id: "n1", latencyMs: 40),
@@ -108,7 +108,7 @@ final class WorldPingToolViewModelTests: XCTestCase {
         vm.hostInput = "test.com"
         vm.run()
 
-        try? await Task.sleep(for: .milliseconds(200))
+        try await Task.sleep(for: .milliseconds(200))
 
         let avg = vm.averageLatencyMs
         XCTAssertNotNil(avg)
@@ -120,7 +120,7 @@ final class WorldPingToolViewModelTests: XCTestCase {
         XCTAssertNil(vm.averageLatencyMs)
     }
 
-    func testBestLatency_returnsMinimum() async {
+    func testBestLatency_returnsMinimum() async throws {
         let mock = MockWorldPingService()
         mock.mockResults = [
             makeResult(id: "n1", latencyMs: 100),
@@ -131,12 +131,12 @@ final class WorldPingToolViewModelTests: XCTestCase {
         vm.hostInput = "test.com"
         vm.run()
 
-        try? await Task.sleep(for: .milliseconds(200))
+        try await Task.sleep(for: .milliseconds(200))
 
         XCTAssertEqual(vm.bestLatencyMs, 25.0)
     }
 
-    func testSuccessCount_countsOnlySuccessfulNodes() async {
+    func testSuccessCount_countsOnlySuccessfulNodes() async throws {
         let mock = MockWorldPingService()
         mock.mockResults = [
             makeResult(id: "n1", isSuccess: true),
@@ -147,19 +147,19 @@ final class WorldPingToolViewModelTests: XCTestCase {
         vm.hostInput = "test.com"
         vm.run()
 
-        try? await Task.sleep(for: .milliseconds(200))
+        try await Task.sleep(for: .milliseconds(200))
 
         XCTAssertEqual(vm.successCount, 2)
     }
 
-    func testClear_resetsAllState() async {
+    func testClear_resetsAllState() async throws {
         let mock = MockWorldPingService()
         mock.mockResults = [makeResult()]
         let vm = WorldPingToolViewModel(service: mock)
         vm.hostInput = "test.com"
         vm.run()
 
-        try? await Task.sleep(for: .milliseconds(200))
+        try await Task.sleep(for: .milliseconds(200))
         vm.clear()
 
         XCTAssertTrue(vm.results.isEmpty)
@@ -167,19 +167,19 @@ final class WorldPingToolViewModelTests: XCTestCase {
         XCTAssertFalse(vm.isRunning)
     }
 
-    func testHasResults_afterSuccessfulRun_returnsTrue() async {
+    func testHasResults_afterSuccessfulRun_returnsTrue() async throws {
         let mock = MockWorldPingService()
         mock.mockResults = [makeResult()]
         let vm = WorldPingToolViewModel(service: mock)
         vm.hostInput = "test.com"
         vm.run()
 
-        try? await Task.sleep(for: .milliseconds(200))
+        try await Task.sleep(for: .milliseconds(200))
 
         XCTAssertTrue(vm.hasResults)
     }
 
-    func testResultsSortedByLatency() async {
+    func testResultsSortedByLatency() async throws {
         let mock = MockWorldPingService()
         mock.mockResults = [
             makeResult(id: "n1", city: "Tokyo", latencyMs: 200),
@@ -190,7 +190,7 @@ final class WorldPingToolViewModelTests: XCTestCase {
         vm.hostInput = "test.com"
         vm.run()
 
-        try? await Task.sleep(for: .milliseconds(200))
+        try await Task.sleep(for: .milliseconds(200))
 
         XCTAssertEqual(vm.results.count, 3)
         // Should be sorted by latency ascending

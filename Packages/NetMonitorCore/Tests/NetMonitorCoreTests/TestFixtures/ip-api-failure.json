@@ -1,0 +1,5 @@
+{
+  "status": "fail",
+  "message": "reserved range",
+  "query": "192.168.1.1"
+}

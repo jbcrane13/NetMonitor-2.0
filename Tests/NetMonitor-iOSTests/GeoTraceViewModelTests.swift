@@ -31,7 +31,7 @@ struct GeoTraceViewModelTests {
         #expect(vm.canTrace == true)
     }
 
-    @Test func startTracePopulatesHops() async {
+    @Test func startTracePopulatesHops() async throws {
         let tracerouteService = MockTracerouteService()
         tracerouteService.mockHops = [
             TracerouteHop(hopNumber: 1, ipAddress: "192.168.1.1"),
@@ -47,7 +47,7 @@ struct GeoTraceViewModelTests {
         vm.startTrace()
 
         // Wait for async trace to complete
-        try? await Task.sleep(nanoseconds: 100_000_000)
+        try await Task.sleep(nanoseconds: 100_000_000)
 
         #expect(vm.hops.count == 3)
         #expect(vm.isRunning == false)
@@ -77,7 +77,7 @@ struct GeoTraceViewModelTests {
         #expect(vm.selectedHop == nil)
     }
 
-    @Test func locatedHopsFiltersByLocation() async {
+    @Test func locatedHopsFiltersByLocation() async throws {
         let tracerouteService = MockTracerouteService()
         tracerouteService.mockHops = [
             TracerouteHop(hopNumber: 1, ipAddress: "192.168.1.1"),  // private, geo will fail
@@ -94,7 +94,7 @@ struct GeoTraceViewModelTests {
         vm.host = "8.8.8.8"
         vm.startTrace()
 
-        try? await Task.sleep(nanoseconds: 200_000_000)
+        try await Task.sleep(nanoseconds: 200_000_000)
 
         #expect(vm.hops.count == 2)
         #expect(vm.locatedHops.count == 1)

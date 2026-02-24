@@ -91,7 +91,10 @@ public final class WorldPingService: WorldPingServiceProtocol, @unchecked Sendab
             guard !Task.isCancelled else { break }
 
             let (data, _) = try await session.data(for: request)
-            guard let raw = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { continue }
+            guard let raw = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                logger.warning("pollResults: failed to parse JSON response on attempt \(attempt) — retrying")
+                continue
+            }
 
             // Wait until all nodes have responded (non-null) or max attempts reached
             let allReady = raw.values.allSatisfy { !($0 is NSNull) }

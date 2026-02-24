@@ -28,7 +28,8 @@ let package = Package(
         .testTarget(
             name: "NetMonitorCoreTests",
             dependencies: ["NetMonitorCore"],
-            path: "Tests/NetMonitorCoreTests"
+            path: "Tests/NetMonitorCoreTests",
+            resources: [.process("TestFixtures")]
         ),
     ]
 )
