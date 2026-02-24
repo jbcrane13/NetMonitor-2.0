@@ -6,6 +6,12 @@ import NetworkScanKit
 @Suite("ScanSchedulerService")
 struct ScanSchedulerServiceTests {
 
+    /// Swift Testing creates a fresh struct for every @Test, so this init()
+    /// runs before each test — guarantees a clean UserDefaults baseline state.
+    init() {
+        UserDefaults.standard.removeObject(forKey: "scanScheduler_baseline")
+    }
+
     private func makeDevice(mac: String, ip: String) -> DiscoveredDevice {
         DiscoveredDevice(
             id: UUID(),
