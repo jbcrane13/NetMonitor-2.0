@@ -170,7 +170,7 @@ public actor WHOISService: WHOISServiceProtocol {
         }
     }
 
-    private nonisolated func parseField(from rawData: String, field: String) -> String? {
+    nonisolated func parseField(from rawData: String, field: String) -> String? {
         let pattern = "\(field):\\s*(.+)"
         guard let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive),
               let match = regex.firstMatch(in: rawData, range: NSRange(rawData.startIndex..., in: rawData)),
@@ -180,7 +180,7 @@ public actor WHOISService: WHOISServiceProtocol {
         return String(rawData[range]).trimmingCharacters(in: .whitespaces)
     }
 
-    private nonisolated func parseDate(from rawData: String, fields: [String]) -> Date? {
+    nonisolated func parseDate(from rawData: String, fields: [String]) -> Date? {
         for field in fields {
             if let dateString = parseField(from: rawData, field: field) {
                 for formatter in Self.dateFormatters {
@@ -193,7 +193,7 @@ public actor WHOISService: WHOISServiceProtocol {
         return nil
     }
 
-    private nonisolated func parseNameservers(from rawData: String) -> [String] {
+    nonisolated func parseNameservers(from rawData: String) -> [String] {
         let pattern = "Name Server:\\s*(.+)"
         guard let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) else {
             return []
@@ -206,7 +206,7 @@ public actor WHOISService: WHOISServiceProtocol {
         }
     }
 
-    private nonisolated func parseStatus(from rawData: String) -> [String] {
+    nonisolated func parseStatus(from rawData: String) -> [String] {
         let pattern = "(?:Domain )?Status:\\s*(.+)"
         guard let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) else {
             return []

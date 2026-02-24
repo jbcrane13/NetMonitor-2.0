@@ -87,4 +87,119 @@ struct ToolsViewModelTests {
         vm.clearActivity()
         #expect(vm.recentResults.isEmpty)
     }
+
+    // MARK: - runPing
+
+    @Test func runPingAccumulatesResultsFromStream() async {
+        let pingService = MockPingService()
+        pingService.mockResults = [
+            PingResult(sequence: 1, host: "8.8.8.8", ttl: 64, time: 10.0, isTimeout: false),
+            PingResult(sequence: 2, host: "8.8.8.8", ttl: 64, time: 12.0, isTimeout: false)
+        ]
+        pingService.mockStatistics = PingStatistics(
+            host: "8.8.8.8", transmitted: 2, received: 2,
+            packetLoss: 0, minTime: 10, maxTime: 12, avgTime: 11, stdDev: nil
+        )
+        let vm = makeVM(pingService: pingService)
+        await vm.runPing(host: "8.8.8.8", count: 2)
+        #expect(vm.currentPingResults.count == 2)
+        #expect(vm.isPingRunning == false)
+    }
+
+    @Test func runPingIsNotRunningAfterCompletion() async {
+        let pingService = MockPingService()
+        pingService.mockResults = []
+        let vm = makeVM(pingService: pingService)
+        await vm.runPing(host: "127.0.0.1", count: 1)
+        #expect(vm.isPingRunning == false)
+    }
+
+    @Test func runPingGuardsPreventsReentry() async {
+        let pingService = MockPingService()
+        pingService.mockResults = []
+        let vm = makeVM(pingService: pingService)
+        // Run twice concurrently — second call should no-op
+        async let first: Void = vm.runPing(host: "8.8.8.8")
+        async let second: Void = vm.runPing(host: "8.8.8.8")
+        _ = await (first, second)
+        // Only one ping call made (the second is dropped by the guard)
+        #expect(pingService.pingCallCount == 1)
+    }
+
+    @Test func stopPingDelegatesToService() async {
+        let pingService = MockPingService()
+        let vm = makeVM(pingService: pingService)
+        await vm.stopPing()
+        #expect(pingService.stopCallCount == 1)
+    }
+
+    // MARK: - runPortScan
+
+    @Test func runPortScanOnlyStoresOpenPorts() async {
+        let portScanner = MockPortScannerService()
+        portScanner.mockResults = [
+            PortScanResult(port: 22, state: .open),
+            PortScanResult(port: 80, state: .closed),
+            PortScanResult(port: 443, state: .open),
+            PortScanResult(port: 8080, state: .closed)
+        ]
+        let vm = makeVM(portScannerService: portScanner)
+        await vm.runPortScan(host: "192.168.1.1", ports: [22, 80, 443, 8080])
+        #expect(vm.currentPortScanResults.count == 2)
+        #expect(vm.currentPortScanResults.allSatisfy { $0.state == .open })
+        #expect(vm.isPortScanRunning == false)
+    }
+
+    @Test func runPortScanWithNoOpenPortsYieldsEmptyResults() async {
+        let portScanner = MockPortScannerService()
+        portScanner.mockResults = [
+            PortScanResult(port: 22, state: .closed),
+            PortScanResult(port: 80, state: .closed)
+        ]
+        let vm = makeVM(portScannerService: portScanner)
+        await vm.runPortScan(host: "192.168.1.1", ports: [22, 80])
+        #expect(vm.currentPortScanResults.isEmpty)
+    }
+
+    @Test func stopPortScanDelegatesToService() async {
+        let portScanner = MockPortScannerService()
+        let vm = makeVM(portScannerService: portScanner)
+        await vm.stopPortScan()
+        #expect(portScanner.stopCallCount == 1)
+    }
+
+    // MARK: - runNetworkScan
+
+    @Test func runNetworkScanCallsDiscoveryService() async {
+        let discovery = MockDeviceDiscoveryService()
+        let vm = makeVM(deviceDiscovery: discovery)
+        await vm.runNetworkScan()
+        #expect(discovery.scanCallCount == 1)
+    }
+
+    // MARK: - pingGateway
+
+    @Test func pingGatewaySetsLastResultWhenGatewayFound() async {
+        let gatewayService = MockGatewayService()
+        gatewayService.gateway = GatewayInfo(ipAddress: "192.168.1.1")
+        let vm = makeVM(gatewayService: gatewayService)
+        await vm.pingGateway()
+        #expect(vm.lastGatewayResult != nil)
+        #expect(vm.lastGatewayResult?.contains("192.168.1.1") == true)
+    }
+
+    @Test func pingGatewaySetsNoGatewayMessageWhenNoneFound() async {
+        let gatewayService = MockGatewayService()
+        gatewayService.gateway = nil
+        let vm = makeVM(gatewayService: gatewayService)
+        await vm.pingGateway()
+        #expect(vm.lastGatewayResult == "No gateway found")
+    }
+
+    @Test func pingGatewayCallsDetectGateway() async {
+        let gatewayService = MockGatewayService()
+        let vm = makeVM(gatewayService: gatewayService)
+        await vm.pingGateway()
+        #expect(gatewayService.detectCallCount == 1)
+    }
 }
