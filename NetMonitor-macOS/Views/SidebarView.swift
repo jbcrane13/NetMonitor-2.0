@@ -16,64 +16,77 @@ struct SidebarView: View {
     @Query private var targets: [NetworkTarget]
 
     var body: some View {
-        List(selection: $selection) {
-            Section {
-                ForEach(profileManager.profiles) { profile in
-                    SidebarRow(
-                        title: profile.displayName,
-                        icon: profile.connectionType.iconName,
-                        isSelected: selection == .network(profile.id),
-                        badge: profileManager.activeProfile?.id == profile.id ? "ACTIVE" : nil,
-                        badgeColor: .green
-                    )
-                    .tag(SidebarSelection.network(profile.id))
-                }
-            } header: {
-                HStack {
-                    Text("NETWORKS")
-                        .font(.system(size: 10, weight: .black))
-                        .foregroundStyle(.secondary)
-                        .tracking(1.5)
-                    Spacer()
-                    Button(action: onAddNetwork) {
-                        Image(systemName: "plus.square.fill")
-                            .font(.system(size: 14))
-                            .foregroundStyle(.secondary)
-                    }
-                    .buttonStyle(.plain)
-                }
-                .padding(.vertical, 4)
-            }
-
-            Section {
-                ForEach(NavigationSection.allCases) { section in
-                    SidebarRow(
-                        title: section.rawValue.uppercased(),
-                        icon: section.iconName,
-                        isSelected: selection == .section(section),
-                        badge: badgeText(for: section),
-                        badgeColor: badgeColor(for: section)
-                    )
-                    .tag(SidebarSelection.section(section))
-                }
-            } header: {
-                Text("COMMAND")
+        VStack(spacing: 0) {
+            // 1. Top Profile Selector (Frosted Dark)
+            VStack(alignment: .leading, spacing: 12) {
+                Text("NETWORK PROFILES")
                     .font(.system(size: 10, weight: .black))
                     .foregroundStyle(.secondary)
                     .tracking(1.5)
-                    .padding(.top, 12)
-                    .padding(.vertical, 4)
+                    .padding(.horizontal, 4)
+                
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(profileManager.profiles) { profile in
+                            ProfilePill(
+                                profile: profile,
+                                isActive: profileManager.activeProfile?.id == profile.id,
+                                isSelected: selection == .network(profile.id)
+                            )
+                            .onTapGesture {
+                                selection = .network(profile.id)
+                            }
+                        }
+                        
+                        Button(action: onAddNetwork) {
+                            Image(systemName: "plus.circle.fill")
+                                .font(.system(size: 20))
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .padding(.horizontal, 4)
+                }
             }
+            .padding(16)
+            .background(.ultraThinMaterial.opacity(0.1))
+            .overlay(Divider(), alignment: .bottom)
+
+            // 2. Main Navigation
+            List(selection: $selection) {
+                Section {
+                    ForEach(NavigationSection.allCases) { section in
+                        SidebarRow(
+                            title: section.rawValue.uppercased(),
+                            icon: section.iconName,
+                            isSelected: selection == .section(section),
+                            badge: badgeText(for: section),
+                            badgeColor: badgeColor(for: section)
+                        )
+                        .tag(SidebarSelection.section(section))
+                    }
+                } header: {
+                    Text("COMMAND")
+                        .font(.system(size: 10, weight: .black))
+                        .foregroundStyle(.secondary)
+                        .tracking(1.5)
+                        .padding(.top, 12)
+                }
+            }
+            .scrollContentBackground(.hidden)
         }
         .background(
             ZStack {
+                Color(hex: "08090B") // Deepest black base
+                
+                // Frosted Gradient
                 LinearGradient(
-                    colors: [MacTheme.Colors.deckBackground, MacTheme.Colors.deckConsole],
+                    colors: [Color.white.opacity(0.03), .clear],
                     startPoint: .top,
-                    endPoint: .bottom
+                    endPoint: .center
                 )
                 
-                // Subtle Vertical Line Texture
+                // Texture
                 GeometryReader { geo in
                     Path { path in
                         for x in stride(from: 0, to: geo.size.width, by: 4) {
@@ -81,13 +94,50 @@ struct SidebarView: View {
                             path.addLine(to: CGPoint(x: x, y: geo.size.height))
                         }
                     }
-                    .stroke(Color.white.opacity(0.015), lineWidth: 1)
+                    .stroke(Color.white.opacity(0.012), lineWidth: 1)
                 }
             }
         )
-        .scrollContentBackground(.hidden)
         .navigationTitle("NetMonitor")
-        .frame(minWidth: 240)
+        .frame(minWidth: 260)
+    }
+}
+
+struct ProfilePill: View {
+    let profile: NetworkProfile
+    let isActive: Bool
+    let isSelected: Bool
+    
+    var body: some View {
+        VStack(spacing: 4) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(isSelected ? MacTheme.Colors.sidebarActive : Color.white.opacity(0.05))
+                    .frame(width: 44, height: 44)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(isSelected ? MacTheme.Colors.sidebarActiveBorder : Color.white.opacity(0.1), lineWidth: 1)
+                    )
+                
+                Image(systemName: profile.connectionType.iconName)
+                    .font(.system(size: 18))
+                    .foregroundStyle(isSelected ? .white : .secondary)
+                
+                if isActive {
+                    Circle()
+                        .fill(Color.green)
+                        .frame(width: 8, height: 8)
+                        .overlay(Circle().stroke(Color.black, lineWidth: 1.5))
+                        .offset(x: 18, y: -18)
+                }
+            }
+            
+            Text(profile.displayName)
+                .font(.system(size: 9, weight: .bold))
+                .foregroundStyle(isSelected ? .white : .secondary)
+                .lineLimit(1)
+                .frame(width: 50)
+        }
     }
 }
 
