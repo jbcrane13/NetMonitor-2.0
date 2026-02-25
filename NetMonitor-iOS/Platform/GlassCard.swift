@@ -12,35 +12,45 @@ struct GlassCardModifier: ViewModifier {
         content
             .padding(padding)
             .background(
-                RoundedRectangle(cornerRadius: cornerRadius)
-                    .fill(
-                        LinearGradient(
-                            colors: [Theme.Colors.obsidianCardTop, Theme.Colors.obsidianCardBase],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
+                ZStack {
+                    // Base material
+                    RoundedRectangle(cornerRadius: cornerRadius)
+                        .fill(.ultraThinMaterial)
+                        .opacity(0.8)
+                    
+                    RoundedRectangle(cornerRadius: cornerRadius)
+                        .fill(Theme.Colors.glassBackground)
+
+                    // Crystal Shine
+                    LinearGradient(
+                        colors: [.white.opacity(0.08), .clear, .white.opacity(0.02)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
                     )
+                    .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
+                }
             )
             .overlay(
+                // Rim Light
                 RoundedRectangle(cornerRadius: cornerRadius)
                     .stroke(
                         LinearGradient(
-                            colors: [Theme.Colors.obsidianInnerHighlight, .clear],
+                            colors: [.white.opacity(0.2), .white.opacity(0.05), .clear],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         ),
-                        lineWidth: 1.5
+                        lineWidth: 1
                     )
             )
             .overlay(
                 RoundedRectangle(cornerRadius: cornerRadius)
-                    .stroke(Theme.Colors.obsidianBorder, lineWidth: showBorder ? 1 : 0)
+                    .stroke(Theme.Colors.glassBorder, lineWidth: showBorder ? 0.5 : 0)
             )
             .shadow(
-                color: Color.black.opacity(0.4),
-                radius: Theme.Shadows.cardRadius,
+                color: Color.black.opacity(0.25),
+                radius: 10,
                 x: 0,
-                y: Theme.Shadows.cardY
+                y: 5
             )
     }
 }

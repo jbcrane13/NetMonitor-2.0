@@ -8,8 +8,10 @@ struct DashboardView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: Theme.Layout.itemSpacing) {
+                VStack(spacing: Theme.Layout.sectionSpacing) {
                     TacticalHUDHeader(viewModel: viewModel)
+                    
+                    NetworkHealthHero(viewModel: viewModel)
                     
                     QuickStatsGrid(viewModel: viewModel)
                     
@@ -21,6 +23,8 @@ struct DashboardView: View {
                         viewModel: viewModel,
                         selectedNetwork: viewModel.activeNetwork
                     )
+                    
+                    LiveEventTicker()
                 }
                 .padding(.horizontal, Theme.Layout.screenPadding)
                 .padding(.top, Theme.Layout.smallCornerRadius)
@@ -73,6 +77,125 @@ struct ConnectionStatusHeader: View {
             Text(viewModel.isConnected ? "MONITORING" : "OFFLINE")
                 .font(.system(size: 11, weight: .bold, design: .monospaced))
                 .foregroundStyle(Theme.Colors.textSecondary)
+        }
+    }
+}
+
+struct NetworkHealthHero: View {
+    let viewModel: DashboardViewModel
+    @State private var isAnimating = false
+    
+    var healthScore: Int {
+        // Simple logic for health score based on latency
+        let latency = viewModel.gateway?.latency ?? 0
+        if !viewModel.isConnected { return 0 }
+        if latency < 20 { return 100 }
+        if latency < 50 { return 90 }
+        if latency < 100 { return 70 }
+        return 40
+    }
+    
+    var body: some View {
+        VStack(spacing: 16) {
+            ZStack {
+                // Background Glow
+                Circle()
+                    .fill(Theme.Colors.latencyColor(ms: viewModel.gateway?.latency ?? 0))
+                    .frame(width: 140, height: 140)
+                    .blur(radius: isAnimating ? 40 : 20)
+                    .opacity(0.15)
+                
+                // Track
+                Circle()
+                    .stroke(Color.white.opacity(0.05), lineWidth: 12)
+                    .frame(width: 160, height: 160)
+                
+                // Progress
+                Circle()
+                    .trim(from: 0, to: CGFloat(healthScore) / 100.0)
+                    .stroke(
+                        LinearGradient(
+                            colors: [Theme.Colors.latencyColor(ms: viewModel.gateway?.latency ?? 0), .white],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        style: StrokeStyle(lineWidth: 12, lineCap: .round)
+                    )
+                    .frame(width: 160, height: 160)
+                    .rotationEffect(.degrees(-90))
+                
+                VStack(spacing: 0) {
+                    Text("\(healthScore)%")
+                        .font(.system(size: 44, weight: .black, design: .rounded))
+                        .foregroundStyle(.white)
+                    Text("HEALTH")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(Theme.Colors.textTertiary)
+                        .tracking(2)
+                }
+            }
+            
+            Text(healthStatusText)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(Theme.Colors.textSecondary)
+        }
+        .padding(.vertical, 20)
+        .onAppear {
+            withAnimation(Theme.Animation.pulse) {
+                isAnimating = true
+            }
+        }
+    }
+    
+    private var healthStatusText: String {
+        if !viewModel.isConnected { return "NETWORK OFFLINE" }
+        switch healthScore {
+        case 90...100: return "OPTIMAL CONNECTION"
+        case 70..<90: return "NOMINAL PERFORMANCE"
+        case 40..<70: return "DEGRADED SIGNAL"
+        default: return "CRITICAL LATENCY"
+        }
+    }
+}
+
+struct LiveEventTicker: View {
+    var body: some View {
+        GlassCard(padding: 12) {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Image(systemName: "terminal")
+                        .font(.caption)
+                        .foregroundStyle(Theme.Colors.accent)
+                    Text("LIVE EVENTS")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(Theme.Colors.textSecondary)
+                        .tracking(1)
+                    Spacer()
+                    Circle().fill(Theme.Colors.success).frame(width: 4, height: 4)
+                }
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    EventRow(time: "04:32:10", text: "Gateway check: 14ms (Optimal)")
+                    EventRow(time: "04:31:45", text: "Local scan: 14 devices active")
+                    EventRow(time: "04:30:12", text: "Starlink connection stable")
+                }
+            }
+        }
+    }
+}
+
+struct EventRow: View {
+    let time: String
+    let text: String
+    var body: some View {
+        HStack(spacing: 8) {
+            Text(time)
+                .font(.system(size: 9, design: .monospaced))
+                .foregroundStyle(Theme.Colors.textTertiary)
+            Text(text)
+                .font(.system(size: 10, design: .monospaced))
+                .foregroundStyle(Theme.Colors.textSecondary)
+                .lineLimit(1)
         }
     }
 }
@@ -133,7 +256,7 @@ struct TacticalHUDHeader: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             .background(
-                Theme.Colors.obsidianCardBase
+                Theme.Colors.crystalBase
                     .opacity(0.5)
                     .blur(radius: 10)
                     .offset(y: 4)

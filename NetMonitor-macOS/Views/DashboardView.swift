@@ -98,7 +98,17 @@ struct DashboardView: View {
             }
             .padding(.vertical, compactMode ? 8 : 16)
         }
-        .background(MacTheme.Colors.deckRecessed)
+        .background(
+            ZStack {
+                MacTheme.Colors.deckRecessed
+                RadialGradient(
+                    colors: [Color(hex: "1E3A5F").opacity(0.15), .clear],
+                    center: .top,
+                    startRadius: 0,
+                    endRadius: 800
+                )
+            }
+        )
         .navigationTitle("Dashboard")
     }
 }
@@ -198,8 +208,17 @@ struct TargetStatusCard: View {
         .background(MacTheme.Colors.deckBackground)
         .clipShape(RoundedRectangle(cornerRadius: 6))
         .overlay(
+            // Specular Highlight
+            LinearGradient(
+                colors: [.white.opacity(0.05), .clear],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+        )
+        .overlay(
             RoundedRectangle(cornerRadius: 6)
-                .stroke(isHovering ? .white.opacity(0.2) : MacTheme.Colors.deckBorder, lineWidth: 1)
+                .stroke(isHovering ? .white.opacity(0.3) : MacTheme.Colors.deckBorder, lineWidth: 1)
         )
         .onHover { hovering in
             withAnimation(.easeInOut(duration: 0.2)) {
