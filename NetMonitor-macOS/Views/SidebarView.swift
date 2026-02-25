@@ -19,70 +19,132 @@ struct SidebarView: View {
         List(selection: $selection) {
             Section {
                 ForEach(profileManager.profiles) { profile in
-                    HStack {
-                        Label(profile.displayName, systemImage: profile.connectionType.iconName)
-                            .accessibilityIdentifier("sidebar_network_\(profile.id)")
-
-                        Spacer()
-
-                        if profileManager.activeProfile?.id == profile.id {
-                            Text("Active")
-                                .font(.caption2)
-                                .fontWeight(.semibold)
-                                .foregroundStyle(.white)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background(Color.green, in: Capsule())
-                                .accessibilityIdentifier("sidebar_network_badge_\(profile.id)")
-                        }
-                    }
+                    SidebarRow(
+                        title: profile.displayName,
+                        icon: profile.connectionType.iconName,
+                        isSelected: selection == .network(profile.id),
+                        badge: profileManager.activeProfile?.id == profile.id ? "ACTIVE" : nil,
+                        badgeColor: .green
+                    )
                     .tag(SidebarSelection.network(profile.id))
                 }
             } header: {
                 HStack {
-                    Text("Networks")
+                    Text("NETWORKS")
+                        .font(.system(size: 10, weight: .black))
+                        .foregroundStyle(.secondary)
+                        .tracking(1.5)
                     Spacer()
                     Button(action: onAddNetwork) {
-                        Image(systemName: "plus")
-                            .font(.caption)
+                        Image(systemName: "plus.square.fill")
+                            .font(.system(size: 14))
+                            .foregroundStyle(.secondary)
                     }
                     .buttonStyle(.plain)
-                    .accessibilityIdentifier("sidebar_add_network")
                 }
+                .padding(.vertical, 4)
             }
-            .accessibilityIdentifier("sidebar_networks_section")
 
-            Section("Navigation") {
+            Section {
                 ForEach(NavigationSection.allCases) { section in
-                    HStack {
-                        Label(section.rawValue, systemImage: section.iconName)
-                            .accessibilityIdentifier("sidebar_\(section.rawValue.lowercased())")
-
-                        Spacer()
-
-                        if let badge = badgeText(for: section) {
-                            Text(badge)
-                                .font(.caption2)
-                                .fontWeight(.semibold)
-                                .foregroundStyle(.white)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background(badgeColor(for: section), in: Capsule())
-                                .accessibilityIdentifier("sidebar_badge_\(section.rawValue.lowercased())")
-                        }
-                    }
+                    SidebarRow(
+                        title: section.rawValue.uppercased(),
+                        icon: section.iconName,
+                        isSelected: selection == .section(section),
+                        badge: badgeText(for: section),
+                        badgeColor: badgeColor(for: section)
+                    )
                     .tag(SidebarSelection.section(section))
                 }
+            } header: {
+                Text("COMMAND")
+                    .font(.system(size: 10, weight: .black))
+                    .foregroundStyle(.secondary)
+                    .tracking(1.5)
+                    .padding(.top, 12)
+                    .padding(.vertical, 4)
             }
-            .accessibilityIdentifier("sidebar_navigation_section")
         }
-        .background(MacTheme.Colors.deckBackground)
+        .background(
+            ZStack {
+                LinearGradient(
+                    colors: [MacTheme.Colors.deckBackground, MacTheme.Colors.deckConsole],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                
+                // Subtle Vertical Line Texture
+                GeometryReader { geo in
+                    Path { path in
+                        for x in stride(from: 0, to: geo.size.width, by: 4) {
+                            path.move(to: CGPoint(x: x, y: 0))
+                            path.addLine(to: CGPoint(x: x, y: geo.size.height))
+                        }
+                    }
+                    .stroke(Color.white.opacity(0.015), lineWidth: 1)
+                }
+            }
+        )
         .scrollContentBackground(.hidden)
         .navigationTitle("NetMonitor")
-        .frame(minWidth: 220)
-        .accessibilityIdentifier("sidebar_navigation")
+        .frame(minWidth: 240)
     }
+}
 
+struct SidebarRow: View {
+    let title: String
+    let icon: String
+    let isSelected: Bool
+    let badge: String?
+    let badgeColor: Color
+    
+    var body: some View {
+        HStack(spacing: 10) {
+            // Active Indicator
+            if isSelected {
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(MacTheme.Colors.sidebarActiveBorder)
+                    .frame(width: 3, height: 16)
+                    .shadow(color: MacTheme.Colors.sidebarActiveBorder.opacity(0.5), radius: 4)
+            } else {
+                Spacer().frame(width: 3)
+            }
+            
+            Image(systemName: icon)
+                .font(.system(size: 14, weight: isSelected ? .bold : .medium))
+                .foregroundStyle(isSelected ? MacTheme.Colors.sidebarActiveBorder : .secondary)
+                .frame(width: 20)
+            
+            Text(title)
+                .font(.system(size: 13, weight: isSelected ? .bold : .semibold))
+                .foregroundStyle(isSelected ? .white : MacTheme.Colors.sidebarTextSecondary)
+            
+            Spacer()
+            
+            if let badge = badge {
+                Text(badge)
+                    .font(.system(size: 9, weight: .black, design: .monospaced))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(badgeColor.opacity(isSelected ? 0.8 : 0.4), in: RoundedRectangle(cornerRadius: 4))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 4)
+                            .stroke(badgeColor.opacity(0.5), lineWidth: 1)
+                    )
+            }
+        }
+        .padding(.vertical, 6)
+        .padding(.horizontal, 8)
+        .background(
+            isSelected ? MacTheme.Colors.sidebarActive.opacity(0.5) : Color.clear,
+            in: RoundedRectangle(cornerRadius: 6)
+        )
+        .contentShape(Rectangle())
+    }
+}
+
+extension SidebarView {
     private func badgeText(for section: NavigationSection) -> String? {
         switch section {
         case .dashboard, .targets:

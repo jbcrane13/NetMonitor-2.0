@@ -39,11 +39,17 @@ enum MacTheme {
 
         // MARK: - Command Deck Tokens
 
-        static let deckBackground = Color(hex: "0A0C10")
+        static let deckBackground = Color(hex: "08090B")
         static let deckConsole = Color(hex: "12151A")
-        static let deckRecessed = Color(hex: "07080A")
-        static let deckBorder = Color.white.opacity(0.08)
-        static let deckHighlight = Color.white.opacity(0.04)
+        static let deckRecessed = Color(hex: "050608")
+        static let deckBorder = Color.white.opacity(0.12)
+        static let deckHighlight = Color.white.opacity(0.06)
+        
+        // Sidebar Specific
+        static let sidebarActive = Color(hex: "1E2329")
+        static let sidebarActiveBorder = Color(hex: "06B6D4") // Cyan Neon
+        static let sidebarTextPrimary = Color.white
+        static let sidebarTextSecondary = Color.white.opacity(0.6)
 
         // MARK: - Latency color helper
 

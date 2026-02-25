@@ -11,9 +11,18 @@ struct DashboardView: View {
 
     var body: some View {
         ScrollView {
-            VStack(spacing: compactMode ? 12 : 20) {
-                // Header
+            VStack(spacing: compactMode ? 16 : 24) {
+                // Unified Instrument Panel
+                InstrumentPanel(session: session)
+                    .padding(.horizontal)
+
+                // Header / Monitoring Controls
                 HStack {
+                    Text("TARGET MONITORING")
+                        .font(.system(size: 11, weight: .black))
+                        .foregroundStyle(.secondary)
+                        .tracking(1.5)
+                    
                     Spacer()
 
                     // Start/Stop Button
@@ -26,13 +35,14 @@ struct DashboardView: View {
                             }
                         }) {
                             Label(
-                                session.isMonitoring ? "Stop Monitoring" : "Start Monitoring",
-                                systemImage: session.isMonitoring ? "stop.circle.fill" : "play.circle.fill"
+                                session.isMonitoring ? "STOP" : "START",
+                                systemImage: session.isMonitoring ? "stop.fill" : "play.fill"
                             )
+                            .font(.system(size: 11, weight: .black))
                         }
                         .buttonStyle(.borderedProminent)
                         .tint(session.isMonitoring ? .red : .green)
-                        .accessibilityIdentifier("dashboard_button_monitoring_toggle")
+                        .controlSize(.small)
                     }
                 }
                 .padding(.horizontal)
@@ -115,11 +125,136 @@ struct DashboardView: View {
 
 // MARK: - Target Status Card
 
+struct InstrumentPanel: View {
+    let session: MonitoringSession?
+    
+    var body: some View {
+        HStack(spacing: 16) {
+            // Widescreen Topology
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Image(systemName: "point.3.connected.trianglepath.dotted")
+                        .foregroundStyle(.cyan)
+                    Text("LOCAL LINK TOPOLOGY")
+                        .font(.system(size: 10, weight: .black))
+                        .foregroundStyle(.secondary)
+                        .tracking(1.5)
+                }
+                
+                DashboardTopologyView(isMonitoring: session?.isMonitoring ?? false)
+            }
+            .padding(16)
+            .background(MacTheme.Colors.deckBackground)
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .overlay(RoundedRectangle(cornerRadius: 10).stroke(MacTheme.Colors.deckBorder, lineWidth: 1))
+            .frame(maxWidth: .infinity)
+            
+            // High-Resolution Jitter
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Image(systemName: "waveform.path.ecg")
+                        .foregroundStyle(.green)
+                    Text("SIGNAL STABILITY (JITTER)")
+                        .font(.system(size: 10, weight: .black))
+                        .foregroundStyle(.secondary)
+                        .tracking(1.5)
+                }
+                
+                DashboardJitterView(isMonitoring: session?.isMonitoring ?? false)
+            }
+            .padding(16)
+            .background(MacTheme.Colors.deckBackground)
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .overlay(RoundedRectangle(cornerRadius: 10).stroke(MacTheme.Colors.deckBorder, lineWidth: 1))
+            .frame(width: 300)
+        }
+    }
+}
+
+struct DashboardTopologyView: View {
+    let isMonitoring: Bool
+    @State private var packetOffset: CGFloat = 0
+    
+    var body: some View {
+        HStack(spacing: 0) {
+            MacNode(icon: "macbook.gen3", label: "HOST")
+            MacLink(active: isMonitoring, color: .cyan, offset: packetOffset)
+            MacNode(icon: "server.rack", label: "GATEWAY")
+            MacLink(active: isMonitoring, color: .green, offset: packetOffset)
+            MacNode(icon: "globe.americas.fill", label: "WAN")
+        }
+        .onAppear {
+            withAnimation(.linear(duration: 3.0).repeatForever(autoreverses: false)) {
+                packetOffset = 1.0
+            }
+        }
+    }
+}
+
+struct MacNode: View {
+    let icon: String
+    let label: String
+    var body: some View {
+        VStack(spacing: 8) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(MacTheme.Colors.deckConsole)
+                    .frame(width: 44, height: 44)
+                    .overlay(RoundedRectangle(cornerRadius: 8).stroke(.white.opacity(0.1), lineWidth: 1))
+                Image(systemName: icon)
+                    .font(.system(size: 18))
+            }
+            Text(label)
+                .font(.system(size: 8, weight: .black))
+                .foregroundStyle(.secondary)
+        }
+        .frame(width: 60)
+    }
+}
+
+struct MacLink: View {
+    let active: Bool
+    let color: Color
+    let offset: CGFloat
+    var body: some View {
+        GeometryReader { geo in
+            ZStack {
+                Rectangle().fill(Color.white.opacity(0.05)).frame(height: 2)
+                if active {
+                    Rectangle().fill(color.opacity(0.2)).frame(height: 2)
+                    Circle().fill(.white).frame(width: 4, height: 4)
+                        .shadow(color: color, radius: 4)
+                        .offset(x: -geo.size.width/2 + (geo.size.width * offset))
+                }
+            }
+            .frame(maxHeight: .infinity)
+        }
+        .frame(height: 44)
+    }
+}
+
+struct DashboardJitterView: View {
+    let isMonitoring: Bool
+    var body: some View {
+        HStack(alignment: .bottom, spacing: 2) {
+            ForEach(0..<30, id: \.self) { i in
+                let height = isMonitoring ? CGFloat.random(in: 4...24) : 4
+                RoundedRectangle(cornerRadius: 1)
+                    .fill(isMonitoring ? Color.green.opacity(0.6) : Color.white.opacity(0.1))
+                    .frame(height: height)
+                    .animation(.spring(response: 0.2, dampingFraction: 0.5), value: height)
+            }
+        }
+        .frame(height: 24)
+    }
+}
+
 struct TargetStatusCard: View {
     let target: NetworkTarget
     let measurement: TargetMeasurement?
 
     @State private var isHovering = false
+    @State private var sweepOffset: CGFloat = -1.0
 
     // Simulate history based on latest measurement
     var simulatedHistory: [Double] {
@@ -208,12 +343,19 @@ struct TargetStatusCard: View {
         .background(MacTheme.Colors.deckBackground)
         .clipShape(RoundedRectangle(cornerRadius: 6))
         .overlay(
-            // Specular Highlight
-            LinearGradient(
-                colors: [.white.opacity(0.05), .clear],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
+            // Scanner Sweep Animation
+            GeometryReader { geo in
+                Rectangle()
+                    .fill(
+                        LinearGradient(
+                            colors: [.clear, .white.opacity(0.1), .clear],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .frame(width: 100)
+                    .offset(x: geo.size.width * sweepOffset)
+            }
             .clipShape(RoundedRectangle(cornerRadius: 6))
         )
         .overlay(
@@ -223,6 +365,11 @@ struct TargetStatusCard: View {
         .onHover { hovering in
             withAnimation(.easeInOut(duration: 0.2)) {
                 isHovering = hovering
+            }
+        }
+        .onAppear {
+            withAnimation(.linear(duration: 4.0).repeatForever(autoreverses: false)) {
+                sweepOffset = 1.5
             }
         }
     }
