@@ -36,25 +36,30 @@ final class WiFiInfoService: NSObject, WiFiInfoServiceProtocol {
             return
         }
         // NEHotspotNetwork.fetchCurrent() can return nil on first call —
-        // retry a few times with increasing delay to handle iOS quirks
+        // retry once with a short delay, then fall back to legacy API.
+        // Avoid excessive retries as each call logs "nehelper sent invalid
+        // result code [1]" when the entitlement or WiFi info is unavailable.
         retryTask = Task {
-            for attempt in 0..<4 {
+            // Try modern API first (1 attempt + 1 retry)
+            for attempt in 0..<2 {
                 if attempt > 0 {
-                    try? await Task.sleep(for: .milliseconds(500 * attempt))
+                    try? await Task.sleep(for: .milliseconds(500))
                     guard !Task.isCancelled else { return }
                 }
-                
+
                 if let info = await fetchWiFiInfoModern() {
                     currentWiFi = info
                     return
                 }
-                
-                if let info = fetchWiFiInfoLegacy() {
-                    currentWiFi = info
-                    return
-                }
             }
-            // All retries exhausted — clear any stale data
+
+            // Fall back to legacy API (no log spam)
+            if let info = fetchWiFiInfoLegacy() {
+                currentWiFi = info
+                return
+            }
+
+            // All attempts exhausted — clear any stale data
             currentWiFi = nil
         }
         #endif

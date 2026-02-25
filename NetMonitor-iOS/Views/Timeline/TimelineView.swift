@@ -109,6 +109,7 @@ struct TimelineView: View {
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 40)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .accessibilityIdentifier("timeline_empty_state")
     }
 }
