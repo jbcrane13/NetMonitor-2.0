@@ -1,0 +1,11 @@
+{
+  "ok": 1,
+  "request_id": "real-format-abc-123",
+  "nodes": {
+    "at1.node.check-host.net": ["at", "Austria", "Vienna", "185.224.3.111", "AS64457"],
+    "us1.node.check-host.net": ["us", "United States", "Ashburn", "104.21.1.1", "AS13335"],
+    "jp1.node.check-host.net": ["jp", "Japan", "Tokyo", "203.0.113.5", "AS7506"],
+    "gb1.node.check-host.net": ["gb", "United Kingdom", "London", "91.108.4.1", "AS62041"],
+    "au1.node.check-host.net": ["au", "Australia", "Sydney", "203.2.218.1", "AS38197"]
+  }
+}
