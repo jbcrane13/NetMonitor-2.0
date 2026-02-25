@@ -13,14 +13,31 @@ struct GlassCardModifier: ViewModifier {
             .padding(padding)
             .background(
                 RoundedRectangle(cornerRadius: cornerRadius)
-                    .fill(Theme.Colors.glassBackground)
+                    .fill(
+                        LinearGradient(
+                            colors: [Theme.Colors.obsidianCardTop, Theme.Colors.obsidianCardBase],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
             )
             .overlay(
                 RoundedRectangle(cornerRadius: cornerRadius)
-                    .stroke(Theme.Colors.glassBorder, lineWidth: showBorder ? 1 : 0)
+                    .stroke(
+                        LinearGradient(
+                            colors: [Theme.Colors.obsidianInnerHighlight, .clear],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: 1.5
+                    )
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: cornerRadius)
+                    .stroke(Theme.Colors.obsidianBorder, lineWidth: showBorder ? 1 : 0)
             )
             .shadow(
-                color: Theme.Shadows.card,
+                color: Color.black.opacity(0.4),
                 radius: Theme.Shadows.cardRadius,
                 x: 0,
                 y: Theme.Shadows.cardY

@@ -81,43 +81,63 @@ struct TacticalHUDHeader: View {
     let viewModel: DashboardViewModel
     
     var body: some View {
-        GlassCard {
-            VStack(alignment: .leading, spacing: Theme.Layout.itemSpacing) {
-                HStack(alignment: .top) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack(spacing: 8) {
-                            Image(systemName: viewModel.connectionType.iconName)
-                                .foregroundStyle(Theme.Colors.accent)
-                                .symbolEffect(.variableColor.reversing, isActive: viewModel.isScanning)
-                            Text(viewModel.activeNetwork?.displayName ?? viewModel.currentWiFi?.ssid ?? "Unknown Network")
-                                .font(.headline)
-                                .foregroundStyle(Theme.Colors.textPrimary)
+        VStack(spacing: 0) {
+            GlassCard(padding: 16) {
+                VStack(alignment: .leading, spacing: Theme.Layout.itemSpacing) {
+                    HStack(alignment: .top) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack(spacing: 8) {
+                                Image(systemName: viewModel.connectionType.iconName)
+                                    .foregroundStyle(Theme.Colors.accent)
+                                    .symbolEffect(.variableColor.reversing, isActive: viewModel.isScanning)
+                                Text(viewModel.activeNetwork?.displayName ?? viewModel.currentWiFi?.ssid ?? "Unknown Network")
+                                    .font(.system(size: 18, weight: .bold, design: .rounded))
+                                    .foregroundStyle(
+                                        LinearGradient(
+                                            colors: [.white, .white.opacity(0.8)],
+                                            startPoint: .top,
+                                            endPoint: .bottom
+                                        )
+                                    )
+                            }
+                            
+                            Text(viewModel.ispInfo?.ispName ?? "Detecting ISP...")
+                                .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                                .foregroundStyle(Theme.Colors.textSecondary)
+                            Text(viewModel.ispInfo?.publicIP ?? "---.---.---.---")
+                                .font(.system(size: 12, design: .monospaced))
+                                .foregroundStyle(Theme.Colors.textTertiary)
                         }
                         
-                        Text(viewModel.ispInfo?.ispName ?? "Detecting ISP...")
-                            .font(.system(size: 12, design: .monospaced))
-                            .foregroundStyle(Theme.Colors.textSecondary)
-                        Text(viewModel.ispInfo?.publicIP ?? "---.---.---.---")
-                            .font(.system(size: 12, design: .monospaced))
-                            .foregroundStyle(Theme.Colors.textTertiary)
-                    }
-                    
-                    Spacer()
-                    
-                    VStack(alignment: .trailing, spacing: 4) {
-                        Text("\(viewModel.gateway?.latency ?? 0, specifier: "%.0f") ms")
-                            .font(.system(size: 18, weight: .bold, design: .rounded))
-                            .foregroundStyle(Theme.Colors.latencyColor(ms: viewModel.gateway?.latency ?? 0))
+                        Spacer()
                         
-                        if let dbm = viewModel.currentWiFi?.signalDBm {
-                            Text("\(dbm) dBm")
-                                .font(.system(size: 12, design: .monospaced))
-                                .foregroundStyle(Theme.Colors.textSecondary)
+                        VStack(alignment: .trailing, spacing: 4) {
+                            Text("\(viewModel.gateway?.latency ?? 0, specifier: "%.0f") ms")
+                                .font(.system(size: 22, weight: .bold, design: .rounded))
+                                .foregroundStyle(
+                                    LinearGradient(
+                                        colors: [Theme.Colors.latencyColor(ms: viewModel.gateway?.latency ?? 0), .white.opacity(0.8)],
+                                        startPoint: .top,
+                                        endPoint: .bottom
+                                    )
+                                )
+                            
+                            if let dbm = viewModel.currentWiFi?.signalDBm {
+                                Text("\(dbm) dBm")
+                                    .font(.system(size: 12, weight: .medium, design: .monospaced))
+                                    .foregroundStyle(Theme.Colors.textSecondary)
+                            }
                         }
                     }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                Theme.Colors.obsidianCardBase
+                    .opacity(0.5)
+                    .blur(radius: 10)
+                    .offset(y: 4)
+            )
         }
     }
 }

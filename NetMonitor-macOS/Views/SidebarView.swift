@@ -76,6 +76,8 @@ struct SidebarView: View {
             }
             .accessibilityIdentifier("sidebar_navigation_section")
         }
+        .background(MacTheme.Colors.deckBackground)
+        .scrollContentBackground(.hidden)
         .navigationTitle("NetMonitor")
         .frame(minWidth: 220)
         .accessibilityIdentifier("sidebar_navigation")

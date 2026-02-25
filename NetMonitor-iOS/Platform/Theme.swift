@@ -9,8 +9,8 @@ enum Theme {
     // MARK: - Colors
     enum Colors {
         // Background gradient colors
-        static let backgroundGradientStart = Color(hex: "000000") // pure black
-        static let backgroundGradientEnd = Color(hex: "050505")   // very dark gray
+        static let backgroundGradientStart = Color(hex: "0C0E12") // deep obsidian
+        static let backgroundGradientEnd = Color(hex: "020202")   // absolute black
 
         // Primary accent — reads from ThemeManager for reactive updates
         @MainActor static var accent: Color { ThemeManager.shared.accent }
@@ -24,13 +24,18 @@ enum Theme {
         
         // Text colors
         static let textPrimary = Color.white
-        static let textSecondary = Color.white.opacity(0.6)
-        static let textTertiary = Color.white.opacity(0.4)
+        static let textSecondary = Color.white.opacity(0.65)
+        static let textTertiary = Color.white.opacity(0.45)
         
-        // Glass card colors - subtle tint for true glass effect
-        @MainActor static var glassBackground: Color { Color(hex: "121212") } // dark charcoal
-        static let glassBorder = Color.white.opacity(0.08)
-        static let glassHighlight = Color.white.opacity(0.02)
+        // Obsidian design tokens
+        static let obsidianCardBase = Color(hex: "14171C")
+        static let obsidianCardTop = Color(hex: "1E232A")
+        static let obsidianInnerHighlight = Color.white.opacity(0.06)
+        static let obsidianBorder = Color.white.opacity(0.1)
+        
+        @MainActor static var glassBackground: Color { obsidianCardBase }
+        static let glassBorder = obsidianBorder
+        static let glassHighlight = obsidianInnerHighlight
         
         // Status colors
         static let online = success

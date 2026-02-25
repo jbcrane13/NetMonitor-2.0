@@ -1,6 +1,7 @@
 import SwiftUI
 
 /// A shared Sparkline view to visualize an array of Double values (e.g., latency, signal strength)
+/// Enhanced with vertical gradient "volume" for a more professional instrument feel.
 public struct HistorySparkline: View {
     public let data: [Double]
     public let color: Color
@@ -23,41 +24,76 @@ public struct HistorySparkline: View {
                 
                 let stepX = geometry.size.width / CGFloat(data.count - 1)
                 
-                Path { path in
-                    for i in 0..<data.count {
-                        let val = data[i]
-                        let normalizedVal = CGFloat((val - minVal) / range)
-                        let y = geometry.size.height - (normalizedVal * geometry.size.height)
-                        let x = CGFloat(i) * stepX
-                        
-                        if i == 0 {
-                            path.move(to: CGPoint(x: x, y: y))
-                        } else {
-                            path.addLine(to: CGPoint(x: x, y: y))
+                ZStack {
+                    // 1. The Fill (Volume)
+                    Path { path in
+                        for i in 0..<data.count {
+                            let val = data[i]
+                            let normalizedVal = CGFloat((val - minVal) / range)
+                            let y = geometry.size.height - (normalizedVal * geometry.size.height)
+                            let x = CGFloat(i) * stepX
+                            
+                            if i == 0 {
+                                path.move(to: CGPoint(x: x, y: y))
+                            } else {
+                                path.addLine(to: CGPoint(x: x, y: y))
+                            }
+                        }
+                        // Close the path to create a fillable shape
+                        path.addLine(to: CGPoint(x: geometry.size.width, y: geometry.size.height))
+                        path.addLine(to: CGPoint(x: 0, y: geometry.size.height))
+                        path.closeSubpath()
+                    }
+                    .fill(
+                        LinearGradient(
+                            gradient: Gradient(colors: [color.opacity(0.3), color.opacity(0.0)]),
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+                    
+                    // 2. The Line (Stroke)
+                    Path { path in
+                        for i in 0..<data.count {
+                            let val = data[i]
+                            let normalizedVal = CGFloat((val - minVal) / range)
+                            let y = geometry.size.height - (normalizedVal * geometry.size.height)
+                            let x = CGFloat(i) * stepX
+                            
+                            if i == 0 {
+                                path.move(to: CGPoint(x: x, y: y))
+                            } else {
+                                path.addLine(to: CGPoint(x: x, y: y))
+                            }
                         }
                     }
-                }
-                .stroke(color, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round, lineJoin: .round))
-                .shadow(color: color.opacity(0.4), radius: 4, x: 0, y: 0)
-                
-                if showPulse, let lastVal = data.last {
-                    let normalizedVal = CGFloat((lastVal - minVal) / range)
-                    let y = geometry.size.height - (normalizedVal * geometry.size.height)
-                    let x = geometry.size.width
+                    .stroke(color, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round, lineJoin: .round))
+                    .shadow(color: color.opacity(0.3), radius: 3, x: 0, y: 0)
                     
-                    Circle()
-                        .fill(color)
-                        .frame(width: lineWidth * 3, height: lineWidth * 3)
-                        .position(x: x, y: y)
-                        .shadow(color: color.opacity(0.8), radius: 6, x: 0, y: 0)
+                    // 3. The Pulse Node
+                    if showPulse, let lastVal = data.last {
+                        let normalizedVal = CGFloat((lastVal - minVal) / range)
+                        let y = geometry.size.height - (normalizedVal * geometry.size.height)
+                        let x = geometry.size.width
+                        
+                        Circle()
+                            .fill(.white)
+                            .frame(width: lineWidth * 1.5, height: lineWidth * 1.5)
+                            .position(x: x, y: y)
+                        
+                        Circle()
+                            .stroke(color, lineWidth: 1)
+                            .frame(width: lineWidth * 4, height: lineWidth * 4)
+                            .position(x: x, y: y)
+                            .shadow(color: color, radius: 4)
+                    }
                 }
             } else {
-                // Not enough data, draw a flat line or nothing
                 Path { path in
                     path.move(to: CGPoint(x: 0, y: geometry.size.height / 2))
                     path.addLine(to: CGPoint(x: geometry.size.width, y: geometry.size.height / 2))
                 }
-                .stroke(color.opacity(0.3), style: StrokeStyle(lineWidth: lineWidth, lineCap: .round, lineJoin: .round))
+                .stroke(color.opacity(0.2), style: StrokeStyle(lineWidth: lineWidth, lineCap: .round, lineJoin: .round))
             }
         }
     }

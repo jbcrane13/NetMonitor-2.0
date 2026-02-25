@@ -98,6 +98,7 @@ struct DashboardView: View {
             }
             .padding(.vertical, compactMode ? 8 : 16)
         }
+        .background(MacTheme.Colors.deckRecessed)
         .navigationTitle("Dashboard")
     }
 }
@@ -108,56 +109,72 @@ struct TargetStatusCard: View {
     let target: NetworkTarget
     let measurement: TargetMeasurement?
 
+    @State private var isHovering = false
+
     // Simulate history based on latest measurement
     var simulatedHistory: [Double] {
         let base = measurement?.latency ?? 20.0
-        return (0..<15).map { _ in max(1, base + Double.random(in: -5...5)) }
+        return (0..<20).map { _ in max(1, base + Double.random(in: -5...5)) }
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 0) {
             // Header
             HStack {
                 Image(systemName: target.targetProtocol.iconName)
-                    .foregroundStyle(.secondary)
-                    .font(.caption)
+                    .foregroundStyle(isHovering ? .white : .secondary)
+                    .font(.system(size: 10, weight: .bold))
 
-                Text(target.name)
-                    .font(.system(size: 13, weight: .bold))
+                Text(target.name.uppercased())
+                    .font(.system(size: 11, weight: .black, design: .monospaced))
+                    .tracking(1.0)
 
                 Spacer()
 
-                // Status Indicator
+                // Status Indicator with Pulse
                 Circle()
                     .fill(statusColor)
                     .frame(width: 6, height: 6)
-                    .shadow(color: statusColor.opacity(0.8), radius: 4, x: 0, y: 0)
+                    .shadow(color: statusColor.opacity(0.8), radius: isHovering ? 6 : 3, x: 0, y: 0)
             }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .background(MacTheme.Colors.deckConsole)
 
-            // Host
-            Text(target.host)
-                .font(.system(size: 11, design: .monospaced))
-                .foregroundStyle(.secondary)
+            Divider()
+                .background(MacTheme.Colors.deckBorder)
 
-            // Sparkline
-            HistorySparkline(data: simulatedHistory, color: statusColor, lineWidth: 1.5, showPulse: true)
-                .frame(height: 30)
-                .padding(.vertical, 4)
+            VStack(alignment: .leading, spacing: 8) {
+                // Host
+                Text(target.host)
+                    .font(.system(size: 10, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .padding(.top, 8)
 
-            // Metrics
-            if let measurement = measurement {
+                // Sparkline (Recessed)
+                ZStack {
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(MacTheme.Colors.deckRecessed)
+                    
+                    HistorySparkline(data: simulatedHistory, color: statusColor, lineWidth: 1.5, showPulse: true)
+                        .padding(4)
+                }
+                .frame(height: 34)
+
+                // Metrics
                 HStack(alignment: .bottom) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("LATENCY")
-                            .font(.system(size: 9, weight: .bold))
+                            .font(.system(size: 8, weight: .bold))
                             .foregroundStyle(.secondary)
 
-                        if let latency = measurement.latency {
-                            Text(latency < 1 ? "<1 ms" : String(format: "%.0f ms", latency))
-                                .font(.system(size: 16, weight: .bold, design: .monospaced))
+                        if let latency = measurement?.latency {
+                            Text(String(format: "%.1fms", latency))
+                                .font(.system(size: 15, weight: .bold, design: .monospaced))
+                                .foregroundStyle(MacTheme.Colors.latencyColor(ms: latency))
                         } else {
                             Text("—")
-                                .font(.system(size: 16, weight: .bold, design: .monospaced))
+                                .font(.system(size: 15, weight: .bold, design: .monospaced))
                                 .foregroundStyle(.secondary)
                         }
                     }
@@ -165,28 +182,30 @@ struct TargetStatusCard: View {
                     Spacer()
 
                     VStack(alignment: .trailing, spacing: 2) {
-                        Text("STATUS")
-                            .font(.system(size: 9, weight: .bold))
+                        Text("SIGNAL")
+                            .font(.system(size: 8, weight: .bold))
                             .foregroundStyle(.secondary)
 
-                        Text(measurement.isReachable ? "ONLINE" : "OFFLINE")
-                            .font(.system(size: 11, weight: .bold))
-                            .foregroundStyle(measurement.isReachable ? .green : .red)
+                        Text(measurement?.isReachable ?? false ? "NOMINAL" : "LOST")
+                            .font(.system(size: 10, weight: .black))
+                            .foregroundStyle(measurement?.isReachable ?? false ? .green : .red)
                     }
                 }
-            } else {
-                Text("Waiting for data...")
-                    .font(.system(size: 11, design: .monospaced))
-                    .foregroundStyle(.secondary)
+                .padding(.bottom, 8)
+            }
+            .padding(.horizontal, 10)
+        }
+        .background(MacTheme.Colors.deckBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 6))
+        .overlay(
+            RoundedRectangle(cornerRadius: 6)
+                .stroke(isHovering ? .white.opacity(0.2) : MacTheme.Colors.deckBorder, lineWidth: 1)
+        )
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.2)) {
+                isHovering = hovering
             }
         }
-        .padding(12)
-        .background(Color(white: 0.1)) // Dark charcoal background
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-        .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(Color.white.opacity(0.1), lineWidth: 1)
-        )
     }
 
     private var statusColor: Color {

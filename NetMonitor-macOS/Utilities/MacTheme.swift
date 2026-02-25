@@ -37,6 +37,14 @@ enum MacTheme {
         /// Equivalent to `Color.black.opacity(0.1)`.
         static let subtleBackgroundLight = Color.black.opacity(0.1)
 
+        // MARK: - Command Deck Tokens
+
+        static let deckBackground = Color(hex: "0A0C10")
+        static let deckConsole = Color(hex: "12151A")
+        static let deckRecessed = Color(hex: "07080A")
+        static let deckBorder = Color.white.opacity(0.08)
+        static let deckHighlight = Color.white.opacity(0.04)
+
         // MARK: - Latency color helper
 
         /// Returns a color representing the quality of a latency measurement.
