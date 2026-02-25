@@ -188,8 +188,8 @@ public final class SpeedTestService: SpeedTestServiceProtocol {
                         try Task.checkCancellation()
                         var request = URLRequest(url: url)
                         request.httpMethod = "POST"
-                        request.httpBody = uploadData
                         request.setValue("application/octet-stream", forHTTPHeaderField: "Content-Type")
+                        request.setValue(String(uploadData.count), forHTTPHeaderField: "Content-Length")
                         request.timeoutInterval = 10
                         let (_, response) = try await session.upload(for: request, from: uploadData)
                         guard let http = response as? HTTPURLResponse,
