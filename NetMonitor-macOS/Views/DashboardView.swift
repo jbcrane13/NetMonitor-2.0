@@ -113,9 +113,9 @@ struct DashboardView: View {
         }
         .background(
             ZStack {
-                MacTheme.Colors.deckRecessed
+                Color(hex: "020202")
                 RadialGradient(
-                    colors: [Color(hex: "1E3A5F").opacity(0.12), .clear],
+                    colors: [Color(hex: "0F172A").opacity(0.4), .clear],
                     center: .top,
                     startRadius: 0,
                     endRadius: 1000
@@ -308,9 +308,37 @@ struct InstrumentWidget<Content: View>: View {
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(MacTheme.Colors.deckBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-        .overlay(RoundedRectangle(cornerRadius: 8).stroke(MacTheme.Colors.deckBorder, lineWidth: 1))
+        .background(
+            ZStack {
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(.ultraThinMaterial)
+                    .opacity(0.8)
+                
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(MacTheme.Colors.crystalBase)
+
+                // Crystal Shine
+                LinearGradient(
+                    colors: [.white.opacity(0.08), .clear, .white.opacity(0.02)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+            }
+        )
+        .overlay(
+            // Rim Light
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(
+                    LinearGradient(
+                        colors: [.white.opacity(0.2), .white.opacity(0.05), .clear],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 1
+                )
+        )
+        .overlay(RoundedRectangle(cornerRadius: 10).stroke(MacTheme.Colors.deckBorder, lineWidth: 0.5))
     }
 }
 
@@ -426,27 +454,39 @@ struct TargetStatusCard: View {
             }
             .padding(.horizontal, 10)
         }
-        .background(MacTheme.Colors.deckBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 6))
-        .overlay(
-            // Scanner Sweep Animation
-            GeometryReader { geo in
-                Rectangle()
-                    .fill(
-                        LinearGradient(
-                            colors: [.clear, .white.opacity(0.1), .clear],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
-                    .frame(width: 100)
-                    .offset(x: geo.size.width * sweepOffset)
+        .background(
+            ZStack {
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(.ultraThinMaterial)
+                    .opacity(0.8)
+                
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(MacTheme.Colors.crystalBase)
+
+                // Crystal Shine
+                LinearGradient(
+                    colors: [.white.opacity(0.08), .clear, .white.opacity(0.02)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 10))
             }
-            .clipShape(RoundedRectangle(cornerRadius: 6))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 6)
-                .stroke(isHovering ? .white.opacity(0.3) : MacTheme.Colors.deckBorder, lineWidth: 1)
+            // Rim Light
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(
+                    LinearGradient(
+                        colors: [.white.opacity(0.2), .white.opacity(0.05), .clear],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 1
+                )
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(isHovering ? .white.opacity(0.3) : MacTheme.Colors.deckBorder, lineWidth: 0.5)
         )
         .onHover { hovering in
             withAnimation(.easeInOut(duration: 0.2)) {

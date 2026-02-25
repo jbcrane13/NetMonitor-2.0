@@ -61,7 +61,7 @@ enum NetworkTool: String, CaseIterable, Identifiable {
 }
 
 struct ToolsView: View {
-    @State private var selectedTool: NetworkTool?
+    @Binding var selection: SidebarSelection?
 
     private let columns = [
         GridItem(.adaptive(minimum: 140, maximum: 180), spacing: 16)
@@ -73,7 +73,7 @@ struct ToolsView: View {
                 ForEach(NetworkTool.allCases) { tool in
                     ToolCard(tool: tool)
                         .onTapGesture {
-                            selectedTool = tool
+                            selection = .tool(tool)
                         }
                         .accessibilityIdentifier("tools_card_\(tool.rawValue.lowercased().replacingOccurrences(of: " ", with: "_"))")
                 }
@@ -81,39 +81,6 @@ struct ToolsView: View {
             .padding()
         }
         .navigationTitle("Network Tools")
-        .sheet(item: $selectedTool) { tool in
-            toolSheet(for: tool)
-        }
-    }
-
-    @ViewBuilder
-    private func toolSheet(for tool: NetworkTool) -> some View {
-        switch tool {
-        case .ping:
-            PingToolView()
-        case .traceroute:
-            TracerouteToolView()
-        case .portScanner:
-            PortScannerToolView()
-        case .dnsLookup:
-            DNSLookupToolView()
-        case .whois:
-            WHOISToolView()
-        case .speedTest:
-            SpeedTestToolView()
-        case .bonjourBrowser:
-            BonjourBrowserToolView()
-        case .wakeOnLan:
-            WakeOnLanToolView()
-        case .subnetCalculator:
-            SubnetCalculatorToolView()
-        case .worldPing:
-            WorldPingToolView()
-        case .geoTrace:
-            GeoTraceView()
-        case .sslMonitor:
-            SSLCertificateMonitorView()
-        }
     }
 }
 
@@ -160,5 +127,5 @@ struct ToolCard: View {
 }
 
 #Preview {
-    ToolsView()
+    ToolsView(selection: .constant(.section(.tools)))
 }

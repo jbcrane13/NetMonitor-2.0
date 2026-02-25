@@ -37,9 +37,16 @@ enum MacTheme {
         /// Equivalent to `Color.black.opacity(0.1)`.
         static let subtleBackgroundLight = Color.black.opacity(0.1)
 
-        // MARK: - Command Deck Tokens
+        // MARK: - Luminous Tactical Tokens
+        
+        static let backgroundGradientStart = Color(hex: "0F172A") // slate-900 (tinted)
+        static let backgroundGradientEnd = Color(hex: "020202")   // absolute black
 
         static let deckBackground = Color(hex: "08090B")
+        static let crystalBase = Color(hex: "1A1F26").opacity(0.6)
+        static let crystalHighlight = Color.white.opacity(0.12)
+        static let crystalBorder = Color.white.opacity(0.15)
+        
         static let deckConsole = Color(hex: "12151A")
         static let deckRecessed = Color(hex: "050608")
         static let deckBorder = Color.white.opacity(0.12)

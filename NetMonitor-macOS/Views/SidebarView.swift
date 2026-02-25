@@ -5,6 +5,7 @@ import SwiftData
 enum SidebarSelection: Hashable {
     case network(UUID)
     case section(NavigationSection)
+    case tool(NetworkTool)
 }
 
 struct SidebarView: View {
@@ -17,43 +18,36 @@ struct SidebarView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // 1. Top Profile Selector (Frosted Dark)
-            VStack(alignment: .leading, spacing: 12) {
-                Text("NETWORK PROFILES")
-                    .font(.system(size: 10, weight: .black))
-                    .foregroundStyle(.secondary)
-                    .tracking(1.5)
-                    .padding(.horizontal, 4)
-                
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        ForEach(profileManager.profiles) { profile in
-                            ProfilePill(
-                                profile: profile,
-                                isActive: profileManager.activeProfile?.id == profile.id,
-                                isSelected: selection == .network(profile.id)
-                            )
-                            .onTapGesture {
-                                selection = .network(profile.id)
-                            }
-                        }
-                        
+            // 1. Networks Section
+            List(selection: $selection) {
+                Section {
+                    ForEach(profileManager.profiles) { profile in
+                        SidebarRow(
+                            title: profile.displayName,
+                            icon: profile.connectionType.iconName,
+                            isSelected: selection == .network(profile.id),
+                            badge: profileManager.activeProfile?.id == profile.id ? "ACTIVE" : nil,
+                            badgeColor: .green
+                        )
+                        .tag(SidebarSelection.network(profile.id))
+                    }
+                } header: {
+                    HStack {
+                        Text("NETWORKS")
+                            .font(.system(size: 10, weight: .black))
+                            .foregroundStyle(.secondary)
+                            .tracking(1.5)
+                        Spacer()
                         Button(action: onAddNetwork) {
-                            Image(systemName: "plus.circle.fill")
-                                .font(.system(size: 20))
+                            Image(systemName: "plus.square.fill")
+                                .font(.system(size: 14))
                                 .foregroundStyle(.secondary)
                         }
                         .buttonStyle(.plain)
                     }
-                    .padding(.horizontal, 4)
+                    .padding(.vertical, 4)
                 }
-            }
-            .padding(16)
-            .background(.ultraThinMaterial.opacity(0.1))
-            .overlay(Divider(), alignment: .bottom)
 
-            // 2. Main Navigation
-            List(selection: $selection) {
                 Section {
                     ForEach(NavigationSection.allCases) { section in
                         SidebarRow(
@@ -77,13 +71,14 @@ struct SidebarView: View {
         }
         .background(
             ZStack {
-                Color(hex: "08090B") // Deepest black base
+                Color(hex: "020202") // Absolute black base
                 
-                // Frosted Gradient
-                LinearGradient(
-                    colors: [Color.white.opacity(0.03), .clear],
-                    startPoint: .top,
-                    endPoint: .center
+                // Luminous Top Glow
+                RadialGradient(
+                    colors: [Color(hex: "0F172A").opacity(0.4), .clear],
+                    center: .top,
+                    startRadius: 0,
+                    endRadius: 400
                 )
                 
                 // Texture
@@ -99,7 +94,7 @@ struct SidebarView: View {
             }
         )
         .navigationTitle("NetMonitor")
-        .frame(minWidth: 260)
+        .frame(minWidth: 240)
     }
 }
 

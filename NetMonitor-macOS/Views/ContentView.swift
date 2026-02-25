@@ -73,6 +73,8 @@ struct ContentView: View {
             }
         case .section(let section):
             sectionView(for: section)
+        case .tool(let tool):
+            toolView(for: tool)
         case nil:
             Text("Select a section")
                 .accessibilityIdentifier("detail_empty")
@@ -92,11 +94,40 @@ struct ContentView: View {
             DevicesView()
                 .accessibilityIdentifier("detail_devices")
         case .tools:
-            ToolsView()
+            ToolsView(selection: $selectedSection)
                 .accessibilityIdentifier("detail_tools")
         case .settings:
             SettingsView()
                 .accessibilityIdentifier("detail_settings")
+        }
+    }
+
+    @ViewBuilder
+    private func toolView(for tool: NetworkTool) -> some View {
+        Group {
+            switch tool {
+            case .ping: PingToolView()
+            case .traceroute: TracerouteToolView()
+            case .portScanner: PortScannerToolView()
+            case .dnsLookup: DNSLookupToolView()
+            case .whois: WHOISToolView()
+            case .speedTest: SpeedTestToolView()
+            case .bonjourBrowser: BonjourBrowserToolView()
+            case .wakeOnLan: WakeOnLanToolView()
+            case .subnetCalculator: SubnetCalculatorToolView()
+            case .worldPing: WorldPingToolView()
+            case .geoTrace: GeoTraceView()
+            case .sslMonitor: SSLCertificateMonitorView()
+            }
+        }
+        .toolbar {
+            ToolbarItem(placement: .navigation) {
+                Button {
+                    selectedSection = .section(.tools)
+                } label: {
+                    Label("Back", systemImage: "chevron.left")
+                }
+            }
         }
     }
 }
