@@ -11,14 +11,14 @@ struct DashboardView: View {
                 VStack(spacing: Theme.Layout.sectionSpacing) {
                     TacticalHUDHeader(viewModel: viewModel)
                     
-                    NetworkHealthHero(viewModel: viewModel)
+                    VStack(spacing: 12) {
+                        LinkTopologyView(viewModel: viewModel)
+                        SignalEQView(viewModel: viewModel)
+                    }
+                    .padding(.vertical, 8)
                     
                     QuickStatsGrid(viewModel: viewModel)
                     
-                    if let _ = viewModel.gateway {
-                        GatewaySparklineCard(viewModel: viewModel)
-                    }
-
                     LocalDevicesCard(
                         viewModel: viewModel,
                         selectedNetwork: viewModel.activeNetwork
@@ -270,10 +270,201 @@ struct QuickStatsGrid: View {
     
     var body: some View {
         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: Theme.Layout.itemSpacing) {
+            HealthWidget(viewModel: viewModel)
             StatWidget(label: "Gateway", value: viewModel.gateway?.ipAddress ?? "---", icon: "server.rack")
             StatWidget(label: "Devices", value: "\(viewModel.deviceCount)", icon: "desktopcomputer")
-            StatWidget(label: "Session", value: viewModel.sessionDuration, icon: "clock")
             StatWidget(label: "WiFi Ch.", value: viewModel.currentWiFi?.channel.map { "\($0)" } ?? "---", icon: "wifi")
+        }
+    }
+}
+
+struct HealthWidget: View {
+    let viewModel: DashboardViewModel
+    
+    var healthScore: Int {
+        let latency = viewModel.gateway?.latency ?? 0
+        if !viewModel.isConnected { return 0 }
+        if latency < 20 { return 100 }
+        if latency < 50 { return 90 }
+        if latency < 100 { return 70 }
+        return 40
+    }
+    
+    var body: some View {
+        GlassCard(padding: 12) {
+            HStack(spacing: 12) {
+                ZStack {
+                    Circle()
+                        .stroke(Color.white.opacity(0.05), lineWidth: 4)
+                    Circle()
+                        .trim(from: 0, to: CGFloat(healthScore) / 100.0)
+                        .stroke(
+                            Theme.Colors.latencyColor(ms: viewModel.gateway?.latency ?? 0),
+                            style: StrokeStyle(lineWidth: 4, lineCap: .round)
+                        )
+                        .rotationEffect(.degrees(-90))
+                    
+                    Text("\(healthScore)")
+                        .font(.system(size: 14, weight: .black, design: .rounded))
+                }
+                .frame(width: 36, height: 36)
+                
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("HEALTH")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(Theme.Colors.textTertiary)
+                    Text(healthScore > 80 ? "OPTIMAL" : "DEGRADED")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(Theme.Colors.textPrimary)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+}
+
+struct LinkTopologyView: View {
+    let viewModel: DashboardViewModel
+    @State private var packetOffset: CGFloat = 0
+    
+    var body: some View {
+        GlassCard(padding: 16) {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Text("LINK TOPOLOGY")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(Theme.Colors.textTertiary)
+                        .tracking(1)
+                    Spacer()
+                    StatusBadge(status: viewModel.isConnected ? .online : .offline, size: .small)
+                }
+                
+                HStack(spacing: 0) {
+                    TopologyNode(icon: "iphone", label: "Local")
+                    TopologyLink(active: viewModel.isConnected, color: .blue, offset: packetOffset)
+                    TopologyNode(icon: "server.rack", label: "Gateway")
+                    TopologyLink(active: viewModel.isConnected && viewModel.gateway?.latency != nil, color: Theme.Colors.latencyColor(ms: viewModel.gateway?.latency ?? 0), offset: packetOffset)
+                    TopologyNode(icon: "globe", label: "Internet")
+                }
+                .padding(.vertical, 8)
+            }
+        }
+        .onAppear {
+            withAnimation(.linear(duration: 2.0).repeatForever(autoreverses: false)) {
+                packetOffset = 1.0
+            }
+        }
+    }
+}
+
+struct TopologyNode: View {
+    let icon: String
+    let label: String
+    
+    var body: some View {
+        VStack(spacing: 6) {
+            ZStack {
+                Circle()
+                    .fill(Theme.Colors.crystalBase)
+                    .frame(width: 32, height: 32)
+                    .overlay(Circle().stroke(Color.white.opacity(0.1), lineWidth: 1))
+                
+                Image(systemName: icon)
+                    .font(.system(size: 14))
+                    .foregroundStyle(.white)
+            }
+            Text(label.uppercased())
+                .font(.system(size: 8, weight: .black))
+                .foregroundStyle(Theme.Colors.textTertiary)
+        }
+        .frame(width: 50)
+    }
+}
+
+struct TopologyLink: View {
+    let active: Bool
+    let color: Color
+    let offset: CGFloat
+    
+    var body: some View {
+        GeometryReader { geo in
+            ZStack {
+                // Background Line
+                Rectangle()
+                    .fill(Color.white.opacity(0.05))
+                    .frame(height: 2)
+                
+                if active {
+                    // Flow Line
+                    Rectangle()
+                        .fill(color.opacity(0.3))
+                        .frame(height: 2)
+                    
+                    // Moving Packet
+                    Circle()
+                        .fill(.white)
+                        .frame(width: 4, height: 4)
+                        .shadow(color: color, radius: 4)
+                        .offset(x: -geo.size.width/2 + (geo.size.width * offset))
+                }
+            }
+            .frame(maxHeight: .infinity)
+        }
+        .frame(height: 32)
+    }
+}
+
+struct SignalEQView: View {
+    let viewModel: DashboardViewModel
+    
+    // Simulate high-density jitter data
+    var eqData: [Double] {
+        let base = viewModel.gateway?.latency ?? 20.0
+        return (0..<40).map { i in
+            let variance = Double.random(in: -5...5)
+            // Add a "spike" occasionally
+            let spike = i % 15 == 0 ? Double.random(in: 10...30) : 0
+            return max(5, base + variance + spike)
+        }
+    }
+    
+    var body: some View {
+        GlassCard(padding: 12) {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("SIGNAL STABILITY (JITTER)")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(Theme.Colors.textTertiary)
+                    Spacer()
+                    Text("LIVE")
+                        .font(.system(size: 8, weight: .black))
+                        .foregroundStyle(.red)
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 2)
+                        .background(Color.red.opacity(0.2))
+                        .clipShape(RoundedRectangle(cornerRadius: 2))
+                }
+                
+                HStack(alignment: .bottom, spacing: 2) {
+                    ForEach(0..<eqData.count, id: \.self) { i in
+                        let val = eqData[i]
+                        let maxVal = eqData.max() ?? 100
+                        let height = CGFloat((val / maxVal) * 30)
+                        
+                        RoundedRectangle(cornerRadius: 1)
+                            .fill(
+                                LinearGradient(
+                                    colors: [Theme.Colors.latencyColor(ms: val), Theme.Colors.latencyColor(ms: val).opacity(0.3)],
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                )
+                            )
+                            .frame(height: max(2, height))
+                            .animation(.spring(response: 0.3, dampingFraction: 0.6), value: height)
+                    }
+                }
+                .frame(height: 30)
+            }
         }
     }
 }
