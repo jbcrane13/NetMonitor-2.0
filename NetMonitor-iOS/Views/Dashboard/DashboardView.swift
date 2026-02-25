@@ -93,21 +93,20 @@ struct TacticalHUDHeader: View {
                 VStack(alignment: .leading, spacing: Theme.Layout.itemSpacing) {
                     HStack(alignment: .top) {
                         VStack(alignment: .leading, spacing: 4) {
-                            HStack(spacing: 8) {
-                                Image(systemName: "wifi")
-                                    .foregroundStyle(Theme.Colors.accent)
-                                    .symbolEffect(.variableColor.reversing, isActive: viewModel.isScanning)
-                                Text(viewModel.activeNetwork?.displayName ?? viewModel.currentWiFi?.ssid ?? "Unknown Network")
-                                    .font(.system(size: 18, weight: .bold, design: .rounded))
-                                    .foregroundStyle(
-                                        LinearGradient(
-                                            colors: [.white, .white.opacity(0.8)],
-                                            startPoint: .top,
-                                            endPoint: .bottom
-                                        )
-                                    )
-                            }
-                            
+                                                    HStack(spacing: 8) {
+                                                        Image(systemName: wifiIconName)
+                                                            .foregroundStyle(Theme.Colors.accent)
+                                                            .symbolEffect(.variableColor.reversing, isActive: viewModel.isScanning)
+                                                        Text(viewModel.activeNetwork?.displayName ?? viewModel.currentWiFi?.ssid ?? "Unknown Network")
+                                                            .font(.system(size: 18, weight: .bold, design: .rounded))
+                                                            .foregroundStyle(
+                                                                LinearGradient(
+                                                                    colors: [.white, .white.opacity(0.8)],
+                                                                    startPoint: .top,
+                                                                    endPoint: .bottom
+                                                                )
+                                                            )
+                                                    }                            
                             Text(viewModel.ispInfo?.ispName ?? "Detecting ISP...")
                                 .font(.system(size: 12, weight: .semibold, design: .monospaced))
                                 .foregroundStyle(Theme.Colors.textSecondary)
@@ -146,6 +145,13 @@ struct TacticalHUDHeader: View {
                     .offset(y: 4)
             )
         }
+    }
+    var wifiIconName: String {
+        guard let dbm = viewModel.currentWiFi?.signalDBm else { return "wifi" }
+        if dbm > -50 { return "wifi" }
+        if dbm > -60 { return "wifi" }
+        if dbm > -70 { return "wifi" }
+        return "wifi" // fallback to standard wifi icon
     }
 }
 
@@ -282,6 +288,19 @@ struct SignalEQView: View {
                     }
                 }
                 .frame(height: 32)
+                .overlay(
+                    // Glowing Floor
+                    Rectangle()
+                        .fill(
+                            LinearGradient(
+                                colors: [Theme.Colors.accent.opacity(0.2), .clear],
+                                startPoint: .bottom,
+                                endPoint: .top
+                            )
+                        )
+                        .frame(height: 8),
+                    alignment: .bottom
+                )
             }
         }
     }
@@ -426,6 +445,80 @@ struct DeviceRow: View {
     }
 }
 
+struct LinkTopologyView: View {
+    let viewModel: DashboardViewModel
+    @State private var packetOffset: CGFloat = 0
+    
+    var body: some View {
+        HStack(spacing: 0) {
+            TopologyNode(icon: "iphone", label: "Local")
+            TopologyLink(active: viewModel.isConnected, color: .blue, offset: packetOffset)
+            TopologyNode(icon: "server.rack", label: "Gateway")
+            TopologyLink(active: viewModel.isConnected && viewModel.gateway?.latency != nil, color: Theme.Colors.latencyColor(ms: viewModel.gateway?.latency ?? 0), offset: packetOffset)
+            TopologyNode(icon: "globe", label: "Internet")
+        }
+        .onAppear {
+            withAnimation(.linear(duration: 2.0).repeatForever(autoreverses: false)) {
+                packetOffset = 1.0
+            }
+        }
+    }
+}
+
+struct TopologyNode: View {
+    let icon: String
+    let label: String
+    
+    var body: some View {
+        VStack(spacing: 6) {
+            ZStack {
+                Circle()
+                    .fill(Theme.Colors.crystalBase)
+                    .frame(width: 28, height: 28)
+                    .overlay(Circle().stroke(Color.white.opacity(0.1), lineWidth: 1))
+                
+                Image(systemName: icon)
+                    .font(.system(size: 12))
+                    .foregroundStyle(.white)
+            }
+            Text(label.uppercased())
+                .font(.system(size: 7, weight: .black))
+                .foregroundStyle(Theme.Colors.textTertiary)
+        }
+        .frame(width: 44)
+    }
+}
+
+struct TopologyLink: View {
+    let active: Bool
+    let color: Color
+    let offset: CGFloat
+    
+    var body: some View {
+        GeometryReader { geo in
+            ZStack {
+                Rectangle()
+                    .fill(Color.white.opacity(0.05))
+                    .frame(height: 1)
+                
+                if active {
+                    Rectangle()
+                        .fill(color.opacity(0.2))
+                        .frame(height: 1)
+                    
+                    Circle()
+                        .fill(.white)
+                        .frame(width: 3, height: 3)
+                        .shadow(color: color, radius: 3)
+                        .offset(x: -geo.size.width/2 + (geo.size.width * offset))
+                }
+            }
+            .frame(maxHeight: .infinity)
+        }
+        .frame(height: 28)
+    }
+}
+
 struct ProConnectivityPanel: View {
     let viewModel: DashboardViewModel
     
@@ -441,12 +534,17 @@ struct ProConnectivityPanel: View {
             .padding(.horizontal, 4)
             
             GlassCard(padding: 12) {
-                VStack(spacing: 12) {
-                    ConnectivityRow(label: "ISP", value: viewModel.ispInfo?.ispName ?? "Detecting...", icon: "antenna.radiowaves.left.and.right")
-                    Divider().background(Color.white.opacity(0.05))
-                    ConnectivityRow(label: "DNS", value: "8.8.8.8, 1.1.1.1", icon: "magnifyingglass")
-                    Divider().background(Color.white.opacity(0.05))
-                    ConnectivityRow(label: "Public IP", value: viewModel.ispInfo?.publicIP ?? "---.---.---.---", icon: "network")
+                VStack(spacing: 16) {
+                    LinkTopologyView(viewModel: viewModel)
+                        .padding(.bottom, 4)
+                    
+                    VStack(spacing: 12) {
+                        ConnectivityRow(label: "ISP", value: viewModel.ispInfo?.ispName ?? "Detecting...", icon: "antenna.radiowaves.left.and.right")
+                        Divider().background(Color.white.opacity(0.05))
+                        ConnectivityRow(label: "DNS", value: "8.8.8.8, 1.1.1.1", icon: "magnifyingglass")
+                        Divider().background(Color.white.opacity(0.05))
+                        ConnectivityRow(label: "Public IP", value: viewModel.ispInfo?.publicIP ?? "---.---.---.---", icon: "network")
+                    }
                 }
             }
             
