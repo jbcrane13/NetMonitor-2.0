@@ -66,7 +66,7 @@ struct WorldPingToolView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding()
             }
-            .background(Color.black.opacity(0.2))
+            .background(MacTheme.Colors.subtleBackground)
         } else if results.isEmpty {
             ScrollView {
                 if isRunning {
@@ -84,7 +84,7 @@ struct WorldPingToolView: View {
                         .padding(.top, 40)
                 }
             }
-            .background(Color.black.opacity(0.2))
+            .background(MacTheme.Colors.subtleBackground)
         } else {
             resultsList
         }
@@ -129,7 +129,7 @@ struct WorldPingToolView: View {
             }
             .padding(.vertical, 4)
         }
-        .background(Color.black.opacity(0.2))
+        .background(MacTheme.Colors.subtleBackground)
         .accessibilityIdentifier("worldPing_section_results")
     }
 
@@ -199,12 +199,7 @@ struct WorldPingToolView: View {
     }
 
     private func latencyColor(_ ms: Double) -> Color {
-        switch ms {
-        case ..<50: return .green
-        case ..<150: return .yellow
-        case ..<300: return .orange
-        default: return .red
-        }
+        MacTheme.Colors.latencyColor(ms: ms)
     }
 }
 

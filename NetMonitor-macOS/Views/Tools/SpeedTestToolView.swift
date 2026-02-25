@@ -157,22 +157,13 @@ struct SpeedTestToolView: View {
                 if phase == .download, let speed = downloadSpeed {
                     Text(formatSpeed(speed))
                         .font(.system(size: 36, weight: .bold, design: .rounded))
-                    Text("Mbps")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
                 } else if phase == .upload, let speed = uploadSpeed {
                     Text(formatSpeed(speed))
                         .font(.system(size: 36, weight: .bold, design: .rounded))
-                    Text("Mbps")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
                 } else if phase == .complete, let speed = downloadSpeed {
                     Text(formatSpeed(speed))
                         .font(.system(size: 36, weight: .bold, design: .rounded))
                         .foregroundStyle(.green)
-                    Text("Mbps")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
                 } else if isRunning {
                     ProgressView()
                         .scaleEffect(1.5)
@@ -221,11 +212,11 @@ struct SpeedTestToolView: View {
                 if let speed = downloadSpeed {
                     Text(formatSpeed(speed))
                         .font(.title2.bold())
-                    Text("Mbps avg down")
+                    Text("avg down")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     if let peak = peakDownloadSpeed {
-                        Text("Peak: \(formatSpeed(peak)) Mbps")
+                        Text("Peak: \(formatSpeed(peak))")
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                     }
@@ -233,7 +224,7 @@ struct SpeedTestToolView: View {
                     Text("--")
                         .font(.title2.bold())
                         .foregroundStyle(.secondary)
-                    Text("Mbps down")
+                    Text("down")
                         .font(.caption)
                         .foregroundStyle(.tertiary)
                 }
@@ -248,11 +239,11 @@ struct SpeedTestToolView: View {
                 if let speed = uploadSpeed {
                     Text(formatSpeed(speed))
                         .font(.title2.bold())
-                    Text("Mbps avg up")
+                    Text("avg up")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     if let peak = peakUploadSpeed {
-                        Text("Peak: \(formatSpeed(peak)) Mbps")
+                        Text("Peak: \(formatSpeed(peak))")
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                     }
@@ -260,7 +251,7 @@ struct SpeedTestToolView: View {
                     Text("--")
                         .font(.title2.bold())
                         .foregroundStyle(.secondary)
-                    Text("Mbps up")
+                    Text("up")
                         .font(.caption)
                         .foregroundStyle(.tertiary)
                 }
@@ -331,8 +322,8 @@ struct SpeedTestToolView: View {
         timeRemaining = 0
 
         speedTestTask = Task {
-            // Phase 1: Ping test
-            await MainActor.run { phase = .ping }
+            // Phase 1: Latency test
+            await MainActor.run { phase = .latency }
             pingLatency = await measurePing()
 
             guard isRunning else { return }
@@ -576,32 +567,15 @@ struct SpeedTestToolView: View {
         return finalSpeed
     }
 
-    // MARK: - Helpers
-
-    private func formatSpeed(_ speed: Double) -> String {
-        if speed >= 100 {
-            return String(format: "%.0f", speed)
-        } else if speed >= 10 {
-            return String(format: "%.1f", speed)
-        } else {
-            return String(format: "%.2f", speed)
-        }
-    }
 }
 
-// MARK: - Models
+// MARK: - SpeedTestPhase Display
 
-enum SpeedTestPhase {
-    case idle
-    case ping
-    case download
-    case upload
-    case complete
-
+fileprivate extension SpeedTestPhase {
     var description: String {
         switch self {
         case .idle: return "Ready"
-        case .ping: return "Testing latency..."
+        case .latency: return "Testing latency..."
         case .download: return "Testing download..."
         case .upload: return "Testing upload..."
         case .complete: return "Complete"

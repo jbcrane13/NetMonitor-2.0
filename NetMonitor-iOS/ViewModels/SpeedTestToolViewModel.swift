@@ -135,10 +135,4 @@ final class SpeedTestToolViewModel {
         phase = service.phase
     }
 
-    private func formatSpeed(_ speedMbps: Double) -> String {
-        if speedMbps >= 1000 {
-            return String(format: "%.1f Gbps", speedMbps / 1000)
-        }
-        return String(format: "%.1f Mbps", speedMbps)
-    }
 }

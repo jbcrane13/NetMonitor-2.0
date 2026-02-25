@@ -25,7 +25,7 @@ private struct _DurationTickView: View {
     @State private var elapsed: TimeInterval = 0
 
     var body: some View {
-        Text(formatDuration(elapsed))
+        Text(formatDuration(elapsed, alwaysShowHours: true))
             .font(.system(.caption, design: .monospaced))
             .foregroundStyle(.secondary)
             .accessibilityIdentifier("dashboard_duration_timer")
@@ -38,12 +38,6 @@ private struct _DurationTickView: View {
             }
     }
 
-    private func formatDuration(_ elapsed: TimeInterval) -> String {
-        let hours = Int(elapsed) / 3600
-        let minutes = (Int(elapsed) % 3600) / 60
-        let seconds = Int(elapsed) % 60
-        return String(format: "%02d:%02d:%02d", hours, minutes, seconds)
-    }
 }
 
 #Preview("Monitoring Active") {

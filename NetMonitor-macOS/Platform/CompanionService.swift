@@ -193,7 +193,7 @@ actor CompanionService {
             receiveBuffers[clientID] = buffer
 
             do {
-                let message = try JSONDecoder().decode(CompanionMessage.self, from: jsonData)
+                let message = try CompanionMessage.decode(from: jsonData)
                 Logger.companion.debug("Received \(String(describing: message)) from \(clientID)")
 
                 if let response = await messageHandler?(message, clientID) {

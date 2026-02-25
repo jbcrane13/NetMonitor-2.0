@@ -102,13 +102,8 @@ final class VPNInfoMacViewModel {
         }
         timerTask = Task { [weak self] in
             while !Task.isCancelled {
-                let elapsed = Int(Date().timeIntervalSince(start))
-                let h = elapsed / 3600
-                let m = (elapsed % 3600) / 60
-                let sec = elapsed % 60
-                self?.connectionDuration = h > 0
-                    ? String(format: "%d:%02d:%02d", h, m, sec)
-                    : String(format: "%d:%02d", m, sec)
+                let elapsed = Date().timeIntervalSince(start)
+                self?.connectionDuration = formatDuration(elapsed)
                 try? await Task.sleep(for: .seconds(1))
             }
         }

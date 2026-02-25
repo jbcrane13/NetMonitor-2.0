@@ -8,6 +8,7 @@
 import Foundation
 import SwiftData
 import NetMonitorCore
+import NetworkScanKit
 import os
 
 /// Provides default monitoring targets for database seeding on first launch
@@ -104,7 +105,7 @@ struct DefaultTargetsProvider {
                     let potentialIP = components[1]
 
                     // Basic IPv4 validation (x.x.x.x format)
-                    if isValidIPv4(potentialIP) {
+                    if isValidIPv4Address(potentialIP) {
                         return potentialIP
                     }
                 }
@@ -117,22 +118,4 @@ struct DefaultTargetsProvider {
         }
     }
 
-    /// Validate IPv4 address format
-    /// - Parameter ip: IP address string to validate
-    /// - Returns: true if valid IPv4 format
-    private static func isValidIPv4(_ ip: String) -> Bool {
-        let components = ip.components(separatedBy: ".")
-
-        guard components.count == 4 else {
-            return false
-        }
-
-        for component in components {
-            guard let octet = Int(component), octet >= 0 && octet <= 255 else {
-                return false
-            }
-        }
-
-        return true
-    }
 }

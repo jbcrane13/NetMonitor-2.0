@@ -114,12 +114,7 @@ private struct MacTimelineRow: View {
     let event: NetworkEvent
 
     private var severityColor: Color {
-        switch event.severity {
-        case .success: return .green
-        case .warning: return .orange
-        case .error:   return .red
-        case .info:    return .blue
-        }
+        MacTheme.Colors.severityColor(event.severity)
     }
 
     var body: some View {

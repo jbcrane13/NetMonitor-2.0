@@ -63,7 +63,12 @@ final class DashboardViewModel {
         self.sessionStartTime = Date()
 
         refreshAvailableNetworks()
-        restoreSelectedNetwork()
+        restoreSelectedNetwork(
+            userDefaults: userDefaults,
+            availableNetworks: availableNetworks,
+            networkProfileManager: networkProfileManager,
+            selectedNetworkID: &selectedNetworkID
+        )
     }
     
     var isConnected: Bool {
@@ -272,18 +277,6 @@ final class DashboardViewModel {
     }
 
     // MARK: - Private
-
-    private func restoreSelectedNetwork() {
-        guard let rawValue = userDefaults.string(forKey: AppSettings.Keys.selectedNetworkProfileID),
-              let persistedID = UUID(uuidString: rawValue),
-              availableNetworks.contains(where: { $0.id == persistedID }),
-              networkProfileManager.switchProfile(id: persistedID) else {
-            userDefaults.removeObject(forKey: AppSettings.Keys.selectedNetworkProfileID)
-            return
-        }
-
-        selectedNetworkID = persistedID
-    }
 
     private func clearSelectedNetwork() {
         selectedNetworkID = nil

@@ -96,11 +96,4 @@ public final class SpeedTestResult {
     public var downloadSpeedText: String { formatSpeed(downloadSpeed) }
     public var uploadSpeedText: String { formatSpeed(uploadSpeed) }
     public var latencyText: String { String(format: "%.0f ms", latency) }
-
-    private func formatSpeed(_ speedMbps: Double) -> String {
-        if speedMbps >= 1000 {
-            return String(format: "%.1f Gbps", speedMbps / 1000)
-        }
-        return String(format: "%.1f Mbps", speedMbps)
-    }
 }

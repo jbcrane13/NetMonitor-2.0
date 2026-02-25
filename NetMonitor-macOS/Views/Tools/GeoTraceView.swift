@@ -238,9 +238,7 @@ private struct GeoTraceHop: Identifiable {
 
     var latencyColor: Color {
         guard let avg = hop.averageTime else { return .gray }
-        if avg < 50 { return .green }
-        if avg < 150 { return .yellow }
-        return .red
+        return MacTheme.Colors.latencyColor(ms: avg)
     }
 }
 

@@ -76,12 +76,7 @@ struct NetworkHealthScoreView: View {
     }
 
     private func gradeColor(_ score: Int) -> Color {
-        switch score {
-        case 80...100: return .green
-        case 60..<80:  return .yellow
-        case 40..<60:  return .orange
-        default:       return .red
-        }
+        MacTheme.Colors.healthScoreColor(score)
     }
 
     @ViewBuilder

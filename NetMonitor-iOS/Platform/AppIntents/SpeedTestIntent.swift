@@ -23,10 +23,4 @@ struct SpeedTestIntent: AppIntent {
         return .result()
     }
 
-    private func formatSpeed(_ mbps: Double) -> String {
-        if mbps >= 1000 {
-            return String(format: "%.1f Gbps", mbps / 1000)
-        }
-        return String(format: "%.1f Mbps", mbps)
-    }
 }

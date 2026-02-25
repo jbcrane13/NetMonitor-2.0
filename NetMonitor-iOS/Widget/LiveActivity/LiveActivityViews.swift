@@ -1,4 +1,5 @@
 import SwiftUI
+import NetMonitorCore
 #if os(iOS)
 import ActivityKit
 import WidgetKit
@@ -125,20 +126,14 @@ struct SpeedTestLockScreenView: View {
                 .tint(.green)
 
             HStack(spacing: 20) {
-                SpeedStatView(label: "Download", value: formatSpeed(context.state.downloadSpeed))
-                SpeedStatView(label: "Upload", value: formatSpeed(context.state.uploadSpeed))
+                SpeedStatView(label: "Download", value: context.state.downloadSpeed > 0 ? formatSpeed(context.state.downloadSpeed) : "—")
+                SpeedStatView(label: "Upload", value: context.state.uploadSpeed > 0 ? formatSpeed(context.state.uploadSpeed) : "—")
                 if context.state.latency > 0 {
                     SpeedStatView(label: "Latency", value: String(format: "%.0f ms", context.state.latency))
                 }
             }
         }
         .padding()
-    }
-
-    private func formatSpeed(_ mbps: Double) -> String {
-        guard mbps > 0 else { return "—" }
-        if mbps >= 1000 { return String(format: "%.1f Gbps", mbps / 1000) }
-        return String(format: "%.1f Mbps", mbps)
     }
 }
 

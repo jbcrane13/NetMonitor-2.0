@@ -268,14 +268,7 @@ struct GatewayInfoCard: View {
     // MARK: - Helpers
 
     private func latencyColor(_ latency: Double) -> Color {
-        switch latency {
-        case 0..<10:
-            return .green
-        case 10..<50:
-            return .yellow
-        default:
-            return .orange
-        }
+        MacTheme.Colors.latencyColor(ms: latency)
     }
 }
 
