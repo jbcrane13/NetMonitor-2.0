@@ -38,7 +38,7 @@ struct NetMonitorApp: App {
         return false
     }
 
-    var sharedModelContainer: ModelContainer = {
+    private static let sharedModelContainer: ModelContainer = {
         let schema = Schema(versionedSchema: SchemaV1.self)
         let modelConfiguration = ModelConfiguration(
             schema: schema,
@@ -47,10 +47,9 @@ struct NetMonitorApp: App {
         )
 
         do {
-            return try ModelContainer(
-                for: schema,
-                configurations: [modelConfiguration]
-            )
+            // Keep container init on a single schema path to avoid the
+            // launch-time "Duplicate version checksums detected" exception.
+            return try ModelContainer(for: schema, configurations: [modelConfiguration])
         } catch {
             Logger.app.warning("Could not create persistent ModelContainer: \(error)")
             do {
@@ -83,7 +82,7 @@ struct NetMonitorApp: App {
             .environment(\.compactMode, compactMode)
             .captureOpenWindow()
         }
-        .modelContainer(sharedModelContainer)
+        .modelContainer(Self.sharedModelContainer)
         .commands {
             MenuBarCommands(
                 isMonitoring: Binding(
@@ -101,12 +100,12 @@ struct NetMonitorApp: App {
                 .environment(\.appAccentColor, Color(hex: accentColorHex))
                 .environment(\.compactMode, compactMode)
         }
-        .modelContainer(sharedModelContainer)
+        .modelContainer(Self.sharedModelContainer)
     }
 
     @MainActor
     private func setupServices() async {
-        let context = sharedModelContainer.mainContext
+        let context = Self.sharedModelContainer.mainContext
 
         if isUITesting {
             try? await Task.sleep(nanoseconds: 1_000_000_000)
