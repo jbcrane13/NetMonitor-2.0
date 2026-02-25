@@ -69,30 +69,7 @@ struct SidebarView: View {
             }
             .scrollContentBackground(.hidden)
         }
-        .background(
-            ZStack {
-                Color(hex: "020202") // Absolute black base
-                
-                // Luminous Top Glow
-                RadialGradient(
-                    colors: [Color(hex: "0F172A").opacity(0.4), .clear],
-                    center: .top,
-                    startRadius: 0,
-                    endRadius: 400
-                )
-                
-                // Texture
-                GeometryReader { geo in
-                    Path { path in
-                        for x in stride(from: 0, to: geo.size.width, by: 4) {
-                            path.move(to: CGPoint(x: x, y: 0))
-                            path.addLine(to: CGPoint(x: x, y: geo.size.height))
-                        }
-                    }
-                    .stroke(Color.white.opacity(0.012), lineWidth: 1)
-                }
-            }
-        )
+        .background(.ultraThinMaterial)
         .navigationTitle("NetMonitor")
         .frame(minWidth: 240)
     }

@@ -148,12 +148,6 @@ struct TacticalHUDHeader: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .background(
-                Theme.Colors.crystalBase
-                    .opacity(0.5)
-                    .blur(radius: 10)
-                    .offset(y: 4)
-            )
         }
     }
     
@@ -300,18 +294,6 @@ struct SignalEQView: View {
                     }
                 }
                 .frame(height: 32)
-                .overlay(
-                    Rectangle()
-                        .fill(
-                            LinearGradient(
-                                colors: [Theme.Colors.accent.opacity(0.2), .clear],
-                                startPoint: .bottom,
-                                endPoint: .top
-                            )
-                        )
-                        .frame(height: 8),
-                    alignment: .bottom
-                )
             }
         }
     }

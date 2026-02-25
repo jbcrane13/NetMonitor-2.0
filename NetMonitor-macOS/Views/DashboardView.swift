@@ -49,9 +49,36 @@ struct DashboardView: View {
                     DeepHistoryGraph(metric: graphMetric, session: session)
                         .frame(height: 180)
                         .padding(20)
-                        .background(MacTheme.Colors.deckBackground)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(MacTheme.Colors.deckBorder, lineWidth: 1))
+                        .background(
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 12)
+                                    .fill(.ultraThinMaterial)
+                                    .opacity(0.8)
+                                
+                                RoundedRectangle(cornerRadius: 12)
+                                    .fill(MacTheme.Colors.crystalBase)
+
+                                // Crystal Shine
+                                LinearGradient(
+                                    colors: [.white.opacity(0.08), .clear],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                            }
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(
+                                    LinearGradient(
+                                        colors: [.white.opacity(0.2), .clear],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    ),
+                                    lineWidth: 1
+                                )
+                        )
+                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(MacTheme.Colors.deckBorder, lineWidth: 0.5))
                 }
                 .padding(.horizontal)
 
