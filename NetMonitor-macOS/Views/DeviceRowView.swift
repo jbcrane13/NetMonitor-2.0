@@ -8,7 +8,7 @@ struct DeviceRowView: View {
         HStack(spacing: 12) {
             // Status indicator
             Circle()
-                .fill(device.status == .online ? Color.green : Color.gray)
+                .fill(device.status == .online ? MacTheme.Colors.success : Color.gray)
                 .frame(width: 8, height: 8)
 
             // Device icon
@@ -34,10 +34,7 @@ struct DeviceRowView: View {
             if let vendor = device.vendor {
                 Text(vendor)
                     .font(.caption2)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(.ultraThinMaterial)
-                    .clipShape(Capsule())
+                    .macGlassCard(cornerRadius: MacTheme.Layout.smallCornerRadius, padding: 6, showBorder: false)
             }
 
             // MAC address

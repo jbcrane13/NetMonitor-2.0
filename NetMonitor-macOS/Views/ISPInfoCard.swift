@@ -115,7 +115,7 @@ struct ISPInfoCard: View {
             } else if let error = errorMessage {
                 HStack {
                     Image(systemName: "exclamationmark.triangle")
-                        .foregroundStyle(.yellow)
+                        .foregroundStyle(MacTheme.Colors.warning)
                     Text(error)
                         .foregroundStyle(.secondary)
                         .font(.caption)
@@ -126,9 +126,7 @@ struct ISPInfoCard: View {
                     .font(.caption)
             }
         }
-        .padding()
-        .background(.ultraThinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .macGlassCard()
         .accessibilityIdentifier("isp_card")
         .task {
             await loadISPInfo()

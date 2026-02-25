@@ -1,0 +1,892 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NetMonitor — Refined Glass</title>
+<style>
+:root {
+  --bg-1: #0B1120;
+  --bg-2: #101D35;
+  --bg-3: #0D1A2D;
+
+  --accent: #06B6D4;
+  --accent-lt: #22D3EE;
+  --accent-sub: rgba(6,182,212,0.08);
+  --accent-glow: rgba(6,182,212,0.14);
+
+  --green: #10B981;
+  --red: #EF4444;
+  --amber: #F59E0B;
+  --blue: #3B82F6;
+  --purple: #8B5CF6;
+  --pink: #EC4899;
+
+  --t1: #FFFFFF;
+  --t2: rgba(255,255,255,0.55);
+  --t3: rgba(255,255,255,0.32);
+
+  --g-bg: rgba(255,255,255,0.055);
+  --g-bg-hi: rgba(255,255,255,0.085);
+  --g-border: rgba(255,255,255,0.10);
+  --g-border-hi: rgba(255,255,255,0.16);
+  --g-shine: rgba(255,255,255,0.06);
+  --g-shadow: rgba(0,0,0,0.30);
+
+  --sep: rgba(255,255,255,0.06);
+  --sb-bg: rgba(255,255,255,0.025);
+
+  --wrap-bg: #040609;
+  --wrap-t: #D8D8E0;
+  --wrap-m: #5A5A68;
+  --wrap-card: rgba(255,255,255,0.025);
+  --wrap-bdr: rgba(255,255,255,0.05);
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  background: var(--wrap-bg);
+  color: var(--wrap-t);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Presentation ── */
+.wrap { max-width:1440px; margin:0 auto; padding:56px 40px 120px; }
+
+.hdr { text-align:center; margin-bottom:64px; }
+.hdr h1 {
+  font-size:46px; font-weight:700; letter-spacing:-1.8px;
+  background:linear-gradient(135deg,#22D3EE,#06B6D4,#0891B2);
+  -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+}
+.hdr p { font-size:16px; color:var(--wrap-m); margin-top:6px; }
+
+/* ── Tabs ── */
+.tabs {
+  display:flex; justify-content:center; gap:2px;
+  margin-bottom:44px; padding:3px;
+  background:var(--wrap-card); border:1px solid var(--wrap-bdr);
+  border-radius:12px; width:fit-content; margin-left:auto; margin-right:auto;
+}
+.tabs button {
+  padding:8px 16px; border:none; background:transparent;
+  color:var(--wrap-m); font-size:13px; font-weight:500;
+  border-radius:9px; cursor:pointer; font-family:inherit;
+  transition:all .15s;
+}
+.tabs button:hover { color:var(--wrap-t); }
+.tabs button.on {
+  background:rgba(6,182,212,0.12);
+  color:var(--accent-lt);
+  border:1px solid rgba(6,182,212,0.2);
+}
+.pane { display:none; }
+.pane.on { display:block; }
+
+/* ── Dark canvas ── */
+.dk { background:linear-gradient(150deg,var(--bg-1),var(--bg-2) 55%,var(--bg-3)); }
+
+/* ── Label (structural scaffolding) ── */
+.lbl {
+  font-size:11px; font-weight:600; letter-spacing:1.2px;
+  text-transform:uppercase; color:var(--t3);
+}
+
+/* ── Value (warm data) ── */
+.val {
+  font-family:-apple-system,"SF Pro Rounded",system-ui,sans-serif;
+  font-weight:700; color:var(--t1); letter-spacing:-0.3px;
+}
+.val-lg { font-size:28px; }
+.val-md { font-size:22px; }
+.val-sm { font-size:16px; }
+.val-xs { font-size:14px; }
+.unit { font-size:0.55em; font-weight:500; color:var(--t3); margin-left:1px; }
+
+/* ── Trend ── */
+.trend { font-size:11px; font-weight:600; margin-top:2px; }
+.trend-g { color:var(--green); }
+.trend-r { color:var(--red); }
+.trend-a { color:var(--amber); }
+.trend-n { color:var(--t3); }
+
+/* ── Glass card ── */
+.glass {
+  position:relative; padding:16px;
+  background:var(--g-bg);
+  border:0.5px solid var(--g-border);
+  border-radius:18px;
+  box-shadow:0 4px 16px var(--g-shadow);
+  overflow:hidden;
+}
+.glass::before {
+  content:''; position:absolute; inset:0; bottom:55%;
+  background:linear-gradient(180deg,var(--g-shine),transparent);
+  border-radius:18px 18px 0 0; pointer-events:none;
+}
+.glass-hi {
+  background:var(--g-bg-hi);
+  border-color:var(--g-border-hi);
+  box-shadow:0 6px 24px var(--g-shadow),0 0 18px var(--accent-glow);
+}
+.glass-sub {
+  background:rgba(255,255,255,0.035);
+  border-color:rgba(255,255,255,0.06);
+  box-shadow:none; border-radius:12px; padding:12px;
+}
+.glass-sub::before { display:none; }
+
+.gh { display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; position:relative; z-index:1; }
+.gh-title { font-size:13px; font-weight:600; letter-spacing:0.8px; text-transform:uppercase; color:var(--t2); }
+.gh-sub { font-size:11px; color:var(--t3); }
+.gh-link { font-size:12px; font-weight:600; color:var(--accent-lt); letter-spacing:0.3px; text-transform:uppercase; }
+
+/* ── Status dot ── */
+.dot { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+.dot-on { background:var(--green); box-shadow:0 0 5px rgba(16,185,129,0.35); animation:pulse 2.2s ease-in-out infinite; }
+.dot-off { background:var(--red); box-shadow:0 0 5px rgba(239,68,68,0.25); }
+.dot-idle { background:var(--amber); box-shadow:0 0 5px rgba(245,158,11,0.25); }
+
+/* ── Health ring ── */
+.hr-wrap { display:flex; align-items:center; gap:16px; position:relative; z-index:1; }
+.hr { width:84px; height:84px; position:relative; flex-shrink:0; }
+.hr svg { width:100%; height:100%; transform:rotate(-90deg); }
+.hr .trk { fill:none; stroke:rgba(255,255,255,0.05); stroke-width:5.5; }
+.hr .fl {
+  fill:none; stroke:url(#hG); stroke-width:5.5;
+  stroke-linecap:round; stroke-dasharray:264; stroke-dashoffset:34;
+  animation:breathe 4s ease-in-out infinite;
+  filter:drop-shadow(0 0 5px rgba(6,182,212,0.25));
+}
+.hr .hv { position:absolute; top:50%; left:50%; transform:translate(-50%,-54%); }
+.hr .hl { position:absolute; top:63%; left:50%; transform:translateX(-50%); font-size:9px; }
+
+.hi { flex:1; }
+.hi-row { display:flex; align-items:center; gap:5px; margin-bottom:5px; }
+.hi-row .label { font-size:14px; font-weight:600; color:var(--t1); }
+.hi-detail { font-size:12px; color:var(--t3); line-height:1.65; }
+
+/* ── Metrics grid ── */
+.mg { display:grid; grid-template-columns:1fr 1fr; gap:8px; position:relative; z-index:1; }
+.mg4 { grid-template-columns:repeat(4,1fr); gap:10px; }
+
+.mc {
+  background:rgba(255,255,255,0.03);
+  border:0.5px solid rgba(255,255,255,0.05);
+  border-radius:14px; padding:12px 14px;
+}
+.mc .m-icon {
+  width:28px; height:28px; border-radius:8px;
+  display:flex; align-items:center; justify-content:center;
+  font-size:13px; margin-bottom:8px;
+}
+
+/* ── Connection banner ── */
+.conn {
+  display:flex; align-items:center; gap:10px;
+  margin:0 20px 8px; padding:9px 12px;
+  background:rgba(255,255,255,0.03);
+  border:0.5px solid rgba(255,255,255,0.06);
+  border-radius:10px;
+}
+.conn .wi { font-size:16px; color:var(--accent-lt); }
+.conn .ci { flex:1; }
+.conn .cn { font-size:13px; font-weight:600; color:var(--t1); letter-spacing:-0.1px; }
+.conn .cd { font-size:10px; color:var(--t3); letter-spacing:0.2px; }
+.sigs { display:flex; gap:2px; align-items:flex-end; }
+.sig { width:3.5px; border-radius:1.5px; background:var(--accent); }
+
+/* ── Device rows ── */
+.dr { display:flex; align-items:center; gap:10px; padding:9px 0; border-bottom:0.5px solid var(--sep); position:relative; z-index:1; }
+.dr:last-child { border-bottom:none; }
+.di { width:32px; height:32px; border-radius:9px; display:flex; align-items:center; justify-content:center; font-size:15px; }
+.dn { flex:1; }
+.dn-name { font-size:14px; font-weight:500; color:var(--t1); letter-spacing:-0.1px; }
+.dn-ip { font-size:11px; color:var(--t3); font-family:"SF Mono",ui-monospace,monospace; letter-spacing:0.3px; }
+.dl { font-family:-apple-system,"SF Pro Rounded",system-ui,sans-serif; font-weight:600; font-size:13px; }
+.dl-g { color:var(--green); }
+.dl-a { color:var(--amber); }
+.dl-r { color:var(--red); }
+
+/* ── Tool cards ── */
+.tg { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; padding:0 20px; }
+.tc {
+  background:var(--g-bg); border:0.5px solid var(--g-border);
+  border-radius:14px; padding:14px 8px; text-align:center;
+  position:relative; overflow:hidden;
+  transition:border-color .2s, box-shadow .2s;
+}
+.tc::before {
+  content:''; position:absolute; inset:0; bottom:55%;
+  background:linear-gradient(180deg,rgba(255,255,255,0.04),transparent);
+  pointer-events:none;
+}
+.tc:hover { border-color:rgba(6,182,212,0.25); box-shadow:0 0 14px rgba(6,182,212,0.06); }
+.tc-i { width:40px; height:40px; border-radius:11px; display:flex; align-items:center; justify-content:center; font-size:18px; margin:0 auto 7px; position:relative; z-index:1; }
+.tc-n { position:relative; z-index:1; }
+.tc-d { font-size:10px; color:var(--t3); margin-top:1px; position:relative; z-index:1; }
+
+/* ── Chart ── */
+.chw { height:130px; position:relative; overflow:hidden; border-radius:8px; margin:2px 0; }
+.chw svg { width:100%; height:100%; }
+.ch-line { fill:none; stroke:var(--accent); stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; filter:drop-shadow(0 0 3px rgba(6,182,212,0.25)); }
+.ch-grid { stroke:rgba(255,255,255,0.035); stroke-width:0.5; }
+.ch-lbl { font-size:9px; fill:var(--t3); font-family:inherit; }
+.ch-glow { fill:var(--accent); filter:drop-shadow(0 0 5px rgba(6,182,212,0.45)); }
+
+/* ── Input ── */
+.irow { display:flex; gap:8px; padding:0 20px; margin-bottom:10px; }
+.inp {
+  flex:1; height:42px;
+  background:rgba(255,255,255,0.04); border:0.5px solid rgba(255,255,255,0.10);
+  border-radius:10px; padding:0 12px;
+  font-size:14px; color:var(--t1);
+  font-family:"SF Mono",ui-monospace,monospace;
+  letter-spacing:0.3px; outline:none;
+}
+.inp:focus { border-color:var(--accent); box-shadow:0 0 0 2px rgba(6,182,212,0.10); }
+.inp::placeholder { color:var(--t3); }
+
+.rbtn {
+  height:42px; padding:0 18px;
+  background:linear-gradient(135deg,var(--accent),#0891B2);
+  color:#fff; border:none; border-radius:10px;
+  font-size:14px; font-weight:600; font-family:inherit;
+  cursor:pointer; display:flex; align-items:center; gap:5px;
+  box-shadow:0 3px 12px rgba(6,182,212,0.2);
+  letter-spacing:0.2px;
+}
+.rbtn:hover { opacity:.92; }
+.rbtn.stop { background:linear-gradient(135deg,var(--red),#DC2626); box-shadow:0 3px 12px rgba(239,68,68,0.2); }
+
+/* ── Result rows ── */
+.rr { display:flex; align-items:center; gap:8px; padding:7px 0; border-bottom:0.5px solid var(--sep); font-size:12px; position:relative; z-index:1; }
+.rr:last-child { border-bottom:none; }
+.rr-s { color:var(--t3); font-family:"SF Mono",ui-monospace,monospace; font-size:10px; min-width:20px; }
+.rr-h { flex:1; color:var(--t2); font-family:"SF Mono",ui-monospace,monospace; font-size:11px; letter-spacing:0.3px; }
+.rr-t { font-family:-apple-system,"SF Pro Rounded",system-ui,sans-serif; font-weight:600; font-size:13px; }
+
+/* ── Stats bar ── */
+.sb { display:flex; justify-content:space-around; padding:12px 0 2px; border-top:0.5px solid var(--sep); margin-top:8px; position:relative; z-index:1; }
+.si { text-align:center; }
+
+/* ── Phone frame ── */
+.ph-c { display:flex; justify-content:center; }
+.ph {
+  width:393px; height:852px; border-radius:50px;
+  border:3px solid #1A1A22; overflow:hidden; position:relative;
+  box-shadow:0 0 0 1px rgba(255,255,255,0.03),0 28px 80px rgba(0,0,0,0.55),0 8px 32px rgba(0,0,0,0.35);
+}
+.ph-n { position:absolute; top:0; left:50%; transform:translateX(-50%); width:126px; height:34px; background:#000; border-radius:0 0 20px 20px; z-index:100; }
+.ph-sb { display:flex; justify-content:space-between; align-items:center; padding:14px 28px 0; height:54px; z-index:50; position:relative; }
+.ph-sb .tm { font-size:16px; font-weight:600; color:var(--t1); }
+.ph-sb .ic { font-size:11px; color:var(--t1); opacity:.7; }
+.ph-s { height:calc(100% - 54px); overflow-y:auto; padding-bottom:88px; scrollbar-width:none; }
+.ph-s::-webkit-scrollbar { display:none; }
+.ph::after { content:''; position:absolute; bottom:8px; left:50%; transform:translateX(-50%); width:134px; height:5px; background:rgba(255,255,255,.2); border-radius:3px; z-index:100; }
+
+.ph-tab {
+  position:absolute; bottom:0; left:0; right:0; height:83px;
+  background:rgba(11,17,32,0.88); backdrop-filter:blur(22px); -webkit-backdrop-filter:blur(22px);
+  border-top:0.5px solid var(--sep);
+  display:flex; justify-content:space-around; align-items:flex-start; padding-top:8px; z-index:90;
+}
+.ti { display:flex; flex-direction:column; align-items:center; gap:1px; font-size:10px; color:var(--t3); font-weight:500; }
+.ti.on { color:var(--accent-lt); }
+.ti .ticon { font-size:19px; height:24px; display:flex; align-items:center; }
+
+.ios-nav { padding:6px 20px 10px; }
+.ios-nav .lt { font-size:32px; font-weight:700; letter-spacing:-0.6px; color:var(--t1); }
+.ios-nav .bk { font-size:16px; font-weight:500; color:var(--accent-lt); margin-bottom:2px; }
+
+/* ── Mac frame ── */
+.mac-c { display:flex; justify-content:center; }
+.mac {
+  width:1120px; max-width:100%; height:700px;
+  border-radius:12px; border:1px solid rgba(255,255,255,0.06);
+  overflow:hidden;
+  box-shadow:0 0 0 .5px rgba(0,0,0,.35),0 28px 80px rgba(0,0,0,.55),0 8px 32px rgba(0,0,0,.35);
+}
+.mac-tb {
+  height:48px; background:rgba(11,17,32,0.92); backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px);
+  border-bottom:0.5px solid var(--sep); display:flex; align-items:center; padding:0 14px;
+}
+.tls { display:flex; gap:7px; margin-right:14px; }
+.tld { width:12px; height:12px; border-radius:50%; }
+.tl-c { background:#FF5F57; } .tl-m { background:#FEBC2E; } .tl-x { background:#28C840; }
+.mac-tb .tt { font-size:13px; font-weight:600; color:var(--t1); flex:1; text-align:center; margin-right:60px; }
+
+.mac-b { display:flex; height:calc(100% - 48px); }
+
+.mac-sd {
+  width:210px; background:var(--sb-bg);
+  border-right:0.5px solid rgba(255,255,255,0.05);
+  padding:10px 7px; flex-shrink:0; overflow-y:auto;
+}
+.sd-l { font-size:10px; font-weight:600; color:var(--t3); text-transform:uppercase; letter-spacing:1px; padding:10px 9px 5px; }
+.sd-i { display:flex; align-items:center; gap:7px; padding:6px 9px; border-radius:7px; font-size:13px; color:var(--t2); cursor:default; }
+.sd-i:hover { background:rgba(255,255,255,0.03); }
+.sd-i.on { background:rgba(6,182,212,0.10); color:var(--accent-lt); }
+.sd-i .sic { font-size:14px; width:16px; text-align:center; opacity:.55; }
+.sd-i.on .sic { opacity:1; }
+.sd-i .bdg { margin-left:auto; font-size:10px; font-weight:600; background:rgba(16,185,129,0.15); color:var(--green); padding:1px 6px; border-radius:8px; }
+.sd-n { display:flex; align-items:center; gap:7px; padding:7px 9px; border-radius:7px; font-size:13px; color:var(--t1); }
+
+.mac-d { flex:1; padding:20px 22px; overflow-y:auto; }
+.mac-dt { font-size:22px; font-weight:700; letter-spacing:-.4px; color:var(--t1); margin-bottom:18px; }
+
+.mac-tl { display:grid; grid-template-columns:1fr 240px; gap:14px; }
+.mac-sp { background:rgba(255,255,255,0.025); border:0.5px solid rgba(255,255,255,0.04); border-radius:14px; padding:14px; }
+.mac-sp .pt { margin-bottom:14px; }
+
+.mac-table { width:100%; border-collapse:collapse; font-size:12px; position:relative; z-index:1; }
+.mac-table th { text-align:left; padding:7px 10px; border-bottom:0.5px solid var(--sep); }
+.mac-table td { padding:8px 10px; color:var(--t1); border-bottom:0.5px solid var(--sep); }
+.mac-table tr:last-child td { border-bottom:none; }
+.mac-table .mono { font-family:"SF Mono",ui-monospace,monospace; font-size:11px; color:var(--t2); letter-spacing:.3px; }
+.mac-table .dc { display:flex; align-items:center; gap:8px; }
+.mac-table .sc { display:flex; align-items:center; gap:5px; }
+
+.bc { display:flex; align-items:baseline; gap:6px; margin-bottom:14px; }
+.bc-l { font-size:13px; color:var(--accent-lt); font-weight:500; }
+.bc-s { color:var(--t3); font-size:13px; }
+.bc-c { font-size:20px; font-weight:700; color:var(--t1); letter-spacing:-.3px; }
+
+.mac-ir { display:flex; gap:7px; margin-bottom:14px; }
+.mac-ir .inp { height:30px; font-size:12px; border-radius:7px; }
+.mac-ir .rbtn { height:30px; font-size:12px; border-radius:7px; padding:0 12px; }
+
+/* ── Design system ── */
+.dg { display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:18px; margin-bottom:40px; }
+.dc { background:var(--wrap-card); border:1px solid var(--wrap-bdr); border-radius:14px; padding:22px; }
+.dc h3 { font-size:14px; font-weight:600; margin-bottom:14px; color:var(--wrap-t); letter-spacing:.3px; }
+
+.sw { display:flex; flex-wrap:wrap; gap:10px; }
+.s { display:flex; flex-direction:column; align-items:center; gap:5px; }
+.s .c { width:40px; height:40px; border-radius:50%; border:2px solid rgba(255,255,255,0.06); }
+.s .n { font-size:9px; color:var(--wrap-m); font-weight:500; letter-spacing:.3px; }
+
+.tr { margin-bottom:11px; }
+.tr .trl { font-size:10px; color:var(--wrap-m); margin-bottom:2px; display:block; letter-spacing:.5px; text-transform:uppercase; }
+
+.sl { font-size:12px; font-weight:600; letter-spacing:1.5px; text-transform:uppercase; color:var(--accent); margin-bottom:8px; }
+.sh { font-size:28px; font-weight:700; letter-spacing:-.7px; margin-bottom:5px; }
+.sd { font-size:14px; color:var(--wrap-m); line-height:1.6; max-width:560px; margin-bottom:36px; }
+
+/* ── Annotations ── */
+.anns { display:flex; gap:12px; margin-top:28px; flex-wrap:wrap; }
+.an {
+  flex:1; min-width:190px; padding:14px;
+  background:var(--wrap-card); border:1px solid var(--wrap-bdr);
+  border-radius:10px; border-left:3px solid var(--accent);
+}
+.an .at { font-size:12px; font-weight:600; color:var(--accent-lt); margin-bottom:3px; letter-spacing:.3px; }
+.an .ad { font-size:12px; color:var(--wrap-m); line-height:1.5; }
+
+/* ── Animations ── */
+@keyframes pulse { 0%,100% { transform:scale(1); opacity:1; } 50% { transform:scale(1.4); opacity:.6; } }
+@keyframes breathe { 0%,100% { stroke-dashoffset:34; } 50% { stroke-dashoffset:42; } }
+@keyframes up { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+.fi { animation:up .45s ease-out forwards; }
+.d1 { animation-delay:.06s; opacity:0; }
+.d2 { animation-delay:.12s; opacity:0; }
+.d3 { animation-delay:.18s; opacity:0; }
+.d4 { animation-delay:.24s; opacity:0; }
+
+@media(max-width:900px) {
+  .wrap { padding:20px 14px 60px; }
+  .hdr h1 { font-size:32px; }
+  .ph { transform:scale(.8); transform-origin:top center; }
+  .mac { width:100%; }
+  .mg4 { grid-template-columns:1fr 1fr; }
+}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <linearGradient id="hG" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#10B981"/>
+      <stop offset="50%" stop-color="#22D3EE"/>
+      <stop offset="100%" stop-color="#06B6D4"/>
+    </linearGradient>
+    <linearGradient id="cG" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#06B6D4" stop-opacity=".22"/>
+      <stop offset="100%" stop-color="#06B6D4" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+</svg>
+
+<div class="wrap">
+
+<div class="hdr">
+  <h1>Refined Glass</h1>
+  <p>Tight labels, warm numbers &middot; Premium indie meets pro tool</p>
+</div>
+
+<div class="tabs">
+  <button class="on" onclick="sw('ios1')">iOS Dashboard</button>
+  <button onclick="sw('ios2')">iOS Tools</button>
+  <button onclick="sw('ios3')">iOS Ping</button>
+  <button onclick="sw('mac1')">macOS Dashboard</button>
+  <button onclick="sw('mac2')">macOS Ping</button>
+  <button onclick="sw('ds')">Design System</button>
+</div>
+
+<!-- ═══ iOS DASHBOARD ═══ -->
+<div class="pane on" id="ios1">
+<div class="ph-c"><div class="ph dk">
+  <div class="ph-n"></div>
+  <div class="ph-sb"><span class="tm">9:41</span><span class="ic">&#9679;&#9679;&#9679;&#9679; &nbsp;&#9889;</span></div>
+  <div class="ph-s">
+    <div class="ios-nav"><div class="lt fi">Dashboard</div></div>
+
+    <div class="conn fi d1">
+      <span class="wi">&#9680;</span>
+      <div class="ci"><div class="cn">Home Network</div><div class="cd">192.168.1.0/24 &middot; 12 devices</div></div>
+      <div class="sigs"><div class="sig" style="height:5px"></div><div class="sig" style="height:9px"></div><div class="sig" style="height:13px"></div><div class="sig" style="height:17px"></div></div>
+    </div>
+
+    <div style="padding:0 20px">
+
+      <div class="glass glass-hi fi d1" style="margin-bottom:10px">
+        <div class="gh"><span class="lbl">Network Health</span><span class="gh-sub">2m ago</span></div>
+        <div class="hr-wrap">
+          <div class="hr">
+            <svg viewBox="0 0 96 96"><circle class="trk" cx="48" cy="48" r="42"/><circle class="fl" cx="48" cy="48" r="42"/></svg>
+            <div class="hv val val-lg">87</div>
+            <div class="hl lbl" style="letter-spacing:1px">Score</div>
+          </div>
+          <div class="hi">
+            <div class="hi-row"><div class="dot dot-on"></div><span class="label" style="font-size:14px;font-weight:600;color:var(--t1)">All Systems Normal</span></div>
+            <div class="hi-detail">12 devices online &middot; Gateway 4ms<br>No packet loss detected</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="mg fi d2" style="margin-bottom:10px">
+        <div class="mc">
+          <div class="m-icon" style="background:rgba(6,182,212,0.10);color:var(--accent)">&#9201;</div>
+          <div class="lbl">Latency</div>
+          <div class="val val-md" style="margin-top:2px">23<span class="unit">ms</span></div>
+          <div class="trend trend-g">&#9660; 12%</div>
+        </div>
+        <div class="mc">
+          <div class="m-icon" style="background:rgba(16,185,129,0.10);color:var(--green)">&#8595;</div>
+          <div class="lbl">Download</div>
+          <div class="val val-md" style="margin-top:2px">145<span class="unit">Mbps</span></div>
+          <div class="trend trend-g">&#9650; 8%</div>
+        </div>
+        <div class="mc">
+          <div class="m-icon" style="background:rgba(59,130,246,0.10);color:var(--blue)">&#8593;</div>
+          <div class="lbl">Upload</div>
+          <div class="val val-md" style="margin-top:2px">42<span class="unit">Mbps</span></div>
+          <div class="trend trend-n">&mdash; 0%</div>
+        </div>
+        <div class="mc">
+          <div class="m-icon" style="background:rgba(239,68,68,0.10);color:var(--red)">&#9888;</div>
+          <div class="lbl">Packet Loss</div>
+          <div class="val val-md" style="margin-top:2px">0.1<span class="unit">%</span></div>
+          <div class="trend trend-g">&#9660; 0.3%</div>
+        </div>
+      </div>
+
+      <div class="glass fi d3">
+        <div class="gh"><span class="lbl">Active Devices</span><span class="gh-link">See All</span></div>
+        <div class="dr">
+          <div class="di" style="background:rgba(6,182,212,0.08);color:var(--accent)">&#128187;</div>
+          <div class="dn"><div class="dn-name">MacBook Pro</div><div class="dn-ip">192.168.1.10</div></div>
+          <div class="dot dot-on" style="margin-right:3px"></div>
+          <div class="dl dl-g val val-xs">2ms</div>
+        </div>
+        <div class="dr">
+          <div class="di" style="background:rgba(139,92,246,0.08);color:var(--purple)">&#128241;</div>
+          <div class="dn"><div class="dn-name">iPhone 16 Pro</div><div class="dn-ip">192.168.1.15</div></div>
+          <div class="dot dot-on" style="margin-right:3px"></div>
+          <div class="dl dl-g val val-xs">4ms</div>
+        </div>
+        <div class="dr">
+          <div class="di" style="background:rgba(59,130,246,0.08);color:var(--blue)">&#128250;</div>
+          <div class="dn"><div class="dn-name">Apple TV</div><div class="dn-ip">192.168.1.20</div></div>
+          <div class="dot dot-on" style="margin-right:3px"></div>
+          <div class="dl dl-g val val-xs">3ms</div>
+        </div>
+        <div class="dr">
+          <div class="di" style="background:rgba(245,158,11,0.08);color:var(--amber)">&#127925;</div>
+          <div class="dn"><div class="dn-name">HomePod</div><div class="dn-ip">192.168.1.22</div></div>
+          <div class="dot dot-on" style="margin-right:3px"></div>
+          <div class="dl dl-a val val-xs">52ms</div>
+        </div>
+        <div class="dr">
+          <div class="di" style="background:rgba(142,142,147,0.08);color:#8E8E93">&#128424;</div>
+          <div class="dn"><div class="dn-name">HP LaserJet</div><div class="dn-ip">192.168.1.30</div></div>
+          <div class="dot dot-idle" style="margin-right:3px"></div>
+          <div class="dl dl-a val val-xs">89ms</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="ph-tab">
+    <div class="ti on"><div class="ticon">&#9673;</div><span>Dashboard</span></div>
+    <div class="ti"><div class="ticon">&#9733;</div><span>Map</span></div>
+    <div class="ti"><div class="ticon">&#9881;</div><span>Tools</span></div>
+    <div class="ti"><div class="ticon">&#9776;</div><span>Timeline</span></div>
+    <div class="ti"><div class="ticon">&#9965;</div><span>Settings</span></div>
+  </div>
+</div></div>
+<div class="anns">
+  <div class="an"><div class="at">Uppercase Labels</div><div class="ad">NETWORK HEALTH, LATENCY, ACTIVE DEVICES — tight, small, high letter-spacing. They're structural scaffolding, not data.</div></div>
+  <div class="an"><div class="at">Rounded Values</div><div class="ad">87, 23ms, 145Mbps — SF Pro Rounded, bold, larger size. The data is the hero. The contrast between labels and values creates instant hierarchy.</div></div>
+  <div class="an"><div class="at">Tighter Spacing</div><div class="ad">8-10px gaps between cards (was 12-20). Denser without feeling cramped. Pro-tool information density with indie-app polish.</div></div>
+</div>
+</div>
+
+<!-- ═══ iOS TOOLS ═══ -->
+<div class="pane" id="ios2">
+<div class="ph-c"><div class="ph dk">
+  <div class="ph-n"></div>
+  <div class="ph-sb"><span class="tm">9:41</span><span class="ic">&#9679;&#9679;&#9679;&#9679; &nbsp;&#9889;</span></div>
+  <div class="ph-s">
+    <div class="ios-nav"><div class="lt fi">Tools</div></div>
+    <div class="tg fi d1">
+      <div class="tc"><div class="tc-i" style="background:rgba(6,182,212,0.10);color:var(--accent)">&#9673;</div><div class="tc-n lbl" style="color:var(--t1);letter-spacing:.5px">Ping</div><div class="tc-d">Latency test</div></div>
+      <div class="tc"><div class="tc-i" style="background:rgba(16,185,129,0.10);color:var(--green)">&#9776;</div><div class="tc-n lbl" style="color:var(--t1);letter-spacing:.5px">Traceroute</div><div class="tc-d">Path trace</div></div>
+      <div class="tc"><div class="tc-i" style="background:rgba(245,158,11,0.10);color:var(--amber)">&#9881;</div><div class="tc-n lbl" style="color:var(--t1);letter-spacing:.5px">Port Scan</div><div class="tc-d">Open ports</div></div>
+      <div class="tc"><div class="tc-i" style="background:rgba(59,130,246,0.10);color:var(--blue)">&#9830;</div><div class="tc-n lbl" style="color:var(--t1);letter-spacing:.5px">DNS</div><div class="tc-d">Record lookup</div></div>
+      <div class="tc"><div class="tc-i" style="background:rgba(139,92,246,0.10);color:var(--purple)">&#9993;</div><div class="tc-n lbl" style="color:var(--t1);letter-spacing:.5px">WHOIS</div><div class="tc-d">Domain info</div></div>
+      <div class="tc"><div class="tc-i" style="background:rgba(239,68,68,0.10);color:var(--red)">&#9889;</div><div class="tc-n lbl" style="color:var(--t1);letter-spacing:.5px">Speed Test</div><div class="tc-d">Bandwidth</div></div>
+      <div class="tc"><div class="tc-i" style="background:rgba(6,182,212,0.10);color:var(--accent-lt)">&#9992;</div><div class="tc-n lbl" style="color:var(--t1);letter-spacing:.5px">World Ping</div><div class="tc-d">Global latency</div></div>
+      <div class="tc"><div class="tc-i" style="background:rgba(245,158,11,0.10);color:var(--amber)">&#127760;</div><div class="tc-n lbl" style="color:var(--t1);letter-spacing:.5px">GeoTrace</div><div class="tc-d">Visual trace</div></div>
+      <div class="tc"><div class="tc-i" style="background:rgba(16,185,129,0.10);color:var(--green)">&#128274;</div><div class="tc-n lbl" style="color:var(--t1);letter-spacing:.5px">SSL Cert</div><div class="tc-d">Certificate</div></div>
+      <div class="tc"><div class="tc-i" style="background:rgba(142,142,147,0.10);color:#8E8E93">&#128225;</div><div class="tc-n lbl" style="color:var(--t1);letter-spacing:.5px">WoL</div><div class="tc-d">Remote wake</div></div>
+      <div class="tc"><div class="tc-i" style="background:rgba(59,130,246,0.10);color:var(--blue)">&#128269;</div><div class="tc-n lbl" style="color:var(--t1);letter-spacing:.5px">Bonjour</div><div class="tc-d">Discovery</div></div>
+      <div class="tc"><div class="tc-i" style="background:rgba(139,92,246,0.10);color:var(--purple)">&#9638;</div><div class="tc-n lbl" style="color:var(--t1);letter-spacing:.5px">Subnet</div><div class="tc-d">CIDR math</div></div>
+    </div>
+  </div>
+  <div class="ph-tab">
+    <div class="ti"><div class="ticon">&#9673;</div><span>Dashboard</span></div>
+    <div class="ti"><div class="ticon">&#9733;</div><span>Map</span></div>
+    <div class="ti on"><div class="ticon">&#9881;</div><span>Tools</span></div>
+    <div class="ti"><div class="ticon">&#9776;</div><span>Timeline</span></div>
+    <div class="ti"><div class="ticon">&#9965;</div><span>Settings</span></div>
+  </div>
+</div></div>
+<div class="anns">
+  <div class="an"><div class="at">Tool Names as Labels</div><div class="ad">Tool names use the uppercase label style — PING, DNS, WHOIS. They're structural identifiers. The icon and color do the heavy lifting for recognition.</div></div>
+  <div class="an"><div class="at">Accent Glow on Hover</div><div class="ad">Cards subtly light up on tap/hover with an accent border glow. Makes the grid feel interactive and responsive.</div></div>
+</div>
+</div>
+
+<!-- ═══ iOS PING ═══ -->
+<div class="pane" id="ios3">
+<div class="ph-c"><div class="ph dk">
+  <div class="ph-n"></div>
+  <div class="ph-sb"><span class="tm">9:42</span><span class="ic">&#9679;&#9679;&#9679;&#9679; &nbsp;&#9889;</span></div>
+  <div class="ph-s">
+    <div class="ios-nav"><div class="bk">&#8592; Tools</div><div class="lt fi">Ping</div></div>
+    <div class="irow fi d1"><input class="inp" value="google.com" readonly><button class="rbtn stop">&#9632; Stop</button></div>
+    <div style="padding:0 20px;margin-bottom:10px" class="fi d2">
+      <div class="glass">
+        <div class="gh"><span class="lbl">Latency</span><span class="gh-sub">20 pings</span></div>
+        <div class="chw">
+          <svg viewBox="0 0 340 130" preserveAspectRatio="none">
+            <line class="ch-grid" x1="0" y1="32" x2="340" y2="32"/><line class="ch-grid" x1="0" y1="65" x2="340" y2="65"/><line class="ch-grid" x1="0" y1="98" x2="340" y2="98"/>
+            <text class="ch-lbl" x="2" y="30">50</text><text class="ch-lbl" x="2" y="63">25</text><text class="ch-lbl" x="2" y="96">10</text>
+            <path d="M30,78 L50,72 L70,82 L90,68 L110,74 L130,65 L150,70 L170,62 L190,75 L210,58 L230,65 L250,72 L270,60 L290,68 L310,55 L330,62 L330,130 L30,130 Z" fill="url(#cG)"/>
+            <path class="ch-line" d="M30,78 L50,72 L70,82 L90,68 L110,74 L130,65 L150,70 L170,62 L190,75 L210,58 L230,65 L250,72 L270,60 L290,68 L310,55 L330,62"/>
+            <circle class="ch-glow" cx="330" cy="62" r="4"><animate attributeName="r" values="4;6;4" dur="1.5s" repeatCount="indefinite"/></circle>
+            <circle cx="330" cy="62" r="2" fill="#fff"/>
+          </svg>
+        </div>
+      </div>
+    </div>
+    <div style="padding:0 20px" class="fi d3">
+      <div class="glass">
+        <div class="gh"><span class="lbl">Results</span><span class="gh-sub">20 / 20</span></div>
+        <div class="rr"><span class="rr-s">#20</span><span class="rr-h">142.250.80.46</span><span class="rr-t dl-g val val-xs">18ms</span></div>
+        <div class="rr"><span class="rr-s">#19</span><span class="rr-h">142.250.80.46</span><span class="rr-t dl-g val val-xs">22ms</span></div>
+        <div class="rr"><span class="rr-s">#18</span><span class="rr-h">142.250.80.46</span><span class="rr-t dl-g val val-xs">25ms</span></div>
+        <div class="rr"><span class="rr-s">#17</span><span class="rr-h">142.250.80.46</span><span class="rr-t dl-g val val-xs">19ms</span></div>
+        <div class="rr"><span class="rr-s">#16</span><span class="rr-h">142.250.80.46</span><span class="rr-t dl-a val val-xs">52ms</span></div>
+        <div class="sb">
+          <div class="si"><div class="lbl">Min</div><div class="val val-sm" style="color:var(--green)">14</div></div>
+          <div class="si"><div class="lbl">Avg</div><div class="val val-sm">23</div></div>
+          <div class="si"><div class="lbl">Max</div><div class="val val-sm" style="color:var(--amber)">52</div></div>
+          <div class="si"><div class="lbl">Loss</div><div class="val val-sm" style="color:var(--green)">0%</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="ph-tab">
+    <div class="ti"><div class="ticon">&#9673;</div><span>Dashboard</span></div>
+    <div class="ti"><div class="ticon">&#9733;</div><span>Map</span></div>
+    <div class="ti on"><div class="ticon">&#9881;</div><span>Tools</span></div>
+    <div class="ti"><div class="ticon">&#9776;</div><span>Timeline</span></div>
+    <div class="ti"><div class="ticon">&#9965;</div><span>Settings</span></div>
+  </div>
+</div></div>
+<div class="anns">
+  <div class="an"><div class="at">Label/Value Contrast</div><div class="ad">LATENCY, RESULTS, MIN, AVG — uppercase labels scaffold the view. 18ms, 23, 52 — rounded bold values are the data. Two typographic voices, one clear hierarchy.</div></div>
+  <div class="an"><div class="at">Mono for IPs</div><div class="ad">142.250.80.46 in SF Mono with wider letter-spacing. Technical values get their own typographic treatment — distinct from both labels and data values.</div></div>
+</div>
+</div>
+
+<!-- ═══ macOS DASHBOARD ═══ -->
+<div class="pane" id="mac1">
+<div class="mac-c"><div class="mac dk">
+  <div class="mac-tb"><div class="tls"><div class="tld tl-c"></div><div class="tld tl-m"></div><div class="tld tl-x"></div></div><div class="tt">NetMonitor Pro</div></div>
+  <div class="mac-b">
+    <div class="mac-sd">
+      <div class="sd-l">Networks</div>
+      <div class="sd-n"><div class="dot dot-on"></div><span>Home Network</span></div>
+      <div class="sd-n" style="opacity:.35"><div class="dot" style="background:var(--t3)"></div><span>Office</span></div>
+      <div style="height:10px"></div>
+      <div class="sd-l">Monitor</div>
+      <div class="sd-i on"><span class="sic">&#9673;</span><span>Dashboard</span><span class="bdg">12</span></div>
+      <div class="sd-i"><span class="sic">&#9678;</span><span>Targets</span></div>
+      <div class="sd-i"><span class="sic">&#9633;</span><span>Devices</span></div>
+      <div class="sd-i"><span class="sic">&#9776;</span><span>Timeline</span></div>
+      <div style="height:10px"></div>
+      <div class="sd-l">Utilities</div>
+      <div class="sd-i"><span class="sic">&#9881;</span><span>Tools</span></div>
+    </div>
+    <div class="mac-d">
+      <div class="mac-dt fi">Dashboard</div>
+      <div class="mg mg4 fi d1" style="margin-bottom:14px">
+        <div class="mc" style="border-color:rgba(6,182,212,0.12);box-shadow:0 0 14px rgba(6,182,212,0.05)">
+          <div class="lbl">Network Health</div>
+          <div style="display:flex;align-items:center;gap:8px;margin-top:6px">
+            <div class="hr" style="width:40px;height:40px"><svg viewBox="0 0 96 96"><circle class="trk" cx="48" cy="48" r="42"/><circle class="fl" cx="48" cy="48" r="42"/></svg><div class="hv val" style="font-size:14px">87</div></div>
+            <div style="display:flex;align-items:center;gap:3px"><div class="dot dot-on"></div><span style="font-size:11px;font-weight:600;color:var(--t1)">Healthy</span></div>
+          </div>
+        </div>
+        <div class="mc"><div class="lbl">Latency</div><div class="val val-md" style="margin-top:4px">23<span class="unit">ms</span></div><div class="trend trend-g">&#9660; 12%</div></div>
+        <div class="mc"><div class="lbl">Download</div><div class="val val-md" style="margin-top:4px">145<span class="unit">Mbps</span></div><div class="trend trend-g">&#9650; 8%</div></div>
+        <div class="mc"><div class="lbl">Devices Online</div><div class="val val-md" style="margin-top:4px">12<span class="unit">/ 14</span></div><div class="trend trend-g">All responding</div></div>
+      </div>
+
+      <div class="glass fi d2" style="margin-bottom:14px">
+        <div class="gh"><span class="lbl">Network Latency</span><span class="gh-sub">30 minutes</span></div>
+        <div class="chw" style="height:110px">
+          <svg viewBox="0 0 700 100" preserveAspectRatio="none">
+            <line class="ch-grid" x1="0" y1="25" x2="700" y2="25"/><line class="ch-grid" x1="0" y1="50" x2="700" y2="50"/><line class="ch-grid" x1="0" y1="75" x2="700" y2="75"/>
+            <text class="ch-lbl" x="2" y="23">50</text><text class="ch-lbl" x="2" y="48">25</text><text class="ch-lbl" x="2" y="73">10</text>
+            <path d="M30,62 L65,56 L100,66 L135,52 L170,58 L205,48 L240,54 L275,46 L310,58 L345,42 L380,48 L415,56 L450,44 L485,52 L520,40 L555,46 L590,42 L625,48 L660,36 L695,44 L695,100 L30,100 Z" fill="url(#cG)"/>
+            <path class="ch-line" d="M30,62 L65,56 L100,66 L135,52 L170,58 L205,48 L240,54 L275,46 L310,58 L345,42 L380,48 L415,56 L450,44 L485,52 L520,40 L555,46 L590,42 L625,48 L660,36 L695,44"/>
+            <circle class="ch-glow" cx="695" cy="44" r="3"><animate attributeName="r" values="3;4.5;3" dur="1.5s" repeatCount="indefinite"/></circle><circle cx="695" cy="44" r="1.5" fill="#fff"/>
+          </svg>
+        </div>
+      </div>
+
+      <div class="glass fi d3">
+        <div class="gh"><span class="lbl">Active Devices</span><span class="gh-link">View All</span></div>
+        <table class="mac-table">
+          <thead><tr><th class="lbl">Device</th><th class="lbl">IP Address</th><th class="lbl">MAC Address</th><th class="lbl">Status</th><th class="lbl">Latency</th></tr></thead>
+          <tbody>
+            <tr><td><div class="dc"><div class="di" style="width:24px;height:24px;border-radius:6px;font-size:12px;background:rgba(6,182,212,0.08);color:var(--accent)">&#128187;</div><span style="font-size:13px">MacBook Pro</span></div></td><td class="mono">192.168.1.10</td><td class="mono">A4:83:E7:2B:1F:D0</td><td><div class="sc"><div class="dot dot-on"></div><span style="font-size:12px">Online</span></div></td><td><span class="val val-xs dl-g">2ms</span></td></tr>
+            <tr><td><div class="dc"><div class="di" style="width:24px;height:24px;border-radius:6px;font-size:12px;background:rgba(139,92,246,0.08);color:var(--purple)">&#128241;</div><span style="font-size:13px">iPhone 16 Pro</span></div></td><td class="mono">192.168.1.15</td><td class="mono">B2:41:C8:9E:33:A7</td><td><div class="sc"><div class="dot dot-on"></div><span style="font-size:12px">Online</span></div></td><td><span class="val val-xs dl-g">4ms</span></td></tr>
+            <tr><td><div class="dc"><div class="di" style="width:24px;height:24px;border-radius:6px;font-size:12px;background:rgba(59,130,246,0.08);color:var(--blue)">&#128250;</div><span style="font-size:13px">Apple TV 4K</span></div></td><td class="mono">192.168.1.20</td><td class="mono">C8:69:CD:4A:22:F1</td><td><div class="sc"><div class="dot dot-on"></div><span style="font-size:12px">Online</span></div></td><td><span class="val val-xs dl-g">3ms</span></td></tr>
+            <tr><td><div class="dc"><div class="di" style="width:24px;height:24px;border-radius:6px;font-size:12px;background:rgba(245,158,11,0.08);color:var(--amber)">&#128424;</div><span style="font-size:13px">HP LaserJet</span></div></td><td class="mono">192.168.1.30</td><td class="mono">D4:F5:47:8B:CC:E9</td><td><div class="sc"><div class="dot dot-idle"></div><span style="font-size:12px">Idle</span></div></td><td><span class="val val-xs dl-a">89ms</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div></div>
+<div class="anns">
+  <div class="an"><div class="at">Same Typography System</div><div class="ad">Uppercase labels, rounded values, mono for IPs — identical typographic voice to iOS. You know it's the same app instantly.</div></div>
+  <div class="an"><div class="at">Same Glass, Desktop Density</div><div class="ad">Same glass cards and dark gradient, but macOS-appropriate density: 4-column metrics, table for devices, tighter vertical spacing.</div></div>
+  <div class="an"><div class="at">Table Headers as Labels</div><div class="ad">DEVICE, IP ADDRESS, STATUS — table headers use the same uppercase label style. Consistent scaffolding across every data display.</div></div>
+</div>
+</div>
+
+<!-- ═══ macOS PING ═══ -->
+<div class="pane" id="mac2">
+<div class="mac-c"><div class="mac dk">
+  <div class="mac-tb"><div class="tls"><div class="tld tl-c"></div><div class="tld tl-m"></div><div class="tld tl-x"></div></div><div class="tt">NetMonitor Pro</div></div>
+  <div class="mac-b">
+    <div class="mac-sd">
+      <div class="sd-l">Networks</div>
+      <div class="sd-n"><div class="dot dot-on"></div><span>Home Network</span></div>
+      <div style="height:10px"></div>
+      <div class="sd-l">Monitor</div>
+      <div class="sd-i"><span class="sic">&#9673;</span><span>Dashboard</span></div>
+      <div class="sd-i"><span class="sic">&#9678;</span><span>Targets</span></div>
+      <div class="sd-i"><span class="sic">&#9633;</span><span>Devices</span></div>
+      <div class="sd-i"><span class="sic">&#9776;</span><span>Timeline</span></div>
+      <div style="height:10px"></div>
+      <div class="sd-l">Utilities</div>
+      <div class="sd-i on"><span class="sic">&#9881;</span><span>Tools</span></div>
+    </div>
+    <div class="mac-d">
+      <div class="bc fi"><span class="bc-l">Tools</span><span class="bc-s">/</span><span class="bc-c">Ping</span></div>
+      <div class="mac-ir fi d1"><input class="inp" value="google.com" readonly><button class="rbtn stop" style="height:30px;font-size:12px;border-radius:7px;padding:0 12px">&#9632; Stop</button></div>
+      <div class="mac-tl">
+        <div>
+          <div class="glass fi d1" style="margin-bottom:14px">
+            <div class="gh"><span class="lbl">Latency</span><span class="gh-sub">20 pings</span></div>
+            <div class="chw" style="height:150px">
+              <svg viewBox="0 0 600 140" preserveAspectRatio="none">
+                <line class="ch-grid" x1="0" y1="35" x2="600" y2="35"/><line class="ch-grid" x1="0" y1="70" x2="600" y2="70"/><line class="ch-grid" x1="0" y1="105" x2="600" y2="105"/>
+                <text class="ch-lbl" x="2" y="33">50</text><text class="ch-lbl" x="2" y="68">25</text><text class="ch-lbl" x="2" y="103">10</text>
+                <path d="M30,84 L60,76 L90,90 L120,72 L150,80 L180,66 L210,74 L240,62 L270,82 L300,56 L330,66 L360,76 L390,60 L420,70 L450,52 L480,62 L510,56 L540,66 L570,50 L570,140 L30,140 Z" fill="url(#cG)"/>
+                <path class="ch-line" d="M30,84 L60,76 L90,90 L120,72 L150,80 L180,66 L210,74 L240,62 L270,82 L300,56 L330,66 L360,76 L390,60 L420,70 L450,52 L480,62 L510,56 L540,66 L570,50"/>
+                <circle class="ch-glow" cx="570" cy="50" r="3"><animate attributeName="r" values="3;4.5;3" dur="1.5s" repeatCount="indefinite"/></circle><circle cx="570" cy="50" r="1.5" fill="#fff"/>
+              </svg>
+            </div>
+          </div>
+          <div class="glass fi d2">
+            <div class="gh"><span class="lbl">Results</span></div>
+            <table class="mac-table" style="font-size:11px">
+              <thead><tr><th class="lbl">#</th><th class="lbl">Host</th><th class="lbl">Bytes</th><th class="lbl">TTL</th><th class="lbl">Time</th></tr></thead>
+              <tbody>
+                <tr><td class="mono">20</td><td class="mono">142.250.80.46</td><td>64</td><td>117</td><td><span class="val val-xs dl-g">18ms</span></td></tr>
+                <tr><td class="mono">19</td><td class="mono">142.250.80.46</td><td>64</td><td>117</td><td><span class="val val-xs dl-g">22ms</span></td></tr>
+                <tr><td class="mono">18</td><td class="mono">142.250.80.46</td><td>64</td><td>117</td><td><span class="val val-xs dl-g">25ms</span></td></tr>
+                <tr><td class="mono">17</td><td class="mono">142.250.80.46</td><td>64</td><td>117</td><td><span class="val val-xs dl-g">19ms</span></td></tr>
+                <tr><td class="mono">16</td><td class="mono">142.250.80.46</td><td>64</td><td>117</td><td><span class="val val-xs dl-a">52ms</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="mac-sp fi d3">
+          <div class="lbl" style="margin-bottom:14px">Statistics</div>
+          <div class="pt"><div class="lbl" style="font-size:10px">Packets Sent</div><div class="val val-sm">20</div></div>
+          <div class="pt"><div class="lbl" style="font-size:10px">Packets Received</div><div class="val val-sm">20</div></div>
+          <div class="pt"><div class="lbl" style="font-size:10px">Packet Loss</div><div class="val val-sm" style="color:var(--green)">0%</div></div>
+          <div style="border-top:.5px solid var(--sep);padding-top:12px;margin-top:4px">
+            <div class="pt"><div class="lbl" style="font-size:10px">Minimum</div><div class="val val-sm" style="color:var(--green)">14<span class="unit">ms</span></div></div>
+            <div class="pt"><div class="lbl" style="font-size:10px">Average</div><div class="val val-sm">23<span class="unit">ms</span></div></div>
+            <div class="pt"><div class="lbl" style="font-size:10px">Maximum</div><div class="val val-sm" style="color:var(--amber)">52<span class="unit">ms</span></div></div>
+            <div class="pt"><div class="lbl" style="font-size:10px">Std Deviation</div><div class="val val-sm">8.3<span class="unit">ms</span></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div></div>
+<div class="anns">
+  <div class="an"><div class="at">Three Type Voices</div><div class="ad">Labels (STATISTICS, MINIMUM), values (14ms, 23ms), mono (142.250.80.46). Three distinct treatments, one clear hierarchy. Identical across both platforms.</div></div>
+  <div class="an"><div class="at">Detail View, Not Sheet</div><div class="ad">Tools render inline with breadcrumb nav. Stats panel uses the label/value system consistently. More room for data than sheet presentation.</div></div>
+</div>
+</div>
+
+<!-- ═══ DESIGN SYSTEM ═══ -->
+<div class="pane" id="ds">
+<div class="sl">Design System</div>
+<div class="sh">Three Typographic Voices</div>
+<div class="sd">The core innovation: structural labels, warm data values, and technical mono. Three voices that create instant hierarchy without needing size differences alone.</div>
+
+<div class="dg">
+  <div class="dc">
+    <h3>Typography System</h3>
+    <div class="tr"><span class="trl">Labels — SF Pro Text 11px 600 1.2px spacing uppercase</span><div class="lbl" style="font-size:13px">NETWORK HEALTH</div></div>
+    <div class="tr"><span class="trl">Values — SF Pro Rounded Bold, sizes vary</span><div class="val val-lg">145<span class="unit">Mbps</span></div></div>
+    <div class="tr"><span class="trl">Values medium</span><div class="val val-md">23<span class="unit">ms</span></div></div>
+    <div class="tr"><span class="trl">Values small</span><div class="val val-sm" style="color:var(--green)">14</div></div>
+    <div class="tr"><span class="trl">Mono — SF Mono 11-13px 0.3px spacing</span><div style="font-family:'SF Mono',ui-monospace,monospace;font-size:13px;color:var(--t2);letter-spacing:.3px">192.168.1.10</div></div>
+    <div class="tr"><span class="trl">Body — SF Pro Text 14px regular</span><div style="font-size:14px;color:var(--t1)">MacBook Pro</div></div>
+    <div class="tr"><span class="trl">Detail — SF Pro Text 12px</span><div style="font-size:12px;color:var(--t3)">12 devices online &middot; Gateway 4ms</div></div>
+  </div>
+
+  <div class="dc">
+    <h3>Color Palette</h3>
+    <div class="sw">
+      <div class="s"><div class="c" style="background:var(--accent);box-shadow:0 0 10px var(--accent-glow)"></div><span class="n">Accent</span></div>
+      <div class="s"><div class="c" style="background:var(--accent-lt)"></div><span class="n">Accent Lt</span></div>
+      <div class="s"><div class="c" style="background:var(--green);box-shadow:0 0 6px rgba(16,185,129,.2)"></div><span class="n">Online</span></div>
+      <div class="s"><div class="c" style="background:var(--red);box-shadow:0 0 6px rgba(239,68,68,.2)"></div><span class="n">Offline</span></div>
+      <div class="s"><div class="c" style="background:var(--amber);box-shadow:0 0 6px rgba(245,158,11,.2)"></div><span class="n">Warning</span></div>
+      <div class="s"><div class="c" style="background:#8E8E93"></div><span class="n">Idle</span></div>
+    </div>
+    <div style="margin-top:18px"><h3>Selectable Accents</h3>
+      <div class="sw" style="margin-top:8px">
+        <div class="s"><div class="c" style="background:#06B6D4"></div><span class="n">Teal</span></div>
+        <div class="s"><div class="c" style="background:#3B82F6"></div><span class="n">Blue</span></div>
+        <div class="s"><div class="c" style="background:#8B5CF6"></div><span class="n">Purple</span></div>
+        <div class="s"><div class="c" style="background:#EC4899"></div><span class="n">Pink</span></div>
+        <div class="s"><div class="c" style="background:#10B981"></div><span class="n">Green</span></div>
+        <div class="s"><div class="c" style="background:#F97316"></div><span class="n">Orange</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="dc">
+    <h3>Glass Tiers</h3>
+    <div style="background:linear-gradient(150deg,var(--bg-1),var(--bg-2));border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:8px">
+      <div style="background:var(--g-bg-hi);border:.5px solid var(--g-border-hi);border-radius:10px;padding:10px 14px;box-shadow:0 0 14px var(--accent-glow);display:flex;justify-content:space-between;align-items:center"><span class="lbl" style="color:var(--t1)">Elevated</span><span style="font-size:11px;color:var(--t3)">Hero cards</span></div>
+      <div style="background:var(--g-bg);border:.5px solid var(--g-border);border-radius:10px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center"><span class="lbl" style="color:var(--t1)">Standard</span><span style="font-size:11px;color:var(--t3)">Content cards</span></div>
+      <div style="background:rgba(255,255,255,.035);border:.5px solid rgba(255,255,255,.06);border-radius:10px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center"><span class="lbl" style="color:var(--t1)">Subtle</span><span style="font-size:11px;color:var(--t3)">Nested elements</span></div>
+      <div style="background:var(--sb-bg);border:.5px solid rgba(255,255,255,.05);border-radius:10px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center"><span class="lbl" style="color:var(--t1)">Recessed</span><span style="font-size:11px;color:var(--t3)">Sidebar, inputs</span></div>
+    </div>
+  </div>
+
+  <div class="dc">
+    <h3>Living Animations</h3>
+    <div style="display:flex;gap:24px;align-items:center;flex-wrap:wrap">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:6px">
+        <div class="dot dot-on" style="width:14px;height:14px"></div><span style="font-size:10px;color:var(--wrap-m)">Status Pulse</span>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:6px">
+        <div class="hr" style="width:40px;height:40px"><svg viewBox="0 0 96 96"><circle class="trk" cx="48" cy="48" r="42"/><circle class="fl" cx="48" cy="48" r="42"/></svg></div><span style="font-size:10px;color:var(--wrap-m)">Ring Breathe</span>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:6px">
+        <svg width="44" height="28" viewBox="0 0 44 28"><path d="M2,18 L12,12 L22,20 L32,8 L42,14" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" style="filter:drop-shadow(0 0 2px rgba(6,182,212,.25))"/><circle class="ch-glow" cx="42" cy="14" r="2.5"><animate attributeName="r" values="2.5;4;2.5" dur="1.5s" repeatCount="indefinite"/></circle><circle cx="42" cy="14" r="1.2" fill="#fff"/></svg><span style="font-size:10px;color:var(--wrap-m)">Chart Glow</span>
+      </div>
+    </div>
+    <div style="margin-top:18px"><h3>Latency Thresholds</h3>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px">
+        <div style="display:flex;align-items:center;gap:10px"><div class="val val-sm" style="width:50px;color:var(--green)">23ms</div><div style="flex:1;height:3px;background:var(--green);border-radius:2px;opacity:.2"></div><span style="font-size:10px;color:var(--wrap-m)">&lt; 50ms</span></div>
+        <div style="display:flex;align-items:center;gap:10px"><div class="val val-sm" style="width:50px;color:var(--amber)">89ms</div><div style="flex:1;height:3px;background:var(--amber);border-radius:2px;opacity:.2"></div><span style="font-size:10px;color:var(--wrap-m)">50–150ms</span></div>
+        <div style="display:flex;align-items:center;gap:10px"><div class="val val-sm" style="width:50px;color:var(--red)">203ms</div><div style="flex:1;height:3px;background:var(--red);border-radius:2px;opacity:.2"></div><span style="font-size:10px;color:var(--wrap-m)">&gt; 150ms</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="sl" style="margin-top:36px">Summary</div>
+<div class="sh">What Changed</div>
+<div class="sd">Focused refinements to typography, spacing, and macOS adoption. The aesthetic stays — the craft levels up.</div>
+<div class="dg">
+  <div class="dc">
+    <h3>Typography Refresh</h3>
+    <div style="font-size:12px;color:var(--wrap-m);line-height:2">
+      <div><span style="color:var(--accent-lt)">&#10003;</span> Uppercase labels with 1.2px letter-spacing for structure</div>
+      <div><span style="color:var(--accent-lt)">&#10003;</span> SF Pro Rounded bold for all data values</div>
+      <div><span style="color:var(--accent-lt)">&#10003;</span> SF Mono with 0.3px spacing for technical values</div>
+      <div><span style="color:var(--accent-lt)">&#10003;</span> Three distinct type voices create instant hierarchy</div>
+      <div><span style="color:var(--accent-lt)">&#10003;</span> Tighter spacing: 8-10px card gaps (was 12-20px)</div>
+      <div><span style="color:var(--accent-lt)">&#10003;</span> Values are the hero, labels are scaffolding</div>
+    </div>
+  </div>
+  <div class="dc">
+    <h3>macOS Adoption</h3>
+    <div style="font-size:12px;color:var(--wrap-m);line-height:2">
+      <div><span style="color:var(--accent-lt)">&#10003;</span> Same dark gradient background</div>
+      <div><span style="color:var(--accent-lt)">&#10003;</span> Same glass card system with tiers</div>
+      <div><span style="color:var(--accent-lt)">&#10003;</span> Same three-voice typography</div>
+      <div><span style="color:var(--accent-lt)">&#10003;</span> Same living network animations</div>
+      <div><span style="color:var(--accent-lt)">&#10003;</span> Tools as detail views (not sheets)</div>
+      <div><span style="color:var(--accent-lt)">&#10003;</span> Sidebar uses recessed glass tier</div>
+      <div><span style="color:var(--accent-lt)">&#10003;</span> Desktop-appropriate density</div>
+    </div>
+  </div>
+</div>
+</div>
+
+</div>
+
+<script>
+function sw(id){
+  document.querySelectorAll('.pane').forEach(e=>e.classList.remove('on'));
+  document.querySelectorAll('.tabs button').forEach(e=>e.classList.remove('on'));
+  document.getElementById(id).classList.add('on');
+  event.target.classList.add('on');
+  document.getElementById(id).querySelectorAll('.fi').forEach(e=>{e.style.animation='none';e.offsetHeight;e.style.animation='';});
+}
+</script>
+</body>
+</html>

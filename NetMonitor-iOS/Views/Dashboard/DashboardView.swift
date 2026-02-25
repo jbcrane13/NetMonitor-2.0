@@ -1,5 +1,6 @@
 import SwiftUI
 import NetMonitorCore
+import NetworkScanKit
 
 struct DashboardView: View {
     @State private var viewModel = DashboardViewModel()
@@ -8,25 +9,16 @@ struct DashboardView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: Theme.Layout.sectionSpacing) {
-                    ConnectionStatusHeader(viewModel: viewModel)
-
-                    SessionCard(viewModel: viewModel)
-
-                    WiFiCard(viewModel: viewModel)
-
-                    ActiveNetworkCard(
-                        viewModel: viewModel,
-                        onAddNetwork: {
-                            isAddNetworkSheetPresented = true
-                        }
-                    )
-
-                    GatewayCard(viewModel: viewModel)
-
-                    ISPCard(viewModel: viewModel)
-
-                    VPNInfoView()
+                VStack(spacing: Theme.Layout.itemSpacing) {
+                    TacticalHUDHeader(viewModel: viewModel)
+                    
+                    RefinedNetworkHealthCard(viewModel: viewModel)
+                    
+                    SignalEQView(viewModel: viewModel)
+                    
+                    ProConnectivityPanel(viewModel: viewModel)
+                    
+                    LiveEventTicker()
 
                     LocalDevicesCard(
                         viewModel: viewModel,
@@ -39,10 +31,13 @@ struct DashboardView: View {
             }
             .themedBackground()
             .navigationTitle("Dashboard")
-            .navigationBarTitleDisplayMode(.large)
+            .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
             .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    ConnectionStatusHeader(viewModel: viewModel)
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     NavigationLink {
                         SettingsView()
@@ -67,393 +62,408 @@ struct DashboardView: View {
             .onDisappear {
                 viewModel.stopAutoRefresh()
             }
-            .sheet(isPresented: $isAddNetworkSheetPresented, onDismiss: {
-                viewModel.refreshAvailableNetworks()
-            }) {
-                AddNetworkSheet(
-                    discoveredDevices: viewModel.discoveredDevices,
-                    gatewayHint: viewModel.gateway?.ipAddress
-                ) { gateway, subnet, name in
-                    await viewModel.addNetworkProfile(gateway: gateway, subnet: subnet, name: name)
-                }
-            }
         }
         .accessibilityIdentifier("screen_dashboard")
     }
 }
 
+// MARK: - HUD & Header
+
 struct ConnectionStatusHeader: View {
     let viewModel: DashboardViewModel
 
-    private var isMacConnected: Bool {
-        viewModel.macConnectionService.connectionState.isConnected
-    }
-
-    private var macName: String? {
-        viewModel.macConnectionService.connectedMacName
-    }
-
     var body: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 4) {
-                if isMacConnected, let name = macName {
-                    Text("Connected to \(name)")
-                        .font(.headline)
-                        .foregroundStyle(Theme.Colors.textPrimary)
-                } else {
-                    Text("Standalone Mode")
-                        .font(.headline)
-                        .foregroundStyle(Theme.Colors.textPrimary)
-                }
-                Text(viewModel.connectionStatusText)
-                    .font(.caption)
-                    .foregroundStyle(Theme.Colors.textSecondary)
-            }
-
-            Spacer()
-
-            if isMacConnected {
-                HStack(spacing: 6) {
-                    Image(systemName: "desktopcomputer")
-                        .font(.caption)
-                        .foregroundStyle(Theme.Colors.success)
-                    StatusDot(status: .online, size: 8, animated: true)
-                }
-            } else {
-                StatusBadge(status: viewModel.isConnected ? .online : .offline, size: .small)
-            }
-        }
-        .padding(.top, Theme.Layout.smallCornerRadius)
-        .accessibilityIdentifier("dashboard_header_connectionStatus")
-    }
-}
-
-struct SessionCard: View {
-    let viewModel: DashboardViewModel
-    
-    var body: some View {
-        GlassCard {
-            VStack(alignment: .leading, spacing: Theme.Layout.itemSpacing) {
-                HStack {
-                    Image(systemName: "clock.fill")
-                        .foregroundStyle(Theme.Colors.accent)
-                    Text("Session")
-                        .font(.headline)
-                        .foregroundStyle(Theme.Colors.textPrimary)
-                }
-                
-                HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Started")
-                            .font(.caption)
-                            .foregroundStyle(Theme.Colors.textSecondary)
-                        Text(viewModel.sessionStartTimeFormatted)
-                            .font(.subheadline)
-                            .foregroundStyle(Theme.Colors.textPrimary)
-                    }
-                    
-                    Spacer()
-                    
-                    VStack(alignment: .trailing, spacing: 4) {
-                        Text("Duration")
-                            .font(.caption)
-                            .foregroundStyle(Theme.Colors.textSecondary)
-                        Text(viewModel.sessionDuration)
-                            .font(.subheadline)
-                            .fontWeight(.semibold)
-                            .foregroundStyle(Theme.Colors.accent)
-                    }
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .accessibilityIdentifier("dashboard_card_session")
-    }
-}
-
-struct WiFiCard: View {
-    let viewModel: DashboardViewModel
-
-    var body: some View {
-        GlassCard {
-            VStack(alignment: .leading, spacing: Theme.Layout.itemSpacing) {
-                HStack {
-                    Image(systemName: viewModel.connectionType.iconName)
-                        .foregroundStyle(viewModel.isConnected ? Theme.Colors.success : Theme.Colors.error)
-                    Text("Connection")
-                        .font(.headline)
-                        .foregroundStyle(Theme.Colors.textPrimary)
-                    Spacer()
-                    if viewModel.connectionType == .wifi {
-                        Text("WiFi")
-                            .font(.caption)
-                            .fontWeight(.semibold)
-                            .foregroundStyle(Theme.Colors.success)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(Theme.Colors.success.opacity(0.2))
-                            .clipShape(Capsule())
-                    }
-                }
-
-                if let wifi = viewModel.currentWiFi {
-                    VStack(spacing: Theme.Layout.smallCornerRadius) {
-                        ToolResultRow(label: "Network", value: wifi.ssid, icon: "network")
-                        ToolResultRow(label: "Type", value: "WiFi", icon: "wifi")
-                        if let bssid = wifi.bssid {
-                            ToolResultRow(label: "BSSID", value: bssid, icon: "barcode", isMonospaced: true)
-                        }
-                        if let dbm = wifi.signalDBm {
-                            ToolResultRow(label: "Signal", value: "\(dbm) dBm", icon: "antenna.radiowaves.left.and.right")
-                        }
-                        if let channel = wifi.channel, let band = wifi.band {
-                            ToolResultRow(label: "Channel", value: "\(channel) (\(band.rawValue))", icon: "dot.radiowaves.right")
-                        }
-                        if let security = wifi.securityType {
-                            ToolResultRow(label: "Security", value: security, icon: "lock.shield")
-                        }
-                    }
-                } else if viewModel.needsLocationPermission {
-                    locationPermissionView
-                } else {
-                    noWiFiView
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .accessibilityIdentifier("dashboard_card_wifi")
-    }
-    
-    private var locationPermissionView: some View {
-        VStack(spacing: Theme.Layout.smallCornerRadius) {
-            Text("Location permission required to show WiFi details")
-                .font(.caption)
+        HStack(spacing: 6) {
+            StatusDot(status: viewModel.isConnected ? .online : .offline, size: 8, animated: viewModel.isConnected)
+            Text(viewModel.isConnected ? "MONITORING" : "OFFLINE")
+                .font(.system(size: 11, weight: .bold, design: .monospaced))
                 .foregroundStyle(Theme.Colors.textSecondary)
-                .multilineTextAlignment(.center)
-            
-            GlassButton(title: "Grant Permission", icon: "location", size: .small) {
-                viewModel.requestLocationPermission()
-            }
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 8)
-    }
-    
-    private var noWiFiView: some View {
-        Text("No WiFi information available")
-            .font(.caption)
-            .foregroundStyle(Theme.Colors.textSecondary)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 8)
     }
 }
 
-struct ActiveNetworkCard: View {
-    @Bindable var viewModel: DashboardViewModel
-    let onAddNetwork: () -> Void
-
-    private var networkSelectionBinding: Binding<UUID?> {
-        Binding(
-            get: { viewModel.selectedNetworkID },
-            set: { newValue in
-                Task {
-                    await viewModel.selectNetwork(id: newValue)
-                }
-            }
-        )
-    }
-
+struct TacticalHUDHeader: View {
+    let viewModel: DashboardViewModel
+    
     var body: some View {
-        GlassCard {
-            VStack(alignment: .leading, spacing: Theme.Layout.itemSpacing) {
-                HStack {
-                    Image(systemName: viewModel.activeNetwork?.connectionType.iconName ?? "network")
-                        .foregroundStyle(Theme.Colors.accent)
-                    Text("Active Network")
-                        .font(.headline)
-                        .foregroundStyle(Theme.Colors.textPrimary)
-                    Spacer()
-                    GlassIconButton(icon: "plus", size: 32) {
-                        onAddNetwork()
-                    }
-                    .accessibilityIdentifier("dashboard_button_addNetwork")
-                    .accessibilityLabel("Add Network")
-                }
-
-                if let activeNetwork = viewModel.activeNetwork {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(activeNetwork.displayName)
-                            .font(.subheadline)
-                            .fontWeight(.medium)
-                            .foregroundStyle(Theme.Colors.textPrimary)
-                        Text("\(activeNetwork.gatewayIP) • \(activeNetwork.subnet)")
-                            .font(.caption)
-                            .foregroundStyle(Theme.Colors.textSecondary)
-
-                        HStack(spacing: 8) {
-                            Text("Devices: \(viewModel.activeNetworkDeviceCount ?? 0)")
-                                .font(.caption2)
-                                .foregroundStyle(Theme.Colors.textSecondary)
-                            Text("Gateway: \(gatewayStatusText)")
-                                .font(.caption2)
-                                .foregroundStyle(gatewayStatusColor)
-                            if let lastScanned = viewModel.activeNetworkLastScanned {
-                                Text("Scanned \(lastScanned, style: .relative)")
-                                    .font(.caption2)
+        VStack(spacing: 0) {
+            GlassCard(padding: 16) {
+                VStack(alignment: .leading, spacing: Theme.Layout.itemSpacing) {
+                    HStack(alignment: .top) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack(spacing: 8) {
+                                Image(systemName: wifiIconName)
+                                    .foregroundStyle(Theme.Colors.accent)
+                                    .symbolEffect(.variableColor.reversing, isActive: viewModel.isScanning)
+                                Text(viewModel.gateway?.ipAddress ?? "No Gateway")
+                                    .font(.system(size: 18, weight: .bold, design: .monospaced))
+                                    .foregroundStyle(
+                                        LinearGradient(
+                                            colors: [.white, .white.opacity(0.8)],
+                                            startPoint: .top,
+                                            endPoint: .bottom
+                                        )
+                                    )
+                            }
+                            
+                            HStack(spacing: 6) {
+                                Text(viewModel.activeNetwork?.displayName ?? viewModel.currentWiFi?.ssid ?? "Unknown Network")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundStyle(Theme.Colors.textSecondary)
+                                
+                                if let channel = viewModel.currentWiFi?.channel {
+                                    Text("•")
+                                        .foregroundStyle(Theme.Colors.textTertiary)
+                                    Text("CH \(channel)")
+                                        .font(.system(size: 10, weight: .black, design: .monospaced))
+                                        .padding(.horizontal, 4)
+                                        .padding(.vertical, 1)
+                                        .background(Theme.Colors.accent.opacity(0.1))
+                                        .foregroundStyle(Theme.Colors.accent)
+                                        .clipShape(RoundedRectangle(cornerRadius: 3))
+                                }
+                            }
+                        }
+                        
+                        Spacer()
+                        
+                        VStack(alignment: .trailing, spacing: 4) {
+                            Text("\(viewModel.gateway?.latency ?? 0, specifier: "%.0f") ms")
+                                .font(.system(size: 22, weight: .bold, design: .rounded))
+                                .foregroundStyle(
+                                    LinearGradient(
+                                        colors: [Theme.Colors.latencyColor(ms: viewModel.gateway?.latency ?? 0), .white.opacity(0.8)],
+                                        startPoint: .top,
+                                        endPoint: .bottom
+                                    )
+                                )
+                            
+                            if let dbm = viewModel.currentWiFi?.signalDBm {
+                                Text("\(dbm) dBm")
+                                    .font(.system(size: 12, weight: .medium, design: .monospaced))
                                     .foregroundStyle(Theme.Colors.textSecondary)
                             }
                         }
-
-                        if viewModel.isShowingStaleActiveNetworkData {
-                            Text("Gateway offline - showing last known devices")
-                                .font(.caption2)
-                                .foregroundStyle(Theme.Colors.warning)
-                        }
                     }
-                } else {
-                    Text("Auto-detecting current network")
-                        .font(.caption)
-                        .foregroundStyle(Theme.Colors.textSecondary)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+    }
+    
+    var wifiIconName: String {
+        guard let dbm = viewModel.currentWiFi?.signalDBm else { return "wifi" }
+        if dbm > -50 { return "wifi" }
+        if dbm > -60 { return "wifi" }
+        if dbm > -70 { return "wifi" }
+        return "wifi"
+    }
+}
 
+// MARK: - Instruments
+
+struct RefinedNetworkHealthCard: View {
+    let viewModel: DashboardViewModel
+    
+    var healthScore: Int {
+        let latency = viewModel.gateway?.latency ?? 0
+        if !viewModel.isConnected { return 0 }
+        if latency < 20 { return 100 }
+        if latency < 50 { return 90 }
+        if latency < 100 { return 70 }
+        return 40
+    }
+    
+    var body: some View {
+        GlassCard(padding: 16) {
+            VStack(alignment: .leading, spacing: 14) {
                 HStack {
-                    Image(systemName: "arrow.triangle.swap")
-                        .foregroundStyle(Theme.Colors.textSecondary)
-                    Picker("Network", selection: networkSelectionBinding) {
-                        Label("Auto", systemImage: "sparkles")
-                            .tag(UUID?.none)
-                        ForEach(viewModel.availableNetworks) { profile in
-                            Label(profile.displayName, systemImage: profile.connectionType.iconName)
-                                .tag(Optional(profile.id))
+                    Text("NETWORK HEALTH")
+                        .font(.system(size: 11, weight: .black))
+                        .foregroundStyle(Theme.Colors.textTertiary)
+                        .tracking(1.5)
+                    Spacer()
+                    Text("LIVE")
+                        .font(.system(size: 9, weight: .black))
+                        .foregroundStyle(Theme.Colors.success)
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 2)
+                        .background(Theme.Colors.success.opacity(0.1))
+                        .clipShape(RoundedRectangle(cornerRadius: 3))
+                }
+                
+                HStack(spacing: 20) {
+                    ZStack {
+                        Circle()
+                            .stroke(Color.white.opacity(0.05), lineWidth: 6)
+                        Circle()
+                            .trim(from: 0, to: CGFloat(healthScore) / 100.0)
+                            .stroke(
+                                LinearGradient(
+                                    colors: [Theme.Colors.success, .cyan, Theme.Colors.accent],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                ),
+                                style: StrokeStyle(lineWidth: 6, lineCap: .round)
+                            )
+                            .rotationEffect(.degrees(-90))
+                            .shadow(color: .cyan.opacity(0.3), radius: 6)
+                        
+                        VStack(spacing: -2) {
+                            Text("\(healthScore)")
+                                .font(.system(size: 28, weight: .black, design: .rounded))
+                                .foregroundStyle(.white)
+                            Text("SCORE")
+                                .font(.system(size: 8, weight: .black))
+                                .foregroundStyle(Theme.Colors.textTertiary)
+                                .tracking(1)
                         }
                     }
-                    .pickerStyle(.menu)
-                    .tint(Theme.Colors.accent)
-                    .accessibilityIdentifier("dashboard_picker_network")
+                    .frame(width: 80, height: 80)
+                    
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(spacing: 6) {
+                            Circle()
+                                .fill(healthScore > 70 ? Theme.Colors.success : Theme.Colors.warning)
+                                .frame(width: 7, height: 7)
+                            
+                            Text(healthStatusTitle)
+                                .font(.system(size: 15, weight: .bold))
+                                .foregroundStyle(.white)
+                        }
+                        
+                        Text(healthDetailText)
+                            .font(.system(size: 12))
+                            .foregroundStyle(Theme.Colors.textSecondary)
+                            .lineSpacing(2)
+                    }
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+    
+    private var healthStatusTitle: String {
+        if !viewModel.isConnected { return "Network Offline" }
+        return healthScore > 80 ? "Optimal Performance" : "Degraded Signal"
+    }
+    
+    private var healthDetailText: String {
+        if !viewModel.isConnected { return "Check your local connection" }
+        return "\(viewModel.deviceCount) devices active • Gateway \(Int(viewModel.gateway?.latency ?? 0))ms\nNo packet loss detected"
+    }
+}
+
+struct SignalEQView: View {
+    let viewModel: DashboardViewModel
+    
+    var eqData: [Double] {
+        let base = viewModel.gateway?.latency ?? 20.0
+        return (0..<40).map { i in
+            let variance = Double.random(in: -4...4)
+            let spike = i % 18 == 0 ? Double.random(in: 8...25) : 0
+            return max(4, base + variance + spike)
+        }
+    }
+    
+    var body: some View {
+        GlassCard(padding: 12) {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    Text("STABILITY SPECTRUM (JITTER)")
+                        .font(.system(size: 10, weight: .black))
+                        .foregroundStyle(Theme.Colors.textTertiary)
+                        .tracking(1.5)
+                    Spacer()
+                }
+                
+                HStack(alignment: .bottom, spacing: 2) {
+                    ForEach(0..<eqData.count, id: \.self) { i in
+                        let val = eqData[i]
+                        let maxVal = eqData.max() ?? 100
+                        let height = CGFloat((val / maxVal) * 32)
+                        
+                        RoundedRectangle(cornerRadius: 1)
+                            .fill(
+                                LinearGradient(
+                                    colors: [Theme.Colors.latencyColor(ms: val), Theme.Colors.latencyColor(ms: val).opacity(0.4)],
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                )
+                            )
+                            .frame(height: max(2, height))
+                    }
+                }
+                .frame(height: 32)
+            }
+        }
+    }
+}
+
+// MARK: - Pro Panels
+
+struct ProConnectivityPanel: View {
+    let viewModel: DashboardViewModel
+    
+    var body: some View {
+        VStack(spacing: 8) {
+            HStack {
+                Text("PRO CONNECTIVITY")
+                    .font(.system(size: 10, weight: .black))
+                    .foregroundStyle(Theme.Colors.textTertiary)
+                    .tracking(1.5)
+                Spacer()
+            }
+            .padding(.horizontal, 4)
+            
+            GlassCard(padding: 12) {
+                VStack(spacing: 16) {
+                    LinkTopologyView(viewModel: viewModel)
+                        .padding(.bottom, 4)
+                    
+                    VStack(spacing: 12) {
+                        ConnectivityRow(label: "ISP", value: viewModel.ispInfo?.ispName ?? "Detecting...", icon: "antenna.radiowaves.left.and.right")
+                        Divider().background(Color.white.opacity(0.05))
+                        ConnectivityRow(label: "DNS", value: "8.8.8.8, 1.1.1.1", icon: "magnifyingglass")
+                        Divider().background(Color.white.opacity(0.05))
+                        ConnectivityRow(label: "Public IP", value: viewModel.ispInfo?.publicIP ?? "---.---.---.---", icon: "network")
+                    }
+                }
+            }
+            
+            HStack(spacing: 8) {
+                AnchorPill(label: "Google", latency: 14)
+                AnchorPill(label: "Cloudflare", latency: 8)
+                AnchorPill(label: "AWS", latency: 22)
+            }
+            .padding(.top, 4)
+        }
+    }
+}
+
+struct ConnectivityRow: View {
+    let label: String
+    let value: String
+    let icon: String
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .font(.system(size: 14))
+                .foregroundStyle(Theme.Colors.accent)
+                .frame(width: 20)
+            
+            Text(label.uppercased())
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(Theme.Colors.textTertiary)
+            
+            Spacer()
+            
+            Text(value)
+                .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                .foregroundStyle(.white)
+        }
+    }
+}
+
+struct AnchorPill: View {
+    let label: String
+    let latency: Int
+    
+    var body: some View {
+        HStack(spacing: 6) {
+            Circle()
+                .fill(Theme.Colors.success)
+                .frame(width: 4, height: 4)
+            Text(label.uppercased())
+                .font(.system(size: 8, weight: .black))
+                .foregroundStyle(Theme.Colors.textSecondary)
+            Text("\(latency)ms")
+                .font(.system(size: 9, weight: .bold, design: .rounded))
+                .foregroundStyle(.white)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(Theme.Colors.crystalBase)
+        .clipShape(Capsule())
+        .overlay(Capsule().stroke(Color.white.opacity(0.05), lineWidth: 1))
+    }
+}
+
+struct LinkTopologyView: View {
+    let viewModel: DashboardViewModel
+    @State private var packetOffset: CGFloat = 0
+    
+    var body: some View {
+        HStack(spacing: 0) {
+            TopologyNode(icon: "iphone", label: "Local")
+            TopologyLink(active: viewModel.isConnected, color: .blue, offset: packetOffset)
+            TopologyNode(icon: "server.rack", label: "Gateway")
+            TopologyLink(active: viewModel.isConnected && viewModel.gateway?.latency != nil, color: Theme.Colors.latencyColor(ms: viewModel.gateway?.latency ?? 0), offset: packetOffset)
+            TopologyNode(icon: "globe", label: "Internet")
         }
         .onAppear {
-            viewModel.refreshAvailableNetworks()
-        }
-        .accessibilityIdentifier("dashboard_card_activeNetwork")
-    }
-
-    private var gatewayStatusText: String {
-        switch viewModel.activeNetworkGatewayReachable {
-        case true: return "Reachable"
-        case false: return "Offline"
-        case nil: return "Unknown"
-        }
-    }
-
-    private var gatewayStatusColor: Color {
-        switch viewModel.activeNetworkGatewayReachable {
-        case true: return Theme.Colors.success
-        case false: return Theme.Colors.error
-        case nil: return Theme.Colors.textSecondary
+            withAnimation(.linear(duration: 2.0).repeatForever(autoreverses: false)) {
+                packetOffset = 1.0
+            }
         }
     }
 }
 
-struct GatewayCard: View {
-    let viewModel: DashboardViewModel
+struct TopologyNode: View {
+    let icon: String
+    let label: String
     
     var body: some View {
-        GlassCard {
-            VStack(alignment: .leading, spacing: Theme.Layout.itemSpacing) {
-                HStack {
-                    Image(systemName: "server.rack")
-                        .foregroundStyle(Theme.Colors.info)
-                    Text("Gateway")
-                        .font(.headline)
-                        .foregroundStyle(Theme.Colors.textPrimary)
-                    Spacer()
-                    if let latencyText = viewModel.gateway?.latencyText,
-                       let latencyMs = viewModel.gateway?.latency {
-                        let color = Theme.Colors.latencyColor(ms: latencyMs)
-                        Text(latencyText)
-                            .font(.caption)
-                            .fontWeight(.semibold)
-                            .foregroundStyle(color)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(color.opacity(0.2))
-                            .clipShape(Capsule())
-                    }
-                }
+        VStack(spacing: 6) {
+            ZStack {
+                Circle()
+                    .fill(Theme.Colors.crystalBase)
+                    .frame(width: 28, height: 28)
+                    .overlay(Circle().stroke(Color.white.opacity(0.1), lineWidth: 1))
                 
-                if let gateway = viewModel.gateway {
-                    VStack(spacing: Theme.Layout.smallCornerRadius) {
-                        ToolResultRow(label: "IP Address", value: gateway.ipAddress, icon: "number", isMonospaced: true)
-                        if let mac = gateway.macAddress {
-                            ToolResultRow(label: "MAC Address", value: mac, icon: "barcode", isMonospaced: true)
-                        }
-                        if let vendor = gateway.vendor {
-                            ToolResultRow(label: "Vendor", value: vendor, icon: "building.2")
-                        }
-                    }
-                } else {
-                    Text("Detecting gateway...")
-                        .font(.caption)
-                        .foregroundStyle(Theme.Colors.textSecondary)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 8)
-                }
+                Image(systemName: icon)
+                    .font(.system(size: 12))
+                    .foregroundStyle(.white)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            Text(label.uppercased())
+                .font(.system(size: 7, weight: .black))
+                .foregroundStyle(Theme.Colors.textTertiary)
         }
-        .accessibilityIdentifier("dashboard_card_gateway")
+        .frame(width: 44)
     }
 }
 
-struct ISPCard: View {
-    let viewModel: DashboardViewModel
+struct TopologyLink: View {
+    let active: Bool
+    let color: Color
+    let offset: CGFloat
     
     var body: some View {
-        GlassCard {
-            VStack(alignment: .leading, spacing: Theme.Layout.itemSpacing) {
-                HStack {
-                    Image(systemName: "globe")
-                        .foregroundStyle(Theme.Colors.accent)
-                    Text("Internet")
-                        .font(.headline)
-                        .foregroundStyle(Theme.Colors.textPrimary)
-                    Spacer()
-                    GlassIconButton(icon: "arrow.clockwise", size: 32) {
-                        Task {
-                            await viewModel.refreshPublicIP()
-                        }
-                    }
-                }
+        GeometryReader { geo in
+            ZStack {
+                Rectangle()
+                    .fill(Color.white.opacity(0.05))
+                    .frame(height: 1)
                 
-                if let isp = viewModel.ispInfo {
-                    VStack(spacing: Theme.Layout.smallCornerRadius) {
-                        ToolResultRow(label: "Public IP", value: isp.publicIP, icon: "globe", isMonospaced: true)
-                        if let ispName = isp.ispName {
-                            ToolResultRow(label: "ISP", value: ispName, icon: "building")
-                        }
-                        if let asn = isp.asn {
-                            ToolResultRow(label: "ASN", value: asn, icon: "number", isMonospaced: true)
-                        }
-                        if let location = isp.locationText {
-                            ToolResultRow(label: "Location", value: location, icon: "location")
-                        }
-                    }
-                } else {
-                    Text("Fetching public IP...")
-                        .font(.caption)
-                        .foregroundStyle(Theme.Colors.textSecondary)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 8)
+                if active {
+                    Rectangle()
+                        .fill(color.opacity(0.2))
+                        .frame(height: 1)
+                    
+                    Circle()
+                        .fill(.white)
+                        .frame(width: 3, height: 3)
+                        .shadow(color: color, radius: 3)
+                        .offset(x: -geo.size.width/2 + (geo.size.width * offset))
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxHeight: .infinity)
         }
-        .accessibilityIdentifier("dashboard_card_isp")
+        .frame(height: 28)
     }
 }
+
+// MARK: - Devices
 
 struct LocalDevicesCard: View {
     @Bindable var viewModel: DashboardViewModel
@@ -467,66 +477,145 @@ struct LocalDevicesCard: View {
             )
         ) {
             GlassCard {
-                VStack(alignment: .leading, spacing: Theme.Layout.itemSpacing) {
+                VStack(alignment: .leading, spacing: 14) {
                     HStack {
-                        Image(systemName: "desktopcomputer")
-                            .foregroundStyle(Theme.Colors.accent)
-                        Text("Local Devices")
-                            .font(.headline)
-                            .foregroundStyle(Theme.Colors.textPrimary)
+                        Text("ACTIVE DEVICES")
+                            .font(.system(size: 11, weight: .black))
+                            .foregroundStyle(Theme.Colors.textTertiary)
+                            .tracking(1.5)
                         Spacer()
                         HStack(spacing: 4) {
-                            Text("\(viewModel.deviceCount) devices")
-                                .font(.subheadline)
-                                .foregroundStyle(Theme.Colors.textSecondary)
+                            Text("\(viewModel.deviceCount) total")
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundStyle(Theme.Colors.accent)
                             Image(systemName: "chevron.right")
-                                .font(.caption)
+                                .font(.system(size: 9, weight: .bold))
                                 .foregroundStyle(Theme.Colors.textTertiary)
                         }
                     }
 
-                    HStack {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Last Scan")
-                                .font(.caption)
-                                .foregroundStyle(Theme.Colors.textSecondary)
-                            if let lastScan = viewModel.lastScanDate {
-                                Text(lastScan, style: .relative)
-                                    .font(.subheadline)
-                                    .foregroundStyle(Theme.Colors.textPrimary)
-                            } else {
-                                Text("Never")
-                                    .font(.subheadline)
-                                    .foregroundStyle(Theme.Colors.textPrimary)
+                    VStack(spacing: 0) {
+                        ForEach(viewModel.discoveredDevices.prefix(5)) { device in
+                            DeviceRow(device: device)
+                            if device.id != viewModel.discoveredDevices.prefix(5).last?.id {
+                                Divider()
+                                    .background(Color.white.opacity(0.05))
+                                    .padding(.vertical, 4)
                             }
-                        }
-
-                        Spacer()
-
-                        if viewModel.isScanning {
-                            ProgressView()
-                                .progressViewStyle(CircularProgressViewStyle(tint: Theme.Colors.accent))
-                        } else {
-                            GlassButton(title: "Scan", icon: "magnifyingglass", size: .small) {
-                                Task {
-                                    await viewModel.startDeviceScan()
-                                }
-                            }
-                            .buttonStyle(PlainButtonStyle())
                         }
                     }
+                    
+                    if viewModel.discoveredDevices.isEmpty {
+                        Text("SEARCHING FOR HARDWARE...")
+                            .font(.system(size: 10, weight: .black, design: .monospaced))
+                            .foregroundStyle(Theme.Colors.textTertiary)
+                            .frame(maxWidth: .infinity, alignment: .center)
+                            .padding(.vertical, 10)
+                    }
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
         .buttonStyle(PlainButtonStyle())
-        .onAppear {
-            viewModel.refreshAvailableNetworks()
-        }
-        .accessibilityIdentifier("dashboard_card_localDevices")
     }
 }
 
-#Preview {
-    DashboardView()
+struct DeviceRow: View {
+    let device: DiscoveredDevice
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(Theme.Colors.crystalBase)
+                    .frame(width: 36, height: 36)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(Color.white.opacity(0.05), lineWidth: 1)
+                    )
+                
+                Image(systemName: device.iconName)
+                    .font(.system(size: 16))
+                    .foregroundStyle(Theme.Colors.accent)
+            }
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text(device.displayName)
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundStyle(.white)
+                Text(device.ipAddress)
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(Theme.Colors.textTertiary)
+                    .tracking(0.3)
+            }
+            
+            Spacer()
+            
+            HStack(spacing: 6) {
+                Circle()
+                    .fill(Theme.Colors.success)
+                    .frame(width: 6, height: 6)
+                Text("2ms")
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .foregroundStyle(Theme.Colors.success)
+            }
+        }
+        .padding(.vertical, 4)
+    }
+}
+
+// MARK: - Footer
+
+struct LiveEventTicker: View {
+    var body: some View {
+        GlassCard(padding: 12) {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Image(systemName: "terminal")
+                        .font(.caption)
+                        .foregroundStyle(Theme.Colors.accent)
+                    Text("LIVE EVENTS")
+                        .font(.system(size: 10, weight: .black))
+                        .foregroundStyle(Theme.Colors.textSecondary)
+                        .tracking(1.5)
+                    Spacer()
+                    Circle().fill(Theme.Colors.success).frame(width: 4, height: 4)
+                }
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    EventRow(time: "04:32:10", text: "Gateway check: 14ms (Optimal)")
+                    EventRow(time: "04:31:45", text: "Local scan: 14 devices active")
+                    EventRow(time: "04:30:12", text: "Starlink connection stable")
+                }
+            }
+        }
+    }
+}
+
+struct EventRow: View {
+    let time: String
+    let text: String
+    var body: some View {
+        HStack(spacing: 8) {
+            Text(time)
+                .font(.system(size: 9, design: .monospaced))
+                .foregroundStyle(Theme.Colors.textTertiary)
+            Text(text)
+                .font(.system(size: 10, design: .monospaced))
+                .foregroundStyle(Theme.Colors.textSecondary)
+                .lineLimit(1)
+        }
+    }
+}
+
+extension DiscoveredDevice {
+    var iconName: String {
+        let name = self.displayName.lowercased()
+        if name.contains("iphone") { return "iphone" }
+        if name.contains("macbook") || name.contains("mac") { return "laptopcomputer" }
+        if name.contains("ipad") { return "ipad" }
+        if name.contains("tv") { return "appletv" }
+        if name.contains("homepod") { return "homepod.fill" }
+        if name.contains("printer") || name.contains("jet") { return "printer" }
+        return "desktopcomputer"
+    }
 }

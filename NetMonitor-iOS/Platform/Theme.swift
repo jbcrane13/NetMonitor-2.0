@@ -9,8 +9,8 @@ enum Theme {
     // MARK: - Colors
     enum Colors {
         // Background gradient colors
-        static let backgroundGradientStart = Color(hex: "0F172A") // slate-900
-        static let backgroundGradientEnd = Color(hex: "1E3A5F")   // blue-900
+        static let backgroundGradientStart = Color(hex: "0F172A") // slate-900 (tinted)
+        static let backgroundGradientEnd = Color(hex: "020202")   // absolute black
 
         // Primary accent — reads from ThemeManager for reactive updates
         @MainActor static var accent: Color { ThemeManager.shared.accent }
@@ -24,13 +24,17 @@ enum Theme {
         
         // Text colors
         static let textPrimary = Color.white
-        static let textSecondary = Color.white.opacity(0.6)
-        static let textTertiary = Color.white.opacity(0.4)
+        static let textSecondary = Color.white.opacity(0.7)
+        static let textTertiary = Color.white.opacity(0.5)
         
-        // Glass card colors - subtle tint for true glass effect
-        @MainActor static var glassBackground: Color { accentLight.opacity(0.05) }
-        static let glassBorder = Color.white.opacity(0.15)
-        static let glassHighlight = Color.white.opacity(0.1)
+        // Luminous tokens
+        static let crystalBase = Color(hex: "1A1F26").opacity(0.6)
+        static let crystalHighlight = Color.white.opacity(0.12)
+        static let crystalBorder = Color.white.opacity(0.15)
+        
+        @MainActor static var glassBackground: Color { crystalBase }
+        static let glassBorder = crystalBorder
+        static let glassHighlight = crystalHighlight
         
         // Status colors
         static let online = success
@@ -127,7 +131,20 @@ enum Theme {
 struct ThemedBackground: ViewModifier {
     func body(content: Content) -> some View {
         content
-            .background(Theme.Gradients.background.ignoresSafeArea())
+            .background(
+                ZStack {
+                    Theme.Colors.backgroundGradientEnd
+                        .ignoresSafeArea()
+                    
+                    RadialGradient(
+                        colors: [Theme.Colors.backgroundGradientStart.opacity(0.6), .clear],
+                        center: .top,
+                        startRadius: 0,
+                        endRadius: 600
+                    )
+                    .ignoresSafeArea()
+                }
+            )
     }
 }
 

@@ -67,9 +67,7 @@ struct NetworkDetailView: View {
 
             Spacer()
         }
-        .padding()
-        .background(.ultraThinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .macGlassCard(cornerRadius: MacTheme.Layout.cardCornerRadius)
         .accessibilityIdentifier("network_detail_card_header")
     }
 
@@ -95,9 +93,7 @@ struct NetworkDetailView: View {
                     .lineLimit(1)
             }
         }
-        .padding()
-        .background(.ultraThinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .macGlassCard(cornerRadius: MacTheme.Layout.cardCornerRadius)
         .accessibilityIdentifier("network_detail_card_networkInfo")
     }
 
@@ -120,9 +116,7 @@ struct NetworkDetailView: View {
 
             infoRow(label: "Local Network", value: profile.isLocal ? "Yes" : "No")
         }
-        .padding()
-        .background(.ultraThinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .macGlassCard(cornerRadius: MacTheme.Layout.cardCornerRadius)
         .accessibilityIdentifier("network_detail_card_discovery")
     }
 
@@ -141,9 +135,7 @@ struct NetworkDetailView: View {
 
             infoRow(label: "Host Capacity", value: "\(profile.hostCount) addresses")
         }
-        .padding()
-        .background(.ultraThinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .macGlassCard(cornerRadius: MacTheme.Layout.cardCornerRadius)
         .accessibilityIdentifier("network_detail_card_devices")
     }
 
@@ -163,9 +155,7 @@ struct NetworkDetailView: View {
             .buttonStyle(.borderedProminent)
             .accessibilityIdentifier("network_detail_button_scan")
         }
-        .padding()
-        .background(.ultraThinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .macGlassCard(cornerRadius: MacTheme.Layout.cardCornerRadius)
         .accessibilityIdentifier("network_detail_card_actions")
     }
 

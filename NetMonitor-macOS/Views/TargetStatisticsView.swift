@@ -77,9 +77,7 @@ struct TargetStatisticsView: View {
                 .frame(height: 150)
             }
         }
-        .padding()
-        .background(.ultraThinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .macGlassCard(cornerRadius: MacTheme.Layout.cardCornerRadius)
         .accessibilityIdentifier("target_statistics_card")
     }
 

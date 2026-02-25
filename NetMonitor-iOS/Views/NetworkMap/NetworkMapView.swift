@@ -28,38 +28,54 @@ struct NetworkMapView: View {
         }
     }
 
-    private var networkSelectionBinding: Binding<UUID?> {
-        Binding(
-            get: { viewModel.selectedNetworkID },
-            set: { newValue in
-                Task {
-                    await viewModel.selectNetwork(id: newValue)
-                }
-            }
-        )
-    }
-
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: Theme.Layout.sectionSpacing) {
-                    // Network summary header
+                    // 1. Network Context Header
                     networkSummary
 
-                    // Sort + count bar
-                    sortBar
+                    // 2. Control Bar
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("SIGNAL GRID")
+                                .font(.system(size: 10, weight: .black))
+                                .foregroundStyle(Theme.Colors.textTertiary)
+                                .tracking(1.5)
+                            Text("\(viewModel.deviceCount) active nodes")
+                                .font(.system(size: 12, weight: .bold, design: .rounded))
+                                .foregroundStyle(Theme.Colors.accent)
+                        }
+                        
+                        Spacer()
+                        
+                        Picker("Sort", selection: $sortOrder) {
+                            ForEach(DeviceSortOrder.allCases, id: \.self) { order in
+                                Text(order.rawValue).tag(order)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .tint(Theme.Colors.accent)
+                    }
+                    .padding(.horizontal, 4)
 
-                    // Device list
-                    if viewModel.discoveredDevices.isEmpty && !viewModel.isScanning {
+                    // 3. High-Density Device Grid
+                    if sortedDevices.isEmpty && !viewModel.isScanning {
                         ContentUnavailableView(
-                            "No Devices Found",
+                            "No Nodes Active",
                             systemImage: "network.slash",
-                            description: Text("Tap Scan to discover devices on your network")
+                            description: Text("Scan to map the current network landscape.")
                         )
                         .padding(.top, 40)
-                        .accessibilityIdentifier("networkMap_label_empty")
                     } else {
-                        deviceList
+                        VStack(spacing: 8) {
+                            ForEach(sortedDevices) { device in
+                                NavigationLink(destination: DeviceDetailView(ipAddress: device.ipAddress)) {
+                                    ProDeviceRow(device: device, isScanning: viewModel.isScanning)
+                                }
+                                .buttonStyle(PlainButtonStyle())
+                            }
+                        }
                     }
                 }
                 .padding(.horizontal, Theme.Layout.screenPadding)
@@ -67,8 +83,8 @@ struct NetworkMapView: View {
                 .padding(.bottom, Theme.Layout.sectionSpacing)
             }
             .themedBackground()
-            .navigationTitle("Devices")
-            .navigationBarTitleDisplayMode(.large)
+            .navigationTitle("Network Map")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
             .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
@@ -80,263 +96,132 @@ struct NetworkMapView: View {
                 viewModel.refreshAvailableNetworks()
                 await viewModel.startScan(forceRefresh: false)
             }
-            .onReceive(NotificationCenter.default.publisher(for: .networkProfilesDidChange)) { _ in
-                viewModel.refreshAvailableNetworks()
-            }
-            .sheet(isPresented: $isAddNetworkSheetPresented, onDismiss: {
-                viewModel.refreshAvailableNetworks()
-            }) {
-                AddNetworkSheet(
-                    discoveredDevices: viewModel.discoveredDevices,
-                    gatewayHint: viewModel.gateway?.ipAddress
-                ) { gateway, subnet, name in
-                    await viewModel.addNetworkProfile(gateway: gateway, subnet: subnet, name: name)
-                }
-            }
         }
-        .accessibilityIdentifier("screen_networkMap")
     }
 
-    // MARK: - Network Summary
+    // MARK: - Sub-components
 
     private var networkSummary: some View {
-        GlassCard {
-            VStack(alignment: .leading, spacing: Theme.Layout.itemSpacing) {
+        GlassCard(padding: 16) {
+            VStack(alignment: .leading, spacing: 16) {
                 HStack {
-                    Image(systemName: viewModel.activeNetwork?.connectionType.iconName ?? "network")
-                        .foregroundStyle(Theme.Colors.accent)
-                    Picker("Network", selection: networkSelectionBinding) {
-                        Label("Auto", systemImage: "sparkles")
-                            .tag(UUID?.none)
-                        ForEach(viewModel.availableNetworks) { profile in
-                            Label(profile.displayName, systemImage: profile.connectionType.iconName)
-                                .tag(Optional(profile.id))
-                        }
-                    }
-                    .pickerStyle(.menu)
-                    .tint(Theme.Colors.accent)
-                    .accessibilityIdentifier("networkMap_picker_network")
-
-                    Spacer()
-
-                    GlassIconButton(icon: "plus", size: 32) {
-                        isAddNetworkSheetPresented = true
-                    }
-                    .accessibilityIdentifier("networkMap_button_addNetwork")
-                    .accessibilityLabel("Add Network")
-                }
-
-                HStack(spacing: 16) {
-                    // Gateway info
                     VStack(alignment: .leading, spacing: 4) {
-                        HStack(spacing: 6) {
-                            Image(systemName: "wifi.router")
-                                .foregroundStyle(Theme.Colors.accent)
-                            Text("Gateway")
-                                .font(.caption)
-                                .foregroundStyle(Theme.Colors.textSecondary)
-                        }
-                        Text(viewModel.gateway?.ipAddress ?? "Detecting…")
-                            .font(.subheadline)
-                            .fontWeight(.medium)
-                            .fontDesign(.monospaced)
-                            .foregroundStyle(Theme.Colors.textPrimary)
-                    }
-
-                    Spacer()
-
-                    // Mac companion status
-                    if viewModel.macConnectionService.connectionState.isConnected {
-                        VStack(alignment: .trailing, spacing: 4) {
-                            HStack(spacing: 6) {
-                                Image(systemName: "desktopcomputer")
-                                    .foregroundStyle(Theme.Colors.success)
-                                Text("Mac Paired")
-                                    .font(.caption)
-                                    .foregroundStyle(Theme.Colors.textSecondary)
-                            }
-                            Text(viewModel.macConnectionService.connectedMacName ?? "Connected")
-                                .font(.subheadline)
-                                .fontWeight(.medium)
-                                .foregroundStyle(Theme.Colors.success)
-                        }
-                    } else {
-                        VStack(alignment: .trailing, spacing: 4) {
-                            HStack(spacing: 6) {
-                                Image(systemName: "iphone")
-                                    .foregroundStyle(Theme.Colors.textTertiary)
-                                Text("Standalone")
-                                    .font(.caption)
-                                    .foregroundStyle(Theme.Colors.textSecondary)
-                            }
-                            Text("iOS only")
-                                .font(.subheadline)
-                                .foregroundStyle(Theme.Colors.textTertiary)
-                        }
-                    }
-                }
-
-                HStack(spacing: 10) {
-                    Text("Devices: \(viewModel.activeNetworkDeviceCount ?? 0)")
-                        .font(.caption2)
-                        .foregroundStyle(Theme.Colors.textSecondary)
-                    Text("Gateway: \(gatewayStatusText)")
-                        .font(.caption2)
-                        .foregroundStyle(gatewayStatusColor)
-                    if let lastScanned = viewModel.activeNetworkLastScanned {
-                        Text("Scanned \(lastScanned, style: .relative)")
-                            .font(.caption2)
-                            .foregroundStyle(Theme.Colors.textSecondary)
-                    }
-                }
-
-                if viewModel.isShowingStaleActiveNetworkData {
-                    Text("Gateway offline - showing last known devices")
-                        .font(.caption2)
-                        .foregroundStyle(Theme.Colors.warning)
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .accessibilityIdentifier("networkMap_summary")
-    }
-
-    private var gatewayStatusText: String {
-        switch viewModel.activeNetworkGatewayReachable {
-        case true: return "Reachable"
-        case false: return "Offline"
-        case nil: return "Unknown"
-        }
-    }
-
-    private var gatewayStatusColor: Color {
-        switch viewModel.activeNetworkGatewayReachable {
-        case true: return Theme.Colors.success
-        case false: return Theme.Colors.error
-        case nil: return Theme.Colors.textSecondary
-        }
-    }
-
-    // MARK: - Sort Bar
-
-    private var sortBar: some View {
-        HStack {
-            if viewModel.isScanning {
-                HStack(spacing: 6) {
-                    ProgressView()
-                        .progressViewStyle(CircularProgressViewStyle(tint: Theme.Colors.accent))
-                        .scaleEffect(0.7)
-                    Text(viewModel.scanPhaseText)
-                        .font(.subheadline)
-                        .foregroundStyle(Theme.Colors.textSecondary)
-                }
-            } else {
-                Text("\(viewModel.deviceCount) devices")
-                    .font(.subheadline)
-                    .foregroundStyle(Theme.Colors.textSecondary)
-            }
-
-            Spacer()
-
-            Picker("Sort", selection: $sortOrder) {
-                ForEach(DeviceSortOrder.allCases, id: \.self) { order in
-                    Text(order.rawValue).tag(order)
-                }
-            }
-            .pickerStyle(.menu)
-            .tint(Theme.Colors.accent)
-            .accessibilityIdentifier("networkMap_picker_sort")
-        }
-    }
-
-    // MARK: - Device List
-
-    private var deviceList: some View {
-        VStack(spacing: Theme.Layout.itemSpacing) {
-            ForEach(sortedDevices) { device in
-                NavigationLink(destination: DeviceDetailView(ipAddress: device.ipAddress)) {
-                    deviceRow(device: device)
-                }
-                .accessibilityIdentifier("networkMap_row_\(device.ipAddress.replacingOccurrences(of: ".", with: "_"))")
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func deviceRow(device: DiscoveredDevice) -> some View {
-        GlassCard {
-            HStack(spacing: Theme.Layout.itemSpacing) {
-                Image(systemName: iconForDevice(device))
-                    .foregroundStyle(Theme.Colors.accent)
-                    .font(.title2)
-                    .frame(width: 40)
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(device.displayName)
-                        .font(.headline)
-                        .foregroundStyle(Theme.Colors.textPrimary)
-
-                    HStack(spacing: 8) {
-                        if device.hostname != nil {
-                            Text(device.ipAddress)
-                                .font(.caption)
-                                .fontDesign(.monospaced)
-                                .foregroundStyle(Theme.Colors.textTertiary)
-                        }
-
-                        Text(device.latencyText)
-                            .font(.caption)
-                            .foregroundStyle(Theme.Colors.textSecondary)
-                    }
-
-                    if let vendor = device.vendor, !vendor.isEmpty {
-                        Text(vendor)
-                            .font(.caption2)
+                        Text(viewModel.activeNetwork?.displayName ?? "LOCAL NETWORK")
+                            .font(.system(size: 16, weight: .bold, design: .rounded))
+                            .foregroundStyle(.white)
+                        Text(viewModel.gateway?.ipAddress ?? "---.---.---.---")
+                            .font(.system(size: 12, design: .monospaced))
                             .foregroundStyle(Theme.Colors.textTertiary)
                     }
+                    Spacer()
+                    ZStack {
+                        Circle()
+                            .fill(Theme.Colors.accent.opacity(0.1))
+                            .frame(width: 40, height: 40)
+                        Image(systemName: "wifi.router.fill")
+                            .foregroundStyle(Theme.Colors.accent)
+                    }
                 }
-
-                Spacer()
-
-                Image(systemName: "chevron.right")
-                    .font(.caption)
-                    .foregroundStyle(Theme.Colors.textTertiary)
+                
+                Divider().background(Color.white.opacity(0.05))
+                
+                HStack {
+                    Label("\(viewModel.activeNetworkDeviceCount ?? 0) Devices", systemImage: "cpu")
+                    Spacer()
+                    Label("Gateway: Reachable", systemImage: "checkmark.circle.fill")
+                        .foregroundStyle(Theme.Colors.success)
+                }
+                .font(.system(size: 11, weight: .bold))
+                .foregroundStyle(Theme.Colors.textSecondary)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
-
-    private func iconForDevice(_ device: DiscoveredDevice) -> String {
-        if device.source == .macCompanion {
-            return "desktopcomputer.and.arrow.down"
-        }
-        // Try to guess device type from hostname
-        let name = (device.hostname ?? "").lowercased()
-        if name.contains("iphone") || name.contains("ipad") { return "iphone" }
-        if name.contains("macbook") { return "laptopcomputer" }
-        if name.contains("mac") || name.contains("imac") { return "desktopcomputer" }
-        if name.contains("apple-tv") || name.contains("appletv") { return "appletv" }
-        if name.contains("printer") || name.contains("hp") || name.contains("epson") { return "printer" }
-        return "desktopcomputer"
-    }
-
-    // MARK: - Scan Button
 
     private var scanButton: some View {
         Button {
-            Task {
-                await viewModel.startScan(forceRefresh: true)
-            }
+            Task { await viewModel.startScan(forceRefresh: true) }
         } label: {
             if viewModel.isScanning {
-                ProgressView()
-                    .progressViewStyle(CircularProgressViewStyle(tint: Theme.Colors.textPrimary))
+                ProgressView().tint(.white)
             } else {
-                Image(systemName: "arrow.clockwise")
-                    .foregroundStyle(Theme.Colors.textPrimary)
+                Image(systemName: "arrow.clockwise.circle.fill")
+                    .font(.title3)
+                    .foregroundStyle(Theme.Colors.accent)
             }
         }
-        .accessibilityIdentifier("networkMap_button_scan")
+    }
+}
+
+struct ProDeviceRow: View {
+    let device: DiscoveredDevice
+    let isScanning: Bool
+    @State private var sweepOffset: CGFloat = -1.0
+    
+    var body: some View {
+        GlassCard(padding: 12) {
+            HStack(spacing: 12) {
+                // Icon
+                ZStack {
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(Theme.Colors.crystalBase)
+                        .frame(width: 40, height: 40)
+                        .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.white.opacity(0.05), lineWidth: 1))
+                    
+                    Image(systemName: device.iconName)
+                        .font(.system(size: 18))
+                        .foregroundStyle(Theme.Colors.accent)
+                }
+                
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(device.displayName)
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(.white)
+                    Text(device.ipAddress)
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundStyle(Theme.Colors.textTertiary)
+                }
+                
+                Spacer()
+                
+                VStack(alignment: .trailing, spacing: 4) {
+                    Text(device.latencyText)
+                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                        .foregroundStyle(Theme.Colors.success)
+                    
+                    Text(device.source == .local ? "DIRECT" : "PEER")
+                        .font(.system(size: 8, weight: .black))
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 1)
+                        .background(Color.white.opacity(0.05))
+                        .foregroundStyle(Theme.Colors.textTertiary)
+                        .clipShape(RoundedRectangle(cornerRadius: 2))
+                }
+            }
+            .overlay(
+                // Scanner Sweep Effect
+                GeometryReader { geo in
+                    if isScanning {
+                        Rectangle()
+                            .fill(
+                                LinearGradient(
+                                    colors: [.clear, Theme.Colors.accent.opacity(0.1), .clear],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            )
+                            .frame(width: 60)
+                            .offset(x: geo.size.width * sweepOffset)
+                    }
+                }
+            )
+        }
+        .onAppear {
+            if isScanning {
+                withAnimation(.linear(duration: 3.0).repeatForever(autoreverses: false)) {
+                    sweepOffset = 1.5
+                }
+            }
+        }
     }
 }
 
