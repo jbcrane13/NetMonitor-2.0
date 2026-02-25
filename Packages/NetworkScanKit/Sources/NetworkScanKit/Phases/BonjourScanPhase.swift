@@ -24,28 +24,20 @@ public struct BonjourScanPhase: ScanPhase, Sendable {
     let stopProvider: (@Sendable () async -> Void)?
 
     /// Maximum time to wait for mDNS responses before resolving.
-    let discoveryWaitDuration: Duration
+    private let discoveryWaitDuration: Duration = .seconds(6)
 
     /// Exit early when no new services arrive within this threshold.
-    let stableExitThreshold: Duration
+    private let stableExitThreshold: Duration = .milliseconds(1500)
 
-    let maxResolves: Int
-    let maxResolveConcurrency: Int
+    private let maxResolves: Int = 100
+    private let maxResolveConcurrency: Int = 8
 
     public init(
         serviceProvider: @escaping @Sendable () async -> [BonjourServiceInfo],
-        stopProvider: (@Sendable () async -> Void)? = nil,
-        discoveryWaitDuration: Duration = .seconds(6),
-        stableExitThreshold: Duration = .milliseconds(1500),
-        maxResolves: Int = 100,
-        maxResolveConcurrency: Int = 8
+        stopProvider: (@Sendable () async -> Void)? = nil
     ) {
         self.serviceProvider = serviceProvider
         self.stopProvider = stopProvider
-        self.discoveryWaitDuration = discoveryWaitDuration
-        self.stableExitThreshold = stableExitThreshold
-        self.maxResolves = maxResolves
-        self.maxResolveConcurrency = maxResolveConcurrency
     }
 
     public func execute(
