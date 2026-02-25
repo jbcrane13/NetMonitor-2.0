@@ -9,8 +9,8 @@ enum Theme {
     // MARK: - Colors
     enum Colors {
         // Background gradient colors
-        static let backgroundGradientStart = Color(hex: "0F172A") // slate-900
-        static let backgroundGradientEnd = Color(hex: "1E3A5F")   // blue-900
+        static let backgroundGradientStart = Color(hex: "000000") // pure black
+        static let backgroundGradientEnd = Color(hex: "050505")   // very dark gray
 
         // Primary accent — reads from ThemeManager for reactive updates
         @MainActor static var accent: Color { ThemeManager.shared.accent }
@@ -28,9 +28,9 @@ enum Theme {
         static let textTertiary = Color.white.opacity(0.4)
         
         // Glass card colors - subtle tint for true glass effect
-        @MainActor static var glassBackground: Color { accentLight.opacity(0.05) }
-        static let glassBorder = Color.white.opacity(0.15)
-        static let glassHighlight = Color.white.opacity(0.1)
+        @MainActor static var glassBackground: Color { Color(hex: "121212") } // dark charcoal
+        static let glassBorder = Color.white.opacity(0.08)
+        static let glassHighlight = Color.white.opacity(0.02)
         
         // Status colors
         static let online = success

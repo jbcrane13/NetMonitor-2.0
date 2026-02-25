@@ -39,7 +39,7 @@ struct NetMonitorApp: App {
     }
 
     var sharedModelContainer: ModelContainer = {
-        let schema = Schema(versionedSchema: SchemaV2.self)
+        let schema = Schema(versionedSchema: SchemaV1.self)
         let modelConfiguration = ModelConfiguration(
             schema: schema,
             isStoredInMemoryOnly: false,
@@ -49,7 +49,6 @@ struct NetMonitorApp: App {
         do {
             return try ModelContainer(
                 for: schema,
-                migrationPlan: NetMonitorMigrationPlan.self,
                 configurations: [modelConfiguration]
             )
         } catch {
