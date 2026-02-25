@@ -27,7 +27,7 @@ struct SidebarView: View {
                             icon: profile.connectionType.iconName,
                             isSelected: selection == .network(profile.id),
                             badge: profileManager.activeProfile?.id == profile.id ? "ACTIVE" : nil,
-                            badgeColor: .green
+                            badgeColor: MacTheme.Colors.success
                         )
                         .tag(SidebarSelection.network(profile.id))
                     }
@@ -35,13 +35,13 @@ struct SidebarView: View {
                     HStack {
                         Text("NETWORKS")
                             .font(.system(size: 10, weight: .black))
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(MacTheme.Colors.sidebarTextSecondary)
                             .tracking(1.5)
                         Spacer()
                         Button(action: onAddNetwork) {
                             Image(systemName: "plus.square.fill")
                                 .font(.system(size: 14))
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(MacTheme.Colors.sidebarTextSecondary)
                         }
                         .buttonStyle(.plain)
                     }
@@ -62,14 +62,14 @@ struct SidebarView: View {
                 } header: {
                     Text("COMMAND")
                         .font(.system(size: 10, weight: .black))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(MacTheme.Colors.sidebarTextSecondary)
                         .tracking(1.5)
                         .padding(.top, 12)
                 }
             }
             .scrollContentBackground(.hidden)
         }
-        .background(.ultraThinMaterial)
+        .macThemedBackground()
         .navigationTitle("NetMonitor")
         .frame(minWidth: 240)
     }
@@ -93,11 +93,11 @@ struct ProfilePill: View {
                 
                 Image(systemName: profile.connectionType.iconName)
                     .font(.system(size: 18))
-                    .foregroundStyle(isSelected ? .white : .secondary)
-                
+                    .foregroundStyle(isSelected ? MacTheme.Colors.sidebarTextPrimary : MacTheme.Colors.sidebarTextSecondary)
+
                 if isActive {
                     Circle()
-                        .fill(Color.green)
+                        .fill(MacTheme.Colors.success)
                         .frame(width: 8, height: 8)
                         .overlay(Circle().stroke(Color.black, lineWidth: 1.5))
                         .offset(x: 18, y: -18)
@@ -106,7 +106,7 @@ struct ProfilePill: View {
             
             Text(profile.displayName)
                 .font(.system(size: 9, weight: .bold))
-                .foregroundStyle(isSelected ? .white : .secondary)
+                .foregroundStyle(isSelected ? MacTheme.Colors.sidebarTextPrimary : MacTheme.Colors.sidebarTextSecondary)
                 .lineLimit(1)
                 .frame(width: 50)
         }
@@ -134,12 +134,12 @@ struct SidebarRow: View {
             
             Image(systemName: icon)
                 .font(.system(size: 14, weight: isSelected ? .bold : .medium))
-                .foregroundStyle(isSelected ? MacTheme.Colors.sidebarActiveBorder : .secondary)
+                .foregroundStyle(isSelected ? MacTheme.Colors.sidebarActiveBorder : MacTheme.Colors.sidebarTextSecondary)
                 .frame(width: 20)
             
             Text(title)
                 .font(.system(size: 13, weight: isSelected ? .bold : .semibold))
-                .foregroundStyle(isSelected ? .white : MacTheme.Colors.sidebarTextSecondary)
+                .foregroundStyle(isSelected ? MacTheme.Colors.sidebarTextPrimary : MacTheme.Colors.sidebarTextSecondary)
             
             Spacer()
             
@@ -184,13 +184,13 @@ extension SidebarView {
     private func badgeColor(for section: NavigationSection) -> Color {
         switch section {
         case .dashboard, .targets:
-            guard let monitoringSession else { return .gray }
+            guard let monitoringSession else { return MacTheme.Colors.idle }
             let online = monitoringSession.onlineTargetCount
             let total = online + monitoringSession.offlineTargetCount
-            if total == 0 { return .gray }
-            return online == total ? .green : (online > 0 ? .orange : .red)
+            if total == 0 { return MacTheme.Colors.idle }
+            return online == total ? MacTheme.Colors.success : (online > 0 ? MacTheme.Colors.warning : MacTheme.Colors.error)
         default:
-            return .blue
+            return MacTheme.Colors.info
         }
     }
 }

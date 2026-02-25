@@ -68,9 +68,7 @@ struct NetworkHealthScoreView: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .padding()
-        .background(.ultraThinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .macGlassCard()
         .accessibilityIdentifier("dashboard_card_healthScore")
         .task { await viewModel.refresh() }
     }

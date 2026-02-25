@@ -111,11 +111,9 @@ struct ToolCard: View {
                 .multilineTextAlignment(.center)
         }
         .frame(minWidth: 110, maxWidth: 160, minHeight: 110)
-        .padding(10)
-        .background(.ultraThinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .macGlassCard(padding: 10)
         .overlay(
-            RoundedRectangle(cornerRadius: 12)
+            RoundedRectangle(cornerRadius: MacTheme.Layout.cardCornerRadius)
                 .strokeBorder(isHovering ? accentColor.opacity(0.5) : Color.clear, lineWidth: 2)
         )
         .scaleEffect(isHovering ? 1.02 : 1.0)

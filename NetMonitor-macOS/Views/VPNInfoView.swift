@@ -15,7 +15,7 @@ struct VPNInfoView: View {
                 // Status badge
                 HStack(spacing: 4) {
                     Circle()
-                        .fill(viewModel.isActive ? Color.green : Color.secondary)
+                        .fill(viewModel.isActive ? MacTheme.Colors.success : Color.secondary)
                         .frame(width: 8, height: 8)
                     Text(viewModel.isActive ? "Connected" : "Not Connected")
                         .font(.caption)
@@ -39,9 +39,7 @@ struct VPNInfoView: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .padding()
-        .background(.ultraThinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .macGlassCard()
         .accessibilityIdentifier("dashboard_card_vpn")
         .task { viewModel.startMonitoring() }
         .onDisappear { viewModel.stopMonitoring() }

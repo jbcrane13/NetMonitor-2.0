@@ -75,12 +75,10 @@ struct TimelineView: View {
 
                 Button("Clear All") { viewModel.clearAll() }
                     .buttonStyle(.plain)
-                    .foregroundStyle(.red)
+                    .foregroundStyle(MacTheme.Colors.error)
                     .font(.caption)
             }
-            .padding(.horizontal)
-            .padding(.vertical, 8)
-            .background(.ultraThinMaterial)
+            .macGlassCard(cornerRadius: MacTheme.Layout.smallCornerRadius, padding: MacTheme.Layout.cardPadding, showBorder: false)
 
             Divider()
 

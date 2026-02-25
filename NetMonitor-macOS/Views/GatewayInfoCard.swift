@@ -63,7 +63,7 @@ struct GatewayInfoCard: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Label("Not Available", systemImage: "exclamationmark.triangle")
                         .font(.caption)
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(MacTheme.Colors.warning)
                     Text(error)
                         .font(.caption2)
                         .foregroundStyle(.secondary)
@@ -148,9 +148,7 @@ struct GatewayInfoCard: View {
                     .padding(.vertical, 8)
             }
         }
-        .padding()
-        .background(.ultraThinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .macGlassCard()
         .accessibilityIdentifier("gateway_card")
         .task {
             await refreshGatewayInfo()

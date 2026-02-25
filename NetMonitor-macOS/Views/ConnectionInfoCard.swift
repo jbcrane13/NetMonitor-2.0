@@ -108,9 +108,7 @@ struct ConnectionInfoCard: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .padding()
-        .background(.ultraThinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .macGlassCard()
         .accessibilityIdentifier("connection_card")
         .task {
             await loadConnectionInfo()
@@ -191,13 +189,13 @@ struct ConnectionInfoCard: View {
         if bar < strength {
             switch strength {
             case 4:
-                return .green
+                return MacTheme.Colors.success
             case 3:
-                return .green
+                return MacTheme.Colors.success
             case 2:
-                return .orange
+                return MacTheme.Colors.warning
             default:
-                return .red
+                return MacTheme.Colors.error
             }
         } else {
             return .gray.opacity(0.3)

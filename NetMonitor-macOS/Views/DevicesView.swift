@@ -189,9 +189,7 @@ struct DevicesView: View {
             .buttonStyle(.bordered)
             .accessibilityIdentifier("devices_button_stopScan")
         }
-        .padding(24)
-        .background(.ultraThinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .macGlassCard(cornerRadius: MacTheme.Layout.cardCornerRadius, padding: 24)
     }
 
     // MARK: - Toolbar
@@ -582,16 +580,16 @@ struct DevicePortScanSheet: View {
                             Spacer()
                             HStack(spacing: 4) {
                                 Circle()
-                                    .fill(result.isOpen ? Color.green : Color.gray.opacity(0.3))
+                                    .fill(result.isOpen ? MacTheme.Colors.success : Color.gray.opacity(0.3))
                                     .frame(width: 8, height: 8)
                                 Text(result.isOpen ? "Open" : "Closed")
-                                    .foregroundStyle(result.isOpen ? .green : .secondary)
+                                    .foregroundStyle(result.isOpen ? MacTheme.Colors.success : .secondary)
                                     .font(.caption)
                             }
                         }
                         .padding(.horizontal)
                         .padding(.vertical, 6)
-                        .background(result.isOpen ? Color.green.opacity(0.1) : Color.clear)
+                        .background(result.isOpen ? MacTheme.Colors.success.opacity(0.1) : Color.clear)
                     }
                 }
             }

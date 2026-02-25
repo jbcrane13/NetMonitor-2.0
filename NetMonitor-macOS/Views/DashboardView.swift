@@ -48,37 +48,7 @@ struct DashboardView: View {
                     
                     DeepHistoryGraph(metric: graphMetric, session: session)
                         .frame(height: 180)
-                        .padding(20)
-                        .background(
-                            ZStack {
-                                RoundedRectangle(cornerRadius: 12)
-                                    .fill(.ultraThinMaterial)
-                                    .opacity(0.8)
-                                
-                                RoundedRectangle(cornerRadius: 12)
-                                    .fill(MacTheme.Colors.crystalBase)
-
-                                // Crystal Shine
-                                LinearGradient(
-                                    colors: [.white.opacity(0.08), .clear],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-                                .clipShape(RoundedRectangle(cornerRadius: 12))
-                            }
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(
-                                    LinearGradient(
-                                        colors: [.white.opacity(0.2), .clear],
-                                        startPoint: .topLeading,
-                                        endPoint: .bottomTrailing
-                                    ),
-                                    lineWidth: 1
-                                )
-                        )
-                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(MacTheme.Colors.deckBorder, lineWidth: 0.5))
+                        .macGlassCard(cornerRadius: MacTheme.Layout.cardCornerRadius, padding: 20)
                 }
                 .padding(.horizontal)
 
@@ -116,7 +86,7 @@ struct DashboardView: View {
                                 .font(.system(size: 11, weight: .black))
                             }
                             .buttonStyle(.borderedProminent)
-                            .tint(session.isMonitoring ? .red : .green)
+                            .tint(session.isMonitoring ? MacTheme.Colors.error : MacTheme.Colors.success)
                             .controlSize(.small)
                         }
                     }
@@ -138,17 +108,7 @@ struct DashboardView: View {
             }
             .padding(.vertical, 24)
         }
-        .background(
-            ZStack {
-                Color(hex: "020202")
-                RadialGradient(
-                    colors: [Color(hex: "0F172A").opacity(0.4), .clear],
-                    center: .top,
-                    startRadius: 0,
-                    endRadius: 1000
-                )
-            }
-        )
+        .macThemedBackground()
         .navigationTitle("Dashboard")
         .task {
             // Auto-seed and start if needed
@@ -234,7 +194,7 @@ struct GatewayWidget: View {
                 HStack(alignment: .bottom) {
                     Text("2.4")
                         .font(.system(size: 24, weight: .bold, design: .rounded))
-                        .foregroundStyle(.green)
+                        .foregroundStyle(MacTheme.Colors.success)
                     Text("ms")
                         .font(.system(size: 10, weight: .bold))
                         .foregroundStyle(.secondary)
@@ -246,7 +206,7 @@ struct GatewayWidget: View {
                         .font(.system(size: 11, design: .monospaced))
                     Text("REACHABLE")
                         .font(.system(size: 9, weight: .black))
-                        .foregroundStyle(.green)
+                        .foregroundStyle(MacTheme.Colors.success)
                 }
             }
         }
@@ -333,39 +293,8 @@ struct InstrumentWidget<Content: View>: View {
             
             content
         }
-        .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            ZStack {
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(.ultraThinMaterial)
-                    .opacity(0.8)
-                
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(MacTheme.Colors.crystalBase)
-
-                // Crystal Shine
-                LinearGradient(
-                    colors: [.white.opacity(0.08), .clear, .white.opacity(0.02)],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-                .clipShape(RoundedRectangle(cornerRadius: 10))
-            }
-        )
-        .overlay(
-            // Rim Light
-            RoundedRectangle(cornerRadius: 10)
-                .stroke(
-                    LinearGradient(
-                        colors: [.white.opacity(0.2), .white.opacity(0.05), .clear],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ),
-                    lineWidth: 1
-                )
-        )
-        .overlay(RoundedRectangle(cornerRadius: 10).stroke(MacTheme.Colors.deckBorder, lineWidth: 0.5))
+        .macGlassCard(cornerRadius: MacTheme.Layout.cardCornerRadius, padding: 14)
     }
 }
 
@@ -385,7 +314,7 @@ struct NoTargetsView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(40)
-        .background(MacTheme.Colors.deckBackground.opacity(0.5))
+        .background(MacTheme.Colors.crystalBase)
         .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 }
@@ -425,10 +354,10 @@ struct TargetStatusCard: View {
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 8)
-            .background(MacTheme.Colors.deckConsole)
+            .background(Color.white.opacity(0.03))
 
             Divider()
-                .background(MacTheme.Colors.deckBorder)
+                .background(MacTheme.Colors.glassBorder)
 
             VStack(alignment: .leading, spacing: 8) {
                 // Host
@@ -440,7 +369,7 @@ struct TargetStatusCard: View {
                 // Sparkline (Recessed)
                 ZStack {
                     RoundedRectangle(cornerRadius: 4)
-                        .fill(MacTheme.Colors.deckRecessed)
+                        .fill(Color.black.opacity(0.3))
                     
                     HistorySparkline(data: simulatedHistory, color: statusColor, lineWidth: 1.5, showPulse: true)
                         .padding(4)
@@ -474,46 +403,17 @@ struct TargetStatusCard: View {
 
                         Text(measurement?.isReachable ?? false ? "NOMINAL" : "LOST")
                             .font(.system(size: 10, weight: .black))
-                            .foregroundStyle(measurement?.isReachable ?? false ? .green : .red)
+                            .foregroundStyle(measurement?.isReachable ?? false ? MacTheme.Colors.success : MacTheme.Colors.error)
                     }
                 }
                 .padding(.bottom, 8)
             }
             .padding(.horizontal, 10)
         }
-        .background(
-            ZStack {
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(.ultraThinMaterial)
-                    .opacity(0.8)
-                
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(MacTheme.Colors.crystalBase)
-
-                // Crystal Shine
-                LinearGradient(
-                    colors: [.white.opacity(0.08), .clear, .white.opacity(0.02)],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-                .clipShape(RoundedRectangle(cornerRadius: 10))
-            }
-        )
+        .macGlassCard(cornerRadius: MacTheme.Layout.cardCornerRadius, padding: 0)
         .overlay(
-            // Rim Light
-            RoundedRectangle(cornerRadius: 10)
-                .stroke(
-                    LinearGradient(
-                        colors: [.white.opacity(0.2), .white.opacity(0.05), .clear],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ),
-                    lineWidth: 1
-                )
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 10)
-                .stroke(isHovering ? .white.opacity(0.3) : MacTheme.Colors.deckBorder, lineWidth: 0.5)
+            RoundedRectangle(cornerRadius: MacTheme.Layout.cardCornerRadius)
+                .stroke(isHovering ? .white.opacity(0.3) : Color.clear, lineWidth: 0.5)
         )
         .onHover { hovering in
             withAnimation(.easeInOut(duration: 0.2)) {
@@ -531,6 +431,6 @@ struct TargetStatusCard: View {
         guard let measurement = measurement else {
             return .gray
         }
-        return measurement.isReachable ? .green : .red
+        return measurement.isReachable ? MacTheme.Colors.success : MacTheme.Colors.error
     }
 }

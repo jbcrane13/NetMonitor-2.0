@@ -128,8 +128,7 @@ struct GeoTraceView: View {
         }
         .padding(12)
         .frame(width: 220)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10))
-        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(.quaternary, lineWidth: 1))
+        .macGlassCard(cornerRadius: 10, padding: 0, showBorder: true)
         .padding()
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
@@ -143,7 +142,7 @@ struct GeoTraceView: View {
                 Text("Tracing route to \(host)… \(hops.count) hops")
                     .foregroundStyle(.secondary)
             } else if !hops.isEmpty {
-                Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+                Image(systemName: "checkmark.circle.fill").foregroundStyle(MacTheme.Colors.success)
                 Text("\(locatedHops.count)/\(hops.count) hops located").foregroundStyle(.secondary)
             } else {
                 Text("Trace the geographic path to any host").foregroundStyle(.secondary)

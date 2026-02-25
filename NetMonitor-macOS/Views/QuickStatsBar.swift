@@ -19,7 +19,7 @@ struct QuickStatsBar: View {
             // Online count
             StatItem(
                 icon: "checkmark.circle.fill",
-                color: .green,
+                color: MacTheme.Colors.success,
                 label: "Online",
                 value: "\(onlineCount)"
             )
@@ -30,7 +30,7 @@ struct QuickStatsBar: View {
             // Offline count
             StatItem(
                 icon: "xmark.circle.fill",
-                color: .red,
+                color: MacTheme.Colors.error,
                 label: "Offline",
                 value: "\(offlineCount)"
             )
@@ -57,9 +57,7 @@ struct QuickStatsBar: View {
                 value: lastCheckString
             )
         }
-        .padding(compactMode ? 8 : 16)
-        .background(.ultraThinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .macGlassCard(padding: compactMode ? 8 : 16)
         .accessibilityIdentifier("dashboard_quickStats_bar")
     }
 

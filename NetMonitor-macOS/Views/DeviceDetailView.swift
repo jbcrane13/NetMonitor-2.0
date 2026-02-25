@@ -78,12 +78,12 @@ struct DeviceDetailView: View {
         HStack(spacing: 16) {
             ZStack {
                 Circle()
-                    .fill(device.status == .online ? Color.green.opacity(0.2) : Color.gray.opacity(0.2))
+                    .fill(device.status == .online ? MacTheme.Colors.success.opacity(0.2) : Color.gray.opacity(0.2))
                     .frame(width: 64, height: 64)
 
                 Image(systemName: device.deviceType.iconName)
                     .font(.title)
-                    .foregroundStyle(device.status == .online ? .green : .gray)
+                    .foregroundStyle(device.status == .online ? MacTheme.Colors.success : .gray)
             }
 
             VStack(alignment: .leading, spacing: 4) {
@@ -99,7 +99,7 @@ struct DeviceDetailView: View {
 
                 HStack(spacing: 8) {
                     Circle()
-                        .fill(device.status == .online ? Color.green : Color.gray)
+                        .fill(device.status == .online ? MacTheme.Colors.success : Color.gray)
                         .frame(width: 8, height: 8)
 
                     Text(device.status == .online ? "Online" : "Offline")
@@ -128,9 +128,7 @@ struct DeviceDetailView: View {
                 .accessibilityIdentifier("device_detail_picker_type")
             }
         }
-        .padding()
-        .background(.ultraThinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .macGlassCard(cornerRadius: MacTheme.Layout.cardCornerRadius)
         .accessibilityIdentifier("device_detail_card_header")
     }
 
@@ -153,9 +151,7 @@ struct DeviceDetailView: View {
                 infoRow(label: "Hostname", value: hostname, monospace: true)
             }
         }
-        .padding()
-        .background(.ultraThinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .macGlassCard(cornerRadius: MacTheme.Layout.cardCornerRadius)
         .accessibilityIdentifier("device_detail_card_networkInfo")
     }
 
@@ -182,9 +178,7 @@ struct DeviceDetailView: View {
                 )
             }
         }
-        .padding()
-        .background(.ultraThinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .macGlassCard(cornerRadius: MacTheme.Layout.cardCornerRadius)
         .accessibilityIdentifier("device_detail_card_hardware")
     }
 
@@ -211,9 +205,7 @@ struct DeviceDetailView: View {
 
             infoRow(label: "Total Time Tracked", value: totalTimeTracked)
         }
-        .padding()
-        .background(.ultraThinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .macGlassCard(cornerRadius: MacTheme.Layout.cardCornerRadius)
         .accessibilityIdentifier("device_detail_card_timeline")
     }
 
@@ -241,9 +233,7 @@ struct DeviceDetailView: View {
                 }
             }
         }
-        .padding()
-        .background(.ultraThinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .macGlassCard(cornerRadius: MacTheme.Layout.cardCornerRadius)
         .accessibilityIdentifier("device_detail_card_services")
     }
 
@@ -276,9 +266,7 @@ struct DeviceDetailView: View {
                 }
             }
         }
-        .padding()
-        .background(.ultraThinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .macGlassCard(cornerRadius: MacTheme.Layout.cardCornerRadius)
         .accessibilityIdentifier("device_detail_card_notes")
     }
 
@@ -327,9 +315,7 @@ struct DeviceDetailView: View {
                 .accessibilityIdentifier("device_detail_button_addToTargets")
             }
         }
-        .padding()
-        .background(.ultraThinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .macGlassCard(cornerRadius: MacTheme.Layout.cardCornerRadius)
         .accessibilityIdentifier("device_detail_card_actions")
     }
 
