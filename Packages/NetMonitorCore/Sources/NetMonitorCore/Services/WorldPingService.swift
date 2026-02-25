@@ -60,13 +60,14 @@ public final class WorldPingService: WorldPingServiceProtocol, @unchecked Sendab
         let (data, _) = try await session.data(for: request)
         let response = try JSONDecoder().decode(CheckPingResponse.self, from: data)
 
-        // nodes dict: key → [country, city, region, countryCode, ip]
+        // nodes dict: key → [countryCode, country, city, ip, asn]
+        // e.g. "at1.node.check-host.net": ["at", "Austria", "Vienna", "185.224.3.111", "AS64457"]
         let nodes = response.nodes.reduce(into: [String: NodeMeta]()) { acc, pair in
             let arr = pair.value
             acc[pair.key] = NodeMeta(
-                country: arr.count > 0 ? arr[0] : "Unknown",
-                city: arr.count > 1 ? arr[1] : pair.key,
-                countryCode: arr.count > 3 ? arr[3] : ""
+                country: arr.count > 1 ? arr[1] : "Unknown",
+                city: arr.count > 2 ? arr[2] : pair.key,
+                countryCode: arr.count > 0 ? arr[0] : ""
             )
         }
         return (response.requestId, nodes)
@@ -113,15 +114,35 @@ public final class WorldPingService: WorldPingServiceProtocol, @unchecked Sendab
         for (nodeKey, value) in raw {
             let meta = nodes[nodeKey]
 
-            if let pings = value as? [[Any]], let first = pings.first {
+            // API response structure: [[[status, latency, ip?], [status, latency], ...]]
+            // The value is wrapped in an extra array layer: [[[Any]]]
+            // Try the triple-nested format first, then fall back to double-nested
+            let pingEntries: [[Any]]?
+            if let tripleNested = value as? [[[Any]]], let inner = tripleNested.first {
+                pingEntries = inner
+            } else if let doubleNested = value as? [[Any]] {
+                pingEntries = doubleNested
+            } else {
+                pingEntries = nil
+            }
+
+            if let pings = pingEntries, let first = pings.first {
                 let status = first.first as? String ?? ""
                 // Latency from API is in seconds; convert to ms
                 let latencyMs: Double? = first.count > 1 ? (first[1] as? Double).map { $0 * 1000 } : nil
+
+                // Average latency across all pings for this node
+                let allLatencies = pings.compactMap { entry -> Double? in
+                    guard entry.count > 1 else { return nil }
+                    return (entry[1] as? Double).map { $0 * 1000 }
+                }
+                let avgLatency = allLatencies.isEmpty ? latencyMs : allLatencies.reduce(0, +) / Double(allLatencies.count)
+
                 results.append(WorldPingLocationResult(
                     id: nodeKey,
                     country: meta?.country ?? "Unknown",
                     city: meta?.city ?? nodeKey,
-                    latencyMs: latencyMs,
+                    latencyMs: avgLatency,
                     isSuccess: status == "OK"
                 ))
             } else {

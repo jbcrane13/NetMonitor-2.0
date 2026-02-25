@@ -77,6 +77,11 @@ targets:
         CFBundleIconName: AppIcon
         NSLocationWhenInUseUsageDescription: "NetMonitor uses your location to display WiFi network information and monitor GeoFence zones."
         NSLocationAlwaysAndWhenInUseUsageDescription: "NetMonitor uses your location in the background to trigger GeoFence alerts when you enter or exit defined zones."
+        NSAppTransportSecurity:
+          NSExceptionDomains:
+            ip-api.com:
+              NSExceptionAllowsInsecureHTTPLoads: true
+              NSIncludesSubdomains: true
         UILaunchScreen:
           UIColorName: ""
           UIImageName: ""
