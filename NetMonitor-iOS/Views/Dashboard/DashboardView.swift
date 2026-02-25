@@ -1,5 +1,6 @@
 import SwiftUI
 import NetMonitorCore
+import NetworkScanKit
 
 struct DashboardView: View {
     @State private var viewModel = DashboardViewModel()
@@ -32,7 +33,7 @@ struct DashboardView: View {
             }
             .themedBackground()
             .navigationTitle("Dashboard")
-            .navigationBarTitleDisplayMode(.inline) // Changed to inline for HUD feel
+            .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
             .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
@@ -68,6 +69,8 @@ struct DashboardView: View {
     }
 }
 
+// MARK: - Components
+
 struct ConnectionStatusHeader: View {
     let viewModel: DashboardViewModel
 
@@ -81,210 +84,6 @@ struct ConnectionStatusHeader: View {
     }
 }
 
-struct NetworkHealthHero: View {
-    let viewModel: DashboardViewModel
-    @State private var isAnimating = false
-    
-    var healthScore: Int {
-        // Simple logic for health score based on latency
-        let latency = viewModel.gateway?.latency ?? 0
-        if !viewModel.isConnected { return 0 }
-        if latency < 20 { return 100 }
-        if latency < 50 { return 90 }
-        if latency < 100 { return 70 }
-        return 40
-    }
-    
-    var body: some View {
-        VStack(spacing: 16) {
-            ZStack {
-                // Background Glow
-                Circle()
-                    .fill(Theme.Colors.latencyColor(ms: viewModel.gateway?.latency ?? 0))
-                    .frame(width: 140, height: 140)
-                    .blur(radius: isAnimating ? 40 : 20)
-                    .opacity(0.15)
-                
-                // Track
-                Circle()
-                    .stroke(Color.white.opacity(0.05), lineWidth: 12)
-                    .frame(width: 160, height: 160)
-                
-                // Progress
-                Circle()
-                    .trim(from: 0, to: CGFloat(healthScore) / 100.0)
-                    .stroke(
-                        LinearGradient(
-                            colors: [Theme.Colors.latencyColor(ms: viewModel.gateway?.latency ?? 0), .white],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ),
-                        style: StrokeStyle(lineWidth: 12, lineCap: .round)
-                    )
-                    .frame(width: 160, height: 160)
-                    .rotationEffect(.degrees(-90))
-                
-                VStack(spacing: 0) {
-                    Text("\(healthScore)%")
-                        .font(.system(size: 44, weight: .black, design: .rounded))
-                        .foregroundStyle(.white)
-                    Text("HEALTH")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(Theme.Colors.textTertiary)
-                        .tracking(2)
-                }
-            }
-            
-            Text(healthStatusText)
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(Theme.Colors.textSecondary)
-        }
-        .padding(.vertical, 20)
-        .onAppear {
-            withAnimation(Theme.Animation.pulse) {
-                isAnimating = true
-            }
-        }
-    }
-    
-    private var healthStatusText: String {
-        if !viewModel.isConnected { return "NETWORK OFFLINE" }
-        switch healthScore {
-        case 90...100: return "OPTIMAL CONNECTION"
-        case 70..<90: return "NOMINAL PERFORMANCE"
-        case 40..<70: return "DEGRADED SIGNAL"
-        default: return "CRITICAL LATENCY"
-        }
-    }
-}
-
-struct LiveEventTicker: View {
-    var body: some View {
-        GlassCard(padding: 12) {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Image(systemName: "terminal")
-                        .font(.caption)
-                        .foregroundStyle(Theme.Colors.accent)
-                    Text("LIVE EVENTS")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(Theme.Colors.textSecondary)
-                        .tracking(1)
-                    Spacer()
-                    Circle().fill(Theme.Colors.success).frame(width: 4, height: 4)
-                }
-                
-                VStack(alignment: .leading, spacing: 4) {
-                    EventRow(time: "04:32:10", text: "Gateway check: 14ms (Optimal)")
-                    EventRow(time: "04:31:45", text: "Local scan: 14 devices active")
-                    EventRow(time: "04:30:12", text: "Starlink connection stable")
-                }
-            }
-        }
-    }
-}
-
-struct EventRow: View {
-    let time: String
-    let text: String
-    var body: some View {
-        HStack(spacing: 8) {
-            Text(time)
-                .font(.system(size: 9, design: .monospaced))
-                .foregroundStyle(Theme.Colors.textTertiary)
-            Text(text)
-                .font(.system(size: 10, design: .monospaced))
-                .foregroundStyle(Theme.Colors.textSecondary)
-                .lineLimit(1)
-        }
-    }
-}
-
-struct ProConnectivityPanel: View {
-    let viewModel: DashboardViewModel
-    
-    var body: some View {
-        VStack(spacing: 8) {
-            HStack {
-                Text("PRO CONNECTIVITY")
-                    .font(.system(size: 10, weight: .black))
-                    .foregroundStyle(Theme.Colors.textTertiary)
-                    .tracking(1.5)
-                Spacer()
-            }
-            .padding(.horizontal, 4)
-            
-            GlassCard(padding: 12) {
-                VStack(spacing: 12) {
-                    ConnectivityRow(label: "ISP", value: viewModel.ispInfo?.ispName ?? "Detecting...", icon: "antenna.radiowaves.left.and.right")
-                    Divider().background(Color.white.opacity(0.05))
-                    ConnectivityRow(label: "DNS", value: "8.8.8.8, 1.1.1.1", icon: "magnifyingglass")
-                    Divider().background(Color.white.opacity(0.05))
-                    ConnectivityRow(label: "Public IP", value: viewModel.ispInfo?.publicIP ?? "---.---.---.---", icon: "network")
-                }
-            }
-            
-            // Global Anchor Ticker
-            HStack(spacing: 8) {
-                AnchorPill(label: "Google", latency: 14, status: .online)
-                AnchorPill(label: "Cloudflare", latency: 8, status: .online)
-                AnchorPill(label: "AWS", latency: 22, status: .online)
-            }
-            .padding(.top, 4)
-        }
-    }
-}
-
-struct ConnectivityRow: View {
-    let label: String
-    let value: String
-    let icon: String
-    
-    var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: icon)
-                .font(.system(size: 14))
-                .foregroundStyle(Theme.Colors.accent)
-                .frame(width: 20)
-            
-            Text(label.uppercased())
-                .font(.system(size: 10, weight: .bold))
-                .foregroundStyle(Theme.Colors.textTertiary)
-            
-            Spacer()
-            
-            Text(value)
-                .font(.system(size: 13, weight: .semibold, design: .monospaced))
-                .foregroundStyle(.white)
-        }
-    }
-}
-
-struct AnchorPill: View {
-    let label: String
-    let latency: Int
-    let status: StatusType
-    
-    var body: some View {
-        HStack(spacing: 6) {
-            Circle()
-                .fill(Theme.Colors.success)
-                .frame(width: 4, height: 4)
-            Text(label.uppercased())
-                .font(.system(size: 8, weight: .black))
-                .foregroundStyle(Theme.Colors.textSecondary)
-            Text("\(latency)ms")
-                .font(.system(size: 9, weight: .bold, design: .rounded))
-                .foregroundStyle(.white)
-        }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 6)
-        .background(Theme.Colors.crystalBase)
-        .clipShape(Capsule())
-        .overlay(Capsule().stroke(Color.white.opacity(0.05), lineWidth: 1))
-    }
-}
-
 struct TacticalHUDHeader: View {
     let viewModel: DashboardViewModel
     
@@ -294,11 +93,12 @@ struct TacticalHUDHeader: View {
                 VStack(alignment: .leading, spacing: Theme.Layout.itemSpacing) {
                     HStack(alignment: .top) {
                         VStack(alignment: .leading, spacing: 4) {
-                                                    HStack(spacing: 8) {
-                                                        Image(systemName: "wifi")
-                                                            .foregroundStyle(Theme.Colors.accent)
-                                                            .symbolEffect(.variableColor.reversing, isActive: viewModel.isScanning)
-                                                        Text(viewModel.activeNetwork?.displayName ?? viewModel.currentWiFi?.ssid ?? "Unknown Network")                                    .font(.system(size: 18, weight: .bold, design: .rounded))
+                            HStack(spacing: 8) {
+                                Image(systemName: "wifi")
+                                    .foregroundStyle(Theme.Colors.accent)
+                                    .symbolEffect(.variableColor.reversing, isActive: viewModel.isScanning)
+                                Text(viewModel.activeNetwork?.displayName ?? viewModel.currentWiFi?.ssid ?? "Unknown Network")
+                                    .font(.system(size: 18, weight: .bold, design: .rounded))
                                     .foregroundStyle(
                                         LinearGradient(
                                             colors: [.white, .white.opacity(0.8)],
@@ -349,22 +149,8 @@ struct TacticalHUDHeader: View {
     }
 }
 
-struct QuickStatsGrid: View {
-    let viewModel: DashboardViewModel
-    
-    var body: some View {
-        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: Theme.Layout.itemSpacing) {
-            StatWidget(label: "Gateway", value: viewModel.gateway?.ipAddress ?? "---", icon: "server.rack")
-            StatWidget(label: "Devices", value: "\(viewModel.deviceCount)", icon: "desktopcomputer")
-            StatWidget(label: "Session", value: viewModel.sessionDuration, icon: "clock")
-            StatWidget(label: "WiFi Ch.", value: viewModel.currentWiFi?.channel.map { "\($0)" } ?? "---", icon: "wifi")
-        }
-    }
-}
-
 struct RefinedNetworkHealthCard: View {
     let viewModel: DashboardViewModel
-    @State private var isAnimating = false
     
     var healthScore: Int {
         let latency = viewModel.gateway?.latency ?? 0
@@ -380,20 +166,24 @@ struct RefinedNetworkHealthCard: View {
             VStack(alignment: .leading, spacing: 14) {
                 HStack {
                     Text("NETWORK HEALTH")
-                        .font(.system(size: 11, weight: .semibold))
+                        .font(.system(size: 11, weight: .black))
                         .foregroundStyle(Theme.Colors.textTertiary)
-                        .tracking(1.2)
+                        .tracking(1.5)
                     Spacer()
-                    Text("2m ago")
-                        .font(.system(size: 11))
-                        .foregroundStyle(Theme.Colors.textTertiary)
+                    Text("LIVE")
+                        .font(.system(size: 9, weight: .black))
+                        .foregroundStyle(Theme.Colors.success)
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 2)
+                        .background(Theme.Colors.success.opacity(0.1))
+                        .clipShape(RoundedRectangle(cornerRadius: 3))
                 }
                 
                 HStack(spacing: 20) {
                     // Health Ring
                     ZStack {
                         Circle()
-                            .stroke(Color.white.opacity(0.05), lineWidth: 5.5)
+                            .stroke(Color.white.opacity(0.05), lineWidth: 6)
                         Circle()
                             .trim(from: 0, to: CGFloat(healthScore) / 100.0)
                             .stroke(
@@ -402,39 +192,38 @@ struct RefinedNetworkHealthCard: View {
                                     startPoint: .leading,
                                     endPoint: .trailing
                                 ),
-                                style: StrokeStyle(lineWidth: 5.5, lineCap: .round)
+                                style: StrokeStyle(lineWidth: 6, lineCap: .round)
                             )
                             .rotationEffect(.degrees(-90))
-                            .shadow(color: .cyan.opacity(0.25), radius: 5)
+                            .shadow(color: .cyan.opacity(0.3), radius: 6)
                         
                         VStack(spacing: -2) {
                             Text("\(healthScore)")
-                                .font(.system(size: 28, weight: .bold, design: .rounded))
+                                .font(.system(size: 28, weight: .black, design: .rounded))
                                 .foregroundStyle(.white)
-                            Text("Score")
-                                .font(.system(size: 9, weight: .semibold))
+                            Text("SCORE")
+                                .font(.system(size: 8, weight: .black))
                                 .foregroundStyle(Theme.Colors.textTertiary)
                                 .tracking(1)
                         }
                     }
-                    .frame(width: 84, height: 84)
+                    .frame(width: 80, height: 80)
                     
-                    VStack(alignment: .leading, spacing: 5) {
+                    VStack(alignment: .leading, spacing: 6) {
                         HStack(spacing: 6) {
                             Circle()
                                 .fill(healthScore > 70 ? Theme.Colors.success : Theme.Colors.warning)
                                 .frame(width: 7, height: 7)
-                                .shadow(color: (healthScore > 70 ? Theme.Colors.success : Theme.Colors.warning).opacity(0.35), radius: 5)
                             
                             Text(healthStatusTitle)
-                                .font(.system(size: 14, weight: .bold))
+                                .font(.system(size: 15, weight: .bold))
                                 .foregroundStyle(.white)
                         }
                         
                         Text(healthDetailText)
                             .font(.system(size: 12))
-                            .foregroundStyle(Theme.Colors.textTertiary)
-                            .lineSpacing(4)
+                            .foregroundStyle(Theme.Colors.textSecondary)
+                            .lineSpacing(2)
                     }
                 }
             }
@@ -443,157 +232,70 @@ struct RefinedNetworkHealthCard: View {
     
     private var healthStatusTitle: String {
         if !viewModel.isConnected { return "Network Offline" }
-        return healthScore > 80 ? "All Systems Normal" : "Degraded Signal"
+        return healthScore > 80 ? "Optimal Performance" : "Degraded Signal"
     }
     
     private var healthDetailText: String {
         if !viewModel.isConnected { return "Check your local connection" }
-        return "\(viewModel.deviceCount) devices online • Gateway \(Int(viewModel.gateway?.latency ?? 0))ms\nNo packet loss detected"
-    }
-}
-
-struct LinkTopologyView: View {
-    let viewModel: DashboardViewModel
-    @State private var packetOffset: CGFloat = 0
-    
-    var body: some View {
-        GlassCard(padding: 16) {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack {
-                    Text("LINK TOPOLOGY")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(Theme.Colors.textTertiary)
-                        .tracking(1)
-                    Spacer()
-                    StatusBadge(status: viewModel.isConnected ? .online : .offline, size: .small)
-                }
-                
-                HStack(spacing: 0) {
-                    TopologyNode(icon: "iphone", label: "Local")
-                    TopologyLink(active: viewModel.isConnected, color: .blue, offset: packetOffset)
-                    TopologyNode(icon: "server.rack", label: "Gateway")
-                    TopologyLink(active: viewModel.isConnected && viewModel.gateway?.latency != nil, color: Theme.Colors.latencyColor(ms: viewModel.gateway?.latency ?? 0), offset: packetOffset)
-                    TopologyNode(icon: "globe", label: "Internet")
-                }
-                .padding(.vertical, 8)
-            }
-        }
-        .onAppear {
-            withAnimation(.linear(duration: 2.0).repeatForever(autoreverses: false)) {
-                packetOffset = 1.0
-            }
-        }
-    }
-}
-
-struct TopologyNode: View {
-    let icon: String
-    let label: String
-    
-    var body: some View {
-        VStack(spacing: 6) {
-            ZStack {
-                Circle()
-                    .fill(Theme.Colors.crystalBase)
-                    .frame(width: 32, height: 32)
-                    .overlay(Circle().stroke(Color.white.opacity(0.1), lineWidth: 1))
-                
-                Image(systemName: icon)
-                    .font(.system(size: 14))
-                    .foregroundStyle(.white)
-            }
-            Text(label.uppercased())
-                .font(.system(size: 8, weight: .black))
-                .foregroundStyle(Theme.Colors.textTertiary)
-        }
-        .frame(width: 50)
-    }
-}
-
-struct TopologyLink: View {
-    let active: Bool
-    let color: Color
-    let offset: CGFloat
-    
-    var body: some View {
-        GeometryReader { geo in
-            ZStack {
-                // Background Line
-                Rectangle()
-                    .fill(Color.white.opacity(0.05))
-                    .frame(height: 2)
-                
-                if active {
-                    // Flow Line
-                    Rectangle()
-                        .fill(color.opacity(0.3))
-                        .frame(height: 2)
-                    
-                    // Moving Packet
-                    Circle()
-                        .fill(.white)
-                        .frame(width: 4, height: 4)
-                        .shadow(color: color, radius: 4)
-                        .offset(x: -geo.size.width/2 + (geo.size.width * offset))
-                }
-            }
-            .frame(maxHeight: .infinity)
-        }
-        .frame(height: 32)
+        return "\(viewModel.deviceCount) devices active • Gateway \(Int(viewModel.gateway?.latency ?? 0))ms\nNo packet loss detected"
     }
 }
 
 struct SignalEQView: View {
     let viewModel: DashboardViewModel
     
-    // Simulate high-density jitter data
     var eqData: [Double] {
         let base = viewModel.gateway?.latency ?? 20.0
         return (0..<40).map { i in
-            let variance = Double.random(in: -5...5)
-            // Add a "spike" occasionally
-            let spike = i % 15 == 0 ? Double.random(in: 10...30) : 0
-            return max(5, base + variance + spike)
+            let variance = Double.random(in: -4...4)
+            let spike = i % 18 == 0 ? Double.random(in: 8...25) : 0
+            return max(4, base + variance + spike)
         }
     }
     
     var body: some View {
         GlassCard(padding: 12) {
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 10) {
                 HStack {
-                    Text("SIGNAL STABILITY (JITTER)")
-                        .font(.system(size: 10, weight: .bold))
+                    Text("STABILITY SPECTRUM (JITTER)")
+                        .font(.system(size: 10, weight: .black))
                         .foregroundStyle(Theme.Colors.textTertiary)
+                        .tracking(1.5)
                     Spacer()
-                    Text("LIVE")
-                        .font(.system(size: 8, weight: .black))
-                        .foregroundStyle(.red)
-                        .padding(.horizontal, 4)
-                        .padding(.vertical, 2)
-                        .background(Color.red.opacity(0.2))
-                        .clipShape(RoundedRectangle(cornerRadius: 2))
                 }
                 
                 HStack(alignment: .bottom, spacing: 2) {
                     ForEach(0..<eqData.count, id: \.self) { i in
                         let val = eqData[i]
                         let maxVal = eqData.max() ?? 100
-                        let height = CGFloat((val / maxVal) * 30)
+                        let height = CGFloat((val / maxVal) * 32)
                         
                         RoundedRectangle(cornerRadius: 1)
                             .fill(
                                 LinearGradient(
-                                    colors: [Theme.Colors.latencyColor(ms: val), Theme.Colors.latencyColor(ms: val).opacity(0.3)],
+                                    colors: [Theme.Colors.latencyColor(ms: val), Theme.Colors.latencyColor(ms: val).opacity(0.4)],
                                     startPoint: .top,
                                     endPoint: .bottom
                                 )
                             )
                             .frame(height: max(2, height))
-                            .animation(.spring(response: 0.3, dampingFraction: 0.6), value: height)
                     }
                 }
-                .frame(height: 30)
+                .frame(height: 32)
             }
+        }
+    }
+}
+
+struct QuickStatsGrid: View {
+    let viewModel: DashboardViewModel
+    
+    var body: some View {
+        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: Theme.Layout.itemSpacing) {
+            StatWidget(label: "Gateway", value: viewModel.gateway?.ipAddress ?? "---", icon: "server.rack")
+            StatWidget(label: "Devices", value: "\(viewModel.deviceCount)", icon: "desktopcomputer")
+            StatWidget(label: "Session", value: viewModel.sessionDuration, icon: "clock")
+            StatWidget(label: "WiFi Ch.", value: viewModel.currentWiFi?.channel.map { "\($0)" } ?? "---", icon: "wifi")
         }
     }
 }
@@ -606,54 +308,22 @@ struct StatWidget: View {
     var body: some View {
         GlassCard(padding: 12) {
             VStack(alignment: .leading, spacing: 8) {
-                HStack {
+                HStack(spacing: 6) {
                     Image(systemName: icon)
-                        .font(.caption)
-                        .foregroundStyle(Theme.Colors.textTertiary)
+                        .font(.system(size: 10))
+                        .foregroundStyle(Theme.Colors.accent)
                     Text(label)
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(Theme.Colors.textSecondary)
-                        .textCase(.uppercase)
+                        .font(.system(size: 10, weight: .black))
+                        .foregroundStyle(Theme.Colors.textTertiary)
+                        .tracking(1.2)
                 }
                 Text(value)
-                    .font(.system(size: 15, weight: .medium, design: .monospaced))
+                    .font(.system(size: 18, weight: .bold, design: .rounded))
                     .foregroundStyle(Theme.Colors.textPrimary)
                     .lineLimit(1)
-                    .minimumScaleFactor(0.8)
+                    .minimumScaleFactor(0.7)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-        }
-    }
-}
-
-struct GatewaySparklineCard: View {
-    let viewModel: DashboardViewModel
-    
-    // Simulate some history data for the sparkline if real history isn't available in viewModel
-    // In a real app, viewModel should provide an array of past latencies.
-    var simulatedHistory: [Double] {
-        let base = viewModel.gateway?.latency ?? 20.0
-        return (0..<20).map { _ in max(1, base + Double.random(in: -5...5)) }
-    }
-    
-    var body: some View {
-        GlassCard {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack {
-                    Text("LIVE LATENCY")
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundStyle(Theme.Colors.textSecondary)
-                    Spacer()
-                    if let latency = viewModel.gateway?.latency {
-                        Text("\(latency, specifier: "%.0f") ms")
-                            .font(.system(size: 12, design: .monospaced))
-                            .foregroundStyle(Theme.Colors.latencyColor(ms: latency))
-                    }
-                }
-                
-                HistorySparkline(data: simulatedHistory, color: Theme.Colors.accent, lineWidth: 2, showPulse: true)
-                    .frame(height: 40)
-            }
         }
     }
 }
@@ -670,63 +340,226 @@ struct LocalDevicesCard: View {
             )
         ) {
             GlassCard {
-                VStack(alignment: .leading, spacing: Theme.Layout.itemSpacing) {
+                VStack(alignment: .leading, spacing: 14) {
                     HStack {
-                        Image(systemName: "desktopcomputer")
-                            .foregroundStyle(Theme.Colors.accent)
-                        Text("Critical Devices")
-                            .font(.headline)
-                            .foregroundStyle(Theme.Colors.textPrimary)
+                        Text("ACTIVE DEVICES")
+                            .font(.system(size: 11, weight: .black))
+                            .foregroundStyle(Theme.Colors.textTertiary)
+                            .tracking(1.5)
                         Spacer()
                         HStack(spacing: 4) {
                             Text("\(viewModel.deviceCount) total")
-                                .font(.subheadline)
-                                .foregroundStyle(Theme.Colors.textSecondary)
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundStyle(Theme.Colors.accent)
                             Image(systemName: "chevron.right")
-                                .font(.caption)
+                                .font(.system(size: 9, weight: .bold))
                                 .foregroundStyle(Theme.Colors.textTertiary)
                         }
                     }
 
-                    // Just show top 3 devices
-                    VStack(spacing: 8) {
-                        ForEach(viewModel.discoveredDevices.prefix(3)) { device in
-                            HStack {
-                                Circle()
-                                    .fill(Theme.Colors.success)
-                                    .frame(width: 6, height: 6)
-                                    .shadow(color: Theme.Colors.success.opacity(0.8), radius: 4, x: 0, y: 0)
-                                Text(device.displayName)
-                                    .font(.system(size: 14, weight: .medium))
-                                    .foregroundStyle(Theme.Colors.textPrimary)
-                                    .lineLimit(1)
-                                Spacer()
-                                Text(device.ipAddress)
-                                    .font(.system(size: 12, design: .monospaced))
-                                    .foregroundStyle(Theme.Colors.textSecondary)
+                    VStack(spacing: 0) {
+                        ForEach(viewModel.discoveredDevices.prefix(5)) { device in
+                            DeviceRow(device: device)
+                            if device.id != viewModel.discoveredDevices.prefix(5).last?.id {
+                                Divider()
+                                    .background(Color.white.opacity(0.05))
+                                    .padding(.vertical, 4)
                             }
                         }
                     }
                     
                     if viewModel.discoveredDevices.isEmpty {
-                        Text("No devices found or scan pending.")
-                            .font(.caption)
-                            .foregroundStyle(Theme.Colors.textSecondary)
-                    }
-
-                    if viewModel.isScanning {
-                        ProgressView()
-                            .progressViewStyle(CircularProgressViewStyle(tint: Theme.Colors.accent))
+                        Text("SEARCHING FOR HARDWARE...")
+                            .font(.system(size: 10, weight: .black, design: .monospaced))
+                            .foregroundStyle(Theme.Colors.textTertiary)
                             .frame(maxWidth: .infinity, alignment: .center)
+                            .padding(.vertical, 10)
                     }
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
         .buttonStyle(PlainButtonStyle())
-        .onAppear {
-            viewModel.refreshAvailableNetworks()
+    }
+}
+
+struct DeviceRow: View {
+    let device: DiscoveredDevice
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(Theme.Colors.crystalBase)
+                    .frame(width: 36, height: 36)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(Color.white.opacity(0.05), lineWidth: 1)
+                    )
+                
+                Image(systemName: device.iconName)
+                    .font(.system(size: 16))
+                    .foregroundStyle(Theme.Colors.accent)
+            }
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text(device.displayName)
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundStyle(.white)
+                Text(device.ipAddress)
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(Theme.Colors.textTertiary)
+                    .tracking(0.3)
+            }
+            
+            Spacer()
+            
+            HStack(spacing: 6) {
+                Circle()
+                    .fill(Theme.Colors.success)
+                    .frame(width: 6, height: 6)
+                Text("2ms")
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .foregroundStyle(Theme.Colors.success)
+            }
         }
-        .accessibilityIdentifier("dashboard_card_localDevices")
+        .padding(.vertical, 4)
+    }
+}
+
+struct ProConnectivityPanel: View {
+    let viewModel: DashboardViewModel
+    
+    var body: some View {
+        VStack(spacing: 8) {
+            HStack {
+                Text("PRO CONNECTIVITY")
+                    .font(.system(size: 10, weight: .black))
+                    .foregroundStyle(Theme.Colors.textTertiary)
+                    .tracking(1.5)
+                Spacer()
+            }
+            .padding(.horizontal, 4)
+            
+            GlassCard(padding: 12) {
+                VStack(spacing: 12) {
+                    ConnectivityRow(label: "ISP", value: viewModel.ispInfo?.ispName ?? "Detecting...", icon: "antenna.radiowaves.left.and.right")
+                    Divider().background(Color.white.opacity(0.05))
+                    ConnectivityRow(label: "DNS", value: "8.8.8.8, 1.1.1.1", icon: "magnifyingglass")
+                    Divider().background(Color.white.opacity(0.05))
+                    ConnectivityRow(label: "Public IP", value: viewModel.ispInfo?.publicIP ?? "---.---.---.---", icon: "network")
+                }
+            }
+            
+            HStack(spacing: 8) {
+                AnchorPill(label: "Google", latency: 14)
+                AnchorPill(label: "Cloudflare", latency: 8)
+                AnchorPill(label: "AWS", latency: 22)
+            }
+            .padding(.top, 4)
+        }
+    }
+}
+
+struct ConnectivityRow: View {
+    let label: String
+    let value: String
+    let icon: String
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .font(.system(size: 14))
+                .foregroundStyle(Theme.Colors.accent)
+                .frame(width: 20)
+            
+            Text(label.uppercased())
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(Theme.Colors.textTertiary)
+            
+            Spacer()
+            
+            Text(value)
+                .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                .foregroundStyle(.white)
+        }
+    }
+}
+
+struct AnchorPill: View {
+    let label: String
+    let latency: Int
+    
+    var body: some View {
+        HStack(spacing: 6) {
+            Circle()
+                .fill(Theme.Colors.success)
+                .frame(width: 4, height: 4)
+            Text(label.uppercased())
+                .font(.system(size: 8, weight: .black))
+                .foregroundStyle(Theme.Colors.textSecondary)
+            Text("\(latency)ms")
+                .font(.system(size: 9, weight: .bold, design: .rounded))
+                .foregroundStyle(.white)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(Theme.Colors.crystalBase)
+        .clipShape(Capsule())
+        .overlay(Capsule().stroke(Color.white.opacity(0.05), lineWidth: 1))
+    }
+}
+
+struct LiveEventTicker: View {
+    var body: some View {
+        GlassCard(padding: 12) {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Image(systemName: "terminal")
+                        .font(.caption)
+                        .foregroundStyle(Theme.Colors.accent)
+                    Text("LIVE EVENTS")
+                        .font(.system(size: 10, weight: .black))
+                        .foregroundStyle(Theme.Colors.textSecondary)
+                        .tracking(1.5)
+                    Spacer()
+                    Circle().fill(Theme.Colors.success).frame(width: 4, height: 4)
+                }
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    EventRow(time: "04:32:10", text: "Gateway check: 14ms (Optimal)")
+                    EventRow(time: "04:31:45", text: "Local scan: 14 devices active")
+                    EventRow(time: "04:30:12", text: "Starlink connection stable")
+                }
+            }
+        }
+    }
+}
+
+struct EventRow: View {
+    let time: String
+    let text: String
+    var body: some View {
+        HStack(spacing: 8) {
+            Text(time)
+                .font(.system(size: 9, design: .monospaced))
+                .foregroundStyle(Theme.Colors.textTertiary)
+            Text(text)
+                .font(.system(size: 10, design: .monospaced))
+                .foregroundStyle(Theme.Colors.textSecondary)
+                .lineLimit(1)
+        }
+    }
+}
+
+extension DiscoveredDevice {
+    var iconName: String {
+        let name = self.displayName.lowercased()
+        if name.contains("iphone") { return "iphone" }
+        if name.contains("macbook") || name.contains("mac") { return "laptopcomputer" }
+        if name.contains("ipad") { return "ipad" }
+        if name.contains("tv") { return "appletv" }
+        if name.contains("homepod") { return "homepod.fill" }
+        if name.contains("printer") || name.contains("jet") { return "printer" }
+        return "desktopcomputer"
     }
 }
