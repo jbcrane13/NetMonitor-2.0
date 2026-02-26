@@ -5,9 +5,18 @@ final class ExportPDFUITests: IOSUITestCase {
 
     private func openSettings() {
         requireExists(
-            app.tabBars.buttons["Settings"],
-            message: "Settings tab should exist"
+            app.tabBars.buttons["Dashboard"],
+            message: "Dashboard tab should exist"
         ).tap()
+
+        let settingsButton = app.buttons["dashboard_button_settings"]
+        if settingsButton.waitForExistence(timeout: 3) {
+            settingsButton.tap()
+        } else {
+            // Fallback for nav button label mismatch across OS versions.
+            requireExists(app.navigationBars.buttons.firstMatch, message: "A navigation bar button should exist for settings").tap()
+        }
+
         requireExists(ui("screen_settings"), timeout: 8, message: "Settings screen should open")
     }
 

@@ -58,7 +58,7 @@ final class WorldPingToolUITests: XCTestCase {
         )
     }
 
-    func testClearButtonAppearsAfterResults() {
+    func testClearButtonAppearsAfterResults() throws {
         openWorldPing()
 
         let input = app.textFields["worldPing_input_host"]
