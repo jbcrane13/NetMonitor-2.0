@@ -47,7 +47,7 @@ struct NetMonitorApp: App {
         )
 
         do {
-s            // launch-time "Duplicate version checksums detected" exception.
+            // launch-time "Duplicate version checksums detected" exception.
             return try ModelContainer(for: schema, configurations: [modelConfiguration])
         } catch {
             Logger.app.warning("Could not create persistent ModelContainer: \(error)")

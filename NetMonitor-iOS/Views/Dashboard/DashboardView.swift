@@ -95,7 +95,7 @@ struct TacticalHUDHeader: View {
                                 Image(systemName: wifiIconName)
                                     .foregroundStyle(Theme.Colors.accent)
                                     .symbolEffect(.variableColor.reversing, isActive: viewModel.isScanning)
-                                Text(viewModel.gateway?.ipAddress ?? "No Gateway")
+                                Text(viewModel.gateway?.ipAddress ?? "Scanning…")
                                     .font(.system(size: 18, weight: .bold, design: .monospaced))
                                     .foregroundStyle(
                                         LinearGradient(
