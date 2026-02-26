@@ -73,20 +73,22 @@ extension View {
 }
 
 // MARK: - Themed Background Modifier (macOS)
-/// Applies the same dark gradient background as iOS.
+/// Applies lifted charcoal background with subtle blue wash — matches iOS.
 struct MacThemedBackground: ViewModifier {
     func body(content: Content) -> some View {
         content
             .background(
                 ZStack {
-                    MacTheme.Colors.backgroundGradientEnd
+                    // Lifted charcoal base
+                    MacTheme.Colors.backgroundBase
                         .ignoresSafeArea()
 
+                    // Subtle blue-gray wash near the top
                     RadialGradient(
-                        colors: [MacTheme.Colors.backgroundGradientStart.opacity(0.6), .clear],
+                        colors: [Color(red: 30/255, green: 35/255, blue: 55/255).opacity(0.25), .clear],
                         center: .top,
                         startRadius: 0,
-                        endRadius: 600
+                        endRadius: 500
                     )
                     .ignoresSafeArea()
                 }

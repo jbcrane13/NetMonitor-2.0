@@ -69,7 +69,21 @@ struct SidebarView: View {
             }
             .scrollContentBackground(.hidden)
         }
-        .macThemedBackground()
+        .background(
+            ZStack {
+                MacTheme.Colors.backgroundElevated
+                    .ignoresSafeArea()
+
+                // Subtle blue shimmer at top of sidebar
+                RadialGradient(
+                    colors: [MacTheme.Colors.shimmerBlue.opacity(0.15), .clear],
+                    center: UnitPoint(x: 0.5, y: -0.15),
+                    startRadius: 0,
+                    endRadius: 250
+                )
+                .ignoresSafeArea()
+            }
+        )
         .navigationTitle("NetMonitor")
         .frame(minWidth: 240)
     }

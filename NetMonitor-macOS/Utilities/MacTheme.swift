@@ -18,9 +18,14 @@ enum MacTheme {
 
     enum Colors {
 
-        // Background gradient — identical to iOS
-        static let backgroundGradientStart = Color(hex: "0F172A") // slate-900
-        static let backgroundGradientEnd = Color(hex: "020202")   // near-black
+        // Background — lifted charcoal (Apple News-inspired)
+        static let backgroundBase = Color(hex: "141416")
+        static let backgroundElevated = Color(hex: "1C1C1E")
+        // Subtle blue shimmer for top glow
+        static let shimmerBlue = Color(red: 60/255, green: 80/255, blue: 140/255)
+        // Legacy aliases
+        static let backgroundGradientStart = Color(hex: "0F172A")
+        static let backgroundGradientEnd = backgroundBase
 
         // Semantic colors — identical hex values to iOS
         static let success = Color(hex: "10B981")     // emerald-500

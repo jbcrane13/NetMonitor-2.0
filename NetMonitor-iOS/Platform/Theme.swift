@@ -8,9 +8,14 @@ enum Theme {
     
     // MARK: - Colors
     enum Colors {
-        // Background gradient colors
-        static let backgroundGradientStart = Color(hex: "0F172A") // slate-900 (tinted)
-        static let backgroundGradientEnd = Color(hex: "020202")   // absolute black
+        // Background — lifted charcoal (Apple News-inspired)
+        static let backgroundBase = Color(hex: "141416")
+        static let backgroundElevated = Color(hex: "1C1C1E")
+        // Subtle blue shimmer for top glow
+        static let shimmerBlue = Color(red: 60/255, green: 80/255, blue: 140/255)
+        // Legacy aliases
+        static let backgroundGradientStart = Color(hex: "0F172A")
+        static let backgroundGradientEnd = backgroundBase
 
         // Primary accent — reads from ThemeManager for reactive updates
         @MainActor static var accent: Color { ThemeManager.shared.accent }
@@ -133,14 +138,16 @@ struct ThemedBackground: ViewModifier {
         content
             .background(
                 ZStack {
-                    Theme.Colors.backgroundGradientEnd
+                    // Lifted charcoal base
+                    Theme.Colors.backgroundBase
                         .ignoresSafeArea()
-                    
+
+                    // Subtle blue-gray wash near the top
                     RadialGradient(
-                        colors: [Theme.Colors.backgroundGradientStart.opacity(0.6), .clear],
+                        colors: [Color(red: 30/255, green: 35/255, blue: 55/255).opacity(0.25), .clear],
                         center: .top,
                         startRadius: 0,
-                        endRadius: 600
+                        endRadius: 500
                     )
                     .ignoresSafeArea()
                 }

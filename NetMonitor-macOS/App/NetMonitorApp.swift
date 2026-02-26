@@ -47,8 +47,7 @@ struct NetMonitorApp: App {
         )
 
         do {
-            // Keep container init on a single schema path to avoid the
-            // launch-time "Duplicate version checksums detected" exception.
+s            // launch-time "Duplicate version checksums detected" exception.
             return try ModelContainer(for: schema, configurations: [modelConfiguration])
         } catch {
             Logger.app.warning("Could not create persistent ModelContainer: \(error)")

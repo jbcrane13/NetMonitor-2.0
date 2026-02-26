@@ -1,0 +1,341 @@
+<style>
+  .dashboard {
+    background: #141416;
+    border-radius: 12px;
+    padding: 24px;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
+    color: white;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+  .dash-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 20px;
+  }
+  .dash-title { font-size: 11px; font-weight: 900; letter-spacing: 1.5px; color: rgba(255,255,255,0.4); }
+  .status-pill {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 10px; font-weight: 700; letter-spacing: 1px;
+    padding: 4px 10px; border-radius: 20px;
+    background: rgba(16,185,129,0.15); color: #10B981;
+  }
+  .status-dot { width: 6px; height: 6px; border-radius: 50%; background: #10B981; }
+
+  .g {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 14px; padding: 16px;
+  }
+  .g-title { font-size: 9px; font-weight: 900; letter-spacing: 1.2px; color: rgba(255,255,255,0.35); margin-bottom: 10px; }
+  .g-icon { color: #06B6D4; margin-right: 6px; }
+
+  /* Top row: HUD + Health */
+  .top-row { display: grid; grid-template-columns: 1fr 200px; gap: 16px; margin-bottom: 16px; }
+
+  .hud { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 16px; }
+  .hud-metric .value { font-size: 26px; font-weight: 700; font-family: 'SF Pro Rounded', -apple-system, sans-serif; }
+  .hud-metric .label { font-size: 10px; color: rgba(255,255,255,0.4); letter-spacing: 0.5px; margin-top: 2px; }
+  .hud-metric .sub { font-size: 11px; color: rgba(255,255,255,0.5); font-family: 'SF Mono', monospace; margin-top: 4px; }
+
+  .health-gauge { display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .gauge-ring {
+    width: 100px; height: 100px; border-radius: 50%;
+    background: conic-gradient(#10B981 0deg, #06B6D4 200deg, rgba(255,255,255,0.08) 200deg);
+    display: flex; align-items: center; justify-content: center;
+    position: relative;
+  }
+  .gauge-inner {
+    width: 78px; height: 78px; border-radius: 50%;
+    background: #1C1C1E; display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+  }
+  .gauge-score { font-size: 28px; font-weight: 800; font-family: 'SF Pro Rounded', sans-serif; }
+  .gauge-label { font-size: 8px; font-weight: 800; letter-spacing: 1px; color: rgba(255,255,255,0.4); }
+  .health-text { font-size: 10px; color: #10B981; font-weight: 600; margin-top: 8px; }
+
+  /* Middle row: Sparkline + Connectivity */
+  .mid-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+
+  .sparkline-area { height: 100px; background: rgba(0,0,0,0.2); border-radius: 8px; overflow: hidden; position: relative; }
+  .spark-line {
+    position: absolute; bottom: 0; left: 0; right: 0; height: 100%;
+    background: linear-gradient(to top, rgba(6,182,212,0.15), transparent);
+  }
+  .spark-svg { width: 100%; height: 100%; }
+  .metric-tabs { display: flex; gap: 8px; margin-bottom: 10px; }
+  .metric-tab {
+    font-size: 9px; font-weight: 800; letter-spacing: 1px; padding: 4px 10px;
+    border-radius: 6px; background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.4);
+    cursor: pointer;
+  }
+  .metric-tab.active { background: rgba(6,182,212,0.2); color: #06B6D4; }
+
+  .conn-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04); }
+  .conn-row:last-child { border-bottom: none; }
+  .conn-icon { font-size: 14px; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; background: rgba(6,182,212,0.1); border-radius: 8px; color: #06B6D4; }
+  .conn-label { font-size: 11px; color: rgba(255,255,255,0.5); }
+  .conn-value { font-size: 12px; font-family: 'SF Mono', monospace; color: rgba(255,255,255,0.8); }
+  .conn-flex { flex: 1; }
+
+  .anchor-pills { display: flex; gap: 8px; margin-top: 10px; }
+  .anchor-pill {
+    display: flex; align-items: center; gap: 6px;
+    padding: 5px 12px; border-radius: 20px;
+    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.06);
+    font-size: 11px;
+  }
+  .anchor-dot { width: 5px; height: 5px; border-radius: 50%; }
+  .anchor-name { color: rgba(255,255,255,0.5); }
+  .anchor-ms { font-family: 'SF Mono', monospace; font-weight: 600; color: rgba(255,255,255,0.8); }
+
+  /* Bottom row: Devices + Targets */
+  .bottom-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+  .device-row { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid rgba(255,255,255,0.04); }
+  .device-row:last-child { border-bottom: none; }
+  .dev-icon { font-size: 16px; width: 30px; text-align: center; }
+  .dev-info { flex: 1; }
+  .dev-name { font-size: 12px; font-weight: 600; color: rgba(255,255,255,0.85); }
+  .dev-ip { font-size: 10px; font-family: 'SF Mono', monospace; color: rgba(255,255,255,0.35); }
+  .dev-latency { font-size: 11px; font-family: 'SF Mono', monospace; font-weight: 600; color: #10B981; }
+  .dev-status { width: 7px; height: 7px; border-radius: 50%; }
+
+  .target-card {
+    background: rgba(0,0,0,0.15); border-radius: 10px; padding: 10px 12px;
+    border: 1px solid rgba(255,255,255,0.05); margin-bottom: 8px;
+  }
+  .target-card:last-child { margin-bottom: 0; }
+  .target-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+  .target-name { font-size: 10px; font-weight: 800; letter-spacing: 0.8px; font-family: 'SF Mono', monospace; color: rgba(255,255,255,0.7); }
+  .target-host { font-size: 9px; font-family: 'SF Mono', monospace; color: rgba(255,255,255,0.35); }
+  .target-spark { height: 24px; background: rgba(0,0,0,0.2); border-radius: 4px; margin: 6px 0; overflow: hidden; position: relative; }
+  .target-spark-fill { position: absolute; bottom: 0; left: 0; right: 0; height: 60%; background: linear-gradient(to top, rgba(16,185,129,0.2), transparent); }
+  .target-metrics { display: flex; gap: 12px; }
+  .target-ms { font-size: 13px; font-weight: 700; font-family: 'SF Mono', monospace; color: #10B981; }
+  .target-label { font-size: 9px; color: rgba(255,255,255,0.35); }
+  .target-signal { font-size: 9px; font-weight: 700; color: #10B981; }
+
+  .see-all {
+    font-size: 10px; color: #06B6D4; cursor: pointer; font-weight: 600;
+    display: flex; align-items: center; gap: 4px;
+  }
+
+  .start-btn {
+    font-size: 9px; font-weight: 800; letter-spacing: 1px;
+    padding: 5px 14px; border-radius: 6px;
+    background: rgba(16,185,129,0.2); color: #10B981; border: 1px solid rgba(16,185,129,0.3);
+  }
+</style>
+
+<h2>macOS Dashboard Redesign</h2>
+<p class="subtitle">Bringing iOS's network-pro information density to the wider macOS canvas</p>
+
+<div class="mockup">
+  <div class="mockup-header">macOS Dashboard — Blue Shimmer Theme</div>
+  <div class="mockup-body" style="padding: 0;">
+    <div class="dashboard">
+
+      <!-- Header -->
+      <div class="dash-header">
+        <div class="dash-title">NETWORK DASHBOARD</div>
+        <div class="status-pill"><div class="status-dot"></div> MONITORING</div>
+      </div>
+
+      <!-- Top Row: HUD Metrics + Health Gauge -->
+      <div class="top-row">
+        <div class="g">
+          <div class="g-title"><span class="g-icon">&#x25C9;</span> TACTICAL HUD</div>
+          <div class="hud">
+            <div class="hud-metric">
+              <div class="value" style="color: #10B981;">2.4<span style="font-size:14px; color:rgba(255,255,255,0.4);">ms</span></div>
+              <div class="label">GATEWAY LATENCY</div>
+              <div class="sub">192.168.1.1</div>
+            </div>
+            <div class="hud-metric">
+              <div class="value" style="color: #06B6D4;">-42<span style="font-size:14px; color:rgba(255,255,255,0.4);">dBm</span></div>
+              <div class="label">SIGNAL STRENGTH</div>
+              <div class="sub">Home_WiFi_6</div>
+            </div>
+            <div class="hud-metric">
+              <div class="value" style="color: white;">149</div>
+              <div class="label">WIFI CHANNEL</div>
+              <div class="sub">5 GHz &middot; 80 MHz</div>
+            </div>
+            <div class="hud-metric">
+              <div class="value" style="color: white;">14</div>
+              <div class="label">ACTIVE DEVICES</div>
+              <div class="sub">3 new today</div>
+            </div>
+          </div>
+        </div>
+        <div class="g health-gauge">
+          <div class="g-title" style="align-self:flex-start;"><span class="g-icon">&#x25C9;</span> HEALTH</div>
+          <div class="gauge-ring">
+            <div class="gauge-inner">
+              <div class="gauge-score">96</div>
+              <div class="gauge-label">SCORE</div>
+            </div>
+          </div>
+          <div class="health-text">Optimal</div>
+        </div>
+      </div>
+
+      <!-- Middle Row: Telemetry Graph + Connectivity Panel -->
+      <div class="mid-row">
+        <div class="g">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <div class="g-title" style="margin-bottom:0;"><span class="g-icon">&#x25C9;</span> NETWORK TELEMETRY</div>
+            <div class="metric-tabs">
+              <div class="metric-tab active">LATENCY</div>
+              <div class="metric-tab">SIGNAL</div>
+              <div class="metric-tab">LOSS</div>
+            </div>
+          </div>
+          <div class="sparkline-area" style="margin-top: 10px;">
+            <div class="spark-line"></div>
+            <svg class="spark-svg" viewBox="0 0 400 100" preserveAspectRatio="none">
+              <path d="M0,70 C20,65 40,60 60,55 C80,50 100,58 120,52 C140,46 160,50 180,48 C200,45 220,55 240,50 C260,45 280,42 300,48 C320,52 340,40 360,45 C380,42 400,38 400,38"
+                    fill="none" stroke="#06B6D4" stroke-width="2" opacity="0.8"/>
+              <circle cx="400" cy="38" r="3" fill="white"/>
+              <circle cx="400" cy="38" r="6" fill="none" stroke="#06B6D4" stroke-width="1" opacity="0.5"/>
+            </svg>
+          </div>
+        </div>
+        <div class="g">
+          <div class="g-title"><span class="g-icon">&#x25C9;</span> CONNECTIVITY</div>
+          <div class="conn-row">
+            <div class="conn-icon">&#x1F4E1;</div>
+            <div class="conn-flex">
+              <div class="conn-label">ISP</div>
+              <div class="conn-value">Starlink</div>
+            </div>
+          </div>
+          <div class="conn-row">
+            <div class="conn-icon">&#x1F310;</div>
+            <div class="conn-flex">
+              <div class="conn-label">PUBLIC IP</div>
+              <div class="conn-value">74.125.22.101</div>
+            </div>
+          </div>
+          <div class="conn-row">
+            <div class="conn-icon">&#x1F50D;</div>
+            <div class="conn-flex">
+              <div class="conn-label">DNS</div>
+              <div class="conn-value">8.8.8.8, 1.1.1.1</div>
+            </div>
+          </div>
+          <div class="anchor-pills">
+            <div class="anchor-pill">
+              <div class="anchor-dot" style="background:#10B981;"></div>
+              <span class="anchor-name">Google</span>
+              <span class="anchor-ms">14ms</span>
+            </div>
+            <div class="anchor-pill">
+              <div class="anchor-dot" style="background:#10B981;"></div>
+              <span class="anchor-name">Cloudflare</span>
+              <span class="anchor-ms">8ms</span>
+            </div>
+            <div class="anchor-pill">
+              <div class="anchor-dot" style="background:#F59E0B;"></div>
+              <span class="anchor-name">AWS</span>
+              <span class="anchor-ms">22ms</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bottom Row: Active Devices + Target Monitoring -->
+      <div class="bottom-row">
+        <div class="g">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 10px;">
+            <div class="g-title" style="margin-bottom:0;"><span class="g-icon">&#x25C9;</span> ACTIVE DEVICES</div>
+            <div class="see-all">See All &#x203A;</div>
+          </div>
+          <div class="device-row">
+            <div class="dev-icon">&#x1F4BB;</div>
+            <div class="dev-info"><div class="dev-name">MacBook Pro</div><div class="dev-ip">192.168.1.42</div></div>
+            <div class="dev-latency">2ms</div>
+            <div class="dev-status" style="background:#10B981;"></div>
+          </div>
+          <div class="device-row">
+            <div class="dev-icon">&#x1F4F1;</div>
+            <div class="dev-info"><div class="dev-name">iPhone 16 Pro</div><div class="dev-ip">192.168.1.55</div></div>
+            <div class="dev-latency">4ms</div>
+            <div class="dev-status" style="background:#10B981;"></div>
+          </div>
+          <div class="device-row">
+            <div class="dev-icon">&#x1F4FA;</div>
+            <div class="dev-info"><div class="dev-name">Apple TV</div><div class="dev-ip">192.168.1.60</div></div>
+            <div class="dev-latency">3ms</div>
+            <div class="dev-status" style="background:#10B981;"></div>
+          </div>
+          <div class="device-row">
+            <div class="dev-icon">&#x1F3AE;</div>
+            <div class="dev-info"><div class="dev-name">PlayStation 5</div><div class="dev-ip">192.168.1.72</div></div>
+            <div class="dev-latency">5ms</div>
+            <div class="dev-status" style="background:#10B981;"></div>
+          </div>
+          <div class="device-row">
+            <div class="dev-icon">&#x1F5A8;</div>
+            <div class="dev-info"><div class="dev-name">HP LaserJet</div><div class="dev-ip">192.168.1.90</div></div>
+            <div class="dev-latency">8ms</div>
+            <div class="dev-status" style="background:#F59E0B;"></div>
+          </div>
+        </div>
+        <div class="g">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 10px;">
+            <div class="g-title" style="margin-bottom:0;"><span class="g-icon">&#x25C9;</span> TARGET MONITORING</div>
+            <div class="start-btn">&#x25CF; MONITORING</div>
+          </div>
+          <div class="target-card">
+            <div class="target-header">
+              <div class="target-name">GATEWAY</div>
+              <div class="dev-status" style="background:#10B981;"></div>
+            </div>
+            <div class="target-host">192.168.1.1 &middot; ICMP</div>
+            <div class="target-spark"><div class="target-spark-fill"></div></div>
+            <div class="target-metrics">
+              <div><div class="target-ms">2.4ms</div><div class="target-label">LATENCY</div></div>
+              <div><div class="target-signal">NOMINAL</div><div class="target-label">SIGNAL</div></div>
+            </div>
+          </div>
+          <div class="target-card">
+            <div class="target-header">
+              <div class="target-name">CLOUDFLARE DNS</div>
+              <div class="dev-status" style="background:#10B981;"></div>
+            </div>
+            <div class="target-host">1.1.1.1 &middot; ICMP</div>
+            <div class="target-spark"><div class="target-spark-fill"></div></div>
+            <div class="target-metrics">
+              <div><div class="target-ms">8.1ms</div><div class="target-label">LATENCY</div></div>
+              <div><div class="target-signal">NOMINAL</div><div class="target-label">SIGNAL</div></div>
+            </div>
+          </div>
+          <div class="target-card">
+            <div class="target-header">
+              <div class="target-name">PRODUCTION API</div>
+              <div class="dev-status" style="background:#F59E0B;"></div>
+            </div>
+            <div class="target-host">api.example.com &middot; HTTPS</div>
+            <div class="target-spark"><div class="target-spark-fill" style="background: linear-gradient(to top, rgba(245,158,11,0.2), transparent);"></div></div>
+            <div class="target-metrics">
+              <div><div class="target-ms" style="color:#F59E0B;">142ms</div><div class="target-label">LATENCY</div></div>
+              <div><div class="target-signal" style="color:#F59E0B;">DEGRADED</div><div class="target-label">SIGNAL</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<div style="margin-top: 24px;">
+  <h3>Layout Breakdown</h3>
+  <p class="subtitle">3-tier grid: HUD+Health → Telemetry+Connectivity → Devices+Targets</p>
+  <ul style="color: rgba(255,255,255,0.6); font-size: 14px; line-height: 2;">
+    <li><strong>Top row:</strong> Tactical HUD (4 key metrics) + Health Score gauge — instant network status at a glance</li>
+    <li><strong>Middle row:</strong> Telemetry sparkline (switchable latency/signal/loss) + Connectivity panel (ISP, public IP, DNS, anchor pings)</li>
+    <li><strong>Bottom row:</strong> Active Devices list (top 5 with latency) + Target Monitoring cards (with sparklines)</li>
+  </ul>
+</div>

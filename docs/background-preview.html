@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NetMonitor Background Options — Round 2</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
+    background: #111;
+    color: white;
+    padding: 40px;
+  }
+  h1 { text-align: center; font-size: 28px; font-weight: 600; margin-bottom: 8px; letter-spacing: -0.5px; }
+  .subtitle { text-align: center; color: rgba(255,255,255,0.5); font-size: 14px; margin-bottom: 48px; }
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 32px;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+  .option {
+    border-radius: 20px;
+    overflow: hidden;
+    border: 1px solid rgba(255,255,255,0.1);
+    transition: transform 0.2s, border-color 0.3s;
+    cursor: pointer;
+  }
+  .option:hover { transform: scale(1.02); border-color: rgba(255,255,255,0.25); }
+  .preview { height: 400px; position: relative; overflow: hidden; }
+
+  .app-ui { position: absolute; inset: 0; display: flex; }
+  .sidebar {
+    width: 200px;
+    padding: 16px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    border-right: 1px solid rgba(255,255,255,0.06);
+    position: relative;
+    overflow: hidden;
+  }
+  .sidebar-shimmer {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 120px;
+    pointer-events: none;
+  }
+  .sidebar-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 10px; border-radius: 8px;
+    font-size: 13px; color: rgba(255,255,255,0.7);
+  }
+  .sidebar-item.active { background: rgba(255,255,255,0.08); color: white; }
+  .sidebar-item .dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+  .sidebar-section {
+    font-size: 11px; color: rgba(255,255,255,0.35);
+    text-transform: uppercase; letter-spacing: 0.5px;
+    padding: 12px 10px 4px;
+  }
+  .main-content { flex: 1; padding: 20px; position: relative; overflow: hidden; }
+  .main-header { font-size: 18px; font-weight: 700; color: rgba(255,255,255,0.9); margin-bottom: 14px; }
+
+  .glass-card {
+    background: rgba(255,255,255,0.06);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 14px;
+    padding: 14px;
+    margin-bottom: 10px;
+  }
+  .card-label { font-size: 11px; color: rgba(255,255,255,0.4); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+  .card-value { font-size: 20px; font-weight: 600; color: rgba(255,255,255,0.9); }
+  .card-sub { font-size: 11px; color: rgba(255,255,255,0.35); margin-top: 2px; }
+  .card-row { display: flex; gap: 10px; margin-bottom: 10px; }
+  .card-row .glass-card { flex: 1; margin-bottom: 0; }
+
+  .device-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.04); }
+  .device-row:last-child { border-bottom: none; }
+  .device-dot { width: 7px; height: 7px; border-radius: 50%; background: #10B981; flex-shrink: 0; }
+  .device-dot.warn { background: #F59E0B; }
+  .device-dot.off { background: rgba(255,255,255,0.15); }
+  .device-name { font-size: 12px; color: rgba(255,255,255,0.75); flex: 1; }
+  .device-ip { font-size: 10px; color: rgba(255,255,255,0.3); font-family: 'SF Mono', monospace; }
+
+  .label { padding: 16px 20px; background: rgba(0,0,0,0.5); }
+  .label h3 { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+  .label p { font-size: 13px; color: rgba(255,255,255,0.5); line-height: 1.4; }
+  .current-badge {
+    display: inline-block; font-size: 10px; text-transform: uppercase; letter-spacing: 1px;
+    padding: 3px 8px; background: rgba(255,255,255,0.1); border-radius: 4px;
+    margin-left: 8px; vertical-align: middle; color: rgba(255,255,255,0.4);
+  }
+
+  /* === CURRENT === */
+  .bg-current .sidebar { background: #0a0a0c; }
+  .bg-current .main-content { background: #020202; }
+  .bg-current .main-content::before {
+    content: ''; position: absolute; top: -100px; left: 50%; width: 800px; height: 500px;
+    transform: translateX(-50%);
+    background: radial-gradient(ellipse, rgba(15,23,42,0.6) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  /* === A: Lifted Charcoal (News-inspired, no shimmer) === */
+  .bg-lifted .sidebar { background: #1C1C1E; }
+  .bg-lifted .main-content { background: #141416; }
+  .bg-lifted .main-content::before {
+    content: ''; position: absolute; top: -80px; left: 50%; width: 700px; height: 400px;
+    transform: translateX(-50%);
+    background: radial-gradient(ellipse, rgba(30,30,40,0.3) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  /* === B: Lifted + Blue Shimmer (closest to News with the shimmer) === */
+  .bg-shimmer .sidebar { background: #1C1C1E; }
+  .bg-shimmer .sidebar-shimmer {
+    background: radial-gradient(ellipse at 50% -20%, rgba(60,80,140,0.15) 0%, transparent 70%);
+  }
+  .bg-shimmer .main-content { background: #141416; }
+  .bg-shimmer .main-content::before {
+    content: ''; position: absolute; top: -80px; left: 50%; width: 700px; height: 400px;
+    transform: translateX(-50%);
+    background: radial-gradient(ellipse, rgba(30,35,55,0.25) 0%, transparent 65%);
+    pointer-events: none;
+  }
+
+  /* === C: Lifted + Subtle Teal Glow (network-themed twist) === */
+  .bg-teal .sidebar { background: #1A1C1E; }
+  .bg-teal .sidebar-shimmer {
+    background: radial-gradient(ellipse at 50% -20%, rgba(6,182,212,0.08) 0%, transparent 70%);
+  }
+  .bg-teal .main-content { background: #131416; }
+  .bg-teal .main-content::before {
+    content: ''; position: absolute; top: -80px; left: 50%; width: 700px; height: 400px;
+    transform: translateX(-50%);
+    background: radial-gradient(ellipse, rgba(15,35,45,0.3) 0%, transparent 65%);
+    pointer-events: none;
+  }
+
+  /* === D: Lifted + Dual Glow (blue shimmer sidebar + faint purple main) === */
+  .bg-dual .sidebar { background: #1B1B1F; }
+  .bg-dual .sidebar-shimmer {
+    background: radial-gradient(ellipse at 50% -20%, rgba(60,70,130,0.12) 0%, transparent 70%);
+  }
+  .bg-dual .main-content { background: #141416; }
+  .bg-dual .main-content::before {
+    content: ''; position: absolute; top: -60px; right: -100px; width: 600px; height: 400px;
+    background: radial-gradient(ellipse, rgba(40,25,60,0.15) 0%, transparent 65%);
+    pointer-events: none;
+  }
+  .bg-dual .main-content::after {
+    content: ''; position: absolute; top: -80px; left: 30%; width: 500px; height: 350px;
+    background: radial-gradient(ellipse, rgba(25,30,50,0.2) 0%, transparent 65%);
+    pointer-events: none;
+  }
+
+  @media (max-width: 800px) { .grid { grid-template-columns: 1fr; } body { padding: 20px; } }
+</style>
+</head>
+<body>
+
+<h1>NetMonitor Background — Round 2</h1>
+<p class="subtitle">Apple News-inspired: lifted dark gray, subtle shimmer, no heavy gradients</p>
+
+<div class="grid">
+
+  <!-- CURRENT -->
+  <div class="option">
+    <div class="preview bg-current">
+      <div class="app-ui">
+        <div class="sidebar">
+          <div class="sidebar-shimmer"></div>
+          <div class="sidebar-item active"><div class="dot" style="background:#06B6D4"></div> Dashboard</div>
+          <div class="sidebar-item"><div class="dot" style="background:#10B981"></div> Devices</div>
+          <div class="sidebar-section">Tools</div>
+          <div class="sidebar-item"><div class="dot" style="background:#3B82F6"></div> Ping</div>
+          <div class="sidebar-item"><div class="dot" style="background:#8B5CF6"></div> Port Scan</div>
+          <div class="sidebar-item"><div class="dot" style="background:#F59E0B"></div> DNS Lookup</div>
+          <div class="sidebar-item"><div class="dot" style="background:#EF4444"></div> Traceroute</div>
+          <div class="sidebar-section">Settings</div>
+          <div class="sidebar-item"><div class="dot" style="background:rgba(255,255,255,0.3)"></div> Preferences</div>
+        </div>
+        <div class="main-content">
+          <div class="main-header">Dashboard</div>
+          <div class="card-row">
+            <div class="glass-card"><div class="card-label">Latency</div><div class="card-value">12ms</div><div class="card-sub">gateway</div></div>
+            <div class="glass-card"><div class="card-label">Devices</div><div class="card-value">14</div><div class="card-sub">3 new</div></div>
+          </div>
+          <div class="glass-card">
+            <div class="card-label">Network</div>
+            <div class="device-row"><div class="device-dot"></div><div class="device-name">UniFi Gateway</div><div class="device-ip">192.168.1.1</div></div>
+            <div class="device-row"><div class="device-dot"></div><div class="device-name">MacBook Pro</div><div class="device-ip">192.168.1.42</div></div>
+            <div class="device-row"><div class="device-dot warn"></div><div class="device-name">IoT Hub</div><div class="device-ip">192.168.1.88</div></div>
+            <div class="device-row"><div class="device-dot off"></div><div class="device-name">NAS</div><div class="device-ip">192.168.1.50</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="label">
+      <h3>Current <span class="current-badge">Now</span></h3>
+      <p>Near-black #020202 base with slate radial glow. Flat and dark.</p>
+    </div>
+  </div>
+
+  <!-- A: LIFTED CHARCOAL -->
+  <div class="option">
+    <div class="preview bg-lifted">
+      <div class="app-ui">
+        <div class="sidebar">
+          <div class="sidebar-shimmer"></div>
+          <div class="sidebar-item active"><div class="dot" style="background:#06B6D4"></div> Dashboard</div>
+          <div class="sidebar-item"><div class="dot" style="background:#10B981"></div> Devices</div>
+          <div class="sidebar-section">Tools</div>
+          <div class="sidebar-item"><div class="dot" style="background:#3B82F6"></div> Ping</div>
+          <div class="sidebar-item"><div class="dot" style="background:#8B5CF6"></div> Port Scan</div>
+          <div class="sidebar-item"><div class="dot" style="background:#F59E0B"></div> DNS Lookup</div>
+          <div class="sidebar-item"><div class="dot" style="background:#EF4444"></div> Traceroute</div>
+          <div class="sidebar-section">Settings</div>
+          <div class="sidebar-item"><div class="dot" style="background:rgba(255,255,255,0.3)"></div> Preferences</div>
+        </div>
+        <div class="main-content">
+          <div class="main-header">Dashboard</div>
+          <div class="card-row">
+            <div class="glass-card"><div class="card-label">Latency</div><div class="card-value">12ms</div><div class="card-sub">gateway</div></div>
+            <div class="glass-card"><div class="card-label">Devices</div><div class="card-value">14</div><div class="card-sub">3 new</div></div>
+          </div>
+          <div class="glass-card">
+            <div class="card-label">Network</div>
+            <div class="device-row"><div class="device-dot"></div><div class="device-name">UniFi Gateway</div><div class="device-ip">192.168.1.1</div></div>
+            <div class="device-row"><div class="device-dot"></div><div class="device-name">MacBook Pro</div><div class="device-ip">192.168.1.42</div></div>
+            <div class="device-row"><div class="device-dot warn"></div><div class="device-name">IoT Hub</div><div class="device-ip">192.168.1.88</div></div>
+            <div class="device-row"><div class="device-dot off"></div><div class="device-name">NAS</div><div class="device-ip">192.168.1.50</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="label">
+      <h3>A: Lifted Charcoal</h3>
+      <p>News-style lifted grays. Sidebar #1C1C1E, main #141416. No shimmer — clean and quiet.</p>
+    </div>
+  </div>
+
+  <!-- B: LIFTED + BLUE SHIMMER -->
+  <div class="option">
+    <div class="preview bg-shimmer">
+      <div class="app-ui">
+        <div class="sidebar">
+          <div class="sidebar-shimmer"></div>
+          <div class="sidebar-item active"><div class="dot" style="background:#06B6D4"></div> Dashboard</div>
+          <div class="sidebar-item"><div class="dot" style="background:#10B981"></div> Devices</div>
+          <div class="sidebar-section">Tools</div>
+          <div class="sidebar-item"><div class="dot" style="background:#3B82F6"></div> Ping</div>
+          <div class="sidebar-item"><div class="dot" style="background:#8B5CF6"></div> Port Scan</div>
+          <div class="sidebar-item"><div class="dot" style="background:#F59E0B"></div> DNS Lookup</div>
+          <div class="sidebar-item"><div class="dot" style="background:#EF4444"></div> Traceroute</div>
+          <div class="sidebar-section">Settings</div>
+          <div class="sidebar-item"><div class="dot" style="background:rgba(255,255,255,0.3)"></div> Preferences</div>
+        </div>
+        <div class="main-content">
+          <div class="main-header">Dashboard</div>
+          <div class="card-row">
+            <div class="glass-card"><div class="card-label">Latency</div><div class="card-value">12ms</div><div class="card-sub">gateway</div></div>
+            <div class="glass-card"><div class="card-label">Devices</div><div class="card-value">14</div><div class="card-sub">3 new</div></div>
+          </div>
+          <div class="glass-card">
+            <div class="card-label">Network</div>
+            <div class="device-row"><div class="device-dot"></div><div class="device-name">UniFi Gateway</div><div class="device-ip">192.168.1.1</div></div>
+            <div class="device-row"><div class="device-dot"></div><div class="device-name">MacBook Pro</div><div class="device-ip">192.168.1.42</div></div>
+            <div class="device-row"><div class="device-dot warn"></div><div class="device-name">IoT Hub</div><div class="device-ip">192.168.1.88</div></div>
+            <div class="device-row"><div class="device-dot off"></div><div class="device-name">NAS</div><div class="device-ip">192.168.1.50</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="label">
+      <h3>B: Blue Shimmer</h3>
+      <p>Same lifted grays + subtle blue glow at sidebar top + faint blue-gray wash on main. Closest to News.</p>
+    </div>
+  </div>
+
+  <!-- C: LIFTED + TEAL GLOW -->
+  <div class="option">
+    <div class="preview bg-teal">
+      <div class="app-ui">
+        <div class="sidebar">
+          <div class="sidebar-shimmer"></div>
+          <div class="sidebar-item active"><div class="dot" style="background:#06B6D4"></div> Dashboard</div>
+          <div class="sidebar-item"><div class="dot" style="background:#10B981"></div> Devices</div>
+          <div class="sidebar-section">Tools</div>
+          <div class="sidebar-item"><div class="dot" style="background:#3B82F6"></div> Ping</div>
+          <div class="sidebar-item"><div class="dot" style="background:#8B5CF6"></div> Port Scan</div>
+          <div class="sidebar-item"><div class="dot" style="background:#F59E0B"></div> DNS Lookup</div>
+          <div class="sidebar-item"><div class="dot" style="background:#EF4444"></div> Traceroute</div>
+          <div class="sidebar-section">Settings</div>
+          <div class="sidebar-item"><div class="dot" style="background:rgba(255,255,255,0.3)"></div> Preferences</div>
+        </div>
+        <div class="main-content">
+          <div class="main-header">Dashboard</div>
+          <div class="card-row">
+            <div class="glass-card"><div class="card-label">Latency</div><div class="card-value">12ms</div><div class="card-sub">gateway</div></div>
+            <div class="glass-card"><div class="card-label">Devices</div><div class="card-value">14</div><div class="card-sub">3 new</div></div>
+          </div>
+          <div class="glass-card">
+            <div class="card-label">Network</div>
+            <div class="device-row"><div class="device-dot"></div><div class="device-name">UniFi Gateway</div><div class="device-ip">192.168.1.1</div></div>
+            <div class="device-row"><div class="device-dot"></div><div class="device-name">MacBook Pro</div><div class="device-ip">192.168.1.42</div></div>
+            <div class="device-row"><div class="device-dot warn"></div><div class="device-name">IoT Hub</div><div class="device-ip">192.168.1.88</div></div>
+            <div class="device-row"><div class="device-dot off"></div><div class="device-name">NAS</div><div class="device-ip">192.168.1.50</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="label">
+      <h3>C: Teal Glow</h3>
+      <p>Lifted grays + teal/cyan shimmer on sidebar (matches your accent color). Network-themed twist.</p>
+    </div>
+  </div>
+
+  <!-- D: DUAL GLOW -->
+  <div class="option">
+    <div class="preview bg-dual">
+      <div class="app-ui">
+        <div class="sidebar">
+          <div class="sidebar-shimmer"></div>
+          <div class="sidebar-item active"><div class="dot" style="background:#06B6D4"></div> Dashboard</div>
+          <div class="sidebar-item"><div class="dot" style="background:#10B981"></div> Devices</div>
+          <div class="sidebar-section">Tools</div>
+          <div class="sidebar-item"><div class="dot" style="background:#3B82F6"></div> Ping</div>
+          <div class="sidebar-item"><div class="dot" style="background:#8B5CF6"></div> Port Scan</div>
+          <div class="sidebar-item"><div class="dot" style="background:#F59E0B"></div> DNS Lookup</div>
+          <div class="sidebar-item"><div class="dot" style="background:#EF4444"></div> Traceroute</div>
+          <div class="sidebar-section">Settings</div>
+          <div class="sidebar-item"><div class="dot" style="background:rgba(255,255,255,0.3)"></div> Preferences</div>
+        </div>
+        <div class="main-content">
+          <div class="main-header">Dashboard</div>
+          <div class="card-row">
+            <div class="glass-card"><div class="card-label">Latency</div><div class="card-value">12ms</div><div class="card-sub">gateway</div></div>
+            <div class="glass-card"><div class="card-label">Devices</div><div class="card-value">14</div><div class="card-sub">3 new</div></div>
+          </div>
+          <div class="glass-card">
+            <div class="card-label">Network</div>
+            <div class="device-row"><div class="device-dot"></div><div class="device-name">UniFi Gateway</div><div class="device-ip">192.168.1.1</div></div>
+            <div class="device-row"><div class="device-dot"></div><div class="device-name">MacBook Pro</div><div class="device-ip">192.168.1.42</div></div>
+            <div class="device-row"><div class="device-dot warn"></div><div class="device-name">IoT Hub</div><div class="device-ip">192.168.1.88</div></div>
+            <div class="device-row"><div class="device-dot off"></div><div class="device-name">NAS</div><div class="device-ip">192.168.1.50</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="label">
+      <h3>D: Dual Glow</h3>
+      <p>Blue shimmer on sidebar + faint purple wash on main content. Subtle depth with two color accents.</p>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

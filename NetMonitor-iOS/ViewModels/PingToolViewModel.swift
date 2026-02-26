@@ -118,16 +118,15 @@ final class PingToolViewModel {
     /// correctly from the baseline and no data points clip below the axis.
     var chartYAxisMin: Double { 0 }
 
-    /// Y-axis max using P95 to clip first-ping DNS spikes and other outliers.
-    /// Returns at least chartYAxisMin + 10 so the chart never collapses to a sliver.
+    /// Y-axis max using P95 with a tight scale so small latency variations
+    /// produce visible line movement instead of a flat trace.
     var chartYAxisMax: Double {
         let times = successfulPings.map(\.time).sorted()
         guard let first = times.first else { return 10 }
-        guard times.count >= 2 else { return max(first * 1.2, 10) }
+        guard times.count >= 2 else { return max(first * 1.5, 5) }
         let p95Index = Int(Double(times.count - 1) * 0.95)
         let p95 = times[p95Index]
-        let median = times[times.count / 2]
-        let rawMax = max(p95, median * 1.5) * 1.15
-        return max(rawMax, chartYAxisMin + 10)
+        // Tight: just 10% headroom above P95, or at least 3ms above P95
+        return max(p95 * 1.1, p95 + 3, 5)
     }
 }
