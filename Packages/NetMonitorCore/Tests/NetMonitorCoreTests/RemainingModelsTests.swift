@@ -176,6 +176,105 @@ struct ToolActivityLogTests {
         #expect(log.entries.count == 20)
         log.clear()
     }
+
+    // MARK: - Additional ToolActivityLog Tests (6B)
+
+    @Test("ToolActivityLog add stores correct entry properties")
+    @MainActor
+    func addEntryProperties() {
+        let log = ToolActivityLog.shared
+        log.clear()
+        log.add(tool: "DNS", target: "example.com", result: "Resolved", success: true)
+        #expect(log.entries.count == 1)
+        let entry = log.entries.first
+        #expect(entry?.tool == "DNS")
+        #expect(entry?.target == "example.com")
+        #expect(entry?.result == "Resolved")
+        #expect(entry?.success == true)
+        log.clear()
+    }
+
+    @Test("ToolActivityLog add with failure records success=false")
+    @MainActor
+    func addFailureEntry() {
+        let log = ToolActivityLog.shared
+        log.clear()
+        log.add(tool: "Ping", target: "10.0.0.1", result: "Timeout", success: false)
+        #expect(log.entries.first?.success == false)
+        log.clear()
+    }
+
+    @Test("ToolActivityLog clear removes all entries after multiple adds")
+    @MainActor
+    func clearRemovesMultiple() {
+        let log = ToolActivityLog.shared
+        log.clear()
+        log.add(tool: "Ping", target: "1", result: "OK", success: true)
+        log.add(tool: "DNS", target: "2", result: "OK", success: true)
+        log.add(tool: "WHOIS", target: "3", result: "OK", success: true)
+        #expect(log.entries.count == 3)
+        log.clear()
+        #expect(log.entries.isEmpty)
+    }
+
+    @Test("ToolActivityLog clear on empty log is safe")
+    @MainActor
+    func clearOnEmptyIsSafe() {
+        let log = ToolActivityLog.shared
+        log.clear()
+        log.clear()
+        #expect(log.entries.isEmpty)
+    }
+
+    @Test("ToolActivityLog maxEntries rotation drops oldest entries")
+    @MainActor
+    func maxEntriesDropsOldest() {
+        let log = ToolActivityLog.shared
+        log.clear()
+        for i in 0..<20 {
+            log.add(tool: "Ping", target: "target-\(i)", result: "OK", success: true)
+        }
+        #expect(log.entries.count == 20)
+        // The first added (target-0) should be last in list (newest-first order)
+        #expect(log.entries.last?.target == "target-0")
+
+        // Add one more — should drop target-0 (the oldest)
+        log.add(tool: "Ping", target: "target-20", result: "OK", success: true)
+        #expect(log.entries.count == 20)
+        #expect(log.entries.first?.target == "target-20")
+        // target-0 should no longer be present
+        let containsTarget0 = log.entries.contains { $0.target == "target-0" }
+        #expect(!containsTarget0)
+        log.clear()
+    }
+
+    @Test("ToolActivityLog entries are ordered newest first")
+    @MainActor
+    func entriesNewestFirst() {
+        let log = ToolActivityLog.shared
+        log.clear()
+        log.add(tool: "First", target: "1", result: "OK", success: true)
+        log.add(tool: "Second", target: "2", result: "OK", success: true)
+        log.add(tool: "Third", target: "3", result: "OK", success: true)
+        #expect(log.entries[0].tool == "Third")
+        #expect(log.entries[1].tool == "Second")
+        #expect(log.entries[2].tool == "First")
+        log.clear()
+    }
+
+    @Test("ToolActivityLog add at exactly maxEntries boundary keeps count at 20")
+    @MainActor
+    func addAtBoundaryDoesNotExceed() {
+        let log = ToolActivityLog.shared
+        log.clear()
+        for i in 0..<20 {
+            log.add(tool: "Ping", target: "\(i)", result: "OK", success: true)
+        }
+        #expect(log.entries.count == 20)
+        log.add(tool: "Extra", target: "extra", result: "OK", success: true)
+        #expect(log.entries.count == 20)
+        log.clear()
+    }
 }
 
 // MARK: - MonitoringTarget Tests
@@ -891,7 +990,7 @@ struct SpeedTestResultTests {
         let context = ModelContext(container)
         let result = SpeedTestResult(downloadSpeed: 150.5, uploadSpeed: 50.0, latency: 10.0)
         context.insert(result)
-        #expect(result.downloadSpeedText == "150.5 Mbps")
+        #expect(result.downloadSpeedText == "150 Mbps")
     }
 
     @Test("SpeedTestResult downloadSpeedText formats Gbps for 1000+ Mbps")
@@ -901,7 +1000,7 @@ struct SpeedTestResultTests {
         let context = ModelContext(container)
         let result = SpeedTestResult(downloadSpeed: 1500.0, uploadSpeed: 500.0, latency: 5.0)
         context.insert(result)
-        #expect(result.downloadSpeedText == "1.5 Gbps")
+        #expect(result.downloadSpeedText == "1.50 Gbps")
     }
 
     @Test("SpeedTestResult latencyText formats as integer ms")

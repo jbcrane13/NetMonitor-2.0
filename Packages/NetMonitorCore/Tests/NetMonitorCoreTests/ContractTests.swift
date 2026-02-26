@@ -106,8 +106,8 @@ struct ContractTests {
             #expect(results.allSatisfy { $0.latencyMs == nil }, "All timeout nodes should have nil latency")
         }
 
-        @Test("HTTP error on submit yields error result node, not blank stream")
-        func httpErrorOnSubmitYieldsErrorNode() async throws {
+        @Test("HTTP error on submit finishes stream empty and sets lastError")
+        func httpErrorOnSubmitFinishesEmptyWithLastError() async throws {
             defer { MockURLProtocol.requestHandler = nil }
             MockURLProtocol.stub(json: "{\"error\": \"internal server error\"}", statusCode: 500)
 
@@ -117,15 +117,13 @@ struct ContractTests {
                 results.append(result)
             }
 
-            #expect(!results.isEmpty, "HTTP error must surface as an error result node, not an empty stream")
-            let errorNode = results.first(where: { $0.id == "error" })
-            #expect(errorNode != nil, "Should yield a synthetic error node with id='error'")
-            #expect(errorNode?.isSuccess == false, "Error node must have isSuccess=false")
-            #expect(errorNode?.city.isEmpty == false, "Error node city should contain error description")
+            #expect(results.isEmpty, "HTTP error should NOT yield a fake result — stream finishes empty so ViewModel sets errorMessage")
+            #expect(service.lastError != nil, "lastError should be set with the error description")
+            #expect(service.lastError?.isEmpty == false, "lastError should contain a meaningful message")
         }
 
-        @Test("Network error on submit yields error result node, not blank stream")
-        func networkErrorOnSubmitYieldsErrorNode() async throws {
+        @Test("Network error on submit finishes stream empty and sets lastError")
+        func networkErrorOnSubmitFinishesEmptyWithLastError() async throws {
             defer { MockURLProtocol.requestHandler = nil }
             MockURLProtocol.requestHandler = { _ in
                 throw URLError(.notConnectedToInternet)
@@ -137,8 +135,8 @@ struct ContractTests {
                 results.append(result)
             }
 
-            #expect(!results.isEmpty, "Network error must surface as an error result, not an empty stream")
-            #expect(results.first?.isSuccess == false)
+            #expect(results.isEmpty, "Network error should NOT yield a fake result — stream finishes empty")
+            #expect(service.lastError != nil, "lastError should be set on network failure")
         }
 
         @Test("Results are sorted alphabetically by city name")

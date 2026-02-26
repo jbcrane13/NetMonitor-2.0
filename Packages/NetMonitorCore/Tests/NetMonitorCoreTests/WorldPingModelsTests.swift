@@ -132,4 +132,102 @@ struct WorldPingCheckResultTests {
         let result = WorldPingCheckResult(host: "test.com", requestId: "r1", locationResults: nodes)
         #expect(result.successRate == 0.5)
     }
+
+    // MARK: - Additional Computed Property Edge Cases (6A)
+
+    @Test func averageLatencyWithMixedNilLatency() {
+        // Multiple results where some have nil latency — only non-nil counted
+        let nodes = [
+            WorldPingLocationResult(id: "a", country: "US", city: "NYC", latencyMs: 100.0, isSuccess: true),
+            WorldPingLocationResult(id: "b", country: "DE", city: "Berlin", latencyMs: nil, isSuccess: false),
+            WorldPingLocationResult(id: "c", country: "JP", city: "Tokyo", latencyMs: nil, isSuccess: false),
+            WorldPingLocationResult(id: "d", country: "BR", city: "Sao Paulo", latencyMs: 200.0, isSuccess: true),
+        ]
+        let result = WorldPingCheckResult(host: "test.com", requestId: "r1", locationResults: nodes)
+        // (100 + 200) / 2 = 150
+        #expect(result.averageLatencyMs == 150.0)
+    }
+
+    @Test func minimumLatencySingleResult() {
+        let nodes = [
+            WorldPingLocationResult(id: "a", country: "US", city: "NYC", latencyMs: 42.5, isSuccess: true),
+        ]
+        let result = WorldPingCheckResult(host: "test.com", requestId: "r1", locationResults: nodes)
+        #expect(result.minimumLatencyMs == 42.5)
+    }
+
+    @Test func minimumLatencyAllNilReturnsNil() {
+        let nodes = [
+            WorldPingLocationResult(id: "a", country: "US", city: "NYC", latencyMs: nil, isSuccess: false),
+            WorldPingLocationResult(id: "b", country: "DE", city: "Berlin", latencyMs: nil, isSuccess: false),
+        ]
+        let result = WorldPingCheckResult(host: "test.com", requestId: "r1", locationResults: nodes)
+        #expect(result.minimumLatencyMs == nil)
+    }
+
+    @Test func maximumLatencyWithMixedNilValues() {
+        let nodes = [
+            WorldPingLocationResult(id: "a", country: "US", city: "NYC", latencyMs: nil, isSuccess: false),
+            WorldPingLocationResult(id: "b", country: "DE", city: "Berlin", latencyMs: 75.0, isSuccess: true),
+            WorldPingLocationResult(id: "c", country: "JP", city: "Tokyo", latencyMs: 150.0, isSuccess: true),
+        ]
+        let result = WorldPingCheckResult(host: "test.com", requestId: "r1", locationResults: nodes)
+        #expect(result.maximumLatencyMs == 150.0)
+    }
+
+    @Test func maximumLatencySingleResult() {
+        let nodes = [
+            WorldPingLocationResult(id: "a", country: "US", city: "NYC", latencyMs: 99.0, isSuccess: true),
+        ]
+        let result = WorldPingCheckResult(host: "test.com", requestId: "r1", locationResults: nodes)
+        #expect(result.maximumLatencyMs == 99.0)
+    }
+
+    @Test func successRateAllSuccessful() {
+        let nodes = [
+            WorldPingLocationResult(id: "a", country: "US", city: "NYC", latencyMs: 10.0, isSuccess: true),
+            WorldPingLocationResult(id: "b", country: "DE", city: "Berlin", latencyMs: 20.0, isSuccess: true),
+            WorldPingLocationResult(id: "c", country: "JP", city: "Tokyo", latencyMs: 30.0, isSuccess: true),
+        ]
+        let result = WorldPingCheckResult(host: "test.com", requestId: "r1", locationResults: nodes)
+        #expect(result.successRate == 1.0)
+    }
+
+    @Test func successRateAllFailed() {
+        let nodes = [
+            WorldPingLocationResult(id: "a", country: "US", city: "NYC", latencyMs: nil, isSuccess: false),
+            WorldPingLocationResult(id: "b", country: "DE", city: "Berlin", latencyMs: nil, isSuccess: false),
+        ]
+        let result = WorldPingCheckResult(host: "test.com", requestId: "r1", locationResults: nodes)
+        #expect(result.successRate == 0.0)
+    }
+
+    @Test func averageLatencyPrecisionWithManyNodes() {
+        let nodes = [
+            WorldPingLocationResult(id: "a", country: "US", city: "NYC", latencyMs: 10.0, isSuccess: true),
+            WorldPingLocationResult(id: "b", country: "DE", city: "Berlin", latencyMs: 20.0, isSuccess: true),
+            WorldPingLocationResult(id: "c", country: "JP", city: "Tokyo", latencyMs: 33.0, isSuccess: true),
+        ]
+        let result = WorldPingCheckResult(host: "test.com", requestId: "r1", locationResults: nodes)
+        // (10 + 20 + 33) / 3 = 21.0
+        #expect(result.averageLatencyMs == 21.0)
+    }
+
+    @Test func successCountWithSingleNode() {
+        let nodes = [
+            WorldPingLocationResult(id: "a", country: "US", city: "NYC", latencyMs: 10.0, isSuccess: true),
+        ]
+        let result = WorldPingCheckResult(host: "test.com", requestId: "r1", locationResults: nodes)
+        #expect(result.successCount == 1)
+        #expect(result.successRate == 1.0)
+    }
+
+    @Test func emptyResultsArrayAllPropertiesAtDefault() {
+        let result = WorldPingCheckResult(host: "test.com", requestId: "r1", locationResults: [])
+        #expect(result.averageLatencyMs == nil)
+        #expect(result.minimumLatencyMs == nil)
+        #expect(result.maximumLatencyMs == nil)
+        #expect(result.successCount == 0)
+        #expect(result.successRate == 0.0)
+    }
 }

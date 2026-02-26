@@ -12,12 +12,17 @@ public final class WorldPingService: WorldPingServiceProtocol, @unchecked Sendab
     private let baseURL = "https://check-host.net"
     private let logger = Logger(subsystem: "com.netmonitor", category: "WorldPingService")
 
+    /// Set after a ping attempt fails. Cleared at the start of each new ping.
+    /// The ViewModel can read this to surface a meaningful error message.
+    public private(set) var lastError: String?
+
     public init(session: URLSession = .shared) {
         self.session = session
     }
 
     public func ping(host: String, maxNodes: Int) async -> AsyncStream<WorldPingLocationResult> {
-        AsyncStream { continuation in
+        lastError = nil
+        return AsyncStream { continuation in
             Task {
                 do {
                     let (requestId, nodes) = try await self.submitCheck(host: host, maxNodes: maxNodes)
@@ -26,14 +31,10 @@ public final class WorldPingService: WorldPingServiceProtocol, @unchecked Sendab
                         continuation.yield(result)
                     }
                 } catch {
-                    logger.error("World ping failed: \(error.localizedDescription)")
-                    continuation.yield(WorldPingLocationResult(
-                        id: "error",
-                        country: "Error",
-                        city: error.localizedDescription,
-                        latencyMs: nil,
-                        isSuccess: false
-                    ))
+                    self.logger.error("World ping failed: \(error.localizedDescription)")
+                    self.lastError = error.localizedDescription
+                    // Don't yield a fake "error" result — let the stream finish empty
+                    // so the ViewModel's `results.isEmpty` check correctly triggers errorMessage.
                 }
                 continuation.finish()
             }

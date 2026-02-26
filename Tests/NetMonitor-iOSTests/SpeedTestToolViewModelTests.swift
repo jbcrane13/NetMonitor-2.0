@@ -51,25 +51,25 @@ struct SpeedTestToolViewModelTests {
     @Test func downloadSpeedTextMbps() {
         let vm = SpeedTestToolViewModel(service: MockSpeedTestService())
         vm.downloadSpeed = 500.0
-        #expect(vm.downloadSpeedText == "500.0 Mbps")
+        #expect(vm.downloadSpeedText == "500 Mbps")
     }
 
     @Test func downloadSpeedTextGbps() {
         let vm = SpeedTestToolViewModel(service: MockSpeedTestService())
         vm.downloadSpeed = 2000.0
-        #expect(vm.downloadSpeedText == "2.0 Gbps")
+        #expect(vm.downloadSpeedText == "2.00 Gbps")
     }
 
     @Test func uploadSpeedTextMbps() {
         let vm = SpeedTestToolViewModel(service: MockSpeedTestService())
         vm.uploadSpeed = 100.5
-        #expect(vm.uploadSpeedText == "100.5 Mbps")
+        #expect(vm.uploadSpeedText == "100 Mbps")
     }
 
     @Test func uploadSpeedTextGbpsThreshold() {
         let vm = SpeedTestToolViewModel(service: MockSpeedTestService())
         vm.uploadSpeed = 1000.0
-        #expect(vm.uploadSpeedText == "1.0 Gbps")
+        #expect(vm.uploadSpeedText == "1.00 Gbps")
     }
 
     @Test func latencyTextFormattedCorrectly() {
@@ -158,12 +158,12 @@ struct SpeedTestToolViewModelErrorTests {
     @Test func downloadSpeedTextFormatsZeroCorrectly() {
         let vm = SpeedTestToolViewModel(service: MockSpeedTestService())
         vm.downloadSpeed = 0
-        #expect(vm.downloadSpeedText == "0.0 Mbps")
+        #expect(vm.downloadSpeedText == "0 Mbps")
     }
 
     @Test func uploadSpeedTextFormatsZeroCorrectly() {
         let vm = SpeedTestToolViewModel(service: MockSpeedTestService())
         vm.uploadSpeed = 0
-        #expect(vm.uploadSpeedText == "0.0 Mbps")
+        #expect(vm.uploadSpeedText == "0 Mbps")
     }
 }

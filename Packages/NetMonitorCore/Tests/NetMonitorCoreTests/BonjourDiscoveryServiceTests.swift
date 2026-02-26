@@ -134,4 +134,125 @@ struct BonjourDiscoveryServiceTests {
         // Will time out (2s) and return nil — just verify no crash
         #expect(result == nil)
     }
+
+    // MARK: - Discovery stream lifecycle (start → discover → stop)
+
+    @Test("discoveryStream with specific type sets isDiscovering and resets on stop")
+    func discoveryStreamSpecificTypeLifecycle() async {
+        let service = BonjourDiscoveryService()
+        let stream = service.discoveryStream(serviceType: "_ssh._tcp")
+        #expect(service.isDiscovering == true)
+        #expect(service.discoveredServices.isEmpty)
+
+        // Stop discovery — should finish stream and reset state
+        service.stopDiscovery()
+        #expect(service.isDiscovering == false)
+
+        // Consume stream to ensure it terminates cleanly
+        for await _ in stream { break }
+    }
+
+    @Test("discoveryStream clears previous services on new session")
+    func discoveryStreamClearsPreviousSession() async {
+        let service = BonjourDiscoveryService()
+        // Start first session
+        let stream1 = service.discoveryStream(serviceType: "_http._tcp")
+        service.stopDiscovery()
+        for await _ in stream1 { break }
+
+        // Start second session — discoveredServices should be empty
+        let stream2 = service.discoveryStream(serviceType: "_http._tcp")
+        #expect(service.discoveredServices.isEmpty,
+                "discoveryStream should reset services for new session")
+        service.stopDiscovery()
+        for await _ in stream2 { break }
+    }
+
+    // MARK: - Re-entrancy guard (calling start while already running)
+
+    @Test("Starting discoveryStream while one is active tears down the old one")
+    func discoveryStreamReEntrancyGuard() async {
+        let service = BonjourDiscoveryService()
+        // Start first stream
+        let _ = service.discoveryStream(serviceType: "_http._tcp")
+        #expect(service.isDiscovering == true)
+
+        // Start second stream — should tear down first
+        let stream2 = service.discoveryStream(serviceType: "_ssh._tcp")
+        #expect(service.isDiscovering == true)
+        #expect(service.discoveredServices.isEmpty,
+                "New stream should clear services from prior session")
+
+        service.stopDiscovery()
+        for await _ in stream2 { break }
+    }
+
+    @Test("Calling startDiscovery while already discovering resets state")
+    func startDiscoveryReEntrancyGuard() {
+        let service = BonjourDiscoveryService()
+        service.startDiscovery(serviceType: "_http._tcp")
+        #expect(service.isDiscovering == true)
+
+        // Start again — should tear down old and start fresh
+        service.startDiscovery(serviceType: "_ssh._tcp")
+        #expect(service.isDiscovering == true)
+        #expect(service.discoveredServices.isEmpty)
+
+        service.stopDiscovery()
+    }
+
+    // MARK: - Generation ID tracking / invalidation
+
+    @Test("Rapid start-stop-start cycles do not pollute new session")
+    func rapidStartStopCyclesDoNotPolluteNewSession() {
+        let service = BonjourDiscoveryService()
+        // Rapid cycles — each start increments generation ID,
+        // preventing stale callbacks from old sessions
+        for _ in 0..<5 {
+            service.startDiscovery()
+            service.stopDiscovery()
+        }
+        // Final state should be clean
+        #expect(service.isDiscovering == false)
+        #expect(service.discoveredServices.isEmpty)
+    }
+
+    @Test("discoveryStream followed by immediate new stream finishes first stream cleanly")
+    func discoveryStreamImmediateNewStreamFinishesFirst() async {
+        let service = BonjourDiscoveryService()
+        // First stream
+        let stream1 = service.discoveryStream(serviceType: "_http._tcp")
+        // Immediately start new stream (tears down first, increments generation)
+        let stream2 = service.discoveryStream(serviceType: "_ssh._tcp")
+
+        // Consume first stream — should be finished
+        var count1 = 0
+        for await _ in stream1 {
+            count1 += 1
+            if count1 > 0 { break }
+        }
+
+        service.stopDiscovery()
+        for await _ in stream2 { break }
+    }
+
+    // MARK: - Service resolution timeout
+
+    @Test("resolveService times out for unreachable service within ~2 seconds", .tags(.integration))
+    func resolveServiceTimeoutDuration() async {
+        // INTEGRATION GAP: requires NWConnection to attempt real connection
+        let service = BonjourDiscoveryService()
+        let unreachableService = BonjourService(
+            name: "TimeoutTestService_12345",
+            type: "_http._tcp",
+            domain: "local."
+        )
+        let start = Date()
+        let result = await service.resolveService(unreachableService)
+        let elapsed = Date().timeIntervalSince(start)
+
+        #expect(result == nil, "Unreachable service should return nil")
+        // Timeout is set to 2 seconds in the source
+        #expect(elapsed < 5.0, "Should timeout within a reasonable window")
+    }
 }

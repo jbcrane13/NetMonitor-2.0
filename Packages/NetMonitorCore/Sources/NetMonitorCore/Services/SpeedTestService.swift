@@ -21,8 +21,15 @@ public final class SpeedTestService: SpeedTestServiceProtocol {
     private var currentTask: Task<SpeedTestData, Error>?
     private var downloadBytesReceived: Int64 = 0
     private var uploadBytesSent: Int64 = 0
+    private let session: URLSession
 
-    public init() {}
+    /// Creates a SpeedTestService.
+    ///
+    /// - Parameter session: URLSession used for latency measurement. Defaults to `.shared`.
+    ///   Inject a custom session (e.g. one configured with `MockURLProtocol`) for testing.
+    public init(session: URLSession = .shared) {
+        self.session = session
+    }
 
     // MARK: - Public API
 
@@ -89,7 +96,7 @@ public final class SpeedTestService: SpeedTestServiceProtocol {
     private func measureLatency() async -> Double {
         let iterations = 3
         var times: [Double] = []
-        let session = URLSession.shared
+        let session = self.session
         let url = URL(string: "https://speed.cloudflare.com/__down?bytes=1000000")!
 
         for _ in 0..<iterations {
