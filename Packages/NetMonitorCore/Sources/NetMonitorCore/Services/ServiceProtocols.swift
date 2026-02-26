@@ -104,6 +104,8 @@ public protocol SpeedTestServiceProtocol {
     @MainActor var isRunning: Bool { get }
     @MainActor var errorMessage: String? { get }
     @MainActor var duration: TimeInterval { get set }
+    /// The server to use for the next test run. `nil` means auto-select (Cloudflare default).
+    @MainActor var selectedServer: SpeedTestServer? { get set }
     @MainActor func startTest() async throws -> SpeedTestData
     @MainActor func stopTest()
 }

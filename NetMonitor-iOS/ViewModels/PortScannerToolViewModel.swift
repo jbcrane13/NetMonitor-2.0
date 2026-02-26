@@ -7,7 +7,14 @@ import NetMonitorCore
 final class PortScannerToolViewModel {
     // MARK: - Input Properties
 
-    var host: String = ""
+    var host: String = "" {
+        didSet {
+            let trimmed = host.trimmingCharacters(in: .whitespaces)
+            if !trimmed.isEmpty {
+                TargetManager.shared.currentTarget = trimmed
+            }
+        }
+    }
     var portPreset: PortScanPreset = .common
     var customRange: PortRange = PortRange()
 
@@ -61,6 +68,11 @@ final class PortScannerToolViewModel {
 
     func startScan() {
         guard canStartScan else { return }
+
+        let trimmed = host.trimmingCharacters(in: .whitespaces)
+        if !trimmed.isEmpty {
+            TargetManager.shared.setTarget(trimmed)
+        }
 
         clearResults()
         isRunning = true

@@ -5,6 +5,7 @@ import NetMonitorCore
 struct PingToolView: View {
     @State private var host = ""
     @AppStorage("netmonitor.ping.defaultCount") private var count = 20
+    @AppStorage("netmonitor.lastUsedTarget") private var lastUsedTarget: String = ""
     @State private var isRunning = false
     @State private var outputLines: [String] = []
     @State private var pingResults: [PingResult] = []
@@ -22,6 +23,11 @@ struct PingToolView: View {
             outputArea: { outputArea },
             footerContent: { footer }
         )
+        .onAppear {
+            if host.isEmpty && !lastUsedTarget.isEmpty {
+                host = lastUsedTarget
+            }
+        }
         .onDisappear {
             pingTask?.cancel()
             pingTask = nil
@@ -119,16 +125,11 @@ struct PingToolView: View {
         chartableResults.map(\.time).max() ?? 0
     }
 
-    /// Y-axis max using P95 with a tight scale so small latency variations
-    /// produce visible line movement instead of a flat trace.
+    /// Y-axis max: actual max value with 20% padding, minimum 10ms ceiling so
+    /// small latency variations produce visible line movement instead of a flat trace.
     private var chartYMax: Double {
-        let times = chartableResults.map(\.time).sorted()
-        guard let first = times.first else { return 10 }
-        guard times.count >= 2 else { return max(first * 1.5, 5) }
-        let p95Index = Int(Double(times.count - 1) * 0.95)
-        let p95 = times[p95Index]
-        // Tight: just 10% headroom above P95, or at least 3ms above P95
-        return max(p95 * 1.1, p95 + 3, 5)
+        guard let maxTime = chartableResults.map(\.time).max() else { return 10 }
+        return max(maxTime * 1.2, 10)
     }
 
     private var latencyChartView: some View {
@@ -267,6 +268,7 @@ struct PingToolView: View {
 
     private func runPing() {
         guard !host.isEmpty else { return }
+        lastUsedTarget = host
         isRunning = true
         outputLines.removeAll()
         pingResults.removeAll()

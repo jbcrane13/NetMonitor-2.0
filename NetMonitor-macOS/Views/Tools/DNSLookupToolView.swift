@@ -8,18 +8,6 @@
 import SwiftUI
 import NetMonitorCore
 
-/// DNS record types
-enum DNSRecordType: String, CaseIterable {
-    case a = "A"
-    case aaaa = "AAAA"
-    case mx = "MX"
-    case txt = "TXT"
-    case cname = "CNAME"
-    case ns = "NS"
-    case soa = "SOA"
-    case ptr = "PTR"
-}
-
 struct DNSLookupToolView: View {
     @Environment(\.appAccentColor) private var accentColor
     @State private var hostname = ""
@@ -28,6 +16,7 @@ struct DNSLookupToolView: View {
     @State private var results: [String] = []
     @State private var errorMessage: String?
     @State private var lookupTask: Task<Void, Never>?
+    @AppStorage("netmonitor.lastUsedTarget") private var lastUsedTarget: String = ""
 
     private let runner = ShellCommandRunner()
 
@@ -40,6 +29,11 @@ struct DNSLookupToolView: View {
             outputArea: { outputArea },
             footerContent: { footer }
         )
+        .onAppear {
+            if hostname.isEmpty && !lastUsedTarget.isEmpty {
+                hostname = lastUsedTarget
+            }
+        }
         .onDisappear {
             lookupTask?.cancel()
             lookupTask = nil
@@ -177,6 +171,7 @@ struct DNSLookupToolView: View {
     private func runLookup() {
         guard !hostname.isEmpty else { return }
 
+        lastUsedTarget = hostname
         isRunning = true
         results.removeAll()
         errorMessage = nil

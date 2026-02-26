@@ -16,6 +16,7 @@ struct WHOISToolView: View {
     @State private var result: WHOISResult?
     @State private var showRawOutput = false
     @State private var lookupTask: Task<Void, Never>?
+    @AppStorage("netmonitor.lastUsedTarget") private var lastUsedTarget: String = ""
 
     private let service = WHOISService()
 
@@ -35,6 +36,11 @@ struct WHOISToolView: View {
             outputArea: { outputArea },
             footerContent: { footer }
         )
+        .onAppear {
+            if domain.isEmpty && !lastUsedTarget.isEmpty {
+                domain = lastUsedTarget
+            }
+        }
         .onDisappear {
             lookupTask?.cancel()
             lookupTask = nil
@@ -239,6 +245,7 @@ struct WHOISToolView: View {
     private func runWhois() {
         guard !domain.isEmpty else { return }
 
+        lastUsedTarget = domain
         isRunning = true
         errorMessage = nil
         result = nil

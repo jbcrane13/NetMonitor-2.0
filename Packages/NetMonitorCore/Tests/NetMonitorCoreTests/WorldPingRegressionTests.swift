@@ -15,8 +15,13 @@ import Testing
 
 // MARK: - WorldPing Contract Tests (real API fixture format)
 
-@Suite("WorldPingService — real API format regression")
+@Suite("WorldPingService — real API format regression", .serialized)
 struct WorldPingRegressionContractTests {
+
+    // Resets shared MockURLProtocol.requestHandler before each test so this suite
+    // does not interfere with (or receive interference from) other suites that also
+    // use the shared static handler.
+    init() { MockURLProtocol.requestHandler = nil }
 
     // MARK: Helpers
 
@@ -54,10 +59,11 @@ struct WorldPingRegressionContractTests {
 
     @Test("WorldPingService produces correctly-labelled results from real node format")
     func serviceProducesCorrectLabelsFromRealNodeFormat() async throws {
+        defer { MockURLProtocol.requestHandler = nil }
         let submitData   = try loadFixture("check-host-submit-real.json")
         let resultsData  = try loadFixture("check-host-result-real.json")
 
-        let session = MockURLProtocol.session(responses: [
+        let session = MockURLProtocol.makeSession(responses: [
             "check-ping":    (200, submitData),
             "check-result":  (200, resultsData)
         ])
@@ -80,10 +86,11 @@ struct WorldPingRegressionContractTests {
 
     @Test("WorldPingService parses triple-nested [[[Any]]] result format — isSuccess true")
     func tripleNestedFormatParsedAsSuccess() async throws {
+        defer { MockURLProtocol.requestHandler = nil }
         let submitData  = try loadFixture("check-host-submit-real.json")
         let resultsData = try loadFixture("check-host-result-real.json")
 
-        let session = MockURLProtocol.session(responses: [
+        let session = MockURLProtocol.makeSession(responses: [
             "check-ping":   (200, submitData),
             "check-result": (200, resultsData)
         ])
@@ -100,11 +107,12 @@ struct WorldPingRegressionContractTests {
 
     @Test("WorldPingService averages latency across multiple probes per node")
     func latencyIsAveragedAcrossProbes() async throws {
+        defer { MockURLProtocol.requestHandler = nil }
         // at1: 3 probes at 32ms, 29ms, 31ms → avg ≈ 30.67ms (× 1000 from seconds)
         let submitData  = try loadFixture("check-host-submit-real.json")
         let resultsData = try loadFixture("check-host-result-real.json")
 
-        let session = MockURLProtocol.session(responses: [
+        let session = MockURLProtocol.makeSession(responses: [
             "check-ping":   (200, submitData),
             "check-result": (200, resultsData)
         ])
@@ -122,13 +130,14 @@ struct WorldPingRegressionContractTests {
 
     @Test("WorldPingService marks node successful when first probe is OK; averages latency across OK probes")
     func mixedProbesAveragesLatencyFromOKProbes() async throws {
+        defer { MockURLProtocol.requestHandler = nil }
         // au1: [OK 195ms, timeout, OK 188ms]
         // isSuccess = first probe status == "OK" → true
         // avgLatency = (195 + 188) / 2 = 191.5ms  (timeout entries have no latency field)
         let submitData  = try loadFixture("check-host-submit-real.json")
         let resultsData = try loadFixture("check-host-result-real.json")
 
-        let session = MockURLProtocol.session(responses: [
+        let session = MockURLProtocol.makeSession(responses: [
             "check-ping":   (200, submitData),
             "check-result": (200, resultsData)
         ])
@@ -205,29 +214,6 @@ private struct CheckPingResponsePublic: Codable {
     }
 }
 
-// MARK: - MockURLProtocol Extension
-
-private extension MockURLProtocol {
-    /// Creates a URLSession with stub responses keyed on URL path substring.
-    static func session(responses: [String: (Int, Data)]) -> URLSession {
-        MockURLProtocol.requestHandler = { request in
-            let path = request.url?.absoluteString ?? ""
-            for (key, value) in responses {
-                if path.contains(key) {
-                    let response = HTTPURLResponse(
-                        url: request.url!,
-                        statusCode: value.0,
-                        httpVersion: nil,
-                        headerFields: ["Content-Type": "application/json"]
-                    )!
-                    return (response, value.1)
-                }
-            }
-            let response = HTTPURLResponse(url: request.url!, statusCode: 404, httpVersion: nil, headerFields: nil)!
-            return (response, Data())
-        }
-        let config = URLSessionConfiguration.ephemeral
-        config.protocolClasses = [MockURLProtocol.self]
-        return URLSession(configuration: config)
-    }
-}
+// The WorldPingRegressionContractTests use MockURLProtocol.makeSession(responses:)
+// which is defined in MockURLProtocol.swift and uses a per-session handler token
+// (no global static state). No private extension is needed here.

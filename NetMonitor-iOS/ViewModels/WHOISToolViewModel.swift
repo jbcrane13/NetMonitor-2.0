@@ -7,7 +7,14 @@ import NetMonitorCore
 final class WHOISToolViewModel {
     // MARK: - Input Properties
 
-    var domain: String = ""
+    var domain: String = "" {
+        didSet {
+            let trimmed = domain.trimmingCharacters(in: .whitespaces)
+            if !trimmed.isEmpty {
+                TargetManager.shared.currentTarget = trimmed
+            }
+        }
+    }
 
     // MARK: - State Properties
 
@@ -36,6 +43,11 @@ final class WHOISToolViewModel {
 
     func lookup() async {
         guard canStartLookup else { return }
+
+        let trimmed = domain.trimmingCharacters(in: .whitespaces)
+        if !trimmed.isEmpty {
+            TargetManager.shared.setTarget(trimmed)
+        }
 
         isLoading = true
         errorMessage = nil

@@ -7,7 +7,14 @@ import NetMonitorCore
 final class PingToolViewModel {
     // MARK: - Input Properties
 
-    var host: String = ""
+    var host: String = "" {
+        didSet {
+            let trimmed = host.trimmingCharacters(in: .whitespaces)
+            if !trimmed.isEmpty {
+                TargetManager.shared.currentTarget = trimmed
+            }
+        }
+    }
     var pingCount: Int = UserDefaults.standard.object(forKey: AppSettings.Keys.defaultPingCount) as? Int ?? 20 {
         didSet { UserDefaults.standard.set(pingCount, forKey: AppSettings.Keys.defaultPingCount) }
     }
@@ -45,6 +52,11 @@ final class PingToolViewModel {
 
     func startPing() {
         guard canStartPing else { return }
+
+        let trimmed = host.trimmingCharacters(in: .whitespaces)
+        if !trimmed.isEmpty {
+            TargetManager.shared.setTarget(trimmed)
+        }
 
         clearResults()
         isRunning = true
@@ -118,15 +130,10 @@ final class PingToolViewModel {
     /// correctly from the baseline and no data points clip below the axis.
     var chartYAxisMin: Double { 0 }
 
-    /// Y-axis max using P95 with a tight scale so small latency variations
-    /// produce visible line movement instead of a flat trace.
+    /// Y-axis max: actual max value with 20% padding, minimum 10ms ceiling so
+    /// small latency variations produce visible line movement instead of a flat trace.
     var chartYAxisMax: Double {
-        let times = successfulPings.map(\.time).sorted()
-        guard let first = times.first else { return 10 }
-        guard times.count >= 2 else { return max(first * 1.5, 5) }
-        let p95Index = Int(Double(times.count - 1) * 0.95)
-        let p95 = times[p95Index]
-        // Tight: just 10% headroom above P95, or at least 3ms above P95
-        return max(p95 * 1.1, p95 + 3, 5)
+        guard let maxTime = successfulPings.map(\.time).max() else { return 10 }
+        return max(maxTime * 1.2, 10)
     }
 }

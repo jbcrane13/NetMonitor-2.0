@@ -50,7 +50,7 @@ struct BonjourBrowserToolView: View {
         .onDisappear {
             browseTask?.cancel()
             browseTask = nil
-            Task { await discoveryService.stopDiscovery() }
+            discoveryService.stopDiscovery()
         }
     }
 
@@ -265,6 +265,11 @@ struct BonjourBrowserToolView: View {
     // MARK: - Actions
 
     private func startScan() {
+        // Cancel any previous scan before starting a new one so the old
+        // browseTask cannot call stopDiscovery() and sabotage the new session.
+        browseTask?.cancel()
+        browseTask = nil
+
         isScanning = true
         services.removeAll()
         selectedService = nil
@@ -274,26 +279,37 @@ struct BonjourBrowserToolView: View {
             let stream = discoveryService.discoveryStream(serviceType: nil)
             services = []
 
-            // Collect discoveries for up to 10 seconds
-            let collectTask = Task { @MainActor in
-                for await service in stream {
-                    guard !Task.isCancelled else { break }
-                    if !services.contains(where: { $0.id == service.id }) {
-                        services.append(service)
-                    }
+            // Schedule a 10-second timeout. When it fires, stop the discovery
+            // service so the stream finishes and unblocks the for-await below.
+            let timeoutTask = Task { @MainActor in
+                try? await Task.sleep(for: .seconds(10))
+                guard !Task.isCancelled else { return }
+                discoveryService.stopDiscovery()
+            }
+
+            // Iterate results until the stream finishes (either by timeout or
+            // by the service's own 30-second auto-finish).
+            for await service in stream {
+                if !services.contains(where: { $0.id == service.id }) {
+                    services.append(service)
                 }
             }
-            try? await Task.sleep(for: .seconds(10))
-            collectTask.cancel()
-            await discoveryService.stopDiscovery()
+
+            timeoutTask.cancel()
+
+            // Only update UI state if this task was not cancelled (i.e. the
+            // view is still visible and no newer scan was started).
+            guard !Task.isCancelled else { return }
+            discoveryService.stopDiscovery()
             isScanning = false
         }
     }
 
     private func stopScan() {
-        Task {
-            await discoveryService.stopDiscovery()
-        }
+        browseTask?.cancel()
+        browseTask = nil
+        discoveryService.stopDiscovery()
+        isScanning = false
     }
 
     // MARK: - Helpers

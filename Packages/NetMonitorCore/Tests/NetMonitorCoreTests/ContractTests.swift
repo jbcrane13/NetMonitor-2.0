@@ -18,15 +18,14 @@ struct ContractTests {
 
         @Test("Full ping flow: real decoder parses submit response and maps 5 nodes")
         func fullPingFlowDecodesAllNodes() async throws {
-            defer { MockURLProtocol.requestHandler = nil }
             let submitJSON = try MockURLProtocol.loadFixture(named: "check-host-submit-success.json")
             let resultsJSON = try MockURLProtocol.loadFixture(named: "check-host-result-complete.json")
-            MockURLProtocol.stubRoutes([
-                "check-ping": submitJSON,
-                "check-result": resultsJSON
+            let session = MockURLProtocol.makeSession(responses: [
+                "check-ping": (200, Data(submitJSON.utf8)),
+                "check-result": (200, Data(resultsJSON.utf8))
             ])
 
-            let service = WorldPingService(session: MockURLProtocol.makeSession())
+            let service = WorldPingService(session: session)
             var results: [WorldPingLocationResult] = []
             for await result in await service.ping(host: "google.com", maxNodes: 5) {
                 results.append(result)
@@ -38,15 +37,14 @@ struct ContractTests {
 
         @Test("Latency is converted from seconds to milliseconds")
         func latencyConvertedFromSecondsToMs() async throws {
-            defer { MockURLProtocol.requestHandler = nil }
             let submitJSON = try MockURLProtocol.loadFixture(named: "check-host-submit-success.json")
             let resultsJSON = try MockURLProtocol.loadFixture(named: "check-host-result-complete.json")
-            MockURLProtocol.stubRoutes([
-                "check-ping": submitJSON,
-                "check-result": resultsJSON
+            let session = MockURLProtocol.makeSession(responses: [
+                "check-ping": (200, Data(submitJSON.utf8)),
+                "check-result": (200, Data(resultsJSON.utf8))
             ])
 
-            let service = WorldPingService(session: MockURLProtocol.makeSession())
+            let service = WorldPingService(session: session)
             var results: [WorldPingLocationResult] = []
             for await result in await service.ping(host: "google.com", maxNodes: 5) {
                 results.append(result)
@@ -62,15 +60,14 @@ struct ContractTests {
 
         @Test("Node metadata (country, city) is mapped from submit response")
         func nodeMetadataIsPopulated() async throws {
-            defer { MockURLProtocol.requestHandler = nil }
             let submitJSON = try MockURLProtocol.loadFixture(named: "check-host-submit-success.json")
             let resultsJSON = try MockURLProtocol.loadFixture(named: "check-host-result-complete.json")
-            MockURLProtocol.stubRoutes([
-                "check-ping": submitJSON,
-                "check-result": resultsJSON
+            let session = MockURLProtocol.makeSession(responses: [
+                "check-ping": (200, Data(submitJSON.utf8)),
+                "check-result": (200, Data(resultsJSON.utf8))
             ])
 
-            let service = WorldPingService(session: MockURLProtocol.makeSession())
+            let service = WorldPingService(session: session)
             var results: [WorldPingLocationResult] = []
             for await result in await service.ping(host: "8.8.8.8", maxNodes: 5) {
                 results.append(result)
@@ -87,15 +84,14 @@ struct ContractTests {
 
         @Test("All-timeout response: nodes returned as isSuccess=false with nil latency")
         func allTimeoutNodesReturnedWithFailure() async throws {
-            defer { MockURLProtocol.requestHandler = nil }
             let submitJSON = try MockURLProtocol.loadFixture(named: "check-host-submit-success.json")
             let resultsJSON = try MockURLProtocol.loadFixture(named: "check-host-result-all-timeout.json")
-            MockURLProtocol.stubRoutes([
-                "check-ping": submitJSON,
-                "check-result": resultsJSON
+            let session = MockURLProtocol.makeSession(responses: [
+                "check-ping": (200, Data(submitJSON.utf8)),
+                "check-result": (200, Data(resultsJSON.utf8))
             ])
 
-            let service = WorldPingService(session: MockURLProtocol.makeSession())
+            let service = WorldPingService(session: session)
             var results: [WorldPingLocationResult] = []
             for await result in await service.ping(host: "unreachable.example", maxNodes: 5) {
                 results.append(result)
@@ -108,10 +104,17 @@ struct ContractTests {
 
         @Test("HTTP error on submit finishes stream empty and sets lastError")
         func httpErrorOnSubmitFinishesEmptyWithLastError() async throws {
-            defer { MockURLProtocol.requestHandler = nil }
-            MockURLProtocol.stub(json: "{\"error\": \"internal server error\"}", statusCode: 500)
+            let session = MockURLProtocol.makeSession { request in
+                let response = HTTPURLResponse(
+                    url: request.url ?? URL(string: "https://example.com")!,
+                    statusCode: 500,
+                    httpVersion: nil,
+                    headerFields: ["Content-Type": "application/json"]
+                )!
+                return (response, Data("{\"error\": \"internal server error\"}".utf8))
+            }
 
-            let service = WorldPingService(session: MockURLProtocol.makeSession())
+            let service = WorldPingService(session: session)
             var results: [WorldPingLocationResult] = []
             for await result in await service.ping(host: "google.com", maxNodes: 5) {
                 results.append(result)
@@ -124,12 +127,11 @@ struct ContractTests {
 
         @Test("Network error on submit finishes stream empty and sets lastError")
         func networkErrorOnSubmitFinishesEmptyWithLastError() async throws {
-            defer { MockURLProtocol.requestHandler = nil }
-            MockURLProtocol.requestHandler = { _ in
+            let session = MockURLProtocol.makeSession { _ in
                 throw URLError(.notConnectedToInternet)
             }
 
-            let service = WorldPingService(session: MockURLProtocol.makeSession())
+            let service = WorldPingService(session: session)
             var results: [WorldPingLocationResult] = []
             for await result in await service.ping(host: "google.com", maxNodes: 5) {
                 results.append(result)
@@ -141,15 +143,14 @@ struct ContractTests {
 
         @Test("Results are sorted alphabetically by city name")
         func resultsAreSortedByCity() async throws {
-            defer { MockURLProtocol.requestHandler = nil }
             let submitJSON = try MockURLProtocol.loadFixture(named: "check-host-submit-success.json")
             let resultsJSON = try MockURLProtocol.loadFixture(named: "check-host-result-complete.json")
-            MockURLProtocol.stubRoutes([
-                "check-ping": submitJSON,
-                "check-result": resultsJSON
+            let session = MockURLProtocol.makeSession(responses: [
+                "check-ping": (200, Data(submitJSON.utf8)),
+                "check-result": (200, Data(resultsJSON.utf8))
             ])
 
-            let service = WorldPingService(session: MockURLProtocol.makeSession())
+            let service = WorldPingService(session: session)
             var results: [WorldPingLocationResult] = []
             for await result in await service.ping(host: "test.com", maxNodes: 5) {
                 results.append(result)
@@ -169,11 +170,17 @@ struct ContractTests {
 
         @Test("Success response: real decoder maps all ip-api.com fields to GeoLocation")
         func successResponseMapsAllFields() async throws {
-            defer { MockURLProtocol.requestHandler = nil }
             let json = try MockURLProtocol.loadFixture(named: "ip-api-success.json")
-            MockURLProtocol.stub(json: json)
+            let session = MockURLProtocol.makeSession { request in
+                let response = HTTPURLResponse(
+                    url: request.url ?? URL(string: "https://example.com")!,
+                    statusCode: 200, httpVersion: nil,
+                    headerFields: ["Content-Type": "application/json"]
+                )!
+                return (response, Data(json.utf8))
+            }
 
-            let service = GeoLocationService(session: MockURLProtocol.makeSession())
+            let service = GeoLocationService(session: session)
             let location = try await service.lookup(ip: "8.8.8.8")
 
             #expect(location.ip == "8.8.8.8")
@@ -188,10 +195,9 @@ struct ContractTests {
 
         @Test("Success response: result is cached — second call does not hit network")
         func resultIsCached() async throws {
-            defer { MockURLProtocol.requestHandler = nil }
             let json = try MockURLProtocol.loadFixture(named: "ip-api-success.json")
             var requestCount = 0
-            MockURLProtocol.requestHandler = { request in
+            let session = MockURLProtocol.makeSession { request in
                 requestCount += 1
                 let response = HTTPURLResponse(
                     url: request.url!,
@@ -202,7 +208,7 @@ struct ContractTests {
                 return (response, Data(json.utf8))
             }
 
-            let service = GeoLocationService(session: MockURLProtocol.makeSession())
+            let service = GeoLocationService(session: session)
             _ = try await service.lookup(ip: "8.8.8.8")
             _ = try await service.lookup(ip: "8.8.8.8")
 
@@ -211,11 +217,17 @@ struct ContractTests {
 
         @Test("status=fail response: throws GeoLocationError.lookupFailed with message")
         func failStatusThrowsLookupFailed() async throws {
-            defer { MockURLProtocol.requestHandler = nil }
             let json = try MockURLProtocol.loadFixture(named: "ip-api-failure.json")
-            MockURLProtocol.stub(json: json)
+            let session = MockURLProtocol.makeSession { request in
+                let response = HTTPURLResponse(
+                    url: request.url ?? URL(string: "https://example.com")!,
+                    statusCode: 200, httpVersion: nil,
+                    headerFields: ["Content-Type": "application/json"]
+                )!
+                return (response, Data(json.utf8))
+            }
 
-            let service = GeoLocationService(session: MockURLProtocol.makeSession())
+            let service = GeoLocationService(session: session)
             do {
                 _ = try await service.lookup(ip: "192.168.1.1")
                 Issue.record("Expected GeoLocationError.lookupFailed to be thrown")
@@ -230,10 +242,16 @@ struct ContractTests {
 
         @Test("HTTP 429 (rate limit): throws GeoLocationError.httpError")
         func http429ThrowsHTTPError() async throws {
-            defer { MockURLProtocol.requestHandler = nil }
-            MockURLProtocol.stub(json: "{\"status\":\"fail\",\"message\":\"rate limited\"}", statusCode: 429)
+            let session = MockURLProtocol.makeSession { request in
+                let response = HTTPURLResponse(
+                    url: request.url ?? URL(string: "https://example.com")!,
+                    statusCode: 429, httpVersion: nil,
+                    headerFields: ["Content-Type": "application/json"]
+                )!
+                return (response, Data("{\"status\":\"fail\",\"message\":\"rate limited\"}".utf8))
+            }
 
-            let service = GeoLocationService(session: MockURLProtocol.makeSession())
+            let service = GeoLocationService(session: session)
             do {
                 _ = try await service.lookup(ip: "1.2.3.4")
                 Issue.record("Expected GeoLocationError.httpError to be thrown")
@@ -246,10 +264,16 @@ struct ContractTests {
 
         @Test("HTTP 500 (server error): throws GeoLocationError.httpError")
         func http500ThrowsHTTPError() async throws {
-            defer { MockURLProtocol.requestHandler = nil }
-            MockURLProtocol.stub(json: "{}", statusCode: 500)
+            let session = MockURLProtocol.makeSession { request in
+                let response = HTTPURLResponse(
+                    url: request.url ?? URL(string: "https://example.com")!,
+                    statusCode: 500, httpVersion: nil,
+                    headerFields: nil
+                )!
+                return (response, Data("{}".utf8))
+            }
 
-            let service = GeoLocationService(session: MockURLProtocol.makeSession())
+            let service = GeoLocationService(session: session)
             do {
                 _ = try await service.lookup(ip: "1.2.3.4")
                 Issue.record("Expected error to be thrown for HTTP 500")
@@ -262,12 +286,11 @@ struct ContractTests {
 
         @Test("Network error: throws URLError, not a silent empty result")
         func networkErrorThrows() async throws {
-            defer { MockURLProtocol.requestHandler = nil }
-            MockURLProtocol.requestHandler = { _ in
+            let session = MockURLProtocol.makeSession { _ in
                 throw URLError(.notConnectedToInternet)
             }
 
-            let service = GeoLocationService(session: MockURLProtocol.makeSession())
+            let service = GeoLocationService(session: session)
             do {
                 _ = try await service.lookup(ip: "8.8.8.8")
                 Issue.record("Expected URLError to be thrown")
@@ -278,10 +301,16 @@ struct ContractTests {
 
         @Test("Malformed JSON response: throws, not a silent nil result")
         func malformedJSONThrows() async throws {
-            defer { MockURLProtocol.requestHandler = nil }
-            MockURLProtocol.stub(json: "not valid json")
+            let session = MockURLProtocol.makeSession { request in
+                let response = HTTPURLResponse(
+                    url: request.url ?? URL(string: "https://example.com")!,
+                    statusCode: 200, httpVersion: nil,
+                    headerFields: ["Content-Type": "application/json"]
+                )!
+                return (response, Data("not valid json".utf8))
+            }
 
-            let service = GeoLocationService(session: MockURLProtocol.makeSession())
+            let service = GeoLocationService(session: session)
             do {
                 _ = try await service.lookup(ip: "8.8.8.8")
                 Issue.record("Expected an error to be thrown for malformed JSON")

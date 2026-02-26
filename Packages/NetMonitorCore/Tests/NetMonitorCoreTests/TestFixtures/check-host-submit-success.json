@@ -2,10 +2,10 @@
   "ok": 1,
   "request_id": "test-abc-123-xyz",
   "nodes": {
-    "de1.node.check-host.net": ["Germany", "Frankfurt", "HE", "DE", "85.25.43.1"],
-    "us1.node.check-host.net": ["United States", "Ashburn", "VA", "US", "104.21.1.1"],
-    "jp1.node.check-host.net": ["Japan", "Tokyo", "13", "JP", "203.0.113.5"],
-    "gb1.node.check-host.net": ["United Kingdom", "London", "ENG", "GB", "91.108.4.1"],
-    "au1.node.check-host.net": ["Australia", "Sydney", "NSW", "AU", "203.2.218.1"]
+    "de1.node.check-host.net": ["de", "Germany", "Frankfurt", "85.25.43.1", "AS24940"],
+    "us1.node.check-host.net": ["us", "United States", "Ashburn", "104.21.1.1", "AS13335"],
+    "jp1.node.check-host.net": ["jp", "Japan", "Tokyo", "203.0.113.5", "AS7506"],
+    "gb1.node.check-host.net": ["gb", "United Kingdom", "London", "91.108.4.1", "AS62041"],
+    "au1.node.check-host.net": ["au", "Australia", "Sydney", "203.2.218.1", "AS38197"]
   }
 }

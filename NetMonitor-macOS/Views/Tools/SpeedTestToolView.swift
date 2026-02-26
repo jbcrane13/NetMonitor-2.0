@@ -25,13 +25,7 @@ struct SpeedTestToolView: View {
     @State private var speedTestTask: Task<Void, Never>?
     @State private var testDuration: TimeInterval = 10 // Default 10 seconds
     @State private var timeRemaining: TimeInterval = 0
-
-    // swiftlint:disable:next force_unwrapping
-    private static let uploadURL = URL(string: "https://speed.cloudflare.com/__up")!
-    // swiftlint:disable:next force_unwrapping
-    private static let pingURL = URL(string: "https://speed.cloudflare.com")!
-    // swiftlint:disable:next force_unwrapping
-    private static let downloadURL = URL(string: "https://speed.cloudflare.com/__down?bytes=1000000")!
+    @State private var selectedServer: SpeedTestServer = .autoSelect
 
     var body: some View {
         ToolSheetContainer(
@@ -53,21 +47,40 @@ struct SpeedTestToolView: View {
 
     private var contentArea: some View {
         VStack(spacing: 32) {
-            // Duration picker
-            VStack(spacing: 8) {
-                Text("Test Duration")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+            // Configuration row: duration + server
+            HStack(spacing: 32) {
+                // Duration picker
+                VStack(spacing: 8) {
+                    Text("Test Duration")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
 
-                Picker("Duration", selection: $testDuration) {
-                    Text("5 seconds").tag(TimeInterval(5))
-                    Text("10 seconds").tag(TimeInterval(10))
-                    Text("30 seconds").tag(TimeInterval(30))
+                    Picker("Duration", selection: $testDuration) {
+                        Text("5 seconds").tag(TimeInterval(5))
+                        Text("10 seconds").tag(TimeInterval(10))
+                        Text("30 seconds").tag(TimeInterval(30))
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(maxWidth: 300)
+                    .disabled(isRunning)
+                    .accessibilityIdentifier("speedtest_picker_duration")
                 }
-                .pickerStyle(.segmented)
-                .frame(maxWidth: 300)
-                .disabled(isRunning)
-                .accessibilityIdentifier("speedtest_picker_duration")
+
+                // Server picker
+                VStack(spacing: 8) {
+                    Text("Server")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    Picker("Server", selection: $selectedServer) {
+                        ForEach(SpeedTestServer.all) { server in
+                            Text(server.name).tag(server)
+                        }
+                    }
+                    .frame(maxWidth: 180)
+                    .disabled(isRunning)
+                    .accessibilityIdentifier("speedtest_picker_server")
+                }
             }
 
             Spacer()
@@ -263,9 +276,9 @@ struct SpeedTestToolView: View {
                     .font(.title2)
                     .foregroundStyle(.orange)
 
-                Text("Cloudflare")
+                Text(selectedServer.name)
                     .font(.title3.bold())
-                Text("Server")
+                Text(selectedServer.location)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -321,22 +334,25 @@ struct SpeedTestToolView: View {
         progress = 0
         timeRemaining = 0
 
+        // Capture the server selection so it stays consistent during the test.
+        let server = selectedServer
+
         speedTestTask = Task {
             // Phase 1: Latency test
             await MainActor.run { phase = .latency }
-            pingLatency = await measurePing()
+            pingLatency = await measurePing(server: server)
 
             guard isRunning else { return }
 
             // Phase 2: Download test
             await MainActor.run { phase = .download }
-            downloadSpeed = await measureDownload()
+            downloadSpeed = await measureDownload(server: server)
 
             guard isRunning else { return }
 
             // Phase 3: Upload test
             await MainActor.run { phase = .upload }
-            uploadSpeed = await measureUpload()
+            uploadSpeed = await measureUpload(server: server)
 
             await MainActor.run {
                 phase = .complete
@@ -370,12 +386,15 @@ struct SpeedTestToolView: View {
 
     // MARK: - Measurements
 
-    private func measurePing() async -> Double? {
+    private func measurePing(server: SpeedTestServer) async -> Double? {
         // Simple ping using HEAD request
         let startTime = Date()
+        // Use the server's ping URL when available; fall back to Cloudflare.
+        let pingURLString = server.pingURL ?? "https://speed.cloudflare.com"
+        guard let pingURL = URL(string: pingURLString) else { return nil }
 
         do {
-            var request = URLRequest(url: Self.pingURL)
+            var request = URLRequest(url: pingURL)
             request.httpMethod = "HEAD"
             request.timeoutInterval = 5
 
@@ -393,13 +412,16 @@ struct SpeedTestToolView: View {
         return nil
     }
 
-    private func measureDownload() async -> Double? {
+    private func measureDownload(server: SpeedTestServer) async -> Double? {
         let chunkSize = 10_000_000 // 10MB chunks for better throughput
         let parallelStreams = 6
         let startTime = Date()
         let totalBytesAtomic = AtomicInt64()
         let peakAtomic = AtomicDouble()
         let duration = testDuration
+
+        // Resolve download URL: prefer server's URL, fall back to Cloudflare.
+        let downloadURLString = server.downloadURL ?? "https://speed.cloudflare.com/__down?bytes=\(chunkSize)"
 
         // Progress updater runs alongside the download streams
         let progressTask = Task {
@@ -426,7 +448,7 @@ struct SpeedTestToolView: View {
                     group.addTask {
                         let session = URLSession(configuration: .ephemeral)
                         defer { session.invalidateAndCancel() }
-                        let url = URL(string: "https://speed.cloudflare.com/__down?bytes=\(chunkSize)")!
+                        let url = URL(string: downloadURLString) ?? URL(string: "https://speed.cloudflare.com/__down?bytes=\(chunkSize)")!
 
                         while Date().timeIntervalSince(startTime) < duration {
                             try Task.checkCancellation()
@@ -477,13 +499,16 @@ struct SpeedTestToolView: View {
         return finalSpeed
     }
 
-    private func measureUpload() async -> Double? {
+    private func measureUpload(server: SpeedTestServer) async -> Double? {
         let chunkSize = 1_000_000 // 1MB upload chunks
         let parallelStreams = 4
         let startTime = Date()
         let totalBytesAtomic = AtomicInt64()
         let peakAtomic = AtomicDouble()
         let duration = testDuration
+
+        // Use the server's uploadURL when available; fall back to Cloudflare.
+        let uploadURLString = server.uploadURL ?? "https://speed.cloudflare.com/__up"
 
         // Pre-generate upload payload once (reused across streams)
         let uploadData = Data(count: chunkSize)
@@ -513,7 +538,7 @@ struct SpeedTestToolView: View {
                     group.addTask {
                         let session = URLSession(configuration: .ephemeral)
                         defer { session.invalidateAndCancel() }
-                        let url = URL(string: "https://speed.cloudflare.com/__up")!
+                        let url = URL(string: uploadURLString) ?? URL(string: "https://speed.cloudflare.com/__up")!
 
                         while Date().timeIntervalSince(startTime) < duration {
                             try Task.checkCancellation()

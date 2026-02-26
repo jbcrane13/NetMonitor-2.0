@@ -5,6 +5,7 @@ struct TracerouteToolView: View {
     @Environment(\.appAccentColor) private var accentColor
     @State private var host = ""
     @State private var maxHops = 30
+    @AppStorage("netmonitor.lastUsedTarget") private var lastUsedTarget: String = ""
     @State private var isRunning = false
     @State private var hops: [TracerouteHop] = []
     @State private var errorMessage: String?
@@ -21,6 +22,11 @@ struct TracerouteToolView: View {
             outputArea: { outputArea },
             footerContent: { footer }
         )
+        .onAppear {
+            if host.isEmpty && !lastUsedTarget.isEmpty {
+                host = lastUsedTarget
+            }
+        }
         .onDisappear {
             tracerouteTask?.cancel()
             tracerouteTask = nil
@@ -150,6 +156,7 @@ struct TracerouteToolView: View {
 
     private func runTraceroute() {
         guard !host.isEmpty else { return }
+        lastUsedTarget = host
         isRunning = true
         hops.removeAll()
         errorMessage = nil

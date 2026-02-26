@@ -37,6 +37,7 @@ struct PortScannerToolView: View {
     @State private var scannedCount = 0
     @State private var totalPorts = 0
     @State private var errorMessage: String?
+    @AppStorage("netmonitor.lastUsedTarget") private var lastUsedTarget: String = ""
 
     var body: some View {
         ToolSheetContainer(
@@ -49,6 +50,11 @@ struct PortScannerToolView: View {
             outputArea: { outputArea },
             footerContent: { footer }
         )
+        .onAppear {
+            if host.isEmpty && !lastUsedTarget.isEmpty {
+                host = lastUsedTarget
+            }
+        }
         .onDisappear {
             scanTask?.cancel()
             scanTask = nil
@@ -221,6 +227,7 @@ struct PortScannerToolView: View {
     private func runScan() {
         guard !host.isEmpty else { return }
 
+        lastUsedTarget = host
         let portsToScan = getPortsToScan()
         guard !portsToScan.isEmpty else {
             errorMessage = "No valid ports specified"

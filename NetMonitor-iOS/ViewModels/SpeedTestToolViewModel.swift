@@ -23,6 +23,18 @@ final class SpeedTestToolViewModel {
         }
     }
 
+    var selectedServer: SpeedTestServer = {
+        if let savedID = UserDefaults.standard.string(forKey: AppSettings.Keys.speedTestServer),
+           let match = SpeedTestServer.all.first(where: { $0.id == savedID }) {
+            return match
+        }
+        return .autoSelect
+    }() {
+        didSet {
+            UserDefaults.standard.set(selectedServer.id, forKey: AppSettings.Keys.speedTestServer)
+        }
+    }
+
     // MARK: - Dependencies
 
     private var service: any SpeedTestServiceProtocol
@@ -64,6 +76,8 @@ final class SpeedTestToolViewModel {
         errorMessage = nil
         isRunning = true
         service.duration = selectedDuration
+        // Propagate server selection; nil uploadURL servers fall back to Cloudflare for upload.
+        service.selectedServer = selectedServer.isAutoSelect ? nil : selectedServer
 
         testTask = Task {
             do {
@@ -88,7 +102,7 @@ final class SpeedTestToolViewModel {
 
                 ToolActivityLog.shared.add(
                     tool: "Speed Test",
-                    target: data.serverName ?? "Server",
+                    target: data.serverName ?? selectedServer.name,
                     result: "↓\(String(format: "%.0f", data.downloadSpeed)) ↑\(String(format: "%.0f", data.uploadSpeed)) Mbps",
                     success: true
                 )

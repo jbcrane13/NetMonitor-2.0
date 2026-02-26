@@ -113,7 +113,14 @@ public final class WorldPingService: WorldPingServiceProtocol, @unchecked Sendab
         var results: [WorldPingLocationResult] = []
 
         for (nodeKey, value) in raw {
-            let meta = nodes[nodeKey]
+            guard let meta = nodes[nodeKey] else {
+                // Skip keys that don't correspond to a known probe node.
+                // Error responses (e.g. {"error": "..."}) or geo-JSON accidentally
+                // received on the result endpoint will have keys that aren't in
+                // the nodes dictionary — treating them as probe nodes would produce
+                // fake results that mask the real error from the ViewModel.
+                continue
+            }
 
             // API response structure: [[[status, latency, ip?], [status, latency], ...]]
             // The value is wrapped in an extra array layer: [[[Any]]]
@@ -141,16 +148,16 @@ public final class WorldPingService: WorldPingServiceProtocol, @unchecked Sendab
 
                 results.append(WorldPingLocationResult(
                     id: nodeKey,
-                    country: meta?.country ?? "Unknown",
-                    city: meta?.city ?? nodeKey,
+                    country: meta.country,
+                    city: meta.city,
                     latencyMs: avgLatency,
                     isSuccess: status == "OK"
                 ))
             } else {
                 results.append(WorldPingLocationResult(
                     id: nodeKey,
-                    country: meta?.country ?? "Unknown",
-                    city: meta?.city ?? nodeKey,
+                    country: meta.country,
+                    city: meta.city,
                     latencyMs: nil,
                     isSuccess: false
                 ))

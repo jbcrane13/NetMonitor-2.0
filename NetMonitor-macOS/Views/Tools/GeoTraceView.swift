@@ -12,8 +12,8 @@ struct GeoTraceView: View {
     @State private var cameraPosition: MapCameraPosition = .automatic
     @State private var traceTask: Task<Void, Never>?
 
-    private let tracerouteService = TracerouteService()
-    private let geoService = GeoLocationService()
+    @State private var tracerouteService = TracerouteService()
+    @State private var geoService = GeoLocationService()
 
     var body: some View {
         ToolSheetContainer(

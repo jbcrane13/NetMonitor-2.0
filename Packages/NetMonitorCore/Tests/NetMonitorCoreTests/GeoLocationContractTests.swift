@@ -8,16 +8,32 @@ import Testing
 /// exist in ContractTests.swift → GeoLocationServiceContractTests. These tests cover
 /// additional edge cases: missing optional fields, whitespace handling, and error
 /// discrimination.
+///
+/// All tests use per-session MockURLProtocol handlers (makeSession(handler:) /
+/// makeSession(responses:)) so they are safe to run concurrently with other test suites.
 @Suite("GeoLocationService Extended Contract Tests", .serialized)
 struct GeoLocationExtendedContractTests {
 
-    init() { MockURLProtocol.requestHandler = nil }
+    // MARK: - Helper
+
+    /// Creates a GeoLocationService backed by a per-session mock that returns
+    /// the given JSON with HTTP 200.
+    private func makeService(json: String) -> GeoLocationService {
+        let session = MockURLProtocol.makeSession { request in
+            let response = HTTPURLResponse(
+                url: request.url ?? URL(string: "https://example.com")!,
+                statusCode: 200, httpVersion: nil,
+                headerFields: ["Content-Type": "application/json"]
+            )!
+            return (response, Data(json.utf8))
+        }
+        return GeoLocationService(session: session)
+    }
 
     // MARK: - Missing Optional Fields
 
     @Test("Response with missing ISP field: GeoLocation.isp is nil")
     func missingISPFieldHandledGracefully() async throws {
-        defer { MockURLProtocol.requestHandler = nil }
         let json = """
         {
             "status": "success",
@@ -29,9 +45,7 @@ struct GeoLocationExtendedContractTests {
             "lon": 13.4050
         }
         """
-        MockURLProtocol.stub(json: json)
-
-        let service = GeoLocationService(session: MockURLProtocol.makeSession())
+        let service = makeService(json: json)
         let location = try await service.lookup(ip: "203.0.113.1")
 
         #expect(location.country == "Germany")
@@ -42,7 +56,6 @@ struct GeoLocationExtendedContractTests {
 
     @Test("Response with missing coordinate fields: defaults to 0.0")
     func missingCoordinateFieldsDefaultToZero() async throws {
-        defer { MockURLProtocol.requestHandler = nil }
         let json = """
         {
             "status": "success",
@@ -52,9 +65,7 @@ struct GeoLocationExtendedContractTests {
             "city": "Tokyo"
         }
         """
-        MockURLProtocol.stub(json: json)
-
-        let service = GeoLocationService(session: MockURLProtocol.makeSession())
+        let service = makeService(json: json)
         let location = try await service.lookup(ip: "198.51.100.1")
 
         #expect(location.latitude == 0.0)
@@ -63,7 +74,6 @@ struct GeoLocationExtendedContractTests {
 
     @Test("Response with missing city field: defaults to empty string")
     func missingCityFieldDefaultsToEmpty() async throws {
-        defer { MockURLProtocol.requestHandler = nil }
         let json = """
         {
             "status": "success",
@@ -75,9 +85,7 @@ struct GeoLocationExtendedContractTests {
             "isp": "Telstra"
         }
         """
-        MockURLProtocol.stub(json: json)
-
-        let service = GeoLocationService(session: MockURLProtocol.makeSession())
+        let service = makeService(json: json)
         let location = try await service.lookup(ip: "192.0.2.1")
 
         #expect(location.city == "")
@@ -88,11 +96,8 @@ struct GeoLocationExtendedContractTests {
 
     @Test("IP address with leading/trailing whitespace is trimmed before lookup")
     func ipWhitespaceIsTrimmed() async throws {
-        defer { MockURLProtocol.requestHandler = nil }
         let json = try MockURLProtocol.loadFixture(named: "ip-api-success.json")
-        MockURLProtocol.stub(json: json)
-
-        let service = GeoLocationService(session: MockURLProtocol.makeSession())
+        let service = makeService(json: json)
         let location = try await service.lookup(ip: "  8.8.8.8  ")
 
         // Should not crash; should use trimmed IP
@@ -103,9 +108,8 @@ struct GeoLocationExtendedContractTests {
 
     @Test("Different IPs are cached independently")
     func differentIPsCachedIndependently() async throws {
-        defer { MockURLProtocol.requestHandler = nil }
         var requestCount = 0
-        MockURLProtocol.requestHandler = { request in
+        let session = MockURLProtocol.makeSession { request in
             requestCount += 1
             let url = request.url!
             let ip = url.pathComponents.last ?? ""
@@ -126,7 +130,7 @@ struct GeoLocationExtendedContractTests {
             return (response, Data(json.utf8))
         }
 
-        let service = GeoLocationService(session: MockURLProtocol.makeSession())
+        let service = GeoLocationService(session: session)
         let loc1 = try await service.lookup(ip: "8.8.8.8")
         let loc2 = try await service.lookup(ip: "1.2.3.4")
 
@@ -139,13 +143,10 @@ struct GeoLocationExtendedContractTests {
 
     @Test("GeoLocationError.lookupFailed carries the API message")
     func lookupFailedCarriesMessage() async throws {
-        defer { MockURLProtocol.requestHandler = nil }
         let json = """
         {"status":"fail","message":"private range"}
         """
-        MockURLProtocol.stub(json: json)
-
-        let service = GeoLocationService(session: MockURLProtocol.makeSession())
+        let service = makeService(json: json)
         do {
             _ = try await service.lookup(ip: "10.0.0.1")
             Issue.record("Expected GeoLocationError.lookupFailed to be thrown")
@@ -160,10 +161,16 @@ struct GeoLocationExtendedContractTests {
 
     @Test("HTTP 403 throws GeoLocationError.httpError")
     func http403ThrowsHTTPError() async throws {
-        defer { MockURLProtocol.requestHandler = nil }
-        MockURLProtocol.stub(json: "{}", statusCode: 403)
+        let session = MockURLProtocol.makeSession { request in
+            let response = HTTPURLResponse(
+                url: request.url ?? URL(string: "https://example.com")!,
+                statusCode: 403, httpVersion: nil,
+                headerFields: nil
+            )!
+            return (response, Data("{}".utf8))
+        }
 
-        let service = GeoLocationService(session: MockURLProtocol.makeSession())
+        let service = GeoLocationService(session: session)
         do {
             _ = try await service.lookup(ip: "1.2.3.4")
             Issue.record("Expected error to be thrown for HTTP 403")
@@ -176,13 +183,7 @@ struct GeoLocationExtendedContractTests {
 
     @Test("Empty JSON object with success status: produces GeoLocation with empty strings")
     func emptySuccessResponseProducesDefaults() async throws {
-        defer { MockURLProtocol.requestHandler = nil }
-        let json = """
-        {"status":"success"}
-        """
-        MockURLProtocol.stub(json: json)
-
-        let service = GeoLocationService(session: MockURLProtocol.makeSession())
+        let service = makeService(json: "{\"status\":\"success\"}")
         let location = try await service.lookup(ip: "203.0.113.50")
 
         // All non-optional fields default to empty string / 0
@@ -196,13 +197,7 @@ struct GeoLocationExtendedContractTests {
 
     @Test("Failure response without message field: throws with 'Unknown error'")
     func failureWithoutMessageThrowsUnknownError() async throws {
-        defer { MockURLProtocol.requestHandler = nil }
-        let json = """
-        {"status":"fail"}
-        """
-        MockURLProtocol.stub(json: json)
-
-        let service = GeoLocationService(session: MockURLProtocol.makeSession())
+        let service = makeService(json: "{\"status\":\"fail\"}")
         do {
             _ = try await service.lookup(ip: "10.0.0.1")
             Issue.record("Expected error to be thrown")

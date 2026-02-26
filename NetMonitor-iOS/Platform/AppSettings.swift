@@ -18,6 +18,7 @@ enum AppSettings {
         static let portScanTimeout      = "portScanTimeout"
         static let dnsServer            = "dnsServer"
         static let speedTestDuration    = "speedTestDuration"
+        static let speedTestServer      = "speedTestServer"
 
         // MARK: Data
         static let dataRetentionDays    = "dataRetentionDays"

@@ -35,6 +35,11 @@ targets:
         NSPrincipalClass: NSApplication
         NSHighResolutionCapable: true
         LSApplicationCategoryType: public.app-category.utilities
+        NSAppTransportSecurity:
+          NSExceptionDomains:
+            ip-api.com:
+              NSExceptionAllowsInsecureHTTPLoads: true
+              NSIncludesSubdomains: true
     entitlements:
       path: NetMonitor-macOS/Resources/NetMonitor-macOS.entitlements
       properties:

@@ -7,7 +7,14 @@ import NetMonitorCore
 final class TracerouteToolViewModel {
     // MARK: - Input Properties
 
-    var host: String = ""
+    var host: String = "" {
+        didSet {
+            let trimmed = host.trimmingCharacters(in: .whitespaces)
+            if !trimmed.isEmpty {
+                TargetManager.shared.currentTarget = trimmed
+            }
+        }
+    }
     var maxHops: Int = 30
 
     // MARK: - State Properties
@@ -46,6 +53,11 @@ final class TracerouteToolViewModel {
 
     func startTrace() {
         guard canStartTrace else { return }
+
+        let trimmed = host.trimmingCharacters(in: .whitespaces)
+        if !trimmed.isEmpty {
+            TargetManager.shared.setTarget(trimmed)
+        }
 
         clearResults()
         isRunning = true

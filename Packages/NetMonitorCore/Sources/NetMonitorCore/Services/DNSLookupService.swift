@@ -348,23 +348,52 @@ public final class DNSLookupService: DNSLookupServiceProtocol {
         // Use startIndex-relative addressing so this works correctly with
         // Data slices (e.g. data.dropFirst(2)) whose startIndex != 0.
         var currentOffset = data.startIndex + offset
+        // Track whether we have followed a compression pointer so we can update
+        // the caller's offset correctly (it should advance past the pointer bytes,
+        // not past the expanded name).
+        var didFollowPointer = false
 
         while currentOffset < data.endIndex {
-            let length = Int(data[currentOffset])
+            let lengthByte = Int(data[currentOffset])
+
+            // DNS name compression pointer: top two bits are both set (0xC0 mask).
+            // The 14-bit pointer value gives the offset into the packet buffer.
+            if (lengthByte & 0xC0) == 0xC0 {
+                // Need two bytes for the pointer.
+                guard currentOffset + 1 < data.endIndex else { return nil }
+                let pointerHigh = (lengthByte & 0x3F) << 8
+                let pointerLow  = Int(data[currentOffset + 1])
+                let pointer     = data.startIndex + pointerHigh + pointerLow
+
+                // Update the caller's logical offset to just after the two pointer bytes,
+                // but only if we have not already followed an earlier pointer.
+                if !didFollowPointer {
+                    offset = (currentOffset + 2) - data.startIndex
+                }
+                didFollowPointer = true
+
+                // Jump to the pointed-to location and continue parsing.
+                guard pointer < data.endIndex else { return nil }
+                currentOffset = pointer
+                continue
+            }
+
             currentOffset += 1
 
-            if length == 0 {
-                offset = currentOffset - data.startIndex
+            if lengthByte == 0 {
+                if !didFollowPointer {
+                    offset = currentOffset - data.startIndex
+                }
                 return labels.joined(separator: ".")
             }
 
-            guard currentOffset + length <= data.endIndex else { return nil }
+            guard currentOffset + lengthByte <= data.endIndex else { return nil }
 
-            let labelData = data[currentOffset..<currentOffset + length]
+            let labelData = data[currentOffset..<currentOffset + lengthByte]
             guard let label = String(data: labelData, encoding: .utf8) else { return nil }
 
             labels.append(label)
-            currentOffset += length
+            currentOffset += lengthByte
         }
 
         return nil

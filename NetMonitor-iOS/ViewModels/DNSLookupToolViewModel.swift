@@ -7,7 +7,14 @@ import NetMonitorCore
 final class DNSLookupToolViewModel {
     // MARK: - Input Properties
 
-    var domain: String = ""
+    var domain: String = "" {
+        didSet {
+            let trimmed = domain.trimmingCharacters(in: .whitespaces)
+            if !trimmed.isEmpty {
+                TargetManager.shared.currentTarget = trimmed
+            }
+        }
+    }
     var recordType: DNSRecordType = .a
 
     // MARK: - State Properties
@@ -34,13 +41,18 @@ final class DNSLookupToolViewModel {
     }
 
     var recordTypes: [DNSRecordType] {
-        [.a, .aaaa, .mx, .txt, .cname, .ns]
+        [.a, .aaaa, .mx, .txt, .cname, .ns, .soa, .ptr]
     }
 
     // MARK: - Actions
 
     func lookup() async {
         guard canStartLookup else { return }
+
+        let trimmed = domain.trimmingCharacters(in: .whitespaces)
+        if !trimmed.isEmpty {
+            TargetManager.shared.setTarget(trimmed)
+        }
 
         isLoading = true
         errorMessage = nil

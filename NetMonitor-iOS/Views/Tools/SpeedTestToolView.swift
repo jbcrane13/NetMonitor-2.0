@@ -141,6 +141,26 @@ struct SpeedTestToolView: View {
             }
             .padding(.horizontal, 4)
 
+            // Server picker
+            HStack {
+                Text("Server")
+                    .font(.subheadline)
+                    .foregroundStyle(Theme.Colors.textSecondary)
+                Spacer()
+                Picker("Server", selection: Binding(
+                    get: { viewModel.selectedServer },
+                    set: { viewModel.selectedServer = $0 }
+                )) {
+                    ForEach(SpeedTestServer.all) { server in
+                        Text(server.name).tag(server)
+                    }
+                }
+                .pickerStyle(.menu)
+                .disabled(viewModel.isRunning)
+                .accessibilityIdentifier("speedTest_picker_server")
+            }
+            .padding(.horizontal, 4)
+
             ToolRunButton(
                 title: "Start Test",
                 icon: "play.fill",

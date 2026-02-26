@@ -15,6 +15,8 @@ public final class SpeedTestService: SpeedTestServiceProtocol {
     public var isRunning: Bool = false
     public var errorMessage: String?
     public var duration: TimeInterval = 5.0  // seconds per phase
+    /// The server to use for the next test. nil = auto (Cloudflare default).
+    public var selectedServer: SpeedTestServer?
 
     // MARK: - Private
 
@@ -37,23 +39,26 @@ public final class SpeedTestService: SpeedTestServiceProtocol {
         reset()
         isRunning = true
 
+        // Capture the selected server so it stays consistent throughout the test run
+        let server = selectedServer
+
         let task = Task<SpeedTestData, Error> {
             // Phase 1: Latency
             phase = .latency
-            let measuredLatency = await measureLatency()
+            let measuredLatency = await measureLatency(server: server)
             try Task.checkCancellation()
             latency = measuredLatency
 
             // Phase 2: Download
             phase = .download
-            let dlSpeed = try await measureDownload()
+            let dlSpeed = try await measureDownload(server: server)
             try Task.checkCancellation()
             downloadSpeed = dlSpeed
 
             // Phase 3: Upload
             phase = .upload
             progress = 0
-            let ulSpeed = try await measureUpload()
+            let ulSpeed = try await measureUpload(server: server)
             try Task.checkCancellation()
             uploadSpeed = ulSpeed
 
@@ -65,7 +70,8 @@ public final class SpeedTestService: SpeedTestServiceProtocol {
             return SpeedTestData(
                 downloadSpeed: downloadSpeed,
                 uploadSpeed: uploadSpeed,
-                latency: latency
+                latency: latency,
+                serverName: server?.isAutoSelect == false ? server?.name : nil
             )
         }
 
@@ -93,11 +99,12 @@ public final class SpeedTestService: SpeedTestServiceProtocol {
 
     // MARK: - Latency Measurement
 
-    private func measureLatency() async -> Double {
+    private func measureLatency(server: SpeedTestServer?) async -> Double {
         let iterations = 3
         var times: [Double] = []
         let session = self.session
-        let url = URL(string: "https://speed.cloudflare.com/__down?bytes=1000000")!
+        let baseURLString = server?.pingURL ?? "https://speed.cloudflare.com"
+        let url = URL(string: baseURLString)!
 
         for _ in 0..<iterations {
             let start = Date()
@@ -120,18 +127,19 @@ public final class SpeedTestService: SpeedTestServiceProtocol {
     // MARK: - Download Measurement
 
     /// Use parallel connections to saturate the link (like real speed tests do)
-    private func measureDownload() async throws -> Double {
+    private func measureDownload(server: SpeedTestServer?) async throws -> Double {
         let chunkSize = 10_000_000 // 10MB chunks for better throughput
         let parallelStreams = 6
         let startTime = Date()
         let totalBytesAtomic = AtomicInt64()
+        let downloadURLString = server?.downloadURL ?? "https://speed.cloudflare.com/__down?bytes=\(chunkSize)"
 
         try await withThrowingTaskGroup(of: Void.self) { group in
             for _ in 0..<parallelStreams {
-                group.addTask { [duration] in
+                group.addTask { [duration, downloadURLString] in
                     let session = URLSession(configuration: .ephemeral)
                     defer { session.invalidateAndCancel() }
-                    let url = URL(string: "https://speed.cloudflare.com/__down?bytes=\(chunkSize)")!
+                    let url = URL(string: downloadURLString)!
 
                     while Date().timeIntervalSince(startTime) < duration {
                         try Task.checkCancellation()
@@ -177,18 +185,19 @@ public final class SpeedTestService: SpeedTestServiceProtocol {
 
     // MARK: - Upload Measurement
 
-    private func measureUpload() async throws -> Double {
+    private func measureUpload(server: SpeedTestServer?) async throws -> Double {
         let chunkSize = 1_000_000 // 1MB upload chunks
         let parallelStreams = 4
         let startTime = Date()
         let totalBytesAtomic = AtomicInt64()
+        let uploadURLString = server?.uploadURL ?? "https://speed.cloudflare.com/__up"
 
         try await withThrowingTaskGroup(of: Void.self) { group in
             for _ in 0..<parallelStreams {
-                group.addTask { [duration] in
+                group.addTask { [duration, uploadURLString] in
                     let session = URLSession(configuration: .ephemeral)
                     defer { session.invalidateAndCancel() }
-                    let url = URL(string: "https://speed.cloudflare.com/__up")!
+                    let url = URL(string: uploadURLString)!
                     let uploadData = Data(count: chunkSize)
 
                     while Date().timeIntervalSince(startTime) < duration {

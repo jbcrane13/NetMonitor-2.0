@@ -300,6 +300,105 @@ public struct BonjourService: Identifiable, Sendable {
     }
 }
 
+// MARK: - SpeedTestServer
+
+/// A known speed test server that can be selected by the user.
+public struct SpeedTestServer: Identifiable, Hashable, Sendable {
+    public let id: String
+    public let name: String
+    public let location: String
+    /// URL used for download measurement (nil = auto/current behavior).
+    public let downloadURL: String?
+    /// URL used for upload measurement (nil = auto/current behavior).
+    public let uploadURL: String?
+    /// URL used for latency ping (nil = auto/current behavior).
+    public let pingURL: String?
+    /// When true this entry represents the automatic server selection fallback.
+    public var isAutoSelect: Bool
+
+    public init(
+        id: String,
+        name: String,
+        location: String,
+        downloadURL: String?,
+        uploadURL: String?,
+        pingURL: String? = nil,
+        isAutoSelect: Bool = false
+    ) {
+        self.id = id
+        self.name = name
+        self.location = location
+        self.downloadURL = downloadURL
+        self.uploadURL = uploadURL
+        self.pingURL = pingURL
+        self.isAutoSelect = isAutoSelect
+    }
+}
+
+// MARK: - SpeedTestServer Built-In List
+
+public extension SpeedTestServer {
+    /// The default "auto-select" entry that preserves the original Cloudflare behavior.
+    static let autoSelect = SpeedTestServer(
+        id: "auto",
+        name: "Auto-select",
+        location: "Nearest server",
+        downloadURL: nil,
+        uploadURL: nil,
+        pingURL: nil,
+        isAutoSelect: true
+    )
+
+    /// Cloudflare global CDN.
+    static let cloudflare = SpeedTestServer(
+        id: "cloudflare",
+        name: "Cloudflare",
+        location: "Global CDN",
+        downloadURL: "https://speed.cloudflare.com/__down?bytes=10000000",
+        uploadURL: "https://speed.cloudflare.com/__up",
+        pingURL: "https://speed.cloudflare.com"
+    )
+
+    /// Hetzner (Germany).
+    static let hetzner = SpeedTestServer(
+        id: "hetzner",
+        name: "Hetzner",
+        location: "Germany",
+        downloadURL: "https://speed.hetzner.de/100MB.bin",
+        uploadURL: nil,
+        pingURL: "https://speed.hetzner.de"
+    )
+
+    /// OVH (France).
+    static let ovh = SpeedTestServer(
+        id: "ovh",
+        name: "OVH",
+        location: "France",
+        downloadURL: "https://proof.ovh.net/files/100Mb.dat",
+        uploadURL: nil,
+        pingURL: "https://proof.ovh.net"
+    )
+
+    /// Tele2 (Sweden) — a long-standing public speed test mirror.
+    static let tele2 = SpeedTestServer(
+        id: "tele2",
+        name: "Tele2",
+        location: "Sweden",
+        downloadURL: "https://speedtest.tele2.net/100MB.zip",
+        uploadURL: nil,
+        pingURL: "https://speedtest.tele2.net"
+    )
+
+    /// The canonical ordered list shown in the picker (auto-select first).
+    static let all: [SpeedTestServer] = [
+        .autoSelect,
+        .cloudflare,
+        .hetzner,
+        .ovh,
+        .tele2
+    ]
+}
+
 // MARK: - WHOISResult
 
 public struct WHOISResult: Sendable {
