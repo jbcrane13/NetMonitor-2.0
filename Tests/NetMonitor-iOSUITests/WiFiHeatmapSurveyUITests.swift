@@ -6,7 +6,7 @@ final class WiFiHeatmapSurveyUITests: IOSUITestCase {
         openWiFiHeatmap()
 
         requireExists(ui("heatmap_status_bar"), message: "Heatmap status bar should be visible")
-        requireExists(ui("heatmap_picker_mode"), message: "Heatmap mode picker should be visible")
+        requireExists(ui("heatmap_menu_scheme"), message: "Heatmap mode picker should be visible")
         requireExists(app.buttons["heatmap_button_main_action"], message: "Main heatmap action button should be visible")
         requireExists(app.buttons["heatmap_button_select_floorplan"], message: "Floorplan selection should be visible")
         requireExists(app.buttons["heatmap_button_survey_without_floorplan"], message: "Survey without floorplan button should be visible")
@@ -82,7 +82,35 @@ final class WiFiHeatmapSurveyUITests: IOSUITestCase {
         )
 
         requireExists(app.buttons["heatmap_button_main_action"], message: "Main action button should be visible")
-        requireExists(ui("heatmap_picker_mode"), message: "Mode picker should be visible")
+        requireExists(ui("heatmap_menu_scheme"), message: "Mode picker should be visible")
+    }
+
+    func testColorSchemeMenuOpens() {
+        openWiFiHeatmap()
+        let schemeMenu = requireExists(app.buttons["heatmap_menu_scheme"], message: "Color scheme menu should be visible")
+        schemeMenu.tap()
+        // Scheme menu opens — verify a scheme option appears (SwiftUI Menu renders as contextMenu/popover)
+        XCTAssertTrue(
+            waitForEither([
+                app.buttons["Thermal"].firstMatch,
+                app.buttons["Cold"].firstMatch,
+                app.buttons["Rainbow"].firstMatch,
+                app.menus.firstMatch
+            ], timeout: 5),
+            "Color scheme menu should present scheme options"
+        )
+    }
+
+    func testOverlayTogglesExistAndToggle() {
+        openWiFiHeatmap()
+        let dotsToggle = requireExists(app.buttons["heatmap_toggle_dots"], message: "Dots overlay toggle should be visible")
+        let contourToggle = requireExists(app.buttons["heatmap_toggle_contour"], message: "Contour overlay toggle should be visible")
+        // Tap to toggle
+        dotsToggle.tap()
+        // Verify button is still present after toggle (state change)
+        requireExists(app.buttons["heatmap_toggle_dots"], message: "Dots toggle should remain after tap")
+        contourToggle.tap()
+        requireExists(app.buttons["heatmap_toggle_contour"], message: "Contour toggle should remain after tap")
     }
 
     private func openWiFiHeatmap() {

@@ -79,12 +79,13 @@ struct ConnectionStatusHeader: View {
                 .font(.system(size: 11, weight: .bold, design: .monospaced))
                 .foregroundStyle(Theme.Colors.textSecondary)
         }
+        .accessibilityIdentifier("dashboard_header_connectionStatus")
     }
 }
 
 struct TacticalHUDHeader: View {
     let viewModel: DashboardViewModel
-    
+
     var body: some View {
         VStack(spacing: 0) {
             GlassCard(padding: 16) {
@@ -149,8 +150,9 @@ struct TacticalHUDHeader: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
+        .accessibilityIdentifier("dashboard_header_network")
     }
-    
+
     var wifiIconName: String {
         guard let dbm = viewModel.currentWiFi?.signalDBm else { return "wifi" }
         if dbm > -50 { return "wifi" }
@@ -240,8 +242,9 @@ struct RefinedNetworkHealthCard: View {
                 }
             }
         }
+        .accessibilityIdentifier("dashboard_card_healthScore")
     }
-    
+
     private var healthStatusTitle: String {
         if !viewModel.isConnected { return "Network Offline" }
         return healthScore > 80 ? "Optimal Performance" : "Degraded Signal"
@@ -337,6 +340,7 @@ struct ProConnectivityPanel: View {
             }
             .padding(.top, 4)
         }
+        .accessibilityIdentifier("dashboard_card_connectivity")
     }
 }
 
@@ -516,6 +520,7 @@ struct LocalDevicesCard: View {
             }
         }
         .buttonStyle(PlainButtonStyle())
+        .accessibilityIdentifier("dashboard_card_localDevices")
     }
 }
 

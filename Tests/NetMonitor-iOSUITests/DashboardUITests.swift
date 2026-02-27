@@ -32,30 +32,41 @@ final class DashboardUITests: IOSUITestCase {
 
     // MARK: - Dashboard Cards
 
-    func testSessionCardExists() throws {
-        requireExists(ui("dashboard_card_session"), message: "Session card should exist on dashboard")
+    func testNetworkHUDHeaderExists() throws {
+        requireExists(ui("dashboard_header_network"), message: "Network HUD header should exist on dashboard")
     }
 
-    func testWiFiCardExists() throws {
-        requireExists(ui("dashboard_card_wifi"), message: "WiFi card should exist on dashboard")
+    func testHealthScoreCardExists() throws {
+        requireExists(ui("dashboard_card_healthScore"), message: "Health score card should exist on dashboard")
     }
 
-    func testGatewayCardExists() throws {
-        requireExists(ui("dashboard_card_gateway"), message: "Gateway card should exist on dashboard")
+    func testNetworkHealthLabelExists() throws {
+        requireExists(app.staticTexts["NETWORK HEALTH"], message: "NETWORK HEALTH label should exist on dashboard")
     }
 
-    func testActiveNetworkCardExists() throws {
-        requireExists(app.staticTexts["Active Network"], message: "Active Network label should exist on dashboard")
+    func testConnectivityPanelExists() throws {
+        let panel = ui("dashboard_card_connectivity")
+        scrollToElement(panel)
+        requireExists(panel, message: "Connectivity panel should exist on dashboard")
     }
 
-    func testNetworkPickerExists() throws {
-        requireExists(app.staticTexts["Active Network"], message: "Network picker label should exist on dashboard")
+    func testMonitoringStatusTextExists() throws {
+        // ConnectionStatusHeader shows "MONITORING" or "OFFLINE"
+        XCTAssertTrue(
+            waitForEither([
+                app.staticTexts["MONITORING"].firstMatch,
+                app.staticTexts["OFFLINE"].firstMatch
+            ], timeout: 5),
+            "Monitoring status (MONITORING or OFFLINE) should be visible in toolbar"
+        )
     }
 
-    func testISPCardExists() throws {
-        let ispCard = ui("dashboard_card_isp")
-        scrollToElement(ispCard)
-        requireExists(ispCard, message: "ISP card should exist on dashboard")
+    func testConnectivityInfoDisplaysISP() throws {
+        let panel = ui("dashboard_card_connectivity")
+        scrollToElement(panel)
+        requireExists(panel, message: "Connectivity panel should exist")
+        // ProConnectivityPanel always shows ISP row label
+        requireExists(app.staticTexts["ISP"], message: "ISP label should be visible in connectivity panel")
     }
 
     func testLocalDevicesCardExists() throws {
