@@ -20,6 +20,20 @@ final class WiFiHeatmapSurveyViewModel {
     var selectedMode: HeatmapMode = .freeform
     var floorplanImageData: Data?
 
+    // MARK: - Heatmap display settings
+
+    private(set) var calibration: CalibrationScale?
+    var colorScheme: HeatmapColorScheme = .thermal {
+        didSet { UserDefaults.standard.set(colorScheme.rawValue, forKey: AppSettings.Keys.heatmapColorScheme) }
+    }
+    var displayOverlays: HeatmapDisplayOverlay = .gradient {
+        didSet { UserDefaults.standard.set(displayOverlays.rawValue, forKey: AppSettings.Keys.heatmapDisplayOverlays) }
+    }
+    var preferredUnit: DistanceUnit = .feet {
+        didSet { UserDefaults.standard.set(preferredUnit.rawValue, forKey: AppSettings.Keys.heatmapPreferredUnit) }
+    }
+    var isCalibrating = false
+
     // MARK: - Private
 
     private let service: any WiFiHeatmapServiceProtocol
@@ -31,6 +45,18 @@ final class WiFiHeatmapSurveyViewModel {
     init(service: any WiFiHeatmapServiceProtocol = WiFiHeatmapService()) {
         self.service = service
         loadSurveys()
+        if let raw = UserDefaults.standard.string(forKey: AppSettings.Keys.heatmapColorScheme),
+           let scheme = HeatmapColorScheme(rawValue: raw) {
+            colorScheme = scheme
+        }
+        if let rawUnit = UserDefaults.standard.string(forKey: AppSettings.Keys.heatmapPreferredUnit),
+           let unit = DistanceUnit(rawValue: rawUnit) {
+            preferredUnit = unit
+        }
+        let overlayRaw = UserDefaults.standard.integer(forKey: AppSettings.Keys.heatmapDisplayOverlays)
+        if overlayRaw != 0 {
+            displayOverlays = HeatmapDisplayOverlay(rawValue: overlayRaw)
+        }
     }
 
     // MARK: - Survey control
@@ -65,7 +91,8 @@ final class WiFiHeatmapSurveyViewModel {
             let survey = HeatmapSurvey(
                 name: "Survey \(surveys.count + 1)",
                 mode: selectedMode,
-                dataPoints: dataPoints
+                dataPoints: dataPoints,
+                calibration: calibration
             )
             surveys.insert(survey, at: 0)
             saveSurveys()
@@ -86,6 +113,17 @@ final class WiFiHeatmapSurveyViewModel {
     func deleteSurvey(_ survey: HeatmapSurvey) {
         surveys.removeAll { $0.id == survey.id }
         saveSurveys()
+    }
+
+    // MARK: - Calibration
+
+    func setCalibration(pixelDist: Double, realDist: Double, unit: DistanceUnit) {
+        calibration = CalibrationScale(pixelDistance: pixelDist, realDistance: realDist, unit: unit)
+        isCalibrating = false
+    }
+
+    func clearCalibration() {
+        calibration = nil
     }
 
     // MARK: - Signal reading

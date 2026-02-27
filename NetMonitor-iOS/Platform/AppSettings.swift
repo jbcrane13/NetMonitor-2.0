@@ -42,6 +42,11 @@ enum AppSettings {
         // MARK: Web Browser
         static let webBrowserRecentURLs = "webBrowser_recentURLs"
 
+        // MARK: Heatmap
+        static let heatmapColorScheme     = "heatmapColorScheme"
+        static let heatmapDisplayOverlays = "heatmapDisplayOverlays"
+        static let heatmapPreferredUnit   = "heatmapPreferredUnit"
+
         // MARK: Widget (shared via App Group)
         static let widgetIsConnected     = "widget_isConnected"
         static let widgetConnectionType  = "widget_connectionType"

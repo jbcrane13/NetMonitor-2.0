@@ -146,4 +146,38 @@ struct WiFiHeatmapSurveyViewModelTests {
         vm.startSurvey()
         #expect(mock.startCallCount == 1)
     }
+
+    // MARK: - Calibration tests
+
+    @Test("setCalibration stores scale on viewModel")
+    @MainActor
+    func setCalibrationStores() async {
+        let vm = WiFiHeatmapSurveyViewModel(service: MockWiFiHeatmapService())
+        vm.setCalibration(pixelDist: 100, realDist: 10, unit: .feet)
+        #expect(vm.calibration?.pixelsPerUnit == 10.0)
+        #expect(vm.calibration?.unit == .feet)
+    }
+
+    @Test("clearCalibration removes scale")
+    @MainActor
+    func clearCalibration() async {
+        let vm = WiFiHeatmapSurveyViewModel(service: MockWiFiHeatmapService())
+        vm.setCalibration(pixelDist: 100, realDist: 10, unit: .feet)
+        vm.clearCalibration()
+        #expect(vm.calibration == nil)
+    }
+
+    @Test("default colorScheme is thermal")
+    @MainActor
+    func defaultColorScheme() async {
+        let vm = WiFiHeatmapSurveyViewModel(service: MockWiFiHeatmapService())
+        #expect(vm.colorScheme == .thermal)
+    }
+
+    @Test("default preferredUnit is feet")
+    @MainActor
+    func defaultUnit() async {
+        let vm = WiFiHeatmapSurveyViewModel(service: MockWiFiHeatmapService())
+        #expect(vm.preferredUnit == .feet)
+    }
 }
