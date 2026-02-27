@@ -26,11 +26,16 @@ final class WiFiHeatmapToolViewModel {
     var panOffset: CGSize = .zero
 
     // MARK: - Private
-    private let service = WiFiHeatmapService()
+    private let service: any WiFiHeatmapServiceProtocol
     private var signalRefreshTask: Task<Void, Never>?
     private static let surveysKey = "wifiHeatmap_surveys_mac"
 
-    init() { loadSurveys() }
+    private var macService: WiFiHeatmapService? { service as? WiFiHeatmapService }
+
+    init(service: any WiFiHeatmapServiceProtocol = WiFiHeatmapService()) {
+        self.service = service
+        loadSurveys()
+    }
 
     // MARK: - Survey control
 
@@ -43,7 +48,7 @@ final class WiFiHeatmapToolViewModel {
 
         signalRefreshTask = Task {
             while !Task.isCancelled {
-                currentRSSI = service.currentRSSI() ?? service.simulatedRSSI()
+                currentRSSI = macService?.currentRSSI() ?? macService?.simulatedRSSI() ?? Int.random(in: (-80)...(-45))
                 try? await Task.sleep(for: .seconds(1))
             }
         }
@@ -53,6 +58,7 @@ final class WiFiHeatmapToolViewModel {
         guard isSurveying else { return }
         isSurveying = false
         signalRefreshTask?.cancel()
+        signalRefreshTask = nil
         service.stopSurvey()
         dataPoints = service.getSurveyData()
 
@@ -76,7 +82,7 @@ final class WiFiHeatmapToolViewModel {
         guard isSurveying, size.width > 0, size.height > 0 else { return }
         let nx = point.x / size.width
         let ny = point.y / size.height
-        let rssi = currentRSSI != 0 ? currentRSSI : service.simulatedRSSI()
+        let rssi = currentRSSI != 0 ? currentRSSI : macService?.simulatedRSSI() ?? Int.random(in: (-80)...(-45))
         service.recordDataPoint(signalStrength: rssi, x: nx, y: ny)
         dataPoints = service.getSurveyData()
         statusMessage = "\(rssi) dBm recorded at (\(String(format: "%.2f", nx)), \(String(format: "%.2f", ny)))"

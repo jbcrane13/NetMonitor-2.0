@@ -7,7 +7,8 @@ import NetMonitorCore
 struct WiFiHeatmapToolView: View {
     @State private var vm = WiFiHeatmapToolViewModel()
     @State private var showingCalibration = false
-    @State private var canvasSize: CGSize = .zero
+    @State private var baseZoomScale: CGFloat = 1.0
+    @State private var basePanOffset: CGSize = .zero
     @State private var macCalibPx: Double = 0
     @State private var macCalibReal: Double = 0
     @State private var macCalibUnit: DistanceUnit = .feet
@@ -120,7 +121,12 @@ struct WiFiHeatmapToolView: View {
             }
             .buttonStyle(.plain).controlSize(.small)
 
-            Button { vm.zoomScale = 1; vm.panOffset = .zero } label: {
+            Button {
+                vm.zoomScale = 1
+                vm.panOffset = .zero
+                baseZoomScale = 1.0
+                basePanOffset = .zero
+            } label: {
                 Image(systemName: "arrow.counterclockwise")
             }
             .buttonStyle(.plain).controlSize(.small)
@@ -175,6 +181,7 @@ struct WiFiHeatmapToolView: View {
                 // which is a macOS-native equivalent without UIImage dependency.
                 MacHeatmapCanvasView(
                     points: vm.dataPoints,
+                    floorplanImage: vm.floorplanImage,
                     colorScheme: vm.colorScheme,
                     overlays: vm.displayOverlays,
                     calibration: vm.calibration,
@@ -185,11 +192,27 @@ struct WiFiHeatmapToolView: View {
                 .offset(vm.panOffset)
                 .gesture(
                     MagnificationGesture()
-                        .onChanged { val in vm.zoomScale = max(0.5, min(5, val)) }
+                        .onChanged { val in
+                            vm.zoomScale = max(0.5, min(5, baseZoomScale * val))
+                        }
+                        .onEnded { val in
+                            baseZoomScale = max(0.5, min(5, baseZoomScale * val))
+                        }
                 )
                 .gesture(
                     DragGesture()
-                        .onChanged { val in vm.panOffset = val.translation }
+                        .onChanged { val in
+                            vm.panOffset = CGSize(
+                                width: basePanOffset.width + val.translation.width,
+                                height: basePanOffset.height + val.translation.height
+                            )
+                        }
+                        .onEnded { val in
+                            basePanOffset = CGSize(
+                                width: basePanOffset.width + val.translation.width,
+                                height: basePanOffset.height + val.translation.height
+                            )
+                        }
                 )
 
                 if let hover = vm.hoverPoint, let rssi = interpolatedRSSI(at: hover, in: geo.size) {
@@ -202,7 +225,6 @@ struct WiFiHeatmapToolView: View {
                 case .ended: vm.hoverPoint = nil
                 }
             }
-            .onAppear { canvasSize = geo.size }
         }
         .background(Color.black)
     }
@@ -363,6 +385,7 @@ struct WiFiHeatmapToolView: View {
 private struct MacHeatmapCanvasView: View {
 
     let points: [HeatmapDataPoint]
+    let floorplanImage: NSImage?
     let colorScheme: HeatmapColorScheme
     let overlays: HeatmapDisplayOverlay
     let calibration: CalibrationScale?
@@ -374,6 +397,15 @@ private struct MacHeatmapCanvasView: View {
     var body: some View {
         GeometryReader { geo in
             ZStack {
+                if let img = floorplanImage {
+                    Image(nsImage: img)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: geo.size.width, height: geo.size.height)
+                        .clipped()
+                        .opacity(0.55)
+                }
+
                 // Background grid
                 Canvas { ctx, size in
                     let step: CGFloat = 40
