@@ -6,7 +6,7 @@ struct ContentView: View {
     @Environment(MonitoringSession.self) private var session: MonitoringSession?
     @Environment(DeviceDiscoveryCoordinator.self) private var deviceDiscovery: DeviceDiscoveryCoordinator?
     @Environment(NetworkProfileManager.self) private var profileManager: NetworkProfileManager?
-    @State private var selectedSection: SidebarSelection?
+    @State private var selectedSection: SidebarSelection? = .section(.dashboard)
     @State private var localSession: MonitoringSession?
     @State private var selectedNetworkProfile: NetworkProfile?
     @State private var showingAddNetworkSheet = false

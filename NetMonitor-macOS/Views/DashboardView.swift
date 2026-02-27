@@ -77,9 +77,18 @@ struct DashboardView: View {
     }
 
     private func seedDefaultTargetsIfNeeded() async {
+        // Update existing gateway target if IP changed (e.g. network switch)
+        if let gatewayTarget = targets.first(where: { $0.name == "Local Gateway" }),
+           let detectedGateway = NetworkUtilities.detectDefaultGateway(),
+           gatewayTarget.host != detectedGateway {
+            gatewayTarget.host = detectedGateway
+            try? modelContext.save()
+        }
+
         guard targets.isEmpty else { return }
+        let gatewayIP = NetworkUtilities.detectDefaultGateway() ?? "192.168.1.1"
         let seeds: [(String, String)] = [
-            ("Local Gateway", "192.168.1.1"),
+            ("Local Gateway", gatewayIP),
             ("Google DNS",    "8.8.8.8"),
             ("Cloudflare",    "1.1.1.1"),
         ]
