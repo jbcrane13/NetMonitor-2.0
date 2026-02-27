@@ -11,6 +11,8 @@ struct DashboardView: View {
 
     @Query private var targets: [NetworkTarget]
 
+    @State private var showingAddTarget = false
+
     var body: some View {
         GeometryReader { geo in
             let h       = geo.size.height
@@ -55,9 +57,12 @@ struct DashboardView: View {
                 }
 
                 // ── Row D: Target Monitoring ──────────────────────────────
-                TargetMonitoringSection(targets: targets, session: session)
+                TargetMonitoringSection(targets: targets, session: session, showingAddTarget: $showingAddTarget)
                     .frame(height: rowD)
                     .accessibilityIdentifier("dashboard_row_targets")
+                    .sheet(isPresented: $showingAddTarget) {
+                        AddTargetSheet()
+                    }
             }
             .padding(14)
         }
@@ -90,6 +95,7 @@ struct DashboardView: View {
 private struct TargetMonitoringSection: View {
     let targets: [NetworkTarget]
     let session: MonitoringSession?
+    @Binding var showingAddTarget: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -133,7 +139,7 @@ private struct TargetMonitoringSection: View {
             }
 
             if targets.isEmpty {
-                NoTargetsView(onAdd: {})
+                NoTargetsView(onAdd: { showingAddTarget = true })
             } else {
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 220))], spacing: 10) {
                     ForEach(targets) { target in
@@ -260,7 +266,7 @@ struct TargetStatusCard: View {
     }
 
     private var signalColor: Color {
-        guard let m = measurement else { return .secondary }
+        guard let m = measurement else { return MacTheme.Colors.textSecondary }
         return m.isReachable ? MacTheme.Colors.success : MacTheme.Colors.error
     }
 }
