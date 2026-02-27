@@ -10,14 +10,14 @@ import NetMonitorCore
 
 /// Row B (left): Compact ISP info card — name, public IP, uptime bar, speeds, mini chart.
 struct ISPHealthCard: View {
-    @State private var ispInfo: ISPLookupService.ISPInfo?
-    @State private var isLoading = true
+    @State private var vm: ISPCardViewModel
     @State private var throughputHistory: [Double] = []
     @State private var uploadHistory:     [Double] = []
     @State private var uptimeSegments:    [Bool]   = []
-    @State private var errorMessage: String?
 
-    private let service = ISPLookupService()
+    init(service: any ISPLookupServiceProtocol = ISPLookupService()) {
+        _vm = State(initialValue: ISPCardViewModel(service: service))
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -29,7 +29,7 @@ struct ISPHealthCard: View {
                     .foregroundStyle(.secondary)
                     .tracking(1.4)
                 Spacer()
-                if let isp = ispInfo?.isp {
+                if let isp = vm.ispInfo?.isp {
                     Text(isp.uppercased())
                         .font(.system(size: 10, weight: .bold))
                         .foregroundStyle(MacTheme.Colors.success)
@@ -38,22 +38,22 @@ struct ISPHealthCard: View {
                 }
             }
 
-            if isLoading {
+            if vm.isLoading {
                 HStack { Spacer(); ProgressView().controlSize(.mini); Spacer() }
                     .frame(maxHeight: .infinity)
             } else {
                 HStack(alignment: .top, spacing: 12) {
                     // Left: ISP details
                     VStack(alignment: .leading, spacing: 3) {
-                        Text(ispInfo?.isp ?? "Unknown ISP")
+                        Text(vm.ispInfo?.isp ?? "Unknown ISP")
                             .font(.system(size: 16, weight: .bold))
                             .lineLimit(1)
-                        if let ip = ispInfo?.publicIP {
+                        if let ip = vm.ispInfo?.publicIP {
                             Text(ip)
                                 .font(.system(size: 11, design: .monospaced))
                                 .foregroundStyle(MacTheme.Colors.info)
                         }
-                        if let city = ispInfo?.city, let country = ispInfo?.country {
+                        if let city = vm.ispInfo?.city, let country = vm.ispInfo?.country {
                             Text("\(city), \(country)")
                                 .font(.system(size: 10))
                                 .foregroundStyle(.tertiary)
@@ -106,7 +106,7 @@ struct ISPHealthCard: View {
                 .accessibilityLabel("Live throughput chart")
             }
 
-            if let errorMessage {
+            if let errorMessage = vm.errorMessage {
                 Text(errorMessage)
                     .font(.system(size: 9))
                     .foregroundStyle(.red.opacity(0.9))
@@ -153,12 +153,7 @@ struct ISPHealthCard: View {
         uptimeSegments    = generateUptimeSegments()
         throughputHistory = generateSimulatedSeries(base: 921, noise: 130)
         uploadHistory     = generateSimulatedSeries(base: 458, noise: 80)
-        do {
-            ispInfo = try await service.lookup()
-        } catch {
-            errorMessage = error.localizedDescription
-        }
-        isLoading = false
+        await vm.load()
     }
 
     /// Simulated 30-day uptime (99.8% ≈ 3 down out of 180 segments).

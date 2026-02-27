@@ -13,9 +13,14 @@ struct ConnectivityCard: View {
     let session:        MonitoringSession?
     let profileManager: NetworkProfileManager?
 
-    @State private var ispInfo: ISPLookupService.ISPInfo?
-    @State private var loadError: String?
-    private let ispService = ISPLookupService()
+    @State private var vm: ConnectivityCardViewModel
+
+    init(session: MonitoringSession?, profileManager: NetworkProfileManager?,
+         ispService: any ISPLookupServiceProtocol = ISPLookupService()) {
+        self.session = session
+        self.profileManager = profileManager
+        _vm = State(initialValue: ConnectivityCardViewModel(service: ispService))
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
@@ -35,9 +40,9 @@ struct ConnectivityCard: View {
                 alignment: .leading,
                 spacing: 4
             ) {
-                connRow(key: "ISP",       value: ispInfo?.isp ?? "—")
+                connRow(key: "ISP",       value: vm.ispInfo?.isp ?? "—")
                 connRow(key: "DNS",       value: "8.8.8.8 · 1.1.1.1")
-                connRow(key: "Public IP", value: ispInfo?.publicIP ?? "—",
+                connRow(key: "Public IP", value: vm.ispInfo?.publicIP ?? "—",
                         mono: true, color: MacTheme.Colors.info)
                 connRow(key: "IPv6",      value: "Enabled",
                         color: MacTheme.Colors.success)
@@ -47,7 +52,7 @@ struct ConnectivityCard: View {
                 connRow(key: "Location",  value: locationString)
             }
 
-            if let loadError {
+            if let loadError = vm.loadError {
                 Text(loadError)
                     .font(.system(size: 9))
                     .foregroundStyle(.red.opacity(0.9))
@@ -61,11 +66,7 @@ struct ConnectivityCard: View {
         .macGlassCard(cornerRadius: 14, padding: 10)
         .accessibilityIdentifier("dashboard_card_connectivity")
         .task {
-            do {
-                try await loadISP()
-            } catch {
-                loadError = error.localizedDescription
-            }
+            await vm.load()
         }
     }
 
@@ -126,13 +127,9 @@ struct ConnectivityCard: View {
     // MARK: Helpers
 
     private var locationString: String {
-        if let city = ispInfo?.city, let country = ispInfo?.country {
+        if let city = vm.ispInfo?.city, let country = vm.ispInfo?.country {
             return "\(city), \(country)"
         }
-        return ispInfo?.country ?? "—"
-    }
-
-    private func loadISP() async throws {
-        ispInfo = try await ispService.lookup()
+        return vm.ispInfo?.country ?? "—"
     }
 }

@@ -257,7 +257,7 @@ public enum ToolType: String, Codable, CaseIterable, Sendable {
 
 // MARK: - TargetProtocol
 
-public enum TargetProtocol: String, Codable, CaseIterable, Sendable {
+public enum TargetProtocol: String, CaseIterable, Sendable {
     case icmp
     case tcp
     case http
@@ -279,6 +279,28 @@ public enum TargetProtocol: String, Codable, CaseIterable, Sendable {
         case .http: 80
         case .https: 443
         }
+    }
+}
+
+// Case-insensitive Codable conformance handles legacy uppercase values
+// (e.g. "HTTPS" -> .https) stored by older versions of the app.
+extension TargetProtocol: Codable {
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let raw = try container.decode(String.self)
+        if let value = TargetProtocol(rawValue: raw.lowercased()) {
+            self = value
+        } else {
+            throw DecodingError.dataCorruptedError(
+                in: container,
+                debugDescription: "Cannot initialize TargetProtocol from invalid String value \(raw)"
+            )
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue) // always writes lowercase
     }
 }
 

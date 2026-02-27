@@ -200,6 +200,14 @@ actor ISPLookupService {
     }
 }
 
+// MARK: - Protocol
+
+protocol ISPLookupServiceProtocol: Sendable {
+    func lookup() async throws -> ISPLookupService.ISPInfo
+}
+
+extension ISPLookupService: ISPLookupServiceProtocol {}
+
 // MARK: - Errors
 
 enum ISPLookupError: LocalizedError {
