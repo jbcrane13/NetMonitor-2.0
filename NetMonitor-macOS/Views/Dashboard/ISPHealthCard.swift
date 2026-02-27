@@ -15,6 +15,7 @@ struct ISPHealthCard: View {
     @State private var throughputHistory: [Double] = []
     @State private var uploadHistory:     [Double] = []
     @State private var uptimeSegments:    [Bool]   = []
+    @State private var errorMessage: String?
 
     private let service = ISPLookupService()
 
@@ -104,6 +105,14 @@ struct ISPHealthCard: View {
                 .frame(height: 34)
                 .accessibilityLabel("Live throughput chart")
             }
+
+            if let errorMessage {
+                Text(errorMessage)
+                    .font(.system(size: 9))
+                    .foregroundStyle(.red.opacity(0.9))
+                    .lineLimit(2)
+                    .accessibilityIdentifier("dashboard_ispHealth_error")
+            }
         }
         .macGlassCard(cornerRadius: 14, padding: 10)
         .accessibilityIdentifier("dashboard_card_ispHealth")
@@ -144,7 +153,11 @@ struct ISPHealthCard: View {
         uptimeSegments    = generateUptimeSegments()
         throughputHistory = generateSimulatedSeries(base: 921, noise: 130)
         uploadHistory     = generateSimulatedSeries(base: 458, noise: 80)
-        do { ispInfo = try await service.lookup() } catch {}
+        do {
+            ispInfo = try await service.lookup()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
         isLoading = false
     }
 

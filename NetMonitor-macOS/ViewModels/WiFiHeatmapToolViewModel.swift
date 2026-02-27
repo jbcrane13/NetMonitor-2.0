@@ -16,6 +16,7 @@ final class WiFiHeatmapToolViewModel {
     private(set) var selectedSurveyID: UUID? = nil
     private(set) var statusMessage = "Click 'Start Survey' to begin"
 
+    var persistenceError: String?
     var colorScheme: HeatmapColorScheme = .thermal
     var displayOverlays: HeatmapDisplayOverlay = .gradient
     var preferredUnit: DistanceUnit = .feet
@@ -123,16 +124,23 @@ final class WiFiHeatmapToolViewModel {
     // MARK: - Persistence
 
     private func loadSurveys() {
-        guard let data = UserDefaults.standard.data(forKey: Self.surveysKey),
-              let loaded = try? JSONDecoder().decode([HeatmapSurvey].self, from: data)
-        else { return }
-        surveys = loaded
-        selectedSurveyID = surveys.first?.id
-        if let first = surveys.first { dataPoints = first.dataPoints; calibration = first.calibration }
+        guard let data = UserDefaults.standard.data(forKey: Self.surveysKey) else { return }
+        do {
+            let loaded = try JSONDecoder().decode([HeatmapSurvey].self, from: data)
+            surveys = loaded
+            selectedSurveyID = surveys.first?.id
+            if let first = surveys.first { dataPoints = first.dataPoints; calibration = first.calibration }
+        } catch {
+            persistenceError = error.localizedDescription
+        }
     }
 
     private func saveSurveys() {
-        guard let data = try? JSONEncoder().encode(surveys) else { return }
-        UserDefaults.standard.set(data, forKey: Self.surveysKey)
+        do {
+            let data = try JSONEncoder().encode(surveys)
+            UserDefaults.standard.set(data, forKey: Self.surveysKey)
+        } catch {
+            persistenceError = error.localizedDescription
+        }
     }
 }

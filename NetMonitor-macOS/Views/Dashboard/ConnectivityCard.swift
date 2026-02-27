@@ -14,6 +14,7 @@ struct ConnectivityCard: View {
     let profileManager: NetworkProfileManager?
 
     @State private var ispInfo: ISPLookupService.ISPInfo?
+    @State private var loadError: String?
     private let ispService = ISPLookupService()
 
     var body: some View {
@@ -46,12 +47,26 @@ struct ConnectivityCard: View {
                 connRow(key: "Location",  value: locationString)
             }
 
+            if let loadError {
+                Text(loadError)
+                    .font(.system(size: 9))
+                    .foregroundStyle(.red.opacity(0.9))
+                    .lineLimit(2)
+                    .accessibilityIdentifier("dashboard_connectivity_error")
+            }
+
             // Anchor ping pills
             anchorPingsView
         }
         .macGlassCard(cornerRadius: 14, padding: 10)
         .accessibilityIdentifier("dashboard_card_connectivity")
-        .task { try? await loadISP() }
+        .task {
+            do {
+                try await loadISP()
+            } catch {
+                loadError = error.localizedDescription
+            }
+        }
     }
 
     // MARK: Sub-views

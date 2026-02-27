@@ -60,12 +60,13 @@ struct LatencyAnalysisCard: View {
             HStack(alignment: .bottom, spacing: 2) {
                 ForEach(0..<4, id: \.self) { bucket in
                     ForEach(0..<8, id: \.self) { bar in
+                        let rawWidth = (g.size.width - 24) / 32
+                        let barWidth = rawWidth.isFinite ? max(0, rawWidth) : 0
+                        let rawHeight = g.size.height * CGFloat(heights[bucket]) * barVariation(bucket: bucket, bar: bar)
+                        let barHeight = rawHeight.isFinite ? max(0, rawHeight) : 0
                         RoundedRectangle(cornerRadius: 2)
                             .fill(colors[bucket].opacity(0.85))
-                            .frame(
-                                width: (g.size.width - 24) / 32,
-                                height: g.size.height * CGFloat(heights[bucket]) * barVariation(bucket: bucket, bar: bar)
-                            )
+                            .frame(width: barWidth, height: barHeight)
                     }
                 }
             }
