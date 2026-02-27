@@ -57,7 +57,7 @@ public enum HeatmapRenderer {
     // MARK: - IDW Grid
 
     /// Compute a `gridSize×gridSize` matrix of interpolated RSSI values using
-    /// Inverse Distance Weighting (k=4 nearest, max radius 80pt).
+    /// Inverse Distance Weighting (all points within `maxRadiusPt`, 1/d² weights).
     /// Returns `nil` for cells with no nearby points (dead zones).
     public static func idwGrid(
         points: [HeatmapDataPoint],
@@ -158,6 +158,9 @@ public enum HeatmapRenderer {
         unit: DistanceUnit,
         maxPixels: Double = 120
     ) -> ScaleBarConfig {
+        guard pixelsPerUnit > 0 else {
+            return ScaleBarConfig(pixels: 0, labelValue: 0, unit: unit)
+        }
         var best = ScaleBarConfig(pixels: pixelsPerUnit, labelValue: 1, unit: unit)
         for n in roundNumbers {
             let px = pixelsPerUnit * Double(n)
