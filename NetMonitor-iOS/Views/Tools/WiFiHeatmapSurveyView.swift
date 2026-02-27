@@ -7,19 +7,31 @@ import NetMonitorCore
 struct WiFiHeatmapSurveyView: View {
     @State private var viewModel = WiFiHeatmapSurveyViewModel()
     @State private var showingGuide = false
+    @State private var showingFullScreen = false
+    @State private var showingCalibration = false
     @State private var selectedPhoto: PhotosPickerItem?
-    @State private var canvasSize: CGSize = .zero
+    // Local binding-compatible mirror for HeatmapFullScreenView (which requires @Binding)
+    @State private var fullScreenPoints: [HeatmapDataPoint] = []
 
     var body: some View {
         ScrollView {
             VStack(spacing: Theme.Layout.sectionSpacing) {
                 statusBarSection
-                modePickerSection
                 heatmapCanvasSection
+                HeatmapControlStrip(
+                    colorScheme: $viewModel.colorScheme,
+                    overlays: $viewModel.displayOverlays,
+                    isSurveying: viewModel.isSurveying,
+                    onStopSurvey: { viewModel.stopSurvey() }
+                )
+                .clipShape(RoundedRectangle(cornerRadius: Theme.Layout.cardCornerRadius))
                 actionButtonsSection
-                if viewModel.isSurveying {
-                    measurementSection
-                }
+                MeasurementsPanel(
+                    points: viewModel.dataPoints,
+                    isSurveying: viewModel.isSurveying,
+                    calibration: viewModel.calibration,
+                    preferredUnit: $viewModel.preferredUnit
+                )
                 if !viewModel.surveys.isEmpty {
                     previousSurveysSection
                 }
@@ -34,22 +46,52 @@ struct WiFiHeatmapSurveyView: View {
         .toolbarColorScheme(.dark, for: .navigationBar)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    showingGuide = true
-                } label: {
+                Button { showingGuide = true } label: {
                     Image(systemName: "info.circle")
                         .foregroundStyle(Theme.Colors.accent)
                 }
                 .accessibilityIdentifier("heatmap_button_info")
             }
         }
-        .sheet(isPresented: $showingGuide) {
-            guideSheet
+        .sheet(isPresented: $showingGuide) { guideSheet }
+        .sheet(isPresented: $showingCalibration) {
+            CalibrationView(
+                floorplanImage: viewModel.floorplanImageData.flatMap(UIImage.init),
+                onComplete: { scale in
+                    if let scale {
+                        viewModel.setCalibration(pixelDist: scale.pixelDistance,
+                                                 realDist: scale.realDistance,
+                                                 unit: scale.unit)
+                    }
+                    showingCalibration = false
+                }
+            )
+        }
+        .fullScreenCover(isPresented: $showingFullScreen) {
+            HeatmapFullScreenView(
+                points: $fullScreenPoints,
+                floorplanImage: viewModel.floorplanImageData.flatMap(UIImage.init),
+                colorScheme: $viewModel.colorScheme,
+                overlays: $viewModel.displayOverlays,
+                calibration: viewModel.calibration,
+                isSurveying: viewModel.isSurveying,
+                onTap: { loc, size in viewModel.recordDataPoint(at: loc, in: size) },
+                onStopSurvey: { viewModel.stopSurvey() },
+                onDismiss: { showingFullScreen = false }
+            )
+        }
+        .onChange(of: viewModel.dataPoints.count) { _, _ in
+            fullScreenPoints = viewModel.dataPoints
+        }
+        .onAppear {
+            fullScreenPoints = viewModel.dataPoints
         }
         .onChange(of: selectedPhoto) { _, newItem in
             Task {
                 if let data = try? await newItem?.loadTransferable(type: Data.self) {
                     viewModel.floorplanImageData = data
+                    viewModel.selectedMode = .floorplan
+                    showingCalibration = true
                 }
             }
         }
@@ -67,8 +109,7 @@ struct WiFiHeatmapSurveyView: View {
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(viewModel.isSurveying ? "Recording" : "Ready")
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
+                        .font(.subheadline).fontWeight(.semibold)
                         .foregroundStyle(Theme.Colors.textPrimary)
                     Text(viewModel.statusMessage)
                         .font(.caption)
@@ -78,11 +119,20 @@ struct WiFiHeatmapSurveyView: View {
 
                 Spacer()
 
+                if viewModel.calibration != nil {
+                    Label("Calibrated", systemImage: "ruler")
+                        .font(.caption2)
+                        .foregroundStyle(Theme.Colors.accent)
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 4)
+                        .background(Theme.Colors.accent.opacity(0.1))
+                        .clipShape(Capsule())
+                }
+
                 if viewModel.isSurveying {
                     VStack(alignment: .trailing, spacing: 2) {
                         Text(viewModel.signalText)
-                            .font(.headline)
-                            .fontWeight(.bold)
+                            .font(.headline).fontWeight(.bold)
                             .foregroundStyle(viewModel.signalColor)
                             .monospacedDigit()
                         Text(viewModel.signalLevel.label)
@@ -95,111 +145,50 @@ struct WiFiHeatmapSurveyView: View {
         .accessibilityIdentifier("heatmap_status_bar")
     }
 
-    // MARK: - Mode Picker
-
-    private var modePickerSection: some View {
-        Picker("Mode", selection: $viewModel.selectedMode) {
-            ForEach(HeatmapMode.allCases, id: \.self) { mode in
-                Label(mode.displayName, systemImage: mode.systemImage)
-                    .tag(mode)
-            }
-        }
-        .pickerStyle(.segmented)
-        .accessibilityIdentifier("heatmap_picker_mode")
-    }
-
     // MARK: - Canvas
 
     private var heatmapCanvasSection: some View {
-        GlassCard(padding: 0) {
-            GeometryReader { geo in
-                ZStack {
-                    // Floor plan background (if floorplan mode + image loaded)
-                    if viewModel.selectedMode == .floorplan,
-                       let data = viewModel.floorplanImageData,
-                       let uiImage = UIImage(data: data) {
-                        Image(uiImage: uiImage)
-                            .resizable()
-                            .scaledToFit()
-                            .opacity(0.6)
-                    } else {
-                        // Grid background
-                        gridBackground(in: geo.size)
-                    }
+        ZStack {
+            HeatmapCanvasView(
+                points: viewModel.dataPoints,
+                floorplanImage: viewModel.floorplanImageData.flatMap(UIImage.init),
+                colorScheme: viewModel.colorScheme,
+                overlays: viewModel.displayOverlays,
+                calibration: viewModel.calibration,
+                isSurveying: viewModel.isSurveying,
+                onTap: { loc, size in viewModel.recordDataPoint(at: loc, in: size) }
+            )
+            .frame(height: 280)
 
-                    // Heatmap dots
-                    let points = viewModel.dataPoints
-                    Canvas { context, size in
-                        for point in points {
-                            let x = point.x * size.width
-                            let y = point.y * size.height
-                            let level = SignalLevel.from(rssi: point.signalStrength)
-                            let color: SwiftUI.Color = {
-                                switch level {
-                                case .strong: return .green
-                                case .fair:   return .yellow
-                                case .weak:   return .red
-                                }
-                            }()
-                            let rect = CGRect(x: x - 12, y: y - 12, width: 24, height: 24)
-                            context.fill(Path(ellipseIn: rect), with: .color(color.opacity(0.75)))
-                            context.stroke(Path(ellipseIn: rect), with: .color(.white.opacity(0.5)), lineWidth: 1)
-                        }
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-                    // Invisible tap target when surveying
-                    if viewModel.isSurveying {
-                        Color.clear
-                            .contentShape(Rectangle())
-                            .onTapGesture { location in
-                                viewModel.recordDataPoint(at: location, in: geo.size)
-                            }
-                    }
-                }
-                .onAppear { canvasSize = geo.size }
-                .onChange(of: geo.size) { _, new in canvasSize = new }
+            // Full-screen button
+            Button {
+                showingFullScreen = true
+            } label: {
+                Image(systemName: "arrow.up.left.and.arrow.down.right")
+                    .font(.caption)
+                    .padding(8)
+                    .background(.ultraThinMaterial)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .foregroundStyle(Theme.Colors.accent)
             }
-            .frame(height: 260)
-            .clipShape(RoundedRectangle(cornerRadius: Theme.Layout.cardCornerRadius))
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+            .padding(10)
+            .accessibilityIdentifier("heatmap_button_fullscreen")
         }
-    }
-
-    @ViewBuilder
-    private func gridBackground(in size: CGSize) -> some View {
-        Canvas { context, size in
-            let step: CGFloat = 40
-            var x: CGFloat = 0
-            while x <= size.width {
-                context.stroke(
-                    Path { p in p.move(to: CGPoint(x: x, y: 0)); p.addLine(to: CGPoint(x: x, y: size.height)) },
-                    with: .color(.white.opacity(0.05)), lineWidth: 0.5
-                )
-                x += step
-            }
-            var y: CGFloat = 0
-            while y <= size.height {
-                context.stroke(
-                    Path { p in p.move(to: CGPoint(x: 0, y: y)); p.addLine(to: CGPoint(x: size.width, y: y)) },
-                    with: .color(.white.opacity(0.05)), lineWidth: 0.5
-                )
-                y += step
-            }
-        }
-        .background(Color.white.opacity(0.03))
+        .clipShape(RoundedRectangle(cornerRadius: Theme.Layout.cardCornerRadius))
+        .overlay(
+            RoundedRectangle(cornerRadius: Theme.Layout.cardCornerRadius)
+                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+        )
     }
 
     // MARK: - Action Buttons
 
     private var actionButtonsSection: some View {
         VStack(spacing: Theme.Layout.itemSpacing) {
-            // Main action button
             Button {
-                if viewModel.isSurveying {
-                    viewModel.stopSurvey()
-                } else {
-                    viewModel.startSurvey()
-                }
+                if viewModel.isSurveying { viewModel.stopSurvey() }
+                else { viewModel.startSurvey() }
             } label: {
                 HStack {
                     Image(systemName: viewModel.isSurveying ? "record.circle" : "play.circle.fill")
@@ -215,14 +204,10 @@ struct WiFiHeatmapSurveyView: View {
             .accessibilityIdentifier("heatmap_button_main_action")
 
             HStack(spacing: Theme.Layout.itemSpacing) {
-                // Select floor plan
-                PhotosPicker(
-                    selection: $selectedPhoto,
-                    matching: .images
-                ) {
+                PhotosPicker(selection: $selectedPhoto, matching: .images) {
                     HStack {
                         Image(systemName: "photo.badge.plus")
-                        Text("Select Floor Plan")
+                        Text("Floor Plan")
                             .font(.subheadline)
                     }
                     .frame(maxWidth: .infinity)
@@ -233,80 +218,29 @@ struct WiFiHeatmapSurveyView: View {
                 }
                 .accessibilityIdentifier("heatmap_button_select_floorplan")
 
-                // Survey without floor plan
                 Button {
-                    viewModel.selectedMode = .freeform
-                    viewModel.floorplanImageData = nil
-                    if !viewModel.isSurveying { viewModel.startSurvey() }
+                    showingCalibration = true
                 } label: {
                     HStack {
-                        Image(systemName: "hand.tap")
-                        Text("Freeform Survey")
+                        Image(systemName: "ruler")
+                        Text("Calibrate")
                             .font(.subheadline)
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
+                    .background(viewModel.calibration != nil
+                                ? Theme.Colors.accent.opacity(0.12)
+                                : Color.clear.opacity(0))
                     .background(.ultraThinMaterial)
                     .clipShape(RoundedRectangle(cornerRadius: Theme.Layout.buttonCornerRadius))
-                    .foregroundStyle(Theme.Colors.textPrimary)
+                    .foregroundStyle(viewModel.calibration != nil ? Theme.Colors.accent : Theme.Colors.textPrimary)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: Theme.Layout.buttonCornerRadius)
+                            .stroke(viewModel.calibration != nil ? Theme.Colors.accent.opacity(0.4) : Color.clear, lineWidth: 1)
+                    )
                 }
-                .accessibilityIdentifier("heatmap_button_survey_without_floorplan")
+                .accessibilityIdentifier("heatmap_button_calibrate")
             }
-        }
-    }
-
-    // MARK: - Measurement Section (shown during survey)
-
-    private var measurementSection: some View {
-        GlassCard {
-            VStack(alignment: .leading, spacing: Theme.Layout.itemSpacing) {
-                HStack {
-                    Text("Measurements")
-                        .font(.headline)
-                        .foregroundStyle(Theme.Colors.textPrimary)
-
-                    Spacer()
-
-                    Button {
-                        viewModel.stopSurvey()
-                    } label: {
-                        Label("Stop", systemImage: "stop.circle.fill")
-                            .font(.subheadline)
-                            .fontWeight(.semibold)
-                            .foregroundStyle(Theme.Colors.error)
-                    }
-                    .accessibilityIdentifier("heatmap_button_stop")
-                }
-
-                if viewModel.dataPoints.isEmpty {
-                    Text("Tap the canvas above to record signal at each location")
-                        .font(.caption)
-                        .foregroundStyle(Theme.Colors.textSecondary)
-                } else {
-                    Text("\(viewModel.dataPoints.count) points recorded")
-                        .font(.subheadline)
-                        .foregroundStyle(Theme.Colors.textSecondary)
-
-                    // Signal legend
-                    HStack(spacing: 16) {
-                        signalLegendItem(color: .green, label: "Strong (≥-50)")
-                        signalLegendItem(color: .yellow, label: "Fair (-70–-50)")
-                        signalLegendItem(color: .red, label: "Weak (<-70)")
-                    }
-                    .font(.caption2)
-                }
-            }
-        }
-        .accessibilityIdentifier("heatmap_section_measurement")
-    }
-
-    private func signalLegendItem(color: Color, label: String) -> some View {
-        HStack(spacing: 4) {
-            Circle()
-                .fill(color)
-                .frame(width: 8, height: 8)
-            Text(label)
-                .foregroundStyle(Theme.Colors.textSecondary)
         }
     }
 
@@ -322,10 +256,16 @@ struct WiFiHeatmapSurveyView: View {
                 GlassCard {
                     HStack {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text(survey.name)
-                                .font(.subheadline)
-                                .fontWeight(.semibold)
-                                .foregroundStyle(Theme.Colors.textPrimary)
+                            HStack(spacing: 6) {
+                                Text(survey.name)
+                                    .font(.subheadline).fontWeight(.semibold)
+                                    .foregroundStyle(Theme.Colors.textPrimary)
+                                if survey.calibration != nil {
+                                    Label("", systemImage: "ruler")
+                                        .font(.caption2)
+                                        .foregroundStyle(Theme.Colors.accent)
+                                }
+                            }
                             Text("\(survey.dataPoints.count) points • \(survey.mode.displayName)")
                                 .font(.caption)
                                 .foregroundStyle(Theme.Colors.textSecondary)
@@ -334,11 +274,8 @@ struct WiFiHeatmapSurveyView: View {
                                 .foregroundStyle(Theme.Colors.textTertiary)
                         }
                         Spacer()
-                        Button {
-                            viewModel.deleteSurvey(survey)
-                        } label: {
-                            Image(systemName: "trash")
-                                .foregroundStyle(Theme.Colors.error)
+                        Button { viewModel.deleteSurvey(survey) } label: {
+                            Image(systemName: "trash").foregroundStyle(Theme.Colors.error)
                         }
                     }
                 }
@@ -352,26 +289,14 @@ struct WiFiHeatmapSurveyView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: Theme.Layout.sectionSpacing) {
-                    guideSection(
-                        icon: "hand.tap",
-                        title: "Freeform Mode",
-                        body: "Walk around your space and tap the canvas to record WiFi signal strength at each location. Points are colored by signal quality."
-                    )
-                    guideSection(
-                        icon: "map",
-                        title: "Floorplan Mode",
-                        body: "Import an image of your floor plan, then tap on the map while walking to each location. This provides a visual reference for coverage gaps."
-                    )
-                    guideSection(
-                        icon: "circle.fill",
-                        title: "Reading the Heatmap",
-                        body: "🟢 Green = Strong signal (≥ -50 dBm)\n🟡 Yellow = Fair signal (-70 to -50 dBm)\n🔴 Red = Weak signal (< -70 dBm)"
-                    )
-                    guideSection(
-                        icon: "exclamationmark.triangle",
-                        title: "Permissions Note",
-                        body: "Live signal readings require the Wi-Fi Info entitlement. Without it, the app uses simulated values for demonstration."
-                    )
+                    guideSection(icon: "ruler", title: "Calibration",
+                        body: "After importing a floor plan, draw a line between two known points and enter the real distance. This unlocks real-world measurements.")
+                    guideSection(icon: "hand.tap", title: "Survey",
+                        body: "Start a survey, walk to each location, and tap the canvas to record the WiFi signal at that spot.")
+                    guideSection(icon: "thermometer.medium", title: "Color Schemes",
+                        body: "Thermal (default): blue → red by signal strength. Signal: red → green. Nebula and Arctic for stylised views.")
+                    guideSection(icon: "exclamationmark.triangle", title: "Permissions",
+                        body: "Live signal readings require the Wi-Fi Info entitlement. Without it, the app uses simulated values for demonstration.")
                 }
                 .padding(Theme.Layout.screenPadding)
             }
@@ -382,12 +307,9 @@ struct WiFiHeatmapSurveyView: View {
             .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") {
-                        showingGuide = false
-                    }
-                    .fontWeight(.semibold)
-                    .foregroundStyle(Theme.Colors.accent)
-                    .accessibilityIdentifier("heatmap_button_guide_done")
+                    Button("Done") { showingGuide = false }
+                        .fontWeight(.semibold).foregroundStyle(Theme.Colors.accent)
+                        .accessibilityIdentifier("heatmap_button_guide_done")
                 }
             }
         }
@@ -397,19 +319,10 @@ struct WiFiHeatmapSurveyView: View {
     private func guideSection(icon: String, title: String, body: String) -> some View {
         GlassCard {
             HStack(alignment: .top, spacing: Theme.Layout.itemSpacing) {
-                Image(systemName: icon)
-                    .font(.title3)
-                    .foregroundStyle(Theme.Colors.accent)
-                    .frame(width: 28)
-
+                Image(systemName: icon).font(.title3).foregroundStyle(Theme.Colors.accent).frame(width: 28)
                 VStack(alignment: .leading, spacing: 6) {
-                    Text(title)
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(Theme.Colors.textPrimary)
-                    Text(body)
-                        .font(.caption)
-                        .foregroundStyle(Theme.Colors.textSecondary)
+                    Text(title).font(.subheadline).fontWeight(.semibold).foregroundStyle(Theme.Colors.textPrimary)
+                    Text(body).font(.caption).foregroundStyle(Theme.Colors.textSecondary)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -418,7 +331,5 @@ struct WiFiHeatmapSurveyView: View {
 }
 
 #Preview {
-    NavigationStack {
-        WiFiHeatmapSurveyView()
-    }
+    NavigationStack { WiFiHeatmapSurveyView() }
 }
