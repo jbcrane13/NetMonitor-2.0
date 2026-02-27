@@ -41,7 +41,7 @@ struct ConnectivityCard: View {
                 connRow(key: "IPv6",      value: "Enabled",
                         color: MacTheme.Colors.success)
                 connRow(key: "Gateway",
-                        value: profileManager?.activeProfile?.gateway ?? "—",
+                        value: profileManager?.activeProfile?.gatewayIP ?? "—",
                         mono: true)
                 connRow(key: "Location",  value: locationString)
             }

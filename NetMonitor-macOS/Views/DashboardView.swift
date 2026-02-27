@@ -2,435 +2,289 @@ import SwiftUI
 import NetMonitorCore
 import SwiftData
 
+// MARK: - DashboardView
+
 struct DashboardView: View {
     @Environment(\.modelContext) private var modelContext
-    @Environment(MonitoringSession.self) private var session: MonitoringSession?
+    @Environment(MonitoringSession.self)     private var session: MonitoringSession?
     @Environment(NetworkProfileManager.self) private var profileManager: NetworkProfileManager?
-    
-    @AppStorage("netmonitor.appearance.compactMode") private var compactMode = false
-    
+
     @Query private var targets: [NetworkTarget]
-    @State private var graphMetric: GraphMetric = .latency
-    
-    enum GraphMetric: String, CaseIterable, Identifiable {
-        case latency = "LATENCY"
-        case signal = "SIGNAL"
-        case loss = "LOSS"
-        var id: String { self.rawValue }
-    }
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 24) {
-                // 1. Full-Width Deep History Graph
-                VStack(alignment: .leading, spacing: 16) {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("NETWORK TELEMETRY")
-                                .font(.system(size: 10, weight: .black))
-                                .foregroundStyle(.secondary)
-                                .tracking(1.5)
-                            Text("Real-time persistent monitoring")
-                                .font(.system(size: 12))
-                                .foregroundStyle(.tertiary)
-                        }
-                        
-                        Spacer()
-                        
-                        Picker("", selection: $graphMetric) {
-                            ForEach(GraphMetric.allCases) { metric in
-                                Text(metric.rawValue).tag(metric)
-                            }
-                        }
-                        .pickerStyle(.segmented)
-                        .frame(width: 240)
-                    }
-                    
-                    DeepHistoryGraph(metric: graphMetric, session: session)
-                        .frame(height: 180)
-                        .macGlassCard(cornerRadius: MacTheme.Layout.cardCornerRadius, padding: 20)
-                }
-                .padding(.horizontal)
+        GeometryReader { geo in
+            let h       = geo.size.height
+            let gap     = CGFloat(10)
+            let rowA    = h * 0.28
+            let rowB    = h * 0.22
+            let rowC    = h * 0.20
+            let rowD    = h - rowA - rowB - rowC - gap * 3
 
-                // 2. The Instrument Quad (4-Column Widgets)
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
-                    WiFiWidget()
-                    GatewayWidget(session: session)
-                    SpeedtestWidget()
-                    PublicIPWidget(profileManager: profileManager)
-                }
-                .padding(.horizontal)
+            VStack(spacing: gap) {
+                // ── Row A: Internet Activity + Health Gauge ──────────────
+                HStack(spacing: gap) {
+                    InternetActivityCard(session: session)
+                        .frame(height: rowA)
+                        .accessibilityIdentifier("dashboard_row_activity")
 
-                // 3. Target Monitoring Section
-                VStack(alignment: .leading, spacing: 16) {
-                    HStack {
-                        Text("TARGET MONITORING")
-                            .font(.system(size: 11, weight: .black))
-                            .foregroundStyle(.secondary)
-                            .tracking(1.5)
-                        
-                        Spacer()
-
-                        if let session = session {
-                            Button(action: {
-                                if session.isMonitoring {
-                                    session.stopMonitoring()
-                                } else {
-                                    session.startMonitoring()
-                                }
-                            }) {
-                                Label(
-                                    session.isMonitoring ? "STOP" : "START",
-                                    systemImage: session.isMonitoring ? "stop.fill" : "play.fill"
-                                )
-                                .font(.system(size: 11, weight: .black))
-                            }
-                            .buttonStyle(.borderedProminent)
-                            .tint(session.isMonitoring ? MacTheme.Colors.error : MacTheme.Colors.success)
-                            .controlSize(.small)
-                        }
-                    }
-                    
-                    if targets.isEmpty {
-                        NoTargetsView(onAdd: {})
-                    } else {
-                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 220))], spacing: 16) {
-                            ForEach(targets) { target in
-                                TargetStatusCard(
-                                    target: target,
-                                    measurement: session?.latestMeasurement(for: target.id)
-                                )
-                            }
-                        }
-                    }
+                    HealthGaugeCard()
+                        .frame(width: 210, height: rowA)
+                        .accessibilityIdentifier("dashboard_row_health")
                 }
-                .padding(.horizontal)
+
+                // ── Row B: ISP Health + Latency Analysis ─────────────────
+                HStack(spacing: gap) {
+                    ISPHealthCard()
+                        .frame(height: rowB)
+                        .accessibilityIdentifier("dashboard_row_isp")
+
+                    LatencyAnalysisCard(session: session)
+                        .frame(height: rowB)
+                        .accessibilityIdentifier("dashboard_row_latency")
+                }
+
+                // ── Row C: Connectivity + Active Devices ──────────────────
+                HStack(spacing: gap) {
+                    ConnectivityCard(session: session, profileManager: profileManager)
+                        .frame(height: rowC)
+                        .accessibilityIdentifier("dashboard_row_connectivity")
+
+                    ActiveDevicesCard(session: session)
+                        .frame(height: rowC)
+                        .accessibilityIdentifier("dashboard_row_devices")
+                }
+
+                // ── Row D: Target Monitoring ──────────────────────────────
+                TargetMonitoringSection(targets: targets, session: session)
+                    .frame(height: rowD)
+                    .accessibilityIdentifier("dashboard_row_targets")
             }
-            .padding(.vertical, 24)
+            .padding(14)
         }
         .macThemedBackground()
         .navigationTitle("Dashboard")
         .task {
-            // Auto-seed and start if needed
             await seedDefaultTargetsIfNeeded()
             if let session, !session.isMonitoring {
                 session.startMonitoring()
             }
         }
     }
-    
+
     private func seedDefaultTargetsIfNeeded() async {
-        if targets.isEmpty {
-            // Seed Gateway and a couple of global targets
-            let gateway = NetworkTarget(name: "Local Gateway", host: "192.168.1.1", targetProtocol: .icmp)
-            let google = NetworkTarget(name: "Google DNS", host: "8.8.8.8", targetProtocol: .icmp)
-            let cloudflare = NetworkTarget(name: "Cloudflare", host: "1.1.1.1", targetProtocol: .icmp)
-            
-            modelContext.insert(gateway)
-            modelContext.insert(google)
-            modelContext.insert(cloudflare)
-            try? modelContext.save()
+        guard targets.isEmpty else { return }
+        let seeds: [(String, String)] = [
+            ("Local Gateway", "192.168.1.1"),
+            ("Google DNS",    "8.8.8.8"),
+            ("Cloudflare",    "1.1.1.1"),
+        ]
+        for (name, host) in seeds {
+            modelContext.insert(NetworkTarget(name: name, host: host, targetProtocol: .icmp))
         }
+        try? modelContext.save()
     }
 }
 
-// MARK: - Sub-components
+// MARK: - TargetMonitoringSection
 
-struct DeepHistoryGraph: View {
-    let metric: DashboardView.GraphMetric
+private struct TargetMonitoringSection: View {
+    let targets: [NetworkTarget]
     let session: MonitoringSession?
-    
-    // Simulate history for visualization
-    var historyData: [Double] {
-        switch metric {
-        case .latency: return (0..<60).map { _ in Double.random(in: 15...25) }
-        case .signal: return (0..<60).map { _ in Double.random(in: -65...(-45)) }
-        case .loss: return (0..<60).map { i in i % 20 == 0 ? 1.0 : 0.0 }
-        }
-    }
-    
-    var body: some View {
-        VStack {
-            HistorySparkline(
-                data: historyData,
-                color: metric == .latency ? .cyan : (metric == .signal ? .green : .red),
-                lineWidth: 2,
-                showPulse: true
-            )
-        }
-    }
-}
 
-struct WiFiWidget: View {
     var body: some View {
-        InstrumentWidget(title: "WIFI ENVIRONMENT", icon: "wifi") {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(alignment: .bottom) {
-                    Text("-42")
-                        .font(.system(size: 24, weight: .bold, design: .rounded))
-                    Text("dBm")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(.secondary)
-                        .padding(.bottom, 4)
-                }
-                
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("SSID: Home_WiFi_6")
-                        .font(.system(size: 11, weight: .medium))
-                    Text("CHANNEL: 149 (5GHz)")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.tertiary)
-                }
-            }
-        }
-    }
-}
-
-struct GatewayWidget: View {
-    let session: MonitoringSession?
-    var body: some View {
-        InstrumentWidget(title: "GATEWAY STATUS", icon: "server.rack") {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(alignment: .bottom) {
-                    Text("2.4")
-                        .font(.system(size: 24, weight: .bold, design: .rounded))
-                        .foregroundStyle(MacTheme.Colors.success)
-                    Text("ms")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(.secondary)
-                        .padding(.bottom, 4)
-                }
-                
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("IP: 192.168.1.1")
-                        .font(.system(size: 11, design: .monospaced))
-                    Text("REACHABLE")
-                        .font(.system(size: 9, weight: .black))
-                        .foregroundStyle(MacTheme.Colors.success)
-                }
-            }
-        }
-    }
-}
-
-struct SpeedtestWidget: View {
-    @State private var isRunning = false
-    var body: some View {
-        InstrumentWidget(title: "SPEED TEST", icon: "bolt.fill") {
-            VStack(alignment: .leading, spacing: 8) {
-                if isRunning {
-                    ProgressView()
-                        .controlSize(.small)
-                        .frame(maxWidth: .infinity, alignment: .center)
-                } else {
-                    HStack(alignment: .bottom) {
-                        Text("840")
-                            .font(.system(size: 24, weight: .bold, design: .rounded))
-                        Text("Mbps")
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundStyle(.secondary)
-                            .padding(.bottom, 4)
-                    }
-                    
-                    Button(action: { isRunning = true; DispatchQueue.main.asyncAfter(deadline: .now() + 2) { isRunning = false } }) {
-                        Text("RUN TEST")
-                            .font(.system(size: 9, weight: .black))
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(Color.white.opacity(0.1))
-                            .clipShape(RoundedRectangle(cornerRadius: 4))
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-        }
-    }
-}
-
-struct PublicIPWidget: View {
-    let profileManager: NetworkProfileManager?
-    var body: some View {
-        InstrumentWidget(title: "PUBLIC ACCESS", icon: "globe") {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("74.125.22.101")
-                    .font(.system(size: 14, weight: .bold, design: .monospaced))
-                    .foregroundStyle(.cyan)
-                
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("ISP: Starlink")
-                        .font(.system(size: 11, weight: .medium))
-                    Text("LOCATION: Chicago, US")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.tertiary)
-                }
-            }
-        }
-    }
-}
-
-struct InstrumentWidget<Content: View>: View {
-    let title: String
-    let icon: String
-    let content: Content
-    
-    init(title: String, icon: String, @ViewBuilder content: () -> Content) {
-        self.title = title
-        self.icon = icon
-        self.content = content()
-    }
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 6) {
-                Image(systemName: icon)
-                    .font(.system(size: 10))
-                    .foregroundStyle(.cyan)
-                Text(title)
-                    .font(.system(size: 9, weight: .black))
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Circle().fill(MacTheme.Colors.info).frame(width: 5, height: 5)
+                Text("TARGET MONITORING")
+                    .font(.system(size: 10, weight: .bold))
                     .foregroundStyle(.secondary)
-                    .tracking(1.2)
+                    .tracking(1.4)
+                Spacer()
+                if let session {
+                    HStack(spacing: 8) {
+                        Circle()
+                            .fill(session.isMonitoring ? MacTheme.Colors.success : Color.gray)
+                            .frame(width: 6, height: 6)
+                            .shadow(
+                                color: (session.isMonitoring
+                                        ? MacTheme.Colors.success : Color.gray).opacity(0.7),
+                                radius: 3
+                            )
+                        Text("\(targets.count) targets \(session.isMonitoring ? "active" : "stopped")")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(.secondary)
+                        Button {
+                            session.isMonitoring
+                                ? session.stopMonitoring()
+                                : session.startMonitoring()
+                        } label: {
+                            Label(
+                                session.isMonitoring ? "STOP" : "START",
+                                systemImage: session.isMonitoring ? "stop.fill" : "play.fill"
+                            )
+                            .font(.system(size: 10, weight: .bold))
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(session.isMonitoring ? MacTheme.Colors.error : MacTheme.Colors.success)
+                        .controlSize(.small)
+                        .accessibilityIdentifier("dashboard_targets_toggleButton")
+                    }
+                }
             }
-            
-            content
+
+            if targets.isEmpty {
+                NoTargetsView(onAdd: {})
+            } else {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 220))], spacing: 10) {
+                    ForEach(targets) { target in
+                        TargetStatusCard(
+                            target: target,
+                            measurement: session?.latestMeasurement(for: target.id)
+                        )
+                    }
+                }
+            }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .macGlassCard(cornerRadius: MacTheme.Layout.cardCornerRadius, padding: 14)
+        .macGlassCard(cornerRadius: 14, padding: 12)
     }
 }
 
-struct NoTargetsView: View {
-    let onAdd: () -> Void
-    var body: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "plus.circle")
-                .font(.system(size: 32))
-                .foregroundStyle(.tertiary)
-            Text("NO TARGETS")
-                .font(.system(size: 12, weight: .black))
-                .foregroundStyle(.secondary)
-            Button("ADD FIRST TARGET", action: onAdd)
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(40)
-        .background(MacTheme.Colors.crystalBase)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-    }
-}
+// MARK: - TargetStatusCard
 
 struct TargetStatusCard: View {
     let target: NetworkTarget
     let measurement: TargetMeasurement?
 
     @State private var isHovering = false
-    @State private var sweepOffset: CGFloat = -1.0
 
-    // Simulate history based on latest measurement
-    var simulatedHistory: [Double] {
-        let base = measurement?.latency ?? 20.0
-        return (0..<20).map { _ in max(1, base + Double.random(in: -5...5)) }
+    private var simulatedHistory: [Double] {
+        let base = measurement?.latency ?? 5.0
+        var seed = UInt64(bitPattern: Int64(target.id.hashValue)) &+ 1
+        return (0..<20).map { _ in
+            seed = seed &* 6364136223846793005 &+ 1442695040888963407
+            let r = Double(seed >> 33) / Double(UInt32.max)
+            return max(0.5, base + (r - 0.5) * base * 0.6)
+        }
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Header
+            // Header bar
             HStack {
                 Image(systemName: target.targetProtocol.iconName)
-                    .foregroundStyle(isHovering ? .white : .secondary)
-                    .font(.system(size: 10, weight: .bold))
-
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(.secondary)
                 Text(target.name.uppercased())
-                    .font(.system(size: 11, weight: .black, design: .monospaced))
-                    .tracking(1.0)
-
+                    .font(.system(size: 10, weight: .bold, design: .monospaced))
+                    .tracking(0.8)
+                    .lineLimit(1)
                 Spacer()
-
-                // Status Indicator with Pulse
                 Circle()
                     .fill(statusColor)
                     .frame(width: 6, height: 6)
-                    .shadow(color: statusColor.opacity(0.8), radius: isHovering ? 6 : 3, x: 0, y: 0)
+                    .shadow(color: statusColor.opacity(0.8),
+                            radius: isHovering ? 5 : 2)
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 8)
+            .padding(.horizontal, 10).padding(.vertical, 7)
             .background(Color.white.opacity(0.03))
 
-            Divider()
-                .background(MacTheme.Colors.glassBorder)
+            Divider().background(MacTheme.Colors.glassBorder)
 
-            VStack(alignment: .leading, spacing: 8) {
-                // Host
+            VStack(alignment: .leading, spacing: 6) {
                 Text(target.host)
                     .font(.system(size: 10, design: .monospaced))
                     .foregroundStyle(.secondary)
-                    .padding(.top, 8)
+                    .padding(.top, 6)
 
-                // Sparkline (Recessed)
                 ZStack {
                     RoundedRectangle(cornerRadius: 4)
-                        .fill(Color.black.opacity(0.3))
-                    
-                    HistorySparkline(data: simulatedHistory, color: statusColor, lineWidth: 1.5, showPulse: true)
-                        .padding(4)
+                        .fill(Color.black.opacity(0.28))
+                    HistorySparkline(
+                        data: simulatedHistory,
+                        color: statusColor,
+                        lineWidth: 1.5,
+                        showPulse: true
+                    )
+                    .padding(3)
                 }
-                .frame(height: 34)
+                .frame(height: 30)
+                .accessibilityLabel("Latency history for \(target.name)")
 
-                // Metrics
                 HStack(alignment: .bottom) {
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: 1) {
                         Text("LATENCY")
                             .font(.system(size: 8, weight: .bold))
                             .foregroundStyle(.secondary)
-
-                        if let latency = measurement?.latency {
-                            Text(String(format: "%.1fms", latency))
-                                .font(.system(size: 15, weight: .bold, design: .monospaced))
-                                .foregroundStyle(MacTheme.Colors.latencyColor(ms: latency))
+                        if let lat = measurement?.latency {
+                            Text(String(format: "%.1fms", lat))
+                                .font(.system(size: 14, weight: .bold, design: .monospaced))
+                                .foregroundStyle(MacTheme.Colors.latencyColor(ms: lat))
                         } else {
                             Text("—")
-                                .font(.system(size: 15, weight: .bold, design: .monospaced))
+                                .font(.system(size: 14, weight: .bold, design: .monospaced))
                                 .foregroundStyle(.secondary)
                         }
                     }
-
                     Spacer()
-
-                    VStack(alignment: .trailing, spacing: 2) {
+                    VStack(alignment: .trailing, spacing: 1) {
                         Text("SIGNAL")
                             .font(.system(size: 8, weight: .bold))
                             .foregroundStyle(.secondary)
-
-                        Text(measurement?.isReachable ?? false ? "NOMINAL" : "LOST")
-                            .font(.system(size: 10, weight: .black))
-                            .foregroundStyle(measurement?.isReachable ?? false ? MacTheme.Colors.success : MacTheme.Colors.error)
+                        Text(signalText)
+                            .font(.system(size: 9, weight: .black))
+                            .foregroundStyle(signalColor)
                     }
                 }
-                .padding(.bottom, 8)
+                .padding(.bottom, 6)
             }
             .padding(.horizontal, 10)
         }
         .macGlassCard(cornerRadius: MacTheme.Layout.cardCornerRadius, padding: 0)
         .overlay(
             RoundedRectangle(cornerRadius: MacTheme.Layout.cardCornerRadius)
-                .stroke(isHovering ? .white.opacity(0.3) : Color.clear, lineWidth: 0.5)
+                .stroke(isHovering ? Color.white.opacity(0.22) : Color.clear,
+                        lineWidth: 0.5)
         )
-        .onHover { hovering in
-            withAnimation(.easeInOut(duration: 0.2)) {
-                isHovering = hovering
-            }
-        }
-        .onAppear {
-            withAnimation(.linear(duration: 4.0).repeatForever(autoreverses: false)) {
-                sweepOffset = 1.5
-            }
-        }
+        .onHover { isHovering = $0 }
+        .accessibilityIdentifier("dashboard_target_\(target.host)")
     }
 
     private var statusColor: Color {
-        guard let measurement = measurement else {
-            return .gray
+        guard let m = measurement else { return .gray }
+        return m.isReachable ? MacTheme.Colors.success : MacTheme.Colors.error
+    }
+
+    private var signalText: String {
+        guard let m = measurement else { return "—" }
+        return m.isReachable ? "NOMINAL" : "LOST"
+    }
+
+    private var signalColor: Color {
+        guard let m = measurement else { return .secondary }
+        return m.isReachable ? MacTheme.Colors.success : MacTheme.Colors.error
+    }
+}
+
+// MARK: - NoTargetsView
+
+struct NoTargetsView: View {
+    let onAdd: () -> Void
+
+    var body: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "plus.circle")
+                .font(.system(size: 28))
+                .foregroundStyle(.tertiary)
+            Text("NO TARGETS")
+                .font(.system(size: 11, weight: .black))
+                .foregroundStyle(.secondary)
+            Button("ADD FIRST TARGET", action: onAdd)
+                .buttonStyle(.bordered)
+                .controlSize(.small)
         }
-        return measurement.isReachable ? MacTheme.Colors.success : MacTheme.Colors.error
+        .frame(maxWidth: .infinity)
+        .padding(32)
+        .background(MacTheme.Colors.crystalBase)
+        .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 }
