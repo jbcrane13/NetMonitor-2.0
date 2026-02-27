@@ -286,3 +286,155 @@ struct HeatmapSurveyTests {
         #expect(decoded.dataPoints.first?.signalStrength == -55)
     }
 }
+
+// MARK: - DistanceUnit Tests
+
+@Suite("DistanceUnit")
+struct DistanceUnitTests {
+
+    @Test("feet displayName is ft")
+    func feetDisplayName() {
+        #expect(DistanceUnit.feet.displayName == "ft")
+    }
+
+    @Test("meters displayName is m")
+    func metersDisplayName() {
+        #expect(DistanceUnit.meters.displayName == "m")
+    }
+
+    @Test("feet to meters conversion")
+    func feetToMeters() {
+        let result = DistanceUnit.feet.convert(10, to: .meters)
+        #expect(abs(result - 3.048) < 0.001)
+    }
+
+    @Test("meters to feet conversion")
+    func metersToFeet() {
+        let result = DistanceUnit.meters.convert(3.048, to: .feet)
+        #expect(abs(result - 10.0) < 0.001)
+    }
+
+    @Test("same unit convert is identity")
+    func sameUnitIdentity() {
+        #expect(DistanceUnit.feet.convert(5, to: .feet) == 5)
+    }
+}
+
+// MARK: - CalibrationScale Tests
+
+@Suite("CalibrationScale")
+struct CalibrationScaleTests {
+
+    @Test("pixelsPerUnit computes correctly")
+    func pixelsPerUnit() {
+        let scale = CalibrationScale(pixelDistance: 200, realDistance: 10, unit: .feet)
+        #expect(scale.pixelsPerUnit == 20.0)
+    }
+
+    @Test("realDistance(pixels:) converts correctly")
+    func realDistanceFromPixels() {
+        let scale = CalibrationScale(pixelDistance: 200, realDistance: 10, unit: .feet)
+        #expect(scale.realDistance(pixels: 100) == 5.0)
+    }
+
+    @Test("Codable round-trip preserves all fields")
+    func codableRoundTrip() throws {
+        let original = CalibrationScale(pixelDistance: 150.5, realDistance: 5.0, unit: .meters)
+        let data = try JSONEncoder().encode(original)
+        let decoded = try JSONDecoder().decode(CalibrationScale.self, from: data)
+        #expect(decoded.pixelDistance == original.pixelDistance)
+        #expect(decoded.realDistance == original.realDistance)
+        #expect(decoded.unit == original.unit)
+    }
+}
+
+// MARK: - HeatmapColorScheme Tests
+
+@Suite("HeatmapColorScheme")
+struct HeatmapColorSchemeTests {
+
+    @Test("all cases exist")
+    func allCases() {
+        let cases = HeatmapColorScheme.allCases
+        #expect(cases.contains(.thermal))
+        #expect(cases.contains(.signal))
+        #expect(cases.contains(.nebula))
+        #expect(cases.contains(.arctic))
+    }
+
+    @Test("thermal has non-empty stop table")
+    func thermalStops() {
+        #expect(!HeatmapColorScheme.thermal.colorStops.isEmpty)
+    }
+
+    @Test("all schemes have at least 2 color stops")
+    func allSchemesHaveStops() {
+        for scheme in HeatmapColorScheme.allCases {
+            #expect(scheme.colorStops.count >= 2, "scheme \(scheme.rawValue) needs ≥ 2 stops")
+        }
+    }
+
+    @Test("Codable round-trip")
+    func codable() throws {
+        let data = try JSONEncoder().encode(HeatmapColorScheme.thermal)
+        let decoded = try JSONDecoder().decode(HeatmapColorScheme.self, from: data)
+        #expect(decoded == .thermal)
+    }
+}
+
+// MARK: - HeatmapDisplayOverlay Tests
+
+@Suite("HeatmapDisplayOverlay")
+struct HeatmapDisplayOverlayTests {
+
+    @Test("default contains gradient")
+    func defaultContainsGradient() {
+        let overlay = HeatmapDisplayOverlay.gradient
+        #expect(overlay.contains(.gradient))
+        #expect(!overlay.contains(.dots))
+    }
+
+    @Test("union works")
+    func union() {
+        let combo: HeatmapDisplayOverlay = [.gradient, .dots]
+        #expect(combo.contains(.gradient))
+        #expect(combo.contains(.dots))
+        #expect(!combo.contains(.contour))
+    }
+
+    @Test("Codable round-trip")
+    func codable() throws {
+        let overlay: HeatmapDisplayOverlay = [.gradient, .contour]
+        let data = try JSONEncoder().encode(overlay)
+        let decoded = try JSONDecoder().decode(HeatmapDisplayOverlay.self, from: data)
+        #expect(decoded == overlay)
+    }
+}
+
+// MARK: - HeatmapSurvey calibration field tests
+
+@Suite("HeatmapSurvey calibration")
+struct HeatmapSurveyCalibratedTests {
+
+    @Test("uncalibrated survey decodes without calibration field (backward compat)")
+    func backwardCompatibility() throws {
+        // Old JSON without calibration field
+        let json = """
+        {"id":"00000000-0000-0000-0000-000000000001","name":"Old Survey",
+         "mode":"freeform","createdAt":0,"dataPoints":[]}
+        """
+        let survey = try JSONDecoder().decode(HeatmapSurvey.self, from: Data(json.utf8))
+        #expect(survey.calibration == nil)
+    }
+
+    @Test("calibrated survey encodes and decodes calibration")
+    func calibratedRoundTrip() throws {
+        let scale = CalibrationScale(pixelDistance: 100, realDistance: 20, unit: .feet)
+        var survey = HeatmapSurvey(name: "Test")
+        survey.calibration = scale
+        let data = try JSONEncoder().encode(survey)
+        let decoded = try JSONDecoder().decode(HeatmapSurvey.self, from: data)
+        #expect(decoded.calibration?.pixelDistance == 100)
+        #expect(decoded.calibration?.unit == .feet)
+    }
+}
