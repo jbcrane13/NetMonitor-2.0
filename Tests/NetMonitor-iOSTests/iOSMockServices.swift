@@ -153,6 +153,7 @@ final class MockSpeedTestService: SpeedTestServiceProtocol {
     var isRunning: Bool = false
     var errorMessage: String? = nil
     var duration: TimeInterval = 5.0
+    var selectedServer: SpeedTestServer? = nil
     var mockResult: SpeedTestData?
     var shouldThrow = false
     var stopCallCount = 0
