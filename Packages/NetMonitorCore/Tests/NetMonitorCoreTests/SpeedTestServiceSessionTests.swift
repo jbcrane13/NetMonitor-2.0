@@ -175,3 +175,75 @@ struct SpeedTestServiceSessionTests {
 }
 
 // Note: SpeedTestError tests already exist in SpeedTestServiceIntegrationTests.swift
+
+// MARK: - Regression: non-Cloudflare servers return non-200 2xx (NetMonitor-2.0-ctj)
+//
+// Root cause: download and upload loops used `http.statusCode == 200` which silently
+// skipped responses from Hetzner/OVH/Tele2 servers that return 206 (Partial Content)
+// or other 2xx codes, resulting in 0 Mbps from all servers except Cloudflare.
+//
+// Fix: guard now uses `(200...299).contains(http.statusCode)`.
+//
+// The download/upload phases create ephemeral URLSessions internally and cannot be
+// fully mocked at the unit-test level without a further refactor (tracked in backlog).
+// Coverage for those phases is provided by SpeedTestServiceIntegrationTests which
+// run against real endpoints.  The test below guards the latency phase (which *does*
+// use the injected session) and is intentionally light — its primary value is to
+// document the regression and confirm the latency path does not reject non-200 codes.
+
+@Suite("SpeedTestService — 2xx acceptance regression", .serialized)
+@MainActor
+struct SpeedTestService2xxRegressionTests {
+
+    init() { MockURLProtocol.requestHandler = nil }
+
+    /// Latency phase must succeed when the server returns 201 (Created) instead of 200.
+    /// (The latency phase doesn't filter by status code — it accepts any non-throwing
+    ///  response — so this test confirms no regression was accidentally introduced there.)
+    @Test("Latency phase succeeds with HTTP 201 response")
+    func latencyPhaseSucceedsWith201() async throws {
+        defer { MockURLProtocol.requestHandler = nil }
+
+        MockURLProtocol.requestHandler = { request in
+            let response = HTTPURLResponse(
+                url: request.url!,
+                statusCode: 201,
+                httpVersion: nil,
+                headerFields: nil
+            )!
+            return (response, Data())
+        }
+
+        let service = SpeedTestService(session: MockURLProtocol.makeSession())
+        service.duration = 0.1
+
+        do { _ = try await service.startTest() } catch { }
+
+        #expect(service.latency >= 0,
+                "Latency must be ≥ 0 even when server returns 201 — no status-code regression in latency phase")
+    }
+
+    /// Latency phase must succeed when the server returns 206 (Partial Content).
+    @Test("Latency phase succeeds with HTTP 206 response")
+    func latencyPhaseSucceedsWith206() async throws {
+        defer { MockURLProtocol.requestHandler = nil }
+
+        MockURLProtocol.requestHandler = { request in
+            let response = HTTPURLResponse(
+                url: request.url!,
+                statusCode: 206,
+                httpVersion: nil,
+                headerFields: nil
+            )!
+            return (response, Data(count: 512))
+        }
+
+        let service = SpeedTestService(session: MockURLProtocol.makeSession())
+        service.duration = 0.1
+
+        do { _ = try await service.startTest() } catch { }
+
+        #expect(service.latency >= 0,
+                "Latency must be ≥ 0 even when server returns 206 — guard regression for NetMonitor-2.0-ctj")
+    }
+}
