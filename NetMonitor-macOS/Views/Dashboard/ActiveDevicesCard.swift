@@ -47,7 +47,7 @@ struct ActiveDevicesCard: View {
                 Text("No devices online")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .frame(maxWidth: .infinity)
             } else {
                 VStack(spacing: 3) {
                     ForEach(deviceRows, id: \.target.id) { item in
@@ -55,7 +55,9 @@ struct ActiveDevicesCard: View {
                     }
                 }
             }
+            Spacer(minLength: 0)
         }
+        .frame(maxHeight: .infinity, alignment: .top)
         .macGlassCard(cornerRadius: 14, padding: 10)
         .accessibilityIdentifier("dashboard_card_activeDevices")
     }
