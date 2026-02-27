@@ -154,6 +154,7 @@ struct SidebarRow: View {
             Text(title)
                 .font(.system(size: 13, weight: isSelected ? .bold : .semibold))
                 .foregroundStyle(isSelected ? MacTheme.Colors.sidebarTextPrimary : MacTheme.Colors.sidebarTextSecondary)
+                .accessibilityIdentifier("sidebar_\(title.lowercased())")
             
             Spacer()
             
