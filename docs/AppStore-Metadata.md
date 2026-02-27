@@ -1,11 +1,11 @@
-# NetMonitor - App Store Metadata
+# NetMonitor Pro - App Store Metadata
 
-Complete submission metadata for Mac App Store v1.0.0
+Complete submission metadata for Mac App Store v2.0
 
 ## Basic Information
 
 ### App Name
-NetMonitor
+NetMonitor Pro
 
 ### Subtitle (30 characters max)
 Professional Network Monitoring
@@ -28,7 +28,7 @@ NetMonitor is a professional-grade network monitoring and diagnostics applicatio
 Monitor network targets with HTTP, HTTPS, ICMP, and TCP protocols. Configure custom check intervals and timeouts. Track latency, uptime, and reachability with historical data persistence.
 
 **Local Device Discovery**
-Automatically scan your network and discover all connected devices. NetMonitor uses ARP scanning and Bonjour (mDNS) service discovery to identify devices, MAC addresses, vendor information, and network services. Manage device notes and custom names for easy identification.
+Automatically scan your network and discover all connected devices. NetMonitor Pro uses ARP scanning and Bonjour (mDNS) service discovery to identify devices, MAC addresses, vendor information, and network services. Manage device notes and custom names for easy identification.
 
 **Comprehensive Network Tools**
 Eight powerful diagnostic tools built-in:
@@ -72,7 +72,7 @@ Customize every aspect of your monitoring experience:
 - Local data persistence with SwiftData
 - Requires macOS 15.0 (Sequoia) or later
 
-NetMonitor is essential for network administrators, developers, DevOps engineers, and power users who need reliable network diagnostics and monitoring on macOS.
+NetMonitor Pro is essential for network administrators, developers, DevOps engineers, and power users who need reliable network diagnostics and monitoring on macOS.
 
 ---
 
@@ -82,13 +82,13 @@ network monitoring, ping, traceroute, diagnostics, network tools, DNS lookup, po
 
 ---
 
-## What's New in Version 1.0.0
+## What's New in Version 2.0
 
 ### Initial Release - Complete Feature Set
 
-**🎉 Introducing NetMonitor 1.0 for macOS**
+**🎉 Introducing NetMonitor Pro 2.0 for macOS**
 
-NetMonitor v1.0 brings professional network monitoring and diagnostics to macOS Sequoia and later.
+NetMonitor Pro v2.0 brings professional network monitoring and diagnostics to macOS Sequoia and later.
 
 **Monitoring Features:**
 - Real-time monitoring of HTTP, HTTPS, ICMP, and TCP targets
@@ -244,7 +244,7 @@ Include 5 screenshots in the following order:
 
 ## Release Notes Summary
 
-**Version 1.0.0** - Initial Release
+**Version 2.0** - Initial Release
 - Complete network monitoring suite with 4 protocol support
 - Advanced device discovery using ARP and Bonjour
 - 8 integrated network diagnostic tools
@@ -303,12 +303,12 @@ Include 5 screenshots in the following order:
 
 ## Submission Checklist
 
-- [ ] App Name: NetMonitor
+- [ ] App Name: NetMonitor Pro
 - [ ] Subtitle: Professional Network Monitoring
 - [ ] Category: Developer Tools / Utilities
 - [ ] Description reviewed for grammar and marketing appeal
 - [ ] Keywords appropriate and optimized (comma-separated, under 100 chars)
-- [ ] Version number: 1.0.0
+- [ ] Version number: 2.0
 - [ ] Release notes populated with What's New content
 - [ ] Age rating: 4+
 - [ ] Privacy policy URL set (update placeholder)
@@ -360,4 +360,4 @@ All UI elements include accessibility identifiers and labels for VoiceOver and o
 ---
 
 *Last Updated: 2026-01-28*
-*Version: 1.0.0*
+*Version: 2.0*

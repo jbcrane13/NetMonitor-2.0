@@ -35,6 +35,10 @@ targets:
         NSPrincipalClass: NSApplication
         NSHighResolutionCapable: true
         LSApplicationCategoryType: public.app-category.utilities
+        NSHumanReadableCopyright: "Copyright © 2026 Blake Crane. All rights reserved."
+        NSLocalNetworkUsageDescription: "NetMonitor Pro uses local network access to discover and connect to the iOS companion app via Bonjour."
+        NSBonjourServices:
+          - _netmon._tcp
         NSAppTransportSecurity:
           NSExceptionDomains:
             ip-api.com:
