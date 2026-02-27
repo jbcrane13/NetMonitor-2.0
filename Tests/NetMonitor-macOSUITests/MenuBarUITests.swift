@@ -10,9 +10,7 @@ final class MenuBarUITests: XCTestCase {
         app.launch()
     }
 
-    override func tearDownWithError() throws {
-        app = nil
-    }
+    // tearDownWithError: handled by MacOSUITestCase (terminates app + nils ref)
 
     // MARK: - Menu Bar
 

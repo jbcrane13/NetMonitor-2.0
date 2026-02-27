@@ -9,9 +9,7 @@ final class WorldPingToolUITests: XCTestCase {
         app.launch()
     }
 
-    override func tearDownWithError() throws {
-        app.terminate()
-    }
+    // tearDownWithError: handled by MacOSUITestCase (terminates app + nils ref)
 
     // MARK: - Helpers
 

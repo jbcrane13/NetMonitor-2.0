@@ -18,9 +18,7 @@ final class SpeedTestToolUITests: XCTestCase {
         card.tap()
     }
 
-    override func tearDownWithError() throws {
-        app = nil
-    }
+    // tearDownWithError: handled by MacOSUITestCase (terminates app + nils ref)
 
     // MARK: - Element Existence
 

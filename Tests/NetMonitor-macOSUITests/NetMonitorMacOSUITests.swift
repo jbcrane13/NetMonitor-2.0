@@ -10,9 +10,7 @@ class NetMonitorMacOSUITests: XCTestCase {
         app.launch()
     }
 
-    override func tearDownWithError() throws {
-        app = nil
-    }
+    // tearDownWithError: handled by MacOSUITestCase (terminates app + nils ref)
 
     func testAppLaunches() throws {
         XCTAssertTrue(app.windows.count > 0, "App should have at least one window")
