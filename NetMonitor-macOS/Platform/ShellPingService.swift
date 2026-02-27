@@ -72,7 +72,7 @@ enum ShellPingOutputParser {
         pattern: #"(\d+) packets transmitted, (\d+) (?:packets )?received, ([0-9.]+)% packet loss"#
     )
     private static let statsPattern = try! NSRegularExpression(
-        pattern: #"min/avg/max/stddev = ([0-9.]+)/([0-9.]+)/([0-9.]+)/([0-9.]+) ms"#
+        pattern: #"min/avg/max/(?:stddev|mdev) = ([0-9.]+)/([0-9.]+)/([0-9.]+)/([0-9.]+) ms"#
     )
     private static let timeoutPattern = try! NSRegularExpression(
         pattern: #"Request timeout for icmp_seq (\d+)"#

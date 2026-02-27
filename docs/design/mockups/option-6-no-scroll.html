@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>NetMonitor 2.0 — No-Scroll Dashboard</title>
+<style>
+/* ============================================================
+   MacTheme exact colors + MacGlassCard
+   Window: 1280 × 800px (standard MacBook) — NO SCROLL
+   ============================================================ */
+:root {
+  --bg:        #141416;
+  --bg-el:     #1C1C1E;
+  --card-bg:   rgba(26,31,38,0.62);
+  --card-bd:   rgba(255,255,255,0.14);
+  --cyan:      #06B6D4;
+  --emerald:   #10B981;
+  --amber:     #F59E0B;
+  --red:       #EF4444;
+  --blue:      #3B82F6;
+  --purple:    #8B5CF6;
+  --t1: rgba(255,255,255,1.0);
+  --t2: rgba(255,255,255,0.70);
+  --t3: rgba(255,255,255,0.48);
+  --t4: rgba(255,255,255,0.28);
+  --recessed:  rgba(0,0,0,0.28);
+  --sb-bg:     #111318;
+  --sb-sel:    #1E2329;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+html, body { background:#0a0a0c; font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',sans-serif; font-size:12px; color:var(--t1); }
+
+/* ── Window shell ─────────────────────────────────── */
+.window {
+  width: 1280px;
+  height: 800px;
+  margin: 10px auto;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 40px 100px rgba(0,0,0,.85), 0 0 0 1px rgba(255,255,255,.07);
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Title bar ───────────────────────────────────── */
+.titlebar {
+  height: 38px;
+  flex-shrink: 0;
+  background: rgba(18,18,20,0.98);
+  border-bottom: 1px solid rgba(255,255,255,.08);
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  position: relative;
+}
+.tl { width:12px; height:12px; border-radius:50%; margin-right:8px; flex-shrink:0; }
+.tl-r { background:#FF5F57; } .tl-y { background:#FEBC2E; } .tl-g { background:#28C840; }
+.tb-title { position:absolute; left:50%; transform:translateX(-50%); font-size:13px; font-weight:600; color:var(--t2); white-space:nowrap; }
+.tb-right { margin-left:auto; font-size:11px; color:var(--t4); }
+
+/* ── App body ────────────────────────────────────── */
+.app-body {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+  background: var(--bg);
+  position: relative;
+}
+/* Background shimmer */
+.app-body::before {
+  content:'';
+  position:absolute; inset:0;
+  background: radial-gradient(ellipse 80% 40% at 50% 0%, rgba(30,35,55,.32) 0%, transparent 65%);
+  pointer-events:none; z-index:0;
+}
+
+/* ── Sidebar ─────────────────────────────────────── */
+.sidebar {
+  width: 210px;
+  flex-shrink: 0;
+  background: var(--sb-bg);
+  border-right: 1px solid rgba(255,255,255,.07);
+  padding: 10px 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  position: relative;
+  z-index: 1;
+}
+.sb-section {
+  font-size: 10px; font-weight: 700; color: var(--t4);
+  letter-spacing: 1.5px; text-transform: uppercase;
+  padding: 8px 10px 4px; margin-top: 4px;
+}
+.sb-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  font-size: 12px; font-weight: 500; color: var(--t3);
+  cursor: default;
+}
+.sb-row:hover { background: rgba(255,255,255,.04); color: var(--t2); }
+.sb-row.sel {
+  background: var(--sb-sel);
+  color: var(--t1);
+  border-left: 2.5px solid var(--cyan);
+  padding-left: 7.5px;
+}
+.sb-icon { font-size: 13px; width: 16px; text-align:center; opacity:.8; flex-shrink:0; }
+.sb-row.sel .sb-icon { color: var(--cyan); }
+.sb-badge {
+  margin-left:auto; font-size:10px; font-weight:700;
+  background: rgba(6,182,212,.2); color: var(--cyan);
+  padding: 1px 7px; border-radius: 10px;
+}
+.sb-badge.em { background: rgba(16,185,129,.18); color: var(--emerald); }
+.sb-footer {
+  margin-top: auto;
+  padding: 10px 10px 4px;
+  border-top: 1px solid rgba(255,255,255,.06);
+  display: flex; align-items: center; gap: 8px;
+}
+.live-dot {
+  width:6px; height:6px; border-radius:50%;
+  background:var(--emerald); box-shadow:0 0 6px rgba(16,185,129,.8);
+  animation:lp 2s ease-in-out infinite; flex-shrink:0;
+}
+@keyframes lp { 0%,100%{opacity:1} 50%{opacity:.35} }
+
+/* ── Content area ────────────────────────────────── */
+.content {
+  flex: 1;
+  overflow: hidden;   /* NO SCROLL */
+  display: flex;
+  flex-direction: column;
+  padding: 14px;
+  gap: 10px;
+  position: relative;
+  z-index: 1;
+}
+
+/* ── Glass card ──────────────────────────────────── */
+.card {
+  background: var(--card-bg);
+  backdrop-filter: blur(18px) saturate(160%);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  border-radius: 14px;
+  border: 0.5px solid var(--card-bd);
+  box-shadow: 0 4px 12px rgba(0,0,0,.3), inset 0 1px 0 rgba(255,255,255,.08);
+  padding: 12px 14px;
+  position: relative;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.card::before {
+  content:'';
+  position:absolute; inset:0;
+  background:linear-gradient(135deg, rgba(255,255,255,.07) 0%, transparent 55%, rgba(255,255,255,.02) 100%);
+  border-radius:14px; pointer-events:none;
+}
+.card::after {
+  content:'';
+  position:absolute; top:0; left:0; right:0; height:1px;
+  background:linear-gradient(90deg, transparent, rgba(255,255,255,.18), rgba(255,255,255,.04), transparent);
+  pointer-events:none;
+}
+.recessed {
+  background: rgba(0,0,0,.28);
+  border-radius: 8px;
+  padding: 6px 8px;
+}
+
+/* ── Widget header ───────────────────────────────── */
+.wh {
+  display:flex; align-items:center; gap:6px;
+  margin-bottom: 9px;
+}
+.wdot { width:5px; height:5px; border-radius:50%; flex-shrink:0; }
+.wlabel {
+  font-size:10px; font-weight:700; letter-spacing:1.4px;
+  text-transform:uppercase; color:var(--t3);
+}
+.waction { margin-left:auto; font-size:10px; color:var(--cyan); font-weight:600; cursor:pointer; }
+
+/* ── Layout rows ─────────────────────────────────── */
+
+/* Row A: Activity (flex) + Health (210px) */
+.row-a {
+  display: grid;
+  grid-template-columns: 1fr 210px;
+  gap: 10px;
+  height: 196px;
+  flex-shrink: 0;
+}
+/* Row B: ISP Health + Latency */
+.row-b {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  height: 155px;
+  flex-shrink: 0;
+}
+/* Row C: Connectivity + Devices */
+.row-c {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  height: 140px;
+  flex-shrink: 0;
+}
+/* Row D: Target Monitoring — takes remaining space */
+.row-d {
+  flex: 1;
+  min-height: 0;
+}
+
+/* ── SVG chart helpers ───────────────────────────── */
+svg.chart { width:100%; }
+.lc { stroke:var(--cyan);    stroke-width:1.5; fill:none; stroke-linecap:round; }
+.le { stroke:var(--emerald); stroke-width:1.5; fill:none; stroke-linecap:round; }
+.la { stroke:var(--amber);   stroke-width:1.5; fill:none; stroke-linecap:round; }
+.lp { stroke:var(--purple);  stroke-width:1.5; fill:none; }
+
+/* ── Stats row ───────────────────────────────────── */
+.stats { display:flex; gap:14px; padding-top:8px; border-top:1px solid rgba(255,255,255,.06); margin-top:8px; }
+.stat { display:flex; flex-direction:column; gap:2px; }
+.sv { font-size:14px; font-weight:700; }
+.sl { font-size:9px; color:var(--t3); letter-spacing:1px; text-transform:uppercase; }
+
+/* ── Uptime bar ──────────────────────────────────── */
+.uptime-bar { display:flex; height:4px; gap:1px; overflow:hidden; border-radius:2px; margin:6px 0; }
+.us { flex:1; min-width:1px; }
+.us.up { background:var(--emerald); opacity:.55; }
+.us.dn { background:var(--red); }
+.us.wn { background:var(--amber); opacity:.7; }
+
+/* ── Histogram ───────────────────────────────────── */
+.histogram { display:flex; align-items:flex-end; gap:2px; }
+.hbar { flex:1; border-radius:2px 2px 0 0; min-height:2px; opacity:.85; }
+
+/* ── Connectivity rows ───────────────────────────── */
+.conn-row { display:flex; align-items:center; gap:8px; padding:4px 0; border-bottom:1px solid rgba(255,255,255,.05); }
+.conn-row:last-child { border:none; }
+.ck { font-size:9px; font-weight:700; letter-spacing:1.2px; text-transform:uppercase; color:var(--t3); width:56px; flex-shrink:0; }
+.cv { font-size:11px; font-weight:500; }
+.mono { font-family:Menlo,'Courier New',monospace; }
+
+/* ── Ping pills ──────────────────────────────────── */
+.pills { display:flex; gap:5px; flex-wrap:wrap; margin-top:6px; }
+.pill {
+  display:flex; align-items:center; gap:4px;
+  padding:3px 9px; border-radius:20px;
+  background:rgba(6,182,212,.07); border:0.5px solid rgba(6,182,212,.2);
+  font-size:10px;
+}
+.ph { color:var(--t3); } .pl { color:var(--cyan); font-weight:700; }
+
+/* ── Device rows ─────────────────────────────────── */
+.device-row {
+  display:flex; align-items:center; gap:8px;
+  padding:5px 8px; border-radius:7px;
+  transition:background .1s;
+}
+.device-row:hover { background:rgba(255,255,255,.04); }
+.d-dot { width:5px; height:5px; border-radius:50%; flex-shrink:0; }
+.d-name { flex:1; font-size:11px; font-weight:500; }
+.d-ip { font-family:Menlo,monospace; font-size:10px; color:var(--t3); width:96px; }
+.d-lat { font-size:11px; font-weight:700; width:42px; text-align:right; }
+
+/* ── Target cards ────────────────────────────────── */
+.targets-inner {
+  display: grid;
+  grid-template-columns: repeat(4,1fr);
+  gap: 10px;
+  height: calc(100% - 34px); /* subtract widget header */
+}
+.target-card {
+  background: rgba(0,0,0,.22);
+  border: 0.5px solid rgba(255,255,255,.09);
+  border-radius: 10px;
+  padding: 10px 12px;
+  display:flex; flex-direction:column;
+  transition: border-color .15s;
+}
+.target-card:hover { border-color: rgba(255,255,255,.16); }
+.tc-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:4px; }
+.tc-name { font-size:10px; font-weight:700; letter-spacing:.5px; color:var(--t2); }
+.tc-dot { width:7px; height:7px; border-radius:50%; box-shadow:0 0 6px currentColor; flex-shrink:0; }
+.tc-host { font-family:Menlo,monospace; font-size:10px; color:var(--t4); margin-bottom:5px; }
+.tc-lat { font-size:22px; font-weight:700; line-height:1; letter-spacing:-.5px; }
+.tc-spark { flex:1; min-height:0; margin:6px 0; }
+.tc-foot {
+  display:flex; justify-content:space-between; align-items:center;
+  padding-top:5px; border-top:1px solid rgba(255,255,255,.06);
+}
+.tc-proto { font-size:9px; color:var(--t4); letter-spacing:1px; text-transform:uppercase; }
+.tc-status { font-size:9px; font-weight:700; letter-spacing:1px; text-transform:uppercase; }
+
+/* ── Health gauge score bars ─────────────────────── */
+.score-row { display:flex; align-items:center; gap:7px; margin-bottom:5px; }
+.sk { font-size:9px; font-weight:700; letter-spacing:.8px; text-transform:uppercase; color:var(--t3); width:50px; }
+.sb-bg { flex:1; height:3px; background:rgba(255,255,255,.07); border-radius:2px; }
+.sb-fill { height:100%; border-radius:2px; }
+.s-pct { font-size:10px; font-weight:700; width:28px; text-align:right; }
+
+/* Seg picker */
+.seg-picker { display:flex; background:rgba(255,255,255,.07); border-radius:7px; padding:2px; }
+.seg-btn { padding:3px 10px; border-radius:5px; font-size:10px; font-weight:600; color:var(--t3); cursor:pointer; border:none; background:none; }
+.seg-btn.active { background:rgba(255,255,255,.15); color:var(--t1); box-shadow:0 1px 3px rgba(0,0,0,.3); }
+
+</style>
+</head>
+<body>
+<div class="window">
+
+  <!-- ── Title bar ─────────────────────────────────── -->
+  <div class="titlebar">
+    <div class="tl tl-r"></div><div class="tl tl-y"></div><div class="tl tl-g"></div>
+    <div class="tb-title">Dashboard</div>
+    <div class="tb-right">Thu, Feb 26 · 3:14 AM</div>
+  </div>
+
+  <!-- ── App body ──────────────────────────────────── -->
+  <div class="app-body">
+
+    <!-- SIDEBAR -->
+    <div class="sidebar">
+      <div class="sb-section">Networks</div>
+      <div class="sb-row" style="font-size:11px">
+        <span class="sb-icon">⊙</span>
+        <span style="flex:1;color:var(--t2)">Ethernet — 1...</span>
+        <span style="font-size:9px;font-weight:700;background:rgba(16,185,129,.2);color:var(--emerald);padding:1px 6px;border-radius:4px;letter-spacing:1px">ACTIVE</span>
+      </div>
+      <div class="sb-section" style="margin-top:8px">Command</div>
+      <div class="sb-row sel">
+        <span class="sb-icon">⊞</span>
+        <span>Dashboard</span>
+        <span class="sb-badge">3/3</span>
+      </div>
+      <div class="sb-row">
+        <span class="sb-icon">◎</span>
+        <span>Targets</span>
+        <span class="sb-badge em">3/3</span>
+      </div>
+      <div class="sb-row"><span class="sb-icon">⬡</span> Devices</div>
+      <div class="sb-row"><span class="sb-icon">⚙</span> Tools</div>
+      <div class="sb-row"><span class="sb-icon">⊛</span> Settings</div>
+      <div class="sb-footer">
+        <div class="live-dot"></div>
+        <div style="font-size:11px;font-weight:500;color:var(--t3)">Monitoring active</div>
+      </div>
+    </div>
+
+    <!-- CONTENT -->
+    <div class="content">
+
+      <!-- ════ ROW A: Activity + Health (196px) ════ -->
+      <div class="row-a">
+
+        <!-- Widget 1: Internet Activity 24H -->
+        <div class="card">
+          <div class="wh">
+            <div class="wdot" style="background:var(--cyan)"></div>
+            <div class="wlabel">Internet Activity · 24H</div>
+            <div style="display:flex;align-items:center;gap:14px;margin-left:auto">
+              <span style="font-size:11px;color:var(--cyan)">↓ <strong>921</strong> Mbps</span>
+              <span style="font-size:11px;color:var(--purple)">↑ <strong>458</strong> Mbps</span>
+              <div class="seg-picker">
+                <button class="seg-btn active">24H</button>
+                <button class="seg-btn">7D</button>
+                <button class="seg-btn">30D</button>
+              </div>
+            </div>
+          </div>
+          <!-- Chart -->
+          <div class="recessed" style="padding:5px 7px">
+            <svg id="activity-svg" class="chart" height="98" viewBox="0 0 800 98" preserveAspectRatio="none">
+              <defs>
+                <linearGradient id="gc" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#06B6D4" stop-opacity=".28"/>
+                  <stop offset="100%" stop-color="#06B6D4" stop-opacity="0"/>
+                </linearGradient>
+                <linearGradient id="gp" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#8B5CF6" stop-opacity=".22"/>
+                  <stop offset="100%" stop-color="#8B5CF6" stop-opacity="0"/>
+                </linearGradient>
+                <linearGradient id="ge" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#10B981" stop-opacity=".26"/>
+                  <stop offset="100%" stop-color="#10B981" stop-opacity="0"/>
+                </linearGradient>
+                <linearGradient id="ga" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#F59E0B" stop-opacity=".28"/>
+                  <stop offset="100%" stop-color="#F59E0B" stop-opacity="0"/>
+                </linearGradient>
+              </defs>
+              <line x1="0" y1="24" x2="800" y2="24" stroke="rgba(255,255,255,.04)" stroke-width="1"/>
+              <line x1="0" y1="49" x2="800" y2="49" stroke="rgba(255,255,255,.04)" stroke-width="1"/>
+              <line x1="0" y1="73" x2="800" y2="73" stroke="rgba(255,255,255,.04)" stroke-width="1"/>
+              <path id="dl-area" fill="url(#gc)"/>
+              <path id="ul-area" fill="url(#gp)"/>
+              <path id="dl-line" class="lc"/>
+              <path id="ul-line" class="lp"/>
+              <circle id="live-pt" r="4" fill="var(--cyan)" opacity=".9"/>
+            </svg>
+          </div>
+          <!-- Stats -->
+          <div class="stats" style="margin-top:7px;padding-top:7px">
+            <div class="stat"><div class="sv" style="color:var(--cyan)">5.2 TB</div><div class="sl">↓ 24h total</div></div>
+            <div class="stat"><div class="sv" style="color:var(--purple)">1.8 TB</div><div class="sl">↑ 24h total</div></div>
+            <div class="stat"><div class="sv" style="color:var(--t2)">7.0 TB</div><div class="sl">combined</div></div>
+            <div class="stat" style="margin-left:auto"><div class="sv" style="color:var(--emerald)">99.8%</div><div class="sl">ISP uptime</div></div>
+          </div>
+        </div>
+
+        <!-- Widget 2: Health Score -->
+        <div class="card" style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:14px 16px;gap:0">
+          <div class="wlabel" style="margin-bottom:10px">Network Health</div>
+          <svg width="120" height="120" viewBox="-60 -60 120 120" style="overflow:visible;flex-shrink:0">
+            <defs>
+              <linearGradient id="arc-g" x1="0" y1="1" x2="1" y2="0">
+                <stop offset="0%" stop-color="#10B981"/>
+                <stop offset="55%" stop-color="#06B6D4"/>
+                <stop offset="100%" stop-color="#3B82F6"/>
+              </linearGradient>
+              <filter id="glow"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+            </defs>
+            <circle cx="0" cy="0" r="50" fill="none" stroke="rgba(255,255,255,.06)" stroke-width="9"/>
+            <circle cx="0" cy="0" r="50" fill="none" stroke="url(#arc-g)" stroke-width="9"
+              stroke-dasharray="314.2" stroke-dashoffset="12.6" stroke-linecap="round"
+              transform="rotate(-90)" filter="url(#glow)"/>
+            <text x="0" y="9" text-anchor="middle" fill="white"
+              font-family="-apple-system,sans-serif" font-size="34" font-weight="700"
+              filter="url(#glow)">96</text>
+            <text x="0" y="22" text-anchor="middle" fill="rgba(255,255,255,.35)"
+              font-family="-apple-system,sans-serif" font-size="9" letter-spacing="1.5">OPTIMAL</text>
+          </svg>
+          <div style="width:100%;margin-top:12px">
+            <div class="score-row"><div class="sk">Latency</div><div class="sb-bg"><div class="sb-fill" style="width:100%;background:var(--emerald)"></div></div><div class="s-pct" style="color:var(--emerald)">100%</div></div>
+            <div class="score-row"><div class="sk">Loss</div><div class="sb-bg"><div class="sb-fill" style="width:100%;background:var(--emerald)"></div></div><div class="s-pct" style="color:var(--emerald)">100%</div></div>
+            <div class="score-row" style="margin-bottom:0"><div class="sk">Devices</div><div class="sb-bg"><div class="sb-fill" style="width:88%;background:var(--amber)"></div></div><div class="s-pct" style="color:var(--amber)">88%</div></div>
+          </div>
+        </div>
+      </div><!-- /row-a -->
+
+      <!-- ════ ROW B: ISP Health + Latency (155px) ════ -->
+      <div class="row-b">
+
+        <!-- Widget 3: ISP Health (compact) -->
+        <div class="card" style="padding:10px 14px">
+          <div class="wh" style="margin-bottom:7px">
+            <div class="wdot" style="background:var(--emerald)"></div>
+            <div class="wlabel">ISP Health</div>
+            <div style="margin-left:auto;font-size:10px;font-weight:700;color:var(--emerald)">STARLINK</div>
+          </div>
+          <div style="display:flex;gap:12px;align-items:flex-start">
+            <!-- Left: ISP info -->
+            <div style="flex:1">
+              <div style="display:flex;align-items:baseline;gap:8px">
+                <div style="font-size:16px;font-weight:700">Starlink</div>
+                <div class="mono" style="font-size:11px;color:var(--cyan)">74.125.22.101</div>
+              </div>
+              <div style="font-size:10px;color:var(--t3);margin:2px 0 4px">Chicago, IL · AS14593</div>
+              <div class="uptime-bar" id="uptime-bar" style="margin:4px 0"></div>
+              <div style="display:flex;gap:16px;margin-top:3px">
+                <div style="font-size:11px;color:var(--t3)">↓ <span style="font-size:15px;font-weight:700;color:var(--cyan)">921</span> <span style="color:var(--t4)">Mbps</span></div>
+                <div style="font-size:11px;color:var(--t3)">↑ <span style="font-size:15px;font-weight:700;color:var(--purple)">458</span> <span style="color:var(--t4)">Mbps</span></div>
+              </div>
+            </div>
+            <!-- Right: Uptime + mini chart -->
+            <div style="text-align:right;flex-shrink:0">
+              <div class="sl">30-day uptime</div>
+              <div style="font-size:22px;font-weight:700;color:var(--emerald);letter-spacing:-.5px">99.8%</div>
+              <div style="font-size:10px;color:var(--t4)">0 outages</div>
+            </div>
+          </div>
+          <!-- Mini throughput chart -->
+          <div class="recessed" style="margin-top:7px;padding:4px 6px">
+            <svg id="tp-svg" class="chart" height="32" viewBox="0 0 400 32" preserveAspectRatio="none">
+              <path id="tp-dl-a" fill="url(#gc)"/>
+              <path id="tp-ul-a" fill="url(#gp)"/>
+              <path id="tp-dl" class="lc" style="stroke-width:1.5"/>
+              <path id="tp-ul" class="lp" style="stroke-width:1.5"/>
+            </svg>
+          </div>
+        </div>
+
+        <!-- Widget 4: Latency Analysis (compact, no trend) -->
+        <div class="card" style="padding:10px 14px">
+          <div class="wh" style="margin-bottom:7px">
+            <div class="wdot" style="background:var(--emerald)"></div>
+            <div class="wlabel">Latency Analysis · Gateway</div>
+          </div>
+          <!-- Histogram -->
+          <div class="histogram" id="histogram" style="height:42px"></div>
+          <div style="display:flex;gap:10px;margin:4px 0 7px;font-size:9px;font-weight:600">
+            <span style="color:var(--emerald)">■ &lt;5ms</span>
+            <span style="color:var(--cyan)">■ 5–20ms</span>
+            <span style="color:var(--amber)">■ 20–50ms</span>
+            <span style="color:var(--red)">■ &gt;50ms</span>
+          </div>
+          <!-- Stats -->
+          <div class="stats" style="padding-top:7px;margin-top:0;gap:12px">
+            <div class="stat"><div class="sv" style="color:var(--emerald);font-size:14px">2.4ms</div><div class="sl">Avg</div></div>
+            <div class="stat"><div class="sv" style="color:var(--emerald);font-size:14px">1.1ms</div><div class="sl">Min</div></div>
+            <div class="stat"><div class="sv" style="color:var(--amber);font-size:14px">18.3ms</div><div class="sl">Max</div></div>
+            <div class="stat"><div class="sv" style="color:var(--emerald);font-size:14px">0.8ms</div><div class="sl">Jitter</div></div>
+            <div class="stat"><div class="sv" style="color:var(--emerald);font-size:14px">0.0%</div><div class="sl">Loss</div></div>
+          </div>
+        </div>
+      </div><!-- /row-b -->
+
+      <!-- ════ ROW C: Connectivity + Devices (140px) ════ -->
+      <div class="row-c">
+
+        <!-- Widget 6: Connectivity (compact) -->
+        <div class="card" style="padding:10px 14px">
+          <div class="wh" style="margin-bottom:6px">
+            <div class="wdot" style="background:var(--blue)"></div>
+            <div class="wlabel">Connectivity</div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 20px">
+            <div>
+              <div class="conn-row"><div class="ck">ISP</div><div class="cv">Starlink</div></div>
+              <div class="conn-row"><div class="ck">Public IP</div><div class="cv mono" style="color:var(--cyan);font-size:11px">74.125.22.101</div></div>
+              <div class="conn-row"><div class="ck">Gateway</div><div class="cv mono" style="font-size:11px">192.168.1.1</div></div>
+            </div>
+            <div>
+              <div class="conn-row"><div class="ck">DNS</div><div class="cv mono" style="font-size:10px">8.8.8.8 · 1.1.1.1</div></div>
+              <div class="conn-row"><div class="ck">IPv6</div><div class="cv" style="color:var(--emerald)">Enabled</div></div>
+              <div class="conn-row"><div class="ck">Location</div><div class="cv" style="font-size:11px">Chicago, IL</div></div>
+            </div>
+          </div>
+          <div class="pills">
+            <div class="pill"><span class="ph">Google</span><span class="pl">8.1ms</span></div>
+            <div class="pill"><span class="ph">Cloudflare</span><span class="pl">7.3ms</span></div>
+            <div class="pill"><span class="ph">AWS</span><span class="pl">22.4ms</span></div>
+            <div class="pill"><span class="ph">Apple</span><span class="pl">11.2ms</span></div>
+          </div>
+        </div>
+
+        <!-- Widget 7: Active Devices (compact) -->
+        <div class="card" style="padding:10px 14px">
+          <div class="wh" style="margin-bottom:5px">
+            <div class="wdot" style="background:var(--amber)"></div>
+            <div class="wlabel">Active Devices</div>
+            <div class="waction">See All →</div>
+            <div style="margin-left:8px;font-size:12px;font-weight:700;color:var(--amber)">14 <span style="font-size:9px;color:var(--t4);font-weight:400">online</span></div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:3px">
+            <div class="device-row">
+              <div class="d-dot" style="background:var(--cyan);box-shadow:0 0 4px rgba(6,182,212,.7)"></div>
+              <span class="d-name">MacBook Pro (this)</span><span class="d-ip">192.168.1.100</span>
+              <span class="d-lat" style="color:var(--emerald)">2.1ms</span>
+            </div>
+            <div class="device-row">
+              <div class="d-dot" style="background:var(--emerald);box-shadow:0 0 4px rgba(16,185,129,.7)"></div>
+              <span class="d-name">iPhone 15 Pro</span><span class="d-ip">192.168.1.101</span>
+              <span class="d-lat" style="color:var(--emerald)">4.8ms</span>
+            </div>
+            <div class="device-row">
+              <div class="d-dot" style="background:var(--emerald);box-shadow:0 0 4px rgba(16,185,129,.7)"></div>
+              <span class="d-name">Apple TV 4K</span><span class="d-ip">192.168.1.105</span>
+              <span class="d-lat" style="color:var(--emerald)">3.2ms</span>
+            </div>
+            <div class="device-row">
+              <div class="d-dot" style="background:var(--amber);box-shadow:0 0 4px rgba(245,158,11,.7)"></div>
+              <span class="d-name">Samsung Frame TV</span><span class="d-ip">192.168.1.112</span>
+              <span class="d-lat" style="color:var(--amber)">12.3ms</span>
+            </div>
+          </div>
+        </div>
+      </div><!-- /row-c -->
+
+      <!-- ════ ROW D: Target Monitoring (flex remainder) ════ -->
+      <div class="card row-d" style="padding:10px 14px">
+        <div class="wh" style="margin-bottom:8px">
+          <div class="wdot" style="background:var(--cyan)"></div>
+          <div class="wlabel">Target Monitoring</div>
+          <div style="display:flex;align-items:center;gap:8px;margin-left:auto">
+            <div class="live-dot"></div>
+            <span style="font-size:11px;color:var(--t2);font-weight:500">4 targets active</span>
+            <button style="font-size:10px;font-weight:700;padding:4px 12px;background:rgba(239,68,68,.18);border:0.5px solid rgba(239,68,68,.35);border-radius:7px;color:var(--red);cursor:pointer;letter-spacing:.5px">■ STOP</button>
+          </div>
+        </div>
+        <!-- 4 Target cards -->
+        <div class="targets-inner">
+
+          <!-- Target 1: Gateway -->
+          <div class="target-card">
+            <div class="tc-head">
+              <div class="tc-name">Local Gateway</div>
+              <div class="tc-dot" style="color:var(--emerald);background:var(--emerald)"></div>
+            </div>
+            <div class="tc-host">192.168.1.1 · ICMP</div>
+            <div class="tc-lat" style="color:var(--emerald)">2.4<span style="font-size:12px;color:var(--t3);font-weight:400">ms</span></div>
+            <div class="tc-spark recessed" style="padding:2px 4px">
+              <svg id="st1" class="chart" height="100%" viewBox="0 0 160 24" preserveAspectRatio="none">
+                <path id="st1a" fill="url(#ge)"/><path id="st1l" class="le" style="stroke-width:1.2"/>
+              </svg>
+            </div>
+            <div class="tc-foot">
+              <span class="tc-proto">ICMP · 5s</span>
+              <span class="tc-status" style="color:var(--emerald)">Nominal</span>
+            </div>
+          </div>
+
+          <!-- Target 2: Google DNS -->
+          <div class="target-card">
+            <div class="tc-head">
+              <div class="tc-name">Google DNS</div>
+              <div class="tc-dot" style="color:var(--emerald);background:var(--emerald)"></div>
+            </div>
+            <div class="tc-host">8.8.8.8 · ICMP</div>
+            <div class="tc-lat" style="color:var(--emerald)">8.1<span style="font-size:12px;color:var(--t3);font-weight:400">ms</span></div>
+            <div class="tc-spark recessed" style="padding:2px 4px">
+              <svg id="st2" class="chart" height="100%" viewBox="0 0 160 24" preserveAspectRatio="none">
+                <path id="st2a" fill="url(#ge)"/><path id="st2l" class="le" style="stroke-width:1.2"/>
+              </svg>
+            </div>
+            <div class="tc-foot">
+              <span class="tc-proto">ICMP · 5s</span>
+              <span class="tc-status" style="color:var(--emerald)">Nominal</span>
+            </div>
+          </div>
+
+          <!-- Target 3: Cloudflare -->
+          <div class="target-card">
+            <div class="tc-head">
+              <div class="tc-name">Cloudflare DNS</div>
+              <div class="tc-dot" style="color:var(--cyan);background:var(--cyan)"></div>
+            </div>
+            <div class="tc-host">1.1.1.1 · ICMP</div>
+            <div class="tc-lat" style="color:var(--cyan)">7.3<span style="font-size:12px;color:var(--t3);font-weight:400">ms</span></div>
+            <div class="tc-spark recessed" style="padding:2px 4px">
+              <svg id="st3" class="chart" height="100%" viewBox="0 0 160 24" preserveAspectRatio="none">
+                <path id="st3a" fill="url(#gc)"/><path id="st3l" class="lc" style="stroke-width:1.2"/>
+              </svg>
+            </div>
+            <div class="tc-foot">
+              <span class="tc-proto">ICMP · 5s</span>
+              <span class="tc-status" style="color:var(--cyan)">Nominal</span>
+            </div>
+          </div>
+
+          <!-- Target 4: Production API -->
+          <div class="target-card">
+            <div class="tc-head">
+              <div class="tc-name">Production API</div>
+              <div class="tc-dot" style="color:var(--amber);background:var(--amber)"></div>
+            </div>
+            <div class="tc-host">api.example.com · HTTP</div>
+            <div class="tc-lat" style="color:var(--amber)">45<span style="font-size:12px;color:var(--t3);font-weight:400">ms</span></div>
+            <div class="tc-spark recessed" style="padding:2px 4px">
+              <svg id="st4" class="chart" height="100%" viewBox="0 0 160 24" preserveAspectRatio="none">
+                <path id="st4a" fill="url(#ga)"/><path id="st4l" class="la" style="stroke-width:1.2"/>
+              </svg>
+            </div>
+            <div class="tc-foot">
+              <span class="tc-proto">HTTP · 10s</span>
+              <span class="tc-status" style="color:var(--amber)">Elevated</span>
+            </div>
+          </div>
+
+        </div><!-- /targets-inner -->
+      </div><!-- /row-d -->
+
+    </div><!-- /content -->
+  </div><!-- /app-body -->
+</div><!-- /window -->
+
+<script>
+/* ── Seeded PRNG + chart helpers ── */
+function prng(s){let x=s;return()=>{x=(x^(x<<13))>>>0;x=(x^(x>>7))>>>0;x=(x^(x<<5))>>>0;return(x>>>0)/4294967296;};}
+function gen(n,b,noise,r){return Array.from({length:n},(_,i)=>Math.max(b*.05,b+Math.sin(i*.25)*noise*.4+(r()-.5)*noise));}
+function pts(d,w,h){const mn=Math.min(...d),mx=Math.max(...d),rng=mx-mn||1;return d.map((v,i)=>[(i/(d.length-1))*w,h*.88-((v-mn)/rng)*h*.76]);}
+function lp(d,w,h){const p=pts(d,w,h);let s=`M${p[0][0]},${p[0][1]}`;for(let i=1;i<p.length;i++){const dx=(p[i][0]-p[i-1][0])/3;s+=` C${p[i-1][0]+dx},${p[i-1][1]} ${p[i][0]-dx},${p[i][1]} ${p[i][0]},${p[i][1]}`;}return s;}
+function ap(d,w,h){return lp(d,w,h)+` L${((d.length-1)/(d.length-1))*w},${h} L0,${h} Z`;}
+function set(id,v){const e=document.getElementById(id);if(e)e.setAttribute('d',v);}
+
+/* ── Data ── */
+const dlD=gen(60,921,140,prng(1)), ulD=gen(60,458,90,prng(2));
+const tpDl=gen(30,921,130,prng(5)), tpUl=gen(30,458,80,prng(6));
+const t1d=gen(20,2.4,2,prng(10)), t2d=gen(20,8.1,5,prng(11));
+const t3d=gen(20,7.3,4,prng(12)), t4d=gen(20,45,18,prng(13));
+
+/* ── Activity chart ── */
+set('dl-line',lp(dlD,800,98)); set('dl-area',ap(dlD,800,98));
+set('ul-line',lp(ulD,800,98)); set('ul-area',ap(ulD,800,98));
+const dlPts=pts(dlD,800,98);
+const ld=document.getElementById('live-pt');
+if(ld){ld.setAttribute('cx',dlPts[dlPts.length-1][0]);ld.setAttribute('cy',dlPts[dlPts.length-1][1]);}
+
+/* ── Throughput ── */
+set('tp-dl',lp(tpDl,400,32)); set('tp-dl-a',ap(tpDl,400,32));
+set('tp-ul',lp(tpUl,400,32)); set('tp-ul-a',ap(tpUl,400,32));
+
+/* ── Target sparklines ── */
+set('st1l',lp(t1d,160,24)); set('st1a',ap(t1d,160,24));
+set('st2l',lp(t2d,160,24)); set('st2a',ap(t2d,160,24));
+set('st3l',lp(t3d,160,24)); set('st3a',ap(t3d,160,24));
+set('st4l',lp(t4d,160,24)); set('st4a',ap(t4d,160,24));
+
+/* ── Histogram ── */
+const histEl=document.getElementById('histogram');
+const buckets=[65,22,10,3], colors=['#10B981','#06B6D4','#F59E0B','#EF4444'];
+buckets.forEach((c,bi)=>{
+  const r=prng(100+bi);
+  for(let j=0;j<8;j++){
+    const bar=document.createElement('div');
+    bar.className='hbar';
+    bar.style.height=(r()*.4+.6)*(c/65)*36+'px';
+    bar.style.background=colors[bi];
+    histEl.appendChild(bar);
+  }
+});
+
+/* ── Uptime bar ── */
+const ubEl=document.getElementById('uptime-bar');
+const r=prng(999);
+for(let i=0;i<180;i++){
+  const seg=document.createElement('div');
+  const v=r(); seg.className='us '+(v<.994?'up':v<.997?'wn':'dn');
+  ubEl.appendChild(seg);
+}
+
+/* ── Segment picker ── */
+document.querySelectorAll('.seg-btn').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    btn.closest('.seg-picker').querySelectorAll('.seg-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+  });
+});
+</script>
+</body>
+</html>

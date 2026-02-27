@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>NetMonitor 2.0 — Dashboard Mockups</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #080808; font-family: system-ui, sans-serif; padding: 32px; color: #fff; }
+h1 { font-size: 22px; font-weight: 800; letter-spacing: 2px; color: #fff; margin-bottom: 8px; }
+p { color: rgba(255,255,255,.5); font-size: 13px; margin-bottom: 32px; }
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.option {
+  background: #111;
+  border: 1px solid #222;
+  border-radius: 10px;
+  overflow: hidden;
+  transition: transform .15s, border-color .15s;
+}
+.option:hover { transform: translateY(-3px); border-color: #444; }
+.option-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid #1a1a1a;
+}
+.option-num { font-size: 11px; font-weight: 700; letter-spacing: 2px; color: rgba(255,255,255,.3); }
+.option-name { font-size: 15px; font-weight: 700; }
+.option-badge { font-size: 9px; letter-spacing: 1px; padding: 3px 8px; border: 1px solid; border-radius: 2px; }
+.preview-frame { width: 100%; height: 360px; border: none; transform-origin: top left; }
+.frame-wrap { position: relative; overflow: hidden; height: 360px; }
+.frame-wrap iframe { width: 167%; height: 167%; transform: scale(0.6); transform-origin: top left; }
+.open-btn {
+  display: block; width: 100%;
+  padding: 12px;
+  text-align: center;
+  background: rgba(255,255,255,.04);
+  border: none; border-top: 1px solid #1a1a1a;
+  color: rgba(255,255,255,.6);
+  font-size: 11px; font-weight: 600; letter-spacing: 2px;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background .15s, color .15s;
+}
+.open-btn:hover { background: rgba(255,255,255,.09); color: #fff; }
+</style>
+</head>
+<body>
+<h1>NETMONITOR 2.0 — DASHBOARD MOCKUPS</h1>
+<p>4 design directions · Click "OPEN FULL" to view each at full scale</p>
+<div class="grid">
+  <div class="option">
+    <div class="option-header">
+      <div>
+        <div class="option-num">OPTION 01</div>
+        <div class="option-name" style="color:#00ff41">Terminal Noir</div>
+      </div>
+      <div class="option-badge" style="color:#00ff41;border-color:#00ff41">MATRIX GREEN · CRT</div>
+    </div>
+    <div class="frame-wrap">
+      <iframe src="option-1-terminal-noir.html" title="Terminal Noir"></iframe>
+    </div>
+    <a class="open-btn" href="option-1-terminal-noir.html" target="_blank">OPEN FULL ↗</a>
+  </div>
+  <div class="option">
+    <div class="option-header">
+      <div>
+        <div class="option-num">OPTION 02</div>
+        <div class="option-name" style="color:#f5c842">Obsidian Gold</div>
+      </div>
+      <div class="option-badge" style="color:#f5c842;border-color:#f5c842">LUXURY · SERIF</div>
+    </div>
+    <div class="frame-wrap">
+      <iframe src="option-2-obsidian-gold.html" title="Obsidian Gold"></iframe>
+    </div>
+    <a class="open-btn" href="option-2-obsidian-gold.html" target="_blank">OPEN FULL ↗</a>
+  </div>
+  <div class="option">
+    <div class="option-header">
+      <div>
+        <div class="option-num">OPTION 03</div>
+        <div class="option-name" style="color:#00e5ff">Electric Brutalist</div>
+      </div>
+      <div class="option-badge" style="color:#00e5ff;border-color:#00e5ff">NEON · BOLD</div>
+    </div>
+    <div class="frame-wrap">
+      <iframe src="option-3-electric-brutalist.html" title="Electric Brutalist"></iframe>
+    </div>
+    <a class="open-btn" href="option-3-electric-brutalist.html" target="_blank">OPEN FULL ↗</a>
+  </div>
+  <div class="option">
+    <div class="option-header">
+      <div>
+        <div class="option-num">OPTION 04</div>
+        <div class="option-name" style="color:#ff8c00">Mission Control</div>
+      </div>
+      <div class="option-badge" style="color:#ff8c00;border-color:#ff8c00">OPS CENTER · HUD</div>
+    </div>
+    <div class="frame-wrap">
+      <iframe src="option-4-mission-control.html" title="Mission Control"></iframe>
+    </div>
+    <a class="open-btn" href="option-4-mission-control.html" target="_blank">OPEN FULL ↗</a>
+  </div>
+</div>
+</body>
+</html>

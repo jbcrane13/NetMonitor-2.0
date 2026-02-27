@@ -14,8 +14,8 @@ public final class LocalDevice {
     public var customName: String?
     public var status: DeviceStatus
     public var lastLatency: Double?
-    public var isGateway: Bool
-    public var supportsWakeOnLan: Bool
+    public var isGateway: Bool = false
+    public var supportsWakeOnLan: Bool = false
     public var firstSeen: Date
     public var lastSeen: Date
     public var notes: String?

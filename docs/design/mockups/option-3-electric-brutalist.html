@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>NetMonitor 2.0 — Option 3: Electric Brutalist</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=JetBrains+Mono:wght@400;700&display=swap">
+<style>
+:root {
+  --bg: #0c1117;
+  --surface: #111820;
+  --surface2: #0f1520;
+  --border: #1e2d3d;
+  --cyan: #00e5ff;
+  --pink: #ff0060;
+  --yellow: #ffe500;
+  --green: #00ff88;
+  --red: #ff3b3b;
+  --white: #f0f6ff;
+  --dim: #3d5c7a;
+  --dim2: #587a9a;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html { background: #080d12; }
+body {
+  background: var(--bg);
+  color: var(--white);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  min-height: 100vh;
+}
+/* Scan grid background */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(0,229,255,0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,229,255,0.025) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.window {
+  max-width: 1300px;
+  margin: 18px auto;
+  position: relative;
+  z-index: 1;
+  border: 2px solid var(--cyan);
+  border-radius: 0;
+  overflow: hidden;
+  box-shadow:
+    0 0 0 4px rgba(0,229,255,0.04),
+    0 0 60px rgba(0,229,255,0.12),
+    0 0 120px rgba(0,229,255,0.04),
+    4px 4px 0 var(--pink);
+}
+/* Corner markers */
+.window::before {
+  content: '';
+  position: absolute;
+  top: -2px; right: -2px;
+  width: 20px; height: 20px;
+  border-top: 4px solid var(--yellow);
+  border-right: 4px solid var(--yellow);
+  z-index: 100;
+  pointer-events: none;
+}
+.window::after {
+  content: '';
+  position: absolute;
+  bottom: -2px; left: -2px;
+  width: 20px; height: 20px;
+  border-bottom: 4px solid var(--yellow);
+  border-left: 4px solid var(--yellow);
+  z-index: 100;
+  pointer-events: none;
+}
+
+.titlebar {
+  background: var(--surface2);
+  border-bottom: 2px solid var(--cyan);
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+.tl { width: 12px; height: 12px; border-radius: 50%; margin-right: 8px; }
+.tl-r { background: #ff5f57; } .tl-y { background: #febc2e; } .tl-g { background: #28c840; }
+.titlebar-text {
+  flex: 1;
+  text-align: center;
+  font-family: 'Syne', sans-serif;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 4px;
+  color: var(--cyan);
+  text-shadow: 0 0 20px rgba(0,229,255,0.5);
+}
+.titlebar-time { font-size: 10px; color: var(--dim2); }
+
+/* Status bar */
+.statusbar {
+  background: var(--surface2);
+  border-bottom: 1px solid var(--border);
+  padding: 6px 16px;
+  display: flex;
+  gap: 20px;
+  align-items: center;
+}
+.sb-item { display: flex; align-items: center; gap: 6px; color: var(--dim2); font-size: 10px; letter-spacing: 1px; }
+.sb-item .v { color: var(--cyan); font-weight: 700; }
+.sb-item .v.ok { color: var(--green); }
+.live-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--cyan);
+  box-shadow: 0 0 10px var(--cyan);
+  animation: cpulse 1.5s ease-in-out infinite;
+}
+@keyframes cpulse { 0%,100%{opacity:1;box-shadow:0 0 10px var(--cyan)} 50%{opacity:.4;box-shadow:0 0 3px var(--cyan)} }
+
+/* Dashboard */
+.dashboard {
+  padding: 14px;
+  display: grid;
+  gap: 10px;
+  background: var(--bg);
+}
+
+/* Cards */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 14px;
+  position: relative;
+}
+/* Colored accent bars on cards */
+.card.cyan-accent { border-left: 3px solid var(--cyan); }
+.card.pink-accent { border-left: 3px solid var(--pink); }
+.card.yellow-accent { border-left: 3px solid var(--yellow); }
+.card.green-accent { border-left: 3px solid var(--green); }
+
+.card-hdr { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.card-title {
+  font-family: 'Syne', sans-serif;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 3px;
+  color: var(--dim2);
+  text-transform: uppercase;
+}
+
+/* Rows */
+.row-1 { display: grid; grid-template-columns: 1fr 240px; gap: 10px; }
+.row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.row-3 { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; }
+.row-4 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.targets-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; margin-top: 12px; }
+
+/* Big numbers */
+.big-num {
+  font-family: 'Syne', sans-serif;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -2px;
+}
+.unit { font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 400; color: var(--dim2); margin-left: 2px; }
+
+/* Chart SVG lines */
+.lc { stroke: var(--cyan); stroke-width: 2; fill: none; stroke-linecap: round; }
+.lp { stroke: var(--pink); stroke-width: 2; fill: none; stroke-linecap: round; }
+.lg { stroke: var(--green); stroke-width: 2; fill: none; stroke-linecap: round; }
+.ly { stroke: var(--yellow); stroke-width: 2; fill: none; stroke-linecap: round; }
+.chart-svg { width: 100%; }
+
+/* Stats row */
+.stats-row { display: flex; gap: 16px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); }
+.stat { display: flex; flex-direction: column; gap: 3px; }
+.sv { font-family: 'Syne', sans-serif; font-size: 16px; font-weight: 700; }
+.sv.c { color: var(--cyan); } .sv.g { color: var(--green); } .sv.w { color: var(--yellow); } .sv.r { color: var(--red); }
+.sl { font-size: 9px; color: var(--dim2); letter-spacing: 1.5px; }
+
+/* Neon divider */
+.neon-div { height: 1px; background: linear-gradient(90deg, transparent, var(--cyan), transparent); margin: 12px 0; opacity: 0.3; }
+
+/* Uptime bar */
+.uptime-bar { display: flex; height: 8px; gap: 1px; overflow: hidden; margin: 8px 0; }
+.us { flex: 1; min-width: 1px; }
+.us.up { background: var(--green); opacity: .6; } .us.dn { background: var(--red); } .us.wn { background: var(--yellow); opacity: .7; }
+
+/* Histogram */
+.histogram { display: flex; align-items: flex-end; gap: 2px; height: 50px; }
+.hbar { flex: 1; border-radius: 0; min-height: 2px; }
+
+/* Device list */
+.device-list { display: flex; flex-direction: column; gap: 5px; }
+.device-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 10px;
+  background: var(--surface2);
+  border-left: 2px solid transparent;
+  transition: all .12s;
+}
+.device-row:hover { border-left-color: var(--cyan); }
+.d-dot { width: 6px; height: 6px; border-radius: 0; flex-shrink: 0; transform: rotate(45deg); }
+.d-name { flex: 1; font-size: 11px; color: var(--white); }
+.d-ip { font-size: 10px; color: var(--dim2); width: 105px; }
+.d-lat { font-family: 'Syne',sans-serif; font-size: 13px; font-weight: 700; width: 45px; text-align: right; }
+
+/* Connectivity */
+.conn-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--border); }
+.conn-row:last-child { border: none; }
+.ck { font-size: 9px; color: var(--dim2); letter-spacing: 1.5px; width: 65px; flex-shrink: 0; }
+.cv { font-size: 11px; }
+
+/* Ping pills */
+.ping-pills { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+.ping-pill {
+  padding: 4px 10px;
+  border: 1px solid var(--cyan);
+  font-size: 10px;
+  display: flex; gap: 6px;
+  color: var(--cyan);
+}
+.ph { color: var(--dim2); } .pl { color: var(--cyan); font-weight: 700; }
+
+/* Target card */
+.target-card {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  padding: 12px;
+  position: relative;
+}
+.target-card.ok { border-top: 2px solid var(--green); }
+.target-card.warn { border-top: 2px solid var(--yellow); }
+.th { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.tn { font-family: 'Syne', sans-serif; font-size: 11px; font-weight: 800; letter-spacing: 1px; color: var(--white); }
+.sdot { width: 8px; height: 8px; border-radius: 0; transform: rotate(45deg); box-shadow: 0 0 8px currentColor; }
+.thost { font-size: 10px; color: var(--dim2); margin-bottom: 8px; }
+.tf {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-top: 8px; padding-top: 7px; border-top: 1px solid var(--border);
+}
+.tp { font-size: 9px; color: var(--dim2); letter-spacing: 1.5px; }
+.ts { font-size: 9px; font-weight: 700; letter-spacing: 1.5px; }
+
+/* Health display */
+.health-outer {
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; height: 100%;
+  padding: 10px 0;
+}
+</style>
+</head>
+<body>
+<div class="window">
+  <!-- Title bar -->
+  <div class="titlebar">
+    <div class="tl tl-r"></div><div class="tl tl-y"></div><div class="tl tl-g"></div>
+    <div class="titlebar-text">NETMONITOR 2.0</div>
+    <div class="titlebar-time">02-26-2026 03:14</div>
+  </div>
+
+  <!-- Status bar -->
+  <div class="statusbar">
+    <div class="sb-item"><div class="live-dot"></div><span class="v ok">ONLINE</span></div>
+    <div class="sb-item">HEALTH <span class="v">96/100</span></div>
+    <div class="sb-item">GATEWAY <span class="v" style="color:var(--green)">2.4ms</span></div>
+    <div class="sb-item">SIGNAL <span class="v" style="color:var(--cyan)">-42 dBm</span></div>
+    <div class="sb-item">DEVICES <span class="v" style="color:var(--yellow)">14</span></div>
+    <div class="sb-item" style="margin-left:auto">UPTIME <span class="v">99.8%</span></div>
+  </div>
+
+  <!-- Dashboard -->
+  <div class="dashboard">
+
+    <!-- Row 1: Activity + Health -->
+    <div class="row-1">
+      <div class="card cyan-accent">
+        <div class="card-hdr">
+          <div class="card-title">Internet Activity · 24H</div>
+          <div style="display:flex;gap:16px;font-size:11px">
+            <span style="color:var(--cyan)">↓ <strong>921</strong> Mbps</span>
+            <span style="color:var(--pink)">↑ <strong>458</strong> Mbps</span>
+          </div>
+        </div>
+        <div style="position:relative;height:120px">
+          <svg id="activity-svg" class="chart-svg" height="120" viewBox="0 0 860 120" preserveAspectRatio="none">
+            <defs>
+              <linearGradient id="gc" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#00e5ff" stop-opacity="0.22"/>
+                <stop offset="100%" stop-color="#00e5ff" stop-opacity="0"/>
+              </linearGradient>
+              <linearGradient id="gp" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#ff0060" stop-opacity="0.22"/>
+                <stop offset="100%" stop-color="#ff0060" stop-opacity="0"/>
+              </linearGradient>
+              <linearGradient id="gg" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#00ff88" stop-opacity="0.25"/>
+                <stop offset="100%" stop-color="#00ff88" stop-opacity="0"/>
+              </linearGradient>
+              <linearGradient id="gy" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#ffe500" stop-opacity="0.3"/>
+                <stop offset="100%" stop-color="#ffe500" stop-opacity="0"/>
+              </linearGradient>
+            </defs>
+            <!-- Grid lines -->
+            <line x1="0" y1="30" x2="860" y2="30" stroke="rgba(0,229,255,0.07)" stroke-width="1"/>
+            <line x1="0" y1="60" x2="860" y2="60" stroke="rgba(0,229,255,0.07)" stroke-width="1"/>
+            <line x1="0" y1="90" x2="860" y2="90" stroke="rgba(0,229,255,0.07)" stroke-width="1"/>
+            <path id="dl-area" fill="url(#gc)"/>
+            <path id="ul-area" fill="url(#gp)"/>
+            <path id="dl-line" class="lc"/>
+            <path id="ul-line" class="lp"/>
+          </svg>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><div class="sv c">5.2 TB</div><div class="sl">DL TOTAL 24H</div></div>
+          <div class="stat"><div class="sv" style="color:var(--pink)">1.8 TB</div><div class="sl">UL TOTAL 24H</div></div>
+          <div class="stat"><div class="sv" style="color:var(--white)">7.0 TB</div><div class="sl">COMBINED</div></div>
+          <div class="stat" style="margin-left:auto"><div class="sv g">99.8%</div><div class="sl">ISP UPTIME</div></div>
+        </div>
+      </div>
+
+      <!-- Health -->
+      <div class="card pink-accent health-outer">
+        <div class="card-title" style="margin-bottom:16px;text-align:center;display:block">HEALTH SCORE</div>
+        <!-- Score display -->
+        <div style="text-align:center">
+          <div style="font-family:'Syne',sans-serif;font-size:80px;font-weight:800;color:var(--cyan);line-height:1;letter-spacing:-4px;text-shadow:0 0 40px rgba(0,229,255,0.4)">96</div>
+          <div style="font-size:10px;color:var(--dim2);letter-spacing:3px;margin-top:4px">/ 100 · OPTIMAL</div>
+        </div>
+        <!-- Score bars -->
+        <div style="width:100%;margin-top:16px;display:flex;flex-direction:column;gap:7px">
+          <div style="display:flex;align-items:center;gap:8px">
+            <div style="font-size:9px;color:var(--dim2);letter-spacing:1.5px;width:52px">LATENCY</div>
+            <div style="flex:1;height:5px;background:var(--border)"><div style="width:100%;height:100%;background:var(--green)"></div></div>
+            <div style="font-size:10px;font-family:Syne,sans-serif;font-weight:700;color:var(--green);width:32px;text-align:right">100%</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <div style="font-size:9px;color:var(--dim2);letter-spacing:1.5px;width:52px">LOSS</div>
+            <div style="flex:1;height:5px;background:var(--border)"><div style="width:100%;height:100%;background:var(--cyan)"></div></div>
+            <div style="font-size:10px;font-family:Syne,sans-serif;font-weight:700;color:var(--cyan);width:32px;text-align:right">100%</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <div style="font-size:9px;color:var(--dim2);letter-spacing:1.5px;width:52px">DEVICES</div>
+            <div style="flex:1;height:5px;background:var(--border)"><div style="width:88%;height:100%;background:var(--yellow)"></div></div>
+            <div style="font-size:10px;font-family:Syne,sans-serif;font-weight:700;color:var(--yellow);width:32px;text-align:right">88%</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Row 2: ISP + Latency -->
+    <div class="row-2">
+      <div class="card green-accent">
+        <div class="card-hdr">
+          <div class="card-title">ISP Health</div>
+          <div style="font-size:11px;color:var(--green);font-weight:700">STARLINK</div>
+        </div>
+        <div style="display:flex;gap:16px;align-items:flex-start;margin-bottom:10px">
+          <div>
+            <div style="font-family:'Syne',sans-serif;font-size:26px;font-weight:800;color:var(--white);letter-spacing:-1px">Starlink</div>
+            <div style="font-size:12px;color:var(--cyan);margin-top:3px">74.125.22.101</div>
+            <div style="font-size:10px;color:var(--dim2);margin-top:2px">Chicago, IL · United States</div>
+          </div>
+          <div style="margin-left:auto;text-align:right">
+            <div style="font-size:9px;color:var(--dim2);letter-spacing:1.5px">30-DAY UPTIME</div>
+            <div style="font-family:'Syne',sans-serif;font-size:28px;font-weight:800;color:var(--green);text-shadow:0 0 15px rgba(0,255,136,.3)">99.8%</div>
+            <div style="font-size:9px;color:var(--dim2)">0 OUTAGES</div>
+          </div>
+        </div>
+        <div class="uptime-bar" id="uptime-bar"></div>
+        <div style="display:flex;gap:24px;margin-top:8px">
+          <div>
+            <div style="font-size:9px;color:var(--dim2);letter-spacing:1.5px;margin-bottom:4px">DOWNLOAD</div>
+            <div style="font-family:'Syne',sans-serif;font-size:28px;font-weight:800;color:var(--cyan);letter-spacing:-1px">921 <span style="font-size:12px;font-family:monospace;color:var(--dim2)">Mbps</span></div>
+          </div>
+          <div>
+            <div style="font-size:9px;color:var(--dim2);letter-spacing:1.5px;margin-bottom:4px">UPLOAD</div>
+            <div style="font-family:'Syne',sans-serif;font-size:28px;font-weight:800;color:var(--pink);letter-spacing:-1px">458 <span style="font-size:12px;font-family:monospace;color:var(--dim2)">Mbps</span></div>
+          </div>
+        </div>
+        <div style="height:56px;margin-top:8px">
+          <svg id="tp-svg" class="chart-svg" height="56" viewBox="0 0 400 56" preserveAspectRatio="none">
+            <path id="tp-dl-a" fill="url(#gc)"/>
+            <path id="tp-ul-a" fill="url(#gp)"/>
+            <path id="tp-dl" class="lc"/>
+            <path id="tp-ul" class="lp"/>
+          </svg>
+        </div>
+      </div>
+
+      <div class="card yellow-accent">
+        <div class="card-hdr">
+          <div class="card-title">Latency Analysis · Gateway</div>
+          <div style="font-size:10px;color:var(--yellow)">1H TREND</div>
+        </div>
+        <div style="height:56px;margin-bottom:12px">
+          <svg id="lat-svg" class="chart-svg" height="56" viewBox="0 0 400 56" preserveAspectRatio="none">
+            <path id="lat-area" fill="url(#gg)"/>
+            <path id="lat-line" class="lg"/>
+          </svg>
+        </div>
+        <div style="font-size:9px;color:var(--dim2);letter-spacing:1.5px;margin-bottom:6px">DISTRIBUTION · LAST 100 PINGS</div>
+        <div class="histogram" id="histogram"></div>
+        <div style="display:flex;gap:10px;margin:6px 0 10px;font-size:9px">
+          <span style="color:var(--green)">■ &lt;5ms</span>
+          <span style="color:var(--cyan)">■ 5–20ms</span>
+          <span style="color:var(--yellow)">■ 20–50ms</span>
+          <span style="color:var(--red)">■ &gt;50ms</span>
+        </div>
+        <div class="stats-row" style="margin-top:0;padding-top:10px">
+          <div class="stat"><div class="sv g">2.4ms</div><div class="sl">AVG</div></div>
+          <div class="stat"><div class="sv g">1.1ms</div><div class="sl">MIN</div></div>
+          <div class="stat"><div class="sv w">18.3ms</div><div class="sl">MAX</div></div>
+          <div class="stat"><div class="sv g">0.8ms</div><div class="sl">JITTER</div></div>
+          <div class="stat"><div class="sv g">0.0%</div><div class="sl">LOSS</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Row 3: Metrics -->
+    <div class="row-3">
+      <div class="card cyan-accent">
+        <div style="font-size:9px;color:var(--dim2);letter-spacing:2px;margin-bottom:6px">GATEWAY LATENCY</div>
+        <div style="display:flex;align-items:baseline;gap:3px">
+          <span class="big-num" style="font-size:42px;color:var(--green)">2.4</span>
+          <span class="unit">ms</span>
+        </div>
+        <svg id="spark-gw" class="chart-svg" height="28" viewBox="0 0 200 28" preserveAspectRatio="none" style="margin:8px 0">
+          <path id="s-gw-a" fill="url(#gg)"/><path id="s-gw-l" class="lg" style="stroke-width:2"/>
+        </svg>
+        <div style="font-size:9px;color:var(--dim2)">192.168.1.1</div>
+      </div>
+      <div class="card pink-accent">
+        <div style="font-size:9px;color:var(--dim2);letter-spacing:2px;margin-bottom:6px">WIFI SIGNAL</div>
+        <div style="display:flex;align-items:baseline;gap:3px">
+          <span class="big-num" style="font-size:42px;color:var(--cyan)">-42</span>
+          <span class="unit">dBm</span>
+        </div>
+        <svg id="spark-sig" class="chart-svg" height="28" viewBox="0 0 200 28" preserveAspectRatio="none" style="margin:8px 0">
+          <path id="s-sig-a" fill="url(#gc)"/><path id="s-sig-l" class="lc" style="stroke-width:2"/>
+        </svg>
+        <div style="font-size:9px;color:var(--dim2)">Home_6E · Ch 149 · 5GHz</div>
+      </div>
+      <div class="card yellow-accent">
+        <div style="font-size:9px;color:var(--dim2);letter-spacing:2px;margin-bottom:6px">WIFI CHANNEL</div>
+        <div style="display:flex;align-items:baseline;gap:3px">
+          <span class="big-num" style="font-size:42px;color:var(--yellow)">149</span>
+        </div>
+        <div id="channel-viz" style="display:flex;align-items:flex-end;gap:2px;height:28px;margin:8px 0"></div>
+        <div style="font-size:9px;color:var(--dim2)">5GHz · 80MHz · LOW CONGESTION</div>
+      </div>
+      <div class="card" style="border-left:3px solid var(--pink)">
+        <div style="font-size:9px;color:var(--dim2);letter-spacing:2px;margin-bottom:6px">ACTIVE DEVICES</div>
+        <div style="display:flex;align-items:baseline;gap:3px">
+          <span class="big-num" style="font-size:42px;color:var(--pink)">14</span>
+        </div>
+        <svg id="spark-dev" class="chart-svg" height="28" viewBox="0 0 200 28" preserveAspectRatio="none" style="margin:8px 0">
+          <path id="s-dev-a" fill="url(#gp)"/><path id="s-dev-l" class="lp" style="stroke-width:2"/>
+        </svg>
+        <div style="font-size:9px;color:var(--dim2)">LAST SCAN 2m ago</div>
+      </div>
+    </div>
+
+    <!-- Row 4 -->
+    <div class="row-4">
+      <div class="card cyan-accent">
+        <div class="card-hdr"><div class="card-title">Connectivity</div></div>
+        <div class="conn-row"><div class="ck">ISP</div><div class="cv">Starlink <span style="color:var(--dim2);font-size:10px">AS14593</span></div></div>
+        <div class="conn-row"><div class="ck">PUBLIC IP</div><div class="cv" style="color:var(--cyan)">74.125.22.101</div></div>
+        <div class="conn-row"><div class="ck">GATEWAY</div><div class="cv">192.168.1.1</div></div>
+        <div class="conn-row"><div class="ck">DNS</div><div class="cv" style="font-size:10px">8.8.8.8 · 1.1.1.1</div></div>
+        <div class="conn-row"><div class="ck">IPv6</div><div class="cv" style="color:var(--green)">ENABLED</div></div>
+        <div class="ping-pills">
+          <div class="ping-pill"><span class="ph">GOOGLE</span><span class="pl">8.1ms</span></div>
+          <div class="ping-pill"><span class="ph">CF</span><span class="pl">7.3ms</span></div>
+          <div class="ping-pill"><span class="ph">AWS</span><span class="pl">22.4ms</span></div>
+          <div class="ping-pill"><span class="ph">APPLE</span><span class="pl">11.2ms</span></div>
+        </div>
+      </div>
+      <div class="card pink-accent">
+        <div class="card-hdr">
+          <div class="card-title">Active Devices</div>
+          <div style="font-family:'Syne',sans-serif;font-size:14px;font-weight:800;color:var(--pink)">14 <span style="font-size:10px;font-family:monospace;font-weight:400;color:var(--dim2)">ONLINE</span></div>
+        </div>
+        <div class="device-list">
+          <div class="device-row"><div class="d-dot" style="background:var(--cyan)"></div><span class="d-name">MacBook Pro (this)</span><span class="d-ip">192.168.1.100</span><span class="d-lat" style="color:var(--green)">2.1ms</span></div>
+          <div class="device-row"><div class="d-dot" style="background:var(--green)"></div><span class="d-name">iPhone 15 Pro</span><span class="d-ip">192.168.1.101</span><span class="d-lat" style="color:var(--green)">4.8ms</span></div>
+          <div class="device-row"><div class="d-dot" style="background:var(--cyan)"></div><span class="d-name">Apple TV 4K</span><span class="d-ip">192.168.1.105</span><span class="d-lat" style="color:var(--green)">3.2ms</span></div>
+          <div class="device-row"><div class="d-dot" style="background:var(--yellow)"></div><span class="d-name">Samsung Frame TV</span><span class="d-ip">192.168.1.112</span><span class="d-lat" style="color:var(--yellow)">12.3ms</span></div>
+          <div class="device-row"><div class="d-dot" style="background:var(--green)"></div><span class="d-name">Synology NAS</span><span class="d-ip">192.168.1.50</span><span class="d-lat" style="color:var(--green)">0.8ms</span></div>
+          <div style="padding:4px 10px;font-size:9px;color:var(--dim2)">+ 9 MORE DEVICES →</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Row 5: Targets -->
+    <div class="card" style="border-top:2px solid var(--cyan)">
+      <div class="card-hdr">
+        <div class="card-title">Target Monitoring</div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <div class="live-dot"></div>
+          <span style="font-size:11px;color:var(--cyan)">4 TARGETS ACTIVE</span>
+        </div>
+      </div>
+      <div class="targets-grid">
+        <div class="target-card ok">
+          <div class="th"><span class="tn">GATEWAY</span><span class="sdot" style="color:var(--green);background:var(--green)"></span></div>
+          <div class="thost">192.168.1.1 · ICMP</div>
+          <div style="font-family:'Syne',sans-serif;font-size:28px;font-weight:800;color:var(--green)">2.4<span style="font-size:13px;font-family:monospace;font-weight:400;color:var(--dim2)">ms</span></div>
+          <svg id="st1" class="chart-svg" height="22" viewBox="0 0 200 22" preserveAspectRatio="none" style="margin:8px 0">
+            <path id="st1a" fill="url(#gg)"/><path id="st1l" class="lg" style="stroke-width:1.5"/>
+          </svg>
+          <div class="tf"><span class="tp">ICMP / 5s</span><span class="ts" style="color:var(--green)">NOMINAL</span></div>
+        </div>
+        <div class="target-card ok">
+          <div class="th"><span class="tn">GOOGLE DNS</span><span class="sdot" style="color:var(--green);background:var(--green)"></span></div>
+          <div class="thost">8.8.8.8 · ICMP</div>
+          <div style="font-family:'Syne',sans-serif;font-size:28px;font-weight:800;color:var(--green)">8.1<span style="font-size:13px;font-family:monospace;font-weight:400;color:var(--dim2)">ms</span></div>
+          <svg id="st2" class="chart-svg" height="22" viewBox="0 0 200 22" preserveAspectRatio="none" style="margin:8px 0">
+            <path id="st2a" fill="url(#gg)"/><path id="st2l" class="lg" style="stroke-width:1.5"/>
+          </svg>
+          <div class="tf"><span class="tp">ICMP / 5s</span><span class="ts" style="color:var(--green)">NOMINAL</span></div>
+        </div>
+        <div class="target-card ok">
+          <div class="th"><span class="tn">CLOUDFLARE</span><span class="sdot" style="color:var(--cyan);background:var(--cyan)"></span></div>
+          <div class="thost">1.1.1.1 · ICMP</div>
+          <div style="font-family:'Syne',sans-serif;font-size:28px;font-weight:800;color:var(--cyan)">7.3<span style="font-size:13px;font-family:monospace;font-weight:400;color:var(--dim2)">ms</span></div>
+          <svg id="st3" class="chart-svg" height="22" viewBox="0 0 200 22" preserveAspectRatio="none" style="margin:8px 0">
+            <path id="st3a" fill="url(#gc)"/><path id="st3l" class="lc" style="stroke-width:1.5"/>
+          </svg>
+          <div class="tf"><span class="tp">ICMP / 5s</span><span class="ts" style="color:var(--cyan)">NOMINAL</span></div>
+        </div>
+        <div class="target-card warn">
+          <div class="th"><span class="tn">PROD API</span><span class="sdot" style="color:var(--yellow);background:var(--yellow)"></span></div>
+          <div class="thost">api.example.com · HTTP</div>
+          <div style="font-family:'Syne',sans-serif;font-size:28px;font-weight:800;color:var(--yellow)">45<span style="font-size:13px;font-family:monospace;font-weight:400;color:var(--dim2)">ms</span></div>
+          <svg id="st4" class="chart-svg" height="22" viewBox="0 0 200 22" preserveAspectRatio="none" style="margin:8px 0">
+            <path id="st4a" fill="url(#gy)"/><path id="st4l" class="ly" style="stroke-width:1.5"/>
+          </svg>
+          <div class="tf"><span class="tp">HTTP / 10s</span><span class="ts" style="color:var(--yellow)">ELEVATED</span></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+function prng(s){let x=s;return()=>{x=(x^(x<<13))>>>0;x=(x^(x>>7))>>>0;x=(x^(x<<5))>>>0;return(x>>>0)/4294967296;};}
+function gen(n,b,noise,r){return Array.from({length:n},(_,i)=>Math.max(b*.05,b+Math.sin(i*.25)*noise*.35+(r()-.5)*noise));}
+function pts(d,w,h){const mn=Math.min(...d),mx=Math.max(...d),rng=mx-mn||1;return d.map((v,i)=>[(i/(d.length-1))*w,h*.9-((v-mn)/rng)*h*.8]);}
+function lp(d,w,h){const p=pts(d,w,h);let s=`M${p[0][0]},${p[0][1]}`;for(let i=1;i<p.length;i++){const dx=(p[i][0]-p[i-1][0])/3;s+=` C${p[i-1][0]+dx},${p[i-1][1]} ${p[i][0]-dx},${p[i][1]} ${p[i][0]},${p[i][1]}`;}return s;}
+function ap(d,w,h){return lp(d,w,h)+` L${((d.length-1)/(d.length-1))*w},${h} L0,${h} Z`;}
+function set(id,v){const e=document.getElementById(id);if(e)e.setAttribute('d',v);}
+
+const dlD=gen(60,921,140,prng(1)),ulD=gen(60,458,90,prng(2));
+const latD=gen(60,2.4,4,prng(3)),tpDl=gen(30,921,130,prng(5)),tpUl=gen(30,458,80,prng(6));
+const gwSp=gen(20,2.4,2.5,prng(7)),sigSp=gen(20,-42,6,prng(8)),devSp=gen(20,14,3,prng(9));
+const t1d=gen(20,2.4,2,prng(10)),t2d=gen(20,8.1,5,prng(11)),t3d=gen(20,7.3,4,prng(12)),t4d=gen(20,45,20,prng(13));
+
+set('dl-line',lp(dlD,860,120));set('dl-area',ap(dlD,860,120));
+set('ul-line',lp(ulD,860,120));set('ul-area',ap(ulD,860,120));
+set('tp-dl',lp(tpDl,400,56));set('tp-ul',lp(tpUl,400,56));
+set('tp-dl-a',ap(tpDl,400,56));set('tp-ul-a',ap(tpUl,400,56));
+set('lat-line',lp(latD,400,56));set('lat-area',ap(latD,400,56));
+set('s-gw-l',lp(gwSp,200,28));set('s-gw-a',ap(gwSp,200,28));
+set('s-sig-l',lp(sigSp,200,28));set('s-sig-a',ap(sigSp,200,28));
+set('s-dev-l',lp(devSp,200,28));set('s-dev-a',ap(devSp,200,28));
+set('st1l',lp(t1d,200,22));set('st1a',ap(t1d,200,22));
+set('st2l',lp(t2d,200,22));set('st2a',ap(t2d,200,22));
+set('st3l',lp(t3d,200,22));set('st3a',ap(t3d,200,22));
+set('st4l',lp(t4d,200,22));set('st4a',ap(t4d,200,22));
+
+// Histogram
+const histEl=document.getElementById('histogram');
+const buckets=[65,22,10,3],colors=['#00ff88','#00e5ff','#ffe500','#ff3b3b'];
+buckets.forEach((c,bi)=>{
+  const r=prng(100+bi);
+  for(let j=0;j<8;j++){
+    const bar=document.createElement('div');
+    bar.className='hbar';
+    bar.style.height=(r()*.4+.6)*(c/65)*44+'px';
+    bar.style.background=colors[bi];
+    histEl.appendChild(bar);
+  }
+});
+const ubEl=document.getElementById('uptime-bar');
+const r=prng(999);
+for(let i=0;i<220;i++){const seg=document.createElement('div');const v=r();seg.className='us '+(v<.994?'up':v<.997?'wn':'dn');ubEl.appendChild(seg);}
+const chEl=document.getElementById('channel-viz');
+const rch=prng(50);
+for(let i=0;i<20;i++){
+  const inCh=i>=7&&i<=11;
+  const bar=document.createElement('div');
+  bar.style.cssText=`flex:1;height:${(inCh?(rch()*.4+.5):(rch()*.15+.05))*28}px;border-radius:0;background:${inCh?'#ffe500':'#1e2d3d'};opacity:${inCh?1:.4}`;
+  chEl.appendChild(bar);
+}
+</script>
+</body>
+</html>

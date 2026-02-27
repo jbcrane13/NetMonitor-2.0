@@ -1,0 +1,1431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WiFi Heatmap Redesign</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Space+Mono:wght@400;700&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #080d1a;
+    --surface: #0f1629;
+    --surface2: #161f38;
+    --border: rgba(0,245,255,0.12);
+    --cyan: #00f5ff;
+    --cyan-dim: rgba(0,245,255,0.15);
+    --text: #e8f4f8;
+    --text2: #7a9bb5;
+    --text3: #3d5a72;
+    --strong: #22ff88;
+    --fair: #ffd93d;
+    --weak: #ff4757;
+    --accent: #00f5ff;
+    --radius: 12px;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    min-height: 100vh;
+    padding: 32px 24px 60px;
+  }
+
+  .page-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 26px;
+    font-weight: 800;
+    color: var(--text);
+    letter-spacing: -0.5px;
+  }
+  .page-subtitle {
+    color: var(--text2);
+    font-size: 14px;
+    margin-top: 6px;
+    margin-bottom: 40px;
+  }
+
+  /* ── SECTION HEADERS ── */
+  .section-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--cyan);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .section-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* ── FLOW OVERVIEW ── */
+  .flow {
+    display: flex;
+    gap: 0;
+    margin-bottom: 48px;
+    overflow-x: auto;
+  }
+  .flow-step {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    flex-shrink: 0;
+  }
+  .flow-node {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 18px;
+    text-align: center;
+    min-width: 130px;
+  }
+  .flow-node .step-num {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--cyan);
+    margin-bottom: 6px;
+  }
+  .flow-node .step-name {
+    font-family: 'Syne', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+  }
+  .flow-node .step-desc {
+    font-size: 10px;
+    color: var(--text2);
+    margin-top: 4px;
+    line-height: 1.4;
+  }
+  .flow-arrow {
+    color: var(--text3);
+    font-size: 20px;
+    padding: 0 6px;
+    flex-shrink: 0;
+  }
+
+  /* ── PHONE MOCKUPS ── */
+  .mockups-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 24px;
+    margin-bottom: 48px;
+  }
+  .phone-shell {
+    background: #0a0f1e;
+    border: 2px solid rgba(255,255,255,0.12);
+    border-radius: 36px;
+    overflow: hidden;
+    position: relative;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.08);
+  }
+  .phone-shell::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 100px;
+    height: 28px;
+    background: #000;
+    border-radius: 0 0 16px 16px;
+    z-index: 10;
+  }
+  .phone-screen {
+    padding: 44px 0 0;
+    position: relative;
+    overflow: hidden;
+  }
+  .phone-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 18px;
+    background: rgba(8,13,26,0.85);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--border);
+  }
+  .phone-nav-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text);
+  }
+  .phone-nav-action {
+    font-size: 10px;
+    color: var(--cyan);
+    font-family: 'Space Mono', monospace;
+  }
+  .phone-body {
+    padding: 0;
+  }
+
+  /* Status pill */
+  .status-pill {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    margin: 10px 12px 6px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 24px;
+  }
+  .pulse-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--strong);
+    box-shadow: 0 0 8px var(--strong);
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(0.8); }
+  }
+  .status-text {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--text);
+    flex: 1;
+  }
+  .signal-readout {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--strong);
+  }
+
+  /* Canvas wrapper */
+  .canvas-wrapper {
+    margin: 0 12px 10px;
+    border-radius: 14px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    position: relative;
+  }
+  .canvas-expand-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: rgba(0,0,0,0.6);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 5px 8px;
+    font-family: 'Space Mono', monospace;
+    font-size: 9px;
+    color: var(--cyan);
+    cursor: pointer;
+    z-index: 5;
+  }
+  .canvas-scale-bar {
+    position: absolute;
+    bottom: 10px;
+    left: 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    z-index: 5;
+  }
+  .scale-line {
+    width: 60px;
+    height: 3px;
+    background: var(--cyan);
+    position: relative;
+    border-radius: 2px;
+  }
+  .scale-line::before, .scale-line::after {
+    content: '';
+    position: absolute;
+    top: -3px;
+    width: 1px;
+    height: 9px;
+    background: var(--cyan);
+  }
+  .scale-line::before { left: 0; }
+  .scale-line::after { right: 0; }
+  .scale-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 9px;
+    color: var(--cyan);
+  }
+
+  /* Bottom toolbar */
+  .tool-bar {
+    display: flex;
+    gap: 6px;
+    padding: 8px 12px;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+  }
+  .tool-btn {
+    flex: 1;
+    padding: 8px 6px;
+    border-radius: 10px;
+    font-family: 'Space Mono', monospace;
+    font-size: 9px;
+    text-align: center;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: var(--text2);
+  }
+  .tool-btn.active {
+    background: var(--cyan-dim);
+    border-color: var(--cyan);
+    color: var(--cyan);
+  }
+  .tool-btn.record {
+    background: rgba(255,71,87,0.15);
+    border-color: var(--weak);
+    color: var(--weak);
+  }
+
+  /* Calibration overlay */
+  .calib-overlay {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.5);
+    backdrop-filter: blur(2px);
+    z-index: 20;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    padding: 12px;
+  }
+  .calib-card {
+    background: var(--surface2);
+    border: 1px solid var(--cyan);
+    border-radius: 14px;
+    padding: 14px;
+    width: 100%;
+    box-shadow: 0 0 30px rgba(0,245,255,0.15);
+  }
+  .calib-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--cyan);
+    margin-bottom: 6px;
+  }
+  .calib-body {
+    font-size: 11px;
+    color: var(--text2);
+    line-height: 1.5;
+    margin-bottom: 10px;
+  }
+  .calib-input-row {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+  .calib-input {
+    flex: 1;
+    background: rgba(0,245,255,0.05);
+    border: 1px solid var(--cyan);
+    border-radius: 8px;
+    padding: 6px 10px;
+    color: var(--cyan);
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+  }
+  .calib-unit {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--text2);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 8px;
+  }
+  .calib-confirm {
+    background: var(--cyan);
+    color: #000;
+    font-family: 'Syne', sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    border-radius: 8px;
+    padding: 6px 12px;
+    border: none;
+    cursor: pointer;
+  }
+
+  /* Stats panel */
+  .stats-panel {
+    margin: 0 12px 10px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 10px 12px;
+  }
+  .stats-title {
+    font-family: 'Space Mono', monospace;
+    font-size: 9px;
+    color: var(--cyan);
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+  .stat-item {
+    background: var(--surface);
+    border-radius: 8px;
+    padding: 7px 9px;
+  }
+  .stat-val {
+    font-family: 'Space Mono', monospace;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text);
+  }
+  .stat-val.good { color: var(--strong); }
+  .stat-val.warn { color: var(--fair); }
+  .stat-lbl {
+    font-size: 9px;
+    color: var(--text3);
+    margin-top: 2px;
+  }
+
+  /* Legend bar */
+  .legend-bar {
+    margin: 0 12px 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .gradient-strip {
+    flex: 1;
+    height: 6px;
+    border-radius: 3px;
+  }
+  .legend-end {
+    font-family: 'Space Mono', monospace;
+    font-size: 9px;
+    color: var(--text3);
+  }
+
+  /* ── COLOR SCHEME CARDS ── */
+  .scheme-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+    margin-bottom: 48px;
+  }
+
+  .scheme-card {
+    background: var(--surface);
+    border: 2px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: border-color 0.2s, transform 0.2s, box-shadow 0.2s;
+    position: relative;
+  }
+  .scheme-card:hover {
+    border-color: var(--cyan);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 30px rgba(0,245,255,0.15);
+  }
+  .scheme-card.selected {
+    border-color: var(--cyan);
+    box-shadow: 0 0 0 3px rgba(0,245,255,0.2);
+  }
+  .scheme-check {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--cyan);
+    color: #000;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 700;
+  }
+  .scheme-card.selected .scheme-check { display: flex; }
+  .scheme-preview {
+    height: 120px;
+    position: relative;
+    overflow: hidden;
+  }
+  .scheme-info {
+    padding: 12px 14px;
+    border-top: 1px solid var(--border);
+  }
+  .scheme-name {
+    font-family: 'Syne', sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 3px;
+  }
+  .scheme-desc {
+    font-size: 11px;
+    color: var(--text2);
+    line-height: 1.4;
+  }
+
+  /* Display mode options */
+  .mode-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    margin-bottom: 48px;
+  }
+  .mode-card {
+    background: var(--surface);
+    border: 2px solid var(--border);
+    border-radius: 14px;
+    padding: 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+  }
+  .mode-card:hover {
+    border-color: var(--cyan);
+    background: var(--surface2);
+  }
+  .mode-card.selected {
+    border-color: var(--cyan);
+    background: var(--cyan-dim);
+  }
+  .mode-icon {
+    font-size: 24px;
+    margin-bottom: 8px;
+  }
+  .mode-name {
+    font-family: 'Syne', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 4px;
+  }
+  .mode-desc {
+    font-size: 11px;
+    color: var(--text2);
+    line-height: 1.4;
+  }
+  .mode-check {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--cyan);
+    color: #000;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 700;
+  }
+  .mode-card.selected .mode-check { display: flex; }
+
+  /* ── LANDSCAPE PREVIEW ── */
+  .landscape-phone {
+    background: #0a0f1e;
+    border: 2px solid rgba(255,255,255,0.12);
+    border-radius: 24px;
+    overflow: hidden;
+    position: relative;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+    margin-bottom: 48px;
+    display: flex;
+    height: 240px;
+  }
+  .landscape-sidebar {
+    width: 140px;
+    flex-shrink: 0;
+    background: rgba(8,13,26,0.95);
+    border-right: 1px solid var(--border);
+    padding: 14px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .landscape-canvas {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+  }
+  .ls-stat {
+    background: var(--surface2);
+    border-radius: 8px;
+    padding: 7px 9px;
+    border: 1px solid var(--border);
+  }
+  .ls-stat-val {
+    font-family: 'Space Mono', monospace;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--strong);
+  }
+  .ls-stat-lbl {
+    font-size: 9px;
+    color: var(--text3);
+  }
+  .ls-btn {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px;
+    text-align: center;
+    font-family: 'Space Mono', monospace;
+    font-size: 9px;
+    color: var(--text2);
+  }
+  .ls-btn.rec {
+    background: rgba(255,71,87,0.15);
+    border-color: var(--weak);
+    color: var(--weak);
+  }
+
+  /* macOS window */
+  .mac-window {
+    background: var(--surface);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 30px 80px rgba(0,0,0,0.7);
+    margin-bottom: 48px;
+  }
+  .mac-titlebar {
+    background: #1a2035;
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+  .mac-dots { display: flex; gap: 6px; }
+  .mac-dot {
+    width: 12px; height: 12px; border-radius: 50%;
+  }
+  .mac-dot.red { background: #ff5f56; }
+  .mac-dot.yellow { background: #ffbd2e; }
+  .mac-dot.green { background: #27c93f; }
+  .mac-title {
+    flex: 1;
+    text-align: center;
+    font-family: 'Inter', sans-serif;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text2);
+  }
+  .mac-body {
+    display: grid;
+    grid-template-columns: 200px 1fr 220px;
+    min-height: 360px;
+  }
+  .mac-sidebar-left {
+    background: #0c1220;
+    border-right: 1px solid var(--border);
+    padding: 16px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .mac-sidebar-right {
+    background: #0c1220;
+    border-left: 1px solid var(--border);
+    padding: 16px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .mac-section-head {
+    font-family: 'Space Mono', monospace;
+    font-size: 9px;
+    color: var(--text3);
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+  .mac-item {
+    background: var(--surface2);
+    border-radius: 8px;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    font-size: 11px;
+    color: var(--text2);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .mac-item.active {
+    background: var(--cyan-dim);
+    border-color: var(--cyan);
+    color: var(--cyan);
+  }
+  .mac-stat-block {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 12px;
+  }
+  .mac-stat-big {
+    font-family: 'Space Mono', monospace;
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--strong);
+  }
+  .mac-stat-lbl {
+    font-size: 10px;
+    color: var(--text3);
+    margin-top: 2px;
+  }
+  .mac-toolbar {
+    display: flex;
+    gap: 6px;
+    padding: 12px;
+    background: rgba(8,13,26,0.6);
+    border-bottom: 1px solid var(--border);
+  }
+  .mac-tool-btn {
+    padding: 5px 12px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--text2);
+    cursor: pointer;
+  }
+  .mac-tool-btn.active {
+    background: var(--cyan-dim);
+    border-color: var(--cyan);
+    color: var(--cyan);
+  }
+  .mac-canvas-area {
+    position: relative;
+    flex: 1;
+    overflow: hidden;
+  }
+  .hover-tooltip {
+    position: absolute;
+    top: 30px;
+    left: 140px;
+    background: rgba(0,245,255,0.1);
+    border: 1px solid var(--cyan);
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--cyan);
+    pointer-events: none;
+    backdrop-filter: blur(8px);
+  }
+
+  /* SELECTION TRACKING */
+  .scheme-card, .mode-card {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  /* Selection tracking form */
+  #selection-summary {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: var(--surface2);
+    border: 1px solid var(--cyan);
+    border-radius: 12px;
+    padding: 12px 16px;
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--cyan);
+    box-shadow: 0 8px 30px rgba(0,0,245,0.15);
+    display: none;
+    max-width: 300px;
+    z-index: 100;
+  }
+  #selection-summary h4 {
+    font-size: 10px;
+    letter-spacing: 1px;
+    margin-bottom: 6px;
+    color: var(--text2);
+  }
+
+  canvas { display: block; }
+</style>
+</head>
+<body>
+
+<p class="page-title">WiFi Heatmap — Redesign</p>
+<p class="page-subtitle">Review the proposed flow and pick your preferred color scheme and display mode. Click to select options.</p>
+
+<!-- ── SECTION 1: FLOW ── -->
+<p class="section-label">Feature Flow</p>
+
+<div class="flow">
+  <div class="flow-step">
+    <div class="flow-node">
+      <div class="step-num">01</div>
+      <div class="step-name">Import Floor Plan</div>
+      <div class="step-desc">Photo, PDF, or freeform grid</div>
+    </div>
+  </div>
+  <div class="flow-arrow">→</div>
+  <div class="flow-step">
+    <div class="flow-node" style="border-color: rgba(0,245,255,0.4); background: rgba(0,245,255,0.05);">
+      <div class="step-num">02 NEW</div>
+      <div class="step-name">Calibrate Scale</div>
+      <div class="step-desc">Draw line → enter real distance → sets px/meter</div>
+    </div>
+  </div>
+  <div class="flow-arrow">→</div>
+  <div class="flow-step">
+    <div class="flow-node">
+      <div class="step-num">03</div>
+      <div class="step-name">Survey</div>
+      <div class="step-desc">Walk + tap to record RSSI at positions</div>
+    </div>
+  </div>
+  <div class="flow-arrow">→</div>
+  <div class="flow-step">
+    <div class="flow-node" style="border-color: rgba(0,245,255,0.4); background: rgba(0,245,255,0.05);">
+      <div class="step-num">04 NEW</div>
+      <div class="step-name">Heatmap View</div>
+      <div class="step-desc">Gradient overlay, color schemes, display modes</div>
+    </div>
+  </div>
+  <div class="flow-arrow">→</div>
+  <div class="flow-step">
+    <div class="flow-node" style="border-color: rgba(0,245,255,0.4); background: rgba(0,245,255,0.05);">
+      <div class="step-num">05 NEW</div>
+      <div class="step-name">Measurements</div>
+      <div class="step-desc">Stats, dead zones, real distances</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── SECTION 2: iOS SCREEN STATES ── -->
+<p class="section-label">iOS Screen States</p>
+
+<div class="mockups-row">
+  <!-- CALIBRATION SCREEN -->
+  <div>
+    <p style="font-family:'Space Mono',monospace;font-size:10px;color:var(--text3);margin-bottom:8px;text-transform:uppercase;letter-spacing:1px;">Calibration Step</p>
+    <div class="phone-shell">
+      <div class="phone-screen">
+        <div class="phone-nav">
+          <span style="color:var(--text3);font-size:11px;">✕</span>
+          <span class="phone-nav-title">Calibrate Scale</span>
+          <span class="phone-nav-action">SKIP</span>
+        </div>
+        <div class="phone-body">
+          <div class="canvas-wrapper" style="height:200px;">
+            <canvas id="calib-canvas" width="256" height="200" style="width:100%;height:100%;"></canvas>
+            <!-- Calibration overlay -->
+            <div class="calib-overlay">
+              <div class="calib-card">
+                <div class="calib-title">📏 Set Real Distance</div>
+                <div class="calib-body">You drew a line across the room.<br>How long is this in real life?</div>
+                <div class="calib-input-row">
+                  <input class="calib-input" value="4.5" />
+                  <div class="calib-unit">meters</div>
+                  <button class="calib-confirm">Set</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div style="padding:8px 12px;font-size:11px;color:var(--text2);line-height:1.5;text-align:center;">
+            Drag to draw a reference line between<br>two known points on your floor plan
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SURVEY SCREEN (FULL CANVAS) -->
+  <div>
+    <p style="font-family:'Space Mono',monospace;font-size:10px;color:var(--text3);margin-bottom:8px;text-transform:uppercase;letter-spacing:1px;">Active Survey</p>
+    <div class="phone-shell">
+      <div class="phone-screen">
+        <div class="phone-nav">
+          <span style="color:var(--text3);font-size:11px;">←</span>
+          <span class="phone-nav-title">WiFi Heatmap</span>
+          <span class="phone-nav-action" style="display:flex;gap:6px;align-items:center;">
+            <span>⊞</span>
+            <span>⋯</span>
+          </span>
+        </div>
+        <div class="phone-body">
+          <div class="status-pill">
+            <div class="pulse-dot"></div>
+            <span class="status-text">Recording · 14 points</span>
+            <span class="signal-readout">−58 dBm</span>
+          </div>
+          <div class="canvas-wrapper" style="height:190px;">
+            <canvas id="survey-canvas" width="256" height="190" style="width:100%;height:100%;"></canvas>
+            <div class="canvas-expand-btn">⤢ Full Screen</div>
+            <div class="canvas-scale-bar">
+              <div class="scale-line"></div>
+              <div class="scale-label">5 m</div>
+            </div>
+          </div>
+          <div class="tool-bar">
+            <div class="tool-btn">Thermal</div>
+            <div class="tool-btn active">Signal</div>
+            <div class="tool-btn">Dots</div>
+            <div class="tool-btn record">■ Stop</div>
+          </div>
+          <div class="stats-panel">
+            <div class="stats-title">Live Stats</div>
+            <div class="stats-grid">
+              <div class="stat-item"><div class="stat-val good">−55</div><div class="stat-lbl">avg dBm</div></div>
+              <div class="stat-item"><div class="stat-val warn">2</div><div class="stat-lbl">weak zones</div></div>
+              <div class="stat-item"><div class="stat-val">42 m²</div><div class="stat-lbl">coverage est.</div></div>
+              <div class="stat-item"><div class="stat-val">87%</div><div class="stat-lbl">strong coverage</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- COMPLETED HEATMAP -->
+  <div>
+    <p style="font-family:'Space Mono',monospace;font-size:10px;color:var(--text3);margin-bottom:8px;text-transform:uppercase;letter-spacing:1px;">Completed Heatmap</p>
+    <div class="phone-shell">
+      <div class="phone-screen">
+        <div class="phone-nav">
+          <span style="color:var(--text3);font-size:11px;">←</span>
+          <span class="phone-nav-title">Survey Results</span>
+          <span class="phone-nav-action">↑ Export</span>
+        </div>
+        <div class="phone-body">
+          <div class="canvas-wrapper" style="height:220px;">
+            <canvas id="result-canvas" width="256" height="220" style="width:100%;height:100%;"></canvas>
+            <div class="canvas-expand-btn">⤢ Full Screen</div>
+            <div class="canvas-scale-bar">
+              <div class="scale-line"></div>
+              <div class="scale-label">5 m</div>
+            </div>
+          </div>
+          <div class="legend-bar">
+            <span class="legend-end">−90 dBm</span>
+            <canvas id="legend-canvas" width="160" height="6" style="flex:1;height:6px;border-radius:3px;"></canvas>
+            <span class="legend-end">−30 dBm</span>
+          </div>
+          <div class="stats-panel">
+            <div class="stats-title">Measurements</div>
+            <div class="stats-grid">
+              <div class="stat-item"><div class="stat-val good">−52 dBm</div><div class="stat-lbl">average signal</div></div>
+              <div class="stat-item"><div class="stat-val warn">−78 dBm</div><div class="stat-lbl">weakest zone</div></div>
+              <div class="stat-item"><div class="stat-val">18</div><div class="stat-lbl">measurements</div></div>
+              <div class="stat-item"><div class="stat-val" style="color:var(--fair);">3.2 m</div><div class="stat-lbl">dead zone dist.</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── SECTION 3: FULL SCREEN LANDSCAPE ── -->
+<p class="section-label">Full-Screen Landscape Mode (iOS)</p>
+
+<div class="landscape-phone">
+  <div class="landscape-sidebar">
+    <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:var(--text);margin-bottom:4px;">Survey 3</div>
+    <div style="font-size:10px;color:var(--text3);margin-bottom:10px;">18 measurements · calibrated</div>
+    <div class="ls-stat"><div class="ls-stat-val">−52</div><div class="ls-stat-lbl">avg dBm</div></div>
+    <div class="ls-stat"><div class="ls-stat-val" style="color:var(--fair);">2</div><div class="ls-stat-lbl">weak zones</div></div>
+    <div class="ls-stat"><div class="ls-stat-val">87%</div><div class="ls-stat-lbl">strong coverage</div></div>
+    <div style="flex:1;"></div>
+    <div class="ls-btn">Signal</div>
+    <div class="ls-btn">Thermal</div>
+    <div class="ls-btn rec">● Record</div>
+  </div>
+  <div class="landscape-canvas">
+    <canvas id="landscape-canvas" style="width:100%;height:100%;"></canvas>
+  </div>
+</div>
+
+<!-- ── SECTION 4: HEATMAP COLOR SCHEMES ── -->
+<p class="section-label">Pick a Heatmap Color Scheme</p>
+<p style="font-size:12px;color:var(--text2);margin-bottom:16px;">Each scheme uses smooth gradient interpolation between measurement points. Click one to select it.</p>
+
+<div class="scheme-grid" id="scheme-grid">
+  <div class="scheme-card" data-choice="thermal" onclick="selectScheme(this)">
+    <div class="scheme-check">✓</div>
+    <div class="scheme-preview">
+      <canvas id="scheme-thermal" width="400" height="120" style="width:100%;height:100%;"></canvas>
+    </div>
+    <div class="scheme-info">
+      <div class="scheme-name">Thermal</div>
+      <div class="scheme-desc">Blue → cyan → green → yellow → red. Classic infrared camera look. Visually striking and immediately legible.</div>
+    </div>
+  </div>
+  <div class="scheme-card selected" data-choice="signal" onclick="selectScheme(this)">
+    <div class="scheme-check">✓</div>
+    <div class="scheme-preview">
+      <canvas id="scheme-signal" width="400" height="120" style="width:100%;height:100%;"></canvas>
+    </div>
+    <div class="scheme-info">
+      <div class="scheme-name">Signal (Default)</div>
+      <div class="scheme-desc">Red → orange → yellow → green. Direct signal quality mapping. Universally understood traffic-light semantics.</div>
+    </div>
+  </div>
+  <div class="scheme-card" data-choice="nebula" onclick="selectScheme(this)">
+    <div class="scheme-check">✓</div>
+    <div class="scheme-preview">
+      <canvas id="scheme-nebula" width="400" height="120" style="width:100%;height:100%;"></canvas>
+    </div>
+    <div class="scheme-info">
+      <div class="scheme-name">Nebula</div>
+      <div class="scheme-desc">Dark navy → violet → magenta → white. Stunning on dark floors plans. Premium, distinctive aesthetic.</div>
+    </div>
+  </div>
+  <div class="scheme-card" data-choice="arctic" onclick="selectScheme(this)">
+    <div class="scheme-check">✓</div>
+    <div class="scheme-preview">
+      <canvas id="scheme-arctic" width="400" height="120" style="width:100%;height:100%;"></canvas>
+    </div>
+    <div class="scheme-info">
+      <div class="scheme-name">Arctic</div>
+      <div class="scheme-desc">Deep navy → teal → ice blue → white. Cool, technical. Strong signal burns bright white; dead zones disappear into darkness.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── SECTION 5: DISPLAY MODES ── -->
+<p class="section-label">Display Modes (can be combined)</p>
+
+<div class="mode-grid" id="mode-grid">
+  <div class="mode-card selected" data-choice="gradient" onclick="toggleMode(this)">
+    <div class="mode-check">✓</div>
+    <div class="mode-icon">🌡</div>
+    <div class="mode-name">Gradient Heatmap</div>
+    <div class="mode-desc">Smooth radial interpolation between measurement points. Shows estimated coverage between tapped locations.</div>
+  </div>
+  <div class="mode-card" data-choice="dots" onclick="toggleMode(this)">
+    <div class="mode-check">✓</div>
+    <div class="mode-icon">⚬</div>
+    <div class="mode-name">Measurement Dots</div>
+    <div class="mode-desc">Show raw tap locations as labeled circles with dBm values. Good for precision review of recorded data.</div>
+  </div>
+  <div class="mode-card" data-choice="contour" onclick="toggleMode(this)">
+    <div class="mode-check">✓</div>
+    <div class="mode-icon">〰</div>
+    <div class="mode-name">Contour Lines</div>
+    <div class="mode-desc">Signal strength iso-lines like a topographic map. Shows coverage boundaries clearly at −50, −65, −80 dBm.</div>
+  </div>
+  <div class="mode-card" data-choice="zones" onclick="toggleMode(this)">
+    <div class="mode-check">✓</div>
+    <div class="mode-icon">◫</div>
+    <div class="mode-name">Dead Zone Highlight</div>
+    <div class="mode-desc">Pulses red on areas with weak or no recorded signal. Immediately shows where to move the router.</div>
+  </div>
+</div>
+
+<!-- ── SECTION 6: macOS ── -->
+<p class="section-label">macOS — Dedicated Window with Sidebar</p>
+
+<div class="mac-window">
+  <div class="mac-titlebar">
+    <div class="mac-dots">
+      <div class="mac-dot red"></div>
+      <div class="mac-dot yellow"></div>
+      <div class="mac-dot green"></div>
+    </div>
+    <div class="mac-title">WiFi Heatmap — Office Survey (18 pts · calibrated)</div>
+    <div style="font-family:'Space Mono',monospace;font-size:10px;color:var(--cyan);">↑ Export PNG</div>
+  </div>
+  <div class="mac-body">
+    <!-- Left sidebar: surveys list -->
+    <div class="mac-sidebar-left">
+      <div class="mac-section-head">Surveys</div>
+      <div class="mac-item active">📊 Office Survey 3</div>
+      <div class="mac-item">📊 Office Survey 2</div>
+      <div class="mac-item">📊 Living Room</div>
+      <div style="flex:1;"></div>
+      <div class="mac-section-head">Tools</div>
+      <div class="mac-item">📏 Calibrate Scale</div>
+      <div class="mac-item">● New Survey</div>
+    </div>
+
+    <!-- Center: canvas + toolbar -->
+    <div style="display:flex;flex-direction:column;">
+      <div class="mac-toolbar">
+        <div class="mac-tool-btn active">Thermal</div>
+        <div class="mac-tool-btn">Signal</div>
+        <div class="mac-tool-btn">Nebula</div>
+        <div style="width:1px;background:var(--border);margin:0 4px;"></div>
+        <div class="mac-tool-btn active">Gradient</div>
+        <div class="mac-tool-btn">Dots</div>
+        <div class="mac-tool-btn">Contour</div>
+        <div style="width:1px;background:var(--border);margin:0 4px;"></div>
+        <div class="mac-tool-btn">⊕ Zoom In</div>
+        <div class="mac-tool-btn">⊖ Zoom Out</div>
+      </div>
+      <div class="mac-canvas-area" style="flex:1;position:relative;min-height:260px;">
+        <canvas id="mac-canvas" style="width:100%;height:100%;display:block;"></canvas>
+        <div class="hover-tooltip">−61 dBm · Fair · (12.3m, 4.1m)</div>
+      </div>
+    </div>
+
+    <!-- Right sidebar: stats -->
+    <div class="mac-sidebar-right">
+      <div class="mac-section-head">Signal Stats</div>
+      <div class="mac-stat-block">
+        <div class="mac-stat-big">−52</div>
+        <div class="mac-stat-lbl">Average dBm</div>
+      </div>
+      <div class="mac-stat-block">
+        <div class="mac-stat-big" style="color:var(--weak);">−78</div>
+        <div class="mac-stat-lbl">Minimum (worst)</div>
+      </div>
+      <div class="mac-stat-block">
+        <div class="mac-stat-big" style="color:var(--strong);">−38</div>
+        <div class="mac-stat-lbl">Maximum (best)</div>
+      </div>
+      <div class="mac-section-head" style="margin-top:4px;">Coverage</div>
+      <div class="mac-stat-block">
+        <div class="mac-stat-big">87%</div>
+        <div class="mac-stat-lbl">Strong (≥ −50 dBm)</div>
+      </div>
+      <div class="mac-stat-block">
+        <div class="mac-stat-big" style="color:var(--fair);">2 zones</div>
+        <div class="mac-stat-lbl">Weak (&lt; −70 dBm)</div>
+      </div>
+      <div class="mac-section-head" style="margin-top:4px;">Scale</div>
+      <div class="mac-stat-block">
+        <div class="mac-stat-big" style="font-size:14px;color:var(--cyan);">1px = 3.2cm</div>
+        <div class="mac-stat-lbl">Calibrated</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="selection-summary">
+  <h4>YOUR SELECTIONS</h4>
+  <div id="sel-text"></div>
+</div>
+
+<script>
+// ─── CANVAS DRAWING ───────────────────────────────────────────────────────────
+
+function drawFloorPlan(ctx, w, h) {
+  // Dark background
+  ctx.fillStyle = '#0a1020';
+  ctx.fillRect(0, 0, w, h);
+
+  // Rooms outline
+  ctx.strokeStyle = 'rgba(100,140,180,0.5)';
+  ctx.lineWidth = 1.5;
+
+  // Main room
+  ctx.strokeRect(10, 10, w - 20, h - 20);
+
+  // Interior walls
+  ctx.beginPath();
+  ctx.moveTo(w * 0.55, 10);
+  ctx.lineTo(w * 0.55, h * 0.6);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(10, h * 0.55);
+  ctx.lineTo(w * 0.55, h * 0.55);
+  ctx.stroke();
+
+  // Door openings
+  ctx.strokeStyle = 'rgba(100,140,180,0.2)';
+  ctx.beginPath();
+  ctx.moveTo(w * 0.55, h * 0.2);
+  ctx.lineTo(w * 0.55, h * 0.32);
+  ctx.stroke();
+
+  // Room labels
+  ctx.fillStyle = 'rgba(100,140,180,0.3)';
+  ctx.font = '9px Space Mono, monospace';
+  ctx.fillText('LIVING ROOM', 20, 30);
+  ctx.fillText('BEDROOM', w * 0.62, 30);
+  ctx.fillText('KITCHEN', 20, h * 0.7);
+}
+
+function drawHeatmap(ctx, w, h, points, colorMode) {
+  const colorStops = {
+    thermal: [
+      [0, '#000080'], [0.15, '#0000ff'], [0.3, '#00ffff'],
+      [0.5, '#00ff00'], [0.7, '#ffff00'], [0.85, '#ff8800'], [1, '#ff0000']
+    ],
+    signal: [
+      [0, '#cc0000'], [0.25, '#ff4400'], [0.5, '#ffcc00'],
+      [0.75, '#88ff00'], [1, '#00dd44']
+    ],
+    nebula: [
+      [0, '#0a0a2a'], [0.2, '#1a0060'], [0.4, '#6600aa'],
+      [0.6, '#cc00aa'], [0.8, '#ff44cc'], [1, '#ffffff']
+    ],
+    arctic: [
+      [0, '#050a14'], [0.2, '#062040'], [0.4, '#0a4060'],
+      [0.6, '#1088aa'], [0.8, '#44ccdd'], [1, '#ffffff']
+    ]
+  };
+
+  const stops = colorStops[colorMode] || colorStops.thermal;
+
+  function interpColor(t) {
+    t = Math.max(0, Math.min(1, t));
+    let i = 0;
+    while (i < stops.length - 1 && stops[i + 1][0] < t) i++;
+    const a = stops[i], b = stops[i + 1] || stops[i];
+    const range = b[0] - a[0];
+    const localT = range > 0 ? (t - a[0]) / range : 0;
+
+    function hexToRgb(hex) {
+      const r = parseInt(hex.slice(1, 3), 16);
+      const g = parseInt(hex.slice(3, 5), 16);
+      const bl = parseInt(hex.slice(5, 7), 16);
+      return [r, g, bl];
+    }
+    const [r1, g1, b1] = hexToRgb(a[1]);
+    const [r2, g2, b2] = hexToRgb(b[1]);
+    const r = Math.round(r1 + (r2 - r1) * localT);
+    const g = Math.round(g1 + (g2 - g1) * localT);
+    const bl = Math.round(b1 + (b2 - b1) * localT);
+    return `rgba(${r},${g},${bl}`;
+  }
+
+  // Draw each point as a large radial gradient
+  for (const p of points) {
+    const cx = p.x * w;
+    const cy = p.y * h;
+    const r = p.r || 60;
+    const t = (p.rssi - (-90)) / 60; // normalize -90..-30 to 0..1
+    const baseColor = interpColor(t);
+
+    const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+    grad.addColorStop(0, baseColor + ',0.85)');
+    grad.addColorStop(0.5, baseColor + ',0.4)');
+    grad.addColorStop(1, baseColor + ',0)');
+
+    ctx.globalCompositeOperation = 'screen';
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalCompositeOperation = 'source-over';
+}
+
+function samplePoints(count, rssiRange, wMult = 1, hMult = 1) {
+  const pts = [];
+  // Cluster near "router" area
+  const routerX = 0.3;
+  const routerY = 0.3;
+  for (let i = 0; i < count; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const dist = Math.random();
+    const rssi = Math.round(rssiRange[0] + dist * (rssiRange[1] - rssiRange[0]));
+    pts.push({
+      x: Math.max(0.05, Math.min(0.95, routerX + Math.cos(angle) * dist * 0.7)),
+      y: Math.max(0.05, Math.min(0.95, routerY + Math.sin(angle) * dist * 0.5)),
+      rssi,
+      r: 55 * wMult
+    });
+  }
+  return pts;
+}
+
+// ─── RENDER ALL CANVASES ──────────────────────────────────────────────────────
+
+window.addEventListener('DOMContentLoaded', () => {
+
+  const sharedPoints = samplePoints(18, [-75, -38]);
+
+  // Calibration canvas
+  (() => {
+    const c = document.getElementById('calib-canvas');
+    const ctx = c.getContext('2d');
+    drawFloorPlan(ctx, c.width, c.height);
+
+    // Draw calibration line
+    ctx.strokeStyle = '#00f5ff';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([5, 3]);
+    ctx.beginPath();
+    ctx.moveTo(30, 120);
+    ctx.lineTo(200, 80);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Endpoints
+    [{ x: 30, y: 120 }, { x: 200, y: 80 }].forEach(p => {
+      ctx.fillStyle = '#00f5ff';
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 5, 0, Math.PI * 2);
+      ctx.fill();
+    });
+
+    // Distance label on line
+    ctx.fillStyle = '#00f5ff';
+    ctx.font = 'bold 9px Space Mono, monospace';
+    ctx.fillText('~4.5 m', 95, 90);
+  })();
+
+  // Survey canvas
+  (() => {
+    const c = document.getElementById('survey-canvas');
+    const ctx = c.getContext('2d');
+    drawFloorPlan(ctx, c.width, c.height);
+    const pts = samplePoints(14, [-75, -38]);
+    drawHeatmap(ctx, c.width, c.height, pts, 'signal');
+
+    // Tap crosshair
+    ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+    ctx.lineWidth = 1.5;
+    const tx = 180, ty = 110;
+    ctx.beginPath();
+    ctx.moveTo(tx - 8, ty); ctx.lineTo(tx + 8, ty);
+    ctx.moveTo(tx, ty - 8); ctx.lineTo(tx, ty + 8);
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+    ctx.beginPath();
+    ctx.arc(tx, ty, 14, 0, Math.PI * 2);
+    ctx.stroke();
+  })();
+
+  // Result canvas
+  (() => {
+    const c = document.getElementById('result-canvas');
+    const ctx = c.getContext('2d');
+    drawFloorPlan(ctx, c.width, c.height);
+    drawHeatmap(ctx, c.width, c.height, sharedPoints, 'signal');
+  })();
+
+  // Legend
+  (() => {
+    const c = document.getElementById('legend-canvas');
+    const ctx = c.getContext('2d');
+    c.width = c.offsetWidth || 160;
+    c.height = 6;
+    const grad = ctx.createLinearGradient(0, 0, c.width, 0);
+    grad.addColorStop(0, '#cc0000');
+    grad.addColorStop(0.5, '#ffcc00');
+    grad.addColorStop(1, '#00dd44');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, c.width, c.height);
+  })();
+
+  // Scheme thumbnails
+  const schemes = ['thermal', 'signal', 'nebula', 'arctic'];
+  schemes.forEach(scheme => {
+    const c = document.getElementById(`scheme-${scheme}`);
+    const ctx = c.getContext('2d');
+    const pts = samplePoints(20, [-78, -35]);
+    drawFloorPlan(ctx, c.width, c.height);
+    drawHeatmap(ctx, c.width, c.height, pts, scheme);
+  });
+
+  // Landscape canvas
+  (() => {
+    const c = document.getElementById('landscape-canvas');
+    c.width = c.offsetWidth || 500;
+    c.height = c.offsetHeight || 240;
+    const ctx = c.getContext('2d');
+    drawFloorPlan(ctx, c.width, c.height);
+    const pts = samplePoints(18, [-78, -35], c.width / 256);
+    drawHeatmap(ctx, c.width, c.height, pts, 'thermal');
+
+    // Scale bar
+    ctx.strokeStyle = '#00f5ff';
+    ctx.lineWidth = 2;
+    const sx = 20, sy = c.height - 20, sw = 60;
+    ctx.beginPath();
+    ctx.moveTo(sx, sy); ctx.lineTo(sx + sw, sy);
+    [sx, sx + sw].forEach(x => { ctx.moveTo(x, sy - 4); ctx.lineTo(x, sy + 4); });
+    ctx.stroke();
+    ctx.fillStyle = '#00f5ff';
+    ctx.font = '9px Space Mono, monospace';
+    ctx.fillText('5 m', sx, sy - 8);
+  })();
+
+  // macOS canvas
+  (() => {
+    const c = document.getElementById('mac-canvas');
+    c.width = c.offsetWidth || 500;
+    c.height = c.offsetHeight || 280;
+    const ctx = c.getContext('2d');
+    drawFloorPlan(ctx, c.width, c.height);
+    const pts = samplePoints(18, [-78, -35], c.width / 256);
+    drawHeatmap(ctx, c.width, c.height, pts, 'thermal');
+
+    // Hover crosshair
+    const hx = c.width * 0.55, hy = c.height * 0.35;
+    ctx.strokeStyle = 'rgba(0,245,255,0.7)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 3]);
+    ctx.beginPath();
+    ctx.moveTo(hx - 12, hy); ctx.lineTo(hx + 12, hy);
+    ctx.moveTo(hx, hy - 12); ctx.lineTo(hx, hy + 12);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.strokeStyle = 'rgba(0,245,255,0.5)';
+    ctx.beginPath();
+    ctx.arc(hx, hy, 16, 0, Math.PI * 2);
+    ctx.stroke();
+  })();
+});
+
+// ─── SELECTION HANDLING ───────────────────────────────────────────────────────
+
+let selectedScheme = 'signal';
+let selectedModes = ['gradient'];
+
+function selectScheme(el) {
+  document.querySelectorAll('#scheme-grid .scheme-card').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+  selectedScheme = el.dataset.choice;
+  updateSummary();
+  // Record event
+  window.parent && window.parent.postMessage && window.parent.postMessage({type:'click',choice:selectedScheme}, '*');
+}
+
+function toggleMode(el) {
+  el.classList.toggle('selected');
+  const mode = el.dataset.choice;
+  if (selectedModes.includes(mode)) {
+    selectedModes = selectedModes.filter(m => m !== mode);
+  } else {
+    selectedModes.push(mode);
+  }
+  updateSummary();
+}
+
+function updateSummary() {
+  const summary = document.getElementById('selection-summary');
+  const text = document.getElementById('sel-text');
+  summary.style.display = 'block';
+  text.innerHTML = `Scheme: <strong>${selectedScheme}</strong><br>Modes: <strong>${selectedModes.join(', ') || 'none'}</strong>`;
+
+  // Write to events file via fetch if available
+  try {
+    const data = { type: 'selection', scheme: selectedScheme, modes: selectedModes, timestamp: Date.now() };
+    fetch('/.events', { method: 'POST', body: JSON.stringify(data), headers: { 'Content-Type': 'application/json' } }).catch(() => {});
+  } catch (e) {}
+}
+</script>
+</body>
+</html>
