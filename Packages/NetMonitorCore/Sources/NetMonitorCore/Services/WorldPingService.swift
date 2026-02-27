@@ -86,24 +86,55 @@ public final class WorldPingService: WorldPingServiceProtocol, @unchecked Sendab
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.timeoutInterval = 15
 
+        var anyValidPollResponse = false
+
         for attempt in 0..<maxAttempts {
             if attempt > 0 {
                 try await Task.sleep(for: .seconds(2))
             }
             guard !Task.isCancelled else { break }
 
-            let (data, _) = try await session.data(for: request)
+            let (data, response) = try await session.data(for: request)
+
+            // Surface HTTP errors — a 4xx/5xx on the result endpoint means the
+            // request ID is invalid or the service is down. Don't silently retry.
+            if let httpResponse = response as? HTTPURLResponse,
+               httpResponse.statusCode >= 400 {
+                throw WorldPingError.pollHTTPError(statusCode: httpResponse.statusCode)
+            }
+
             guard let raw = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
                 logger.warning("pollResults: failed to parse JSON response on attempt \(attempt) — retrying")
                 continue
             }
 
-            // Wait until all nodes have responded (non-null) or max attempts reached
+            anyValidPollResponse = true
+
+            // Guard: if the response contains no keys from our submitted node set,
+            // the API returned an error document (e.g. {"error": "..."}) rather than
+            // probe results. Surface this as a real error instead of silently returning [].
+            let hasAnyNodeKey = raw.keys.contains { nodes[$0] != nil }
+            if !hasAnyNodeKey && !nodes.isEmpty {
+                // Decode the API error message if present, otherwise use a generic description
+                let apiError = raw["error"] as? String
+                    ?? raw["message"] as? String
+                    ?? "unexpected response (got keys: \(Array(raw.keys).sorted()))"
+                throw WorldPingError.pollAPIError(message: apiError)
+            }
+
+            // Wait until all submitted nodes have responded (non-null) or max attempts reached
             let allReady = raw.values.allSatisfy { !($0 is NSNull) }
             if allReady || attempt == maxAttempts - 1 {
                 return parseResults(raw: raw, nodes: nodes)
             }
         }
+
+        // If we never received a parseable JSON response from the poll endpoint,
+        // surface this as an explicit error rather than returning empty results.
+        if !anyValidPollResponse {
+            throw WorldPingError.pollUnparseable(attempts: maxAttempts)
+        }
+
         return []
     }
 
@@ -185,5 +216,25 @@ public final class WorldPingService: WorldPingServiceProtocol, @unchecked Sendab
         let country: String
         let city: String
         let countryCode: String
+    }
+
+    /// Errors thrown by `pollResults` when the result endpoint responds in a way
+    /// that cannot produce valid probe-node data. These are surfaced via `lastError`
+    /// to allow the ViewModel to display a meaningful message instead of a blank screen.
+    private enum WorldPingError: LocalizedError {
+        case pollHTTPError(statusCode: Int)
+        case pollAPIError(message: String)
+        case pollUnparseable(attempts: Int)
+
+        var errorDescription: String? {
+            switch self {
+            case .pollHTTPError(let code):
+                return "World ping result endpoint returned HTTP \(code)"
+            case .pollAPIError(let message):
+                return "World ping API error: \(message)"
+            case .pollUnparseable(let attempts):
+                return "World ping result endpoint returned unparseable responses after \(attempts) attempts"
+            }
+        }
     }
 }

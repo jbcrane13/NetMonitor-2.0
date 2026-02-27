@@ -52,35 +52,37 @@ final class BonjourDiscoveryToolViewModel {
         // Start browsing using the imperative API (same path as network scan)
         bonjourService.startDiscovery(serviceType: nil)
 
-        // Poll discoveredServices at regular intervals
-        // (mirrors BonjourScanPhase's adaptive polling approach)
-        pollingTask = Task {
+        // Poll discoveredServices at regular intervals (10 s deadline, mirrors macOS behaviour)
+        pollingTask = Task { @MainActor [weak self] in
+            let deadline = Date.now.addingTimeInterval(10)
+
             while !Task.isCancelled {
                 try? await Task.sleep(for: .milliseconds(400))
-                guard !Task.isCancelled else { break }
+                guard let self, !Task.isCancelled else { break }
 
-                // Sync newly-discovered services from the underlying service
-                let discovered = bonjourService.discoveredServices
-                if discovered.count != services.count {
-                    services = discovered
+                // Sync by ID set so remove+add events (same count) are detected.
+                let discovered = self.bonjourService.discoveredServices
+                let currentIDs = Set(self.services.map(\.id))
+                let freshIDs = Set(discovered.map(\.id))
+                if currentIDs != freshIDs {
+                    self.services = discovered
                 }
 
-                // The service auto-stops after its 30s timeout
-                if !bonjourService.isDiscovering {
-                    services = bonjourService.discoveredServices
+                if !self.bonjourService.isDiscovering || Date.now >= deadline {
+                    self.services = self.bonjourService.discoveredServices
                     break
                 }
             }
 
-            if !Task.isCancelled {
-                isDiscovering = false
-                ToolActivityLog.shared.add(
-                    tool: "Bonjour",
-                    target: "Local Network",
-                    result: "\(services.count) services",
-                    success: !services.isEmpty
-                )
-            }
+            guard let self, !Task.isCancelled else { return }
+            self.bonjourService.stopDiscovery()
+            self.isDiscovering = false
+            ToolActivityLog.shared.add(
+                tool: "Bonjour",
+                target: "Local Network",
+                result: "\(self.services.count) services",
+                success: !self.services.isEmpty
+            )
         }
     }
 

@@ -145,12 +145,30 @@ public final class SpeedTestService: SpeedTestServiceProtocol {
                         try Task.checkCancellation()
                         var request = URLRequest(url: url)
                         request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
-                        request.timeoutInterval = 10
-                        let (data, response) = try await session.data(for: request)
-                        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+                        // Static-file servers (Hetzner/OVH/Tele2) serve 100 MB files — need
+                        // long timeout so we can stream partial bytes for the test window.
+                        request.timeoutInterval = 120
+                        let (bytes, response) = try await session.bytes(for: request)
+                        guard let http = response as? HTTPURLResponse,
+                              (200...299).contains(http.statusCode) else {
                             continue
                         }
-                        totalBytesAtomic.add(Int64(data.count))
+                        // Stream 64 KB chunks, counting bytes as they arrive so static-file
+                        // servers contribute partial data even if download doesn't finish.
+                        let chunkCapacity = 65_536
+                        var buffer = [UInt8]()
+                        buffer.reserveCapacity(chunkCapacity)
+                        for try await byte in bytes {
+                            buffer.append(byte)
+                            if buffer.count >= chunkCapacity {
+                                totalBytesAtomic.add(Int64(buffer.count))
+                                buffer.removeAll(keepingCapacity: true)
+                                if Date().timeIntervalSince(startTime) >= duration { break }
+                            }
+                        }
+                        if !buffer.isEmpty {
+                            totalBytesAtomic.add(Int64(buffer.count))
+                        }
                     }
                 }
             }

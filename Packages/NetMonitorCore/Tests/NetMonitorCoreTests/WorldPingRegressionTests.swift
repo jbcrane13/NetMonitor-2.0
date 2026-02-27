@@ -12,6 +12,12 @@ import Testing
 //
 // Bug 3: GeoLocationService used HTTP (ip-api.com free tier), blocked by iOS ATS —
 //         all geo-lookups silently failed, GeoTrace map showed no pins
+//
+// Bug 4 (NetMonitor-2.0-82l): pollResults silently swallowed error-JSON from the
+//         result endpoint — {"error":"..."} caused allReady=true (no nulls), guard
+//         in parseResults dropped the "error" key, returned [], and never set lastError.
+//         Also: HTTP 4xx/5xx on the poll endpoint was not surfaced as an error.
+//         Fix: detect error-JSON (no node keys in response) and HTTP errors on poll.
 
 // MARK: - WorldPing Contract Tests (real API fixture format)
 
@@ -154,6 +160,138 @@ struct WorldPingRegressionContractTests {
         // avg of 195ms and 188ms = 191.5ms; allow small floating-point range
         #expect(latency > 190 && latency < 193,
                 "Expected averaged latency ~191.5ms across two OK probes, got \(latency)")
+    }
+}
+
+// MARK: - Bug 4 Regression Tests: poll endpoint error surfacing (NetMonitor-2.0-82l)
+
+@Suite("WorldPingService — poll endpoint error surfacing regression", .serialized)
+struct WorldPingPollErrorRegressionTests {
+
+    init() { MockURLProtocol.requestHandler = nil }
+
+    // MARK: - Error JSON on poll endpoint surfaces lastError
+
+    @Test("Poll returns {\"error\":\"...\"}: lastError is set, stream finishes empty")
+    func pollErrorJSONSetsLastError() async throws {
+        // Regression (Bug 4): before the fix, {"error":"..."} on the poll endpoint
+        // caused allReady=true (no NSNull), parseResults dropped the "error" key via
+        // the meta-guard, returned [], and lastError was NEVER set.
+        let submitJSON = """
+        {"ok":1,"request_id":"test-r1","nodes":{"us1.node.check-host.net":["us","United States","Ashburn","1.2.3.4","AS1234"]}}
+        """
+        let pollErrorJSON = """
+        {"error":"request expired","message":"The request ID has expired or does not exist"}
+        """
+
+        let session = MockURLProtocol.makeSession(responses: [
+            "check-ping":   (200, Data(submitJSON.utf8)),
+            "check-result": (200, Data(pollErrorJSON.utf8))
+        ])
+        let service = WorldPingService(session: session)
+
+        var results: [WorldPingLocationResult] = []
+        for await r in await service.ping(host: "google.com", maxNodes: 1) {
+            results.append(r)
+        }
+
+        #expect(results.isEmpty,
+                "Poll error-JSON must NOT yield fake results — stream should finish empty")
+        #expect(service.lastError != nil,
+                "Regression (Bug 4): lastError must be set when poll returns error-JSON with no node keys")
+        #expect(service.lastError?.isEmpty == false)
+    }
+
+    @Test("Poll returns HTTP 500: lastError is set, stream finishes empty")
+    func pollHTTP500SetsLastError() async throws {
+        // Regression (Bug 4): HTTP errors on the POLL endpoint (not the submit endpoint)
+        // were not surfaced. Before the fix, session.data() returned the error body,
+        // JSONSerialization succeeded, allReady=true, parseResults skipped the error key,
+        // and [] was returned without setting lastError.
+        let submitJSON = """
+        {"ok":1,"request_id":"test-r2","nodes":{"de1.node.check-host.net":["de","Germany","Frankfurt","5.6.7.8","AS24940"]}}
+        """
+        let session = MockURLProtocol.makeSession { request in
+            let isSubmit = request.url?.absoluteString.contains("check-ping") == true
+            let statusCode = isSubmit ? 200 : 500
+            let body = isSubmit
+                ? submitJSON
+                : "{\"error\":\"internal server error\"}"
+            let response = HTTPURLResponse(
+                url: request.url!,
+                statusCode: statusCode,
+                httpVersion: nil,
+                headerFields: ["Content-Type": "application/json"]
+            )!
+            return (response, Data(body.utf8))
+        }
+
+        let service = WorldPingService(session: session)
+        var results: [WorldPingLocationResult] = []
+        for await r in await service.ping(host: "google.com", maxNodes: 1) {
+            results.append(r)
+        }
+
+        #expect(results.isEmpty,
+                "HTTP 500 on poll endpoint must NOT yield results — stream must finish empty")
+        #expect(service.lastError != nil,
+                "Regression (Bug 4): lastError must be set when poll endpoint returns HTTP 500")
+    }
+
+    @Test("Poll returns HTTP 429 (rate limit): lastError is set, stream finishes empty")
+    func pollHTTP429SetsLastError() async throws {
+        let submitJSON = """
+        {"ok":1,"request_id":"test-r3","nodes":{"jp1.node.check-host.net":["jp","Japan","Tokyo","1.2.3.4","AS7506"]}}
+        """
+        let session = MockURLProtocol.makeSession { request in
+            let isSubmit = request.url?.absoluteString.contains("check-ping") == true
+            let statusCode = isSubmit ? 200 : 429
+            let body = isSubmit ? submitJSON : "{\"error\":\"rate limited\"}"
+            let response = HTTPURLResponse(
+                url: request.url!,
+                statusCode: statusCode,
+                httpVersion: nil,
+                headerFields: ["Content-Type": "application/json"]
+            )!
+            return (response, Data(body.utf8))
+        }
+
+        let service = WorldPingService(session: session)
+        var results: [WorldPingLocationResult] = []
+        for await r in await service.ping(host: "google.com", maxNodes: 1) {
+            results.append(r)
+        }
+
+        #expect(results.isEmpty, "HTTP 429 on poll must finish stream empty")
+        #expect(service.lastError != nil,
+                "HTTP 429 on poll endpoint must set lastError")
+    }
+
+    @Test("Successful submit + successful poll: results returned normally after fix")
+    func successPathUnaffectedByFix() async throws {
+        // Verify the fix did not break the happy path.
+        let submitJSON = """
+        {"ok":1,"request_id":"test-r4","nodes":{"gb1.node.check-host.net":["gb","United Kingdom","London","9.8.7.6","AS62041"]}}
+        """
+        let pollJSON = """
+        {"gb1.node.check-host.net":[[["OK",0.024,"9.8.7.6",60]]]}
+        """
+        let session = MockURLProtocol.makeSession(responses: [
+            "check-ping":   (200, Data(submitJSON.utf8)),
+            "check-result": (200, Data(pollJSON.utf8))
+        ])
+        let service = WorldPingService(session: session)
+
+        var results: [WorldPingLocationResult] = []
+        for await r in await service.ping(host: "google.com", maxNodes: 1) {
+            results.append(r)
+        }
+
+        #expect(!results.isEmpty, "Happy path must still produce results after Bug 4 fix")
+        #expect(results.count == 1)
+        #expect(results.first?.city == "London")
+        #expect(results.first?.isSuccess == true)
+        #expect(service.lastError == nil)
     }
 }
 

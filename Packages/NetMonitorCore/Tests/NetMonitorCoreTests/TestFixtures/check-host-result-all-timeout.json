@@ -1,7 +1,7 @@
 {
-  "de1.node.check-host.net": [["TIMEOUT", null, null, null]],
-  "us1.node.check-host.net": [["TIMEOUT", null, null, null]],
-  "jp1.node.check-host.net": [["TIMEOUT", null, null, null]],
-  "gb1.node.check-host.net": [["TIMEOUT", null, null, null]],
-  "au1.node.check-host.net": [["TIMEOUT", null, null, null]]
+  "de1.node.check-host.net": [[["TIMEOUT"]]],
+  "us1.node.check-host.net": [[["TIMEOUT"]]],
+  "jp1.node.check-host.net": [[["TIMEOUT"]]],
+  "gb1.node.check-host.net": [[["TIMEOUT"]]],
+  "au1.node.check-host.net": [[["TIMEOUT"]]]
 }

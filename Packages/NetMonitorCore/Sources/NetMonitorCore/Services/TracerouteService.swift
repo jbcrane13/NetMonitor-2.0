@@ -157,6 +157,11 @@ public actor TracerouteService: TracerouteServiceProtocol {
                     probeTimes.append(response.rtt)
                     hopIP = response.sourceIP ?? targetIP
                     destinationReached = true
+                    // Destination confirmed — stop sending probes at this TTL.
+                    // Continuing would send extra probes with the same TTL, producing
+                    // additional echo replies that linger in the socket buffer and can
+                    // be mis-matched by a later TTL's probes, causing the outer loop to
+                    // terminate prematurely (the "only 1 hop" regression).
 
                 case .timeExceeded(let routerIP, _):
                     probeTimes.append(response.rtt)
@@ -171,6 +176,8 @@ public actor TracerouteService: TracerouteServiceProtocol {
                 case .error:
                     break
                 }
+
+                if destinationReached { break }
             }
 
             let allTimeout = probeTimes.isEmpty

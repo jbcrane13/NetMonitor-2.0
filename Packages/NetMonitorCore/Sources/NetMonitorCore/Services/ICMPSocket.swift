@@ -97,9 +97,17 @@ actor ICMPSocket {
         let seq = nextSequence()
         let socketFd = fd
 
-        // Set TTL before sending (must happen on actor to serialize with other calls)
+        // Set TTL before sending (must happen on actor to serialize with other calls).
+        // If setsockopt fails the probe is sent with the default TTL (64), which
+        // would reach the destination at any hop and cause destinationReached=true
+        // at TTL=1 — the "only 1 hop" bug. Return .error so the hop is marked as
+        // a timeout and the trace continues to the next TTL.
         var ttlValue = ttl
-        setsockopt(socketFd, IPPROTO_IP, IP_TTL, &ttlValue, socklen_t(MemoryLayout<Int32>.size))
+        let ttlResult = setsockopt(socketFd, IPPROTO_IP, IP_TTL, &ttlValue, socklen_t(MemoryLayout<Int32>.size))
+        if ttlResult != 0 {
+            icmpLog.error("setsockopt(IP_TTL=\(ttl)) failed: errno=\(errno)")
+            return ICMPResponse(kind: .error, sourceIP: nil, rtt: 0)
+        }
 
         return await withCheckedContinuation { continuation in
             ioQueue.async {

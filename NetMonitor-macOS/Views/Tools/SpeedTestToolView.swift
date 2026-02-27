@@ -387,29 +387,32 @@ struct SpeedTestToolView: View {
     // MARK: - Measurements
 
     private func measurePing(server: SpeedTestServer) async -> Double? {
-        // Simple ping using HEAD request
-        let startTime = Date()
-        // Use the server's ping URL when available; fall back to Cloudflare.
         let pingURLString = server.pingURL ?? "https://speed.cloudflare.com"
         guard let pingURL = URL(string: pingURLString) else { return nil }
 
-        do {
-            var request = URLRequest(url: pingURL)
-            request.httpMethod = "HEAD"
-            request.timeoutInterval = 5
-
-            let (_, response) = try await URLSession.shared.data(for: request)
-
-            if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 {
-                return Date().timeIntervalSince(startTime) * 1000 // Convert to ms
-            }
-        } catch {
-            await MainActor.run {
-                errorMessage = "Ping failed: \(error.localizedDescription)"
-            }
+        // Average 3 probes; some servers return 204/200 interchangeably.
+        var times: [Double] = []
+        for _ in 0..<3 {
+            let start = Date()
+            do {
+                var request = URLRequest(url: pingURL)
+                request.httpMethod = "HEAD"
+                request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
+                request.timeoutInterval = 5
+                let (_, response) = try await URLSession.shared.data(for: request)
+                if let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) {
+                    times.append(Date().timeIntervalSince(start) * 1000)
+                }
+            } catch { }
         }
 
-        return nil
+        guard !times.isEmpty else {
+            await MainActor.run {
+                errorMessage = "Ping failed: could not reach \(server.name)"
+            }
+            return nil
+        }
+        return times.reduce(0, +) / Double(times.count)
     }
 
     private func measureDownload(server: SpeedTestServer) async -> Double? {
@@ -454,16 +457,32 @@ struct SpeedTestToolView: View {
                             try Task.checkCancellation()
                             var request = URLRequest(url: url)
                             request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
-                            request.timeoutInterval = 10
-                            let (data, response) = try await session.data(for: request)
-                            guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+                            // Static-file servers (Hetzner/OVH/Tele2) serve 100 MB files — need
+                            // long timeout so we can stream partial bytes for the test window.
+                            request.timeoutInterval = 120
+                            let (bytes, response) = try await session.bytes(for: request)
+                            guard let http = response as? HTTPURLResponse,
+                                  (200...299).contains(http.statusCode) else {
                                 continue
                             }
-                            totalBytesAtomic.add(Int64(data.count))
-
-                            let elapsed = Date().timeIntervalSince(startTime)
-                            let currentSpeed = elapsed > 0 ? Double(totalBytesAtomic.load() * 8) / elapsed / 1_000_000 : 0
-                            peakAtomic.updateMax(currentSpeed)
+                            // Stream 64 KB chunks, counting bytes as they arrive.
+                            let chunkCapacity = 65_536
+                            var buffer = [UInt8]()
+                            buffer.reserveCapacity(chunkCapacity)
+                            for try await byte in bytes {
+                                buffer.append(byte)
+                                if buffer.count >= chunkCapacity {
+                                    totalBytesAtomic.add(Int64(buffer.count))
+                                    let elapsed = Date().timeIntervalSince(startTime)
+                                    let currentSpeed = elapsed > 0 ? Double(totalBytesAtomic.load() * 8) / elapsed / 1_000_000 : 0
+                                    peakAtomic.updateMax(currentSpeed)
+                                    buffer.removeAll(keepingCapacity: true)
+                                    if Date().timeIntervalSince(startTime) >= duration { break }
+                                }
+                            }
+                            if !buffer.isEmpty {
+                                totalBytesAtomic.add(Int64(buffer.count))
+                            }
                         }
                     }
                 }
