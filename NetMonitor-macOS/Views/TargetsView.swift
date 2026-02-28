@@ -9,9 +9,8 @@ struct TargetsView: View {
     @Query(sort: \NetworkTarget.name) private var targets: [NetworkTarget]
 
     @State private var showingAddSheet = false
-    @State private var selectedTarget: NetworkTarget?
+    @State private var selectedTargets: Set<NetworkTarget> = []
     @State private var sortOption: TargetSortOption = .name
-    @State private var targetToDelete: NetworkTarget?
     @State private var showDeleteConfirmation = false
 
     var sortedTargets: [NetworkTarget] {
@@ -47,7 +46,7 @@ struct TargetsView: View {
                 )
                 .accessibilityIdentifier("targets_label_empty")
             } else {
-                List(selection: $selectedTarget) {
+                List(selection: $selectedTargets) {
                     ForEach(sortedTargets) { target in
                         TargetRow(target: target, monitoringSession: monitoringSession)
                             .tag(target)
@@ -68,8 +67,7 @@ struct TargetsView: View {
                             .accessibilityIdentifier("targets_row_\(target.id)")
                             .contextMenu {
                                 Button(role: .destructive) {
-                                    targetToDelete = target
-                                    showDeleteConfirmation = true
+                                    deleteTarget(target)
                                 } label: {
                                     Label("Delete Target", systemImage: "trash")
                                 }
@@ -90,14 +88,11 @@ struct TargetsView: View {
             }
             ToolbarItem(placement: .automatic) {
                 Button(role: .destructive) {
-                    if let selected = selectedTarget {
-                        targetToDelete = selected
-                        showDeleteConfirmation = true
-                    }
+                    showDeleteConfirmation = true
                 } label: {
-                    Label("Delete", systemImage: "trash")
+                    Label("Delete \(selectedTargets.count > 1 ? "\(selectedTargets.count) Targets" : "Target")", systemImage: "trash")
                 }
-                .disabled(selectedTarget == nil)
+                .disabled(selectedTargets.isEmpty)
                 .accessibilityIdentifier("targets_button_delete")
             }
             ToolbarItem(placement: .automatic) {
@@ -118,13 +113,22 @@ struct TargetsView: View {
         .sheet(isPresented: $showingAddSheet) {
             AddTargetSheet()
         }
-        .confirmationDialog("Delete Target?", isPresented: $showDeleteConfirmation, presenting: targetToDelete) { target in
+        .confirmationDialog(
+            selectedTargets.count == 1
+                ? "Delete Target?"
+                : "Delete \(selectedTargets.count) Targets?",
+            isPresented: $showDeleteConfirmation
+        ) {
             Button("Delete", role: .destructive) {
-                deleteTarget(target)
+                deleteSelectedTargets()
             }
             Button("Cancel", role: .cancel) { }
-        } message: { target in
-            Text("This will permanently delete '\(target.name)' and all its measurement history.")
+        } message: {
+            if selectedTargets.count == 1, let target = selectedTargets.first {
+                Text("This will permanently delete '\(target.name)' and all its measurement history.")
+            } else {
+                Text("This will permanently delete \(selectedTargets.count) targets and all their measurement history.")
+            }
         }
     }
 
@@ -140,17 +144,24 @@ struct TargetsView: View {
     }
 
     private func deleteTarget(_ target: NetworkTarget) {
+        selectedTargets.remove(target)
         modelContext.delete(target)
-
-        // Clear selection if deleted target was selected
-        if selectedTarget?.id == target.id {
-            selectedTarget = nil
-        }
-
         do {
             try modelContext.save()
         } catch {
             Logger.data.error("Error deleting target: \(error, privacy: .public)")
+        }
+    }
+
+    private func deleteSelectedTargets() {
+        for target in selectedTargets {
+            modelContext.delete(target)
+        }
+        selectedTargets.removeAll()
+        do {
+            try modelContext.save()
+        } catch {
+            Logger.data.error("Error deleting targets: \(error, privacy: .public)")
         }
     }
 }
