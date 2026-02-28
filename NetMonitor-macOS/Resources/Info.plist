@@ -41,6 +41,8 @@
 	<array>
 		<string>_netmon._tcp</string>
 	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>NetMonitor Pro uses your camera to scan room layouts for WiFi heatmap surveys.</string>
 	<key>NSHighResolutionCapable</key>
 	<true/>
 	<key>NSHumanReadableCopyright</key>

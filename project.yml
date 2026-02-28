@@ -39,6 +39,7 @@ targets:
         NSLocalNetworkUsageDescription: "NetMonitor Pro uses local network access to discover and connect to the iOS companion app via Bonjour."
         NSBonjourServices:
           - _netmon._tcp
+        NSCameraUsageDescription: "NetMonitor Pro uses your camera to scan room layouts for WiFi heatmap surveys."
         NSAppTransportSecurity:
           NSExceptionDomains:
             ip-api.com:
@@ -95,6 +96,7 @@ targets:
         CFBundleIconName: AppIcon
         NSLocationWhenInUseUsageDescription: "NetMonitor uses your location to display WiFi network information and monitor GeoFence zones."
         NSLocationAlwaysAndWhenInUseUsageDescription: "NetMonitor uses your location in the background to trigger GeoFence alerts when you enter or exit defined zones."
+        NSCameraUsageDescription: "NetMonitor uses your camera to scan room layouts for WiFi heatmap surveys."
         NSAppTransportSecurity:
           NSExceptionDomains:
             ip-api.com:
@@ -134,6 +136,7 @@ targets:
     dependencies:
       - package: NetMonitorCore
       - package: NetworkScanKit
+      - sdk: RoomPlan.framework
 
   NetMonitor-macOSTests:
     type: bundle.unit-test

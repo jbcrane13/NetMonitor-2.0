@@ -5,7 +5,7 @@ import NetMonitorCore
 // MARK: - WiFiHeatmapSurveyView
 
 struct WiFiHeatmapSurveyView: View {
-    @State private var viewModel = WiFiHeatmapSurveyViewModel()
+    @Bindable var viewModel: WiFiHeatmapSurveyViewModel
     @State private var showingGuide = false
     @State private var showingFullScreen = false
     @State private var showingCalibration = false
@@ -331,5 +331,5 @@ struct WiFiHeatmapSurveyView: View {
 }
 
 #Preview {
-    NavigationStack { WiFiHeatmapSurveyView() }
+    NavigationStack { WiFiHeatmapSurveyView(viewModel: WiFiHeatmapSurveyViewModel()) }
 }

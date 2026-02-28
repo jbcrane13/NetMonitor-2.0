@@ -35,6 +35,8 @@
 			</dict>
 		</dict>
 	</dict>
+	<key>NSCameraUsageDescription</key>
+	<string>NetMonitor uses your camera to scan room layouts for WiFi heatmap surveys.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>NetMonitor uses your location in the background to trigger GeoFence alerts when you enter or exit defined zones.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
