@@ -4,11 +4,11 @@ import NetMonitorCore
 struct NetworkDetailView: View {
     @Binding var profile: NetworkProfile
     @Environment(\.appAccentColor) private var accentColor
+    @Environment(DeviceDiscoveryCoordinator.self) private var deviceDiscovery: DeviceDiscoveryCoordinator?
+    @Environment(NetworkProfileManager.self) private var profileManager: NetworkProfileManager?
 
     @State private var isEditing = false
     @State private var editedName: String = ""
-
-    let scanAction: () -> Void
 
     var body: some View {
         ScrollView {
@@ -32,6 +32,11 @@ struct NetworkDetailView: View {
                     isEditing.toggle()
                 }
                 .accessibilityIdentifier("network_detail_button_edit")
+            }
+        }
+        .onChange(of: profileManager?.profiles) {
+            if let updated = profileManager?.profiles.first(where: { $0.id == profile.id }) {
+                profile = updated
             }
         }
     }
@@ -146,13 +151,27 @@ struct NetworkDetailView: View {
 
             Divider()
 
+            if let deviceDiscovery, deviceDiscovery.isScanning {
+                VStack(spacing: 8) {
+                    ProgressView(value: deviceDiscovery.scanProgress)
+                        .accessibilityIdentifier("network_detail_scan_progress")
+                    Text("Scanning network\u{2026}")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
             Button {
-                scanAction()
+                deviceDiscovery?.scanNetwork(profile)
             } label: {
-                Label("Scan This Network", systemImage: "network")
-                    .frame(maxWidth: .infinity)
+                Label(
+                    deviceDiscovery?.isScanning == true ? "Scanning\u{2026}" : "Scan This Network",
+                    systemImage: "network"
+                )
+                .frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
+            .disabled(deviceDiscovery?.isScanning == true)
             .accessibilityIdentifier("network_detail_button_scan")
         }
         .macGlassCard(cornerRadius: MacTheme.Layout.cardCornerRadius)
@@ -231,8 +250,6 @@ struct NetworkDetailView: View {
         gatewayReachable: true
     )
 
-    NetworkDetailView(profile: .constant(profile)) {
-        print("Scan action triggered")
-    }
+    NetworkDetailView(profile: .constant(profile))
 }
 #endif

@@ -59,12 +59,7 @@ struct ContentView: View {
                     profile: Binding(
                         get: { selectedNetworkProfile! },
                         set: { selectedNetworkProfile = $0 }
-                    ),
-                    scanAction: {
-                        if let profile = selectedNetworkProfile {
-                            deviceDiscovery?.scanNetwork(profile)
-                        }
-                    }
+                    )
                 )
                 .accessibilityIdentifier("detail_network")
             } else {
