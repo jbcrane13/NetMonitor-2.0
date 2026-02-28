@@ -250,16 +250,22 @@ public final class WorldPingService: WorldPingServiceProtocol, @unchecked Sendab
         let countryCode: String
     }
 
-    /// Errors thrown by `pollResults` when the result endpoint responds in a way
-    /// that cannot produce valid probe-node data. These are surfaced via `lastError`
-    /// to allow the ViewModel to display a meaningful message instead of a blank screen.
+    /// Errors surfaced via `lastError` to allow the ViewModel to display a meaningful
+    /// message instead of a blank screen.
     private enum WorldPingError: LocalizedError {
+        case submitHTTPError(statusCode: Int, apiMessage: String?)
+        case submitAPIError(message: String)
         case pollHTTPError(statusCode: Int)
         case pollAPIError(message: String)
         case pollUnparseable(attempts: Int)
 
         var errorDescription: String? {
             switch self {
+            case .submitHTTPError(let code, let msg):
+                if let m = msg { return "World ping submit error: \(m) (HTTP \(code))" }
+                return "World ping submit endpoint returned HTTP \(code)"
+            case .submitAPIError(let message):
+                return "World ping API error: \(message)"
             case .pollHTTPError(let code):
                 return "World ping result endpoint returned HTTP \(code)"
             case .pollAPIError(let message):
