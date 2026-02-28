@@ -90,7 +90,8 @@ public actor TracerouteService: TracerouteServiceProtocol {
             return
         }
 
-        // Try ICMP traceroute first; fall back to TCP probe if unavailable
+        // Try ICMP traceroute first; fall back to HTTP (check-host.net) when ICMP
+        // sockets are unavailable, then to TCP probing as last resort.
         if let socket = try? ICMPSocket() {
             await performICMPTrace(
                 socket: socket,
@@ -101,13 +102,19 @@ public actor TracerouteService: TracerouteServiceProtocol {
                 continuation: continuation
             )
         } else {
-            await performTCPFallback(
+            let httpSucceeded = await performHTTPTracerouteFallback(
                 host: host,
-                targetIP: targetIP,
-                maxHops: maxHops,
-                timeout: timeout,
                 continuation: continuation
             )
+            if !httpSucceeded {
+                await performTCPFallback(
+                    host: host,
+                    targetIP: targetIP,
+                    maxHops: maxHops,
+                    timeout: timeout,
+                    continuation: continuation
+                )
+            }
         }
     }
 
@@ -200,6 +207,102 @@ public actor TracerouteService: TracerouteServiceProtocol {
 
             if destinationReached { break }
         }
+    }
+
+    // MARK: - HTTP Traceroute Fallback (check-host.net)
+
+    /// Performs a traceroute using the check-host.net API when ICMP sockets are unavailable.
+    ///
+    /// API flow:
+    /// 1. GET https://check-host.net/check-traceroute?host=HOST&max_nodes=1  →  request_id
+    /// 2. Poll GET https://check-host.net/check-result/REQUEST_ID until result is ready
+    /// 3. Parse per-hop data and yield TracerouteHop values
+    ///
+    /// - Returns: `true` if at least one hop was yielded, `false` if the API failed
+    ///   so the caller can fall back to a TCP probe.
+    private func performHTTPTracerouteFallback(
+        host: String,
+        continuation: AsyncStream<TracerouteHop>.Continuation
+    ) async -> Bool {
+        guard var components = URLComponents(string: "https://check-host.net/check-traceroute") else {
+            return false
+        }
+        components.queryItems = [
+            URLQueryItem(name: "host", value: host),
+            URLQueryItem(name: "max_nodes", value: "1")
+        ]
+        guard let submitURL = components.url else { return false }
+
+        var submitRequest = URLRequest(url: submitURL)
+        submitRequest.setValue("application/json", forHTTPHeaderField: "Accept")
+        submitRequest.setValue("NetMonitor/2.0", forHTTPHeaderField: "User-Agent")
+        submitRequest.timeoutInterval = 15
+
+        guard let (submitData, _) = try? await URLSession.shared.data(for: submitRequest),
+              let submitJSON = try? JSONSerialization.jsonObject(with: submitData) as? [String: Any],
+              let requestId = submitJSON["request_id"] as? String,
+              !requestId.isEmpty else {
+            return false
+        }
+
+        guard let pollURL = URL(string: "https://check-host.net/check-result/\(requestId)") else {
+            return false
+        }
+        var pollRequest = URLRequest(url: pollURL)
+        pollRequest.setValue("application/json", forHTTPHeaderField: "Accept")
+        pollRequest.timeoutInterval = 15
+
+        for attempt in 0..<10 {
+            if attempt > 0 {
+                try? await Task.sleep(for: .seconds(2))
+            }
+            guard isRunning else { return false }
+
+            guard let (pollData, _) = try? await URLSession.shared.data(for: pollRequest),
+                  let pollJSON = try? JSONSerialization.jsonObject(with: pollData) as? [String: Any] else {
+                continue
+            }
+
+            // The API returns null values while nodes are still running — wait if not ready yet
+            let allNull = pollJSON.values.allSatisfy { $0 is NSNull }
+            if allNull { continue }
+
+            // Pick the first node with actual data (we requested max_nodes=1)
+            guard let rawHops = pollJSON.values.first(where: { !($0 is NSNull) }) as? [[Any?]] else {
+                // Unexpected format — give up and let TCP fallback handle it
+                return false
+            }
+
+            var yieldedAny = false
+            for (index, hopEntry) in rawHops.enumerated() {
+                guard isRunning else { break }
+                let hopNumber = index + 1
+
+                // check-host.net traceroute hop format:
+                //   timeout:  [null]  or empty array
+                //   success:  [[rtt1, rtt2, ...], hostname_or_null, ip_address]
+                //   RTT values are in seconds; convert to milliseconds
+                if let rtts = hopEntry.first as? [Double] {
+                    let hostname = hopEntry.count > 1 ? hopEntry[1] as? String : nil
+                    let ip = hopEntry.count > 2 ? hopEntry[2] as? String : nil
+                    let times = rtts.map { $0 * 1000 }
+                    continuation.yield(TracerouteHop(
+                        hopNumber: hopNumber,
+                        ipAddress: ip,
+                        hostname: hostname,
+                        times: times,
+                        isTimeout: times.isEmpty
+                    ))
+                    yieldedAny = true
+                } else {
+                    // null entry → router at this hop didn't respond
+                    continuation.yield(TracerouteHop(hopNumber: hopNumber, isTimeout: true))
+                    yieldedAny = true
+                }
+            }
+            return yieldedAny
+        }
+        return false
     }
 
     // MARK: - TCP Fallback

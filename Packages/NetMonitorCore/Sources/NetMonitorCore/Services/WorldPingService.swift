@@ -58,20 +58,52 @@ public final class WorldPingService: WorldPingServiceProtocol, @unchecked Sendab
         request.setValue("NetMonitor/2.0", forHTTPHeaderField: "User-Agent")
         request.timeoutInterval = 15
 
-        let (data, _) = try await session.data(for: request)
-        let response = try JSONDecoder().decode(CheckPingResponse.self, from: data)
+        let (data, httpResponse) = try await session.data(for: request)
 
-        // nodes dict: key → [countryCode, country, city, ip, asn]
-        // e.g. "at1.node.check-host.net": ["at", "Austria", "Vienna", "185.224.3.111", "AS64457"]
-        let nodes = response.nodes.reduce(into: [String: NodeMeta]()) { acc, pair in
-            let arr = pair.value
-            acc[pair.key] = NodeMeta(
-                country: arr.count > 1 ? arr[1] : "Unknown",
-                city: arr.count > 2 ? arr[2] : pair.key,
-                countryCode: arr.count > 0 ? arr[0] : ""
+        // Surface HTTP-level errors immediately with a useful message
+        if let http = httpResponse as? HTTPURLResponse, http.statusCode >= 400 {
+            // Try to extract an API-level error message from the body before throwing
+            let apiMessage = (try? JSONSerialization.jsonObject(with: data) as? [String: Any])
+                .flatMap { $0["error"] as? String ?? $0["message"] as? String }
+            throw WorldPingError.submitHTTPError(
+                statusCode: http.statusCode,
+                apiMessage: apiMessage
             )
         }
-        return (response.requestId, nodes)
+
+        // If the API returns ok=0 the response body may be a plain error dict rather than
+        // a valid CheckPingResponse. Try decoding as the expected type; if that fails, extract
+        // any error message from the raw JSON to surface a meaningful error instead of a
+        // generic DecodingError.
+        do {
+            let response = try JSONDecoder().decode(CheckPingResponse.self, from: data)
+            guard response.ok == 1 else {
+                // ok=0 means the API rejected the request (e.g. invalid host, rate limit)
+                throw WorldPingError.submitAPIError(message: "API returned ok=\(response.ok) for host '\(host)'")
+            }
+            // nodes dict: key → [countryCode, country, city, ip, asn]
+            // e.g. "at1.node.check-host.net": ["at", "Austria", "Vienna", "185.224.3.111", "AS64457"]
+            let nodes = response.nodes.reduce(into: [String: NodeMeta]()) { acc, pair in
+                let arr = pair.value
+                acc[pair.key] = NodeMeta(
+                    country: arr.count > 1 ? arr[1] : "Unknown",
+                    city: arr.count > 2 ? arr[2] : pair.key,
+                    countryCode: arr.count > 0 ? arr[0] : ""
+                )
+            }
+            return (response.requestId, nodes)
+        } catch let error as WorldPingError {
+            throw error
+        } catch {
+            // Decoding failed — extract API error message from raw JSON if available
+            let rawError = (try? JSONSerialization.jsonObject(with: data) as? [String: Any])
+                .flatMap { $0["error"] as? String ?? $0["message"] as? String }
+            if let msg = rawError {
+                throw WorldPingError.submitAPIError(message: msg)
+            }
+            logger.error("submitCheck decode error: \(error)")
+            throw error
+        }
     }
 
     private func pollResults(
