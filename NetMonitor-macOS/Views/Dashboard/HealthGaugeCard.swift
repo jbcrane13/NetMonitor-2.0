@@ -7,7 +7,7 @@ struct HealthGaugeCard: View {
 
     var body: some View {
         VStack(alignment: .center, spacing: 10) {
-            // Widget label
+            // Widget label — pinned to top
             HStack {
                 Circle().fill(MacTheme.Colors.success).frame(width: 5, height: 5)
                 Text("NETWORK HEALTH")
@@ -16,6 +16,8 @@ struct HealthGaugeCard: View {
                     .tracking(1.4)
                 Spacer()
             }
+
+            Spacer(minLength: 0)
 
             // Circular gauge
             ZStack {
@@ -57,7 +59,10 @@ struct HealthGaugeCard: View {
             } else if viewModel.isCalculating {
                 ProgressView().controlSize(.small)
             }
+
+            Spacer(minLength: 0)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .macGlassCard(cornerRadius: 14, padding: 12)
         .accessibilityIdentifier("dashboard_card_healthGauge")
         .task { await viewModel.refresh() }
