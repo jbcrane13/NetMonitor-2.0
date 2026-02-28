@@ -1,229 +1,79 @@
 import SwiftUI
 import NetMonitorCore
+import SwiftData
 
+/// Per-network "war room" view — the main workhorse for a single network.
+/// Layout: Row A full-width (activity + health gauge), then two columns below
+/// (ISP/latency/connectivity left, scrollable device grid right).
 struct NetworkDetailView: View {
     @Binding var profile: NetworkProfile
-    @Environment(\.appAccentColor) private var accentColor
-    @Environment(DeviceDiscoveryCoordinator.self) private var deviceDiscovery: DeviceDiscoveryCoordinator?
-    @Environment(NetworkProfileManager.self) private var profileManager: NetworkProfileManager?
 
-    @State private var isEditing = false
-    @State private var editedName: String = ""
+    @Environment(MonitoringSession.self)         private var session: MonitoringSession?
+    @Environment(NetworkProfileManager.self)     private var profileManager: NetworkProfileManager?
+    @Environment(DeviceDiscoveryCoordinator.self) private var deviceDiscovery: DeviceDiscoveryCoordinator?
+
+    @Query private var targets: [NetworkTarget]
+
+    private var gatewayLatencyHistory: [Double] {
+        guard let session else { return [] }
+        if let gateway = targets.first(where: { $0.name == "Local Gateway" }) {
+            return session.recentLatencies[gateway.id] ?? []
+        }
+        if let firstICMP = targets.first(where: { $0.targetProtocol == .icmp }) {
+            return session.recentLatencies[firstICMP.id] ?? []
+        }
+        return []
+    }
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 24) {
-                headerCard
-                networkInfoCard
-                discoveryCard
-                devicesCard
-                actionsSection
-            }
-            .padding()
-        }
-        .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                Button(isEditing ? "Done" : "Edit") {
-                    if isEditing {
-                        saveChanges()
-                    } else {
-                        startEditing()
-                    }
-                    isEditing.toggle()
+        GeometryReader { geo in
+            let gap: CGFloat = 10
+            let rowAHeight = geo.size.height * 0.28
+
+            VStack(spacing: gap) {
+                // Row A: Internet Activity + Health Gauge
+                HStack(spacing: gap) {
+                    InternetActivityCard(session: session)
+                        .accessibilityIdentifier("network_detail_row_activity")
+
+                    HealthGaugeCard()
+                        .frame(width: 210)
+                        .accessibilityIdentifier("network_detail_row_health")
                 }
-                .accessibilityIdentifier("network_detail_button_edit")
+                .frame(height: rowAHeight)
+
+                // Row B: Left diagnostics stack + Right device grid
+                HStack(alignment: .top, spacing: gap) {
+                    // Left column — ISP / Latency / Connectivity stacked
+                    VStack(spacing: gap) {
+                        ISPHealthCard()
+                            .accessibilityIdentifier("network_detail_card_isp")
+
+                        LatencyAnalysisCard(
+                            session: session,
+                            gatewayLatencyHistory: gatewayLatencyHistory
+                        )
+                        .accessibilityIdentifier("network_detail_card_latency")
+
+                        ConnectivityCard(session: session, profileManager: profileManager)
+                            .accessibilityIdentifier("network_detail_card_connectivity")
+                    }
+                    .frame(width: geo.size.width * 0.42 - gap)
+
+                    // Right column — device grid
+                    NetworkDevicesPanel(networkProfileID: profile.id)
+                        .accessibilityIdentifier("network_detail_panel_devices")
+                }
+                .frame(maxHeight: .infinity)
             }
+            .padding(14)
         }
+        .macThemedBackground()
+        .navigationTitle(profile.displayName)
         .onChange(of: profileManager?.profiles) {
             if let updated = profileManager?.profiles.first(where: { $0.id == profile.id }) {
                 profile = updated
             }
-        }
-    }
-
-    private var headerCard: some View {
-        HStack(spacing: 16) {
-            ZStack {
-                Circle()
-                    .fill(accentColor.opacity(0.2))
-                    .frame(width: 64, height: 64)
-
-                Image(systemName: profile.connectionType.iconName)
-                    .font(.title)
-                    .foregroundStyle(accentColor)
-            }
-
-            VStack(alignment: .leading, spacing: 4) {
-                if isEditing {
-                    TextField("Network Name", text: $editedName)
-                        .textFieldStyle(.roundedBorder)
-                        .accessibilityIdentifier("network_detail_field_name")
-                } else {
-                    Text(profile.displayName)
-                        .font(.title2)
-                        .fontWeight(.semibold)
-                }
-
-                Text(profile.subnetCIDR)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .fontDesign(.monospaced)
-            }
-
-            Spacer()
-        }
-        .macGlassCard(cornerRadius: MacTheme.Layout.cardCornerRadius)
-        .accessibilityIdentifier("network_detail_card_header")
-    }
-
-    private var networkInfoCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Label("Network Information", systemImage: "network")
-                .font(.headline)
-
-            Divider()
-
-            infoRow(label: "Gateway IP", value: profile.gatewayIP, monospace: true)
-
-            infoRow(label: "Subnet CIDR", value: profile.subnetCIDR, monospace: true)
-
-            infoRow(label: "Interface", value: profile.interfaceName, monospace: true)
-
-            HStack {
-                Text("Connection Type")
-                    .foregroundStyle(.secondary)
-                    .layoutPriority(1)
-                Spacer(minLength: 8)
-                Label(profile.connectionType.displayName, systemImage: profile.connectionType.iconName)
-                    .lineLimit(1)
-            }
-        }
-        .macGlassCard(cornerRadius: MacTheme.Layout.cardCornerRadius)
-        .accessibilityIdentifier("network_detail_card_networkInfo")
-    }
-
-    private var discoveryCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Label("Discovery", systemImage: "magnifyingglass")
-                .font(.headline)
-
-            Divider()
-
-            infoRow(label: "Method", value: discoveryMethodLabel)
-
-            if let lastScanned = profile.lastScanned {
-                infoRow(label: "Last Scanned", value: relativeTime(from: lastScanned))
-            } else {
-                infoRow(label: "Last Scanned", value: "Never")
-            }
-
-            infoRow(label: "Gateway Reachability", value: gatewayReachabilityLabel)
-
-            infoRow(label: "Local Network", value: profile.isLocal ? "Yes" : "No")
-        }
-        .macGlassCard(cornerRadius: MacTheme.Layout.cardCornerRadius)
-        .accessibilityIdentifier("network_detail_card_discovery")
-    }
-
-    private var devicesCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Label("Devices", systemImage: "desktopcomputer.trianglebadge.exclamationmark")
-                .font(.headline)
-
-            Divider()
-
-            if let deviceCount = profile.deviceCount {
-                infoRow(label: "Device Count", value: "\(deviceCount)")
-            } else {
-                infoRow(label: "Device Count", value: "Not scanned")
-            }
-
-            infoRow(label: "Host Capacity", value: "\(profile.hostCount) addresses")
-        }
-        .macGlassCard(cornerRadius: MacTheme.Layout.cardCornerRadius)
-        .accessibilityIdentifier("network_detail_card_devices")
-    }
-
-    private var actionsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Label("Actions", systemImage: "bolt")
-                .font(.headline)
-
-            Divider()
-
-            if let deviceDiscovery, deviceDiscovery.isScanning {
-                VStack(spacing: 8) {
-                    ProgressView(value: deviceDiscovery.scanProgress)
-                        .accessibilityIdentifier("network_detail_scan_progress")
-                    Text("Scanning network\u{2026}")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-
-            Button {
-                deviceDiscovery?.scanNetwork(profile)
-            } label: {
-                Label(
-                    deviceDiscovery?.isScanning == true ? "Scanning\u{2026}" : "Scan This Network",
-                    systemImage: "network"
-                )
-                .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.borderedProminent)
-            .disabled(deviceDiscovery?.isScanning == true)
-            .accessibilityIdentifier("network_detail_button_scan")
-        }
-        .macGlassCard(cornerRadius: MacTheme.Layout.cardCornerRadius)
-        .accessibilityIdentifier("network_detail_card_actions")
-    }
-
-    private func infoRow(label: String, value: String, monospace: Bool = false) -> some View {
-        HStack {
-            Text(label)
-                .foregroundStyle(.secondary)
-                .layoutPriority(1)
-            Spacer(minLength: 8)
-            Text(value)
-                .fontDesign(monospace ? .monospaced : .default)
-                .textSelection(.enabled)
-                .lineLimit(1)
-                .truncationMode(.middle)
-        }
-    }
-
-    private var discoveryMethodLabel: String {
-        switch profile.discoveryMethod {
-        case .auto: "Automatic"
-        case .manual: "Manual"
-        case .companion: "Companion"
-        }
-    }
-
-    private var gatewayReachabilityLabel: String {
-        switch profile.gatewayReachable {
-        case true: "Reachable"
-        case false: "Offline (showing stale data)"
-        case nil: "Unknown"
-        }
-    }
-
-    private func relativeTime(from date: Date) -> String {
-        let interval = Date().timeIntervalSince(date)
-        if interval < 60 { return "Just now" }
-        if interval < 3600 { return "\(Int(interval / 60)) minutes ago" }
-        if interval < 86400 { return "\(Int(interval / 3600)) hours ago" }
-        return "\(Int(interval / 86400)) days ago"
-    }
-
-    private func startEditing() {
-        editedName = profile.name
-    }
-
-    private func saveChanges() {
-        let trimmed = editedName.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !trimmed.isEmpty {
-            profile.name = trimmed
         }
     }
 }
@@ -251,5 +101,6 @@ struct NetworkDetailView: View {
     )
 
     NetworkDetailView(profile: .constant(profile))
+        .modelContainer(PreviewContainer().container)
 }
 #endif

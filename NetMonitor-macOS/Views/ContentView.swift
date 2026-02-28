@@ -80,14 +80,10 @@ struct ContentView: View {
     private func sectionView(for section: NavigationSection) -> some View {
         switch section {
         case .dashboard:
-            DashboardView()
-                .accessibilityIdentifier("detail_dashboard")
-        case .targets:
-            TargetsView()
-                .accessibilityIdentifier("detail_targets")
-        case .devices:
-            DevicesView()
-                .accessibilityIdentifier("detail_devices")
+            DashboardView(onSelectNetwork: { networkID in
+                selectedSection = .network(networkID)
+            })
+            .accessibilityIdentifier("detail_dashboard")
         case .tools:
             ToolsView(selection: $selectedSection)
                 .accessibilityIdentifier("detail_tools")

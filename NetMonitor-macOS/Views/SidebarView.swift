@@ -14,7 +14,7 @@ struct SidebarView: View {
     
     @Environment(NetworkProfileManager.self) private var profileManager
     @Environment(MonitoringSession.self) private var monitoringSession: MonitoringSession?
-    @Query private var targets: [NetworkTarget]
+    @Query(sort: \LocalDevice.lastSeen, order: .reverse) private var devices: [LocalDevice]
 
     var body: some View {
         VStack(spacing: 0) {
@@ -22,12 +22,15 @@ struct SidebarView: View {
             List(selection: $selection) {
                 Section {
                     ForEach(profileManager.profiles) { profile in
+                        let isActive = profileManager.activeProfile?.id == profile.id
+                        let deviceCount = devices.filter { $0.networkProfileID == profile.id }.count
                         SidebarRow(
                             title: profile.displayName,
                             icon: profile.connectionType.iconName,
                             isSelected: selection == .network(profile.id),
-                            badge: profileManager.activeProfile?.id == profile.id ? "ACTIVE" : nil,
-                            badgeColor: MacTheme.Colors.success
+                            badge: isActive ? "ACTIVE" : nil,
+                            badgeColor: MacTheme.Colors.success,
+                            deviceCount: deviceCount > 0 ? deviceCount : nil
                         )
                         .tag(SidebarSelection.network(profile.id))
                     }
@@ -133,6 +136,7 @@ struct SidebarRow: View {
     let isSelected: Bool
     let badge: String?
     let badgeColor: Color
+    var deviceCount: Int? = nil
     
     var body: some View {
         HStack(spacing: 10) {
@@ -157,7 +161,18 @@ struct SidebarRow: View {
                 .accessibilityIdentifier("sidebar_\(title.lowercased())")
             
             Spacer()
-            
+
+            // Device count badge (subtle, for network rows)
+            if let count = deviceCount {
+                Text("\(count)")
+                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 2)
+                    .background(Color.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 4))
+            }
+
+            // Main badge (ACTIVE, status counts, etc.)
             if let badge = badge {
                 Text(badge)
                     .font(.system(size: 9, weight: .black, design: .monospaced))
@@ -184,11 +199,10 @@ struct SidebarRow: View {
 extension SidebarView {
     private func badgeText(for section: NavigationSection) -> String? {
         switch section {
-        case .dashboard, .targets:
+        case .dashboard:
             guard let monitoringSession else { return nil }
             let online = monitoringSession.onlineTargetCount
-            let offline = monitoringSession.offlineTargetCount
-            let total = online + offline
+            let total  = online + monitoringSession.offlineTargetCount
             guard total > 0 else { return nil }
             return "\(online)/\(total)"
         default:
@@ -198,10 +212,10 @@ extension SidebarView {
 
     private func badgeColor(for section: NavigationSection) -> Color {
         switch section {
-        case .dashboard, .targets:
+        case .dashboard:
             guard let monitoringSession else { return MacTheme.Colors.idle }
             let online = monitoringSession.onlineTargetCount
-            let total = online + monitoringSession.offlineTargetCount
+            let total  = online + monitoringSession.offlineTargetCount
             if total == 0 { return MacTheme.Colors.idle }
             return online == total ? MacTheme.Colors.success : (online > 0 ? MacTheme.Colors.warning : MacTheme.Colors.error)
         default:
