@@ -165,6 +165,7 @@
 		79C76304B2BD1F2048134BF3 /* ToolStatisticsCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA68C9F028D615CA0BC8C90D /* ToolStatisticsCard.swift */; };
 		7A16C2643F0121B81A3ACCD8 /* GeoTraceViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C0DF201357AA064F74B3442 /* GeoTraceViewModelTests.swift */; };
 		7AEA2BCE64EF585A1AB3CB8E /* ISPInfoCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B79A3A0A3F055B6A4553A0C /* ISPInfoCard.swift */; };
+		7BA2EFAB046BA9070DA4A42E /* Logging.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51478B9F5A8A7517976C7AFA /* Logging.swift */; };
 		7BC06C0F661330782F935F3B /* WiFiHeatmapToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71FE9B25E1467F9D4C1FFBC8 /* WiFiHeatmapToolView.swift */; };
 		7D9483D8831B8A58460A4154 /* SSLCertificateMonitorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33FAEC1E8F7808AA442A59FE /* SSLCertificateMonitorView.swift */; };
 		7F687E2AC8DF228885E5FCE3 /* NetMonitor_macOSTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1ED30F91ABCADD39A629C18A /* NetMonitor_macOSTests.swift */; };
@@ -450,6 +451,7 @@
 		4FAA2A8A1F011FBCFA824E15 /* AppearanceSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppearanceSettingsView.swift; sourceTree = "<group>"; };
 		50682274C7A29F0561FF85F1 /* NetworkSwitchingUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkSwitchingUITests.swift; sourceTree = "<group>"; };
 		510EEA7FD3EAFD346225709B /* VPNInfoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VPNInfoView.swift; sourceTree = "<group>"; };
+		51478B9F5A8A7517976C7AFA /* Logging.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Logging.swift; sourceTree = "<group>"; };
 		524CA21C98FB92D1F06ED1B2 /* ScanChangeAlertView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanChangeAlertView.swift; sourceTree = "<group>"; };
 		53DCA7226E72436E142DB0FE /* ToolOutcomeUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolOutcomeUITests.swift; sourceTree = "<group>"; };
 		5464A172BCA9FDBB6E85362B /* GeoTraceUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeoTraceUITests.swift; sourceTree = "<group>"; };
@@ -784,6 +786,7 @@
 				DDEDB32CF47D675F61CF5563 /* GeoFenceManager.swift */,
 				431FA615915AAEDF20F196DC /* GlassCard.swift */,
 				ABFB99B16D29E2338B306CA9 /* LiveActivityManager.swift */,
+				51478B9F5A8A7517976C7AFA /* Logging.swift */,
 				2224DE47C4DB83B5ED7E474B /* MacConnectionService.swift */,
 				603D57D4202F475E3E7CB108 /* PDFReportGenerator.swift */,
 				F5FB4FB0D3D64F7724CB521D /* PublicIPService.swift */,
@@ -1677,6 +1680,7 @@
 				812A4553A47BBF88EC5A582F /* HeatmapControlStrip.swift in Sources */,
 				E7243B57DD5BB20715350B5D /* HeatmapFullScreenView.swift in Sources */,
 				A03E60BC948179BA0D8716AC /* LiveActivityManager.swift in Sources */,
+				7BA2EFAB046BA9070DA4A42E /* Logging.swift in Sources */,
 				AAA4FFC237B612D2669BD194 /* MacConnectionService.swift in Sources */,
 				5CBC25455BD53E05AF8525E6 /* MacPairingView.swift in Sources */,
 				903A45594C17803F57B47391 /* MeasurementsPanel.swift in Sources */,

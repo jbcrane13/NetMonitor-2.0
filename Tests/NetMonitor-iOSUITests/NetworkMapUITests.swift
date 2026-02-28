@@ -15,7 +15,7 @@ final class NetworkMapUITests: IOSUITestCase {
     }
 
     func testNavigationTitleExists() throws {
-        requireExists(app.navigationBars["Devices"], message: "Devices navigation title should exist on network map")
+        requireExists(app.navigationBars["Network Map"], message: "Network Map navigation title should exist")
     }
 
     // MARK: - Network Summary

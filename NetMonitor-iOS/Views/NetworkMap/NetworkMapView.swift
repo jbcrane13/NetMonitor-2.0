@@ -67,6 +67,7 @@ struct NetworkMapView: View {
                             description: Text("Scan to map the current network landscape.")
                         )
                         .padding(.top, 40)
+                        .accessibilityIdentifier("networkMap_label_empty")
                     } else {
                         VStack(spacing: 8) {
                             ForEach(sortedDevices) { device in
@@ -74,6 +75,7 @@ struct NetworkMapView: View {
                                     ProDeviceRow(device: device, isScanning: viewModel.isScanning)
                                 }
                                 .buttonStyle(PlainButtonStyle())
+                                .accessibilityIdentifier("networkMap_row_\(device.ipAddress)")
                             }
                         }
                     }
@@ -84,6 +86,7 @@ struct NetworkMapView: View {
             }
             .themedBackground()
             .navigationTitle("Network Map")
+            .accessibilityIdentifier("screen_networkMap")
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
             .toolbarColorScheme(.dark, for: .navigationBar)
@@ -135,6 +138,7 @@ struct NetworkMapView: View {
                 .foregroundStyle(Theme.Colors.textSecondary)
             }
         }
+        .accessibilityIdentifier("networkMap_summary")
     }
 
     private var scanButton: some View {
@@ -149,6 +153,7 @@ struct NetworkMapView: View {
                     .foregroundStyle(Theme.Colors.accent)
             }
         }
+        .accessibilityIdentifier("networkMap_button_scan")
     }
 }
 

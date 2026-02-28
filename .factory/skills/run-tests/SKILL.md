@@ -17,7 +17,7 @@ ssh mac-mini "cd ~/Projects/NetMonitor-2.0 && xcodebuild test \
   -scheme NetMonitor-macOS \
   -configuration Debug \
   -destination 'platform=macOS' \
-  CODE_SIGN_IDENTITY='-' \
+  CODE_SIGN_IDENTITY='' CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO \
   CODE_SIGNING_REQUIRED=NO \
   CODE_SIGNING_ALLOWED=NO \
   -only-testing:NetMonitor-macOSTests \
@@ -28,7 +28,7 @@ ssh mac-mini "cd ~/Projects/NetMonitor-2.0 && xcodebuild test \
   -scheme NetMonitor-iOS \
   -configuration Debug \
   -destination 'platform=iOS Simulator,OS=latest,name=iPhone 16 Pro' \
-  CODE_SIGN_IDENTITY='-' \
+  CODE_SIGN_IDENTITY='' CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO \
   CODE_SIGNING_REQUIRED=NO \
   CODE_SIGNING_ALLOWED=NO \
   -only-testing:NetMonitor-iOSTests \
@@ -80,7 +80,7 @@ ssh mac-mini "cd ~/Projects/NetMonitor-2.0 && git pull --rebase"
 ssh mac-mini "cd ~/Projects/NetMonitor-2.0 && xcodebuild test \
   -scheme NetMonitor-macOS \
   -destination 'platform=macOS' \
-  CODE_SIGN_IDENTITY='-' CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO \
+  CODE_SIGN_IDENTITY='' CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO \
   -only-testing:NetMonitor-macOSTests/ISPCardErrorSurfacingTests \
   2>&1 | tail -20"
 ```
