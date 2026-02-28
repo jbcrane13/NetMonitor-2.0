@@ -25,16 +25,27 @@ struct NetworkDetailView: View {
         return []
     }
 
+    @State private var resolvedGatewayDomain: String? = nil
+    @State private var showAddTarget = false
+    @State private var monitorInterval: TimeInterval = 5.0
+
+    private let monitorIntervals: [(String, TimeInterval)] = [
+        ("1s", 1), ("5s", 5), ("10s", 10), ("30s", 30), ("1m", 60), ("5m", 300)
+    ]
+
     var body: some View {
         GeometryReader { geo in
             let gap: CGFloat = 10
             let rowAHeight = geo.size.height * 0.28
 
             VStack(spacing: gap) {
-                // Row A: Internet Activity + Health Gauge
+                // Row A: ISP Health (hero) + Health Gauge
                 HStack(spacing: gap) {
-                    InternetActivityCard(session: session)
-                        .accessibilityIdentifier("network_detail_row_activity")
+                    ISPHealthCard(
+                            gatewayAddress: profile.gatewayIP ?? "—",
+                            resolvedDomain: resolvedGatewayDomain
+                        )
+                        .accessibilityIdentifier("network_detail_card_isp")
 
                     HealthGaugeCard()
                         .frame(width: 210)
@@ -44,10 +55,10 @@ struct NetworkDetailView: View {
 
                 // Row B: Left diagnostics stack + Right device grid
                 HStack(alignment: .top, spacing: gap) {
-                    // Left column — ISP / Latency / Connectivity stacked
+                    // Left column — Activity / Latency / Connectivity stacked
                     VStack(spacing: gap) {
-                        ISPHealthCard()
-                            .accessibilityIdentifier("network_detail_card_isp")
+                        InternetActivityCard(session: session)
+                            .accessibilityIdentifier("network_detail_row_activity")
 
                         LatencyAnalysisCard(
                             session: session,
@@ -70,6 +81,58 @@ struct NetworkDetailView: View {
         }
         .macThemedBackground()
         .navigationTitle(profile.displayName)
+        .toolbar {
+            ToolbarItemGroup(placement: .automatic) {
+                // Scan button
+                Button {
+                    Task {
+                        deviceDiscovery?.scanNetwork(profile)
+                    }
+                } label: {
+                    Label("Scan Network", systemImage: "antenna.radiowaves.left.and.right")
+                }
+                .disabled(deviceDiscovery?.isScanning == true)
+                .help("Scan for devices on this network")
+
+                // Monitor interval picker
+                Menu {
+                    ForEach(monitorIntervals, id: \.1) { label, interval in
+                        Button {
+                            monitorInterval = interval
+                            // TODO: update monitoring interval
+                        } label: {
+                            HStack {
+                                Text(label)
+                                if monitorInterval == interval {
+                                    Image(systemName: "checkmark")
+                                }
+                            }
+                        }
+                    }
+                } label: {
+                    Label("Monitor", systemImage: "timer")
+                }
+                .help("Set monitoring interval")
+
+                // Add target button
+                Button {
+                    showAddTarget = true
+                } label: {
+                    Label("Set Target", systemImage: "target")
+                }
+                .help("Add a monitoring target")
+            }
+        }
+        .sheet(isPresented: $showAddTarget) {
+            AddTargetSheet()
+                .frame(minWidth: 400, minHeight: 300)
+        }
+        .task {
+            // Resolve gateway domain
+            let gw = profile.gatewayIP; if !gw.isEmpty {
+                resolvedGatewayDomain = await resolveHostname(for: gw)
+            }
+        }
         .onChange(of: profileManager?.profiles) {
             if let updated = profileManager?.profiles.first(where: { $0.id == profile.id }) {
                 profile = updated
@@ -77,6 +140,32 @@ struct NetworkDetailView: View {
         }
     }
 }
+
+    private func resolveHostname(for ip: String) async -> String? {
+        await withCheckedContinuation { continuation in
+            DispatchQueue.global(qos: .utility).async {
+                var hints = addrinfo()
+                hints.ai_family = AF_INET
+                hints.ai_flags = AI_NUMERICHOST
+                var res: UnsafeMutablePointer<addrinfo>?
+                guard getaddrinfo(ip, nil, &hints, &res) == 0, let addr = res else {
+                    continuation.resume(returning: nil)
+                    return
+                }
+                defer { freeaddrinfo(res) }
+                var hostname = [CChar](repeating: 0, count: Int(NI_MAXHOST))
+                if getnameinfo(addr.pointee.ai_addr, addr.pointee.ai_addrlen,
+                               &hostname, socklen_t(hostname.count),
+                               nil, 0, 0) == 0 {
+                    let name = String(cString: hostname)
+                    // Only return if it's actually a domain, not just the IP repeated
+                    continuation.resume(returning: name != ip ? name : nil)
+                } else {
+                    continuation.resume(returning: nil)
+                }
+            }
+        }
+    }
 
 #if DEBUG
 #Preview {

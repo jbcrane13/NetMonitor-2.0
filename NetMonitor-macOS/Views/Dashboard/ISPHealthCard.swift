@@ -15,7 +15,12 @@ struct ISPHealthCard: View {
     @State private var uploadHistory:     [Double] = []
     @State private var uptimeSegments:    [Bool]   = []
 
-    init(service: any ISPLookupServiceProtocol = ISPLookupService()) {
+    var gatewayAddress: String = "—"
+    var resolvedDomain: String? = nil
+
+    init(gatewayAddress: String = "—", resolvedDomain: String? = nil, service: any ISPLookupServiceProtocol = ISPLookupService()) {
+        self.gatewayAddress = gatewayAddress
+        self.resolvedDomain = resolvedDomain
         _vm = State(initialValue: ISPCardViewModel(service: service))
     }
 
@@ -24,18 +29,15 @@ struct ISPHealthCard: View {
             // Header
             HStack {
                 Circle().fill(MacTheme.Colors.success).frame(width: 5, height: 5)
-                Text("ISP HEALTH")
+                Text("NETWORK HEALTH")
                     .font(.system(size: 10, weight: .bold))
                     .foregroundStyle(.secondary)
                     .tracking(1.4)
                 Spacer()
-                if let isp = vm.ispInfo?.isp {
-                    Text(isp.uppercased())
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(MacTheme.Colors.success)
-                        .tracking(1)
-                        .lineLimit(1)
-                }
+                Text("GATEWAY")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(MacTheme.Colors.success)
+                    .tracking(1)
             }
 
             if vm.isLoading {
@@ -45,18 +47,24 @@ struct ISPHealthCard: View {
                 HStack(alignment: .top, spacing: 12) {
                     // Left: ISP details
                     VStack(alignment: .leading, spacing: 3) {
-                        Text(vm.ispInfo?.isp ?? "Unknown ISP")
-                            .font(.system(size: 16, weight: .bold))
+                        Text(gatewayAddress)
+                            .font(.system(size: 16, weight: .bold, design: .monospaced))
                             .lineLimit(1)
-                        if let ip = vm.ispInfo?.publicIP {
-                            Text(ip)
-                                .font(.system(size: 11, design: .monospaced))
+                        if let domain = resolvedDomain {
+                            Text(domain)
+                                .font(.system(size: 11))
                                 .foregroundStyle(MacTheme.Colors.info)
+                                .lineLimit(1)
                         }
-                        if let city = vm.ispInfo?.city, let country = vm.ispInfo?.country {
-                            Text("\(city), \(country)")
-                                .font(.system(size: 10))
-                                .foregroundStyle(.tertiary)
+                        if let ip = vm.ispInfo?.publicIP {
+                            HStack(spacing: 4) {
+                                Text("WAN")
+                                    .font(.system(size: 9, weight: .bold))
+                                    .foregroundStyle(.tertiary)
+                                Text(ip)
+                                    .font(.system(size: 11, design: .monospaced))
+                                    .foregroundStyle(.secondary)
+                            }
                         }
                         uptimeBarView
                         HStack(spacing: 16) {
@@ -111,11 +119,11 @@ struct ISPHealthCard: View {
                     .font(.system(size: 9))
                     .foregroundStyle(.red.opacity(0.9))
                     .lineLimit(2)
-                    .accessibilityIdentifier("dashboard_ispHealth_error")
+                    .accessibilityIdentifier("dashboard_networkHealth_error")
             }
         }
         .macGlassCard(cornerRadius: 14, padding: 10)
-        .accessibilityIdentifier("dashboard_card_ispHealth")
+        .accessibilityIdentifier("dashboard_card_networkHealth")
         .task { await load() }
     }
 
@@ -137,7 +145,7 @@ struct ISPHealthCard: View {
             }
         }
         .frame(height: 4)
-        .accessibilityLabel("ISP uptime history bar")
+        .accessibilityLabel("Network uptime history bar")
     }
 
     private func speedLabel(_ arrow: String, value: String, color: Color) -> some View {

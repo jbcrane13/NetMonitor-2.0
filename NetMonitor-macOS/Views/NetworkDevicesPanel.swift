@@ -240,20 +240,36 @@ private struct DevicePanelRow: View {
                     .lineLimit(1)
             }
 
-            // Last seen (relative)
-            Text(device.lastSeen, style: .relative)
-                .font(.system(size: 10))
-                .foregroundStyle(.quaternary)
-                .frame(width: 50, alignment: .trailing)
+            Spacer()
+
+            // Latency — bright threshold-colored
+            if let latency = device.lastLatency, latency > 0 {
+                Text(String(format: "%.1fms", latency))
+                    .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(latencyColor(latency))
+            } else if device.status == .online {
+                Text("--")
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(.secondary)
+            }
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 7)
+        .padding(.vertical, 5)
         .background(
             isSelected
                 ? MacTheme.Colors.sidebarActive.opacity(0.5)
                 : (isHovering ? Color.white.opacity(0.04) : Color.clear)
         )
         .onHover { isHovering = $0 }
+    }
+
+    private func latencyColor(_ ms: Double) -> Color {
+        switch ms {
+        case ..<5:   return MacTheme.Colors.success          // green
+        case ..<20:  return MacTheme.Colors.info             // blue
+        case ..<50:  return MacTheme.Colors.warning          // yellow/amber
+        default:     return MacTheme.Colors.error            // red
+        }
     }
 }
 
