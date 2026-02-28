@@ -328,6 +328,7 @@ public protocol SubnetCalculatorServiceProtocol: AnyObject, Sendable {
 
 /// Protocol for world ping (global latency checks via external API).
 public protocol WorldPingServiceProtocol: AnyObject, Sendable {
+    var lastError: String? { get }
     func ping(host: String, maxNodes: Int) async -> AsyncStream<WorldPingLocationResult>
 }
 

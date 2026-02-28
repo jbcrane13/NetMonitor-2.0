@@ -69,7 +69,7 @@ final class WorldPingToolViewModel {
             guard !Task.isCancelled else { return }
 
             if results.isEmpty {
-                errorMessage = "No results returned. Check the host address and your network connection."
+                errorMessage = service.lastError ?? "No results returned. Check the host address and your network connection."
             }
             isRunning = false
         }

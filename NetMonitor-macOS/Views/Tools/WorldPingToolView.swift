@@ -185,7 +185,7 @@ struct WorldPingToolView: View {
             }
             await MainActor.run {
                 if results.isEmpty && !Task.isCancelled {
-                    errorMessage = "No results returned. Check the host and your network connection."
+                    errorMessage = service.lastError ?? "No results returned. Check the host and your network connection."
                 }
                 isRunning = false
             }
