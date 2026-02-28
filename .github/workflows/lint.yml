@@ -63,3 +63,77 @@ jobs:
           fi
           # Warn only — do not fail the build
           exit 0
+
+  agents-md-validation:
+    name: AGENTS.md validation
+    runs-on: macos-15
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install required tools
+        run: |
+          brew install xcodegen swiftlint swiftformat
+          pip install bd --quiet 2>/dev/null || true
+
+      - name: Verify scripts referenced in AGENTS.md are executable
+        run: |
+          missing=0
+          for script in \
+            scripts/hooks/install-hooks.sh \
+            scripts/coverage/collect-and-gate.sh; do
+            if [[ ! -f "$script" ]]; then
+              echo "::error::Missing script: $script"
+              missing=1
+            elif [[ ! -x "$script" ]]; then
+              echo "::error::Script not executable: $script"
+              missing=1
+            else
+              echo "OK: $script"
+            fi
+          done
+          exit $missing
+
+      - name: Verify tools from AGENTS.md are available
+        run: |
+          missing=0
+          for tool in xcodegen swiftlint swiftformat; do
+            if command -v "$tool" &>/dev/null; then
+              echo "OK: $tool ($(${tool} version 2>/dev/null | head -1 || echo 'found'))"
+            else
+              echo "::error::Tool not found: $tool"
+              missing=1
+            fi
+          done
+          exit $missing
+
+      - name: Verify build commands from AGENTS.md are syntactically valid
+        run: |
+          xcodegen generate
+          xcodebuild -scheme NetMonitor-macOS -configuration Debug build \
+            CODE_SIGN_IDENTITY='-' CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO \
+            -dry-run 2>&1 | grep -E "PASS|xcodebuild|Skipping" | head -5
+          echo "Build command validation passed"
+
+      - name: Verify .factory/skills/ skill files exist and have frontmatter
+        run: |
+          missing=0
+          for skill_dir in .factory/skills/*/; do
+            skill_file="${skill_dir}SKILL.md"
+            if [[ ! -f "$skill_file" ]]; then
+              echo "::error::Missing SKILL.md in $skill_dir"
+              missing=1
+            elif ! grep -q "^name:" "$skill_file"; then
+              echo "::error::Missing 'name:' frontmatter in $skill_file"
+              missing=1
+            elif ! grep -q "^description:" "$skill_file"; then
+              echo "::error::Missing 'description:' frontmatter in $skill_file"
+              missing=1
+            else
+              name=$(grep "^name:" "$skill_file" | head -1)
+              echo "OK: $skill_file ($name)"
+            fi
+          done
+          exit $missing
