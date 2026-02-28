@@ -559,7 +559,7 @@ struct DeviceRow: View {
                 Circle()
                     .fill(Theme.Colors.success)
                     .frame(width: 6, height: 6)
-                Text("2ms")
+                Text(device.latencyText)
                     .font(.system(size: 13, weight: .bold, design: .rounded))
                     .foregroundStyle(Theme.Colors.success)
             }

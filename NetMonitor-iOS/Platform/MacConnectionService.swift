@@ -75,9 +75,10 @@ final class MacConnectionService: MacConnectionServiceProtocol {
         stopBrowsing()
 
         isBrowsing = true
+        connectionState = .browsing
         discoveredMacs = []
 
-        let descriptor = NWBrowser.Descriptor.bonjour(type: Self.serviceType, domain: "local.")
+        let descriptor = NWBrowser.Descriptor.bonjour(type: Self.serviceType, domain: nil)
         let parameters = NWParameters()
         parameters.includePeerToPeer = true
 
@@ -87,10 +88,17 @@ final class MacConnectionService: MacConnectionServiceProtocol {
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 switch state {
-                case .failed:
+                case .ready:
+                    Self.logger.info("NWBrowser ready — scanning for \(Self.serviceType, privacy: .public)")
+                case .failed(let error):
+                    Self.logger.error("NWBrowser failed: \(error, privacy: .public)")
                     self.isBrowsing = false
+                    self.connectionState = .error("Bonjour browser failed: \(error.localizedDescription)")
                 case .cancelled:
+                    Self.logger.info("NWBrowser cancelled")
                     self.isBrowsing = false
+                case .waiting(let error):
+                    Self.logger.warning("NWBrowser waiting: \(error, privacy: .public)")
                 default:
                     break
                 }
@@ -112,6 +120,9 @@ final class MacConnectionService: MacConnectionServiceProtocol {
         browser?.cancel()
         browser = nil
         isBrowsing = false
+        if case .browsing = connectionState {
+            connectionState = .disconnected
+        }
     }
 
     private func handleBrowseResults(_ results: Set<NWBrowser.Result>) {
@@ -197,10 +208,13 @@ final class MacConnectionService: MacConnectionServiceProtocol {
             lastConnectedEndpoint = pendingEndpoint
             lastConnectedMacName = pendingMacName
             receiveBuffer = Data()
-            startHeartbeat()
-            scheduleReceive()
-            Task { [weak self] in
-                await self?.sendLocalNetworkProfile()
+            // Delay slightly to let UI settle before starting I/O
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                try? await Task.sleep(for: .milliseconds(100))
+                self.startHeartbeat()
+                self.scheduleReceive()
+                await self.sendLocalNetworkProfile()
             }
 
         case .failed(let error):
@@ -300,6 +314,7 @@ final class MacConnectionService: MacConnectionServiceProtocol {
     }
 
     private func handleMessage(_ message: CompanionMessage) {
+        Self.logger.info("handleMessage: received \(String(describing: message))")
         switch message {
         case .statusUpdate(let payload):
             lastStatusUpdate = payload
@@ -308,6 +323,7 @@ final class MacConnectionService: MacConnectionServiceProtocol {
         case .deviceList(let payload):
             lastDeviceList = payload
         case .networkProfile(let payload):
+            Self.logger.info("Received network profile from Mac: \(payload.name)")
             let companionName = payload.sourceDeviceName.map { "\($0) Network" } ?? payload.name
             if networkProfileManager.upsertCompanionProfile(
                 gateway: payload.gatewayIP,
@@ -315,6 +331,7 @@ final class MacConnectionService: MacConnectionServiceProtocol {
                 name: companionName,
                 interfaceName: payload.interfaceName
             ) != nil {
+                Self.logger.info("Upserted companion profile, posting notification")
                 NotificationCenter.default.post(name: .networkProfilesDidChange, object: nil)
             }
         case .toolResult(let payload):
@@ -322,8 +339,7 @@ final class MacConnectionService: MacConnectionServiceProtocol {
         case .error(let payload):
             Self.logger.error("Error from Mac: \(payload.message)")
         case .heartbeat:
-            // Heartbeat received — connection is alive
-            break
+            Self.logger.debug("Heartbeat received")
         case .command:
             // Commands are outbound only from iOS; ignore if received
             break

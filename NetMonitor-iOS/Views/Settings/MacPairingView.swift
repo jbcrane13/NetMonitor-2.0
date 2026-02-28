@@ -163,15 +163,20 @@ struct MacPairingView: View {
                             }
 
                             if connectionService.connectionState.isConnected {
-                                GlassButton(
-                                    title: "Done",
-                                    icon: "checkmark",
-                                    style: .success,
-                                    size: .medium,
-                                    isFullWidth: true
-                                ) {
+                                Button {
                                     onConnected?(connectionService)
                                     dismiss()
+                                } label: {
+                                    HStack {
+                                        Spacer()
+                                        Image(systemName: "checkmark.circle.fill")
+                                            .foregroundStyle(Theme.Colors.success)
+                                        Text("Done")
+                                            .fontWeight(.semibold)
+                                            .foregroundStyle(Theme.Colors.success)
+                                        Spacer()
+                                    }
+                                    .padding(.vertical, 8)
                                 }
                                 .accessibilityIdentifier("pairing_done")
                             }

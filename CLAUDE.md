@@ -106,3 +106,17 @@ Each major view directory contains an `AGENTS.md` with purpose, sub-directory la
 - `docs/Companion-Protocol-API.md` — Mac–iOS wire protocol spec
 - `docs/ADR.md` — Architecture Decision Records
 - `docs/SwiftUI Best Practices.md` — UI patterns and conventions
+
+## CRITICAL: Test Execution Policy
+
+**NEVER run `xcodebuild test` on this machine (Mac mini Pro / gateway host).**
+Tests MUST run on the Mac mini (secondary node) via SSH:
+```bash
+# Unit tests (no signing needed):
+ssh mac-mini "cd ~/Projects/NetMonitor-2.0 && xcodebuild test -scheme NetMonitor-macOS -configuration Debug -destination 'platform=macOS' CODE_SIGN_IDENTITY='-' CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO -only-testing:NetMonitor-macOSTests"
+
+# UI tests (need signed build + GUI session):
+ssh mac-mini "cd ~/Projects/NetMonitor-2.0 && xcodebuild test -scheme NetMonitor-macOS -configuration Debug -destination 'platform=macOS' -only-testing:NetMonitor-macOSUITests"
+```
+This machine has no display/accessibility session. XCUITests will hang or phantom-launch.
+A PreToolUse hook will block `xcodebuild test` locally as a safety net.
