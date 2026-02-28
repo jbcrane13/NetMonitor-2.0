@@ -149,26 +149,48 @@ struct ISPHealthCard: View {
 
     // MARK: Data loading
 
+    /// Window size: show last N seconds at 1s refresh rate.
+    private static let windowSize = 30
+
     private func load() async {
         uptimeSegments    = generateUptimeSegments()
-        throughputHistory = generateSimulatedSeries(base: 921, noise: 130)
-        uploadHistory     = generateSimulatedSeries(base: 458, noise: 80)
+        throughputHistory = seedSeries(base: 921, noise: 130)
+        uploadHistory     = seedSeries(base: 458, noise: 80)
         await vm.load()
+        await runLiveUpdates()
+    }
+
+    /// Continuously appends new samples and slides the window forward.
+    private func runLiveUpdates() async {
+        var downSeed: UInt64 = 99991
+        var upSeed: UInt64   = 77771
+        while !Task.isCancelled {
+            try? await Task.sleep(for: .seconds(1))
+            withAnimation(.linear(duration: 0.8)) {
+                throughputHistory.append(nextSample(seed: &downSeed, base: 921, noise: 130))
+                uploadHistory.append(nextSample(seed: &upSeed,   base: 458, noise: 80))
+                if throughputHistory.count > Self.windowSize { throughputHistory.removeFirst() }
+                if uploadHistory.count     > Self.windowSize { uploadHistory.removeFirst() }
+            }
+        }
+    }
+
+    /// One deterministic sample using a linear-congruential step.
+    private func nextSample(seed: inout UInt64, base: Double, noise: Double) -> Double {
+        seed = seed &* 6364136223846793005 &+ 1442695040888963407
+        let r = Double(seed >> 33) / Double(UInt32.max)
+        return max(base * 0.1, base + (r - 0.5) * noise)
+    }
+
+    /// Seeded initial series so the chart isn't empty on first render.
+    private func seedSeries(base: Double, noise: Double) -> [Double] {
+        var seed: UInt64 = 12345 &+ UInt64(base)
+        return (0..<Self.windowSize).map { _ in nextSample(seed: &seed, base: base, noise: noise) }
     }
 
     /// Simulated 30-day uptime (99.8% ≈ 3 down out of 180 segments).
     /// TODO: Replace with real uptime data when available.
     private func generateUptimeSegments() -> [Bool] {
         (0..<180).map { i in !(i == 42 || i == 97 || i == 153) }
-    }
-
-    /// TODO: Replace with real bandwidth measurements from MonitoringSession.
-    private func generateSimulatedSeries(base: Double, noise: Double) -> [Double] {
-        var seed: UInt64 = 12345 &+ UInt64(base)
-        return (0..<30).map { i in
-            seed = seed &* 6364136223846793005 &+ 1442695040888963407
-            let r = Double(seed >> 33) / Double(UInt32.max)
-            return max(base * 0.1, base + sin(Double(i) * 0.3) * noise * 0.4 + (r - 0.5) * noise)
-        }
     }
 }

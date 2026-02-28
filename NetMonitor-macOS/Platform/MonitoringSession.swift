@@ -26,6 +26,9 @@ final class MonitoringSession {
     private(set) var isMonitoring: Bool = false
     private(set) var startTime: Date?
     private(set) var latestResults: [UUID: TargetMeasurement] = [:]
+    /// Rolling buffer of the last N latency readings per target (for live sparklines).
+    private(set) var recentLatencies: [UUID: [Double]] = [:]
+    private static let maxLatencyHistory = 20
     private(set) var errorMessage: String?
 
     private var monitoringTasks: [UUID: Task<Void, Never>] = [:]
@@ -190,6 +193,17 @@ final class MonitoringSession {
     private func updateMeasurement(_ measurement: TargetMeasurement, for target: NetworkTarget) {
         latestResults[target.id] = measurement
         target.measurements.append(measurement)
+
+        // Maintain rolling latency history for live sparklines
+        if let latency = measurement.latency {
+            var history = recentLatencies[target.id] ?? []
+            history.append(latency)
+            if history.count > Self.maxLatencyHistory {
+                history.removeFirst()
+            }
+            recentLatencies[target.id] = history
+        }
+
         do { try modelContext.save() } catch { Logger.monitoring.error("Failed to save measurement: \(error)") }
     }
 

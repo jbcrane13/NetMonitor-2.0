@@ -27,12 +27,13 @@ struct LatencyAnalysisCard: View {
             // Histogram
             histogramView
 
-            // Legend
+            // Legend — left-aligned, no overflow
             HStack(spacing: 10) {
                 legendItem(color: MacTheme.Colors.success, label: "<5ms")
                 legendItem(color: MacTheme.Colors.info,    label: "5–20ms")
                 legendItem(color: MacTheme.Colors.warning, label: "20–50ms")
                 legendItem(color: MacTheme.Colors.error,   label: ">50ms")
+                Spacer()
             }
 
             // Stats divider + row
@@ -43,6 +44,7 @@ struct LatencyAnalysisCard: View {
                 statCell(value: formatMs(stats.max),    label: "Max",    color: MacTheme.Colors.warning)
                 statCell(value: formatMs(stats.jitter), label: "Jitter", color: MacTheme.Colors.success)
                 statCell(value: "0.0%",                 label: "Loss",   color: MacTheme.Colors.success)
+                Spacer()
             }
         }
         .macGlassCard(cornerRadius: 14, padding: 10)
@@ -56,23 +58,33 @@ struct LatencyAnalysisCard: View {
         let heights = buckets.normalizedHeights
         let colors  = [MacTheme.Colors.success, MacTheme.Colors.info,
                        MacTheme.Colors.warning, MacTheme.Colors.error]
+        // 32 bars with spacing:2 between each → 31 gaps × 2pt = 62pt of total spacing
+        let totalBars = 32
+        let barSpacing: CGFloat = 2
+        let totalSpacing = CGFloat(totalBars - 1) * barSpacing
+
         return GeometryReader { g in
-            HStack(alignment: .bottom, spacing: 2) {
+            let barWidth = max(1, (g.size.width - totalSpacing) / CGFloat(totalBars))
+            HStack(alignment: .bottom, spacing: barSpacing) {
                 ForEach(0..<4, id: \.self) { bucket in
                     ForEach(0..<8, id: \.self) { bar in
-                        let rawWidth = (g.size.width - 24) / 32
-                        let barWidth = rawWidth.isFinite ? max(0, rawWidth) : 0
                         let rawHeight = g.size.height * CGFloat(heights[bucket]) * barVariation(bucket: bucket, bar: bar)
-                        let barHeight = rawHeight.isFinite ? max(0, rawHeight) : 0
+                        let barHeight = rawHeight.isFinite ? max(2, rawHeight) : 2
                         RoundedRectangle(cornerRadius: 2)
-                            .fill(colors[bucket].opacity(0.85))
+                            .fill(
+                                LinearGradient(
+                                    colors: [colors[bucket], colors[bucket].opacity(0.45)],
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                )
+                            )
                             .frame(width: barWidth, height: barHeight)
                     }
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .bottom)
+            .frame(width: g.size.width, height: g.size.height, alignment: .bottom)
         }
-        .frame(height: 44)
+        .frame(height: 48)
         .accessibilityLabel("Latency distribution histogram")
     }
 

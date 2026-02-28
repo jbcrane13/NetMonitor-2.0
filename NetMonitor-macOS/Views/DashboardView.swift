@@ -150,13 +150,18 @@ private struct TargetMonitoringSection: View {
             if targets.isEmpty {
                 NoTargetsView(onAdd: { showingAddTarget = true })
             } else {
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 220))], spacing: 10) {
-                    ForEach(targets) { target in
-                        TargetStatusCard(
-                            target: target,
-                            measurement: session?.latestMeasurement(for: target.id)
-                        )
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 10) {
+                        ForEach(targets) { target in
+                            TargetStatusCard(
+                                target: target,
+                                measurement: session?.latestMeasurement(for: target.id),
+                                latencyHistory: session?.recentLatencies[target.id] ?? []
+                            )
+                            .frame(width: 200)
+                        }
                     }
+                    .padding(.horizontal, 1)
                 }
             }
         }
@@ -169,10 +174,13 @@ private struct TargetMonitoringSection: View {
 struct TargetStatusCard: View {
     let target: NetworkTarget
     let measurement: TargetMeasurement?
+    var latencyHistory: [Double] = []
 
     @State private var isHovering = false
 
-    private var simulatedHistory: [Double] {
+    /// Falls back to deterministic simulated data only when no real history exists yet.
+    private var displayHistory: [Double] {
+        guard latencyHistory.isEmpty else { return latencyHistory }
         let base = measurement?.latency ?? 5.0
         var seed = UInt64(bitPattern: Int64(target.id.hashValue)) &+ 1
         return (0..<20).map { _ in
@@ -215,11 +223,12 @@ struct TargetStatusCard: View {
                     RoundedRectangle(cornerRadius: 4)
                         .fill(Color.black.opacity(0.28))
                     HistorySparkline(
-                        data: simulatedHistory,
+                        data: displayHistory,
                         color: statusColor,
                         lineWidth: 1.5,
-                        showPulse: true
+                        showPulse: !latencyHistory.isEmpty
                     )
+                    .animation(.easeInOut(duration: 0.3), value: latencyHistory.count)
                     .padding(3)
                 }
                 .frame(height: 30)
