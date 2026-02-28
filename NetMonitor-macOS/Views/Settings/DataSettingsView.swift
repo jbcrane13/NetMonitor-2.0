@@ -76,7 +76,7 @@ struct DataSettingsView: View {
             // Handle export result
         }
         .alert("Clear All Data?", isPresented: $showClearConfirmation) {
-            Button("Cancel", role: .cancel) { }
+            Button("Cancel", role: .cancel) {}
             Button("Clear", role: .destructive) {
                 clearAllData()
             }

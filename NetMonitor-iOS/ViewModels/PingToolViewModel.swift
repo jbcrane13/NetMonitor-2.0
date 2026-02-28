@@ -15,6 +15,7 @@ final class PingToolViewModel {
             }
         }
     }
+
     var pingCount: Int = UserDefaults.standard.object(forKey: AppSettings.Keys.defaultPingCount) as? Int ?? 20 {
         didSet { UserDefaults.standard.set(pingCount, forKey: AppSettings.Keys.defaultPingCount) }
     }

@@ -127,11 +127,11 @@ extension EmptyStateView {
 
 #Preview {
     VStack(spacing: 32) {
-        EmptyStateView.noDevices { }
+        EmptyStateView.noDevices {}
         Divider()
         EmptyStateView.noActivity
         Divider()
-        EmptyStateView.noNetwork { }
+        EmptyStateView.noNetwork {}
     }
     .padding()
     .themedBackground()

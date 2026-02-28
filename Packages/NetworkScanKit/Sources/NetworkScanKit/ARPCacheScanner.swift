@@ -55,6 +55,7 @@ private struct SockaddrDL {
     var sdl_slen: UInt8
     // sdl_data follows (variable length: name + MAC bytes)
     // We access it via pointer arithmetic from the struct base.
+    // swiftlint:disable:next large_tuple
     var sdl_data: (CChar, CChar, CChar, CChar, CChar, CChar,
                    CChar, CChar, CChar, CChar, CChar, CChar)
 }
@@ -141,7 +142,7 @@ public enum ARPCacheScanner: Sendable {
         ]
 
         // First call: determine buffer size
-        var bufferSize: Int = 0
+        var bufferSize = 0
         guard sysctl(&mib, UInt32(mib.count), nil, &bufferSize, nil, 0) == 0,
               bufferSize > 0 else {
             return []

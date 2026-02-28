@@ -119,7 +119,7 @@ struct SubnetCalculatorToolView: View {
         .accessibilityIdentifier("subnetCalc_section_results")
     }
 
-    private func sectionView<Content: View>(title: String, icon: String, @ViewBuilder content: () -> Content) -> some View {
+    private func sectionView(title: String, icon: String, @ViewBuilder content: () -> some View) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Label(title, systemImage: icon)
                 .font(.headline)
@@ -215,9 +215,13 @@ struct SubnetCalculatorToolView: View {
 
         switch prefix {
         case 32:
-            firstHost = networkAddr; lastHost = networkAddr; usable = 1
+            firstHost = networkAddr
+            lastHost = networkAddr
+            usable = 1
         case 31:
-            firstHost = networkAddr; lastHost = broadcastAddr; usable = 2
+            firstHost = networkAddr
+            lastHost = broadcastAddr
+            usable = 2
         default:
             firstHost = networkAddr &+ 1
             lastHost = broadcastAddr &- 1

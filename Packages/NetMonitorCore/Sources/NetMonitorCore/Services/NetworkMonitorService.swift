@@ -1,7 +1,6 @@
 import Foundation
 import Network
 
-
 @MainActor
 @Observable
 public final class NetworkMonitorService: NetworkMonitorServiceProtocol {

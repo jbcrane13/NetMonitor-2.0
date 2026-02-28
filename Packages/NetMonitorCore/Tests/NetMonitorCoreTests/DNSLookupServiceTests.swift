@@ -109,7 +109,7 @@ struct DNSLookupServiceTests {
 
     @Test("DNSQueryResult default server is System DNS")
     @MainActor
-    func dnsQueryResultDefaultServerIsSystemDNS() async {
+    func dnsQueryResultDefaultServerIsSystemDNS() {
         // The service sets server to "System DNS" when nil is passed
         // We verify this via the service's lookup path by inspecting DNSQueryResult directly
         let result = DNSQueryResult(

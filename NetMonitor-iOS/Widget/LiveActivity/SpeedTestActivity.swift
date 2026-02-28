@@ -6,7 +6,7 @@ import ActivityKit
 /// Static data: none (a speed test has no meaningful static context).
 /// ContentState: live speeds and current phase.
 struct SpeedTestActivityAttributes: ActivityAttributes {
-    public struct ContentState: Codable, Hashable {
+    struct ContentState: Codable, Hashable {
         /// Current download speed in Mbps (0 until measured).
         var downloadSpeed: Double
         /// Current upload speed in Mbps (0 until measured).

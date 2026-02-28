@@ -41,7 +41,7 @@ struct HeatmapRendererTests {
         // Centre cell (1,1) should be closest to (0.5,0.5) → rssi ≈ -60
         let centre = grid[1][1]
         #expect(centre != nil)
-        #expect(abs(centre! - (-60)) < 5)
+        #expect(abs(centre! - -60) < 5)
     }
 
     @Test("IDW grid cell far from all points returns nil when no points within 80pt")

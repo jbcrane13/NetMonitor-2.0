@@ -1,0 +1,22 @@
+# CODEOWNERS — NetMonitor-2.0
+# Defines review ownership per path. GitHub auto-requests reviews from owners
+# when branch protection is enabled. For a solo project this is informational
+# but becomes active if collaborators or agents open PRs.
+
+# Default: everything requires review from the project owner
+* @jbcrane13
+
+# Shared core packages — changes here affect both platforms
+Packages/NetMonitorCore/ @jbcrane13
+Packages/NetworkScanKit/ @jbcrane13
+
+# Platform targets
+NetMonitor-macOS/ @jbcrane13
+NetMonitor-iOS/ @jbcrane13
+
+# CI / project config — high-impact, always needs owner review
+.github/ @jbcrane13
+project.yml @jbcrane13
+.swiftlint.yml @jbcrane13
+.swiftformat @jbcrane13
+scripts/ @jbcrane13

@@ -18,7 +18,7 @@ import Testing
 struct SpeedTestServiceCancellationTests {
 
     @Test("stopTest() during active test cancels without crash")
-    func stopTestDuringActiveTestNoCrash() async {
+    func stopTestDuringActiveTestNoCrash() {
         let service = SpeedTestService()
         // Start the test in a background task, then immediately stop
         let testTask = Task {
@@ -58,7 +58,7 @@ struct SpeedTestServiceCancellationTests {
     }
 
     @Test("errorMessage is set when startTest() throws non-cancellation error")
-    func errorMessageSetOnFailure() async throws {
+    func errorMessageSetOnFailure() throws {
         // This test uses a subclassed service in a TaskGroup that immediately throws.
         // We verify the service correctly routes errors to errorMessage.
         // Since the real service calls Cloudflare, we can't unit-test this without

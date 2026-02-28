@@ -60,7 +60,7 @@ struct DeviceDetailView: View {
         }
         .wakeOnLanAlert(wolAction)
         .alert("Add to Targets", isPresented: $showAddToTargetsAlert) {
-            Button("OK", role: .cancel) { }
+            Button("OK", role: .cancel) {}
         } message: {
             Text(addToTargetsMessage)
         }

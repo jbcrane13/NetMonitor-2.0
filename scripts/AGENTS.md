@@ -10,6 +10,7 @@ Build and utility scripts for the project. Contains code coverage collection and
 | Directory | Purpose |
 |-----------|---------|
 | `coverage/` | Test coverage collection and threshold enforcement scripts |
+| `hooks/` | Git hook installer (`install-hooks.sh`) — points `core.hooksPath` at `.githooks/` |
 
 ## For AI Agents
 

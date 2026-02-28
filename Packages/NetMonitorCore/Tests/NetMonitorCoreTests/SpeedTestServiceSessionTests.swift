@@ -217,7 +217,7 @@ struct SpeedTestService2xxRegressionTests {
         let service = SpeedTestService(session: MockURLProtocol.makeSession())
         service.duration = 0.1
 
-        do { _ = try await service.startTest() } catch { }
+        do { _ = try await service.startTest() } catch {}
 
         #expect(service.latency >= 0,
                 "Latency must be ≥ 0 even when server returns 201 — no status-code regression in latency phase")
@@ -241,7 +241,7 @@ struct SpeedTestService2xxRegressionTests {
         let service = SpeedTestService(session: MockURLProtocol.makeSession())
         service.duration = 0.1
 
-        do { _ = try await service.startTest() } catch { }
+        do { _ = try await service.startTest() } catch {}
 
         #expect(service.latency >= 0,
                 "Latency must be ≥ 0 even when server returns 206 — guard regression for NetMonitor-2.0-ctj")

@@ -6,7 +6,7 @@ import ActivityKit
 /// Static data: the network name and subnet being scanned.
 /// ContentState: live progress updated throughout the scan.
 struct NetworkScanActivityAttributes: ActivityAttributes {
-    public struct ContentState: Codable, Hashable {
+    struct ContentState: Codable, Hashable {
         /// Scan progress from 0.0 (started) to 1.0 (complete).
         var progress: Double
         /// Number of devices discovered so far.

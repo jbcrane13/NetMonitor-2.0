@@ -205,7 +205,7 @@ final class DeviceDiscoveryCoordinator {
             while activeCount < 10, let device = iter.next() {
                 let id = device.id
                 let ip = device.ipAddress
-                group.addTask { (id, await self.nameResolver.resolveName(for: ip)) }
+                group.addTask { await (id, self.nameResolver.resolveName(for: ip)) }
                 activeCount += 1
             }
 
@@ -214,8 +214,9 @@ final class DeviceDiscoveryCoordinator {
                     device.hostname = name
                 }
                 if let next = iter.next() {
-                    let id = next.id; let ip = next.ipAddress
-                    group.addTask { (id, await self.nameResolver.resolveName(for: ip)) }
+                    let id = next.id
+                    let ip = next.ipAddress
+                    group.addTask { await (id, self.nameResolver.resolveName(for: ip)) }
                 }
             }
         }
@@ -236,8 +237,9 @@ final class DeviceDiscoveryCoordinator {
             var iter = devices.makeIterator()
 
             while activeCount < 5, let device = iter.next() {
-                let id = device.id; let mac = device.macAddress
-                group.addTask { (id, await self.macVendorService.lookupVendorEnhanced(macAddress: mac)) }
+                let id = device.id
+                let mac = device.macAddress
+                group.addTask { await (id, self.macVendorService.lookupVendorEnhanced(macAddress: mac)) }
                 activeCount += 1
             }
 
@@ -246,8 +248,9 @@ final class DeviceDiscoveryCoordinator {
                     device.vendor = vendor
                 }
                 if let next = iter.next() {
-                    let id = next.id; let mac = next.macAddress
-                    group.addTask { (id, await self.macVendorService.lookupVendorEnhanced(macAddress: mac)) }
+                    let id = next.id
+                    let mac = next.macAddress
+                    group.addTask { await (id, self.macVendorService.lookupVendorEnhanced(macAddress: mac)) }
                 }
             }
         }

@@ -1,0 +1,80 @@
+# SwiftFormat configuration for NetMonitor-2.0
+# SwiftFormat 0.59.x — Swift 6 codebase
+#
+# Philosophy: enforce clear-cut correctness rules only. Opinionated
+# wrapping/indentation/style rules are disabled to avoid mass-reformatting
+# existing code. Incrementally enable rules after a dedicated style-baseline commit.
+#
+# To check: swiftformat --lint .
+# To fix:   swiftformat .
+
+--swiftversion 6.0
+
+# ───────────────────────────────────────────
+# Indentation — match existing 4-space style
+# ───────────────────────────────────────────
+--indent 4
+--tabwidth 4
+--smarttabs enabled
+--linebreaks lf
+
+# ───────────────────────────────────────────
+# Correctness rules enabled
+# (these have zero or near-zero existing violations)
+# ───────────────────────────────────────────
+--semicolons never
+--guardelse next-line
+--emptybraces no-space
+--operatorfunc spaced
+
+# ───────────────────────────────────────────
+# Disabled rules — style/opinion rules that conflict with existing code.
+# These are candidates for a future "style baseline" commit.
+# ───────────────────────────────────────────
+--disable blankLinesAtStartOfScope
+--disable blankLinesAtEndOfScope
+--disable trailingCommas
+--disable indent
+--disable wrap
+--disable wrapArguments
+--disable wrapAttributes
+--disable wrapFunctionBodies
+--disable wrapLoopBodies
+--disable wrapPropertyBodies
+--disable wrapMultilineStatementBraces
+--disable sortImports
+--disable consecutiveSpaces
+--disable trailingSpace
+--disable redundantThrows
+--disable numberFormatting
+--disable hoistPatternLet
+--disable noForceUnwrapInTests
+--disable andOperator
+--disable blankLinesAroundMark
+--disable conditionalAssignment
+--disable docComments
+--disable redundantSelf
+--disable redundantEquatable
+--disable elseOnSameLine
+--disable spaceAroundOperators
+--disable unusedArguments
+--disable preferKeyPath
+--disable redundantOptionalBinding
+--disable preferCountWhere
+--disable redundantLet
+--disable redundantNilInit
+--disable redundantRawValues
+--disable environmentEntry
+--disable modifierOrder
+--disable redundantViewBuilder
+--disable extensionAccessControl
+--disable redundantReturn
+--disable redundantInit
+--disable initCoderUnavailable
+--disable propertyTypes
+--disable genericExtensions
+
+# ───────────────────────────────────────────
+# Excluded paths
+# ───────────────────────────────────────────
+--exclude build,.build,.worktrees,NetMonitor-2.0.xcodeproj

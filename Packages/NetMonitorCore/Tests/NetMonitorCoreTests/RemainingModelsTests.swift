@@ -898,7 +898,9 @@ struct TargetMeasurementStatisticsTests {
         let m1 = TargetMeasurement(latency: 10.0, isReachable: true)
         let m2 = TargetMeasurement(latency: 20.0, isReachable: true)
         let m3 = TargetMeasurement(latency: 30.0, isReachable: true)
-        context.insert(m1); context.insert(m2); context.insert(m3)
+        context.insert(m1)
+        context.insert(m2)
+        context.insert(m3)
 
         let stats = TargetMeasurement.calculateStatistics(from: [m1, m2, m3])
         #expect(stats.averageLatency == 20.0)
@@ -917,7 +919,10 @@ struct TargetMeasurementStatisticsTests {
         let m2 = TargetMeasurement(latency: nil, isReachable: false)
         let m3 = TargetMeasurement(latency: nil, isReachable: false)
         let m4 = TargetMeasurement(latency: 25.0, isReachable: true)
-        context.insert(m1); context.insert(m2); context.insert(m3); context.insert(m4)
+        context.insert(m1)
+        context.insert(m2)
+        context.insert(m3)
+        context.insert(m4)
 
         let stats = TargetMeasurement.calculateStatistics(from: [m1, m2, m3, m4])
         #expect(stats.averageLatency == 20.0)   // (15 + 25) / 2
@@ -932,7 +937,8 @@ struct TargetMeasurementStatisticsTests {
 
         let m1 = TargetMeasurement(latency: nil, isReachable: false)
         let m2 = TargetMeasurement(latency: nil, isReachable: false)
-        context.insert(m1); context.insert(m2)
+        context.insert(m1)
+        context.insert(m2)
 
         let stats = TargetMeasurement.calculateStatistics(from: [m1, m2])
         #expect(stats.averageLatency == nil)

@@ -122,7 +122,7 @@ struct TargetsView: View {
             Button("Delete", role: .destructive) {
                 deleteSelectedTargets()
             }
-            Button("Cancel", role: .cancel) { }
+            Button("Cancel", role: .cancel) {}
         } message: {
             if selectedTargets.count == 1, let target = selectedTargets.first {
                 Text("This will permanently delete '\(target.name)' and all its measurement history.")

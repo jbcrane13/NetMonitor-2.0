@@ -36,8 +36,10 @@ final class TimelineMacViewModel {
             groups[label, default: []].append(e)
         }
         let keys = groups.keys.sorted {
-            if $0 == "Today" { return true }; if $1 == "Today" { return false }
-            if $0 == "Yesterday" { return true }; if $1 == "Yesterday" { return false }
+            if $0 == "Today" { return true }
+            if $1 == "Today" { return false }
+            if $0 == "Yesterday" { return true }
+            if $1 == "Yesterday" { return false }
             return $0 > $1
         }
         return keys.compactMap { k in groups[k].map { (label: k, events: $0) } }
@@ -45,7 +47,10 @@ final class TimelineMacViewModel {
 
     func load() { events = service.events }
     func refresh() { events = service.events }
-    func clearAll() { service.clearAll(); events = [] }
+    func clearAll() { service.clearAll()
+    events = []
+    }
+
     func applyFilter(_ type: NetworkEventType?) { selectedFilter = type }
 }
 

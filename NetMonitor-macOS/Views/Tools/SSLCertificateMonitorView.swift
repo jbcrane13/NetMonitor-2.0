@@ -245,7 +245,9 @@ struct SSLCertificateMonitorView: View {
                             }
                             .buttonStyle(.borderedProminent)
                             .accessibilityIdentifier("ssl_monitor_button_add")
-                            Button("Cancel") { showAddNotes = false; notes = "" }
+                            Button("Cancel") { showAddNotes = false
+                            notes = ""
+                            }
                         } else {
                             Button("Add to Watch List") { showAddNotes = true }
                                 .accessibilityIdentifier("ssl_monitor_button_add")

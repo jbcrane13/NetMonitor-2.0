@@ -1,0 +1,65 @@
+name: Lint
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  swiftlint:
+    name: SwiftLint
+    runs-on: macos-15
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install SwiftLint
+        run: brew install swiftlint
+
+      - name: Run SwiftLint
+        run: swiftlint lint --strict --reporter github-actions-logging
+
+  swiftformat:
+    name: SwiftFormat
+    runs-on: macos-15
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install SwiftFormat
+        run: brew install swiftformat
+
+      - name: Check formatting
+        run: swiftformat --lint . 2>&1
+
+  bare-todos:
+    name: TODO ticket enforcement
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check for TODOs/FIXMEs without beads ticket references
+        run: |
+          # Match TODO:/FIXME: not followed by a beads ticket (NetMonitor-2.0-xxx)
+          bare=$(grep -rn --include="*.swift" \
+            -E '//\s*(TODO|FIXME):\s+(?!\(NetMonitor-2\.0-[a-z0-9]+\))' \
+            --exclude-dir=build --exclude-dir=.build || true)
+
+          if [[ -n "$bare" ]]; then
+            echo "::warning::Found TODO/FIXME comments without beads ticket references."
+            echo "Convention: // TODO: (NetMonitor-2.0-xyz) description"
+            echo ""
+            echo "$bare"
+          else
+            echo "All TODOs/FIXMEs reference a beads ticket."
+          fi
+          # Warn only — do not fail the build
+          exit 0

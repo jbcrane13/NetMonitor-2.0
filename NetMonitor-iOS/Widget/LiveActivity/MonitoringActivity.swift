@@ -6,7 +6,7 @@ import ActivityKit
 /// Static data: when monitoring started.
 /// ContentState: live connection status, latency, and alerts.
 struct MonitoringActivityAttributes: ActivityAttributes {
-    public struct ContentState: Codable, Hashable {
+    struct ContentState: Codable, Hashable {
         /// Whether the device is currently connected.
         var isConnected: Bool
         /// Current gateway latency in milliseconds, if available.

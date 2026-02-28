@@ -31,11 +31,9 @@ struct WorldPingRegressionContractTests {
 
     // MARK: Helpers
 
-    private static let fixtureDir: URL = {
-        URL(fileURLWithPath: #filePath)
+    private static let fixtureDir: URL = .init(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .appendingPathComponent("TestFixtures")
-    }()
 
     private func loadFixture(_ name: String) throws -> Data {
         let url = Self.fixtureDir.appendingPathComponent(name)

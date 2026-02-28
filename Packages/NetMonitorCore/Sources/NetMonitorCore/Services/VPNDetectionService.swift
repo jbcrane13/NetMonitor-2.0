@@ -84,7 +84,9 @@ public final class VPNDetectionService: VPNDetectionServiceProtocol, @unchecked 
 
     public func startMonitoring() {
         lock.lock()
-        guard monitor == nil else { lock.unlock(); return }
+        guard monitor == nil else { lock.unlock()
+        return
+        }
         let m = NWPathMonitor()
         monitor = m
         lock.unlock()

@@ -69,7 +69,9 @@ struct CalibrationView: View {
                 Spacer()
                 if lineStart != nil {
                     Button("Reset") {
-                        lineStart = nil; lineEnd = nil; showDistanceEntry = false
+                        lineStart = nil
+                        lineEnd = nil
+                        showDistanceEntry = false
                     }
                     .font(.caption)
                     .foregroundStyle(Theme.Colors.accent)
@@ -123,7 +125,7 @@ struct CalibrationView: View {
             .gesture(
                 DragGesture(minimumDistance: 4)
                     .onChanged { val in
-                        if lineStart == nil || (!isDragging) {
+                        if lineStart == nil || !isDragging {
                             lineStart = val.startLocation
                             isDragging = true
                             showDistanceEntry = false

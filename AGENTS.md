@@ -68,6 +68,16 @@ NetMonitor-iOS  ──┘
 | `NetMonitor-iOS/` | iOS app (companion, widget, liquid glass UI) |
 | `docs/` | Architecture docs, ADRs, companion protocol spec |
 
+## First-time Setup
+
+After cloning, install the git hooks (required for pre-commit linting):
+
+```bash
+scripts/hooks/install-hooks.sh
+```
+
+This points `core.hooksPath` at `.githooks/`, which runs SwiftLint on staged Swift files and enforces a 2 MB file size limit on every commit. Requires SwiftLint (`brew install swiftlint`).
+
 ## Build Commands
 
 ```bash
@@ -77,6 +87,16 @@ xcodebuild -scheme NetMonitor-iOS -configuration Debug build
 xcodebuild test -scheme NetMonitor-macOS
 xcodebuild test -scheme NetMonitor-iOS
 ```
+
+## Linting
+
+```bash
+swiftlint lint --quiet                               # Lint entire codebase
+swiftlint lint --quiet NetMonitor-macOS/             # Lint a single directory
+swiftlint --fix                                      # Auto-fix correctable violations
+```
+
+Configuration: `.swiftlint.yml` at repo root. Errors block commits via pre-commit hook; warnings are reported but do not block.
 
 ## Core Patterns
 

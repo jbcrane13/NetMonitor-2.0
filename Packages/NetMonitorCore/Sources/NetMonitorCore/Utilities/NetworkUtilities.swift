@@ -8,18 +8,33 @@ private let kRTA_DST: Int32     = 0x1
 private let kRTA_GATEWAY: Int32 = 0x2
 
 private struct RouteMetrics {
-    var rmx_locks: UInt32; var rmx_mtu: UInt32; var rmx_hopcount: UInt32
-    var rmx_expire: Int32; var rmx_recvpipe: UInt32; var rmx_sendpipe: UInt32
-    var rmx_ssthresh: UInt32; var rmx_rtt: UInt32; var rmx_rttvar: UInt32
-    var rmx_pksent: UInt32; var rmx_state: UInt32
+    var rmx_locks: UInt32
+    var rmx_mtu: UInt32
+    var rmx_hopcount: UInt32
+    var rmx_expire: Int32
+    var rmx_recvpipe: UInt32
+    var rmx_sendpipe: UInt32
+    var rmx_ssthresh: UInt32
+    var rmx_rtt: UInt32
+    var rmx_rttvar: UInt32
+    var rmx_pksent: UInt32
+    var rmx_state: UInt32
     var rmx_filler: (UInt32, UInt32, UInt32)
 }
 
 private struct RouteMsgHdr {
-    var rtm_msglen: UInt16; var rtm_version: UInt8; var rtm_type: UInt8
-    var rtm_index: UInt16; var rtm_flags: Int32; var rtm_addrs: Int32
-    var rtm_pid: Int32; var rtm_seq: Int32; var rtm_errno: Int32
-    var rtm_use: Int32; var rtm_inits: UInt32; var rtm_rmx: RouteMetrics
+    var rtm_msglen: UInt16
+    var rtm_version: UInt8
+    var rtm_type: UInt8
+    var rtm_index: UInt16
+    var rtm_flags: Int32
+    var rtm_addrs: Int32
+    var rtm_pid: Int32
+    var rtm_seq: Int32
+    var rtm_errno: Int32
+    var rtm_use: Int32
+    var rtm_inits: UInt32
+    var rtm_rmx: RouteMetrics
 }
 
 // MARK: - NetworkUtilities

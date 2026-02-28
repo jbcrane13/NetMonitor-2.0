@@ -1,0 +1,142 @@
+# SwiftLint configuration for NetMonitor-2.0
+# SwiftLint 0.63.x — Swift 6 strict concurrency codebase
+
+excluded:
+  - build
+  - .build
+  - .worktrees
+  - "**/*.xcodeproj"
+  - Packages/NetMonitorCore/Tests/NetMonitorCoreTests/TestFixtures
+
+# ───────────────────────────────────────────
+# Rule tuning
+# ───────────────────────────────────────────
+
+identifier_name:
+  min_length:
+    warning: 2
+    error: 1
+  max_length:
+    warning: 50
+    error: 60
+  allowed_symbols:
+    - _
+  excluded:
+    - i
+    - j
+    - k
+    - x
+    - y
+    - z
+    - id
+    - ip
+    - nx
+    - ny
+    - ok
+    - to
+
+line_length:
+  warning: 150
+  error: 250
+  ignores_urls: true
+  ignores_comments: true
+  ignores_interpolated_strings: true
+
+function_body_length:
+  warning: 80
+  error: 150
+
+type_body_length:
+  warning: 350
+  error: 500
+
+file_length:
+  warning: 600
+  error: 1200
+  ignore_comment_only_lines: true
+
+cyclomatic_complexity:
+  warning: 12
+  error: 20
+  ignores_case_statements: true
+
+function_parameter_count:
+  warning: 6
+  error: 8
+
+large_tuple:
+  warning: 4
+  error: 7
+
+force_try:
+  severity: warning
+
+force_cast:
+  severity: warning
+
+empty_count:
+  severity: warning
+
+nesting:
+  type_level:
+    warning: 2
+  function_level:
+    warning: 3
+
+# ───────────────────────────────────────────
+# Disabled rules
+# ───────────────────────────────────────────
+
+disabled_rules:
+  - trailing_comma
+  - implicit_optional_initialization
+  - opening_brace
+  - multiple_closures_with_trailing_closure
+
+# ───────────────────────────────────────────
+# Custom rules
+# ───────────────────────────────────────────
+
+custom_rules:
+  todo_needs_ticket:
+    name: "TODO/FIXME requires beads ticket"
+    regex: '//\s*(TODO|FIXME):\s+(?!\(NetMonitor-2\.0-[a-z0-9]+\))'
+    match_kinds:
+      - comment
+    message: "TODO/FIXME must reference a beads ticket — // TODO: (NetMonitor-2.0-xyz) description"
+    severity: warning
+
+# ───────────────────────────────────────────
+# Opt-in rules
+# ───────────────────────────────────────────
+
+opt_in_rules:
+  - closure_end_indentation
+  - closure_spacing
+  - collection_alignment
+  - contains_over_filter_count
+  - contains_over_first_not_nil
+  - empty_collection_literal
+  - empty_count
+  - empty_string
+  - enum_case_associated_values_count
+  - fatal_error_message
+  - first_where
+  - force_unwrapping
+  - last_where
+  - modifier_order
+  - overridden_super_call
+  - prefer_zero_over_explicit_init
+  - private_action
+  - redundant_nil_coalescing
+  - sorted_first_last
+  - toggle_bool
+  - unavailable_function
+  - unowned_variable_capture
+  - yoda_condition
+
+# ───────────────────────────────────────────
+# Reporter
+# ───────────────────────────────────────────
+
+reporter: xcode

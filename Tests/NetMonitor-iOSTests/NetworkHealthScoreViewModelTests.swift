@@ -27,6 +27,7 @@ private final class MockPingServiceForHealth: PingServiceProtocol, @unchecked Se
             continuation.finish()
         }
     }
+
     func stop() async {}
     func calculateStatistics(_ results: [PingResult], requestedCount: Int?) async -> PingStatistics? { nil }
 }

@@ -15,6 +15,7 @@ final class DNSLookupToolViewModel {
             }
         }
     }
+
     var recordType: DNSRecordType = .a
 
     // MARK: - State Properties

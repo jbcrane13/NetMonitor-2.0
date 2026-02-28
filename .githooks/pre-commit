@@ -1,0 +1,123 @@
+#!/usr/bin/env bash
+# Pre-commit hook for NetMonitor-2.0
+# Runs SwiftLint on staged Swift files and checks for oversized files.
+#
+# Install: git config core.hooksPath .githooks
+#          (or run: scripts/hooks/install-hooks.sh)
+
+set -euo pipefail
+
+PASS=0
+FAIL=1
+RED='\033[0;31m'
+YELLOW='\033[1;33m'
+GREEN='\033[0;32m'
+NC='\033[0m'
+
+overall_result=$PASS
+
+# ────────────────────────────────────────────
+# 1. Large file check
+#    Warn at 500 KB, block at 2 MB (non-LFS tracked binaries)
+# ────────────────────────────────────────────
+WARN_BYTES=$((500 * 1024))    # 500 KB
+ERROR_BYTES=$((2 * 1024 * 1024))  # 2 MB
+
+staged_files=$(git diff --cached --name-only --diff-filter=ACM 2>/dev/null || true)
+
+if [[ -n "$staged_files" ]]; then
+    while IFS= read -r file; do
+        [[ -f "$file" ]] || continue
+        size=$(wc -c < "$file")
+        if (( size > ERROR_BYTES )); then
+            size_kb=$(( size / 1024 ))
+            echo -e "${RED}error:${NC} Staged file is too large (${size_kb} KB > 2 MB limit): $file"
+            echo "       Consider adding it to .gitattributes for Git LFS tracking."
+            overall_result=$FAIL
+        elif (( size > WARN_BYTES )); then
+            size_kb=$(( size / 1024 ))
+            echo -e "${YELLOW}warning:${NC} Staged file is large (${size_kb} KB): $file"
+        fi
+    done <<< "$staged_files"
+fi
+
+# ────────────────────────────────────────────
+# 2. SwiftLint — run only on staged .swift files
+# ────────────────────────────────────────────
+staged_swift=$(git diff --cached --name-only --diff-filter=ACM 2>/dev/null \
+    | grep '\.swift$' || true)
+
+if [[ -z "$staged_swift" ]]; then
+    # No Swift files staged — nothing to lint
+    if [[ $overall_result -eq $PASS ]]; then
+        echo -e "${GREEN}pre-commit: all checks passed${NC}"
+    fi
+    exit $overall_result
+fi
+
+if ! command -v swiftlint &>/dev/null; then
+    echo -e "${YELLOW}warning:${NC} swiftlint not found — skipping lint check"
+    echo "         Install with: brew install swiftlint"
+    exit $overall_result
+fi
+
+# Write staged Swift file paths to a temp file list for swiftlint
+tmp_file_list=$(mktemp /tmp/staged-swift-XXXXXX.txt)
+trap 'rm -f "$tmp_file_list"' EXIT
+
+echo "$staged_swift" > "$tmp_file_list"
+
+# swiftlint --use-stdin-filelist requires 0.52+; use path list via --path otherwise
+lint_output=$(swiftlint lint \
+    --quiet \
+    --reporter xcode \
+    $(cat "$tmp_file_list" | xargs printf '%s ') 2>&1 || true)
+
+if echo "$lint_output" | grep -q ": error:"; then
+    echo -e "${RED}SwiftLint errors found in staged files:${NC}"
+    echo "$lint_output" | grep ": error:"
+    echo ""
+    echo "Fix the errors above, then re-stage and commit."
+    echo "Run 'swiftlint lint --quiet' for the full report."
+    overall_result=$FAIL
+elif [[ -n "$lint_output" ]]; then
+    # Warnings only — print them but don't block
+    warning_count=$(echo "$lint_output" | grep -c ": warning:" || true)
+    echo -e "${YELLOW}SwiftLint: ${warning_count} warning(s) in staged files${NC}"
+    echo "$lint_output" | grep ": warning:" | head -10
+    if (( warning_count > 10 )); then
+        echo "  … and $((warning_count - 10)) more. Run 'swiftlint lint --quiet' for the full list."
+    fi
+fi
+
+# ────────────────────────────────────────────
+# 3. SwiftFormat — lint staged .swift files
+# ────────────────────────────────────────────
+if [[ -n "$staged_swift" ]] && command -v swiftformat &>/dev/null; then
+    format_output=$(echo "$staged_swift" \
+        | xargs swiftformat --lint --quiet 2>&1 || true)
+
+    if echo "$format_output" | grep -q "^error:"; then
+        echo -e "${RED}SwiftFormat errors in staged files:${NC}"
+        echo "$format_output" | grep "^error:"
+        echo ""
+        echo "Run 'swiftformat .' to auto-fix, then re-stage and commit."
+        overall_result=$FAIL
+    elif [[ -n "$format_output" ]]; then
+        fmt_count=$(echo "$format_output" | grep -c "^." || true)
+        echo -e "${YELLOW}SwiftFormat: ${fmt_count} file(s) would be reformatted${NC}"
+        echo "$format_output" | head -5
+        echo ""
+        echo "Run 'swiftformat .' to auto-fix, then re-stage and commit."
+        overall_result=$FAIL
+    fi
+elif [[ -n "$staged_swift" ]] && ! command -v swiftformat &>/dev/null; then
+    echo -e "${YELLOW}warning:${NC} swiftformat not found — skipping format check"
+    echo "         Install with: brew install swiftformat"
+fi
+
+if [[ $overall_result -eq $PASS ]]; then
+    echo -e "${GREEN}pre-commit: all checks passed${NC}"
+fi
+
+exit $overall_result

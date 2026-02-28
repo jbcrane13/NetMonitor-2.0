@@ -49,7 +49,7 @@ final class WiFiHeatmapToolViewModel {
 
         signalRefreshTask = Task {
             while !Task.isCancelled {
-                currentRSSI = macService?.currentRSSI() ?? macService?.simulatedRSSI() ?? Int.random(in: (-80)...(-45))
+                currentRSSI = macService?.currentRSSI() ?? macService?.simulatedRSSI() ?? Int.random(in: -80...(-45))
                 try? await Task.sleep(for: .seconds(1))
             }
         }
@@ -83,7 +83,7 @@ final class WiFiHeatmapToolViewModel {
         guard isSurveying, size.width > 0, size.height > 0 else { return }
         let nx = point.x / size.width
         let ny = point.y / size.height
-        let rssi = currentRSSI != 0 ? currentRSSI : macService?.simulatedRSSI() ?? Int.random(in: (-80)...(-45))
+        let rssi = currentRSSI != 0 ? currentRSSI : macService?.simulatedRSSI() ?? Int.random(in: -80...(-45))
         service.recordDataPoint(signalStrength: rssi, x: nx, y: ny)
         dataPoints = service.getSurveyData()
         statusMessage = "\(rssi) dBm recorded at (\(String(format: "%.2f", nx)), \(String(format: "%.2f", ny)))"
@@ -129,7 +129,9 @@ final class WiFiHeatmapToolViewModel {
             let loaded = try JSONDecoder().decode([HeatmapSurvey].self, from: data)
             surveys = loaded
             selectedSurveyID = surveys.first?.id
-            if let first = surveys.first { dataPoints = first.dataPoints; calibration = first.calibration }
+            if let first = surveys.first { dataPoints = first.dataPoints
+            calibration = first.calibration
+            }
         } catch {
             persistenceError = error.localizedDescription
         }

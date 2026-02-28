@@ -61,6 +61,15 @@ targets:
         MACOSX_DEPLOYMENT_TARGET: "15.0"
         CODE_SIGN_ENTITLEMENTS: NetMonitor-macOS/Resources/NetMonitor-macOS.entitlements
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+    postBuildScripts:
+      - script: |
+          if command -v swiftlint >/dev/null 2>&1; then
+            swiftlint lint --quiet --reporter xcode
+          else
+            echo "warning: SwiftLint not installed — brew install swiftlint"
+          fi
+        name: SwiftLint
+        basedOnDependencyAnalysis: false
     dependencies:
       - package: NetMonitorCore
       - package: NetworkScanKit
@@ -113,6 +122,15 @@ targets:
         CODE_SIGN_STYLE: Automatic
         IPHONEOS_DEPLOYMENT_TARGET: "18.0"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+    postBuildScripts:
+      - script: |
+          if command -v swiftlint >/dev/null 2>&1; then
+            swiftlint lint --quiet --reporter xcode
+          else
+            echo "warning: SwiftLint not installed — brew install swiftlint"
+          fi
+        name: SwiftLint
+        basedOnDependencyAnalysis: false
     dependencies:
       - package: NetMonitorCore
       - package: NetworkScanKit

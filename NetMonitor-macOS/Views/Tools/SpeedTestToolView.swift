@@ -403,7 +403,7 @@ struct SpeedTestToolView: View {
                 if let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) {
                     times.append(Date().timeIntervalSince(start) * 1000)
                 }
-            } catch { }
+            } catch {}
         }
 
         guard !times.isEmpty else {
@@ -615,7 +615,7 @@ struct SpeedTestToolView: View {
 
 // MARK: - SpeedTestPhase Display
 
-fileprivate extension SpeedTestPhase {
+private extension SpeedTestPhase {
     var description: String {
         switch self {
         case .idle: return "Ready"

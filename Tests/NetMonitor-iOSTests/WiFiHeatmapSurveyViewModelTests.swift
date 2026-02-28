@@ -151,7 +151,7 @@ struct WiFiHeatmapSurveyViewModelTests {
 
     @Test("setCalibration stores scale on viewModel")
     @MainActor
-    func setCalibrationStores() async {
+    func setCalibrationStores() {
         let vm = WiFiHeatmapSurveyViewModel(service: MockWiFiHeatmapService())
         vm.setCalibration(pixelDist: 100, realDist: 10, unit: .feet)
         #expect(vm.calibration?.pixelsPerUnit == 10.0)
@@ -160,7 +160,7 @@ struct WiFiHeatmapSurveyViewModelTests {
 
     @Test("clearCalibration removes scale")
     @MainActor
-    func clearCalibration() async {
+    func clearCalibration() {
         let vm = WiFiHeatmapSurveyViewModel(service: MockWiFiHeatmapService())
         vm.setCalibration(pixelDist: 100, realDist: 10, unit: .feet)
         vm.clearCalibration()
@@ -169,14 +169,14 @@ struct WiFiHeatmapSurveyViewModelTests {
 
     @Test("default colorScheme is thermal")
     @MainActor
-    func defaultColorScheme() async {
+    func defaultColorScheme() {
         let vm = WiFiHeatmapSurveyViewModel(service: MockWiFiHeatmapService())
         #expect(vm.colorScheme == .thermal)
     }
 
     @Test("default preferredUnit is feet")
     @MainActor
-    func defaultUnit() async {
+    func defaultUnit() {
         let vm = WiFiHeatmapSurveyViewModel(service: MockWiFiHeatmapService())
         #expect(vm.preferredUnit == .feet)
     }

@@ -15,8 +15,9 @@ final class PortScannerToolViewModel {
             }
         }
     }
+
     var portPreset: PortScanPreset = .common
-    var customRange: PortRange = PortRange()
+    var customRange: PortRange = .init()
 
     // MARK: - State Properties
 

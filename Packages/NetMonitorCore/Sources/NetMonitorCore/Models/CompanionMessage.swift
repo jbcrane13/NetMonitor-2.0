@@ -41,21 +41,21 @@ public enum CompanionMessage: Codable, Sendable {
 
         switch type {
         case .statusUpdate:
-            self = .statusUpdate(try container.decode(StatusUpdatePayload.self, forKey: .payload))
+            self = try .statusUpdate(container.decode(StatusUpdatePayload.self, forKey: .payload))
         case .targetList:
-            self = .targetList(try container.decode(TargetListPayload.self, forKey: .payload))
+            self = try .targetList(container.decode(TargetListPayload.self, forKey: .payload))
         case .deviceList:
-            self = .deviceList(try container.decode(DeviceListPayload.self, forKey: .payload))
+            self = try .deviceList(container.decode(DeviceListPayload.self, forKey: .payload))
         case .networkProfile:
-            self = .networkProfile(try container.decode(NetworkProfilePayload.self, forKey: .payload))
+            self = try .networkProfile(container.decode(NetworkProfilePayload.self, forKey: .payload))
         case .command:
-            self = .command(try container.decode(CommandPayload.self, forKey: .payload))
+            self = try .command(container.decode(CommandPayload.self, forKey: .payload))
         case .toolResult:
-            self = .toolResult(try container.decode(ToolResultPayload.self, forKey: .payload))
+            self = try .toolResult(container.decode(ToolResultPayload.self, forKey: .payload))
         case .error:
-            self = .error(try container.decode(ErrorPayload.self, forKey: .payload))
+            self = try .error(container.decode(ErrorPayload.self, forKey: .payload))
         case .heartbeat:
-            self = .heartbeat(try container.decode(HeartbeatPayload.self, forKey: .payload))
+            self = try .heartbeat(container.decode(HeartbeatPayload.self, forKey: .payload))
         }
     }
 
@@ -277,10 +277,10 @@ public struct HeartbeatPayload: Codable, Sendable {
 
 extension CompanionMessage {
     /// Shared JSON encoder for the companion service wire format.
-    public static let jsonEncoder: JSONEncoder = JSONEncoder()
+    public static let jsonEncoder: JSONEncoder = .init()
 
     /// Shared JSON decoder for the companion service wire format.
-    public static let jsonDecoder: JSONDecoder = JSONDecoder()
+    public static let jsonDecoder: JSONDecoder = .init()
 
     /// Encode this message to length-prefixed JSON data.
     /// Format: 4-byte big-endian length prefix + JSON payload.

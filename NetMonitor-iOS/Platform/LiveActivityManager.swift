@@ -5,17 +5,18 @@ import Foundation
 // MARK: - ActivityAttributes (shared with Widget target)
 
 struct NetworkScanActivityAttributes: ActivityAttributes {
-    public struct ContentState: Codable, Hashable {
+    struct ContentState: Codable, Hashable {
         var progress: Double
         var devicesFound: Int
         var phase: String
     }
+
     var networkName: String
     var subnet: String?
 }
 
 struct SpeedTestActivityAttributes: ActivityAttributes {
-    public struct ContentState: Codable, Hashable {
+    struct ContentState: Codable, Hashable {
         var downloadSpeed: Double
         var uploadSpeed: Double
         var latency: Double
@@ -25,13 +26,14 @@ struct SpeedTestActivityAttributes: ActivityAttributes {
 }
 
 struct MonitoringActivityAttributes: ActivityAttributes {
-    public struct ContentState: Codable, Hashable {
+    struct ContentState: Codable, Hashable {
         var isConnected: Bool
         var latencyMs: Double?
         var alertCount: Int
         var statusMessage: String
         var connectionType: String
     }
+
     var startTime: Date
     var networkName: String?
 }

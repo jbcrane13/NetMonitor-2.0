@@ -1,7 +1,6 @@
 import Foundation
 import dnssd
 
-
 @MainActor
 @Observable
 public final class DNSLookupService: DNSLookupServiceProtocol {

@@ -175,7 +175,7 @@ struct WHOISToolView: View {
         .background(MacTheme.Colors.subtleBackground)
     }
 
-    private func sectionView<Content: View>(title: String, icon: String, @ViewBuilder content: () -> Content) -> some View {
+    private func sectionView(title: String, icon: String, @ViewBuilder content: () -> some View) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Label(title, systemImage: icon)
                 .font(.headline)

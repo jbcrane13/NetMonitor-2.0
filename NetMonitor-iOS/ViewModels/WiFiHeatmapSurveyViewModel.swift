@@ -26,12 +26,15 @@ final class WiFiHeatmapSurveyViewModel {
     var colorScheme: HeatmapColorScheme = .thermal {
         didSet { UserDefaults.standard.set(colorScheme.rawValue, forKey: AppSettings.Keys.heatmapColorScheme) }
     }
+
     var displayOverlays: HeatmapDisplayOverlay = .gradient {
         didSet { UserDefaults.standard.set(displayOverlays.rawValue, forKey: AppSettings.Keys.heatmapDisplayOverlays) }
     }
+
     var preferredUnit: DistanceUnit = .feet {
         didSet { UserDefaults.standard.set(preferredUnit.rawValue, forKey: AppSettings.Keys.heatmapPreferredUnit) }
     }
+
     var isCalibrating = false
 
     // MARK: - Private
@@ -145,7 +148,7 @@ final class WiFiHeatmapSurveyViewModel {
     }
 
     private func simulatedRSSI() -> Int {
-        Int.random(in: (-80)...(-45))
+        Int.random(in: -80...(-45))
     }
 
     // MARK: - Computed helpers

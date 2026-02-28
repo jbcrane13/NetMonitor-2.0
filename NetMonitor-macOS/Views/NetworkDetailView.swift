@@ -129,7 +129,8 @@ struct NetworkDetailView: View {
         }
         .task {
             // Resolve gateway domain
-            let gw = profile.gatewayIP; if !gw.isEmpty {
+            let gw = profile.gatewayIP
+            if !gw.isEmpty {
                 resolvedGatewayDomain = await resolveHostname(for: gw)
             }
         }

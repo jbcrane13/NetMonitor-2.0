@@ -58,6 +58,6 @@ final class WiFiHeatmapService: WiFiHeatmapServiceProtocol, @unchecked Sendable 
     /// Returns a plausible simulated RSSI value for use in previews and
     /// on machines where no Wi-Fi interface is available.
     func simulatedRSSI() -> Int {
-        Int.random(in: (-80)...(-45))
+        Int.random(in: -80...(-45))
     }
 }

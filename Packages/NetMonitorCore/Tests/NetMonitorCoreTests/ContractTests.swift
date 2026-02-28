@@ -189,7 +189,7 @@ struct ContractTests {
             #expect(location.region == "CA")
             #expect(location.city == "Mountain View")
             #expect(abs(location.latitude - 37.386) < 0.001)
-            #expect(abs(location.longitude - (-122.0838)) < 0.001)
+            #expect(abs(location.longitude - -122.0838) < 0.001)
             #expect(location.isp == "Google LLC")
         }
 

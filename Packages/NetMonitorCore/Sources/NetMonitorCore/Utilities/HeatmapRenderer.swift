@@ -19,7 +19,7 @@ public enum HeatmapRenderer {
     /// Map an RSSI value (dBm) to an RGB color using the given scheme.
     /// RSSI range: −100 (weakest, t=0) … −30 (strongest, t=1)
     public static func colorComponents(rssi: Int, scheme: HeatmapColorScheme) -> RGB {
-        let t = Double(rssi - (-100)) / Double((-30) - (-100))
+        let t = Double(rssi - -100) / Double((-30) - -100)
         let tc = max(0.0, min(1.0, t))
         return interpolate(t: tc, stops: scheme.colorStops)
     }

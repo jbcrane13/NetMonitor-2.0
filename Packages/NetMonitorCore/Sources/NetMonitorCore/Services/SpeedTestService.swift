@@ -78,8 +78,7 @@ public final class SpeedTestService: SpeedTestServiceProtocol {
         currentTask = task
 
         do {
-            let result = try await task.value
-            return result
+            return try await task.value
         } catch {
             isRunning = false
             if !(error is CancellationError) {
@@ -112,7 +111,7 @@ public final class SpeedTestService: SpeedTestServiceProtocol {
             request.httpMethod = "HEAD"
             request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
             do {
-                let (_, _) = try await session.data(for: request)
+                let _ = try await session.data(for: request)
                 let elapsed = Date().timeIntervalSince(start) * 1000
                 times.append(elapsed)
             } catch {

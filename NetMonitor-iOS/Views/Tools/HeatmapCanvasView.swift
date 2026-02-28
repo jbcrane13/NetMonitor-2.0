@@ -91,13 +91,17 @@ struct HeatmapCanvasView: View {
                 let step: CGFloat = 40
                 var x: CGFloat = 0
                 while x <= size.width {
-                    ctx.stroke(Path { p in p.move(to: .init(x: x, y: 0)); p.addLine(to: .init(x: x, y: size.height)) },
+                    ctx.stroke(Path { p in p.move(to: .init(x: x, y: 0))
+                    p.addLine(to: .init(x: x, y: size.height))
+                    },
                                with: .color(.white.opacity(0.06)), lineWidth: 0.5)
                     x += step
                 }
                 var y: CGFloat = 0
                 while y <= size.height {
-                    ctx.stroke(Path { p in p.move(to: .init(x: 0, y: y)); p.addLine(to: .init(x: size.width, y: y)) },
+                    ctx.stroke(Path { p in p.move(to: .init(x: 0, y: y))
+                    p.addLine(to: .init(x: size.width, y: y))
+                    },
                                with: .color(.white.opacity(0.06)), lineWidth: 0.5)
                     y += step
                 }

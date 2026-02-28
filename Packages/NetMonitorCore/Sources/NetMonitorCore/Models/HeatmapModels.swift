@@ -125,7 +125,7 @@ public enum SignalLevel: Sendable {
     public static func from(rssi: Int) -> SignalLevel {
         switch rssi {
         case (-50)...:      return .strong
-        case (-70)...(-51): return .fair
+        case -70...(-51): return .fair
         default:            return .weak
         }
     }

@@ -6,10 +6,7 @@ import NetworkScanKit
 
 extension NetworkMonitorService {
     /// Platform-level shared instance. Started once at app launch.
-    static let shared: NetworkMonitorService = {
-        let svc = NetworkMonitorService()
-        return svc
-    }()
+    static let shared: NetworkMonitorService = .init()
 }
 
 extension NotificationService {

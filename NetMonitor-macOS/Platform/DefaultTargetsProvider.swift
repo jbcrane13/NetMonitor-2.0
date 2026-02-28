@@ -12,7 +12,7 @@ import NetworkScanKit
 import os
 
 /// Provides default monitoring targets for database seeding on first launch
-struct DefaultTargetsProvider {
+enum DefaultTargetsProvider {
     /// UserDefaults key to track if default targets have been seeded
     static let userDefaultsKey = "netmonitor.hasSeededDefaultTargets"
 

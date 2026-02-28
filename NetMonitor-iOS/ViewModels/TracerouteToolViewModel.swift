@@ -15,6 +15,7 @@ final class TracerouteToolViewModel {
             }
         }
     }
+
     var maxHops: Int = 30
 
     // MARK: - State Properties

@@ -35,7 +35,7 @@ public struct IPv4CIDR: Sendable, Equatable {
     public init(networkAddress: UInt32, prefixLength: Int) {
         self.networkAddress = networkAddress
         self.prefixLength = prefixLength
-        self.subnetMask = prefixLength > 0 ? (~UInt32(0)) << (32 - prefixLength) : 0
+        self.subnetMask = prefixLength > 0 ? ~UInt32(0) << (32 - prefixLength) : 0
     }
     
     /// Parses a CIDR string in the format "xxx.xxx.xxx.xxx/xx".
@@ -58,7 +58,7 @@ public struct IPv4CIDR: Sendable, Equatable {
         
         self.prefixLength = prefix
         self.networkAddress = ipPart.ipv4ToUInt32() & ((~UInt32(0)) << (32 - prefix))
-        self.subnetMask = prefix > 0 ? (~UInt32(0)) << (32 - prefix) : 0
+        self.subnetMask = prefix > 0 ? ~UInt32(0) << (32 - prefix) : 0
     }
     
     /// The first usable host address (network address + 1).

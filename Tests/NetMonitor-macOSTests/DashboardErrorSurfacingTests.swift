@@ -69,14 +69,14 @@ struct DashboardErrorSurfacingTests {
         UserDefaults.standard.removeObject(forKey: Self.surveysKey)
     }
 
-    @Test func loadSurveysWithValidDataLeavesPersistenceErrorNil() {
+    @Test func loadSurveysWithValidDataLeavesPersistenceErrorNil() throws {
         // Write valid survey data to UserDefaults
         let survey = HeatmapSurvey(
             name: "Test Survey",
             mode: .freeform,
             dataPoints: [HeatmapDataPoint(x: 0.5, y: 0.5, signalStrength: -55)]
         )
-        let data = try! JSONEncoder().encode([survey])
+        let data = try JSONEncoder().encode([survey])
         UserDefaults.standard.set(data, forKey: Self.surveysKey)
 
         let vm = WiFiHeatmapToolViewModel(service: StubHeatmapService())

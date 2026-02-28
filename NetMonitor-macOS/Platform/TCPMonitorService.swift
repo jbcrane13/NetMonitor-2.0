@@ -1,6 +1,5 @@
 import Foundation
 import Darwin
-import Darwin
 
 /// Actor-based TCP port monitoring service
 actor TCPMonitorService: NetworkMonitorService {
