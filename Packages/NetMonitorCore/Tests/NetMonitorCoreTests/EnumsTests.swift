@@ -178,6 +178,40 @@ struct TargetProtocolTests {
         #expect(TargetProtocol.http.defaultPort == 80)
         #expect(TargetProtocol.https.defaultPort == 443)
     }
+
+    /// Regression test for bug_targetprotocol_uppercase: SwiftData stored uppercase "HTTPS"
+    /// and the decoder crashed because TargetProtocol(rawValue:) is case-sensitive.
+    /// Fix: case-insensitive Codable init (commit e6c74a0). Ensures it never regresses.
+    @Test("Codable decode accepts uppercase raw values (regression: bug_targetprotocol_uppercase)")
+    func decodeUppercase() throws {
+        struct Wrapper: Codable { let proto: TargetProtocol }
+        let cases: [(String, TargetProtocol)] = [
+            (#"{"proto":"HTTPS"}"#,    .https),
+            (#"{"proto":"HTTP"}"#,     .http),
+            (#"{"proto":"TCP"}"#,      .tcp),
+            (#"{"proto":"ICMP"}"#,     .icmp),
+        ]
+        for (json, expected) in cases {
+            let decoded = try JSONDecoder().decode(Wrapper.self, from: Data(json.utf8))
+            #expect(decoded.proto == expected, "Expected \(expected) decoding \(json)")
+        }
+    }
+
+    @Test("Codable decode accepts mixed-case raw values")
+    func decodeMixedCase() throws {
+        struct Wrapper: Codable { let proto: TargetProtocol }
+        let decoded = try JSONDecoder().decode(Wrapper.self, from: Data(#"{"proto":"Https"}"#.utf8))
+        #expect(decoded.proto == .https)
+    }
+
+    @Test("Codable encode always writes lowercase")
+    func encodeLowercase() throws {
+        struct Wrapper: Codable { let proto: TargetProtocol }
+        let data = try JSONEncoder().encode(Wrapper(proto: .https))
+        let json = String(data: data, encoding: .utf8) ?? ""
+        #expect(json.contains("\"https\""))
+        #expect(!json.contains("\"HTTPS\""))
+    }
 }
 
 // MARK: - DNSRecordType

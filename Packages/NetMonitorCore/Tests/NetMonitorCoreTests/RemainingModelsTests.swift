@@ -792,6 +792,29 @@ struct LocalDeviceTests {
         context.insert(device)
         #expect(device.networkProfileID == profileID)
     }
+
+    /// Regression test for bug_nm2_coredata_isgateway: LocalDevice was missing default values
+    /// for isGateway and supportsWakeOnLan, causing SwiftData migration to crash on upgrade
+    /// from stores created before these columns existed. Fix: default = false (commit ab05737).
+    @Test("isGateway defaults to false (regression: bug_nm2_coredata_isgateway)")
+    @MainActor
+    func isGatewayDefaultsFalse() throws {
+        let container = try makeContainer()
+        let context = ModelContext(container)
+        let device = LocalDevice(ipAddress: "10.0.0.1", macAddress: "00:11:22:33:44:55")
+        context.insert(device)
+        #expect(device.isGateway == false, "isGateway must default to false for SwiftData migration compatibility")
+    }
+
+    @Test("supportsWakeOnLan defaults to false (regression: bug_nm2_coredata_isgateway)")
+    @MainActor
+    func supportsWakeOnLanDefaultsFalse() throws {
+        let container = try makeContainer()
+        let context = ModelContext(container)
+        let device = LocalDevice(ipAddress: "10.0.0.1", macAddress: "00:11:22:33:44:55")
+        context.insert(device)
+        #expect(device.supportsWakeOnLan == false, "supportsWakeOnLan must default to false for SwiftData migration compatibility")
+    }
 }
 
 // MARK: - NetworkTarget Tests

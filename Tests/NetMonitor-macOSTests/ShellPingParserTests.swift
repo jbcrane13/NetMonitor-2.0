@@ -359,6 +359,29 @@ struct ShellPingParserMalformedTests {
         #expect(result.packetLoss == 0.0)
     }
 
+    /// Regression test for ab05737: statsPattern was "stddev" only, missing Linux "mdev" variant.
+    /// Fix: pattern updated to min/avg/max/(?:stddev|mdev). Verifies stddevLatency is
+    /// correctly extracted when Linux "mdev" keyword is present instead of "stddev".
+    @Test("Linux mdev format parses stddevLatency correctly (regression: ab05737)")
+    func linuxMdevStddevLatency() throws {
+        let output = """
+        PING 8.8.8.8 (8.8.8.8) 56(84) bytes of data.
+        64 bytes from 8.8.8.8: icmp_seq=1 ttl=118 time=5.0 ms
+        64 bytes from 8.8.8.8: icmp_seq=2 ttl=118 time=15.0 ms
+
+        --- 8.8.8.8 ping statistics ---
+        2 packets transmitted, 2 received, 0% packet loss, time 1001ms
+        rtt min/avg/max/mdev = 5.0/10.0/15.0/2.5 ms
+        """
+        let result = try ShellPingOutputParser.parseResult(output)
+        #expect(result.minLatency == 5.0)
+        #expect(result.avgLatency == 10.0)
+        #expect(result.maxLatency == 15.0)
+        #expect(result.stddevLatency == 2.5, "stddevLatency must be parsed from Linux mdev keyword")
+        #expect(result.transmitted == 2)
+        #expect(result.received == 2)
+    }
+
     @Test("multiline output with extra blank lines")
     func extraBlankLines() throws {
         let output = """
