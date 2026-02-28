@@ -88,7 +88,7 @@ public final class WorldPingService: WorldPingServiceProtocol, @unchecked Sendab
                 acc[pair.key] = NodeMeta(
                     country: arr.count > 1 ? arr[1] : "Unknown",
                     city: arr.count > 2 ? arr[2] : pair.key,
-                    countryCode: arr.count > 0 ? arr[0] : ""
+                    countryCode: arr.isEmpty ? "" : arr[0]
                 )
             }
             return (response.requestId, nodes)
@@ -262,7 +262,7 @@ public final class WorldPingService: WorldPingServiceProtocol, @unchecked Sendab
         var errorDescription: String? {
             switch self {
             case .submitHTTPError(let code, let msg):
-                if let m = msg { return "World ping submit error: \(m) (HTTP \(code))" }
+                if let apiMsg = msg { return "World ping submit error: \(apiMsg) (HTTP \(code))" }
                 return "World ping submit endpoint returned HTTP \(code)"
             case .submitAPIError(let message):
                 return "World ping API error: \(message)"
