@@ -589,7 +589,7 @@ struct LiveEventTicker: View {
                 VStack(alignment: .leading, spacing: 4) {
                     EventRow(time: "04:32:10", text: "Gateway check: 14ms (Optimal)")
                     EventRow(time: "04:31:45", text: "Local scan: 14 devices active")
-                    EventRow(time: "04:30:12", text: "Starlink connection stable")
+                    EventRow(time: "04:30:12", text: "DNS resolution: 3ms (Fast)")
                 }
             }
         }
