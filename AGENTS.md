@@ -98,10 +98,15 @@ swiftlint --fix                                      # Auto-fix correctable viol
 
 Configuration: `.swiftlint.yml` at repo root. Errors block commits via pre-commit hook; warnings are reported but do not block.
 
+## Agent Readiness
+
+Before starting work, read **`docs/agent-readiness/README.md`**. It describes the current readiness level, coding conventions introduced by previous sessions (TODO format, log scrubbing rules, dead-code baseline, etc.), and which skill files to use for common agent tasks.
+
 ## Runbooks & Reference Docs
 
 | Document | Location | Purpose |
 |----------|----------|---------|
+| Agent Readiness | `docs/agent-readiness/README.md` | Current readiness score, conventions, key files — **read first** |
 | Architecture Decision Records | `docs/ADR.md`, `docs/ADR-macOS.md` | Why key design decisions were made — read before changing patterns |
 | Companion Protocol | `docs/Companion-Protocol-API.md` | Mac↔iOS wire protocol spec — required reading before touching CompanionService |
 | Shared Codebase Plan | `docs/NETMONITOR-2.0-SHARED-CODEBASE-PLAN.md` | Monorepo architecture rationale |
