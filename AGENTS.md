@@ -98,6 +98,60 @@ swiftlint --fix                                      # Auto-fix correctable viol
 
 Configuration: `.swiftlint.yml` at repo root. Errors block commits via pre-commit hook; warnings are reported but do not block.
 
+## Runbooks & Reference Docs
+
+| Document | Location | Purpose |
+|----------|----------|---------|
+| Architecture Decision Records | `docs/ADR.md`, `docs/ADR-macOS.md` | Why key design decisions were made — read before changing patterns |
+| Companion Protocol | `docs/Companion-Protocol-API.md` | Mac↔iOS wire protocol spec — required reading before touching CompanionService |
+| Shared Codebase Plan | `docs/NETMONITOR-2.0-SHARED-CODEBASE-PLAN.md` | Monorepo architecture rationale |
+| Testing Lessons Learned | `docs/TESTING-LESSONS-LEARNED.md` | Common test pitfalls and patterns specific to this project |
+| SwiftUI Best Practices | `docs/SwiftUI Best Practices.md` | Project-specific UI conventions |
+| iOS PRD | `docs/NetMonitor iOS Companion - Product Requirements Document.md` | Feature requirements for iOS target |
+| macOS PRD | `docs/NetMonitor for macOS - Product Requirements Document.md` | Feature requirements for macOS target |
+| Coverage Gates | `docs/testing/coverage-gates.md` | How coverage thresholds are enforced and how to read results |
+
+**Agent workflow runbooks** (step-by-step procedures):
+
+| Skill | Purpose |
+|-------|---------|
+| `.factory/skills/run-tests/SKILL.md` | Run tests on mac-mini via SSH |
+| `.factory/skills/check-coverage/SKILL.md` | Run and interpret coverage gates |
+| `.factory/skills/create-release/SKILL.md` | End-to-end release procedure |
+| `.factory/skills/fix-lint/SKILL.md` | Resolve SwiftLint and SwiftFormat failures |
+
+## Logging Guidelines
+
+All logging uses `os.Logger` with named subsystem categories. Logger instances are defined in:
+- `NetMonitor-macOS/Platform/Logging.swift`
+- `NetMonitor-iOS/Platform/Logging.swift`
+
+**Log scrubbing is required for network-identifying data.** Use `LogSanitizer` (in `NetMonitorCore/Utilities/LogSanitizer.swift`) when logging values that could identify users or their location:
+
+```swift
+// IP addresses
+Logger.network.debug("Connecting to \(LogSanitizer.redactIP(ipAddress))")
+
+// MAC addresses
+Logger.discovery.info("Found device \(LogSanitizer.redactMAC(macAddress))")
+
+// Hostnames / SSIDs
+Logger.network.debug("SSID: \(LogSanitizer.redactSSID(ssid))")
+```
+
+`LogSanitizer` passes values through unmodified in `DEBUG` builds and redacts them in `Release` builds. Never log raw IPs, MACs, SSIDs, or hostnames outside of `LogSanitizer` wrappers.
+
+## Code Quality Tools
+
+| Tool | Command | Purpose |
+|------|---------|---------|
+| SwiftLint | `swiftlint lint --quiet` | Style and correctness errors |
+| SwiftFormat | `swiftformat --lint .` | Formatting violations |
+| Periphery | `periphery scan --quiet` | Unused declarations (dead code) |
+| jscpd | `jscpd --languages swift .` | Duplicate code detection |
+
+CI runs all four on every PR via `lint.yml` and `code-quality.yml`. Periphery and jscpd are warning-only and do not block merges.
+
 ## Core Patterns
 
 - **Service protocols** defined in `NetMonitorCore/Services/ServiceProtocols.swift`; implemented per-platform

@@ -25,6 +25,7 @@ GitHub configuration directory. Contains CI/CD workflow definitions, project aut
 |----------|---------|---------|
 | `lint.yml` | PR + push to main | SwiftLint errors gate, SwiftFormat gate, bare-TODO warnings, AGENTS.md validation |
 | `coverage-gates.yml` | PR + push to main | Runs full test suite + enforces per-target coverage thresholds |
+| `code-quality.yml` | PR + push to main | Periphery dead code scan, jscpd duplicate detection, log scrubbing compliance, doc freshness (all warning-only) |
 | `release.yml` | Push of `v*` tag | Validates, builds macOS + iOS, creates a draft GitHub Release with auto-generated notes |
 
 ## For AI Agents

@@ -1,0 +1,148 @@
+name: Code Quality
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  dead-code:
+    name: Dead Code (Periphery)
+    runs-on: macos-15
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install tools
+        run: brew install periphery xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Scan for dead code
+        # Warning-only: annotations appear on PRs but do not block merges.
+        # To promote to blocking, change --format to xcode and add || exit 1
+        run: |
+          count=$(periphery scan --quiet --format github-actions 2>&1 | tee /dev/stderr | grep -c "::warning" || true)
+          echo ""
+          echo "Periphery found ${count} unused declaration(s)."
+          echo "These are warnings only and do not block this PR."
+          echo "Address them via bd create issues and reference the ticket in a // periphery:ignore comment."
+        continue-on-error: true
+
+      - name: Upload Periphery report
+        if: always()
+        run: |
+          periphery scan --quiet --format json 2>/dev/null \
+            > build/periphery-report.json || true
+          echo "Periphery report saved to build/periphery-report.json"
+
+  duplicate-code:
+    name: Duplicate Code (jscpd)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install jscpd
+        run: npm install -g jscpd
+
+      - name: Scan for duplicate code
+        # Warning-only: reports duplication percentage but does not block.
+        # Threshold is 5% — adjust in .jscpd.json as the codebase matures.
+        run: |
+          jscpd \
+            --languages swift \
+            --min-tokens 60 \
+            --min-lines 6 \
+            --threshold 5 \
+            --reporters consoleFull \
+            --ignore "**/build/**,**/.build/**,**/*Tests*/**,**/*.xcodeproj/**" \
+            . 2>&1 || true
+          echo ""
+          echo "Duplicate code report complete. Results above are informational."
+          echo "To address: extract shared logic into NetMonitorCore or a shared extension."
+        continue-on-error: true
+
+  log-scrubbing:
+    name: Log Scrubbing Compliance
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check for unguarded sensitive values in log statements
+        # Flags Logger calls that interpolate known-sensitive variable names
+        # (ip, mac, ssid, hostname) without a LogSanitizer wrapper.
+        # Warning-only — does not block merges.
+        run: |
+          pattern='(Logger\.[a-z]+\.(debug|info|warning|error|fault|trace).*\b(ipAddress|macAddress|ssid|hostname|gatewayIP)\b(?!.*LogSanitizer))'
+          hits=$(grep -rn --include="*.swift" -E "$pattern" \
+            --exclude-dir=build --exclude-dir=.build \
+            --exclude-dir="*Tests*" || true)
+
+          if [[ -n "$hits" ]]; then
+            echo "::warning::Possible unredacted sensitive values in log statements."
+            echo "Wrap with LogSanitizer.redactIP(), redactMAC(), redactSSID(), or redactHostname()."
+            echo ""
+            echo "$hits"
+          else
+            echo "Log scrubbing compliance check passed."
+          fi
+          exit 0
+
+  doc-freshness:
+    name: Documentation Freshness
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify key docs updated in last 180 days
+        run: |
+          stale=0
+          for doc in README.md AGENTS.md docs/ADR.md docs/Companion-Protocol-API.md; do
+            if [[ ! -f "$doc" ]]; then
+              echo "::warning::Doc not found: $doc"
+              continue
+            fi
+            last_commit=$(git log -1 --format="%ct" -- "$doc" 2>/dev/null || echo "0")
+            cutoff=$(date -d "180 days ago" +%s 2>/dev/null || date -v-180d +%s)
+            if [[ "$last_commit" -lt "$cutoff" ]]; then
+              age_days=$(( ( $(date +%s) - last_commit ) / 86400 ))
+              echo "::warning::$doc has not been updated in ${age_days} days (threshold: 180)"
+              stale=1
+            else
+              last_date=$(git log -1 --format="%ad" --date=short -- "$doc")
+              echo "OK: $doc (last updated $last_date)"
+            fi
+          done
+
+          if [[ $stale -eq 0 ]]; then
+            echo "All key documentation is current."
+          fi
+          # Warning-only — stale docs don't block merges
+          exit 0
+
+      - name: Verify skills frontmatter is complete
+        run: |
+          missing=0
+          for skill_file in .factory/skills/*/SKILL.md; do
+            [[ -f "$skill_file" ]] || continue
+            if ! grep -q "^name:" "$skill_file" || ! grep -q "^description:" "$skill_file"; then
+              echo "::error::Incomplete frontmatter in $skill_file"
+              missing=1
+            fi
+          done
+          exit $missing

@@ -1,0 +1,15 @@
+{
+  "languages": ["swift"],
+  "minTokens": 60,
+  "minLines": 6,
+  "threshold": 5,
+  "reporters": ["consoleFull"],
+  "ignore": [
+    "**/build/**",
+    "**/.build/**",
+    "**/.worktrees/**",
+    "**/*Tests*/**",
+    "**/*.xcodeproj/**",
+    "**/TestFixtures/**"
+  ]
+}
