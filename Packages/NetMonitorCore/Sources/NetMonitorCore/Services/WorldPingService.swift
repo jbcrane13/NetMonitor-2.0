@@ -53,11 +53,9 @@ public final class WorldPingService: WorldPingServiceProtocol, @unchecked Sendab
         }
 
         // Distribute probes across continents for meaningful global coverage.
-        // Request ~2 per continent minimum, scaling up with limit.
         let continents = ["NA", "EU", "AS", "SA", "OC", "AF"]
-        let perContinent = max(1, limit / continents.count)
         let locations = continents.map { code in
-            ["continent": code, "limit": perContinent] as [String: Any]
+            ["continent": code] as [String: Any]
         }
 
         let body: [String: Any] = [
