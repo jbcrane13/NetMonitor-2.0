@@ -273,4 +273,170 @@ struct DashboardViewModelTests {
         let vm = makeVM()
         #expect(vm.recentEvents.count == 3) // prefix(3) caps the result
     }
+
+}
+
+// MARK: - Event Logging Dedup Tests
+
+@Suite("DashboardViewModel Event Logging")
+@MainActor
+struct DashboardViewModelEventLoggingTests {
+
+    func makeVM(
+        wifiService: MockWiFiInfoService = MockWiFiInfoService(),
+        gatewayService: MockGatewayService = MockGatewayService(),
+        pingService: any PingServiceProtocol = MockPingService()
+    ) -> DashboardViewModel {
+        let suiteName = "EventLoggingTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        let manager = NetworkProfileManager(userDefaults: defaults, activeProfilesProvider: { [] })
+        return DashboardViewModel(
+            wifiService: wifiService,
+            gatewayService: gatewayService,
+            networkProfileManager: manager,
+            pingService: pingService,
+            userDefaults: defaults
+        )
+    }
+
+    // MARK: WiFi Dedup
+
+    @Test func wifiLogsOnFirstSSID() async {
+        ToolActivityLog.shared.clear()
+        defer { ToolActivityLog.shared.clear() }
+
+        let wifiService = MockWiFiInfoService()
+        wifiService.currentWiFi = WiFiInfo(ssid: "Home")
+        let vm = makeVM(wifiService: wifiService)
+
+        await vm.refresh()
+
+        let wifiEvents = ToolActivityLog.shared.entries.filter { $0.tool == "WiFi" }
+        #expect(wifiEvents.count == 1)
+    }
+
+    @Test func wifiDoesNotLogOnSameSSID() async {
+        ToolActivityLog.shared.clear()
+        defer { ToolActivityLog.shared.clear() }
+
+        let wifiService = MockWiFiInfoService()
+        wifiService.currentWiFi = WiFiInfo(ssid: "Home")
+        let vm = makeVM(wifiService: wifiService)
+
+        await vm.refresh()
+        await vm.refresh()
+
+        let wifiEvents = ToolActivityLog.shared.entries.filter { $0.tool == "WiFi" }
+        #expect(wifiEvents.count == 1)
+    }
+
+    @Test func wifiLogsOnSSIDChange() async {
+        ToolActivityLog.shared.clear()
+        defer { ToolActivityLog.shared.clear() }
+
+        let wifiService = MockWiFiInfoService()
+        wifiService.currentWiFi = WiFiInfo(ssid: "Home")
+        let vm = makeVM(wifiService: wifiService)
+
+        await vm.refresh()
+
+        wifiService.currentWiFi = WiFiInfo(ssid: "Office")
+        await vm.refresh()
+
+        let wifiEvents = ToolActivityLog.shared.entries.filter { $0.tool == "WiFi" }
+        #expect(wifiEvents.count == 2)
+    }
+
+    // MARK: Gateway Dedup
+
+    @Test func gatewayLogsOnFirstDetection() async {
+        ToolActivityLog.shared.clear()
+        defer { ToolActivityLog.shared.clear() }
+
+        let gatewayService = MockGatewayService()
+        gatewayService.gateway = GatewayInfo(ipAddress: "192.168.1.1", latency: 30.0)
+        let vm = makeVM(gatewayService: gatewayService)
+
+        await vm.refresh()
+
+        let gatewayEvents = ToolActivityLog.shared.entries.filter { $0.tool == "Gateway" }
+        #expect(gatewayEvents.count == 1)
+    }
+
+    @Test func gatewayDoesNotLogOnSmallDelta() async {
+        ToolActivityLog.shared.clear()
+        defer { ToolActivityLog.shared.clear() }
+
+        let gatewayService = MockGatewayService()
+        gatewayService.gateway = GatewayInfo(ipAddress: "192.168.1.1", latency: 30.0)
+        let vm = makeVM(gatewayService: gatewayService)
+
+        await vm.refresh() // first: latency=30ms, logs (first detection)
+
+        // 35ms: delta = |35-30|/30 ≈ 16.7% < 30%, no threshold crossing — should NOT log
+        gatewayService.gateway = GatewayInfo(ipAddress: "192.168.1.1", latency: 35.0)
+        await vm.refresh()
+
+        let gatewayEvents = ToolActivityLog.shared.entries.filter { $0.tool == "Gateway" }
+        #expect(gatewayEvents.count == 1)
+    }
+
+    @Test func gatewayLogsOnLargeLatencyDelta() async {
+        ToolActivityLog.shared.clear()
+        defer { ToolActivityLog.shared.clear() }
+
+        let gatewayService = MockGatewayService()
+        gatewayService.gateway = GatewayInfo(ipAddress: "192.168.1.1", latency: 30.0)
+        let vm = makeVM(gatewayService: gatewayService)
+
+        await vm.refresh() // first: latency=30ms, logs
+
+        // 45ms: delta = |45-30|/30 = 50% > 30%, both below 50ms — logs due to large delta
+        gatewayService.gateway = GatewayInfo(ipAddress: "192.168.1.1", latency: 45.0)
+        await vm.refresh()
+
+        let gatewayEvents = ToolActivityLog.shared.entries.filter { $0.tool == "Gateway" }
+        #expect(gatewayEvents.count == 2)
+    }
+
+    @Test func gatewayLogsOnThresholdCrossing() async {
+        ToolActivityLog.shared.clear()
+        defer { ToolActivityLog.shared.clear() }
+
+        let gatewayService = MockGatewayService()
+        gatewayService.gateway = GatewayInfo(ipAddress: "192.168.1.1", latency: 48.0)
+        let vm = makeVM(gatewayService: gatewayService)
+
+        await vm.refresh() // first: latency=48ms, logs
+
+        // 52ms: delta = |52-48|/48 ≈ 8.3% < 30%, but crosses 50ms boundary — logs due to threshold
+        gatewayService.gateway = GatewayInfo(ipAddress: "192.168.1.1", latency: 52.0)
+        await vm.refresh()
+
+        let gatewayEvents = ToolActivityLog.shared.entries.filter { $0.tool == "Gateway" }
+        #expect(gatewayEvents.count == 2)
+    }
+
+    // MARK: Anchor Summary
+
+    @Test func anchorSummaryLoggedAfterRefresh() async throws {
+        ToolActivityLog.shared.clear()
+        defer { ToolActivityLog.shared.clear() }
+
+        let ping = MockPingService()
+        ping.mockResults = [
+            PingResult(sequence: 1, host: "8.8.8.8", ttl: 64, time: 15.0, isTimeout: false)
+        ]
+        let vm = makeVM(pingService: ping)
+
+        await vm.refresh()
+        // measureAnchors() runs in a detached Task; give it time to complete
+        try await Task.sleep(for: .milliseconds(200))
+
+        let anchorEvents = ToolActivityLog.shared.entries.filter {
+            $0.tool == "Internet" && $0.target == "Anchors"
+        }
+        #expect(!anchorEvents.isEmpty)
+    }
 }
