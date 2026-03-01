@@ -52,15 +52,19 @@ collect_xccov_reports() {
 }
 
 run_package_coverage_tests() {
+  # --no-parallel prevents concurrent test suite execution which triggers
+  # EXC_BREAKPOINT crashes in Foundation's Swift URLSession on macOS 26 beta
+  # when SpeedTestService creates real ephemeral sessions concurrently with
+  # mock sessions from other suites. Remove if the bug is fixed in a later OS.
   (
     cd "$ROOT_DIR/Packages/NetMonitorCore"
-    swift test --enable-code-coverage
+    swift test --enable-code-coverage --no-parallel
     cp "$(swift test --show-codecov-path)" "$NETMONITORCORE_COVERAGE_JSON"
   )
 
   (
     cd "$ROOT_DIR/Packages/NetworkScanKit"
-    swift test --enable-code-coverage
+    swift test --enable-code-coverage --no-parallel
     cp "$(swift test --show-codecov-path)" "$NETWORKSCANKIT_COVERAGE_JSON"
   )
 }

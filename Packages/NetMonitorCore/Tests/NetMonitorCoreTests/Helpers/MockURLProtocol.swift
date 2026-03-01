@@ -13,17 +13,23 @@ import Foundation
 ///    Tests using this path must run inside a `.serialized` suite to prevent races.
 final class MockURLProtocol: URLProtocol, @unchecked Sendable {
 
+    // MARK: - Shared-state lock
+    // Protects both requestHandler and sessionHandlers against concurrent
+    // access from test suites that run in parallel by default in Swift Testing.
+    private static let lock = NSLock()
+
     // MARK: - Global static handler (legacy, shared across sessions)
-    // nonisolated(unsafe): tests set this before creating the session and read it only
-    // on the URLProtocol dispatch queue — serialized suites prevent data races.
-    nonisolated(unsafe) static var requestHandler: ((URLRequest) throws -> (HTTPURLResponse, Data))?
+    static var requestHandler: ((URLRequest) throws -> (HTTPURLResponse, Data))? {
+        get { lock.withLock { _requestHandler } }
+        set { lock.withLock { _requestHandler = newValue } }
+    }
+
+    nonisolated(unsafe) private static var _requestHandler: ((URLRequest) throws -> (HTTPURLResponse, Data))?
 
     // MARK: - Per-session handler registry
     // Key: a UUID string injected into every request as a custom header by the session.
     // Value: handler closure specific to that session.
-    // nonisolated(unsafe): access is always serialized by URLSession's internal serial
-    // dispatch queue for a given session, and different sessions use different keys.
-    nonisolated(unsafe) private static var sessionHandlers:
+    nonisolated(unsafe) private static var _sessionHandlers:
         [String: (URLRequest) throws -> (HTTPURLResponse, Data)] = [:]
 
     private static let sessionTokenHeader = "X-Mock-Session-Token"
@@ -34,14 +40,19 @@ final class MockURLProtocol: URLProtocol, @unchecked Sendable {
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
 
     override func startLoading() {
-        // Per-session handler path (race-free): look up by token in request header.
-        if let token = request.value(forHTTPHeaderField: MockURLProtocol.sessionTokenHeader),
-           let handler = MockURLProtocol.sessionHandlers[token] {
-            dispatch(handler: handler)
-            return
+        // Per-session handler path: look up by token in request header.
+        // Lock is released before dispatching to avoid deadlock if the handler
+        // itself calls back into MockURLProtocol.
+        if let token = request.value(forHTTPHeaderField: MockURLProtocol.sessionTokenHeader) {
+            let handler = MockURLProtocol.lock.withLock { MockURLProtocol._sessionHandlers[token] }
+            if let handler {
+                dispatch(handler: handler)
+                return
+            }
         }
         // Global static handler path (legacy).
-        if let handler = MockURLProtocol.requestHandler {
+        let handler = MockURLProtocol.lock.withLock { MockURLProtocol._requestHandler }
+        if let handler {
             dispatch(handler: handler)
             return
         }
@@ -73,7 +84,7 @@ final class MockURLProtocol: URLProtocol, @unchecked Sendable {
         handler: @escaping (URLRequest) throws -> (HTTPURLResponse, Data)
     ) -> URLSession {
         let token = UUID().uuidString
-        sessionHandlers[token] = handler
+        lock.withLock { _sessionHandlers[token] = handler }
 
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [MockURLProtocol.self]
