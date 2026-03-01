@@ -110,7 +110,7 @@ struct WorldPingToolView: View {
                         Spacer()
 
                         if let latency = result.latencyMs {
-                            Text(String(format: "%.0f ms", latency))
+                            Text(latency < 10 ? String(format: "%.1f ms", latency) : String(format: "%.0f ms", latency))
                                 .font(.system(.body, design: .monospaced))
                                 .fontWeight(.medium)
                                 .foregroundStyle(latencyColor(latency))

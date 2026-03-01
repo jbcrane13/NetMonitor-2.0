@@ -88,11 +88,11 @@ struct WorldPingToolView: View {
             statItem(label: "Success", value: "\(viewModel.successCount)")
             Spacer()
             if let avg = viewModel.averageLatencyMs {
-                statItem(label: "Avg", value: String(format: "%.0f ms", avg))
+                statItem(label: "Avg", value: avg < 10 ? String(format: "%.1f ms", avg) : String(format: "%.0f ms", avg))
                 Spacer()
             }
             if let best = viewModel.bestLatencyMs {
-                statItem(label: "Best", value: String(format: "%.0f ms", best), color: Theme.Colors.success)
+                statItem(label: "Best", value: best < 10 ? String(format: "%.1f ms", best) : String(format: "%.0f ms", best), color: Theme.Colors.success)
             }
         }
         .padding(.horizontal, 4)
@@ -205,7 +205,7 @@ private struct WorldPingLocationRow: View {
 
             if let latency = result.latencyMs {
                 VStack(alignment: .trailing, spacing: 2) {
-                    Text(String(format: "%.0f ms", latency))
+                    Text(latency < 10 ? String(format: "%.1f ms", latency) : String(format: "%.0f ms", latency))
                         .font(.system(.subheadline, design: .monospaced))
                         .fontWeight(.medium)
                         .foregroundStyle(Theme.Colors.latencyColor(ms: latency))
