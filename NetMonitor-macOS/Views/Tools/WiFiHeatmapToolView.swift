@@ -14,85 +14,195 @@ struct WiFiHeatmapToolView: View {
     @State private var macCalibUnit: DistanceUnit = .feet
 
     var body: some View {
-        NavigationSplitView {
-            surveyListSidebar
-        } content: {
-            VStack(spacing: 0) {
-                macToolbar
-                macCanvas
+        VStack(spacing: 0) {
+            headerBar
+            Divider().background(MacTheme.Colors.glassBorder)
+            HStack(spacing: 0) {
+                surveyListPanel
+                Divider().background(MacTheme.Colors.glassBorder)
+                canvasAndToolbar
+                Divider().background(MacTheme.Colors.glassBorder)
+                inspectorPanel
             }
-            .navigationTitle("")
-        } detail: {
-            statsSidebar
         }
-        .sheet(isPresented: $showingCalibration) {
-            macCalibrationSheet
-        }
-        .frame(minWidth: 900, minHeight: 550)
+        .background(MacTheme.Colors.backgroundBase)
+        .sheet(isPresented: $showingCalibration) { macCalibrationSheet }
+        .frame(minWidth: 1000, minHeight: 600)
     }
 
-    // MARK: - Left Sidebar: Survey List
+    // MARK: - Header Bar
 
-    private var surveyListSidebar: some View {
-        List {
-            Section("Surveys") {
+    private var headerBar: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Wi-Fi Heatmap Analysis")
+                    .font(.title2).fontWeight(.bold)
+                    .foregroundStyle(MacTheme.Colors.textPrimary)
+                Text(vm.statusMessage)
+                    .font(.system(size: 12, design: .monospaced))
+                    .foregroundStyle(MacTheme.Colors.textSecondary)
+            }
+
+            Spacer()
+
+            if vm.isSurveying {
+                HStack(spacing: 6) {
+                    Circle().fill(MacTheme.Colors.error).frame(width: 8, height: 8)
+                    Text("\(vm.currentRSSI) dBm")
+                        .font(.system(.caption, design: .monospaced))
+                        .foregroundStyle(vm.signalColor)
+                }
+                .padding(.trailing, 8)
+            }
+
+            Button {
+                let panel = NSOpenPanel()
+                panel.allowedContentTypes = [.image, .pdf]
+                panel.allowsMultipleSelection = false
+                if panel.runModal() == .OK, let url = panel.url,
+                   let img = NSImage(contentsOf: url) {
+                    vm.floorplanImage = img
+                }
+            } label: {
+                Label("Import Blueprint", systemImage: "doc.badge.plus")
+                    .fontWeight(.medium)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(MacTheme.Colors.info)
+            .controlSize(.large)
+
+            Button {
+                showingCalibration = true
+            } label: {
+                Label("Calibrate", systemImage: "ruler")
+                    .fontWeight(.medium)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.large)
+            .foregroundStyle(vm.calibration != nil ? MacTheme.Colors.info : MacTheme.Colors.textSecondary)
+        }
+        .padding(.horizontal, 24)
+        .padding(.vertical, 16)
+        .background(MacTheme.Colors.backgroundElevated)
+    }
+
+    // MARK: - Survey List Panel
+
+    private var surveyListPanel: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("RECENT SURVEYS")
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(MacTheme.Colors.textTertiary)
+                .tracking(1)
+                .padding(.horizontal, 16)
+                .padding(.top, 16)
+                .padding(.bottom, 8)
+
+            List(selection: Binding(
+                get: { vm.selectedSurveyID },
+                set: { id in
+                    if let id, let survey = vm.surveys.first(where: { $0.id == id }) {
+                        vm.selectSurvey(survey)
+                    }
+                }
+            )) {
                 ForEach(vm.surveys) { survey in
                     surveyRow(survey)
+                        .tag(survey.id)
+                        .listRowBackground(
+                            vm.selectedSurveyID == survey.id
+                                ? MacTheme.Colors.sidebarActive.opacity(0.5)
+                                : Color.clear
+                        )
                 }
                 .onDelete { indices in
                     indices.forEach { vm.deleteSurvey(vm.surveys[$0]) }
                 }
             }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
 
-            Section("Tools") {
-                Button {
-                    showingCalibration = true
-                } label: {
-                    Label("Calibrate Scale", systemImage: "ruler")
-                }
-                .buttonStyle(.plain)
-                .foregroundColor(vm.calibration != nil ? .accentColor : .primary)
+            Divider().background(MacTheme.Colors.glassBorder)
 
-                Button {
-                    if vm.isSurveying { vm.stopSurvey() } else { vm.startSurvey() }
-                } label: {
-                    Label(vm.isSurveying ? "Stop Survey" : "New Survey",
-                          systemImage: vm.isSurveying ? "stop.circle.fill" : "plus.circle")
-                }
-                .buttonStyle(.plain)
-                .foregroundColor(vm.isSurveying ? .red : .primary)
-                .keyboardShortcut("r", modifiers: .command)
+            Button {
+                if vm.isSurveying { vm.stopSurvey() } else { vm.startSurvey() }
+            } label: {
+                Label(
+                    vm.isSurveying ? "Stop Survey" : "New Survey",
+                    systemImage: vm.isSurveying ? "stop.circle.fill" : "plus.circle.fill"
+                )
+                .frame(maxWidth: .infinity)
+                .fontWeight(.medium)
             }
+            .buttonStyle(.borderedProminent)
+            .tint(vm.isSurveying ? MacTheme.Colors.error : MacTheme.Colors.info)
+            .controlSize(.large)
+            .keyboardShortcut("r", modifiers: .command)
+            .padding(12)
         }
-        .listStyle(.sidebar)
-        .navigationSplitViewColumnWidth(min: 180, ideal: 200)
+        .frame(width: 280)
+        .background(MacTheme.Colors.backgroundBase)
     }
 
     private func surveyRow(_ survey: HeatmapSurvey) -> some View {
-        Button {
-            vm.selectSurvey(survey)
-        } label: {
-            VStack(alignment: .leading, spacing: 3) {
-                HStack {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: survey.mode == .floorplan ? "map.fill" : "hand.tap.fill")
+                .foregroundStyle(MacTheme.Colors.info)
+                .font(.system(size: 18))
+                .frame(width: 24, alignment: .center)
+                .padding(.top, 2)
+
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 6) {
                     Text(survey.name)
-                        .fontWeight(vm.selectedSurveyID == survey.id ? .semibold : .regular)
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundStyle(MacTheme.Colors.textPrimary)
                     if survey.calibration != nil {
-                        Image(systemName: "ruler").font(.caption2).foregroundColor(.accentColor)
+                        Image(systemName: "ruler")
+                            .font(.caption2)
+                            .foregroundStyle(MacTheme.Colors.info)
                     }
                 }
-                Text("\(survey.dataPoints.count) pts · \(survey.mode.displayName)")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                HStack(spacing: 6) {
+                    Text("\(survey.dataPoints.count) nodes")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(MacTheme.Colors.success)
+                    Text("\u{2022}")
+                        .foregroundStyle(MacTheme.Colors.textTertiary)
+                    Text(survey.createdAt.formatted(date: .abbreviated, time: .shortened))
+                        .font(.system(size: 12))
+                        .foregroundStyle(MacTheme.Colors.textSecondary)
+                }
             }
         }
-        .buttonStyle(.plain)
-        .tag(survey.id)
+        .padding(.vertical, 6)
     }
 
-    // MARK: - Toolbar
+    // MARK: - Canvas + Sub-Toolbar
 
-    private var macToolbar: some View {
-        HStack(spacing: 6) {
+    private var canvasAndToolbar: some View {
+        VStack(spacing: 0) {
+            canvasToolbar
+            Divider().background(MacTheme.Colors.glassBorder)
+            macCanvas
+        }
+    }
+
+    private var canvasToolbar: some View {
+        HStack {
+            if let sel = vm.selectedSurveyID,
+               let survey = vm.surveys.first(where: { $0.id == sel }) {
+                Text(survey.name)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(MacTheme.Colors.textPrimary)
+            } else if vm.isSurveying {
+                Text("Recording\u{2026}")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(MacTheme.Colors.error)
+            }
+
+            Spacer()
+
             Picker("Scheme", selection: $vm.colorScheme) {
                 ForEach(HeatmapColorScheme.allCases, id: \.self) { scheme in
                     Text(scheme.displayName).tag(scheme)
@@ -132,26 +242,20 @@ struct WiFiHeatmapToolView: View {
             .buttonStyle(.plain).controlSize(.small)
             .help("Reset zoom & pan")
 
-            Spacer()
+            Divider().frame(height: 20)
 
-            if vm.isSurveying {
-                HStack(spacing: 6) {
-                    Circle().fill(vm.signalColor).frame(width: 8)
-                    Text("\(vm.currentRSSI) dBm")
-                        .font(.system(.caption, design: .monospaced))
-                        .foregroundColor(vm.signalColor)
-                }
+            HStack(spacing: 12) {
+                Button {} label: {
+                    Image(systemName: "printer").foregroundStyle(MacTheme.Colors.textSecondary)
+                }.buttonStyle(.plain)
+                Button {} label: {
+                    Image(systemName: "square.and.arrow.up").foregroundStyle(MacTheme.Colors.textSecondary)
+                }.buttonStyle(.plain)
             }
-
-            Text(vm.statusMessage)
-                .font(.caption)
-                .foregroundColor(.secondary)
-                .lineLimit(1)
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
-        .background(Material.bar)
-        .overlay(Divider(), alignment: .bottom)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(MacTheme.Colors.backgroundElevated.opacity(0.6))
     }
 
     private func overlayToggle(_ label: String, overlay: HeatmapDisplayOverlay) -> some View {
@@ -159,8 +263,7 @@ struct WiFiHeatmapToolView: View {
         return Toggle(label, isOn: Binding(
             get: { active },
             set: { on in
-                if on { vm.displayOverlays.insert(overlay) }
-                else { vm.displayOverlays.remove(overlay) }
+                if on { vm.displayOverlays.insert(overlay) } else { vm.displayOverlays.remove(overlay) }
             }
         ))
         .toggleStyle(.button)
@@ -175,10 +278,6 @@ struct WiFiHeatmapToolView: View {
             ZStack {
                 Color.black
 
-                // NOTE: HeatmapCanvasView lives in NetMonitor-iOS and uses UIImage.
-                // Task 11 will add #if os(iOS)/#if os(macOS) guards and move the
-                // canvas to a shared location. For now we use MacHeatmapCanvasView
-                // which is a macOS-native equivalent without UIImage dependency.
                 MacHeatmapCanvasView(
                     points: vm.dataPoints,
                     floorplanImage: vm.floorplanImage,
@@ -215,7 +314,8 @@ struct WiFiHeatmapToolView: View {
                         }
                 )
 
-                if let hover = vm.hoverPoint, let rssi = interpolatedRSSI(at: hover, in: geo.size) {
+                if let hover = vm.hoverPoint,
+                   let rssi = interpolatedRSSI(at: hover, in: geo.size) {
                     hoverTooltip(rssi: rssi, pt: hover, canvasSize: geo.size)
                 }
             }
@@ -231,12 +331,11 @@ struct WiFiHeatmapToolView: View {
 
     private func interpolatedRSSI(at pt: CGPoint, in size: CGSize) -> Int? {
         guard !vm.dataPoints.isEmpty else { return nil }
-        let closest = vm.dataPoints.min {
+        return vm.dataPoints.min {
             let dx0 = $0.x * size.width - pt.x, dy0 = $0.y * size.height - pt.y
             let dx1 = $1.x * size.width - pt.x, dy1 = $1.y * size.height - pt.y
-            return dx0*dx0+dy0*dy0 < dx1*dx1+dy1*dy1
-        }
-        return closest?.signalStrength
+            return dx0 * dx0 + dy0 * dy0 < dx1 * dx1 + dy1 * dy1
+        }?.signalStrength
     }
 
     private func hoverTooltip(rssi: Int, pt: CGPoint, canvasSize: CGSize) -> some View {
@@ -245,61 +344,111 @@ struct WiFiHeatmapToolView: View {
         if let cal = vm.calibration {
             let rx = cal.realDistance(pixels: pt.x)
             let ry = cal.realDistance(pixels: pt.y)
-            coord = String(format: " · (%.1f %@, %.1f %@)", rx, cal.unit.displayName, ry, cal.unit.displayName)
+            coord = String(format: " \u{00B7} (%.1f %@, %.1f %@)",
+                           rx, cal.unit.displayName, ry, cal.unit.displayName)
         }
-        return Text("\(rssi) dBm · \(level.label)\(coord)")
+        return Text("\(rssi) dBm \u{00B7} \(level.label)\(coord)")
             .font(.system(.caption2, design: .monospaced))
             .padding(.horizontal, 8)
             .padding(.vertical, 5)
             .background(.ultraThinMaterial)
             .clipShape(RoundedRectangle(cornerRadius: 6))
-            .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.accentColor.opacity(0.4), lineWidth: 1))
-            .position(x: min(pt.x + 80, canvasSize.width - 80), y: max(pt.y - 20, 20))
+            .overlay(RoundedRectangle(cornerRadius: 6)
+                .stroke(Color.accentColor.opacity(0.4), lineWidth: 1))
+            .position(x: min(pt.x + 80, canvasSize.width - 80),
+                      y: max(pt.y - 20, 20))
             .allowsHitTesting(false)
     }
 
-    // MARK: - Right Sidebar: Stats
+    // MARK: - Inspector Panel
 
-    private var statsSidebar: some View {
+    private var inspectorPanel: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Signal Stats")
-                    .font(.headline)
-                    .padding(.top, 4)
+            VStack(alignment: .leading, spacing: 20) {
+                Text("SURVEY INSPECTOR")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(MacTheme.Colors.textTertiary)
+                    .tracking(1)
 
-                statBlock(value: vm.stats.averageDBm.map { "\($0) dBm" } ?? "--",
-                          label: "Average", color: .primary)
-                statBlock(value: vm.stats.weakestDBm.map { "\($0) dBm" } ?? "--",
-                          label: "Minimum (worst)", color: .red)
-                statBlock(value: vm.stats.strongestDBm.map { "\($0) dBm" } ?? "--",
-                          label: "Maximum (best)", color: .green)
-
-                Divider()
-                Text("Coverage").font(.headline)
-
-                statBlock(value: vm.stats.strongCoveragePercent.map { "\($0)%" } ?? "--",
-                          label: "Strong (>= -50 dBm)")
-
-                Divider()
-                Text("Scale").font(.headline)
+                VStack(spacing: 12) {
+                    telemetryRow(
+                        label: "Avg Signal",
+                        value: vm.stats.averageDBm.map { "\($0) dBm" } ?? "--",
+                        color: vm.stats.averageDBm.map {
+                            $0 >= -60 ? MacTheme.Colors.success : MacTheme.Colors.warning
+                        } ?? MacTheme.Colors.textTertiary
+                    )
+                    telemetryRow(
+                        label: "Best Signal",
+                        value: vm.stats.strongestDBm.map { "\($0) dBm" } ?? "--",
+                        color: MacTheme.Colors.success
+                    )
+                    telemetryRow(
+                        label: "Worst Signal",
+                        value: vm.stats.weakestDBm.map { "\($0) dBm" } ?? "--",
+                        color: vm.stats.weakestDBm.map {
+                            $0 < -75 ? MacTheme.Colors.error : MacTheme.Colors.warning
+                        } ?? MacTheme.Colors.textTertiary
+                    )
+                    telemetryRow(
+                        label: "Coverage",
+                        value: vm.stats.strongCoveragePercent.map { "\($0)%" } ?? "--",
+                        color: MacTheme.Colors.info
+                    )
+                }
+                .macGlassCard()
 
                 if let cal = vm.calibration {
-                    statBlock(value: String(format: "1px = %.1f %@", 1 / cal.pixelsPerUnit, cal.unit.displayName),
-                              label: "Calibrated", color: .accentColor)
-                    Button("Clear Calibration") { vm.clearCalibration() }
-                        .buttonStyle(.plain)
-                        .foregroundColor(.secondary)
-                        .font(.caption)
-                } else {
-                    Button("Calibrate Scale...") { showingCalibration = true }
-                        .buttonStyle(.link)
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("SCALE")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(MacTheme.Colors.textTertiary)
+                            .tracking(1)
+                        HStack {
+                            Text(String(format: "1px = %.2f %@",
+                                        1 / cal.pixelsPerUnit, cal.unit.displayName))
+                                .font(.system(size: 12, design: .monospaced))
+                                .foregroundStyle(MacTheme.Colors.info)
+                            Spacer()
+                            Button("Clear") { vm.clearCalibration() }
+                                .buttonStyle(.plain)
+                                .foregroundStyle(MacTheme.Colors.textSecondary)
+                                .font(.caption)
+                        }
+                    }
+                    .macGlassCard()
                 }
 
-                Divider()
+                Text("LIVE LOGS")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(MacTheme.Colors.textTertiary)
+                    .tracking(1)
+                    .padding(.top, 8)
 
-                Button {
-                    // Export placeholder — NSView reference requires Representable bridge
-                } label: {
+                VStack(alignment: .leading, spacing: 8) {
+                    logEntry(
+                        time: Date().formatted(date: .omitted, time: .standard),
+                        message: vm.statusMessage,
+                        isWarning: false
+                    )
+                    if vm.isSurveying {
+                        logEntry(
+                            time: Date().formatted(date: .omitted, time: .standard),
+                            message: "Survey active \u{2014} \(vm.dataPoints.count) points recorded",
+                            isWarning: false
+                        )
+                    }
+                    if let weakest = vm.stats.weakestDBm, weakest < -75 {
+                        logEntry(
+                            time: Date().formatted(date: .omitted, time: .standard),
+                            message: "Weak signal detected: \(weakest) dBm",
+                            isWarning: true
+                        )
+                    }
+                }
+                .macGlassCard()
+
+                Button {} label: {
                     Label("Export PNG", systemImage: "square.and.arrow.up")
                 }
                 .buttonStyle(.borderedProminent)
@@ -307,26 +456,36 @@ struct WiFiHeatmapToolView: View {
 
                 Spacer()
             }
-            .padding(14)
+            .padding(20)
         }
-        .navigationSplitViewColumnWidth(min: 180, ideal: 210)
+        .frame(width: 280)
+        .background(MacTheme.Colors.backgroundElevated)
     }
 
-    private func statBlock(value: String, label: String, color: Color = .primary) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
+    private func telemetryRow(label: String, value: String, color: Color) -> some View {
+        HStack {
+            Text(label)
+                .font(.system(size: 14))
+                .foregroundStyle(MacTheme.Colors.textSecondary)
+            Spacer()
             Text(value)
-                .font(.system(.title3, design: .monospaced))
-                .fontWeight(.bold)
-                .foregroundColor(color)
-            Text(label).font(.caption).foregroundColor(.secondary)
+                .font(.system(size: 14, weight: .bold, design: .monospaced))
+                .foregroundStyle(color)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(10)
-        .background(Color.primary.opacity(0.05))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
     }
 
-    // MARK: - Calibration Sheet (macOS)
+    private func logEntry(time: String, message: String, isWarning: Bool) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Text(time)
+                .font(.system(size: 10, design: .monospaced))
+                .foregroundStyle(MacTheme.Colors.textTertiary)
+            Text(message)
+                .font(.system(size: 10, design: .monospaced))
+                .foregroundStyle(isWarning ? MacTheme.Colors.error : Color(white: 0.8))
+        }
+    }
+
+    // MARK: - Calibration Sheet
 
     private var macCalibrationSheet: some View {
         VStack(spacing: 20) {
@@ -361,8 +520,10 @@ struct WiFiHeatmapToolView: View {
                 Button("Skip") { showingCalibration = false }
                     .keyboardShortcut(.escape)
                 Button("Set Scale") {
-                    if macCalibPx > 0 && macCalibReal > 0 {
-                        vm.setCalibration(pixelDist: macCalibPx, realDist: macCalibReal, unit: macCalibUnit)
+                    if macCalibPx > 0, macCalibReal > 0 {
+                        vm.setCalibration(pixelDist: macCalibPx,
+                                          realDist: macCalibReal,
+                                          unit: macCalibUnit)
                     }
                     showingCalibration = false
                 }
@@ -377,13 +538,8 @@ struct WiFiHeatmapToolView: View {
 }
 
 // MARK: - MacHeatmapCanvasView
-//
-// macOS-native heatmap canvas. Functionally equivalent to the iOS HeatmapCanvasView
-// but avoids UIImage. Task 11 will consolidate both into a single cross-platform view
-// using #if os(iOS)/#if os(macOS) guards.
 
 private struct MacHeatmapCanvasView: View {
-
     let points: [HeatmapDataPoint]
     let floorplanImage: NSImage?
     let colorScheme: HeatmapColorScheme
@@ -406,74 +562,66 @@ private struct MacHeatmapCanvasView: View {
                         .opacity(0.55)
                 }
 
-                // Background grid
                 Canvas { ctx, size in
                     let step: CGFloat = 40
-                    var x: CGFloat = 0
-                    while x <= size.width {
-                        ctx.stroke(Path { p in p.move(to: .init(x: x, y: 0))
-                        p.addLine(to: .init(x: x, y: size.height))
-                        },
-                                   with: .color(.white.opacity(0.06)), lineWidth: 0.5)
-                        x += step
+                    var xPos: CGFloat = 0
+                    while xPos <= size.width {
+                        ctx.stroke(
+                            Path { path in
+                                path.move(to: .init(x: xPos, y: 0))
+                                path.addLine(to: .init(x: xPos, y: size.height))
+                            },
+                            with: .color(.white.opacity(0.06)), lineWidth: 0.5
+                        )
+                        xPos += step
                     }
-                    var y: CGFloat = 0
-                    while y <= size.height {
-                        ctx.stroke(Path { p in p.move(to: .init(x: 0, y: y))
-                        p.addLine(to: .init(x: size.width, y: y))
-                        },
-                                   with: .color(.white.opacity(0.06)), lineWidth: 0.5)
-                        y += step
+                    var yPos: CGFloat = 0
+                    while yPos <= size.height {
+                        ctx.stroke(
+                            Path { path in
+                                path.move(to: .init(x: 0, y: yPos))
+                                path.addLine(to: .init(x: size.width, y: yPos))
+                            },
+                            with: .color(.white.opacity(0.06)), lineWidth: 0.5
+                        )
+                        yPos += step
                     }
                 }
                 .background(Color.white.opacity(0.03))
 
                 if overlays.contains(.gradient) {
-                    Canvas { ctx, size in
-                        drawGradient(context: ctx, size: size)
-                    }
+                    Canvas { ctx, size in drawGradient(context: ctx, size: size) }
                 }
-
                 if overlays.contains(.deadZones) {
-                    Canvas { ctx, size in
-                        drawDeadZones(context: ctx, size: size, opacity: deadZonePulse)
-                    }
-                    .onAppear {
-                        withAnimation(.easeInOut(duration: 2).repeatForever(autoreverses: true)) {
-                            deadZonePulse = 0.45
+                    Canvas { ctx, size in drawDeadZones(context: ctx, size: size, opacity: deadZonePulse) }
+                        .onAppear {
+                            withAnimation(.easeInOut(duration: 2).repeatForever(autoreverses: true)) {
+                                deadZonePulse = 0.45
+                            }
                         }
-                    }
                 }
-
                 if overlays.contains(.contour) {
-                    Canvas { ctx, size in
-                        drawContours(context: ctx, size: size)
-                    }
+                    Canvas { ctx, size in drawContours(context: ctx, size: size) }
                 }
-
                 if overlays.contains(.dots) {
-                    Canvas { ctx, size in
-                        drawDots(context: ctx, size: size)
-                    }
+                    Canvas { ctx, size in drawDots(context: ctx, size: size) }
                 }
 
                 if let cal = calibration {
-                    scaleBarView(calibration: cal, canvasSize: geo.size)
+                    scaleBarView(calibration: cal)
                 }
 
                 if isSurveying {
                     Color.clear
                         .contentShape(Rectangle())
-                        .onTapGesture { loc in
-                            onTap?(loc, geo.size)
-                        }
+                        .onTapGesture { loc in onTap?(loc, geo.size) }
                 }
             }
             .clipShape(RoundedRectangle(cornerRadius: MacTheme.Layout.cardCornerRadius))
         }
     }
 
-    // MARK: - Drawing helpers
+    // MARK: - Drawing
 
     private func drawGradient(context: GraphicsContext, size: CGSize) {
         var ctx = context
@@ -482,17 +630,16 @@ private struct MacHeatmapCanvasView: View {
             let cx = pt.x * size.width
             let cy = pt.y * size.height
             let rgb = HeatmapRenderer.colorComponents(rssi: pt.signalStrength, scheme: colorScheme)
-            let color = Color(red: Double(rgb.r) / 255, green: Double(rgb.g) / 255, blue: Double(rgb.b) / 255)
-            let radius: CGFloat = adaptiveRadius(for: size)
+            let color = Color(red: Double(rgb.r) / 255,
+                              green: Double(rgb.g) / 255,
+                              blue: Double(rgb.b) / 255)
+            let radius = adaptiveRadius(for: size)
             let grad = Gradient(colors: [color.opacity(0.85), color.opacity(0)])
-            let radialGrad = GraphicsContext.Shading.radialGradient(
-                grad,
-                center: CGPoint(x: cx, y: cy),
-                startRadius: 0,
-                endRadius: radius
+            let shading = GraphicsContext.Shading.radialGradient(
+                grad, center: CGPoint(x: cx, y: cy), startRadius: 0, endRadius: radius
             )
             let rect = CGRect(x: cx - radius, y: cy - radius, width: radius * 2, height: radius * 2)
-            ctx.fill(Path(ellipseIn: rect), with: radialGrad)
+            ctx.fill(Path(ellipseIn: rect), with: shading)
         }
     }
 
@@ -529,9 +676,7 @@ private struct MacHeatmapCanvasView: View {
             points: points, gridSize: gridSize,
             canvasWidth: Double(size.width), canvasHeight: Double(size.height)
         )
-        let thresholds: [(rssi: Double, color: Color)] = [
-            (-50, .green), (-65, .yellow), (-80, .red)
-        ]
+        let thresholds: [(rssi: Double, color: Color)] = [(-50, .green), (-65, .yellow), (-80, .red)]
         let cellW = size.width / CGFloat(gridSize)
         let cellH = size.height / CGFloat(gridSize)
 
@@ -539,17 +684,18 @@ private struct MacHeatmapCanvasView: View {
             var path = Path()
             for row in 0..<(gridSize - 1) {
                 for col in 0..<(gridSize - 1) {
-                    guard let v = grid[row][col], let vr = grid[row][col + 1],
-                          let vb = grid[row + 1][col] else { continue }
-                    let x = CGFloat(col) * cellW + cellW / 2
-                    let y = CGFloat(row) * cellH + cellH / 2
-                    if (v < threshold) != (vr < threshold) {
-                        path.move(to: CGPoint(x: x + cellW, y: y))
-                        path.addLine(to: CGPoint(x: x + cellW, y: y + cellH))
+                    guard let val = grid[row][col],
+                          let valR = grid[row][col + 1],
+                          let valB = grid[row + 1][col] else { continue }
+                    let xPos = CGFloat(col) * cellW + cellW / 2
+                    let yPos = CGFloat(row) * cellH + cellH / 2
+                    if (val < threshold) != (valR < threshold) {
+                        path.move(to: CGPoint(x: xPos + cellW, y: yPos))
+                        path.addLine(to: CGPoint(x: xPos + cellW, y: yPos + cellH))
                     }
-                    if (v < threshold) != (vb < threshold) {
-                        path.move(to: CGPoint(x: x, y: y + cellH))
-                        path.addLine(to: CGPoint(x: x + cellW, y: y + cellH))
+                    if (val < threshold) != (valB < threshold) {
+                        path.move(to: CGPoint(x: xPos, y: yPos + cellH))
+                        path.addLine(to: CGPoint(x: xPos + cellW, y: yPos + cellH))
                     }
                 }
             }
@@ -562,20 +708,24 @@ private struct MacHeatmapCanvasView: View {
             let cx = pt.x * size.width
             let cy = pt.y * size.height
             let rgb = HeatmapRenderer.colorComponents(rssi: pt.signalStrength, scheme: colorScheme)
-            let color = Color(red: Double(rgb.r) / 255, green: Double(rgb.g) / 255, blue: Double(rgb.b) / 255)
-            let r: CGFloat = 9
-            let rect = CGRect(x: cx - r, y: cy - r, width: r * 2, height: r * 2)
+            let color = Color(red: Double(rgb.r) / 255,
+                              green: Double(rgb.g) / 255,
+                              blue: Double(rgb.b) / 255)
+            let dotR: CGFloat = 9
+            let rect = CGRect(x: cx - dotR, y: cy - dotR, width: dotR * 2, height: dotR * 2)
             context.fill(Path(ellipseIn: rect), with: .color(color))
             context.stroke(Path(ellipseIn: rect), with: .color(.white.opacity(0.7)), lineWidth: 1)
             var text = AttributedString("\(pt.signalStrength)")
             text.font = .init(.monospacedSystemFont(ofSize: 9, weight: .regular))
             text.foregroundColor = Color.white
-            context.draw(Text(text), at: CGPoint(x: cx, y: cy + r + 8))
+            context.draw(Text(text), at: CGPoint(x: cx, y: cy + dotR + 8))
         }
     }
 
-    private func scaleBarView(calibration: CalibrationScale, canvasSize: CGSize) -> some View {
-        let config = HeatmapRenderer.scaleBar(pixelsPerUnit: calibration.pixelsPerUnit, unit: calibration.unit)
+    private func scaleBarView(calibration: CalibrationScale) -> some View {
+        let config = HeatmapRenderer.scaleBar(
+            pixelsPerUnit: calibration.pixelsPerUnit, unit: calibration.unit
+        )
         return VStack(alignment: .leading, spacing: 2) {
             ZStack(alignment: .leading) {
                 Rectangle()
