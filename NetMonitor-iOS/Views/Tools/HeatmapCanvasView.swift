@@ -82,9 +82,8 @@ struct HeatmapCanvasView: View {
         if let img = floorplanImage {
             Image(uiImage: img)
                 .resizable()
-                .scaledToFill()
+                .scaledToFit()
                 .frame(width: size.width, height: size.height)
-                .clipped()
                 .opacity(0.55)
         } else {
             Canvas { ctx, size in

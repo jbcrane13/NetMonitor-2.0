@@ -99,6 +99,7 @@ struct RoomPlanScanView: View {
             VStack(spacing: 10) {
                 Text("LiDAR Not Available")
                     .font(.title3).fontWeight(.bold).foregroundStyle(.white)
+                // swiftlint:disable:next line_length
                 Text("AR room scanning requires a LiDAR-equipped device\n(iPhone 12 Pro or later, iPad Pro M-series).\n\nUse Import or Freeform Grid instead.")
                     .font(.subheadline)
                     .foregroundStyle(.white.opacity(0.7))
@@ -198,72 +199,113 @@ enum RoomFloorPlanRenderer {
         let calibration: CalibrationScale
     }
 
-    static func render(_ room: CapturedRoom,
-                       size: CGSize = CGSize(width: 1024, height: 1024)) -> Result? {
+    private static let maxDimension: CGFloat = 1400
+    private static let padding: CGFloat = 80
+
+    static func render(_ room: CapturedRoom) -> Result? {
         guard !room.walls.isEmpty else { return nil }
 
-        var minX = Float.infinity, maxX = -Float.infinity
-        var minZ = Float.infinity, maxZ = -Float.infinity
-        for wall in room.walls {
-            let c = wall.transform.columns.3
-            let hw = wall.dimensions.x / 2
-            let hd = wall.dimensions.z / 2
-            minX = Swift.min(minX, c.x - hw)
-            maxX = Swift.max(maxX, c.x + hw)
-            minZ = Swift.min(minZ, c.z - hd)
-            maxZ = Swift.max(maxZ, c.z + hd)
-        }
+        let allCorners = room.walls.flatMap { transformedCorners($0.transform, $0.dimensions) }
+        guard !allCorners.isEmpty else { return nil }
 
-        let roomW = Double(maxX - minX)
-        let roomD = Double(maxZ - minZ)
+        guard let xMin = allCorners.map(\.x).min(),
+              let xMax = allCorners.map(\.x).max(),
+              let zMin = allCorners.map(\.y).min(),
+              let zMax = allCorners.map(\.y).max() else { return nil }
+        let minX = xMin, maxX = xMax
+        let minZ = zMin, maxZ = zMax
+
+        let roomW = maxX - minX
+        let roomD = maxZ - minZ
         guard roomW > 0, roomD > 0 else { return nil }
 
-        let pad: CGFloat = 60
-        let scale = Swift.min((size.width - pad * 2) / CGFloat(roomW),
-                              (size.height - pad * 2) / CGFloat(roomD))
-        let offX = (size.width  - CGFloat(roomW) * scale) / 2
-        let offZ = (size.height - CGFloat(roomD) * scale) / 2
+        let aspect = roomW / roomD
+        let imageSize: CGSize
+        if aspect >= 1 {
+            let width = maxDimension
+            imageSize = CGSize(width: width, height: width / aspect)
+        } else {
+            let height = maxDimension
+            imageSize = CGSize(width: height * aspect, height: height)
+        }
 
-        let renderer = UIGraphicsImageRenderer(size: size)
+        let scale = Swift.min(
+            (imageSize.width - padding * 2) / roomW,
+            (imageSize.height - padding * 2) / roomD
+        )
+        let offX = (imageSize.width - roomW * scale) / 2
+        let offZ = (imageSize.height - roomD * scale) / 2
+
+        func toCanvas(_ worldXZ: CGPoint) -> CGPoint {
+            CGPoint(
+                x: (worldXZ.x - minX) * scale + offX,
+                y: (worldXZ.y - minZ) * scale + offZ
+            )
+        }
+
+        let renderer = UIGraphicsImageRenderer(size: imageSize)
         let image = renderer.image { ctx in
             UIColor(red: 0.05, green: 0.07, blue: 0.10, alpha: 1).setFill()
-            ctx.fill(CGRect(origin: .zero, size: size))
+            ctx.fill(CGRect(origin: .zero, size: imageSize))
+
+            UIColor(white: 0.85, alpha: 0.18).setFill()
+            UIColor(white: 0.9, alpha: 1).setStroke()
+            ctx.cgContext.setLineWidth(3)
 
             for wall in room.walls {
-                let c = wall.transform.columns.3
-                let cx = CGFloat(c.x - minX) * scale + offX
-                let cz = CGFloat(c.z - minZ) * scale + offZ
-                let hw = CGFloat(wall.dimensions.x / 2) * scale
-                let hd = CGFloat(wall.dimensions.z / 2) * scale
-                let rect = CGRect(x: cx - hw, y: cz - hd, width: hw * 2, height: hd * 2)
-                UIColor(white: 0.85, alpha: 0.18).setFill()
-                UIColor(white: 0.9, alpha: 1).setStroke()
-                ctx.cgContext.setLineWidth(3)
-                let path = UIBezierPath(rect: rect)
+                let corners = transformedCorners(wall.transform, wall.dimensions).map(toCanvas)
+                let path = UIBezierPath()
+                path.move(to: corners[0])
+                for corner in corners.dropFirst() { path.addLine(to: corner) }
+                path.close()
                 path.fill()
                 path.stroke()
             }
+
             UIColor(red: 0.13, green: 0.77, blue: 0.36, alpha: 0.9).setFill()
             for door in room.doors {
-                let c = door.transform.columns.3
-                let cx = CGFloat(c.x - minX) * scale + offX
-                let cz = CGFloat(c.z - minZ) * scale + offZ
-                let hw = CGFloat(door.dimensions.x / 2) * scale
-                UIBezierPath(rect: CGRect(x: cx - hw, y: cz - 4, width: hw * 2, height: 8)).fill()
+                let corners = transformedCorners(door.transform, door.dimensions).map(toCanvas)
+                let path = UIBezierPath()
+                path.move(to: corners[0])
+                for corner in corners.dropFirst() { path.addLine(to: corner) }
+                path.close()
+                path.fill()
             }
+
             UIColor(red: 0.23, green: 0.51, blue: 0.96, alpha: 0.8).setFill()
             for opening in room.openings {
-                let c = opening.transform.columns.3
-                let cx = CGFloat(c.x - minX) * scale + offX
-                let cz = CGFloat(c.z - minZ) * scale + offZ
-                let hw = CGFloat(opening.dimensions.x / 2) * scale
-                UIBezierPath(rect: CGRect(x: cx - hw, y: cz - 3, width: hw * 2, height: 6)).fill()
+                let corners = transformedCorners(opening.transform, opening.dimensions).map(toCanvas)
+                let path = UIBezierPath()
+                path.move(to: corners[0])
+                for corner in corners.dropFirst() { path.addLine(to: corner) }
+                path.close()
+                path.fill()
             }
         }
 
-        let longestReal = Swift.max(roomW, roomD)
-        let longestPx = Double(longestReal == roomW ? CGFloat(roomW) * scale : CGFloat(roomD) * scale)
+        let longestReal = Double(Swift.max(roomW, roomD))
+        let longestPx = Double(Swift.max(roomW, roomD) * scale)
         let cal = CalibrationScale(pixelDistance: longestPx, realDistance: longestReal, unit: .meters)
         return Result(image: image, calibration: cal)
+    }
+
+    /// Project an object's 4 corners onto the XZ (top-down) plane
+    /// using its full 4x4 transform. Returns 4 CGPoints in world XZ coords.
+    private static func transformedCorners(
+        _ transform: simd_float4x4,
+        _ dimensions: simd_float3
+    ) -> [CGPoint] {
+        let hw = dimensions.x / 2
+        let hd = dimensions.z / 2
+        let localCorners: [SIMD4<Float>] = [
+            SIMD4(-hw, 0, -hd, 1),
+            SIMD4(hw, 0, -hd, 1),
+            SIMD4(hw, 0, hd, 1),
+            SIMD4(-hw, 0, hd, 1),
+        ]
+        return localCorners.map { local in
+            let world = transform * local
+            return CGPoint(x: CGFloat(world.x), y: CGFloat(world.z))
+        }
     }
 }
