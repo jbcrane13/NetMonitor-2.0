@@ -1,6 +1,7 @@
 import SwiftUI
 import RoomPlan
 import NetMonitorCore
+import simd
 
 // MARK: - RoomPlanScanView
 
