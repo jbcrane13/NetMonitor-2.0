@@ -102,9 +102,16 @@ struct WorldPingToolView: View {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(result.city)
                                 .font(.system(.body, design: .default))
-                            Text(result.country)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                            HStack(spacing: 4) {
+                                Text(result.country)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                if let ip = result.resolvedAddress {
+                                    Text("→ \(ip)")
+                                        .font(.system(.caption2, design: .monospaced))
+                                        .foregroundStyle(.tertiary)
+                                }
+                            }
                         }
 
                         Spacer()

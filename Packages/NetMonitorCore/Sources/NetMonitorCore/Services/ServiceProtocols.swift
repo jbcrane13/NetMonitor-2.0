@@ -214,13 +214,27 @@ public struct WorldPingLocationResult: Sendable, Identifiable {
     public let city: String
     public let latencyMs: Double?
     public let isSuccess: Bool
+    /// Resolved IP address seen by this probe (reveals anycast/CDN distribution).
+    public let resolvedAddress: String?
+    /// HTTP status code (nil for ICMP-only measurements).
+    public let httpStatus: Int?
 
-    public init(id: String, country: String, city: String, latencyMs: Double?, isSuccess: Bool) {
+    public init(
+        id: String,
+        country: String,
+        city: String,
+        latencyMs: Double?,
+        isSuccess: Bool,
+        resolvedAddress: String? = nil,
+        httpStatus: Int? = nil
+    ) {
         self.id = id
         self.country = country
         self.city = city
         self.latencyMs = latencyMs
         self.isSuccess = isSuccess
+        self.resolvedAddress = resolvedAddress
+        self.httpStatus = httpStatus
     }
 }
 

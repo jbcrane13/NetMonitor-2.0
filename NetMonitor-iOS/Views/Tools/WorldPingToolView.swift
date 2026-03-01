@@ -196,9 +196,16 @@ private struct WorldPingLocationRow: View {
                     .font(.subheadline)
                     .fontWeight(.medium)
                     .foregroundStyle(Theme.Colors.textPrimary)
-                Text(result.country)
-                    .font(.caption)
-                    .foregroundStyle(Theme.Colors.textSecondary)
+                HStack(spacing: 4) {
+                    Text(result.country)
+                        .font(.caption)
+                        .foregroundStyle(Theme.Colors.textSecondary)
+                    if let ip = result.resolvedAddress {
+                        Text("→ \(ip)")
+                            .font(.system(.caption2, design: .monospaced))
+                            .foregroundStyle(Theme.Colors.textTertiary)
+                    }
+                }
             }
 
             Spacer()
@@ -211,7 +218,7 @@ private struct WorldPingLocationRow: View {
                         .foregroundStyle(Theme.Colors.latencyColor(ms: latency))
 
                     // Mini latency bar
-                    LatencyBar(latencyMs: latency, maxMs: 300)
+                    LatencyBar(latencyMs: latency, maxMs: 500)
                         .frame(width: 50, height: 4)
                         .clipShape(Capsule())
                 }

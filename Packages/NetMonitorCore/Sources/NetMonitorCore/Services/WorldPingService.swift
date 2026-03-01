@@ -1,15 +1,14 @@
 import Foundation
 import os.log
 
-/// Pings a target from multiple global locations using the Globalping.io API.
+/// Measures HTTP latency to a target from global probe nodes via Globalping.io.
 ///
-/// API flow:
-/// 1. POST https://api.globalping.io/v1/measurements  →  measurement ID
-/// 2. Poll GET https://api.globalping.io/v1/measurements/{id} until status == "finished"
-/// 3. Yield one `WorldPingLocationResult` per probe
+/// Uses HTTPS HEAD requests for realistic application-level latency
+/// (DNS + TCP + TLS + HTTP) rather than ICMP ping which only shows
+/// network-layer round-trip time.
 ///
 /// Free tier: 100 measurements/hour, no API key required.
-/// Probes span 6 continents with ~600 nodes worldwide.
+/// ~600 probes across 6 continents.
 public final class WorldPingService: WorldPingServiceProtocol, @unchecked Sendable {
     private let session: URLSession
     private let baseURL = "https://api.globalping.io/v1"
@@ -45,25 +44,24 @@ public final class WorldPingService: WorldPingServiceProtocol, @unchecked Sendab
 
     // MARK: - API Calls
 
-    /// Submit a ping measurement to Globalping.
-    /// Distributes probes across all 6 continents for global coverage.
     private func submitMeasurement(host: String, limit: Int) async throws -> String {
         guard let url = URL(string: "\(baseURL)/measurements") else {
             throw URLError(.badURL)
         }
 
-        // Distribute probes across continents for meaningful global coverage.
+        // Distribute probes across all 6 continents for true global coverage.
         let continents = ["NA", "EU", "AS", "SA", "OC", "AF"]
         let locations = continents.map { code in
             ["continent": code] as [String: Any]
         }
 
         let body: [String: Any] = [
-            "type": "ping",
+            "type": "http",
             "target": host,
             "locations": locations,
             "measurementOptions": [
-                "packets": 3
+                "protocol": "HTTPS",
+                "request": ["method": "HEAD"]
             ],
             "limit": limit
         ]
@@ -95,8 +93,7 @@ public final class WorldPingService: WorldPingServiceProtocol, @unchecked Sendab
         return measurementId
     }
 
-    /// Poll the measurement endpoint until all probes finish.
-    private func pollResults(measurementId: String, maxAttempts: Int = 15) async throws -> [WorldPingLocationResult] {
+    private func pollResults(measurementId: String, maxAttempts: Int = 20) async throws -> [WorldPingLocationResult] {
         guard let url = URL(string: "\(baseURL)/measurements/\(measurementId)") else {
             throw URLError(.badURL)
         }
@@ -125,7 +122,6 @@ public final class WorldPingService: WorldPingServiceProtocol, @unchecked Sendab
             if status == "finished" || attempt == maxAttempts - 1 {
                 return parseResults(json: json)
             }
-            // "in-progress" — keep polling
         }
         return []
     }
@@ -143,25 +139,26 @@ public final class WorldPingService: WorldPingServiceProtocol, @unchecked Sendab
             let country = probe["country"] as? String ?? "??"
             let continent = probe["continent"] as? String ?? ""
 
-            let stats = result["stats"] as? [String: Any]
-            let avg = stats?["avg"] as? Double
-            let min = stats?["min"] as? Double
-            let packetLoss = stats?["loss"] as? Double ?? 0
+            let status = result["status"] as? String
+            let timings = result["timings"] as? [String: Any]
+            let totalMs = timings?["total"] as? Double
+            let statusCode = result["statusCode"] as? Int
+            let resolvedAddress = result["resolvedAddress"] as? String
 
-            // Globalping returns latency in milliseconds already (not seconds)
-            let isSuccess = (result["status"] as? String) == "finished" && packetLoss < 100
+            let isSuccess = status == "finished" && totalMs != nil
 
-            // Use continent + country for a richer display name
             let displayCountry = Self.continentName(continent) ?? country
 
             return WorldPingLocationResult(
                 id: "\(city)-\(country)",
                 country: displayCountry,
                 city: city,
-                latencyMs: avg ?? min,
-                isSuccess: isSuccess
+                latencyMs: totalMs,
+                isSuccess: isSuccess,
+                resolvedAddress: resolvedAddress,
+                httpStatus: statusCode
             )
-        }.sorted { $0.city < $1.city }
+        }.sorted { ($0.latencyMs ?? .infinity) < ($1.latencyMs ?? .infinity) }
     }
 
     // MARK: - Helpers
@@ -177,8 +174,6 @@ public final class WorldPingService: WorldPingServiceProtocol, @unchecked Sendab
         default: return nil
         }
     }
-
-    // MARK: - Errors
 
     private enum GlobalpingError: LocalizedError {
         case submitFailed(message: String)
