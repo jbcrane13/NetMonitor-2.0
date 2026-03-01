@@ -7,8 +7,8 @@
 | Field | Value |
 |-------|-------|
 | Readiness level | **Level 5** |
-| Pass rate | ~79% |
-| Last updated | 2026-02-28 |
+| Pass rate | ~81% |
+| Last updated | 2026-03-01 |
 | Full report | https://app.factory.ai/analytics/readiness/https%253A%252F%252Fgithub.com%252Fjbcrane13%252Fnetmonitor-2.0 |
 
 ## Score History
@@ -19,6 +19,7 @@
 | [01 — Code Quality Tooling](./01-session-code-quality-tooling.md) | 66% | +17% | SwiftLint, SwiftFormat, pre-commit hooks, PR template, CODEOWNERS, Dependabot, lint CI |
 | [02 — Agent Infrastructure](./02-session-agent-infrastructure.md) | 69% | +3% | Agent skills, release workflow, env template, AGENTS.md validation |
 | [03 — Code Quality Analysis](./03-session-code-quality-analysis.md) | 79% | +10% | Periphery, jscpd, LogSanitizer, doc freshness CI, runbooks |
+| [04 — Coverage Gates & Xcode 26 Fixes](./04-session-coverage-and-build-fixes.md) | 81% | +2% | Simulator destination, simd types, test mock conformance; NetworkScanKit 87.2% verified |
 
 ## Conventions Established
 
