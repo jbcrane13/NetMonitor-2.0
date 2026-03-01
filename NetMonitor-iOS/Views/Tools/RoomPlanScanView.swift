@@ -293,8 +293,8 @@ enum RoomFloorPlanRenderer {
     /// Project an object's 4 corners onto the XZ (top-down) plane
     /// using its full 4x4 transform. Returns 4 CGPoints in world XZ coords.
     private static func transformedCorners(
-        _ transform: simd_float4x4,
-        _ dimensions: simd_float3
+        _ transform: float4x4,
+        _ dimensions: SIMD3<Float>
     ) -> [CGPoint] {
         let hw = dimensions.x / 2
         let hd = dimensions.z / 2

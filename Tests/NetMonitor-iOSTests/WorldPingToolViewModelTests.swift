@@ -8,6 +8,7 @@ import Testing
 private final class MockWorldPingService: WorldPingServiceProtocol, @unchecked Sendable {
     var mockResults: [WorldPingLocationResult] = []
     var shouldDelay: Bool = false
+    var lastError: String?
 
     func ping(host: String, maxNodes: Int) async -> AsyncStream<WorldPingLocationResult> {
         let results = mockResults
@@ -203,6 +204,7 @@ final class WorldPingToolViewModelTests: XCTestCase {
 
 private final class MockWorldPingServiceSwift: WorldPingServiceProtocol, @unchecked Sendable {
     var mockResults: [WorldPingLocationResult] = []
+    var lastError: String?
 
     func ping(host: String, maxNodes: Int) async -> AsyncStream<WorldPingLocationResult> {
         let results = mockResults

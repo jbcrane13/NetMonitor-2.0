@@ -22,6 +22,12 @@
 	<string>2.0</string>
 	<key>CFBundleVersion</key>
 	<string>1</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_netmon._tcp</string>
+	</array>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>NetMonitor uses local network access to discover and communicate with the macOS companion app for device pairing.</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSExceptionDomains</key>

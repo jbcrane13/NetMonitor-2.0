@@ -22,11 +22,13 @@ public final class WorldPingService: WorldPingServiceProtocol, @unchecked Sendab
 
     public func ping(host: String, maxNodes: Int) async -> AsyncStream<WorldPingLocationResult> {
         lastError = nil
+        logger.info("World ping starting for host: \(host), maxNodes: \(maxNodes)")
         return AsyncStream { continuation in
             Task {
                 do {
                     let (requestId, nodes) = try await self.submitCheck(host: host, maxNodes: maxNodes)
                     let results = try await self.pollResults(requestId: requestId, nodes: nodes)
+                    logger.info("World ping got \(results.count) results")
                     for result in results {
                         continuation.yield(result)
                     }
@@ -91,6 +93,7 @@ public final class WorldPingService: WorldPingServiceProtocol, @unchecked Sendab
                     countryCode: arr.isEmpty ? "" : arr[0]
                 )
             }
+            logger.info("World ping submitted: requestId=\(response.requestId), nodes=\(nodes.count)")
             return (response.requestId, nodes)
         } catch let error as WorldPingError {
             throw error

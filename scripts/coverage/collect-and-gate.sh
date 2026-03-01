@@ -6,7 +6,7 @@ BUILD_DIR="${BUILD_DIR:-$ROOT_DIR/build/coverage}"
 
 IOS_SCHEME="${IOS_SCHEME:-NetMonitor-iOS}"
 MACOS_SCHEME="${MACOS_SCHEME:-NetMonitor-macOS}"
-IOS_DESTINATION="${IOS_DESTINATION:-platform=iOS Simulator,OS=latest,name=iPhone 16}"
+IOS_DESTINATION="${IOS_DESTINATION:-platform=iOS Simulator,OS=latest,name=iPhone 17}"
 MACOS_DESTINATION="${MACOS_DESTINATION:-platform=macOS}"
 
 IOS_APP_FLOOR="${IOS_APP_FLOOR:-30}"
