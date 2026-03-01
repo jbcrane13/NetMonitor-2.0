@@ -35,32 +35,8 @@
 			</dict>
 		</dict>
 	</dict>
-	<key>NSBonjourServices</key>
-	<array>
-		<string>_netmon._tcp</string>
-		<string>_http._tcp</string>
-		<string>_https._tcp</string>
-		<string>_smb._tcp</string>
-		<string>_ssh._tcp</string>
-		<string>_airplay._tcp</string>
-		<string>_raop._tcp</string>
-		<string>_afpovertcp._tcp</string>
-		<string>_printer._tcp</string>
-		<string>_ipp._tcp</string>
-		<string>_homekit._tcp</string>
-		<string>_hap._tcp</string>
-		<string>_companion-link._tcp</string>
-		<string>_apple-mobdev2._tcp</string>
-		<string>_device-info._tcp</string>
-		<string>_googlecast._tcp</string>
-		<string>_spotify-connect._tcp</string>
-		<string>_sonos._tcp</string>
-		<string>_workstation._tcp</string>
-	</array>
 	<key>NSCameraUsageDescription</key>
 	<string>NetMonitor uses your camera to scan room layouts for WiFi heatmap surveys.</string>
-	<key>NSLocalNetworkUsageDescription</key>
-	<string>NetMonitor uses local network access to discover and communicate with the macOS companion app for device pairing.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>NetMonitor uses your location in the background to trigger GeoFence alerts when you enter or exit defined zones.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>

@@ -12,6 +12,8 @@ final class DashboardViewModel {
     private let networkProfileManager: NetworkProfileManager
     private let pingService: any PingServiceProtocol
     private let userDefaults: UserDefaults
+    private var lastLoggedGatewayLatency: Double?
+    private var lastLoggedWiFiSSID: String?
 
     // MARK: - Network Selection
 
@@ -171,8 +173,47 @@ final class DashboardViewModel {
         
         wifiService.refreshWiFiInfo()
         detectSystemDNS()
+
+        // Log WiFi status on SSID change
+        if let wifi = wifiService.currentWiFi, wifi.ssid != lastLoggedWiFiSSID {
+            lastLoggedWiFiSSID = wifi.ssid
+            var parts: [String] = []
+            if let signal = wifi.signalStrength { parts.append("\(signal)% signal") }
+            if let sec = wifi.securityType { parts.append(sec) }
+            ToolActivityLog.shared.add(
+                tool: "WiFi",
+                target: wifi.ssid ?? "Unknown",
+                result: parts.isEmpty ? "Connected" : parts.joined(separator: " • "),
+                success: true
+            )
+        }
         
         await gatewayService.detectGateway()
+
+        // Log gateway check — only on significant change
+        if let gw = gatewayService.gateway {
+            let shouldLog: Bool
+            if let latency = gw.latency, let last = lastLoggedGatewayLatency {
+                // Log if latency changed by >30% or crossed a threshold
+                let delta = abs(latency - last) / max(last, 1)
+                shouldLog = delta > 0.3 || (last < 50 && latency >= 50) || (last >= 50 && latency < 50)
+            } else {
+                // State change (nil ↔ non-nil) — always log
+                shouldLog = (gw.latency == nil) != (lastLoggedGatewayLatency == nil)
+                    || lastLoggedGatewayLatency == nil
+            }
+            if shouldLog {
+                lastLoggedGatewayLatency = gw.latency
+                let latencyText = gw.latency.map { String(format: "%.0fms", $0) } ?? "timeout"
+                ToolActivityLog.shared.add(
+                    tool: "Gateway",
+                    target: gw.ipAddress,
+                    result: latencyText,
+                    success: gw.latency != nil
+                )
+            }
+        }
+
         // Auto-refresh uses cache (5-min TTL); manual pull-to-refresh forces a fresh fetch
         await publicIPService.fetchPublicIP(forceRefresh: forceIP)
 
@@ -204,11 +245,28 @@ final class DashboardViewModel {
         let anchors = ["Google": "8.8.8.8", "Cloudflare": "1.1.1.1", "AWS": "3.3.3.3"]
         for (name, host) in anchors {
             let stream = await pingService.ping(host: host, count: 1, timeout: 2)
+            var measured = false
             for await result in stream {
                 if !result.isTimeout {
                     anchorLatencies[name] = result.time
+                    measured = true
                 }
             }
+            if !measured {
+                anchorLatencies[name] = nil
+            }
+        }
+
+        // Log a summary event for anchors
+        let reachable = anchorLatencies.compactMap { $0.value }
+        if !reachable.isEmpty {
+            let avg = reachable.reduce(0, +) / Double(reachable.count)
+            ToolActivityLog.shared.add(
+                tool: "Internet",
+                target: "Anchors",
+                result: String(format: "%.0fms avg (%d/%d)", avg, reachable.count, anchorLatencies.count),
+                success: true
+            )
         }
     }
     
@@ -224,6 +282,14 @@ final class DashboardViewModel {
         let profile = activeNetwork
         await deviceDiscoveryService.scanNetwork(profile: profile)
         updateScanMetadata(for: profile)
+
+        let count = scopedDevices(from: deviceDiscoveryService.discoveredDevices).count
+        ToolActivityLog.shared.add(
+            tool: "Scan",
+            target: profile?.displayName ?? "Local Network",
+            result: "\(count) devices found",
+            success: count > 0
+        )
     }
 
     func stopDeviceScan() {
