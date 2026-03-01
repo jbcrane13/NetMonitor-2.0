@@ -15,10 +15,15 @@ final class GatewayService: GatewayServiceProtocol {
     private(set) var latencyHistory: [Double] = []
 
     private let pingService: any PingServiceProtocol
+    private let gatewayIPProvider: @Sendable () -> String?
     private static let maxHistory = 60
 
-    init(pingService: any PingServiceProtocol = PingService()) {
+    init(
+        pingService: any PingServiceProtocol = PingService(),
+        gatewayIPProvider: @escaping @Sendable () -> String? = { NetworkUtilities.detectDefaultGateway() }
+    ) {
         self.pingService = pingService
+        self.gatewayIPProvider = gatewayIPProvider
     }
 
     func detectGateway() async {
@@ -27,7 +32,7 @@ final class GatewayService: GatewayServiceProtocol {
 
         defer { isLoading = false }
 
-        guard let gatewayIP = NetworkUtilities.detectDefaultGateway() else {
+        guard let gatewayIP = gatewayIPProvider() else {
             lastError = "Could not detect gateway"
             gateway = nil
             return

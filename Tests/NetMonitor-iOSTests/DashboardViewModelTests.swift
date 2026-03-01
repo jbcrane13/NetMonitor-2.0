@@ -230,4 +230,47 @@ struct DashboardViewModelTests {
         #expect(discovery.lastScannedProfile?.gatewayIP == "10.0.0.1")
         #expect(vm.selectedNetworkID == discovery.lastScannedProfile?.id)
     }
+
+    // MARK: - Tests for commit 0dbdb85 (real dashboard data)
+
+    @Test func systemDNSStartsAsDetecting() {
+        let vm = makeVM()
+        #expect(vm.systemDNS == "Detecting...")
+    }
+
+    @Test func anchorLatenciesEmptyBeforeRefresh() {
+        let vm = makeVM()
+        #expect(vm.anchorLatencies.isEmpty)
+    }
+
+    @Test func anchorLatenciesPopulatedAfterRefresh() async throws {
+        let ping = MockPingService()
+        ping.mockResults = [
+            PingResult(sequence: 1, host: "8.8.8.8", ttl: 64, time: 15.0, isTimeout: false)
+        ]
+        let vm = makeVM(pingService: ping)
+        await vm.refresh()
+        // measureAnchors() runs in a detached Task; give it a moment to complete
+        try await Task.sleep(for: .milliseconds(200))
+        #expect(!vm.anchorLatencies.isEmpty)
+    }
+
+    @Test func latencyHistoryEmptyWhenGatewayServiceIsMock() {
+        // MockGatewayService is not a GatewayService instance, so the cast fails → returns []
+        let vm = makeVM(gatewayService: MockGatewayService())
+        #expect(vm.latencyHistory.isEmpty)
+    }
+
+    @Test func recentEventsReflectsToolActivityLog() {
+        ToolActivityLog.shared.clear()
+        defer { ToolActivityLog.shared.clear() }
+
+        ToolActivityLog.shared.add(tool: "Ping", target: "8.8.8.8", result: "1ms", success: true)
+        ToolActivityLog.shared.add(tool: "Traceroute", target: "1.1.1.1", result: "3 hops", success: true)
+        ToolActivityLog.shared.add(tool: "DNS", target: "google.com", result: "A: 1.2.3.4", success: true)
+        ToolActivityLog.shared.add(tool: "Port Scan", target: "192.168.1.1", result: "Open: 80", success: true)
+
+        let vm = makeVM()
+        #expect(vm.recentEvents.count == 3) // prefix(3) caps the result
+    }
 }
