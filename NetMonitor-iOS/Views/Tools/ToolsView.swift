@@ -76,9 +76,9 @@ enum ToolDestination: Hashable {
         case .subnetCalculator:
             SubnetCalculatorToolView()
         case .worldPing:
-            WorldPingToolView()
+            WorldPingToolView(initialHost: target)
         case .geoTrace:
-            GeoTraceView()
+            GeoTraceView(initialHost: target)
         case .sslMonitor:
             SSLCertificateMonitorView()
         case .wifiHeatmap:

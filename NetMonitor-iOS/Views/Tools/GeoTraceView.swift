@@ -5,6 +5,7 @@ import NetMonitorCore
 
 /// Visual traceroute — plots each hop on a world map with a connecting polyline.
 struct GeoTraceView: View {
+    var initialHost: String?
     @State private var viewModel = GeoTraceViewModel()
     @State private var cameraPosition: MapCameraPosition = .automatic
 
@@ -21,6 +22,11 @@ struct GeoTraceView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
         .accessibilityIdentifier("screen_geoTrace")
+        .onAppear {
+            if let host = initialHost, viewModel.host.isEmpty {
+                viewModel.host = host
+            }
+        }
         .onChange(of: viewModel.locatedHops.count) { _, _ in
             fitMapToHops()
         }

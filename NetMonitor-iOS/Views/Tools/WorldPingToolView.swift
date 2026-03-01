@@ -3,6 +3,7 @@ import NetMonitorCore
 
 /// World Ping tool — pings a host from global locations via check-host.net
 struct WorldPingToolView: View {
+    var initialHost: String?
     @State private var viewModel = WorldPingToolViewModel()
 
     var body: some View {
@@ -32,6 +33,11 @@ struct WorldPingToolView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
         .accessibilityIdentifier("screen_worldPingTool")
+        .onAppear {
+            if let host = initialHost, viewModel.hostInput.isEmpty {
+                viewModel.hostInput = host
+            }
+        }
     }
 
     // MARK: - Controls
@@ -255,6 +261,6 @@ private struct LatencyBar: View {
 
 #Preview {
     NavigationStack {
-        WorldPingToolView()
+        WorldPingToolView(initialHost: nil)
     }
 }

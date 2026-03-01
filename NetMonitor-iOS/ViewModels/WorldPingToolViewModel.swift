@@ -7,7 +7,14 @@ import NetMonitorCore
 final class WorldPingToolViewModel {
     // MARK: - Input
 
-    var hostInput: String = ""
+    var hostInput: String = "" {
+        didSet {
+            let trimmed = hostInput.trimmingCharacters(in: .whitespaces)
+            if !trimmed.isEmpty {
+                TargetManager.shared.currentTarget = trimmed
+            }
+        }
+    }
 
     // MARK: - State
 

@@ -34,7 +34,14 @@ final class GeoTraceViewModel {
 
     // MARK: - Input
 
-    var host: String = ""
+    var host: String = "" {
+        didSet {
+            let trimmed = host.trimmingCharacters(in: .whitespaces)
+            if !trimmed.isEmpty {
+                TargetManager.shared.currentTarget = trimmed
+            }
+        }
+    }
 
     // MARK: - State
 
