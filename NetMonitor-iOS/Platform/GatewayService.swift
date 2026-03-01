@@ -10,6 +10,17 @@ final class GatewayService: GatewayServiceProtocol {
     private(set) var isLoading: Bool = false
     private(set) var lastError: String?
 
+    /// Rolling history of recent latency measurements (newest first, max 60).
+    /// Used by the dashboard jitter/stability visualization.
+    private(set) var latencyHistory: [Double] = []
+
+    private let pingService: any PingServiceProtocol
+    private static let maxHistory = 60
+
+    init(pingService: any PingServiceProtocol = PingService()) {
+        self.pingService = pingService
+    }
+
     func detectGateway() async {
         isLoading = true
         lastError = nil
@@ -24,6 +35,13 @@ final class GatewayService: GatewayServiceProtocol {
 
         let latency = await measureLatency(to: gatewayIP)
 
+        if let latency {
+            latencyHistory.insert(latency, at: 0)
+            if latencyHistory.count > Self.maxHistory {
+                latencyHistory = Array(latencyHistory.prefix(Self.maxHistory))
+            }
+        }
+
         gateway = GatewayInfo(
             ipAddress: gatewayIP,
             macAddress: nil,
@@ -32,49 +50,20 @@ final class GatewayService: GatewayServiceProtocol {
         )
     }
 
-    private nonisolated func measureLatency(to host: String) async -> Double? {
-        let start = Date()
+    /// Measure gateway latency via ICMP ping (3 probes, best of 3).
+    private func measureLatency(to host: String) async -> Double? {
+        let stream = await pingService.ping(host: host, count: 3, timeout: 2)
 
-        let endpoint = NWEndpoint.hostPort(
-            host: NWEndpoint.Host(host),
-            port: NWEndpoint.Port(rawValue: 80) ?? .http
-        )
-
-        let connection = NWConnection(to: endpoint, using: .tcp)
-        defer { connection.cancel() }
-
-        return await withCheckedContinuation { continuation in
-            let resumed = NetMonitorCore.ResumeState()
-
-            let timeoutTask = Task {
-                try? await Task.sleep(for: .seconds(5))
-                guard await resumed.tryResume() else { return }
-                connection.cancel()
-                continuation.resume(returning: nil)
-            }
-
-            connection.stateUpdateHandler = { state in
-                switch state {
-                case .ready:
-                    Task {
-                        guard await resumed.tryResume() else { return }
-                        timeoutTask.cancel()
-                        let latency = Date().timeIntervalSince(start) * 1000
-                        connection.cancel()
-                        continuation.resume(returning: latency)
-                    }
-                case .failed, .cancelled:
-                    Task {
-                        guard await resumed.tryResume() else { return }
-                        timeoutTask.cancel()
-                        continuation.resume(returning: nil)
-                    }
-                default:
-                    break
+        var best: Double?
+        for await result in stream {
+            if !result.isTimeout {
+                if let current = best {
+                    best = min(current, result.time)
+                } else {
+                    best = result.time
                 }
             }
-
-            connection.start(queue: .global())
         }
+        return best
     }
 }

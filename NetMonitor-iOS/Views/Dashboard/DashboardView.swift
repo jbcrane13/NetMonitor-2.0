@@ -129,20 +129,37 @@ struct TacticalHUDHeader: View {
                         Spacer()
                         
                         VStack(alignment: .trailing, spacing: 4) {
-                            Text("\(viewModel.gateway?.latency ?? 0, specifier: "%.0f") ms")
-                                .font(.system(size: 22, weight: .bold, design: .rounded))
-                                .foregroundStyle(
-                                    LinearGradient(
-                                        colors: [Theme.Colors.latencyColor(ms: viewModel.gateway?.latency ?? 0), .white.opacity(0.8)],
-                                        startPoint: .top,
-                                        endPoint: .bottom
+                            if let signal = viewModel.currentWiFi?.signalStrength {
+                                // WiFi connected — show signal strength as hero
+                                Text("\(signal)%")
+                                    .font(.system(size: 22, weight: .bold, design: .rounded))
+                                    .foregroundStyle(
+                                        LinearGradient(
+                                            colors: [signalColor(signal), .white.opacity(0.8)],
+                                            startPoint: .top,
+                                            endPoint: .bottom
+                                        )
                                     )
-                                )
-                            
-                            if let dbm = viewModel.currentWiFi?.signalDBm {
-                                Text("\(dbm) dBm")
-                                    .font(.system(size: 12, weight: .medium, design: .monospaced))
-                                    .foregroundStyle(Theme.Colors.textSecondary)
+                                if let latency = viewModel.gateway?.latency {
+                                    Text("\(latency, specifier: "%.0f") ms")
+                                        .font(.system(size: 12, weight: .medium, design: .monospaced))
+                                        .foregroundStyle(Theme.Colors.textSecondary)
+                                }
+                            } else if let latency = viewModel.gateway?.latency {
+                                // No WiFi info — show latency as hero
+                                Text("\(latency, specifier: "%.0f") ms")
+                                    .font(.system(size: 22, weight: .bold, design: .rounded))
+                                    .foregroundStyle(
+                                        LinearGradient(
+                                            colors: [Theme.Colors.latencyColor(ms: latency), .white.opacity(0.8)],
+                                            startPoint: .top,
+                                            endPoint: .bottom
+                                        )
+                                    )
+                            } else {
+                                Text("—")
+                                    .font(.system(size: 22, weight: .bold, design: .rounded))
+                                    .foregroundStyle(Theme.Colors.textTertiary)
                             }
                         }
                     }
@@ -151,6 +168,12 @@ struct TacticalHUDHeader: View {
             }
         }
         .accessibilityIdentifier("dashboard_header_network")
+    }
+
+    func signalColor(_ strength: Int) -> Color {
+        if strength > 70 { return Theme.Colors.success }
+        if strength > 40 { return Theme.Colors.warning }
+        return Theme.Colors.error
     }
 
     var wifiIconName: String {
@@ -168,12 +191,37 @@ struct RefinedNetworkHealthCard: View {
     let viewModel: DashboardViewModel
     
     var healthScore: Int {
-        let latency = viewModel.gateway?.latency ?? 0
         if !viewModel.isConnected { return 0 }
-        if latency < 20 { return 100 }
-        if latency < 50 { return 90 }
-        if latency < 100 { return 70 }
-        return 40
+
+        var score = 100
+
+        // Factor 1: Gateway latency (0-50 points)
+        if let latency = viewModel.gateway?.latency {
+            if latency > 100 { score -= 50 }
+            else if latency > 50 { score -= 30 }
+            else if latency > 20 { score -= 10 }
+        } else {
+            score -= 30 // No gateway response
+        }
+
+        // Factor 2: WiFi signal (0-30 points)
+        if let signal = viewModel.currentWiFi?.signalStrength {
+            if signal < 30 { score -= 30 }
+            else if signal < 50 { score -= 20 }
+            else if signal < 70 { score -= 10 }
+        }
+
+        // Factor 3: Jitter (0-20 points) — variance in recent latency
+        let history = viewModel.latencyHistory
+        if history.count >= 3 {
+            let avg = history.reduce(0, +) / Double(history.count)
+            let variance = history.map { ($0 - avg) * ($0 - avg) }.reduce(0, +) / Double(history.count)
+            let stddev = variance.squareRoot()
+            if stddev > 20 { score -= 20 }
+            else if stddev > 10 { score -= 10 }
+        }
+
+        return max(0, min(100, score))
     }
     
     var body: some View {
@@ -252,7 +300,15 @@ struct RefinedNetworkHealthCard: View {
     
     private var healthDetailText: String {
         if !viewModel.isConnected { return "Check your local connection" }
-        return "\(viewModel.deviceCount) devices active • Gateway \(Int(viewModel.gateway?.latency ?? 0))ms\nNo packet loss detected"
+        var parts: [String] = []
+        parts.append("\(viewModel.deviceCount) devices active")
+        if let latency = viewModel.gateway?.latency {
+            parts.append("Gateway \(Int(latency))ms")
+        }
+        if let signal = viewModel.currentWiFi?.signalStrength {
+            parts.append("Signal \(signal)%")
+        }
+        return parts.joined(separator: " • ")
     }
 }
 
@@ -260,12 +316,18 @@ struct SignalEQView: View {
     let viewModel: DashboardViewModel
     
     var eqData: [Double] {
-        let base = viewModel.gateway?.latency ?? 20.0
-        return (0..<40).map { i in
-            let variance = Double.random(in: -4...4)
-            let spike = i % 18 == 0 ? Double.random(in: 8...25) : 0
-            return max(4, base + variance + spike)
+        let history = viewModel.latencyHistory
+        guard !history.isEmpty else {
+            // No data yet — show flat baseline
+            return Array(repeating: 4.0, count: 40)
         }
+        // Pad or trim to 40 bars, newest on right
+        let reversed = Array(history.reversed())
+        if reversed.count >= 40 {
+            return Array(reversed.suffix(40))
+        }
+        let padding = Array(repeating: reversed.first ?? 4.0, count: 40 - reversed.count)
+        return padding + reversed
     }
     
     var body: some View {
@@ -326,7 +388,7 @@ struct ProConnectivityPanel: View {
                     VStack(spacing: 12) {
                         ConnectivityRow(label: "ISP", value: viewModel.ispInfo?.ispName ?? "Detecting...", icon: "antenna.radiowaves.left.and.right")
                         Divider().background(Color.white.opacity(0.05))
-                        ConnectivityRow(label: "DNS", value: "8.8.8.8, 1.1.1.1", icon: "magnifyingglass")
+                        ConnectivityRow(label: "DNS", value: viewModel.systemDNS, icon: "magnifyingglass")
                         Divider().background(Color.white.opacity(0.05))
                         ConnectivityRow(label: "Public IP", value: viewModel.ispInfo?.publicIP ?? "---.---.---.---", icon: "network")
                     }
@@ -334,9 +396,9 @@ struct ProConnectivityPanel: View {
             }
             
             HStack(spacing: 8) {
-                AnchorPill(label: "Google", latency: 14)
-                AnchorPill(label: "Cloudflare", latency: 8)
-                AnchorPill(label: "AWS", latency: 22)
+                AnchorPill(label: "Google", latency: viewModel.anchorLatencies["Google"])
+                AnchorPill(label: "Cloudflare", latency: viewModel.anchorLatencies["Cloudflare"])
+                AnchorPill(label: "AWS", latency: viewModel.anchorLatencies["AWS"])
             }
             .padding(.top, 4)
         }
@@ -371,19 +433,25 @@ struct ConnectivityRow: View {
 
 struct AnchorPill: View {
     let label: String
-    let latency: Int
+    let latency: Double?
     
     var body: some View {
         HStack(spacing: 6) {
             Circle()
-                .fill(Theme.Colors.success)
+                .fill(latency != nil ? Theme.Colors.success : Theme.Colors.textTertiary)
                 .frame(width: 4, height: 4)
             Text(label.uppercased())
                 .font(.system(size: 8, weight: .black))
                 .foregroundStyle(Theme.Colors.textSecondary)
-            Text("\(latency)ms")
-                .font(.system(size: 9, weight: .bold, design: .rounded))
-                .foregroundStyle(.white)
+            if let ms = latency {
+                Text("\(Int(ms))ms")
+                    .font(.system(size: 9, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+            } else {
+                Text("—")
+                    .font(.system(size: 9, weight: .bold, design: .rounded))
+                    .foregroundStyle(Theme.Colors.textTertiary)
+            }
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 6)
@@ -571,6 +639,16 @@ struct DeviceRow: View {
 // MARK: - Footer
 
 struct LiveEventTicker: View {
+    private var recentEvents: [ToolActivityItem] {
+        Array(ToolActivityLog.shared.entries.prefix(3))
+    }
+
+    private static let timeFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "HH:mm:ss"
+        return f
+    }()
+
     var body: some View {
         GlassCard(padding: 12) {
             VStack(alignment: .leading, spacing: 8) {
@@ -583,13 +661,24 @@ struct LiveEventTicker: View {
                         .foregroundStyle(Theme.Colors.textSecondary)
                         .tracking(1.5)
                     Spacer()
-                    Circle().fill(Theme.Colors.success).frame(width: 4, height: 4)
+                    Circle().fill(recentEvents.isEmpty ? Theme.Colors.textTertiary : Theme.Colors.success).frame(width: 4, height: 4)
                 }
-                
-                VStack(alignment: .leading, spacing: 4) {
-                    EventRow(time: "04:32:10", text: "Gateway check: 14ms (Optimal)")
-                    EventRow(time: "04:31:45", text: "Local scan: 14 devices active")
-                    EventRow(time: "04:30:12", text: "DNS resolution: 3ms (Fast)")
+
+                if recentEvents.isEmpty {
+                    Text("NO EVENTS YET")
+                        .font(.system(size: 10, weight: .black, design: .monospaced))
+                        .foregroundStyle(Theme.Colors.textTertiary)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .padding(.vertical, 4)
+                } else {
+                    VStack(alignment: .leading, spacing: 4) {
+                        ForEach(recentEvents) { event in
+                            EventRow(
+                                time: Self.timeFormatter.string(from: event.timestamp),
+                                text: "\(event.tool): \(event.result)"
+                            )
+                        }
+                    }
                 }
             }
         }

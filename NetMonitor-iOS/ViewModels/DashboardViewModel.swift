@@ -90,6 +90,22 @@ final class DashboardViewModel {
     var gateway: GatewayInfo? {
         gatewayService.gateway
     }
+
+    /// Rolling latency history from GatewayService (for jitter visualization).
+    var latencyHistory: [Double] {
+        (gatewayService as? GatewayService)?.latencyHistory ?? []
+    }
+
+    /// Real-time anchor latencies (measured on refresh).
+    private(set) var anchorLatencies: [String: Double] = [:]
+
+    /// System DNS servers detected from the current network path.
+    private(set) var systemDNS: String = "Detecting..."
+
+    /// Recent real events from ToolActivityLog.
+    var recentEvents: [ToolActivityItem] {
+        Array(ToolActivityLog.shared.entries.prefix(3))
+    }
     
     var ispInfo: ISPInfo? {
         publicIPService.ispInfo
@@ -154,10 +170,46 @@ final class DashboardViewModel {
         defer { isRefreshing = false }
         
         wifiService.refreshWiFiInfo()
+        detectSystemDNS()
         
         await gatewayService.detectGateway()
         // Auto-refresh uses cache (5-min TTL); manual pull-to-refresh forces a fresh fetch
         await publicIPService.fetchPublicIP(forceRefresh: forceIP)
+
+        // Measure anchor latencies in background (don't block refresh)
+        Task { await measureAnchors() }
+    }
+
+    /// Detect system DNS servers from the current network path.
+    private func detectSystemDNS() {
+        var servers: [String] = []
+        // Read from resolv.conf (works on iOS)
+        if let contents = try? String(contentsOfFile: "/etc/resolv.conf", encoding: .utf8) {
+            for line in contents.components(separatedBy: .newlines) {
+                let trimmed = line.trimmingCharacters(in: .whitespaces)
+                if trimmed.hasPrefix("nameserver ") {
+                    let server = trimmed.replacingOccurrences(of: "nameserver ", with: "")
+                        .trimmingCharacters(in: .whitespaces)
+                    if !server.isEmpty {
+                        servers.append(server)
+                    }
+                }
+            }
+        }
+        systemDNS = servers.isEmpty ? "Auto" : servers.prefix(2).joined(separator: ", ")
+    }
+
+    /// Ping well-known anchors to show real external latency.
+    private func measureAnchors() async {
+        let anchors = ["Google": "8.8.8.8", "Cloudflare": "1.1.1.1", "AWS": "3.3.3.3"]
+        for (name, host) in anchors {
+            let stream = await pingService.ping(host: host, count: 1, timeout: 2)
+            for await result in stream {
+                if !result.isTimeout {
+                    anchorLatencies[name] = result.time
+                }
+            }
+        }
     }
     
     func refreshAvailableNetworks() {
