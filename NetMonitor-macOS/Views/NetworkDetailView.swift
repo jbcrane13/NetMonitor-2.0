@@ -2,30 +2,13 @@ import SwiftUI
 import NetMonitorCore
 import SwiftData
 
-/// Per-network "war room" view — the main workhorse for a single network.
-/// Layout: Row A full-width (activity + health gauge), then two columns below
-/// (ISP/latency/connectivity left, scrollable device grid right).
+/// Per-network detail view — shows discovered devices for a single network profile.
 struct NetworkDetailView: View {
     @Binding var profile: NetworkProfile
 
-    @Environment(MonitoringSession.self)         private var session: MonitoringSession?
-    @Environment(NetworkProfileManager.self)     private var profileManager: NetworkProfileManager?
+    @Environment(NetworkProfileManager.self)      private var profileManager: NetworkProfileManager?
     @Environment(DeviceDiscoveryCoordinator.self) private var deviceDiscovery: DeviceDiscoveryCoordinator?
 
-    @Query private var targets: [NetworkTarget]
-
-    private var gatewayLatencyHistory: [Double] {
-        guard let session else { return [] }
-        if let gateway = targets.first(where: { $0.name == "Local Gateway" }) {
-            return session.recentLatencies[gateway.id] ?? []
-        }
-        if let firstICMP = targets.first(where: { $0.targetProtocol == .icmp }) {
-            return session.recentLatencies[firstICMP.id] ?? []
-        }
-        return []
-    }
-
-    @State private var resolvedGatewayDomain: String? = nil
     @State private var showAddTarget = false
     @State private var monitorInterval: TimeInterval = 5.0
 
@@ -34,139 +17,63 @@ struct NetworkDetailView: View {
     ]
 
     var body: some View {
-        GeometryReader { geo in
-            let gap: CGFloat = 10
-            let rowAHeight = geo.size.height * 0.28
-
-            VStack(spacing: gap) {
-                // Row A: ISP Health (hero) + Health Gauge
-                HStack(spacing: gap) {
-                    ISPHealthCard(
-                            gatewayAddress: profile.gatewayIP ?? "—",
-                            resolvedDomain: resolvedGatewayDomain
-                        )
-                        .accessibilityIdentifier("network_detail_card_isp")
-
-                    HealthGaugeCard()
-                        .frame(width: 210)
-                        .accessibilityIdentifier("network_detail_row_health")
-                }
-                .frame(height: rowAHeight)
-
-                // Row B: Left diagnostics stack + Right device grid
-                HStack(alignment: .top, spacing: gap) {
-                    // Left column — Activity / Latency / Connectivity stacked
-                    VStack(spacing: gap) {
-                        InternetActivityCard(session: session)
-                            .accessibilityIdentifier("network_detail_row_activity")
-
-                        LatencyAnalysisCard(
-                            session: session,
-                            gatewayLatencyHistory: gatewayLatencyHistory
-                        )
-                        .accessibilityIdentifier("network_detail_card_latency")
-
-                        ConnectivityCard(session: session, profileManager: profileManager)
-                            .accessibilityIdentifier("network_detail_card_connectivity")
+        NetworkDevicesPanel(networkProfileID: profile.id)
+            .accessibilityIdentifier("network_detail_panel_devices")
+            .macThemedBackground()
+            .navigationTitle(profile.displayName)
+            .toolbar {
+                ToolbarItemGroup(placement: .automatic) {
+                    // Scan button
+                    Button {
+                        Task {
+                            deviceDiscovery?.scanNetwork(profile)
+                        }
+                    } label: {
+                        Label("Scan Network", systemImage: "antenna.radiowaves.left.and.right")
                     }
-                    .frame(width: geo.size.width * 0.42 - gap)
+                    .disabled(deviceDiscovery?.isScanning == true)
+                    .help("Scan for devices on this network")
 
-                    // Right column — device grid
-                    NetworkDevicesPanel(networkProfileID: profile.id)
-                        .accessibilityIdentifier("network_detail_panel_devices")
-                }
-                .frame(maxHeight: .infinity)
-            }
-            .padding(14)
-        }
-        .macThemedBackground()
-        .navigationTitle(profile.displayName)
-        .toolbar {
-            ToolbarItemGroup(placement: .automatic) {
-                // Scan button
-                Button {
-                    Task {
-                        deviceDiscovery?.scanNetwork(profile)
-                    }
-                } label: {
-                    Label("Scan Network", systemImage: "antenna.radiowaves.left.and.right")
-                }
-                .disabled(deviceDiscovery?.isScanning == true)
-                .help("Scan for devices on this network")
-
-                // Monitor interval picker
-                Menu {
-                    ForEach(monitorIntervals, id: \.1) { label, interval in
-                        Button {
-                            monitorInterval = interval
-                            // TODO: update monitoring interval
-                        } label: {
-                            HStack {
-                                Text(label)
-                                if monitorInterval == interval {
-                                    Image(systemName: "checkmark")
+                    // Monitor interval picker
+                    Menu {
+                        ForEach(monitorIntervals, id: \.1) { label, interval in
+                            Button {
+                                monitorInterval = interval
+                                // TODO: update monitoring interval
+                            } label: {
+                                HStack {
+                                    Text(label)
+                                    if monitorInterval == interval {
+                                        Image(systemName: "checkmark")
+                                    }
                                 }
                             }
                         }
+                    } label: {
+                        Label("Monitor", systemImage: "timer")
                     }
-                } label: {
-                    Label("Monitor", systemImage: "timer")
-                }
-                .help("Set monitoring interval")
+                    .help("Set monitoring interval")
 
-                // Add target button
-                Button {
-                    showAddTarget = true
-                } label: {
-                    Label("Set Target", systemImage: "target")
+                    // Add target button
+                    Button {
+                        showAddTarget = true
+                    } label: {
+                        Label("Set Target", systemImage: "target")
+                    }
+                    .help("Add a monitoring target")
                 }
-                .help("Add a monitoring target")
             }
-        }
-        .sheet(isPresented: $showAddTarget) {
-            AddTargetSheet()
-                .frame(minWidth: 400, minHeight: 300)
-        }
-        .task {
-            // Resolve gateway domain
-            let gw = profile.gatewayIP
-            if !gw.isEmpty {
-                resolvedGatewayDomain = await resolveHostname(for: gw)
+            .sheet(isPresented: $showAddTarget) {
+                AddTargetSheet()
+                    .frame(minWidth: 400, minHeight: 300)
             }
-        }
-        .onChange(of: profileManager?.profiles) {
-            if let updated = profileManager?.profiles.first(where: { $0.id == profile.id }) {
-                profile = updated
+            .onChange(of: profileManager?.profiles) {
+                if let updated = profileManager?.profiles.first(where: { $0.id == profile.id }) {
+                    profile = updated
+                }
             }
-        }
     }
 }
-
-    private func resolveHostname(for ip: String) async -> String? {
-        await withCheckedContinuation { continuation in
-            DispatchQueue.global(qos: .utility).async {
-                var hints = addrinfo()
-                hints.ai_family = AF_INET
-                hints.ai_flags = AI_NUMERICHOST
-                var res: UnsafeMutablePointer<addrinfo>?
-                guard getaddrinfo(ip, nil, &hints, &res) == 0, let addr = res else {
-                    continuation.resume(returning: nil)
-                    return
-                }
-                defer { freeaddrinfo(res) }
-                var hostname = [CChar](repeating: 0, count: Int(NI_MAXHOST))
-                if getnameinfo(addr.pointee.ai_addr, addr.pointee.ai_addrlen,
-                               &hostname, socklen_t(hostname.count),
-                               nil, 0, 0) == 0 {
-                    let name = String(cString: hostname)
-                    // Only return if it's actually a domain, not just the IP repeated
-                    continuation.resume(returning: name != ip ? name : nil)
-                } else {
-                    continuation.resume(returning: nil)
-                }
-            }
-        }
-    }
 
 #if DEBUG
 #Preview {
