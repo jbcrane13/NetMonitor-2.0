@@ -188,10 +188,16 @@ final class ScheduledScanUITests: IOSUITestCase {
     // MARK: - Helpers
 
     private func openSettings() {
-        let settingsTab = app.tabBars.buttons["Settings"]
-        if settingsTab.waitForExistence(timeout: 5) {
-            settingsTab.tap()
+        requireExists(app.tabBars.buttons["Dashboard"], message: "Dashboard tab should exist").tap()
+
+        let settingsButton = app.buttons["dashboard_button_settings"]
+        if settingsButton.waitForExistence(timeout: 3) {
+            settingsButton.tap()
+        } else {
+            requireExists(app.navigationBars.buttons.firstMatch, message: "A navigation bar button should exist for settings").tap()
         }
+
+        requireExists(app.descendants(matching: .any)["screen_settings"], timeout: 8, message: "Settings screen should open")
     }
 
     private func navigateToScheduledScan() {

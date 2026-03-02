@@ -56,11 +56,11 @@ struct TimelineView: View {
             .sheet(isPresented: $showingFilterSheet) {
                 TimelineFilterSheet(viewModel: viewModel)
             }
+            .accessibilityIdentifier("screen_networkTimeline")
         }
         .sheet(isPresented: $showingFilterSheet) {
             TimelineFilterSheet(viewModel: viewModel)
         }
-        .accessibilityIdentifier("screen_networkTimeline")
     }
 
     private var eventList: some View {

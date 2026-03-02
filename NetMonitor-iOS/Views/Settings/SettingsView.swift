@@ -21,6 +21,7 @@ struct SettingsView: View {
     @State var connectionService = MacConnectionService.shared
 
     var body: some View {
+        VStack(spacing: 0) {
         List {
             // MARK: - Mac Companion Section
             ConnectionSettingsSection(
@@ -143,7 +144,7 @@ struct SettingsView: View {
                     Label("GeoFence", systemImage: "location.circle")
                         .foregroundStyle(Theme.Colors.textPrimary)
                 }
-                .accessibilityIdentifier("settings_link_geofence")
+                .accessibilityIdentifier("settings_link_geoFence")
             } header: {
                 Text("Automation")
                     .foregroundStyle(Theme.Colors.textSecondary)
@@ -359,7 +360,6 @@ struct SettingsView: View {
         } message: {
             Text("This will delete all stored data including tool results, speed tests, discovered devices, monitoring targets, and file caches. This action cannot be undone.")
         }
-        .accessibilityIdentifier("screen_settings")
         .sheet(isPresented: $showingExportSheet) {
             if let url = exportFileURL {
                 ShareSheet(activityItems: [url])
@@ -377,6 +377,9 @@ struct SettingsView: View {
         .onChange(of: viewModel.highLatencyAlertEnabled) {
             highLatencyAlertEnabled = viewModel.highLatencyAlertEnabled
         }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .accessibilityIdentifier("screen_settings")
     }
 
     private func exportFullReportAsPDF() {
