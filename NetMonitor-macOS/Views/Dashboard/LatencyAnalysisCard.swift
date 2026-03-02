@@ -148,7 +148,7 @@ struct LatencyAnalysisCard: View {
             }
         }
         .frame(height: 60)
-        .animation(.easeInOut(duration: 0.3), value: waveformData.count)
+        // Animation removed — was causing layout loops inside parent containers
         .accessibilityLabel("Latency waveform chart")
     }
 

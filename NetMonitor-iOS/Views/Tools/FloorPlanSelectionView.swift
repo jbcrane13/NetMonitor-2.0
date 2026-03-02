@@ -77,7 +77,7 @@ struct FloorPlanSelectionView: View {
         }
         // Full-screen AR continuous scan
         .fullScreenCover(isPresented: $showARContinuousScan) {
-            ARHeatmapSurveyView { survey in
+            ARContinuousHeatmapView { survey in
                 showARContinuousScan = false
                 if let survey {
                     onARSurveyComplete?(survey)
@@ -125,8 +125,8 @@ struct FloorPlanSelectionView: View {
                     iconColor: Theme.Colors.accent,
                     title: "AR Continuous Scan",
                     subtitle: "Walk around with your camera to automatically map WiFi signal as you move.",
-                    badge: ARHeatmapSession.isSupported ? "RECOMMENDED" : "AR REQUIRED",
-                    badgeColor: ARHeatmapSession.isSupported ? Theme.Colors.success : Theme.Colors.warning
+                    badge: ARContinuousHeatmapSession.isSupported ? "RECOMMENDED" : "AR REQUIRED",
+                    badgeColor: ARContinuousHeatmapSession.isSupported ? Theme.Colors.success : Theme.Colors.warning
                 )
             }
             .buttonStyle(.plain)

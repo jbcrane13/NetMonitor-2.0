@@ -16,63 +16,74 @@ struct NetworkDetailView: View {
 
     private var gatewayLatencyHistory: [Double] {
         guard let session else { return [] }
-        if let gateway = targets.first(where: { $0.name == "Local Gateway" }) {
-            return session.recentLatencies[gateway.id] ?? []
+        // Match any gateway-like target name
+        if let gateway = targets.first(where: {
+            $0.name.localizedCaseInsensitiveContains("gateway")
+        }) {
+            let history = session.recentLatencies[gateway.id] ?? []
+            if !history.isEmpty { return history }
         }
-        if let firstICMP = targets.first(where: { $0.targetProtocol == .icmp }) {
-            return session.recentLatencies[firstICMP.id] ?? []
+        // Fall back to first ICMP target with data
+        for target in targets where target.targetProtocol == .icmp {
+            let history = session.recentLatencies[target.id] ?? []
+            if !history.isEmpty { return history }
+        }
+        // Fall back to any target with latency data
+        for (id, history) in session.recentLatencies {
+            if !history.isEmpty { return history }
         }
         return []
     }
 
     var body: some View {
-        GeometryReader { geo in
-            let gap: CGFloat = 10
-            let rowAHeight = geo.size.height * 0.28
+        VStack(spacing: 10) {
+            // Row A: Internet Activity + Health Gauge
+            HStack(spacing: 10) {
+                InternetActivityCard(session: session)
+                    .accessibilityIdentifier("network_detail_row_activity")
 
-            VStack(spacing: gap) {
-                // Row A: Internet Activity + Health Gauge
-                HStack(spacing: gap) {
-                    InternetActivityCard(session: session)
-                        .accessibilityIdentifier("network_detail_row_activity")
-
-                    HealthGaugeCard()
-                        .frame(width: 210)
-                        .accessibilityIdentifier("network_detail_row_health")
-                }
-                .frame(height: rowAHeight)
-
-                // Row B: Left diagnostics stack + Right device grid
-                HStack(alignment: .top, spacing: gap) {
-                    // Left column — ISP / Latency / Connectivity stacked
-                    VStack(spacing: gap) {
-                        ISPHealthCard()
-                            .accessibilityIdentifier("network_detail_card_isp")
-
-                        LatencyAnalysisCard(
-                            session: session,
-                            gatewayLatencyHistory: gatewayLatencyHistory
-                        )
-                        .accessibilityIdentifier("network_detail_card_latency")
-
-                        ConnectivityCard(session: session, profileManager: profileManager)
-                            .accessibilityIdentifier("network_detail_card_connectivity")
-                    }
-                    .frame(width: max(200, geo.size.width * 0.42 - gap))
-
-                    // Right column — device grid
-                    NetworkDevicesPanel(networkProfileID: profile.id)
-                        .accessibilityIdentifier("network_detail_panel_devices")
-                }
-                .frame(maxHeight: .infinity)
+                HealthGaugeCard()
+                    .frame(width: 210)
+                    .accessibilityIdentifier("network_detail_row_health")
             }
-            .padding(14)
+            .frame(maxHeight: 180)
+
+            // Row B: Left diagnostics stack + Right device grid
+            HStack(alignment: .top, spacing: 10) {
+                // Left column — ISP / Latency / Connectivity stacked
+                VStack(spacing: 10) {
+                    ISPHealthCard()
+                        .accessibilityIdentifier("network_detail_card_isp")
+
+                    LatencyAnalysisCard(
+                        session: session,
+                        gatewayLatencyHistory: gatewayLatencyHistory
+                    )
+                    .accessibilityIdentifier("network_detail_card_latency")
+
+                    ConnectivityCard(session: session, profileManager: profileManager)
+                        .accessibilityIdentifier("network_detail_card_connectivity")
+                }
+                .frame(minWidth: 300, idealWidth: 420)
+
+                // Right column — device grid
+                NetworkDevicesPanel(networkProfileID: profile.id)
+                    .accessibilityIdentifier("network_detail_panel_devices")
+            }
+            .frame(maxHeight: .infinity)
         }
+        .padding(14)
         .macThemedBackground()
         .navigationTitle(profile.displayName)
         .onChange(of: profileManager?.profiles) {
             if let updated = profileManager?.profiles.first(where: { $0.id == profile.id }) {
                 profile = updated
+            }
+        }
+        .onAppear {
+            // Auto-start monitoring so dashboard cards get live data
+            if let session, !session.isMonitoring {
+                session.startMonitoring()
             }
         }
     }
