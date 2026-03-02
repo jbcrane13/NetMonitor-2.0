@@ -24,7 +24,7 @@ struct ContentView: View {
         } detail: {
             detailView
         }
-        .frame(minWidth: 1000, minHeight: 600)
+        .frame(minWidth: 1000, idealWidth: 1400, maxWidth: 2200, minHeight: 600, idealHeight: 900, maxHeight: 1600)
         .sheet(isPresented: $showingAddNetworkSheet) {
             AddNetworkSheet()
         }
