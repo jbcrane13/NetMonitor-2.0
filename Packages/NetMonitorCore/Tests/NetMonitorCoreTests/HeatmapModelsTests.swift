@@ -178,38 +178,51 @@ struct HeatmapModeTests {
 
     @Test("HeatmapMode has all expected cases")
     func allCases() {
-        #expect(HeatmapMode.allCases.count == 2)
+        #expect(HeatmapMode.allCases.count == 3)
         #expect(HeatmapMode.allCases.contains(.freeform))
         #expect(HeatmapMode.allCases.contains(.floorplan))
+        #expect(HeatmapMode.allCases.contains(.arContinuous))
     }
 
     @Test("HeatmapMode rawValue is correct")
     func rawValues() {
         #expect(HeatmapMode.freeform.rawValue == "freeform")
         #expect(HeatmapMode.floorplan.rawValue == "floorplan")
+        #expect(HeatmapMode.arContinuous.rawValue == "ar_continuous")
     }
 
     @Test("HeatmapMode displayName is non-empty")
     func displayNames() {
         #expect(HeatmapMode.freeform.displayName == "Freeform")
         #expect(HeatmapMode.floorplan.displayName == "Floorplan")
+        #expect(HeatmapMode.arContinuous.displayName == "AR Continuous")
     }
 
     @Test("HeatmapMode systemImage is non-empty")
     func systemImages() {
         #expect(!HeatmapMode.freeform.systemImage.isEmpty)
         #expect(!HeatmapMode.floorplan.systemImage.isEmpty)
+        #expect(!HeatmapMode.arContinuous.systemImage.isEmpty)
     }
 
     @Test("HeatmapMode description is non-empty")
     func descriptions() {
         #expect(!HeatmapMode.freeform.description.isEmpty)
         #expect(!HeatmapMode.floorplan.description.isEmpty)
+        #expect(!HeatmapMode.arContinuous.description.isEmpty)
     }
 
     @Test("HeatmapMode Codable round-trip")
     func codableRoundTrip() throws {
         let original = HeatmapMode.floorplan
+        let data = try JSONEncoder().encode(original)
+        let decoded = try JSONDecoder().decode(HeatmapMode.self, from: data)
+        #expect(decoded == original)
+    }
+
+    @Test("HeatmapMode arContinuous Codable round-trip")
+    func codableRoundTripARContinuous() throws {
+        let original = HeatmapMode.arContinuous
         let data = try JSONEncoder().encode(original)
         let decoded = try JSONDecoder().decode(HeatmapMode.self, from: data)
         #expect(decoded == original)

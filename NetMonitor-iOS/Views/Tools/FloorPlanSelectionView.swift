@@ -8,13 +8,16 @@ import NetMonitorCore
 /// Presents three options: AR LiDAR scan, photo/PDF import, or freeform grid.
 struct FloorPlanSelectionView: View {
     let viewModel: WiFiHeatmapSurveyViewModel
-    /// Called when the user has picked a source and the view should dismiss.
+    /// Called when the user has picked a source and the view should dismiss to start a manual survey.
     var onProceed: () -> Void
+    /// Called when an AR continuous scan completes with a finished survey.
+    var onARSurveyComplete: ((HeatmapSurvey) -> Void)?
 
     @Environment(\.dismiss) private var dismiss
     @State private var selectedPhoto: PhotosPickerItem?
     @State private var showCalibration = false
     @State private var showARScan = false
+    @State private var showARContinuousScan = false
 
     var body: some View {
         NavigationStack {
@@ -72,6 +75,15 @@ struct FloorPlanSelectionView: View {
                 onProceed()
             }
         }
+        // Full-screen AR continuous scan
+        .fullScreenCover(isPresented: $showARContinuousScan) {
+            ARHeatmapSurveyView { survey in
+                showARContinuousScan = false
+                if let survey {
+                    onARSurveyComplete?(survey)
+                }
+            }
+        }
         // Photo picker onChange
         .onChange(of: selectedPhoto) { _, newItem in
             Task {
@@ -104,17 +116,33 @@ struct FloorPlanSelectionView: View {
 
     private var options: some View {
         VStack(spacing: 12) {
+            // AR Continuous Scan
+            Button {
+                showARContinuousScan = true
+            } label: {
+                SourceCard(
+                    icon: "camera.viewfinder",
+                    iconColor: Theme.Colors.accent,
+                    title: "AR Continuous Scan",
+                    subtitle: "Walk around with your camera to automatically map WiFi signal as you move.",
+                    badge: ARHeatmapSession.isSupported ? "RECOMMENDED" : "AR REQUIRED",
+                    badgeColor: ARHeatmapSession.isSupported ? Theme.Colors.success : Theme.Colors.warning
+                )
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("floorplan_option_ar_continuous")
+
             // AR LiDAR Scan
             Button {
                 showARScan = true
             } label: {
                 SourceCard(
                     icon: "cube.transparent.fill",
-                    iconColor: Theme.Colors.accent,
+                    iconColor: Theme.Colors.info,
                     title: "AR LiDAR Scan",
                     subtitle: "Use your device's LiDAR to automatically generate a scaled floor plan.",
-                    badge: RoomPlanScanView.isSupported ? "RECOMMENDED" : "LIDAR REQUIRED",
-                    badgeColor: RoomPlanScanView.isSupported ? Theme.Colors.success : Theme.Colors.warning
+                    badge: RoomPlanScanView.isSupported ? nil : "LIDAR REQUIRED",
+                    badgeColor: Theme.Colors.warning
                 )
             }
             .buttonStyle(.plain)

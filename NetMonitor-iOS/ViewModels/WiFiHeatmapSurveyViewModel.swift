@@ -113,6 +113,11 @@ final class WiFiHeatmapSurveyViewModel {
         statusMessage = "\(signal) dBm (\(level.label)) recorded"
     }
 
+    func addSurvey(_ survey: HeatmapSurvey) {
+        surveys.insert(survey, at: 0)
+        saveSurveys()
+    }
+
     func deleteSurvey(_ survey: HeatmapSurvey) {
         surveys.removeAll { $0.id == survey.id }
         saveSurveys()

@@ -4,27 +4,31 @@ import Foundation
 
 /// Survey mode for WiFi heatmapping.
 public enum HeatmapMode: String, Codable, CaseIterable, Sendable {
-    case freeform  = "freeform"   // Walk around; tap anywhere to record
-    case floorplan = "floorplan"  // Import floor plan image; tap to record positions
+    case freeform      = "freeform"       // Walk around; tap anywhere to record
+    case floorplan     = "floorplan"      // Import floor plan image; tap to record positions
+    case arContinuous  = "ar_continuous"  // AR camera auto-records as you walk
 
     public var displayName: String {
         switch self {
-        case .freeform:  "Freeform"
-        case .floorplan: "Floorplan"
+        case .freeform:      "Freeform"
+        case .floorplan:     "Floorplan"
+        case .arContinuous:  "AR Continuous"
         }
     }
 
     public var systemImage: String {
         switch self {
-        case .freeform:  "hand.tap"
-        case .floorplan: "map"
+        case .freeform:      "hand.tap"
+        case .floorplan:     "map"
+        case .arContinuous:  "camera.viewfinder"
         }
     }
 
     public var description: String {
         switch self {
-        case .freeform:  "Tap anywhere on the canvas to record signal strength at that position"
-        case .floorplan: "Import a floor plan image and tap positions while walking"
+        case .freeform:      "Tap anywhere on the canvas to record signal strength at that position"
+        case .floorplan:     "Import a floor plan image and tap positions while walking"
+        case .arContinuous:  "Walk around with the camera to automatically map WiFi signal strength"
         }
     }
 }

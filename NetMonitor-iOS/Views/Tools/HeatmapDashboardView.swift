@@ -37,6 +37,14 @@ struct HeatmapDashboardView: View {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
                     shouldStartSurvey = true
                 }
+            } onARSurveyComplete: { survey in
+                // AR continuous scan completed — save and show result
+                showFloorPlanSelection = false
+                viewModel.addSurvey(survey)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                    resultSurvey = survey
+                    showResultSurvey = true
+                }
             }
         }
         // Push: active survey
