@@ -32,8 +32,24 @@ final class ARHeatmapSession: NSObject, @unchecked Sendable {
     func startSession() {
         guard Self.isSupported else { return }
         let config = ARWorldTrackingConfiguration()
-        config.planeDetection = []
-        config.environmentTexturing = .none
+        // Enable plane detection so ARKit builds spatial understanding of the room
+        config.planeDetection = [.horizontal, .vertical]
+        config.environmentTexturing = .automatic
+
+        // Enable scene reconstruction on LiDAR devices for mesh-based room scanning
+        if ARWorldTrackingConfiguration.supportsSceneReconstruction(.mesh) {
+            config.sceneReconstruction = .mesh
+        }
+
+        // Enable scene geometry for better spatial understanding
+        if ARWorldTrackingConfiguration.supportsFrameSemantics(.sceneDepth) {
+            config.frameSemantics.insert(.sceneDepth)
+        }
+
+        arView.environment.sceneUnderstanding.options.insert(.occlusion)
+        arView.environment.sceneUnderstanding.options.insert(.receivesLighting)
+        arView.debugOptions.insert(.showSceneUnderstanding)
+
         arView.session.run(config, options: [.resetTracking, .removeExistingAnchors])
     }
 
@@ -56,8 +72,13 @@ final class ARHeatmapSession: NSObject, @unchecked Sendable {
     func placeSignalSphere(signalDBm: Int) {
         guard let frame = arView.session.currentFrame else { return }
         let camTransform = frame.camera.transform
-        // Place at camera XZ, but at ground level (y = 0) for consistent 2D heatmap feel
-        let position = SIMD3<Float>(camTransform.columns.3.x, 0, camTransform.columns.3.z)
+        // Place sphere slightly below camera height so it's visible as you walk
+        let camY = camTransform.columns.3.y
+        let position = SIMD3<Float>(
+            camTransform.columns.3.x,
+            camY - 0.3,  // 30cm below eye level
+            camTransform.columns.3.z
+        )
         let anchor = AnchorEntity(world: position)
         anchor.addChild(makeSignalEntity(signalDBm: signalDBm))
         arView.scene.addAnchor(anchor)
@@ -69,11 +90,11 @@ final class ARHeatmapSession: NSObject, @unchecked Sendable {
         let color = UIColor.signalColor(dBm: signalDBm)
         var material = SimpleMaterial()
         material.color = .init(tint: color, texture: nil)
-        material.roughness = 0.5
-        material.metallic = 0.1
-        let sphere = ModelEntity(mesh: .generateSphere(radius: 0.05), materials: [material])
-        // Slight transparency for overlapping spheres
-        sphere.components[OpacityComponent.self] = OpacityComponent(opacity: 0.75)
+        material.roughness = 0.3
+        material.metallic = 0.2
+        // 8cm radius — visible from a few meters away
+        let sphere = ModelEntity(mesh: .generateSphere(radius: 0.08), materials: [material])
+        sphere.components[OpacityComponent.self] = OpacityComponent(opacity: 0.8)
         return sphere
     }
 }
