@@ -86,10 +86,13 @@ final class WiFiInfoService: NSObject, WiFiInfoServiceProtocol {
             return nil
         }
         
+        // signalStrength is 0.0 when the system can't read the actual value
+        // (e.g. transient failure). Treat as nil so the HUD doesn't show "0%".
+        let strength = network.signalStrength
         return WiFiInfo(
             ssid: network.ssid,
             bssid: network.bssid,
-            signalStrength: Int(network.signalStrength * 100),
+            signalStrength: strength > 0 ? Int(strength * 100) : nil,
             signalDBm: nil,
             channel: nil,
             frequency: nil,
