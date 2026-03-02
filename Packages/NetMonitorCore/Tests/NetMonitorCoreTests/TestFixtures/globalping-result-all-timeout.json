@@ -1,0 +1,25 @@
+{
+  "status": "finished",
+  "results": [
+    {
+      "probe": {"city": "Frankfurt", "country": "Germany", "continent": "EU"},
+      "result": {"status": "timeout"}
+    },
+    {
+      "probe": {"city": "Ashburn", "country": "United States", "continent": "NA"},
+      "result": {"status": "timeout"}
+    },
+    {
+      "probe": {"city": "Tokyo", "country": "Japan", "continent": "AS"},
+      "result": {"status": "timeout"}
+    },
+    {
+      "probe": {"city": "Sydney", "country": "Australia", "continent": "OC"},
+      "result": {"status": "timeout"}
+    },
+    {
+      "probe": {"city": "Sao Paulo", "country": "Brazil", "continent": "SA"},
+      "result": {"status": "timeout"}
+    }
+  ]
+}

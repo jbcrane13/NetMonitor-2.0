@@ -13,24 +13,49 @@ import Foundation
 ///    Tests using this path must run inside a `.serialized` suite to prevent races.
 final class MockURLProtocol: URLProtocol, @unchecked Sendable {
 
-    // MARK: - Shared-state lock
-    // Protects both requestHandler and sessionHandlers against concurrent
-    // access from test suites that run in parallel by default in Swift Testing.
-    private static let lock = NSLock()
+    // MARK: - Thread-safe handler store
+    //
+    // Uses a final class (reference type) rather than nonisolated(unsafe) static
+    // variables to avoid Swift 6's exclusive-access enforcement, which can SIGTRAP
+    // when concurrent test suites mutate the same static storage location even
+    // when protected by NSLock.
+    private static let store = MockHandlerStore()
+
+    private final class MockHandlerStore: @unchecked Sendable {
+        private let lock = NSLock()
+        private var requestHandlerValue: ((URLRequest) throws -> (HTTPURLResponse, Data))?
+        private var sessionHandlerValues: [String: (URLRequest) throws -> (HTTPURLResponse, Data)] = [:]
+
+        func getRequestHandler() -> ((URLRequest) throws -> (HTTPURLResponse, Data))? {
+            lock.lock()
+            defer { lock.unlock() }
+            return requestHandlerValue
+        }
+
+        func setRequestHandler(_ h: ((URLRequest) throws -> (HTTPURLResponse, Data))?) {
+            lock.lock()
+            defer { lock.unlock() }
+            requestHandlerValue = h
+        }
+
+        func getSessionHandler(for token: String) -> ((URLRequest) throws -> (HTTPURLResponse, Data))? {
+            lock.lock()
+            defer { lock.unlock() }
+            return sessionHandlerValues[token]
+        }
+
+        func setSessionHandler(_ h: @escaping (URLRequest) throws -> (HTTPURLResponse, Data), for token: String) {
+            lock.lock()
+            defer { lock.unlock() }
+            sessionHandlerValues[token] = h
+        }
+    }
 
     // MARK: - Global static handler (legacy, shared across sessions)
     static var requestHandler: ((URLRequest) throws -> (HTTPURLResponse, Data))? {
-        get { lock.withLock { _requestHandler } }
-        set { lock.withLock { _requestHandler = newValue } }
+        get { store.getRequestHandler() }
+        set { store.setRequestHandler(newValue) }
     }
-
-    nonisolated(unsafe) private static var _requestHandler: ((URLRequest) throws -> (HTTPURLResponse, Data))?
-
-    // MARK: - Per-session handler registry
-    // Key: a UUID string injected into every request as a custom header by the session.
-    // Value: handler closure specific to that session.
-    nonisolated(unsafe) private static var _sessionHandlers:
-        [String: (URLRequest) throws -> (HTTPURLResponse, Data)] = [:]
 
     private static let sessionTokenHeader = "X-Mock-Session-Token"
 
@@ -41,17 +66,15 @@ final class MockURLProtocol: URLProtocol, @unchecked Sendable {
 
     override func startLoading() {
         // Per-session handler path: look up by token in request header.
-        // Lock is released before dispatching to avoid deadlock if the handler
-        // itself calls back into MockURLProtocol.
         if let token = request.value(forHTTPHeaderField: MockURLProtocol.sessionTokenHeader) {
-            let handler = MockURLProtocol.lock.withLock { MockURLProtocol._sessionHandlers[token] }
+            let handler = MockURLProtocol.store.getSessionHandler(for: token)
             if let handler {
                 dispatch(handler: handler)
                 return
             }
         }
         // Global static handler path (legacy).
-        let handler = MockURLProtocol.lock.withLock { MockURLProtocol._requestHandler }
+        let handler = MockURLProtocol.store.getRequestHandler()
         if let handler {
             dispatch(handler: handler)
             return
@@ -84,7 +107,7 @@ final class MockURLProtocol: URLProtocol, @unchecked Sendable {
         handler: @escaping (URLRequest) throws -> (HTTPURLResponse, Data)
     ) -> URLSession {
         let token = UUID().uuidString
-        lock.withLock { _sessionHandlers[token] = handler }
+        store.setSessionHandler(handler, for: token)
 
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [MockURLProtocol.self]

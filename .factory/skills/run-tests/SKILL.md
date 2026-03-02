@@ -35,8 +35,9 @@ ssh mac-mini "cd ~/Projects/NetMonitor-2.0 && xcodebuild test \
   2>&1 | tail -30"
 
 # Swift package tests (NetMonitorCore + NetworkScanKit)
-ssh mac-mini "cd ~/Projects/NetMonitor-2.0/Packages/NetMonitorCore && swift test 2>&1 | tail -20"
-ssh mac-mini "cd ~/Projects/NetMonitor-2.0/Packages/NetworkScanKit && swift test 2>&1 | tail -20"
+# --no-parallel prevents Swift Concurrency runtime crashes when async actor-isolated tests run concurrently
+ssh mac-mini "cd ~/Projects/NetMonitor-2.0/Packages/NetMonitorCore && swift test --no-parallel 2>&1 | tail -20"
+ssh mac-mini "cd ~/Projects/NetMonitor-2.0/Packages/NetworkScanKit && swift test --no-parallel 2>&1 | tail -20"
 ```
 
 ## UI Tests (require signed build + active GUI session on mac-mini)

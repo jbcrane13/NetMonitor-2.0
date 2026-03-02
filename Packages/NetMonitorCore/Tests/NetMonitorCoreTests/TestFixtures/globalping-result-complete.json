@@ -1,0 +1,25 @@
+{
+  "status": "finished",
+  "results": [
+    {
+      "probe": {"city": "Frankfurt", "country": "Germany", "continent": "EU"},
+      "result": {"status": "finished", "timings": {"total": 32.0}, "statusCode": 200, "resolvedAddress": "142.250.185.46"}
+    },
+    {
+      "probe": {"city": "Ashburn", "country": "United States", "continent": "NA"},
+      "result": {"status": "finished", "timings": {"total": 45.5}, "statusCode": 200, "resolvedAddress": "8.8.8.8"}
+    },
+    {
+      "probe": {"city": "Tokyo", "country": "Japan", "continent": "AS"},
+      "result": {"status": "finished", "timings": {"total": 180.0}, "statusCode": 200, "resolvedAddress": "142.250.10.1"}
+    },
+    {
+      "probe": {"city": "Sydney", "country": "Australia", "continent": "OC"},
+      "result": {"status": "finished", "timings": {"total": 220.0}, "statusCode": 200, "resolvedAddress": "64.233.176.1"}
+    },
+    {
+      "probe": {"city": "Sao Paulo", "country": "Brazil", "continent": "SA"},
+      "result": {"status": "finished", "timings": {"total": 280.0}, "statusCode": 200, "resolvedAddress": "172.217.28.1"}
+    }
+  ]
+}

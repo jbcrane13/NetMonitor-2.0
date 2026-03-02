@@ -18,12 +18,12 @@ struct ContractTests {
 
         @Test("Full ping flow: real decoder parses submit response and maps 5 nodes")
         func fullPingFlowDecodesAllNodes() async throws {
-            let submitJSON = try MockURLProtocol.loadFixture(named: "check-host-submit-success.json")
-            let resultsJSON = try MockURLProtocol.loadFixture(named: "check-host-result-complete.json")
-            let session = MockURLProtocol.makeSession(responses: [
-                "check-ping": (200, Data(submitJSON.utf8)),
-                "check-result": (200, Data(resultsJSON.utf8))
-            ])
+            let submitJSON = try MockURLProtocol.loadFixture(named: "globalping-submit-success.json")
+            let resultsJSON = try MockURLProtocol.loadFixture(named: "globalping-result-complete.json")
+            let session = MockURLProtocol.makeSession { request in
+                let data = request.httpMethod == "POST" ? Data(submitJSON.utf8) : Data(resultsJSON.utf8)
+                return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+            }
 
             let service = WorldPingService(session: session)
             var results: [WorldPingLocationResult] = []
@@ -35,14 +35,14 @@ struct ContractTests {
             #expect(results.allSatisfy { $0.isSuccess }, "All nodes in complete fixture should succeed")
         }
 
-        @Test("Latency is converted from seconds to milliseconds")
-        func latencyConvertedFromSecondsToMs() async throws {
-            let submitJSON = try MockURLProtocol.loadFixture(named: "check-host-submit-success.json")
-            let resultsJSON = try MockURLProtocol.loadFixture(named: "check-host-result-complete.json")
-            let session = MockURLProtocol.makeSession(responses: [
-                "check-ping": (200, Data(submitJSON.utf8)),
-                "check-result": (200, Data(resultsJSON.utf8))
-            ])
+        @Test("Latency value from timings.total is used as latencyMs")
+        func latencyFromTimingsTotal() async throws {
+            let submitJSON = try MockURLProtocol.loadFixture(named: "globalping-submit-success.json")
+            let resultsJSON = try MockURLProtocol.loadFixture(named: "globalping-result-complete.json")
+            let session = MockURLProtocol.makeSession { request in
+                let data = request.httpMethod == "POST" ? Data(submitJSON.utf8) : Data(resultsJSON.utf8)
+                return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+            }
 
             let service = WorldPingService(session: session)
             var results: [WorldPingLocationResult] = []
@@ -50,22 +50,22 @@ struct ContractTests {
                 results.append(result)
             }
 
-            // Frankfurt node in fixture: 0.032s → 32ms
+            // Frankfurt node in fixture: timings.total = 32.0 ms
             let frankfurt = results.first(where: { $0.city == "Frankfurt" })
             #expect(frankfurt != nil, "Frankfurt node should be present")
             if let ms = frankfurt?.latencyMs {
-                #expect(abs(ms - 32.0) < 0.1, "0.032s should convert to 32ms, got \(ms)ms")
+                #expect(abs(ms - 32.0) < 0.1, "timings.total=32.0 should map to 32ms, got \(ms)ms")
             }
         }
 
-        @Test("Node metadata (country, city) is mapped from submit response")
+        @Test("Node metadata (city, continent name) is mapped from probe fields")
         func nodeMetadataIsPopulated() async throws {
-            let submitJSON = try MockURLProtocol.loadFixture(named: "check-host-submit-success.json")
-            let resultsJSON = try MockURLProtocol.loadFixture(named: "check-host-result-complete.json")
-            let session = MockURLProtocol.makeSession(responses: [
-                "check-ping": (200, Data(submitJSON.utf8)),
-                "check-result": (200, Data(resultsJSON.utf8))
-            ])
+            let submitJSON = try MockURLProtocol.loadFixture(named: "globalping-submit-success.json")
+            let resultsJSON = try MockURLProtocol.loadFixture(named: "globalping-result-complete.json")
+            let session = MockURLProtocol.makeSession { request in
+                let data = request.httpMethod == "POST" ? Data(submitJSON.utf8) : Data(resultsJSON.utf8)
+                return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+            }
 
             let service = WorldPingService(session: session)
             var results: [WorldPingLocationResult] = []
@@ -77,19 +77,20 @@ struct ContractTests {
             #expect(cityNames.contains("Frankfurt"))
             #expect(cityNames.contains("Ashburn"))
             #expect(cityNames.contains("Tokyo"))
+            // Globalping uses continent codes; service maps them to continent display names
             let countries = results.map { $0.country }
-            #expect(countries.contains("Germany"))
-            #expect(countries.contains("United States"))
+            #expect(countries.contains("Europe"))
+            #expect(countries.contains("North America"))
         }
 
         @Test("All-timeout response: nodes returned as isSuccess=false with nil latency")
         func allTimeoutNodesReturnedWithFailure() async throws {
-            let submitJSON = try MockURLProtocol.loadFixture(named: "check-host-submit-success.json")
-            let resultsJSON = try MockURLProtocol.loadFixture(named: "check-host-result-all-timeout.json")
-            let session = MockURLProtocol.makeSession(responses: [
-                "check-ping": (200, Data(submitJSON.utf8)),
-                "check-result": (200, Data(resultsJSON.utf8))
-            ])
+            let submitJSON = try MockURLProtocol.loadFixture(named: "globalping-submit-success.json")
+            let resultsJSON = try MockURLProtocol.loadFixture(named: "globalping-result-all-timeout.json")
+            let session = MockURLProtocol.makeSession { request in
+                let data = request.httpMethod == "POST" ? Data(submitJSON.utf8) : Data(resultsJSON.utf8)
+                return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+            }
 
             let service = WorldPingService(session: session)
             var results: [WorldPingLocationResult] = []
@@ -141,14 +142,14 @@ struct ContractTests {
             #expect(service.lastError != nil, "lastError should be set on network failure")
         }
 
-        @Test("Results are sorted alphabetically by city name")
-        func resultsAreSortedByCity() async throws {
-            let submitJSON = try MockURLProtocol.loadFixture(named: "check-host-submit-success.json")
-            let resultsJSON = try MockURLProtocol.loadFixture(named: "check-host-result-complete.json")
-            let session = MockURLProtocol.makeSession(responses: [
-                "check-ping": (200, Data(submitJSON.utf8)),
-                "check-result": (200, Data(resultsJSON.utf8))
-            ])
+        @Test("Results are sorted by ascending latency")
+        func resultsAreSortedByLatency() async throws {
+            let submitJSON = try MockURLProtocol.loadFixture(named: "globalping-submit-success.json")
+            let resultsJSON = try MockURLProtocol.loadFixture(named: "globalping-result-complete.json")
+            let session = MockURLProtocol.makeSession { request in
+                let data = request.httpMethod == "POST" ? Data(submitJSON.utf8) : Data(resultsJSON.utf8)
+                return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+            }
 
             let service = WorldPingService(session: session)
             var results: [WorldPingLocationResult] = []
@@ -156,8 +157,8 @@ struct ContractTests {
                 results.append(result)
             }
 
-            let cities = results.map { $0.city }
-            #expect(cities == cities.sorted(), "Results should be sorted alphabetically by city: \(cities)")
+            let latencies = results.compactMap { $0.latencyMs }
+            #expect(latencies == latencies.sorted(), "Results should be sorted by ascending latency: \(latencies)")
         }
     }
 

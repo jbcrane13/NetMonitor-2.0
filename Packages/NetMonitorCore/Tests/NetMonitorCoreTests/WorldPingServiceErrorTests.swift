@@ -119,16 +119,22 @@ struct WorldPingServiceErrorTests {
         #expect(service1.lastError != nil, "Precondition: lastError should be set after failure")
 
         // Second call: a fresh service with a success session — lastError starts nil
-        let submitJSON = """
-        {"ok":1,"request_id":"test123","nodes":{"n1.node.check-host.net":["us","United States","Ashburn","1.2.3.4","AS1234"]}}
-        """
+        let submitJSON = "{\"id\":\"gp-clear-test\"}"
         let resultJSON = """
-        {"n1.node.check-host.net":[[["OK",0.025]]]}
+        {
+          "status": "finished",
+          "results": [
+            {
+              "probe": {"city": "Ashburn", "country": "United States", "continent": "NA"},
+              "result": {"status": "finished", "timings": {"total": 25.0}, "statusCode": 200}
+            }
+          ]
+        }
         """
-        let successSession = MockURLProtocol.makeSession(responses: [
-            "check-ping":   (200, Data(submitJSON.utf8)),
-            "check-result": (200, Data(resultJSON.utf8))
-        ])
+        let successSession = MockURLProtocol.makeSession { request in
+            let body = request.httpMethod == "POST" ? submitJSON : resultJSON
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, Data(body.utf8))
+        }
         let service2 = WorldPingService(session: successSession)
         for await _ in await service2.ping(host: "google.com", maxNodes: 1) {}
 
@@ -139,16 +145,22 @@ struct WorldPingServiceErrorTests {
 
     @Test("Successful ping leaves lastError as nil")
     func successfulPingNoLastError() async throws {
-        let submitJSON = """
-        {"ok":1,"request_id":"abc","nodes":{"de1.node.check-host.net":["de","Germany","Frankfurt","5.6.7.8","AS5678"]}}
-        """
+        let submitJSON = "{\"id\":\"gp-success-test\"}"
         let resultJSON = """
-        {"de1.node.check-host.net":[[["OK",0.032]]]}
+        {
+          "status": "finished",
+          "results": [
+            {
+              "probe": {"city": "Frankfurt", "country": "Germany", "continent": "EU"},
+              "result": {"status": "finished", "timings": {"total": 32.0}, "statusCode": 200}
+            }
+          ]
+        }
         """
-        let session = MockURLProtocol.makeSession(responses: [
-            "check-ping":   (200, Data(submitJSON.utf8)),
-            "check-result": (200, Data(resultJSON.utf8))
-        ])
+        let session = MockURLProtocol.makeSession { request in
+            let body = request.httpMethod == "POST" ? submitJSON : resultJSON
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, Data(body.utf8))
+        }
 
         let service = WorldPingService(session: session)
         var results: [WorldPingLocationResult] = []

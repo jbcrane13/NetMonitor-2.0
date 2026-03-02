@@ -2,31 +2,23 @@ import Foundation
 import Testing
 @testable import NetMonitorCore
 
-// MARK: - Regression tests for bugs fixed in commit 6ff1a12
+// MARK: - Regression tests for Globalping.io implementation
 //
-// Bug 1: WorldPingService used wrong node field indices — API returns
-//         [countryCode, country, city, ip, asn], not [country, city, region, countryCode, ip]
-//
-// Bug 2: WorldPingService misread result nesting — API returns [[[Any]]] (triple-nested),
-//         not [[Any]] (double-nested), so ALL results fell through to isSuccess=false
+// These tests verify that WorldPingService correctly maps Globalping.io API responses
+// to WorldPingLocationResult values. The service was switched from check-host.net to
+// Globalping.io in commit b7204d4.
 //
 // Bug 3: GeoLocationService used HTTP (ip-api.com free tier), blocked by iOS ATS —
 //         all geo-lookups silently failed, GeoTrace map showed no pins
 //
-// Bug 4 (NetMonitor-2.0-82l): pollResults silently swallowed error-JSON from the
-//         result endpoint — {"error":"..."} caused allReady=true (no nulls), guard
-//         in parseResults dropped the "error" key, returned [], and never set lastError.
-//         Also: HTTP 4xx/5xx on the poll endpoint was not surfaced as an error.
-//         Fix: detect error-JSON (no node keys in response) and HTTP errors on poll.
+// Bug 4 (NetMonitor-2.0-82l): poll endpoint HTTP errors were not surfaced as lastError.
+//         Fix: detect HTTP 4xx/5xx on poll endpoint and throw pollFailed.
 
-// MARK: - WorldPing Contract Tests (real API fixture format)
+// MARK: - WorldPing Globalping.io format regression tests
 
 @Suite("WorldPingService — real API format regression", .serialized)
 struct WorldPingRegressionContractTests {
 
-    // Resets shared MockURLProtocol.requestHandler before each test so this suite
-    // does not interfere with (or receive interference from) other suites that also
-    // use the shared static handler.
     init() { MockURLProtocol.requestHandler = nil }
 
     // MARK: Helpers
@@ -40,124 +32,87 @@ struct WorldPingRegressionContractTests {
         return try Data(contentsOf: url)
     }
 
-    // MARK: - Node metadata parsing (Bug 1)
-
-    @Test("Node metadata: country at index 1, city at index 2, countryCode at index 0")
-    func nodeMetadataIndicesAreCorrect() throws {
-        // Real API: ["at", "Austria", "Vienna", "185.224.3.111", "AS64457"]
-        // Old (wrong): country=arr[0], city=arr[1], countryCode=arr[3]
-        // Fixed:       country=arr[1], city=arr[2], countryCode=arr[0]
-        let submitData = try loadFixture("check-host-submit-real.json")
-        let decoded = try JSONDecoder().decode(CheckPingResponsePublic.self, from: submitData)
-
-        let at = decoded.nodes["at1.node.check-host.net"]
-        #expect(at?[safe: 0] == "at",      "countryCode should be at index 0")
-        #expect(at?[safe: 1] == "Austria", "country should be at index 1")
-        #expect(at?[safe: 2] == "Vienna",  "city should be at index 2")
-
-        let us = decoded.nodes["us1.node.check-host.net"]
-        #expect(us?[safe: 1] == "United States")
-        #expect(us?[safe: 2] == "Ashburn")
-        #expect(us?[safe: 0] == "us")
+    private func makeGlobalpingSession(submitData: Data, pollData: Data) -> URLSession {
+        MockURLProtocol.makeSession { request in
+            let data = request.httpMethod == "POST" ? submitData : pollData
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
     }
 
-    @Test("WorldPingService produces correctly-labelled results from real node format")
-    func serviceProducesCorrectLabelsFromRealNodeFormat() async throws {
-        defer { MockURLProtocol.requestHandler = nil }
-        let submitData   = try loadFixture("check-host-submit-real.json")
-        let resultsData  = try loadFixture("check-host-result-real.json")
+    // MARK: - Probe field mapping
 
-        let session = MockURLProtocol.makeSession(responses: [
-            "check-ping":    (200, submitData),
-            "check-result":  (200, resultsData)
-        ])
+    @Test("Globalping probe fields (city, continent) are correctly mapped to result")
+    func globalpingProbeFieldsAreMapped() async throws {
+        let submitData  = try loadFixture("globalping-submit-success.json")
+        let resultsData = try loadFixture("globalping-result-complete.json")
+
+        let session = makeGlobalpingSession(submitData: submitData, pollData: resultsData)
         let service = WorldPingService(session: session)
 
         var results: [WorldPingLocationResult] = []
-        let stream = await service.ping(host: "google.com", maxNodes: 5)
-        for await r in stream { results.append(r) }
+        for await r in await service.ping(host: "google.com", maxNodes: 5) { results.append(r) }
 
-        // Regression: old wrong indices would produce country="at", city="Austria"
-        let austria = results.first { $0.city == "Vienna" }
-        #expect(austria != nil,              "Expected a Vienna result")
-        #expect(austria?.country == "Austria", "country field must be country name, not code")
+        // City comes from probe.city; country is mapped from continent code via continentName()
+        let frankfurt = results.first { $0.city == "Frankfurt" }
+        #expect(frankfurt != nil, "Expected a Frankfurt result")
+        #expect(frankfurt?.country == "Europe", "EU continent should map to 'Europe'")
 
-        let us = results.first { $0.city == "Ashburn" }
-        #expect(us?.country == "United States")
+        let ashburn = results.first { $0.city == "Ashburn" }
+        #expect(ashburn?.country == "North America", "NA continent should map to 'North America'")
     }
 
-    // MARK: - Triple-nested result parsing (Bug 2)
+    // MARK: - isSuccess flag
 
-    @Test("WorldPingService parses triple-nested [[[Any]]] result format — isSuccess true")
-    func tripleNestedFormatParsedAsSuccess() async throws {
-        defer { MockURLProtocol.requestHandler = nil }
-        let submitData  = try loadFixture("check-host-submit-real.json")
-        let resultsData = try loadFixture("check-host-result-real.json")
+    @Test("Results are isSuccess=true when status=finished and timings.total is present")
+    func finishedStatusWithTimingsIsSuccess() async throws {
+        let submitData  = try loadFixture("globalping-submit-success.json")
+        let resultsData = try loadFixture("globalping-result-complete.json")
 
-        let session = MockURLProtocol.makeSession(responses: [
-            "check-ping":   (200, submitData),
-            "check-result": (200, resultsData)
-        ])
+        let session = makeGlobalpingSession(submitData: submitData, pollData: resultsData)
         let service = WorldPingService(session: session)
 
         var results: [WorldPingLocationResult] = []
-        let stream = await service.ping(host: "google.com", maxNodes: 5)
-        for await r in stream { results.append(r) }
+        for await r in await service.ping(host: "google.com", maxNodes: 5) { results.append(r) }
 
-        // Regression: old double-nested parsing made ALL results isSuccess=false
         let successCount = results.filter { $0.isSuccess }.count
-        #expect(successCount >= 4, "At least 4 of 5 nodes should report success; got \(successCount). Regression: double-nested parse makes all isSuccess=false")
+        #expect(successCount == 5, "All 5 finished nodes with timings should be isSuccess=true; got \(successCount)")
     }
 
-    @Test("WorldPingService averages latency across multiple probes per node")
-    func latencyIsAveragedAcrossProbes() async throws {
-        defer { MockURLProtocol.requestHandler = nil }
-        // at1: 3 probes at 32ms, 29ms, 31ms → avg ≈ 30.67ms (× 1000 from seconds)
-        let submitData  = try loadFixture("check-host-submit-real.json")
-        let resultsData = try loadFixture("check-host-result-real.json")
+    // MARK: - latencyMs
 
-        let session = MockURLProtocol.makeSession(responses: [
-            "check-ping":   (200, submitData),
-            "check-result": (200, resultsData)
-        ])
+    @Test("Latency from timings.total is used directly as latencyMs")
+    func latencyFromTimingsTotalIsUsed() async throws {
+        let submitData  = try loadFixture("globalping-submit-success.json")
+        let resultsData = try loadFixture("globalping-result-complete.json")
+
+        let session = makeGlobalpingSession(submitData: submitData, pollData: resultsData)
         let service = WorldPingService(session: session)
 
         var results: [WorldPingLocationResult] = []
-        let stream = await service.ping(host: "google.com", maxNodes: 5)
-        for await r in stream { results.append(r) }
+        for await r in await service.ping(host: "google.com", maxNodes: 5) { results.append(r) }
 
-        let austria = results.first { $0.city == "Vienna" }
-        let latency = try #require(austria?.latencyMs)
-        // avg of 32, 29, 31 ms = 30.666... ms
-        #expect(latency > 29 && latency < 33, "Expected averaged latency ~30.7ms, got \(latency)")
+        let frankfurt = results.first { $0.city == "Frankfurt" }
+        let latency = try #require(frankfurt?.latencyMs)
+        // fixture: timings.total = 32.0 → latencyMs should be 32.0
+        #expect(abs(latency - 32.0) < 0.1, "timings.total=32.0 should map to latencyMs=32ms, got \(latency)")
     }
 
-    @Test("WorldPingService marks node successful when first probe is OK; averages latency across OK probes")
-    func mixedProbesAveragesLatencyFromOKProbes() async throws {
-        defer { MockURLProtocol.requestHandler = nil }
-        // au1: [OK 195ms, timeout, OK 188ms]
-        // isSuccess = first probe status == "OK" → true
-        // avgLatency = (195 + 188) / 2 = 191.5ms  (timeout entries have no latency field)
-        let submitData  = try loadFixture("check-host-submit-real.json")
-        let resultsData = try loadFixture("check-host-result-real.json")
+    // MARK: - Timeout / missing timings
 
-        let session = MockURLProtocol.makeSession(responses: [
-            "check-ping":   (200, submitData),
-            "check-result": (200, resultsData)
-        ])
+    @Test("Results with missing timings.total are isSuccess=false with nil latency")
+    func missingTimingsIsFailure() async throws {
+        let submitData  = try loadFixture("globalping-submit-success.json")
+        let resultsData = try loadFixture("globalping-result-all-timeout.json")
+
+        let session = makeGlobalpingSession(submitData: submitData, pollData: resultsData)
         let service = WorldPingService(session: session)
 
         var results: [WorldPingLocationResult] = []
-        let stream = await service.ping(host: "google.com", maxNodes: 5)
-        for await r in stream { results.append(r) }
+        for await r in await service.ping(host: "unreachable.test", maxNodes: 5) { results.append(r) }
 
-        let australia = results.first { $0.city == "Sydney" }
-        #expect(australia != nil)
-        #expect(australia?.isSuccess == true, "First probe is OK → node should be marked successful")
-        let latency = try #require(australia?.latencyMs)
-        // avg of 195ms and 188ms = 191.5ms; allow small floating-point range
-        #expect(latency > 190 && latency < 193,
-                "Expected averaged latency ~191.5ms across two OK probes, got \(latency)")
+        #expect(results.count == 5)
+        #expect(results.allSatisfy { !$0.isSuccess }, "Nodes without timings should be isSuccess=false")
+        #expect(results.allSatisfy { $0.latencyMs == nil }, "Nodes without timings should have nil latencyMs")
     }
 }
 
@@ -168,53 +123,17 @@ struct WorldPingPollErrorRegressionTests {
 
     init() { MockURLProtocol.requestHandler = nil }
 
-    // MARK: - Error JSON on poll endpoint surfaces lastError
+    // MARK: - HTTP errors on poll endpoint surface lastError
 
-    @Test("Poll returns {\"error\":\"...\"}: lastError is set, stream finishes empty")
-    func pollErrorJSONSetsLastError() async throws {
-        // Regression (Bug 4): before the fix, {"error":"..."} on the poll endpoint
-        // caused allReady=true (no NSNull), parseResults dropped the "error" key via
-        // the meta-guard, returned [], and lastError was NEVER set.
-        let submitJSON = """
-        {"ok":1,"request_id":"test-r1","nodes":{"us1.node.check-host.net":["us","United States","Ashburn","1.2.3.4","AS1234"]}}
-        """
-        let pollErrorJSON = """
-        {"error":"request expired","message":"The request ID has expired or does not exist"}
-        """
-
-        let session = MockURLProtocol.makeSession(responses: [
-            "check-ping":   (200, Data(submitJSON.utf8)),
-            "check-result": (200, Data(pollErrorJSON.utf8))
-        ])
-        let service = WorldPingService(session: session)
-
-        var results: [WorldPingLocationResult] = []
-        for await r in await service.ping(host: "google.com", maxNodes: 1) {
-            results.append(r)
-        }
-
-        #expect(results.isEmpty,
-                "Poll error-JSON must NOT yield fake results — stream should finish empty")
-        #expect(service.lastError != nil,
-                "Regression (Bug 4): lastError must be set when poll returns error-JSON with no node keys")
-        #expect(service.lastError?.isEmpty == false)
-    }
-
-    @Test("Poll returns HTTP 500: lastError is set, stream finishes empty")
-    func pollHTTP500SetsLastError() async throws {
-        // Regression (Bug 4): HTTP errors on the POLL endpoint (not the submit endpoint)
-        // were not surfaced. Before the fix, session.data() returned the error body,
-        // JSONSerialization succeeded, allReady=true, parseResults skipped the error key,
-        // and [] was returned without setting lastError.
-        let submitJSON = """
-        {"ok":1,"request_id":"test-r2","nodes":{"de1.node.check-host.net":["de","Germany","Frankfurt","5.6.7.8","AS24940"]}}
-        """
+    @Test("Poll returns HTTP 404 (measurement expired): lastError is set, stream finishes empty")
+    func pollHTTP404SetsLastError() async throws {
+        // Regression (Bug 4): HTTP errors on the poll endpoint must surface as lastError.
+        // Globalping.io returns HTTP 404 for expired or unknown measurement IDs.
+        let submitJSON = "{\"id\":\"gp-poll-test-404\"}"
         let session = MockURLProtocol.makeSession { request in
-            let isSubmit = request.url?.absoluteString.contains("check-ping") == true
-            let statusCode = isSubmit ? 200 : 500
-            let body = isSubmit
-                ? submitJSON
-                : "{\"error\":\"internal server error\"}"
+            let isSubmit = request.httpMethod == "POST"
+            let statusCode = isSubmit ? 200 : 404
+            let body = isSubmit ? submitJSON : "{\"error\":\"measurement not found\"}"
             let response = HTTPURLResponse(
                 url: request.url!,
                 statusCode: statusCode,
@@ -230,19 +149,42 @@ struct WorldPingPollErrorRegressionTests {
             results.append(r)
         }
 
-        #expect(results.isEmpty,
-                "HTTP 500 on poll endpoint must NOT yield results — stream must finish empty")
-        #expect(service.lastError != nil,
-                "Regression (Bug 4): lastError must be set when poll endpoint returns HTTP 500")
+        #expect(results.isEmpty, "HTTP 404 on poll must finish stream empty")
+        #expect(service.lastError != nil, "HTTP 404 on poll endpoint must set lastError")
+        #expect(service.lastError?.isEmpty == false)
+    }
+
+    @Test("Poll returns HTTP 500: lastError is set, stream finishes empty")
+    func pollHTTP500SetsLastError() async throws {
+        let submitJSON = "{\"id\":\"gp-poll-test-500\"}"
+        let session = MockURLProtocol.makeSession { request in
+            let isSubmit = request.httpMethod == "POST"
+            let statusCode = isSubmit ? 200 : 500
+            let body = isSubmit ? submitJSON : "{\"error\":\"internal server error\"}"
+            let response = HTTPURLResponse(
+                url: request.url!,
+                statusCode: statusCode,
+                httpVersion: nil,
+                headerFields: ["Content-Type": "application/json"]
+            )!
+            return (response, Data(body.utf8))
+        }
+
+        let service = WorldPingService(session: session)
+        var results: [WorldPingLocationResult] = []
+        for await r in await service.ping(host: "google.com", maxNodes: 1) {
+            results.append(r)
+        }
+
+        #expect(results.isEmpty, "HTTP 500 on poll endpoint must NOT yield results — stream must finish empty")
+        #expect(service.lastError != nil, "lastError must be set when poll endpoint returns HTTP 500")
     }
 
     @Test("Poll returns HTTP 429 (rate limit): lastError is set, stream finishes empty")
     func pollHTTP429SetsLastError() async throws {
-        let submitJSON = """
-        {"ok":1,"request_id":"test-r3","nodes":{"jp1.node.check-host.net":["jp","Japan","Tokyo","1.2.3.4","AS7506"]}}
-        """
+        let submitJSON = "{\"id\":\"gp-poll-test-429\"}"
         let session = MockURLProtocol.makeSession { request in
-            let isSubmit = request.url?.absoluteString.contains("check-ping") == true
+            let isSubmit = request.httpMethod == "POST"
             let statusCode = isSubmit ? 200 : 429
             let body = isSubmit ? submitJSON : "{\"error\":\"rate limited\"}"
             let response = HTTPURLResponse(
@@ -261,31 +203,42 @@ struct WorldPingPollErrorRegressionTests {
         }
 
         #expect(results.isEmpty, "HTTP 429 on poll must finish stream empty")
-        #expect(service.lastError != nil,
-                "HTTP 429 on poll endpoint must set lastError")
+        #expect(service.lastError != nil, "HTTP 429 on poll endpoint must set lastError")
     }
 
-    @Test("Successful submit + successful poll: results returned normally after fix")
-    func successPathUnaffectedByFix() async throws {
-        // Verify the fix did not break the happy path.
-        let submitJSON = """
-        {"ok":1,"request_id":"test-r4","nodes":{"gb1.node.check-host.net":["gb","United Kingdom","London","9.8.7.6","AS62041"]}}
-        """
+    @Test("Successful submit + successful poll: results returned normally")
+    func successPathWorksCorrectly() async throws {
+        let submitJSON = "{\"id\":\"gp-poll-test-success\"}"
         let pollJSON = """
-        {"gb1.node.check-host.net":[[["OK",0.024,"9.8.7.6",60]]]}
+        {
+          "status": "finished",
+          "results": [
+            {
+              "probe": {"city": "London", "country": "United Kingdom", "continent": "EU"},
+              "result": {"status": "finished", "timings": {"total": 24.0}, "statusCode": 200, "resolvedAddress": "216.58.204.46"}
+            }
+          ]
+        }
         """
-        let session = MockURLProtocol.makeSession(responses: [
-            "check-ping":   (200, Data(submitJSON.utf8)),
-            "check-result": (200, Data(pollJSON.utf8))
-        ])
-        let service = WorldPingService(session: session)
+        let session = MockURLProtocol.makeSession { request in
+            let isSubmit = request.httpMethod == "POST"
+            let body = isSubmit ? submitJSON : pollJSON
+            let response = HTTPURLResponse(
+                url: request.url!,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: ["Content-Type": "application/json"]
+            )!
+            return (response, Data(body.utf8))
+        }
 
+        let service = WorldPingService(session: session)
         var results: [WorldPingLocationResult] = []
         for await r in await service.ping(host: "google.com", maxNodes: 1) {
             results.append(r)
         }
 
-        #expect(!results.isEmpty, "Happy path must still produce results after Bug 4 fix")
+        #expect(!results.isEmpty, "Happy path must produce results")
         #expect(results.count == 1)
         #expect(results.first?.city == "London")
         #expect(results.first?.isSuccess == true)
@@ -327,29 +280,3 @@ struct GeoLocationServiceATSRegressionTests {
         #expect(Bool(true), "ip-api.com is HTTP-only. Info.plist MUST have NSExceptionDomains entry. See commit 6ff1a12.")
     }
 }
-
-// MARK: - Helpers
-
-/// Safe subscript for Array<String>
-private extension Array where Element == String {
-    subscript(safe index: Int) -> String? {
-        guard index >= 0 && index < count else { return nil }
-        return self[index]
-    }
-}
-
-/// Public mirror of WorldPingService's internal CheckPingResponse for fixture parsing
-private struct CheckPingResponsePublic: Codable {
-    let ok: Int
-    let requestId: String
-    let nodes: [String: [String]]
-    enum CodingKeys: String, CodingKey {
-        case ok
-        case requestId = "request_id"
-        case nodes
-    }
-}
-
-// The WorldPingRegressionContractTests use MockURLProtocol.makeSession(responses:)
-// which is defined in MockURLProtocol.swift and uses a per-session handler token
-// (no global static state). No private extension is needed here.
