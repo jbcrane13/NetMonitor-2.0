@@ -72,6 +72,9 @@ final class TracerouteToolViewModel {
 
             for await hop in stream {
                 hops.append(hop)
+                if hops.count >= maxHops {
+                    break
+                }
             }
 
             isRunning = false
