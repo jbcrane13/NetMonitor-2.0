@@ -11,7 +11,10 @@ final class SpeedTestToolViewModel {
     var isRunning: Bool = false
     var downloadSpeed: Double = 0
     var uploadSpeed: Double = 0
+    var peakDownloadSpeed: Double = 0
+    var peakUploadSpeed: Double = 0
     var latency: Double = 0
+    var jitter: Double = 0
     var progress: Double = 0
     var phase: SpeedTestPhase = .idle
     var errorMessage: String?
@@ -144,9 +147,24 @@ final class SpeedTestToolViewModel {
     private func syncFromService() {
         downloadSpeed = service.downloadSpeed
         uploadSpeed = service.uploadSpeed
+        peakDownloadSpeed = service.peakDownloadSpeed
+        peakUploadSpeed = service.peakUploadSpeed
         latency = service.latency
+        jitter = service.jitter
         progress = service.progress
         phase = service.phase
+    }
+
+    var peakDownloadSpeedText: String {
+        formatSpeed(peakDownloadSpeed)
+    }
+
+    var peakUploadSpeedText: String {
+        formatSpeed(peakUploadSpeed)
+    }
+
+    var jitterText: String {
+        String(format: "%.1f ms", jitter)
     }
 
 }

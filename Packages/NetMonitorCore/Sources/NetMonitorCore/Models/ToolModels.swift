@@ -359,17 +359,47 @@ public extension SpeedTestServer {
         pingURL: "https://speed.cloudflare.com"
     )
 
-    /// Hetzner (Germany).
-    static let hetzner = SpeedTestServer(
-        id: "hetzner",
-        name: "Hetzner",
-        location: "Germany",
-        downloadURL: "https://speed.hetzner.de/100MB.bin",
+    /// Linode/Akamai — Atlanta, GA (closest to SE US).
+    static let linodeAtlanta = SpeedTestServer(
+        id: "linode-atl",
+        name: "Linode",
+        location: "Atlanta, GA",
+        downloadURL: "https://speedtest.atlanta.linode.com/100MB-atlanta.bin",
         uploadURL: nil,
-        pingURL: "https://speed.hetzner.de"
+        pingURL: "https://speedtest.atlanta.linode.com"
     )
 
-    /// OVH (France).
+    /// Linode/Akamai — Dallas, TX.
+    static let linodeDallas = SpeedTestServer(
+        id: "linode-dal",
+        name: "Linode",
+        location: "Dallas, TX",
+        downloadURL: "https://speedtest.dallas.linode.com/100MB-dallas.bin",
+        uploadURL: nil,
+        pingURL: "https://speedtest.dallas.linode.com"
+    )
+
+    /// Vultr — Dallas, TX (supports both download and upload).
+    static let vultrDallas = SpeedTestServer(
+        id: "vultr-dal",
+        name: "Vultr",
+        location: "Dallas, TX",
+        downloadURL: "https://tx-us-ping.vultr.com/vultr.com.100MB.bin",
+        uploadURL: "https://tx-us-ping.vultr.com/vultr.com.100MB.bin",
+        pingURL: "https://tx-us-ping.vultr.com"
+    )
+
+    /// Linode/Akamai — Newark, NJ.
+    static let linodeNewark = SpeedTestServer(
+        id: "linode-nwk",
+        name: "Linode",
+        location: "Newark, NJ",
+        downloadURL: "https://speedtest.newark.linode.com/100MB-newark.bin",
+        uploadURL: nil,
+        pingURL: "https://speedtest.newark.linode.com"
+    )
+
+    /// OVH (France/Europe).
     static let ovh = SpeedTestServer(
         id: "ovh",
         name: "OVH",
@@ -379,23 +409,15 @@ public extension SpeedTestServer {
         pingURL: "https://proof.ovh.net"
     )
 
-    /// Tele2 (Sweden) — a long-standing public speed test mirror.
-    static let tele2 = SpeedTestServer(
-        id: "tele2",
-        name: "Tele2",
-        location: "Sweden",
-        downloadURL: "https://speedtest.tele2.net/100MB.zip",
-        uploadURL: nil,
-        pingURL: "https://speedtest.tele2.net"
-    )
-
     /// The canonical ordered list shown in the picker (auto-select first).
     static let all: [SpeedTestServer] = [
         .autoSelect,
         .cloudflare,
-        .hetzner,
-        .ovh,
-        .tele2
+        .linodeAtlanta,
+        .linodeDallas,
+        .vultrDallas,
+        .linodeNewark,
+        .ovh
     ]
 }
 

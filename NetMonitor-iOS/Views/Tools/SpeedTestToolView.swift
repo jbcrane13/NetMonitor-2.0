@@ -152,7 +152,7 @@ struct SpeedTestToolView: View {
                     set: { viewModel.selectedServer = $0 }
                 )) {
                     ForEach(SpeedTestServer.all) { server in
-                        Text(server.name).tag(server)
+                        Text(server.isAutoSelect ? server.name : "\(server.name) — \(server.location)").tag(server)
                     }
                 }
                 .pickerStyle(.menu)
@@ -189,35 +189,61 @@ struct SpeedTestToolView: View {
                     .foregroundStyle(Theme.Colors.textPrimary)
 
                 GlassCard {
-                    HStack(spacing: 0) {
-                        speedStat(
-                            icon: "arrow.down.circle.fill",
-                            label: "Download",
-                            value: viewModel.downloadSpeedText,
-                            color: Theme.Colors.success
-                        )
+                    VStack(spacing: 12) {
+                        // Primary: Download / Upload / Latency
+                        HStack(spacing: 0) {
+                            speedStat(
+                                icon: "arrow.down.circle.fill",
+                                label: "Download",
+                                value: viewModel.downloadSpeedText,
+                                color: Theme.Colors.success
+                            )
 
-                        Divider()
-                            .background(Theme.Colors.glassBorder)
-                            .frame(height: 50)
+                            Divider()
+                                .background(Theme.Colors.glassBorder)
+                                .frame(height: 50)
 
-                        speedStat(
-                            icon: "arrow.up.circle.fill",
-                            label: "Upload",
-                            value: viewModel.uploadSpeedText,
-                            color: Theme.Colors.warning
-                        )
+                            speedStat(
+                                icon: "arrow.up.circle.fill",
+                                label: "Upload",
+                                value: viewModel.uploadSpeedText,
+                                color: Theme.Colors.warning
+                            )
 
-                        Divider()
-                            .background(Theme.Colors.glassBorder)
-                            .frame(height: 50)
+                            Divider()
+                                .background(Theme.Colors.glassBorder)
+                                .frame(height: 50)
 
-                        speedStat(
-                            icon: "clock.fill",
-                            label: "Latency",
-                            value: viewModel.latencyText,
-                            color: Theme.Colors.info
-                        )
+                            speedStat(
+                                icon: "clock.fill",
+                                label: "Latency",
+                                value: viewModel.latencyText,
+                                color: Theme.Colors.info
+                            )
+                        }
+
+                        Divider().background(Theme.Colors.glassBorder)
+
+                        // Secondary: Peak speeds + Jitter
+                        HStack(spacing: 0) {
+                            miniStat(
+                                label: "Peak ↓",
+                                value: viewModel.peakDownloadSpeedText,
+                                color: Theme.Colors.success
+                            )
+
+                            miniStat(
+                                label: "Peak ↑",
+                                value: viewModel.peakUploadSpeedText,
+                                color: Theme.Colors.warning
+                            )
+
+                            miniStat(
+                                label: "Jitter",
+                                value: viewModel.jitterText,
+                                color: Theme.Colors.info
+                            )
+                        }
                     }
                 }
             }
@@ -236,6 +262,19 @@ struct SpeedTestToolView: View {
             }
             .accessibilityIdentifier("speedTest_error")
         }
+    }
+
+    private func miniStat(label: String, value: String, color: Color) -> some View {
+        VStack(spacing: 2) {
+            Text(value)
+                .font(.system(.caption, design: .monospaced))
+                .fontWeight(.semibold)
+                .foregroundStyle(color.opacity(0.8))
+            Text(label)
+                .font(.system(size: 9, weight: .medium))
+                .foregroundStyle(Theme.Colors.textTertiary)
+        }
+        .frame(maxWidth: .infinity)
     }
 
     private func speedStat(icon: String, label: String, value: String, color: Color) -> some View {

@@ -7,9 +7,12 @@ import os
 public final class SpeedTestService: SpeedTestServiceProtocol {
     // MARK: - Public State
 
-    public var downloadSpeed: Double = 0  // Mbps
-    public var uploadSpeed: Double = 0    // Mbps
+    public var downloadSpeed: Double = 0  // Mbps (current/final average)
+    public var uploadSpeed: Double = 0    // Mbps (current/final average)
+    public var peakDownloadSpeed: Double = 0  // Mbps (max observed)
+    public var peakUploadSpeed: Double = 0    // Mbps (max observed)
     public var latency: Double = 0        // ms
+    public var jitter: Double = 0         // ms
     public var progress: Double = 0       // 0-1
     public var phase: SpeedTestPhase = .idle
     public var isRunning: Bool = false
@@ -71,6 +74,7 @@ public final class SpeedTestService: SpeedTestServiceProtocol {
                 downloadSpeed: downloadSpeed,
                 uploadSpeed: uploadSpeed,
                 latency: latency,
+                jitter: jitter > 0 ? jitter : nil,
                 serverName: server?.isAutoSelect == false ? server?.name : nil
             )
         }
@@ -120,18 +124,27 @@ public final class SpeedTestService: SpeedTestServiceProtocol {
         }
 
         guard !times.isEmpty else { return 0 }
-        return times.reduce(0, +) / Double(times.count)
+        let avg = times.reduce(0, +) / Double(times.count)
+        // Calculate jitter as mean absolute deviation between consecutive samples
+        if times.count >= 2 {
+            var diffs: [Double] = []
+            for i in 1..<times.count {
+                diffs.append(abs(times[i] - times[i - 1]))
+            }
+            jitter = diffs.reduce(0, +) / Double(diffs.count)
+        }
+        return avg
     }
 
     // MARK: - Download Measurement
 
     /// Use parallel connections to saturate the link (like real speed tests do)
     private func measureDownload(server: SpeedTestServer?) async throws -> Double {
-        let chunkSize = 10_000_000 // 10MB chunks for better throughput
-        let parallelStreams = 6
+        let parallelStreams = 8
         let startTime = Date()
         let totalBytesAtomic = AtomicInt64()
-        let downloadURLString = server?.downloadURL ?? "https://speed.cloudflare.com/__down?bytes=\(chunkSize)"
+        let peakSpeedAtomic = AtomicInt64() // stores peak Kbps * 10 for precision
+        let downloadURLString = server?.downloadURL ?? "https://speed.cloudflare.com/__down?bytes=25000000"
 
         try await withThrowingTaskGroup(of: Void.self) { group in
             for _ in 0..<parallelStreams {
@@ -144,7 +157,7 @@ public final class SpeedTestService: SpeedTestServiceProtocol {
                         try Task.checkCancellation()
                         var request = URLRequest(url: url)
                         request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
-                        // Static-file servers (Hetzner/OVH/Tele2) serve 100 MB files — need
+                        // Static-file servers (Linode/OVH) serve 100 MB files — need
                         // long timeout so we can stream partial bytes for the test window.
                         request.timeoutInterval = 120
                         let (bytes, response) = try await session.bytes(for: request)
@@ -172,18 +185,51 @@ public final class SpeedTestService: SpeedTestServiceProtocol {
                 }
             }
 
-            // Progress updater
+            // Progress updater — samples every 200ms, tracks rolling 1s window for peak
             group.addTask { [duration] in
+                var lastBytes: Int64 = 0
+                var lastTime = startTime
+                // Rolling window for instantaneous speed (last 1 second)
+                var samples: [(time: Date, bytes: Int64)] = []
+
                 while Date().timeIntervalSince(startTime) < duration {
                     try Task.checkCancellation()
-                    let elapsed = Date().timeIntervalSince(startTime)
-                    let bytes = totalBytesAtomic.load()
-                    let speed = elapsed > 0 ? Double(bytes * 8) / elapsed / 1_000_000 : 0
-                    await MainActor.run { [speed, elapsed, bytes, duration] in
-                        self.downloadSpeed = speed
-                        self.progress = min(elapsed / duration, 1.0)
-                        self.downloadBytesReceived = bytes
+                    let now = Date()
+                    let totalElapsed = now.timeIntervalSince(startTime)
+                    let currentBytes = totalBytesAtomic.load()
+
+                    // Overall average speed
+                    let avgSpeed = totalElapsed > 0 ? Double(currentBytes * 8) / totalElapsed / 1_000_000 : 0
+
+                    // Rolling 1-second window for instantaneous/peak speed
+                    samples.append((time: now, bytes: currentBytes))
+                    samples = samples.filter { now.timeIntervalSince($0.time) <= 1.5 }
+                    var instantSpeed = avgSpeed
+                    if let oldest = samples.first, samples.count > 1 {
+                        let windowTime = now.timeIntervalSince(oldest.time)
+                        let windowBytes = currentBytes - oldest.bytes
+                        if windowTime > 0.3 {
+                            instantSpeed = Double(windowBytes * 8) / windowTime / 1_000_000
+                        }
                     }
+
+                    // Track peak (store as Kbps * 10 in atomic)
+                    let instantKbps10 = Int64(instantSpeed * 10_000)
+                    let currentPeak = peakSpeedAtomic.load()
+                    if instantKbps10 > currentPeak {
+                        peakSpeedAtomic.store(instantKbps10)
+                    }
+
+                    await MainActor.run { [avgSpeed, instantSpeed, totalElapsed, currentBytes, duration] in
+                        // Show instantaneous speed during test for responsive gauge
+                        self.downloadSpeed = instantSpeed
+                        self.progress = min(totalElapsed / duration, 1.0)
+                        self.downloadBytesReceived = currentBytes
+                        self.peakDownloadSpeed = max(self.peakDownloadSpeed, instantSpeed)
+                    }
+
+                    lastBytes = currentBytes
+                    lastTime = now
                     try await Task.sleep(for: .milliseconds(200))
                 }
             }
@@ -194,6 +240,7 @@ public final class SpeedTestService: SpeedTestServiceProtocol {
         let totalElapsed = Date().timeIntervalSince(startTime)
         let totalBytes = totalBytesAtomic.load()
         guard totalElapsed > 0, totalBytes > 0 else { return 0 }
+        // Final result uses overall average (consistent with industry standard)
         let finalSpeed = Double(totalBytes * 8) / totalElapsed / 1_000_000
         downloadSpeed = finalSpeed
         progress = 1.0
@@ -203,8 +250,8 @@ public final class SpeedTestService: SpeedTestServiceProtocol {
     // MARK: - Upload Measurement
 
     private func measureUpload(server: SpeedTestServer?) async throws -> Double {
-        let chunkSize = 1_000_000 // 1MB upload chunks
-        let parallelStreams = 4
+        let chunkSize = 4_000_000 // 4MB upload chunks for better throughput
+        let parallelStreams = 6
         let startTime = Date()
         let totalBytesAtomic = AtomicInt64()
         let uploadURLString = server?.uploadURL ?? "https://speed.cloudflare.com/__up"
@@ -234,17 +281,34 @@ public final class SpeedTestService: SpeedTestServiceProtocol {
                 }
             }
 
-            // Progress updater
+            // Progress updater with peak tracking
             group.addTask { [duration] in
+                var samples: [(time: Date, bytes: Int64)] = []
+
                 while Date().timeIntervalSince(startTime) < duration {
                     try Task.checkCancellation()
-                    let elapsed = Date().timeIntervalSince(startTime)
-                    let bytes = totalBytesAtomic.load()
-                    let speed = elapsed > 0 ? Double(bytes * 8) / elapsed / 1_000_000 : 0
-                    await MainActor.run { [speed, elapsed, bytes, duration] in
-                        self.uploadSpeed = speed
-                        self.progress = min(elapsed / duration, 1.0)
-                        self.uploadBytesSent = bytes
+                    let now = Date()
+                    let totalElapsed = now.timeIntervalSince(startTime)
+                    let currentBytes = totalBytesAtomic.load()
+
+                    let avgSpeed = totalElapsed > 0 ? Double(currentBytes * 8) / totalElapsed / 1_000_000 : 0
+
+                    samples.append((time: now, bytes: currentBytes))
+                    samples = samples.filter { now.timeIntervalSince($0.time) <= 1.5 }
+                    var instantSpeed = avgSpeed
+                    if let oldest = samples.first, samples.count > 1 {
+                        let windowTime = now.timeIntervalSince(oldest.time)
+                        let windowBytes = currentBytes - oldest.bytes
+                        if windowTime > 0.3 {
+                            instantSpeed = Double(windowBytes * 8) / windowTime / 1_000_000
+                        }
+                    }
+
+                    await MainActor.run { [instantSpeed, totalElapsed, currentBytes, duration] in
+                        self.uploadSpeed = instantSpeed
+                        self.progress = min(totalElapsed / duration, 1.0)
+                        self.uploadBytesSent = currentBytes
+                        self.peakUploadSpeed = max(self.peakUploadSpeed, instantSpeed)
                     }
                     try await Task.sleep(for: .milliseconds(200))
                 }
@@ -267,7 +331,10 @@ public final class SpeedTestService: SpeedTestServiceProtocol {
     private func reset() {
         downloadSpeed = 0
         uploadSpeed = 0
+        peakDownloadSpeed = 0
+        peakUploadSpeed = 0
         latency = 0
+        jitter = 0
         progress = 0
         phase = .idle
         errorMessage = nil
@@ -290,6 +357,10 @@ public final class AtomicInt64: Sendable {
 
     public func load() -> Int64 {
         storage.withLock { $0 }
+    }
+
+    public func store(_ value: Int64) {
+        storage.withLock { $0 = value }
     }
 }
 

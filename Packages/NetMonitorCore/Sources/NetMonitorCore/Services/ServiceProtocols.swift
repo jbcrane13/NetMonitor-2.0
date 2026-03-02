@@ -98,7 +98,10 @@ public protocol WakeOnLANServiceProtocol {
 public protocol SpeedTestServiceProtocol {
     @MainActor var downloadSpeed: Double { get }
     @MainActor var uploadSpeed: Double { get }
+    @MainActor var peakDownloadSpeed: Double { get }
+    @MainActor var peakUploadSpeed: Double { get }
     @MainActor var latency: Double { get }
+    @MainActor var jitter: Double { get }
     @MainActor var progress: Double { get }
     @MainActor var phase: SpeedTestPhase { get }
     @MainActor var isRunning: Bool { get }

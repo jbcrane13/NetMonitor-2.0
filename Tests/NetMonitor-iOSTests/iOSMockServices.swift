@@ -147,7 +147,10 @@ final class MockBonjourDiscoveryService: BonjourDiscoveryServiceProtocol, @unche
 final class MockSpeedTestService: SpeedTestServiceProtocol {
     var downloadSpeed: Double = 0
     var uploadSpeed: Double = 0
+    var peakDownloadSpeed: Double = 0
+    var peakUploadSpeed: Double = 0
     var latency: Double = 0
+    var jitter: Double = 0
     var progress: Double = 0
     var phase: SpeedTestPhase = .idle
     var isRunning: Bool = false

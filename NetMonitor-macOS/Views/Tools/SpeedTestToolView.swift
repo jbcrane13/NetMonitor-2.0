@@ -457,7 +457,7 @@ struct SpeedTestToolView: View {
                             try Task.checkCancellation()
                             var request = URLRequest(url: url)
                             request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
-                            // Static-file servers (Hetzner/OVH/Tele2) serve 100 MB files — need
+                            // Static-file servers (Linode/OVH) serve 100 MB files — need
                             // long timeout so we can stream partial bytes for the test window.
                             request.timeoutInterval = 120
                             let (bytes, response) = try await session.bytes(for: request)
