@@ -6,7 +6,7 @@ struct ContentView: View {
     @Environment(MonitoringSession.self) private var session: MonitoringSession?
     @Environment(DeviceDiscoveryCoordinator.self) private var deviceDiscovery: DeviceDiscoveryCoordinator?
     @Environment(NetworkProfileManager.self) private var profileManager: NetworkProfileManager?
-    @State private var selectedSection: SidebarSelection? = .section(.tools)
+    @State private var selectedSection: SidebarSelection?
     @State private var localSession: MonitoringSession?
     @State private var selectedNetworkProfile: NetworkProfile?
     @State private var showingAddNetworkSheet = false
@@ -46,6 +46,14 @@ struct ContentView: View {
                 selectedNetworkProfile = profileManager?.profiles.first(where: { $0.id == networkID })
             } else {
                 selectedNetworkProfile = nil
+            }
+        }
+        .onAppear {
+            // Launch into the active (local) network dashboard
+            if selectedSection == nil,
+               let activeProfile = profileManager?.profiles.first(where: { $0.isLocal })
+                   ?? profileManager?.profiles.first {
+                selectedSection = .network(activeProfile.id)
             }
         }
     }
