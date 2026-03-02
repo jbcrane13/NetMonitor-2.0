@@ -70,6 +70,11 @@ final class WiFiHeatmapSurveyViewModel {
     func startSurvey() {
         guard !isSurveying else { return }
 
+        #if targetEnvironment(simulator)
+        // Skip location check on simulator — NEHotspotNetwork uses mock values.
+        beginSurvey()
+        return
+        #else
         // NEHotspotNetwork.fetchCurrent requires location authorization
         let status = locationDelegate.manager.authorizationStatus
         if status == .notDetermined {
@@ -95,6 +100,7 @@ final class WiFiHeatmapSurveyViewModel {
         }
 
         beginSurvey()
+        #endif
     }
 
     private func beginSurvey() {
