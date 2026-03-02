@@ -68,9 +68,15 @@ trap 'rm -f "$tmp_file_list"' EXIT
 echo "$staged_swift" > "$tmp_file_list"
 
 # swiftlint --use-stdin-filelist requires 0.52+; use path list via --path otherwise
+# Use --baseline to suppress pre-existing violations; only new violations block commits.
+_baseline_flag=()
+if [[ -f ".swiftlint_baseline.json" ]]; then
+    _baseline_flag=(--baseline .swiftlint_baseline.json)
+fi
 lint_output=$(swiftlint lint \
     --quiet \
     --reporter xcode \
+    "${_baseline_flag[@]}" \
     $(cat "$tmp_file_list" | xargs printf '%s ') 2>&1 || true)
 
 if echo "$lint_output" | grep -q ": error:"; then

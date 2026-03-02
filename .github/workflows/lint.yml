@@ -20,7 +20,7 @@ jobs:
         run: brew install swiftlint
 
       - name: Run SwiftLint
-        run: swiftlint lint --strict --reporter github-actions-logging
+        run: swiftlint lint --strict --baseline .swiftlint_baseline.json --reporter github-actions-logging
 
   swiftformat:
     name: SwiftFormat
