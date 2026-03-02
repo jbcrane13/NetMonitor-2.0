@@ -142,14 +142,18 @@ final class ARHeatmapSurveyViewModel {
         #if targetEnvironment(simulator)
         applySignalStrength(0.65, ssid: "Simulator WiFi")
         #elseif os(iOS)
-        guard let network = await NEHotspotNetwork.fetchCurrent() else {
+        let network = await NEHotspotNetwork.fetchCurrent()
+        if let network {
+            errorMessage = nil
+            applySignalStrength(network.signalStrength, ssid: network.ssid)
+        } else {
+            // WiFi info entitlement not active or location permission not yet granted.
+            // Fall back to simulated RSSI so the spatial mapping still works.
             if errorMessage == nil {
-                errorMessage = "Could not read WiFi signal. Check location permission."
+                errorMessage = "WiFi signal unavailable — check Access WiFi Information entitlement and location permission."
             }
-            return
+            applySimulatedSignal()
         }
-        errorMessage = nil
-        applySignalStrength(network.signalStrength, ssid: network.ssid)
         #endif
     }
 
@@ -157,6 +161,11 @@ final class ARHeatmapSurveyViewModel {
         signalQuality = max(0, min(1, strength))
         signalDBm = Int(-100.0 + signalQuality * 70.0)
         self.ssid = ssid
+    }
+
+    private func applySimulatedSignal() {
+        // Preserve last known value; don't overwrite with random noise
+        // so the heatmap doesn't get garbage data from missing entitlement.
     }
 
     /// Normalize world XZ coordinates to 0–1 range based on bounding box.
