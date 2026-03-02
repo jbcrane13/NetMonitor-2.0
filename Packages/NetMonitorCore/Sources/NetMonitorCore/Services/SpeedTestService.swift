@@ -138,103 +138,66 @@ public final class SpeedTestService: SpeedTestServiceProtocol {
 
     // MARK: - Download Measurement
 
-    /// Use parallel connections to saturate the link (like real speed tests do)
+    /// Uses delegate-based URLSession for efficient chunked byte counting.
+    /// URLSession delivers data in ~16-64 KB chunks via didReceive callbacks,
+    /// avoiding the catastrophic per-byte overhead of AsyncBytes iteration.
     private func measureDownload(server: SpeedTestServer?) async throws -> Double {
         let parallelStreams = 8
         let startTime = Date()
         let totalBytesAtomic = AtomicInt64()
-        let peakSpeedAtomic = AtomicInt64() // stores peak Kbps * 10 for precision
         let downloadURLString = server?.downloadURL ?? "https://speed.cloudflare.com/__down?bytes=25000000"
+        let url = URL(string: downloadURLString)!
 
-        try await withThrowingTaskGroup(of: Void.self) { group in
-            for _ in 0..<parallelStreams {
-                group.addTask { [duration, downloadURLString] in
-                    let session = URLSession(configuration: .ephemeral)
-                    defer { session.invalidateAndCancel() }
-                    let url = URL(string: downloadURLString)!
+        let delegate = DownloadMeasurementDelegate(
+            bytesReceived: totalBytesAtomic,
+            downloadURL: url,
+            startTime: startTime,
+            duration: duration
+        )
+        let config = URLSessionConfiguration.ephemeral
+        config.httpMaximumConnectionsPerHost = parallelStreams
+        let downloadSession = URLSession(configuration: config, delegate: delegate, delegateQueue: nil)
 
-                    while Date().timeIntervalSince(startTime) < duration {
-                        try Task.checkCancellation()
-                        var request = URLRequest(url: url)
-                        request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
-                        // Static-file servers (Linode/OVH) serve 100 MB files — need
-                        // long timeout so we can stream partial bytes for the test window.
-                        request.timeoutInterval = 120
-                        let (bytes, response) = try await session.bytes(for: request)
-                        guard let http = response as? HTTPURLResponse,
-                              (200...299).contains(http.statusCode) else {
-                            continue
-                        }
-                        // Stream 64 KB chunks, counting bytes as they arrive so static-file
-                        // servers contribute partial data even if download doesn't finish.
-                        let chunkCapacity = 65_536
-                        var buffer = [UInt8]()
-                        buffer.reserveCapacity(chunkCapacity)
-                        for try await byte in bytes {
-                            buffer.append(byte)
-                            if buffer.count >= chunkCapacity {
-                                totalBytesAtomic.add(Int64(buffer.count))
-                                buffer.removeAll(keepingCapacity: true)
-                                if Date().timeIntervalSince(startTime) >= duration { break }
-                            }
-                        }
-                        if !buffer.isEmpty {
-                            totalBytesAtomic.add(Int64(buffer.count))
-                        }
-                    }
+        defer { downloadSession.invalidateAndCancel() }
+
+        // Launch initial parallel download streams
+        for _ in 0..<parallelStreams {
+            var request = URLRequest(url: url)
+            request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
+            request.timeoutInterval = max(duration + 10, 30)
+            downloadSession.dataTask(with: request).resume()
+        }
+
+        // Progress loop — runs on MainActor, samples every 200ms
+        var samples: [(time: Date, bytes: Int64)] = []
+
+        while Date().timeIntervalSince(startTime) < duration {
+            try Task.checkCancellation()
+            let now = Date()
+            let totalElapsed = now.timeIntervalSince(startTime)
+            let currentBytes = totalBytesAtomic.load()
+
+            let avgSpeed = totalElapsed > 0 ? Double(currentBytes * 8) / totalElapsed / 1_000_000 : 0
+
+            // Rolling 1.5-second window for instantaneous/peak speed
+            samples.append((time: now, bytes: currentBytes))
+            samples = samples.filter { now.timeIntervalSince($0.time) <= 1.5 }
+            var instantSpeed = avgSpeed
+            if let oldest = samples.first, samples.count > 1 {
+                let windowTime = now.timeIntervalSince(oldest.time)
+                let windowBytes = currentBytes - oldest.bytes
+                if windowTime > 0.3 {
+                    instantSpeed = Double(windowBytes * 8) / windowTime / 1_000_000
                 }
             }
 
-            // Progress updater — samples every 200ms, tracks rolling 1s window for peak
-            group.addTask { [duration] in
-                var lastBytes: Int64 = 0
-                var lastTime = startTime
-                // Rolling window for instantaneous speed (last 1 second)
-                var samples: [(time: Date, bytes: Int64)] = []
+            // Show instantaneous speed during test for responsive gauge
+            downloadSpeed = instantSpeed
+            progress = min(totalElapsed / duration, 1.0)
+            downloadBytesReceived = currentBytes
+            peakDownloadSpeed = max(peakDownloadSpeed, instantSpeed)
 
-                while Date().timeIntervalSince(startTime) < duration {
-                    try Task.checkCancellation()
-                    let now = Date()
-                    let totalElapsed = now.timeIntervalSince(startTime)
-                    let currentBytes = totalBytesAtomic.load()
-
-                    // Overall average speed
-                    let avgSpeed = totalElapsed > 0 ? Double(currentBytes * 8) / totalElapsed / 1_000_000 : 0
-
-                    // Rolling 1-second window for instantaneous/peak speed
-                    samples.append((time: now, bytes: currentBytes))
-                    samples = samples.filter { now.timeIntervalSince($0.time) <= 1.5 }
-                    var instantSpeed = avgSpeed
-                    if let oldest = samples.first, samples.count > 1 {
-                        let windowTime = now.timeIntervalSince(oldest.time)
-                        let windowBytes = currentBytes - oldest.bytes
-                        if windowTime > 0.3 {
-                            instantSpeed = Double(windowBytes * 8) / windowTime / 1_000_000
-                        }
-                    }
-
-                    // Track peak (store as Kbps * 10 in atomic)
-                    let instantKbps10 = Int64(instantSpeed * 10_000)
-                    let currentPeak = peakSpeedAtomic.load()
-                    if instantKbps10 > currentPeak {
-                        peakSpeedAtomic.store(instantKbps10)
-                    }
-
-                    await MainActor.run { [avgSpeed, instantSpeed, totalElapsed, currentBytes, duration] in
-                        // Show instantaneous speed during test for responsive gauge
-                        self.downloadSpeed = instantSpeed
-                        self.progress = min(totalElapsed / duration, 1.0)
-                        self.downloadBytesReceived = currentBytes
-                        self.peakDownloadSpeed = max(self.peakDownloadSpeed, instantSpeed)
-                    }
-
-                    lastBytes = currentBytes
-                    lastTime = now
-                    try await Task.sleep(for: .milliseconds(200))
-                }
-            }
-
-            try await group.waitForAll()
+            try await Task.sleep(for: .milliseconds(200))
         }
 
         let totalElapsed = Date().timeIntervalSince(startTime)
@@ -249,72 +212,68 @@ public final class SpeedTestService: SpeedTestServiceProtocol {
 
     // MARK: - Upload Measurement
 
+    /// Uses delegate-based URLSession with didSendBodyData callbacks to count
+    /// bytes as they leave the device, rather than waiting for server acknowledgement.
     private func measureUpload(server: SpeedTestServer?) async throws -> Double {
-        let chunkSize = 4_000_000 // 4MB upload chunks for better throughput
+        let chunkSize = 4_000_000 // 4 MB upload payload
         let parallelStreams = 6
         let startTime = Date()
         let totalBytesAtomic = AtomicInt64()
         let uploadURLString = server?.uploadURL ?? "https://speed.cloudflare.com/__up"
+        let url = URL(string: uploadURLString)!
+        let uploadPayload = Data(count: chunkSize)
 
-        try await withThrowingTaskGroup(of: Void.self) { group in
-            for _ in 0..<parallelStreams {
-                group.addTask { [duration, uploadURLString] in
-                    let session = URLSession(configuration: .ephemeral)
-                    defer { session.invalidateAndCancel() }
-                    let url = URL(string: uploadURLString)!
-                    let uploadData = Data(count: chunkSize)
+        let delegate = UploadMeasurementDelegate(
+            bytesSent: totalBytesAtomic,
+            uploadURL: url,
+            uploadData: uploadPayload,
+            startTime: startTime,
+            duration: duration
+        )
+        let config = URLSessionConfiguration.ephemeral
+        config.httpMaximumConnectionsPerHost = parallelStreams
+        let uploadSession = URLSession(configuration: config, delegate: delegate, delegateQueue: nil)
 
-                    while Date().timeIntervalSince(startTime) < duration {
-                        try Task.checkCancellation()
-                        var request = URLRequest(url: url)
-                        request.httpMethod = "POST"
-                        request.setValue("application/octet-stream", forHTTPHeaderField: "Content-Type")
-                        request.setValue(String(uploadData.count), forHTTPHeaderField: "Content-Length")
-                        request.timeoutInterval = 10
-                        let (_, response) = try await session.upload(for: request, from: uploadData)
-                        guard let http = response as? HTTPURLResponse,
-                              (200...299).contains(http.statusCode) else {
-                            continue
-                        }
-                        totalBytesAtomic.add(Int64(chunkSize))
-                    }
+        defer { uploadSession.invalidateAndCancel() }
+
+        // Launch initial parallel upload streams
+        for _ in 0..<parallelStreams {
+            var request = URLRequest(url: url)
+            request.httpMethod = "POST"
+            request.setValue("application/octet-stream", forHTTPHeaderField: "Content-Type")
+            request.timeoutInterval = max(duration + 10, 15)
+            uploadSession.uploadTask(with: request, from: uploadPayload).resume()
+        }
+
+        // Progress loop — runs on MainActor, samples every 200ms
+        var samples: [(time: Date, bytes: Int64)] = []
+
+        while Date().timeIntervalSince(startTime) < duration {
+            try Task.checkCancellation()
+            let now = Date()
+            let totalElapsed = now.timeIntervalSince(startTime)
+            let currentBytes = totalBytesAtomic.load()
+
+            let avgSpeed = totalElapsed > 0 ? Double(currentBytes * 8) / totalElapsed / 1_000_000 : 0
+
+            // Rolling 1.5-second window for instantaneous/peak speed
+            samples.append((time: now, bytes: currentBytes))
+            samples = samples.filter { now.timeIntervalSince($0.time) <= 1.5 }
+            var instantSpeed = avgSpeed
+            if let oldest = samples.first, samples.count > 1 {
+                let windowTime = now.timeIntervalSince(oldest.time)
+                let windowBytes = currentBytes - oldest.bytes
+                if windowTime > 0.3 {
+                    instantSpeed = Double(windowBytes * 8) / windowTime / 1_000_000
                 }
             }
 
-            // Progress updater with peak tracking
-            group.addTask { [duration] in
-                var samples: [(time: Date, bytes: Int64)] = []
+            uploadSpeed = instantSpeed
+            progress = min(totalElapsed / duration, 1.0)
+            uploadBytesSent = currentBytes
+            peakUploadSpeed = max(peakUploadSpeed, instantSpeed)
 
-                while Date().timeIntervalSince(startTime) < duration {
-                    try Task.checkCancellation()
-                    let now = Date()
-                    let totalElapsed = now.timeIntervalSince(startTime)
-                    let currentBytes = totalBytesAtomic.load()
-
-                    let avgSpeed = totalElapsed > 0 ? Double(currentBytes * 8) / totalElapsed / 1_000_000 : 0
-
-                    samples.append((time: now, bytes: currentBytes))
-                    samples = samples.filter { now.timeIntervalSince($0.time) <= 1.5 }
-                    var instantSpeed = avgSpeed
-                    if let oldest = samples.first, samples.count > 1 {
-                        let windowTime = now.timeIntervalSince(oldest.time)
-                        let windowBytes = currentBytes - oldest.bytes
-                        if windowTime > 0.3 {
-                            instantSpeed = Double(windowBytes * 8) / windowTime / 1_000_000
-                        }
-                    }
-
-                    await MainActor.run { [instantSpeed, totalElapsed, currentBytes, duration] in
-                        self.uploadSpeed = instantSpeed
-                        self.progress = min(totalElapsed / duration, 1.0)
-                        self.uploadBytesSent = currentBytes
-                        self.peakUploadSpeed = max(self.peakUploadSpeed, instantSpeed)
-                    }
-                    try await Task.sleep(for: .milliseconds(200))
-                }
-            }
-
-            try await group.waitForAll()
+            try await Task.sleep(for: .milliseconds(200))
         }
 
         let totalElapsed = Date().timeIntervalSince(startTime)
@@ -340,6 +299,79 @@ public final class SpeedTestService: SpeedTestServiceProtocol {
         errorMessage = nil
         downloadBytesReceived = 0
         uploadBytesSent = 0
+    }
+}
+
+// MARK: - Download Measurement Delegate
+
+/// Counts received bytes efficiently via URLSession's chunked data delivery (~16-64 KB chunks).
+/// Automatically restarts downloads when one completes, keeping all streams continuously saturated.
+private final class DownloadMeasurementDelegate: NSObject, URLSessionDataDelegate, @unchecked Sendable {
+    let bytesReceived: AtomicInt64
+    private let downloadURL: URL
+    private let startTime: Date
+    private let duration: TimeInterval
+
+    init(bytesReceived: AtomicInt64, downloadURL: URL, startTime: Date, duration: TimeInterval) {
+        self.bytesReceived = bytesReceived
+        self.downloadURL = downloadURL
+        self.startTime = startTime
+        self.duration = duration
+        super.init()
+    }
+
+    func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
+        bytesReceived.add(Int64(data.count))
+    }
+
+    func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+        // Don't restart if cancelled (from invalidateAndCancel) or past duration
+        if let error = error as? URLError, error.code == .cancelled { return }
+        guard Date().timeIntervalSince(startTime) < duration else { return }
+
+        var request = URLRequest(url: downloadURL)
+        request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
+        request.timeoutInterval = max(duration + 10, 30)
+        session.dataTask(with: request).resume()
+    }
+}
+
+// MARK: - Upload Measurement Delegate
+
+/// Counts bytes as they leave the device via didSendBodyData callbacks.
+/// Automatically restarts uploads when one completes, keeping all streams continuously saturated.
+private final class UploadMeasurementDelegate: NSObject, URLSessionDataDelegate, @unchecked Sendable {
+    let bytesSent: AtomicInt64
+    private let uploadURL: URL
+    private let uploadData: Data
+    private let startTime: Date
+    private let duration: TimeInterval
+
+    init(bytesSent: AtomicInt64, uploadURL: URL, uploadData: Data, startTime: Date, duration: TimeInterval) {
+        self.bytesSent = bytesSent
+        self.uploadURL = uploadURL
+        self.uploadData = uploadData
+        self.startTime = startTime
+        self.duration = duration
+        super.init()
+    }
+
+    func urlSession(_ session: URLSession, task: URLSessionTask,
+                    didSendBodyData bytesSentIncrement: Int64,
+                    totalBytesSent: Int64,
+                    totalBytesExpectedToSend: Int64) {
+        bytesSent.add(bytesSentIncrement)
+    }
+
+    func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+        if let error = error as? URLError, error.code == .cancelled { return }
+        guard Date().timeIntervalSince(startTime) < duration else { return }
+
+        var request = URLRequest(url: uploadURL)
+        request.httpMethod = "POST"
+        request.setValue("application/octet-stream", forHTTPHeaderField: "Content-Type")
+        request.timeoutInterval = max(duration + 10, 15)
+        session.uploadTask(with: request, from: uploadData).resume()
     }
 }
 
