@@ -1,6 +1,7 @@
 import Foundation
 import SwiftUI
 import NetMonitorCore
+import CoreLocation
 #if os(iOS)
 import NetworkExtension
 #endif
@@ -29,6 +30,7 @@ final class ARHeatmapSurveyViewModel {
     var errorMessage: String?
 
     let arSession: ARHeatmapSession
+    private(set) var locationDenied = false
 
     // MARK: - Private State
 
@@ -37,6 +39,7 @@ final class ARHeatmapSurveyViewModel {
     /// Last recorded XZ position for distance gating.
     private var lastRecordedPosition: SIMD2<Float>?
     private var scanTask: Task<Void, Never>?
+    private let locationDelegate = ARHeatmapLocationDelegate()
 
     // MARK: - Init
 
@@ -48,6 +51,34 @@ final class ARHeatmapSurveyViewModel {
 
     func startScanning() {
         guard !isScanning else { return }
+
+        // NEHotspotNetwork.fetchCurrent requires location authorization
+        let status = locationDelegate.manager.authorizationStatus
+        if status == .notDetermined {
+            locationDelegate.manager.requestWhenInUseAuthorization()
+            statusMessage = "Grant location access to read WiFi signal"
+            locationDelegate.onAuthorized = { [weak self] in
+                Task { @MainActor in self?.beginScanning() }
+            }
+            locationDelegate.onDenied = { [weak self] in
+                Task { @MainActor in
+                    self?.locationDenied = true
+                    self?.errorMessage = "Location access required for WiFi signal reading"
+                    self?.statusMessage = "Enable location in Settings > Privacy > Location Services"
+                }
+            }
+            return
+        } else if status == .denied || status == .restricted {
+            locationDenied = true
+            errorMessage = "Location access denied — enable in Settings > Privacy > Location Services"
+            return
+        }
+
+        beginScanning()
+    }
+
+    private func beginScanning() {
+        locationDenied = false
         isScanning = true
         worldPoints = []
         lastRecordedPosition = nil
@@ -147,12 +178,11 @@ final class ARHeatmapSurveyViewModel {
             errorMessage = nil
             applySignalStrength(network.signalStrength, ssid: network.ssid)
         } else {
-            // WiFi info entitlement not active or location permission not yet granted.
-            // Fall back to simulated RSSI so the spatial mapping still works.
+            // NEHotspotNetwork returned nil — WiFi off or transient failure.
+            // Keep last known signal value; don't overwrite with noise.
             if errorMessage == nil {
-                errorMessage = "WiFi signal unavailable — check Access WiFi Information entitlement and location permission."
+                errorMessage = "WiFi signal temporarily unavailable — ensure WiFi is connected"
             }
-            applySimulatedSignal()
         }
         #endif
     }
@@ -161,11 +191,6 @@ final class ARHeatmapSurveyViewModel {
         signalQuality = max(0, min(1, strength))
         signalDBm = Int(-100.0 + signalQuality * 70.0)
         self.ssid = ssid
-    }
-
-    private func applySimulatedSignal() {
-        // Preserve last known value; don't overwrite with random noise
-        // so the heatmap doesn't get garbage data from missing entitlement.
     }
 
     /// Normalize world XZ coordinates to 0–1 range based on bounding box.
@@ -183,6 +208,34 @@ final class ARHeatmapSurveyViewModel {
             let nx = rangeX > 0.001 ? Double((pt.x - xMin) / rangeX) : 0.5
             let ny = rangeZ > 0.001 ? Double((pt.z - zMin) / rangeZ) : 0.5
             return HeatmapDataPoint(x: nx, y: ny, signalStrength: pt.signalStrength, timestamp: pt.timestamp)
+        }
+    }
+}
+
+// MARK: - Location Authorization Helper
+
+private final class ARHeatmapLocationDelegate: NSObject, CLLocationManagerDelegate {
+    let manager = CLLocationManager()
+    var onAuthorized: (() -> Void)?
+    var onDenied: (() -> Void)?
+
+    override init() {
+        super.init()
+        manager.delegate = self
+    }
+
+    func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        switch manager.authorizationStatus {
+        case .authorizedWhenInUse, .authorizedAlways:
+            onAuthorized?()
+            onAuthorized = nil
+            onDenied = nil
+        case .denied, .restricted:
+            onDenied?()
+            onAuthorized = nil
+            onDenied = nil
+        default:
+            break
         }
     }
 }
