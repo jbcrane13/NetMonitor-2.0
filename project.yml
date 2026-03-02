@@ -36,9 +36,27 @@ targets:
         NSHighResolutionCapable: true
         LSApplicationCategoryType: public.app-category.utilities
         NSHumanReadableCopyright: "Copyright © 2026 Blake Crane. All rights reserved."
-        NSLocalNetworkUsageDescription: "NetMonitor Pro uses local network access to discover and connect to the iOS companion app via Bonjour."
+        NSLocalNetworkUsageDescription: "NetMonitor Pro scans your local network to discover devices, services, and the iOS companion app."
         NSBonjourServices:
           - _netmon._tcp
+          - _http._tcp
+          - _https._tcp
+          - _smb._tcp
+          - _ssh._tcp
+          - _airplay._tcp
+          - _raop._tcp
+          - _afpovertcp._tcp
+          - _printer._tcp
+          - _ipp._tcp
+          - _homekit._tcp
+          - _hap._tcp
+          - _companion-link._tcp
+          - _apple-mobdev2._tcp
+          - _device-info._tcp
+          - _googlecast._tcp
+          - _spotify-connect._tcp
+          - _sonos._tcp
+          - _workstation._tcp
         NSCameraUsageDescription: "NetMonitor Pro uses your camera to scan room layouts for WiFi heatmap surveys."
         NSAppTransportSecurity:
           NSExceptionDomains:
@@ -101,6 +119,27 @@ targets:
         NSLocationWhenInUseUsageDescription: "NetMonitor uses your location to display WiFi network information and monitor GeoFence zones."
         NSLocationAlwaysAndWhenInUseUsageDescription: "NetMonitor uses your location in the background to trigger GeoFence alerts when you enter or exit defined zones."
         NSCameraUsageDescription: "NetMonitor uses your camera to scan room layouts for WiFi heatmap surveys."
+        NSBonjourServices:
+          - _netmon._tcp
+          - _http._tcp
+          - _https._tcp
+          - _smb._tcp
+          - _ssh._tcp
+          - _airplay._tcp
+          - _raop._tcp
+          - _afpovertcp._tcp
+          - _printer._tcp
+          - _ipp._tcp
+          - _homekit._tcp
+          - _hap._tcp
+          - _companion-link._tcp
+          - _apple-mobdev2._tcp
+          - _device-info._tcp
+          - _googlecast._tcp
+          - _spotify-connect._tcp
+          - _sonos._tcp
+          - _workstation._tcp
+        NSLocalNetworkUsageDescription: "NetMonitor scans your local network to discover devices, services, and the macOS companion app."
         NSAppTransportSecurity:
           NSExceptionDomains:
             ip-api.com:

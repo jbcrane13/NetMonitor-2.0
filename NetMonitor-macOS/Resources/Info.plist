@@ -66,7 +66,7 @@
 	<key>NSHumanReadableCopyright</key>
 	<string>Copyright © 2026 Blake Crane. All rights reserved.</string>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>NetMonitor Pro uses local network access to discover and connect to the iOS companion app via Bonjour.</string>
+	<string>NetMonitor Pro scans your local network to discover devices, services, and the iOS companion app.</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
 </dict>
