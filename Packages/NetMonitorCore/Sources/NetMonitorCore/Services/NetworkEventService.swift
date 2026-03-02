@@ -23,15 +23,29 @@ public protocol NetworkEventServiceProtocol: AnyObject, Sendable {
 /// Persists network events in UserDefaults (JSON-encoded, max 500 entries).
 public final class NetworkEventService: NetworkEventServiceProtocol, @unchecked Sendable {
 
-    public static let shared = NetworkEventService()
+    /// Shared singleton — the only instance that restores persisted events on init.
+    /// All production code should use this rather than creating new instances.
+    public static let shared = NetworkEventService(restoringPersistedEvents: true)
 
     private let lock = NSLock()
     private var _events: [NetworkEvent] = []
     private let userDefaultsKey = "com.netmonitor.networkEvents"
     private let maxEvents = 500
 
+    /// Creates a fresh, empty service instance.
+    ///
+    /// New instances do **not** load from UserDefaults — only the `shared` singleton
+    /// restores persisted state. This keeps test instances isolated from one another
+    /// and from production state, even when tests run concurrently.
     public init() {
-        loadFromStorage()
+        // Intentionally empty — start with no events.
+    }
+
+    // Private designated init used by the shared singleton to restore persisted events.
+    private init(restoringPersistedEvents: Bool) {
+        if restoringPersistedEvents {
+            loadFromStorage()
+        }
     }
 
     // MARK: - Protocol
