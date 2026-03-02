@@ -4,6 +4,7 @@ import NetMonitorCore
 import CoreLocation
 #if os(iOS)
 import NetworkExtension
+import SystemConfiguration.CaptiveNetwork
 #endif
 
 /// ViewModel for AR continuous WiFi heatmap surveying.
@@ -28,6 +29,8 @@ final class ARHeatmapSurveyViewModel {
     private(set) var pointCount: Int = 0
     private(set) var statusMessage = "Tap Start to begin scanning"
     var errorMessage: String?
+    /// Normalized heatmap data points for the live 2D overlay canvas.
+    private(set) var liveHeatmapPoints: [HeatmapDataPoint] = []
 
     let arSession: ARHeatmapSession
     private(set) var locationDenied = false
@@ -81,6 +84,7 @@ final class ARHeatmapSurveyViewModel {
         locationDenied = false
         isScanning = true
         worldPoints = []
+        liveHeatmapPoints = []
         lastRecordedPosition = nil
         pointCount = 0
         errorMessage = nil
@@ -164,33 +168,47 @@ final class ARHeatmapSurveyViewModel {
             pointCount = worldPoints.count
             arSession.placeSignalSphere(signalDBm: signalDBm)
 
+            // Update the live 2D heatmap overlay in real time
+            liveHeatmapPoints = normalizePoints()
+
             let level = SignalLevel.from(rssi: signalDBm)
             statusMessage = "\(signalDBm) dBm (\(level.label)) — \(worldPoints.count) points"
         }
     }
 
     private func refreshSignal() async {
+        // Use WiFiInfoService pattern: NEHotspotNetwork with retry + legacy CNCopy fallback.
+        // This matches how the dashboard reads WiFi and avoids the 0.0 / -100dBm bug.
         #if targetEnvironment(simulator)
-        applySignalStrength(0.65, ssid: "Simulator WiFi")
+        signalQuality = 0.65
+        signalDBm = -55
+        ssid = "Simulator WiFi"
         #elseif os(iOS)
-        let network = await NEHotspotNetwork.fetchCurrent()
-        if let network {
+        // Attempt 1: modern API
+        var network = await NEHotspotNetwork.fetchCurrent()
+        if network == nil {
+            // Retry once after short delay (same pattern as WiFiInfoService)
+            try? await Task.sleep(for: .milliseconds(300))
+            network = await NEHotspotNetwork.fetchCurrent()
+        }
+
+        if let network, network.signalStrength > 0 {
             errorMessage = nil
-            applySignalStrength(network.signalStrength, ssid: network.ssid)
+            signalQuality = max(0, min(1, network.signalStrength))
+            signalDBm = Int(-100.0 + signalQuality * 70.0)
+            ssid = network.ssid
         } else {
-            // NEHotspotNetwork returned nil — WiFi off or transient failure.
-            // Keep last known signal value; don't overwrite with noise.
-            if errorMessage == nil {
-                errorMessage = "WiFi signal temporarily unavailable — ensure WiFi is connected"
+            // Legacy fallback — CNCopyCurrentNetworkInfo gives SSID but no signal
+            if let interfaces = CNCopySupportedInterfaces() as? [String],
+               let iface = interfaces.first,
+               let info = CNCopyCurrentNetworkInfo(iface as CFString) as? [String: Any],
+               let legacySSID = info[kCNNetworkInfoKeySSID as String] as? String {
+                ssid = legacySSID
+            } else if errorMessage == nil {
+                errorMessage = "WiFi signal unavailable — ensure WiFi is connected"
             }
         }
         #endif
-    }
-
-    private func applySignalStrength(_ strength: Double, ssid: String?) {
-        signalQuality = max(0, min(1, strength))
-        signalDBm = Int(-100.0 + signalQuality * 70.0)
-        self.ssid = ssid
     }
 
     /// Normalize world XZ coordinates to 0–1 range based on bounding box.

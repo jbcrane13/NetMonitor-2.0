@@ -56,6 +56,29 @@ struct ARHeatmapSurveyView: View {
             ARHeatmapViewContainer(arSession: viewModel.arSession)
                 .ignoresSafeArea()
 
+            // Live heatmap overlay — builds in real time as user walks
+            if !viewModel.liveHeatmapPoints.isEmpty {
+                HeatmapCanvasView(
+                    points: viewModel.liveHeatmapPoints,
+                    floorplanImage: nil,
+                    colorScheme: .thermal,
+                    overlays: [.gradient, .dots],
+                    calibration: nil,
+                    isSurveying: true,
+                    onTap: nil
+                )
+                .frame(height: 200)
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                )
+                .padding(.horizontal, 16)
+                .frame(maxHeight: .infinity, alignment: .center)
+                .allowsHitTesting(false)
+                .opacity(0.85)
+            }
+
             VStack(spacing: 0) {
                 // Top: Signal HUD + close button
                 topBar
