@@ -142,7 +142,7 @@ struct PortScannerToolViewModelTests {
         vm.portPreset = .common
         vm.startScan()
         vm.stopScan()
-        try await Task.sleep(for: .milliseconds(100))
+        await waitUntil { mock.stopCallCount == 1 }
         #expect(mock.stopCallCount == 1)
     }
 
@@ -158,7 +158,7 @@ struct PortScannerToolViewModelTests {
         vm.portPreset = .custom
         vm.customRange = PortRange(start: 80, end: 8080)
         vm.startScan()
-        try await Task.sleep(for: .milliseconds(200))
+        await waitUntil { vm.isRunning == false }
         #expect(vm.results.count == 2)
         #expect(vm.results.map(\.port).contains(80))
         #expect(vm.results.map(\.port).contains(443))
@@ -223,7 +223,7 @@ struct PortScannerToolViewModelErrorTests {
         vm.host = "192.168.1.1"
         vm.portPreset = .common
         vm.startScan()
-        try await Task.sleep(for: .milliseconds(200))
+        await waitUntil { vm.isRunning == false }
         // Only open ports go into results
         #expect(vm.results.isEmpty)
         #expect(vm.openPorts.isEmpty)
@@ -241,7 +241,7 @@ struct PortScannerToolViewModelErrorTests {
         vm.portPreset = .custom
         vm.customRange = PortRange(start: 80, end: 82)
         vm.startScan()
-        try await Task.sleep(for: .milliseconds(200))
+        await waitUntil { vm.isRunning == false }
         // scannedCount tracks all ports regardless of state
         #expect(vm.scannedCount == 3)
     }

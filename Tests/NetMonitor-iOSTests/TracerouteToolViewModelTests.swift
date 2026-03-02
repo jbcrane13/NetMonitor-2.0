@@ -114,7 +114,7 @@ struct TracerouteToolViewModelErrorTests {
         let vm = TracerouteToolViewModel(tracerouteService: mock)
         vm.host = "google.com"
         vm.startTrace()
-        try await Task.sleep(for: .milliseconds(200))
+        await waitUntil { vm.isRunning == false }
         #expect(vm.completedHops == 3)
         #expect(vm.hops[0].isTimeout == true)
         #expect(vm.hops[1].isTimeout == true)
@@ -128,7 +128,7 @@ struct TracerouteToolViewModelErrorTests {
         vm.host = "example.com"
         vm.maxHops = 15
         vm.startTrace()
-        try await Task.sleep(for: .milliseconds(200))
+        await waitUntil { vm.isRunning == false }
         // Service returned 15 hops matching the maxHops setting
         #expect(vm.completedHops == 15)
         #expect(vm.isRunning == false)
@@ -141,7 +141,7 @@ struct TracerouteToolViewModelErrorTests {
         let vm = TracerouteToolViewModel(tracerouteService: mock)
         vm.host = "unreachable.invalid"
         vm.startTrace()
-        try await Task.sleep(for: .milliseconds(200))
+        await waitUntil { vm.isRunning == false }
         #expect(vm.hops.isEmpty)
         #expect(vm.isRunning == false)
         // ViewModel does not set an error message on its own for empty results
@@ -166,7 +166,7 @@ struct TracerouteToolViewModelErrorTests {
         vm.host = "google.com"
         vm.startTrace()
         vm.stopTrace()
-        try await Task.sleep(for: .milliseconds(100))
+        await waitUntil { mock.stopCallCount == 1 }
         #expect(mock.stopCallCount == 1)
     }
 }

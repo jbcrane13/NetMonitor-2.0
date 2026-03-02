@@ -76,8 +76,7 @@ final class WorldPingToolViewModelTests: XCTestCase {
         vm.hostInput = "google.com"
         vm.run()
 
-        // Wait for task to complete
-        try await Task.sleep(for: .milliseconds(200))
+        await waitUntil { !vm.isRunning }
 
         XCTAssertFalse(vm.results.isEmpty)
         XCTAssertFalse(vm.isRunning)
@@ -91,7 +90,7 @@ final class WorldPingToolViewModelTests: XCTestCase {
         vm.hostInput = "unreachable.invalid"
         vm.run()
 
-        try await Task.sleep(for: .milliseconds(200))
+        await waitUntil { !vm.isRunning }
 
         XCTAssertTrue(vm.results.isEmpty)
         XCTAssertNotNil(vm.errorMessage)
@@ -109,7 +108,7 @@ final class WorldPingToolViewModelTests: XCTestCase {
         vm.hostInput = "test.com"
         vm.run()
 
-        try await Task.sleep(for: .milliseconds(200))
+        await waitUntil { !vm.isRunning }
 
         let avg = vm.averageLatencyMs
         XCTAssertNotNil(avg)
@@ -132,7 +131,7 @@ final class WorldPingToolViewModelTests: XCTestCase {
         vm.hostInput = "test.com"
         vm.run()
 
-        try await Task.sleep(for: .milliseconds(200))
+        await waitUntil { !vm.isRunning }
 
         XCTAssertEqual(vm.bestLatencyMs, 25.0)
     }
@@ -148,7 +147,7 @@ final class WorldPingToolViewModelTests: XCTestCase {
         vm.hostInput = "test.com"
         vm.run()
 
-        try await Task.sleep(for: .milliseconds(200))
+        await waitUntil { !vm.isRunning }
 
         XCTAssertEqual(vm.successCount, 2)
     }
@@ -160,7 +159,7 @@ final class WorldPingToolViewModelTests: XCTestCase {
         vm.hostInput = "test.com"
         vm.run()
 
-        try await Task.sleep(for: .milliseconds(200))
+        await waitUntil { !vm.isRunning }
         vm.clear()
 
         XCTAssertTrue(vm.results.isEmpty)
@@ -175,7 +174,7 @@ final class WorldPingToolViewModelTests: XCTestCase {
         vm.hostInput = "test.com"
         vm.run()
 
-        try await Task.sleep(for: .milliseconds(200))
+        await waitUntil { !vm.isRunning }
 
         XCTAssertTrue(vm.hasResults)
     }
@@ -191,7 +190,7 @@ final class WorldPingToolViewModelTests: XCTestCase {
         vm.hostInput = "test.com"
         vm.run()
 
-        try await Task.sleep(for: .milliseconds(200))
+        await waitUntil { !vm.isRunning }
 
         XCTAssertEqual(vm.results.count, 3)
         // Should be sorted by latency ascending
@@ -233,7 +232,7 @@ struct WorldPingToolViewModelEdgeCaseTests {
         let vm = WorldPingToolViewModel(service: mock)
         vm.hostInput = "unreachable.invalid"
         vm.run()
-        try await Task.sleep(for: .milliseconds(200))
+        await waitUntil { vm.isRunning == false }
         #expect(vm.results.isEmpty)
         #expect(vm.errorMessage != nil)
         #expect(vm.isRunning == false)
@@ -249,7 +248,7 @@ struct WorldPingToolViewModelEdgeCaseTests {
         let vm = WorldPingToolViewModel(service: mock)
         vm.hostInput = "test.com"
         vm.run()
-        try await Task.sleep(for: .milliseconds(200))
+        await waitUntil { vm.isRunning == false }
         #expect(vm.results.count == 3)
         #expect(vm.successCount == 2)
         // average only counts successful nodes with latency
@@ -273,7 +272,7 @@ struct WorldPingToolViewModelEdgeCaseTests {
         let vm = WorldPingToolViewModel(service: mock)
         vm.hostInput = "test.com"
         vm.run()
-        try await Task.sleep(for: .milliseconds(200))
+        await waitUntil { vm.isRunning == false }
         vm.clear()
         #expect(vm.results.isEmpty)
         #expect(vm.errorMessage == nil)

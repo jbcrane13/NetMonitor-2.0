@@ -46,8 +46,7 @@ struct GeoTraceViewModelTests {
         vm.host = "8.8.8.8"
         vm.startTrace()
 
-        // Wait for async trace to complete
-        try await Task.sleep(nanoseconds: 100_000_000)
+        await waitUntil { vm.isRunning == false }
 
         #expect(vm.hops.count == 3)
         #expect(vm.isRunning == false)
@@ -94,7 +93,7 @@ struct GeoTraceViewModelTests {
         vm.host = "8.8.8.8"
         vm.startTrace()
 
-        try await Task.sleep(nanoseconds: 200_000_000)
+        await waitUntil { vm.isRunning == false }
 
         #expect(vm.hops.count == 2)
         #expect(vm.locatedHops.count == 1)

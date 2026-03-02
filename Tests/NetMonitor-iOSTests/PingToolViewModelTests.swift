@@ -338,8 +338,7 @@ struct PingToolViewModelLifecycleTests {
         vm.host = "test.com"
         vm.startPing()
 
-        // Wait for the async Task to complete
-        try await Task.sleep(for: .milliseconds(200))
+        await waitUntil { vm.isRunning == false }
 
         #expect(vm.results.count == 3)
         #expect(vm.results[0].time == 10.0)
@@ -362,8 +361,7 @@ struct PingToolViewModelLifecycleTests {
         vm.stopPing()
         #expect(vm.isRunning == false)
 
-        // Give time for stop() async call to execute
-        try await Task.sleep(for: .milliseconds(100))
+        await waitUntil { mock.stopCallCount == 1 }
         #expect(mock.stopCallCount == 1)
     }
 
@@ -390,7 +388,7 @@ struct PingToolViewModelLifecycleTests {
         // Synchronously cleared
         #expect(vm.errorMessage == nil)
 
-        try await Task.sleep(for: .milliseconds(200))
+        await waitUntil { vm.isRunning == false }
 
         #expect(vm.results.count == 1)
         #expect(vm.results[0].host == "new.com")

@@ -250,8 +250,7 @@ struct DashboardViewModelTests {
         ]
         let vm = makeVM(pingService: ping)
         await vm.refresh()
-        // measureAnchors() runs in a detached Task; give it a moment to complete
-        try await Task.sleep(for: .milliseconds(200))
+        await waitUntil { !vm.anchorLatencies.isEmpty }
         #expect(!vm.anchorLatencies.isEmpty)
     }
 
@@ -435,8 +434,7 @@ struct DashboardViewModelEventLoggingTests {
         let vm = makeVM(pingService: ping)
 
         await vm.refresh()
-        // measureAnchors() runs in a detached Task; give it time to complete
-        try await Task.sleep(for: .milliseconds(200))
+        await waitUntil { !vm.anchorLatencies.isEmpty }
 
         let anchorEvents = ToolActivityLog.shared.entries.filter {
             $0.tool == "Internet" && $0.target == "Anchors"
