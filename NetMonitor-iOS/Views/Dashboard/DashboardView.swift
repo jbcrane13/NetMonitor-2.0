@@ -62,8 +62,8 @@ struct DashboardView: View {
             .onDisappear {
                 viewModel.stopAutoRefresh()
             }
+            .accessibilityIdentifier("screen_dashboard")
         }
-        .accessibilityIdentifier("screen_dashboard")
     }
 }
 

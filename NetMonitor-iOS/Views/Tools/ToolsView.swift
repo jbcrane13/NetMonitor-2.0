@@ -25,8 +25,8 @@ struct ToolsView: View {
             .navigationDestination(for: ToolDestination.self) { destination in
                 destination.view
             }
+            .accessibilityIdentifier("screen_tools")
         }
-        .accessibilityIdentifier("screen_tools")
     }
 }
 
@@ -433,8 +433,8 @@ struct ToolCard: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .glassCard()
+            .accessibilityIdentifier("tools_card_\(tool.name.lowercased().replacingOccurrences(of: " ", with: "_"))")
         }
-        .accessibilityIdentifier("tools_card_\(tool.name.lowercased().replacingOccurrences(of: " ", with: "_"))")
     }
 }
 
