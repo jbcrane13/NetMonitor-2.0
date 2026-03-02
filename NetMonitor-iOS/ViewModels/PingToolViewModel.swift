@@ -131,10 +131,16 @@ final class PingToolViewModel {
     /// correctly from the baseline and no data points clip below the axis.
     var chartYAxisMin: Double { 0 }
 
-    /// Y-axis max: actual max value with 20% padding, minimum 10ms ceiling so
-    /// small latency variations produce visible line movement instead of a flat trace.
+    /// Y-axis max: P95-clipped value with 20% padding, minimum 10ms ceiling so
+    /// occasional spikes don't compress the chart scale for normal readings.
     var chartYAxisMax: Double {
-        guard let maxTime = successfulPings.map(\.time).max() else { return 10 }
-        return max(maxTime * 1.2, 10)
+        let times = successfulPings.map(\.time)
+        guard times.count >= 2 else {
+            return max((times.first ?? 0) * 1.2, 10)
+        }
+        let sorted = times.sorted()
+        let p95Index = Int(Double(sorted.count - 1) * 0.95)
+        let p95 = sorted[p95Index]
+        return max(p95 * 1.2, 10)
     }
 }

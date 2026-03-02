@@ -29,7 +29,7 @@ struct DNSLookupToolViewModelTests {
         #expect(vm.recordTypes.contains(.txt))
         #expect(vm.recordTypes.contains(.cname))
         #expect(vm.recordTypes.contains(.ns))
-        #expect(vm.recordTypes.count == 6)
+        #expect(vm.recordTypes.count == DNSRecordType.allCases.count)
     }
 
     @Test func canStartLookupFalseWhenDomainEmpty() {
