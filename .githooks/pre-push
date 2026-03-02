@@ -1,0 +1,4 @@
+#!/bin/bash
+# Pre-push: verify Bonjour keys haven't been accidentally removed
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+"$REPO_ROOT/scripts/check-bonjour-keys.sh" "$REPO_ROOT"
