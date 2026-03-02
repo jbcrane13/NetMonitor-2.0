@@ -13,6 +13,7 @@ struct NetworkDevicesPanel: View {
     @State private var searchText: String = ""
     @State private var sortOrder: PanelSortOrder = .status
     @State private var selectedDevice: LocalDevice?
+    @State private var showFullDevicesView = false
 
     enum PanelSortOrder: String, CaseIterable {
         case status   = "Status"
@@ -60,15 +61,43 @@ struct NetworkDevicesPanel: View {
         VStack(alignment: .leading, spacing: 0) {
             // Header
             HStack {
-                Circle()
-                    .fill(MacTheme.Colors.info)
-                    .frame(width: 5, height: 5)
-                Text("NETWORK DEVICES")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(.secondary)
-                    .tracking(1.4)
+                // Clickable title — opens full devices view
+                Button {
+                    showFullDevicesView = true
+                } label: {
+                    HStack(spacing: 4) {
+                        Circle()
+                            .fill(MacTheme.Colors.info)
+                            .frame(width: 5, height: 5)
+                        Text("NETWORK DEVICES")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(.secondary)
+                            .tracking(1.4)
+                        Image(systemName: "arrow.up.right")
+                            .font(.system(size: 8, weight: .bold))
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+                .buttonStyle(.plain)
+                .help("Open full devices view")
 
                 Spacer()
+
+                // Scan button
+                Button {
+                    if let profile = coordinator?.networkProfile {
+                        coordinator?.scanNetwork(profile)
+                    } else {
+                        coordinator?.startScan()
+                    }
+                } label: {
+                    Image(systemName: "antenna.radiowaves.left.and.right")
+                        .font(.system(size: 11))
+                        .foregroundStyle(coordinator?.isScanning == true ? MacTheme.Colors.info : .secondary)
+                }
+                .buttonStyle(.plain)
+                .disabled(coordinator?.isScanning == true)
+                .help("Scan network")
 
                 // Device count badge
                 Text("\(filteredDevices.count)")
@@ -167,6 +196,10 @@ struct NetworkDevicesPanel: View {
         .sheet(item: $selectedDevice) { device in
             DeviceDetailView(device: device)
                 .frame(minWidth: 500, minHeight: 400)
+        }
+        .sheet(isPresented: $showFullDevicesView) {
+            DevicesView()
+                .frame(minWidth: 900, minHeight: 600)
         }
         .overlay {
             if coordinator?.isScanning == true {

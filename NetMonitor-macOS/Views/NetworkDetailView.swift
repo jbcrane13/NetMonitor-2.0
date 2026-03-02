@@ -58,7 +58,7 @@ struct NetworkDetailView: View {
                         ConnectivityCard(session: session, profileManager: profileManager)
                             .accessibilityIdentifier("network_detail_card_connectivity")
                     }
-                    .frame(width: geo.size.width * 0.42 - gap)
+                    .frame(width: max(200, geo.size.width * 0.42 - gap))
 
                     // Right column — device grid
                     NetworkDevicesPanel(networkProfileID: profile.id)
