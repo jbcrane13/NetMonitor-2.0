@@ -102,6 +102,49 @@ struct SpeedTestToolViewModelTests {
     }
 }
 
+// MARK: - Peak Speed & Jitter Tests
+
+@Suite("SpeedTestToolViewModel Peak Speeds & Jitter")
+@MainActor
+struct SpeedTestToolViewModelPeakJitterTests {
+
+    @Test func peakDownloadSpeedDelegatesFromService() {
+        let mock = MockSpeedTestService()
+        mock.peakDownloadSpeed = 150.0
+        let vm = SpeedTestToolViewModel(service: mock)
+        vm.peakDownloadSpeed = mock.peakDownloadSpeed
+        #expect(vm.peakDownloadSpeed == 150.0)
+    }
+
+    @Test func peakUploadSpeedDelegatesFromService() {
+        let mock = MockSpeedTestService()
+        mock.peakUploadSpeed = 80.0
+        let vm = SpeedTestToolViewModel(service: mock)
+        vm.peakUploadSpeed = mock.peakUploadSpeed
+        #expect(vm.peakUploadSpeed == 80.0)
+    }
+
+    @Test func jitterDelegatesFromService() {
+        let mock = MockSpeedTestService()
+        mock.jitter = 12.5
+        let vm = SpeedTestToolViewModel(service: mock)
+        vm.jitter = mock.jitter
+        #expect(vm.jitter == 12.5)
+    }
+
+    @Test func peakDownloadSpeedTextFormatsCorrectly() {
+        let vm = SpeedTestToolViewModel(service: MockSpeedTestService())
+        vm.peakDownloadSpeed = 150.0
+        #expect(!vm.peakDownloadSpeedText.isEmpty)
+    }
+
+    @Test func peakUploadSpeedTextFormatsCorrectly() {
+        let vm = SpeedTestToolViewModel(service: MockSpeedTestService())
+        vm.peakUploadSpeed = 80.0
+        #expect(!vm.peakUploadSpeedText.isEmpty)
+    }
+}
+
 // MARK: - Error & Edge Case Tests
 
 @Suite("SpeedTestToolViewModel Error & Edge Cases")
