@@ -24,13 +24,13 @@ ssh mac-mini "cd ~/Projects/NetMonitor-2.0 && xcodebuild test \
   2>&1 | tail -30"
 
 # iOS unit tests
+# -parallel-testing-enabled NO prevents Swift Concurrency runtime crashes with async @MainActor tests on Xcode 26 beta
 ssh mac-mini "cd ~/Projects/NetMonitor-2.0 && xcodebuild test \
   -scheme NetMonitor-iOS \
   -configuration Debug \
-  -destination 'platform=iOS Simulator,OS=latest,name=iPhone 16 Pro' \
+  -destination 'platform=iOS Simulator,OS=latest,name=iPhone 17 Pro' \
   CODE_SIGN_IDENTITY='' CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO \
-  CODE_SIGNING_REQUIRED=NO \
-  CODE_SIGNING_ALLOWED=NO \
+  -parallel-testing-enabled NO \
   -only-testing:NetMonitor-iOSTests \
   2>&1 | tail -30"
 

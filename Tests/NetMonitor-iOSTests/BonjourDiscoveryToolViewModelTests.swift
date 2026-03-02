@@ -3,7 +3,7 @@ import Foundation
 @testable import NetMonitor_iOS
 import NetMonitorCore
 
-@Suite("BonjourDiscoveryToolViewModel")
+@Suite("BonjourDiscoveryToolViewModel", .serialized)
 @MainActor
 struct BonjourDiscoveryToolViewModelTests {
 

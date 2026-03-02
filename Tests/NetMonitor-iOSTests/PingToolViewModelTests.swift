@@ -3,7 +3,7 @@ import Foundation
 @testable import NetMonitor_iOS
 import NetMonitorCore
 
-@Suite("PingToolViewModel")
+@Suite("PingToolViewModel", .serialized)
 @MainActor
 struct PingToolViewModelTests {
 

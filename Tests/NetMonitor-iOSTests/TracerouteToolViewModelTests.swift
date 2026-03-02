@@ -3,7 +3,7 @@ import Foundation
 @testable import NetMonitor_iOS
 import NetMonitorCore
 
-@Suite("TracerouteToolViewModel")
+@Suite("TracerouteToolViewModel", .serialized)
 @MainActor
 struct TracerouteToolViewModelTests {
 

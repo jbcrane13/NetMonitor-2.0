@@ -3,7 +3,7 @@ import Foundation
 @testable import NetMonitor_iOS
 import NetMonitorCore
 
-@Suite("PortScannerToolViewModel")
+@Suite("PortScannerToolViewModel", .serialized)
 @MainActor
 struct PortScannerToolViewModelTests {
 
