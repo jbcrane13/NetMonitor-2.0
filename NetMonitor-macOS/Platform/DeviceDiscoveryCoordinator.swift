@@ -88,6 +88,7 @@ final class DeviceDiscoveryCoordinator {
 
                 await resolveDeviceNames(profileID: profileID)
                 await resolveDeviceVendors(profileID: profileID)
+                await measureDeviceLatencies(profileID: profileID)
                 markOfflineDevices(currentIPs: Set(allDiscovered.map(\.ipAddress)), profileID: profileID)
 
                 scanProgress = 1.0
@@ -190,6 +191,40 @@ final class DeviceDiscoveryCoordinator {
         }
         do { try modelContext.save() } catch {
             Logger.discovery.error("Failed to save offline status: \(error)")
+        }
+        loadPersistedDevices(for: profileID)
+    }
+
+    /// Ping each online device (1 probe, 2s timeout) and store latency.
+    private func measureDeviceLatencies(profileID: UUID?) async {
+        let devices = fetchDevices(for: profileID).filter { $0.status == .online }
+        guard !devices.isEmpty else { return }
+
+        let pingService = PingService()
+
+        await withTaskGroup(of: (String, Double?).self) { group in
+            for device in devices {
+                let ip = device.ipAddress
+                group.addTask {
+                    let stream = await pingService.ping(host: ip, count: 1, timeout: 2)
+                    for await result in stream {
+                        if !result.isTimeout {
+                            return (ip, result.time)
+                        }
+                    }
+                    return (ip, nil)
+                }
+            }
+
+            for await (ip, latency) in group {
+                if let latency, let device = devices.first(where: { $0.ipAddress == ip }) {
+                    device.updateLatency(latency)
+                }
+            }
+        }
+
+        do { try modelContext.save() } catch {
+            Logger.discovery.error("Failed to save device latencies: \(error)")
         }
         loadPersistedDevices(for: profileID)
     }
