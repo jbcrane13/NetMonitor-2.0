@@ -153,14 +153,30 @@ final class WebBrowserToolUITests: IOSUITestCase {
     // MARK: - Helpers
 
     private func openWebBrowser() {
-        requireExists(app.tabBars.buttons["Tools"], message: "Tools tab should exist").tap()
-        requireExists(ui("screen_tools"), timeout: 8, message: "Tools root should be visible")
+        let toolsTab = app.tabBars.buttons["Tools"]
+        guard toolsTab.waitForExistence(timeout: 5) else {
+            XCTFail("Tools tab should exist")
+            return
+        }
+        toolsTab.tap()
+
+        guard ui("screen_tools").waitForExistence(timeout: 8) else {
+            XCTFail("Tools root should be visible")
+            return
+        }
 
         let card = ui("tools_card_web_browser")
         scrollToElement(card)
-        requireExists(card, timeout: 8, message: "Web browser tool card should exist").tap()
+        guard card.waitForExistence(timeout: 8) else {
+            XCTFail("Web browser tool card should exist")
+            return
+        }
+        card.tap()
 
-        requireExists(ui("screen_webBrowser"), timeout: 8, message: "Web browser screen should open from tools grid")
+        guard ui("screen_webBrowser").waitForExistence(timeout: 8) else {
+            XCTFail("Web browser screen should open from tools grid")
+            return
+        }
     }
 
     private func ui(_ identifier: String) -> XCUIElement {
