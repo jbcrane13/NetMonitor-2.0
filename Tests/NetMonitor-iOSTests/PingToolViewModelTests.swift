@@ -317,7 +317,7 @@ struct PingToolViewModelSuccessfulPingsTests {
 
 // MARK: - startPing/stopPing Lifecycle Tests
 
-@Suite("PingToolViewModel - Ping Lifecycle")
+@Suite("PingToolViewModel - Ping Lifecycle", .serialized)
 @MainActor
 struct PingToolViewModelLifecycleTests {
 

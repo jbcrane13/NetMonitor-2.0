@@ -3,7 +3,7 @@ import Testing
 @testable import NetMonitor_iOS
 import NetMonitorCore
 
-@Suite("GeoTraceViewModel")
+@Suite("GeoTraceViewModel", .serialized)
 @MainActor
 struct GeoTraceViewModelTests {
 
