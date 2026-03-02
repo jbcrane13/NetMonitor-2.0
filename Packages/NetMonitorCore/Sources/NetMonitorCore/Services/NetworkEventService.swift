@@ -78,11 +78,8 @@ public final class NetworkEventService: NetworkEventServiceProtocol, @unchecked 
     // MARK: - Persistence
 
     private func persist(_ events: [NetworkEvent]) {
-        DispatchQueue.global(qos: .utility).async { [weak self] in
-            guard let self else { return }
-            if let data = try? JSONEncoder().encode(events) {
-                UserDefaults.standard.set(data, forKey: self.userDefaultsKey)
-            }
+        if let data = try? JSONEncoder().encode(events) {
+            UserDefaults.standard.set(data, forKey: userDefaultsKey)
         }
     }
 
