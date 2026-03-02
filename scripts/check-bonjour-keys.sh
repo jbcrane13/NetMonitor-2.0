@@ -13,6 +13,29 @@ PLISTS=(
 
 FAILED=0
 
+# plist_get KEY FILE  — returns value using plutil (macOS) or plistlib (Linux)
+plist_has_key() {
+  local key="$1" file="$2"
+  if command -v plutil &>/dev/null; then
+    plutil -extract "$key" json -o - "$file" >/dev/null 2>&1
+  else
+    python3 -c "import plistlib,sys
+with open(sys.argv[1],'rb') as f: p=plistlib.load(f)
+sys.exit(0 if sys.argv[2] in p else 1)" "$file" "$key"
+  fi
+}
+
+plist_array_count() {
+  local key="$1" file="$2"
+  if command -v plutil &>/dev/null; then
+    plutil -extract "$key" json -o - "$file" | python3 -c "import sys,json; print(len(json.load(sys.stdin)))"
+  else
+    python3 -c "import plistlib,sys
+with open(sys.argv[1],'rb') as f: p=plistlib.load(f)
+print(len(p.get(sys.argv[2],[])))" "$file" "$key"
+  fi
+}
+
 for plist in "${PLISTS[@]}"; do
   if [ ! -f "$plist" ]; then
     echo "❌ MISSING: $plist"
@@ -20,13 +43,13 @@ for plist in "${PLISTS[@]}"; do
     continue
   fi
 
-  if ! plutil -extract NSBonjourServices json -o - "$plist" >/dev/null 2>&1; then
+  if ! plist_has_key NSBonjourServices "$plist"; then
     echo "❌ $plist: NSBonjourServices key MISSING"
     FAILED=1
     continue
   fi
 
-  COUNT=$(plutil -extract NSBonjourServices json -o - "$plist" | python3 -c "import sys,json; print(len(json.load(sys.stdin)))")
+  COUNT=$(plist_array_count NSBonjourServices "$plist")
   if [ "$COUNT" -lt "$EXPECTED_COUNT" ]; then
     echo "❌ $plist: NSBonjourServices has $COUNT types (expected >= $EXPECTED_COUNT)"
     FAILED=1
@@ -34,7 +57,7 @@ for plist in "${PLISTS[@]}"; do
     echo "✅ $plist: $COUNT Bonjour types"
   fi
 
-  if ! plutil -extract NSLocalNetworkUsageDescription raw -o - "$plist" >/dev/null 2>&1; then
+  if ! plist_has_key NSLocalNetworkUsageDescription "$plist"; then
     echo "❌ $plist: NSLocalNetworkUsageDescription MISSING"
     FAILED=1
   fi
