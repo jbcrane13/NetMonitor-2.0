@@ -21,7 +21,7 @@ struct VPNInfoView: View {
                         .font(.caption)
                         .foregroundStyle(viewModel.isActive ? .primary : .secondary)
                 }
-                .accessibilityIdentifier("dashboard_vpn_status")
+                .accessibilityIdentifier("vpn_status")
             }
 
             if viewModel.isActive {
@@ -40,7 +40,7 @@ struct VPNInfoView: View {
             }
         }
         .macGlassCard()
-        .accessibilityIdentifier("dashboard_card_vpn")
+        .accessibilityIdentifier("card_vpn")
         .task { viewModel.startMonitoring() }
         .onDisappear { viewModel.stopMonitoring() }
     }
