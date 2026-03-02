@@ -20,9 +20,9 @@ private final class StubHeatmapService: WiFiHeatmapServiceProtocol, @unchecked S
 
 // MARK: - Tests
 
-@Suite("Dashboard Error Surfacing")
+@Suite("WiFiHeatmap Persistence")
 @MainActor
-struct DashboardErrorSurfacingTests {
+struct WiFiHeatmapPersistenceTests {
 
     /// The UserDefaults key used by WiFiHeatmapToolViewModel for persistence.
     private static let surveysKey = "wifiHeatmap_surveys_mac"

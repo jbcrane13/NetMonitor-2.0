@@ -11,15 +11,13 @@ struct NavigationSectionTests {
     @Test("NavigationSection has all expected cases")
     func allCasesExist() {
         let cases = NavigationSection.allCases
-        #expect(cases.count == 3)
-        #expect(cases.contains(.dashboard))
+        #expect(cases.count == 2)
         #expect(cases.contains(.tools))
         #expect(cases.contains(.settings))
     }
 
     @Test("NavigationSection rawValues match display names")
     func rawValues() {
-        #expect(NavigationSection.dashboard.rawValue == "Dashboard")
         #expect(NavigationSection.tools.rawValue == "Tools")
         #expect(NavigationSection.settings.rawValue == "Settings")
     }

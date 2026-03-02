@@ -278,7 +278,7 @@ struct DashboardViewModelTests {
 
 // MARK: - Event Logging Dedup Tests
 
-@Suite("DashboardViewModel Event Logging")
+@Suite("DashboardViewModel Event Logging", .serialized)
 @MainActor
 struct DashboardViewModelEventLoggingTests {
 
@@ -292,8 +292,12 @@ struct DashboardViewModelEventLoggingTests {
         defaults.removePersistentDomain(forName: suiteName)
         let manager = NetworkProfileManager(userDefaults: defaults, activeProfilesProvider: { [] })
         return DashboardViewModel(
+            networkMonitor: MockNetworkMonitorService(),
             wifiService: wifiService,
             gatewayService: gatewayService,
+            publicIPService: MockPublicIPService(),
+            deviceDiscoveryService: MockDeviceDiscoveryService(),
+            macConnectionService: MockMacConnectionService(),
             networkProfileManager: manager,
             pingService: pingService,
             userDefaults: defaults

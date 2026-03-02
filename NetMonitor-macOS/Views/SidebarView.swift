@@ -198,34 +198,16 @@ struct SidebarRow: View {
 
 extension SidebarView {
     private func badgeText(for section: NavigationSection) -> String? {
-        switch section {
-        case .dashboard:
-            guard let monitoringSession else { return nil }
-            let online = monitoringSession.onlineTargetCount
-            let total  = online + monitoringSession.offlineTargetCount
-            guard total > 0 else { return nil }
-            return "\(online)/\(total)"
-        default:
-            return nil
-        }
+        return nil
     }
 
     private func badgeColor(for section: NavigationSection) -> Color {
-        switch section {
-        case .dashboard:
-            guard let monitoringSession else { return MacTheme.Colors.idle }
-            let online = monitoringSession.onlineTargetCount
-            let total  = online + monitoringSession.offlineTargetCount
-            if total == 0 { return MacTheme.Colors.idle }
-            return online == total ? MacTheme.Colors.success : (online > 0 ? MacTheme.Colors.warning : MacTheme.Colors.error)
-        default:
-            return MacTheme.Colors.info
-        }
+        return MacTheme.Colors.info
     }
 }
 
 #Preview {
-    @Previewable @State var selection: SidebarSelection? = .section(.dashboard)
+    @Previewable @State var selection: SidebarSelection? = .section(.tools)
 
     SidebarView(selection: $selection)
         .environment(NetworkProfileManager())

@@ -11,29 +11,24 @@ final class MacOSInteractionFlowUITests: MacOSUITestCase {
 
     // MARK: - Sidebar Navigation Flows
 
-    func testSidebarSwitchUpdatesDetailPaneAndReturns() {
-        // Start at Dashboard (default).
-        requireExists(app.otherElements["detail_dashboard"], timeout: 5,
-                      message: "Dashboard should be the default detail pane")
-
-        // Switch to Tools.
-        navigateToSidebar("tools")
-        XCTAssertTrue(app.otherElements["detail_tools"].exists,
-                      "Tools detail pane should be visible after selecting Tools")
+    func testSidebarSwitchUpdatesDetailPane() {
+        // Start at Tools (default).
+        requireExists(app.otherElements["detail_tools"], timeout: 5,
+                      message: "Tools should be the default detail pane")
 
         // Switch to Settings.
         navigateToSidebar("settings")
         XCTAssertTrue(app.otherElements["detail_settings"].exists,
                       "Settings detail pane should be visible after selecting Settings")
 
-        // Return to Dashboard.
-        navigateToSidebar("dashboard")
-        XCTAssertTrue(app.otherElements["detail_dashboard"].exists,
-                      "Dashboard detail pane should be visible after returning to Dashboard")
+        // Return to Tools.
+        navigateToSidebar("tools")
+        XCTAssertTrue(app.otherElements["detail_tools"].exists,
+                      "Tools detail pane should be visible after returning to Tools")
     }
 
     func testFullSidebarNavigationCycle() {
-        let sections = ["dashboard", "targets", "devices", "tools", "settings"]
+        let sections = ["tools", "settings"]
 
         for section in sections {
             navigateToSidebar(section)
@@ -43,65 +38,10 @@ final class MacOSInteractionFlowUITests: MacOSUITestCase {
             )
         }
 
-        // Return to dashboard to confirm round-trip.
-        navigateToSidebar("dashboard")
-        XCTAssertTrue(app.otherElements["detail_dashboard"].exists,
-                      "Dashboard should be reachable after cycling through all sections")
-    }
-
-    // MARK: - Dashboard Interactions
-
-    func testDashboardMonitoringToggleIsInteractive() {
-        navigateToSidebar("dashboard")
-
-        let toggleButton = requireExists(
-            app.buttons["dashboard_button_monitoring_toggle"],
-            message: "Monitoring toggle button should exist"
-        )
-        XCTAssertTrue(toggleButton.isEnabled, "Monitoring toggle should be enabled")
-
-        // Tap the toggle — it should remain visible and responsive.
-        toggleButton.tap()
-        requireExists(toggleButton, timeout: 3,
-                      message: "Monitoring toggle should remain visible after tapping")
-        XCTAssertTrue(toggleButton.isEnabled, "Monitoring toggle should remain enabled after tap")
-    }
-
-    func testDashboardCardRefreshButtonsAreInteractive() {
-        navigateToSidebar("dashboard")
-
-        let refreshButtons = [
-            "connection_card_button_refresh",
-            "gateway_card_button_refresh",
-            "isp_card_button_refresh"
-        ]
-
-        for buttonID in refreshButtons {
-            let button = app.buttons[buttonID]
-            if button.waitForExistence(timeout: 5) {
-                XCTAssertTrue(button.isEnabled, "\(buttonID) should be enabled")
-                button.tap()
-                // Button should remain accessible after tapping (no crash, no disappearance).
-                requireExists(button, timeout: 3,
-                              message: "\(buttonID) should remain visible after refresh")
-            }
-        }
-    }
-
-    func testDashboardInfoCardsArePresent() {
-        navigateToSidebar("dashboard")
-
-        let cards = [
-            "dashboard_card_connection",
-            "dashboard_card_gateway",
-            "dashboard_card_quickStats",
-            "dashboard_card_isp"
-        ]
-
-        for cardID in cards {
-            requireExists(app.otherElements[cardID], timeout: 5,
-                          message: "\(cardID) should be visible on the dashboard")
-        }
+        // Return to Tools to confirm round-trip.
+        navigateToSidebar("tools")
+        XCTAssertTrue(app.otherElements["detail_tools"].exists,
+                      "Tools should be reachable after cycling through all sections")
     }
 
     // MARK: - Target Management Flows

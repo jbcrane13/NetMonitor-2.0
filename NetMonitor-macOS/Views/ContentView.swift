@@ -6,7 +6,7 @@ struct ContentView: View {
     @Environment(MonitoringSession.self) private var session: MonitoringSession?
     @Environment(DeviceDiscoveryCoordinator.self) private var deviceDiscovery: DeviceDiscoveryCoordinator?
     @Environment(NetworkProfileManager.self) private var profileManager: NetworkProfileManager?
-    @State private var selectedSection: SidebarSelection? = .section(.dashboard)
+    @State private var selectedSection: SidebarSelection? = .section(.tools)
     @State private var localSession: MonitoringSession?
     @State private var selectedNetworkProfile: NetworkProfile?
     @State private var showingAddNetworkSheet = false
@@ -79,11 +79,6 @@ struct ContentView: View {
     @ViewBuilder
     private func sectionView(for section: NavigationSection) -> some View {
         switch section {
-        case .dashboard:
-            DashboardView(onSelectNetwork: { networkID in
-                selectedSection = .network(networkID)
-            })
-            .accessibilityIdentifier("detail_dashboard")
         case .tools:
             ToolsView(selection: $selectedSection)
                 .accessibilityIdentifier("detail_tools")
