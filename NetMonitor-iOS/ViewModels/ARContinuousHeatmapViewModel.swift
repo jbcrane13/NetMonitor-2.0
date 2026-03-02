@@ -63,6 +63,11 @@ final class ARContinuousHeatmapViewModel {
     func startScanning() {
         guard !isScanning else { return }
 
+        #if targetEnvironment(simulator)
+        // Skip location check on simulator — NEHotspotNetwork uses mock values.
+        beginScanning()
+        return
+        #else
         let status = locationDelegate.manager.authorizationStatus
         if status == .notDetermined {
             locationDelegate.manager.requestWhenInUseAuthorization()
@@ -82,6 +87,7 @@ final class ARContinuousHeatmapViewModel {
         }
 
         beginScanning()
+        #endif
     }
 
     private func beginScanning() {
