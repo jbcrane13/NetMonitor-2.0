@@ -225,8 +225,8 @@ final class ARContinuousHeatmapViewModel {
     /// Returns true when the camera has moved more than `distanceGate` from last recorded position.
     func distanceExceeded(from position: SIMD3<Float>) -> Bool {
         guard let last = lastRecordedPosition else { return true }
-        let d = position - last
-        return sqrt(d.x * d.x + d.z * d.z) >= ARContinuousHeatmapSession.distanceGate
+        let delta = position - last
+        return sqrt(delta.x * delta.x + delta.z * delta.z) >= ARContinuousHeatmapSession.distanceGate
     }
 
     // MARK: - Private
@@ -276,8 +276,8 @@ final class ARContinuousHeatmapViewModel {
 
         if let network, network.signalStrength > 0 {
             errorMessage = nil
-            let q = max(0, min(1, network.signalStrength))
-            signalDBm = Int(-100.0 + q * 70.0)
+            let quality = max(0, min(1, network.signalStrength))
+            signalDBm = Int(-100.0 + quality * 70.0)
             ssid = network.ssid
             bssid = network.bssid
         } else {
@@ -323,9 +323,13 @@ private final class ARHeatmapLocationDelegate: NSObject, CLLocationManagerDelega
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         switch manager.authorizationStatus {
         case .authorizedWhenInUse, .authorizedAlways:
-            onAuthorized?(); onAuthorized = nil; onDenied = nil
+            onAuthorized?()
+            onAuthorized = nil
+            onDenied = nil
         case .denied, .restricted:
-            onDenied?(); onAuthorized = nil; onDenied = nil
+            onDenied?()
+            onAuthorized = nil
+            onDenied = nil
         default:
             break
         }
