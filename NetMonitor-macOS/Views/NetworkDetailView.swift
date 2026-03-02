@@ -63,6 +63,9 @@ struct NetworkDetailView: View {
 
                     ConnectivityCard(session: session, profileManager: profileManager)
                         .accessibilityIdentifier("network_detail_card_connectivity")
+
+                    NetworkIntelCard()
+                        .accessibilityIdentifier("network_detail_card_intel")
                 }
                 .frame(minWidth: 300, idealWidth: 420)
 
