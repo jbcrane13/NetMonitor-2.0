@@ -2,6 +2,7 @@ import Foundation
 import SwiftUI
 import NetMonitorCore
 import NetworkExtension
+import CoreLocation
 
 // MARK: - WiFiHeatmapSurveyViewModel
 
@@ -16,6 +17,7 @@ final class WiFiHeatmapSurveyViewModel {
     private(set) var dataPoints: [HeatmapDataPoint] = []
     private(set) var surveys: [HeatmapSurvey] = []
     private(set) var statusMessage = "Tap 'Start Survey' to begin"
+    private(set) var locationDenied = false
 
     var selectedMode: HeatmapMode = .freeform
     var floorplanImageData: Data?
@@ -40,6 +42,7 @@ final class WiFiHeatmapSurveyViewModel {
     // MARK: - Private
 
     private let service: any WiFiHeatmapServiceProtocol
+    private let locationDelegate = HeatmapLocationDelegate()
     private var signalRefreshTask: Task<Void, Never>?
     private static let surveysKey = "wifiHeatmap_surveys"
 
@@ -66,6 +69,36 @@ final class WiFiHeatmapSurveyViewModel {
 
     func startSurvey() {
         guard !isSurveying else { return }
+
+        // NEHotspotNetwork.fetchCurrent requires location authorization
+        let status = locationDelegate.manager.authorizationStatus
+        if status == .notDetermined {
+            locationDelegate.manager.requestWhenInUseAuthorization()
+            statusMessage = "Grant location access to read WiFi signal"
+            // Wait for authorization then auto-start
+            locationDelegate.onAuthorized = { [weak self] in
+                Task { @MainActor in
+                    self?.beginSurvey()
+                }
+            }
+            locationDelegate.onDenied = { [weak self] in
+                Task { @MainActor in
+                    self?.locationDenied = true
+                    self?.statusMessage = "Location access required for WiFi signal reading"
+                }
+            }
+            return
+        } else if status == .denied || status == .restricted {
+            locationDenied = true
+            statusMessage = "Location access denied — enable in Settings > Privacy > Location Services"
+            return
+        }
+
+        beginSurvey()
+    }
+
+    private func beginSurvey() {
+        locationDenied = false
         isSurveying = true
         dataPoints = []
         service.startSurvey()
@@ -106,7 +139,8 @@ final class WiFiHeatmapSurveyViewModel {
         guard isSurveying, size.width > 0, size.height > 0 else { return }
         let nx = point.x / size.width
         let ny = point.y / size.height
-        let signal = currentSignalStrength != 0 ? currentSignalStrength : simulatedRSSI()
+        // Use real signal; if we havent read one yet, use -65 dBm as reasonable default
+        let signal = currentSignalStrength != 0 ? currentSignalStrength : -65
         service.recordDataPoint(signalStrength: signal, x: nx, y: ny)
         dataPoints = service.getSurveyData()
         let level = SignalLevel.from(rssi: signal)
@@ -137,23 +171,23 @@ final class WiFiHeatmapSurveyViewModel {
     // MARK: - Signal reading
 
     private func refreshSignalStrength() async {
-        if #available(iOS 14.0, *) {
-            let rssi: Double? = await withCheckedContinuation { continuation in
-                NEHotspotNetwork.fetchCurrent { network in
-                    continuation.resume(returning: network?.signalStrength)
-                }
-            }
-            if let rssi {
-                // signalStrength is 0.0–1.0 normalised; convert to approximate dBm range.
-                currentSignalStrength = Int(-100.0 + Double(rssi) * 70.0)
-                return
+        let rssi: Double? = await withCheckedContinuation { continuation in
+            NEHotspotNetwork.fetchCurrent { network in
+                continuation.resume(returning: network?.signalStrength)
             }
         }
-        currentSignalStrength = simulatedRSSI()
-    }
-
-    private func simulatedRSSI() -> Int {
-        Int.random(in: -80...(-45))
+        if let rssi, rssi > 0 {
+            // signalStrength is 0.0–1.0 normalised; convert to approximate dBm range.
+            currentSignalStrength = Int(-100.0 + rssi * 70.0)
+        } else {
+            // NEHotspotNetwork returned nil — likely no WiFi or missing permission.
+            // Show last known value if we have one, otherwise indicate no signal.
+            if currentSignalStrength == 0 {
+                statusMessage = isSurveying
+                    ? "Unable to read WiFi signal — check location permissions"
+                    : statusMessage
+            }
+        }
     }
 
     // MARK: - Computed helpers
@@ -195,5 +229,35 @@ final class WiFiHeatmapSurveyViewModel {
     private func saveSurveys() {
         guard let data = try? JSONEncoder().encode(surveys) else { return }
         UserDefaults.standard.set(data, forKey: Self.surveysKey)
+    }
+}
+
+// MARK: - Location Authorization Helper
+
+/// Lightweight CLLocationManager delegate for heatmap WiFi permission requests.
+/// Separate from WiFiInfoService to avoid coupling the heatmap to dashboard services.
+private final class HeatmapLocationDelegate: NSObject, CLLocationManagerDelegate {
+    let manager = CLLocationManager()
+    var onAuthorized: (() -> Void)?
+    var onDenied: (() -> Void)?
+
+    override init() {
+        super.init()
+        manager.delegate = self
+    }
+
+    func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        switch manager.authorizationStatus {
+        case .authorizedWhenInUse, .authorizedAlways:
+            onAuthorized?()
+            onAuthorized = nil
+            onDenied = nil
+        case .denied, .restricted:
+            onDenied?()
+            onAuthorized = nil
+            onDenied = nil
+        default:
+            break
+        }
     }
 }
