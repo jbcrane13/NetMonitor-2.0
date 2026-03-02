@@ -91,8 +91,6 @@ struct ISPHealthCard: View {
                     }
                 }
 
-                Spacer(minLength: 0)
-
                 // Mini throughput sparkline
                 ZStack {
                     RoundedRectangle(cornerRadius: 6).fill(Color.black.opacity(0.28))
@@ -127,7 +125,7 @@ struct ISPHealthCard: View {
                     .accessibilityIdentifier("dashboard_networkHealth_error")
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(maxWidth: .infinity)
         .macGlassCard(cornerRadius: 14, padding: 10)
         .accessibilityIdentifier("dashboard_card_networkHealth")
         .task { await load() }
