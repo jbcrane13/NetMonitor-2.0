@@ -184,14 +184,14 @@ final class ARContinuousHeatmapViewModel {
             if let cell = currentCell {
                 let cx = CGFloat(cell.col) * cellSize + cellSize / 2
                 let cy = CGFloat(cell.row) * cellSize + cellSize / 2
-                let r = cellSize * 0.4
-                let ring = CGRect(x: cx - r, y: cy - r, width: r * 2, height: r * 2)
+                let radius = cellSize * 0.4
+                let ring = CGRect(x: cx - radius, y: cy - radius, width: radius * 2, height: radius * 2)
                 cgCtx.setStrokeColor(UIColor.white.cgColor)
                 cgCtx.setLineWidth(2.0)
                 cgCtx.strokeEllipse(in: ring)
                 // Inner fill
                 cgCtx.setFillColor(UIColor.white.withAlphaComponent(0.9).cgColor)
-                let inner = ring.insetBy(dx: r * 0.6, dy: r * 0.6)
+                let inner = ring.insetBy(dx: radius * 0.6, dy: radius * 0.6)
                 cgCtx.fillEllipse(in: inner)
             }
         }

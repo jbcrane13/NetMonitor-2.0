@@ -172,7 +172,7 @@ struct ARContinuousHeatmapView: View {
                 .foregroundStyle(.white)
                 .padding(.trailing, 6)
 
-            GeometryReader { geo in
+            GeometryReader { _ in
                 ZStack(alignment: .leading) {
                     // Gradient bar
                     LinearGradient(
