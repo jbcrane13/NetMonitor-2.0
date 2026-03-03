@@ -17,6 +17,18 @@ private final class MockNetworkHealthScoreService: NetworkHealthScoreServiceProt
 }
 
 @MainActor
+private final class SlowNetworkHealthScoreService: NetworkHealthScoreServiceProtocol, @unchecked Sendable {
+    var mockScore = NetworkHealthScore(score: 85, grade: "B", latencyMs: 25, packetLoss: 0.02, details: [:])
+    var calculateCallCount = 0
+
+    func calculateScore() async -> NetworkHealthScore {
+        calculateCallCount += 1
+        try? await Task.sleep(for: .milliseconds(200))
+        return mockScore
+    }
+}
+
+@MainActor
 private final class MockPingServiceForHealth: PingServiceProtocol, @unchecked Sendable {
     var mockResults: [PingResult] = []
 
@@ -136,16 +148,18 @@ struct NetworkHealthScoreViewModelRefreshTests {
     }
 
     @Test func refreshIsNotReentrant() async throws {
-        let mockService = MockNetworkHealthScoreService()
+        // Use a slow service so isCalculating stays true long enough for the guard to fire
+        let slowService = SlowNetworkHealthScoreService()
         let vm = NetworkHealthScoreViewModel(
-            service: mockService,
+            service: slowService,
             pingService: MockPingServiceForHealth(),
             networkMonitor: MockNetworkMonitor()
         )
         vm.refresh()
-        vm.refresh()  // second call while first is running — should be ignored
-        try await Task.sleep(for: .milliseconds(100))
-        #expect(mockService.calculateCallCount == 1)
+        await waitUntil { vm.isCalculating == true }  // task has started
+        vm.refresh()  // guard fires — isCalculating is true → no-op
+        await waitUntil { vm.isCalculating == false }
+        #expect(slowService.calculateCallCount == 1)
     }
 
     @Test func gradeTextAfterRefresh() async throws {
