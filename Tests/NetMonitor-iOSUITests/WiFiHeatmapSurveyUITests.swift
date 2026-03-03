@@ -2,129 +2,133 @@ import XCTest
 
 @MainActor
 final class WiFiHeatmapSurveyUITests: IOSUITestCase {
-    func testWiFiHeatmapScreenAndCoreControlsAreVisible() {
-        openWiFiHeatmap()
 
-        requireExists(ui("heatmap_status_bar"), message: "Heatmap status bar should be visible")
-        requireExists(ui("heatmap_menu_scheme"), message: "Heatmap mode picker should be visible")
-        requireExists(app.buttons["heatmap_button_main_action"], message: "Main heatmap action button should be visible")
-        requireExists(app.buttons["heatmap_button_select_floorplan"], message: "Floorplan selection should be visible")
-        requireExists(app.buttons["heatmap_button_survey_without_floorplan"], message: "Survey without floorplan button should be visible")
-    }
+    // MARK: - Dashboard entry point
 
-    func testWiFiHeatmapGuideSheetOpenAndClose() {
-        openWiFiHeatmap()
-
-        requireExists(app.buttons["heatmap_button_info"], message: "Info button should be visible").tap()
-        requireExists(ui("screen_wifiHeatmapGuide"), timeout: 8, message: "Heatmap guide should open from info button")
-
-        requireExists(app.buttons["heatmap_button_guide_done"], message: "Guide done button should be visible").tap()
-        XCTAssertTrue(
-            waitForDisappearance(ui("screen_wifiHeatmapGuide"), timeout: 5),
-            "Heatmap guide should close after tapping Done"
+    func testWiFiHeatmapToolCardOpensDashboard() {
+        openHeatmapDashboard()
+        requireExists(
+            ui("screen_heatmapDashboard"),
+            timeout: 8,
+            message: "Heatmap dashboard should be visible after tapping tool card"
         )
     }
 
-    func testStartSurveyButtonTriggersMeasurementState() {
-        openWiFiHeatmap()
-
-        let mainActionButton = requireExists(
-            app.buttons["heatmap_button_main_action"],
-            message: "Main action button should exist"
-        )
-        mainActionButton.tap()
-
-        let stopButton = app.buttons["heatmap_button_stop"]
-        let progressView = app.progressIndicators.firstMatch
-        let measurementSection = ui("heatmap_section_measurement")
-
-        XCTAssertTrue(
-            waitForEither([stopButton, progressView, measurementSection], timeout: 10),
-            "Tapping start should transition to measurement state (stop button, progress, or measurement section)"
+    func testDashboardNetworkCardIsVisible() {
+        openHeatmapDashboard()
+        requireExists(
+            ui("heatmap_dashboard_network_card"),
+            message: "Dashboard network status card should be visible"
         )
     }
 
-    func testStopSurveyReturnsToCaptureState() {
-        openWiFiHeatmap()
-
-        let mainActionButton = requireExists(
-            app.buttons["heatmap_button_main_action"],
-            message: "Main action button should exist"
+    func testNewScanButtonIsVisible() {
+        openHeatmapDashboard()
+        requireExists(
+            app.buttons["heatmap_dashboard_button_new_scan"],
+            message: "New Scan button should be visible on dashboard"
         )
-        mainActionButton.tap()
+    }
 
-        let stopButton = app.buttons["heatmap_button_stop"]
-        if stopButton.waitForExistence(timeout: 10) {
-            stopButton.tap()
-            XCTAssertTrue(
-                mainActionButton.waitForExistence(timeout: 8),
-                "Start/main action button should reappear after stopping survey"
-            )
+    // MARK: - Floor plan selection sheet
+
+    func testNewScanOpensFloorPlanSelection() {
+        openHeatmapDashboard()
+        app.buttons["heatmap_dashboard_button_new_scan"].tap()
+        requireExists(
+            ui("screen_floorPlanSelection"),
+            timeout: 8,
+            message: "Floor plan selection sheet should appear after tapping New Scan"
+        )
+    }
+
+    func testFloorPlanSelectionHasFreeformOption() {
+        openHeatmapDashboard()
+        app.buttons["heatmap_dashboard_button_new_scan"].tap()
+        requireExists(ui("screen_floorPlanSelection"), timeout: 8)
+        requireExists(
+            ui("floorplan_option_freeform"),
+            message: "Freeform grid option should be visible in floor plan selection"
+        )
+    }
+
+    func testFloorPlanSelectionCancelDismissesSheet() {
+        openHeatmapDashboard()
+        app.buttons["heatmap_dashboard_button_new_scan"].tap()
+        requireExists(ui("screen_floorPlanSelection"), timeout: 8)
+        let cancelButton = ui("floorplan_button_cancel")
+        if cancelButton.exists {
+            cancelButton.tap()
         } else {
-            mainActionButton.tap()
-            XCTAssertTrue(
-                mainActionButton.waitForExistence(timeout: 8),
-                "Main action button should remain accessible after toggling survey"
-            )
+            app.swipeDown()
         }
-    }
-
-    func testScreenTitleAndLayoutExist() {
-        openWiFiHeatmap()
-
-        requireExists(ui("screen_wifiHeatmapTool"), message: "WiFi Heatmap screen identifier should exist")
-
-        XCTAssertTrue(
-            app.navigationBars["WiFi Heatmap"].waitForExistence(timeout: 5) ||
-            app.navigationBars["Heatmap"].waitForExistence(timeout: 3) ||
-            app.navigationBars.firstMatch.waitForExistence(timeout: 3),
-            "Navigation bar should be visible on WiFi Heatmap screen"
-        )
-
-        requireExists(app.buttons["heatmap_button_main_action"], message: "Main action button should be visible")
-        requireExists(ui("heatmap_menu_scheme"), message: "Mode picker should be visible")
-    }
-
-    func testColorSchemeMenuOpens() {
-        openWiFiHeatmap()
-        let schemeMenu = requireExists(app.buttons["heatmap_menu_scheme"], message: "Color scheme menu should be visible")
-        schemeMenu.tap()
-        // Scheme menu opens — verify a scheme option appears (SwiftUI Menu renders as contextMenu/popover)
-        XCTAssertTrue(
-            waitForEither([
-                app.buttons["Thermal"].firstMatch,
-                app.buttons["Cold"].firstMatch,
-                app.buttons["Rainbow"].firstMatch,
-                app.menus.firstMatch
-            ], timeout: 5),
-            "Color scheme menu should present scheme options"
+        XCTAssertFalse(
+            ui("screen_floorPlanSelection").exists,
+            "Floor plan selection should be dismissed"
         )
     }
 
-    func testOverlayTogglesExistAndToggle() {
-        openWiFiHeatmap()
-        let dotsToggle = requireExists(app.buttons["heatmap_toggle_dots"], message: "Dots overlay toggle should be visible")
-        let contourToggle = requireExists(app.buttons["heatmap_toggle_contour"], message: "Contour overlay toggle should be visible")
-        // Tap to toggle
-        dotsToggle.tap()
-        // Verify button is still present after toggle (state change)
-        requireExists(app.buttons["heatmap_toggle_dots"], message: "Dots toggle should remain after tap")
-        contourToggle.tap()
-        requireExists(app.buttons["heatmap_toggle_contour"], message: "Contour toggle should remain after tap")
+    // MARK: - Active survey screen
+
+    func testFreeformSurveyScreenOpens() {
+        openFreeformSurvey()
+        requireExists(
+            ui("screen_activeMappingSurvey"),
+            timeout: 12,
+            message: "Active survey screen should open after selecting freeform"
+        )
     }
 
-    private func openWiFiHeatmap() {
+    func testActiveSurveyCloseButtonDismisses() {
+        openFreeformSurvey()
+        requireExists(ui("screen_activeMappingSurvey"), timeout: 12)
+        app.buttons["heatmap_survey_button_close"].tap()
+        requireExists(
+            ui("screen_heatmapDashboard"),
+            timeout: 8,
+            message: "Dashboard should be visible after closing active survey"
+        )
+    }
+
+    // MARK: - Control strip overlays
+
+    func testColorSchemeMenuIsAccessible() {
+        openFreeformSurvey()
+        requireExists(ui("screen_activeMappingSurvey"), timeout: 12)
+        requireExists(
+            ui("heatmap_menu_scheme"),
+            message: "Color scheme menu should be accessible during survey"
+        )
+    }
+
+    func testOverlayToggleDotsIsAccessible() {
+        openFreeformSurvey()
+        requireExists(ui("screen_activeMappingSurvey"), timeout: 12)
+        requireExists(
+            ui("heatmap_toggle_dots"),
+            message: "Dots overlay toggle should be accessible during survey"
+        )
+    }
+
+    // MARK: - Navigation helpers
+
+    private func openHeatmapDashboard() {
         openToolsRoot()
-
         let card = ui("tools_card_wifi_heatmap")
         scrollToElement(card)
-        requireExists(card, timeout: 8, message: "WiFi Heatmap tool card should exist").tap()
-
+        requireExists(card, timeout: 8, message: "WiFi Heatmap tool card should be in the tools grid").tap()
         requireExists(
-            ui("screen_wifiHeatmapTool"),
+            ui("screen_heatmapDashboard"),
             timeout: 8,
-            message: "WiFi Heatmap screen should open from tools grid"
+            message: "Heatmap dashboard should open from tools grid"
         )
+    }
+
+    private func openFreeformSurvey() {
+        openHeatmapDashboard()
+        app.buttons["heatmap_dashboard_button_new_scan"].tap()
+        requireExists(ui("screen_floorPlanSelection"), timeout: 8)
+        ui("floorplan_option_freeform").tap()
     }
 
     private func openToolsRoot() {
@@ -135,5 +139,4 @@ final class WiFiHeatmapSurveyUITests: IOSUITestCase {
     private func ui(_ identifier: String) -> XCUIElement {
         app.descendants(matching: .any)[identifier]
     }
-
 }
