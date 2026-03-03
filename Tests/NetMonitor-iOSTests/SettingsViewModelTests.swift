@@ -1,5 +1,6 @@
 import Testing
 import Foundation
+import SwiftData
 @testable import NetMonitor_iOS
 import NetMonitorCore
 
@@ -197,5 +198,77 @@ struct SettingsViewModelAdditionalTests {
     @Test func clearCacheSuccessStartsFalse() {
         let vm = SettingsViewModel()
         #expect(vm.clearCacheSuccess == false)
+    }
+}
+
+// MARK: - Data Management Tests
+
+@Suite("SettingsViewModel Data Management")
+@MainActor
+struct SettingsViewModelDataManagementTests {
+
+    private func makeInMemoryStore() throws -> (ModelContainer, ModelContext) {
+        let schema = Schema([
+            LocalDevice.self,
+            MonitoringTarget.self,
+            ToolResult.self,
+            SpeedTestResult.self,
+            PairedMac.self
+        ])
+        let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: schema, configurations: [config])
+        return (container, container.mainContext)
+    }
+
+    @Test func clearAllHistoryDeletesToolResults() throws {
+        let (_, context) = try makeInMemoryStore()
+        let result = ToolResult(toolType: .ping, target: "8.8.8.8", success: true, summary: "OK")
+        context.insert(result)
+        try context.save()
+
+        SettingsViewModel().clearAllHistory(modelContext: context)
+
+        let remaining = try context.fetch(FetchDescriptor<ToolResult>())
+        #expect(remaining.isEmpty)
+    }
+
+    @Test func clearAllHistoryDeletesSpeedTestResults() throws {
+        let (_, context) = try makeInMemoryStore()
+        context.insert(SpeedTestResult(downloadSpeed: 100, uploadSpeed: 50, latency: 20))
+        try context.save()
+
+        SettingsViewModel().clearAllHistory(modelContext: context)
+
+        let remaining = try context.fetch(FetchDescriptor<SpeedTestResult>())
+        #expect(remaining.isEmpty)
+    }
+
+    @Test func clearAllCachedDataSetsClearCacheSuccessTrue() throws {
+        let (_, context) = try makeInMemoryStore()
+        let vm = SettingsViewModel()
+
+        vm.clearAllCachedData(modelContext: context)
+
+        #expect(vm.clearCacheSuccess == true)
+        #expect(vm.isClearingCache == false)
+    }
+
+    @Test func clearAllCachedDataDeletesAllModelTypes() throws {
+        let (_, context) = try makeInMemoryStore()
+        context.insert(ToolResult(toolType: .ping, target: "8.8.8.8", success: true, summary: "OK"))
+        context.insert(LocalDevice(ipAddress: "192.168.1.1", macAddress: "AA:BB"))
+        try context.save()
+
+        SettingsViewModel().clearAllCachedData(modelContext: context)
+
+        #expect(try context.fetch(FetchDescriptor<ToolResult>()).isEmpty)
+        #expect(try context.fetch(FetchDescriptor<LocalDevice>()).isEmpty)
+    }
+
+    @Test func pruneExpiredDataDoesNotCrash() throws {
+        let (_, context) = try makeInMemoryStore()
+        let vm = SettingsViewModel()
+        vm.pruneExpiredData(modelContext: context)
+        #expect(vm.isClearingCache == false)
     }
 }

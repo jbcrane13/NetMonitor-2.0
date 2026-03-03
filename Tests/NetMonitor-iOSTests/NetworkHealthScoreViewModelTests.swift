@@ -98,6 +98,108 @@ struct NetworkHealthScoreViewModelTests {
     }
 }
 
+// MARK: - Async Refresh Tests
+
+@Suite("NetworkHealthScoreViewModel Refresh")
+@MainActor
+struct NetworkHealthScoreViewModelRefreshTests {
+
+    func makeVM(
+        score: NetworkHealthScore = NetworkHealthScore(score: 85, grade: "B", latencyMs: 25, packetLoss: 0.02, details: [:]),
+        pingResults: [PingResult] = []
+    ) -> NetworkHealthScoreViewModel {
+        let mockService = MockNetworkHealthScoreService()
+        mockService.mockScore = score
+        let mockPing = MockPingServiceForHealth()
+        mockPing.mockResults = pingResults
+        return NetworkHealthScoreViewModel(
+            service: mockService,
+            pingService: mockPing,
+            networkMonitor: MockNetworkMonitor()
+        )
+    }
+
+    @Test func refreshSetsLastUpdated() async throws {
+        let vm = makeVM()
+        vm.refresh()
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(vm.lastUpdated != nil)
+    }
+
+    @Test func refreshSetsCurrentScore() async throws {
+        let score = NetworkHealthScore(score: 72, grade: "C", latencyMs: 80, packetLoss: 0.1, details: [:])
+        let vm = makeVM(score: score)
+        vm.refresh()
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(vm.currentScore?.score == 72)
+        #expect(vm.currentScore?.grade == "C")
+    }
+
+    @Test func refreshIsNotReentrant() async throws {
+        let mockService = MockNetworkHealthScoreService()
+        let vm = NetworkHealthScoreViewModel(
+            service: mockService,
+            pingService: MockPingServiceForHealth(),
+            networkMonitor: MockNetworkMonitor()
+        )
+        vm.refresh()
+        vm.refresh()  // second call while first is running — should be ignored
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(mockService.calculateCallCount == 1)
+    }
+
+    @Test func gradeTextAfterRefresh() async throws {
+        let score = NetworkHealthScore(score: 90, grade: "A", latencyMs: 10, packetLoss: 0.0, details: [:])
+        let vm = makeVM(score: score)
+        vm.refresh()
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(vm.gradeText == "A")
+    }
+
+    @Test func scoreValueAfterRefresh() async throws {
+        let score = NetworkHealthScore(score: 55, grade: "D", latencyMs: 200, packetLoss: 0.15, details: [:])
+        let vm = makeVM(score: score)
+        vm.refresh()
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(vm.scoreValue == 55)
+    }
+
+    @Test func latencyTextAfterRefresh() async throws {
+        let score = NetworkHealthScore(score: 80, grade: "B", latencyMs: 42, packetLoss: 0.01, details: [:])
+        let vm = makeVM(score: score)
+        vm.refresh()
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(vm.latencyText == "42 ms")
+    }
+
+    @Test func packetLossTextAfterRefresh() async throws {
+        let score = NetworkHealthScore(score: 75, grade: "C", latencyMs: 30, packetLoss: 0.05, details: [:])
+        let vm = makeVM(score: score)
+        vm.refresh()
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(vm.packetLossText == "5%")
+    }
+
+    @Test func refreshWithPingResultsComputesLatency() async throws {
+        let results = [
+            PingResult(sequence: 1, host: "8.8.8.8", ttl: 64, time: 20.0, isTimeout: false),
+            PingResult(sequence: 2, host: "8.8.8.8", ttl: 64, time: 30.0, isTimeout: false),
+            PingResult(sequence: 3, host: "8.8.8.8", ttl: 64, time: 0.0, isTimeout: true),
+        ]
+        let vm = makeVM(pingResults: results)
+        vm.refresh()
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(vm.currentScore != nil)
+    }
+
+    @Test func isCalculatingFalseAfterRefreshCompletes() async throws {
+        let vm = makeVM()
+        vm.refresh()
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(vm.isCalculating == false)
+    }
+}
+
 // NOTE: Scoring algorithm tests (grade, computeScore) are in the package test target:
 // Packages/NetMonitorCore/Tests/NetMonitorCoreTests/NetworkHealthScoreServiceTests.swift
 // Those APIs are internal to NetMonitorCore and cannot be accessed from the app test target.

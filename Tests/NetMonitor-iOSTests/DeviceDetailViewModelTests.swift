@@ -136,6 +136,65 @@ struct DeviceDetailViewModelTests {
         #expect(viewModel.isDiscovering == false)
     }
 
+    @Test func enrichDeviceWithNilDeviceDoesNothing() async {
+        let macLookup = MockMACVendorLookupService(vendor: "ShouldNotBeUsed")
+        let viewModel = makeViewModel(macLookupService: macLookup)
+        // device is nil — no-op
+
+        await viewModel.enrichDevice(bonjourServices: [])
+
+        #expect(viewModel.isLoading == false)
+        #expect(macLookup.lookupCallCount == 0)
+    }
+
+    @Test func enrichDeviceSkipsManufacturerWhenAlreadySet() async {
+        let macLookup = MockMACVendorLookupService(vendor: "ShouldNotBeUsed")
+        let viewModel = makeViewModel(macLookupService: macLookup)
+        viewModel.device = LocalDevice(
+            ipAddress: "192.168.1.1",
+            macAddress: "AA:BB:CC:DD:EE:FF",
+            manufacturer: "Apple"
+        )
+
+        await viewModel.enrichDevice(bonjourServices: [])
+
+        #expect(macLookup.lookupCallCount == 0)
+        #expect(viewModel.device?.manufacturer == "Apple")
+    }
+
+    @Test func enrichDeviceSkipsHostnameWhenAlreadySet() async {
+        let nameResolver = MockDeviceNameResolver(hostname: "should.not.appear")
+        let viewModel = makeViewModel(nameResolver: nameResolver)
+        viewModel.device = LocalDevice(
+            ipAddress: "192.168.1.2",
+            macAddress: "",
+            resolvedHostname: "already.set.local"
+        )
+
+        await viewModel.enrichDevice(bonjourServices: [])
+
+        #expect(nameResolver.resolveCallCount == 0)
+        #expect(viewModel.device?.resolvedHostname == "already.set.local")
+    }
+
+    @Test func scanPortsWithNilDeviceDoesNothing() async {
+        let viewModel = makeViewModel()
+        // device is nil
+
+        await viewModel.scanPorts()
+
+        #expect(viewModel.isScanning == false)
+    }
+
+    @Test func discoverServicesWithNilDeviceDoesNothing() async {
+        let viewModel = makeViewModel()
+        // device is nil
+
+        await viewModel.discoverServices()
+
+        #expect(viewModel.isDiscovering == false)
+    }
+
     private func makeViewModel(
         macLookupService: any MACVendorLookupServiceProtocol = MockMACVendorLookupService(vendor: nil),
         nameResolver: any DeviceNameResolverProtocol = MockDeviceNameResolver(hostname: nil),
