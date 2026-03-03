@@ -180,4 +180,27 @@ struct WiFiHeatmapSurveyViewModelTests {
         let vm = WiFiHeatmapSurveyViewModel(service: MockWiFiHeatmapService())
         #expect(vm.preferredUnit == .feet)
     }
+
+    @Test("surveys persist through UserDefaults round-trip")
+    @MainActor
+    func surveysPersistThroughReload() {
+        defer { UserDefaults.standard.removeObject(forKey: "wifiHeatmap_surveys") }
+        let vm1 = WiFiHeatmapSurveyViewModel(service: MockWiFiHeatmapService())
+        vm1.startSurvey()
+        vm1.recordDataPoint(at: CGPoint(x: 100, y: 100), in: CGSize(width: 400, height: 400))
+        vm1.stopSurvey()
+        #expect(vm1.surveys.count == 1)
+        let vm2 = WiFiHeatmapSurveyViewModel(service: MockWiFiHeatmapService())
+        #expect(vm2.surveys.count >= 1, "Fresh VM should load the persisted survey")
+    }
+
+    @Test("colorScheme change persists to UserDefaults")
+    @MainActor
+    func colorSchemePersisted() {
+        defer { UserDefaults.standard.removeObject(forKey: AppSettings.Keys.heatmapColorScheme) }
+        let vm1 = WiFiHeatmapSurveyViewModel(service: MockWiFiHeatmapService())
+        vm1.colorScheme = .arctic
+        let vm2 = WiFiHeatmapSurveyViewModel(service: MockWiFiHeatmapService())
+        #expect(vm2.colorScheme == .arctic, "colorScheme should survive a fresh VM init")
+    }
 }
