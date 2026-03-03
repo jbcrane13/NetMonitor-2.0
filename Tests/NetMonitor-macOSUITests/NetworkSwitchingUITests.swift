@@ -4,7 +4,7 @@ import XCTest
 final class NetworkSwitchingUITests: MacOSUITestCase {
 
     func testNetworksSectionExistsInSidebar() {
-        XCTAssertTrue(app.staticTexts["sidebar_section_networks"].waitForExistence(timeout: 5),
+        XCTAssertTrue(app.descendants(matching: .any)["sidebar_section_networks"].waitForExistence(timeout: 5),
                       "Networks section should exist in sidebar")
     }
 
@@ -180,7 +180,7 @@ final class NetworkSwitchingUITests: MacOSUITestCase {
         XCTAssertTrue(scanButton.waitForExistence(timeout: 3))
         scanButton.tap()
 
-        XCTAssertTrue(app.staticTexts["sidebar_devices"].waitForExistence(timeout: 3),
+        XCTAssertTrue(app.descendants(matching: .any)["sidebar_devices"].waitForExistence(timeout: 3),
                       "Should navigate to devices after initiating scan")
     }
 }

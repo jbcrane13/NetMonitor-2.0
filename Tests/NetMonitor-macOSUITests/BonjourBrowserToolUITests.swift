@@ -9,7 +9,7 @@ final class BonjourBrowserToolUITests: XCTestCase {
         app = XCUIApplication()
         app.launch()
         // Navigate to Tools
-        let sidebar = app.staticTexts["sidebar_tools"]
+        let sidebar = app.descendants(matching: .any)["sidebar_tools"]
         XCTAssertTrue(sidebar.waitForExistence(timeout: 5))
         sidebar.tap()
         // Open Bonjour Browser tool

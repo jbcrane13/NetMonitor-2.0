@@ -62,6 +62,7 @@ struct SidebarView: View {
                             badgeColor: badgeColor(for: section)
                         )
                         .tag(SidebarSelection.section(section))
+                        .accessibilityIdentifier("sidebar_\(section.rawValue.lowercased())")
                     }
                 } header: {
                     Text("COMMAND")
