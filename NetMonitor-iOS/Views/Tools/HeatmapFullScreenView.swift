@@ -16,6 +16,7 @@ struct HeatmapFullScreenView: View {
     var onStopSurvey: (() -> Void)?
     var onDismiss: () -> Void
 
+    // periphery:ignore
     @Environment(\.horizontalSizeClass) private var hSizeClass
 
     var body: some View {

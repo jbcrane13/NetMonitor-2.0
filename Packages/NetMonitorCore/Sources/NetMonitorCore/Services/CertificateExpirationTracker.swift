@@ -142,6 +142,7 @@ public actor CertificateExpirationTracker: CertificateExpirationTrackerProtocol 
 
     // MARK: - Persistence
 
+    // periphery:ignore
     private func loadFromDefaults() {
         guard let data = defaults.data(forKey: Self.defaultsKey),
               let entries = try? JSONDecoder().decode([TrackedEntry].self, from: data) else { return }

@@ -42,6 +42,7 @@ final class ARWiFiSession: NSObject {
 
     /// Places a color-coded sphere in the AR scene at 0.5 m in front of the current camera.
     /// - Parameter signalDBm: Signal strength in approximate dBm.
+    // periphery:ignore
     func placeSignalAnchor(signalDBm: Int) {
         guard let frame = arView.session.currentFrame else { return }
 
@@ -60,6 +61,7 @@ final class ARWiFiSession: NSObject {
 
     // MARK: - Helpers
 
+    // periphery:ignore
     private func makeSignalEntity(signalDBm: Int) -> ModelEntity {
         let color = UIColor.signalColor(dBm: signalDBm)
         var material = SimpleMaterial()

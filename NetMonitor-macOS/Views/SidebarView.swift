@@ -13,6 +13,7 @@ struct SidebarView: View {
     var onAddNetwork: () -> Void = {}
     
     @Environment(NetworkProfileManager.self) private var profileManager
+    // periphery:ignore
     @Environment(MonitoringSession.self) private var monitoringSession: MonitoringSession?
     @Query(sort: \LocalDevice.lastSeen, order: .reverse) private var devices: [LocalDevice]
 
@@ -33,21 +34,6 @@ struct SidebarView: View {
                             deviceCount: deviceCount > 0 ? deviceCount : nil
                         )
                         .tag(SidebarSelection.network(profile.id))
-                        .contextMenu {
-                            if !isActive {
-                                Button(role: .destructive) {
-                                    _ = profileManager.removeProfile(id: profile.id)
-                                    if selection == .network(profile.id) {
-                                        selection = profileManager.profiles.first.map { .network($0.id) }
-                                    }
-                                } label: {
-                                    Label("Delete Network", systemImage: "trash")
-                                }
-                            } else {
-                                Text("Active network — disconnect first to delete")
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
                     }
                 } header: {
                     HStack {
@@ -56,8 +42,12 @@ struct SidebarView: View {
                             .foregroundStyle(MacTheme.Colors.sidebarTextSecondary)
                             .tracking(1.5)
                         Spacer()
-// Add Network button deferred to v2.1 (multi-network support)
-                        // Button(action: onAddNetwork) { ... }
+                        Button(action: onAddNetwork) {
+                            Image(systemName: "plus.square.fill")
+                                .font(.system(size: 14))
+                                .foregroundStyle(MacTheme.Colors.sidebarTextSecondary)
+                        }
+                        .buttonStyle(.plain)
                     }
                     .padding(.vertical, 4)
                 }
@@ -104,6 +94,7 @@ struct SidebarView: View {
     }
 }
 
+// periphery:ignore
 struct ProfilePill: View {
     let profile: NetworkProfile
     let isActive: Bool
@@ -209,11 +200,11 @@ struct SidebarRow: View {
 }
 
 extension SidebarView {
-    private func badgeText(for section: NavigationSection) -> String? {
+    private func badgeText(for _: NavigationSection) -> String? {
         return nil
     }
 
-    private func badgeColor(for section: NavigationSection) -> Color {
+    private func badgeColor(for _: NavigationSection) -> Color {
         return MacTheme.Colors.info
     }
 }

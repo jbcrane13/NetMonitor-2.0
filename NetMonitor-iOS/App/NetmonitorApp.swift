@@ -5,6 +5,7 @@ import BackgroundTasks
 
 @main
 struct NetmonitorApp: App {
+    // periphery:ignore
     @AppStorage("selectedTheme") private var selectedTheme: String = "system"
 
     private static var isUITesting: Bool {

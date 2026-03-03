@@ -88,6 +88,7 @@ enum PublicIPError: LocalizedError {
         }
     }
 
+    // periphery:ignore
     var asNetworkError: NetworkError {
         switch self {
         case .invalidResponse: .invalidResponse

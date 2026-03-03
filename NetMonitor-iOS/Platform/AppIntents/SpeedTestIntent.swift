@@ -4,6 +4,7 @@ import NetMonitorCore
 /// Siri/Shortcuts intent: run a speed test and return download/upload speeds.
 struct SpeedTestIntent: AppIntent {
     static let title: LocalizedStringResource = "Run Speed Test"
+    // periphery:ignore
     static let description = IntentDescription(
         "Run a network speed test and return download and upload speeds.",
         categoryName: "Network Tools"

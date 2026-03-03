@@ -34,15 +34,15 @@ struct HealthGaugeCard: View {
                     .shadow(color: MacTheme.Colors.info.opacity(0.4), radius: 4)
                     .animation(.easeInOut(duration: 0.5), value: scoreProgress)
 
-                VStack(spacing: 1) {
+                VStack(spacing: 2) {
                     Text(scoreText)
                         .font(.system(size: 26, weight: .bold, design: .rounded))
                         .foregroundStyle(.white)
                         .accessibilityIdentifier("dashboard_healthGauge_score")
-                    Text(gradeLabel)
-                        .font(.system(size: 8, weight: .heavy))
-                        .foregroundStyle(gradeColor)
-                        .tracking(1.0)
+                    Text(gradeText)
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(.secondary)
+                        .tracking(1.5)
                 }
             }
             .frame(width: 85, height: 85)
@@ -78,26 +78,6 @@ struct HealthGaugeCard: View {
 
     private var gradeText: String {
         viewModel.currentScore?.grade ?? "CALCULATING"
-    }
-
-    private var gradeLabel: String {
-        guard let score = viewModel.currentScore?.score else { return "···" }
-        switch score {
-        case 90...100: return "EXCELLENT"
-        case 75..<90:  return "GOOD"
-        case 50..<75:  return "FAIR"
-        default:       return "POOR"
-        }
-    }
-
-    private var gradeColor: Color {
-        guard let score = viewModel.currentScore?.score else { return .secondary }
-        switch score {
-        case 90...100: return MacTheme.Colors.success
-        case 75..<90:  return MacTheme.Colors.info
-        case 50..<75:  return MacTheme.Colors.warning
-        default:       return MacTheme.Colors.error
-        }
     }
 
     private func latencyPct(_ score: NetworkHealthScore) -> Double {

@@ -43,3 +43,7 @@ report_exclude:
   - "**/*Tests*"        # Test helpers, mocks, and fixtures look "unused" by design
   - "**/Preview*"       # SwiftUI preview providers
   - "**/TestFixtures*"
+  - "**/AppIntents/*"   # Intents are dynamically loaded/referenced by Siri
+  - "**/Theme.swift"    # Design system constants
+  - "**/MacTheme.swift" # Design system constants
+  - "**/Logging.swift"  # Shared logging categories

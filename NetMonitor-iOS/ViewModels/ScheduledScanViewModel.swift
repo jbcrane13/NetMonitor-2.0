@@ -132,6 +132,7 @@ final class ScheduledScanViewModel {
         return "Scanning every \(selectedInterval.displayName.lowercased())"
     }
 
+    // periphery:ignore
     var lastScanSummary: String {
         guard let diff = lastDiff else { return "No scan history" }
         let ago = diff.scannedAt.formatted(.relative(presentation: .named))

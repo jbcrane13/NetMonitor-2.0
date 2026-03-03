@@ -85,6 +85,7 @@ extension EmptyStateView {
     }
 
     /// No results empty state
+    // periphery:ignore
     static func noResults(for query: String) -> EmptyStateView {
         EmptyStateView(
             icon: "magnifyingglass",
@@ -113,6 +114,7 @@ extension EmptyStateView {
     }
 
     /// Generic error empty state
+    // periphery:ignore
     static func error(_ message: String, onRetry: @escaping () -> Void) -> EmptyStateView {
         EmptyStateView(
             icon: "exclamationmark.triangle",

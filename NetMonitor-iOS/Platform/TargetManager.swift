@@ -1,5 +1,4 @@
 import Foundation
-import NetMonitorCore
 
 /// Manages a shared target address that pre-fills tool input fields.
 /// Persists saved targets to UserDefaults; the active selection is in-memory only (resets on launch).

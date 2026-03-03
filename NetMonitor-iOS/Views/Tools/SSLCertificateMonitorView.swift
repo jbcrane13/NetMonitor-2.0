@@ -162,7 +162,7 @@ struct SSLCertificateMonitorView: View {
         }
     }
 
-    private func sslCertificateCard(_ ssl: SSLCertificateInfo, domain: String) -> some View {
+    private func sslCertificateCard(_ ssl: SSLCertificateInfo, domain _: String) -> some View {
         GlassCard {
             VStack(alignment: .leading, spacing: 12) {
                 HStack {
@@ -213,7 +213,7 @@ struct SSLCertificateMonitorView: View {
         .accessibilityIdentifier("ssl_monitor_whois_card")
     }
 
-    private func addToWatchListButton(_ result: DomainExpirationStatus) -> some View {
+    private func addToWatchListButton(_ _: DomainExpirationStatus) -> some View {
         VStack(spacing: 12) {
             if viewModel.showingAddToWatchList {
                 GlassCard {

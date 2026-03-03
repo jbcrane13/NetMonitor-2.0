@@ -1,5 +1,4 @@
 import SwiftUI
-import NetMonitorCore
 
 /// Shared clear/trash button for tool views
 struct ToolClearButton: View {

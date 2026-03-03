@@ -93,14 +93,14 @@ struct ARContinuousHeatmapViewModelTests {
     // MARK: - Scan lifecycle (simulator — AR session stub returns nil position)
 
     @Test("startScanning sets isScanning true")
-    func startSetsScanning() async {
+    func startSetsScanning() {
         let vm = ARContinuousHeatmapViewModel(session: ARContinuousHeatmapSession())
         vm.startScanning()
         #expect(vm.isScanning == true)
     }
 
     @Test("stopScanning sets isScanning false")
-    func stopSetsNotScanning() async {
+    func stopSetsNotScanning() {
         let vm = ARContinuousHeatmapViewModel(session: ARContinuousHeatmapSession())
         vm.startScanning()
         vm.stopScanning()
@@ -202,5 +202,29 @@ struct ARContinuousHeatmapViewModelTests {
     func distanceFirstPoint() {
         let vm = ARContinuousHeatmapViewModel(session: ARContinuousHeatmapSession())
         #expect(vm.distanceExceeded(from: SIMD3<Float>(0, 0, 0)) == true)
+    }
+
+    @Test("injectWorldPoint increments pointCount")
+    @MainActor
+    func injectWorldPointIncrementsCount() {
+        let vm = ARContinuousHeatmapViewModel(session: ARContinuousHeatmapSession())
+        #expect(vm.pointCount == 0)
+        vm.injectWorldPoint(x: 1.0, z: 1.0, rssi: -60)
+        #expect(vm.pointCount == 1)
+        vm.injectWorldPoint(x: 2.0, z: 2.0, rssi: -70)
+        #expect(vm.pointCount == 2)
+    }
+
+    @Test("gridState is all nil after startScanning reset")
+    @MainActor
+    func gridStateAllNilAfterReset() {
+        let vm = ARContinuousHeatmapViewModel(session: ARContinuousHeatmapSession())
+        // Dirty the grid manually
+        vm.gridState[0][0] = -60
+        vm.gridState[15][15] = -80
+        // startScanning resets grid state
+        vm.startScanning()
+        let allNil = vm.gridState.allSatisfy { $0.allSatisfy { $0 == nil } }
+        #expect(allNil, "All gridState cells should be nil after startScanning resets state")
     }
 }

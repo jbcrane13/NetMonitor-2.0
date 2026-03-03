@@ -72,6 +72,7 @@ final class NetworkMapViewModel {
         deviceDiscoveryService.scanProgress
     }
     
+    // periphery:ignore
     var scanPhaseText: String {
         let phase = deviceDiscoveryService.scanPhase
         switch phase {
@@ -92,6 +93,7 @@ final class NetworkMapViewModel {
         gatewayService.gateway
     }
 
+    // periphery:ignore
     var activeNetworkLastScanned: Date? {
         activeNetwork?.lastScanned
     }
@@ -100,10 +102,12 @@ final class NetworkMapViewModel {
         activeNetwork?.deviceCount
     }
 
+    // periphery:ignore
     var activeNetworkGatewayReachable: Bool? {
         activeNetwork?.gatewayReachable
     }
 
+    // periphery:ignore
     var isShowingStaleActiveNetworkData: Bool {
         (activeNetwork?.gatewayReachable == false) && (activeNetwork?.lastScanned != nil)
     }
@@ -143,6 +147,7 @@ final class NetworkMapViewModel {
         bonjourService.stopDiscovery()
     }
 
+    // periphery:ignore
     func refresh() async {
         refreshAvailableNetworks()
         await gatewayService.detectGateway()

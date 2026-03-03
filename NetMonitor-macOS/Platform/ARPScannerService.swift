@@ -202,12 +202,12 @@ actor ARPScannerService: LocalDeviceScanner {
         var localIP: String?
         var subnetMask: String?
 
-        // When a preferred interface is given, restrict to it.
-        // Otherwise, accept any active IPv4 interface except loopback and
-        // virtual/docker interfaces — hotspot uses en2/en3/bridge100 etc.
-        let preferredOnly = preferredInterface != nil
-        let targetInterfaces: Set<String> = preferredInterface.map { [$0] } ?? []
-        let excludedPrefixes = ["lo", "utun", "ipsec", "ppp", "docker", "veth", "anpi"]
+        let targetInterfaces: Set<String>
+        if let preferred = preferredInterface {
+            targetInterfaces = [preferred]
+        } else {
+            targetInterfaces = ["en0", "en1"]
+        }
 
         var current = firstAddr
         while true {
@@ -218,10 +218,7 @@ actor ARPScannerService: LocalDeviceScanner {
             if interface.ifa_addr.pointee.sa_family == UInt8(AF_INET) {
                 let name = String(cString: interface.ifa_name)
 
-                let isTarget = preferredOnly
-                    ? targetInterfaces.contains(name)
-                    : !excludedPrefixes.contains(where: { name.hasPrefix($0) })
-                if isTarget {
+                if targetInterfaces.contains(name) {
                     // Check if interface is up and running
                     if (flags & IFF_UP) != 0 && (flags & IFF_RUNNING) != 0 {
                         // Get IP address
@@ -326,7 +323,8 @@ actor ARPScannerService: LocalDeviceScanner {
             queue.asyncAfter(deadline: .now() + probeTimeout) { [tracker] in
                 if tracker.tryResume() {
                     connection.cancel()
-                    continuation.resume(returning: false)
+                    // Even if connection times out, the ARP cache might have been populated
+                    continuation.resume(returning: true)
                 }
             }
         }

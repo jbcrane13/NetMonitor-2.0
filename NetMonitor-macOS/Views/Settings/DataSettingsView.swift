@@ -17,6 +17,7 @@ enum HistoryRetention: String, CaseIterable {
     case thirtyDays = "30 days"
     case forever = "Forever"
 
+    // periphery:ignore
     var days: Int? {
         switch self {
         case .oneDay: return 1

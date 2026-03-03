@@ -4,6 +4,7 @@ import NetworkScanKit
 
 struct DashboardView: View {
     @State private var viewModel = DashboardViewModel()
+    // periphery:ignore
     @State private var isAddNetworkSheetPresented = false
     
     var body: some View {

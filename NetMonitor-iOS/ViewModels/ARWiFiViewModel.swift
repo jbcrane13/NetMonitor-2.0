@@ -63,6 +63,7 @@ final class ARWiFiViewModel {
     }
 
     /// Drop a signal-strength anchor at the current AR camera position.
+    // periphery:ignore
     func placeAnchor() {
         arSession.placeSignalAnchor(signalDBm: signalDBm)
     }

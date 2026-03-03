@@ -1,5 +1,6 @@
 import Testing
 import Foundation
+import SwiftData
 @testable import NetMonitor_iOS
 import NetMonitorCore
 
@@ -208,5 +209,126 @@ struct SpeedTestToolViewModelErrorTests {
         let vm = SpeedTestToolViewModel(service: MockSpeedTestService())
         vm.uploadSpeed = 0
         #expect(vm.uploadSpeedText == "0 Mbps")
+    }
+}
+
+// MARK: - Jitter, Persistence & startTest Tests
+
+@Suite("SpeedTestToolViewModel startTest")
+@MainActor
+struct SpeedTestToolViewModelStartTestTests {
+
+    private func makeInMemoryStore() throws -> (ModelContainer, ModelContext) {
+        let schema = Schema([
+            LocalDevice.self,
+            MonitoringTarget.self,
+            ToolResult.self,
+            SpeedTestResult.self,
+            PairedMac.self
+        ])
+        let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: schema, configurations: [config])
+        return (container, container.mainContext)
+    }
+
+    @Test func jitterTextFormatsCorrectly() {
+        let vm = SpeedTestToolViewModel(service: MockSpeedTestService())
+        vm.jitter = 5.3
+        #expect(vm.jitterText == "5.3 ms")
+    }
+
+    @Test func jitterTextFormatsZero() {
+        let vm = SpeedTestToolViewModel(service: MockSpeedTestService())
+        #expect(vm.jitterText == "0.0 ms")
+    }
+
+    @Test func selectedDurationPersistsToUserDefaults() {
+        let vm = SpeedTestToolViewModel(service: MockSpeedTestService())
+        let key = AppSettings.Keys.speedTestDuration
+        defer { UserDefaults.standard.removeObject(forKey: key) }
+        vm.selectedDuration = 10.0
+        #expect(UserDefaults.standard.double(forKey: key) == 10.0)
+    }
+
+    @Test func selectedServerPersistsToUserDefaults() {
+        let vm = SpeedTestToolViewModel(service: MockSpeedTestService())
+        let key = AppSettings.Keys.speedTestServer
+        defer { UserDefaults.standard.removeObject(forKey: key) }
+        vm.selectedServer = .cloudflare
+        #expect(UserDefaults.standard.string(forKey: key) == SpeedTestServer.cloudflare.id)
+    }
+
+    @Test func startTestReentrantGuardPreventsDoubleStart() async throws {
+        let (_, context) = try makeInMemoryStore()
+        let mock = MockSpeedTestService()
+        let vm = SpeedTestToolViewModel(service: mock)
+
+        vm.isRunning = true
+        vm.errorMessage = "keep this"
+
+        vm.startTest(modelContext: context)
+        try await Task.sleep(for: .milliseconds(50))
+
+        // Guard returned before `errorMessage = nil` — message unchanged
+        #expect(vm.errorMessage == "keep this")
+        #expect(vm.isRunning == true)
+    }
+
+    @Test func startTestSuccessSyncsServiceState() async throws {
+        let (_, context) = try makeInMemoryStore()
+        let mock = MockSpeedTestService()
+        mock.downloadSpeed = 150
+        mock.uploadSpeed = 60
+        mock.latency = 18
+        mock.jitter = 3.5
+        mock.phase = .complete
+        mock.mockResult = SpeedTestData(downloadSpeed: 150, uploadSpeed: 60, latency: 18)
+
+        let vm = SpeedTestToolViewModel(service: mock)
+        vm.startTest(modelContext: context)
+
+        await waitUntil { vm.isRunning == false }
+
+        #expect(vm.downloadSpeed == 150)
+        #expect(vm.uploadSpeed == 60)
+        #expect(vm.latency == 18)
+        #expect(vm.jitter == 3.5)
+        #expect(vm.errorMessage == nil)
+    }
+
+    @Test func startTestErrorSetsErrorMessage() async throws {
+        let (_, context) = try makeInMemoryStore()
+        let mock = MockSpeedTestService()
+        mock.shouldThrow = true
+
+        let vm = SpeedTestToolViewModel(service: mock)
+        vm.startTest(modelContext: context)
+
+        await waitUntil { vm.isRunning == false }
+
+        #expect(vm.errorMessage != nil)
+        #expect(vm.phase == .idle)
+        #expect(vm.isRunning == false)
+    }
+
+    @Test func startTestPersistsResultToModelContext() async throws {
+        let (_, context) = try makeInMemoryStore()
+        let mock = MockSpeedTestService()
+        mock.downloadSpeed = 200
+        mock.uploadSpeed = 100
+        mock.latency = 10
+        mock.phase = .complete
+        mock.mockResult = SpeedTestData(downloadSpeed: 200, uploadSpeed: 100, latency: 10)
+
+        let vm = SpeedTestToolViewModel(service: mock)
+        vm.startTest(modelContext: context)
+
+        await waitUntil { vm.isRunning == false }
+
+        let descriptor = FetchDescriptor<SpeedTestResult>()
+        let results = try context.fetch(descriptor)
+        #expect(results.count == 1)
+        #expect(results.first?.downloadSpeed == 200)
+        #expect(results.first?.uploadSpeed == 100)
     }
 }

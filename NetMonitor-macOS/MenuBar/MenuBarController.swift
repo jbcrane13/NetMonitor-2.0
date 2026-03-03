@@ -67,6 +67,7 @@ final class MenuBarController: NSObject {
         }
     }
 
+    // periphery:ignore
     func teardown() {
         observationTask?.cancel()
         observationTask = nil

@@ -200,4 +200,105 @@ struct NetworkMapViewModelTests {
         #expect(error != nil)
         #expect(discovery.scanCallCount == 0)
     }
+
+    @Test func startScanCallsDiscoveryWhenDevicesEmpty() async {
+        let discovery = MockDeviceDiscoveryService()
+        discovery.discoveredDevices = []
+        let vm = makeVM(deviceDiscovery: discovery)
+
+        await vm.startScan()
+
+        #expect(discovery.scanCallCount == 1)
+    }
+
+    @Test func startScanSkipsDiscoveryWhenDevicesPresentAndNotForced() async {
+        let discovery = MockDeviceDiscoveryService()
+        // Device with networkProfileID: nil matches when activeNetwork is nil
+        discovery.discoveredDevices = [
+            DiscoveredDevice(ipAddress: "192.168.1.50", latency: 5.0, discoveredAt: Date())
+        ]
+        let vm = makeVM(deviceDiscovery: discovery)
+
+        await vm.startScan(forceRefresh: false)
+
+        #expect(discovery.scanCallCount == 0)
+    }
+
+    @Test func startScanForcesRefreshWhenRequested() async {
+        let discovery = MockDeviceDiscoveryService()
+        discovery.discoveredDevices = [
+            DiscoveredDevice(ipAddress: "192.168.1.50", latency: 5.0, discoveredAt: Date())
+        ]
+        let vm = makeVM(deviceDiscovery: discovery)
+
+        await vm.startScan(forceRefresh: true)
+
+        #expect(discovery.scanCallCount == 1)
+    }
+
+    @Test func startScanDetectsGatewayWhenNil() async {
+        let gateway = MockGatewayService()
+        gateway.gateway = nil
+        let vm = makeVM(gatewayService: gateway)
+
+        await vm.startScan()
+
+        #expect(gateway.detectCallCount == 1)
+    }
+
+    @Test func startScanSkipsGatewayDetectionWhenAlreadySet() async {
+        let gateway = MockGatewayService()
+        gateway.gateway = GatewayInfo(ipAddress: "192.168.1.1")
+        let vm = makeVM(gatewayService: gateway)
+
+        await vm.startScan()
+
+        #expect(gateway.detectCallCount == 0)
+    }
+
+    @Test func refreshCallsGatewayDetectAndScan() async {
+        let gateway = MockGatewayService()
+        let discovery = MockDeviceDiscoveryService()
+        let vm = makeVM(deviceDiscovery: discovery, gatewayService: gateway)
+
+        await vm.refresh()
+
+        #expect(gateway.detectCallCount >= 1)
+        #expect(discovery.scanCallCount >= 1)
+    }
+
+    @Test func addNetworkProfileSucceedsWhenGatewayReachable() async {
+        let pingService = MockPingService()
+        pingService.mockResults = [
+            PingResult(sequence: 1, host: "192.168.55.1", ttl: 64, time: 2.0, isTimeout: false)
+        ]
+        let discovery = MockDeviceDiscoveryService()
+        let vm = makeVM(deviceDiscovery: discovery, pingService: pingService)
+
+        let error = await vm.addNetworkProfile(
+            gateway: "192.168.55.1",
+            subnet: "192.168.55.0/24",
+            name: "Test Network"
+        )
+
+        #expect(error == nil)
+        #expect(vm.selectedNetworkID != nil)
+        #expect(!vm.availableNetworks.isEmpty)
+    }
+
+    @Test func addNetworkProfileRejectsEmptyGateway() async {
+        let vm = makeVM()
+
+        let error = await vm.addNetworkProfile(gateway: "", subnet: "192.168.1.0/24", name: "Bad")
+
+        #expect(error != nil)
+    }
+
+    @Test func addNetworkProfileRejectsEmptySubnet() async {
+        let vm = makeVM()
+
+        let error = await vm.addNetworkProfile(gateway: "192.168.1.1", subnet: "", name: "Bad")
+
+        #expect(error != nil)
+    }
 }

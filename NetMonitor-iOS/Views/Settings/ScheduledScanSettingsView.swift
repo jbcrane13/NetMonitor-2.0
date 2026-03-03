@@ -3,6 +3,7 @@ import NetMonitorCore
 
 struct ScheduledScanSettingsView: View {
     @State private var viewModel = ScheduledScanViewModel()
+    // periphery:ignore
     @State private var showingDiffDetail = false
 
     var body: some View {

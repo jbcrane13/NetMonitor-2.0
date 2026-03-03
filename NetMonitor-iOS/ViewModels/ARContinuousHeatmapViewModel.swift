@@ -2,9 +2,7 @@ import Foundation
 import SwiftUI
 import NetMonitorCore
 import CoreLocation
-#if os(iOS)
-import NetworkExtension
-#endif
+import AVFoundation
 
 // MARK: - ARContinuousHeatmapViewModel
 
@@ -73,7 +71,34 @@ final class ARContinuousHeatmapViewModel {
         beginScanning()
         return
         #else
-        // ARKit handles camera permission internally when session.run() is called.
+        let cameraStatus = AVCaptureDevice.authorizationStatus(for: .video)
+        switch cameraStatus {
+        case .notDetermined:
+            statusMessage = "Grant camera access to start AR scanning"
+            AVCaptureDevice.requestAccess(for: .video) { [weak self] granted in
+                Task { @MainActor in
+                    guard let self else { return }
+                    if granted {
+                        self.startScanning()
+                    } else {
+                        self.errorMessage = "Camera access denied — enable in Settings > Privacy > Camera"
+                        self.statusMessage = "Camera access required for AR scanning"
+                    }
+                }
+            }
+            return
+        case .denied, .restricted:
+            errorMessage = "Camera access denied — enable in Settings > Privacy > Camera"
+            statusMessage = "Camera access required for AR scanning"
+            return
+        case .authorized:
+            break
+        @unknown default:
+            errorMessage = "Camera access unavailable on this device"
+            statusMessage = "Unable to start AR scanning"
+            return
+        }
+
         let status = locationDelegate.manager.authorizationStatus
         if status == .notDetermined {
             locationDelegate.manager.requestWhenInUseAuthorization()
@@ -282,24 +307,27 @@ final class ARContinuousHeatmapViewModel {
         ssid = "Simulator WiFi"
         bssid = "AA:BB:CC:DD:EE:FF"
         band = "5 GHz"
-        #elseif os(iOS)
-        let network = await NEHotspotNetwork.fetchCurrent()
-        ssid = network?.ssid
-        bssid = network?.bssid
+        #else
+        let sample = await signalSampler.currentSample()
+        ssid = sample.ssid
+        bssid = sample.bssid
         band = nil
-        let strength = network?.signalStrength ?? 0
-        if strength > 0 {
-            // signalStrength is 0.0–1.0; map to approximate dBm (-100…-30)
-            let dbm = Int(-100.0 + Double(strength) * 70.0)
+
+        if let dbm = sample.dbm {
+            errorMessage = nil
             signalDBm = dbm
             usingEstimatedSignal = false
-            errorMessage = nil
         } else {
-            if !usingEstimatedSignal {
+            if usingEstimatedSignal {
+                errorMessage = "Live WiFi RSSI unavailable — using estimated signal"
+                signalDBm = signalDBm == 0 ? -65 : signalDBm
+            } else if sample.ssid == nil {
                 usingEstimatedSignal = true
                 errorMessage = "Live WiFi RSSI unavailable — using estimated signal"
+                signalDBm = signalDBm == 0 ? -65 : signalDBm
+            } else {
+                errorMessage = nil
             }
-            if signalDBm == 0 { signalDBm = -65 }
         }
         #endif
     }

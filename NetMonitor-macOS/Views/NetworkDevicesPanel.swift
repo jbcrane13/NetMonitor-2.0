@@ -6,7 +6,6 @@ import SwiftData
 /// Embedded in NetworkDetailView as the right-column panel.
 struct NetworkDevicesPanel: View {
     let networkProfileID: UUID?
-    let networkProfile: NetworkProfile?
 
     @Environment(DeviceDiscoveryCoordinator.self) private var coordinator: DeviceDiscoveryCoordinator?
     @Query(sort: \LocalDevice.lastSeen, order: .reverse) private var allDevices: [LocalDevice]
@@ -86,9 +85,7 @@ struct NetworkDevicesPanel: View {
 
                 // Scan button
                 Button {
-                    if let profile = networkProfile {
-                        coordinator?.scanNetwork(profile)
-                    } else if let profile = coordinator?.networkProfile {
+                    if let profile = coordinator?.networkProfile {
                         coordinator?.scanNetwork(profile)
                     } else {
                         coordinator?.startScan()
@@ -311,7 +308,7 @@ private struct DevicePanelRow: View {
 
 #if DEBUG
 #Preview {
-    NetworkDevicesPanel(networkProfileID: nil, networkProfile: nil)
+    NetworkDevicesPanel(networkProfileID: nil)
         .frame(width: 340, height: 500)
         .modelContainer(PreviewContainer().container)
 }

@@ -172,8 +172,9 @@ struct NetworkIntelCard: View {
 
             for line in lines {
                 let trimmed = line.trimmingCharacters(in: .whitespaces)
-                if trimmed.contains("ESTABLISHED") { established += 1
-                total += 1
+                if trimmed.contains("ESTABLISHED") {
+                    established += 1
+                    total += 1
                 }
                 else if trimmed.contains("LISTEN") { listening += 1
                 total += 1

@@ -55,7 +55,7 @@ final class DeviceDetailViewModel {
     }
 
     /// Enrich device data with manufacturer and resolved hostname
-    func enrichDevice(bonjourServices: [BonjourService]) async {
+    func enrichDevice(bonjourServices _: [BonjourService]) async {
         guard let device = device else { return }
         isLoading = true
         defer { isLoading = false }

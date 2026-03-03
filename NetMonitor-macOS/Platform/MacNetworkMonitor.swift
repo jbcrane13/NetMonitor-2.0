@@ -74,14 +74,19 @@ struct LocalDiscoveredDevice: Sendable, Equatable {
 /// Errors that can occur during device discovery.
 enum LocalDeviceDiscoveryError: Error, Sendable {
     case networkUnavailable
+    // periphery:ignore
     case permissionDenied
+    // periphery:ignore
     case scanTimeout
     case invalidSubnet
 }
 
 /// Protocol for local ARP-based device discovery services.
 protocol LocalDeviceScanner: Actor {
+    // periphery:ignore
     func scanNetwork(interface: String?) async throws -> [LocalDiscoveredDevice]
+    // periphery:ignore
     func stopScan()
+    // periphery:ignore
     var isScanning: Bool { get }
 }

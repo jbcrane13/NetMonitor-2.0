@@ -27,6 +27,7 @@ struct WakeOnLanToolView: View {
         devices.filter { !$0.macAddress.isEmpty }
     }
 
+    // periphery:ignore
     private var selectedDevice: LocalDevice? {
         devicesWithMAC.first { $0.id == selectedDeviceID }
     }

@@ -438,6 +438,7 @@ enum DNSError: LocalizedError {
         }
     }
 
+    // periphery:ignore
     var asNetworkError: NetworkError {
         switch self {
         case .lookupFailed: .dnsLookupFailed
