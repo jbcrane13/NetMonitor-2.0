@@ -85,7 +85,7 @@ class MacOSUITestCase: XCTestCase {
 
     /// Tap a sidebar item and wait for its detail pane.
     func navigateToSidebar(_ section: String) {
-        let sidebarItem = app.staticTexts["sidebar_\(section)"]
+        let sidebarItem = app.descendants(matching: .any)["sidebar_\(section)"]
         requireExists(sidebarItem, timeout: 5,
                       message: "Sidebar item sidebar_\(section) should exist")
         sidebarItem.tap()
