@@ -268,11 +268,7 @@ final class ARContinuousHeatmapViewModel {
         bssid = "AA:BB:CC:DD:EE:FF"
         band = "5 GHz"
         #elseif os(iOS)
-        var network = await NEHotspotNetwork.fetchCurrent()
-        if network == nil {
-            try? await Task.sleep(for: .milliseconds(300))
-            network = await NEHotspotNetwork.fetchCurrent()
-        }
+        let network = await NEHotspotNetwork.fetchCurrent()
 
         if let network, network.signalStrength > 0 {
             errorMessage = nil

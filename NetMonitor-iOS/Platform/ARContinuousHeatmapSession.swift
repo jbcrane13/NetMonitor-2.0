@@ -40,7 +40,10 @@ final class ARContinuousHeatmapSession: NSObject, @unchecked Sendable {
 
     private var floorAnchorEntity: AnchorEntity?
     private var gridPlaneEntity: ModelEntity?
-    private var floorAnchor: ARPlaneAnchor?
+    /// Store the transform value only — never the ARPlaneAnchor itself.
+    /// ARPlaneAnchor is updated every frame and holds back-references to recent
+    /// ARFrames; keeping it on the session delegate causes ARFrame retention warnings.
+    private var floorAnchorTransform: simd_float4x4?
     private var hasDetectedFloor = false
 
     // MARK: - Init
@@ -62,7 +65,7 @@ final class ARContinuousHeatmapSession: NSObject, @unchecked Sendable {
         hasDetectedFloor = false
         floorAnchorEntity = nil
         gridPlaneEntity = nil
-        floorAnchor = nil
+        floorAnchorTransform = nil
     }
 
     func stopSession() {
@@ -87,7 +90,7 @@ final class ARContinuousHeatmapSession: NSObject, @unchecked Sendable {
     ///
     /// Returns nil if there is no floor anchor or no current frame.
     func worldToGridCell(gridSize: Int) -> (col: Int, row: Int)? {
-        guard let anchor = floorAnchor,
+        guard let anchorTransform = floorAnchorTransform,
               let frame = arView.session.currentFrame else { return nil }
 
         // World position of camera
@@ -95,7 +98,6 @@ final class ARContinuousHeatmapSession: NSObject, @unchecked Sendable {
         let camPos = SIMD4<Float>(camWorld.x, camWorld.y, camWorld.z, 1)
 
         // Transform into floor-plane local space
-        let anchorTransform = anchor.transform
         let invAnchor = anchorTransform.inverse
         let localPos = invAnchor * camPos
 
@@ -129,7 +131,10 @@ final class ARContinuousHeatmapSession: NSObject, @unchecked Sendable {
     private func createFloorPlane(for anchor: ARPlaneAnchor) {
         guard !hasDetectedFloor else { return }
         hasDetectedFloor = true
-        floorAnchor = anchor
+
+        // Copy the transform value — do NOT store the ARPlaneAnchor reference.
+        let capturedTransform = anchor.transform
+        floorAnchorTransform = capturedTransform
 
         let size = Self.planeSizeMeters
         let mesh = MeshResource.generatePlane(width: size, depth: size)
@@ -140,7 +145,9 @@ final class ARContinuousHeatmapSession: NSObject, @unchecked Sendable {
         // Rotate 90° around X so the plane lies flat (RealityKit planes are vertical by default)
         entity.transform.rotation = simd_quatf(angle: -.pi / 2, axis: SIMD3(1, 0, 0))
 
-        let anchorEntity = AnchorEntity(anchor: anchor)
+        // Use a world-transform anchor instead of AnchorEntity(anchor:) to avoid
+        // holding a strong reference to the ARPlaneAnchor (which retains ARFrames).
+        let anchorEntity = AnchorEntity(world: capturedTransform)
         anchorEntity.addChild(entity)
         arView.scene.addAnchor(anchorEntity)
 
