@@ -33,6 +33,21 @@ struct SidebarView: View {
                             deviceCount: deviceCount > 0 ? deviceCount : nil
                         )
                         .tag(SidebarSelection.network(profile.id))
+                        .contextMenu {
+                            if !isActive {
+                                Button(role: .destructive) {
+                                    _ = profileManager.removeProfile(id: profile.id)
+                                    if selection == .network(profile.id) {
+                                        selection = profileManager.profiles.first.map { .network($0.id) }
+                                    }
+                                } label: {
+                                    Label("Delete Network", systemImage: "trash")
+                                }
+                            } else {
+                                Text("Active network — disconnect first to delete")
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
                     }
                 } header: {
                     HStack {
@@ -41,12 +56,8 @@ struct SidebarView: View {
                             .foregroundStyle(MacTheme.Colors.sidebarTextSecondary)
                             .tracking(1.5)
                         Spacer()
-                        Button(action: onAddNetwork) {
-                            Image(systemName: "plus.square.fill")
-                                .font(.system(size: 14))
-                                .foregroundStyle(MacTheme.Colors.sidebarTextSecondary)
-                        }
-                        .buttonStyle(.plain)
+// Add Network button deferred to v2.1 (multi-network support)
+                        // Button(action: onAddNetwork) { ... }
                     }
                     .padding(.vertical, 4)
                 }

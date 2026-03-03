@@ -14,6 +14,11 @@ struct NetworkDetailView: View {
 
     @Query private var targets: [NetworkTarget]
 
+    /// True when this profile is the currently connected network
+    private var isActiveNetwork: Bool {
+        profileManager?.activeProfile?.id == profile.id
+    }
+
     private var gatewayLatencyHistory: [Double] {
         guard let session else { return [] }
         // Match any gateway-like target name
@@ -38,17 +43,32 @@ struct NetworkDetailView: View {
     var body: some View {
         VStack(spacing: 10) {
             // Row A: Internet Activity + Health Gauge — fixed 160pt height
-            HStack(spacing: 10) {
-                InternetActivityCard(session: session)
-                    .frame(maxWidth: .infinity)
-                    .accessibilityIdentifier("network_detail_row_activity")
+            if isActiveNetwork {
+                HStack(spacing: 10) {
+                    InternetActivityCard(session: session)
+                        .frame(maxWidth: .infinity)
+                        .accessibilityIdentifier("network_detail_row_activity")
 
-                HealthGaugeCard()
-                    .frame(width: 210)
-                    .accessibilityIdentifier("network_detail_row_health")
+                    HealthGaugeCard()
+                        .frame(width: 210)
+                        .accessibilityIdentifier("network_detail_row_health")
+                }
+                .frame(height: 160)
+                .clipped()
+            } else {
+                HStack(spacing: 8) {
+                    Image(systemName: "wifi.slash")
+                        .foregroundStyle(.secondary)
+                    Text("Network offline — historical data shown below")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 10))
+                .frame(height: 40)
             }
-            .frame(height: 160)
-            .clipped()
 
             // Row B: Left diagnostics stack + Right device grid
             HStack(alignment: .top, spacing: 10) {
