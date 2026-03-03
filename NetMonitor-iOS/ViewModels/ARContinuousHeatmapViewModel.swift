@@ -91,6 +91,12 @@ final class ARContinuousHeatmapViewModel {
     }
 
     private func beginScanning() {
+        #if !targetEnvironment(simulator)
+        if locationDelegate.manager.accuracyAuthorization == .reducedAccuracy {
+            errorMessage = "Precise location required — enable in Settings > Privacy > Location Services > NetMonitor"
+            return
+        }
+        #endif
         isScanning = true
         floorDetected = false
         worldPoints = []
