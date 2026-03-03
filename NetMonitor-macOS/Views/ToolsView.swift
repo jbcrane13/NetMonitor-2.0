@@ -22,7 +22,6 @@ enum NetworkTool: String, CaseIterable, Identifiable {
     case worldPing = "World Ping"
     case geoTrace = "Geo Trace"
     case sslMonitor = "SSL Monitor"
-    case wifiHeatmap = "WiFi Heatmap"
 
     var id: String { rawValue }
 
@@ -40,7 +39,6 @@ enum NetworkTool: String, CaseIterable, Identifiable {
         case .worldPing: return "globe.americas"
         case .geoTrace: return "map"
         case .sslMonitor: return "lock.shield"
-        case .wifiHeatmap: return "wifi"
         }
     }
 
@@ -58,7 +56,6 @@ enum NetworkTool: String, CaseIterable, Identifiable {
         case .worldPing: return "Global latency check"
         case .geoTrace: return "Visual route on map"
         case .sslMonitor: return "Certificate expiry check"
-        case .wifiHeatmap: return "Map WiFi signal coverage"
         }
     }
 }
