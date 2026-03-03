@@ -104,6 +104,13 @@ final class WiFiHeatmapSurveyViewModel {
     }
 
     private func beginSurvey() {
+        #if !targetEnvironment(simulator)
+        if locationDelegate.manager.accuracyAuthorization == .reducedAccuracy {
+            locationDenied = true
+            statusMessage = "Precise location required — enable in Settings > Privacy > Location Services > NetMonitor"
+            return
+        }
+        #endif
         locationDenied = false
         isSurveying = true
         dataPoints = []
@@ -200,12 +207,14 @@ final class WiFiHeatmapSurveyViewModel {
 
     var signalLevel: SignalLevel {
         SignalLevel.from(rssi: currentSignalStrength)
+    // periphery:ignore
     }
 
     var signalText: String {
         isSurveying ? "\(currentSignalStrength) dBm" : "--"
     }
 
+    // periphery:ignore
     func colorFor(point: HeatmapDataPoint) -> Color {
         switch SignalLevel.from(rssi: point.signalStrength) {
         case .strong: return .green
