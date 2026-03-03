@@ -41,7 +41,7 @@ final class WiFiHeatmapSurveyUITests: IOSUITestCase {
     func testFloorPlanSelectionHasFreeformOption() {
         openHeatmapDashboard()
         app.buttons["heatmap_dashboard_button_new_scan"].tap()
-        requireExists(ui("screen_floorPlanSelection"), timeout: 8)
+        requireExists(ui("screen_floorPlanSelection"), timeout: 8, message: "Floor plan selection sheet should appear")
         requireExists(
             ui("floorplan_option_freeform"),
             message: "Freeform grid option should be visible in floor plan selection"
@@ -51,7 +51,7 @@ final class WiFiHeatmapSurveyUITests: IOSUITestCase {
     func testFloorPlanSelectionCancelDismissesSheet() {
         openHeatmapDashboard()
         app.buttons["heatmap_dashboard_button_new_scan"].tap()
-        requireExists(ui("screen_floorPlanSelection"), timeout: 8)
+        requireExists(ui("screen_floorPlanSelection"), timeout: 8, message: "Floor plan selection sheet should appear")
         let cancelButton = ui("floorplan_button_cancel")
         if cancelButton.exists {
             cancelButton.tap()
@@ -77,7 +77,7 @@ final class WiFiHeatmapSurveyUITests: IOSUITestCase {
 
     func testActiveSurveyCloseButtonDismisses() {
         openFreeformSurvey()
-        requireExists(ui("screen_activeMappingSurvey"), timeout: 12)
+        requireExists(ui("screen_activeMappingSurvey"), timeout: 12, message: "Active survey screen should be visible")
         requireExists(app.buttons["heatmap_survey_button_close"], timeout: 5, message: "Close button should be visible").tap()
         requireExists(
             ui("screen_heatmapDashboard"),
@@ -90,7 +90,7 @@ final class WiFiHeatmapSurveyUITests: IOSUITestCase {
 
     func testColorSchemeMenuIsAccessible() {
         openFreeformSurvey()
-        requireExists(ui("screen_activeMappingSurvey"), timeout: 12)
+        requireExists(ui("screen_activeMappingSurvey"), timeout: 12, message: "Active survey screen should be visible")
         requireExists(
             ui("heatmap_menu_scheme"),
             message: "Color scheme menu should be accessible during survey"
@@ -99,7 +99,7 @@ final class WiFiHeatmapSurveyUITests: IOSUITestCase {
 
     func testOverlayToggleDotsIsAccessible() {
         openFreeformSurvey()
-        requireExists(ui("screen_activeMappingSurvey"), timeout: 12)
+        requireExists(ui("screen_activeMappingSurvey"), timeout: 12, message: "Active survey screen should be visible")
         requireExists(
             ui("heatmap_toggle_dots"),
             message: "Dots overlay toggle should be accessible during survey"
