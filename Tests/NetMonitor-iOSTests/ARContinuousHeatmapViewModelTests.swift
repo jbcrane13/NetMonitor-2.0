@@ -76,12 +76,22 @@ struct ARContinuousHeatmapViewModelTests {
         #expect(vm.signalColor == .red)
     }
 
-    @Test("signalText shows dBm when scanning")
+    @Test("signalText shows dBm when scanning with real signal")
     func signalTextScanning() {
         let vm = ARContinuousHeatmapViewModel(session: ARContinuousHeatmapSession())
         vm.isScanning = true
+        vm.usingEstimatedSignal = false
         vm.signalDBm = -55
         #expect(vm.signalText == "-55 dBm")
+    }
+
+    @Test("signalText prefixes ~ when using estimated signal")
+    func signalTextEstimated() {
+        let vm = ARContinuousHeatmapViewModel(session: ARContinuousHeatmapSession())
+        vm.isScanning = true
+        vm.usingEstimatedSignal = true
+        vm.signalDBm = -65
+        #expect(vm.signalText == "~-65 dBm")
     }
 
     @Test("signalText shows -- when not scanning")

@@ -48,7 +48,7 @@ final class ARContinuousHeatmapViewModel {
     private var worldPoints: [(x: Float, z: Float, signalStrength: Int, timestamp: Date)] = []
     private var lastRecordedPosition: SIMD3<Float>?
     private var scanTask: Task<Void, Never>?
-    private var usingEstimatedSignal = false
+    var usingEstimatedSignal = false
     private let locationDelegate = ARHeatmapLocationDelegate()
 
     // MARK: - Init
@@ -246,7 +246,9 @@ final class ARContinuousHeatmapViewModel {
     }
 
     var signalText: String {
-        isScanning ? "\(signalDBm) dBm" : "--"
+        guard isScanning else { return "--" }
+        // Prefix "~" when signal is estimated (location denied or WiFi RSSI unavailable)
+        return usingEstimatedSignal ? "~\(signalDBm) dBm" : "\(signalDBm) dBm"
     }
 
     // MARK: - Internal helpers (accessible to tests)

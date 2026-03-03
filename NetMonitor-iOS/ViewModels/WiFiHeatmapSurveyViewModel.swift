@@ -28,7 +28,7 @@ final class WiFiHeatmapSurveyViewModel {
         didSet { UserDefaults.standard.set(colorScheme.rawValue, forKey: AppSettings.Keys.heatmapColorScheme) }
     }
 
-    var displayOverlays: HeatmapDisplayOverlay = .gradient {
+    var displayOverlays: HeatmapDisplayOverlay = [.gradient, .dots] {
         didSet { UserDefaults.standard.set(displayOverlays.rawValue, forKey: AppSettings.Keys.heatmapDisplayOverlays) }
     }
 
@@ -220,7 +220,9 @@ final class WiFiHeatmapSurveyViewModel {
     }
 
     var signalText: String {
-        isSurveying ? "\(currentSignalStrength) dBm" : "--"
+        guard isSurveying else { return "--" }
+        // Prefix "~" when signal is estimated (location denied or WiFi RSSI unavailable)
+        return usingEstimatedSignal ? "~\(currentSignalStrength) dBm" : "\(currentSignalStrength) dBm"
     }
 
     // periphery:ignore

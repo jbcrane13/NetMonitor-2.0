@@ -14,8 +14,6 @@ protocol WiFiSignalSampling {
 
 @MainActor
 final class WiFiSignalSampler: WiFiSignalSampling {
-    private static let defaultFallbackDBm = -70
-
     private let wifiService: any WiFiInfoServiceProtocol
     private var lastKnownDBm: Int?
     private var lastKnownSSID: String?
@@ -28,8 +26,22 @@ final class WiFiSignalSampler: WiFiSignalSampling {
     func currentSample() async -> WiFiSignalSample {
         let wifiInfo = await wifiService.fetchCurrentWiFi()
         let dbm = wifiInfo.flatMap(Self.resolveDBm(from:))
-        let connectedFallbackDBm: Int? = wifiInfo?.ssid != nil ? -70 : nil
-        let resolvedDBm = dbm ?? lastKnownDBm ?? connectedFallbackDBm ?? Self.defaultFallbackDBm
+
+        // Only carry forward last-known dBm when the service returns nil transiently
+        // while we're still connected (ssid cached) — avoids a false "good signal"
+        // flash on a dead connection.
+        // Return nil when there is genuinely no signal information so callers can
+        // show the "estimated" indicator rather than a misleading fallback value.
+        let resolvedDBm: Int?
+        if let dbm {
+            resolvedDBm = dbm
+        } else if wifiInfo?.ssid != nil || lastKnownSSID != nil, let last = lastKnownDBm {
+            // Transient read failure while still apparently connected — reuse last known.
+            resolvedDBm = last
+        } else {
+            // Cold start or no WiFi: signal is genuinely unknown.
+            resolvedDBm = nil
+        }
 
         lastKnownDBm = resolvedDBm
         if let ssid = wifiInfo?.ssid {

@@ -77,14 +77,16 @@ struct WiFiSignalSamplerTests {
         #expect(second.dbm == -55)
     }
 
-    @Test("returns default fallback dBm when no WiFi info is available yet")
-    func returnsFallbackOnColdStartWithoutWiFiInfo() async {
+    @Test("returns nil dBm when no WiFi info is available (cold start / no connection)")
+    func returnsNilOnColdStartWithoutWiFiInfo() async {
         let service = MockSamplerWiFiInfoService(samples: [nil])
         let sampler = WiFiSignalSampler(wifiService: service)
 
         let sample = await sampler.currentSample()
 
-        #expect(sample.dbm == -70)
+        // Callers must handle nil and show an "estimated" indicator rather than
+        // receiving a misleading -70 fallback.
+        #expect(sample.dbm == nil)
         #expect(sample.ssid == nil)
         #expect(sample.bssid == nil)
     }
