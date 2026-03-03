@@ -6,12 +6,8 @@ final class WiFiHeatmapSurveyUITests: IOSUITestCase {
     // MARK: - Dashboard entry point
 
     func testWiFiHeatmapToolCardOpensDashboard() {
+        // Navigation asserted inside openHeatmapDashboard()
         openHeatmapDashboard()
-        requireExists(
-            ui("screen_heatmapDashboard"),
-            timeout: 8,
-            message: "Heatmap dashboard should be visible after tapping tool card"
-        )
     }
 
     func testDashboardNetworkCardIsVisible() {
@@ -62,8 +58,8 @@ final class WiFiHeatmapSurveyUITests: IOSUITestCase {
         } else {
             app.swipeDown()
         }
-        XCTAssertFalse(
-            ui("screen_floorPlanSelection").exists,
+        XCTAssertTrue(
+            waitForDisappearance(ui("screen_floorPlanSelection"), timeout: 5),
             "Floor plan selection should be dismissed"
         )
     }
@@ -82,7 +78,7 @@ final class WiFiHeatmapSurveyUITests: IOSUITestCase {
     func testActiveSurveyCloseButtonDismisses() {
         openFreeformSurvey()
         requireExists(ui("screen_activeMappingSurvey"), timeout: 12)
-        app.buttons["heatmap_survey_button_close"].tap()
+        requireExists(app.buttons["heatmap_survey_button_close"], timeout: 5, message: "Close button should be visible").tap()
         requireExists(
             ui("screen_heatmapDashboard"),
             timeout: 8,
@@ -127,8 +123,8 @@ final class WiFiHeatmapSurveyUITests: IOSUITestCase {
     private func openFreeformSurvey() {
         openHeatmapDashboard()
         app.buttons["heatmap_dashboard_button_new_scan"].tap()
-        requireExists(ui("screen_floorPlanSelection"), timeout: 8)
-        ui("floorplan_option_freeform").tap()
+        requireExists(ui("screen_floorPlanSelection"), timeout: 8, message: "Floor plan selection should appear")
+        requireExists(ui("floorplan_option_freeform"), timeout: 5, message: "Freeform option should be visible").tap()
     }
 
     private func openToolsRoot() {
