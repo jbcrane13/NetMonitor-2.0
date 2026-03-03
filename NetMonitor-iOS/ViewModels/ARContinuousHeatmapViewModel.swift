@@ -2,10 +2,7 @@ import Foundation
 import SwiftUI
 import NetMonitorCore
 import CoreLocation
-#if os(iOS)
-import NetworkExtension
-import SystemConfiguration.CaptiveNetwork
-#endif
+import AVFoundation
 
 // MARK: - ARContinuousHeatmapViewModel
 
@@ -47,15 +44,21 @@ final class ARContinuousHeatmapViewModel {
     // MARK: - Private
 
     let session: ARContinuousHeatmapSession
+    private let signalSampler: any WiFiSignalSampling
     private var worldPoints: [(x: Float, z: Float, signalStrength: Int, timestamp: Date)] = []
     private var lastRecordedPosition: SIMD3<Float>?
     private var scanTask: Task<Void, Never>?
+    private var usingEstimatedSignal = false
     private let locationDelegate = ARHeatmapLocationDelegate()
 
     // MARK: - Init
 
-    init(session: ARContinuousHeatmapSession? = nil) {
+    init(
+        session: ARContinuousHeatmapSession? = nil,
+        signalSampler: any WiFiSignalSampling = WiFiSignalSampler()
+    ) {
         self.session = session ?? ARContinuousHeatmapSession()
+        self.signalSampler = signalSampler
     }
 
     // MARK: - Lifecycle
@@ -68,21 +71,57 @@ final class ARContinuousHeatmapViewModel {
         beginScanning()
         return
         #else
+        let cameraStatus = AVCaptureDevice.authorizationStatus(for: .video)
+        switch cameraStatus {
+        case .notDetermined:
+            statusMessage = "Grant camera access to start AR scanning"
+            AVCaptureDevice.requestAccess(for: .video) { [weak self] granted in
+                Task { @MainActor in
+                    guard let self else { return }
+                    if granted {
+                        self.startScanning()
+                    } else {
+                        self.errorMessage = "Camera access denied — enable in Settings > Privacy > Camera"
+                        self.statusMessage = "Camera access required for AR scanning"
+                    }
+                }
+            }
+            return
+        case .denied, .restricted:
+            errorMessage = "Camera access denied — enable in Settings > Privacy > Camera"
+            statusMessage = "Camera access required for AR scanning"
+            return
+        case .authorized:
+            break
+        @unknown default:
+            errorMessage = "Camera access unavailable on this device"
+            statusMessage = "Unable to start AR scanning"
+            return
+        }
+
         let status = locationDelegate.manager.authorizationStatus
         if status == .notDetermined {
             locationDelegate.manager.requestWhenInUseAuthorization()
-            statusMessage = "Grant location access to read WiFi signal"
+            beginScanning(usingEstimatedSignal: true)
+            statusMessage = "Grant location access for live WiFi RSSI (using estimated signal now)"
             locationDelegate.onAuthorized = { [weak self] in
-                Task { @MainActor in self?.beginScanning() }
+                Task { @MainActor in
+                    self?.usingEstimatedSignal = false
+                    if self?.floorDetected == true {
+                        self?.statusMessage = "Walk around to map coverage"
+                    }
+                }
             }
             locationDelegate.onDenied = { [weak self] in
                 Task { @MainActor in
-                    self?.errorMessage = "Location access required for WiFi signal reading"
+                    self?.usingEstimatedSignal = true
+                    self?.errorMessage = "Location denied — continuing with estimated WiFi signal"
                 }
             }
             return
         } else if status == .denied || status == .restricted {
-            errorMessage = "Location access denied — enable in Settings > Privacy > Location Services"
+            beginScanning(usingEstimatedSignal: true)
+            errorMessage = "Location denied — continuing with estimated WiFi signal"
             return
         }
 
@@ -90,13 +129,8 @@ final class ARContinuousHeatmapViewModel {
         #endif
     }
 
-    private func beginScanning() {
-        #if !targetEnvironment(simulator)
-        if locationDelegate.manager.accuracyAuthorization == .reducedAccuracy {
-            errorMessage = "Precise location required — enable in Settings > Privacy > Location Services > NetMonitor"
-            return
-        }
-        #endif
+    private func beginScanning(usingEstimatedSignal: Bool = false) {
+        self.usingEstimatedSignal = usingEstimatedSignal
         isScanning = true
         floorDetected = false
         worldPoints = []
@@ -273,22 +307,26 @@ final class ARContinuousHeatmapViewModel {
         ssid = "Simulator WiFi"
         bssid = "AA:BB:CC:DD:EE:FF"
         band = "5 GHz"
-        #elseif os(iOS)
-        let network = await NEHotspotNetwork.fetchCurrent()
+        #else
+        let sample = await signalSampler.currentSample()
+        ssid = sample.ssid
+        bssid = sample.bssid
+        band = nil
 
-        if let network, network.signalStrength > 0 {
+        if let dbm = sample.dbm {
             errorMessage = nil
-            let quality = max(0, min(1, network.signalStrength))
-            signalDBm = Int(-100.0 + quality * 70.0)
-            ssid = network.ssid
-            bssid = network.bssid
+            signalDBm = dbm
+            usingEstimatedSignal = false
         } else {
-            if let interfaces = CNCopySupportedInterfaces() as? [String],
-               let iface = interfaces.first,
-               let info = CNCopyCurrentNetworkInfo(iface as CFString) as? [String: Any] {
-                ssid = info[kCNNetworkInfoKeySSID as String] as? String
-            } else if errorMessage == nil {
-                errorMessage = "WiFi signal unavailable"
+            if usingEstimatedSignal {
+                errorMessage = "Live WiFi RSSI unavailable — using estimated signal"
+                signalDBm = signalDBm == 0 ? -65 : signalDBm
+            } else if sample.ssid == nil {
+                usingEstimatedSignal = true
+                errorMessage = "Live WiFi RSSI unavailable — using estimated signal"
+                signalDBm = signalDBm == 0 ? -65 : signalDBm
+            } else {
+                errorMessage = nil
             }
         }
         #endif

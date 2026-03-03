@@ -157,6 +157,7 @@ public protocol WiFiInfoServiceProtocol {
     @MainActor var isLocationAuthorized: Bool { get }
     @MainActor func requestLocationPermission()
     @MainActor func refreshWiFiInfo()
+    @MainActor func fetchCurrentWiFi() async -> WiFiInfo?
 }
 
 /// Protocol for Bonjour service discovery.
