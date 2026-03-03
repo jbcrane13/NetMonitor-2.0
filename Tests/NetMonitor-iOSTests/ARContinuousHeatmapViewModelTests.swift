@@ -93,14 +93,14 @@ struct ARContinuousHeatmapViewModelTests {
     // MARK: - Scan lifecycle (simulator — AR session stub returns nil position)
 
     @Test("startScanning sets isScanning true")
-    func startSetsScanning() async {
+    func startSetsScanning() {
         let vm = ARContinuousHeatmapViewModel(session: ARContinuousHeatmapSession())
         vm.startScanning()
         #expect(vm.isScanning == true)
     }
 
     @Test("stopScanning sets isScanning false")
-    func stopSetsNotScanning() async {
+    func stopSetsNotScanning() {
         let vm = ARContinuousHeatmapViewModel(session: ARContinuousHeatmapSession())
         vm.startScanning()
         vm.stopScanning()

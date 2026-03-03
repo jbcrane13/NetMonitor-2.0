@@ -66,45 +66,45 @@ struct ThemeShadowsTests {
 struct ColorHexExtensionTests {
     @Test func sixCharHexDoesNotCrash() {
         // Verify Color can be constructed from 6-char hex without crashing
-        let _ = Color(hex: "FF0000")
-        let _ = Color(hex: "00FF00")
-        let _ = Color(hex: "0000FF")
-        let _ = Color(hex: "FFFFFF")
-        let _ = Color(hex: "000000")
+        _ = Color(hex: "FF0000")
+        _ = Color(hex: "00FF00")
+        _ = Color(hex: "0000FF")
+        _ = Color(hex: "FFFFFF")
+        _ = Color(hex: "000000")
     }
 
     @Test func threeCharHexDoesNotCrash() {
-        let _ = Color(hex: "F00")
-        let _ = Color(hex: "0F0")
-        let _ = Color(hex: "00F")
+        _ = Color(hex: "F00")
+        _ = Color(hex: "0F0")
+        _ = Color(hex: "00F")
     }
 
     @Test func eightCharHexDoesNotCrash() {
         // 8-char ARGB
-        let _ = Color(hex: "FF0000FF")
-        let _ = Color(hex: "800000FF")
+        _ = Color(hex: "FF0000FF")
+        _ = Color(hex: "800000FF")
     }
 
     @Test func invalidHexDoesNotCrash() {
         // default case — should not crash
-        let _ = Color(hex: "")
-        let _ = Color(hex: "ZZZZZZ")
-        let _ = Color(hex: "12")
+        _ = Color(hex: "")
+        _ = Color(hex: "ZZZZZZ")
+        _ = Color(hex: "12")
     }
 
     @Test func knownSemanticColorsAreAccessible() {
         // Verify static color properties are accessible (smoke test)
-        let _ = Theme.Colors.success
-        let _ = Theme.Colors.warning
-        let _ = Theme.Colors.error
-        let _ = Theme.Colors.info
-        let _ = Theme.Colors.textPrimary
-        let _ = Theme.Colors.textSecondary
-        let _ = Theme.Colors.textTertiary
-        let _ = Theme.Colors.glassBorder
-        let _ = Theme.Colors.glassHighlight
-        let _ = Theme.Colors.online
-        let _ = Theme.Colors.offline
-        let _ = Theme.Colors.idle
+        _ = Theme.Colors.success
+        _ = Theme.Colors.warning
+        _ = Theme.Colors.error
+        _ = Theme.Colors.info
+        _ = Theme.Colors.textPrimary
+        _ = Theme.Colors.textSecondary
+        _ = Theme.Colors.textTertiary
+        _ = Theme.Colors.glassBorder
+        _ = Theme.Colors.glassHighlight
+        _ = Theme.Colors.online
+        _ = Theme.Colors.offline
+        _ = Theme.Colors.idle
     }
 }
