@@ -87,3 +87,7 @@ beads/
 !.beads/issues.jsonl
 !.beads/metadata.json
 .env
+
+# Dolt database files (added by bd init)
+.dolt/
+*.db
