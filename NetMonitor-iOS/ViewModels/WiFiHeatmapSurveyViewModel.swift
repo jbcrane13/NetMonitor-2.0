@@ -1,7 +1,6 @@
 import Foundation
 import SwiftUI
 import NetMonitorCore
-import NetworkExtension
 import CoreLocation
 
 // MARK: - WiFiHeatmapSurveyViewModel
@@ -42,14 +41,20 @@ final class WiFiHeatmapSurveyViewModel {
     // MARK: - Private
 
     private let service: any WiFiHeatmapServiceProtocol
+    private let signalSampler: any WiFiSignalSampling
     private let locationDelegate = HeatmapLocationDelegate()
     private var signalRefreshTask: Task<Void, Never>?
+    private var usingEstimatedSignal = false
     private static let surveysKey = "wifiHeatmap_surveys"
 
     // MARK: - Init
 
-    init(service: any WiFiHeatmapServiceProtocol = WiFiHeatmapService()) {
+    init(
+        service: any WiFiHeatmapServiceProtocol = WiFiHeatmapService(),
+        signalSampler: any WiFiSignalSampling = WiFiSignalSampler()
+    ) {
         self.service = service
+        self.signalSampler = signalSampler
         loadSurveys()
         if let raw = UserDefaults.standard.string(forKey: AppSettings.Keys.heatmapColorScheme),
            let scheme = HeatmapColorScheme(rawValue: raw) {
@@ -79,23 +84,28 @@ final class WiFiHeatmapSurveyViewModel {
         let status = locationDelegate.manager.authorizationStatus
         if status == .notDetermined {
             locationDelegate.manager.requestWhenInUseAuthorization()
-            statusMessage = "Grant location access to read WiFi signal"
-            // Wait for authorization then auto-start
+            beginSurvey(usingEstimatedSignal: true)
+            statusMessage = "Grant location access for live WiFi RSSI (using estimated signal now)"
+            // Update mode once authorization resolves.
             locationDelegate.onAuthorized = { [weak self] in
                 Task { @MainActor in
-                    self?.beginSurvey()
+                    self?.locationDenied = false
+                    self?.usingEstimatedSignal = false
+                    self?.statusMessage = "Walk around and tap to record signal at each spot"
                 }
             }
             locationDelegate.onDenied = { [weak self] in
                 Task { @MainActor in
                     self?.locationDenied = true
-                    self?.statusMessage = "Location access required for WiFi signal reading"
+                    self?.usingEstimatedSignal = true
+                    self?.statusMessage = "Location denied — continuing with estimated WiFi signal"
                 }
             }
             return
         } else if status == .denied || status == .restricted {
             locationDenied = true
-            statusMessage = "Location access denied — enable in Settings > Privacy > Location Services"
+            beginSurvey(usingEstimatedSignal: true)
+            statusMessage = "Location denied — continuing with estimated WiFi signal"
             return
         }
 
@@ -103,19 +113,16 @@ final class WiFiHeatmapSurveyViewModel {
         #endif
     }
 
-    private func beginSurvey() {
-        #if !targetEnvironment(simulator)
-        if locationDelegate.manager.accuracyAuthorization == .reducedAccuracy {
-            locationDenied = true
-            statusMessage = "Precise location required — enable in Settings > Privacy > Location Services > NetMonitor"
-            return
-        }
-        #endif
+    private func beginSurvey(usingEstimatedSignal: Bool = false) {
         locationDenied = false
+        self.usingEstimatedSignal = usingEstimatedSignal
         isSurveying = true
+        currentSignalStrength = currentSignalStrength == 0 ? -65 : currentSignalStrength
         dataPoints = []
         service.startSurvey()
-        statusMessage = "Walk around and tap to record signal at each spot"
+        statusMessage = usingEstimatedSignal
+            ? "Walk around and tap to record points (estimated WiFi signal)"
+            : "Walk around and tap to record signal at each spot"
 
         signalRefreshTask = Task {
             while !Task.isCancelled {
@@ -184,21 +191,23 @@ final class WiFiHeatmapSurveyViewModel {
     // MARK: - Signal reading
 
     private func refreshSignalStrength() async {
-        let rssi: Double? = await withCheckedContinuation { continuation in
-            NEHotspotNetwork.fetchCurrent { network in
-                continuation.resume(returning: network?.signalStrength)
+        let sample = await signalSampler.currentSample()
+        if let dbm = sample.dbm {
+            currentSignalStrength = dbm
+            if usingEstimatedSignal {
+                usingEstimatedSignal = false
+                if isSurveying {
+                    statusMessage = "Walk around and tap to record signal at each spot"
+                }
             }
-        }
-        if let rssi, rssi > 0 {
-            // signalStrength is 0.0–1.0 normalised; convert to approximate dBm range.
-            currentSignalStrength = Int(-100.0 + rssi * 70.0)
         } else {
-            // NEHotspotNetwork returned nil — likely no WiFi or missing permission.
-            // Show last known value if we have one, otherwise indicate no signal.
+            // Keep last known if we have one, otherwise indicate unavailable.
             if currentSignalStrength == 0 {
-                statusMessage = isSurveying
-                    ? "Unable to read WiFi signal — check location permissions"
-                    : statusMessage
+                currentSignalStrength = -65
+            }
+            if isSurveying && !usingEstimatedSignal {
+                usingEstimatedSignal = true
+                statusMessage = "Live WiFi RSSI unavailable — using estimated signal"
             }
         }
     }

@@ -27,41 +27,36 @@ final class WiFiInfoService: NSObject, WiFiInfoServiceProtocol {
     
     func refreshWiFiInfo() {
         retryTask?.cancel()
-        
+        retryTask = Task { [weak self] in
+            guard let self else { return }
+            self.currentWiFi = await self.fetchCurrentWiFi()
+        }
+    }
+
+    func fetchCurrentWiFi() async -> WiFiInfo? {
         #if targetEnvironment(simulator)
-        currentWiFi = mockWiFiInfo()
+        return mockWiFiInfo()
         #else
-        guard isLocationAuthorized else {
-            currentWiFi = nil
-            return
-        }
-        // NEHotspotNetwork.fetchCurrent() can return nil on first call —
-        // retry once with a short delay, then fall back to legacy API.
-        // Avoid excessive retries as each call logs "nehelper sent invalid
-        // result code [1]" when the entitlement or WiFi info is unavailable.
-        retryTask = Task {
-            // Try modern API first (1 attempt + 1 retry)
-            for attempt in 0..<2 {
-                if attempt > 0 {
-                    try? await Task.sleep(for: .milliseconds(500))
-                    guard !Task.isCancelled else { return }
-                }
+        // Re-check live status every call. Heatmap flows may request permission
+        // via separate CLLocationManager instances, so cached flags can be stale.
+        let status = locationManager.authorizationStatus
+        authorizationStatus = status
+        isLocationAuthorized = status == .authorizedWhenInUse || status == .authorizedAlways
 
-                if let info = await fetchWiFiInfoModern() {
-                    currentWiFi = info
-                    return
-                }
+        // Try modern API first. Some devices return nil transiently; a short
+        // retry improves reliability without introducing noticeable UI delay.
+        for attempt in 0..<2 {
+            if let info = await fetchWiFiInfoModern() {
+                return info
             }
-
-            // Fall back to legacy API (no log spam)
-            if let info = fetchWiFiInfoLegacy() {
-                currentWiFi = info
-                return
+            if attempt == 0 {
+                try? await Task.sleep(for: .milliseconds(250))
+                guard !Task.isCancelled else { return nil }
             }
-
-            // All attempts exhausted — clear any stale data
-            currentWiFi = nil
         }
+
+        // Fall back to legacy API (no log spam)
+        return fetchWiFiInfoLegacy()
         #endif
     }
 
@@ -85,15 +80,17 @@ final class WiFiInfoService: NSObject, WiFiInfoServiceProtocol {
         guard let network = await NEHotspotNetwork.fetchCurrent() else {
             return nil
         }
-        
+
         // signalStrength is 0.0 when the system can't read the actual value
         // (e.g. transient failure). Treat as nil so the HUD doesn't show "0%".
         let strength = network.signalStrength
+        let clamped = max(0, min(1, strength))
+        let signalStrength = strength > 0 ? Int(clamped * 100) : nil
         return WiFiInfo(
             ssid: network.ssid,
             bssid: network.bssid,
-            signalStrength: strength > 0 ? Int(strength * 100) : nil,
-            signalDBm: nil,
+            signalStrength: signalStrength,
+            signalDBm: signalStrength.map { Self.percentToApproxDBm($0) },
             channel: nil,
             frequency: nil,
             band: nil,
@@ -112,6 +109,11 @@ final class WiFiInfoService: NSObject, WiFiInfoServiceProtocol {
         case 3:  return "WPA Enterprise"
         default: return "Secured"
         }
+    }
+
+    private static func percentToApproxDBm(_ percent: Int) -> Int {
+        let clamped = max(0, min(100, percent))
+        return Int(-100.0 + (Double(clamped) / 100.0 * 70.0))
     }
     
     // MARK: - Legacy API (fallback)

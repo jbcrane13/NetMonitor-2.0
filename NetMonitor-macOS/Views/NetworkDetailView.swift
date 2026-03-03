@@ -39,15 +39,16 @@ struct NetworkDetailView: View {
     var body: some View {
         VStack(spacing: 10) {
             // Row A: Internet Activity + Health Gauge
-            HStack(spacing: 10) {
+            HStack(alignment: .top, spacing: 10) {
                 InternetActivityCard(session: session)
                     .accessibilityIdentifier("network_detail_row_activity")
 
                 HealthGaugeCard()
                     .frame(width: 210)
+                    .frame(maxHeight: 180)
                     .accessibilityIdentifier("network_detail_row_health")
             }
-            .frame(maxHeight: 180)
+            .fixedSize(horizontal: false, vertical: true)
 
             // Row B: Left diagnostics stack + Right device grid
             HStack(alignment: .top, spacing: 10) {

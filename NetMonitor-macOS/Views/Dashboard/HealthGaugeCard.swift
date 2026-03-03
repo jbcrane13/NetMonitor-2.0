@@ -6,7 +6,7 @@ struct HealthGaugeCard: View {
     @State private var viewModel = NetworkHealthScoreMacViewModel()
 
     var body: some View {
-        VStack(alignment: .center, spacing: 10) {
+        VStack(alignment: .center, spacing: 6) {
             // Widget label — pinned to top
             HStack {
                 Circle().fill(MacTheme.Colors.success).frame(width: 5, height: 5)
@@ -16,8 +16,6 @@ struct HealthGaugeCard: View {
                     .tracking(1.4)
                 Spacer()
             }
-
-            Spacer(minLength: 0)
 
             // Circular gauge
             ZStack {
@@ -38,7 +36,7 @@ struct HealthGaugeCard: View {
 
                 VStack(spacing: 2) {
                     Text(scoreText)
-                        .font(.system(size: 32, weight: .bold, design: .rounded))
+                        .font(.system(size: 26, weight: .bold, design: .rounded))
                         .foregroundStyle(.white)
                         .accessibilityIdentifier("dashboard_healthGauge_score")
                     Text(gradeText)
@@ -47,11 +45,11 @@ struct HealthGaugeCard: View {
                         .tracking(1.5)
                 }
             }
-            .frame(width: 110, height: 110)
+            .frame(width: 85, height: 85)
 
             // Score breakdown bars
             if let score = viewModel.currentScore {
-                VStack(spacing: 5) {
+                VStack(spacing: 3) {
                     scoreBar(label: "Latency",  pct: latencyPct(score), color: MacTheme.Colors.success)
                     scoreBar(label: "Loss",     pct: lossPct(score),    color: MacTheme.Colors.success)
                     scoreBar(label: "Devices",  pct: 0.88,              color: MacTheme.Colors.warning)
@@ -59,11 +57,10 @@ struct HealthGaugeCard: View {
             } else if viewModel.isCalculating {
                 ProgressView().controlSize(.small)
             }
-
-            Spacer(minLength: 0)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .macGlassCard(cornerRadius: 14, padding: 12)
+        .frame(maxWidth: .infinity)
+        .macGlassCard(cornerRadius: 14, padding: 10)
+        .clipped()
         .accessibilityIdentifier("dashboard_card_healthGauge")
         .task { await viewModel.refresh() }
     }

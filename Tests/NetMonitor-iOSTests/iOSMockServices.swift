@@ -212,6 +212,7 @@ final class MockWiFiInfoService: WiFiInfoServiceProtocol {
 
     func requestLocationPermission() {}
     func refreshWiFiInfo() { refreshCallCount += 1 }
+    func fetchCurrentWiFi() async -> WiFiInfo? { currentWiFi }
 }
 
 // MARK: - Mock Gateway Service
