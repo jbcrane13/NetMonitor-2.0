@@ -5,6 +5,7 @@ import NetworkScanKit
 struct NetworkMapView: View {
     @State private var viewModel = NetworkMapViewModel()
     @State private var sortOrder: DeviceSortOrder = .ip
+    // periphery:ignore
     @State private var isAddNetworkSheetPresented = false
 
     private var sortedDevices: [DiscoveredDevice] {

@@ -1,5 +1,4 @@
 import Foundation
-import NetMonitorCore
 
 /// Centralized namespace for all UserDefaults keys and typed accessors.
 enum AppSettings {

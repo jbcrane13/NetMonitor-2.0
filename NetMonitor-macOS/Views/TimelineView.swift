@@ -46,6 +46,7 @@ final class TimelineMacViewModel {
     }
 
     func load() { events = service.events }
+    // periphery:ignore
     func refresh() { events = service.events }
     func clearAll() { service.clearAll()
     events = []

@@ -26,6 +26,7 @@ struct LatencyStats {
 
     // MARK: Histogram
 
+    // periphery:ignore
     struct HistogramBuckets {
         let under5ms:  Int
         let ms5to20:   Int
@@ -43,6 +44,7 @@ struct LatencyStats {
         }
     }
 
+    // periphery:ignore
     var histogramBuckets: HistogramBuckets {
         var u5 = 0, s5 = 0, s20 = 0, o50 = 0
         for l in latencies {

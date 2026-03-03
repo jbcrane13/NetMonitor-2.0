@@ -61,6 +61,7 @@ final class EventListenerService {
         }
     }
 
+    // periphery:ignore
     func stop() {
         monitorTask?.cancel()
         monitorTask = nil

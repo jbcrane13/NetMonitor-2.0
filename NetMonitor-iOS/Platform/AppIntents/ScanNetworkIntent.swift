@@ -4,6 +4,7 @@ import NetMonitorCore
 /// Siri/Shortcuts intent: scan the local network and return device count.
 struct ScanNetworkIntent: AppIntent {
     static let title: LocalizedStringResource = "Scan My Network"
+    // periphery:ignore
     static let description = IntentDescription(
         "Scan the local network and return the number of discovered devices.",
         categoryName: "Network Tools"

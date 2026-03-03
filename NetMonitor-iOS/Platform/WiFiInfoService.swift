@@ -140,6 +140,7 @@ final class WiFiInfoService: NSObject, WiFiInfoServiceProtocol {
     
     // MARK: - Simulator Mock
     
+    // periphery:ignore
     private func mockWiFiInfo() -> WiFiInfo {
         WiFiInfo(
             ssid: "Simulator WiFi",

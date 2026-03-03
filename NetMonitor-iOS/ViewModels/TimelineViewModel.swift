@@ -29,6 +29,7 @@ final class TimelineViewModel {
 
     var hasEvents: Bool { !filteredEvents.isEmpty }
 
+    // periphery:ignore
     var availableFilters: [NetworkEventType] {
         NetworkEventType.allCases
     }
@@ -57,6 +58,7 @@ final class TimelineViewModel {
         isShowingFilterSheet = false
     }
 
+    // periphery:ignore
     func clearFilter() {
         selectedFilter = nil
     }

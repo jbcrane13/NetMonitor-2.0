@@ -219,7 +219,7 @@ struct HeatmapCanvasView: View {
 
     // MARK: - Scale Bar
 
-    private func scaleBarView(calibration: CalibrationScale, canvasSize: CGSize) -> some View {
+    private func scaleBarView(calibration: CalibrationScale, canvasSize _: CGSize) -> some View {
         let config = HeatmapRenderer.scaleBar(pixelsPerUnit: calibration.pixelsPerUnit, unit: calibration.unit)
         return VStack(alignment: .leading, spacing: 2) {
             ZStack(alignment: .leading) {

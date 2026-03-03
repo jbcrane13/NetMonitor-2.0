@@ -117,8 +117,8 @@ public enum HeatmapRenderer {
 
     public static func computeStats(
         points: [HeatmapDataPoint],
-        calibration: CalibrationScale?,
-        unit: DistanceUnit
+        calibration _: CalibrationScale?,
+        unit _: DistanceUnit
     ) -> SurveyStats {
         guard !points.isEmpty else {
             return SurveyStats(count: 0, averageDBm: nil, strongestDBm: nil,

@@ -7,6 +7,7 @@ import ARKit
 import RealityKit
 
 /// SwiftUI wrapper for `ARView` from RealityKit.
+// periphery:ignore
 private struct ARViewContainer: UIViewRepresentable {
     let arSession: ARWiFiSession
 
@@ -26,6 +27,7 @@ private struct ARViewContainer: UIViewRepresentable {
 /// a floating HUD. Users tap "Drop Anchor" to place a color-coded sphere for reference.
 ///
 /// On unsupported devices or simulator: shows a static signal-strength dashboard.
+// periphery:ignore
 struct ARWiFiSignalView: View {
     @State private var viewModel = ARWiFiViewModel()
 

@@ -106,7 +106,7 @@ struct ConnectivityCard: View {
         }
     }
 
-    private func anchorPill(name: String, host: String) -> some View {
+    private func anchorPill(name: String, host _: String) -> some View {
         // Latency shown if a target with this host is being monitored
         let latencyText: String? = nil // TODO: look up by host when anchor targets added
         return HStack(spacing: 4) {

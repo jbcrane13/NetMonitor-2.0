@@ -110,7 +110,7 @@ struct DNSLookupToolView: View {
         .padding(.vertical, 2)
     }
 
-    private func iconForResult(_ result: String) -> String {
+    private func iconForResult(_ _: String) -> String {
         switch recordType {
         case .a, .aaaa:
             return "network"

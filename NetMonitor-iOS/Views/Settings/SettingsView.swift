@@ -14,6 +14,7 @@ struct SettingsView: View {
     @State private var showingClearCacheAlert = false
     @State private var showingExportSheet = false
     @State private var exportFileURL: URL?
+    // periphery:ignore
     @State private var showingPDFExport = false
     @State private var showingPairingSheet = false
     @State private var highLatencyAlertEnabled =

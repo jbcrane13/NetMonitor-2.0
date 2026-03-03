@@ -305,6 +305,7 @@ struct BonjourBrowserToolView: View {
         }
     }
 
+    // periphery:ignore
     private func stopScan() {
         browseTask?.cancel()
         browseTask = nil

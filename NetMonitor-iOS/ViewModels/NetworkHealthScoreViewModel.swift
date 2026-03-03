@@ -53,6 +53,7 @@ final class NetworkHealthScoreViewModel {
         currentTask = Task { await performRefresh() }
     }
 
+    // periphery:ignore
     func startAutoRefresh(interval: TimeInterval = 60) {
         currentTask?.cancel()
         currentTask = Task {
@@ -63,6 +64,7 @@ final class NetworkHealthScoreViewModel {
         }
     }
 
+    // periphery:ignore
     func stopAutoRefresh() {
         currentTask?.cancel()
         currentTask = nil

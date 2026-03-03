@@ -24,7 +24,9 @@ enum MacTheme {
         // Subtle blue shimmer for top glow
         static let shimmerBlue = Color(red: 60/255, green: 80/255, blue: 140/255)
         // Legacy aliases
+        // periphery:ignore
         static let backgroundGradientStart = Color(hex: "0F172A")
+        // periphery:ignore
         static let backgroundGradientEnd = backgroundBase
 
         // Semantic colors — identical hex values to iOS
@@ -40,16 +42,21 @@ enum MacTheme {
 
         // Glass/Crystal tokens — identical to iOS
         static let crystalBase = Color(hex: "1A1F26").opacity(0.6)
+        // periphery:ignore
         static let crystalHighlight = Color.white.opacity(0.12)
         static let crystalBorder = Color.white.opacity(0.15)
 
         static let glassBackground = crystalBase
         static let glassBorder = crystalBorder
+        // periphery:ignore
         static let glassHighlight = crystalHighlight
 
         // Status colors — identical to iOS
+        // periphery:ignore
         static let online = success
+        // periphery:ignore
         static let offline = error
+        // periphery:ignore
         static let idle = Color.gray
 
         // Background tints for tool output areas
@@ -63,10 +70,15 @@ enum MacTheme {
         static let sidebarTextSecondary = Color.white.opacity(0.6)
 
         // Deck tokens (macOS-specific for recessed surfaces)
+        // periphery:ignore
         static let deckBackground = Color(hex: "08090B")
+        // periphery:ignore
         static let deckConsole = Color(hex: "12151A")
+        // periphery:ignore
         static let deckRecessed = Color(hex: "050608")
+        // periphery:ignore
         static let deckBorder = Color.white.opacity(0.12)
+        // periphery:ignore
         static let deckHighlight = Color.white.opacity(0.06)
 
         // MARK: Latency color — matches iOS exactly (3 tiers)
@@ -92,6 +104,7 @@ enum MacTheme {
 
         // MARK: Status color
 
+        // periphery:ignore
         static func statusColor(_ status: StatusType) -> Color {
             switch status {
             case .online:  return success
@@ -115,6 +128,7 @@ enum MacTheme {
 
     // MARK: - Gradients — matches iOS
 
+    // periphery:ignore
     enum Gradients {
         static let background = LinearGradient(
             colors: [Colors.backgroundGradientStart, Colors.backgroundGradientEnd],
@@ -133,12 +147,16 @@ enum MacTheme {
 
     enum Layout {
         static let cardCornerRadius: CGFloat = 16   // slightly smaller than iOS 20 for desktop
+        // periphery:ignore
         static let buttonCornerRadius: CGFloat = 10
         static let smallCornerRadius: CGFloat = 8
 
         static let cardPadding: CGFloat = 14
+        // periphery:ignore
         static let screenPadding: CGFloat = 20
+        // periphery:ignore
         static let itemSpacing: CGFloat = 10
+        // periphery:ignore
         static let sectionSpacing: CGFloat = 16
     }
 
@@ -152,6 +170,7 @@ enum MacTheme {
 
     // MARK: - Animation — matches iOS
 
+    // periphery:ignore
     enum Animation {
         static let standard = SwiftUI.Animation.easeInOut(duration: 0.3)
         static let quick = SwiftUI.Animation.easeInOut(duration: 0.15)

@@ -94,6 +94,7 @@ final class GeoFenceManager: NSObject {
         if entry.isEnabled { startMonitoring(entry) }
     }
 
+    // periphery:ignore
     func removeGeofence(_ entry: GeoFenceEntry) {
         stopMonitoring(entry)
         geofences.removeAll { $0.id == entry.id }

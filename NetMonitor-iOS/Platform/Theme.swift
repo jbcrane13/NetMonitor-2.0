@@ -10,8 +10,10 @@ enum Theme {
     enum Colors {
         // Background — lifted charcoal (Apple News-inspired)
         static let backgroundBase = Color(hex: "141416")
+        // periphery:ignore
         static let backgroundElevated = Color(hex: "1C1C1E")
         // Subtle blue shimmer for top glow
+        // periphery:ignore
         static let shimmerBlue = Color(red: 60/255, green: 80/255, blue: 140/255)
         // Legacy aliases
         static let backgroundGradientStart = Color(hex: "0F172A")
@@ -67,6 +69,7 @@ enum Theme {
             endPoint: .bottomTrailing
         )
         
+        // periphery:ignore
         @MainActor static var accentGlow: LinearGradient {
             LinearGradient(
                 colors: [Colors.accent.opacity(0.5), Colors.accent.opacity(0)],
@@ -75,6 +78,7 @@ enum Theme {
             )
         }
         
+        // periphery:ignore
         static let cardShine = LinearGradient(
             colors: [Colors.glassHighlight, Color.clear],
             startPoint: .topLeading,
@@ -119,6 +123,7 @@ enum Theme {
         static let cardRadius: CGFloat = 15
         static let cardY: CGFloat = 5
         
+        // periphery:ignore
         @MainActor static var glow: Color { Colors.accent.opacity(0.3) }
         static let glowRadius: CGFloat = 20
     }
@@ -126,7 +131,9 @@ enum Theme {
     // MARK: - Animation
     enum Animation {
         static let standard = SwiftUI.Animation.easeInOut(duration: 0.3)
+        // periphery:ignore
         static let quick = SwiftUI.Animation.easeInOut(duration: 0.15)
+        // periphery:ignore
         static let spring = SwiftUI.Animation.spring(response: 0.4, dampingFraction: 0.7)
         static let pulse = SwiftUI.Animation.easeInOut(duration: 1.5).repeatForever(autoreverses: true)
     }

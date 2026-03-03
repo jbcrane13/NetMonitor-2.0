@@ -9,6 +9,7 @@ import SwiftUI
 import NetMonitorCore
 
 struct WorldPingToolView: View {
+    // periphery:ignore
     @Environment(\.appAccentColor) private var accentColor
     @State private var hostInput = ""
     @State private var isRunning = false

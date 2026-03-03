@@ -64,6 +64,7 @@ actor CompanionService {
     }
 
     /// Stop the service
+    // periphery:ignore
     func stop() {
         listener?.cancel()
         listener = nil
@@ -78,6 +79,7 @@ actor CompanionService {
     }
 
     /// Send a message to all connected clients
+    // periphery:ignore
     func broadcast(_ message: CompanionMessage) async {
         guard let data = try? JSONEncoder().encode(message) else { return }
 

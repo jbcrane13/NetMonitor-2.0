@@ -42,6 +42,8 @@ struct MenuBarCommands: Commands {
 
 extension Notification.Name {
     static let scanNetworkRequested = Notification.Name("scanNetworkRequested")
+    // periphery:ignore
     static let monitoringStateChanged = Notification.Name("monitoringStateChanged")
+    // periphery:ignore
     static let targetStatusChanged = Notification.Name("targetStatusChanged")
 }

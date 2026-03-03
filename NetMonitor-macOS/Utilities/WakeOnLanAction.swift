@@ -26,6 +26,7 @@ final class WakeOnLanAction {
         showAlert = true
     }
 
+    // periphery:ignore
     func wake(macAddress: String, displayName: String) async {
         let success = await service.wake(macAddress: macAddress, broadcastAddress: "255.255.255.255", port: 9)
         if success {

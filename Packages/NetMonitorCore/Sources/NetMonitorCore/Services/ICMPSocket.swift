@@ -7,7 +7,9 @@ private let icmpLog = Logger(subsystem: "com.netmonitor", category: "ICMPSocket"
 
 enum ICMPError: Error, Sendable {
     case socketCreationFailed
+    // periphery:ignore
     case invalidAddress
+    // periphery:ignore
     case sendFailed
 }
 

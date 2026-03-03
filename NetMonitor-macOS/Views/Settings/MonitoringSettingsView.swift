@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import NetMonitorCore
 
 struct MonitoringSettingsView: View {
     @AppStorage("netmonitor.monitoring.defaultInterval") private var defaultInterval = 30

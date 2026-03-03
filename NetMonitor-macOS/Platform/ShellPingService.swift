@@ -41,6 +41,7 @@ actor ShellPingService {
         return try ShellPingOutputParser.parseResult(output.stdout)
     }
 
+    // periphery:ignore
     func pingStream(host: String, count: Int) -> AsyncThrowingStream<ShellPingLine, Error> {
         let arguments = ["-c", String(count), host]
         return AsyncThrowingStream { continuation in
@@ -59,6 +60,7 @@ actor ShellPingService {
         }
     }
 
+    // periphery:ignore
     func cancel() async { await runner.cancel() }
 }
 

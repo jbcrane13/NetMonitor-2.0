@@ -13,6 +13,7 @@ struct SidebarView: View {
     var onAddNetwork: () -> Void = {}
     
     @Environment(NetworkProfileManager.self) private var profileManager
+    // periphery:ignore
     @Environment(MonitoringSession.self) private var monitoringSession: MonitoringSession?
     @Query(sort: \LocalDevice.lastSeen, order: .reverse) private var devices: [LocalDevice]
 
@@ -92,6 +93,7 @@ struct SidebarView: View {
     }
 }
 
+// periphery:ignore
 struct ProfilePill: View {
     let profile: NetworkProfile
     let isActive: Bool
@@ -197,11 +199,11 @@ struct SidebarRow: View {
 }
 
 extension SidebarView {
-    private func badgeText(for section: NavigationSection) -> String? {
+    private func badgeText(for _: NavigationSection) -> String? {
         return nil
     }
 
-    private func badgeColor(for section: NavigationSection) -> Color {
+    private func badgeColor(for _: NavigationSection) -> Color {
         return MacTheme.Colors.info
     }
 }

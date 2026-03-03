@@ -10,6 +10,7 @@ struct NetworkDetailView: View {
 
     @Environment(MonitoringSession.self)         private var session: MonitoringSession?
     @Environment(NetworkProfileManager.self)     private var profileManager: NetworkProfileManager?
+    // periphery:ignore
     @Environment(DeviceDiscoveryCoordinator.self) private var deviceDiscovery: DeviceDiscoveryCoordinator?
 
     @Query private var targets: [NetworkTarget]

@@ -80,6 +80,7 @@ final class LiveActivityManager {
         }
     }
 
+    // periphery:ignore
     func updateScanActivity(progress: Double, devicesFound: Int, phase: String) async {
         guard let activity = scanActivity else { return }
         let state = NetworkScanActivityAttributes.ContentState(
@@ -128,6 +129,7 @@ final class LiveActivityManager {
         }
     }
 
+    // periphery:ignore
     func updateSpeedTestActivity(
         downloadSpeed: Double,
         uploadSpeed: Double,
@@ -186,6 +188,7 @@ final class LiveActivityManager {
         }
     }
 
+    // periphery:ignore
     func updateMonitoringActivity(
         isConnected: Bool,
         latencyMs: Double?,

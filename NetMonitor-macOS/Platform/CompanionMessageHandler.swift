@@ -38,7 +38,7 @@ final class CompanionMessageHandler {
     }
 
     /// Process an incoming message and return an optional response
-    func handle(_ message: CompanionMessage, from clientID: UUID) async -> CompanionMessage? {
+    func handle(_ message: CompanionMessage, from _: UUID) async -> CompanionMessage? {
         switch message {
         case .command(let payload):
             return await handleCommand(payload)

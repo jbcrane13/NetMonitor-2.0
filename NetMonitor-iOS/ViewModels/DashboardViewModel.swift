@@ -125,6 +125,7 @@ final class DashboardViewModel {
         discoveredDevices.count
     }
     
+    // periphery:ignore
     var lastScanDate: Date? {
         deviceDiscoveryService.lastScanDate
     }
@@ -133,18 +134,22 @@ final class DashboardViewModel {
         deviceDiscoveryService.isScanning
     }
 
+    // periphery:ignore
     var activeNetworkLastScanned: Date? {
         activeNetwork?.lastScanned
     }
 
+    // periphery:ignore
     var activeNetworkDeviceCount: Int? {
         activeNetwork?.deviceCount
     }
 
+    // periphery:ignore
     var activeNetworkGatewayReachable: Bool? {
         activeNetwork?.gatewayReachable
     }
 
+    // periphery:ignore
     var isShowingStaleActiveNetworkData: Bool {
         (activeNetwork?.gatewayReachable == false) && (activeNetwork?.lastScanned != nil)
     }
@@ -160,6 +165,7 @@ final class DashboardViewModel {
         return "\(minutes)m"
     }
     
+    // periphery:ignore
     var sessionStartTimeFormatted: String {
         let formatter = DateFormatter()
         formatter.dateFormat = "h:mm a"
@@ -292,14 +298,17 @@ final class DashboardViewModel {
         )
     }
 
+    // periphery:ignore
     func stopDeviceScan() {
         deviceDiscoveryService.stopScan()
     }
     
+    // periphery:ignore
     func refreshPublicIP() async {
         await publicIPService.fetchPublicIP(forceRefresh: true)
     }
     
+    // periphery:ignore
     func requestLocationPermission() {
         wifiService.requestLocationPermission()
     }

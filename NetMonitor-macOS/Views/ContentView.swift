@@ -4,6 +4,7 @@ import NetMonitorCore
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(MonitoringSession.self) private var session: MonitoringSession?
+    // periphery:ignore
     @Environment(DeviceDiscoveryCoordinator.self) private var deviceDiscovery: DeviceDiscoveryCoordinator?
     @Environment(NetworkProfileManager.self) private var profileManager: NetworkProfileManager?
     @State private var selectedSection: SidebarSelection?
@@ -11,6 +12,7 @@ struct ContentView: View {
     @State private var selectedNetworkProfile: NetworkProfile?
     @State private var showingAddNetworkSheet = false
 
+    // periphery:ignore
     private var activeSession: MonitoringSession? {
         session ?? localSession
     }
