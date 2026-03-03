@@ -158,6 +158,13 @@ targets:
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
         UIRequiresFullScreen: false
+        UIBackgroundModes:
+          - fetch
+          - processing
+        BGTaskSchedulerPermittedIdentifiers:
+          - com.blakemiller.netmonitor.refresh
+          - com.blakemiller.netmonitor.sync
+          - com.blakemiller.netmonitor.scheduledNetworkScan
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.blakemiller.netmonitor
