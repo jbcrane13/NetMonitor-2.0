@@ -49,7 +49,10 @@ struct NetworkIntelCard: View {
             }
 
             if isLoading {
-                HStack { Spacer(); ProgressView().controlSize(.small); Spacer() }
+                HStack { Spacer()
+                ProgressView().controlSize(.small)
+                Spacer()
+                }
             } else {
                 // Connection stats grid
                 HStack(spacing: 0) {
@@ -169,9 +172,15 @@ struct NetworkIntelCard: View {
 
             for line in lines {
                 let trimmed = line.trimmingCharacters(in: .whitespaces)
-                if trimmed.contains("ESTABLISHED") { established += 1; total += 1 }
-                else if trimmed.contains("LISTEN") { listening += 1; total += 1 }
-                else if trimmed.contains("TIME_WAIT") { timeWait += 1; total += 1 }
+                if trimmed.contains("ESTABLISHED") { established += 1
+                total += 1
+                }
+                else if trimmed.contains("LISTEN") { listening += 1
+                total += 1
+                }
+                else if trimmed.contains("TIME_WAIT") { timeWait += 1
+                total += 1
+                }
                 else if trimmed.contains("CLOSE_WAIT") || trimmed.contains("SYN_SENT") ||
                         trimmed.contains("SYN_RECEIVED") || trimmed.contains("FIN_WAIT") {
                     total += 1
