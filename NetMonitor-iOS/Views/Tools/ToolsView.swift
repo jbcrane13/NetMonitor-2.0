@@ -367,7 +367,7 @@ struct ToolsGridSection: View {
         ToolItem(name: "World Ping", icon: "globe.americas", color: .teal, description: "Global latency check", destination: .worldPing),
         ToolItem(name: "Geo Trace", icon: "map", color: .mint, description: "Visual route on map", destination: .geoTrace),
         ToolItem(name: "SSL Monitor", icon: "lock.shield", color: .green, description: "Certificate expiry check", destination: .sslMonitor),
-        ToolItem(name: "WiFi Heatmap", icon: "wifi.circle", color: .blue, description: "Signal strength survey", destination: .wifiHeatmap)
+        ToolItem(name: "WiFi Heatmap", icon: "wifi.square.fill", color: .cyan, description: "Map signal coverage", destination: .wifiHeatmap)
     ]
 
     private let columns = [
