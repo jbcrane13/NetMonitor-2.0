@@ -17,7 +17,7 @@ FAILED=0
 plist_has_key() {
   local key="$1" file="$2"
   if command -v plutil &>/dev/null; then
-    plutil -extract "$key" json -o - "$file" >/dev/null 2>&1
+    plutil -extract "$key" raw -o - "$file" >/dev/null 2>&1
   else
     python3 -c "import plistlib,sys
 with open(sys.argv[1],'rb') as f: p=plistlib.load(f)
