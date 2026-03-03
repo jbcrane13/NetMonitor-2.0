@@ -184,6 +184,8 @@ struct WiFiHeatmapSurveyViewModelTests {
     @Test("surveys persist through UserDefaults round-trip")
     @MainActor
     func surveysPersistThroughReload() {
+        // Clear before AND after to prevent interference from prior test runs
+        UserDefaults.standard.removeObject(forKey: "wifiHeatmap_surveys")
         defer { UserDefaults.standard.removeObject(forKey: "wifiHeatmap_surveys") }
         let vm1 = WiFiHeatmapSurveyViewModel(service: MockWiFiHeatmapService())
         vm1.startSurvey()
