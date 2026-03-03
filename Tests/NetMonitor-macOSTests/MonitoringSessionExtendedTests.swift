@@ -18,6 +18,7 @@ private struct MockMonitorServiceProvider: MonitorServiceProviding {
 
 // MARK: - Helpers
 
+@MainActor
 private func makeInMemoryStore() throws -> (ModelContainer, ModelContext) {
     let schema = Schema([
         NetworkTarget.self,
