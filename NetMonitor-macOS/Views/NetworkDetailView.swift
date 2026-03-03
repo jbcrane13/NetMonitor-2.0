@@ -37,17 +37,18 @@ struct NetworkDetailView: View {
 
     var body: some View {
         VStack(spacing: 10) {
-            // Row A: Internet Activity + Health Gauge
-            HStack(alignment: .top, spacing: 10) {
+            // Row A: Internet Activity + Health Gauge — fixed 160pt height
+            HStack(spacing: 10) {
                 InternetActivityCard(session: session)
+                    .frame(maxWidth: .infinity)
                     .accessibilityIdentifier("network_detail_row_activity")
 
                 HealthGaugeCard()
                     .frame(width: 210)
-                    .frame(maxHeight: 180)
                     .accessibilityIdentifier("network_detail_row_health")
             }
-            .fixedSize(horizontal: false, vertical: true)
+            .frame(height: 160)
+            .clipped()
 
             // Row B: Left diagnostics stack + Right device grid
             HStack(alignment: .top, spacing: 10) {
@@ -71,7 +72,7 @@ struct NetworkDetailView: View {
                 .frame(minWidth: 300, idealWidth: 420)
 
                 // Right column — device grid
-                NetworkDevicesPanel(networkProfileID: profile.id)
+                NetworkDevicesPanel(networkProfileID: profile.id, networkProfile: profile)
                     .accessibilityIdentifier("network_detail_panel_devices")
             }
             .frame(maxHeight: .infinity)

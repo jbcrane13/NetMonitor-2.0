@@ -1,4 +1,5 @@
 import SwiftUI
+import Network
 import SwiftData
 import NetMonitorCore
 import os
@@ -7,6 +8,8 @@ import os
 struct NetMonitorApp: App {
     @State private var monitoringSession: MonitoringSession?
     @State private var deviceDiscovery: DeviceDiscoveryCoordinator?
+    @State private var pathMonitor: NWPathMonitor?
+    @State private var lastInterfaceName: String? = nil
     @State private var companionService: CompanionService?
     @State private var companionHandler: CompanionMessageHandler?
     @State private var menuBarController: MenuBarController?
@@ -76,6 +79,9 @@ struct NetMonitorApp: App {
             .task {
                 await setupServices()
             }
+            .task {
+                startNetworkChangeMonitoring()
+            }
             .tint(Color(hex: accentColorHex))
             .environment(\.appAccentColor, Color(hex: accentColorHex))
             .environment(\.compactMode, compactMode)
@@ -103,6 +109,35 @@ struct NetMonitorApp: App {
     }
 
     @MainActor
+    private func startNetworkChangeMonitoring() {
+        let monitor = NWPathMonitor()
+        let queue = DispatchQueue(label: "com.netmonitor.pathmonitor")
+        monitor.pathUpdateHandler = { [self] path in
+            Task { @MainActor in
+                let newInterface = path.availableInterfaces.first?.name
+                guard newInterface != self.lastInterfaceName else { return }
+                self.lastInterfaceName = newInterface
+
+                // Re-detect network — creates or updates the active profile
+                self.networkProfileManager?.detectLocalNetwork()
+
+                // Auto-start monitoring on the new network
+                if let session = self.monitoringSession, !session.isMonitoring {
+                    session.startMonitoring()
+                }
+
+                // Auto-scan devices on the new network
+                if let manager = self.networkProfileManager,
+                   let profile = manager.activeProfile {
+                    self.deviceDiscovery?.scanNetwork(profile)
+                }
+            }
+        }
+        monitor.start(queue: queue)
+        pathMonitor = monitor
+    }
+
+        @MainActor
     private func setupServices() async {
         let context = Self.sharedModelContainer.mainContext
 
