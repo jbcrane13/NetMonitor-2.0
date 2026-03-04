@@ -100,6 +100,47 @@ struct FloorPlanGenerationResult: Sendable {
     let originZ: Double
 }
 
+// MARK: - RoomBoundary
+
+/// Represents a detected room transition boundary in the XZ plane.
+///
+/// Room boundaries are detected when the AR camera passes through a narrow passage
+/// (width < 1.5m between walls), indicating a doorway or corridor between rooms.
+/// Multi-room support works via continuous vertex accumulation — the pipeline processes
+/// all vertices regardless of which room they belong to, producing a single combined
+/// floor plan image. Room boundaries provide metadata about where transitions occur.
+struct RoomBoundary: Sendable, Equatable {
+    /// X coordinate of the transition center in AR world space.
+    let centerX: Float
+    /// Z coordinate of the transition center in AR world space.
+    let centerZ: Float
+    /// Width of the passage at the transition point (meters).
+    let passageWidth: Float
+    /// Direction of the passage (angle in radians from +X axis in XZ plane).
+    let direction: Float
+}
+
+// MARK: - SpatialRegion
+
+/// Tracks a rectangular spatial region in the XZ plane for incremental preview expansion.
+struct SpatialRegion: Sendable, Equatable {
+    let minX: Float
+    let minZ: Float
+    let maxX: Float
+    let maxZ: Float
+
+    /// Returns true if the given point is within the region (with margin).
+    func contains(x: Float, z: Float, margin: Float = 0) -> Bool {
+        x >= minX - margin && x <= maxX + margin &&
+            z >= minZ - margin && z <= maxZ + margin
+    }
+
+    /// Width in meters.
+    var width: Float { maxX - minX }
+    /// Height (depth) in meters.
+    var height: Float { maxZ - minZ }
+}
+
 // MARK: - FloorPlanGenerationPipeline
 
 /// Pipeline for generating 2D floor plans from AR mesh data.
@@ -528,12 +569,10 @@ enum FloorPlanGenerationPipeline {
         for i in 0 ..< classVotes.count {
             var maxVotes = 0
             var dominant = MeshClassification.none
-            for (rawValue, votes) in classVotes[i].enumerated() {
-                if votes > maxVotes {
-                    maxVotes = votes
-                    if let cls = MeshClassification(rawValue: rawValue) {
-                        dominant = cls
-                    }
+            for (rawValue, votes) in classVotes[i].enumerated() where votes > maxVotes {
+                maxVotes = votes
+                if let cls = MeshClassification(rawValue: rawValue) {
+                    dominant = cls
                 }
             }
             classificationGrid[i] = dominant
@@ -541,6 +580,12 @@ enum FloorPlanGenerationPipeline {
 
         return (grid: grid, classificationGrid: classificationGrid, width: pixelWidth, height: pixelHeight)
     }
+
+}
+
+// MARK: - FloorPlanGenerationPipeline + Full Pipeline
+
+extension FloorPlanGenerationPipeline {
 
     // MARK: - Full Pipeline (LiDAR)
 
@@ -660,9 +705,9 @@ enum FloorPlanGenerationPipeline {
             let steps = max(1, Int(ceil(length * pixelsPerMeter)))
 
             for i in 0 ... steps {
-                let t = Float(i) / Float(steps)
-                let px = plane.startX + dx * t
-                let pz = plane.startZ + dz * t
+                let interpolation = Float(i) / Float(steps)
+                let px = plane.startX + dx * interpolation
+                let pz = plane.startZ + dz * interpolation
                 points2D.append((x: px, z: pz))
 
                 // Add width perpendicular to the segment for thickness
@@ -779,6 +824,11 @@ enum FloorPlanGenerationPipeline {
             totalCells: totalCells
         )
     }
+}
+
+// MARK: - FloorPlanGenerationPipeline + Preview & Coverage
+
+extension FloorPlanGenerationPipeline {
 
     // MARK: - Real-Time Preview
 
@@ -877,5 +927,206 @@ enum FloorPlanGenerationPipeline {
         }
 
         return (grid: missed, width: gridWidth, height: gridHeight, bounds: bounds)
+    }
+}
+
+// MARK: - FloorPlanGenerationPipeline + Multi-Room Support
+
+extension FloorPlanGenerationPipeline {
+
+    /// Maximum passage width in meters that qualifies as a room transition (doorway).
+    static let maxPassageWidth: Float = 1.5
+
+    /// Grid cell size in meters for spatial region analysis.
+    static let regionCellSize: Float = 0.5
+
+    /// Computes the current spatial region from accumulated vertices.
+    ///
+    /// Used for incremental preview expansion: when new vertices extend beyond the
+    /// current region, the preview automatically expands to show the new room.
+    ///
+    /// - Parameters:
+    ///   - vertices: Height-filtered vertices in XZ plane.
+    ///   - floorY: Floor Y coordinate.
+    /// - Returns: The spatial region encompassing all vertices, or nil if empty.
+    static func computeSpatialRegion(
+        vertices: [MeshVertex],
+        floorY: Float = 0
+    ) -> SpatialRegion? {
+        let filtered = heightFilter(vertices: vertices, floorY: floorY)
+        guard let first = filtered.first else { return nil }
+
+        var minX = first.x
+        var minZ = first.z
+        var maxX = first.x
+        var maxZ = first.z
+
+        for vertex in filtered {
+            minX = min(minX, vertex.x)
+            minZ = min(minZ, vertex.z)
+            maxX = max(maxX, vertex.x)
+            maxZ = max(maxZ, vertex.z)
+        }
+
+        return SpatialRegion(minX: minX, minZ: minZ, maxX: maxX, maxZ: maxZ)
+    }
+
+    /// Detects room transition boundaries by analyzing vertex distribution for narrow passages.
+    ///
+    /// Scans the vertex cloud in a grid pattern and looks for narrow gaps (< 1.5m) between
+    /// dense wall regions, which indicate doorways or corridors connecting rooms.
+    ///
+    /// The algorithm:
+    /// 1. Rasterize wall vertices onto a coarse grid (0.5m cells)
+    /// 2. For each row and column, scan for gaps between occupied cells
+    /// 3. If a gap is narrow (< 1.5m / `maxPassageWidth`) and bordered by dense regions
+    ///    on both sides, mark it as a room boundary
+    ///
+    /// Multi-room stitching works automatically because the pipeline processes ALL
+    /// accumulated vertices from all rooms. The bounding box expands as the user walks
+    /// into new rooms, and the preview/final image includes all rooms in one image.
+    /// Room boundaries are metadata for UI annotation, not required for stitching.
+    ///
+    /// - Parameters:
+    ///   - vertices: All accumulated mesh vertices.
+    ///   - floorY: Floor Y coordinate.
+    /// - Returns: Array of detected room transition boundaries.
+    static func detectRoomBoundaries(
+        vertices: [MeshVertex],
+        floorY: Float = 0
+    ) -> [RoomBoundary] {
+        let filtered = heightFilter(vertices: vertices, floorY: floorY)
+        guard filtered.count >= 50 else { return [] }
+
+        let points2D = projectToXZ(vertices: filtered)
+        guard let bounds = computeBounds(points: points2D, padding: 0) else { return [] }
+
+        let cellSize = regionCellSize
+        let gridWidth = max(1, Int(ceil((bounds.maxX - bounds.minX) / cellSize)))
+        let gridHeight = max(1, Int(ceil((bounds.maxZ - bounds.minZ) / cellSize)))
+
+        // Build occupancy grid
+        var occupancy = [Int](repeating: 0, count: gridWidth * gridHeight)
+        for point in points2D {
+            let gx = min(gridWidth - 1, max(0, Int((point.x - bounds.minX) / cellSize)))
+            let gz = min(gridHeight - 1, max(0, Int((point.z - bounds.minZ) / cellSize)))
+            occupancy[gz * gridWidth + gx] += 1
+        }
+
+        var boundaries: [RoomBoundary] = []
+        boundaries += scanRowsForPassages(occupancy: occupancy, gridWidth: gridWidth, gridHeight: gridHeight, bounds: bounds, cellSize: cellSize)
+        boundaries += scanColumnsForPassages(occupancy: occupancy, gridWidth: gridWidth, gridHeight: gridHeight, bounds: bounds, cellSize: cellSize)
+        return boundaries
+    }
+
+    /// Scans rows of the occupancy grid for narrow horizontal passages.
+    private static func scanRowsForPassages(
+        occupancy: [Int], gridWidth: Int, gridHeight: Int,
+        bounds: (minX: Float, minZ: Float, maxX: Float, maxZ: Float),
+        cellSize: Float
+    ) -> [RoomBoundary] {
+        let occupancyThreshold = 3
+        let maxGapCells = Int(ceil(maxPassageWidth / cellSize))
+        let minDenseRegion = 2
+        var boundaries: [RoomBoundary] = []
+
+        for gz in 0 ..< gridHeight {
+            var gx = 0
+            while gx < gridWidth {
+                guard occupancy[gz * gridWidth + gx] >= occupancyThreshold else {
+                    gx += 1
+                    continue
+                }
+                let denseStart = gx
+                while gx < gridWidth, occupancy[gz * gridWidth + gx] >= occupancyThreshold { gx += 1 }
+                guard gx - denseStart >= minDenseRegion else { continue }
+
+                let gapStart = gx
+                while gx < gridWidth, occupancy[gz * gridWidth + gx] < occupancyThreshold { gx += 1 }
+                let gapLen = gx - gapStart
+                guard gapLen > 0, gapLen <= maxGapCells else { continue }
+
+                let dense2Start = gx
+                while gx < gridWidth, occupancy[gz * gridWidth + gx] >= occupancyThreshold { gx += 1 }
+                guard gx - dense2Start >= minDenseRegion else { continue }
+
+                let gapCenterX = Float(gapStart) + Float(gapLen) / 2.0
+                boundaries.append(RoomBoundary(
+                    centerX: bounds.minX + gapCenterX * cellSize,
+                    centerZ: bounds.minZ + (Float(gz) + 0.5) * cellSize,
+                    passageWidth: Float(gapLen) * cellSize,
+                    direction: 0
+                ))
+            }
+        }
+        return boundaries
+    }
+
+    /// Scans columns of the occupancy grid for narrow vertical passages.
+    private static func scanColumnsForPassages(
+        occupancy: [Int], gridWidth: Int, gridHeight: Int,
+        bounds: (minX: Float, minZ: Float, maxX: Float, maxZ: Float),
+        cellSize: Float
+    ) -> [RoomBoundary] {
+        let occupancyThreshold = 3
+        let maxGapCells = Int(ceil(maxPassageWidth / cellSize))
+        let minDenseRegion = 2
+        var boundaries: [RoomBoundary] = []
+
+        for gx in 0 ..< gridWidth {
+            var gz = 0
+            while gz < gridHeight {
+                guard occupancy[gz * gridWidth + gx] >= occupancyThreshold else {
+                    gz += 1
+                    continue
+                }
+                let denseStart = gz
+                while gz < gridHeight, occupancy[gz * gridWidth + gx] >= occupancyThreshold { gz += 1 }
+                guard gz - denseStart >= minDenseRegion else { continue }
+
+                let gapStart = gz
+                while gz < gridHeight, occupancy[gz * gridWidth + gx] < occupancyThreshold { gz += 1 }
+                let gapLen = gz - gapStart
+                guard gapLen > 0, gapLen <= maxGapCells else { continue }
+
+                let dense2Start = gz
+                while gz < gridHeight, occupancy[gz * gridWidth + gx] >= occupancyThreshold { gz += 1 }
+                guard gz - dense2Start >= minDenseRegion else { continue }
+
+                let gapCenterZ = Float(gapStart) + Float(gapLen) / 2.0
+                boundaries.append(RoomBoundary(
+                    centerX: bounds.minX + (Float(gx) + 0.5) * cellSize,
+                    centerZ: bounds.minZ + gapCenterZ * cellSize,
+                    passageWidth: Float(gapLen) * cellSize,
+                    direction: Float.pi / 2
+                ))
+            }
+        }
+        return boundaries
+    }
+
+    /// Generates a combined floor plan image from vertices spanning multiple rooms.
+    ///
+    /// This method is the same as `generateFromMesh` — multi-room support is inherent
+    /// because the pipeline always processes ALL accumulated vertices. The bounding box
+    /// automatically expands to encompass all rooms. Vertices from separate rooms that
+    /// are spatially distant will produce a floor plan showing all rooms connected.
+    ///
+    /// - Parameters:
+    ///   - vertices: All accumulated mesh vertices (may span multiple rooms).
+    ///   - floorY: Y coordinate of the detected floor plane.
+    ///   - progressHandler: Optional callback for progress updates.
+    /// - Returns: Combined floor plan image containing all rooms, or nil if insufficient data.
+    static func generateMultiRoomFloorPlan(
+        vertices: [MeshVertex],
+        floorY: Float = 0,
+        progressHandler: ((FloorPlanGenerationProgress) -> Void)? = nil
+    ) -> FloorPlanGenerationResult? {
+        // Multi-room generation uses the same pipeline as single-room.
+        // The key insight: since all vertices are accumulated continuously,
+        // the bounding box naturally expands to cover all rooms. The
+        // rasterization, blur, and contour detection steps work on the
+        // full vertex set, producing one image with all rooms.
+        generateFromMesh(vertices: vertices, floorY: floorY, progressHandler: progressHandler)
     }
 }

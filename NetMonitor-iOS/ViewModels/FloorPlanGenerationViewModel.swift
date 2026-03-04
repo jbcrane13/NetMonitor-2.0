@@ -42,6 +42,19 @@ final class FloorPlanGenerationViewModel {
     /// Whether the AR session is LiDAR capable.
     private(set) var isLiDAR: Bool
 
+    /// Detected room transition boundaries (narrow passages < 1.5m between wall clusters).
+    ///
+    /// Room boundaries are detected during scanning as the user walks through doorways.
+    /// Multi-room stitching is automatic: the pipeline processes all accumulated vertices
+    /// from all rooms, producing a single combined floor plan image. Boundaries are metadata
+    /// indicating where room transitions were detected.
+    private(set) var roomBoundaries: [RoomBoundary] = []
+
+    /// Whether the preview has recently expanded into a new spatial region.
+    /// Set to true when new vertices extend significantly beyond the previous bounding box,
+    /// indicating the user has walked into a new room.
+    private(set) var didExpandIntoNewRegion = false
+
     /// Accumulated vertex count.
     var vertexCount: Int {
         accumulatedVertices.count
@@ -97,6 +110,13 @@ final class FloorPlanGenerationViewModel {
 
     /// Detected floor Y coordinate.
     private var floorY: Float = 0
+
+    /// Current spatial region encompassing all scanned vertices.
+    /// Used to detect when the preview should expand into new regions.
+    private var currentSpatialRegion: SpatialRegion?
+
+    /// Threshold in meters for detecting significant region expansion (new room entry).
+    private let regionExpansionThreshold: Float = 1.0
 
     /// Preview update timer task.
     private var previewUpdateTask: Task<Void, Never>?
@@ -254,23 +274,44 @@ final class FloorPlanGenerationViewModel {
     // MARK: - Preview Update
 
     /// Throttled preview update to avoid excessive computation during scanning.
+    ///
+    /// The preview expands incrementally as the user moves into new rooms:
+    /// - All accumulated vertices are processed each tick, so the bounding box
+    ///   naturally grows to encompass new rooms
+    /// - When the spatial region expands significantly (> 1m beyond previous bounds),
+    ///   `didExpandIntoNewRegion` is set to signal the UI
+    /// - Room boundaries are periodically re-detected from the full vertex set
     private func updatePreviewIfNeeded() {
         let now = Date()
         guard now.timeIntervalSince(lastPreviewUpdate) >= previewUpdateInterval else { return }
         lastPreviewUpdate = now
 
-        // Update coverage info
+        // Reset expansion flag each tick — will be set if expansion detected
+        didExpandIntoNewRegion = false
+
+        // Update coverage info and preview
         if isLiDAR {
             coverageInfo = FloorPlanGenerationPipeline.computeCoverage(
                 vertices: accumulatedVertices,
                 floorY: floorY
             )
 
-            // Generate real-time preview
+            // Generate real-time preview (processes ALL vertices — multi-room automatic)
             previewImage = FloorPlanGenerationPipeline.generatePreview(
                 vertices: accumulatedVertices,
                 floorY: floorY
             )
+
+            // Check for spatial region expansion (new room entry)
+            detectSpatialExpansion(vertices: accumulatedVertices)
+
+            // Periodically detect room boundaries
+            if accumulatedVertices.count >= 100 {
+                roomBoundaries = FloorPlanGenerationPipeline.detectRoomBoundaries(
+                    vertices: accumulatedVertices,
+                    floorY: floorY
+                )
+            }
         } else if !accumulatedPlanes.isEmpty {
             // For non-LiDAR, generate coverage from plane data
             let planeVertices = planesToMeshVertices(accumulatedPlanes)
@@ -282,7 +323,37 @@ final class FloorPlanGenerationViewModel {
                 vertices: planeVertices,
                 floorY: 0
             )
+
+            // Check for spatial region expansion
+            detectSpatialExpansion(vertices: planeVertices)
         }
+    }
+
+    /// Detects whether the scanned area has significantly expanded, indicating
+    /// the user has moved into a new room.
+    ///
+    /// Compares the current vertex bounding box against the previously recorded
+    /// spatial region. If any edge has expanded by more than `regionExpansionThreshold`
+    /// meters, marks `didExpandIntoNewRegion` as true and updates the region.
+    private func detectSpatialExpansion(vertices: [MeshVertex]) {
+        guard let newRegion = FloorPlanGenerationPipeline.computeSpatialRegion(
+            vertices: vertices,
+            floorY: floorY
+        ) else { return }
+
+        if let existing = currentSpatialRegion {
+            // Check if any edge has expanded significantly
+            let expandedMinX = existing.minX - newRegion.minX > regionExpansionThreshold
+            let expandedMaxX = newRegion.maxX - existing.maxX > regionExpansionThreshold
+            let expandedMinZ = existing.minZ - newRegion.minZ > regionExpansionThreshold
+            let expandedMaxZ = newRegion.maxZ - existing.maxZ > regionExpansionThreshold
+
+            if expandedMinX || expandedMaxX || expandedMinZ || expandedMaxZ {
+                didExpandIntoNewRegion = true
+            }
+        }
+
+        currentSpatialRegion = newRegion
     }
 
     // MARK: - Floor Plan Generation
@@ -387,6 +458,9 @@ final class FloorPlanGenerationViewModel {
         previewImage = nil
         coverageInfo = nil
         errorMessage = nil
+        roomBoundaries = []
+        currentSpatialRegion = nil
+        didExpandIntoNewRegion = false
         previewUpdateTask?.cancel()
         previewUpdateTask = nil
         lastPreviewUpdate = .distantPast
