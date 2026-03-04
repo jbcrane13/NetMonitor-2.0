@@ -1,0 +1,59 @@
+{
+  "flowId": "save-load-crossplatform",
+  "testedAt": "2026-03-04T03:10:00Z",
+  "assertions": [
+    {
+      "id": "VAL-IOS-023",
+      "title": "Save serializes project as .netmonsurvey to app Documents",
+      "status": "pass",
+      "evidence": "HeatmapSurveyViewModel.saveProject() (NetMonitor-iOS/ViewModels/HeatmapSurveyViewModel.swift:~177) writes to FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0] with filename '{projectName}.netmonsurvey'. Delegates to SurveyFileManager.save() which creates a bundle directory containing survey.json and floorplan.png. iOS unit test 'saveProjectCreatesFile' in Tests/NetMonitor-iOSTests/HeatmapSurveyViewModelTests.swift verifies save completes without error. NetMonitorCore unit tests SurveyFileManagerTests (7 tests) exhaustively verify bundle structure (VAL-FOUND-036), JSON content (VAL-FOUND-037), PNG validity (VAL-FOUND-038), and full round-trip (VAL-FOUND-039).",
+      "notes": "Fully verified via code review and unit tests."
+    },
+    {
+      "id": "VAL-IOS-024",
+      "title": "Saved projects accessible via Files app",
+      "status": "fail",
+      "evidence": "Searched project.yml iOS target info.properties for UIFileSharingEnabled and LSSupportsOpeningDocumentsInPlace — neither key is present. Grep for these keys across the entire repo returned zero matches. The iOS target has UTExportedTypeDeclarations (com.netmonitor.survey) and CFBundleDocumentTypes registered correctly, but without UIFileSharingEnabled: true and LSSupportsOpeningDocumentsInPlace: true in Info.plist, the app's Documents directory is NOT exposed to the Files app.",
+      "notes": "Bug: The iOS Info.plist (configured via project.yml under NetMonitor-iOS > info > properties) is missing two required keys: UIFileSharingEnabled: true and LSSupportsOpeningDocumentsInPlace: true. Without these, saved .netmonsurvey files are sandboxed and invisible in the Files app. The UTI registration and document type declarations are correct, but these two keys are necessary for Files app integration on iOS."
+    },
+    {
+      "id": "VAL-IOS-025",
+      "title": "Loading restores floor plan, points, calibration, metadata, heatmap",
+      "status": "pass",
+      "evidence": "HeatmapSurveyViewModel.loadProject(from:measurementEngine:wifiService:) uses SurveyFileManager.load() to restore all data: survey.json is decoded to SurveyProject (name, surveyMode, metadata, calibration, walls, measurement points), floorplan.png is read and injected into FloorPlan.imageData. After load, renderHeatmapOverlay() regenerates the heatmap. iOS unit test 'loadProjectRoundTrip' in HeatmapSurveyViewModelTests.swift saves a 4-point project and verifies load restores name and point count. NetMonitorCore 'fullRoundTripPreservesAllData' in SurveyFileManagerTests.swift performs exhaustive field-by-field comparison of all loaded data including id, name, surveyMode, createdAt, metadata (building/floor/notes), floorPlan (widthMeters, heightMeters, pixelWidth, pixelHeight, origin, calibrationPoints, walls), and all 17 measurement point fields.",
+      "notes": "Fully verified via code review and unit tests."
+    },
+    {
+      "id": "VAL-IOS-037",
+      "title": "50 points + floor plan uses reasonable memory. No leaks.",
+      "status": "pass",
+      "evidence": "Code review of memory characteristics: (1) MeasurementPoint is a value-type struct (~200 bytes), 50 points ≈ 10KB. (2) FloorPlan.imageData stores PNG as Data (COW semantics). (3) HeatmapRenderer.render() allocates a temporary [UInt8] pixel buffer (floorPlanWidth × floorPlanHeight × 4 bytes) and returns a CGImage; for typical 800×600 floor plan = 1.92MB — reasonable. (4) IDW grid default 200×200 = 40K cells, each doing 50 distance calculations = 2M operations — well within CPU budget. (5) No retain cycles: hudPollingTask uses [weak self], canceled in stopHUDPolling(). isMeasuring protected by defer block. (6) All model types are Sendable value types (structs/enums) — no reference cycle risk. (7) Performance test VAL-FOUND-022 confirms 50 points render in <500ms. (8) SurveyFileManager.save creates temp Data copies but they are released after the save scope.",
+      "notes": "No memory profiling tool available (no simulator session), but code review confirms value-type patterns and proper task lifecycle management. No retain cycles or unbounded allocations identified."
+    },
+    {
+      "id": "VAL-IOS-039",
+      "title": "NEHotspotNetwork rate caching (1s minimum)",
+      "status": "fail",
+      "evidence": "Reviewed WiFiInfoService.swift (NetMonitor-iOS/Platform/WiFiInfoService.swift): fetchCurrentWiFi() calls NEHotspotNetwork.fetchCurrent() directly on every invocation with no time-based caching. There is no lastFetch timestamp, no minimum interval guard, and no cached result. The WiFiMeasurementEngine (Packages/NetMonitorCore/.../WiFiMeasurementEngine.swift) also has no caching layer — it delegates directly to wifiService.fetchCurrentWiFi(). Searched entire iOS codebase and NetMonitorCore tests for cache/rate-limit/throttle patterns — no caching mechanism exists for WiFi info polling. The only caching in the iOS platform layer is PublicIPService (300s cache for public IP, unrelated).",
+      "notes": "Bug: WiFiInfoService has no caching layer. Each call to fetchCurrentWiFi() hits NEHotspotNetwork.fetchCurrent() directly. Apple rate-limits NEHotspotNetwork calls and may return nil if polled too frequently. A caching layer with >=1s TTL should be added to WiFiInfoService.fetchCurrentWiFi() to avoid Apple rate limiting. No unit test exists for this behavior."
+    },
+    {
+      "id": "VAL-CROSS-004",
+      "title": "AR-generated FloorPlan feeds into Phase 1 survey workflow",
+      "status": "pass",
+      "evidence": "Code review confirms: (1) FloorPlanOrigin.arGenerated is defined in HeatmapEnums.swift with full Codable support. (2) SurveyProject accepts any FloorPlanOrigin — HeatmapSurveyViewModel does not check or gate on origin type. (3) AR-generated floor plans have widthMeters/heightMeters from AR world coordinates, making calibration automatic. (4) HeatmapSurveyViewModel.renderHeatmapOverlay() uses project.floorPlan.pixelWidth/pixelHeight regardless of origin. (5) SurveyFileManagerTests 'savingOverwritesExistingBundle' test creates a project with origin: .arGenerated, surveyMode: .arAssisted, saves and loads it, verifying round-trip works. (6) FloorPlanOrigin Codable test (VAL-FOUND-005) verifies .arGenerated serialization. (7) All measurement, save, and load operations are origin-agnostic — the same code paths handle .imported, .arGenerated, and .drawn identically.",
+      "notes": "Contract verified via unit tests (SurveyFileManager round-trip with .arGenerated) and code review (origin-agnostic survey workflow). Full integration test on physical device not possible without display session."
+    },
+    {
+      "id": "VAL-CROSS-005",
+      "title": "Continuous scan data (2000+ points) compatible with Phase 1 visualization picker",
+      "status": "fail",
+      "evidence": "Code review confirms compatibility: (1) SurveyMode.arContinuous exists. (2) HeatmapSurveyViewModel.renderHeatmapOverlay() passes all points to HeatmapRenderer.render() regardless of survey mode. (3) Visualization picker offers signalStrength, downloadSpeed, latency on iOS — all work with any dataset. (4) HeatmapRenderer.render() accepts any number of points >=3, no upper limit. HOWEVER: (A) No unit test exists for 2000+ point rendering. (B) Existing performance tests: 50 points <500ms (VAL-FOUND-022), 200 points <2s (VAL-FOUND-023). (C) IDW is O(gridWidth × gridHeight × numPoints); for 200×200 grid × 2000 points = 80M distance calculations. Extrapolating linearly from the 200-point benchmark (~2s), 2000 points would take ~20s, far exceeding the <5s target. (D) No optimization (spatial indexing, GPU offload) exists for large point sets.",
+      "notes": "Two sub-requirements: (1) Compatibility with visualization picker — PASS (all types render regardless of point count or survey mode). (2) <5s refinement for 2000 points — FAIL (no unit test, and extrapolated performance significantly exceeds 5s). The assertion requires a unit test as evidence, which does not exist."
+    }
+  ],
+  "frictions": [],
+  "blockers": [],
+  "toolsUsed": ["code-review", "build-verification", "unit-tests"],
+  "summary": "Tested 7 assertions: 4 passed, 3 failed. VAL-IOS-024 fails because UIFileSharingEnabled and LSSupportsOpeningDocumentsInPlace are missing from iOS Info.plist in project.yml. VAL-IOS-039 fails because WiFiInfoService has no caching layer — each fetchCurrentWiFi() call hits NEHotspotNetwork.fetchCurrent() directly with no rate limiting. VAL-CROSS-005 fails because no unit test exists for 2000+ point rendering and the current O(n) IDW algorithm would likely exceed the <5s target at that scale."
+}

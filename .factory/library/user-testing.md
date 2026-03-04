@@ -100,6 +100,45 @@ For each assertion, provide:
 2. **evidence**: Specific code references (file:line) or AppleScript output showing the assertion is met.
 3. **notes**: Any caveats about what couldn't be fully verified.
 
+## Flow Validator Guidance: iOS Heatmap (phase1-ios)
+
+This milestone tests the iOS heatmap feature through **code review + build verification + unit tests**.
+
+### Testing Approach
+- **Primary: Code review** — Read the source files and verify the implementation matches each assertion's requirements.
+- **Secondary: Build verification** — The iOS target builds successfully under `SWIFT_STRICT_CONCURRENCY: complete` (verified: `xcodebuild -scheme NetMonitor-iOS -configuration Debug build` succeeded).
+- **Tertiary: Unit tests** — 1031 NetMonitorCore tests pass, covering shared heatmap models, renderer, measurement engine, and file format.
+- **No simulator interaction** — This machine has no display session; iOS simulator cannot be launched interactively.
+
+### Key Source Files — iOS
+| File | Contents |
+|------|----------|
+| `NetMonitor-iOS/Views/Heatmap/HeatmapDashboardView.swift` | Dashboard: project list, empty state, new project |
+| `NetMonitor-iOS/Views/Heatmap/HeatmapSurveyView.swift` | Main survey view with canvas, HUD, toolbar |
+| `NetMonitor-iOS/Views/Heatmap/FloorPlanCanvasView.swift` | Zoomable/pannable canvas with measurement markers |
+| `NetMonitor-iOS/Views/Heatmap/FloorPlanImportView.swift` | PHPicker + UIDocumentPicker import |
+| `NetMonitor-iOS/Views/Heatmap/CalibrationView.swift` | Two-point scale calibration |
+| `NetMonitor-iOS/Views/Heatmap/VisualizationPickerView.swift` | Bottom sheet picker for viz types |
+| `NetMonitor-iOS/Views/Heatmap/MeasurementDetailView.swift` | Tap-to-inspect popover |
+| `NetMonitor-iOS/ViewModels/HeatmapDashboardViewModel.swift` | Dashboard VM — project list, create/delete |
+| `NetMonitor-iOS/ViewModels/HeatmapSurveyViewModel.swift` | Survey VM — measurements, heatmap, save/load |
+| `NetMonitor-iOS/ViewModels/FloorPlanImportViewModel.swift` | Import VM — PHPicker, doc picker, PDF rasterization |
+| `NetMonitor-iOS/Views/Tools/ToolsView.swift` | Tools tab with heatmap card |
+| `Packages/NetMonitorCore/Sources/NetMonitorCore/Models/Enums.swift` | ToolType.wifiHeatmap enum case |
+| `Packages/NetMonitorCore/Sources/NetMonitorCore/Services/Heatmap/` | Shared engine, renderer, file manager |
+| `Packages/NetMonitorCore/Sources/NetMonitorCore/Models/Heatmap/` | Shared model types |
+
+### Isolation Rules
+- All code review work is read-only and safe to parallelize.
+- Do NOT modify source code, build products, or app state.
+- Each flow writes its report to a separate `.json` file in `.factory/validation/phase1-ios/user-testing/flows/`.
+
+### Assertion Evidence Standards
+For each assertion, provide:
+1. **status**: "pass", "fail", or "blocked"
+2. **evidence**: Specific code references (file:line or quoted code snippets) showing the assertion is met.
+3. **notes**: Any caveats about what couldn't be fully verified (e.g., "requires physical device").
+
 ## Known Limitations
 - iOS NEHotspotNetwork requires precise location permission + Wi-Fi connection — returns nil in simulator
 - macOS CoreWLAN requires actual Wi-Fi hardware — works on mac-mini but values may vary

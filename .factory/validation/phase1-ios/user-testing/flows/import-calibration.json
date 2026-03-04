@@ -1,0 +1,66 @@
+{
+  "flowId": "import-calibration",
+  "testedAt": "2026-03-04T03:10:00Z",
+  "toolsUsed": ["code-review", "build-verification"],
+  "assertions": [
+    {
+      "id": "VAL-IOS-004",
+      "title": "Floor plan import — photo library (PHPicker)",
+      "status": "pass",
+      "evidence": "PhotoLibraryPicker.swift wraps PHPickerViewController with PHPickerConfiguration(photoLibrary: .shared()), selectionLimit=1, filter=.images. Coordinator loads image data via itemProvider.loadDataRepresentation(forTypeIdentifier: UTType.image.identifier) which supports PNG, JPEG, HEIC natively. FloorPlanImportViewModel.handlePhotoLibraryResult(Data?) passes data to FloorPlanImporter.importFloorPlan(from: Data) which uses CGImageSourceCreateWithData (supports PNG/JPEG/HEIC via ImageIO). Result creates UIImage and stores FloorPlanImportResult. NewProjectView presents picker via .sheet(isPresented: $viewModel.showPhotoLibraryPicker) and renders imported image in FloorPlanCanvasView. Unit test FloorPlanImportViewModelTests.handlePhotoLibraryResultWithValidPNGSucceeds confirms end-to-end. iOS build succeeds (BUILD SUCCEEDED).",
+      "notes": "HEIC support is implicit through ImageIO/CGImageSource which handles HEIC on iOS. No explicit HEIC UTType filter needed since PHPicker filter=.images covers all image types."
+    },
+    {
+      "id": "VAL-IOS-005",
+      "title": "Floor plan import — Files app (UIDocumentPicker)",
+      "status": "pass",
+      "evidence": "DocumentPicker.swift wraps UIDocumentPickerViewController with forOpeningContentTypes: FloorPlanImporter.documentPickerTypes (= [.png, .jpeg, .pdf]), asCopy=true. Coordinator forwards selected URL to callback. FloorPlanImportViewModel.handleDocumentPickerResult(URL) accesses security-scoped resource, calls FloorPlanImporter.importFloorPlan(from: URL). FloorPlanImporter validates extension against supportedDocumentExtensions={'png','jpg','jpeg','pdf'}. For PDF: rasterizePDF() renders first page at 2x scale via CGPDFDocument + CGContext. For images: reads Data(contentsOf:) then CGImageSourceCreateWithData. Downsamples if >4096px. Encodes to PNG. Unit tests FloorPlanImportViewModelTests.handleDocumentPickerResultWithValidFileSucceeds and floorPlanImporterFromURLWithValidPNG confirm. Build succeeds.",
+      "notes": "PDF import rasterizes only the first page at 2x scale. Multi-page PDFs silently use page 1 only."
+    },
+    {
+      "id": "VAL-IOS-006",
+      "title": "Floor plan — zoomable/pannable canvas",
+      "status": "pass",
+      "evidence": "FloorPlanCanvasView.swift implements a standalone zoomable canvas: Image(uiImage:).resizable().aspectRatio(contentMode: .fit) preserves aspect ratio. MagnifyGesture handles pinch-to-zoom (min 1.0x, max 5.0x via minScale/maxScale constants). DragGesture handles two-finger panning via offset tracking. Double-tap resets zoom. aspectFitSize() computes correct aspect-fit dimensions within GeometryReader. SurveyCanvasView in HeatmapSurveyView.swift reuses the same pattern with identical MagnifyGesture + DragGesture(minimumDistance: 10) for the active survey canvas, also with 1.0x-5.0x zoom range. Build succeeds under strict concurrency.",
+      "notes": "Both FloorPlanCanvasView (preview in NewProjectView) and SurveyCanvasView (in HeatmapSurveyView) implement zoom/pan independently with consistent behavior."
+    },
+    {
+      "id": "VAL-IOS-007",
+      "title": "Scale calibration — two-point touch",
+      "status": "pass",
+      "evidence": "CalibrationSheetView.swift presents a full calibration UI: two TouchCrosshairMarker views (labeled 'A' and 'B') positioned at normalized coordinates on the floor plan image. DragGesture on each marker updates calibrationPoint1/calibrationPoint2 via normalizedPoint() which clamps to 0-1 range. Distance input via TextField with .decimalPad keyboard, unit picker via segmented Picker with CalibrationUnit.allCases (meters/feet). 'Apply Calibration' button calls viewModel.applyCalibration() which computes pixel distance between markers, divides by real-world distance (converted to meters), sets pixelsPerMeter, then computeScaleBar() generates human-readable label (e.g. '5 m' or '10 ft') and scaleBarFraction. TouchCrosshairMarker has 56x56pt hit area (frame), 30pt crosshair lines, 20pt center circle — all touch-optimized. CalibrationSheetView has accessibility IDs: heatmap_calibration_marker_a, heatmap_calibration_marker_b, heatmap_calibration_distance_input, heatmap_calibration_unit_picker, heatmap_calibration_apply. Unit tests confirm: applyCalibrationWithValidDistanceSucceeds, applyCalibrationFeetConversion. Build succeeds.",
+      "notes": "Scale bar is shown in NewProjectView calibration section after calibration is applied, not directly in CalibrationSheetView."
+    },
+    {
+      "id": "VAL-IOS-008",
+      "title": "Scale calibration — optional",
+      "status": "pass",
+      "evidence": "CalibrationSheetView.swift toolbar has 'Skip' button (placement: .cancellationAction) with accessibilityIdentifier 'heatmap_calibration_skip' that calls viewModel.skipCalibration(). FloorPlanImportViewModel.skipCalibration() sets isCalibrated=false, pixelsPerMeter=0, clears scaleBarLabel/scaleBarFraction, dismisses sheet. createProject() handles uncalibrated path: calibrationPoints=nil, widthMeters=0, heightMeters=0. Unit test skipCalibrationClearsState confirms. Unit test createProjectWithoutCalibrationHasZeroDimensions confirms widthMeters=0, heightMeters=0, calibrationPoints=nil. NewProjectView shows 'Begin Survey' button regardless of calibration state. Build succeeds.",
+      "notes": "When calibration is skipped, pixel coordinates (widthMeters=0, heightMeters=0) are used as specified."
+    },
+    {
+      "id": "VAL-IOS-009",
+      "title": "Walk survey — tap to measure",
+      "status": "pass",
+      "evidence": "HeatmapSurveyView.swift SurveyCanvasView has .onTapGesture that calls handleTap(at:imageSize:) which converts screen coordinates to normalized 0-1 floor plan coordinates (accounting for zoom/offset), validates bounds (0-1), then calls Task { await viewModel.takeMeasurement(atNormalizedX:y:) }. HeatmapSurveyViewModel.takeMeasurement() guards against concurrent measurements (isMeasuring), calls measurementEngine.takeMeasurement(at:floorPlanY:) which returns a MeasurementPoint, checks for Wi-Fi disconnect, appends to project.measurementPoints, calls renderHeatmapOverlay(). MeasurementMarker view renders each point as blue circle (Color.blue.opacity(0.8), radius 8pt) with coverage radius circle (Color.blue.opacity(0.1), radius 24pt) and pulse animation on appear. Position computed from point.floorPlanX * imageSize.width. HeatmapServiceProtocol.takeMeasurement is backed by WiFiMeasurementEngine actor (verified via 27+ unit tests in WiFiMeasurementEngineTests.swift). Build succeeds.",
+      "notes": "Wi-Fi measurement requires real hardware + location permission. In simulator, WiFiInfoService returns mock data. Blue marker appearance is immediate after async measurement completes."
+    },
+    {
+      "id": "VAL-IOS-031",
+      "title": "Error — floor plan import failure (corrupted/unsupported)",
+      "status": "pass",
+      "evidence": "FloorPlanImporter.importFloorPlan(from: Data) throws FloorPlanImportError.imageDecodeFailed if CGImageSourceCreateWithData returns nil (corrupted data). importFloorPlan(from: URL) throws .unsupportedFormat(ext) for extensions not in supportedDocumentExtensions, .fileReadFailed for unreadable files, .imageDecodeFailed for corrupt image data, .pdfRenderFailed for invalid PDFs. All errors are LocalizedError with errorDescription. FloorPlanImportViewModel.handlePhotoLibraryResult catches errors and sets errorMessage = error.localizedDescription. handleDocumentPickerResult does the same. NewProjectView displays errors via .alert('Error', isPresented:...) with OK button. Unit tests confirm: handlePhotoLibraryResultWithInvalidDataSetsError (corrupt data), handleDocumentPickerResultWithUnsupportedFormatSetsError (.webp), floorPlanImporterFromDataWithInvalidDataThrows, floorPlanImporterUnsupportedExtensionThrows (.bmp). No force-unwraps in error paths. Build succeeds.",
+      "notes": "All error paths produce user-facing messages via LocalizedError. No crashes — all paths use do/catch with errorMessage assignment."
+    },
+    {
+      "id": "VAL-IOS-033",
+      "title": "Error — location permission required",
+      "status": "pass",
+      "evidence": "FloorPlanImportViewModel tracks locationAuthorizationStatus (CLAuthorizationStatus) and isLocationAuthorized (Bool). checkLocationPermission() reads from WiFiInfoService.isLocationAuthorized and .authorizationStatus. NewProjectView.locationPermissionSection conditionally displays a GlassCard warning when status is .notDetermined, .denied, or .restricted: shows warning icon, text 'Precise location access is required to read Wi-Fi signal data. Grant permission before starting your survey.', and 'Grant Location Access' button that calls viewModel.requestLocationPermission(). WiFiInfoService.requestLocationPermission() calls locationManager.requestWhenInUseAuthorization(). WiFiInfoService implements CLLocationManagerDelegate.locationManagerDidChangeAuthorization to re-check status. WiFiInfoService.fetchCurrentWiFi() re-checks authorizationStatus each call. Without location auth, NEHotspotNetwork.fetchCurrent() returns nil — the legacy fallback also requires entitlement. Build succeeds.",
+      "notes": "The prompt appears in NewProjectView before survey begins. If user denies, they can still create project but Wi-Fi measurements will return nil/default values. The prompt text specifically mentions 'precise location'."
+    }
+  ],
+  "frictions": [],
+  "blockers": [],
+  "summary": "Tested 8 assertions: 8 passed, 0 failed, 0 blocked. All assertions verified through code review of iOS source files (PhotoLibraryPicker.swift, DocumentPicker.swift, FloorPlanImporter.swift, FloorPlanImportViewModel.swift, FloorPlanCanvasView.swift, CalibrationSheetView.swift, HeatmapSurveyView.swift, HeatmapSurveyViewModel.swift, WiFiInfoService.swift, NewProjectView.swift) plus unit tests in FloorPlanImportViewModelTests.swift and WiFiMeasurementEngineTests.swift. iOS build verified successful (BUILD SUCCEEDED) under SWIFT_STRICT_CONCURRENCY: complete."
+}
