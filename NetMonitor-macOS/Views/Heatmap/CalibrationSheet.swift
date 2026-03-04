@@ -43,6 +43,12 @@ struct CalibrationSheet: View {
 
     private var floorPlanSection: some View {
         GeometryReader { geometry in
+            let imageDisplaySize = imageDisplaySize(in: geometry.size)
+            let origin = FloorPlanLayoutHelper.imageOrigin(
+                imageDisplaySize: imageDisplaySize,
+                containerSize: geometry.size
+            )
+
             ZStack {
                 // Floor plan image
                 if let image = viewModel.floorPlanImage {
@@ -52,35 +58,43 @@ struct CalibrationSheet: View {
                         .accessibilityIdentifier("heatmap_calibration_floorplan")
                 }
 
-                // First crosshair
+                // First crosshair — positioned relative to actual image display rect
                 CrosshairMarker(color: .blue, label: "A")
                     .position(
-                        x: viewModel.calibrationPoint1.x * geometry.size.width,
-                        y: viewModel.calibrationPoint1.y * geometry.size.height
+                        FloorPlanLayoutHelper.absolutePosition(
+                            from: viewModel.calibrationPoint1,
+                            imageOrigin: origin,
+                            imageDisplaySize: imageDisplaySize
+                        )
                     )
                     .gesture(
                         DragGesture()
                             .onChanged { value in
-                                viewModel.calibrationPoint1 = normalizedPoint(
-                                    value.location,
-                                    in: geometry.size
+                                viewModel.calibrationPoint1 = FloorPlanLayoutHelper.normalizedPosition(
+                                    from: value.location,
+                                    imageOrigin: origin,
+                                    imageDisplaySize: imageDisplaySize
                                 )
                             }
                     )
                     .accessibilityIdentifier("heatmap_calibration_marker_a")
 
-                // Second crosshair
+                // Second crosshair — positioned relative to actual image display rect
                 CrosshairMarker(color: .red, label: "B")
                     .position(
-                        x: viewModel.calibrationPoint2.x * geometry.size.width,
-                        y: viewModel.calibrationPoint2.y * geometry.size.height
+                        FloorPlanLayoutHelper.absolutePosition(
+                            from: viewModel.calibrationPoint2,
+                            imageOrigin: origin,
+                            imageDisplaySize: imageDisplaySize
+                        )
                     )
                     .gesture(
                         DragGesture()
                             .onChanged { value in
-                                viewModel.calibrationPoint2 = normalizedPoint(
-                                    value.location,
-                                    in: geometry.size
+                                viewModel.calibrationPoint2 = FloorPlanLayoutHelper.normalizedPosition(
+                                    from: value.location,
+                                    imageOrigin: origin,
+                                    imageDisplaySize: imageDisplaySize
                                 )
                             }
                     )
@@ -88,14 +102,18 @@ struct CalibrationSheet: View {
 
                 // Dashed line between markers
                 Path { path in
-                    path.move(to: CGPoint(
-                        x: viewModel.calibrationPoint1.x * geometry.size.width,
-                        y: viewModel.calibrationPoint1.y * geometry.size.height
-                    ))
-                    path.addLine(to: CGPoint(
-                        x: viewModel.calibrationPoint2.x * geometry.size.width,
-                        y: viewModel.calibrationPoint2.y * geometry.size.height
-                    ))
+                    let point1Pos = FloorPlanLayoutHelper.absolutePosition(
+                        from: viewModel.calibrationPoint1,
+                        imageOrigin: origin,
+                        imageDisplaySize: imageDisplaySize
+                    )
+                    let point2Pos = FloorPlanLayoutHelper.absolutePosition(
+                        from: viewModel.calibrationPoint2,
+                        imageOrigin: origin,
+                        imageDisplaySize: imageDisplaySize
+                    )
+                    path.move(to: point1Pos)
+                    path.addLine(to: point2Pos)
                 }
                 .stroke(style: StrokeStyle(lineWidth: 2, dash: [6, 4]))
                 .foregroundStyle(.white.opacity(0.8))
@@ -157,11 +175,15 @@ struct CalibrationSheet: View {
 
     // MARK: - Helpers
 
-    /// Converts an absolute point to normalized (0-1) coordinates, clamped to bounds.
-    private func normalizedPoint(_ point: CGPoint, in size: CGSize) -> CGPoint {
-        CGPoint(
-            x: max(0, min(1, point.x / size.width)),
-            y: max(0, min(1, point.y / size.height))
+    /// Computes the aspect-fit display size for the floor plan image within the container.
+    private func imageDisplaySize(in containerSize: CGSize) -> CGSize {
+        guard let result = viewModel.importResult
+        else { return containerSize }
+
+        return FloorPlanLayoutHelper.aspectFitSize(
+            imagePixelWidth: result.pixelWidth,
+            imagePixelHeight: result.pixelHeight,
+            containerSize: containerSize
         )
     }
 }
