@@ -1,0 +1,100 @@
+{
+  "milestone": "foundation",
+  "round": 1,
+  "status": "pass",
+  "validatorsRun": {
+    "test": {
+      "passed": true,
+      "command": "cd Packages/NetMonitorCore && swift test --no-parallel",
+      "exitCode": 0,
+      "notes": "1020 tests in 122 suites passed in 42.3 seconds"
+    },
+    "typecheck": {
+      "passed": true,
+      "command": "xcodebuild -scheme NetMonitor-macOS -configuration Debug build && xcodebuild -scheme NetMonitor-iOS -configuration Debug build",
+      "exitCode": 0,
+      "notes": "Both macOS and iOS targets BUILD SUCCEEDED under SWIFT_STRICT_CONCURRENCY: complete"
+    },
+    "lint": {
+      "passed": true,
+      "command": "swiftlint lint --quiet",
+      "exitCode": 0,
+      "notes": "0 errors. Pre-existing warnings only (none in new heatmap files)"
+    }
+  },
+  "reviewsSummary": {
+    "total": 6,
+    "passed": 6,
+    "failed": 0,
+    "failedFeatures": []
+  },
+  "blockingIssues": [],
+  "appliedUpdates": [
+    {
+      "target": "library",
+      "description": "Added nonisolated(unsafe) pattern documentation for storing non-Sendable @MainActor protocol references in actors under Swift 6 strict concurrency",
+      "sourceFeature": "foundation-measurement-engine"
+    }
+  ],
+  "suggestedGuidanceUpdates": [
+    {
+      "target": "AGENTS.md",
+      "suggestion": "Add convention: 'nonisolated(unsafe) follows the same restriction as @unchecked Sendable — avoid in production code unless necessary for storing non-Sendable @MainActor protocol references in actors. Document justification in a code comment when used.' This extends the existing ban on @unchecked Sendable to cover the related nonisolated(unsafe) pattern.",
+      "evidence": "WiFiMeasurementEngine uses nonisolated(unsafe) for wifiService and speedTestService (lines 22-23) because WiFiInfoServiceProtocol and SpeedTestServiceProtocol are @MainActor-isolated but not Sendable. The mission AGENTS.md bans @unchecked Sendable but doesn't address nonisolated(unsafe), which serves a similar safety-bypass purpose.",
+      "isSystemic": false
+    },
+    {
+      "target": "AGENTS.md",
+      "suggestion": "Add convention: 'Workers must keep commits atomic to their assigned feature scope. Do not bundle unrelated changes (documentation rewrites, new test files, configuration changes) into feature commits. Use separate commits for out-of-scope improvements.' This prevents large multi-topic commits that make review harder.",
+      "evidence": "foundation-clean-slate commit bf8feaf bundled 51 files — 39 in-scope deletions/edits plus 12 out-of-scope additions (Word temp file, AppStoreScreenshotUITests.swift, PRD docs, AGENTS.md rewrite, .beads/config, iOS scheme). No other features had this issue.",
+      "isSystemic": false
+    },
+    {
+      "target": "AGENTS.md",
+      "suggestion": "Add convention: 'For serialized/persisted enums, use explicit raw values (even if redundant with the case name) to prevent accidental serialization format changes. E.g., `case signalStrength = \"signalStrength\"`. SwiftLint warnings for redundant_string_enum_value are expected and acceptable for these types.'",
+      "evidence": "foundation-data-models worker added explicit raw values to HeatmapVisualization and SurveyMode enums for forward compatibility. Future workers may remove them thinking they're unnecessary, breaking serialization compatibility.",
+      "isSystemic": false
+    },
+    {
+      "target": "AGENTS.md",
+      "suggestion": "Clarify when enum-with-static-methods vs. protocol-backed services is acceptable: 'Stateless utility types (file managers, parsers, formatters) may use enum with static methods. Stateful services that benefit from DI/mocking should use protocol-backed pattern.'",
+      "evidence": "SurveyFileManager uses enum with static methods, diverging from the 'all services are protocol-backed' convention. The pattern is reasonable for stateless file I/O but creates ambiguity about when protocols are required.",
+      "isSystemic": false
+    },
+    {
+      "target": "skills",
+      "suggestion": "Update swift-core-worker skill Step 2 (TDD): Add note 'Skip TDD for features with no code changes (e.g., issue tracking, path verification, configuration-only tasks).' and 'For concurrency-heavy features involving novel actor/protocol patterns, a compile-first approach is acceptable before writing extensive tests.'",
+      "evidence": "Three features deviated from TDD: foundation-clean-slate (deletion-only, no tests to write), foundation-beads-epics (operational, no code), foundation-measurement-engine (needed compile verification for nonisolated(unsafe) patterns before tests). All deviations were reasonable.",
+      "isSystemic": true
+    },
+    {
+      "target": "skills",
+      "suggestion": "Update swift-core-worker skill: Add guidance for re-assigned features: 'If a previous worker already completed the work (check handoffs), verify rather than re-implement. Run build/test/lint verification and report success.'",
+      "evidence": "foundation-beads-epics had two worker sessions. Second worker (47eb194a) had to figure out work was already done by first worker (dbfca972) and pivot to verification mode. No skill guidance existed for this scenario.",
+      "isSystemic": false
+    }
+  ],
+  "rejectedObservations": [
+    {
+      "observation": "Add .gitignore pattern for Word temp files (~$*)",
+      "reason": "While the Word temp file (docs/~$Fi-Heatmap-PRD.docx) was committed, this is a one-time cleanup issue. Fixing .gitignore is an orchestrator/project decision, not a shared-state library item. The file itself was a side effect of the feature bundling unrelated changes."
+    },
+    {
+      "observation": "services.yaml should have fallback test commands for when mac-mini SSH is unavailable",
+      "reason": "The mac-mini auth issue is already documented in AGENTS.md as a Known Pre-Existing Issue with an explicit local fallback instruction. Adding redundant fallback commands to services.yaml would create two sources of truth for the same guidance."
+    },
+    {
+      "observation": "Worker ran tests locally instead of via SSH (foundation-renderer, foundation-file-format)",
+      "reason": "Already documented as acceptable fallback in AGENTS.md Known Pre-Existing Issues section. Not a convention gap — the guidance exists and workers correctly followed it."
+    },
+    {
+      "observation": "SurveyFileError should use LocalizedError instead of CustomStringConvertible",
+      "reason": "This is a code-level non-blocking issue, not a shared state observation. The error pattern inconsistency (NetworkError uses LocalizedError, SurveyFileError uses CustomStringConvertible) is noted in the review but doesn't warrant a conventions change — it's a future refactor candidate."
+    },
+    {
+      "observation": "Renderer supporting types (HeatmapResolution, HeatmapColorScheme, etc.) defined in Services/ instead of Models/",
+      "reason": "These are renderer-specific helper types that are tightly coupled to the renderer implementation. Co-locating them in the same file is standard Swift practice. The architecture.md doesn't need to document this distinction — it would be over-prescription."
+    }
+  ],
+  "previousRound": null
+}

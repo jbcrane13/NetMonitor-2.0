@@ -1,0 +1,34 @@
+{
+  "featureId": "foundation-data-models",
+  "reviewedAt": "2026-03-04T05:20:00Z",
+  "commitId": "f5489811b20006dfa6831bf2407daabf2bb69719",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "Clean, well-structured implementation of all 10 heatmap data model types across 3 new files (HeatmapModels.swift, HeatmapEnums.swift, HeatmapModelsTests.swift) plus one modification to NetworkModels.swift. All required types are present with correct fields, protocol conformances (Sendable, Codable, Identifiable, Equatable), and comprehensive test coverage (26 tests). FloorPlanOrigin custom Codable for .imported(URL) is correctly implemented with a discriminated union pattern. The worker made good decisions: reusing the existing WiFiBand enum (extending it with Codable/CaseIterable/Equatable) rather than duplicating it, and placing all code in the correct package paths per architecture.md.",
+    "issues": [
+      {
+        "file": "Packages/NetMonitorCore/Tests/NetMonitorCoreTests/HeatmapModelsTests.swift",
+        "line": 347,
+        "severity": "non_blocking",
+        "description": "The normalizedCoordinates test only verifies that a hardcoded 0.5 value is within 0.0-1.0 range. It does not test boundary enforcement — e.g., what happens if floorPlanX is set to 1.5 or -0.3. The model struct has no validation/clamping in its init, so out-of-range values would be silently accepted. This is reasonable for a data model (validation belongs at the view/service layer), but the test name implies range enforcement that doesn't actually exist. Consider either (a) adding a clamping init with a test for boundary values, or (b) renaming the test to clarify it documents the intended range rather than enforcing it."
+      },
+      {
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Models/Heatmap/HeatmapEnums.swift",
+        "line": 64,
+        "severity": "non_blocking",
+        "description": "SurveyMode and HeatmapVisualization use camelCase raw values (e.g., 'signalStrength', 'arAssisted') while the existing WiFiBand enum uses display-oriented raw values ('2.4 GHz', '5 GHz'). This is an inherited inconsistency since WiFiBand predates the heatmap feature. Not a bug, but worth noting for future consistency decisions if WiFiBand serialization format is ever revisited."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "conventions",
+      "observation": "The worker added explicit redundant raw values to String enums (e.g., `case signalStrength = \"signalStrength\"`) for forward compatibility, which triggers SwiftLint's redundant_string_enum_value warning. AGENTS.md documents that lint errors block commits but warnings do not, so the worker correctly proceeded. However, AGENTS.md doesn't document a convention for when redundant raw values should be used (i.e., for serialized/persisted enums). Future workers may remove them thinking they are unnecessary.",
+      "evidence": "HeatmapEnums.swift lines 64-76: all SurveyMode and HeatmapVisualization cases have explicit raw values identical to their case names. Worker transcript notes: 'redundant_string_enum_value by design for stable raw values'."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "PASS. All 10 required model types implemented with correct fields and protocol conformances. FloorPlanOrigin custom Codable is well-designed. 26 comprehensive unit tests pass covering serialization round-trips for every type and enum case. Both app targets build cleanly. Worker followed the swift-core-worker skill procedure faithfully, used TDD approach, and made good architectural decisions (reusing WiFiBand, explicit raw values for forward compatibility). Two non-blocking issues noted: (1) normalizedCoordinates test doesn't actually enforce range constraints, (2) minor raw-value style inconsistency between existing and new enums."
+}

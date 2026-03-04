@@ -1,0 +1,45 @@
+{
+  "featureId": "foundation-renderer",
+  "reviewedAt": "2026-03-04T05:30:00.000Z",
+  "commitId": "c75533e",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "HeatmapRenderer implementation is well-structured and functionally correct. IDW interpolation with p=2.0 is properly optimized (using 1/distSquared to avoid sqrt). All 5 visualization types are implemented with appropriate normalization ranges and the green→yellow→red gradient. WiFiman 6-stop color scheme is correctly implemented for RSSI values. Zero-distance handling, value clamping, minimum 3-point requirement, and configurable resolution/opacity all work as specified. 44 comprehensive tests cover IDW correctness, all color mappings, performance bounds, scale bar computation, and value extraction. Two non-blocking issues found: (1) premultiplied alpha mismatch in CGImage creation — the pixel data is written as straight (non-premultiplied) RGBA but the bitmap info declares premultipliedLast, which will cause slightly incorrect compositing when overlaid on a floor plan; (2) the WiFiman color scheme always normalizes for RSSI range regardless of visualization type, so using .wifiman with latency or speed visualizations produces nonsensical colors. Neither issue affects test correctness or causes crashes.",
+    "issues": [
+      {
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Services/Heatmap/HeatmapRenderer.swift",
+        "line": 455,
+        "severity": "non_blocking",
+        "description": "Premultiplied alpha mismatch: CGImage is created with CGImageAlphaInfo.premultipliedLast but the pixel data written at lines 149-152 is NOT premultiplied (raw RGB + separate alpha). When composited over a background, colors will appear slightly more opaque/saturated than the specified opacity. Fix: either use CGImageAlphaInfo.last (straight alpha) or premultiply RGB values by opacity before writing (redByte = UInt8(color.red * opacity * 255.0))."
+      },
+      {
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Services/Heatmap/HeatmapRenderer.swift",
+        "line": 264,
+        "severity": "non_blocking",
+        "description": "WiFiman color scheme ignores visualization type: colorForValue() routes all .wifiman cases to wifimanColor(forSignalStrength:) which hardcodes RSSI normalization range (-90 to -30). When called with latency (e.g., 50ms) or speed values (e.g., 150 Mbps), the normalization produces nonsensical results (all values > -30 clamp to blue). The API allows combining .wifiman with any HeatmapVisualization, creating a footgun for downstream consumers."
+      },
+      {
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Services/Heatmap/HeatmapRenderer.swift",
+        "line": 79,
+        "severity": "non_blocking",
+        "description": "Dead code: 'idwPower' property is declared but never referenced. The p=2.0 optimization is correctly hardcoded as 1/distSquared in interpolateIDWFromData, but the named constant is unused. Either remove it or reference it in a doc comment to justify its existence."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "conventions",
+      "observation": "Worker ran tests locally with 'swift test' instead of via SSH to mac-mini. This is documented as an acceptable fallback in AGENTS.md due to the known mac-mini git HTTPS auth issue. The deviation was justified and consistent with documented guidance.",
+      "evidence": "Transcript shows: 'cd Packages/NetMonitorCore && swift test --no-parallel --filter HeatmapRenderer'. AGENTS.md 'Known Pre-Existing Issues' section explicitly allows local swift test as fallback."
+    },
+    {
+      "area": "conventions",
+      "observation": "New supporting types (HeatmapResolution, HeatmapColorScheme, HeatmapColor, ScaleBarInfo) were defined in HeatmapRenderer.swift rather than in the existing Models/Heatmap/ directory alongside HeatmapModels.swift and HeatmapEnums.swift. This is a reasonable co-location choice for renderer-specific types, but establishes a pattern where data types can live in Services/ files rather than Models/. The architecture.md library file doesn't address this distinction.",
+      "evidence": "HeatmapResolution, HeatmapColorScheme, HeatmapColor, ScaleBarInfo all defined at top of Services/Heatmap/HeatmapRenderer.swift. Existing model types are in Models/Heatmap/HeatmapModels.swift."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "HeatmapRenderer passes review. Implementation correctly fulfills all 20 validation criteria (VAL-FOUND-015 through VAL-FOUND-030, VAL-FOUND-045, VAL-FOUND-046, VAL-FOUND-051, VAL-CROSS-003). IDW interpolation is mathematically correct with p=2.0 optimization. All 5 visualization types produce appropriate color gradients at specified thresholds. 44 tests provide comprehensive coverage including edge cases (zero distance, clamping, nil optionals) and performance bounds. Two non-blocking issues identified: premultiplied alpha format mismatch (cosmetic compositing impact) and WiFiman scheme not adapting to non-RSSI visualization types (API design concern). Neither affects functional correctness or test outcomes."
+}

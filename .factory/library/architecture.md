@@ -47,3 +47,20 @@ Architectural decisions, patterns discovered, and design rationale.
 - Default opacity: 70%
 - Minimum points: 3
 - Performance: <500ms for 50 points, <2s for 200 points
+
+### Concurrency Pattern: nonisolated(unsafe) for Non-Sendable Protocol Storage
+
+When an `actor` needs to store a reference to a `@MainActor`-isolated protocol that isn't `Sendable` (e.g., `WiFiInfoServiceProtocol`, `SpeedTestServiceProtocol`), use `nonisolated(unsafe) let` for the stored property. This bypasses actor-isolation checking and is the Swift 6 equivalent of `@unchecked Sendable` for stored properties.
+
+**When to use:** Only when the stored protocol is `@MainActor`-isolated and all accesses go through `await` (ensuring proper isolation at call sites).
+
+**Example (from WiFiMeasurementEngine):**
+```swift
+public actor WiFiMeasurementEngine: HeatmapServiceProtocol {
+    nonisolated(unsafe) let wifiService: any WiFiInfoServiceProtocol
+    nonisolated(unsafe) let speedTestService: any SpeedTestServiceProtocol
+    let pingService: any PingServiceProtocol // already Sendable — no workaround needed
+}
+```
+
+**Preferred long-term fix:** Make the protocol itself `Sendable` (add `Sendable` requirement). This eliminates the need for `nonisolated(unsafe)`. The workaround is acceptable when modifying the protocol is outside the current feature scope.
