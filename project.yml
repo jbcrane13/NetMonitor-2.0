@@ -62,6 +62,20 @@ targets:
             ip-api.com:
               NSExceptionAllowsInsecureHTTPLoads: true
               NSIncludesSubdomains: true
+        UTExportedTypeDeclarations:
+          - UTTypeIdentifier: com.netmonitor.survey
+            UTTypeDescription: NetMonitor Survey Project
+            UTTypeConformsTo:
+              - com.apple.package
+            UTTypeTagSpecification:
+              public.filename-extension:
+                - netmonsurvey
+        CFBundleDocumentTypes:
+          - CFBundleTypeName: NetMonitor Survey Project
+            CFBundleTypeRole: Editor
+            LSHandlerRank: Owner
+            LSItemContentTypes:
+              - com.netmonitor.survey
     entitlements:
       path: NetMonitor-macOS/Resources/NetMonitor-macOS.entitlements
       properties:
@@ -167,6 +181,20 @@ targets:
           - com.blakemiller.netmonitor.refresh
           - com.blakemiller.netmonitor.sync
           - com.blakemiller.netmonitor.scheduledNetworkScan
+        UTExportedTypeDeclarations:
+          - UTTypeIdentifier: com.netmonitor.survey
+            UTTypeDescription: NetMonitor Survey Project
+            UTTypeConformsTo:
+              - com.apple.package
+            UTTypeTagSpecification:
+              public.filename-extension:
+                - netmonsurvey
+        CFBundleDocumentTypes:
+          - CFBundleTypeName: NetMonitor Survey Project
+            CFBundleTypeRole: Editor
+            LSHandlerRank: Owner
+            LSItemContentTypes:
+              - com.netmonitor.survey
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.blakemiller.netmonitor
