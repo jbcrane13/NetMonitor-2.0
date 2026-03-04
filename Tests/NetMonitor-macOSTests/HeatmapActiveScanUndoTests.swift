@@ -4,35 +4,6 @@ import NetMonitorCore
 import Testing
 @testable import NetMonitor_macOS
 
-// MARK: - Test Helpers
-
-/// Creates a minimal valid PNG image data for testing.
-private func makeTestPNGData(width: Int = 100, height: Int = 80) -> Data {
-    let colorSpace = CGColorSpaceCreateDeviceRGB()
-    guard let context = CGContext(
-        data: nil,
-        width: width,
-        height: height,
-        bitsPerComponent: 8,
-        bytesPerRow: width * 4,
-        space: colorSpace,
-        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-    ), let cgImage = context.makeImage()
-    else {
-        return Data()
-    }
-    let rep = NSBitmapImageRep(cgImage: cgImage)
-    return rep.representation(using: .png, properties: [:]) ?? Data()
-}
-
-/// Writes test PNG data to a temporary file and returns the URL.
-private func makeTestPNGFile(name: String = "test_floorplan.png", width: Int = 100, height: Int = 80) -> URL {
-    let data = makeTestPNGData(width: width, height: height)
-    let url = FileManager.default.temporaryDirectory.appendingPathComponent(name)
-    try? data.write(to: url)
-    return url
-}
-
 // MARK: - Active Scan, Undo/Redo, Save/Load, Error Handling Tests
 
 @Suite("HeatmapSurveyViewModel — Active Scan & Undo")

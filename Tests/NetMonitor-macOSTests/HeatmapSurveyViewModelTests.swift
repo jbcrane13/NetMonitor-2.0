@@ -72,42 +72,6 @@ final class MockCoreWLANService: CoreWLANServiceProtocol {
     func currentBSSID() -> String? { mockBSSID }
 }
 
-// MARK: - Test Helpers
-
-/// Creates a minimal valid PNG image data for testing.
-private func makeTestPNGData(width: Int = 100, height: Int = 80) -> Data {
-    let colorSpace = CGColorSpaceCreateDeviceRGB()
-    guard let context = CGContext(
-        data: nil,
-        width: width,
-        height: height,
-        bitsPerComponent: 8,
-        bytesPerRow: width * 4,
-        space: colorSpace,
-        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-    ), let cgImage = context.makeImage()
-    else {
-        return Data()
-    }
-    let rep = NSBitmapImageRep(cgImage: cgImage)
-    return rep.representation(using: .png, properties: [:]) ?? Data()
-}
-
-/// Writes test PNG data to a temporary file and returns the URL.
-private func makeTestPNGFile(name: String = "test_floorplan.png", width: Int = 100, height: Int = 80) -> URL {
-    let data = makeTestPNGData(width: width, height: height)
-    let url = FileManager.default.temporaryDirectory.appendingPathComponent(name)
-    try? data.write(to: url)
-    return url
-}
-
-/// Writes test data to a temporary file with the given extension.
-private func makeTestFile(name: String, data: Data = Data([0x00, 0x01, 0x02])) -> URL {
-    let url = FileManager.default.temporaryDirectory.appendingPathComponent(name)
-    try? data.write(to: url)
-    return url
-}
-
 // MARK: - HeatmapSurveyViewModel Tests
 
 @Suite("HeatmapSurveyViewModel")

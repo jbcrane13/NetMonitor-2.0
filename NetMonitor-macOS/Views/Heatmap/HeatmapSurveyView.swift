@@ -483,22 +483,12 @@ struct HeatmapSurveyView: View {
     private var visualizationPicker: some View {
         Picker("Visualization", selection: $viewModel.selectedVisualization) {
             ForEach(HeatmapVisualization.allCases, id: \.self) { type in
-                Text(displayName(for: type))
+                Text(type.displayName)
                     .tag(type)
             }
         }
         .pickerStyle(.menu)
         .frame(width: 160)
-    }
-
-    private func displayName(for visualization: HeatmapVisualization) -> String {
-        switch visualization {
-        case .signalStrength: "Signal Strength"
-        case .signalToNoise: "Signal to Noise"
-        case .downloadSpeed: "Download Speed"
-        case .uploadSpeed: "Upload Speed"
-        case .latency: "Latency"
-        }
     }
 
     // MARK: - Live RSSI Badge
