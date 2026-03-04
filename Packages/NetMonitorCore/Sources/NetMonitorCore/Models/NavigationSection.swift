@@ -4,6 +4,7 @@ import Foundation
 /// Defined in Core so it can be referenced from shared ViewModels if needed;
 /// iOS tab navigation uses a different approach.
 public enum NavigationSection: String, CaseIterable, Identifiable, Sendable {
+    case heatmap   = "Heatmap"
     case tools     = "Tools"
     case settings  = "Settings"
 
@@ -11,6 +12,7 @@ public enum NavigationSection: String, CaseIterable, Identifiable, Sendable {
 
     public var iconName: String {
         switch self {
+        case .heatmap:   "chart.bar.fill"
         case .tools:     "wrench.and.screwdriver"
         case .settings:  "gearshape"
         }
