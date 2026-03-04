@@ -9,6 +9,9 @@ import UniformTypeIdentifiers
 /// Toolbar provides import, calibrate, live RSSI badge, and dimension info.
 struct HeatmapSurveyView: View {
     @Bindable var viewModel: HeatmapSurveyViewModel
+    @State private var showingNewProjectSheet = false
+    @State private var showingDrawFloorPlan = false
+    @State private var newProjectName = ""
 
     var body: some View {
         Group {
@@ -21,6 +24,23 @@ struct HeatmapSurveyView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .sheet(isPresented: $viewModel.isCalibrationSheetPresented) {
             CalibrationSheet(viewModel: viewModel)
+        }
+        .sheet(isPresented: $showingNewProjectSheet) {
+            newProjectSheet
+        }
+        .sheet(isPresented: $showingDrawFloorPlan) {
+            DrawFloorPlanView(
+                canvasWidth: 1000,
+                canvasHeight: 800,
+                onComplete: { imageData in
+                    showingDrawFloorPlan = false
+                    viewModel.applyDrawnFloorPlan(name: newProjectName, imageData: imageData)
+                },
+                onCancel: {
+                    showingDrawFloorPlan = false
+                }
+            )
+            .frame(minWidth: 700, minHeight: 550)
         }
         .alert("Error", isPresented: $viewModel.showingError) {
             Button("OK") {
@@ -130,12 +150,12 @@ struct HeatmapSurveyView: View {
                 .foregroundStyle(.secondary)
                 .accessibilityIdentifier("heatmap_import_icon")
 
-            Text("Import a Floor Plan")
+            Text("Start a WiFi Survey")
                 .font(.title2)
                 .fontWeight(.semibold)
                 .accessibilityIdentifier("heatmap_import_title")
 
-            Text("Drag and drop an image or click Import to get started.")
+            Text("Import a floor plan image, draw one, or open an existing project.")
                 .font(.body)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -146,15 +166,37 @@ struct HeatmapSurveyView: View {
                 .foregroundStyle(.tertiary)
                 .accessibilityIdentifier("heatmap_import_formats")
 
-            Button(action: {
-                viewModel.importFloorPlan()
-            }) {
-                Label("Import Floor Plan", systemImage: "square.and.arrow.down")
-                    .padding(.horizontal, 8)
+            HStack(spacing: 16) {
+                Button(action: {
+                    viewModel.importFloorPlan()
+                }) {
+                    Label("Import Floor Plan", systemImage: "square.and.arrow.down")
+                        .padding(.horizontal, 8)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .accessibilityIdentifier("heatmap_import_button")
+
+                Button(action: {
+                    showingNewProjectSheet = true
+                }) {
+                    Label("New Project", systemImage: "plus.rectangle.on.rectangle")
+                        .padding(.horizontal, 8)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.large)
+                .accessibilityIdentifier("heatmap_new_project_button")
+
+                Button(action: {
+                    viewModel.openProject()
+                }) {
+                    Label("Open Project", systemImage: "folder")
+                        .padding(.horizontal, 8)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.large)
+                .accessibilityIdentifier("heatmap_open_project_button")
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
-            .accessibilityIdentifier("heatmap_import_button")
         }
         .padding(40)
         .onDrop(of: [.fileURL], isTargeted: nil) { providers in
@@ -182,6 +224,93 @@ struct HeatmapSurveyView: View {
         .frame(width: 0, height: 0)
         .opacity(0)
         .allowsHitTesting(false)
+    }
+
+    // MARK: - New Project Sheet
+
+    private var newProjectSheet: some View {
+        VStack(spacing: 20) {
+            Text("New Survey Project")
+                .font(.title2)
+                .fontWeight(.semibold)
+                .accessibilityIdentifier("heatmap_new_project_title")
+
+            TextField("Project Name", text: $newProjectName)
+                .textFieldStyle(.roundedBorder)
+                .frame(width: 300)
+                .accessibilityIdentifier("heatmap_new_project_name_field")
+
+            Text("Choose how to provide a floor plan:")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+
+            HStack(spacing: 16) {
+                // Import image
+                Button(action: {
+                    showingNewProjectSheet = false
+                    let name = newProjectName.isEmpty ? "Untitled Survey" : newProjectName
+                    viewModel.importFloorPlanForNewProject(name: name)
+                }) {
+                    VStack(spacing: 8) {
+                        Image(systemName: "photo")
+                            .font(.title)
+                        Text("Import Image")
+                            .font(.callout)
+                    }
+                    .frame(width: 120, height: 80)
+                }
+                .buttonStyle(.bordered)
+                .accessibilityIdentifier("heatmap_new_project_import")
+
+                // Draw floor plan
+                Button(action: {
+                    showingNewProjectSheet = false
+                    if newProjectName.isEmpty {
+                        newProjectName = "Untitled Survey"
+                    }
+                    showingDrawFloorPlan = true
+                }) {
+                    VStack(spacing: 8) {
+                        Image(systemName: "pencil.and.ruler")
+                            .font(.title)
+                        Text("Draw Floor Plan")
+                            .font(.callout)
+                    }
+                    .frame(width: 120, height: 80)
+                }
+                .buttonStyle(.bordered)
+                .accessibilityIdentifier("heatmap_new_project_draw")
+
+                // Blank canvas
+                Button(action: {
+                    showingNewProjectSheet = false
+                    let name = newProjectName.isEmpty ? "Untitled Survey" : newProjectName
+                    viewModel.createNewProject(name: name)
+                }) {
+                    VStack(spacing: 8) {
+                        Image(systemName: "rectangle.dashed")
+                            .font(.title)
+                        Text("Blank Canvas")
+                            .font(.callout)
+                    }
+                    .frame(width: 120, height: 80)
+                }
+                .buttonStyle(.bordered)
+                .accessibilityIdentifier("heatmap_new_project_blank")
+            }
+
+            HStack {
+                Button("Cancel") {
+                    showingNewProjectSheet = false
+                    newProjectName = ""
+                }
+                .keyboardShortcut(.cancelAction)
+                .accessibilityIdentifier("heatmap_new_project_cancel")
+            }
+        }
+        .padding(24)
+        .frame(width: 460)
+        .accessibilityIdentifier("heatmap_new_project_sheet")
     }
 
     // MARK: - Survey Toolbar
@@ -281,6 +410,21 @@ struct HeatmapSurveyView: View {
             }
             .disabled(viewModel.project == nil)
             .accessibilityIdentifier("heatmap_toolbar_save")
+
+            Divider()
+                .frame(height: 20)
+
+            // PDF Export button
+            Button(action: {
+                viewModel.exportPDF()
+            }) {
+                Label("Export PDF", systemImage: "doc.richtext")
+            }
+            .disabled(!viewModel.canExportPDF)
+            .help(viewModel.canExportPDF
+                ? "Export a 3-page PDF report"
+                : "Requires at least 3 measurement points")
+            .accessibilityIdentifier("heatmap_toolbar_export_pdf")
 
             // Floor plan dimensions
             if let result = viewModel.importResult {

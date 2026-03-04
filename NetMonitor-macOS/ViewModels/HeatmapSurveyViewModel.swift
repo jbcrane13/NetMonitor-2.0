@@ -53,6 +53,7 @@ enum UndoAction: Sendable {
 /// measurement points, live RSSI, summary stats, and canvas state.
 @MainActor
 @Observable
+// swiftlint:disable:next type_body_length
 final class HeatmapSurveyViewModel {
 
     // MARK: - Floor Plan State
@@ -180,6 +181,21 @@ final class HeatmapSurveyViewModel {
         case .latency: "Latency"
         }
     }
+
+    // MARK: - PDF Export
+
+    /// Whether PDF export is available (requires 3+ measurement points).
+    var canExportPDF: Bool {
+        guard let points = project?.measurementPoints
+        else { return false }
+        return points.count >= 3
+    }
+
+    // MARK: - File Path Tracking
+
+    /// The URL where the current project was last saved to or loaded from.
+    /// Used for overwriting an existing file on subsequent saves.
+    private(set) var currentSavePath: URL?
 
     // MARK: - Canvas State
 
@@ -429,6 +445,23 @@ final class HeatmapSurveyViewModel {
         renderHeatmapOverlay()
     }
 
+    // MARK: - State Reset
+
+    /// Resets calibration, undo/redo, selection, and overlay state for a new or loaded project.
+    func resetProjectState() {
+        isCalibrated = false
+        pixelsPerMeter = 0
+        scaleBarLabel = ""
+        scaleBarFraction = 0
+        currentSavePath = nil
+        undoStack.removeAll()
+        redoStack.removeAll()
+        selectedPointID = nil
+        inspectedPointID = nil
+        heatmapOverlayImage = nil
+        summaryStats = .empty
+    }
+
     // MARK: - Undo / Redo
 
     /// Undoes the last action (placement or deletion).
@@ -478,10 +511,23 @@ final class HeatmapSurveyViewModel {
 
     // MARK: - Save / Load
 
-    /// Saves the current project via NSSavePanel.
+    /// Saves the current project via NSSavePanel, or overwrites the existing path
+    /// if the project was previously saved or loaded.
     func saveProject() {
         guard let currentProject = project
         else { return }
+
+        // If we already have a save path, overwrite directly
+        if let existingPath = currentSavePath {
+            do {
+                try SurveyFileManager.save(currentProject, to: existingPath)
+                Logger.app.info("Survey project overwritten at \(existingPath.lastPathComponent)")
+                return
+            } catch {
+                // Fall through to NSSavePanel if overwrite fails
+                Logger.app.warning("Overwrite failed, showing save panel: \(error.localizedDescription)")
+            }
+        }
 
         let panel = NSSavePanel()
         panel.title = "Save Survey Project"
@@ -495,7 +541,32 @@ final class HeatmapSurveyViewModel {
 
         do {
             try SurveyFileManager.save(currentProject, to: url)
+            currentSavePath = url
             Logger.app.info("Survey project saved to \(url.lastPathComponent)")
+        } catch {
+            showError("Failed to save project: \(error.localizedDescription)")
+        }
+    }
+
+    /// Saves the current project to a new location via NSSavePanel (always shows panel).
+    func saveProjectAs() {
+        guard let currentProject = project
+        else { return }
+
+        let panel = NSSavePanel()
+        panel.title = "Save Survey Project As"
+        panel.prompt = "Save"
+        panel.nameFieldStringValue = "\(currentProject.name).netmonsurvey"
+        panel.allowedContentTypes = [.init(exportedAs: "com.netmonitor.survey")]
+
+        let response = panel.runModal()
+        guard response == .OK, let url = panel.url
+        else { return }
+
+        do {
+            try SurveyFileManager.save(currentProject, to: url)
+            currentSavePath = url
+            Logger.app.info("Survey project saved as \(url.lastPathComponent)")
         } catch {
             showError("Failed to save project: \(error.localizedDescription)")
         }
@@ -538,6 +609,7 @@ final class HeatmapSurveyViewModel {
                 sourceURL: url
             )
             project = loadedProject
+            currentSavePath = url
 
             // Restore calibration state
             if let calibrationPoints = loadedProject.floorPlan.calibrationPoints, calibrationPoints.count >= 2,
@@ -561,6 +633,157 @@ final class HeatmapSurveyViewModel {
         } catch {
             showError("Failed to open project: \(error.localizedDescription)")
         }
+    }
+
+    // MARK: - PDF Export
+
+    /// Exports the current survey project as a 3-page PDF report.
+    /// Requires 3+ measurement points. Shows NSSavePanel for destination.
+    func exportPDF() {
+        guard let currentProject = project, let image = floorPlanImage
+        else { return }
+
+        guard canExportPDF
+        else {
+            showError("At least 3 measurement points are required to export a PDF report.")
+            return
+        }
+
+        guard let pdfData = HeatmapPDFExporter.generatePDF(
+            project: currentProject,
+            floorPlanImage: image,
+            heatmapOverlay: heatmapOverlayImage,
+            visualization: selectedVisualization
+        ) else {
+            showError("Failed to generate PDF report.")
+            return
+        }
+
+        let success = HeatmapPDFExporter.saveWithPanel(
+            pdfData: pdfData,
+            projectName: currentProject.name
+        )
+
+        if !success {
+            // User cancelled — not an error
+            Logger.app.debug("PDF export cancelled by user")
+        }
+    }
+
+    // MARK: - New Project
+
+    /// Creates a new project with the given name and a blank white canvas as the floor plan.
+    func createNewProject(name: String, canvasWidth: Int = 1000, canvasHeight: Int = 800) {
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        guard let context = CGContext(
+            data: nil,
+            width: canvasWidth,
+            height: canvasHeight,
+            bitsPerComponent: 8,
+            bytesPerRow: canvasWidth * 4,
+            space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else {
+            showError("Failed to create canvas for new project")
+            return
+        }
+
+        // Fill white background
+        context.setFillColor(CGColor.white)
+        context.fill(CGRect(x: 0, y: 0, width: canvasWidth, height: canvasHeight))
+
+        guard let filledImage = context.makeImage()
+        else {
+            showError("Failed to create canvas image")
+            return
+        }
+
+        let rep = NSBitmapImageRep(cgImage: filledImage)
+        let pngData = rep.representation(using: .png, properties: [:]) ?? Data()
+
+        applyFloorPlanData(
+            name: name,
+            imageData: pngData,
+            pixelWidth: canvasWidth,
+            pixelHeight: canvasHeight,
+            origin: .drawn
+        )
+        Logger.app.info("New project created: \(name)")
+    }
+
+    /// Opens an NSOpenPanel for a floor plan image and creates a new project with the given name.
+    func importFloorPlanForNewProject(name: String) {
+        guard let url = FloorPlanImporter.presentOpenPanel()
+        else { return }
+
+        do {
+            let result = try FloorPlanImporter.importFloorPlan(from: url)
+            applyFloorPlanData(
+                name: name,
+                imageData: result.imageData,
+                pixelWidth: result.pixelWidth,
+                pixelHeight: result.pixelHeight,
+                origin: .imported(result.sourceURL),
+                sourceURL: result.sourceURL
+            )
+            Logger.app.info("New project '\(name)' created with imported floor plan")
+        } catch {
+            showError(error.localizedDescription)
+        }
+    }
+
+    /// Applies a drawn floor plan image as the base for a new project.
+    func applyDrawnFloorPlan(name: String, imageData: Data) {
+        guard !imageData.isEmpty,
+              let nsImage = NSImage(data: imageData),
+              let cgImage = nsImage.cgImage(forProposedRect: nil, context: nil, hints: nil)
+        else {
+            showError("Failed to create floor plan from drawing")
+            return
+        }
+
+        applyFloorPlanData(
+            name: name,
+            imageData: imageData,
+            pixelWidth: cgImage.width,
+            pixelHeight: cgImage.height,
+            origin: .drawn
+        )
+        Logger.app.info("New project '\(name)' created with drawn floor plan")
+    }
+
+    /// Shared helper to apply floor plan data and create a new project.
+    private func applyFloorPlanData(
+        name: String,
+        imageData: Data,
+        pixelWidth: Int,
+        pixelHeight: Int,
+        origin: FloorPlanOrigin,
+        sourceURL: URL? = nil
+    ) {
+        let floorPlan = FloorPlan(
+            imageData: imageData,
+            widthMeters: 0,
+            heightMeters: 0,
+            pixelWidth: pixelWidth,
+            pixelHeight: pixelHeight,
+            origin: origin
+        )
+
+        project = SurveyProject(
+            name: name,
+            floorPlan: floorPlan
+        )
+
+        floorPlanImage = NSImage(data: imageData)
+        importResult = FloorPlanImportResult(
+            imageData: imageData,
+            pixelWidth: pixelWidth,
+            pixelHeight: pixelHeight,
+            sourceURL: sourceURL ?? URL(fileURLWithPath: "/tmp/drawn-\(name)")
+        )
+
+        resetProjectState()
     }
 
     // MARK: - Live RSSI
@@ -606,7 +829,7 @@ final class HeatmapSurveyViewModel {
     /// Re-renders the heatmap overlay using HeatmapRenderer.
     /// Called when measurement points change or visualization type switches.
     /// Produces a CGImage overlay at 70% opacity, or nil if fewer than 3 valid points.
-    private func renderHeatmapOverlay() {
+    func renderHeatmapOverlay() {
         guard let points = project?.measurementPoints, let result = importResult
         else {
             heatmapOverlayImage = nil
@@ -642,7 +865,7 @@ final class HeatmapSurveyViewModel {
     // MARK: - Private Helpers
 
     /// Recalculates summary statistics from the current measurement points.
-    private func recalculateStats() {
+    func recalculateStats() {
         guard let points = project?.measurementPoints, !points.isEmpty
         else {
             summaryStats = .empty
@@ -695,7 +918,7 @@ final class HeatmapSurveyViewModel {
     }
 
     /// Computes scale bar parameters for display.
-    private func computeScaleBar() {
+    func computeScaleBar() {
         guard isCalibrated, pixelsPerMeter > 0, let result = importResult
         else { return }
 
