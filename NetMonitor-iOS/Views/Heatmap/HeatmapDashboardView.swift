@@ -35,6 +35,14 @@ struct HeatmapDashboardView: View {
         .onAppear {
             viewModel.loadProjects()
         }
+        .sheet(isPresented: $viewModel.showNewProjectSheet) {
+            NavigationStack {
+                NewProjectView { _ in
+                    viewModel.showNewProjectSheet = false
+                    viewModel.loadProjects()
+                }
+            }
+        }
         .alert("Error", isPresented: .init(
             get: { viewModel.errorMessage != nil },
             set: { if !$0 { viewModel.errorMessage = nil } }
