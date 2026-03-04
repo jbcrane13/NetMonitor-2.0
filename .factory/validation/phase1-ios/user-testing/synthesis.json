@@ -1,39 +1,20 @@
 {
   "milestone": "phase1-ios",
-  "round": 1,
-  "status": "fail",
+  "round": 2,
+  "status": "pass",
   "assertionsSummary": {
-    "total": 41,
-    "passed": 38,
-    "failed": 3,
+    "total": 3,
+    "passed": 3,
+    "failed": 0,
     "blocked": 0
   },
   "passedAssertions": [
-    "VAL-IOS-001", "VAL-IOS-002", "VAL-IOS-003", "VAL-IOS-004", "VAL-IOS-005",
-    "VAL-IOS-006", "VAL-IOS-007", "VAL-IOS-008", "VAL-IOS-009", "VAL-IOS-010",
-    "VAL-IOS-011", "VAL-IOS-012", "VAL-IOS-013", "VAL-IOS-014", "VAL-IOS-015",
-    "VAL-IOS-016", "VAL-IOS-017", "VAL-IOS-018", "VAL-IOS-019", "VAL-IOS-020",
-    "VAL-IOS-021", "VAL-IOS-022", "VAL-IOS-023", "VAL-IOS-025", "VAL-IOS-026",
-    "VAL-IOS-027", "VAL-IOS-028", "VAL-IOS-029", "VAL-IOS-030", "VAL-IOS-031",
-    "VAL-IOS-032", "VAL-IOS-033", "VAL-IOS-034", "VAL-IOS-035", "VAL-IOS-036",
-    "VAL-IOS-037", "VAL-IOS-038",
-    "VAL-CROSS-004"
+    "VAL-IOS-024",
+    "VAL-IOS-039",
+    "VAL-CROSS-005"
   ],
-  "failedAssertions": [
-    {
-      "id": "VAL-IOS-024",
-      "reason": "UIFileSharingEnabled and LSSupportsOpeningDocumentsInPlace missing from iOS Info.plist in project.yml. Without these keys, saved .netmonsurvey files are sandboxed and invisible in the Files app."
-    },
-    {
-      "id": "VAL-IOS-039",
-      "reason": "WiFiInfoService.fetchCurrentWiFi() calls NEHotspotNetwork.fetchCurrent() directly with no caching. Apple rate-limits NEHotspotNetwork calls and may return nil if polled too frequently. A caching layer with >=1s TTL is required."
-    },
-    {
-      "id": "VAL-CROSS-005",
-      "reason": "No unit test for 2000+ point rendering performance. Current IDW algorithm is O(gridWidth * gridHeight * numPoints); extrapolating from 200-point benchmark (~2s), 2000 points would take ~20s on a 200x200 grid, far exceeding the <5s target. Requires spatial indexing or GPU offload."
-    }
-  ],
+  "failedAssertions": [],
   "blockedAssertions": [],
   "appliedUpdates": [],
-  "previousRound": null
+  "previousRound": ".factory/validation/phase1-ios/user-testing/synthesis-round1.json"
 }
