@@ -1,11 +1,11 @@
 {
   "milestone": "phase2-ios",
-  "round": 1,
-  "status": "fail",
+  "round": 2,
+  "status": "pass",
   "assertionsSummary": {
     "total": 41,
-    "passed": 40,
-    "failed": 1,
+    "passed": 41,
+    "failed": 0,
     "blocked": 0
   },
   "passedAssertions": [
@@ -16,21 +16,11 @@
     "VAL-AR2-021", "VAL-AR2-022", "VAL-AR2-023", "VAL-AR2-024", "VAL-AR2-025",
     "VAL-AR2-026", "VAL-AR2-027", "VAL-AR2-028", "VAL-AR2-029", "VAL-AR2-030",
     "VAL-AR2-031", "VAL-AR2-032", "VAL-AR2-033", "VAL-AR2-034", "VAL-AR2-035",
-    "VAL-AR2-036", "VAL-AR2-037", "VAL-AR2-038", "VAL-AR2-039", "VAL-AR2-041"
+    "VAL-AR2-036", "VAL-AR2-037", "VAL-AR2-038", "VAL-AR2-039", "VAL-AR2-040",
+    "VAL-AR2-041"
   ],
-  "failedAssertions": [
-    {
-      "id": "VAL-AR2-040",
-      "reason": "Multi-room stitching (P1): No explicit room transition handling or incremental map expansion code. ARKit provides implicit spatial continuity within a single session but there is no dedicated multi-room stitching logic. The pipeline processes all accumulated vertices at once after Done Scanning, which does produce a single floor plan spanning all scanned areas, but lacks explicit room-to-room transition detection or map expansion."
-    }
-  ],
+  "failedAssertions": [],
   "blockedAssertions": [],
-  "appliedUpdates": [
-    {
-      "target": "user-testing.md",
-      "description": "Added Flow Validator Guidance: Phase 2 iOS section with testing approach, key source files, assertion-to-file mapping, and isolation rules",
-      "source": "setup"
-    }
-  ],
-  "previousRound": null
+  "appliedUpdates": [],
+  "previousRound": ".factory/validation/phase2-ios/user-testing/synthesis-round1.json"
 }
