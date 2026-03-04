@@ -97,3 +97,37 @@ public actor WiFiMeasurementEngine: HeatmapServiceProtocol {
 ```
 
 **Preferred long-term fix:** Make the protocol itself `Sendable` (add `Sendable` requirement). This eliminates the need for `nonisolated(unsafe)`. The workaround is acceptable when modifying the protocol is outside the current feature scope.
+
+### Phase 2 AR Architecture
+
+#### AR Session Manager
+`ARSessionManager` in `NetMonitor-iOS/Services/AR/ARSessionManager.swift` handles ARKit lifecycle. It contains model types colocated in the same file: `ARDeviceCapability`, `ARSessionState`, `ARSurfaceType`, `DetectedSurface`, `CameraPermissionStatus`. No protocol abstraction exists — ViewModel depends directly on concrete class.
+
+#### Floor/Ceiling Classification Heuristic
+AR surface classification uses `anchor.center.y < 0.3` to distinguish floor from ceiling. This is relative to the AR session origin (typically chest/hand height). A real floor is at y ≈ -0.8 to -1.2, so this threshold may need tuning on real devices. Located in `ARSessionManager.swift` line ~253.
+
+#### MeshClassification RawValues vs ARKit
+`MeshClassification` enum in `FloorPlanGenerationPipeline.swift` has rawValues **intentionally swapped** for door and window compared to Apple's `ARMeshClassification`:
+- Our enum: `window = 6`, `door = 7`
+- Apple's: `door = 6`, `window = 7`
+The `mapARMeshClassification()` function handles the correct mapping. **Do NOT use `MeshClassification(rawValue:)` directly with ARKit values** — always use the mapper function.
+
+#### Floor Plan Generation Pipeline
+7-step pipeline in `FloorPlanGenerationPipeline.swift` (pure-function enum with static methods):
+1. Height-filter vertices (0.5–2.5m above floor)
+2. XZ projection to 2D
+3. Compute bounds
+4. Rasterize at 10px/m
+5. Gaussian blur (sigma=2px) for wall continuity
+6. Edge/contour detection for clean wall lines
+7. Render as CGImage (black walls on white)
+
+Non-LiDAR fallback uses ARPlaneAnchor vertical planes with point sampling along plane edges.
+
+#### AR Coordinate Transform
+`ARCoordinateTransform` (struct in `NetMonitor-iOS/Services/AR/ARCoordinateTransform.swift`) converts AR world coordinates to floor plan normalized coordinates:
+```
+floorPlanX = clamp((arX - mapMinX) / mapWidth, 0...1)
+floorPlanY = clamp((arZ - mapMinZ) / mapHeight, 0...1)
+```
+Note: AR Y axis is up, so XZ plane maps to floor plan XY.
