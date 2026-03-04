@@ -96,7 +96,7 @@ public struct WiFiInfo: Sendable, Equatable {
 
 // MARK: - WiFiBand
 
-public enum WiFiBand: String, Sendable {
+public enum WiFiBand: String, Sendable, Codable, CaseIterable, Equatable {
     case band2_4GHz = "2.4 GHz"
     case band5GHz   = "5 GHz"
     case band6GHz   = "6 GHz"
