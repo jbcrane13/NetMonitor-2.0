@@ -78,6 +78,32 @@ Version 2.0 is a ground-up rewrite with a shared core architecture, 14+ diagnost
 - **Scheduled background scans** — configurable scan intervals that run via `BGTaskScheduler`
 - **AR WiFi signal view** — augmented reality overlay showing real-time signal strength
 
+### WiFi Heatmap & Site Survey
+
+NetMonitor includes a professional WiFi site survey tool that maps signal strength across floor plans. Import a building blueprint, walk the space collecting measurements, and generate a thermal heatmap overlay showing coverage gaps and dead zones.
+
+**Phase 1 — Blueprint Walk Survey** (macOS + iOS)
+- Import floor plan images and calibrate to real-world scale
+- Click (macOS) or tap (iOS) measurement points during a walkthrough
+- IDW (Inverse Distance Weighting) interpolation generates smooth heatmap overlays
+- WiFiman-compatible color scheme from deep red (weak) to bright green (strong)
+- Spatial indexing with R-tree acceleration supports 2,000+ measurement points
+- Save/load `.netmonsurvey` bundles containing floor plan, calibration, and measurements
+- Export survey reports to PDF (macOS)
+
+**Phase 2 — AR-Assisted Map Creation** (iOS)
+- LiDAR mesh scanning generates floor plans from real-world geometry
+- Non-LiDAR devices fall back to ARKit plane detection
+- AR position tracking enables hands-free survey — walk and record automatically
+
+**Phase 3 — AR Continuous Scan** (iOS)
+- Real-time Metal rendering pipeline composites heatmap over the AR camera feed
+- Concurrent AR + WiFi capture at 2 Hz with adaptive rate control
+- Spatial downsampling prevents over-sampling in already-covered areas
+- Thermal management monitors device temperature and throttles capture to prevent overheating
+
+The heatmap pipeline shares the same service protocol pattern as all other tools — `WiFiHeatmapServiceProtocol` in NetMonitorCore with platform-specific implementations. Survey data is stored in `.netmonsurvey` document bundles (a directory containing `survey.json`, the floor plan image, and optional AR mesh data).
+
 ### Mac–iOS Companion Protocol
 
 NetMonitor on iOS can pair with a Mac running NetMonitor over the local network. The companion protocol uses Bonjour discovery (`_netmon._tcp` on port 8849) and exchanges newline-delimited JSON messages over `NWConnection`. This lets the iOS app leverage the Mac's shell-based tools (raw ICMP, ARP scanning) that aren't available on iOS.
