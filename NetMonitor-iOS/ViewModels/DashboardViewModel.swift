@@ -188,7 +188,7 @@ final class DashboardViewModel {
             if let sec = wifi.securityType { parts.append(sec) }
             ToolActivityLog.shared.add(
                 tool: "WiFi",
-                target: wifi.ssid ?? "Unknown",
+                target: wifi.ssid,
                 result: parts.isEmpty ? "Connected" : parts.joined(separator: " • "),
                 success: true
             )
@@ -454,3 +454,4 @@ final class DashboardViewModel {
         refreshAvailableNetworks()
     }
 }
+
