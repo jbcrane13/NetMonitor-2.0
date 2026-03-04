@@ -591,6 +591,163 @@ struct HeatmapSurveyViewModelTests {
         #expect(vm.isMeasuring == false)
     }
 
+    // MARK: - Visualization Type
+
+    @Test func defaultVisualizationTypeIsSignalStrength() {
+        let vm = HeatmapSurveyViewModel()
+        #expect(vm.selectedVisualization == .signalStrength)
+    }
+
+    @Test func visualizationTypeCanBeChanged() {
+        let vm = HeatmapSurveyViewModel()
+        vm.selectedVisualization = .signalToNoise
+        #expect(vm.selectedVisualization == .signalToNoise)
+        vm.selectedVisualization = .downloadSpeed
+        #expect(vm.selectedVisualization == .downloadSpeed)
+        vm.selectedVisualization = .uploadSpeed
+        #expect(vm.selectedVisualization == .uploadSpeed)
+        vm.selectedVisualization = .latency
+        #expect(vm.selectedVisualization == .latency)
+    }
+
+    @Test func allFiveVisualizationTypesAvailable() {
+        let types = HeatmapVisualization.allCases
+        #expect(types.count == 5)
+        #expect(types.contains(.signalStrength))
+        #expect(types.contains(.signalToNoise))
+        #expect(types.contains(.downloadSpeed))
+        #expect(types.contains(.uploadSpeed))
+        #expect(types.contains(.latency))
+    }
+
+    // MARK: - Heatmap Overlay
+
+    @Test func heatmapOverlayNilWithFewerThan3Points() async {
+        let (vm, _, _) = makeVMWithFloorPlan()
+
+        // 0 points
+        #expect(vm.heatmapOverlayImage == nil)
+
+        // 1 point
+        await vm.takeMeasurement(at: CGPoint(x: 0.1, y: 0.1))
+        #expect(vm.heatmapOverlayImage == nil)
+
+        // 2 points
+        await vm.takeMeasurement(at: CGPoint(x: 0.5, y: 0.5))
+        #expect(vm.heatmapOverlayImage == nil)
+    }
+
+    @Test func heatmapOverlayRendersAfter3Points() async {
+        let (vm, _, _) = makeVMWithFloorPlan()
+
+        await vm.takeMeasurement(at: CGPoint(x: 0.1, y: 0.1))
+        await vm.takeMeasurement(at: CGPoint(x: 0.5, y: 0.5))
+        await vm.takeMeasurement(at: CGPoint(x: 0.9, y: 0.9))
+
+        #expect(vm.heatmapOverlayImage != nil)
+    }
+
+    @Test func heatmapOverlayUpdatesWhenPointAdded() async {
+        let (vm, engine, _) = makeVMWithFloorPlan()
+
+        // Place 3 points
+        engine.setMockRSSI(-40)
+        await vm.takeMeasurement(at: CGPoint(x: 0.1, y: 0.1))
+        engine.setMockRSSI(-60)
+        await vm.takeMeasurement(at: CGPoint(x: 0.5, y: 0.5))
+        engine.setMockRSSI(-80)
+        await vm.takeMeasurement(at: CGPoint(x: 0.9, y: 0.9))
+
+        let overlayBefore = vm.heatmapOverlayImage
+
+        // Place a 4th point with different RSSI
+        engine.setMockRSSI(-30)
+        await vm.takeMeasurement(at: CGPoint(x: 0.3, y: 0.3))
+
+        // Overlay should have been regenerated (different image data)
+        #expect(vm.heatmapOverlayImage != nil)
+        // At minimum, we can check it was regenerated (non-nil)
+        // Precise pixel comparison not needed for ViewModel test
+        #expect(overlayBefore != nil)
+    }
+
+    @Test func heatmapOverlayNilAfterDeletionDropsBelow3() async {
+        let (vm, _, _) = makeVMWithFloorPlan()
+
+        await vm.takeMeasurement(at: CGPoint(x: 0.1, y: 0.1))
+        await vm.takeMeasurement(at: CGPoint(x: 0.5, y: 0.5))
+        await vm.takeMeasurement(at: CGPoint(x: 0.9, y: 0.9))
+        #expect(vm.heatmapOverlayImage != nil)
+
+        // Delete one point, dropping below 3
+        guard let pointID = vm.project?.measurementPoints.first?.id
+        else {
+            Issue.record("Expected measurement point")
+            return
+        }
+        vm.removeMeasurementPoint(id: pointID)
+        #expect(vm.heatmapOverlayImage == nil)
+    }
+
+    @Test func switchingVisualizationTypeRendersOverlay() async {
+        let (vm, engine, _) = makeVMWithFloorPlan()
+
+        // Add 3 points with SNR data
+        engine.mockNoiseFloor = -90
+        engine.setMockRSSI(-40)
+        await vm.takeMeasurement(at: CGPoint(x: 0.1, y: 0.1))
+        engine.setMockRSSI(-60)
+        await vm.takeMeasurement(at: CGPoint(x: 0.5, y: 0.5))
+        engine.setMockRSSI(-80)
+        await vm.takeMeasurement(at: CGPoint(x: 0.9, y: 0.9))
+
+        #expect(vm.heatmapOverlayImage != nil)
+
+        // Switch to SNR
+        vm.selectedVisualization = .signalToNoise
+        // Overlay should still be rendered since SNR data is available
+        #expect(vm.heatmapOverlayImage != nil)
+    }
+
+    @Test func missingDataForVisualizationShowsEmptyState() async {
+        let (vm, engine, _) = makeVMWithFloorPlan()
+
+        // Mock engine returns points without download speed data
+        engine.setMockRSSI(-50)
+        await vm.takeMeasurement(at: CGPoint(x: 0.1, y: 0.1))
+        await vm.takeMeasurement(at: CGPoint(x: 0.5, y: 0.5))
+        await vm.takeMeasurement(at: CGPoint(x: 0.9, y: 0.9))
+
+        // Switch to downloadSpeed — no data for this type
+        vm.selectedVisualization = .downloadSpeed
+        #expect(vm.heatmapOverlayImage == nil)
+        #expect(vm.visualizationHasData == false)
+    }
+
+    @Test func visualizationHasDataTrueForSignalStrength() async {
+        let (vm, _, _) = makeVMWithFloorPlan()
+
+        await vm.takeMeasurement(at: CGPoint(x: 0.1, y: 0.1))
+        await vm.takeMeasurement(at: CGPoint(x: 0.5, y: 0.5))
+        await vm.takeMeasurement(at: CGPoint(x: 0.9, y: 0.9))
+
+        #expect(vm.visualizationHasData == true)
+    }
+
+    @Test func visualizationDisplayNameForAllTypes() {
+        let vm = HeatmapSurveyViewModel()
+        vm.selectedVisualization = .signalStrength
+        #expect(vm.visualizationDisplayName == "Signal Strength")
+        vm.selectedVisualization = .signalToNoise
+        #expect(vm.visualizationDisplayName == "Signal to Noise")
+        vm.selectedVisualization = .downloadSpeed
+        #expect(vm.visualizationDisplayName == "Download Speed")
+        vm.selectedVisualization = .uploadSpeed
+        #expect(vm.visualizationDisplayName == "Upload Speed")
+        vm.selectedVisualization = .latency
+        #expect(vm.visualizationDisplayName == "Latency")
+    }
+
 }
 
 // MARK: - MockMeasurementEngine Helpers

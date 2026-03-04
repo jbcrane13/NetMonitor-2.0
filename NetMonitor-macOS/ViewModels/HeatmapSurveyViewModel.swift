@@ -112,6 +112,32 @@ final class HeatmapSurveyViewModel {
     /// Spacing guidance text shown to the user.
     let spacingGuidanceText = "Place measurements 3–5 meters apart for best coverage"
 
+    // MARK: - Visualization State
+
+    /// The currently selected visualization type for the heatmap overlay.
+    var selectedVisualization: HeatmapVisualization = .signalStrength {
+        didSet {
+            renderHeatmapOverlay()
+        }
+    }
+
+    /// The rendered heatmap overlay image, or nil if fewer than 3 valid points.
+    private(set) var heatmapOverlayImage: CGImage?
+
+    /// Whether the current visualization type has valid data for at least 3 measurement points.
+    private(set) var visualizationHasData = false
+
+    /// Human-readable display name for the current visualization type.
+    var visualizationDisplayName: String {
+        switch selectedVisualization {
+        case .signalStrength: "Signal Strength"
+        case .signalToNoise: "Signal to Noise"
+        case .downloadSpeed: "Download Speed"
+        case .uploadSpeed: "Upload Speed"
+        case .latency: "Latency"
+        }
+    }
+
     // MARK: - Canvas State
 
     /// Current zoom scale (1.0 = no zoom).
@@ -303,6 +329,7 @@ final class HeatmapSurveyViewModel {
         currentProject.measurementPoints.append(point)
         project = currentProject
         recalculateStats()
+        renderHeatmapOverlay()
     }
 
     /// Removes a measurement point by its ID.
@@ -316,6 +343,7 @@ final class HeatmapSurveyViewModel {
         }
         project = currentProject
         recalculateStats()
+        renderHeatmapOverlay()
     }
 
     // MARK: - Live RSSI
@@ -354,6 +382,44 @@ final class HeatmapSurveyViewModel {
     func clearError() {
         errorMessage = nil
         showingError = false
+    }
+
+    // MARK: - Heatmap Overlay Rendering
+
+    /// Re-renders the heatmap overlay using HeatmapRenderer.
+    /// Called when measurement points change or visualization type switches.
+    /// Produces a CGImage overlay at 70% opacity, or nil if fewer than 3 valid points.
+    private func renderHeatmapOverlay() {
+        guard let points = project?.measurementPoints, let result = importResult
+        else {
+            heatmapOverlayImage = nil
+            visualizationHasData = false
+            return
+        }
+
+        // Check if current visualization has valid data for at least 3 points
+        let validCount = points.filter { pointHasData($0, for: selectedVisualization) }.count
+        visualizationHasData = validCount >= 3
+
+        guard visualizationHasData
+        else {
+            heatmapOverlayImage = nil
+            return
+        }
+
+        heatmapOverlayImage = HeatmapRenderer.render(
+            points: points,
+            floorPlanWidth: result.pixelWidth,
+            floorPlanHeight: result.pixelHeight,
+            visualization: selectedVisualization,
+            opacity: 0.7,
+            colorScheme: .standard
+        )
+    }
+
+    /// Checks whether a measurement point has valid data for the given visualization type.
+    private func pointHasData(_ point: MeasurementPoint, for visualization: HeatmapVisualization) -> Bool {
+        HeatmapRenderer.extractValue(from: point, for: visualization) != nil
     }
 
     // MARK: - Private Helpers

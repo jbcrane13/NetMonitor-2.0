@@ -1,3 +1,4 @@
+import NetMonitorCore
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -69,9 +70,50 @@ struct HeatmapSurveyView: View {
                 scaleBarOverlay
                     .padding(16)
             }
+
+            // Missing data overlay for current visualization type
+            if let points = viewModel.project?.measurementPoints,
+               points.count >= 3,
+               !viewModel.visualizationHasData {
+                missingDataOverlay
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+            }
         }
         .onDrop(of: [.fileURL], isTargeted: nil) { providers in
             viewModel.handleDrop(providers: providers)
+        }
+    }
+
+    // MARK: - Missing Data Overlay
+
+    private var missingDataOverlay: some View {
+        VStack(spacing: 8) {
+            Image(systemName: "chart.bar.xaxis.ascending")
+                .font(.title2)
+                .foregroundStyle(.secondary)
+            Text("No \(viewModel.visualizationDisplayName) Data")
+                .font(.headline)
+                .foregroundStyle(.secondary)
+            Text(missingDataHint)
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+                .multilineTextAlignment(.center)
+        }
+        .padding(16)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
+        .accessibilityIdentifier("heatmap_missing_data_overlay")
+    }
+
+    private var missingDataHint: String {
+        switch viewModel.selectedVisualization {
+        case .signalStrength:
+            return "Signal strength data should always be available."
+        case .signalToNoise:
+            return "SNR requires noise floor data. Ensure your WiFi adapter reports noise floor."
+        case .downloadSpeed, .uploadSpeed:
+            return "Speed data requires active scan mode. Enable active scanning in the toolbar."
+        case .latency:
+            return "Latency data requires active scan mode. Enable active scanning in the toolbar."
         }
     }
 
@@ -156,6 +198,13 @@ struct HeatmapSurveyView: View {
             liveRSSIBadge
                 .accessibilityIdentifier("heatmap_toolbar_rssi_badge")
 
+            Divider()
+                .frame(height: 20)
+
+            // Visualization type picker
+            visualizationPicker
+                .accessibilityIdentifier("heatmap_toolbar_visualization_picker")
+
             Spacer()
 
             // Measuring indicator
@@ -180,6 +229,29 @@ struct HeatmapSurveyView: View {
         .padding(.vertical, 8)
         .background(.bar)
         .accessibilityIdentifier("heatmap_toolbar")
+    }
+
+    // MARK: - Visualization Picker
+
+    private var visualizationPicker: some View {
+        Picker("Visualization", selection: $viewModel.selectedVisualization) {
+            ForEach(HeatmapVisualization.allCases, id: \.self) { type in
+                Text(displayName(for: type))
+                    .tag(type)
+            }
+        }
+        .pickerStyle(.menu)
+        .frame(width: 160)
+    }
+
+    private func displayName(for visualization: HeatmapVisualization) -> String {
+        switch visualization {
+        case .signalStrength: "Signal Strength"
+        case .signalToNoise: "Signal to Noise"
+        case .downloadSpeed: "Download Speed"
+        case .uploadSpeed: "Upload Speed"
+        case .latency: "Latency"
+        }
     }
 
     // MARK: - Live RSSI Badge

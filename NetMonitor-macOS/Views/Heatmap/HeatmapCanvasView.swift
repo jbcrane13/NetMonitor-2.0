@@ -26,9 +26,10 @@ struct HeatmapCanvasView: View {
             let imageOrigin = floorPlanOrigin(imageSize: imageSize, containerSize: geometry.size)
 
             ZStack(alignment: .topLeading) {
-                // Canvas layer: floor plan + measurement dots + coverage circles
+                // Canvas layer: floor plan + heatmap overlay + measurement dots + coverage circles
                 Canvas { context, _ in
                     drawFloorPlan(context: &context, imageSize: imageSize, imageOrigin: imageOrigin)
+                    drawHeatmapOverlay(context: &context, imageSize: imageSize, imageOrigin: imageOrigin)
                     drawCoverageCircles(context: &context, imageSize: imageSize, imageOrigin: imageOrigin)
                     drawMeasurementDots(context: &context, imageSize: imageSize, imageOrigin: imageOrigin)
                 }
@@ -145,6 +146,18 @@ struct HeatmapCanvasView: View {
 
         let rect = CGRect(origin: imageOrigin, size: imageSize)
         context.draw(Image(nsImage: nsImage), in: rect)
+    }
+
+    private func drawHeatmapOverlay(
+        context: inout GraphicsContext,
+        imageSize: CGSize,
+        imageOrigin: CGPoint
+    ) {
+        guard let cgImage = viewModel.heatmapOverlayImage
+        else { return }
+
+        let rect = CGRect(origin: imageOrigin, size: imageSize)
+        context.draw(Image(decorative: cgImage, scale: 1.0), in: rect)
     }
 
     private func drawCoverageCircles(
