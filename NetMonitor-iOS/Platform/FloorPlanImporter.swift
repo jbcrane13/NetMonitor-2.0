@@ -65,70 +65,73 @@ enum FloorPlanImporter {
     // MARK: - Import from Data
 
     /// Imports a floor plan from raw image data (e.g., from PHPickerViewController).
+    /// Runs heavy image processing on a background thread to avoid MainActor jank.
     /// - Parameter data: Raw image data (PNG, JPEG, HEIC).
     /// - Returns: A `FloorPlanImportResult` with PNG image data and dimensions.
-    static func importFloorPlan(from data: Data) throws -> FloorPlanImportResult {
-        guard let cgImage = createCGImage(from: data) else {
-            throw FloorPlanImportError.imageDecodeFailed
-        }
+    static func importFloorPlan(from data: Data) async throws -> FloorPlanImportResult {
+        try await Task.detached {
+            guard let cgImage = createCGImage(from: data) else {
+                throw FloorPlanImportError.imageDecodeFailed
+            }
 
-        let downsampled = downsampleIfNeeded(cgImage)
-        let pngData = encodePNG(downsampled)
+            let downsampled = downsampleIfNeeded(cgImage)
+            let pngData = encodePNG(downsampled)
 
-        Logger.heatmap.debug("Floor plan imported from data: \(downsampled.width)x\(downsampled.height)")
-
-        return FloorPlanImportResult(
-            imageData: pngData,
-            pixelWidth: downsampled.width,
-            pixelHeight: downsampled.height,
-            sourceURL: nil
-        )
+            return FloorPlanImportResult(
+                imageData: pngData,
+                pixelWidth: downsampled.width,
+                pixelHeight: downsampled.height,
+                sourceURL: nil
+            )
+        }.value
     }
 
     // MARK: - Import from URL
 
     /// Imports a floor plan from a file URL (e.g., from UIDocumentPickerViewController).
     /// Handles format detection, PDF rasterization, large-image downsampling, and PNG encoding.
+    /// PDF rasterization runs on a background thread to avoid MainActor jank for large files.
     /// - Parameter url: File URL to the floor plan image.
     /// - Returns: A `FloorPlanImportResult` with PNG image data and dimensions.
-    static func importFloorPlan(from url: URL) throws -> FloorPlanImportResult {
+    static func importFloorPlan(from url: URL) async throws -> FloorPlanImportResult {
         let ext = url.pathExtension.lowercased()
 
         guard supportedDocumentExtensions.contains(ext) else {
             throw FloorPlanImportError.unsupportedFormat(ext)
         }
 
-        let imageData: Data
-        if ext == "pdf" {
-            imageData = try rasterizePDF(at: url)
-        } else {
-            guard let data = try? Data(contentsOf: url) else {
-                throw FloorPlanImportError.fileReadFailed(url.path)
+        return try await Task.detached {
+            let cgImage: CGImage
+            if ext == "pdf" {
+                // Rasterize PDF directly to CGImage — no intermediate PNG encode-decode.
+                cgImage = try rasterizePDF(at: url)
+            } else {
+                guard let data = try? Data(contentsOf: url) else {
+                    throw FloorPlanImportError.fileReadFailed(url.path)
+                }
+                guard let decoded = createCGImage(from: data) else {
+                    throw FloorPlanImportError.imageDecodeFailed
+                }
+                cgImage = decoded
             }
-            imageData = data
-        }
 
-        guard let cgImage = createCGImage(from: imageData) else {
-            throw FloorPlanImportError.imageDecodeFailed
-        }
+            let downsampled = downsampleIfNeeded(cgImage)
+            let pngData = encodePNG(downsampled)
 
-        let downsampled = downsampleIfNeeded(cgImage)
-        let pngData = encodePNG(downsampled)
-
-        Logger.heatmap.debug("Floor plan imported from file: \(downsampled.width)x\(downsampled.height) (\(ext))")
-
-        return FloorPlanImportResult(
-            imageData: pngData,
-            pixelWidth: downsampled.width,
-            pixelHeight: downsampled.height,
-            sourceURL: url
-        )
+            return FloorPlanImportResult(
+                imageData: pngData,
+                pixelWidth: downsampled.width,
+                pixelHeight: downsampled.height,
+                sourceURL: url
+            )
+        }.value
     }
 
     // MARK: - Private Helpers
 
-    /// Rasterizes the first page of a PDF file to bitmap data.
-    private static func rasterizePDF(at url: URL) throws -> Data {
+    /// Rasterizes the first page of a PDF file to a CGImage directly,
+    /// avoiding an unnecessary PNG encode-decode cycle.
+    private static func rasterizePDF(at url: URL) throws -> CGImage {
         guard let document = CGPDFDocument(url as CFURL),
               let page = document.page(at: 1)
         else {
@@ -165,7 +168,7 @@ enum FloorPlanImporter {
             throw FloorPlanImportError.pdfRenderFailed
         }
 
-        return encodePNG(cgImage)
+        return cgImage
     }
 
     /// Creates a CGImage from raw image data (PNG, JPEG, HEIC).

@@ -58,12 +58,16 @@ struct NewProjectView: View {
         }
         .sheet(isPresented: $viewModel.showPhotoLibraryPicker) {
             PhotoLibraryPicker { data in
-                viewModel.handlePhotoLibraryResult(data)
+                Task {
+                    await viewModel.handlePhotoLibraryResult(data)
+                }
             }
         }
         .sheet(isPresented: $viewModel.showDocumentPicker) {
             DocumentPicker { url in
-                viewModel.handleDocumentPickerResult(url)
+                Task {
+                    await viewModel.handleDocumentPickerResult(url)
+                }
             }
         }
         .sheet(isPresented: $viewModel.showCalibrationSheet) {

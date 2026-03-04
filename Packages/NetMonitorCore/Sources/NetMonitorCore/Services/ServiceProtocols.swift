@@ -1,3 +1,4 @@
+import CoreLocation
 import Foundation
 import NetworkScanKit
 
@@ -155,6 +156,7 @@ public protocol PublicIPServiceProtocol {
 public protocol WiFiInfoServiceProtocol {
     @MainActor var currentWiFi: WiFiInfo? { get }
     @MainActor var isLocationAuthorized: Bool { get }
+    @MainActor var authorizationStatus: CLAuthorizationStatus { get }
     @MainActor func requestLocationPermission()
     @MainActor func refreshWiFiInfo()
     @MainActor func fetchCurrentWiFi() async -> WiFiInfo?

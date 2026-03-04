@@ -130,7 +130,7 @@ final class FloorPlanImportViewModel {
     // MARK: - Import from Photo Library (PHPicker result data)
 
     /// Handles image data received from PHPickerViewController.
-    func handlePhotoLibraryResult(_ data: Data?) {
+    func handlePhotoLibraryResult(_ data: Data?) async {
         guard let data else {
             errorMessage = "No image data received from photo library."
             return
@@ -140,7 +140,7 @@ final class FloorPlanImportViewModel {
         errorMessage = nil
 
         do {
-            let result = try FloorPlanImporter.importFloorPlan(from: data)
+            let result = try await FloorPlanImporter.importFloorPlan(from: data)
             applyImportResult(result)
         } catch {
             errorMessage = error.localizedDescription
@@ -153,7 +153,7 @@ final class FloorPlanImportViewModel {
     // MARK: - Import from Document Picker (file URL)
 
     /// Handles a file URL selected via UIDocumentPickerViewController.
-    func handleDocumentPickerResult(_ url: URL) {
+    func handleDocumentPickerResult(_ url: URL) async {
         isImporting = true
         errorMessage = nil
 
@@ -166,7 +166,7 @@ final class FloorPlanImportViewModel {
         }
 
         do {
-            let result = try FloorPlanImporter.importFloorPlan(from: url)
+            let result = try await FloorPlanImporter.importFloorPlan(from: url)
             applyImportResult(result)
         } catch {
             errorMessage = error.localizedDescription
@@ -286,17 +286,13 @@ final class FloorPlanImportViewModel {
 
     /// Checks the current location authorization status.
     func checkLocationPermission() {
-        if let service = wifiService as? WiFiInfoService {
-            isLocationAuthorized = service.isLocationAuthorized
-            locationAuthorizationStatus = service.authorizationStatus
-        }
+        isLocationAuthorized = wifiService.isLocationAuthorized
+        locationAuthorizationStatus = wifiService.authorizationStatus
     }
 
     /// Requests location permission for Wi-Fi scanning.
     func requestLocationPermission() {
-        if let service = wifiService as? WiFiInfoService {
-            service.requestLocationPermission()
-        }
+        wifiService.requestLocationPermission()
     }
 
     // MARK: - Create Project

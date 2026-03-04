@@ -69,24 +69,24 @@ struct FloorPlanImportViewModelTests {
 
     // MARK: - Photo Library Import
 
-    @Test func handlePhotoLibraryResultWithNilDataSetsError() {
+    @Test func handlePhotoLibraryResultWithNilDataSetsError() async {
         let vm = makeVM()
-        vm.handlePhotoLibraryResult(nil)
+        await vm.handlePhotoLibraryResult(nil)
         #expect(vm.errorMessage != nil)
         #expect(!vm.hasFloorPlan)
     }
 
-    @Test func handlePhotoLibraryResultWithInvalidDataSetsError() {
+    @Test func handlePhotoLibraryResultWithInvalidDataSetsError() async {
         let vm = makeVM()
-        vm.handlePhotoLibraryResult(Data("not an image".utf8))
+        await vm.handlePhotoLibraryResult(Data("not an image".utf8))
         #expect(vm.errorMessage != nil)
         #expect(!vm.hasFloorPlan)
     }
 
-    @Test func handlePhotoLibraryResultWithValidPNGSucceeds() {
+    @Test func handlePhotoLibraryResultWithValidPNGSucceeds() async {
         let vm = makeVM()
         let pngData = makeTestPNGData()
-        vm.handlePhotoLibraryResult(pngData)
+        await vm.handlePhotoLibraryResult(pngData)
         #expect(vm.hasFloorPlan)
         #expect(vm.floorPlanImage != nil)
         #expect(vm.importResult != nil)
@@ -94,17 +94,17 @@ struct FloorPlanImportViewModelTests {
         #expect(!vm.isImporting)
     }
 
-    @Test func handlePhotoLibraryResultSetsCorrectDimensions() {
+    @Test func handlePhotoLibraryResultSetsCorrectDimensions() async {
         let vm = makeVM()
         let pngData = makeTestPNGData(width: 300, height: 200)
-        vm.handlePhotoLibraryResult(pngData)
+        await vm.handlePhotoLibraryResult(pngData)
         #expect(vm.importResult?.pixelWidth == 300)
         #expect(vm.importResult?.pixelHeight == 200)
     }
 
     // MARK: - Document Picker Import
 
-    @Test func handleDocumentPickerResultWithValidFileSucceeds() throws {
+    @Test func handleDocumentPickerResultWithValidFileSucceeds() async throws {
         let vm = makeVM()
         let tempDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("FloorPlanImportTest-\(UUID().uuidString)")
@@ -115,13 +115,13 @@ struct FloorPlanImportViewModelTests {
         let fileURL = tempDir.appendingPathComponent("test.png")
         try pngData.write(to: fileURL)
 
-        vm.handleDocumentPickerResult(fileURL)
+        await vm.handleDocumentPickerResult(fileURL)
         #expect(vm.hasFloorPlan)
         #expect(vm.floorPlanImage != nil)
         #expect(vm.errorMessage == nil)
     }
 
-    @Test func handleDocumentPickerResultWithUnsupportedFormatSetsError() throws {
+    @Test func handleDocumentPickerResultWithUnsupportedFormatSetsError() async throws {
         let vm = makeVM()
         let tempDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("FloorPlanImportTest-\(UUID().uuidString)")
@@ -131,7 +131,7 @@ struct FloorPlanImportViewModelTests {
         let fileURL = tempDir.appendingPathComponent("test.webp")
         try Data("data".utf8).write(to: fileURL)
 
-        vm.handleDocumentPickerResult(fileURL)
+        await vm.handleDocumentPickerResult(fileURL)
         #expect(!vm.hasFloorPlan)
         #expect(vm.errorMessage != nil)
         #expect(vm.errorMessage?.contains("Unsupported") == true)
@@ -139,10 +139,10 @@ struct FloorPlanImportViewModelTests {
 
     // MARK: - Calibration
 
-    @Test func applyCalibrationWithValidDistanceSucceeds() {
+    @Test func applyCalibrationWithValidDistanceSucceeds() async {
         let vm = makeVM()
         let pngData = makeTestPNGData(width: 400, height: 300)
-        vm.handlePhotoLibraryResult(pngData)
+        await vm.handlePhotoLibraryResult(pngData)
 
         vm.calibrationPoint1 = CGPoint(x: 0.1, y: 0.5)
         vm.calibrationPoint2 = CGPoint(x: 0.6, y: 0.5)
@@ -158,10 +158,10 @@ struct FloorPlanImportViewModelTests {
         #expect(!vm.showCalibrationSheet)
     }
 
-    @Test func applyCalibrationWithEmptyDistanceSetsError() {
+    @Test func applyCalibrationWithEmptyDistanceSetsError() async {
         let vm = makeVM()
         let pngData = makeTestPNGData()
-        vm.handlePhotoLibraryResult(pngData)
+        await vm.handlePhotoLibraryResult(pngData)
 
         vm.calibrationDistance = ""
         vm.applyCalibration()
@@ -170,10 +170,10 @@ struct FloorPlanImportViewModelTests {
         #expect(vm.errorMessage != nil)
     }
 
-    @Test func applyCalibrationWithZeroDistanceSetsError() {
+    @Test func applyCalibrationWithZeroDistanceSetsError() async {
         let vm = makeVM()
         let pngData = makeTestPNGData()
-        vm.handlePhotoLibraryResult(pngData)
+        await vm.handlePhotoLibraryResult(pngData)
 
         vm.calibrationDistance = "0"
         vm.applyCalibration()
@@ -182,10 +182,10 @@ struct FloorPlanImportViewModelTests {
         #expect(vm.errorMessage != nil)
     }
 
-    @Test func applyCalibrationFeetConversion() {
+    @Test func applyCalibrationFeetConversion() async {
         let vm = makeVM()
         let pngData = makeTestPNGData(width: 400, height: 300)
-        vm.handlePhotoLibraryResult(pngData)
+        await vm.handlePhotoLibraryResult(pngData)
 
         vm.calibrationPoint1 = CGPoint(x: 0.1, y: 0.5)
         vm.calibrationPoint2 = CGPoint(x: 0.6, y: 0.5)
@@ -201,10 +201,10 @@ struct FloorPlanImportViewModelTests {
         #expect(vm.scaleBarLabel.contains("ft"))
     }
 
-    @Test func skipCalibrationClearsState() {
+    @Test func skipCalibrationClearsState() async {
         let vm = makeVM()
         let pngData = makeTestPNGData(width: 400, height: 300)
-        vm.handlePhotoLibraryResult(pngData)
+        await vm.handlePhotoLibraryResult(pngData)
 
         // First apply calibration
         vm.calibrationPoint1 = CGPoint(x: 0.1, y: 0.5)
@@ -262,10 +262,10 @@ struct FloorPlanImportViewModelTests {
         #expect(!vm.isReadyToSurvey)
     }
 
-    @Test func createProjectWithEmptyNameSetsError() {
+    @Test func createProjectWithEmptyNameSetsError() async {
         let vm = makeVM()
         let pngData = makeTestPNGData()
-        vm.handlePhotoLibraryResult(pngData)
+        await vm.handlePhotoLibraryResult(pngData)
         vm.projectName = "   "
 
         vm.createProject()
@@ -275,10 +275,10 @@ struct FloorPlanImportViewModelTests {
         #expect(vm.errorMessage?.contains("name") == true)
     }
 
-    @Test func createProjectWithValidDataSucceeds() {
+    @Test func createProjectWithValidDataSucceeds() async {
         let vm = makeVM()
         let pngData = makeTestPNGData(width: 400, height: 300)
-        vm.handlePhotoLibraryResult(pngData)
+        await vm.handlePhotoLibraryResult(pngData)
         vm.projectName = "Test Survey"
 
         vm.createProject()
@@ -290,10 +290,10 @@ struct FloorPlanImportViewModelTests {
         #expect(vm.createdProject?.measurementPoints.isEmpty == true)
     }
 
-    @Test func createProjectWithCalibrationSetsFloorPlanDimensions() {
+    @Test func createProjectWithCalibrationSetsFloorPlanDimensions() async {
         let vm = makeVM()
         let pngData = makeTestPNGData(width: 400, height: 300)
-        vm.handlePhotoLibraryResult(pngData)
+        await vm.handlePhotoLibraryResult(pngData)
         vm.projectName = "Calibrated Survey"
 
         // Apply calibration
@@ -313,10 +313,10 @@ struct FloorPlanImportViewModelTests {
         #expect(floorPlan?.calibrationPoints?.count == 2)
     }
 
-    @Test func createProjectWithoutCalibrationHasZeroDimensions() {
+    @Test func createProjectWithoutCalibrationHasZeroDimensions() async {
         let vm = makeVM()
         let pngData = makeTestPNGData(width: 400, height: 300)
-        vm.handlePhotoLibraryResult(pngData)
+        await vm.handlePhotoLibraryResult(pngData)
         vm.projectName = "Uncalibrated"
 
         vm.createProject()
@@ -329,22 +329,27 @@ struct FloorPlanImportViewModelTests {
 
     // MARK: - FloorPlanImporter Tests
 
-    @Test func floorPlanImporterFromDataWithValidPNG() throws {
+    @Test func floorPlanImporterFromDataWithValidPNG() async throws {
         let pngData = makeTestPNGData(width: 100, height: 80)
-        let result = try FloorPlanImporter.importFloorPlan(from: pngData)
+        let result = try await FloorPlanImporter.importFloorPlan(from: pngData)
         #expect(result.pixelWidth == 100)
         #expect(result.pixelHeight == 80)
         #expect(!result.imageData.isEmpty)
         #expect(result.sourceURL == nil)
     }
 
-    @Test func floorPlanImporterFromDataWithInvalidDataThrows() {
-        #expect(throws: FloorPlanImportError.self) {
-            try FloorPlanImporter.importFloorPlan(from: Data("not image".utf8))
+    @Test func floorPlanImporterFromDataWithInvalidDataThrows() async {
+        do {
+            _ = try await FloorPlanImporter.importFloorPlan(from: Data("not image".utf8))
+            Issue.record("Expected FloorPlanImportError to be thrown")
+        } catch is FloorPlanImportError {
+            // Expected
+        } catch {
+            Issue.record("Unexpected error type: \(error)")
         }
     }
 
-    @Test func floorPlanImporterFromURLWithValidPNG() throws {
+    @Test func floorPlanImporterFromURLWithValidPNG() async throws {
         let tempDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("FloorPlanImporterTest-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
@@ -354,13 +359,13 @@ struct FloorPlanImportViewModelTests {
         let fileURL = tempDir.appendingPathComponent("floor.png")
         try pngData.write(to: fileURL)
 
-        let result = try FloorPlanImporter.importFloorPlan(from: fileURL)
+        let result = try await FloorPlanImporter.importFloorPlan(from: fileURL)
         #expect(result.pixelWidth == 250)
         #expect(result.pixelHeight == 200)
         #expect(result.sourceURL == fileURL)
     }
 
-    @Test func floorPlanImporterUnsupportedExtensionThrows() throws {
+    @Test func floorPlanImporterUnsupportedExtensionThrows() async throws {
         let tempDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("FloorPlanImporterTest-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
@@ -369,8 +374,13 @@ struct FloorPlanImportViewModelTests {
         let fileURL = tempDir.appendingPathComponent("test.bmp")
         try Data("data".utf8).write(to: fileURL)
 
-        #expect(throws: FloorPlanImportError.self) {
-            try FloorPlanImporter.importFloorPlan(from: fileURL)
+        do {
+            _ = try await FloorPlanImporter.importFloorPlan(from: fileURL)
+            Issue.record("Expected FloorPlanImportError to be thrown")
+        } catch is FloorPlanImportError {
+            // Expected
+        } catch {
+            Issue.record("Unexpected error type: \(error)")
         }
     }
 }

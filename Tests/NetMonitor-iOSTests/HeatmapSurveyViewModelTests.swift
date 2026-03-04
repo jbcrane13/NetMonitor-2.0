@@ -1,3 +1,4 @@
+import CoreLocation
 import Foundation
 import Testing
 @testable import NetMonitor_iOS
@@ -58,6 +59,7 @@ final class MockHeatmapService: HeatmapServiceProtocol, @unchecked Sendable {
 final class TestWiFiInfoService: WiFiInfoServiceProtocol, @unchecked Sendable {
     var currentWiFi: WiFiInfo?
     var isLocationAuthorized: Bool = true
+    var authorizationStatus: CLAuthorizationStatus = .authorizedWhenInUse
     var stubbedInfo: WiFiInfo?
 
     init(stubbedInfo: WiFiInfo? = nil) {

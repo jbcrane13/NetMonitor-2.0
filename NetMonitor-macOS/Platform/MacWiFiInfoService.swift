@@ -1,3 +1,4 @@
+import CoreLocation
 import CoreWLAN
 import Foundation
 import NetMonitorCore
@@ -14,6 +15,7 @@ final class MacWiFiInfoService: WiFiInfoServiceProtocol {
 
     private(set) var currentWiFi: WiFiInfo?
     private(set) var isLocationAuthorized: Bool = true // macOS doesn't require location auth for CoreWLAN
+    private(set) var authorizationStatus: CLAuthorizationStatus = .authorizedAlways // macOS CoreWLAN doesn't need location auth
 
     private let client = CWWiFiClient.shared()
 

@@ -1,3 +1,4 @@
+import CoreLocation
 import Foundation
 import Testing
 @testable import NetMonitorCore
@@ -10,6 +11,7 @@ import Testing
 final class MockWiFiInfoService: WiFiInfoServiceProtocol, @unchecked Sendable {
     var currentWiFi: WiFiInfo?
     var isLocationAuthorized: Bool = true
+    var authorizationStatus: CLAuthorizationStatus = .authorizedAlways
     var fetchCallCount = 0
 
     /// The WiFiInfo to return from fetchCurrentWiFi().

@@ -11,11 +11,16 @@ struct FloorPlanCanvasView: View {
     @State private var lastScale: CGFloat = 1.0
     @State private var currentOffset: CGSize = .zero
     @State private var lastOffset: CGSize = .zero
+    @State private var containerSize: CGSize = .zero
 
     /// Minimum zoom level.
     private let minScale: CGFloat = 1.0
     /// Maximum zoom level.
     private let maxScale: CGFloat = 5.0
+
+    /// Fraction of the scaled image that must remain visible when panning.
+    /// 0.25 means at least 25% of the image stays within the container on each axis.
+    private let minimumVisibleFraction: CGFloat = 0.25
 
     var body: some View {
         GeometryReader { geometry in
@@ -33,6 +38,10 @@ struct FloorPlanCanvasView: View {
                 .frame(width: geometry.size.width, height: geometry.size.height)
                 .clipped()
                 .contentShape(Rectangle())
+                .onAppear { containerSize = geometry.size }
+                .onChange(of: geometry.size) { _, newSize in
+                    containerSize = newSize
+                }
         }
         .accessibilityIdentifier("heatmap_canvas_floorplan")
     }
@@ -93,11 +102,36 @@ struct FloorPlanCanvasView: View {
         )
     }
 
-    /// Clamps the offset to prevent panning beyond the image bounds.
+    /// Clamps the offset to keep at least `minimumVisibleFraction` of the scaled image
+    /// within the container, preventing the user from panning the image completely off-screen.
     private func clampOffset() {
-        // Allow some overshoot but snap back
-        withAnimation(.easeInOut(duration: 0.2)) {
+        guard containerSize.width > 0, containerSize.height > 0 else { return }
+
+        let imageSize = aspectFitSize(for: image.size, in: containerSize)
+        let scaledWidth = imageSize.width * currentScale
+        let scaledHeight = imageSize.height * currentScale
+
+        // Compute the maximum allowed offset so that at least `minimumVisibleFraction`
+        // of the image remains visible inside the container on each axis.
+        let visibleW = scaledWidth * minimumVisibleFraction
+        let visibleH = scaledHeight * minimumVisibleFraction
+
+        let maxOffsetX = (scaledWidth - visibleW) / 2
+        let maxOffsetY = (scaledHeight - visibleH) / 2
+
+        let clampedX = min(maxOffsetX, max(-maxOffsetX, currentOffset.width))
+        let clampedY = min(maxOffsetY, max(-maxOffsetY, currentOffset.height))
+
+        let clamped = CGSize(width: clampedX, height: clampedY)
+
+        guard clamped != currentOffset else {
             lastOffset = currentOffset
+            return
+        }
+
+        withAnimation(.easeInOut(duration: 0.2)) {
+            currentOffset = clamped
+            lastOffset = clamped
         }
     }
 }
