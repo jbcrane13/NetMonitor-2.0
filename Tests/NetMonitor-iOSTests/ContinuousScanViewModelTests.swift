@@ -120,4 +120,86 @@ struct ContinuousScanViewModelTests {
         #expect(vm.rawMeasurementCount == 0)
         #expect(vm.downsampledPointCount == 0)
     }
+
+    @Test("cancel scan clears map image")
+    func cancelScanClearsMapImage() async {
+        let vm = ContinuousScanViewModel()
+        await vm.cancelScan()
+        #expect(vm.mapImage == nil)
+    }
+
+    // MARK: - Metal Rendering State
+
+    @Test("initial map image is nil")
+    func initialMapImageIsNil() {
+        let vm = ContinuousScanViewModel()
+        #expect(vm.mapImage == nil)
+    }
+
+    @Test("initial mesh segments rendered is zero")
+    func initialMeshSegmentsZero() {
+        let vm = ContinuousScanViewModel()
+        #expect(vm.meshSegmentsRendered == 0)
+    }
+
+    @Test("initial measurement splats rendered is zero")
+    func initialMeasurementSplatsZero() {
+        let vm = ContinuousScanViewModel()
+        #expect(vm.measurementSplatsRendered == 0)
+    }
+
+    @Test("initial user world position is nil")
+    func initialUserPositionNil() {
+        let vm = ContinuousScanViewModel()
+        #expect(vm.userWorldPosition == nil)
+    }
+
+    // MARK: - Viewport State
+
+    @Test("initial map scale is 1.0")
+    func initialMapScale() {
+        let vm = ContinuousScanViewModel()
+        #expect(vm.mapScale == 1.0)
+    }
+
+    @Test("initial map offset is zero")
+    func initialMapOffset() {
+        let vm = ContinuousScanViewModel()
+        #expect(vm.mapOffset == .zero)
+    }
+
+    @Test("initial auto-center is enabled")
+    func initialAutoCenter() {
+        let vm = ContinuousScanViewModel()
+        #expect(vm.isAutoCenter == true)
+    }
+
+    @Test("disable auto-center works")
+    func disableAutoCenter() {
+        let vm = ContinuousScanViewModel()
+        vm.disableAutoCenter()
+        #expect(vm.isAutoCenter == false)
+    }
+
+    @Test("enable auto-center after disable")
+    func enableAutoCenterAfterDisable() {
+        let vm = ContinuousScanViewModel()
+        vm.disableAutoCenter()
+        vm.enableAutoCenter()
+        #expect(vm.isAutoCenter == true)
+    }
+
+    // MARK: - Map Bounds
+
+    @Test("initial map bounds width is zero")
+    func initialMapBoundsWidth() {
+        let vm = ContinuousScanViewModel()
+        #expect(vm.mapBoundsWidth == 0)
+    }
+
+    @Test("initial map bounds height is zero")
+    func initialMapBoundsHeight() {
+        let vm = ContinuousScanViewModel()
+        #expect(vm.mapBoundsHeight == 0)
+    }
 }

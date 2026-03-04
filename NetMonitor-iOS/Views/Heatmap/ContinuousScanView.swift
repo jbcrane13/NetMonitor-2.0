@@ -8,13 +8,11 @@ import RealityKit
 
 // MARK: - ContinuousScanView
 
-/// Phase 3 AR Continuous Scan view.
+/// Phase 3 AR Continuous Scan view with split-screen layout.
 ///
-/// Shows the AR camera feed with concurrent Wi-Fi measurement capture.
-/// The pipeline runs in the background, collecting signal measurements
-/// tagged with AR camera positions. The Metal rendering feature (separate worker)
-/// will add the split-screen 2D map; this view provides the capture pipeline,
-/// status overlays, and scan controls.
+/// Top 40%: AR camera feed with walking path + surface overlays.
+/// Bottom 60%: 2D map with heatmap coloring, position dot, pinch-to-zoom.
+/// Floating controls: pause/resume, signal badge, stats, finish scan.
 struct ContinuousScanView: View {
     @State private var viewModel: ContinuousScanViewModel
     @Environment(\.dismiss) private var dismiss
@@ -67,34 +65,53 @@ struct ContinuousScanView: View {
         .accessibilityIdentifier("continuousScan_screen")
     }
 
-    // MARK: - Scan Content
+    // MARK: - Scan Content (Split-Screen)
 
     private var scanContentView: some View {
-        ZStack {
-            // AR camera feed
-            arCameraView
-                .ignoresSafeArea()
-
-            // Status overlays
-            VStack {
-                // Status bar at top
-                if viewModel.isScanning {
-                    scanStatusBar
-                        .padding(.top, 8)
-                }
-
-                Spacer()
-
-                // Signal strength badge
-                if viewModel.isScanning, let rssi = viewModel.currentRSSI {
-                    signalBadge(rssi: rssi)
-                        .padding(.bottom, 8)
-                }
-
-                // Controls at bottom
-                scanControls
-                    .padding(.bottom, 32)
+        GeometryReader { geometry in
+            if viewModel.isScanning || viewModel.isScanComplete {
+                splitScreenLayout(geometry: geometry)
+            } else {
+                startScanView
             }
+        }
+    }
+
+    /// Split-screen: AR camera (top 40%) + 2D map with heatmap (bottom 60%).
+    private func splitScreenLayout(geometry: GeometryProxy) -> some View {
+        let arHeight = geometry.size.height * 0.4
+        let mapHeight = geometry.size.height * 0.6
+
+        return VStack(spacing: 0) {
+            // Top 40%: AR camera feed with walking path + surface overlays
+            ZStack {
+                arCameraView
+                    .frame(height: arHeight)
+                    .clipped()
+
+                // Position dot overlay on AR view
+                if viewModel.isScanning, viewModel.userWorldPosition != nil {
+                    arPositionDotOverlay
+                }
+            }
+            .frame(height: arHeight)
+            .accessibilityIdentifier("continuousScan_arView")
+
+            // Divider
+            Rectangle()
+                .fill(Color.white.opacity(0.15))
+                .frame(height: 1)
+
+            // Bottom 60%: 2D map with heatmap + position dot
+            ZStack {
+                mapView
+                    .frame(height: mapHeight)
+
+                // Floating controls overlay
+                floatingControlsOverlay
+            }
+            .frame(height: mapHeight)
+            .accessibilityIdentifier("continuousScan_mapView")
         }
     }
 
@@ -105,108 +122,195 @@ struct ContinuousScanView: View {
         #if os(iOS) && !targetEnvironment(simulator)
         ContinuousScanARContainer(sessionManager: viewModel.arSessionManagerForView)
         #else
-        simulatorPlaceholder
+        simulatorARPlaceholder
         #endif
     }
 
-    // MARK: - Simulator Placeholder
-
-    private var simulatorPlaceholder: some View {
-        ZStack {
-            Theme.Colors.backgroundBase
-                .ignoresSafeArea()
-
-            VStack(spacing: Theme.Layout.sectionSpacing) {
-                Image(systemName: "wave.3.forward.circle.fill")
-                    .font(.system(size: 64))
-                    .foregroundStyle(.purple.opacity(0.5))
-
-                Text("Continuous Scan")
-                    .font(.headline)
-                    .foregroundStyle(Theme.Colors.textSecondary)
-
-                Text("AR Continuous Scan is not available in the simulator.\nUse a physical device with LiDAR.")
-                    .font(.subheadline)
-                    .foregroundStyle(Theme.Colors.textTertiary)
-                    .multilineTextAlignment(.center)
+    /// Pulsing position dot on the AR camera view.
+    private var arPositionDotOverlay: some View {
+        VStack {
+            Spacer()
+            HStack {
+                Spacer()
+                PulsingDot(color: .blue, size: 16)
+                    .padding(.trailing, 20)
+                    .padding(.bottom, 12)
             }
         }
-        .accessibilityIdentifier("continuousScan_simulatorPlaceholder")
+        .accessibilityIdentifier("continuousScan_arPositionDot")
     }
 
-    // MARK: - Scan Status Bar
+    // MARK: - 2D Map View
 
-    private var scanStatusBar: some View {
-        HStack(spacing: 16) {
-            // Measurement count
-            HStack(spacing: 6) {
-                Image(systemName: "mappin.circle.fill")
-                    .font(.caption)
-                    .foregroundStyle(.cyan)
+    private var mapView: some View {
+        ZStack {
+            // Dark grey background for unmapped areas
+            Theme.Colors.backgroundBase
 
-                Text("\(viewModel.downsampledPointCount) pts")
-                    .font(.caption)
-                    .fontWeight(.medium)
-                    .foregroundStyle(.white)
+            // Map image with pinch-to-zoom
+            if let mapImage = viewModel.mapImage {
+                Image(uiImage: mapImage)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .scaleEffect(viewModel.mapScale)
+                    .offset(viewModel.mapOffset)
+                    .gesture(
+                        MagnificationGesture()
+                            .onChanged { scale in
+                                viewModel.mapScale = max(0.5, min(5.0, scale))
+                                viewModel.disableAutoCenter()
+                            }
+                    )
+                    .simultaneousGesture(
+                        DragGesture()
+                            .onChanged { value in
+                                viewModel.mapOffset = value.translation
+                                viewModel.disableAutoCenter()
+                            }
+                    )
+                    .accessibilityIdentifier("continuousScan_mapImage")
+            } else {
+                // No map data yet
+                VStack(spacing: 8) {
+                    ProgressView()
+                        .tint(.white)
+                    Text("Scanning...")
+                        .font(.caption)
+                        .foregroundStyle(Theme.Colors.textSecondary)
+                }
             }
 
-            // Rate indicator
-            HStack(spacing: 6) {
-                Image(systemName: viewModel.isStationary ? "pause.circle.fill" : "waveform.circle.fill")
-                    .font(.caption)
-                    .foregroundStyle(viewModel.isStationary ? .orange : .green)
-
-                let rateHz = 1.0 / viewModel.currentInterval
-                Text(String(format: "%.1f Hz", rateHz))
-                    .font(.caption)
-                    .fontWeight(.medium)
-                    .foregroundStyle(.white)
-            }
-
-            // Raw measurement count
-            HStack(spacing: 6) {
-                Image(systemName: "antenna.radiowaves.left.and.right")
-                    .font(.caption)
-                    .foregroundStyle(.blue)
-
-                Text("\(viewModel.rawMeasurementCount) raw")
-                    .font(.caption)
-                    .foregroundStyle(.white.opacity(0.7))
+            // Pulsing position dot on 2D map
+            if viewModel.mapImage != nil, viewModel.userWorldPosition != nil {
+                PulsingDot(color: .blue, size: 14)
+                    .accessibilityIdentifier("continuousScan_mapPositionDot")
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
-        .padding(.horizontal, Theme.Layout.screenPadding)
-        .accessibilityIdentifier("continuousScan_statusBar")
+    }
+
+    // MARK: - Floating Controls Overlay
+
+    private var floatingControlsOverlay: some View {
+        VStack {
+            HStack {
+                // Top-left: Pause/Resume
+                if viewModel.isScanning {
+                    pauseResumeButton
+                        .padding(.leading, 12)
+                        .padding(.top, 8)
+                }
+
+                Spacer()
+
+                // Top-right: Signal strength badge
+                if viewModel.isScanning, let rssi = viewModel.currentRSSI {
+                    signalBadge(rssi: rssi)
+                        .padding(.trailing, 12)
+                        .padding(.top, 8)
+                }
+            }
+
+            Spacer()
+
+            HStack {
+                // Bottom-left: Point count + coverage %
+                if viewModel.isScanning {
+                    statsDisplay
+                        .padding(.leading, 12)
+                        .padding(.bottom, 12)
+                }
+
+                Spacer()
+
+                // Bottom-right: Finish scan
+                if viewModel.isScanning && !viewModel.isPaused {
+                    finishScanButton
+                        .padding(.trailing, 12)
+                        .padding(.bottom, 12)
+                }
+            }
+
+            // Auto-center toggle
+            if !viewModel.isAutoCenter && viewModel.isScanning {
+                HStack {
+                    Spacer()
+                    Button {
+                        viewModel.enableAutoCenter()
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "location.fill")
+                                .font(.caption2)
+                            Text("Re-center")
+                                .font(.caption2)
+                        }
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(.ultraThinMaterial, in: Capsule())
+                    }
+                    .padding(.trailing, 12)
+                    .padding(.bottom, 8)
+                    .accessibilityIdentifier("continuousScan_button_recenter")
+                }
+            }
+        }
+    }
+
+    // MARK: - Pause/Resume Button
+
+    private var pauseResumeButton: some View {
+        Group {
+            if viewModel.isPaused {
+                Button {
+                    Task { await viewModel.resumeScan() }
+                } label: {
+                    floatingControlLabel(
+                        icon: "play.fill",
+                        text: "Resume",
+                        color: Theme.Colors.accent
+                    )
+                }
+                .accessibilityIdentifier("continuousScan_button_resume")
+            } else {
+                Button {
+                    Task { await viewModel.pauseScan() }
+                } label: {
+                    floatingControlLabel(
+                        icon: "pause.fill",
+                        text: "Pause",
+                        color: .orange
+                    )
+                }
+                .accessibilityIdentifier("continuousScan_button_pause")
+            }
+        }
     }
 
     // MARK: - Signal Badge
 
     private func signalBadge(rssi: Int) -> some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 6) {
             Image(systemName: signalIconName(rssi: rssi))
-                .font(.body.weight(.semibold))
+                .font(.caption.weight(.semibold))
                 .foregroundStyle(signalColor(rssi: rssi))
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 1) {
                 Text("\(rssi) dBm")
-                    .font(.subheadline)
+                    .font(.caption2)
                     .fontWeight(.bold)
                     .foregroundStyle(.white)
 
                 if let ssid = viewModel.currentSSID {
                     Text(ssid)
                         .font(.caption2)
-                        .foregroundStyle(.white.opacity(0.7))
+                        .foregroundStyle(.white.opacity(0.6))
                         .lineLimit(1)
                 }
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
-        .padding(.horizontal, Theme.Layout.screenPadding)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10))
         .accessibilityIdentifier("continuousScan_signalBadge")
     }
 
@@ -222,37 +326,83 @@ struct ContinuousScanView: View {
         return .red
     }
 
-    // MARK: - Scan Controls
+    // MARK: - Stats Display
 
-    private var scanControls: some View {
-        HStack(spacing: 16) {
-            if viewModel.isScanning {
-                if viewModel.isPaused {
-                    // Resume button
-                    Button {
-                        Task { await viewModel.resumeScan() }
-                    } label: {
-                        controlLabel(icon: "play.fill", text: "Resume", color: Theme.Colors.accent)
-                    }
-                    .accessibilityIdentifier("continuousScan_button_resume")
-                } else {
-                    // Pause button
-                    Button {
-                        Task { await viewModel.pauseScan() }
-                    } label: {
-                        controlLabel(icon: "pause.fill", text: "Pause", color: .orange)
-                    }
-                    .accessibilityIdentifier("continuousScan_button_pause")
-                }
+    private var statsDisplay: some View {
+        HStack(spacing: 10) {
+            // Point count
+            HStack(spacing: 4) {
+                Image(systemName: "mappin.circle.fill")
+                    .font(.caption2)
+                    .foregroundStyle(.cyan)
+                Text("\(viewModel.downsampledPointCount) pts")
+                    .font(.caption2)
+                    .fontWeight(.medium)
+                    .foregroundStyle(.white)
+            }
 
-                // Finish Scan button
-                Button {
-                    Task { await viewModel.finishScan() }
-                } label: {
-                    controlLabel(icon: "checkmark.circle.fill", text: "Finish Scan", color: Theme.Colors.success)
-                }
-                .accessibilityIdentifier("continuousScan_button_finish")
-            } else {
+            // Coverage percentage
+            HStack(spacing: 4) {
+                Image(systemName: "square.grid.3x3.fill")
+                    .font(.caption2)
+                    .foregroundStyle(.green)
+                Text("\(Int(viewModel.coveragePercentage * 100))%")
+                    .font(.caption2)
+                    .fontWeight(.medium)
+                    .foregroundStyle(.white)
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10))
+        .accessibilityIdentifier("continuousScan_statsDisplay")
+    }
+
+    // MARK: - Finish Scan Button
+
+    private var finishScanButton: some View {
+        Button {
+            Task { await viewModel.finishScan() }
+        } label: {
+            floatingControlLabel(
+                icon: "checkmark.circle.fill",
+                text: "Finish",
+                color: Theme.Colors.success
+            )
+        }
+        .accessibilityIdentifier("continuousScan_button_finish")
+    }
+
+    // MARK: - Floating Control Label
+
+    private func floatingControlLabel(icon: String, text: String, color: Color) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: icon)
+                .font(.caption.weight(.semibold))
+            Text(text)
+                .font(.caption)
+                .fontWeight(.semibold)
+        }
+        .foregroundStyle(.white)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: Theme.Layout.buttonCornerRadius)
+                .fill(color.opacity(0.8))
+        )
+    }
+
+    // MARK: - Start Scan View
+
+    private var startScanView: some View {
+        ZStack {
+            // AR camera preview
+            arCameraView
+                .ignoresSafeArea()
+
+            VStack {
+                Spacer()
+
                 // Start button
                 Button {
                     Task { await viewModel.startScan() }
@@ -273,24 +423,29 @@ struct ContinuousScanView: View {
                     .shadow(color: .purple.opacity(0.4), radius: 8, y: 4)
                 }
                 .accessibilityIdentifier("continuousScan_button_start")
+
+                Spacer()
+                    .frame(height: 60)
             }
         }
     }
 
-    private func controlLabel(icon: String, text: String, color: Color) -> some View {
-        HStack(spacing: 8) {
-            Image(systemName: icon)
-                .font(.body.weight(.semibold))
-            Text(text)
-                .fontWeight(.semibold)
+    // MARK: - Simulator AR Placeholder
+
+    private var simulatorARPlaceholder: some View {
+        ZStack {
+            Color(white: 0.15)
+
+            VStack(spacing: 8) {
+                Image(systemName: "camera.viewfinder")
+                    .font(.title2)
+                    .foregroundStyle(.purple.opacity(0.5))
+                Text("AR Camera")
+                    .font(.caption)
+                    .foregroundStyle(Theme.Colors.textTertiary)
+            }
         }
-        .foregroundStyle(.white)
-        .padding(.horizontal, 20)
-        .padding(.vertical, 14)
-        .background(
-            RoundedRectangle(cornerRadius: Theme.Layout.buttonCornerRadius)
-                .fill(color.opacity(0.8))
-        )
+        .accessibilityIdentifier("continuousScan_simulatorPlaceholder")
     }
 
     // MARK: - LiDAR Required View
@@ -359,6 +514,41 @@ struct ContinuousScanView: View {
         }
         .themedBackground()
         .accessibilityIdentifier("continuousScan_lidarRequired")
+    }
+}
+
+// MARK: - PulsingDot
+
+/// A pulsing blue circle indicating the user's current position.
+struct PulsingDot: View {
+    let color: Color
+    let size: CGFloat
+    @State private var isPulsing = false
+
+    var body: some View {
+        ZStack {
+            // Outer pulse ring
+            Circle()
+                .fill(color.opacity(0.2))
+                .frame(width: size * 2, height: size * 2)
+                .scaleEffect(isPulsing ? 1.5 : 1.0)
+                .opacity(isPulsing ? 0.0 : 0.4)
+
+            // Inner dot
+            Circle()
+                .fill(color)
+                .frame(width: size, height: size)
+
+            // White center highlight
+            Circle()
+                .fill(.white.opacity(0.5))
+                .frame(width: size * 0.4, height: size * 0.4)
+        }
+        .onAppear {
+            withAnimation(Theme.Animation.pulse) {
+                isPulsing = true
+            }
+        }
     }
 }
 
