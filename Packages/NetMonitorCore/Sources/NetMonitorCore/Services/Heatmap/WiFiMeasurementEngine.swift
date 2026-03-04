@@ -210,6 +210,9 @@ public actor WiFiMeasurementEngine: HeatmapServiceProtocol {
         let noiseFloor = wifiInfo?.noiseLevel
         let snr: Int? = if let noise = noiseFloor { rssi - noise } else { nil }
 
+        // Map frequency from WiFiInfo (String?, e.g. "2437" or "5 GHz") to Int? (MHz).
+        let frequency: Int? = wifiInfo?.frequency.flatMap { Self.parseFrequencyMHz($0) }
+
         return MeasurementPoint(
             floorPlanX: floorPlanX,
             floorPlanY: floorPlanY,
@@ -219,7 +222,7 @@ public actor WiFiMeasurementEngine: HeatmapServiceProtocol {
             ssid: wifiInfo?.ssid,
             bssid: wifiInfo?.bssid,
             channel: wifiInfo?.channel,
-            frequency: nil,
+            frequency: frequency,
             band: wifiInfo?.band,
             linkSpeed: nil,
             downloadSpeed: downloadSpeed,
@@ -227,5 +230,30 @@ public actor WiFiMeasurementEngine: HeatmapServiceProtocol {
             latency: latency,
             connectedAPName: nil
         )
+    }
+
+    /// Parses a frequency string from WiFiInfoServiceProtocol into MHz as Int.
+    ///
+    /// Handles formats like:
+    /// - `"2437"` → 2437 (already MHz)
+    /// - `"5180 MHz"` → 5180
+    /// - `"2.4 GHz"` → nil (not precise enough for MHz)
+    nonisolated private static func parseFrequencyMHz(_ string: String) -> Int? {
+        let trimmed = string.trimmingCharacters(in: .whitespaces)
+
+        // Try direct integer parse (e.g. "2437")
+        if let value = Int(trimmed) {
+            return value
+        }
+
+        // Try stripping "MHz" suffix (e.g. "5180 MHz")
+        let lowered = trimmed.lowercased()
+        if lowered.hasSuffix("mhz") {
+            let numeric = lowered.replacingOccurrences(of: "mhz", with: "")
+                .trimmingCharacters(in: .whitespaces)
+            return Int(numeric)
+        }
+
+        return nil
     }
 }

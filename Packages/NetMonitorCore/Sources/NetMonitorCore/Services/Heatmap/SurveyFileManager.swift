@@ -5,7 +5,10 @@ import ImageIO
 // MARK: - SurveyFileError
 
 /// Errors that can occur when saving or loading `.netmonsurvey` bundle files.
-public enum SurveyFileError: Error, Sendable, Equatable, CustomStringConvertible {
+///
+/// Conforms to `LocalizedError` to match the project's `NetworkError` pattern,
+/// providing `errorDescription` for user-facing display and `failureReason` for detail.
+public enum SurveyFileError: LocalizedError, Sendable, Equatable, CustomStringConvertible {
     /// The survey.json file is missing or contains invalid JSON.
     case corruptJSON(String)
     /// The floorplan.png file is missing from the bundle.
@@ -25,6 +28,32 @@ public enum SurveyFileError: Error, Sendable, Equatable, CustomStringConvertible
             return "File system error: \(message)"
         case .bundleNotFound(let message):
             return "Bundle not found: \(message)"
+        }
+    }
+
+    public var errorDescription: String? {
+        switch self {
+        case .corruptJSON:
+            return "The survey file contains invalid data."
+        case .missingFloorPlan:
+            return "The floor plan image is missing from the survey file."
+        case .fileSystemError:
+            return "A file system error occurred while saving or loading the survey."
+        case .bundleNotFound:
+            return "The survey file could not be found."
+        }
+    }
+
+    public var failureReason: String? {
+        switch self {
+        case .corruptJSON(let message):
+            return message
+        case .missingFloorPlan(let message):
+            return message
+        case .fileSystemError(let message):
+            return message
+        case .bundleNotFound(let message):
+            return message
         }
     }
 }

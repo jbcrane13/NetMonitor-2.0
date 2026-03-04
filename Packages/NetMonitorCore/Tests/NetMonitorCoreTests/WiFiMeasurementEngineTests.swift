@@ -631,6 +631,101 @@ struct WiFiMeasurementEngineTests {
         }
     }
 
+    // MARK: - Frequency Mapping
+
+    @Test("takeMeasurement maps frequency from WiFiInfo when available as MHz integer")
+    func passiveMeasurementMapsFrequencyMHz() async {
+        let wifiInfo = WiFiInfo(
+            ssid: "TestNet",
+            bssid: "AA:BB:CC:DD:EE:FF",
+            signalDBm: -50,
+            channel: 6,
+            frequency: "2437",
+            band: .band2_4GHz
+        )
+        let wifiService = await MockWiFiInfoService(stubbedWiFiInfo: wifiInfo)
+        let speedTestService = MockSpeedTestService()
+        let pingService = MockPingService()
+
+        let engine = WiFiMeasurementEngine(
+            wifiService: wifiService,
+            speedTestService: speedTestService,
+            pingService: pingService
+        )
+
+        let point = await engine.takeMeasurement(at: 0.5, floorPlanY: 0.5)
+
+        #expect(point.frequency == 2437, "Frequency should be parsed from WiFiInfo string")
+    }
+
+    @Test("takeMeasurement maps frequency with MHz suffix")
+    func passiveMeasurementMapsFrequencyWithSuffix() async {
+        let wifiInfo = WiFiInfo(
+            ssid: "TestNet",
+            bssid: "AA:BB:CC:DD:EE:FF",
+            signalDBm: -50,
+            channel: 36,
+            frequency: "5180 MHz",
+            band: .band5GHz
+        )
+        let wifiService = await MockWiFiInfoService(stubbedWiFiInfo: wifiInfo)
+        let speedTestService = MockSpeedTestService()
+        let pingService = MockPingService()
+
+        let engine = WiFiMeasurementEngine(
+            wifiService: wifiService,
+            speedTestService: speedTestService,
+            pingService: pingService
+        )
+
+        let point = await engine.takeMeasurement(at: 0.5, floorPlanY: 0.5)
+
+        #expect(point.frequency == 5180, "Frequency with MHz suffix should be parsed")
+    }
+
+    @Test("takeMeasurement returns nil frequency for non-parseable string")
+    func passiveMeasurementNilFrequencyForGHzString() async {
+        let wifiInfo = WiFiInfo(
+            ssid: "TestNet",
+            bssid: "AA:BB:CC:DD:EE:FF",
+            signalDBm: -50,
+            channel: 6,
+            frequency: "2.4 GHz",
+            band: .band2_4GHz
+        )
+        let wifiService = await MockWiFiInfoService(stubbedWiFiInfo: wifiInfo)
+        let speedTestService = MockSpeedTestService()
+        let pingService = MockPingService()
+
+        let engine = WiFiMeasurementEngine(
+            wifiService: wifiService,
+            speedTestService: speedTestService,
+            pingService: pingService
+        )
+
+        let point = await engine.takeMeasurement(at: 0.5, floorPlanY: 0.5)
+
+        #expect(point.frequency == nil, "GHz string is not precise enough for MHz")
+    }
+
+    @Test("takeMeasurement returns nil frequency when WiFiInfo.frequency is nil")
+    func passiveMeasurementNilFrequencyWhenNil() async {
+        let wifiInfo = makeTestWiFiInfo() // frequency is nil by default
+        let wifiService = await MockWiFiInfoService(stubbedWiFiInfo: wifiInfo)
+        let speedTestService = MockSpeedTestService()
+        let pingService = MockPingService()
+
+        let engine = WiFiMeasurementEngine(
+            wifiService: wifiService,
+            speedTestService: speedTestService,
+            pingService: pingService
+        )
+
+        let point = await engine.takeMeasurement(at: 0.5, floorPlanY: 0.5)
+
+        #expect(point.frequency == nil, "Nil WiFiInfo.frequency should remain nil")
+    }
+
     // MARK: - Each MeasurementPoint Has Unique ID and Timestamp
 
     @Test("each measurement point has unique ID")

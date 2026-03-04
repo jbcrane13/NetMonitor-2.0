@@ -150,9 +150,12 @@ public enum HeatmapRenderer {
                 let outYStart = Int(Double(gy) * outputScaleY)
                 let outYEnd = min(Int(Double(gy + 1) * outputScaleY), floorPlanHeight)
 
-                let redByte = UInt8(color.red * 255.0)
-                let greenByte = UInt8(color.green * 255.0)
-                let blueByte = UInt8(color.blue * 255.0)
+                // Premultiply RGB by alpha for correct CoreGraphics compositing.
+                // CGImageAlphaInfo.premultipliedLast requires R,G,B each multiplied by A.
+                let alphaFraction = opacity
+                let redByte = UInt8(color.red * alphaFraction * 255.0)
+                let greenByte = UInt8(color.green * alphaFraction * 255.0)
+                let blueByte = UInt8(color.blue * alphaFraction * 255.0)
 
                 for py in outYStart ..< outYEnd {
                     for px in outXStart ..< outXEnd {
@@ -269,7 +272,7 @@ public enum HeatmapRenderer {
         case .standard:
             return standardColor(forValue: value, visualization: visualization)
         case .wifiman:
-            return wifimanColor(forSignalStrength: value)
+            return wifimanColor(forValue: value, visualization: visualization)
         }
     }
 
@@ -338,14 +341,47 @@ public enum HeatmapRenderer {
 
     // MARK: - WiFiman Color Scheme (Blue → Cyan → Green → Yellow → Orange → Red)
 
-    /// Phase 3 WiFiman color scheme for signal strength.
-    /// Blue (-30 to -50 dBm, excellent) → Cyan → Green (-50 to -60) →
-    /// Yellow (-60 to -70) → Orange (-70 to -80) → Red (-80 to -90+, dead zone).
-    private static func wifimanColor(forSignalStrength rssi: Double) -> HeatmapColor {
-        // Normalize: -30 (best, ratio=1) to -90 (worst, ratio=0)
-        let ratio = clamp((rssi - -90.0) / ((-30.0) - -90.0), min: 0, max: 1)
+    /// Phase 3 WiFiman color scheme with per-visualization normalization.
+    /// Blue (excellent) → Cyan → Green (good) → Yellow (fair) → Orange (weak) → Red (dead zone).
+    private static func wifimanColor(
+        forValue value: Double,
+        visualization: HeatmapVisualization
+    ) -> HeatmapColor {
+        let ratio = normalizeWifimanValue(value, for: visualization)
+        return wifimanGradient(ratio: ratio)
+    }
 
-        // 6-color gradient: 0→red, 0.2→orange, 0.4→yellow, 0.6→green, 0.8→cyan, 1.0→blue
+    /// Normalizes a raw value to 0.0 (worst) – 1.0 (best) for the WiFiman gradient per visualization.
+    private static func normalizeWifimanValue(
+        _ value: Double,
+        for visualization: HeatmapVisualization
+    ) -> Double {
+        switch visualization {
+        case .signalStrength:
+            // RSSI: -90 (dead zone, 0) to -30 (excellent, 1)
+            return clamp((value - -90.0) / ((-30.0) - -90.0), min: 0, max: 1)
+
+        case .signalToNoise:
+            // SNR: 0 (dead zone) to 50 (excellent)
+            return clamp(value / 50.0, min: 0, max: 1)
+
+        case .downloadSpeed:
+            // 0 Mbps (dead zone) to 200 Mbps (excellent)
+            return clamp(value / 200.0, min: 0, max: 1)
+
+        case .uploadSpeed:
+            // Same as download
+            return clamp(value / 200.0, min: 0, max: 1)
+
+        case .latency:
+            // 100ms (dead zone, 0) to 0ms (excellent, 1) — inverted
+            return clamp(1.0 - (value / 100.0), min: 0, max: 1)
+        }
+    }
+
+    /// Maps a 0.0 (worst) – 1.0 (best) ratio through the WiFiman 6-color gradient.
+    /// 0→red, 0.2→orange, 0.4→yellow, 0.6→green, 0.8→cyan, 1.0→blue.
+    private static func wifimanGradient(ratio: Double) -> HeatmapColor {
         if ratio <= 0.2 {
             // Red (1,0,0) → Orange (1,0.5,0)
             let segment = ratio / 0.2

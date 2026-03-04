@@ -434,6 +434,49 @@ struct SurveyFileManagerTests {
         }
     }
 
+    // MARK: - LocalizedError Conformance
+
+    @Test("SurveyFileError conforms to LocalizedError with errorDescription and failureReason")
+    func surveyFileErrorLocalizedError() {
+        let errors: [SurveyFileError] = [
+            .corruptJSON("bad json data"),
+            .missingFloorPlan("floorplan.png not found"),
+            .fileSystemError("permission denied"),
+            .bundleNotFound("no such file"),
+        ]
+
+        for error in errors {
+            // errorDescription should be non-nil and user-friendly
+            #expect(error.errorDescription != nil, "\(error) should have errorDescription")
+            #expect(!error.errorDescription!.isEmpty, "\(error) errorDescription should not be empty")
+
+            // failureReason should contain the associated message
+            #expect(error.failureReason != nil, "\(error) should have failureReason")
+            #expect(!error.failureReason!.isEmpty, "\(error) failureReason should not be empty")
+
+            // localizedDescription should use errorDescription (LocalizedError protocol)
+            let localized = error.localizedDescription
+            #expect(!localized.isEmpty, "\(error) localizedDescription should not be empty")
+        }
+
+        // Verify specific errorDescription messages
+        let corruptError = SurveyFileError.corruptJSON("test detail")
+        #expect(corruptError.errorDescription == "The survey file contains invalid data.")
+        #expect(corruptError.failureReason == "test detail")
+
+        let missingError = SurveyFileError.missingFloorPlan("image missing")
+        #expect(missingError.errorDescription == "The floor plan image is missing from the survey file.")
+        #expect(missingError.failureReason == "image missing")
+
+        let fsError = SurveyFileError.fileSystemError("disk full")
+        #expect(fsError.errorDescription == "A file system error occurred while saving or loading the survey.")
+        #expect(fsError.failureReason == "disk full")
+
+        let notFoundError = SurveyFileError.bundleNotFound("gone")
+        #expect(notFoundError.errorDescription == "The survey file could not be found.")
+        #expect(notFoundError.failureReason == "gone")
+    }
+
     // MARK: - survey.json excludes imageData
 
     @Test("survey.json does not contain raw imageData (stored as separate floorplan.png)")

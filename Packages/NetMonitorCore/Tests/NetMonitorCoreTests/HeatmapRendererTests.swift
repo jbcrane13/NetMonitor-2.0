@@ -374,6 +374,48 @@ struct HeatmapRendererColorMappingTests {
         #expect(alpha == 255, "Full opacity should be 255, got \(alpha)")
     }
 
+    // Verify premultiplied alpha: RGB bytes are premultiplied by the alpha fraction
+    @Test func premultipliedAlphaCorrectness() {
+        let points = [
+            MeasurementPoint(timestamp: Date(), floorPlanX: 0.1, floorPlanY: 0.1, rssi: -40),
+            MeasurementPoint(timestamp: Date(), floorPlanX: 0.5, floorPlanY: 0.5, rssi: -60),
+            MeasurementPoint(timestamp: Date(), floorPlanX: 0.9, floorPlanY: 0.9, rssi: -80)
+        ]
+        let opacity = 0.5
+        let image = HeatmapRenderer.render(
+            points: points,
+            floorPlanWidth: 10,
+            floorPlanHeight: 10,
+            visualization: .signalStrength,
+            resolution: HeatmapResolution(width: 10, height: 10),
+            opacity: opacity
+        )
+        #expect(image != nil)
+
+        guard let image = image,
+              let dataProvider = image.dataProvider,
+              let data = dataProvider.data,
+              let ptr = CFDataGetBytePtr(data)
+        else {
+            Issue.record("Could not get pixel data")
+            return
+        }
+
+        let bytesPerPixel = image.bitsPerPixel / 8
+        let bytesPerRow = image.bytesPerRow
+        let offset = 5 * bytesPerRow + 5 * bytesPerPixel
+        let r = ptr[offset]
+        let g = ptr[offset + 1]
+        let alpha = ptr[offset + 3]
+
+        // Alpha should be 0.5 * 255 = 127 or 128
+        #expect(abs(Int(alpha) - 128) <= 2, "50% opacity alpha should be ~128, got \(alpha)")
+
+        // With premultiplied alpha at 50%, RGB values must be <= 128 (half of max 255)
+        #expect(r <= 130, "Premultiplied red at 50% opacity should be <= 128, got \(r)")
+        #expect(g <= 130, "Premultiplied green at 50% opacity should be <= 128, got \(g)")
+    }
+
     // VAL-FOUND-030: Color mapping — value clamping
     @Test func valueClamping() {
         // Extreme RSSI values should not crash
@@ -453,6 +495,37 @@ struct HeatmapRendererColorMappingTests {
 
         let deadZone = HeatmapRenderer.colorForValue(-90, visualization: .signalStrength, colorScheme: .wifiman)
         #expect(deadZone.red > deadZone.green, "Dead zone in WiFiman should be red-dominant")
+    }
+
+    // WiFiman per-visualization normalization tests
+    @Test func wifimanDownloadSpeedColors() {
+        // Fast download (150 Mbps) should be blue/cyan in WiFiman
+        let fast = HeatmapRenderer.colorForValue(150, visualization: .downloadSpeed, colorScheme: .wifiman)
+        #expect(fast.blue > 0.3 || fast.green > 0.5, "Fast download in WiFiman should be cool-toned")
+
+        // Slow download (10 Mbps) should be red/orange in WiFiman
+        let slow = HeatmapRenderer.colorForValue(10, visualization: .downloadSpeed, colorScheme: .wifiman)
+        #expect(slow.red > slow.blue, "Slow download in WiFiman should be warm-toned")
+    }
+
+    @Test func wifimanLatencyColors() {
+        // Low latency (5ms) should be blue/cyan in WiFiman
+        let low = HeatmapRenderer.colorForValue(5, visualization: .latency, colorScheme: .wifiman)
+        #expect(low.blue > 0.3 || low.green > 0.5, "Low latency in WiFiman should be cool-toned")
+
+        // High latency (80ms) should be red/orange in WiFiman
+        let high = HeatmapRenderer.colorForValue(80, visualization: .latency, colorScheme: .wifiman)
+        #expect(high.red > high.blue, "High latency in WiFiman should be warm-toned")
+    }
+
+    @Test func wifimanSNRColors() {
+        // High SNR (40dB) should be blue/cyan in WiFiman
+        let high = HeatmapRenderer.colorForValue(40, visualization: .signalToNoise, colorScheme: .wifiman)
+        #expect(high.blue > 0.3 || high.green > 0.5, "High SNR in WiFiman should be cool-toned")
+
+        // Low SNR (5dB) should be red/orange in WiFiman
+        let low = HeatmapRenderer.colorForValue(5, visualization: .signalToNoise, colorScheme: .wifiman)
+        #expect(low.red > low.blue, "Low SNR in WiFiman should be warm-toned")
     }
 }
 
