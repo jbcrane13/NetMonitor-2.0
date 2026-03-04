@@ -1,0 +1,45 @@
+{
+  "featureId": "misc-macos-code-quality",
+  "reviewedAt": "2026-03-04T10:33:00.000Z",
+  "commitId": "ab814ee",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "Clean refactoring addressing all 4 code quality items. (1) NoOpSpeedTestService properly moved from HeatmapProjectListView.swift to NetMonitor-macOS/Platform/NoOpSpeedTestService.swift — the old inline definition was removed and the reference in HeatmapProjectListView still compiles because both are in the same module. (2) HeatmapVisualization.displayName was already defined on the enum in NetMonitorCore (added by the iOS worker); the macOS ViewModel's visualizationDisplayName computed property and the View's displayName(for:) private function were both replaced with direct calls to the enum's displayName, eliminating two duplicate switch statements. (3) Test helpers (makeTestPNGData, makeTestPNGFile, makeTestFile) extracted from 4 test files into a shared TestHelpers.swift with correct internal access level. (4) HeatmapSurveyViewModel split from ~960 to ~560 lines in the main file, with +Undo (51 lines), +Export (254 lines), and +Calibration (120 lines) as focused extensions. Access control correctly adjusted: floorPlanImage and importResult changed from private(set) to var (internal setter) with documenting comments, enabling extension file access while keeping the module boundary intact.",
+    "issues": [
+      {
+        "file": "NetMonitor-macOS/ViewModels/HeatmapSurveyViewModel.swift",
+        "line": 71,
+        "severity": "non_blocking",
+        "description": "floorPlanImage and importResult (line 75) were relaxed from private(set) to var to support extension file access. This is the correct Swift pattern for same-module extensions, but slightly reduces encapsulation — any code in the NetMonitor-macOS target can now set these properties. The inline comments document the rationale, which is good practice."
+      },
+      {
+        "file": "NetMonitor-macOS/ViewModels/HeatmapSurveyViewModel+Export.swift",
+        "line": 25,
+        "severity": "non_blocking",
+        "description": "Logger.app is used throughout the moved methods (saveProject, loadProject, exportPDF, createNewProject, etc.) rather than Logger.heatmap. Per architecture.md: 'new code should use Logger.heatmap'. Since this was moved code (not new), the mismatch is inherited and out of scope for this refactoring, but worth noting for future cleanup."
+      },
+      {
+        "file": "NetMonitor-macOS/ViewModels/HeatmapSurveyViewModel+Calibration.swift",
+        "line": 87,
+        "severity": "non_blocking",
+        "description": "Same Logger.app vs Logger.heatmap issue as in +Export.swift — inherited from original code, not introduced by this refactoring."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "conventions",
+      "observation": "architecture.md still contains a stale entry under 'macOS ViewModel Size' that says 'Future features should consider splitting into focused extensions (e.g., +Undo.swift, +Export.swift, +Calibration.swift).' This split has now been completed by this feature. The entry should be updated to reflect the completed state and document the access control pattern used (relaxing private(set) to var for extension file access).",
+      "evidence": ".factory/library/architecture.md 'macOS ViewModel Size' section — recommends future split that is now done. Worker did not update this section."
+    },
+    {
+      "area": "skills",
+      "observation": "Worker correctly skipped TDD red phase for a pure refactoring task where no new behavior was introduced. The swift-core-worker skill's Step 2 ('Write Tests First') doesn't mention an exemption for refactoring-only tasks. The worker's skillFeedback.suggestedChanges recommends adding this exemption, which is reasonable — pure code reorganization where existing tests serve as the safety net doesn't benefit from a red-green-refactor cycle.",
+      "evidence": "Handoff skillFeedback.deviations[0]: 'Skipped TDD red phase since this is purely a refactoring task with no new behavior to test'. All 1032 existing tests continued to pass, confirming the refactoring was behavior-preserving."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "Feature passes review. All 4 code quality items fully addressed: NoOpSpeedTestService correctly relocated to Platform/, duplicate displayName switch statements eliminated in favor of the shared HeatmapVisualization.displayName property, test helpers consolidated into TestHelpers.swift, and HeatmapSurveyViewModel properly split into focused extensions. 13 files changed with a net reduction of 44 lines. No blocking issues. Three non-blocking observations: slightly relaxed access control on two properties (documented and justified), and inherited Logger.app usage in moved methods that should eventually migrate to Logger.heatmap. Build verification (macOS + iOS), all 1032 tests passing, and lint/format clean."
+}

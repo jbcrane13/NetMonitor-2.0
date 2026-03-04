@@ -54,13 +54,28 @@ Architectural decisions, patterns discovered, and design rationale.
 - Minimum points: 3
 - Performance: <500ms for 50 points, <2s for 200 points
 
-### Known Data Gap: WiFiInfo.linkSpeed
+### WiFiInfo.linkSpeed (Resolved)
 
-WiFiInfo model in NetMonitorCore lacks a `linkSpeed` field. MacWiFiInfoService reads `transmitRate()` from CoreWLAN but discards it because WiFiInfo has no field for it. WiFiMeasurementEngine.buildMeasurementPoint() consequently sets `linkSpeed: nil` for all measurements. Fixing this requires adding `linkSpeed: Double?` to the WiFiInfo struct in NetMonitorCore.
+WiFiInfo model now includes `linkSpeed: Double?`. MacWiFiInfoService populates it from `CWInterface.transmitRate()`. WiFiMeasurementEngine.buildMeasurementPoint() maps it through to MeasurementPoint.linkSpeed. Fixed in milestone phase1-macos (fix-macos-usertesting-failures).
 
-### macOS ViewModel Size
+### macOS ViewModel Extensions (Resolved)
 
-HeatmapSurveyViewModel.swift has grown to ~950 lines across Phase 1 macOS implementation, triggering SwiftLint's file_length warning. Future features should consider splitting into focused extensions (e.g., `+Undo.swift`, `+Export.swift`, `+Calibration.swift`).
+HeatmapSurveyViewModel.swift was split into focused extensions in milestone misc-macos-cleanup (misc-macos-code-quality):
+- `HeatmapSurveyViewModel+Undo.swift` — undo/redo stack management
+- `HeatmapSurveyViewModel+Export.swift` — save, load, PDF export, new project creation
+- `HeatmapSurveyViewModel+Calibration.swift` — calibration workflow and math
+
+**Access control pattern:** Properties accessed by extension files use `var` (internal setter) instead of `private(set)`, with inline comments documenting the rationale. This is the standard Swift pattern for same-module extensions across files.
+
+### FloorPlanLayoutHelper
+
+`FloorPlanLayoutHelper` (enum with static methods) in `NetMonitor-macOS/Views/Heatmap/FloorPlanLayoutHelper.swift` is the canonical helper for floor plan coordinate math:
+- `aspectFitSize(imageSize:containerSize:)` — compute aspect-fit display dimensions
+- `imageOrigin(imageSize:containerSize:)` — compute centered image origin
+- `normalizedPosition(screenPosition:imageOrigin:imageSize:)` — screen → 0-1 coords
+- `absolutePosition(normalizedPosition:imageOrigin:imageSize:)` — 0-1 coords → screen
+
+Used by CalibrationSheet. HeatmapCanvasView has duplicated private methods that should be migrated to use this helper.
 
 ### Logger Category: Heatmap
 

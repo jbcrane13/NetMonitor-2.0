@@ -1,0 +1,44 @@
+{
+  "featureId": "misc-calibration-accuracy",
+  "reviewedAt": "2026-03-04T10:12:00Z",
+  "commitId": "38a51114843001c22be9a6ef97fc6c3589462478",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "Solid fix for the CalibrationSheet marker accuracy bug. FloorPlanLayoutHelper is a clean, stateless enum with well-documented static methods for aspect-fit size computation, image origin calculation, and bidirectional coordinate normalization. CalibrationSheet now correctly computes the image display rect from GeometryReader and passes it through the helper for all marker positioning and drag handling. The applyCalibration() math in HeatmapSurveyViewModel+Calibration.swift correctly uses normalized (0-1) coordinates multiplied by pixel dimensions, which is consistent with the new normalized coordinate system. 26 new tests comprehensively cover layout helper edge cases (zero dimensions, clamping, round-trip accuracy) and calibration accuracy across landscape, portrait, square, and 16:9 floor plans. All 50 existing HeatmapSurveyViewModelTests pass without modification. No blocking issues found.",
+    "issues": [
+      {
+        "file": "NetMonitor-macOS/Views/Heatmap/HeatmapCanvasView.swift",
+        "line": 378,
+        "severity": "non_blocking",
+        "description": "HeatmapCanvasView has private floorPlanAspectFitSize(in:), floorPlanOrigin(imageSize:containerSize:), and screenPosition(for:imageSize:imageOrigin:) methods (lines 378-412) that duplicate the exact same logic as FloorPlanLayoutHelper.aspectFitSize, .imageOrigin, and .absolutePosition. This duplication should be consolidated to use FloorPlanLayoutHelper, reducing maintenance risk if the math ever changes."
+      },
+      {
+        "file": "NetMonitor-macOS/Views/Heatmap/CalibrationSheet.swift",
+        "line": 164,
+        "severity": "non_blocking",
+        "description": "The imageDisplaySize(in:) fallback returns containerSize when importResult is nil. This means if the sheet is somehow shown without a loaded floor plan, markers revert to the old buggy behavior (full container normalization). Low risk since startCalibration() guards on hasFloorPlan, but the fallback could return .zero instead for fail-safe consistency with FloorPlanLayoutHelper's own guard behavior."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "skills",
+      "observation": "Feature references skillName 'macos-ui-worker' but no skill file exists at .factory/skills/macos-ui-worker/SKILL.md. The Glob search returned no matching files. Either the skill was deleted, never created, or is stored under a different name.",
+      "evidence": "features.json has skillName: 'macos-ui-worker'. Glob for **/*macos-ui-worker*/**/*.md under .factory/ returned no results. Only skill SKILL.md found is .factory/skills/agent-readiness/SKILL.md."
+    },
+    {
+      "area": "conventions",
+      "observation": "HeatmapCanvasView duplicates aspect-fit and coordinate helper logic that now exists in FloorPlanLayoutHelper. No convention documented about preferring the centralized helper for floor plan coordinate math. Future workers may continue duplicating instead of using FloorPlanLayoutHelper.",
+      "evidence": "HeatmapCanvasView.swift lines 378-412 have floorPlanAspectFitSize, floorPlanOrigin, screenPosition — identical logic to FloorPlanLayoutHelper.aspectFitSize, .imageOrigin, .absolutePosition. Neither AGENTS.md nor mission AGENTS.md mentions FloorPlanLayoutHelper as the canonical helper."
+    },
+    {
+      "area": "conventions",
+      "observation": "Worker noted in skillFeedback.suggestedChanges that mac-mini git auth is broken and rsync was used as a workaround to sync code before running tests. The AGENTS.md documents the git auth issue as 'known pre-existing' but doesn't document the rsync workaround pattern, leaving future workers to rediscover it.",
+      "evidence": "Handoff skillFeedback.suggestedChanges: 'The skill mentions running ssh mac-mini tests, but mac-mini git auth is broken. rsync was used as a workaround to sync code before running tests.' Mission AGENTS.md Known Pre-Existing Issues section mentions the git auth issue but no rsync workaround."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "PASS — FloorPlanLayoutHelper is a well-structured, thoroughly tested utility that correctly fixes the CalibrationSheet marker accuracy bug for non-square floor plans. The core fix (computing image display rect via aspect-fit math and normalizing coordinates to visible image area) is sound. Two non-blocking issues noted: (1) duplicated aspect-fit logic in HeatmapCanvasView should be consolidated, (2) CalibrationSheet's fallback when importResult is nil could be safer. Three shared state observations: missing macos-ui-worker skill file, undocumented FloorPlanLayoutHelper convention, and undocumented rsync workaround for mac-mini git auth."
+}

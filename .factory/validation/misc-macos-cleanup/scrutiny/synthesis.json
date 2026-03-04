@@ -1,0 +1,109 @@
+{
+  "milestone": "misc-macos-cleanup",
+  "round": 1,
+  "status": "pass",
+  "validatorsRun": {
+    "test": {
+      "passed": true,
+      "command": "cd Packages/NetMonitorCore && swift test --no-parallel",
+      "exitCode": 0,
+      "details": "1032 tests in 122 suites passed in 43s"
+    },
+    "typecheck": {
+      "passed": true,
+      "command": "xcodebuild -scheme NetMonitor-macOS -configuration Debug build && xcodebuild -scheme NetMonitor-iOS -configuration Debug build",
+      "exitCode": 0,
+      "details": "Both macOS and iOS targets build succeeded"
+    },
+    "lint": {
+      "passed": true,
+      "command": "swiftlint lint --quiet (errors only) && swiftformat --lint .",
+      "exitCode": 0,
+      "details": "0 SwiftLint errors, 0 SwiftFormat violations (0/480 files need formatting)"
+    }
+  },
+  "reviewsSummary": {
+    "total": 3,
+    "passed": 3,
+    "failed": 0,
+    "failedFeatures": []
+  },
+  "blockingIssues": [],
+  "nonBlockingIssues": [
+    {
+      "featureId": "misc-calibration-accuracy",
+      "severity": "non_blocking",
+      "description": "HeatmapCanvasView has duplicated aspect-fit/coordinate logic (lines 378-412) identical to FloorPlanLayoutHelper. Should be consolidated to use the canonical helper."
+    },
+    {
+      "featureId": "misc-calibration-accuracy",
+      "severity": "non_blocking",
+      "description": "CalibrationSheet.imageDisplaySize(in:) fallback returns containerSize when importResult is nil instead of .zero for fail-safe consistency."
+    },
+    {
+      "featureId": "misc-macos-code-quality",
+      "severity": "non_blocking",
+      "description": "floorPlanImage and importResult access control relaxed from private(set) to var for extension file access. Documented with inline comments."
+    },
+    {
+      "featureId": "misc-macos-code-quality",
+      "severity": "non_blocking",
+      "description": "Logger.app used in moved methods (+Export.swift, +Calibration.swift) instead of Logger.heatmap. Inherited from original code, not introduced by refactoring."
+    },
+    {
+      "featureId": "misc-ios-code-quality",
+      "severity": "non_blocking",
+      "description": "Removed diagnostic logging from FloorPlanImporter.importFloorPlan() overloads during async refactor. ViewModel still logs dimensions."
+    },
+    {
+      "featureId": "misc-ios-code-quality",
+      "severity": "non_blocking",
+      "description": "Async throw tests use verbose do/catch+Issue.record() instead of cleaner #expect(throws:) syntax."
+    },
+    {
+      "featureId": "misc-ios-code-quality",
+      "severity": "non_blocking",
+      "description": "FloorPlanCanvasView.clampOffset() formula doesn't incorporate containerSize into max offset calculation. Functional for practical use but not geometrically precise at all zoom levels."
+    }
+  ],
+  "appliedUpdates": [
+    {
+      "target": "library",
+      "description": "Updated architecture.md: marked WiFiInfo.linkSpeed as resolved, updated macOS ViewModel Size to document completed split with access control pattern, added FloorPlanLayoutHelper as canonical coordinate helper.",
+      "sourceFeature": "misc-macos-code-quality, misc-calibration-accuracy"
+    }
+  ],
+  "suggestedGuidanceUpdates": [
+    {
+      "target": "AGENTS.md",
+      "suggestion": "Add to Known Pre-Existing Issues: rsync workaround for mac-mini git auth failure. Pattern: 'rsync -az --exclude .git --exclude .build /Users/blake/Projects/NetMonitor-2.0/ mac-mini:~/Projects/NetMonitor-2.0/' before running SSH tests.",
+      "evidence": "misc-calibration-accuracy worker discovered and used rsync workaround. Mission AGENTS.md documents the git auth issue but not the workaround. Multiple workers have hit this.",
+      "isSystemic": true
+    },
+    {
+      "target": "AGENTS.md",
+      "suggestion": "Add convention: FloorPlanLayoutHelper is the canonical utility for floor plan coordinate math (aspect-fit sizing, origin computation, normalized coordinate conversion). All new macOS heatmap views should use it instead of duplicating the math.",
+      "evidence": "misc-calibration-accuracy created FloorPlanLayoutHelper. HeatmapCanvasView still has duplicated private methods. Without documenting the convention, future workers will continue duplicating.",
+      "isSystemic": false
+    },
+    {
+      "target": "skills",
+      "suggestion": "Add TDD exemption for pure refactoring tasks to swift-core-worker and ios-ui-worker skills. When a feature is purely reorganizing existing code (no new behavior), existing tests serve as the safety net. Red-green-refactor cycle doesn't apply when no new test cases are needed.",
+      "evidence": "Both misc-macos-code-quality and misc-ios-code-quality workers independently deviated from TDD Step 2 for the same justified reason. The skill procedure doesn't distinguish between new features and refactoring tasks.",
+      "isSystemic": true
+    },
+    {
+      "target": "AGENTS.md",
+      "suggestion": "Add test pattern guidance: FloorPlanImportViewModelTests.makeVM() should inject a MockWiFiInfoService to enable testing of location permission paths. Currently uses production WiFiInfoService default, creating an untestable gap for the authorizationStatus protocol addition.",
+      "evidence": "misc-ios-code-quality added authorizationStatus to WiFiInfoServiceProtocol, but tests can't verify the ViewModel reads from the protocol without mock injection.",
+      "isSystemic": false
+    }
+  ],
+  "rejectedObservations": [
+    {
+      "observation": "Missing macos-ui-worker skill file at .factory/skills/macos-ui-worker/SKILL.md",
+      "reason": "Skills are system-builtin and loaded by the skill execution framework, not stored on disk in .factory/skills/. The skillName field in features.json references a system-provided skill, not a file-based one."
+    }
+  ],
+  "previousRound": null
+}
