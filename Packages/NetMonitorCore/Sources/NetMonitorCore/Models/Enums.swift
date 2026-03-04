@@ -178,6 +178,7 @@ public enum ToolType: String, Codable, CaseIterable, Sendable {
     case scheduledScan
     case vpnInfo
     case exportPdf
+    case wifiHeatmap
 
     public var iconName: String {
         switch self {
@@ -199,6 +200,7 @@ public enum ToolType: String, Codable, CaseIterable, Sendable {
         case .scheduledScan: "calendar.badge.clock"
         case .vpnInfo: "network.badge.shield.half.filled"
         case .exportPdf: "arrow.up.doc"
+        case .wifiHeatmap: "map.fill"
         }
     }
 
@@ -222,6 +224,7 @@ public enum ToolType: String, Codable, CaseIterable, Sendable {
         case .scheduledScan: "Scheduled Scan"
         case .vpnInfo: "VPN Info"
         case .exportPdf: "Export PDF"
+        case .wifiHeatmap: "Wi-Fi Heatmap"
         }
     }
 
@@ -246,6 +249,7 @@ public enum ToolType: String, Codable, CaseIterable, Sendable {
         case .scheduledScan: .orange
         case .vpnInfo: .cyan
         case .exportPdf: .gray
+        case .wifiHeatmap: .cyan
         }
     }
 #endif
