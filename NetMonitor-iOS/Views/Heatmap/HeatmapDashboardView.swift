@@ -11,6 +11,8 @@ struct HeatmapDashboardView: View {
     @State private var activeSurveyVM: HeatmapSurveyViewModel?
     @State private var showSurvey = false
     @State private var showARScan = false
+    @State private var showContinuousScan = false
+    @State private var isLiDARAvailable = ARSessionManager.detectCapability() == .lidar
 
     var body: some View {
         ScrollView {
@@ -56,6 +58,9 @@ struct HeatmapDashboardView: View {
         }
         .navigationDestination(isPresented: $showARScan) {
             ARScanView()
+        }
+        .navigationDestination(isPresented: $showContinuousScan) {
+            ContinuousScanView()
         }
         .alert("Error", isPresented: .init(
             get: { viewModel.errorMessage != nil },
@@ -149,63 +154,118 @@ struct HeatmapDashboardView: View {
 
     // MARK: - Create Project Section
 
-    /// Entry points for creating a new survey: blueprint import and AR scan.
+    /// Entry points for creating a new survey: blueprint import, AR scan, and continuous scan.
     private var createProjectSection: some View {
-        HStack(spacing: Theme.Layout.itemSpacing) {
-            // Blueprint import entry point
-            Button {
-                viewModel.showNewProjectSheet = true
-            } label: {
-                GlassCard(padding: 12) {
-                    VStack(spacing: 8) {
-                        Image(systemName: "photo.on.rectangle.angled")
-                            .font(.title2)
-                            .foregroundStyle(.cyan)
+        VStack(spacing: Theme.Layout.itemSpacing) {
+            HStack(spacing: Theme.Layout.itemSpacing) {
+                // Blueprint import entry point
+                Button {
+                    viewModel.showNewProjectSheet = true
+                } label: {
+                    GlassCard(padding: 12) {
+                        VStack(spacing: 8) {
+                            Image(systemName: "photo.on.rectangle.angled")
+                                .font(.title2)
+                                .foregroundStyle(.cyan)
 
-                        Text("Blueprint Import")
-                            .font(.caption)
-                            .fontWeight(.semibold)
-                            .foregroundStyle(Theme.Colors.textPrimary)
+                            Text("Blueprint Import")
+                                .font(.caption)
+                                .fontWeight(.semibold)
+                                .foregroundStyle(Theme.Colors.textPrimary)
 
-                        Text("Import floor plan image")
-                            .font(.caption2)
-                            .foregroundStyle(Theme.Colors.textTertiary)
-                            .lineLimit(1)
+                            Text("Import floor plan image")
+                                .font(.caption2)
+                                .foregroundStyle(Theme.Colors.textTertiary)
+                                .lineLimit(1)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .frame(minHeight: 90)
                     }
-                    .frame(maxWidth: .infinity)
-                    .frame(minHeight: 90)
                 }
-            }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("heatmap_button_blueprintImport")
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("heatmap_button_blueprintImport")
 
-            // AR scan entry point
-            Button {
-                showARScan = true
-            } label: {
-                GlassCard(padding: 12) {
-                    VStack(spacing: 8) {
-                        Image(systemName: "camera.viewfinder")
-                            .font(.title2)
-                            .foregroundStyle(.blue)
+                // AR scan entry point
+                Button {
+                    showARScan = true
+                } label: {
+                    GlassCard(padding: 12) {
+                        VStack(spacing: 8) {
+                            Image(systemName: "camera.viewfinder")
+                                .font(.title2)
+                                .foregroundStyle(.blue)
 
-                        Text("AR Room Scan")
-                            .font(.caption)
-                            .fontWeight(.semibold)
-                            .foregroundStyle(Theme.Colors.textPrimary)
+                            Text("AR Room Scan")
+                                .font(.caption)
+                                .fontWeight(.semibold)
+                                .foregroundStyle(Theme.Colors.textPrimary)
 
-                        Text("Scan with camera")
-                            .font(.caption2)
-                            .foregroundStyle(Theme.Colors.textTertiary)
-                            .lineLimit(1)
+                            Text("Scan with camera")
+                                .font(.caption2)
+                                .foregroundStyle(Theme.Colors.textTertiary)
+                                .lineLimit(1)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .frame(minHeight: 90)
                     }
-                    .frame(maxWidth: .infinity)
-                    .frame(minHeight: 90)
                 }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("heatmap_button_arScan")
             }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("heatmap_button_arScan")
+
+            // Continuous scan entry point (LiDAR-gated)
+            if isLiDARAvailable {
+                continuousScanButton
+            }
         }
+    }
+
+    // MARK: - Continuous Scan Button
+
+    /// Entry point for Phase 3 Continuous Scan — only visible on LiDAR devices.
+    private var continuousScanButton: some View {
+        Button {
+            showContinuousScan = true
+        } label: {
+            GlassCard(padding: 12) {
+                HStack(spacing: 12) {
+                    Image(systemName: "wave.3.forward.circle.fill")
+                        .font(.title2)
+                        .foregroundStyle(.purple)
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Continuous Scan")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(Theme.Colors.textPrimary)
+
+                        Text("Walk and auto-capture Wi-Fi signal with AR tracking")
+                            .font(.caption2)
+                            .foregroundStyle(Theme.Colors.textTertiary)
+                            .lineLimit(2)
+                    }
+
+                    Spacer()
+
+                    HStack(spacing: 4) {
+                        Image(systemName: "dot.radiowaves.left.and.right")
+                            .font(.caption2)
+                        Text("LiDAR")
+                            .font(.caption2)
+                            .fontWeight(.medium)
+                    }
+                    .foregroundStyle(.purple.opacity(0.8))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(
+                        RoundedRectangle(cornerRadius: 6)
+                            .fill(.purple.opacity(0.15))
+                    )
+                }
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("heatmap_button_continuousScan")
     }
 
     // MARK: - Empty State
