@@ -35,6 +35,25 @@ Testing surface: tools, URLs, setup steps, isolation notes, known quirks.
 - For simulator: verify views load without crash, verify data model/serialization paths
 - Unit tests are the primary verification method for AR pipeline logic
 
+## Flow Validator Guidance: Foundation Unit Tests
+
+The foundation milestone has no UI surface — all assertions are verified through:
+1. **Unit tests** — Run via `cd Packages/NetMonitorCore && swift test --no-parallel`
+2. **Build verification** — `xcodebuild -scheme NetMonitor-macOS -configuration Debug build` and same for iOS
+3. **Structural inspection** — File system checks, grep for clean slate, project.yml inspection
+
+**Isolation:** No isolation needed — all tests are deterministic, read-only, and independent. No shared mutable state, no network, no accounts.
+
+**Test mapping:** Each VAL-FOUND assertion maps to specific test functions in:
+- `HeatmapModelsTests.swift` — serialization round-trips (VAL-FOUND-001 to -014, -047, -049, -050)
+- `HeatmapRendererTests.swift` — IDW, color mapping, performance (VAL-FOUND-015 to -030, -045, -046, -051)
+- `WiFiMeasurementEngineTests.swift` — engine actor tests (VAL-FOUND-031 to -035)
+- `SurveyFileManagerTests.swift` — bundle format tests (VAL-FOUND-036 to -042)
+
+**Build assertions (VAL-FOUND-013, -034, -050, VAL-CROSS-007, -009):** Verified by successful build under `SWIFT_STRICT_CONCURRENCY: complete`.
+
+**Clean slate (VAL-FOUND-044, VAL-CROSS-010):** Verified by grep for stale heatmap references outside new directories.
+
 ## Known Limitations
 - iOS NEHotspotNetwork requires precise location permission + Wi-Fi connection — returns nil in simulator
 - macOS CoreWLAN requires actual Wi-Fi hardware — works on mac-mini but values may vary

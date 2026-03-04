@@ -1,0 +1,110 @@
+{
+  "groupId": "renderer-engine",
+  "testedAt": "2026-03-04T05:30:00Z",
+  "credentials": {
+    "account": "none",
+    "namespace": "none"
+  },
+  "toolsUsed": ["swift test", "source inspection"],
+  "assertions": {
+    "VAL-FOUND-015": {
+      "status": "pass",
+      "evidence": "Test singlePointWithHelpersConstant() passed — verifies single point at center of 100x100 grid with RSSI=-50 produces constant output across all pixels."
+    },
+    "VAL-FOUND-016": {
+      "status": "pass",
+      "evidence": "Test twoPointGradientWithThird() passed — verifies two points at opposite edges (left=-30, right=-90) with midpoint at -60 and correct gradient direction."
+    },
+    "VAL-FOUND-017": {
+      "status": "pass",
+      "evidence": "Test proximityDominance() passed — verifies pixel 1 unit from point A(-40) and 10 units from B/C has value within 2 dBm of -40."
+    },
+    "VAL-FOUND-018": {
+      "status": "pass",
+      "evidence": "Test idwPowerParameterP2() passed — verifies IDW uses p=2.0 (Shepard's method) with known-answer test case."
+    },
+    "VAL-FOUND-019": {
+      "status": "pass",
+      "evidence": "Test zeroDistanceReturnsExactValue() passed — pixel at exact measurement point returns that point's value with no division by zero."
+    },
+    "VAL-FOUND-020": {
+      "status": "pass",
+      "evidence": "Test in HeatmapRenderer IDW suite passed — render() returns non-nil CGImage with expected pixel dimensions. Suite 'HeatmapRenderer IDW' passed."
+    },
+    "VAL-FOUND-021": {
+      "status": "pass",
+      "evidence": "Test in HeatmapRenderer IDW suite verified default 200x200 grid rendering with correct output dimensions. Suite passed."
+    },
+    "VAL-FOUND-022": {
+      "status": "pass",
+      "evidence": "Test performance50Points() passed in 0.143 seconds (<500ms threshold). Suite 'HeatmapRenderer Performance' passed."
+    },
+    "VAL-FOUND-023": {
+      "status": "pass",
+      "evidence": "Test performance200Points() passed in 0.511 seconds (<2000ms threshold). Suite 'HeatmapRenderer Performance' passed."
+    },
+    "VAL-FOUND-024": {
+      "status": "pass",
+      "evidence": "Tests signalStrengthGreen(), signalStrengthYellow(), signalStrengthRed() all passed — RSSI >= -50 green, -50 to -70 yellow, <= -70 red."
+    },
+    "VAL-FOUND-025": {
+      "status": "pass",
+      "evidence": "Tests snrGreen(), snrYellow(), snrRed() all passed — SNR > 25 green, 15-25 yellow, < 15 red."
+    },
+    "VAL-FOUND-026": {
+      "status": "pass",
+      "evidence": "Tests downloadSpeedGreen(), downloadSpeedYellow(), downloadSpeedRed() all passed — >100 Mbps green, 25-100 yellow, <25 red."
+    },
+    "VAL-FOUND-027": {
+      "status": "pass",
+      "evidence": "Tests uploadSpeedGreen(), uploadSpeedYellow(), uploadSpeedRed() all passed — same thresholds as downloadSpeed."
+    },
+    "VAL-FOUND-028": {
+      "status": "pass",
+      "evidence": "Tests latencyGreen(), latencyYellow(), latencyRed() all passed — <10ms green, 10-50 yellow, >50 red."
+    },
+    "VAL-FOUND-029": {
+      "status": "pass",
+      "evidence": "Tests defaultOpacity70Percent() and customOpacity() both passed — default alpha = 0.7 (178/255) verified."
+    },
+    "VAL-FOUND-030": {
+      "status": "pass",
+      "evidence": "Tests valueClamping() and clampingExtremeLatency() both passed — extreme RSSI and latency values clamped without crash."
+    },
+    "VAL-FOUND-031": {
+      "status": "pass",
+      "evidence": "Tests 'takeMeasurement returns MeasurementPoint with RSSI, SSID, BSSID from WiFi service' and 'takeMeasurement does NOT populate speed/latency fields' passed — passive measurement verified with mock WiFiInfoService."
+    },
+    "VAL-FOUND-032": {
+      "status": "pass",
+      "evidence": "Test 'takeActiveMeasurement populates downloadSpeed, uploadSpeed, latency' passed — active measurement returns populated speed and latency fields via mock SpeedTest and Ping services."
+    },
+    "VAL-FOUND-033": {
+      "status": "pass",
+      "evidence": "Tests 'startContinuousMeasurement returns AsyncStream yielding measurements', 'stopContinuousMeasurement terminates the stream', 'continuous measurement respects the specified interval' (0.312s), and 'stopping and restarting continuous measurement works' all passed — stream yields at ~500ms intervals and terminates on stop."
+    },
+    "VAL-FOUND-034": {
+      "status": "pass",
+      "evidence": "Source file WiFiMeasurementEngine.swift declares 'public actor WiFiMeasurementEngine: HeatmapServiceProtocol' — confirmed actor type. Also test 'WiFiMeasurementEngine is an actor conforming to HeatmapServiceProtocol' passed. Compiles under SWIFT_STRICT_CONCURRENCY: complete (swift test exit code 0)."
+    },
+    "VAL-FOUND-035": {
+      "status": "pass",
+      "evidence": "Tests 'takeMeasurement delegates to WiFiInfoService' and 'takeActiveMeasurement calls speed test and ping services' passed — engine accepts any WiFiInfoServiceProtocol and delegates calls verified via mock."
+    },
+    "VAL-FOUND-045": {
+      "status": "pass",
+      "evidence": "Test allFiveTypesProduceDistinctOutput() passed — each of the five visualization types produces distinct color output for identical measurement data."
+    },
+    "VAL-FOUND-046": {
+      "status": "pass",
+      "evidence": "Tests returnsNilForZeroPoints(), returnsNilForOnePoint(), returnsNilForTwoPoints() all passed — renderer returns nil with fewer than 3 measurement points."
+    },
+    "VAL-FOUND-051": {
+      "status": "pass",
+      "evidence": "Tests dualColorSchemes() and wifimanColorScheme() both passed — Phase 1 green-yellow-red and Phase 3 WiFiman blue-cyan-green-yellow-orange-red schemes verified with correct scheme applied based on configuration."
+    }
+  },
+  "frictions": [],
+  "blockers": [],
+  "summary": "Tested 24 assertions: all 24 passed. All NetMonitorCore tests (1020 tests in 122 suites) passed with exit code 0. HeatmapRenderer IDW, Color Mapping, Performance suites and WiFiMeasurementEngine suite all passed. VAL-FOUND-034 confirmed via source inspection (public actor WiFiMeasurementEngine)."
+}
