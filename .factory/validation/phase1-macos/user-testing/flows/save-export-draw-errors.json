@@ -1,0 +1,86 @@
+{
+  "flowId": "save-export-draw-errors",
+  "testedAt": "2026-03-04T12:00:00Z",
+  "credentials": {
+    "account": "code-review",
+    "namespace": "save-export-draw-errors"
+  },
+  "toolsUsed": ["code-review"],
+  "assertions": {
+    "VAL-MAC-046": {
+      "status": "pass",
+      "evidence": "HeatmapSurveyViewModel.saveProject() uses NSSavePanel with title='Save Survey Project', nameFieldStringValue='{name}.netmonsurvey', allowedContentTypes=[com.netmonitor.survey]. On OK, calls SurveyFileManager.save(project, to: url) and stores currentSavePath. saveProjectAs() always shows NSSavePanel. Subsequent saveProject() calls overwrite existing path directly.",
+      "notes": "Both saveProject() and saveProjectAs() methods exist. saveProject() re-uses currentSavePath if set (overwrite behavior), falling back to NSSavePanel. saveProjectAs() always presents the panel."
+    },
+    "VAL-MAC-047": {
+      "status": "pass",
+      "evidence": "SurveyFileManager.save() encodes the full SurveyProject to JSON via JSONEncoder (iso8601 dates, prettyPrinted). SurveyProject includes: name, createdAt, floorPlan (calibrationPoints, widthMeters, heightMeters, pixelWidth, pixelHeight, origin, walls), measurementPoints (all fields), surveyMode, metadata. Floor plan imageData is extracted and written separately as floorplan.png. The JSON copy has empty imageData to avoid duplication.",
+      "notes": "All model fields are Codable. FloorPlan includes walls:[WallSegment]?, calibrationPoints:[CalibrationPoint]?, origin:FloorPlanOrigin. SurveyProject includes metadata:SurveyMetadata?."
+    },
+    "VAL-MAC-048": {
+      "status": "pass",
+      "evidence": "HeatmapSurveyViewModel.loadProject(from:) calls SurveyFileManager.load(), then restores: (1) floorPlanImage from loaded imageData, (2) importResult with dimensions/source, (3) project = loadedProject (restores all points), (4) currentSavePath, (5) calibration state (pixelsPerMeter, isCalibrated, scaleBar if calibrationPoints exist), (6) calls recalculateStats() for sidebar, (7) calls renderHeatmapOverlay() for canvas overlay. Undo/redo stacks are reset.",
+      "notes": "Full state restoration confirmed: canvas (floorPlanImage + importResult), dots (project.measurementPoints), overlay (renderHeatmapOverlay), sidebar stats (recalculateStats), calibration (pixelsPerMeter + scaleBar)."
+    },
+    "VAL-MAC-049": {
+      "status": "pass",
+      "evidence": "HeatmapSurveyViewModel.openProject() creates NSOpenPanel with allowedContentTypes=[UTType(exportedAs:'com.netmonitor.survey')], canChooseDirectories=true (needed for bundle), allowsMultipleSelection=false. On OK, calls loadProject(from: url). Toolbar has 'Open' button calling viewModel.openProject(). Keyboard shortcut Cmd+O bound via hidden button in HeatmapSurveyView.swift.",
+      "notes": "canChooseDirectories=true is correct since .netmonsurvey is a directory bundle (conforms to com.apple.package). The panel filters to only show .netmonsurvey bundles."
+    },
+    "VAL-MAC-050": {
+      "status": "pass",
+      "evidence": "project.yml declares UTExportedTypeDeclarations with UTTypeIdentifier='com.netmonitor.survey', UTTypeConformsTo=['com.apple.package'], extension='netmonsurvey'. CFBundleDocumentTypes has CFBundleTypeRole=Editor, LSHandlerRank=Owner, LSItemContentTypes=['com.netmonitor.survey']. ContentView.swift has .onOpenURL handler that checks url.pathExtension=='netmonsurvey', sets pendingSurveyURL and navigates to heatmap section. HeatmapProjectListView watches pendingSurveyURL via onChange and onAppear, calling viewModel.loadProject(from:) when set.",
+      "notes": "Full chain verified: UTI registration → CFBundleDocumentTypes → .onOpenURL handler in ContentView → pendingSurveyURL binding → HeatmapProjectListView.onChange/onAppear → loadProject(). Both macOS and iOS targets have the UTI registered."
+    },
+    "VAL-MAC-051": {
+      "status": "pass",
+      "evidence": "HeatmapPDFExporter.generatePDF() creates 3 pages: (1) drawHeatmapPage — floor plan with heatmap overlay (aspect-fit), color gradient legend with visualization-specific labels; (2) drawStatsPage — project info (name, date, mode, points, dimensions, calibration), signal statistics (min/max/avg RSSI, noise, SNR), performance statistics (download/upload/latency averages), signal distribution (excellent/good/poor counts), metadata (building, floor, notes); (3) drawDataPage — per-point table with columns: #, Time, RSSI, SSID, Ch, Band, DL, UL, Lat, X, Y. Pages paginate if data exceeds one page.",
+      "notes": "US Letter (612x792pt). Page 1 has heatmap + legend. Page 2 has summary stats. Page 3 has per-point data table with auto-pagination for large datasets."
+    },
+    "VAL-MAC-052": {
+      "status": "pass",
+      "evidence": "HeatmapSurveyView toolbar contains 'Export PDF' button with action viewModel.exportPDF(), icon 'doc.richtext'. The button has .disabled(!viewModel.canExportPDF) and help text. ViewModel.exportPDF() calls HeatmapPDFExporter.generatePDF() then HeatmapPDFExporter.saveWithPanel() which presents NSSavePanel with title='Export Heatmap Report', nameFieldStringValue='{name} Report.pdf', allowedContentTypes=[.pdf].",
+      "notes": "Complete flow: toolbar button → exportPDF() → generatePDF() → saveWithPanel() → NSSavePanel → write PDF data."
+    },
+    "VAL-MAC-053": {
+      "status": "pass",
+      "evidence": "canExportPDF computed property returns project?.measurementPoints.count >= 3. Toolbar Export PDF button has .disabled(!viewModel.canExportPDF). Additionally, exportPDF() has guard canExportPDF else { showError('At least 3 measurement points are required to export a PDF report.') }. The help tooltip says 'Requires at least 3 measurement points' when disabled.",
+      "notes": "Double protection: button is visually disabled AND the method has a guard with user-facing error message if somehow called with <3 points."
+    },
+    "VAL-MAC-054": {
+      "status": "pass",
+      "evidence": "DrawFloorPlanView.swift exists with three drawing tools: Wall (solid black lines), Door (dashed brown lines), Room (blue rectangles with light fill). Tools are selectable via toolbar buttons. Drawing uses DragGesture on a white canvas with grid lines. Has undo (removes last segment), clear all (with confirmation alert), cancel, and 'Use as Floor Plan' (rasterizeDrawing()). Rasterization creates a CGContext at canvasWidth x canvasHeight, draws all segments with proper colors/line styles, and returns PNG Data.",
+      "notes": "DrawingTool enum: .wall (line.diagonal icon), .door (door.left.hand.open icon), .room (rectangle icon). All segments are stored as DrawnSegment with normalized 0-1 coordinates and rasterized to pixel coordinates during PNG export."
+    },
+    "VAL-MAC-055": {
+      "status": "pass",
+      "evidence": "HeatmapSurveyView new project sheet has 'Draw Floor Plan' button that opens DrawFloorPlanView as a sheet. onComplete callback receives imageData and calls viewModel.applyDrawnFloorPlan(name:, imageData:). This method creates an NSImage from the data, extracts CGImage dimensions, and calls applyFloorPlanData() which creates a new SurveyProject with FloorPlan(origin: .drawn) and sets floorPlanImage + importResult. The survey view then shows the drawn floor plan as the canvas base layer, ready for walk survey (click to measure).",
+      "notes": "Complete flow: New Project → Draw Floor Plan → DrawFloorPlanView (wall/door/room tools) → Use as Floor Plan → applyDrawnFloorPlan() → new SurveyProject with drawn image → survey canvas ready for measurements."
+    },
+    "VAL-MAC-063": {
+      "status": "fail",
+      "evidence": "HeatmapSurveyViewModel.takeMeasurement() calls engine.takeMeasurement() which calls wifiService.fetchCurrentWiFi(). WiFiMeasurementEngine.buildMeasurementPoint() uses 'wifiInfo?.signalDBm ?? wifiInfo?.signalStrength ?? -100' — when Wi-Fi is disconnected and wifiInfo is nil, RSSI defaults to -100 and all other fields (ssid, bssid, channel, band) are nil. The ViewModel does NOT validate the measurement result — no check for nil SSID or -100 RSSI. The point is silently added to the project. No error is shown to the user via showError().",
+      "notes": "Bug: No Wi-Fi disconnection detection. When Wi-Fi is off, a garbage point (RSSI=-100, nil SSID) is silently added. The assertion requires showing an error message. No crash occurs (that part passes), but the error display requirement is not met. Fix: ViewModel should check if returned MeasurementPoint has nil SSID or RSSI==-100 and call showError() instead of adding the point."
+    },
+    "VAL-MAC-064": {
+      "status": "pass",
+      "evidence": "HeatmapSurveyViewModel.saveProject() wraps SurveyFileManager.save() in do/catch. On failure, calls showError('Failed to save project: {error.localizedDescription}'). SurveyFileManager.save() throws SurveyFileError.fileSystemError with descriptive messages for directory creation failure, removeItem failure, and write failure. The error alert is bound via .alert('Error', isPresented: $viewModel.showingError) in HeatmapSurveyView.swift with OK button and error message text.",
+      "notes": "Write errors (including permission denied for read-only locations) propagate through SurveyFileError.fileSystemError → catch block → showError() → alert presentation. No crash path exists."
+    },
+    "VAL-MAC-065": {
+      "status": "pass",
+      "evidence": "HeatmapSurveyViewModel.loadProject(from:) wraps SurveyFileManager.load() in do/catch. On failure, calls showError('Failed to open project: {error.localizedDescription}'). SurveyFileManager.load() throws descriptive errors: corruptJSON('Failed to decode survey.json: {details}'), corruptJSON('survey.json is missing from the bundle'), missingFloorPlan('floorplan.png is missing'), bundleNotFound('Bundle not found'). All SurveyFileError cases have errorDescription for user-facing display and failureReason for technical detail.",
+      "notes": "Corrupt JSON, missing files, and missing bundles all produce descriptive SurveyFileError with LocalizedError conformance. The ViewModel catches all errors and presents them via the alert system. No crash path exists."
+    }
+  },
+  "frictions": [
+    {
+      "description": "VAL-MAC-063 failure: WiFiMeasurementEngine.takeMeasurement() never throws or returns an error state — it always returns a MeasurementPoint (with RSSI=-100 as fallback). The ViewModel has no way to distinguish a valid low-signal measurement from a disconnected-Wi-Fi measurement without adding explicit validation logic.",
+      "resolved": false,
+      "resolution": null,
+      "affectedAssertions": ["VAL-MAC-063"]
+    }
+  ],
+  "blockers": [],
+  "summary": "Tested 13 assertions: 12 passed, 1 failed. VAL-MAC-063 fails because takeMeasurement() silently adds a garbage point (RSSI=-100, nil SSID) when Wi-Fi is disconnected instead of showing an error to the user. All other save/load/export/draw/error assertions pass — NSSavePanel/NSOpenPanel integration, SurveyFileManager persistence, PDF 3-page generation, DrawFloorPlanView tools, UTI registration for Finder double-click, and error handling for corrupt projects and write failures are all correctly implemented."
+}
