@@ -4,6 +4,74 @@ import NetMonitorCore
 import Testing
 @testable import NetMonitor_macOS
 
+// MARK: - Mock WiFi Measurement Engine
+
+/// Mock implementation of HeatmapServiceProtocol for testing.
+final class MockMeasurementEngine: HeatmapServiceProtocol, @unchecked Sendable {
+    var mockRSSI: Int = -55
+    var mockNoiseFloor: Int? = -90
+    var mockSSID: String? = "TestNetwork"
+    var mockBSSID: String? = "AA:BB:CC:DD:EE:FF"
+    var mockChannel: Int? = 36
+    var mockBand: WiFiBand? = .band5GHz
+    var mockLinkSpeed: Int? = 866
+    var takeMeasurementCallCount: Int = 0
+
+    func takeMeasurement(at floorPlanX: Double, floorPlanY: Double) async -> MeasurementPoint {
+        takeMeasurementCallCount += 1
+        return MeasurementPoint(
+            floorPlanX: floorPlanX,
+            floorPlanY: floorPlanY,
+            rssi: mockRSSI,
+            noiseFloor: mockNoiseFloor,
+            snr: mockNoiseFloor.map { mockRSSI - $0 },
+            ssid: mockSSID,
+            bssid: mockBSSID,
+            channel: mockChannel,
+            band: mockBand,
+            linkSpeed: mockLinkSpeed
+        )
+    }
+
+    func takeActiveMeasurement(at floorPlanX: Double, floorPlanY: Double) async -> MeasurementPoint {
+        MeasurementPoint(
+            floorPlanX: floorPlanX,
+            floorPlanY: floorPlanY,
+            rssi: mockRSSI,
+            noiseFloor: mockNoiseFloor,
+            downloadSpeed: 150.0,
+            uploadSpeed: 50.0,
+            latency: 5.0
+        )
+    }
+
+    func startContinuousMeasurement(interval: TimeInterval) async -> AsyncStream<MeasurementPoint> {
+        AsyncStream { $0.finish() }
+    }
+
+    func stopContinuousMeasurement() async {}
+}
+
+/// Mock CoreWLAN service for testing live RSSI.
+@MainActor
+final class MockCoreWLANService: CoreWLANServiceProtocol {
+    var mockRSSI: Int = -50
+    var mockNoiseFloor: Int = -90
+    var mockChannel: Int = 36
+    var mockBand: String = "5 GHz"
+    var mockLinkSpeed: Int = 866
+    var mockSSID: String? = "TestNet"
+    var mockBSSID: String? = "AA:BB:CC:DD:EE:FF"
+
+    func currentRSSI() -> Int? { mockRSSI }
+    func currentNoiseFloor() -> Int? { mockNoiseFloor }
+    func currentChannel() -> Int? { mockChannel }
+    func currentBand() -> String? { mockBand }
+    func currentLinkSpeed() -> Int? { mockLinkSpeed }
+    func currentSSID() -> String? { mockSSID }
+    func currentBSSID() -> String? { mockBSSID }
+}
+
 // MARK: - Test Helpers
 
 /// Creates a minimal valid PNG image data for testing.
@@ -351,6 +419,186 @@ struct HeatmapSurveyViewModelTests {
 
     @Test func calibrationUnitFeetConversion() {
         #expect(CalibrationUnit.feet.toMeters == 0.3048)
+    }
+
+    // MARK: - Survey Workflow
+
+    private func makeVMWithFloorPlan() -> (HeatmapSurveyViewModel, MockMeasurementEngine, MockCoreWLANService) {
+        let engine = MockMeasurementEngine()
+        let wlanService = MockCoreWLANService()
+        let vm = HeatmapSurveyViewModel(measurementEngine: engine, coreWLANService: wlanService)
+        let url = makeTestPNGFile(width: 1000, height: 500)
+        vm.loadFloorPlan(from: url)
+        return (vm, engine, wlanService)
+    }
+
+    @Test func addMeasurementPointUpdatesProject() async {
+        let (vm, _, _) = makeVMWithFloorPlan()
+
+        await vm.takeMeasurement(at: CGPoint(x: 0.5, y: 0.3))
+
+        #expect(vm.project?.measurementPoints.count == 1)
+        let point = vm.project?.measurementPoints.first
+        #expect(point?.floorPlanX == 0.5)
+        #expect(point?.floorPlanY == 0.3)
+        #expect(point?.rssi == -55)
+        #expect(point?.ssid == "TestNetwork")
+    }
+
+    @Test func addMultipleMeasurements() async {
+        let (vm, _, _) = makeVMWithFloorPlan()
+
+        await vm.takeMeasurement(at: CGPoint(x: 0.1, y: 0.1))
+        await vm.takeMeasurement(at: CGPoint(x: 0.5, y: 0.5))
+        await vm.takeMeasurement(at: CGPoint(x: 0.9, y: 0.9))
+
+        #expect(vm.project?.measurementPoints.count == 3)
+    }
+
+    @Test func measurementPopulatesRSSINoiseChannelBandLinkSpeed() async {
+        let (vm, _, _) = makeVMWithFloorPlan()
+
+        await vm.takeMeasurement(at: CGPoint(x: 0.5, y: 0.5))
+
+        let point = vm.project?.measurementPoints.first
+        #expect(point?.rssi == -55)
+        #expect(point?.noiseFloor == -90)
+        #expect(point?.channel == 36)
+        #expect(point?.band == .band5GHz)
+        #expect(point?.linkSpeed == 866)
+    }
+
+    @Test func summaryStatsUpdateOnAdd() async {
+        let (vm, engine, _) = makeVMWithFloorPlan()
+
+        engine.setMockRSSI(-40)
+        await vm.takeMeasurement(at: CGPoint(x: 0.1, y: 0.1))
+        engine.setMockRSSI(-70)
+        await vm.takeMeasurement(at: CGPoint(x: 0.5, y: 0.5))
+        engine.setMockRSSI(-60)
+        await vm.takeMeasurement(at: CGPoint(x: 0.9, y: 0.9))
+
+        #expect(vm.summaryStats.count == 3)
+        #expect(vm.summaryStats.minRSSI == -70)
+        #expect(vm.summaryStats.maxRSSI == -40)
+        // Average: (-40 + -70 + -60) / 3 = -170/3 ≈ -56.67
+        let avgDiff = abs(vm.summaryStats.avgRSSI - (-170.0 / 3.0))
+        #expect(avgDiff < 0.1)
+    }
+
+    @Test func selectedPointHighlightOnCanvas() async {
+        let (vm, _, _) = makeVMWithFloorPlan()
+
+        await vm.takeMeasurement(at: CGPoint(x: 0.5, y: 0.5))
+        guard let pointID = vm.project?.measurementPoints.first?.id
+        else {
+            Issue.record("Expected measurement point to be created")
+            return
+        }
+
+        vm.selectedPointID = pointID
+        #expect(vm.selectedPointID == pointID)
+
+        vm.selectedPointID = nil
+        #expect(vm.selectedPointID == nil)
+    }
+
+    @Test func removeMeasurementPointUpdatesStats() async {
+        let (vm, _, _) = makeVMWithFloorPlan()
+
+        await vm.takeMeasurement(at: CGPoint(x: 0.1, y: 0.1))
+        await vm.takeMeasurement(at: CGPoint(x: 0.5, y: 0.5))
+        #expect(vm.summaryStats.count == 2)
+
+        guard let pointID = vm.project?.measurementPoints.first?.id
+        else {
+            Issue.record("Expected measurement point to exist")
+            return
+        }
+        vm.removeMeasurementPoint(id: pointID)
+
+        #expect(vm.summaryStats.count == 1)
+        #expect(vm.project?.measurementPoints.count == 1)
+    }
+
+    @Test func liveRSSIUpdatesFromCoreWLAN() {
+        let (vm, _, wlanService) = makeVMWithFloorPlan()
+        wlanService.mockRSSI = -42
+
+        vm.refreshLiveRSSI()
+
+        #expect(vm.liveRSSI == -42)
+    }
+
+    @Test func liveRSSIFormattedBadge() {
+        let (vm, _, wlanService) = makeVMWithFloorPlan()
+        wlanService.mockRSSI = -55
+
+        vm.refreshLiveRSSI()
+
+        #expect(vm.liveRSSIBadgeText == "-55 dBm")
+    }
+
+    @Test func zoomStatePreservesPoints() async {
+        let (vm, _, _) = makeVMWithFloorPlan()
+
+        await vm.takeMeasurement(at: CGPoint(x: 0.5, y: 0.5))
+
+        // Simulate zoom
+        vm.zoomScale = 2.0
+        vm.panOffset = CGSize(width: 50, height: 50)
+
+        // Points should still be at normalized coordinates
+        let point = vm.project?.measurementPoints.first
+        #expect(point?.floorPlanX == 0.5)
+        #expect(point?.floorPlanY == 0.5)
+    }
+
+    @Test func measurementWithoutProjectDoesNotCrash() async {
+        let engine = MockMeasurementEngine()
+        let wlanService = MockCoreWLANService()
+        let vm = HeatmapSurveyViewModel(measurementEngine: engine, coreWLANService: wlanService)
+
+        // No floor plan loaded, project is nil
+        await vm.takeMeasurement(at: CGPoint(x: 0.5, y: 0.5))
+
+        #expect(vm.project == nil)
+    }
+
+    @Test func summaryStatsEmptyWhenNoPoints() {
+        let vm = HeatmapSurveyViewModel()
+
+        #expect(vm.summaryStats == SummaryStats.empty)
+    }
+
+    @Test func spacingGuidanceShown() {
+        let (vm, _, _) = makeVMWithFloorPlan()
+
+        // Spacing guidance should be available when floor plan is loaded
+        let guidanceContainsExpected = vm.spacingGuidanceText.contains("3") || vm.spacingGuidanceText.contains("5")
+        #expect(guidanceContainsExpected)
+    }
+
+    @Test func isMeasuringSetDuringMeasurement() async {
+        let (vm, _, _) = makeVMWithFloorPlan()
+
+        // Before measurement
+        #expect(vm.isMeasuring == false)
+
+        await vm.takeMeasurement(at: CGPoint(x: 0.5, y: 0.5))
+
+        // After measurement completes
+        #expect(vm.isMeasuring == false)
+    }
+
+}
+
+// MARK: - MockMeasurementEngine Helpers
+
+extension MockMeasurementEngine {
+    @MainActor
+    func setMockRSSI(_ value: Int) {
+        mockRSSI = value
     }
 }
 

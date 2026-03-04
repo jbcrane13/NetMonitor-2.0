@@ -4,15 +4,15 @@ import UniformTypeIdentifiers
 // MARK: - HeatmapSurveyView
 
 /// The main heatmap survey view for macOS.
-/// Displays the floor plan with drag-and-drop support, scale bar,
-/// and provides entry into the calibration workflow.
+/// Split view layout: left canvas (floor plan with measurements), right sidebar (point list + stats).
+/// Toolbar provides import, calibrate, live RSSI badge, and dimension info.
 struct HeatmapSurveyView: View {
     @Bindable var viewModel: HeatmapSurveyViewModel
 
     var body: some View {
         Group {
             if viewModel.hasFloorPlan {
-                floorPlanView
+                surveyContentView
             } else {
                 emptyStateView
             }
@@ -30,7 +30,49 @@ struct HeatmapSurveyView: View {
                 Text(msg)
             }
         }
+        .onAppear {
+            viewModel.startLiveRSSIUpdates()
+        }
+        .onDisappear {
+            viewModel.stopLiveRSSIUpdates()
+        }
         .accessibilityIdentifier("heatmap_survey_view")
+    }
+
+    // MARK: - Split View Content
+
+    private var surveyContentView: some View {
+        VStack(spacing: 0) {
+            surveyToolbar
+            Divider()
+            HSplitView {
+                canvasSection
+                    .frame(minWidth: 400)
+
+                MeasurementSidebarView(viewModel: viewModel)
+            }
+        }
+    }
+
+    // MARK: - Canvas Section (Left)
+
+    private var canvasSection: some View {
+        ZStack(alignment: .bottomLeading) {
+            HeatmapCanvasView(viewModel: viewModel) { normalizedPoint in
+                Task {
+                    await viewModel.takeMeasurement(at: normalizedPoint)
+                }
+            }
+
+            // Scale bar overlay (shown after calibration)
+            if viewModel.isCalibrated {
+                scaleBarOverlay
+                    .padding(16)
+            }
+        }
+        .onDrop(of: [.fileURL], isTargeted: nil) { providers in
+            viewModel.handleDrop(providers: providers)
+        }
     }
 
     // MARK: - Empty State (Import Prompt)
@@ -74,49 +116,9 @@ struct HeatmapSurveyView: View {
         }
     }
 
-    // MARK: - Floor Plan View
+    // MARK: - Survey Toolbar
 
-    private var floorPlanView: some View {
-        VStack(spacing: 0) {
-            // Toolbar
-            floorPlanToolbar
-
-            Divider()
-
-            // Floor plan canvas
-            ZStack(alignment: .bottomLeading) {
-                floorPlanCanvas
-
-                // Scale bar overlay (shown after calibration)
-                if viewModel.isCalibrated {
-                    scaleBarOverlay
-                        .padding(16)
-                }
-            }
-            .onDrop(of: [.fileURL], isTargeted: nil) { providers in
-                viewModel.handleDrop(providers: providers)
-            }
-        }
-    }
-
-    // MARK: - Floor Plan Canvas
-
-    private var floorPlanCanvas: some View {
-        GeometryReader { geometry in
-            if let image = viewModel.floorPlanImage {
-                Image(nsImage: image)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(maxWidth: geometry.size.width, maxHeight: geometry.size.height)
-                    .frame(width: geometry.size.width, height: geometry.size.height)
-                    .accessibilityIdentifier("heatmap_canvas_floorplan")
-            }
-        }
-    }
-
-    // MARK: - Toolbar
-
-    private var floorPlanToolbar: some View {
+    private var surveyToolbar: some View {
         HStack(spacing: 12) {
             // Import new floor plan
             Button(action: {
@@ -147,7 +149,24 @@ struct HeatmapSurveyView: View {
                     .accessibilityIdentifier("heatmap_toolbar_calibrated_badge")
             }
 
+            Divider()
+                .frame(height: 20)
+
+            // Live RSSI badge
+            liveRSSIBadge
+                .accessibilityIdentifier("heatmap_toolbar_rssi_badge")
+
             Spacer()
+
+            // Measuring indicator
+            if viewModel.isMeasuring {
+                ProgressView()
+                    .controlSize(.small)
+                    .accessibilityIdentifier("heatmap_toolbar_measuring_indicator")
+                Text("Measuring…")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
 
             // Floor plan dimensions
             if let result = viewModel.importResult {
@@ -160,13 +179,38 @@ struct HeatmapSurveyView: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
         .background(.bar)
+        .accessibilityIdentifier("heatmap_toolbar")
+    }
+
+    // MARK: - Live RSSI Badge
+
+    private var liveRSSIBadge: some View {
+        HStack(spacing: 4) {
+            Image(systemName: "wifi")
+                .font(.caption)
+                .foregroundStyle(rssiColor)
+            Text(viewModel.liveRSSIBadgeText)
+                .font(.caption)
+                .fontWeight(.medium)
+                .monospacedDigit()
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(rssiColor.opacity(0.1), in: RoundedRectangle(cornerRadius: 6))
+    }
+
+    private var rssiColor: Color {
+        guard let rssi = viewModel.liveRSSI
+        else { return .gray }
+        if rssi >= -50 { return .green }
+        if rssi >= -70 { return .yellow }
+        return .red
     }
 
     // MARK: - Scale Bar
 
     private var scaleBarOverlay: some View {
         VStack(alignment: .leading, spacing: 2) {
-            // Scale bar line
             Rectangle()
                 .fill(.white)
                 .frame(width: scaleBarWidth, height: 3)
@@ -183,7 +227,6 @@ struct HeatmapSurveyView: View {
                     .frame(width: scaleBarWidth)
                 )
 
-            // Scale bar label
             Text(viewModel.scaleBarLabel)
                 .font(.system(size: 10, weight: .bold))
                 .foregroundStyle(.white)
@@ -193,9 +236,8 @@ struct HeatmapSurveyView: View {
         .accessibilityIdentifier("heatmap_scale_bar")
     }
 
-    /// Computed scale bar pixel width (clamped to reasonable range).
     private var scaleBarWidth: CGFloat {
-        let width = viewModel.scaleBarFraction * 500 // approximate
+        let width = viewModel.scaleBarFraction * 500
         return max(30, min(200, width))
     }
 }
@@ -203,6 +245,6 @@ struct HeatmapSurveyView: View {
 #if DEBUG
 #Preview("Empty State") {
     HeatmapSurveyView(viewModel: HeatmapSurveyViewModel())
-        .frame(width: 800, height: 600)
+        .frame(width: 1000, height: 700)
 }
 #endif

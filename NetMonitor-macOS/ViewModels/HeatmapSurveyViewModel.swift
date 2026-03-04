@@ -23,10 +23,24 @@ enum CalibrationUnit: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
+// MARK: - SummaryStats
+
+/// Summary statistics for measurement points in the sidebar.
+struct SummaryStats: Equatable, Sendable {
+    let count: Int
+    let minRSSI: Int
+    let maxRSSI: Int
+    let avgRSSI: Double
+    let coverageAreaSqM: Double
+
+    static let empty = SummaryStats(count: 0, minRSSI: 0, maxRSSI: 0, avgRSSI: 0, coverageAreaSqM: 0)
+}
+
 // MARK: - HeatmapSurveyViewModel
 
 /// ViewModel for the macOS heatmap survey workflow.
-/// Manages floor plan import, calibration state, and the survey project.
+/// Manages floor plan import, calibration state, survey project,
+/// measurement points, live RSSI, summary stats, and canvas state.
 @MainActor
 @Observable
 final class HeatmapSurveyViewModel {
@@ -84,9 +98,60 @@ final class HeatmapSurveyViewModel {
     /// Whether the error alert should be shown.
     var showingError = false
 
+    // MARK: - Survey State
+
+    /// Whether a measurement is currently being taken.
+    private(set) var isMeasuring = false
+
+    /// The currently selected (highlighted) measurement point ID.
+    var selectedPointID: UUID?
+
+    /// Summary statistics for the current measurement points.
+    private(set) var summaryStats = SummaryStats.empty
+
+    /// Spacing guidance text shown to the user.
+    let spacingGuidanceText = "Place measurements 3–5 meters apart for best coverage"
+
+    // MARK: - Canvas State
+
+    /// Current zoom scale (1.0 = no zoom).
+    var zoomScale: CGFloat = 1.0
+
+    /// Current pan offset.
+    var panOffset: CGSize = .zero
+
+    // MARK: - Live RSSI
+
+    /// Live RSSI reading from CoreWLAN (updated at 1Hz).
+    private(set) var liveRSSI: Int?
+
+    /// Formatted RSSI badge text for the toolbar.
+    var liveRSSIBadgeText: String {
+        guard let rssi = liveRSSI
+        else { return "No WiFi" }
+        return "\(rssi) dBm"
+    }
+
+    /// Timer for live RSSI updates.
+    private var rssiTimer: Timer?
+
+    // MARK: - Dependencies
+
+    /// The measurement engine for taking WiFi measurements.
+    private let measurementEngine: (any HeatmapServiceProtocol)?
+
+    /// The CoreWLAN service for live RSSI readings.
+    private let coreWLANService: (any CoreWLANServiceProtocol)?
+
     // MARK: - Init
 
-    init() {}
+    init(
+        measurementEngine: (any HeatmapServiceProtocol)? = nil,
+        coreWLANService: (any CoreWLANServiceProtocol)? = nil
+    ) {
+        self.measurementEngine = measurementEngine
+        self.coreWLANService = coreWLANService
+    }
 
     // MARK: - Floor Plan Import
 
@@ -219,6 +284,64 @@ final class HeatmapSurveyViewModel {
         scaleBarFraction = 0
     }
 
+    // MARK: - Survey Measurement
+
+    /// Takes a WiFi measurement at the given normalized position on the floor plan.
+    /// Creates a MeasurementPoint and adds it to the project.
+    func takeMeasurement(at normalizedPoint: CGPoint) async {
+        guard var currentProject = project,
+              let engine = measurementEngine
+        else { return }
+
+        isMeasuring = true
+        defer { isMeasuring = false }
+
+        let point = await engine.takeMeasurement(
+            at: normalizedPoint.x,
+            floorPlanY: normalizedPoint.y
+        )
+        currentProject.measurementPoints.append(point)
+        project = currentProject
+        recalculateStats()
+    }
+
+    /// Removes a measurement point by its ID.
+    func removeMeasurementPoint(id: UUID) {
+        guard var currentProject = project
+        else { return }
+
+        currentProject.measurementPoints.removeAll { $0.id == id }
+        if selectedPointID == id {
+            selectedPointID = nil
+        }
+        project = currentProject
+        recalculateStats()
+    }
+
+    // MARK: - Live RSSI
+
+    /// Manually refreshes the live RSSI reading from CoreWLAN.
+    func refreshLiveRSSI() {
+        liveRSSI = coreWLANService?.currentRSSI()
+    }
+
+    /// Starts the 1Hz live RSSI update timer.
+    func startLiveRSSIUpdates() {
+        stopLiveRSSIUpdates()
+        refreshLiveRSSI()
+        rssiTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.refreshLiveRSSI()
+            }
+        }
+    }
+
+    /// Stops the live RSSI update timer.
+    func stopLiveRSSIUpdates() {
+        rssiTimer?.invalidate()
+        rssiTimer = nil
+    }
+
     // MARK: - Error Handling
 
     /// Shows an error message to the user.
@@ -234,6 +357,32 @@ final class HeatmapSurveyViewModel {
     }
 
     // MARK: - Private Helpers
+
+    /// Recalculates summary statistics from the current measurement points.
+    private func recalculateStats() {
+        guard let points = project?.measurementPoints, !points.isEmpty
+        else {
+            summaryStats = .empty
+            return
+        }
+
+        let rssiValues = points.map(\.rssi)
+        let minRSSI = rssiValues.min() ?? 0
+        let maxRSSI = rssiValues.max() ?? 0
+        let avgRSSI = Double(rssiValues.reduce(0, +)) / Double(rssiValues.count)
+
+        // Estimate coverage area: each point covers roughly a circle of 3m radius
+        let coveragePerPoint = Double.pi * 3.0 * 3.0 // ~28.3 sq meters
+        let coverageAreaSqM = Double(points.count) * coveragePerPoint
+
+        summaryStats = SummaryStats(
+            count: points.count,
+            minRSSI: minRSSI,
+            maxRSSI: maxRSSI,
+            avgRSSI: avgRSSI,
+            coverageAreaSqM: coverageAreaSqM
+        )
+    }
 
     /// Applies the import result and creates a new project.
     private func applyImportResult(_ result: FloorPlanImportResult) {
