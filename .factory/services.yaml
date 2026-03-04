@@ -1,0 +1,15 @@
+commands:
+  install: "echo 'No package manager install needed — Swift packages resolve automatically'"
+  build_macos: "xcodebuild -scheme NetMonitor-macOS -configuration Debug build 2>&1 | tail -40"
+  build_ios: "xcodebuild -scheme NetMonitor-iOS -configuration Debug build 2>&1 | tail -40"
+  build_core: "cd Packages/NetMonitorCore && swift build -c debug 2>&1 | tail -20"
+  build_all: "xcodebuild -scheme NetMonitor-macOS -configuration Debug build && xcodebuild -scheme NetMonitor-iOS -configuration Debug build"
+  xcodegen: "xcodegen generate"
+  test_macos: "ssh mac-mini 'cd ~/Projects/NetMonitor-2.0 && xcodebuild test -scheme NetMonitor-macOS -configuration Debug -destination \"platform=macOS\" CODE_SIGN_IDENTITY=\"-\" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO -only-testing:NetMonitor-macOSTests 2>&1 | tail -40'"
+  test_ios: "ssh mac-mini 'cd ~/Projects/NetMonitor-2.0 && xcodebuild test -scheme NetMonitor-iOS -destination \"platform=iOS Simulator,OS=latest,name=iPhone 17 Pro\" CODE_SIGN_IDENTITY=\"\" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO -parallel-testing-enabled NO -only-testing:NetMonitor-iOSTests 2>&1 | tail -40'"
+  test_core: "cd Packages/NetMonitorCore && swift test --no-parallel 2>&1 | tail -30"
+  lint: "swiftlint lint --quiet 2>&1 | head -30"
+  lint_fix: "swiftlint --fix --quiet && swiftformat ."
+  format_check: "swiftformat --lint . 2>&1 | head -20"
+
+services: {}

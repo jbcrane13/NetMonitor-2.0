@@ -1,0 +1,61 @@
+{
+  "featureId": "foundation-file-format",
+  "reviewedAt": "2026-03-04T05:30:00Z",
+  "commitId": "dc44fdc9e66d08f3049279a4f1df199d3d8b0a76",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "SurveyFileManager is a well-structured enum with static save/load methods that correctly handles .netmonsurvey bundle format. The implementation covers all required behaviors: save extracts imageData and writes it as floorplan.png, encodes the rest as survey.json with empty imageData, and load reverses the process. Error handling uses a dedicated SurveyFileError enum with descriptive messages for all failure modes (corrupt JSON, missing floorplan, missing bundle, filesystem errors). The optional heatmap-cache/ directory is correctly tolerated. UTI com.netmonitor.survey is registered in project.yml for both macOS and iOS targets with correct UTExportedTypeDeclarations and CFBundleDocumentTypes, confirmed in generated Info.plists. The PNG encoding helper uses ImageIO (CoreGraphics) correctly with PNG magic byte detection for passthrough. 13 unit tests cover round-trip, all error paths, overwrite behavior, empty measurement points, and JSON/PNG separation. All 1020 tests pass (13 new), both targets build.",
+    "issues": [
+      {
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Services/Heatmap/SurveyFileManager.swift",
+        "line": 8,
+        "severity": "non_blocking",
+        "description": "SurveyFileError conforms to CustomStringConvertible but not LocalizedError. The project's existing NetworkError pattern uses LocalizedError with errorDescription and userFacingMessage. For consistency and better integration with SwiftUI error presentation, SurveyFileError could adopt LocalizedError. This is cosmetic and does not affect functionality."
+      },
+      {
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Services/Heatmap/SurveyFileManager.swift",
+        "line": 108,
+        "severity": "non_blocking",
+        "description": "The encodePNG helper takes width/height parameters but never uses them — it relies on CGImageSourceCreateWithData to detect dimensions. The parameters are vestigial from the function signature. Minor dead parameter issue."
+      },
+      {
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Services/Heatmap/SurveyFileManager.swift",
+        "line": 66,
+        "severity": "non_blocking",
+        "description": "The save method is synchronous (no async). For large floor plan images, the file I/O could block the calling thread. Given that the feature description doesn't require async, and callers can wrap in Task {} if needed, this is acceptable for now but worth noting for future optimization."
+      },
+      {
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Services/ServiceProtocols.swift",
+        "line": null,
+        "severity": "non_blocking",
+        "description": "No protocol was added to ServiceProtocols.swift for SurveyFileManager. The feature description doesn't explicitly require one, and the enum-with-static-methods pattern doesn't naturally fit the protocol-backed DI pattern used by other services. However, this diverges from the project's 'all services are protocol-backed for DI and testability' convention. Not blocking since tests work fine with direct static calls and the feature spec didn't require it."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "conventions",
+      "observation": "SurveyFileManager uses an enum with static methods rather than the protocol-backed service pattern documented in AGENTS.md ('All services are protocol-backed for DI and testability'). The feature description said 'Create SurveyFileManager' without specifying a protocol. The enum pattern works well for stateless file operations but breaks the convention. AGENTS.md could clarify when enum-with-static-methods is acceptable vs. protocol-backed services.",
+      "evidence": "SurveyFileManager.swift is a public enum with static save/load methods. ServiceProtocols.swift has no SurveyFileManagerProtocol. AGENTS.md says 'Service protocols — All services are protocol-backed' but doesn't distinguish stateless utility enums."
+    },
+    {
+      "area": "conventions",
+      "observation": "SurveyFileError uses CustomStringConvertible instead of LocalizedError, which is the pattern used by the project's primary error type NetworkError. Future error types should probably pick one consistent pattern.",
+      "evidence": "NetworkError in Models/NetworkError.swift conforms to LocalizedError with errorDescription and userFacingMessage. SurveyFileError conforms to Error + CustomStringConvertible with a description computed property."
+    },
+    {
+      "area": "skills",
+      "observation": "Worker followed the swift-core-worker procedure correctly — read context, wrote tests first, implemented, verified with builds/lint/tests, committed and pushed. skillFeedback confirms followedProcedure: true with no deviations. The skill procedure is accurate for this type of work.",
+      "evidence": "Transcript shows: read models/AGENTS.md first, created test file before implementation, ran baseline tests (1007 pass), fixed test issues iteratively, ran full suite (1020 pass), committed and pushed."
+    },
+    {
+      "area": "skills",
+      "observation": "The swift-core-worker SKILL.md Step 4 says to run tests via SSH to mac-mini first, with local fallback. The worker used local swift test directly (no SSH attempt shown in transcript). This is justified per the AGENTS.md 'Known Pre-Existing Issues' noting mac-mini git HTTPS authentication is broken.",
+      "evidence": "Transcript shows 'cd Packages/NetMonitorCore && swift test --no-parallel' (local). AGENTS.md Known Pre-Existing Issues documents the mac-mini credential failure."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "PASS — SurveyFileManager implementation is correct, complete, and well-tested. The .netmonsurvey bundle format works as specified with survey.json + floorplan.png separation, proper error handling for all failure modes, and optional heatmap-cache tolerance. UTI registration is correctly placed in project.yml for both targets and confirmed in generated Info.plists. 13 comprehensive unit tests cover all expectedBehavior items. Four non-blocking issues noted: (1) CustomStringConvertible vs LocalizedError inconsistency, (2) unused width/height params in encodePNG helper, (3) synchronous I/O that may want async in the future, (4) no service protocol added (diverges from convention but acceptable for stateless utility). None of these affect correctness or block the feature."
+}

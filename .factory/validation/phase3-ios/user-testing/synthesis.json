@@ -1,0 +1,45 @@
+{
+  "milestone": "phase3-ios",
+  "round": 1,
+  "status": "pass",
+  "assertionsSummary": {
+    "total": 48,
+    "passed": 48,
+    "failed": 0,
+    "blocked": 0
+  },
+  "passedAssertions": [
+    "VAL-AR3-001", "VAL-AR3-002", "VAL-AR3-003", "VAL-AR3-004", "VAL-AR3-005",
+    "VAL-AR3-006", "VAL-AR3-007", "VAL-AR3-008", "VAL-AR3-009", "VAL-AR3-010",
+    "VAL-AR3-011", "VAL-AR3-012", "VAL-AR3-013", "VAL-AR3-014", "VAL-AR3-015",
+    "VAL-AR3-016", "VAL-AR3-017", "VAL-AR3-018", "VAL-AR3-019", "VAL-AR3-020",
+    "VAL-AR3-021", "VAL-AR3-022", "VAL-AR3-023", "VAL-AR3-024", "VAL-AR3-025",
+    "VAL-AR3-026", "VAL-AR3-027", "VAL-AR3-028", "VAL-AR3-029", "VAL-AR3-030",
+    "VAL-AR3-031", "VAL-AR3-032", "VAL-AR3-033", "VAL-AR3-034", "VAL-AR3-035",
+    "VAL-AR3-036", "VAL-AR3-037", "VAL-AR3-038", "VAL-AR3-039", "VAL-AR3-040",
+    "VAL-AR3-041", "VAL-AR3-042", "VAL-AR3-043", "VAL-AR3-044", "VAL-AR3-045",
+    "VAL-AR3-046", "VAL-AR3-047", "VAL-AR3-048"
+  ],
+  "failedAssertions": [],
+  "blockedAssertions": [],
+  "appliedUpdates": [
+    {
+      "target": "user-testing.md",
+      "description": "Added 'Flow Validator Guidance: Phase 3 iOS — AR Continuous Scan' section with assertion-to-file mapping for all 48 assertions across 3 groups",
+      "source": "setup"
+    }
+  ],
+  "previousRound": null,
+  "testingApproach": "Code review + build verification + unit tests. AR features cannot run in simulator; primary validation through source code inspection and compilation verification under SWIFT_STRICT_CONCURRENCY: complete.",
+  "flowReports": [
+    ".factory/validation/phase3-ios/user-testing/flows/group-a-capture-pipeline.json",
+    ".factory/validation/phase3-ios/user-testing/flows/group-b-metal-rendering.json",
+    ".factory/validation/phase3-ios/user-testing/flows/group-c-pause-perf-errors.json"
+  ],
+  "environment": {
+    "iosBuild": "BUILD SUCCEEDED",
+    "coreTests": "1032 tests passed in 122 suites",
+    "swiftVersion": "6.2.3",
+    "strictConcurrency": "complete"
+  }
+}

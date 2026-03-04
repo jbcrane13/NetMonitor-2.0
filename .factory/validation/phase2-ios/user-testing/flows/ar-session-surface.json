@@ -1,0 +1,65 @@
+{
+  "flowId": "ar-session-surface",
+  "testedAt": "2026-03-04T00:00:00Z",
+  "toolsUsed": ["code-review", "file-read"],
+  "assertions": {
+    "VAL-AR2-001": {
+      "status": "pass",
+      "evidence": "HeatmapDashboardView.swift:152-207 — createProjectSection shows two side-by-side buttons: 'Blueprint Import' (accessibilityIdentifier: heatmap_button_blueprintImport) and 'AR Room Scan' (accessibilityIdentifier: heatmap_button_arScan). Tapping AR scan sets showARScan=true (line 184) which triggers navigationDestination to ARScanView() (line 57-59). Both entry points are equally visible on the dashboard.",
+      "notes": "AR scan entry point is clearly accessible alongside blueprint import on the heatmap dashboard."
+    },
+    "VAL-AR2-002": {
+      "status": "pass",
+      "evidence": "ARSessionManager.swift:152-174 — startSession() guards against .unsupported, creates ARWorldTrackingConfiguration via makeConfiguration(), runs arView.session.run(config, options: [.resetTracking, .removeExistingAnchors]), and sets sessionState to .running. ARScanView.swift:213-221 — arCameraView uses ARScanViewContainer (UIViewRepresentable wrapping sessionManager.arView) which displays the camera feed. ARScanViewModel.swift:152-179 — startScan() checks camera permission, calls sessionManager.startSession().",
+      "notes": "Camera feed appears via RealityKit ARView. Actual 5-second startup time cannot be verified without physical device."
+    },
+    "VAL-AR2-003": {
+      "status": "pass",
+      "evidence": "ARSessionManager.swift:122-137 — makeConfiguration(for:) creates ARWorldTrackingConfiguration with config.planeDetection = [.horizontal, .vertical] and config.environmentTexturing = .automatic for all capable devices. For .lidar capability specifically, config.sceneReconstruction = .meshWithClassification is set (line 134). This exactly matches the assertion requirement of meshWithClassification + horizontal + vertical plane detection.",
+      "notes": "Configuration is correct per the assertion specification."
+    },
+    "VAL-AR2-004": {
+      "status": "pass",
+      "evidence": "ARSessionManager.swift:122-137 — makeConfiguration(for:) for non-LiDAR capability: returns ARWorldTrackingConfiguration with planeDetection = [.horizontal, .vertical] but does NOT set sceneReconstruction (the if-block on line 133 only triggers for .lidar). For .unsupported, returns nil (line 125). ARSessionManager.swift:152-158 — startSession() guards against .unsupported with error message, preventing crash. ARScanView.swift:27-29 — isARSupported check shows unsupportedDeviceView instead of AR content for unsupported devices.",
+      "notes": "Non-LiDAR devices get feature-point tracking + plane detection only. Unsupported devices get a graceful error view. No crash path."
+    },
+    "VAL-AR2-005": {
+      "status": "pass",
+      "evidence": "ARSessionManager.swift:195-218 — addSurfaceVisualization(for:node:) classifies the anchor via classifyPlane() then sets color per surface type. For .wall (line 203): color = UIColor.systemBlue.withAlphaComponent(0.3). A SimpleMaterial with this blue tint is applied to a MeshResource.generatePlane entity added as child of the anchor node. ARScanView.swift:293-312 — surfaceDetectionStatus shows a 'Walls' badge with .blue color and count from viewModel.wallCount.",
+      "notes": "Walls are highlighted with blue overlay at 30% opacity during scanning."
+    },
+    "VAL-AR2-006": {
+      "status": "pass",
+      "evidence": "ARSessionManager.swift:195-218 — addSurfaceVisualization(for:node:) for .floor (line 201): color = UIColor.systemGreen.withAlphaComponent(0.3). The green-tinted SimpleMaterial is applied to a plane mesh entity. classifyPlane() (line 181-194) classifies horizontal planes with center.y < 0.3 as .floor. ARScanView.swift:293-312 — surfaceDetectionStatus shows a 'Floors' badge with .green color and count from viewModel.floorCount.",
+      "notes": "Horizontal floor surfaces are highlighted with green overlay at 30% opacity during scanning."
+    },
+    "VAL-AR2-028": {
+      "status": "pass",
+      "evidence": "ARSessionManager.swift:107-117 — detectCapability() is the core detection method: (1) checks ARWorldTrackingConfiguration.isSupported — returns .unsupported if false; (2) checks ARWorldTrackingConfiguration.supportsSceneReconstruction(.meshWithClassification) — returns .lidar if true; (3) otherwise returns .nonLiDAR. This capability is stored in deviceCapability property (line 82) and flows to ARScanViewModel.deviceCapability (line 42). The capability gates features throughout: makeConfiguration() uses it to decide sceneReconstruction, ARScanView uses isLiDAR/isARSupported for UI, and nonLiDARGuidanceText only triggers for .nonLiDAR.",
+      "notes": "LiDAR detection is correct and gates features appropriately through the entire view/viewmodel chain."
+    },
+    "VAL-AR2-029": {
+      "status": "pass",
+      "evidence": "ARScanViewModel.swift:108-113 — nonLiDARGuidanceText computed property returns nil unless deviceCapability == .nonLiDAR, then returns: 'Your device does not have LiDAR. Scanning will use plane detection with reduced precision (~30cm accuracy). Scan slowly and allow extra time for surface detection.' ARScanView.swift:160-168 — when nonLiDARGuidanceText is non-nil and isScanning, the nonLiDARGuidanceBanner is shown. ARScanView.swift:338-354 — nonLiDARGuidanceBanner renders with info.circle.fill icon, warning color, and .ultraThinMaterial background with accessibilityIdentifier 'arScan_nonLiDARGuidance'.",
+      "notes": "Non-LiDAR users see clear guidance about reduced precision (~30cm) and longer scan time."
+    },
+    "VAL-AR2-032": {
+      "status": "pass",
+      "evidence": "ARScanViewModel.swift:152-179 — startScan() checks cameraAuthorizationStatus(). For .denied/.restricted: sets errorMessage = 'Camera access is required for AR scanning. Please enable it in Settings.' and returns without starting session. For .notDetermined: requests permission, and if denied, sets the same error message. ARScanView.swift:63-77 — alert modifier shows error message with 'OK' button. Lines 71-73: when cameraPermission is .denied or .restricted, an additional 'Open Settings' button is shown. ARScanView.swift:501-506 — openAppSettings() opens UIApplication.openSettingsURLString, providing a direct link to the app's Settings page. ARSessionManager.swift:247-250 — ARSessionDelegate also handles .cameraUnauthorized ARError with descriptive message.",
+      "notes": "Camera permission denied shows clear error message with direct link to Settings app."
+    },
+    "VAL-AR2-033": {
+      "status": "pass",
+      "evidence": "ARScanView.swift:26-30 — body checks viewModel.isARSupported; if false, shows unsupportedDeviceView. ARScanView.swift:434-497 — unsupportedDeviceView displays: (1) xmark.circle.fill icon, (2) 'ARKit Not Supported' title, (3) descriptive text about A12 chip requirement, (4) 'Alternative Option' GlassCard with explanation that blueprint import method is still available, (5) 'Use Blueprint Import' button (accessibilityIdentifier: arScan_button_useBlueprintImport) that dismisses the view to return to dashboard where blueprint import is available. ARScanViewModel.swift:74 — isARSupported returns deviceCapability != .unsupported.",
+      "notes": "ARKit unsupported devices get clear message with fallback to Phase 1 blueprint import."
+    },
+    "VAL-AR2-037": {
+      "status": "pass",
+      "evidence": "ARScanView.swift:123-128 — scanInstructionOverlay is shown when viewModel.isScanning or sessionState == .idle. ARScanView.swift:243-269 — scanInstructionOverlay renders an HStack with context-appropriate icon and instructionText on .ultraThinMaterial background (accessibilityIdentifier: arScan_instructionOverlay). For LiDAR + scanning, shows 'LiDAR enabled — high precision scanning' caption. ARScanViewModel.swift:84-103 — instructionText provides state-specific guidance: idle='Tap Start to begin', starting='Starting AR session…', running without surfaces='Point your camera at walls and floors. Move slowly.', running with surfaces (LiDAR)='Scanning with LiDAR. Walk slowly around the room.', running with surfaces (non-LiDAR)='Scanning surfaces. Move slowly for best results.', error=error message. ARScanViewModel.swift:174-181 — instructions auto-dismiss after 5 seconds via hasStartedScanning flag.",
+      "notes": "On-screen instructions guide user during scan with state-appropriate text and fade after scanning begins (5-second auto-dismiss)."
+    }
+  },
+  "frictions": [],
+  "blockers": [],
+  "summary": "Tested 11 assertions via code review: all 11 passed. VAL-AR2-001 (AR entry point), VAL-AR2-002 (session startup), VAL-AR2-003 (LiDAR config), VAL-AR2-004 (non-LiDAR fallback), VAL-AR2-005 (walls blue), VAL-AR2-006 (floor green), VAL-AR2-028 (LiDAR detection), VAL-AR2-029 (non-LiDAR guidance), VAL-AR2-032 (camera denied), VAL-AR2-033 (ARKit unsupported), VAL-AR2-037 (scan instructions). All AR session management, surface detection, LiDAR detection, error handling, and instruction overlay implementations are correct per the validation contract specifications. Full runtime verification requires a physical device with ARKit support."
+}

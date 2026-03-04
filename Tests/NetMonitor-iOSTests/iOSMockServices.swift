@@ -1,3 +1,4 @@
+import CoreLocation
 import Foundation
 import NetMonitorCore
 import NetworkScanKit
@@ -208,6 +209,7 @@ final class MockNetworkMonitorService: NetworkMonitorServiceProtocol {
 final class MockWiFiInfoService: WiFiInfoServiceProtocol {
     var currentWiFi: WiFiInfo? = nil
     var isLocationAuthorized: Bool = true
+    var authorizationStatus: CLAuthorizationStatus = .authorizedWhenInUse
     var refreshCallCount = 0
 
     func requestLocationPermission() {}

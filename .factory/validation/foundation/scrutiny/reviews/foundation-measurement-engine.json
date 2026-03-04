@@ -1,0 +1,44 @@
+{
+  "featureId": "foundation-measurement-engine",
+  "reviewedAt": "2026-03-04T05:15:00Z",
+  "commitId": "c7c6b0f",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "Solid implementation of WiFiMeasurementEngine actor with all three measurement modes (passive, active, continuous). The actor correctly delegates to injected WiFiInfoServiceProtocol, SpeedTestServiceProtocol, and PingServiceProtocol. HeatmapServiceProtocol added to ServiceProtocols.swift following the existing AnyObject + Sendable pattern. 20 unit tests cover all modes, error handling (nil WiFi, speed test failure, ping timeout), SNR computation, stream lifecycle, and interval timing. Code compiles under Swift 6 strict concurrency. Two non-blocking observations noted below.",
+    "issues": [
+      {
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Services/Heatmap/WiFiMeasurementEngine.swift",
+        "line": 22,
+        "severity": "non_blocking",
+        "description": "nonisolated(unsafe) used for wifiService and speedTestService storage. While technically sound (all protocol members are @MainActor-isolated and accessed via await), this completely bypasses actor-isolation checking. The mission AGENTS.md bans '@unchecked Sendable' in production code but doesn't address 'nonisolated(unsafe)', which serves a similar purpose. The proper long-term fix would be making WiFiInfoServiceProtocol and SpeedTestServiceProtocol Sendable (like PingServiceProtocol already is), but that's outside this feature's scope."
+      },
+      {
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Services/Heatmap/WiFiMeasurementEngine.swift",
+        "line": 210,
+        "severity": "non_blocking",
+        "description": "buildMeasurementPoint always sets frequency: nil and linkSpeed: nil rather than mapping wifiInfo?.frequency and wifiInfo?.linkSpeed (if it existed). WiFiInfo.frequency is String? while MeasurementPoint.frequency is Int?, so a type conversion would be needed. Not a bug per the feature spec (which doesn't require frequency/linkSpeed passthrough), but a minor data loss for future consumers."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "conventions",
+      "observation": "Mission AGENTS.md states 'No @unchecked Sendable in production code' but the worker needed nonisolated(unsafe) to store non-Sendable @MainActor-isolated protocol references in the actor. nonisolated(unsafe) serves a similar safety-bypass purpose. The convention should either explicitly address nonisolated(unsafe) usage or document the approved pattern for storing non-Sendable protocol references in actors.",
+      "evidence": "WiFiMeasurementEngine.swift:22-23 uses nonisolated(unsafe) for wifiService and speedTestService. AGENTS.md line 'No @unchecked Sendable in production code' doesn't cover this related pattern."
+    },
+    {
+      "area": "knowledge",
+      "observation": "The worker's skillFeedback.suggestedChanges recommends documenting the nonisolated(unsafe) pattern for non-Sendable protocol storage in actors in .factory/library/architecture.md. This was not done during the session. Future workers building services that inject @MainActor protocols into actors will encounter the same Swift 6 strict concurrency challenge and need this pattern.",
+      "evidence": "Handoff skillFeedback.suggestedChanges: 'Consider documenting the nonisolated(unsafe) pattern for non-Sendable protocol storage in actors in .factory/library/architecture.md'. Current architecture.md has no mention of this pattern."
+    },
+    {
+      "area": "skills",
+      "observation": "Worker deviated from TDD Step 2 ('Write Tests First') — wrote implementation and tests together because actor + nonisolated(unsafe) patterns needed build verification before extensive test writing. This is a reasonable deviation for features involving novel concurrency patterns. The swift-core-worker skill could acknowledge that for concurrency-heavy features, a compile-first approach is acceptable before writing tests.",
+      "evidence": "Handoff skillFeedback.deviations[0]: Step 2 deviation — 'The engine needed to compile to validate the actor/protocol patterns work under strict concurrency before writing extensive tests.'"
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "WiFiMeasurementEngine implementation passes review. All 8 expectedBehavior items are met: actor in Services/Heatmap/, HeatmapServiceProtocol in ServiceProtocols.swift, passive/active/continuous measurement modes working correctly, service delegation via injected protocols, AsyncStream for continuous mode, and clean compilation under strict concurrency. 20 tests comprehensively cover all modes and edge cases. Two non-blocking issues: nonisolated(unsafe) usage (pragmatic workaround for non-Sendable protocols) and frequency/linkSpeed fields always nil. Three shared state observations: convention gap around nonisolated(unsafe), undocumented architecture pattern, and skill procedure mismatch for concurrency features."
+}

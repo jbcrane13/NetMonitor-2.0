@@ -1,0 +1,35 @@
+{
+  "milestone": "phase1-macos",
+  "round": 2,
+  "status": "pass",
+  "assertionsSummary": {
+    "total": 69,
+    "passed": 69,
+    "failed": 0,
+    "blocked": 0
+  },
+  "passedAssertions": [
+    "VAL-MAC-001", "VAL-MAC-002", "VAL-MAC-003", "VAL-MAC-004", "VAL-MAC-005",
+    "VAL-MAC-006", "VAL-MAC-007", "VAL-MAC-008", "VAL-MAC-009", "VAL-MAC-010",
+    "VAL-MAC-011", "VAL-MAC-012", "VAL-MAC-013", "VAL-MAC-014", "VAL-MAC-015",
+    "VAL-MAC-016", "VAL-MAC-017", "VAL-MAC-018", "VAL-MAC-019", "VAL-MAC-020",
+    "VAL-MAC-021", "VAL-MAC-022", "VAL-MAC-023", "VAL-MAC-024", "VAL-MAC-025",
+    "VAL-MAC-026", "VAL-MAC-027", "VAL-MAC-028", "VAL-MAC-029", "VAL-MAC-030",
+    "VAL-MAC-031", "VAL-MAC-032", "VAL-MAC-033", "VAL-MAC-034", "VAL-MAC-035",
+    "VAL-MAC-036", "VAL-MAC-037", "VAL-MAC-038", "VAL-MAC-039", "VAL-MAC-040",
+    "VAL-MAC-041", "VAL-MAC-042", "VAL-MAC-043", "VAL-MAC-044", "VAL-MAC-045",
+    "VAL-MAC-046", "VAL-MAC-047", "VAL-MAC-048", "VAL-MAC-049", "VAL-MAC-050",
+    "VAL-MAC-051", "VAL-MAC-052", "VAL-MAC-053", "VAL-MAC-054", "VAL-MAC-055",
+    "VAL-MAC-056", "VAL-MAC-057", "VAL-MAC-058", "VAL-MAC-059", "VAL-MAC-060",
+    "VAL-MAC-061", "VAL-MAC-062", "VAL-MAC-063", "VAL-MAC-064", "VAL-MAC-065",
+    "VAL-MAC-066", "VAL-MAC-067", "VAL-MAC-068", "VAL-CROSS-006"
+  ],
+  "failedAssertions": [],
+  "blockedAssertions": [],
+  "appliedUpdates": [],
+  "previousRound": ".factory/validation/phase1-macos/user-testing/synthesis-round1.json",
+  "testingMethod": "Re-run of 2 previously-failed assertions (VAL-MAC-015, VAL-MAC-063) after fix commit 5dcfbde. Code review confirmed linkSpeed data path wired end-to-end and Wi-Fi disconnect detection added to ViewModel. Unit tests verified: 26/26 WiFiMeasurementEngineTests passed.",
+  "flowReports": [
+    ".factory/validation/phase1-macos/user-testing/flows/retest-linkspeed-disconnect.json"
+  ]
+}

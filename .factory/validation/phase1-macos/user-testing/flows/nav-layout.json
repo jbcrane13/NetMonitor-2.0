@@ -1,0 +1,70 @@
+{
+  "flowId": "nav-layout",
+  "testedAt": "2026-03-04T12:00:00Z",
+  "toolsUsed": ["code-review", "osascript"],
+  "assertions": {
+    "VAL-MAC-001": {
+      "status": "pass",
+      "evidence": "AppleScript confirmed sidebar outline row 6 contains 'HEATMAP' text. Selecting row 6 navigated to heatmap view — content area displayed empty state with image, title text, subtitle text, formats text, and three buttons (Import, New Project, Open Project). ContentView.swift line 66 maps .heatmap section to HeatmapProjectListView.",
+      "notes": "Heatmap is a top-level sidebar item alongside Tools and Settings. Navigation works correctly."
+    },
+    "VAL-MAC-056": {
+      "status": "pass",
+      "evidence": "HeatmapCanvasView.swift lines 163-173: MagnifyGesture() implemented. On gesture change, gestureZoom tracks magnification. On end, viewModel.zoomScale updated with clamping to range [0.25, 10.0]. Applied via .scaleEffect(effectiveZoom, anchor: .center) at line 57.",
+      "notes": "Supports trackpad pinch gestures. Zoom range 0.25x to 10x."
+    },
+    "VAL-MAC-057": {
+      "status": "pass",
+      "evidence": "HeatmapCanvasView.swift lines 175-185: DragGesture() implemented. On change, gesturePan tracks translation. On end, viewModel.panOffset accumulated. Applied via .offset() at line 58.",
+      "notes": "Supports click-and-drag panning. Pan offset persists across gesture sessions."
+    },
+    "VAL-MAC-058": {
+      "status": "pass",
+      "evidence": "Canvas draws measurement dots using screenPosition(for:imageSize:imageOrigin:) which converts normalized coordinates to screen positions within the Canvas. The entire Canvas is then transformed via .scaleEffect and .offset as a unit — meaning floor plan, overlay, and dots all transform together. Tap handling in handleTap() (lines 190-220) reverse-transforms screen coordinates through zoom/pan to get correct canvas coordinates.",
+      "notes": "Zoom/pan transform applied to entire ZStack, so all elements (floor plan, dots, overlay) remain correctly positioned relative to each other."
+    },
+    "VAL-MAC-059": {
+      "status": "pass",
+      "evidence": "HeatmapSurveyView.swift line 73: HSplitView used. Left: HeatmapCanvasView with .frame(minWidth: 400). Right: MeasurementSidebarView with .frame(minWidth: 260, idealWidth: 300, maxWidth: 360). Sidebar contains summary stats section (point count, avg/min/max RSSI, coverage area) and scrollable measurement point list.",
+      "notes": "Classic split view layout. Left = floor plan canvas, Right = measurement sidebar with controls and stats."
+    },
+    "VAL-MAC-060": {
+      "status": "pass",
+      "evidence": "HeatmapSurveyView.swift surveyToolbar property (lines 318-440) contains: Import button, Calibrate button, scan mode toggle (Passive/Active segmented picker at width 140), live RSSI badge (wifi icon + dBm text), visualization picker (Menu picker with 5 types at width 160), undo/redo buttons (arrow.uturn.backward/forward), Export PDF button, plus Open and Save buttons. All with accessibility identifiers.",
+      "notes": "All required toolbar controls present: mode toggle, RSSI badge, visualization picker, undo/redo, export button."
+    },
+    "VAL-MAC-061": {
+      "status": "pass",
+      "evidence": "CalibrationSheet.swift: Modal sheet presented via .sheet(isPresented: $viewModel.isCalibrationSheetPresented). Contains: header with 'Scale Calibration' title and instructions, floor plan image display, two CrosshairMarker views (A=blue, B=red) with DragGesture for positioning, dashed line between markers, distance TextField, unit Picker (Meters/Feet segmented), Skip and Calibrate buttons. Fixed frame 700x580.",
+      "notes": "Full two-point calibration modal with draggable crosshairs, distance input, and unit picker as specified."
+    },
+    "VAL-MAC-062": {
+      "status": "pass",
+      "evidence": "HeatmapSurveyView.swift newProjectSheet (lines 225-314): Shows 'New Survey Project' title, project name TextField, then three options: Import Image (calls importFloorPlanForNewProject), Draw Floor Plan (presents DrawFloorPlanView sheet), Blank Canvas (calls createNewProject). After floor plan is set, toolbar Calibrate button is available for optional calibration. Workflow: Name → import/draw/blank → optional calibration → begin survey.",
+      "notes": "New project workflow matches spec: Name → import/draw → optional calibration → begin survey."
+    },
+    "VAL-MAC-066": {
+      "status": "pass",
+      "evidence": "Grep found 60+ .accessibilityIdentifier() calls across all heatmap view files. All follow {screen}_{element}_{descriptor} convention: heatmap_canvas, heatmap_toolbar_undo, heatmap_toolbar_redo, heatmap_toolbar_rssi_badge, heatmap_toolbar_visualization_picker, heatmap_toolbar_export_pdf, heatmap_sidebar_summary_title, heatmap_sidebar_stat_count/avg/min/max/coverage, heatmap_sidebar_point_list, heatmap_calibration_sheet/title/instructions/floorplan/marker_a/marker_b/distance_input/unit_picker, heatmap_context_inspect/delete, heatmap_detail_popover, heatmap_new_project_sheet/title/name_field/import/draw/blank/cancel, heatmap_import_button/icon/title, heatmap_draw_floor_plan/canvas/toolbar, heatmap_scale_bar, heatmap_missing_data_overlay, etc.",
+      "notes": "Comprehensive accessibility identifier coverage on all interactive elements across canvas, sidebar, toolbar, calibration sheet, new project sheet, and drawing views."
+    },
+    "VAL-MAC-067": {
+      "status": "pass",
+      "evidence": "Grep for hardcoded colors (Color(.white), Color(.black), #colorLiteral, NSColor(red:, UIColor(red:) returned zero matches across all heatmap view files. All colors use SwiftUI adaptive system colors: .secondary, .tertiary, .quaternary, .accentColor, .blue, .green, .red, .yellow, .gray with opacity modifiers. Backgrounds use .bar, .ultraThinMaterial, .controlBackgroundColor (NSColor adaptive), .black.opacity(0.05/0.6) for overlays only. These all adapt automatically to light/dark mode.",
+      "notes": "No hardcoded non-adaptive colors. All styling uses SwiftUI system colors and materials that adapt to appearance."
+    },
+    "VAL-MAC-068": {
+      "status": "pass",
+      "evidence": "HeatmapSurveyView.swift uses HSplitView (native resizable split). Main view: .frame(maxWidth: .infinity, maxHeight: .infinity). Canvas: .frame(minWidth: 400) with GeometryReader for dynamic sizing. Sidebar: .frame(minWidth: 260, idealWidth: 300, maxWidth: 360). Canvas uses GeometryReader to compute aspect-fit image sizes dynamically. Floor plan image scales via floorPlanAspectFitSize(in:) which computes based on container dimensions. HSplitView natively handles proportional resize.",
+      "notes": "Split view with flexible frames, GeometryReader-based layout, and aspect-fit image scaling ensures proper adaptation to window resize."
+    },
+    "VAL-CROSS-006": {
+      "status": "pass",
+      "evidence": "macOS: ContentView.swift line 66 sets selectedSection = .section(.heatmap) for sidebar navigation. Line 100 maps .heatmap to HeatmapProjectListView. AppleScript confirmed HEATMAP in sidebar row 6, selecting it shows heatmap project list/empty state. From there: New Project → survey view → toolbar has all navigation (save, open, export). Open Project → loads existing survey. No dead-end views — every view provides navigation forward and back to project list.",
+      "notes": "Heatmap accessible from sidebar. Project list → survey creation/opening → full survey workflow. No dead-end views."
+    }
+  },
+  "frictions": [],
+  "blockers": [],
+  "summary": "Tested 12 assertions: 12 passed, 0 failed, 0 blocked. All heatmap navigation and layout assertions verified via AppleScript (sidebar navigation, content display) and code review (zoom/pan gestures, split view layout, toolbar controls, calibration sheet, new project workflow, accessibility identifiers, dark mode support, window resize adaptation, navigation coherence)."
+}

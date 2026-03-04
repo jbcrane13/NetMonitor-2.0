@@ -1,0 +1,45 @@
+{
+  "featureId": "misc-ios-code-quality",
+  "reviewedAt": "2026-03-04T10:30:00Z",
+  "commitId": "43eae44",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "All three code quality items from the phase1-ios scrutiny were addressed correctly. (1) WiFiInfoServiceProtocol now exposes authorizationStatus, eliminating the concrete-type downcast in FloorPlanImportViewModel. Protocol, all concrete implementations (iOS WiFiInfoService, MacWiFiInfoService), and all 3 test mocks were updated consistently. (2) FloorPlanCanvasView.clampOffset() now computes visible bounds using aspectFitSize, containerSize (@State tracked via onAppear/onChange), currentScale, and a minimumVisibleFraction of 25%, snapping back with animation when offset exceeds bounds. (3) FloorPlanImporter.rasterizePDF() returns CGImage directly instead of encoding to PNG then decoding, and both importFloorPlan overloads use Task.detached for background processing. All callers updated to async/await correctly, including 18 test methods.",
+    "issues": [
+      {
+        "file": "NetMonitor-iOS/Platform/FloorPlanImporter.swift",
+        "line": 80,
+        "severity": "non_blocking",
+        "description": "Logger.heatmap.debug lines were removed from both importFloorPlan overloads (previously logged dimensions and format after import). The ViewModel still logs at its level ('Floor plan loaded: WxH'), so diagnostic coverage remains, but the lower-level import-specific logging (which also logged the file extension for URL imports) is lost. Consider restoring these inside the Task.detached — os.Logger is Sendable and safe to use from non-isolated contexts."
+      },
+      {
+        "file": "Tests/NetMonitor-iOSTests/FloorPlanImportViewModelTests.swift",
+        "line": 347,
+        "severity": "non_blocking",
+        "description": "Async throw tests (floorPlanImporterFromDataWithInvalidDataThrows, floorPlanImporterUnsupportedExtensionThrows) use verbose do/catch with Issue.record() instead of the cleaner 'await #expect(throws: FloorPlanImportError.self) { try await ... }' syntax available in Swift Testing. Functionally correct but more verbose than necessary."
+      },
+      {
+        "file": "NetMonitor-iOS/Views/Heatmap/FloorPlanCanvasView.swift",
+        "line": 113,
+        "severity": "non_blocking",
+        "description": "clampOffset() computes maxOffsetX/Y based only on scaled image dimensions and minimumVisibleFraction, without incorporating containerSize into the max offset formula. At scale=1 with aspect-fit image roughly equal to container, this works correctly (keeping ~62% visible at max offset, well above the 25% floor). At higher scales (e.g., 3x) it keeps ~29% visible. The formula is conservative and prevents off-screen panning, but a formula accounting for container bounds (e.g., maxOffset = max(0, (scaledWidth + containerWidth) / 2 - visibleW)) would be geometrically precise. Not blocking — the current behavior is correct for practical use."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "conventions",
+      "observation": "FloorPlanImportViewModelTests.makeVM() constructs FloorPlanImportViewModel with no arguments, using the production WiFiInfoService() default. This means location-permission-related tests would hit the real CLLocationManager. The existing pattern works because no tests exercise checkLocationPermission/requestLocationPermission with assertions on mock behavior. However, this is a gap for testability — tests for the newly-protocol-clean location permission path cannot verify that the ViewModel correctly reads from the service without injecting a mock WiFiInfoService.",
+      "evidence": "Tests/NetMonitor-iOSTests/FloorPlanImportViewModelTests.swift:47-49 — makeVM() returns FloorPlanImportViewModel() with no mock injection. Compare to HeatmapSurveyViewModelTests which injects TestWiFiInfoService."
+    },
+    {
+      "area": "skills",
+      "observation": "Worker deviated from TDD step (Step 2: Write ViewModel/Logic Tests First) by updating existing tests rather than writing new tests first. The deviation is justified: this was a refactoring task changing method signatures (sync→async), not adding new behavior. No new test cases were needed — only signature updates. The skill's procedure doesn't distinguish between new features and refactoring tasks.",
+      "evidence": "Handoff skillFeedback.deviations[0] explains the rationale. The 18 test updates are purely mechanical (adding async/await). No new behavior warranted new test cases."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "Clean implementation of all 3 code quality items. WiFiInfoServiceProtocol correctly extended with authorizationStatus, eliminating concrete downcasts. FloorPlanCanvasView.clampOffset() now computes real bounds and snaps back with animation. PDF rasterization returns CGImage directly on a background thread, eliminating the unnecessary encode-decode cycle. All builds pass, all tests updated, lint clean. Three non-blocking style/completeness observations noted."
+}

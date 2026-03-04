@@ -1,0 +1,28 @@
+{
+  "flowId": "retest-round2",
+  "testedAt": "2026-03-04T00:00:00Z",
+  "assertions": [
+    {
+      "id": "VAL-IOS-024",
+      "status": "pass",
+      "evidence": "project.yml lines 192-193 contain 'UIFileSharingEnabled: true' and 'LSSupportsOpeningDocumentsInPlace: true' under the NetMonitor-iOS target's Info.plist settings. Both keys are correctly placed within the iOS target's info block, nested under UTExportedTypeDeclarations. The iOS build succeeded (BUILD SUCCEEDED per orchestrator pre-verification). CFBundleDocumentTypes is also present at line 194 with com.netmonitor.survey UTI, completing the Files app integration.",
+      "notes": "Both keys verified at correct indentation level within the iOS target info plist section. Files app document sharing is properly configured."
+    },
+    {
+      "id": "VAL-IOS-039",
+      "status": "pass",
+      "evidence": "WiFiInfoService.swift (NetMonitor-iOS/Platform/) implements TTL caching: (1) 'private static let cacheTTL: TimeInterval = 1.0' — meets >=1s requirement. (2) 'private var lastFetchTime: Date?' and 'private var cachedResult: WiFiInfo?' store cache state. (3) fetchCurrentWiFi() checks 'Date().timeIntervalSince(lastFetchTime) < Self.cacheTTL' and returns cachedResult early if within window. (4) All code paths that successfully fetch (modern API, legacy API, simulator mock) update both lastFetchTime and cachedResult. Unit tests in Tests/NetMonitor-iOSTests/WiFiInfoServiceCacheTests.swift cover: (a) cachedResultReturnedWithinTTL — verifies second immediate call returns cached result with matching SSID, (b) cacheExpiresAfterTTL — waits 1.1s (> 1.0s TTL) then verifies fresh fetch occurs. Both tests use @MainActor and @Suite annotations per project conventions.",
+      "notes": "Cache TTL is exactly 1.0s which meets the >=1s minimum. The implementation correctly handles all three fetch paths (modern NEHotspotNetwork, legacy CNCopyCurrentNetworkInfo, simulator mock)."
+    },
+    {
+      "id": "VAL-CROSS-005",
+      "status": "pass",
+      "evidence": "SpatialIndex struct in HeatmapRenderer.swift (line 64) provides grid-based spatial indexing: divides normalized 0-1 space into cells (auto-sized sqrt(count) clamped 4-64), assigns points to cells, and queries only neighboring cells within searchRadius (3 cell widths). interpolateIDW() method iterates only local cells instead of all points, reducing O(points*pixels) to O(local_points*pixels). The renderer activates SpatialIndex when pointData.count >= spatialIndexThreshold (500, line 211). For 2000 points, the spatial index is used. Test 'performance2000PointsSpatialIndex' in Packages/NetMonitorCore/Tests/NetMonitorCoreTests/HeatmapRendererTests.swift (line 589) generates 2000 well-distributed points via grid+jitter pattern, renders on 200x200 grid with .signalStrength visualization, and asserts elapsed < 5.0s. Per orchestrator pre-verification, this test passed in 0.635s — well under the 5s target. The test also verifies the image is non-nil. Visualization picker compatibility is ensured because the same HeatmapRenderer.render() API is used for all visualization types.",
+      "notes": "Performance headroom is excellent: 0.635s actual vs 5.0s target (87% margin). SpatialIndex fallback to all-points scan if no neighbors are within search radius ensures correctness is never sacrificed."
+    }
+  ],
+  "frictions": [],
+  "blockers": [],
+  "toolsUsed": ["code-review", "build-verification"],
+  "summary": "Tested 3 assertions: 3 passed, 0 failed. VAL-IOS-024 confirmed UIFileSharingEnabled and LSSupportsOpeningDocumentsInPlace in project.yml. VAL-IOS-039 confirmed WiFiInfoService TTL cache with 1.0s minimum and 2 unit tests. VAL-CROSS-005 confirmed SpatialIndex optimization enabling 2000-point rendering in 0.635s (<5s target)."
+}

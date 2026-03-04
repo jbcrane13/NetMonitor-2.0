@@ -1,0 +1,26 @@
+{
+  "milestone": "phase2-ios",
+  "round": 2,
+  "status": "pass",
+  "assertionsSummary": {
+    "total": 41,
+    "passed": 41,
+    "failed": 0,
+    "blocked": 0
+  },
+  "passedAssertions": [
+    "VAL-AR2-001", "VAL-AR2-002", "VAL-AR2-003", "VAL-AR2-004", "VAL-AR2-005",
+    "VAL-AR2-006", "VAL-AR2-007", "VAL-AR2-008", "VAL-AR2-009", "VAL-AR2-010",
+    "VAL-AR2-011", "VAL-AR2-012", "VAL-AR2-013", "VAL-AR2-014", "VAL-AR2-015",
+    "VAL-AR2-016", "VAL-AR2-017", "VAL-AR2-018", "VAL-AR2-019", "VAL-AR2-020",
+    "VAL-AR2-021", "VAL-AR2-022", "VAL-AR2-023", "VAL-AR2-024", "VAL-AR2-025",
+    "VAL-AR2-026", "VAL-AR2-027", "VAL-AR2-028", "VAL-AR2-029", "VAL-AR2-030",
+    "VAL-AR2-031", "VAL-AR2-032", "VAL-AR2-033", "VAL-AR2-034", "VAL-AR2-035",
+    "VAL-AR2-036", "VAL-AR2-037", "VAL-AR2-038", "VAL-AR2-039", "VAL-AR2-040",
+    "VAL-AR2-041"
+  ],
+  "failedAssertions": [],
+  "blockedAssertions": [],
+  "appliedUpdates": [],
+  "previousRound": ".factory/validation/phase2-ios/user-testing/synthesis-round1.json"
+}

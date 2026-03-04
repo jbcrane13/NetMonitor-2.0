@@ -57,17 +57,30 @@ targets:
           - _spotify-connect._tcp
           - _sonos._tcp
           - _workstation._tcp
-        NSCameraUsageDescription: "NetMonitor Pro uses your camera to scan room layouts for WiFi heatmap surveys."
         NSAppTransportSecurity:
           NSExceptionDomains:
             ip-api.com:
               NSExceptionAllowsInsecureHTTPLoads: true
               NSIncludesSubdomains: true
+        UTExportedTypeDeclarations:
+          - UTTypeIdentifier: com.netmonitor.survey
+            UTTypeDescription: NetMonitor Survey Project
+            UTTypeConformsTo:
+              - com.apple.package
+            UTTypeTagSpecification:
+              public.filename-extension:
+                - netmonsurvey
+        CFBundleDocumentTypes:
+          - CFBundleTypeName: NetMonitor Survey Project
+            CFBundleTypeRole: Editor
+            LSHandlerRank: Owner
+            LSItemContentTypes:
+              - com.netmonitor.survey
     entitlements:
       path: NetMonitor-macOS/Resources/NetMonitor-macOS.entitlements
       properties:
         com.apple.security.app-sandbox: true
-        com.apple.security.files.user-selected.read-only: true
+        com.apple.security.files.user-selected.read-write: true
         com.apple.security.network.client: true
         com.apple.security.network.server: true
     settings:
@@ -97,6 +110,10 @@ targets:
     type: application
     platform: iOS
     deploymentTarget: "18.0"
+    scheme:
+      testTargets:
+        - NetMonitor-iOSTests
+        - NetMonitor-iOSUITests
     sources:
       - path: NetMonitor-iOS
         includes:
@@ -116,9 +133,9 @@ targets:
         CFBundleShortVersionString: "2.0"
         CFBundleVersion: "1"
         CFBundleIconName: AppIcon
+        NSCameraUsageDescription: "NetMonitor uses the camera for AR-assisted room scanning to create floor plans for Wi-Fi coverage surveys."
         NSLocationWhenInUseUsageDescription: "NetMonitor uses your location to display WiFi network information and monitor GeoFence zones."
         NSLocationAlwaysAndWhenInUseUsageDescription: "NetMonitor uses your location in the background to trigger GeoFence alerts when you enter or exit defined zones."
-        NSCameraUsageDescription: "NetMonitor uses your camera to scan room layouts for WiFi heatmap surveys."
         NSBonjourServices:
           - _netmon._tcp
           - _http._tcp
@@ -165,6 +182,22 @@ targets:
           - com.blakemiller.netmonitor.refresh
           - com.blakemiller.netmonitor.sync
           - com.blakemiller.netmonitor.scheduledNetworkScan
+        UTExportedTypeDeclarations:
+          - UTTypeIdentifier: com.netmonitor.survey
+            UTTypeDescription: NetMonitor Survey Project
+            UTTypeConformsTo:
+              - com.apple.package
+            UTTypeTagSpecification:
+              public.filename-extension:
+                - netmonsurvey
+        UIFileSharingEnabled: true
+        LSSupportsOpeningDocumentsInPlace: true
+        CFBundleDocumentTypes:
+          - CFBundleTypeName: NetMonitor Survey Project
+            CFBundleTypeRole: Editor
+            LSHandlerRank: Owner
+            LSItemContentTypes:
+              - com.netmonitor.survey
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.blakemiller.netmonitor
@@ -187,7 +220,6 @@ targets:
     dependencies:
       - package: NetMonitorCore
       - package: NetworkScanKit
-      - sdk: RoomPlan.framework
 
   NetMonitor-macOSTests:
     type: bundle.unit-test

@@ -1,0 +1,54 @@
+{
+  "flowId": "floor-plan-calibration",
+  "testedAt": "2026-03-04T12:00:00Z",
+  "credentials": {
+    "account": "n/a",
+    "namespace": "n/a"
+  },
+  "toolsUsed": ["code-review"],
+  "assertions": {
+    "VAL-IOS-004": {
+      "status": "pass",
+      "evidence": "PhotoLibraryPicker.swift wraps PHPickerViewController with `configuration.filter = .images` and `selectionLimit = 1`. Coordinator loads image data via `itemProvider.loadDataRepresentation(forTypeIdentifier: UTType.image.identifier)` — this covers PNG, JPEG, and HEIC. FloorPlanImporter.importFloorPlan(from: Data) uses CGImageSourceCreateWithData which decodes all three formats. NewProjectView.swift presents PhotoLibraryPicker in a .sheet and routes data to `viewModel.handlePhotoLibraryResult(_:)` (FloorPlanImportViewModel.swift:93-106). On success, applyImportResult creates a UIImage and stores it in floorPlanImage, which is then rendered on the FloorPlanCanvasView in the preview section (NewProjectView.swift floorPlanPreviewSection).",
+      "notes": "All three formats (PNG, JPEG, HEIC) are supported via CGImageSource which natively handles them on iOS. Build verification passed per orchestrator."
+    },
+    "VAL-IOS-005": {
+      "status": "pass",
+      "evidence": "DocumentPicker.swift wraps UIDocumentPickerViewController initialized with `FloorPlanImporter.documentPickerTypes` which is `[.png, .jpeg, .pdf]` (FloorPlanImporter.swift:56-60). Coordinator calls `onDocumentSelected(url)` on pick. NewProjectView.swift presents DocumentPicker in a .sheet and routes URL to `viewModel.handleDocumentPickerResult(_:)` (FloorPlanImportViewModel.swift:108-125). FloorPlanImporter.importFloorPlan(from: URL) detects format by extension — PNG/JPEG read directly, PDF rasterized via CGPDFDocument at 2x scale (rasterizePDF method, lines 102-137). All produce CGImage → downsample → PNG encode. Security-scoped resource access handled with startAccessingSecurityScopedResource/stopAccessingSecurityScopedResource in the ViewModel.",
+      "notes": "PDF support is explicit via rasterization. HEIC is not listed in documentPickerTypes (only photo library supports HEIC). This matches the assertion which specifies 'PNG, JPEG, PDF' for Files app."
+    },
+    "VAL-IOS-006": {
+      "status": "pass",
+      "evidence": "FloorPlanCanvasView.swift implements a zoomable/pannable canvas. Pinch-to-zoom via MagnifyGesture (lines 49-55) clamped between minScale=1.0 and maxScale=5.0. Two-finger drag via DragGesture (lines 58-67) updating currentOffset. Double-tap gesture resets zoom (lines 70-79). Image uses `.aspectRatio(contentMode: .fit)` with explicit `aspectFitSize` calculation (lines 87-93) ensuring correct aspect ratio. The SurveyCanvasView in HeatmapSurveyView.swift also implements identical zoom/pan gestures (magnifyGesture at lines ~196-202 and dragGesture at lines ~204-213) for the active survey view. Both use `.scaleEffect(currentScale)` and `.offset(currentOffset)`.",
+      "notes": "Both the preview canvas (FloorPlanCanvasView) and the survey canvas (SurveyCanvasView) support zoom/pan with correct aspect ratio via aspectFitSize helper."
+    },
+    "VAL-IOS-007": {
+      "status": "pass",
+      "evidence": "CalibrationSheetView.swift provides touch-optimized two-point calibration. Two draggable TouchCrosshairMarker views (A=blue, B=red) are positioned via normalized coordinates (calibrationPoint1/calibrationPoint2 in FloorPlanImportViewModel). DragGesture on each marker updates normalized position via `normalizedPoint()` helper (lines 179-186). Distance TextField with `.keyboardType(.decimalPad)` (line 151) and CalibrationUnit picker with `.pickerStyle(.segmented)` supporting .meters and .feet (CalibrationUnit enum in FloorPlanImportViewModel.swift:6-18). Apply button calls `viewModel.applyCalibration()` which computes pixelsPerMeter from pixel distance / distance-in-meters. Scale bar computed via `computeScaleBar()` (FloorPlanImportViewModel.swift:175-200). TouchCrosshairMarker has 56x56pt hit area (line 231) for touch optimization. CalibrationSheetView shows scale bar result in NewProjectView calibrationSection when isCalibrated=true.",
+      "notes": "Touch-optimized targets confirmed: TouchCrosshairMarker has 56x56pt clear Circle hit area plus 20pt center circle. Scale bar displays after calibration with label and visual bar."
+    },
+    "VAL-IOS-008": {
+      "status": "pass",
+      "evidence": "CalibrationSheetView.swift toolbar has a 'Skip' button (line 43-46) calling `viewModel.skipCalibration()`. FloorPlanImportViewModel.skipCalibration() (lines 147-152) sets isCalibrated=false, pixelsPerMeter=0, clears scaleBarLabel/scaleBarFraction, and dismisses the sheet. In createProject() (lines 175-219), when isCalibrated is false, calibrationPoints is nil and widthMeters/heightMeters are 0 — the FloorPlan is created with zero real-world dimensions, meaning pixel coordinates are used. The calibration section in NewProjectView.swift shows text: 'Calibration is optional — you can skip it and use pixel coordinates' (line 177). The 'Begin Survey' button is NOT gated on calibration — it only requires a project name and floor plan.",
+      "notes": "Calibration is clearly optional. Skip button is prominent in the toolbar. Project creation proceeds with pixel coordinates when uncalibrated."
+    },
+    "VAL-IOS-009": {
+      "status": "pass",
+      "evidence": "HeatmapSurveyView.swift SurveyCanvasView has `.onTapGesture { location in handleTap(at: location, imageSize: imageSize) }` (line 176). handleTap() converts screen coordinates to normalized 0-1 floor plan coordinates accounting for zoom/offset, validates bounds (0-1), then calls `await viewModel.takeMeasurement(atNormalizedX: normalizedX, y: normalizedY)` (line 199). HeatmapSurveyViewModel.takeMeasurement() (lines 76-92) delegates to `measurementEngine.takeMeasurement(at:floorPlanY:)` which calls WiFiMeasurementEngine (actor) that fetches Wi-Fi info via WiFiInfoServiceProtocol and builds a MeasurementPoint. On success, point is appended to project.measurementPoints and renderHeatmapOverlay() is called. MeasurementMarker view (lines 216-263) renders each point as a blue circle (Color.blue.opacity(0.8)) with coverage radius circle (Color.blue.opacity(0.1)) and pulse animation on appear.",
+      "notes": "Full flow verified: tap → coordinate conversion → async measurement via engine → point appended → blue marker rendered. Wi-Fi disconnect detection present (lines 85-88): if ssid==nil and rssi<=-100, shows error without placing point."
+    },
+    "VAL-IOS-031": {
+      "status": "pass",
+      "evidence": "FloorPlanImporter.swift defines FloorPlanImportError enum with cases: .unsupportedFormat(ext), .fileReadFailed(path), .imageDecodeFailed, .pdfRenderFailed, .cancelled — all with user-friendly errorDescription. importFloorPlan(from: URL) checks extension against supportedDocumentExtensions and throws .unsupportedFormat for unknown extensions (line 75). If Data(contentsOf:) fails, throws .fileReadFailed (line 82). If CGImageSourceCreateWithData returns nil (corrupted data), throws .imageDecodeFailed (line 86). FloorPlanImportViewModel.handlePhotoLibraryResult catches errors and sets errorMessage (line 104). handleDocumentPickerResult does the same (line 122). NewProjectView.swift displays errors via .alert modifier (lines 83-92) showing errorMessage with OK dismiss button. No force unwraps in the import path — all errors are caught and surfaced as user-facing messages.",
+      "notes": "Error handling is comprehensive: unsupported format, read failure, decode failure, and PDF render failure all produce user-facing error alerts without crashes."
+    },
+    "VAL-IOS-033": {
+      "status": "pass",
+      "evidence": "FloorPlanImportViewModel.swift tracks location permission via isLocationAuthorized and locationAuthorizationStatus properties. checkLocationPermission() (lines 162-166) reads status from WiFiInfoService. requestLocationPermission() (lines 169-171) delegates to WiFiInfoService.requestLocationPermission() which calls CLLocationManager.requestWhenInUseAuthorization(). WiFiInfoService.swift implements CLLocationManagerDelegate.locationManagerDidChangeAuthorization to update status reactively. NewProjectView.swift locationPermissionSection (lines 194-229) shows a GlassCard with warning styling when status is .notDetermined, .denied, or .restricted. The card displays: 'Precise location access is required to read Wi-Fi signal data. Grant permission before starting your survey.' with a 'Grant Location Access' button that calls viewModel.requestLocationPermission(). Button has accessibility ID 'heatmap_newProject_locationPermission'.",
+      "notes": "Location permission prompt is shown proactively during project creation when permission is not granted. The prompt explains why location is needed (Wi-Fi signal data) and provides a direct action button."
+    }
+  },
+  "frictions": [],
+  "blockers": [],
+  "summary": "Tested 8 assertions via code review: 8/8 passed. All iOS floor plan import (PHPicker + Files), zoomable canvas, two-point calibration, skip calibration, tap-to-measure, import error handling, and location permission flows are correctly implemented with proper error handling, touch optimization, and user guidance."
+}

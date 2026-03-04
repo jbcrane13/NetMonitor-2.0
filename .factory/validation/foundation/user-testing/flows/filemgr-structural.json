@@ -1,0 +1,90 @@
+{
+  "groupId": "filemgr-structural",
+  "testedAt": "2026-03-04T05:30:00Z",
+  "credentials": {
+    "account": "n/a",
+    "namespace": "n/a"
+  },
+  "toolsUsed": ["swift test", "rg", "ls", "xcodebuild", "swiftlint"],
+  "assertions": {
+    "VAL-FOUND-036": {
+      "status": "pass",
+      "evidence": "Unit test 'Saved bundle contains survey.json and floorplan.png' passed. SurveyFileManager suite: 12/12 tests passed."
+    },
+    "VAL-FOUND-037": {
+      "status": "pass",
+      "evidence": "Unit test 'survey.json inside bundle deserializes to identical project (minus imageData)' passed."
+    },
+    "VAL-FOUND-038": {
+      "status": "pass",
+      "evidence": "Unit test 'floorplan.png in bundle is valid with correct dimensions' passed."
+    },
+    "VAL-FOUND-039": {
+      "status": "pass",
+      "evidence": "Unit test 'Save and load preserves all fields including calibration and walls' passed. Also 'Round-trip with zero measurement points succeeds' passed."
+    },
+    "VAL-FOUND-040": {
+      "status": "pass",
+      "evidence": "Unit test 'Loading bundle without heatmap-cache/ succeeds' passed. Also 'Loading bundle with heatmap-cache/ directory succeeds' passed."
+    },
+    "VAL-FOUND-041": {
+      "status": "pass",
+      "evidence": "Unit test 'Corrupt survey.json produces descriptive SurveyFileError.corruptJSON' passed. Also 'Missing survey.json produces descriptive SurveyFileError.corruptJSON' passed."
+    },
+    "VAL-FOUND-042": {
+      "status": "pass",
+      "evidence": "Unit test 'Missing floorplan.png produces descriptive SurveyFileError.missingFloorPlan' passed."
+    },
+    "VAL-FOUND-043": {
+      "status": "pass",
+      "evidence": "rg found 'com.netmonitor.survey' in project.yml at lines 66, 78 (macOS target: UTExportedTypeDeclarations + CFBundleDocumentTypes) and lines 185, 197 (iOS target: same). Both targets register the UTI."
+    },
+    "VAL-FOUND-044": {
+      "status": "pass",
+      "evidence": "rg -l for HeatmapView|HeatmapOverlay|WiFiSurvey across *.swift (excluding tests/docs/validation) returned exit code 1 (no matches). No stale heatmap types found outside new directories."
+    },
+    "VAL-FOUND-048": {
+      "status": "pass",
+      "evidence": "ls Models/Heatmap/: HeatmapEnums.swift, HeatmapModels.swift. ls Services/Heatmap/: HeatmapRenderer.swift, SurveyFileManager.swift, WiFiMeasurementEngine.swift. All in correct NetMonitorCore package paths."
+    },
+    "VAL-FOUND-052": {
+      "status": "pass",
+      "evidence": "rg found 'public protocol HeatmapServiceProtocol: AnyObject, Sendable' in ServiceProtocols.swift. Protocol exists, follows naming convention, is Sendable."
+    },
+    "VAL-CROSS-001": {
+      "status": "pass",
+      "evidence": "SurveyProject serialization round-trip tests pass in NetMonitorCore (shared code used by both platforms). SurveyFileManager full round-trip test passes. macOS-only nil fields handled by Codable optionals."
+    },
+    "VAL-CROSS-002": {
+      "status": "pass",
+      "evidence": "Same shared NetMonitorCore code — SurveyProject round-trip tests pass. FloorPlanOrigin .arGenerated case round-trips correctly (covered by HeatmapModels tests). iOS-originated projects with AR data deserialize correctly."
+    },
+    "VAL-CROSS-003": {
+      "status": "pass",
+      "evidence": "HeatmapRenderer is in shared NetMonitorCore package. All HeatmapRenderer test suites pass (IDW, Color Mapping, Performance, Scale Bar, Value Extraction). Identical code runs on both platforms."
+    },
+    "VAL-CROSS-007": {
+      "status": "pass",
+      "evidence": "xcodebuild -scheme NetMonitor-macOS build: ** BUILD SUCCEEDED **. xcodebuild -scheme NetMonitor-iOS build: ** BUILD SUCCEEDED **. Both targets build cleanly."
+    },
+    "VAL-CROSS-008": {
+      "status": "pass",
+      "evidence": "swiftlint lint --quiet | grep -c 'error:' returned 0. Zero lint errors (warnings acceptable per policy)."
+    },
+    "VAL-CROSS-009": {
+      "status": "pass",
+      "evidence": "Both macOS and iOS builds succeed with SWIFT_STRICT_CONCURRENCY: complete (configured in project.yml). No concurrency warnings or errors. WiFiMeasurementEngine is actor, models are Sendable, ViewModels are @MainActor."
+    },
+    "VAL-CROSS-010": {
+      "status": "pass",
+      "evidence": "Same as VAL-FOUND-044: rg for stale heatmap types returned no matches. Clean slate confirmed."
+    },
+    "VAL-CROSS-011": {
+      "status": "pass",
+      "evidence": "Same as VAL-FOUND-043: com.netmonitor.survey UTI registered in project.yml for both macOS (lines 66, 78) and iOS (lines 185, 197) targets."
+    }
+  },
+  "frictions": [],
+  "blockers": [],
+  "summary": "Tested 19 assertions: 19 passed, 0 failed, 0 blocked. All SurveyFileManager unit tests pass (12/12). Both platform builds succeed. Lint clean (0 errors). UTI registered for both targets. No stale heatmap code. All models in correct package paths. HeatmapServiceProtocol defined in ServiceProtocols.swift."
+}

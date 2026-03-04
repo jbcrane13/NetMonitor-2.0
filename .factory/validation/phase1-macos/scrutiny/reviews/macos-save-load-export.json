@@ -1,0 +1,67 @@
+{
+  "featureId": "macos-save-load-export",
+  "reviewedAt": "2026-03-04T07:50:00.000Z",
+  "commitId": "c78cdd9",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "Solid implementation of save/load, PDF export, draw floor plan, and new project workflow. 10 files changed across 2,063 lines. The ViewModel additions are well-structured with proper error handling and state management. The PDF exporter produces a professional 3-page report using CoreGraphics. The DrawFloorPlanView provides basic wall/door/room drawing with proper rasterization. Tests are comprehensive (24 tests covering save/load round-trip, PDF generation, new project creation, error handling, and state reset). The onOpenURL handler in ContentView correctly routes .netmonsurvey files. The entitlements upgrade from read-only to read-write is necessary and correctly applied.",
+    "issues": [
+      {
+        "file": "NetMonitor-macOS/Platform/HeatmapPDFExporter.swift",
+        "line": 131,
+        "severity": "non_blocking",
+        "description": "Page 1 (Heatmap page) does not call drawPageFooter(), while Pages 2 and 3 do. This results in an inconsistent PDF where page 1 has no footer (page number and project name). The drawHeatmapPage method ends with context.endPDFPage() without a preceding drawPageFooter() call."
+      },
+      {
+        "file": "NetMonitor-macOS/ViewModels/HeatmapSurveyViewModel.swift",
+        "line": 783,
+        "severity": "non_blocking",
+        "description": "applyFloorPlanData uses a hardcoded fallback URL: URL(fileURLWithPath: \"/tmp/drawn-\\(name)\"). This creates a fake file reference that doesn't exist on disk. While it's only used as a sourceURL in FloorPlanImportResult and likely never persisted to disk directly, it's a code smell. A sentinel value or optional sourceURL would be cleaner."
+      },
+      {
+        "file": "NetMonitor-macOS/ViewModels/HeatmapSurveyViewModel.swift",
+        "line": 552,
+        "severity": "non_blocking",
+        "description": "saveProjectAs() is implemented in the ViewModel but never called from any view. It's dead code — no toolbar button, menu item, or keyboard shortcut invokes it. The feature description mentions 'overwrite existing path cleanly' but Save As isn't exposed in the UI."
+      },
+      {
+        "file": "NetMonitor-macOS/Views/Heatmap/HeatmapProjectListView.swift",
+        "line": 52,
+        "severity": "non_blocking",
+        "description": "NoOpSpeedTestService is defined inside a View file (HeatmapProjectListView.swift). Per project conventions, services belong in Platform/ or Services/ directories. This class should be in NetMonitor-macOS/Platform/ for consistency."
+      },
+      {
+        "file": "NetMonitor-macOS/ViewModels/HeatmapSurveyViewModel.swift",
+        "line": 528,
+        "severity": "non_blocking",
+        "description": "saveProject() and saveProjectAs() contain duplicated NSSavePanel setup code (panel creation, title, prompt, nameFieldStringValue, allowedContentTypes, runModal, response handling, error handling). Consider extracting a private helper that takes a title parameter to reduce duplication."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "conventions",
+      "observation": "Worker deviated from TDD (Step 2 of skill procedure) — wrote tests after implementation rather than before. The handoff acknowledges this, citing that the previous worker left uncommitted implementation code. The skill procedure doesn't account for the case where a prior worker session leaves partial/uncommitted work. This is a common scenario with multi-session features.",
+      "evidence": "handoff.skillFeedback.deviations[0]: 'Wrote tests after implementation since previous worker had already left uncommitted implementation code'"
+    },
+    {
+      "area": "skills",
+      "observation": "Worker ran tests locally instead of on mac-mini via SSH, citing the known mac-mini git HTTPS authentication issue (-25308). The AGENTS.md already documents this as a 'Known Pre-Existing Issue' with a local fallback. The skill's Step 6 still says to run tests via SSH without mentioning the fallback, which could confuse future workers.",
+      "evidence": "handoff.skillFeedback.deviations[1]: 'Known pre-existing issue: mac-mini git HTTPS authentication is broken (-25308). Ran unit tests locally instead.' AGENTS.md already documents this under 'Known Pre-Existing Issues'."
+    },
+    {
+      "area": "conventions",
+      "observation": "HeatmapSurveyViewModel is growing large and approaching type_body_length warning threshold. The worker acknowledged this in skillFeedback.suggestedChanges. The AGENTS.md doesn't set any guidance on when to split ViewModels into extensions. This will be increasingly relevant as more features are added.",
+      "evidence": "handoff.skillFeedback.suggestedChanges: 'The HeatmapSurveyViewModel is approaching the type_body_length warning threshold. Future workers should consider splitting it into focused extensions.' Current file is ~900 lines."
+    },
+    {
+      "area": "knowledge",
+      "observation": "The user-testing.md file was NOT updated with the new save/load and PDF export testing surfaces, despite the worker skill's Step 7 saying to update it. The file still only mentions basic save/load via File menu but doesn't cover PDF export verification, drawn floor plan testing, new project workflow, or Finder double-click testing.",
+      "evidence": "user-testing.md 'macOS Heatmap' section hasn't been updated with: PDF export (verify 3 pages), draw floor plan tool, new project workflow (name → import/draw/blank → calibrate → survey), Finder double-click (.netmonsurvey files)."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "Feature passes review. All described functionality is implemented: save/load with overwrite tracking, PDF export (3-page report), draw floor plan tool, new project workflow, and Finder double-click via onOpenURL. 24 comprehensive tests cover the main flows. Five non-blocking issues identified: (1) Page 1 of PDF missing footer, (2) hardcoded /tmp URL fallback for drawn floor plans, (3) saveProjectAs() is dead code, (4) NoOpSpeedTestService in wrong file location, (5) NSSavePanel code duplication. Shared state observations include: TDD deviation due to prior worker's uncommitted code, SSH test fallback not reflected in skill procedure, growing ViewModel size, and user-testing.md not updated."
+}

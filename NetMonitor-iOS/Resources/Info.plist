@@ -12,6 +12,21 @@
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
 	<string>Netmonitor</string>
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>NetMonitor Survey Project</string>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>LSHandlerRank</key>
+			<string>Owner</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>com.netmonitor.survey</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIconName</key>
@@ -28,6 +43,8 @@
 	<string>2.0</string>
 	<key>CFBundleVersion</key>
 	<string>1</string>
+	<key>LSSupportsOpeningDocumentsInPlace</key>
+	<true/>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSExceptionDomains</key>
@@ -41,6 +58,8 @@
 			</dict>
 		</dict>
 	</dict>
+	<key>NSCameraUsageDescription</key>
+	<string>NetMonitor uses the camera for AR-assisted room scanning to create floor plans for Wi-Fi coverage surveys.</string>
 	<key>NSBonjourServices</key>
 	<array>
 		<string>_netmon._tcp</string>
@@ -63,8 +82,6 @@
 		<string>_sonos._tcp</string>
 		<string>_workstation._tcp</string>
 	</array>
-	<key>NSCameraUsageDescription</key>
-	<string>NetMonitor uses your camera to scan room layouts for WiFi heatmap surveys.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>NetMonitor scans your local network to discover devices, services, and the macOS companion app.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
@@ -76,6 +93,8 @@
 		<string>fetch</string>
 		<string>processing</string>
 	</array>
+	<key>UIFileSharingEnabled</key>
+	<true/>
 	<key>UILaunchScreen</key>
 	<dict>
 		<key>UIColorName</key>
@@ -97,6 +116,26 @@
 		<string>UIInterfaceOrientationPortraitUpsideDown</string>
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+	<key>UTExportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>com.apple.package</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>NetMonitor Survey Project</string>
+			<key>UTTypeIdentifier</key>
+			<string>com.netmonitor.survey</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>netmonsurvey</string>
+				</array>
+			</dict>
+		</dict>
 	</array>
 </dict>
 </plist>

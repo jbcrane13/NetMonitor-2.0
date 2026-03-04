@@ -1,0 +1,67 @@
+{
+  "featureId": "ios-floor-plan-import-calibration",
+  "reviewedAt": "2026-03-04T09:15:00Z",
+  "commitId": "6079474",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "Solid implementation covering all 8 expected behaviors: PHPicker import (PNG/JPEG/HEIC), UIDocumentPicker import (PNG/JPEG/PDF with PDF rasterization), zoomable/pannable canvas, two-point touch-optimized calibration, scale bar, skippable calibration, error alerts, and location permission prompting. 1892 lines across 8 new files + 3 modifications. 25 unit tests (handoff claims 30 but actual @Test count is 25). Code follows Swift 6 strict concurrency, liquid glass theming, @MainActor @Observable ViewModel pattern, and accessibility identifier conventions. No blocking issues found.",
+    "issues": [
+      {
+        "file": "NetMonitor-iOS/ViewModels/FloorPlanImportViewModel.swift",
+        "line": 288,
+        "severity": "non_blocking",
+        "description": "checkLocationPermission() and requestLocationPermission() downcast wifiService to concrete WiFiInfoService ('if let service = wifiService as? WiFiInfoService'), bypassing the protocol abstraction. requestLocationPermission() is already defined on WiFiInfoServiceProtocol and should be called through the protocol directly (as DashboardViewModel does). authorizationStatus is not on the protocol, which is the actual gap. This makes location permission logic untestable with mock services — both methods silently no-op when a mock is injected."
+      },
+      {
+        "file": "NetMonitor-iOS/ViewModels/FloorPlanImportViewModel.swift",
+        "line": 139,
+        "severity": "non_blocking",
+        "description": "handlePhotoLibraryResult() and handleDocumentPickerResult() run synchronous FloorPlanImporter calls on @MainActor. For large PDFs, rasterizePDF() involves CGContext allocation, PDF rendering, and PNG encoding — all blocking the main thread. The isImporting flag is set/cleared synchronously so the UI never shows a loading state. Should be async (Task { }) with actual loading indication."
+      },
+      {
+        "file": "NetMonitor-iOS/Views/Heatmap/FloorPlanCanvasView.swift",
+        "line": 100,
+        "severity": "non_blocking",
+        "description": "clampOffset() does not actually clamp — it only copies currentOffset to lastOffset with animation. There is no bounds calculation, so the image can be panned completely off-screen with no way to return except double-tap reset. Comment says 'Allow some overshoot but snap back' but no snap-back logic exists."
+      },
+      {
+        "file": "NetMonitor-iOS/Platform/FloorPlanImporter.swift",
+        "line": 108,
+        "severity": "non_blocking",
+        "description": "rasterizePDF() encodes the rendered CGImage to PNG Data, which importFloorPlan(from:URL) then decodes back to CGImage via createCGImage(). This unnecessary encode-decode cycle doubles memory usage for PDF imports. rasterizePDF could return CGImage directly."
+      },
+      {
+        "file": "NetMonitor-iOS/ViewModels/FloorPlanImportViewModel.swift",
+        "line": 316,
+        "severity": "non_blocking",
+        "description": "force_unwrapping of URL(string: \"photo://library\")! with swiftlint disable comment. While safe in practice, the synthetic 'photo://' scheme is non-standard. A static constant or nil-coalescing pattern would be cleaner."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "conventions",
+      "observation": "WiFiInfoServiceProtocol defines requestLocationPermission() but the worker's FloorPlanImportViewModel downcasts to concrete WiFiInfoService to call it, while DashboardViewModel calls it correctly through the protocol. The inconsistency suggests the convention of always using protocol-typed access isn't sufficiently documented or enforced.",
+      "evidence": "FloorPlanImportViewModel.swift:296-298 uses 'if let service = wifiService as? WiFiInfoService { service.requestLocationPermission() }' while DashboardViewModel.swift:312-313 uses 'wifiService.requestLocationPermission()' directly through the protocol."
+    },
+    {
+      "area": "conventions",
+      "observation": "WiFiInfoServiceProtocol is missing authorizationStatus property. The iOS WiFiInfoService has it as a concrete-only property, forcing ViewModels to downcast. This is the root cause of the protocol bypass in FloorPlanImportViewModel. The protocol should be extended with @MainActor var authorizationStatus if multiple consumers need it.",
+      "evidence": "ServiceProtocols.swift:155-160 defines WiFiInfoServiceProtocol with isLocationAuthorized but not authorizationStatus. WiFiInfoService.swift:13 has 'private(set) var authorizationStatus: CLAuthorizationStatus' as a concrete-only property."
+    },
+    {
+      "area": "skills",
+      "observation": "Worker correctly identified that the ios-ui-worker skill mentions SSH testing on mac-mini but AGENTS.md documents that mac-mini git HTTPS is broken. Skill procedure Step 6 says to run iOS tests via SSH, but this is currently impossible. Worker used local build verification as fallback, which is the documented workaround in AGENTS.md.",
+      "evidence": "skillFeedback.suggestedChanges: 'The ios-ui-worker skill mentions testing on mac-mini via SSH, but AGENTS.md documents that mac-mini git HTTPS authentication is broken. The skill should mention the local fallback approach.'"
+    },
+    {
+      "area": "conventions",
+      "observation": "Handoff claims '30 unit tests' but actual @Test function count in FloorPlanImportViewModelTests.swift is 25. The test cases array in the handoff also lists exactly 25 tests. Minor reporting inaccuracy in the summary text.",
+      "evidence": "Handoff salientSummary says 'Wrote 30 ViewModel/importer tests' and tests.coverage says '30 tests covering'. Actual @Test count in Tests/NetMonitor-iOSTests/FloorPlanImportViewModelTests.swift is 25."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "PASS. The ios-floor-plan-import-calibration feature is well-implemented, covering all 8 expected behaviors with clean architecture. FloorPlanImporter handles PNG/JPEG/HEIC from PHPicker and PNG/JPEG/PDF from UIDocumentPicker with PDF rasterization and 4096px downsampling. FloorPlanImportViewModel manages the full new-project flow with calibration math, scale bar computation, and SurveyProject creation. Views use liquid glass theming with proper accessibility identifiers. 25 comprehensive tests cover ViewModel state, import success/failure, calibration apply/skip, unit conversion, and project creation. Five non-blocking issues found: protocol bypass for location permission, synchronous main-thread PDF processing, non-functional offset clamping in canvas view, unnecessary PDF encode-decode cycle, and a force-unwrapped synthetic URL."
+}

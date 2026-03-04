@@ -1,3 +1,4 @@
+import CoreLocation
 import Foundation
 import NetworkScanKit
 
@@ -155,6 +156,7 @@ public protocol PublicIPServiceProtocol {
 public protocol WiFiInfoServiceProtocol {
     @MainActor var currentWiFi: WiFiInfo? { get }
     @MainActor var isLocationAuthorized: Bool { get }
+    @MainActor var authorizationStatus: CLAuthorizationStatus { get }
     @MainActor func requestLocationPermission()
     @MainActor func refreshWiFiInfo()
     @MainActor func fetchCurrentWiFi() async -> WiFiInfo?
@@ -286,21 +288,6 @@ public struct SSLCertificateInfo: Sendable {
     }
 }
 
-/// A recorded signal strength data point for WiFi heatmapping.
-public struct HeatmapDataPoint: Sendable, Codable {
-    public let x: Double
-    public let y: Double
-    public let signalStrength: Int
-    public let timestamp: Date
-
-    public init(x: Double, y: Double, signalStrength: Int, timestamp: Date = Date()) {
-        self.x = x
-        self.y = y
-        self.signalStrength = signalStrength
-        self.timestamp = timestamp
-    }
-}
-
 /// Aggregated network health score.
 public struct NetworkHealthScore: Sendable {
     public let score: Int          // 0-100
@@ -360,14 +347,6 @@ public protocol SSLCertificateServiceProtocol: AnyObject, Sendable {
     func checkCertificate(domain: String) async throws -> SSLCertificateInfo
 }
 
-/// Protocol for WiFi signal heatmap surveys.
-public protocol WiFiHeatmapServiceProtocol: AnyObject, Sendable {
-    func startSurvey()
-    func recordDataPoint(signalStrength: Int, x: Double, y: Double)
-    func getSurveyData() -> [HeatmapDataPoint]
-    func stopSurvey()
-}
-
 /// Protocol for computing an overall network health score.
 public protocol NetworkHealthScoreServiceProtocol: AnyObject, Sendable {
     func calculateScore() async -> NetworkHealthScore
@@ -380,6 +359,26 @@ public protocol ScanSchedulerServiceProtocol: AnyObject, Sendable {
     func getLastScanDiff() -> ScanDiff?
     /// Compare `current` devices against the stored baseline and return the diff.
     func computeDiff(current: [DiscoveredDevice]) -> ScanDiff
+}
+
+// MARK: - Heatmap Service Protocol
+
+/// Protocol for WiFi heatmap measurement operations.
+/// Platform implementations provide passive WiFi data collection,
+/// active speed/latency measurement, and continuous streaming.
+public protocol HeatmapServiceProtocol: AnyObject, Sendable {
+    /// Takes a single passive WiFi measurement (RSSI, SSID, BSSID, channel, band, noise floor).
+    func takeMeasurement(at floorPlanX: Double, floorPlanY: Double) async -> MeasurementPoint
+
+    /// Takes an active measurement: passive data plus speed test and ping.
+    func takeActiveMeasurement(at floorPlanX: Double, floorPlanY: Double) async -> MeasurementPoint
+
+    /// Starts continuous passive measurements at the specified interval.
+    /// Returns an AsyncStream that yields measurements until stopped.
+    func startContinuousMeasurement(interval: TimeInterval) async -> AsyncStream<MeasurementPoint>
+
+    /// Stops any in-progress continuous measurement stream.
+    func stopContinuousMeasurement() async
 }
 
 // MARK: - SSL / Domain Expiration Types

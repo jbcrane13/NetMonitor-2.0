@@ -1,0 +1,100 @@
+{
+  "milestone": "phase1-macos",
+  "round": 1,
+  "status": "pass",
+  "validatorsRun": {
+    "test": {
+      "passed": true,
+      "command": "cd Packages/NetMonitorCore && swift test --no-parallel",
+      "exitCode": 0,
+      "notes": "1029 tests in 122 suites passed in 43.9 seconds"
+    },
+    "typecheck": {
+      "passed": true,
+      "command": "xcodebuild -scheme NetMonitor-macOS -configuration Debug build && xcodebuild -scheme NetMonitor-iOS -configuration Debug build",
+      "exitCode": 0,
+      "notes": "Both macOS and iOS targets BUILD SUCCEEDED under SWIFT_STRICT_CONCURRENCY: complete"
+    },
+    "lint": {
+      "passed": true,
+      "command": "swiftlint lint --quiet && swiftformat --lint .",
+      "exitCode": 0,
+      "notes": "SwiftLint: 0 errors (warnings only, all pre-existing). SwiftFormat: 0 files require formatting."
+    }
+  },
+  "reviewsSummary": {
+    "total": 7,
+    "passed": 7,
+    "failed": 0,
+    "failedFeatures": []
+  },
+  "blockingIssues": [],
+  "appliedUpdates": [
+    {
+      "target": "library",
+      "description": "Updated architecture.md: WiFiman color scheme now supports per-visualization normalization ranges (not signal-strength-only as previously documented). Added linkSpeed data gap note. Added ViewModel size guidance. Added Logger.heatmap usage note.",
+      "sourceFeature": "foundation-renderer-fixes, macos-canvas-survey-workflow, macos-save-load-export, macos-floor-plan-import-calibration"
+    }
+  ],
+  "suggestedGuidanceUpdates": [
+    {
+      "target": "AGENTS.md",
+      "suggestion": "Add convention for platform-only protocol placement: 'Service protocols that are specific to a single platform (e.g., CoreWLANServiceProtocol for macOS) may be defined in the platform target's Platform/ directory rather than in ServiceProtocols.swift. Cross-platform protocols must remain in ServiceProtocols.swift.' This resolves the ambiguity that led a worker to define CoreWLANServiceProtocol locally.",
+      "evidence": "macos-canvas-survey-workflow worker defined CoreWLANServiceProtocol in NetMonitor-macOS/Platform/ instead of ServiceProtocols.swift. The AGENTS.md says 'Service protocols: *Protocol suffix in ServiceProtocols.swift' but doesn't address platform-specific protocols.",
+      "isSystemic": false
+    },
+    {
+      "target": "AGENTS.md",
+      "suggestion": "Add convention for stub/no-op service placement: 'No-op service implementations (e.g., NoOpSpeedTestService) should be placed in the Platform/ directory of their target, not inside View files.' Two workers placed NoOpSpeedTestService inside HeatmapProjectListView.swift.",
+      "evidence": "macos-canvas-survey-workflow and macos-save-load-export both have NoOpSpeedTestService defined in HeatmapProjectListView.swift (a View file). Convention says services go in Platform/.",
+      "isSystemic": true
+    },
+    {
+      "target": "AGENTS.md",
+      "suggestion": "Add convention for shared test helpers: 'When the same test utility function is needed across multiple test files, extract it to a shared TestHelpers.swift file in the test target. Avoid duplicating test helper functions verbatim across files.' Three test files contain identical makeTestPNGData() and makeTestPNGFile() implementations.",
+      "evidence": "HeatmapSurveyViewModelTests.swift, HeatmapSaveLoadExportTests.swift, and HeatmapActiveScanUndoTests.swift all contain identical 20-line implementations of makeTestPNGData() and makeTestPNGFile().",
+      "isSystemic": true
+    },
+    {
+      "target": "AGENTS.md",
+      "suggestion": "Add convention for enum display names: 'Enums defined in NetMonitorCore that need human-readable display names should have a public computed property (e.g., `var displayName: String`) on the enum itself, not duplicated in ViewModels and Views.' This avoids the pattern of duplicating switch statements.",
+      "evidence": "macos-heatmap-overlay-visualizations has identical displayName switch statements in both HeatmapSurveyViewModel (line 162) and HeatmapSurveyView (line 329) for HeatmapVisualization cases.",
+      "isSystemic": false
+    },
+    {
+      "target": "skills",
+      "suggestion": "Update macos-ui-worker and swift-core-worker skills: (1) Note that TDD red phase is optional for placeholder features with no business logic, AppKit-heavy features, and features extending existing ViewModels. (2) Add rsync fallback instruction for mac-mini sync: 'If mac-mini git pull fails due to credential error, use: rsync -avz --exclude .git --exclude DerivedData . mac-mini:~/Projects/NetMonitor-2.0/'. (3) Clarify that interactive verification (Step 6) may be skipped in headless environments.",
+      "evidence": "6 of 7 features deviated from TDD red phase with reasonable justifications. 3 features used rsync as fallback for mac-mini sync. 2 features skipped interactive verification. All produced quality output despite deviations.",
+      "isSystemic": true
+    },
+    {
+      "target": "AGENTS.md",
+      "suggestion": "Add ViewModel size guidance: 'When a ViewModel approaches the SwiftLint file_length warning (600 lines), split functionality into focused extensions in separate files (e.g., HeatmapSurveyViewModel+Undo.swift, HeatmapSurveyViewModel+Export.swift). Each extension file should use MARK sections and handle one area of concern.'",
+      "evidence": "HeatmapSurveyViewModel.swift is at 954 lines (633 excluding comments/whitespace per SwiftLint warning). Multiple workers noted it's growing large. The file already triggers file_length warning.",
+      "isSystemic": false
+    }
+  ],
+  "rejectedObservations": [
+    {
+      "observation": "Logger.heatmap category is defined but Logger.app is used in heatmap code",
+      "reason": "This is a non-blocking code issue (use correct logger category), not a shared state gap. Workers should use Logger.heatmap for heatmap features — this is already implied by the existing logging convention. No new AGENTS.md rule needed."
+    },
+    {
+      "observation": "Worker skill references non-existent .factory/library/ files",
+      "reason": "The library directory exists and contains architecture.md, environment.md, and user-testing.md. The skill's references are valid. The observation from the floor-plan-import worker may have been from an early state before the directory was populated."
+    },
+    {
+      "observation": "user-testing.md not updated with new testing surfaces (PDF export, draw tool, etc.)",
+      "reason": "This is a worker oversight on a specific file, not a systemic shared state issue. The user-testing-validator phase will handle this naturally as it identifies testable surfaces."
+    },
+    {
+      "observation": "Calibration marker geometry doesn't account for aspect-fit padding",
+      "reason": "This is a non-blocking code bug in a specific view, not a shared state observation. It's correctly noted in the feature review but doesn't warrant a conventions or library change."
+    },
+    {
+      "observation": "WiFiInfo model lacks linkSpeed field causing nil in production",
+      "reason": "Applied to architecture.md as a known data gap note instead. This is a factual codebase observation appropriate for library, not an AGENTS.md convention."
+    }
+  ],
+  "previousRound": null
+}

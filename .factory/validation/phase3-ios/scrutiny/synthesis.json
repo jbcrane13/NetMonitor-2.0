@@ -1,0 +1,120 @@
+{
+  "milestone": "phase3-ios",
+  "round": 1,
+  "status": "pass",
+  "validatorsRun": {
+    "test": {
+      "passed": true,
+      "command": "cd Packages/NetMonitorCore && swift test --no-parallel",
+      "exitCode": 0,
+      "details": "1032 tests in 122 suites passed after 42.866 seconds"
+    },
+    "typecheck": {
+      "passed": true,
+      "command": "xcodebuild -scheme NetMonitor-iOS -configuration Debug build && xcodebuild -scheme NetMonitor-macOS -configuration Debug build",
+      "exitCode": 0,
+      "details": "Both iOS and macOS targets built successfully with strict concurrency"
+    },
+    "lint": {
+      "passed": true,
+      "command": "swiftlint lint --quiet && swiftformat --lint .",
+      "exitCode": 0,
+      "details": "SwiftLint: warnings only (no errors). SwiftFormat: 0/505 files require formatting"
+    }
+  },
+  "reviewsSummary": {
+    "total": 3,
+    "passed": 3,
+    "failed": 0,
+    "failedFeatures": []
+  },
+  "blockingIssues": [],
+  "nonBlockingIssues": [
+    {
+      "featureId": "phase3-continuous-capture-pipeline",
+      "count": 4,
+      "highlights": [
+        "Misleading 'efficient incremental' comment on O(n) full rebuild in updateDownsampled",
+        "Undocumented deviation from startContinuousMeasurement() spec (justified but not commented)",
+        "Hardcoded 25m² room size for coverage percentage",
+        "Missing nonisolated rationale comment on position provider"
+      ]
+    },
+    {
+      "featureId": "phase3-metal-realtime-rendering",
+      "count": 6,
+      "highlights": [
+        "Unused Metal GPU objects (MTLDevice, MTLTexture×2, MTLCommandQueue) wasting ~32MB VRAM",
+        "Straight-vs-premultiplied alpha blending inconsistency at heatmap splat edges",
+        "Pinch-to-zoom/pan gestures don't accumulate across gesture sessions (jumpy behavior)",
+        "Heavy main-thread compositing loop (4M pixels at 10Hz)",
+        "Potential range crash in rasterizeFloorArea with inverted coordinates",
+        "Minor test count discrepancy in handoff (claims 22, actual 18)"
+      ]
+    },
+    {
+      "featureId": "phase3-pause-resume-finish",
+      "count": 6,
+      "highlights": [
+        "PostScanReviewView zoom/pan gestures don't accumulate state between sequences",
+        "BSSIDTransition stores raw MAC addresses without redaction",
+        "ScanThermalManager tests test a helper function, not the actual manager",
+        "Redundant progress state updates in finishScan",
+        "thermalManager.stopMonitoring() never called (relies on deallocation)",
+        "cancelScan() doesn't call removeMemoryPressureMonitoring()"
+      ]
+    }
+  ],
+  "appliedUpdates": [
+    {
+      "target": "library",
+      "description": "Canonicalized AR service path to Services/AR/ (removed 'or Platform/AR/' ambiguity)",
+      "sourceFeature": "phase3-continuous-capture-pipeline"
+    },
+    {
+      "target": "library",
+      "description": "Documented Phase 3 CPU-based rendering architecture decision (HeatmapMetalRenderer uses CPU pixel arrays despite name)",
+      "sourceFeature": "phase3-metal-realtime-rendering"
+    },
+    {
+      "target": "library",
+      "description": "Documented Phase 3 thermal management policy (nominal→continue, serious→reduceMesh, critical→autoPause)",
+      "sourceFeature": "phase3-pause-resume-finish"
+    }
+  ],
+  "suggestedGuidanceUpdates": [
+    {
+      "target": "AGENTS.md",
+      "suggestion": "Add SwiftUI gesture accumulation convention: For map/canvas interactions with pinch-to-zoom and drag gestures, use @GestureState for in-progress gesture values and accumulate into @State on .onEnded. Direct assignment of gesture values to @State causes zoom/pan to reset between gesture sequences.",
+      "evidence": "Both ContinuousScanView.swift and PostScanReviewView.swift have gesture handlers that directly assign MagnificationGesture/DragGesture values without accumulating across gesture sessions. Two independent workers made the same mistake, indicating this is a systemic pattern gap.",
+      "isSystemic": true
+    },
+    {
+      "target": "AGENTS.md",
+      "suggestion": "Extend the BSSID/MAC data handling convention beyond just logging. Current convention says 'Never log raw IPs, MACs, SSIDs, or hostnames outside LogSanitizer wrappers' but doesn't address in-memory storage in structs passed to views. Consider: MACs in model types are acceptable, but should be redacted before display in UI text.",
+      "evidence": "BSSIDTransition in ContinuousScanViewModel.swift stores raw MAC addresses. PostScanReviewView receives them for roaming overlay display. The logging convention covers os.Logger but not UI display.",
+      "isSystemic": false
+    },
+    {
+      "target": "skills",
+      "suggestion": "Add to ios-ui-worker skill: (1) Document rsync fallback for mac-mini file sync when git HTTPS auth is broken: 'rsync -avz --exclude .git . mac-mini:~/Projects/NetMonitor-2.0/'. (2) Clarify that adding new .swift files requires xcodegen regeneration even when project.yml itself is unchanged.",
+      "evidence": "All three Phase 3 workers encountered the mac-mini git auth issue and used rsync workaround. Worker for phase3-pause-resume-finish noted that new files require xcodegen regeneration which the skill doesn't mention.",
+      "isSystemic": true
+    }
+  ],
+  "rejectedObservations": [
+    {
+      "observation": "Missing pipeline debug logging in ContinuousCapturePipeline.swift (imports os but has zero Logger calls)",
+      "reason": "This is a developer preference, not a convention violation. The ViewModel logs key lifecycle events. Adding debug logging to the pipeline actor is an enhancement, not a correction."
+    },
+    {
+      "observation": "ios-ui-worker skill file not found at .factory/skills/ios-ui-worker/SKILL.md",
+      "reason": "Skills may be stored in different locations (personal ~/.factory/droids/ vs project .factory/droids/). The skill exists and workers reference it successfully. The reviewer's file path search was too narrow."
+    },
+    {
+      "observation": "rsync workaround not in AGENTS.md Known Pre-Existing Issues (from metal-rendering reviewer)",
+      "reason": "Duplicate of the skill update suggestion. The rsync workaround belongs in the worker skill, not in AGENTS.md which documents issues not workarounds."
+    }
+  ],
+  "previousRound": null
+}

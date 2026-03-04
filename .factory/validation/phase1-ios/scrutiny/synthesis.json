@@ -1,0 +1,140 @@
+{
+  "milestone": "phase1-ios",
+  "round": 1,
+  "status": "pass",
+  "validatorsRun": {
+    "test": {
+      "passed": true,
+      "command": "cd Packages/NetMonitorCore && swift test --no-parallel",
+      "exitCode": 0,
+      "details": "1031 tests in 122 suites passed"
+    },
+    "typecheck": {
+      "passed": true,
+      "command": "xcodebuild -scheme NetMonitor-iOS -configuration Debug build",
+      "exitCode": 0,
+      "details": "BUILD SUCCEEDED (iOS). Also verified macOS build: BUILD SUCCEEDED."
+    },
+    "lint": {
+      "passed": true,
+      "command": "swiftlint lint --quiet && swiftformat --lint .",
+      "exitCode": 0,
+      "details": "SwiftLint: warnings only (all pre-existing, zero errors). SwiftFormat: 0/471 files require formatting."
+    }
+  },
+  "reviewsSummary": {
+    "total": 3,
+    "passed": 3,
+    "failed": 0,
+    "failedFeatures": []
+  },
+  "blockingIssues": [],
+  "nonBlockingIssues": [
+    {
+      "featureId": "ios-heatmap-navigation-dashboard",
+      "severity": "non_blocking",
+      "description": "ToolType.wifiHeatmap reuses .cyan color already used by .vpnInfo, reducing visual distinction in tools grid."
+    },
+    {
+      "featureId": "ios-heatmap-navigation-dashboard",
+      "severity": "non_blocking",
+      "description": "Inconsistent accessibility identifier naming: some use 2-part (heatmap_emptyState) vs convention 3-part (heatmap_section_emptyState)."
+    },
+    {
+      "featureId": "ios-heatmap-navigation-dashboard",
+      "severity": "non_blocking",
+      "description": "HeatmapProjectSummary.formattedDate creates new DateFormatter on every access. Static formatter would be more efficient."
+    },
+    {
+      "featureId": "ios-heatmap-navigation-dashboard",
+      "severity": "non_blocking",
+      "description": "HeatmapDashboardViewModel.loadProjects() performs synchronous filesystem I/O on MainActor."
+    },
+    {
+      "featureId": "ios-floor-plan-import-calibration",
+      "severity": "non_blocking",
+      "description": "FloorPlanImportViewModel downcasts wifiService to concrete WiFiInfoService for authorizationStatus, bypassing protocol abstraction and making location permission logic untestable with mocks."
+    },
+    {
+      "featureId": "ios-floor-plan-import-calibration",
+      "severity": "non_blocking",
+      "description": "PDF import runs synchronous CGContext rendering on MainActor. Large PDFs could cause UI jank."
+    },
+    {
+      "featureId": "ios-floor-plan-import-calibration",
+      "severity": "non_blocking",
+      "description": "FloorPlanCanvasView.clampOffset() does not actually clamp — image can be panned off-screen with no snap-back."
+    },
+    {
+      "featureId": "ios-floor-plan-import-calibration",
+      "severity": "non_blocking",
+      "description": "rasterizePDF() encodes CGImage to PNG Data then immediately decodes back to CGImage. Unnecessary encode-decode cycle doubles memory for PDF imports."
+    },
+    {
+      "featureId": "ios-survey-heatmap-save",
+      "severity": "non_blocking",
+      "description": "MeasurementMarker uses deprecated UIScreen.main.bounds for layout calculations. Should use GeometryReader container size."
+    },
+    {
+      "featureId": "ios-survey-heatmap-save",
+      "severity": "non_blocking",
+      "description": "RSSI-to-Color threshold logic duplicated identically in FloatingRSSIHUD.swift and MeasurementDetailSheet.swift."
+    },
+    {
+      "featureId": "ios-survey-heatmap-save",
+      "severity": "non_blocking",
+      "description": "FloatingRSSIHUD.signalIconName has redundant branches: rssi >= -50 and rssi >= -65 both return same value."
+    },
+    {
+      "featureId": "ios-survey-heatmap-save",
+      "severity": "non_blocking",
+      "description": "HeatmapSurveyViewModel.renderHeatmapOverlay() runs synchronously on MainActor. Large point sets could cause UI jank."
+    }
+  ],
+  "appliedUpdates": [],
+  "suggestedGuidanceUpdates": [
+    {
+      "target": "AGENTS.md",
+      "suggestion": "Clarify accessibility identifier convention: always use 3-part format {screen}_{element}_{descriptor}. Examples of valid IDs: 'heatmap_button_newProject', 'heatmap_section_emptyState', 'heatmap_list_projects'. The 2-part shorthand (e.g., 'heatmap_emptyState') should not be used even when the element type seems obvious.",
+      "evidence": "Features ios-heatmap-navigation-dashboard and ios-survey-heatmap-save both mixed 2-part and 3-part accessibility IDs in the same file. HeatmapDashboardView.swift has both 'heatmap_emptyState' (2-part) and 'heatmap_button_newProject' (3-part).",
+      "isSystemic": true
+    },
+    {
+      "target": "skills",
+      "suggestion": "Relax the TDD red-phase requirement in ios-ui-worker skill for multi-file features. When a feature creates 5+ interconnected files (Views, ViewModels, platform services), allow implementation-first followed by comprehensive tests. The strict TDD sequence (write failing test → implement → green) doesn't work when types reference each other across files and can't compile in isolation.",
+      "evidence": "2 of 3 ios-ui-worker sessions (ios-heatmap-navigation-dashboard, ios-survey-heatmap-save) deviated from TDD Step 2, writing implementation first then tests. Both workers acknowledged the deviation and suggested relaxing the requirement for integration-style work.",
+      "isSystemic": true
+    },
+    {
+      "target": "skills",
+      "suggestion": "Codify the SSH fallback explicitly in ios-ui-worker and macos-ui-worker skills. Add: 'Step 6 (testing): Attempt SSH to mac-mini first. If SSH fails or mac-mini git pull fails, fall back to: (1) local `swift test` for NetMonitorCore package tests, (2) local `xcodebuild build` for both targets as build verification.' Currently workers discover the workaround from AGENTS.md known issues, which is fragile.",
+      "evidence": "2 of 3 workers (ios-floor-plan-import-calibration, ios-survey-heatmap-save) deviated from the SSH testing step and ran tests locally. Both cited the known pre-existing issue about mac-mini HTTPS authentication being broken.",
+      "isSystemic": true
+    },
+    {
+      "target": "AGENTS.md",
+      "suggestion": "Add convention: avoid deprecated Apple APIs. Specifically, do not use UIScreen.main (deprecated iOS 16) — use GeometryReader or containerSize from parent views instead. This prevents accumulation of deprecation warnings that eventually become errors.",
+      "evidence": "Feature ios-survey-heatmap-save uses UIScreen.main.bounds in HeatmapSurveyView.swift:353-354 for marker positioning. This deprecated API is unreliable in multi-scene contexts.",
+      "isSystemic": false
+    }
+  ],
+  "rejectedObservations": [
+    {
+      "observation": "No convention exists about unique colors for ToolType entries. Worker reused .cyan for wifiHeatmap which is already used by vpnInfo.",
+      "reason": "Insufficient evidence for a new convention. Tool colors are cosmetic and only 2 of 19 tools share a color. A convention would be overly prescriptive for a minor visual detail."
+    },
+    {
+      "observation": "WiFiInfoServiceProtocol inconsistent usage — worker calls requestLocationPermission() through protocol in one ViewModel but downcasts in another.",
+      "reason": "Duplicate of the authorizationStatus protocol gap observation. The root cause (missing protocol property) is better addressed as a code task than a convention update."
+    },
+    {
+      "observation": "Handoff claims 30 unit tests but actual count is 25. Minor reporting inaccuracy.",
+      "reason": "Cosmetic handoff text issue. Not actionable as a convention or guidance update."
+    },
+    {
+      "observation": "RSSI-to-Color mapping logic duplicated in FloatingRSSIHUD and MeasurementDetailSheet.",
+      "reason": "Already tracked as a non-blocking code quality issue. The misc-macos-code-quality feature already covers code deduplication patterns. Not a convention gap."
+    }
+  ],
+  "previousRound": null
+}

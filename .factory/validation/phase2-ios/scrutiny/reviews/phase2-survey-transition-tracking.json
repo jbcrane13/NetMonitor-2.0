@@ -1,0 +1,57 @@
+{
+  "featureId": "phase2-survey-transition-tracking",
+  "reviewedAt": "2026-03-04T11:50:00.000Z",
+  "commitId": "2eba357",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "Solid implementation covering all 14 expected behaviors. ARCoordinateTransform is a clean, pure-function Sendable struct with proper clamping and degenerate-case handling. ARSurveyViewModel follows the @MainActor @Observable pattern with DI, error surfacing as errorMessage, and proper AR lifecycle management (10Hz tracking, cleanup on exit). ARSurveyView correctly separates UI from logic, implements blue pulsing dot, tracking banner, manual tap fallback, and floor plan editing controls. Mesh classification pipeline adds voting-based rasterization and classified rendering (doors as gaps, windows as dashed). Transition from ARScanView properly passes coordinate transform and session manager. 12 unit tests cover coordinate transform thoroughly. Both targets build, 1032 core tests pass, lint/format clean.",
+    "issues": [
+      {
+        "file": "NetMonitor-iOS/ViewModels/ARSurveyViewModel.swift",
+        "line": 22,
+        "severity": "non_blocking",
+        "description": "FloorPlanEditAction enum is declared (lines 22-38) but never referenced anywhere in the codebase. The floor plan editing functionality is implemented directly via deleteWall(), moveWallEndpoint(), and addRoomLabel() methods without using this enum. This is dead code that should be removed or integrated."
+      },
+      {
+        "file": "NetMonitor-iOS/Services/AR/FloorPlanGenerationPipeline.swift",
+        "line": null,
+        "severity": "non_blocking",
+        "description": "MeshClassification enum has door=7 and window=6, which is swapped from Apple's ARMeshClassification (door=6, window=7). The mapARMeshClassification() function correctly handles the mapping, but if someone later uses MeshClassification(rawValue: arValue) directly without the mapper, doors and windows would be silently swapped. Consider aligning rawValues with ARMeshClassification to prevent future bugs."
+      },
+      {
+        "file": "NetMonitor-iOS/Services/AR/FloorPlanGenerationPipeline.swift",
+        "line": null,
+        "severity": "non_blocking",
+        "description": "rasterizeClassified() allocates classVotes as [Int](repeating: 0, count: 8) — hardcoded to 8 matching current MeshClassification case count. If new classification cases are added, this will silently drop them or crash. Consider using MeshClassification enum case count or a Dictionary instead."
+      },
+      {
+        "file": "NetMonitor-iOS/Views/Heatmap/ARScanView.swift",
+        "line": 87,
+        "severity": "non_blocking",
+        "description": "transitionToSurvey() creates service instances (WiFiInfoService, WiFiMeasurementEngine) directly in the View rather than through the ViewModel or DI. While functional for a navigation transition, this slightly breaks the pattern where Views contain no business logic."
+      },
+      {
+        "file": "NetMonitor-iOS/Services/AR/FloorPlanGenerationPipeline.swift",
+        "line": null,
+        "severity": "non_blocking",
+        "description": "File is now 491 lines, exceeding the 350-line type_body_length SwiftLint warning threshold. Worker acknowledged this in discoveredIssues. The classified rendering and rasterization methods (143 lines) could be extracted into a separate FloorPlanClassifiedRenderer enum."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "target": "skills",
+      "description": "Worker deviated from ios-ui-worker Step 6 by not running iOS tests via SSH (used local build-for-testing and core swift test instead). This is due to the known mac-mini git HTTPS auth issue documented in AGENTS.md. The skill procedure still says to use SSH, but this is currently impossible. Skill feedback confirms followedProcedure=true with documented deviation.",
+      "evidence": "Handoff skillFeedback.deviations[0]: 'Step 6: Run iOS tests via SSH' → 'Used local build-for-testing and core swift test' because 'mac-mini git HTTPS auth broken (known issue)'. AGENTS.md Known Pre-Existing Issues section documents this."
+    },
+    {
+      "target": "AGENTS.md",
+      "description": "MeshClassification enum rawValues are intentionally swapped from Apple's ARMeshClassification for door/window. This design decision isn't documented in AGENTS.md or ADR. If another worker needs to interact with ARKit classification data, they might use rawValue init directly and get incorrect results.",
+      "evidence": "FloorPlanGenerationPipeline.swift: MeshClassification window=6, door=7 vs Apple's ARMeshClassification door=6, window=7. The mapARMeshClassification() comment notes 'Our enum has the same raw values except door/window are swapped'."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "Feature passes review. All 14 expected behaviors from the feature description are implemented: Phase 2→Phase 1 survey transition, pre-calibrated AR floor plan, blue pulsing position dot, Measure Here auto-placement, coordinate transform (matching spec formula), tracking loss/recovery detection with manual fallback, floor plan editing (drag/delete/labels), mesh classification (doors as gaps, windows as dashed), AR session cleanup, and project saving. 12 unit tests thoroughly cover the coordinate transform including edge cases (zero dimensions, negative origins, clamping, accuracy). 1766 lines added across 9 files. Five non-blocking issues identified: unused FloorPlanEditAction enum, swapped MeshClassification rawValues vs ARKit, hardcoded classVotes array size, service creation in View, and file length warning."
+}

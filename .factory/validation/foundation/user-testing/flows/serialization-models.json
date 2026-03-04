@@ -1,0 +1,78 @@
+{
+  "groupId": "serialization-models",
+  "testedAt": "2026-03-04T05:30:00Z",
+  "toolsUsed": ["swift test", "source inspection"],
+  "assertions": {
+    "VAL-FOUND-001": {
+      "status": "pass",
+      "evidence": "Suite 'SurveyProject' passed — test fullRoundTrip() encodes SurveyProject with all fields populated, decodes, and asserts every property identical via Equatable. swift test exit code 0."
+    },
+    "VAL-FOUND-002": {
+      "status": "pass",
+      "evidence": "Suite 'SurveyProject' passed — test emptyMeasurementPoints() encodes SurveyProject with empty measurementPoints array, decodes, asserts decoded.measurementPoints.isEmpty. swift test exit code 0."
+    },
+    "VAL-FOUND-003": {
+      "status": "pass",
+      "evidence": "Suite 'FloorPlan' passed — test withCalibrationRoundTrip() encodes FloorPlan with two CalibrationPoints, widthMeters, heightMeters, pixelWidth, pixelHeight, origin=.imported(URL), decodes, asserts all fields match. swift test exit code 0."
+    },
+    "VAL-FOUND-004": {
+      "status": "pass",
+      "evidence": "Suite 'FloorPlan' passed — test withoutCalibrationRoundTrip() encodes FloorPlan with calibrationPoints=nil and widthMeters/heightMeters=0, decodes, asserts nil and zero values persist. swift test exit code 0."
+    },
+    "VAL-FOUND-005": {
+      "status": "pass",
+      "evidence": "Suite 'FloorPlanOrigin' passed — three tests (importedURLRoundTrip, arGeneratedRoundTrip, drawnRoundTrip) each round-trip one enum case. .imported(URL) verifies associated URL value survives encoding. swift test exit code 0."
+    },
+    "VAL-FOUND-006": {
+      "status": "pass",
+      "evidence": "Suite 'MeasurementPoint' passed — test allFieldsRoundTrip() encodes MeasurementPoint with every optional field populated (rssi, noiseFloor, snr, ssid, bssid, channel, frequency, band, linkSpeed, downloadSpeed, uploadSpeed, latency, connectedAPName), decodes, asserts field-by-field equality. swift test exit code 0."
+    },
+    "VAL-FOUND-007": {
+      "status": "pass",
+      "evidence": "Suite 'MeasurementPoint' passed — test minimalFieldsRoundTrip() encodes MeasurementPoint with only required fields (id, timestamp, floorPlanX, floorPlanY, rssi), all optionals nil. Decodes and verifies nil persistence for all 12 optional fields. swift test exit code 0."
+    },
+    "VAL-FOUND-008": {
+      "status": "pass",
+      "evidence": "Suite 'HeatmapVisualization' passed — test allCasesRoundTrip() iterates all 5 cases (signalStrength, signalToNoise, downloadSpeed, uploadSpeed, latency), encodes and decodes each, asserts equality. stableRawValues() verifies raw strings. swift test exit code 0."
+    },
+    "VAL-FOUND-009": {
+      "status": "pass",
+      "evidence": "Suite 'WiFiBand Codable' passed — test allCasesRoundTrip() iterates all 3 cases (band2_4GHz, band5GHz, band6GHz), encodes/decodes, asserts equality. stableRawValues() asserts raw strings '2.4 GHz', '5 GHz', '6 GHz'. swift test exit code 0."
+    },
+    "VAL-FOUND-010": {
+      "status": "pass",
+      "evidence": "Suite 'SurveyMode' passed — test allCasesRoundTrip() iterates all 3 cases (blueprint, arAssisted, arContinuous), encodes/decodes, asserts equality. stableRawValues() asserts raw strings. swift test exit code 0."
+    },
+    "VAL-FOUND-011": {
+      "status": "pass",
+      "evidence": "Suite 'SurveyMetadata' passed — test roundTrip() encodes SurveyMetadata with buildingName, floorNumber, notes, decodes, asserts all fields match. nilFieldsRoundTrip() tests nil values. swift test exit code 0."
+    },
+    "VAL-FOUND-012": {
+      "status": "pass",
+      "evidence": "Suite 'CalibrationPoint' passed — test roundTrip() encodes two CalibrationPoint values with all fields (pixelX, pixelY, realWorldX, realWorldY), decodes, asserts equality. swift test exit code 0."
+    },
+    "VAL-FOUND-013": {
+      "status": "pass",
+      "evidence": "Suite 'Sendable Conformance' passed — test allTypesAreSendable() sends all 9 model types (SurveyProject, FloorPlan, MeasurementPoint, CalibrationPoint, WallSegment, SurveyMetadata, FloorPlanOrigin, SurveyMode, HeatmapVisualization) across Task.detached concurrency boundary under SWIFT_STRICT_CONCURRENCY=complete. Build succeeds (both targets confirmed). swift test exit code 0."
+    },
+    "VAL-FOUND-014": {
+      "status": "pass",
+      "evidence": "Source inspection of HeatmapModels.swift confirms: SurveyProject declares 'Sendable, Codable, Identifiable' with 'public let id: UUID'; FloorPlan declares 'Sendable, Codable, Identifiable' with 'public let id: UUID'; MeasurementPoint declares 'Sendable, Codable, Identifiable' with 'public let id: UUID'. Tests exercise encode/decode (suites SurveyProject, FloorPlan, MeasurementPoint all pass). Identifiable tests verify UUID id property."
+    },
+    "VAL-FOUND-047": {
+      "status": "pass",
+      "evidence": "Suite 'MeasurementPoint' passed — test normalizedCoordinates() creates point with floorPlanX=0.5, floorPlanY=0.5, asserts values in 0.0-1.0 range. MeasurementPoint doc comment states 'floorPlanX and floorPlanY are normalized to 0.0–1.0 range'. swift test exit code 0."
+    },
+    "VAL-FOUND-049": {
+      "status": "pass",
+      "evidence": "Suite 'FloorPlan' passed — test withWallsRoundTrip() encodes FloorPlan with two WallSegment entries (startX, startY, endX, endY, thickness), decodes, asserts wall count=2 and equality of both segments. Suite 'WallSegment' also passed with standalone roundTrip() test. swift test exit code 0."
+    },
+    "VAL-FOUND-050": {
+      "status": "pass",
+      "evidence": "WallSegment declared as 'public struct WallSegment: Sendable, Codable, Equatable' in HeatmapModels.swift. Included in Sendable Conformance test (allTypesAreSendable passes wall across concurrency boundary). Build succeeds under strict concurrency. swift test exit code 0."
+    }
+  },
+  "frictions": [],
+  "blockers": [],
+  "summary": "Tested 17 assertions: all 17 passed. All serialization round-trip tests pass, Sendable conformance verified under strict concurrency, Codable+Identifiable conformances confirmed by source inspection and unit tests, WallSegment and normalized coordinates tests pass."
+}

@@ -49,6 +49,7 @@ public struct WiFiInfo: Sendable, Equatable {
     public let band: WiFiBand?
     public let securityType: String?
     public let noiseLevel: Int?
+    public let linkSpeed: Double?
 
     public init(
         ssid: String,
@@ -59,7 +60,8 @@ public struct WiFiInfo: Sendable, Equatable {
         frequency: String? = nil,
         band: WiFiBand? = nil,
         securityType: String? = nil,
-        noiseLevel: Int? = nil
+        noiseLevel: Int? = nil,
+        linkSpeed: Double? = nil
     ) {
         self.ssid = ssid
         self.bssid = bssid
@@ -70,6 +72,7 @@ public struct WiFiInfo: Sendable, Equatable {
         self.band = band
         self.securityType = securityType
         self.noiseLevel = noiseLevel
+        self.linkSpeed = linkSpeed
     }
 
     public var signalQuality: SignalQuality {
@@ -96,7 +99,7 @@ public struct WiFiInfo: Sendable, Equatable {
 
 // MARK: - WiFiBand
 
-public enum WiFiBand: String, Sendable {
+public enum WiFiBand: String, Sendable, Codable, CaseIterable, Equatable {
     case band2_4GHz = "2.4 GHz"
     case band5GHz   = "5 GHz"
     case band6GHz   = "6 GHz"

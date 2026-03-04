@@ -1,0 +1,56 @@
+{
+  "featureId": "phase3-continuous-capture-pipeline",
+  "reviewedAt": "2026-03-04T13:30:00Z",
+  "commitId": "a16bce4",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "Solid implementation of the Phase 3 concurrent AR + Wi-Fi capture pipeline. The actor-based ContinuousCapturePipeline correctly implements adaptive rate logic (2Hz default, 0.5Hz when stationary >3s), spatial downsampling (max 1 point per 0.5m² grid cell with median RSSI), and pipeline synchronization (measurements tagged at poll time via position provider callback). The ViewModel manages AR session lifecycle with LiDAR gating, pause/resume/finish, and 5Hz status polling. The View provides proper AR camera feed with status overlays, scan controls, and a LiDAR-required fallback. The HeatmapDashboardView adds a properly LiDAR-gated entry point. Tests cover all pure logic paths thoroughly (49 tests). Two non-blocking issues found: misleading comment on O(n) rebuild and a design deviation from the spec's startContinuousMeasurement() requirement that is actually well-justified.",
+    "issues": [
+      {
+        "file": "NetMonitor-iOS/Services/AR/ContinuousCapturePipeline.swift",
+        "line": 275,
+        "severity": "non_blocking",
+        "description": "updateDownsampled(with:) comment says 'This is efficient because it only recalculates the cell that changed' but actually calls rebuildDownsampled() which rebuilds the entire downsampled set from all raw measurements. This is O(n) on every new measurement. For long scans (hundreds of measurements), this could become a performance concern. The comment is misleading — either implement true incremental cell updates (keep a Dict<GridCell, [PositionedMeasurement]> and only recompute the affected cell) or update the comment to reflect the actual O(n) behavior."
+      },
+      {
+        "file": "NetMonitor-iOS/Services/AR/ContinuousCapturePipeline.swift",
+        "line": 173,
+        "severity": "non_blocking",
+        "description": "The feature description specifies 'Wi-Fi polling at 2Hz (500ms) via WiFiMeasurementEngine.startContinuousMeasurement()' but the implementation uses a custom capture loop calling takeMeasurement() directly instead. This is actually a better design since startContinuousMeasurement() uses a fixed interval and doesn't support the adaptive rate requirement. The deviation is well-justified but should be documented in code comments to explain why startContinuousMeasurement() was not used."
+      },
+      {
+        "file": "NetMonitor-iOS/ViewModels/ContinuousScanViewModel.swift",
+        "line": 66,
+        "severity": "non_blocking",
+        "description": "coveragePercentage hardcodes a 25m² estimated room area. This produces meaningless percentages for rooms of significantly different sizes. Consider documenting this more prominently as a rough estimate or deferring to a real floor plan area when one becomes available from mesh data."
+      },
+      {
+        "file": "NetMonitor-iOS/ViewModels/ContinuousScanViewModel.swift",
+        "line": 235,
+        "severity": "non_blocking",
+        "description": "getCurrentARPosition() is marked 'nonisolated private' and uses 'await MainActor.run' to access sessionManager.arView.session.currentFrame. This is correct for cross-actor calling from the pipeline, but the function could benefit from a comment explaining why it's nonisolated (to allow the pipeline actor to call it without MainActor isolation)."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "conventions",
+      "observation": "The ContinuousCapturePipeline is placed in NetMonitor-iOS/Services/AR/ which matches the architecture.md table showing 'iOS AR Services' at that path. However, architecture.md lists it as 'NetMonitor-iOS/Services/AR/ (or Platform/AR/)' — the ambiguity is resolved here in favor of Services/AR/, which should be explicitly noted as the canonical location for AR pipeline logic (vs Platform/ for simpler service wrappers).",
+      "evidence": ".factory/library/architecture.md shows 'iOS AR Services | NetMonitor-iOS/Services/AR/ (or Platform/AR/)'. This feature chose Services/AR/ matching the existing ARSessionManager, ARCoordinateTransform, and FloorPlanGenerationPipeline. Future workers should follow this pattern."
+    },
+    {
+      "area": "skills",
+      "observation": "Worker skill feedback suggests documenting the mac-mini git HTTPS auth issue and rsync workaround in the ios-ui-worker skill. This issue is already documented in the mission AGENTS.md under 'Known Pre-Existing Issues' but not in the skill file itself. Workers encounter this repeatedly when trying to run remote tests.",
+      "evidence": "Handoff skillFeedback.suggestedChanges: 'The ios-ui-worker skill could mention the known mac-mini git HTTPS auth issue and suggest rsync as a workaround for syncing files before running remote tests'. The issue is documented in mission AGENTS.md but not in .factory/skills/ios-ui-worker/SKILL.md."
+    },
+    {
+      "area": "conventions",
+      "observation": "The implementation uses Logger.heatmap for logging in the ViewModel (ContinuousScanViewModel.swift lines 162, 173, 185, 200, 210) but not in the pipeline actor (ContinuousCapturePipeline.swift imports os but has no Logger calls). The pipeline's captureLoop is where most operational activity occurs — measurement failures, motion state transitions, and position provider returns would benefit from debug logging for field diagnostics.",
+      "evidence": "ContinuousCapturePipeline.swift imports os (line 4) but has zero Logger calls. ContinuousScanViewModel.swift has 5 Logger.heatmap calls. Pipeline failures (nil position, measurement errors) are silently swallowed in the captureLoop."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "PASS. The Phase 3 continuous capture pipeline is well-implemented with correct actor-based concurrency, proper adaptive rate logic, spatial downsampling with median RSSI, and pipeline synchronization at poll time. All 7 expected behaviors from the feature spec are covered. The 49 unit tests provide thorough coverage of all pure logic (adaptive rate boundary conditions, grid cell computation, downsampling, position tagging, pipeline state, motion state, ViewModel initialization). Four non-blocking issues found: (1) misleading O(n) rebuild comment, (2) undocumented deviation from startContinuousMeasurement() spec, (3) hardcoded 25m² coverage estimate, (4) missing nonisolated rationale comment. The code follows project conventions (Swift 6 strict concurrency, @MainActor @Observable ViewModel, actor for pipeline, liquid glass UI theme, accessibility identifiers, Logger.heatmap). The worker followed the skill procedure correctly including TDD approach and full verification chain."
+}

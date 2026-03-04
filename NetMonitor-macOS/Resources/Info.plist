@@ -6,6 +6,21 @@
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
 	<string>NetMonitor Pro</string>
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>NetMonitor Survey Project</string>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>LSHandlerRank</key>
+			<string>Owner</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>com.netmonitor.survey</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -59,8 +74,6 @@
 		<string>_sonos._tcp</string>
 		<string>_workstation._tcp</string>
 	</array>
-	<key>NSCameraUsageDescription</key>
-	<string>NetMonitor Pro uses your camera to scan room layouts for WiFi heatmap surveys.</string>
 	<key>NSHighResolutionCapable</key>
 	<true/>
 	<key>NSHumanReadableCopyright</key>
@@ -69,5 +82,25 @@
 	<string>NetMonitor Pro scans your local network to discover devices, services, and the iOS companion app.</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
+	<key>UTExportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>com.apple.package</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>NetMonitor Survey Project</string>
+			<key>UTTypeIdentifier</key>
+			<string>com.netmonitor.survey</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>netmonsurvey</string>
+				</array>
+			</dict>
+		</dict>
+	</array>
 </dict>
 </plist>
