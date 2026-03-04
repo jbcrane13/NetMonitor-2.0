@@ -26,7 +26,13 @@ Architectural decisions, patterns discovered, and design rationale.
 
 ### Color Schemes
 - **Phase 1/2 (default)**: green (>=-50 dBm) → yellow (-50 to -70) → red (<=-70)
-- **Phase 3 (WiFiman)**: blue (-30 to -50) → green (-50 to -60) → yellow (-60 to -70) → orange (-70 to -80) → red (-80 to -90+)
+- **Phase 3 (WiFiman)**: Supports all 5 visualization types with per-visualization normalization ranges:
+  - signalStrength: -30 to -90 dBm
+  - signalToNoise: 0 to 50 dB
+  - downloadSpeed: 0 to 200 Mbps
+  - uploadSpeed: 0 to 200 Mbps
+  - latency: 0 to 100 ms (inverted — low is good)
+  - Color gradient: blue → cyan → green → yellow → orange → red
 
 ### File Format (.netmonsurvey)
 - Directory bundle (UTI: com.netmonitor.survey)
@@ -47,6 +53,18 @@ Architectural decisions, patterns discovered, and design rationale.
 - Default opacity: 70%
 - Minimum points: 3
 - Performance: <500ms for 50 points, <2s for 200 points
+
+### Known Data Gap: WiFiInfo.linkSpeed
+
+WiFiInfo model in NetMonitorCore lacks a `linkSpeed` field. MacWiFiInfoService reads `transmitRate()` from CoreWLAN but discards it because WiFiInfo has no field for it. WiFiMeasurementEngine.buildMeasurementPoint() consequently sets `linkSpeed: nil` for all measurements. Fixing this requires adding `linkSpeed: Double?` to the WiFiInfo struct in NetMonitorCore.
+
+### macOS ViewModel Size
+
+HeatmapSurveyViewModel.swift has grown to ~950 lines across Phase 1 macOS implementation, triggering SwiftLint's file_length warning. Future features should consider splitting into focused extensions (e.g., `+Undo.swift`, `+Export.swift`, `+Calibration.swift`).
+
+### Logger Category: Heatmap
+
+A `Logger.heatmap` category exists in `NetMonitor-macOS/Platform/Logging.swift` for heatmap feature logging. Some early features used `Logger.app` instead — new code should use `Logger.heatmap`.
 
 ### Concurrency Pattern: nonisolated(unsafe) for Non-Sendable Protocol Storage
 

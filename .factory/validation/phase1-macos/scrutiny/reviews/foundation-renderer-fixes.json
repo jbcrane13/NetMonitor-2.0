@@ -1,0 +1,51 @@
+{
+  "featureId": "foundation-renderer-fixes",
+  "reviewedAt": "2026-03-04T06:15:00Z",
+  "commitId": "b5becad17099f19767da62e2e53287f79edec832",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "All 5 scrutiny-discovered issues addressed correctly across 3 source files, 3 test files, and 1 binary deletion. The premultiplied alpha fix correctly multiplies RGB by opacity before writing to the pixel buffer, matching CGImageAlphaInfo.premultipliedLast expectations. WiFiman normalization was cleanly refactored into normalizeWifimanValue() and wifimanGradient() with sensible per-visualization ranges. SurveyFileError now conforms to LocalizedError with errorDescription and failureReason. Frequency parsing handles MHz integer, suffixed, and unparseable formats gracefully. Word temp file removed. 9 new tests cover all changes with reasonable assertions.",
+    "issues": [
+      {
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Services/Heatmap/HeatmapRenderer.swift",
+        "line": 155,
+        "severity": "non_blocking",
+        "description": "alphaFraction is a trivial alias for opacity (line 155: `let alphaFraction = opacity`). Not harmful, but adds an unnecessary local binding — the name `opacity` is already clear in context."
+      },
+      {
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Services/Heatmap/SurveyFileManager.swift",
+        "line": 42,
+        "severity": "non_blocking",
+        "description": "SurveyFileError uses the standard LocalizedError property `failureReason` while the project's canonical NetworkError type uses a custom `userFacingMessage` property. Both work correctly but the patterns are slightly inconsistent. The worker's approach (standard failureReason) is arguably better since it's a protocol-defined property. Not a bug, just a style divergence."
+      },
+      {
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Services/Heatmap/HeatmapRenderer.swift",
+        "line": 361,
+        "severity": "non_blocking",
+        "description": "Normalization ranges for WiFiman and standard schemes share some identical values (SNR 0-50, download/upload 0-200, latency 0-100 inverted) but are defined in two separate switch statements. Could be consolidated into shared constants, but the current duplication is small and tolerable."
+      },
+      {
+        "file": "Packages/NetMonitorCore/Tests/NetMonitorCoreTests/HeatmapRendererTests.swift",
+        "line": 415,
+        "severity": "non_blocking",
+        "description": "Premultiplied alpha test uses `r <= 130` as threshold for 50% opacity check. The theoretical max premultiplied value at 100% color * 50% opacity is 127.5 → UInt8(127 or 128). Tolerance of 130 is acceptable but slightly loose — a tighter bound like 129 would still pass and be more precise."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "conventions",
+      "observation": "architecture.md Color Schemes section describes WiFiman as signal-strength-only ('blue (-30 to -50) → ... → red (-80 to -90+)'), but the implementation now has per-visualization normalization for all 5 visualization types (signalStrength, SNR, downloadSpeed, uploadSpeed, latency). The documentation should be updated to reflect per-visualization WiFiman ranges.",
+      "evidence": ".factory/library/architecture.md 'Color Schemes' section vs HeatmapRenderer.swift normalizeWifimanValue() at line 355 which handles all 5 HeatmapVisualization cases"
+    },
+    {
+      "area": "skills",
+      "observation": "Worker's skill feedback notes that the TDD 'write tests first' step in swift-core-worker doesn't fit fix/refinement features where existing tests already cover the behavior. The worker modified source first then added/updated tests — a reasonable deviation for this class of work. The skill could note that for fix features, modifying source first then adding tests is acceptable.",
+      "evidence": "Handoff skillFeedback.suggestedChanges: 'The swift-core-worker skill says to write tests first (TDD red phase), but for a fix/refinement feature where existing tests already cover the behavior and we're modifying existing code, it's more natural to modify source first then update/add tests.'"
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "Clean pass. All 5 scrutiny issues resolved: premultiplied alpha compositing correct, WiFiman per-visualization normalization added, SurveyFileError conforms to LocalizedError, frequency parsed from WiFiInfo, Word temp file deleted. 9 new tests added (1029 total), all passing. 4 non-blocking style observations noted. Two shared state observations: architecture.md color scheme docs are stale, and swift-core-worker TDD step needs a fix-feature exception."
+}
