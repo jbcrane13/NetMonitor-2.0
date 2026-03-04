@@ -58,6 +58,7 @@ final class MacWiFiInfoService: WiFiInfoServiceProtocol {
         let frequency: String? = channelNumber.map { String(Self.channelToFrequencyMHz($0)) }
 
         let transmitRate = iface.transmitRate()
+        let linkSpeed: Double? = transmitRate > 0 ? transmitRate : nil
 
         return WiFiInfo(
             ssid: iface.ssid() ?? "Unknown",
@@ -67,7 +68,8 @@ final class MacWiFiInfoService: WiFiInfoServiceProtocol {
             channel: channelNumber,
             frequency: frequency,
             band: band,
-            noiseLevel: iface.noiseMeasurement()
+            noiseLevel: iface.noiseMeasurement(),
+            linkSpeed: linkSpeed
         )
     }
 

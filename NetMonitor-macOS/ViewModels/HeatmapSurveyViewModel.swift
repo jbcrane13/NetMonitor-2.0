@@ -407,6 +407,13 @@ final class HeatmapSurveyViewModel {
             )
         }
 
+        // Detect Wi-Fi disconnection: nil SSID combined with default -100 RSSI
+        // indicates no Wi-Fi connection. Show an error instead of adding garbage data.
+        if point.ssid == nil && point.rssi <= -100 {
+            showError("Wi-Fi is not connected. Connect to a Wi-Fi network before measuring.")
+            return
+        }
+
         currentProject.measurementPoints.append(point)
         project = currentProject
 

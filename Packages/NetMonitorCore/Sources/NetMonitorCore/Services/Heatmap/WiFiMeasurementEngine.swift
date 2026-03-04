@@ -213,6 +213,9 @@ public actor WiFiMeasurementEngine: HeatmapServiceProtocol {
         // Map frequency from WiFiInfo (String?, e.g. "2437" or "5 GHz") to Int? (MHz).
         let frequency: Int? = wifiInfo?.frequency.flatMap { Self.parseFrequencyMHz($0) }
 
+        // Map link speed from Double? (Mbps) to Int? for the measurement point.
+        let linkSpeed: Int? = wifiInfo?.linkSpeed.map { Int($0) }
+
         return MeasurementPoint(
             floorPlanX: floorPlanX,
             floorPlanY: floorPlanY,
@@ -224,7 +227,7 @@ public actor WiFiMeasurementEngine: HeatmapServiceProtocol {
             channel: wifiInfo?.channel,
             frequency: frequency,
             band: wifiInfo?.band,
-            linkSpeed: nil,
+            linkSpeed: linkSpeed,
             downloadSpeed: downloadSpeed,
             uploadSpeed: uploadSpeed,
             latency: latency,

@@ -111,7 +111,8 @@ private func makeTestWiFiInfo(
     rssi: Int = -55,
     channel: Int = 6,
     band: WiFiBand = .band2_4GHz,
-    noiseLevel: Int? = -90
+    noiseLevel: Int? = -90,
+    linkSpeed: Double? = nil
 ) -> WiFiInfo {
     WiFiInfo(
         ssid: ssid,
@@ -122,7 +123,8 @@ private func makeTestWiFiInfo(
         frequency: nil,
         band: band,
         securityType: "WPA2",
-        noiseLevel: noiseLevel
+        noiseLevel: noiseLevel,
+        linkSpeed: linkSpeed
     )
 }
 
@@ -320,6 +322,42 @@ struct WiFiMeasurementEngineTests {
         let point = await engine.takeMeasurement(at: 0.5, floorPlanY: 0.5)
 
         #expect(point.snr == nil)
+    }
+
+    @Test("takeMeasurement maps linkSpeed from WiFiInfo to MeasurementPoint")
+    func passiveMeasurementMapsLinkSpeed() async {
+        let wifiInfo = makeTestWiFiInfo(rssi: -50, linkSpeed: 866.7)
+        let wifiService = await MockWiFiInfoService(stubbedWiFiInfo: wifiInfo)
+        let speedTestService = MockSpeedTestService()
+        let pingService = MockPingService()
+
+        let engine = WiFiMeasurementEngine(
+            wifiService: wifiService,
+            speedTestService: speedTestService,
+            pingService: pingService
+        )
+
+        let point = await engine.takeMeasurement(at: 0.5, floorPlanY: 0.5)
+
+        #expect(point.linkSpeed == 866, "Link speed should be mapped from WiFiInfo Double to Int")
+    }
+
+    @Test("takeMeasurement returns nil linkSpeed when WiFiInfo.linkSpeed is nil")
+    func passiveMeasurementNilLinkSpeed() async {
+        let wifiInfo = makeTestWiFiInfo(rssi: -50, linkSpeed: nil)
+        let wifiService = await MockWiFiInfoService(stubbedWiFiInfo: wifiInfo)
+        let speedTestService = MockSpeedTestService()
+        let pingService = MockPingService()
+
+        let engine = WiFiMeasurementEngine(
+            wifiService: wifiService,
+            speedTestService: speedTestService,
+            pingService: pingService
+        )
+
+        let point = await engine.takeMeasurement(at: 0.5, floorPlanY: 0.5)
+
+        #expect(point.linkSpeed == nil, "Link speed should be nil when WiFiInfo has no link speed")
     }
 
     // MARK: - Active Measurement (takeActiveMeasurement)

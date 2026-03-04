@@ -591,6 +591,67 @@ struct HeatmapSurveyViewModelTests {
         #expect(vm.isMeasuring == false)
     }
 
+    // MARK: - Wi-Fi Disconnect Detection (VAL-MAC-063)
+
+    @Test func disconnectedWiFiShowsErrorAndDoesNotAddPoint() async {
+        let (vm, engine, _) = makeVMWithFloorPlan()
+
+        // Simulate Wi-Fi disconnected: nil SSID and default -100 RSSI
+        engine.mockSSID = nil
+        engine.mockBSSID = nil
+        engine.setMockRSSI(-100)
+        engine.mockNoiseFloor = nil
+
+        await vm.takeMeasurement(at: CGPoint(x: 0.5, y: 0.5))
+
+        // Point should NOT have been added
+        #expect(vm.project?.measurementPoints.count == 0)
+        // Error should be shown
+        #expect(vm.showingError == true)
+        #expect(vm.errorMessage?.contains("Wi-Fi is not connected") == true)
+    }
+
+    @Test func disconnectedWiFiWithWeakerRSSIAlsoDetected() async {
+        let (vm, engine, _) = makeVMWithFloorPlan()
+
+        // RSSI below -100 should also trigger disconnect detection
+        engine.mockSSID = nil
+        engine.mockBSSID = nil
+        engine.setMockRSSI(-110)
+        engine.mockNoiseFloor = nil
+
+        await vm.takeMeasurement(at: CGPoint(x: 0.5, y: 0.5))
+
+        #expect(vm.project?.measurementPoints.count == 0)
+        #expect(vm.showingError == true)
+    }
+
+    @Test func connectedWiFiWithSSIDAddsPoint() async {
+        let (vm, engine, _) = makeVMWithFloorPlan()
+
+        // Connected WiFi with valid SSID — should add point normally
+        engine.mockSSID = "MyNetwork"
+        engine.setMockRSSI(-65)
+
+        await vm.takeMeasurement(at: CGPoint(x: 0.5, y: 0.5))
+
+        #expect(vm.project?.measurementPoints.count == 1)
+        #expect(vm.showingError == false)
+    }
+
+    @Test func weakSignalWithSSIDStillAddsPoint() async {
+        let (vm, engine, _) = makeVMWithFloorPlan()
+
+        // Very weak signal but still connected (has SSID) — should add point
+        engine.mockSSID = "WeakNetwork"
+        engine.setMockRSSI(-95)
+
+        await vm.takeMeasurement(at: CGPoint(x: 0.5, y: 0.5))
+
+        #expect(vm.project?.measurementPoints.count == 1)
+        #expect(vm.showingError == false)
+    }
+
     // MARK: - Visualization Type
 
     @Test func defaultVisualizationTypeIsSignalStrength() {
