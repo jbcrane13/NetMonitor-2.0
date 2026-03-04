@@ -8,6 +8,8 @@ import NetMonitorCore
 /// and a button to create a new project.
 struct HeatmapDashboardView: View {
     @State private var viewModel = HeatmapDashboardViewModel()
+    @State private var activeSurveyVM: HeatmapSurveyViewModel?
+    @State private var showSurvey = false
 
     var body: some View {
         ScrollView {
@@ -37,10 +39,15 @@ struct HeatmapDashboardView: View {
         }
         .sheet(isPresented: $viewModel.showNewProjectSheet) {
             NavigationStack {
-                NewProjectView { _ in
+                NewProjectView { project in
                     viewModel.showNewProjectSheet = false
-                    viewModel.loadProjects()
+                    openSurvey(for: project)
                 }
+            }
+        }
+        .navigationDestination(isPresented: $showSurvey) {
+            if let surveyVM = activeSurveyVM {
+                HeatmapSurveyView(viewModel: surveyVM)
             }
         }
         .alert("Error", isPresented: .init(
@@ -56,6 +63,42 @@ struct HeatmapDashboardView: View {
             }
         }
         .accessibilityIdentifier("heatmap_screen_dashboard")
+    }
+
+    // MARK: - Navigation Helpers
+
+    private func openSurvey(for project: SurveyProject) {
+        let wifiService = WiFiInfoService()
+        let engine = WiFiMeasurementEngine(
+            wifiService: wifiService,
+            speedTestService: NoOpSpeedTestService(),
+            pingService: NoOpPingService()
+        )
+        activeSurveyVM = HeatmapSurveyViewModel(
+            project: project,
+            measurementEngine: engine,
+            wifiService: wifiService
+        )
+        showSurvey = true
+    }
+
+    private func openSavedProject(_ summary: HeatmapProjectSummary) {
+        let wifiService = WiFiInfoService()
+        let engine = WiFiMeasurementEngine(
+            wifiService: wifiService,
+            speedTestService: NoOpSpeedTestService(),
+            pingService: NoOpPingService()
+        )
+        if let vm = HeatmapSurveyViewModel.loadProject(
+            from: summary.bundleURL,
+            measurementEngine: engine,
+            wifiService: wifiService
+        ) {
+            activeSurveyVM = vm
+            showSurvey = true
+        } else {
+            viewModel.errorMessage = "Failed to load project \"\(summary.name)\"."
+        }
     }
 
     // MARK: - Header Section
@@ -164,9 +207,14 @@ struct HeatmapDashboardView: View {
     private var projectListSection: some View {
         VStack(spacing: Theme.Layout.itemSpacing) {
             ForEach(viewModel.projects) { project in
-                ProjectCard(project: project, onDelete: {
-                    viewModel.deleteProject(project)
-                })
+                Button {
+                    openSavedProject(project)
+                } label: {
+                    ProjectCard(project: project, onDelete: {
+                        viewModel.deleteProject(project)
+                    })
+                }
+                .buttonStyle(.plain)
             }
         }
         .accessibilityIdentifier("heatmap_projectList")

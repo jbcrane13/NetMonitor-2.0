@@ -73,4 +73,15 @@ public enum HeatmapVisualization: String, Sendable, Codable, CaseIterable, Equat
     case downloadSpeed = "downloadSpeed"
     case uploadSpeed = "uploadSpeed"
     case latency = "latency"
+
+    /// Human-readable display name for the visualization type.
+    public var displayName: String {
+        switch self {
+        case .signalStrength: "Signal Strength"
+        case .signalToNoise: "Signal-to-Noise"
+        case .downloadSpeed: "Download Speed"
+        case .uploadSpeed: "Upload Speed"
+        case .latency: "Latency"
+        }
+    }
 }
