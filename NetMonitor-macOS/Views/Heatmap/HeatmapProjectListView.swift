@@ -2,41 +2,22 @@ import SwiftUI
 
 // MARK: - HeatmapProjectListView
 
-/// Displays the list of saved heatmap survey projects.
-/// When no projects exist, shows an empty state with import guidance.
+/// Entry point for the heatmap feature in the macOS sidebar.
+/// Creates a HeatmapSurveyViewModel and hosts the survey view.
+/// Future: will show a list of saved projects; currently goes straight to survey.
 struct HeatmapProjectListView: View {
+    @State private var viewModel = HeatmapSurveyViewModel()
+
     var body: some View {
-        emptyStateView
+        HeatmapSurveyView(viewModel: viewModel)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .accessibilityIdentifier("heatmap_project_list")
-    }
-
-    // MARK: - Empty State
-
-    private var emptyStateView: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "chart.bar.fill")
-                .font(.system(size: 48))
-                .foregroundStyle(.secondary)
-                .accessibilityIdentifier("heatmap_empty_icon")
-
-            Text("Wi-Fi Heatmap")
-                .font(.title2)
-                .fontWeight(.semibold)
-                .accessibilityIdentifier("heatmap_empty_title")
-
-            Text("Import a floor plan to start a Wi-Fi survey")
-                .font(.body)
-                .foregroundStyle(.secondary)
-                .accessibilityIdentifier("heatmap_empty_message")
-        }
-        .padding()
     }
 }
 
 #if DEBUG
 #Preview {
     HeatmapProjectListView()
-        .frame(width: 600, height: 400)
+        .frame(width: 800, height: 600)
 }
 #endif

@@ -15,4 +15,5 @@ extension Logger {
     // periphery:ignore
     static let network = Logger(subsystem: "com.netmonitor", category: "network")
     static let app = Logger(subsystem: "com.netmonitor", category: "app")
+    static let heatmap = Logger(subsystem: "com.netmonitor", category: "heatmap")
 }
