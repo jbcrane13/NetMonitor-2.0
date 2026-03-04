@@ -75,6 +75,13 @@ final class ARSessionManager: NSObject {
     var onStateChange: ((ARSessionState) -> Void)?
     var onSurfaceDetected: (([DetectedSurface]) -> Void)?
 
+    #if os(iOS) && !targetEnvironment(simulator)
+    /// Callback for mesh anchor updates (LiDAR).
+    var onMeshAnchorUpdated: ((ARMeshAnchor) -> Void)?
+    /// Callback for plane anchor updates (non-LiDAR).
+    var onPlaneAnchorUpdated: ((ARPlaneAnchor) -> Void)?
+    #endif
+
     // MARK: - AR Components
 
     #if os(iOS) && !targetEnvironment(simulator)
@@ -300,16 +307,30 @@ extension ARSessionManager: ARSessionDelegate {
     nonisolated func session(_ session: ARSession, didAdd anchors: [ARAnchor]) {
         Task { @MainActor in
             for anchor in anchors {
-                guard let planeAnchor = anchor as? ARPlaneAnchor else { continue }
-                let anchorEntity = AnchorEntity(anchor: planeAnchor)
-                addSurfaceVisualization(for: planeAnchor, node: anchorEntity)
-                arView.scene.addAnchor(anchorEntity)
+                if let planeAnchor = anchor as? ARPlaneAnchor {
+                    let anchorEntity = AnchorEntity(anchor: planeAnchor)
+                    addSurfaceVisualization(for: planeAnchor, node: anchorEntity)
+                    arView.scene.addAnchor(anchorEntity)
+                    onPlaneAnchorUpdated?(planeAnchor)
+                }
+                if let meshAnchor = anchor as? ARMeshAnchor {
+                    onMeshAnchorUpdated?(meshAnchor)
+                }
             }
         }
     }
 
     nonisolated func session(_ session: ARSession, didUpdate anchors: [ARAnchor]) {
-        // Surface updates are handled by ARKit's built-in plane merging
+        Task { @MainActor in
+            for anchor in anchors {
+                if let meshAnchor = anchor as? ARMeshAnchor {
+                    onMeshAnchorUpdated?(meshAnchor)
+                }
+                if let planeAnchor = anchor as? ARPlaneAnchor {
+                    onPlaneAnchorUpdated?(planeAnchor)
+                }
+            }
+        }
     }
 
     nonisolated func session(_ session: ARSession, didFailWithError error: Error) {

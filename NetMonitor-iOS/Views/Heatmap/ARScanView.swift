@@ -69,41 +69,96 @@ struct ARScanView: View {
 
     private var arContentView: some View {
         ZStack {
-            // AR Camera Feed
-            arCameraView
-                .ignoresSafeArea()
+            if viewModel.generationVM.isGenerating {
+                // Floor plan generation in progress
+                generatingView
+            } else {
+                // AR Camera Feed
+                arCameraView
+                    .ignoresSafeArea()
 
-            // Overlay content
-            VStack {
-                // Instruction overlay at top
-                if viewModel.isScanning || viewModel.sessionState == .idle {
-                    scanInstructionOverlay
-                        .padding(.top, 8)
-                }
-
-                Spacer()
-
-                // Surface detection status
-                if viewModel.isScanning {
-                    surfaceDetectionStatus
-                        .padding(.bottom, 8)
-                }
-
-                // Control buttons
-                scanControlButtons
-                    .padding(.bottom, 32)
-            }
-
-            // Non-LiDAR guidance banner
-            if let guidance = viewModel.nonLiDARGuidanceText, viewModel.isScanning {
+                // Overlay content
                 VStack {
+                    // Instruction overlay at top
+                    if viewModel.isScanning || viewModel.sessionState == .idle {
+                        scanInstructionOverlay
+                            .padding(.top, 8)
+                    }
+
                     Spacer()
-                        .frame(height: 80)
-                    nonLiDARGuidanceBanner(guidance)
-                    Spacer()
+
+                    // Real-time 2D floor plan preview (bottom-left)
+                    if viewModel.isScanning {
+                        HStack {
+                            FloorPlanPreviewView(
+                                previewImage: viewModel.generationVM.previewImage,
+                                coverageInfo: viewModel.generationVM.coverageInfo,
+                                vertexCount: viewModel.isLiDAR
+                                    ? viewModel.generationVM.vertexCount
+                                    : viewModel.generationVM.planeCount,
+                                isLiDAR: viewModel.isLiDAR
+                            )
+                            .frame(maxWidth: 180)
+
+                            Spacer()
+                        }
+                        .padding(.horizontal, Theme.Layout.screenPadding)
+                        .padding(.bottom, 4)
+                    }
+
+                    // Surface detection status
+                    if viewModel.isScanning {
+                        surfaceDetectionStatus
+                            .padding(.bottom, 8)
+                    }
+
+                    // Control buttons
+                    scanControlButtons
+                        .padding(.bottom, 32)
+                }
+
+                // Non-LiDAR guidance banner
+                if let guidance = viewModel.nonLiDARGuidanceText, viewModel.isScanning {
+                    VStack {
+                        Spacer()
+                            .frame(height: 80)
+                        nonLiDARGuidanceBanner(guidance)
+                        Spacer()
+                    }
                 }
             }
         }
+    }
+
+    // MARK: - Generating View
+
+    private var generatingView: some View {
+        ZStack {
+            Theme.Colors.backgroundBase
+                .ignoresSafeArea()
+
+            VStack(spacing: Theme.Layout.sectionSpacing) {
+                Spacer()
+
+                Image(systemName: "map.fill")
+                    .font(.system(size: 56))
+                    .foregroundStyle(Theme.Colors.accent.opacity(0.7))
+
+                Text("Generating Floor Plan")
+                    .font(.title2)
+                    .fontWeight(.bold)
+                    .foregroundStyle(Theme.Colors.textPrimary)
+
+                GenerationProgressView(
+                    progress: viewModel.generationVM.progress,
+                    isGenerating: viewModel.generationVM.isGenerating
+                )
+                .padding(.horizontal, 32)
+
+                Spacer()
+            }
+        }
+        .accessibilityIdentifier("arScan_generatingView")
     }
 
     // MARK: - AR Camera Feed
@@ -262,27 +317,51 @@ struct ARScanView: View {
     private var scanControlButtons: some View {
         HStack(spacing: 16) {
             if viewModel.isScanning {
-                // Stop button
+                // Cancel button
                 Button {
                     viewModel.stopScan()
                     dismiss()
                 } label: {
                     HStack(spacing: 8) {
-                        Image(systemName: "stop.fill")
+                        Image(systemName: "xmark")
                             .font(.body.weight(.semibold))
-                        Text("Stop Scan")
+                        Text("Cancel")
                             .fontWeight(.semibold)
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 14)
+                    .background(
+                        RoundedRectangle(cornerRadius: Theme.Layout.buttonCornerRadius)
+                            .fill(Theme.Colors.error.opacity(0.8))
+                    )
+                }
+                .accessibilityIdentifier("arScan_button_stop")
+
+                // Done Scanning button
+                Button {
+                    Task {
+                        await viewModel.finishScan()
+                    }
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.body.weight(.semibold))
+                        Text("Done Scanning")
+                            .fontWeight(.bold)
                     }
                     .foregroundStyle(.white)
                     .padding(.horizontal, 24)
                     .padding(.vertical, 14)
                     .background(
                         RoundedRectangle(cornerRadius: Theme.Layout.buttonCornerRadius)
-                            .fill(Theme.Colors.error)
+                            .fill(viewModel.generationVM.hasEnoughData
+                                ? Theme.Colors.success : Theme.Colors.success.opacity(0.4))
                     )
                 }
-                .accessibilityIdentifier("arScan_button_stop")
-            } else {
+                .disabled(!viewModel.generationVM.hasEnoughData)
+                .accessibilityIdentifier("arScan_button_doneScan")
+            } else if !viewModel.generationVM.isGenerating {
                 // Start button
                 Button {
                     Task {

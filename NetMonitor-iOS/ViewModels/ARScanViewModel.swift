@@ -1,4 +1,6 @@
+import CoreGraphics
 import Foundation
+import NetMonitorCore
 import os
 import SwiftUI
 
@@ -7,7 +9,8 @@ import SwiftUI
 /// ViewModel for the Phase 2 AR-Assisted Map Creation scan view.
 ///
 /// Manages AR session lifecycle, device capability detection, camera permission,
-/// and surface detection state. Provides UI state for the scan instruction overlay,
+/// surface detection state, and floor plan generation pipeline. Provides UI state
+/// for the scan instruction overlay, real-time 2D preview, coverage tracking,
 /// non-LiDAR guidance, and error handling.
 @MainActor
 @Observable
@@ -26,6 +29,15 @@ final class ARScanViewModel {
 
     /// Detected surfaces during scanning.
     private(set) var detectedSurfaces: [DetectedSurface] = []
+
+    /// Floor plan generation ViewModel.
+    private(set) var generationVM: FloorPlanGenerationViewModel
+
+    /// Whether the scan is complete and ready to transition.
+    private(set) var isScanComplete = false
+
+    /// Generated SurveyProject (set after "Done Scanning").
+    private(set) var generatedProject: SurveyProject?
 
     /// Count of detected wall surfaces.
     var wallCount: Int {
@@ -109,6 +121,7 @@ final class ARScanViewModel {
         self.sessionManager = manager
         self.deviceCapability = manager.deviceCapability
         self.cameraPermission = ARSessionManager.cameraAuthorizationStatus()
+        self.generationVM = FloorPlanGenerationViewModel(isLiDAR: manager.deviceCapability == .lidar)
 
         manager.onStateChange = { [weak self] state in
             self?.sessionState = state
@@ -117,6 +130,23 @@ final class ARScanViewModel {
         manager.onSurfaceDetected = { [weak self] surfaces in
             self?.detectedSurfaces = surfaces
         }
+
+        setupMeshProcessing()
+    }
+
+    // MARK: - Mesh Processing Setup
+
+    /// Configures the AR session manager to feed mesh/plane data to the generation pipeline.
+    private func setupMeshProcessing() {
+        #if os(iOS) && !targetEnvironment(simulator)
+        sessionManager.onMeshAnchorUpdated = { [weak self] anchor in
+            self?.generationVM.processMeshAnchor(anchor)
+        }
+
+        sessionManager.onPlaneAnchorUpdated = { [weak self] anchor in
+            self?.generationVM.processPlaneAnchor(anchor)
+        }
+        #endif
     }
 
     // MARK: - Actions
@@ -124,6 +154,8 @@ final class ARScanViewModel {
     /// Starts the AR scanning session after checking camera permission.
     func startScan() async {
         errorMessage = nil
+        isScanComplete = false
+        generatedProject = nil
 
         // Check camera permission
         let permission = ARSessionManager.cameraAuthorizationStatus()
@@ -147,6 +179,9 @@ final class ARScanViewModel {
             return
         }
 
+        // Reset generation state for new scan
+        generationVM.reset()
+
         // Start session
         sessionManager.startSession()
         hasStartedScanning = true
@@ -161,12 +196,34 @@ final class ARScanViewModel {
         }
     }
 
-    /// Stops the AR scanning session.
+    /// Completes the scan and generates the floor plan.
+    /// This is the "Done Scanning" action.
+    func finishScan() async {
+        // Pause AR session while generating
+        sessionManager.pauseSession()
+
+        // Generate floor plan
+        await generationVM.generateFloorPlan()
+
+        if let project = generationVM.createSurveyProject(name: "AR Scan") {
+            generatedProject = project
+            isScanComplete = true
+            Logger.heatmap.info("AR scan complete, project created")
+        } else {
+            errorMessage = generationVM.errorMessage
+                ?? "Failed to generate floor plan. Continue scanning to capture more walls."
+            // Resume session so user can continue scanning
+            sessionManager.startSession()
+        }
+    }
+
+    /// Stops the AR scanning session and cleans up resources.
     func stopScan() {
         instructionDismissTask?.cancel()
         instructionDismissTask = nil
         sessionManager.stopSession()
         hasStartedScanning = false
+        generationVM.discardRawMeshData()
     }
 
     /// Pauses the AR scanning session.
