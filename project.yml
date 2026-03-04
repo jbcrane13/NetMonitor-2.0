@@ -189,6 +189,8 @@ targets:
             UTTypeTagSpecification:
               public.filename-extension:
                 - netmonsurvey
+        UIFileSharingEnabled: true
+        LSSupportsOpeningDocumentsInPlace: true
         CFBundleDocumentTypes:
           - CFBundleTypeName: NetMonitor Survey Project
             CFBundleTypeRole: Editor

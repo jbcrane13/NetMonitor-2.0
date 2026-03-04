@@ -584,6 +584,47 @@ struct HeatmapRendererPerformanceTests {
         #expect(image != nil, "Should produce an image")
         #expect(elapsed < 2.0, "200 points on 200x200 should complete in <2s, took \(elapsed)s")
     }
+
+    // VAL-CROSS-005: IDW renders 2000 points on 200x200 grid in <5s
+    @Test func performance2000PointsSpatialIndex() {
+        let points = makeLargePointSet(count: 2000)
+        let start = CFAbsoluteTimeGetCurrent()
+        let image = HeatmapRenderer.render(
+            points: points,
+            floorPlanWidth: 200,
+            floorPlanHeight: 200,
+            visualization: .signalStrength
+        )
+        let elapsed = CFAbsoluteTimeGetCurrent() - start
+
+        #expect(image != nil, "Should produce an image for 2000 points")
+        #expect(elapsed < 5.0, "2000 points on 200x200 should complete in <5s, took \(String(format: "%.2f", elapsed))s")
+    }
+
+    /// Generates a larger, well-distributed set of points for spatial indexing tests.
+    private func makeLargePointSet(count: Int) -> [MeasurementPoint] {
+        // Distribute points across the floor plan using a grid + jitter pattern
+        let gridSide = Int(Double(count).squareRoot()) + 1
+        return (0 ..< count).map { i in
+            let row = i / gridSide
+            let col = i % gridSide
+            // Base position on grid, clamped to 0.01…0.99
+            let baseX = Double(col) / Double(gridSide)
+            let baseY = Double(row) / Double(gridSide)
+            // Deterministic jitter from index to spread points within cells
+            let jitterX = Double((i * 7 + 3) % 100) / 10000.0
+            let jitterY = Double((i * 13 + 7) % 100) / 10000.0
+            let x = min(max(baseX + jitterX, 0.01), 0.99)
+            let y = min(max(baseY + jitterY, 0.01), 0.99)
+            let rssi = -30 - (i % 70)
+            return MeasurementPoint(
+                timestamp: Date(timeIntervalSince1970: 1_700_000_000),
+                floorPlanX: x,
+                floorPlanY: y,
+                rssi: rssi
+            )
+        }
+    }
 }
 
 // MARK: - HeatmapRenderer Scale Bar Tests

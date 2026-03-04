@@ -54,6 +54,131 @@ public struct ScaleBarInfo: Sendable, Equatable {
     }
 }
 
+// MARK: - SpatialIndex
+
+/// Grid-based spatial index for efficient nearest-neighbor queries on normalized 0-1 space.
+///
+/// Divides the space into a grid of cells. Points are assigned to cells based on their
+/// (x, y) coordinates. For IDW queries, only points within a search radius (neighboring
+/// cells) are considered, dramatically reducing computation for large point sets (2000+).
+struct SpatialIndex: Sendable {
+    /// Number of cells along each axis.
+    let gridSize: Int
+    /// Search radius in normalized coordinates.
+    let searchRadius: Double
+    /// Flattened grid: `cells[row * gridSize + col]` holds indices into the original point array.
+    let cells: [[Int]]
+    /// The original point data for fast access.
+    let pointData: [(x: Double, y: Double, value: Double)]
+
+    /// Creates a spatial index from point data.
+    ///
+    /// - Parameters:
+    ///   - pointData: Array of (x, y, value) tuples in normalized 0-1 coordinates.
+    ///   - gridSize: Number of grid cells per axis (default chosen by point count).
+    ///   - searchRadius: Maximum distance to search for neighbors (default auto-computed).
+    init(
+        pointData: [(x: Double, y: Double, value: Double)],
+        gridSize: Int? = nil,
+        searchRadius: Double? = nil
+    ) {
+        let count = pointData.count
+        // Grid size: sqrt(count) clamped to 4…64.
+        let autoGrid = Swift.max(4, Swift.min(64, Int(Double(count).squareRoot())))
+        let gs = gridSize ?? autoGrid
+        self.gridSize = gs
+        self.pointData = pointData
+
+        // Search radius: default covers ~3 cells to balance accuracy vs speed.
+        let cellSize = 1.0 / Double(gs)
+        self.searchRadius = searchRadius ?? (cellSize * 3.0)
+
+        // Build the grid
+        var grid = [[Int]](repeating: [], count: gs * gs)
+        for (index, point) in pointData.enumerated() {
+            let col = Swift.min(Int(point.x * Double(gs)), gs - 1)
+            let row = Swift.min(Int(point.y * Double(gs)), gs - 1)
+            grid[row * gs + col].append(index)
+        }
+        self.cells = grid
+    }
+
+    /// Returns the IDW-interpolated value at the given normalized position.
+    ///
+    /// Only considers points within `searchRadius`. If no points are in range,
+    /// falls back to considering all points.
+    func interpolateIDW(atX x: Double, y: Double, power: Double) -> Double {
+        let cellSize = 1.0 / Double(gridSize)
+        let cellRadius = Int(ceil(searchRadius / cellSize))
+        let centerCol = Swift.min(Int(x * Double(gridSize)), gridSize - 1)
+        let centerRow = Swift.min(Int(y * Double(gridSize)), gridSize - 1)
+
+        let radiusSquared = searchRadius * searchRadius
+        var weightedSum = 0.0
+        var weightTotal = 0.0
+        let zeroThreshold = 1e-10
+
+        let rowMin = Swift.max(0, centerRow - cellRadius)
+        let rowMax = Swift.min(gridSize - 1, centerRow + cellRadius)
+        let colMin = Swift.max(0, centerCol - cellRadius)
+        let colMax = Swift.min(gridSize - 1, centerCol + cellRadius)
+
+        for row in rowMin ... rowMax {
+            let rowOffset = row * gridSize
+            for col in colMin ... colMax {
+                let indices = cells[rowOffset + col]
+                for idx in indices {
+                    let point = pointData[idx]
+                    let dx = x - point.x
+                    let dy = y - point.y
+                    let distSquared = dx * dx + dy * dy
+
+                    if distSquared < zeroThreshold {
+                        return point.value
+                    }
+
+                    if distSquared <= radiusSquared {
+                        // IDW weight: 1 / d^p. For p=2.0: 1/distSquared
+                        let weight = 1.0 / distSquared
+                        weightedSum += weight * point.value
+                        weightTotal += weight
+                    }
+                }
+            }
+        }
+
+        // Fallback: if no points in radius, use all points (sparse data)
+        if weightTotal == 0 {
+            return fallbackIDW(atX: x, y: y)
+        }
+
+        return weightedSum / weightTotal
+    }
+
+    /// Brute-force IDW over all points. Used as fallback when no points are within radius.
+    private func fallbackIDW(atX x: Double, y: Double) -> Double {
+        var weightedSum = 0.0
+        var weightTotal = 0.0
+
+        for point in pointData {
+            let dx = x - point.x
+            let dy = y - point.y
+            let distSquared = dx * dx + dy * dy
+
+            if distSquared < 1e-10 {
+                return point.value
+            }
+
+            let weight = 1.0 / distSquared
+            weightedSum += weight * point.value
+            weightTotal += weight
+        }
+
+        guard weightTotal > 0 else { return 0 }
+        return weightedSum / weightTotal
+    }
+}
+
 // MARK: - HeatmapRenderer
 
 /// Renders WiFi heatmap overlays using Inverse Distance Weighting (IDW) interpolation.
@@ -81,6 +206,9 @@ public enum HeatmapRenderer {
     /// Threshold for "zero distance" — if a query point is closer than this
     /// to a measurement point, we return the exact measurement value.
     private static let zeroDistanceThreshold: Double = 1e-10
+
+    /// Point count above which the spatial index is used instead of brute-force IDW.
+    private static let spatialIndexThreshold = 500
 
     // MARK: - Public API
 
@@ -131,16 +259,26 @@ public enum HeatmapRenderer {
             ($0.floorPlanX, $0.floorPlanY, valueExtractor($0))
         }
 
+        // Use spatial index for large point sets to avoid O(points × pixels) brute force
+        let spatialIndex: SpatialIndex? = pointData.count >= spatialIndexThreshold
+            ? SpatialIndex(pointData: pointData)
+            : nil
+
         for gy in 0 ..< gridHeight {
             let normalizedY = (Double(gy) + 0.5) * scaleY
             for gx in 0 ..< gridWidth {
                 let normalizedX = (Double(gx) + 0.5) * scaleX
 
-                let value = interpolateIDWFromData(
-                    atX: normalizedX,
-                    y: normalizedY,
-                    pointData: pointData
-                )
+                let value: Double
+                if let spatialIndex {
+                    value = spatialIndex.interpolateIDW(atX: normalizedX, y: normalizedY, power: idwPower)
+                } else {
+                    value = interpolateIDWFromData(
+                        atX: normalizedX,
+                        y: normalizedY,
+                        pointData: pointData
+                    )
+                }
 
                 let color = colorForValue(value, visualization: visualization, colorScheme: colorScheme)
 

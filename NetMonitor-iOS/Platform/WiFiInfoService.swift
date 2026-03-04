@@ -14,6 +14,13 @@ final class WiFiInfoService: NSObject, WiFiInfoServiceProtocol {
     
     private let locationManager = CLLocationManager()
     private var retryTask: Task<Void, Never>?
+
+    // MARK: - TTL Cache (VAL-IOS-039)
+
+    /// Minimum interval between NEHotspotNetwork polls to avoid Apple rate limiting.
+    private static let cacheTTL: TimeInterval = 1.0
+    private var lastFetchTime: Date?
+    private var cachedResult: WiFiInfo?
     
     override init() {
         super.init()
@@ -34,8 +41,17 @@ final class WiFiInfoService: NSObject, WiFiInfoServiceProtocol {
     }
 
     func fetchCurrentWiFi() async -> WiFiInfo? {
+        // Return cached result if within TTL window (VAL-IOS-039)
+        if let lastFetchTime, let cachedResult,
+           Date().timeIntervalSince(lastFetchTime) < Self.cacheTTL {
+            return cachedResult
+        }
+
         #if targetEnvironment(simulator)
-        return mockWiFiInfo()
+        let result = mockWiFiInfo()
+        lastFetchTime = Date()
+        cachedResult = result
+        return result
         #else
         // Re-check live status every call. Other flows may request permission
         // via separate CLLocationManager instances, so cached flags can be stale.
@@ -47,6 +63,8 @@ final class WiFiInfoService: NSObject, WiFiInfoServiceProtocol {
         // retry improves reliability without introducing noticeable UI delay.
         for attempt in 0..<2 {
             if let info = await fetchWiFiInfoModern() {
+                lastFetchTime = Date()
+                cachedResult = info
                 return info
             }
             if attempt == 0 {
@@ -56,7 +74,12 @@ final class WiFiInfoService: NSObject, WiFiInfoServiceProtocol {
         }
 
         // Fall back to legacy API (no log spam)
-        return fetchWiFiInfoLegacy()
+        let legacyResult = fetchWiFiInfoLegacy()
+        if let legacyResult {
+            lastFetchTime = Date()
+            cachedResult = legacyResult
+        }
+        return legacyResult
         #endif
     }
 
