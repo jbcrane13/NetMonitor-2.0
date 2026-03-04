@@ -17,7 +17,7 @@ Architectural decisions, patterns discovered, and design rationale.
 | HeatmapRenderer | `Packages/NetMonitorCore/.../Services/Heatmap/` |
 | macOS Heatmap UI | `NetMonitor-macOS/Views/Heatmap/` |
 | iOS Heatmap UI | `NetMonitor-iOS/Views/Heatmap/` |
-| iOS AR Services | `NetMonitor-iOS/Services/AR/` (or Platform/AR/) |
+| iOS AR Services | `NetMonitor-iOS/Services/AR/` (canonical — not Platform/AR/) |
 
 ### Data Flow
 1. Platform WiFiInfoService → WiFiMeasurementEngine → MeasurementPoint
@@ -131,3 +131,24 @@ floorPlanX = clamp((arX - mapMinX) / mapWidth, 0...1)
 floorPlanY = clamp((arZ - mapMinZ) / mapHeight, 0...1)
 ```
 Note: AR Y axis is up, so XZ plane maps to floor plan XY.
+
+### Phase 3 Rendering: CPU-Based Pixel Manipulation
+
+The Phase 3 real-time renderer (`HeatmapMetalRenderer`) uses CPU-based pixel arrays for all rendering (map rasterization, Gaussian splat heatmap, alpha compositing) despite its Metal-sounding name. Metal GPU objects are allocated but unused — all work happens on `[UInt8]` pixel buffers composited at 10Hz.
+
+**Rationale:** CPU rendering was chosen over Metal compute shaders because 2D incremental pixel updates at 10Hz are well within CPU capability on modern iOS devices, and avoids the complexity of .metal shader files and GPU buffer management.
+
+**Performance consideration:** The compositing loop iterates all 4,194,304 pixels (2048²) per frame on the main thread. For future optimization, consider moving compositing to a background queue.
+
+### Phase 3 Thermal Management Policy
+
+`ScanThermalManager` in `NetMonitor-iOS/Services/AR/ScanThermalManager.swift` maps `ProcessInfo.ThermalState` to scan-specific actions:
+
+| Thermal State | Action | Detail |
+|---------------|--------|--------|
+| `.nominal` | Continue normally | All pipelines at full rate |
+| `.fair` | Continue normally | No changes |
+| `.serious` | Reduce mesh processing | Skip every other mesh update tick |
+| `.critical` | Auto-pause scan | Pause all pipelines, notify user |
+
+The manager observes `ProcessInfo.thermalStateDidChangeNotification` and publishes recommended actions. The ViewModel applies throttling by checking `shouldSkipMeshUpdate()` on each render tick.
