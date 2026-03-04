@@ -39,6 +39,9 @@ final class ARScanViewModel {
     /// Generated SurveyProject (set after "Done Scanning").
     private(set) var generatedProject: SurveyProject?
 
+    /// Coordinate transform for the generated floor plan (set after generation).
+    private(set) var coordinateTransform: ARCoordinateTransform?
+
     /// Count of detected wall surfaces.
     var wallCount: Int {
         detectedSurfaces.filter { $0.surfaceType == .wall }.count
@@ -207,8 +210,19 @@ final class ARScanViewModel {
 
         if let project = generationVM.createSurveyProject(name: "AR Scan") {
             generatedProject = project
+
+            // Build coordinate transform from generation result
+            if let result = generationVM.generationResult {
+                coordinateTransform = ARCoordinateTransform(
+                    mapMinX: result.originX,
+                    mapMinZ: result.originZ,
+                    mapWidth: result.widthMeters,
+                    mapHeight: result.heightMeters
+                )
+            }
+
             isScanComplete = true
-            Logger.heatmap.info("AR scan complete, project created")
+            Logger.heatmap.info("AR scan complete, project created with coordinate transform")
         } else {
             errorMessage = generationVM.errorMessage
                 ?? "Failed to generate floor plan. Continue scanning to capture more walls."

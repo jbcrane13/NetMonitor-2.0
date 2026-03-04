@@ -119,6 +119,7 @@ final class FloorPlanGenerationViewModel {
     /// Processes an ARMeshAnchor and accumulates its vertices.
     /// Extracts vertex positions from the mesh geometry, transforms them to
     /// world coordinates, and appends to the accumulated vertex buffer.
+    /// Includes mesh classification data when available (LiDAR with meshWithClassification).
     ///
     /// Memory management: only stores transformed vertex positions, not raw mesh data.
     func processMeshAnchor(_ anchor: ARMeshAnchor) {
@@ -127,7 +128,41 @@ final class FloorPlanGenerationViewModel {
         let vertexCount = vertices.count
 
         // Extract and transform vertices to world coordinates
-        let transform = anchor.transform
+        let anchorTransform = anchor.transform
+
+        // Build face-to-classification lookup if classification is available
+        let faceClassifications = geometry.classification
+        let faceCount = geometry.faces.count
+
+        // Build vertex-to-face classification map
+        // Each face has 3 vertices (indices). Assign face classification to each vertex.
+        var vertexClassMap = [Int: MeshClassification]()
+        if let faceClassifications {
+            let faces = geometry.faces
+            for faceIndex in 0 ..< faceCount {
+                let classPointer = faceClassifications.buffer.contents()
+                    .advanced(by: faceClassifications.offset + faceClassifications.stride * faceIndex)
+                let classValue = classPointer.assumingMemoryBound(to: UInt8.self).pointee
+                let classification = mapARMeshClassification(classValue)
+
+                // Get the 3 vertex indices for this face
+                let faceByteOffset = faces.indexCountPerPrimitive * faces.bytesPerIndex * faceIndex
+                let indexPointer = faces.buffer.contents().advanced(by: faceByteOffset)
+                for vi in 0 ..< faces.indexCountPerPrimitive {
+                    let vertexIndex: Int
+                    if faces.bytesPerIndex == 4 {
+                        vertexIndex = Int(
+                            indexPointer.advanced(by: vi * 4).assumingMemoryBound(to: UInt32.self).pointee
+                        )
+                    } else {
+                        vertexIndex = Int(
+                            indexPointer.advanced(by: vi * 2).assumingMemoryBound(to: UInt16.self).pointee
+                        )
+                    }
+                    vertexClassMap[vertexIndex] = classification
+                }
+            }
+        }
 
         var newVertices: [MeshVertex] = []
         newVertices.reserveCapacity(vertexCount)
@@ -138,12 +173,35 @@ final class FloorPlanGenerationViewModel {
             let vertex = vertexPointer.assumingMemoryBound(to: SIMD3<Float>.self).pointee
 
             // Transform to world coordinates
-            let worldPos = transform * SIMD4<Float>(vertex.x, vertex.y, vertex.z, 1.0)
-            newVertices.append(MeshVertex(x: worldPos.x, y: worldPos.y, z: worldPos.z))
+            let worldPos = anchorTransform * SIMD4<Float>(vertex.x, vertex.y, vertex.z, 1.0)
+            let classification = vertexClassMap[i] ?? .none
+            newVertices.append(MeshVertex(
+                x: worldPos.x,
+                y: worldPos.y,
+                z: worldPos.z,
+                classification: classification
+            ))
         }
 
         accumulatedVertices.append(contentsOf: newVertices)
         updatePreviewIfNeeded()
+    }
+
+    /// Maps ARMeshClassification raw value to our MeshClassification enum.
+    private func mapARMeshClassification(_ value: UInt8) -> MeshClassification {
+        // ARMeshClassification values: 0=none, 1=wall, 2=floor, 3=ceiling, 4=table, 5=seat, 6=door, 7=window
+        // Our enum has the same raw values except door/window are swapped
+        switch value {
+        case 0: return .none
+        case 1: return .wall
+        case 2: return .floor
+        case 3: return .ceiling
+        case 4: return .table
+        case 5: return .seat
+        case 6: return .door
+        case 7: return .window
+        default: return .none
+        }
     }
 
     /// Processes an ARPlaneAnchor (non-LiDAR fallback).
@@ -151,17 +209,17 @@ final class FloorPlanGenerationViewModel {
     func processPlaneAnchor(_ anchor: ARPlaneAnchor) {
         guard anchor.alignment == .vertical else { return }
 
-        let transform = anchor.transform
-        let extent = anchor.extent
+        let anchorTransformPlane = anchor.transform
+        let planeExtent = anchor.planeExtent
         let center = anchor.center
 
         // Compute world-space corners of the vertical plane
-        let halfWidth = extent.x / 2
+        let halfWidth = planeExtent.width / 2
         let localStart = SIMD4<Float>(center.x - halfWidth, center.y, center.z, 1.0)
         let localEnd = SIMD4<Float>(center.x + halfWidth, center.y, center.z, 1.0)
 
-        let worldStart = transform * localStart
-        let worldEnd = transform * localEnd
+        let worldStart = anchorTransformPlane * localStart
+        let worldEnd = anchorTransformPlane * localEnd
 
         let plane = PlaneVertex(
             startX: worldStart.x,

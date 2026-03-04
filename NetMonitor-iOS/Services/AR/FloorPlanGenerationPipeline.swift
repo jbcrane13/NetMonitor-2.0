@@ -3,6 +3,21 @@ import Foundation
 import os
 import simd
 
+// MARK: - MeshClassification
+
+/// Classification of an AR mesh face/vertex for floor plan rendering.
+/// Maps to ARMeshClassification values from ARKit.
+enum MeshClassification: Int, Sendable, Equatable {
+    case none = 0
+    case wall = 1
+    case floor = 2
+    case ceiling = 3
+    case table = 4
+    case seat = 5
+    case window = 6
+    case door = 7
+}
+
 // MARK: - MeshVertex
 
 /// A 3D vertex from AR mesh data, in world coordinates.
@@ -10,6 +25,15 @@ struct MeshVertex: Sendable, Equatable {
     let x: Float
     let y: Float
     let z: Float
+    /// Optional mesh classification from LiDAR scene reconstruction.
+    let classification: MeshClassification
+
+    init(x: Float, y: Float, z: Float, classification: MeshClassification = .none) {
+        self.x = x
+        self.y = y
+        self.z = z
+        self.classification = classification
+    }
 }
 
 // MARK: - PlaneVertex
@@ -135,6 +159,16 @@ enum FloorPlanGenerationPipeline {
     /// - Returns: Array of (x, z) 2D points in world coordinates.
     static func projectToXZ(vertices: [MeshVertex]) -> [(x: Float, z: Float)] {
         vertices.map { (x: $0.x, z: $0.z) }
+    }
+
+    /// Projects 3D vertices to 2D XZ plane preserving classification.
+    ///
+    /// - Parameter vertices: Height-filtered 3D vertices with classification.
+    /// - Returns: Array of classified 2D points.
+    static func projectToXZClassified(
+        vertices: [MeshVertex]
+    ) -> [(x: Float, z: Float, classification: MeshClassification)] {
+        vertices.map { (x: $0.x, z: $0.z, classification: $0.classification) }
     }
 
     // MARK: - Step 3: Compute Bounds
@@ -369,6 +403,143 @@ enum FloorPlanGenerationPipeline {
         }
 
         return context.makeImage()
+    }
+
+    // MARK: - Step 7b: Classified Rendering (P1)
+
+    /// Renders a floor plan with mesh classification: doors as gaps, windows as dashed lines.
+    ///
+    /// - Parameters:
+    ///   - edges: Binary edge grid (0 = background, 1 = wall).
+    ///   - classificationGrid: Per-pixel dominant classification (same dimensions as edges).
+    ///   - width: Image width in pixels.
+    ///   - height: Image height in pixels.
+    /// - Returns: CGImage with walls=black, doors=white gaps, windows=grey dashed.
+    static func renderClassifiedCGImage(
+        edges: [UInt8],
+        classificationGrid: [MeshClassification],
+        width: Int,
+        height: Int
+    ) -> CGImage? {
+        guard width > 0, height > 0,
+              edges.count == width * height,
+              classificationGrid.count == width * height
+        else {
+            return renderCGImage(edges: edges, width: width, height: height)
+        }
+
+        let bytesPerRow = width * 4
+        var pixels = [UInt8](repeating: 0, count: bytesPerRow * height)
+
+        for y in 0 ..< height {
+            for x in 0 ..< width {
+                let srcIndex = y * width + x
+                let dstIndex = y * bytesPerRow + x * 4
+                let isWall = edges[srcIndex] == 1
+                let classification = classificationGrid[srcIndex]
+
+                if isWall {
+                    switch classification {
+                    case .door:
+                        // Doors rendered as gaps (white/transparent)
+                        pixels[dstIndex] = 255     // R
+                        pixels[dstIndex + 1] = 255 // G
+                        pixels[dstIndex + 2] = 255 // B
+                        pixels[dstIndex + 3] = 255 // A
+                    case .window:
+                        // Windows rendered as dashed grey (checkerboard pattern)
+                        let isDash = (x + y) % 4 < 2
+                        let grey: UInt8 = isDash ? 128 : 255
+                        pixels[dstIndex] = grey     // R
+                        pixels[dstIndex + 1] = grey // G
+                        pixels[dstIndex + 2] = grey // B
+                        pixels[dstIndex + 3] = 255  // A
+                    default:
+                        // Regular walls: black
+                        pixels[dstIndex] = 0       // R
+                        pixels[dstIndex + 1] = 0   // G
+                        pixels[dstIndex + 2] = 0   // B
+                        pixels[dstIndex + 3] = 255 // A
+                    }
+                } else {
+                    // Background: white
+                    pixels[dstIndex] = 255     // R
+                    pixels[dstIndex + 1] = 255 // G
+                    pixels[dstIndex + 2] = 255 // B
+                    pixels[dstIndex + 3] = 255 // A
+                }
+            }
+        }
+
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        guard let context = CGContext(
+            data: &pixels,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: bytesPerRow,
+            space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else {
+            return nil
+        }
+
+        return context.makeImage()
+    }
+
+    /// Rasterizes classified points onto a grid, tracking dominant classification per cell.
+    ///
+    /// - Parameters:
+    ///   - points: Classified 2D projected points.
+    ///   - bounds: Bounding box.
+    ///   - pixelsPerMeter: Resolution.
+    /// - Returns: (grid, classificationGrid, width, height).
+    static func rasterizeClassified(
+        points: [(x: Float, z: Float, classification: MeshClassification)],
+        bounds: (minX: Float, minZ: Float, maxX: Float, maxZ: Float),
+        pixelsPerMeter: Float = FloorPlanGenerationPipeline.pixelsPerMeter
+    ) -> (grid: [Float], classificationGrid: [MeshClassification], width: Int, height: Int) {
+        let worldWidth = bounds.maxX - bounds.minX
+        let worldHeight = bounds.maxZ - bounds.minZ
+
+        let pixelWidth = max(1, Int(ceil(worldWidth * pixelsPerMeter)))
+        let pixelHeight = max(1, Int(ceil(worldHeight * pixelsPerMeter)))
+
+        var grid = [Float](repeating: 0, count: pixelWidth * pixelHeight)
+        // Track classification votes per cell
+        var classVotes = [[Int]](repeating: [Int](repeating: 0, count: 8), count: pixelWidth * pixelHeight)
+
+        for point in points {
+            let px = Int((point.x - bounds.minX) * pixelsPerMeter)
+            let pz = Int((point.z - bounds.minZ) * pixelsPerMeter)
+
+            guard px >= 0, px < pixelWidth, pz >= 0, pz < pixelHeight else { continue }
+
+            let index = pz * pixelWidth + px
+            grid[index] += 1.0
+            classVotes[index][point.classification.rawValue] += 1
+        }
+
+        // Determine dominant classification per cell
+        var classificationGrid = [MeshClassification](
+            repeating: .none,
+            count: pixelWidth * pixelHeight
+        )
+        for i in 0 ..< classVotes.count {
+            var maxVotes = 0
+            var dominant = MeshClassification.none
+            for (rawValue, votes) in classVotes[i].enumerated() {
+                if votes > maxVotes {
+                    maxVotes = votes
+                    if let cls = MeshClassification(rawValue: rawValue) {
+                        dominant = cls
+                    }
+                }
+            }
+            classificationGrid[i] = dominant
+        }
+
+        return (grid: grid, classificationGrid: classificationGrid, width: pixelWidth, height: pixelHeight)
     }
 
     // MARK: - Full Pipeline (LiDAR)

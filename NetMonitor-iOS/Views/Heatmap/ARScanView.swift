@@ -1,3 +1,4 @@
+import NetMonitorCore
 import SwiftUI
 
 #if os(iOS) && !targetEnvironment(simulator)
@@ -14,6 +15,8 @@ import RealityKit
 /// Uses UIViewRepresentable to wrap ARView from RealityKit.
 struct ARScanView: View {
     @State private var viewModel: ARScanViewModel
+    @State private var activeSurveyVM: ARSurveyViewModel?
+    @State private var showARSurvey = false
     @Environment(\.dismiss) private var dismiss
 
     init(viewModel: ARScanViewModel? = nil) {
@@ -43,7 +46,20 @@ struct ARScanView: View {
             }
         }
         .onDisappear {
-            viewModel.stopScan()
+            // Only stop scan if not transitioning to survey
+            if !showARSurvey {
+                viewModel.stopScan()
+            }
+        }
+        .onChange(of: viewModel.isScanComplete) { _, isComplete in
+            if isComplete {
+                transitionToSurvey()
+            }
+        }
+        .navigationDestination(isPresented: $showARSurvey) {
+            if let surveyVM = activeSurveyVM {
+                ARSurveyView(viewModel: surveyVM)
+            }
         }
         .alert("Error", isPresented: .init(
             get: { viewModel.errorMessage != nil },
@@ -63,6 +79,31 @@ struct ARScanView: View {
             }
         }
         .accessibilityIdentifier("arScan_screen")
+    }
+
+    // MARK: - Transition to Survey
+
+    /// Transitions from AR scanning to the Phase 1 survey view with the generated floor plan.
+    private func transitionToSurvey() {
+        guard let project = viewModel.generatedProject,
+              let transform = viewModel.coordinateTransform
+        else { return }
+
+        let wifiService = WiFiInfoService()
+        let engine = WiFiMeasurementEngine(
+            wifiService: wifiService,
+            speedTestService: NoOpSpeedTestService(),
+            pingService: NoOpPingService()
+        )
+
+        activeSurveyVM = ARSurveyViewModel(
+            project: project,
+            coordinateTransform: transform,
+            sessionManager: viewModel.arSessionManagerForView,
+            measurementEngine: engine,
+            wifiService: wifiService
+        )
+        showARSurvey = true
     }
 
     // MARK: - AR Content View
