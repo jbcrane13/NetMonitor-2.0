@@ -6,8 +6,7 @@ This project uses **bd** (beads) for issue tracking. Run `bd onboard` to get sta
 
 ```bash
 bd ready              # Find available work
-bd show <id>          # View issue details
-bd update <id> --status in_progress  # Claim work
+bd update <id> --claim  # Claim work atomically
 bd close <id>         # Complete work
 bd sync               # Sync with git
 ```
@@ -38,19 +37,14 @@ bd sync               # Sync with git
 - NEVER say "ready to push when you are" - YOU must push
 - If push fails, resolve and retry until it succeeds
 
-<!-- MANUAL: Project documentation below -->
-
 ---
 
 ## Project Overview
 
-NetMonitor-2.0 is a monorepo containing macOS and iOS network monitoring apps sharing a core Swift package.
-
+Monorepo: macOS + iOS network monitoring apps sharing a core Swift package.
+**Swift 6.0** with strict concurrency (`SWIFT_STRICT_CONCURRENCY: complete`).
 **Build tool:** XcodeGen — run `xcodegen generate` after modifying `project.yml`.
-**Swift:** 6.0 with strict concurrency (`SWIFT_STRICT_CONCURRENCY: complete`).
-**Targets:** macOS 15.0, iOS 18.0.
-
-## Dependency Chain
+**Deployment targets:** macOS 15.0, iOS 18.0.
 
 ```
 NetMonitor-macOS ─┐
@@ -58,93 +52,138 @@ NetMonitor-macOS ─┐
 NetMonitor-iOS  ──┘
 ```
 
-## Key Directories
-
 | Path | Purpose |
 |------|---------|
-| `Packages/NetMonitorCore/` | Shared models, protocols, and services |
-| `Packages/NetworkScanKit/` | Multi-phase network device discovery engine |
+| `Packages/NetMonitorCore/` | Shared models, protocols, services (~5,600 LOC) |
+| `Packages/NetworkScanKit/` | Multi-phase network discovery engine (~2,200 LOC) |
 | `NetMonitor-macOS/` | macOS app (SwiftData, menu bar, shell services) |
 | `NetMonitor-iOS/` | iOS app (companion, widget, liquid glass UI) |
-| `docs/` | Architecture docs, ADRs, companion protocol spec |
-
-## First-time Setup
-
-After cloning, install the git hooks (required for pre-commit linting):
-
-```bash
-scripts/hooks/install-hooks.sh
-```
-
-This points `core.hooksPath` at `.githooks/`, which runs SwiftLint on staged Swift files and enforces a 2 MB file size limit on every commit. Requires SwiftLint (`brew install swiftlint`).
 
 ## Build Commands
 
 ```bash
-xcodegen generate                                    # Regenerate .xcodeproj from project.yml
-xcodebuild -scheme NetMonitor-macOS -configuration Debug build
-xcodebuild -scheme NetMonitor-iOS -configuration Debug build
-xcodebuild test -scheme NetMonitor-macOS
-xcodebuild test -scheme NetMonitor-iOS
+xcodegen generate                                              # Regenerate Xcode project
+xcodebuild -scheme NetMonitor-macOS -configuration Debug build # Build macOS
+xcodebuild -scheme NetMonitor-iOS -configuration Debug build   # Build iOS
+```
+
+## Test Commands
+
+**⚠️ Tests run on `mac-mini` via SSH — never run `xcodebuild test` locally.**
+
+```bash
+# All macOS unit tests
+xcodebuild test -scheme NetMonitor-macOS -destination 'platform=macOS' \
+  CODE_SIGN_IDENTITY='' CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO \
+  -only-testing:NetMonitor-macOSTests 2>&1 | tail -30
+
+# Single test suite (macOS)
+xcodebuild test -scheme NetMonitor-macOS -destination 'platform=macOS' \
+  CODE_SIGN_IDENTITY='' CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO \
+  -only-testing:NetMonitor-macOSTests/ShellPingResultTests 2>&1 | tail -20
+
+# All iOS unit tests (parallel MUST be disabled)
+xcodebuild test -scheme NetMonitor-iOS \
+  -destination 'platform=iOS Simulator,OS=latest,name=iPhone 17 Pro' \
+  CODE_SIGN_IDENTITY='' CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO \
+  -parallel-testing-enabled NO \
+  -only-testing:NetMonitor-iOSTests 2>&1 | tail -30
+
+# Swift package tests
+cd Packages/NetMonitorCore && swift test --no-parallel
+cd Packages/NetworkScanKit && swift test --no-parallel
 ```
 
 ## Linting
 
 ```bash
-swiftlint lint --quiet                               # Lint entire codebase
-swiftlint lint --quiet NetMonitor-macOS/             # Lint a single directory
-swiftlint --fix                                      # Auto-fix correctable violations
+swiftlint lint --quiet                  # Check all — errors block commits
+swiftlint --fix --quiet                 # Auto-fix correctable violations
+swiftformat --lint .                    # Check formatting
+swiftformat .                           # Auto-fix formatting
 ```
 
-Configuration: `.swiftlint.yml` at repo root. Errors block commits via pre-commit hook; warnings are reported but do not block.
+Config: `.swiftlint.yml`, `.swiftformat`. Pre-commit hook runs both on staged files.
 
-## Agent Readiness
+---
 
-Before starting work, read **`docs/agent-readiness/README.md`**. It describes the current readiness level, coding conventions introduced by previous sessions (TODO format, log scrubbing rules, dead-code baseline, etc.), and which skill files to use for common agent tasks.
+## Code Style
 
-## Runbooks & Reference Docs
+### Imports
+Unsorted (no enforced order). Conventional grouping: Foundation → Apple frameworks → project packages. In tests: `import Testing` first, then `@testable import`.
 
-| Document | Location | Purpose |
-|----------|----------|---------|
-| Agent Readiness | `docs/agent-readiness/README.md` | Current readiness score, conventions, key files — **read first** |
-| Architecture Decision Records | `docs/ADR.md`, `docs/ADR-macOS.md` | Why key design decisions were made — read before changing patterns |
-| Companion Protocol | `docs/Companion-Protocol-API.md` | Mac↔iOS wire protocol spec — required reading before touching CompanionService |
-| Shared Codebase Plan | `docs/NETMONITOR-2.0-SHARED-CODEBASE-PLAN.md` | Monorepo architecture rationale |
-| Testing Lessons Learned | `docs/TESTING-LESSONS-LEARNED.md` | Common test pitfalls and patterns specific to this project |
-| SwiftUI Best Practices | `docs/SwiftUI Best Practices.md` | Project-specific UI conventions |
-| iOS PRD | `docs/NetMonitor iOS Companion - Product Requirements Document.md` | Feature requirements for iOS target |
-| macOS PRD | `docs/NetMonitor for macOS - Product Requirements Document.md` | Feature requirements for macOS target |
-| Coverage Gates | `docs/testing/coverage-gates.md` | How coverage thresholds are enforced and how to read results |
+### Formatting
+- 4-space indentation, LF line endings
+- Line length: 150 warning / 250 error (URLs, comments, interpolated strings exempt)
+- Guard-else on next line
+- No trailing commas
+- Use `// MARK: - Section Name` to organize type members
 
-**Agent workflow runbooks** (step-by-step procedures):
+### Naming Conventions
 
-| Skill | Purpose |
-|-------|---------|
-| `.factory/skills/run-tests/SKILL.md` | Run tests on mac-mini via SSH |
-| `.factory/skills/check-coverage/SKILL.md` | Run and interpret coverage gates |
-| `.factory/skills/create-release/SKILL.md` | End-to-end release procedure |
-| `.factory/skills/fix-lint/SKILL.md` | Resolve SwiftLint and SwiftFormat failures |
+| Kind | Convention | Example |
+|------|-----------|---------|
+| Files | Match primary type | `DashboardView.swift`, `PingServiceProtocol` in `ServiceProtocols.swift` |
+| Views | `*View` | `DashboardView`, `PingToolView` |
+| ViewModels | `*ViewModel` | `DashboardViewModel`, `GeoTraceViewModel` |
+| Services | `*Service` | `ShellPingService`, `WiFiInfoService` |
+| Protocols | `*Protocol` suffix | `PingServiceProtocol`, `DeviceDiscoveryServiceProtocol` |
+| Mocks (tests) | `Mock*` prefix | `MockPingService`, `MockGatewayService` |
+| Test suites | `*Tests` suffix | `ShellPingResultTests`, `DashboardViewModelTests` |
+| Booleans | `is*`/`has*`/`needs*` | `isConnected`, `isScanning`, `hasError` |
+| Accessibility IDs | `{screen}_{element}_{descriptor}` | `"dashboard_card_healthScore"` |
+| TODOs | Must reference beads ticket | `// TODO: (NetMonitor-2.0-xyz) description` |
 
-## Logging Guidelines
+### Types and Access Control
+- **Packages:** Explicit `public` on all API types, inits, and methods. Omit `internal`.
+- **App targets:** Default access (internal). `private`/`private(set)` for implementation details.
+- **Protocol existentials:** Always use `any` keyword — `any PingServiceProtocol`, not bare protocol name.
+- **Type inference:** Preferred for stored properties with initial values. Explicit for protocol-typed deps.
 
-All logging uses `os.Logger` with named subsystem categories. Logger instances are defined in:
-- `NetMonitor-macOS/Platform/Logging.swift`
-- `NetMonitor-iOS/Platform/Logging.swift`
+### Concurrency
+- **ViewModels:** `@MainActor @Observable final class`. State is `private(set) var`.
+- **Services:** Actor types or `Sendable` protocol conformance. All service protocols are `Sendable`.
+- **Mocks:** `@unchecked Sendable` (or `@MainActor` if testing MainActor-isolated code).
+- **Streaming ops:** `AsyncStream<T>` for ping, port scan, traceroute (never throw).
+- **Atomic ops:** `async throws` with typed `NetworkError`.
 
-**Log scrubbing is required for network-identifying data.** Use `LogSanitizer` (in `NetMonitorCore/Utilities/LogSanitizer.swift`) when logging values that could identify users or their location:
+### Error Handling
+- **Streaming results:** `AsyncStream<T>` — never throws; errors embedded in result type.
+- **Atomic operations:** `async throws` with `NetworkError` enum (has `.errorDescription` and `.userFacingMessage`).
+- **Optional return:** For "no result" scenarios (e.g., `DNSQueryResult?`).
+- **ViewModels:** Surface errors as `errorMessage: String?` — never throw from VM methods.
 
+### ViewModel Pattern
 ```swift
-// IP addresses
-Logger.network.debug("Connecting to \(LogSanitizer.redactIP(ipAddress))")
-
-// MAC addresses
-Logger.discovery.info("Found device \(LogSanitizer.redactMAC(macAddress))")
-
-// Hostnames / SSIDs
-Logger.network.debug("SSID: \(LogSanitizer.redactSSID(ssid))")
+@MainActor @Observable final class FooViewModel {
+    private(set) var isLoading = false          // Observable state
+    private let service: any FooServiceProtocol // Injected dependency
+    init(service: any FooServiceProtocol = FooService()) { ... } // DI with production default
+    func load() async { ... }                  // Public async methods
+}
 ```
 
-`LogSanitizer` passes values through unmodified in `DEBUG` builds and redacts them in `Release` builds. Never log raw IPs, MACs, SSIDs, or hostnames outside of `LogSanitizer` wrappers.
+### Test Pattern
+Uses **Swift Testing** framework (not XCTest). `#expect` for assertions, `@Test` for test functions.
+```swift
+@Suite("FooService") struct FooServiceTests {
+    @Test func parsesValidInput() { #expect(result == expected) }
+}
+@Suite("FooViewModel") @MainActor struct FooViewModelTests {
+    func makeVM() -> FooViewModel { FooViewModel(service: MockFooService()) }
+    @Test func loadSetsState() async { ... }
+}
+```
+Key patterns: `@MainActor` on suites testing ViewModels, `.serialized` trait for shared mutable state, `waitUntil {}` helper instead of `Task.sleep`, `defer` for global state cleanup.
+
+### Logging
+Use `os.Logger` with named categories (defined in `Platform/Logging.swift`). **Scrub sensitive data:**
+```swift
+Logger.network.debug("IP: \(LogSanitizer.redactIP(addr))")     // IPs
+Logger.discovery.info("MAC: \(LogSanitizer.redactMAC(mac))")    // MACs
+Logger.network.debug("SSID: \(LogSanitizer.redactSSID(ssid))")  // SSIDs
+```
+Never log raw IPs, MACs, SSIDs, or hostnames outside `LogSanitizer` wrappers.
 
 ## Code Quality Tools
 
@@ -157,10 +196,18 @@ Logger.network.debug("SSID: \(LogSanitizer.redactSSID(ssid))")
 
 CI runs all four on every PR via `lint.yml` and `code-quality.yml`. Periphery and jscpd are warning-only and do not block merges.
 
-## Core Patterns
+---
 
-- **Service protocols** defined in `NetMonitorCore/Services/ServiceProtocols.swift`; implemented per-platform
-- **AsyncStream<T>** for streaming results (ping, port scan, traceroute)
-- **@MainActor @Observable** ViewModels (iOS) — views contain no business logic
-- All service protocols are `Sendable`; strict Swift 6 concurrency enforced
+## Reference Docs
 
+| Document | Location |
+|----------|----------|
+| Agent Readiness (**read first**) | `docs/agent-readiness/README.md` |
+| Architecture Decision Records | `docs/ADR.md`, `docs/ADR-macOS.md` |
+| Companion Protocol (Mac↔iOS) | `docs/Companion-Protocol-API.md` |
+| Testing Lessons Learned | `docs/TESTING-LESSONS-LEARNED.md` |
+| Coverage Gates | `docs/testing/coverage-gates.md` |
+| iOS PRD | `docs/NetMonitor iOS Companion - Product Requirements Document.md` |
+| macOS PRD | `docs/NetMonitor for macOS - Product Requirements Document.md` |
+
+**Runbooks:** `.factory/skills/run-tests/`, `check-coverage/`, `create-release/`, `fix-lint/` — each has `SKILL.md`.

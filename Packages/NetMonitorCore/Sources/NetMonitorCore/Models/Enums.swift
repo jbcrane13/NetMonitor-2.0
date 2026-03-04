@@ -173,7 +173,6 @@ public enum ToolType: String, Codable, CaseIterable, Sendable {
     case worldPing
     case geoTrace
     case sslMonitor
-    case wifiHeatmap
     case networkHealthScore
     case networkTimeline
     case scheduledScan
@@ -195,7 +194,6 @@ public enum ToolType: String, Codable, CaseIterable, Sendable {
         case .worldPing: "globe.americas"
         case .geoTrace: "map"
         case .sslMonitor: "lock.shield"
-        case .wifiHeatmap: "wifi.circle"
         case .networkHealthScore: "heart.text.square"
         case .networkTimeline: "clock.arrow.circlepath"
         case .scheduledScan: "calendar.badge.clock"
@@ -219,7 +217,6 @@ public enum ToolType: String, Codable, CaseIterable, Sendable {
         case .worldPing: "World Ping"
         case .geoTrace: "Geo Trace"
         case .sslMonitor: "SSL Monitor"
-        case .wifiHeatmap: "WiFi Heatmap"
         case .networkHealthScore: "Network Health Score"
         case .networkTimeline: "Network Timeline"
         case .scheduledScan: "Scheduled Scan"
@@ -244,7 +241,6 @@ public enum ToolType: String, Codable, CaseIterable, Sendable {
         case .worldPing: .teal
         case .geoTrace: .mint
         case .sslMonitor: .green
-        case .wifiHeatmap: .blue
         case .networkHealthScore: .red
         case .networkTimeline: .indigo
         case .scheduledScan: .orange

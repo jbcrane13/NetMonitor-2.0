@@ -114,7 +114,6 @@ struct ContentView: View {
             case .worldPing: WorldPingToolView()
             case .geoTrace: GeoTraceView()
             case .sslMonitor: SSLCertificateMonitorView()
-            case .wifiHeatmap: WiFiHeatmapToolView()
             }
         }
         .toolbar {

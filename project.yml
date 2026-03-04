@@ -57,7 +57,6 @@ targets:
           - _spotify-connect._tcp
           - _sonos._tcp
           - _workstation._tcp
-        NSCameraUsageDescription: "NetMonitor Pro uses your camera to scan room layouts for WiFi heatmap surveys."
         NSAppTransportSecurity:
           NSExceptionDomains:
             ip-api.com:
@@ -97,6 +96,10 @@ targets:
     type: application
     platform: iOS
     deploymentTarget: "18.0"
+    scheme:
+      testTargets:
+        - NetMonitor-iOSTests
+        - NetMonitor-iOSUITests
     sources:
       - path: NetMonitor-iOS
         includes:
@@ -118,7 +121,6 @@ targets:
         CFBundleIconName: AppIcon
         NSLocationWhenInUseUsageDescription: "NetMonitor uses your location to display WiFi network information and monitor GeoFence zones."
         NSLocationAlwaysAndWhenInUseUsageDescription: "NetMonitor uses your location in the background to trigger GeoFence alerts when you enter or exit defined zones."
-        NSCameraUsageDescription: "NetMonitor uses your camera to scan room layouts for WiFi heatmap surveys."
         NSBonjourServices:
           - _netmon._tcp
           - _http._tcp
@@ -187,7 +189,6 @@ targets:
     dependencies:
       - package: NetMonitorCore
       - package: NetworkScanKit
-      - sdk: RoomPlan.framework
 
   NetMonitor-macOSTests:
     type: bundle.unit-test

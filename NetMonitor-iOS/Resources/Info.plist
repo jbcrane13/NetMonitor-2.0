@@ -63,8 +63,6 @@
 		<string>_sonos._tcp</string>
 		<string>_workstation._tcp</string>
 	</array>
-	<key>NSCameraUsageDescription</key>
-	<string>NetMonitor uses your camera to scan room layouts for WiFi heatmap surveys.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>NetMonitor scans your local network to discover devices, services, and the macOS companion app.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>

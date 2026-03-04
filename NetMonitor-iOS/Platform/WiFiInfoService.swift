@@ -37,7 +37,7 @@ final class WiFiInfoService: NSObject, WiFiInfoServiceProtocol {
         #if targetEnvironment(simulator)
         return mockWiFiInfo()
         #else
-        // Re-check live status every call. Heatmap flows may request permission
+        // Re-check live status every call. Other flows may request permission
         // via separate CLLocationManager instances, so cached flags can be stale.
         let status = locationManager.authorizationStatus
         authorizationStatus = status

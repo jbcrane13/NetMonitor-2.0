@@ -357,32 +357,6 @@ final class ToolsGoldenPathUITests: IOSUITestCase {
         )
     }
 
-    // MARK: - 14. WiFi Heatmap
-
-    func testWiFiHeatmapGoldenPath() {
-        openTool(card: "tools_card_wifi_heatmap", screen: "screen_heatmapDashboard")
-
-        requireExists(
-            ui("heatmap_dashboard_network_card"),
-            message: "WiFi Heatmap: network status card should be visible on dashboard"
-        )
-        let newScanButton = requireExists(
-            app.buttons["heatmap_dashboard_button_new_scan"],
-            message: "WiFi Heatmap: New Scan button should be visible"
-        )
-
-        newScanButton.tap()
-        requireExists(
-            ui("screen_floorPlanSelection"),
-            timeout: 8,
-            message: "WiFi Heatmap: floor plan selection should appear after tapping New Scan"
-        )
-        requireExists(
-            ui("floorplan_option_freeform"),
-            message: "WiFi Heatmap: Freeform grid option should be available"
-        )
-    }
-
     // MARK: - Helpers
 
     private func openTool(card cardID: String, screen screenID: String) {

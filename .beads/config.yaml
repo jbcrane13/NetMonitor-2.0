@@ -40,3 +40,29 @@
 # - linear.api-key
 # - github.org
 # - github.repo
+# .beads/config.yaml
+backend: dolt
+
+sync:
+  mode: dolt-native
+  auto_dolt_commit: true # Auto-commit after sync (default: true)
+  auto_dolt_push: false # Auto-push after sync (default: false)
+
+dolt:
+  server_mode: true # Use sql-server (default: true)
+  server_host: "127.0.0.1"
+  server_port: 3306
+  server_user: "root"
+  server_pass: ""
+
+  # Lock settings
+  lock_retries: 30
+  lock_retry_delay: "100ms"
+  idle_timeout: "30s"
+
+create:
+  require-description: true
+
+validation:
+  on-create: warn # Warn when creating issues missing sections
+  on-sync: none

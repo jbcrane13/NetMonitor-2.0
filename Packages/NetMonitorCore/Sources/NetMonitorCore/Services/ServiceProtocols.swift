@@ -286,21 +286,6 @@ public struct SSLCertificateInfo: Sendable {
     }
 }
 
-/// A recorded signal strength data point for WiFi heatmapping.
-public struct HeatmapDataPoint: Sendable, Codable {
-    public let x: Double
-    public let y: Double
-    public let signalStrength: Int
-    public let timestamp: Date
-
-    public init(x: Double, y: Double, signalStrength: Int, timestamp: Date = Date()) {
-        self.x = x
-        self.y = y
-        self.signalStrength = signalStrength
-        self.timestamp = timestamp
-    }
-}
-
 /// Aggregated network health score.
 public struct NetworkHealthScore: Sendable {
     public let score: Int          // 0-100
@@ -358,14 +343,6 @@ public protocol GeoLocationServiceProtocol: AnyObject, Sendable {
 /// Protocol for SSL certificate inspection.
 public protocol SSLCertificateServiceProtocol: AnyObject, Sendable {
     func checkCertificate(domain: String) async throws -> SSLCertificateInfo
-}
-
-/// Protocol for WiFi signal heatmap surveys.
-public protocol WiFiHeatmapServiceProtocol: AnyObject, Sendable {
-    func startSurvey()
-    func recordDataPoint(signalStrength: Int, x: Double, y: Double)
-    func getSurveyData() -> [HeatmapDataPoint]
-    func stopSurvey()
 }
 
 /// Protocol for computing an overall network health score.
