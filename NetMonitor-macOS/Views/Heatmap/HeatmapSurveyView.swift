@@ -37,6 +37,10 @@ struct HeatmapSurveyView: View {
         .onDisappear {
             viewModel.stopLiveRSSIUpdates()
         }
+        .background {
+            // Hidden buttons to provide keyboard shortcuts
+            keyboardShortcutButtons
+        }
         .accessibilityIdentifier("heatmap_survey_view")
     }
 
@@ -158,6 +162,28 @@ struct HeatmapSurveyView: View {
         }
     }
 
+    // MARK: - Keyboard Shortcuts
+
+    @ViewBuilder
+    private var keyboardShortcutButtons: some View {
+        // Hidden buttons providing keyboard shortcut bindings
+        VStack {
+            Button("Save") { viewModel.saveProject() }
+                .keyboardShortcut("s", modifiers: .command)
+            Button("Open") { viewModel.openProject() }
+                .keyboardShortcut("o", modifiers: .command)
+            Button("Undo") { viewModel.undo() }
+                .keyboardShortcut("z", modifiers: .command)
+                .disabled(!viewModel.canUndo)
+            Button("Redo") { viewModel.redo() }
+                .keyboardShortcut("z", modifiers: [.command, .shift])
+                .disabled(!viewModel.canRedo)
+        }
+        .frame(width: 0, height: 0)
+        .opacity(0)
+        .allowsHitTesting(false)
+    }
+
     // MARK: - Survey Toolbar
 
     private var surveyToolbar: some View {
@@ -194,6 +220,13 @@ struct HeatmapSurveyView: View {
             Divider()
                 .frame(height: 20)
 
+            // Active/passive scan mode toggle
+            scanModeToggle
+                .accessibilityIdentifier("heatmap_toolbar_scan_mode_toggle")
+
+            Divider()
+                .frame(height: 20)
+
             // Live RSSI badge
             liveRSSIBadge
                 .accessibilityIdentifier("heatmap_toolbar_rssi_badge")
@@ -205,17 +238,49 @@ struct HeatmapSurveyView: View {
             visualizationPicker
                 .accessibilityIdentifier("heatmap_toolbar_visualization_picker")
 
+            Divider()
+                .frame(height: 20)
+
+            // Undo / Redo
+            undoRedoButtons
+
             Spacer()
 
-            // Measuring indicator
+            // Measuring indicator with progress
             if viewModel.isMeasuring {
-                ProgressView()
-                    .controlSize(.small)
-                    .accessibilityIdentifier("heatmap_toolbar_measuring_indicator")
-                Text("Measuring…")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                if viewModel.isActiveScanMode, let progress = viewModel.activeMeasurementProgress {
+                    ProgressView(value: progress)
+                        .progressViewStyle(.linear)
+                        .frame(width: 80)
+                        .accessibilityIdentifier("heatmap_toolbar_active_progress")
+                    Text("Active scan…")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    ProgressView()
+                        .controlSize(.small)
+                        .accessibilityIdentifier("heatmap_toolbar_measuring_indicator")
+                    Text("Measuring…")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
+
+            // Save / Open buttons
+            Button(action: {
+                viewModel.openProject()
+            }) {
+                Label("Open", systemImage: "folder")
+            }
+            .accessibilityIdentifier("heatmap_toolbar_open")
+
+            Button(action: {
+                viewModel.saveProject()
+            }) {
+                Label("Save", systemImage: "square.and.arrow.down.on.square")
+            }
+            .disabled(viewModel.project == nil)
+            .accessibilityIdentifier("heatmap_toolbar_save")
 
             // Floor plan dimensions
             if let result = viewModel.importResult {
@@ -229,6 +294,44 @@ struct HeatmapSurveyView: View {
         .padding(.vertical, 8)
         .background(.bar)
         .accessibilityIdentifier("heatmap_toolbar")
+    }
+
+    // MARK: - Scan Mode Toggle
+
+    private var scanModeToggle: some View {
+        Picker("Scan Mode", selection: $viewModel.isActiveScanMode) {
+            Text("Passive").tag(false)
+            Text("Active").tag(true)
+        }
+        .pickerStyle(.segmented)
+        .frame(width: 140)
+        .help(viewModel.isActiveScanMode
+            ? "Active: runs speed test + ping at each point (~6s)"
+            : "Passive: captures WiFi signal info only")
+    }
+
+    // MARK: - Undo / Redo Buttons
+
+    private var undoRedoButtons: some View {
+        HStack(spacing: 4) {
+            Button(action: {
+                viewModel.undo()
+            }) {
+                Image(systemName: "arrow.uturn.backward")
+            }
+            .disabled(!viewModel.canUndo)
+            .help("Undo (⌘Z)")
+            .accessibilityIdentifier("heatmap_toolbar_undo")
+
+            Button(action: {
+                viewModel.redo()
+            }) {
+                Image(systemName: "arrow.uturn.forward")
+            }
+            .disabled(!viewModel.canRedo)
+            .help("Redo (⇧⌘Z)")
+            .accessibilityIdentifier("heatmap_toolbar_redo")
+        }
     }
 
     // MARK: - Visualization Picker

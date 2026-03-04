@@ -36,6 +36,16 @@ struct SummaryStats: Equatable, Sendable {
     static let empty = SummaryStats(count: 0, minRSSI: 0, maxRSSI: 0, avgRSSI: 0, coverageAreaSqM: 0)
 }
 
+// MARK: - UndoAction
+
+/// Represents an undoable action in the heatmap survey.
+enum UndoAction: Sendable {
+    /// A measurement point was placed.
+    case placement(MeasurementPoint)
+    /// A measurement point was deleted, along with its original index.
+    case deletion(MeasurementPoint, Int)
+}
+
 // MARK: - HeatmapSurveyViewModel
 
 /// ViewModel for the macOS heatmap survey workflow.
@@ -111,6 +121,39 @@ final class HeatmapSurveyViewModel {
 
     /// Spacing guidance text shown to the user.
     let spacingGuidanceText = "Place measurements 3–5 meters apart for best coverage"
+
+    // MARK: - Active Scan Mode
+
+    /// Whether active scan mode is enabled (speed test + ping at each point).
+    var isActiveScanMode = false
+
+    /// Progress value (0.0 to 1.0) during an active measurement. Nil when not measuring.
+    private(set) var activeMeasurementProgress: Double?
+
+    // MARK: - Undo/Redo
+
+    /// Stack of actions that can be undone.
+    private(set) var undoStack: [UndoAction] = []
+
+    /// Stack of actions that can be redone.
+    private(set) var redoStack: [UndoAction] = []
+
+    /// Whether undo is available.
+    var canUndo: Bool { !undoStack.isEmpty }
+
+    /// Whether redo is available.
+    var canRedo: Bool { !redoStack.isEmpty }
+
+    // MARK: - Measurement Inspection
+
+    /// The measurement point ID currently being inspected via popover.
+    var inspectedPointID: UUID?
+
+    /// The measurement point currently being inspected.
+    var inspectedPoint: MeasurementPoint? {
+        guard let id = inspectedPointID else { return nil }
+        return project?.measurementPoints.first { $0.id == id }
+    }
 
     // MARK: - Visualization State
 
@@ -313,37 +356,211 @@ final class HeatmapSurveyViewModel {
     // MARK: - Survey Measurement
 
     /// Takes a WiFi measurement at the given normalized position on the floor plan.
-    /// Creates a MeasurementPoint and adds it to the project.
+    /// In active scan mode, runs a speed test + ping. In passive mode, captures WiFi info only.
     func takeMeasurement(at normalizedPoint: CGPoint) async {
         guard var currentProject = project,
               let engine = measurementEngine
         else { return }
 
         isMeasuring = true
-        defer { isMeasuring = false }
+        defer {
+            isMeasuring = false
+            activeMeasurementProgress = nil
+        }
 
-        let point = await engine.takeMeasurement(
-            at: normalizedPoint.x,
-            floorPlanY: normalizedPoint.y
-        )
+        let point: MeasurementPoint
+        if isActiveScanMode {
+            activeMeasurementProgress = 0.0
+            // Simulate progress updates during the ~6s active measurement
+            let progressTask = Task { @MainActor [weak self] in
+                for step in 1...5 {
+                    try? await Task.sleep(for: .seconds(1))
+                    self?.activeMeasurementProgress = Double(step) / 6.0
+                }
+            }
+            point = await engine.takeActiveMeasurement(
+                at: normalizedPoint.x,
+                floorPlanY: normalizedPoint.y
+            )
+            progressTask.cancel()
+            activeMeasurementProgress = 1.0
+        } else {
+            point = await engine.takeMeasurement(
+                at: normalizedPoint.x,
+                floorPlanY: normalizedPoint.y
+            )
+        }
+
         currentProject.measurementPoints.append(point)
+        project = currentProject
+
+        // Push to undo stack and clear redo
+        undoStack.append(.placement(point))
+        redoStack.removeAll()
+
+        recalculateStats()
+        renderHeatmapOverlay()
+    }
+
+    /// Removes a measurement point by its ID, recording the action for undo.
+    func removeMeasurementPoint(id: UUID) {
+        guard var currentProject = project
+        else { return }
+
+        guard let index = currentProject.measurementPoints.firstIndex(where: { $0.id == id })
+        else { return }
+
+        let removedPoint = currentProject.measurementPoints.remove(at: index)
+
+        if selectedPointID == id {
+            selectedPointID = nil
+        }
+        if inspectedPointID == id {
+            inspectedPointID = nil
+        }
+
+        project = currentProject
+
+        // Push to undo stack and clear redo
+        undoStack.append(.deletion(removedPoint, index))
+        redoStack.removeAll()
+
+        recalculateStats()
+        renderHeatmapOverlay()
+    }
+
+    // MARK: - Undo / Redo
+
+    /// Undoes the last action (placement or deletion).
+    func undo() {
+        guard var currentProject = project, let action = undoStack.popLast()
+        else { return }
+
+        switch action {
+        case .placement(let point):
+            // Undo a placement by removing the point
+            currentProject.measurementPoints.removeAll { $0.id == point.id }
+            redoStack.append(.placement(point))
+
+        case .deletion(let point, let index):
+            // Undo a deletion by re-inserting the point at its original position
+            let safeIndex = min(index, currentProject.measurementPoints.count)
+            currentProject.measurementPoints.insert(point, at: safeIndex)
+            redoStack.append(.deletion(point, index))
+        }
+
         project = currentProject
         recalculateStats()
         renderHeatmapOverlay()
     }
 
-    /// Removes a measurement point by its ID.
-    func removeMeasurementPoint(id: UUID) {
-        guard var currentProject = project
+    /// Redoes the last undone action.
+    func redo() {
+        guard var currentProject = project, let action = redoStack.popLast()
         else { return }
 
-        currentProject.measurementPoints.removeAll { $0.id == id }
-        if selectedPointID == id {
-            selectedPointID = nil
+        switch action {
+        case .placement(let point):
+            // Redo a placement by adding the point back
+            currentProject.measurementPoints.append(point)
+            undoStack.append(.placement(point))
+
+        case .deletion(let point, let index):
+            // Redo a deletion by removing the point again
+            currentProject.measurementPoints.removeAll { $0.id == point.id }
+            undoStack.append(.deletion(point, index))
         }
+
         project = currentProject
         recalculateStats()
         renderHeatmapOverlay()
+    }
+
+    // MARK: - Save / Load
+
+    /// Saves the current project via NSSavePanel.
+    func saveProject() {
+        guard let currentProject = project
+        else { return }
+
+        let panel = NSSavePanel()
+        panel.title = "Save Survey Project"
+        panel.prompt = "Save"
+        panel.nameFieldStringValue = "\(currentProject.name).netmonsurvey"
+        panel.allowedContentTypes = [.init(exportedAs: "com.netmonitor.survey")]
+
+        let response = panel.runModal()
+        guard response == .OK, let url = panel.url
+        else { return }
+
+        do {
+            try SurveyFileManager.save(currentProject, to: url)
+            Logger.app.info("Survey project saved to \(url.lastPathComponent)")
+        } catch {
+            showError("Failed to save project: \(error.localizedDescription)")
+        }
+    }
+
+    /// Loads a project via NSOpenPanel.
+    func openProject() {
+        let panel = NSOpenPanel()
+        panel.title = "Open Survey Project"
+        panel.prompt = "Open"
+        panel.allowedContentTypes = [.init(exportedAs: "com.netmonitor.survey")]
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = true
+
+        let response = panel.runModal()
+        guard response == .OK, let url = panel.url
+        else { return }
+
+        loadProject(from: url)
+    }
+
+    /// Loads a project from a bundle URL.
+    func loadProject(from url: URL) {
+        do {
+            let loadedProject = try SurveyFileManager.load(from: url)
+
+            // Restore the floor plan image
+            let imageData = loadedProject.floorPlan.imageData
+            guard let nsImage = NSImage(data: imageData)
+            else {
+                showError("Failed to decode floor plan image from project file.")
+                return
+            }
+
+            floorPlanImage = nsImage
+            importResult = FloorPlanImportResult(
+                imageData: imageData,
+                pixelWidth: loadedProject.floorPlan.pixelWidth,
+                pixelHeight: loadedProject.floorPlan.pixelHeight,
+                sourceURL: url
+            )
+            project = loadedProject
+
+            // Restore calibration state
+            if let calibrationPoints = loadedProject.floorPlan.calibrationPoints, calibrationPoints.count >= 2,
+               loadedProject.floorPlan.widthMeters > 0 {
+                pixelsPerMeter = Double(loadedProject.floorPlan.pixelWidth) / loadedProject.floorPlan.widthMeters
+                isCalibrated = true
+                computeScaleBar()
+            } else {
+                isCalibrated = false
+                pixelsPerMeter = 0
+            }
+
+            // Reset undo/redo stacks
+            undoStack.removeAll()
+            redoStack.removeAll()
+
+            recalculateStats()
+            renderHeatmapOverlay()
+
+            Logger.app.info("Survey project loaded from \(url.lastPathComponent)")
+        } catch {
+            showError("Failed to open project: \(error.localizedDescription)")
+        }
     }
 
     // MARK: - Live RSSI

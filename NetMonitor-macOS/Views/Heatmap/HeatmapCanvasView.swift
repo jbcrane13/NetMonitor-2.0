@@ -4,11 +4,12 @@ import SwiftUI
 // MARK: - HeatmapCanvasView
 
 /// SwiftUI Canvas-based floor plan view with zoom, pan, measurement dots,
-/// and coverage radius circles. Clicking the canvas triggers a measurement.
+/// and coverage radius circles. Clicking empty space triggers a measurement;
+/// clicking an existing point opens a detail popover; right-clicking shows a context menu.
 struct HeatmapCanvasView: View {
     @Bindable var viewModel: HeatmapSurveyViewModel
 
-    /// Callback invoked when the user clicks on the canvas.
+    /// Callback invoked when the user clicks on empty canvas space.
     /// Provides the normalized (0-1) coordinates of the click.
     var onCanvasClick: ((CGPoint) -> Void)?
 
@@ -19,6 +20,9 @@ struct HeatmapCanvasView: View {
 
     /// Accumulated drag translation from in-progress gesture.
     @State private var gesturePan: CGSize = .zero
+
+    /// The current container size, cached for hit-testing.
+    @State private var containerSize: CGSize = .zero
 
     var body: some View {
         GeometryReader { geometry in
@@ -34,12 +38,20 @@ struct HeatmapCanvasView: View {
                     drawMeasurementDots(context: &context, imageSize: imageSize, imageOrigin: imageOrigin)
                 }
                 .frame(width: geometry.size.width, height: geometry.size.height)
+                .contextMenu {
+                    contextMenuItems
+                }
 
                 // Spacing guidance text
                 if viewModel.hasFloorPlan {
                     spacingGuidance
                         .padding(12)
                         .frame(maxWidth: .infinity, alignment: .center)
+                }
+
+                // Measurement point detail popover anchor
+                if viewModel.inspectedPointID != nil {
+                    inspectedPointPopoverAnchor(imageSize: imageSize, imageOrigin: imageOrigin)
                 }
             }
             .scaleEffect(effectiveZoom, anchor: .center)
@@ -50,9 +62,77 @@ struct HeatmapCanvasView: View {
                 handleTap(location, containerSize: geometry.size, imageSize: imageSize, imageOrigin: imageOrigin)
             }
             .clipped()
+            .onAppear {
+                containerSize = geometry.size
+            }
+            .onChange(of: geometry.size) { _, newSize in
+                containerSize = newSize
+            }
         }
         .background(Color(nsColor: .controlBackgroundColor))
         .accessibilityIdentifier("heatmap_canvas")
+    }
+
+    // MARK: - Context Menu
+
+    @ViewBuilder
+    private var contextMenuItems: some View {
+        if let selectedID = viewModel.selectedPointID,
+           let point = viewModel.project?.measurementPoints.first(where: { $0.id == selectedID }) {
+            Button {
+                viewModel.inspectedPointID = point.id
+            } label: {
+                Label("Inspect Point", systemImage: "info.circle")
+            }
+            .accessibilityIdentifier("heatmap_context_inspect")
+
+            Button(role: .destructive) {
+                viewModel.removeMeasurementPoint(id: point.id)
+            } label: {
+                Label("Delete Point", systemImage: "trash")
+            }
+            .accessibilityIdentifier("heatmap_context_delete")
+
+            Divider()
+        }
+
+        Button {
+            viewModel.undo()
+        } label: {
+            Label("Undo", systemImage: "arrow.uturn.backward")
+        }
+        .disabled(!viewModel.canUndo)
+
+        Button {
+            viewModel.redo()
+        } label: {
+            Label("Redo", systemImage: "arrow.uturn.forward")
+        }
+        .disabled(!viewModel.canRedo)
+    }
+
+    // MARK: - Inspected Point Popover
+
+    @ViewBuilder
+    private func inspectedPointPopoverAnchor(imageSize: CGSize, imageOrigin: CGPoint) -> some View {
+        if let point = viewModel.inspectedPoint {
+            let pos = screenPosition(for: point, imageSize: imageSize, imageOrigin: imageOrigin)
+            Color.clear
+                .frame(width: 1, height: 1)
+                .position(x: pos.x, y: pos.y)
+                .popover(
+                    isPresented: Binding(
+                        get: { viewModel.inspectedPointID != nil },
+                        set: { if !$0 { viewModel.inspectedPointID = nil } }
+                    ),
+                    arrowEdge: .bottom
+                ) {
+                    MeasurementDetailPopover(point: point) {
+                        viewModel.removeMeasurementPoint(id: point.id)
+                    }
+                }
+                .accessibilityIdentifier("heatmap_detail_popover_anchor")
+        }
     }
 
     // MARK: - Spacing Guidance
@@ -131,7 +211,46 @@ struct HeatmapCanvasView: View {
         guard normalizedX >= 0, normalizedX <= 1, normalizedY >= 0, normalizedY <= 1
         else { return }
 
-        onCanvasClick?(CGPoint(x: normalizedX, y: normalizedY))
+        let tappedNormalized = CGPoint(x: normalizedX, y: normalizedY)
+
+        // Check if the tap hit an existing measurement point (within 15pt radius)
+        if let hitPoint = hitTestMeasurementPoint(
+            tappedNormalized,
+            imageSize: imageSize,
+            imageOrigin: imageOrigin
+        ) {
+            // Tap on existing point → select and inspect
+            viewModel.selectedPointID = hitPoint.id
+            viewModel.inspectedPointID = hitPoint.id
+            return
+        }
+
+        // Tap on empty space → dismiss any popover and place a measurement
+        viewModel.inspectedPointID = nil
+        onCanvasClick?(tappedNormalized)
+    }
+
+    /// Returns the MeasurementPoint closest to the tapped location, if within hit radius.
+    private func hitTestMeasurementPoint(
+        _ normalizedTap: CGPoint,
+        imageSize: CGSize,
+        imageOrigin: CGPoint
+    ) -> MeasurementPoint? {
+        guard let points = viewModel.project?.measurementPoints
+        else { return nil }
+
+        let hitRadiusNormX = 15.0 / imageSize.width
+        let hitRadiusNormY = 15.0 / imageSize.height
+
+        for point in points {
+            let dx = normalizedTap.x - point.floorPlanX
+            let dy = normalizedTap.y - point.floorPlanY
+            // Elliptical hit test (accounts for non-square images)
+            if (dx * dx) / (hitRadiusNormX * hitRadiusNormX) + (dy * dy) / (hitRadiusNormY * hitRadiusNormY) <= 1.0 {
+                return point
+            }
+        }
+        return nil
     }
 
     // MARK: - Drawing

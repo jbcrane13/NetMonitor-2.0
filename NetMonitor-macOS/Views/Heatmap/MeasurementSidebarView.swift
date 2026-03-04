@@ -90,6 +90,19 @@ struct MeasurementSidebarView: View {
                                     viewModel.selectedPointID = point.id
                                 }
                             }
+                            .contextMenu {
+                                Button {
+                                    viewModel.inspectedPointID = point.id
+                                    viewModel.selectedPointID = point.id
+                                } label: {
+                                    Label("Inspect", systemImage: "info.circle")
+                                }
+                                Button(role: .destructive) {
+                                    viewModel.removeMeasurementPoint(id: point.id)
+                                } label: {
+                                    Label("Delete", systemImage: "trash")
+                                }
+                            }
                             .accessibilityIdentifier("heatmap_sidebar_point_\(point.id.uuidString.prefix(8))")
                         }
                     }
