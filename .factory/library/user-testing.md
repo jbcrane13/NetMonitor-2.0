@@ -139,6 +139,99 @@ For each assertion, provide:
 2. **evidence**: Specific code references (file:line or quoted code snippets) showing the assertion is met.
 3. **notes**: Any caveats about what couldn't be fully verified (e.g., "requires physical device").
 
+## Flow Validator Guidance: Phase 2 iOS — AR-Assisted Map Creation
+
+This milestone tests the Phase 2 iOS AR-Assisted Map Creation feature through **code review + build verification + unit tests**.
+
+### Testing Approach
+- **Primary: Code review** — Read the source files and verify the implementation matches each assertion's requirements. This is the main verification method since AR features cannot run in simulator.
+- **Secondary: Build verification** — The iOS target builds successfully under `SWIFT_STRICT_CONCURRENCY: complete` (verified: `xcodebuild -scheme NetMonitor-iOS -configuration Debug build` succeeded).
+- **Tertiary: Unit tests** — 1032 NetMonitorCore tests pass. iOS-specific tests include `FloorPlanGenerationPipelineTests` (40+ tests) and `ARCoordinateTransformTests` (12+ tests).
+- **No simulator interaction** — AR camera/LiDAR do NOT work in simulator. AR features require physical device.
+
+### Key Source Files — Phase 2 iOS
+| File | Contents |
+|------|----------|
+| `NetMonitor-iOS/Services/AR/ARSessionManager.swift` | AR session lifecycle: config, start, stop, mesh/plane handling |
+| `NetMonitor-iOS/Services/AR/ARCoordinateTransform.swift` | AR world → floor plan coordinate transform |
+| `NetMonitor-iOS/Services/AR/FloorPlanGenerationPipeline.swift` | Mesh → floor plan: height filter, XZ projection, rasterize, blur, contour |
+| `NetMonitor-iOS/Platform/ARWiFiSession.swift` | AR + WiFi combined session, LiDAR detection |
+| `NetMonitor-iOS/Views/Heatmap/ARScanView.swift` | AR scan UI with camera feed, overlays, controls |
+| `NetMonitor-iOS/Views/Heatmap/ARSurveyView.swift` | AR survey view with position tracking, measure button |
+| `NetMonitor-iOS/Views/Heatmap/FloorPlanPreviewView.swift` | Real-time floor plan preview during scan |
+| `NetMonitor-iOS/Views/Heatmap/HeatmapDashboardView.swift` | Dashboard with AR scan entry point |
+| `NetMonitor-iOS/ViewModels/ARScanViewModel.swift` | AR scan ViewModel: session management, mesh accumulation |
+| `NetMonitor-iOS/ViewModels/ARSurveyViewModel.swift` | AR survey ViewModel: position tracking, measure, tracking state |
+| `NetMonitor-iOS/ViewModels/FloorPlanGenerationViewModel.swift` | Floor plan generation: pipeline control, coverage, preview |
+| `Tests/NetMonitor-iOSTests/FloorPlanGenerationPipelineTests.swift` | Pipeline unit tests (40+ tests) |
+| `Tests/NetMonitor-iOSTests/ARCoordinateTransformTests.swift` | Coordinate transform unit tests (12+ tests) |
+
+### Isolation Rules
+- All code review work is read-only and safe to parallelize.
+- Do NOT modify source code, build products, or app state.
+- Each flow writes its report to a separate `.json` file in `.factory/validation/phase2-ios/user-testing/flows/`.
+
+### Assertion Evidence Standards
+For each assertion, provide:
+1. **status**: "pass", "fail", or "blocked"
+2. **evidence**: Specific code references (file:line or quoted code snippets) showing the assertion is met. For unit test assertions, reference the test name.
+3. **notes**: Any caveats about what couldn't be fully verified (all AR features require physical device for full verification).
+
+### Assertion-to-File Mapping
+
+**Group A: AR Session & Surface Detection**
+| Assertion | Primary Files |
+|-----------|--------------|
+| VAL-AR2-001 (entry point) | HeatmapDashboardView.swift, ARScanView.swift |
+| VAL-AR2-002 (session startup) | ARSessionManager.swift, ARScanViewModel.swift |
+| VAL-AR2-003 (LiDAR config) | ARSessionManager.swift |
+| VAL-AR2-004 (non-LiDAR fallback) | ARSessionManager.swift |
+| VAL-AR2-005 (walls blue) | ARScanView.swift, ARScanViewModel.swift |
+| VAL-AR2-006 (floor green) | ARScanView.swift, ARScanViewModel.swift |
+| VAL-AR2-028 (LiDAR detection) | ARWiFiSession.swift, ARSessionManager.swift |
+| VAL-AR2-029 (non-LiDAR guidance) | ARScanView.swift |
+| VAL-AR2-032 (camera permission) | ARScanView.swift, ARScanViewModel.swift |
+| VAL-AR2-033 (ARKit unsupported) | ARScanView.swift, ARScanViewModel.swift |
+| VAL-AR2-037 (scan instructions) | ARScanView.swift |
+
+**Group B: Floor Plan Generation Pipeline**
+| Assertion | Primary Files |
+|-----------|--------------|
+| VAL-AR2-007 (real-time preview) | FloorPlanPreviewView.swift, FloorPlanGenerationViewModel.swift |
+| VAL-AR2-008 (wall detection) | FloorPlanGenerationPipeline.swift |
+| VAL-AR2-009 (room boundaries) | FloorPlanGenerationPipeline.swift |
+| VAL-AR2-010 (LiDAR accuracy) | FloorPlanGenerationPipeline.swift |
+| VAL-AR2-011 (non-LiDAR accuracy) | FloorPlanGenerationPipeline.swift |
+| VAL-AR2-012 (completes <5s) | FloorPlanGenerationViewModel.swift |
+| VAL-AR2-013 (correct dimensions) | FloorPlanGenerationPipeline.swift, FloorPlanGenerationPipelineTests.swift |
+| VAL-AR2-014 (10px/m resolution) | FloorPlanGenerationPipeline.swift, FloorPlanGenerationPipelineTests.swift |
+| VAL-AR2-015 (coverage progress) | FloorPlanGenerationViewModel.swift, ARScanView.swift |
+| VAL-AR2-016 (missed area guidance) | FloorPlanGenerationPipeline.swift, ARScanView.swift |
+| VAL-AR2-030 (memory <500MB) | FloorPlanGenerationPipeline.swift, FloorPlanGenerationViewModel.swift |
+| VAL-AR2-031 (mesh lifecycle) | FloorPlanGenerationViewModel.swift |
+| VAL-AR2-034 (AR session failure) | ARScanViewModel.swift |
+| VAL-AR2-035 (AR cleanup) | ARSessionManager.swift, ARScanViewModel.swift |
+| VAL-AR2-038 (position 20cm) | ARCoordinateTransform.swift, ARCoordinateTransformTests.swift |
+| VAL-AR2-039 (Gaussian blur) | FloorPlanGenerationPipeline.swift, FloorPlanGenerationPipelineTests.swift |
+
+**Group C: Survey Transition, Tracking & Editing**
+| Assertion | Primary Files |
+|-----------|--------------|
+| VAL-AR2-017 (done → survey) | ARScanViewModel.swift, ARSurveyView.swift |
+| VAL-AR2-018 (Phase 1 compatible) | ARSurveyView.swift, HeatmapSurveyView.swift |
+| VAL-AR2-019 (blue pulsing dot) | ARSurveyView.swift |
+| VAL-AR2-020 (auto-placement) | ARSurveyViewModel.swift |
+| VAL-AR2-021 (coordinate transform) | ARCoordinateTransform.swift, ARCoordinateTransformTests.swift |
+| VAL-AR2-022 (tracking loss) | ARSurveyViewModel.swift |
+| VAL-AR2-023 (manual fallback) | ARSurveyView.swift, ARSurveyViewModel.swift |
+| VAL-AR2-024 (tracking recovery) | ARSurveyViewModel.swift |
+| VAL-AR2-025 (drag walls P1) | ARSurveyView.swift |
+| VAL-AR2-026 (delete walls P1) | ARSurveyView.swift |
+| VAL-AR2-027 (room labels P1) | ARSurveyView.swift |
+| VAL-AR2-036 (AR floor plan saved) | FloorPlanGenerationViewModel.swift, SurveyFileManagerTests |
+| VAL-AR2-040 (multi-room P1) | ARSessionManager.swift |
+| VAL-AR2-041 (mesh classification P1) | ARSessionManager.swift |
+
 ## Known Limitations
 - iOS NEHotspotNetwork requires precise location permission + Wi-Fi connection — returns nil in simulator
 - macOS CoreWLAN requires actual Wi-Fi hardware — works on mac-mini but values may vary
