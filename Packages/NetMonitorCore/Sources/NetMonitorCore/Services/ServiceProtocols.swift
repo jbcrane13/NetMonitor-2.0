@@ -359,6 +359,26 @@ public protocol ScanSchedulerServiceProtocol: AnyObject, Sendable {
     func computeDiff(current: [DiscoveredDevice]) -> ScanDiff
 }
 
+// MARK: - Heatmap Service Protocol
+
+/// Protocol for WiFi heatmap measurement operations.
+/// Platform implementations provide passive WiFi data collection,
+/// active speed/latency measurement, and continuous streaming.
+public protocol HeatmapServiceProtocol: AnyObject, Sendable {
+    /// Takes a single passive WiFi measurement (RSSI, SSID, BSSID, channel, band, noise floor).
+    func takeMeasurement(at floorPlanX: Double, floorPlanY: Double) async -> MeasurementPoint
+
+    /// Takes an active measurement: passive data plus speed test and ping.
+    func takeActiveMeasurement(at floorPlanX: Double, floorPlanY: Double) async -> MeasurementPoint
+
+    /// Starts continuous passive measurements at the specified interval.
+    /// Returns an AsyncStream that yields measurements until stopped.
+    func startContinuousMeasurement(interval: TimeInterval) async -> AsyncStream<MeasurementPoint>
+
+    /// Stops any in-progress continuous measurement stream.
+    func stopContinuousMeasurement() async
+}
+
 // MARK: - SSL / Domain Expiration Types
 
 /// Aggregated expiration status for a tracked domain (SSL cert + WHOIS registrar data).
