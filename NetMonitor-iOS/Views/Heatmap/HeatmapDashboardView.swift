@@ -10,12 +10,16 @@ struct HeatmapDashboardView: View {
     @State private var viewModel = HeatmapDashboardViewModel()
     @State private var activeSurveyVM: HeatmapSurveyViewModel?
     @State private var showSurvey = false
+    @State private var showARScan = false
 
     var body: some View {
         ScrollView {
             VStack(spacing: Theme.Layout.sectionSpacing) {
                 // Header with new project button
                 headerSection
+
+                // Create new project options (blueprint + AR scan)
+                createProjectSection
 
                 // Project list or empty state
                 if viewModel.isLoading {
@@ -49,6 +53,9 @@ struct HeatmapDashboardView: View {
             if let surveyVM = activeSurveyVM {
                 HeatmapSurveyView(viewModel: surveyVM)
             }
+        }
+        .navigationDestination(isPresented: $showARScan) {
+            ARScanView()
         }
         .alert("Error", isPresented: .init(
             get: { viewModel.errorMessage != nil },
@@ -137,6 +144,67 @@ struct HeatmapDashboardView: View {
                 }
                 .accessibilityIdentifier("heatmap_button_newProject")
             }
+        }
+    }
+
+    // MARK: - Create Project Section
+
+    /// Entry points for creating a new survey: blueprint import and AR scan.
+    private var createProjectSection: some View {
+        HStack(spacing: Theme.Layout.itemSpacing) {
+            // Blueprint import entry point
+            Button {
+                viewModel.showNewProjectSheet = true
+            } label: {
+                GlassCard(padding: 12) {
+                    VStack(spacing: 8) {
+                        Image(systemName: "photo.on.rectangle.angled")
+                            .font(.title2)
+                            .foregroundStyle(.cyan)
+
+                        Text("Blueprint Import")
+                            .font(.caption)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(Theme.Colors.textPrimary)
+
+                        Text("Import floor plan image")
+                            .font(.caption2)
+                            .foregroundStyle(Theme.Colors.textTertiary)
+                            .lineLimit(1)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .frame(minHeight: 90)
+                }
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("heatmap_button_blueprintImport")
+
+            // AR scan entry point
+            Button {
+                showARScan = true
+            } label: {
+                GlassCard(padding: 12) {
+                    VStack(spacing: 8) {
+                        Image(systemName: "camera.viewfinder")
+                            .font(.title2)
+                            .foregroundStyle(.blue)
+
+                        Text("AR Room Scan")
+                            .font(.caption)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(Theme.Colors.textPrimary)
+
+                        Text("Scan with camera")
+                            .font(.caption2)
+                            .foregroundStyle(Theme.Colors.textTertiary)
+                            .lineLimit(1)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .frame(minHeight: 90)
+                }
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("heatmap_button_arScan")
         }
     }
 

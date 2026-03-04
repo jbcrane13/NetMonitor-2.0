@@ -115,6 +115,7 @@
 		476B35D66E0D7DED478D1FEF /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = ADE8B26F50AFCAD208AC99F0 /* Assets.xcassets */; };
 		48F7A9075D2952F3E64F7899 /* WHOISToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02D429D7F12642A26F1D2045 /* WHOISToolView.swift */; };
 		4937EB6D1A9EBB7B43A1DA48 /* WHOISToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4896033C2D35E7BEF7BE38F4 /* WHOISToolView.swift */; };
+		49F567EFD35D5042F0261411 /* ARScanViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 581DB07E786A433BF0215085 /* ARScanViewModelTests.swift */; };
 		4BF1F7DE0E4B22FB33B7CA9D /* PingToolUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC3C86DC4C3ED5C3FB4B4DBB /* PingToolUITests.swift */; };
 		4C574A40D5A393675D61527A /* NetworkDevicesPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A11591C4A9BCB4B5C92F700 /* NetworkDevicesPanel.swift */; };
 		4C606703D8CFF77BAB7C6C3A /* PingToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C02C598E7B86F34E4C55714 /* PingToolView.swift */; };
@@ -135,6 +136,7 @@
 		5B717313F69059A0EE708968 /* ExportPDFUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C7966052F5A865065D57EED /* ExportPDFUITests.swift */; };
 		5B741E94E2272DCF651DA501 /* ShellCommandRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8CC68CA1629217A3CE5A80F /* ShellCommandRunner.swift */; };
 		5BA0F5A4D9C7E3031154A0C4 /* WakeOnLANToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E04C865578218E23F28F978 /* WakeOnLANToolView.swift */; };
+		5BBEBB460FB604FE9C16C25B /* ARScanViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 290719F5505DC1D438BE756D /* ARScanViewModel.swift */; };
 		5C68461770651750B278F6EC /* PortScannerToolUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F344E43A65DB15AAD34BEE6D /* PortScannerToolUITests.swift */; };
 		5CBC25455BD53E05AF8525E6 /* MacPairingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18300B34F5E90EE2E552E8E5 /* MacPairingView.swift */; };
 		5D4B058BFA8125C350ADBB50 /* DevicesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3E66364D030234E1B45A6BA /* DevicesView.swift */; };
@@ -153,9 +155,11 @@
 		657E6DB2A02F9590E7B6CD85 /* TimelineViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B457231CB1313AA1022A2F1 /* TimelineViewModel.swift */; };
 		65FEC46E6897CEC8AA8B8D0A /* ShellCommandRunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD6EC88007BD40A5D73D72C1 /* ShellCommandRunnerTests.swift */; };
 		674187D78DDE9125D8319F40 /* SidebarNavigationUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A25C5D0780F206AB35BE558 /* SidebarNavigationUITests.swift */; };
+		675224E474253F88EEBC570D /* ARSessionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9713D394482C5B81565BB86F /* ARSessionManager.swift */; };
 		68D9A9FF7937E73FE6F19BAF /* NetMonitorApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 756B774BD29446B68DEA41E3 /* NetMonitorApp.swift */; };
 		699CF6B268AB30284754AF82 /* BonjourBrowserToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCC7296D189AA643DC92B5CF /* BonjourBrowserToolView.swift */; };
 		6BAD6EDD7B3B66636B4FB6CA /* WakeOnLanActionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FEBEA87C402A3FB6AB1C6C5 /* WakeOnLanActionTests.swift */; };
+		6CD532819A376DEC0953C4AC /* ARScanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10D1DA57D2732CE29DEA607B /* ARScanView.swift */; };
 		6DC157EE440BBCA2DF330049 /* ThemeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 839A8CA84224C1AB94D4209C /* ThemeTests.swift */; };
 		6EB5085FAF3E0BF2D8A781D3 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87C68BBDE6DB8F7C4E446FEE /* DashboardView.swift */; };
 		6F667AFE95FEF38A5B5FC876 /* ISPCardViewModelExtendedTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAC76B1286C767294ED03042 /* ISPCardViewModelExtendedTests.swift */; };
@@ -402,6 +406,7 @@
 		0F14EF1F24FAD8E279C5F619 /* SettingsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViewModel.swift; sourceTree = "<group>"; };
 		101EF594B6858D3F18BCD641 /* DashboardUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardUITests.swift; sourceTree = "<group>"; };
 		101F26E4BECFFBFB3797E920 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		10D1DA57D2732CE29DEA607B /* ARScanView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ARScanView.swift; sourceTree = "<group>"; };
 		113F54C8B77279EBFE7FBF0D /* IOSUITestCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSUITestCase.swift; sourceTree = "<group>"; };
 		11ECEB0143FB17F5EE8C4EB4 /* GatewayService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GatewayService.swift; sourceTree = "<group>"; };
 		1280084A1B0D74730547A6EB /* TargetManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TargetManager.swift; sourceTree = "<group>"; };
@@ -440,6 +445,7 @@
 		247C2718CDBD3187540F4A47 /* SpeedTestIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeedTestIntent.swift; sourceTree = "<group>"; };
 		273DFEA060BE77C6F58BE72B /* AppIntentsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppIntentsTests.swift; sourceTree = "<group>"; };
 		28840E366E12B65E3AAD7F2E /* ToolInputField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolInputField.swift; sourceTree = "<group>"; };
+		290719F5505DC1D438BE756D /* ARScanViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ARScanViewModel.swift; sourceTree = "<group>"; };
 		2ABF8651A3EB16DD9B71D2A6 /* DataMaintenanceService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataMaintenanceService.swift; sourceTree = "<group>"; };
 		2C07EEFC585E7926EC1103D7 /* iOSMockServices.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = iOSMockServices.swift; sourceTree = "<group>"; };
 		2C3943143B99D5243073376A /* MetricCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetricCard.swift; sourceTree = "<group>"; };
@@ -506,6 +512,7 @@
 		54C99AC505678858E903CE46 /* ARWiFiSignalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ARWiFiSignalView.swift; sourceTree = "<group>"; };
 		574EEE399237D9E39C327053 /* NewProjectView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewProjectView.swift; sourceTree = "<group>"; };
 		5754DDE3B9CAA800C43BE5B9 /* NetMonitor-iOSTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = "NetMonitor-iOSTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		581DB07E786A433BF0215085 /* ARScanViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ARScanViewModelTests.swift; sourceTree = "<group>"; };
 		5895DED1FC083716813EB576 /* PortScannerToolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortScannerToolView.swift; sourceTree = "<group>"; };
 		5A25C5D0780F206AB35BE558 /* SidebarNavigationUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarNavigationUITests.swift; sourceTree = "<group>"; };
 		5AE1D8C5F900E64248573737 /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
@@ -590,6 +597,7 @@
 		9397061B694F2821A01D1805 /* HTTPMonitorService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HTTPMonitorService.swift; sourceTree = "<group>"; };
 		94B066F0CD9CFC336ED86D3E /* TracerouteToolUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TracerouteToolUITests.swift; sourceTree = "<group>"; };
 		96CAA6CB710E490DF3D17465 /* StatisticsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatisticsService.swift; sourceTree = "<group>"; };
+		9713D394482C5B81565BB86F /* ARSessionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ARSessionManager.swift; sourceTree = "<group>"; };
 		98B68963D40A139DE9EF2272 /* WebBrowserToolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebBrowserToolView.swift; sourceTree = "<group>"; };
 		9918AEA9A38CB534D5DCB15B /* NetworkMapUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkMapUITests.swift; sourceTree = "<group>"; };
 		99435F2A9092DB49F47FBBAB /* MenuBarUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarUITests.swift; sourceTree = "<group>"; };
@@ -802,6 +810,7 @@
 		10E4CCBCC6C445B127309731 /* ViewModels */ = {
 			isa = PBXGroup;
 			children = (
+				290719F5505DC1D438BE756D /* ARScanViewModel.swift */,
 				647B047E24A942EBA22B1D77 /* ARWiFiViewModel.swift */,
 				C5BC316F3DB96C6B180E0814 /* BonjourDiscoveryToolViewModel.swift */,
 				7F7EC6402D2DF48B18A56FB6 /* DashboardViewModel.swift */,
@@ -868,6 +877,14 @@
 				ADE8B26F50AFCAD208AC99F0 /* Assets.xcassets */,
 			);
 			path = Resources;
+			sourceTree = "<group>";
+		};
+		162EFDE4A82F898BD44637F7 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				DD3BAFE44D6F3ACA6BC8B467 /* AR */,
+			);
+			path = Services;
 			sourceTree = "<group>";
 		};
 		2E63D37E9C6B73B603333623 /* ViewModels */ = {
@@ -983,6 +1000,7 @@
 		6B090A59443B57C8B7C518CD /* Heatmap */ = {
 			isa = PBXGroup;
 			children = (
+				10D1DA57D2732CE29DEA607B /* ARScanView.swift */,
 				08B87B5138F904EC68AE2BFC /* CalibrationSheetView.swift */,
 				68115A44B3FFFDC633B3D2EC /* DocumentPicker.swift */,
 				16958E57DDFDDD7B0B1599F3 /* FloatingRSSIHUD.swift */,
@@ -1026,6 +1044,7 @@
 			children = (
 				273DFEA060BE77C6F58BE72B /* AppIntentsTests.swift */,
 				084ADAFF53B1BE144A7AED45 /* AppSettingsTests.swift */,
+				581DB07E786A433BF0215085 /* ARScanViewModelTests.swift */,
 				5E24055A862CF856216A198D /* ARWiFiViewModelTests.swift */,
 				9E2DDEE169D6930C49B355DF /* BonjourDiscoveryToolViewModelTests.swift */,
 				20D7904358AD4EFE10410C4C /* DashboardViewModelTests.swift */,
@@ -1141,6 +1160,7 @@
 				B0DAECD1C045E382C76FE56E /* App */,
 				12A4AC81526173A670D52622 /* Platform */,
 				CBB92A689511B91457179F45 /* Resources */,
+				162EFDE4A82F898BD44637F7 /* Services */,
 				10E4CCBCC6C445B127309731 /* ViewModels */,
 				0D4D0765E3E667C3E2CDAD0C /* Views */,
 			);
@@ -1295,6 +1315,14 @@
 				F1E3DEA57F6B8F17568083FA /* NetMonitor-macOSUITests */,
 			);
 			path = Tests;
+			sourceTree = "<group>";
+		};
+		DD3BAFE44D6F3ACA6BC8B467 /* AR */ = {
+			isa = PBXGroup;
+			children = (
+				9713D394482C5B81565BB86F /* ARSessionManager.swift */,
+			);
+			path = AR;
 			sourceTree = "<group>";
 		};
 		DF8A97F2CEDAD608B13029EA /* DeviceDetail */ = {
@@ -1722,6 +1750,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				49F567EFD35D5042F0261411 /* ARScanViewModelTests.swift in Sources */,
 				8229D35E4B5520BC08DE7E15 /* ARWiFiViewModelTests.swift in Sources */,
 				2154DEEBE29F72B0962B2599 /* AppIntentsTests.swift in Sources */,
 				D2DB215E781C3142A9F91B2E /* AppSettingsTests.swift in Sources */,
@@ -1770,6 +1799,9 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				6CD532819A376DEC0953C4AC /* ARScanView.swift in Sources */,
+				5BBEBB460FB604FE9C16C25B /* ARScanViewModel.swift in Sources */,
+				675224E474253F88EEBC570D /* ARSessionManager.swift in Sources */,
 				14A7BBE9F529384A7A183545 /* ARWiFiSession.swift in Sources */,
 				6083496D7A62F8D4EC9BFFB4 /* ARWiFiSignalView.swift in Sources */,
 				74A371104C173F9C591C61A5 /* ARWiFiViewModel.swift in Sources */,

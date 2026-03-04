@@ -58,6 +58,8 @@
 			</dict>
 		</dict>
 	</dict>
+	<key>NSCameraUsageDescription</key>
+	<string>NetMonitor uses the camera for AR-assisted room scanning to create floor plans for Wi-Fi coverage surveys.</string>
 	<key>NSBonjourServices</key>
 	<array>
 		<string>_netmon._tcp</string>
