@@ -232,6 +232,108 @@ For each assertion, provide:
 | VAL-AR2-040 (multi-room P1) | ARSessionManager.swift |
 | VAL-AR2-041 (mesh classification P1) | ARSessionManager.swift |
 
+## Flow Validator Guidance: Phase 3 iOS — AR Continuous Scan
+
+This milestone tests the Phase 3 iOS AR Continuous Scan feature through **code review + build verification + unit tests**.
+
+### Testing Approach
+- **Primary: Code review** — Read the source files and verify the implementation matches each assertion's requirements. This is the main verification method since AR features cannot run in simulator.
+- **Secondary: Build verification** — The iOS target builds successfully under `SWIFT_STRICT_CONCURRENCY: complete` (verified: `xcodebuild -scheme NetMonitor-iOS -configuration Debug build` succeeded with BUILD SUCCEEDED).
+- **Tertiary: Unit tests** — 1032 NetMonitorCore tests pass. iOS-specific tests include `ContinuousCapturePipelineTests`, `ContinuousScanViewModelTests`, and `HeatmapMetalRendererTests`.
+- **No simulator interaction** — AR camera/LiDAR/Metal GPU do NOT work in simulator. AR features require physical device.
+
+### Key Source Files — Phase 3 iOS
+| File | Contents |
+|------|----------|
+| `NetMonitor-iOS/Services/AR/ContinuousCapturePipeline.swift` | Concurrent AR + WiFi capture, 2Hz measurement, adaptive rate, downsampling |
+| `NetMonitor-iOS/Services/AR/HeatmapMetalRenderer.swift` | Metal persistent textures, map/heatmap rendering, Gaussian splats, 10Hz |
+| `NetMonitor-iOS/Services/AR/ScanThermalManager.swift` | Thermal monitoring, auto-pause at .serious/.critical |
+| `NetMonitor-iOS/Services/AR/ARSessionManager.swift` | AR session lifecycle (shared with Phase 2) |
+| `NetMonitor-iOS/Services/AR/ARCoordinateTransform.swift` | Coordinate transforms (shared with Phase 2) |
+| `NetMonitor-iOS/Services/AR/FloorPlanGenerationPipeline.swift` | Floor plan generation (shared with Phase 2) |
+| `NetMonitor-iOS/Platform/ARWiFiSession.swift` | AR + WiFi combined session, LiDAR detection |
+| `NetMonitor-iOS/Views/Heatmap/ContinuousScanView.swift` | Main continuous scan UI: split-screen, controls |
+| `NetMonitor-iOS/Views/Heatmap/ContinuousScanView+Subviews.swift` | Subviews: AR camera, 2D map, floating controls |
+| `NetMonitor-iOS/Views/Heatmap/PostScanReviewView.swift` | Post-scan review: full-screen map, viz switching, export |
+| `NetMonitor-iOS/Views/Heatmap/HeatmapDashboardView.swift` | Dashboard with continuous scan entry point |
+| `NetMonitor-iOS/ViewModels/ContinuousScanViewModel.swift` | ViewModel: pipeline orchestration, pause/resume, finish |
+| `Tests/NetMonitor-iOSTests/ContinuousCapturePipelineTests.swift` | Pipeline unit tests |
+| `Tests/NetMonitor-iOSTests/ContinuousScanViewModelTests.swift` | ViewModel unit tests |
+| `Tests/NetMonitor-iOSTests/HeatmapMetalRendererTests.swift` | Metal renderer unit tests |
+
+### Isolation Rules
+- All code review work is read-only and safe to parallelize.
+- Do NOT modify source code, build products, or app state.
+- Each flow writes its report to a separate `.json` file in `.factory/validation/phase3-ios/user-testing/flows/`.
+
+### Assertion Evidence Standards
+For each assertion, provide:
+1. **status**: "pass", "fail", or "blocked"
+2. **evidence**: Specific code references (file:line or quoted code snippets) showing the assertion is met. For unit test assertions, reference the test name.
+3. **notes**: Any caveats about what couldn't be fully verified (all AR features require physical device for full verification).
+
+### Assertion-to-File Mapping
+
+**Group A: Capture Pipeline & Entry (VAL-AR3-001 to 005, 031, 042, 045)**
+| Assertion | Primary Files |
+|-----------|--------------|
+| VAL-AR3-001 (entry point) | HeatmapDashboardView.swift, ContinuousScanView.swift |
+| VAL-AR3-002 (LiDAR requirement) | ContinuousScanViewModel.swift, HeatmapDashboardView.swift |
+| VAL-AR3-003 (concurrent AR+WiFi) | ContinuousCapturePipeline.swift, ContinuousScanViewModel.swift |
+| VAL-AR3-004 (2Hz measurement) | ContinuousCapturePipeline.swift |
+| VAL-AR3-005 (adaptive rate) | ContinuousCapturePipeline.swift |
+| VAL-AR3-031 (downsampling) | ContinuousCapturePipeline.swift |
+| VAL-AR3-042 (pipeline sync) | ContinuousCapturePipeline.swift |
+| VAL-AR3-045 (cleanup) | ContinuousScanViewModel.swift, ContinuousCapturePipeline.swift |
+
+**Group B: Metal Rendering & Display (VAL-AR3-006 to 016, 032-035, 037, 043, 044)**
+| Assertion | Primary Files |
+|-----------|--------------|
+| VAL-AR3-006 (real-time map) | HeatmapMetalRenderer.swift, ContinuousScanView.swift |
+| VAL-AR3-007 (incremental growth) | HeatmapMetalRenderer.swift |
+| VAL-AR3-008 (heatmap splats) | HeatmapMetalRenderer.swift |
+| VAL-AR3-009 (WiFiman colors) | HeatmapMetalRenderer.swift, HeatmapRenderer.swift |
+| VAL-AR3-010 (split-screen AR top) | ContinuousScanView.swift |
+| VAL-AR3-011 (split-screen map bottom) | ContinuousScanView.swift, ContinuousScanView+Subviews.swift |
+| VAL-AR3-012 (map zoom/pan) | ContinuousScanView+Subviews.swift |
+| VAL-AR3-013 (pause/resume control) | ContinuousScanView+Subviews.swift, ContinuousScanViewModel.swift |
+| VAL-AR3-014 (signal badge) | ContinuousScanView+Subviews.swift |
+| VAL-AR3-015 (point count/coverage) | ContinuousScanView+Subviews.swift |
+| VAL-AR3-016 (finish scan button) | ContinuousScanView+Subviews.swift |
+| VAL-AR3-032 (Metal textures) | HeatmapMetalRenderer.swift |
+| VAL-AR3-033 (map texture) | HeatmapMetalRenderer.swift |
+| VAL-AR3-034 (heatmap texture) | HeatmapMetalRenderer.swift |
+| VAL-AR3-035 (10Hz render) | HeatmapMetalRenderer.swift |
+| VAL-AR3-037 (walking path) | ContinuousScanView+Subviews.swift, ContinuousScanViewModel.swift |
+| VAL-AR3-043 (position dot both views) | ContinuousScanView.swift, ContinuousScanView+Subviews.swift |
+| VAL-AR3-044 (viewport auto-center) | ContinuousScanView+Subviews.swift |
+
+**Group C: Pause/Resume, Finish, Performance & Errors (VAL-AR3-017 to 030, 036, 038-041, 046-048)**
+| Assertion | Primary Files |
+|-----------|--------------|
+| VAL-AR3-017 (pause stops all) | ContinuousScanViewModel.swift |
+| VAL-AR3-018 (resume relocalization) | ContinuousScanViewModel.swift |
+| VAL-AR3-019 (data continuity) | ContinuousScanViewModel.swift |
+| VAL-AR3-020 (IDW refinement) | ContinuousScanViewModel.swift, HeatmapRenderer.swift |
+| VAL-AR3-021 (progress indicator) | ContinuousScanViewModel.swift, PostScanReviewView.swift |
+| VAL-AR3-022 (floor plan cleanup) | ContinuousScanViewModel.swift, FloorPlanGenerationPipeline.swift |
+| VAL-AR3-023 (saves as SurveyProject) | ContinuousScanViewModel.swift |
+| VAL-AR3-024 (post-scan viz switching) | PostScanReviewView.swift |
+| VAL-AR3-025 (full-screen review) | PostScanReviewView.swift |
+| VAL-AR3-026 (CPU <60%) | ContinuousCapturePipeline.swift, HeatmapMetalRenderer.swift |
+| VAL-AR3-027 (GPU <40%) | HeatmapMetalRenderer.swift |
+| VAL-AR3-028 (memory <600MB) | ContinuousCapturePipeline.swift |
+| VAL-AR3-029 (battery <15%/30min) | ContinuousCapturePipeline.swift, HeatmapMetalRenderer.swift |
+| VAL-AR3-030 (thermal management) | ScanThermalManager.swift, ContinuousScanViewModel.swift |
+| VAL-AR3-036 (AP roaming overlay) | ContinuousScanViewModel.swift, ContinuousScanView+Subviews.swift |
+| VAL-AR3-038 (coverage completeness) | ContinuousScanView+Subviews.swift, ContinuousScanViewModel.swift |
+| VAL-AR3-039 (AR session failure) | ContinuousScanViewModel.swift |
+| VAL-AR3-040 (WiFi pipeline failure) | ContinuousScanViewModel.swift |
+| VAL-AR3-041 (memory pressure) | ContinuousScanViewModel.swift, ContinuousCapturePipeline.swift |
+| VAL-AR3-046 (wall accuracy 15cm) | FloorPlanGenerationPipeline.swift, HeatmapMetalRenderer.swift |
+| VAL-AR3-047 (real-time vs post-scan 5dBm) | HeatmapMetalRendererTests.swift, HeatmapRenderer.swift |
+| VAL-AR3-048 (AP boundary 2m) | ContinuousScanViewModel.swift |
+
 ## Known Limitations
 - iOS NEHotspotNetwork requires precise location permission + Wi-Fi connection — returns nil in simulator
 - macOS CoreWLAN requires actual Wi-Fi hardware — works on mac-mini but values may vary
