@@ -9,14 +9,9 @@ struct HeatmapSurveyView: View {
     @State private var offset: CGSize = .zero
 
     var body: some View {
-        NavigationSplitView {
+        HSplitView {
             sidebar
-        } detail: {
-            if viewModel.surveyProject != nil {
-                measurementCanvas
-            } else {
-                emptyState
-            }
+            detailArea
         }
         .frame(minWidth: 900, minHeight: 600)
         .fileImporter(
@@ -82,6 +77,18 @@ struct HeatmapSurveyView: View {
             }
         }
         .frame(minWidth: 220)
+    }
+
+    // MARK: - Detail Area
+
+    private var detailArea: some View {
+        Group {
+            if viewModel.surveyProject != nil {
+                measurementCanvas
+            } else {
+                emptyState
+            }
+        }
     }
 
     // MARK: - Canvas
