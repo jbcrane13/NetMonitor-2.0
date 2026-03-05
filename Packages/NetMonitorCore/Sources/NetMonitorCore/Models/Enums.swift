@@ -390,4 +390,8 @@ public struct PortRange: Sendable, Equatable {
         guard isValid else { return 0 }
         return end - start + 1
     }
+
+    public var isEmpty: Bool {
+        !isValid
+    }
 }
