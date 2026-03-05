@@ -17,7 +17,7 @@ final class HeatmapSurveyViewModel {
     // MARK: - Services
     private var wifiEngine: WiFiMeasurementEngine?
     private var renderer: HeatmapRenderer
-    private let wifiService = WiFiInfoService()
+    private var wifiService: WiFiInfoService?
 
     // MARK: - Measurement Mode
     enum MeasurementMode: String, CaseIterable {
@@ -27,17 +27,24 @@ final class HeatmapSurveyViewModel {
 
     init() {
         renderer = HeatmapRenderer()
-        setupEngine()
     }
 
-    private func setupEngine() {
-        let speedService = SpeedTestService()
-        let pingService = PingService()
-        wifiEngine = WiFiMeasurementEngine(
-            wifiService: wifiService,
-            speedTestService: speedService,
-            pingService: pingService
-        )
+    private func setupEngineIfNeeded() {
+        if wifiEngine == nil {
+            let service = WiFiInfoService()
+            self.wifiService = service
+            let speedService = SpeedTestService()
+            let pingService = PingService()
+            wifiEngine = WiFiMeasurementEngine(
+                wifiService: service,
+                speedTestService: speedService,
+                pingService: pingService
+            )
+        }
+    }
+
+    func onAppear() {
+        setupEngineIfNeeded()
     }
 
     // MARK: - Floor Plan Import
@@ -62,6 +69,7 @@ final class HeatmapSurveyViewModel {
     // MARK: - Measurement
 
     func takeMeasurement(at normalizedPoint: CGPoint) async {
+        setupEngineIfNeeded()
         guard let project = surveyProject, !isMeasuring else { return }
 
         isMeasuring = true
