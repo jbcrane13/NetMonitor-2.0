@@ -10,71 +10,72 @@ struct HeatmapSurveyView: View {
     @State private var selectedPhotoItem: PhotosPickerItem?
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                if viewModel.surveyProject != nil {
-                    measurementCanvas
-                } else {
-                    emptyState
-                }
-
-                // Floating RSSI card
-                if viewModel.isMeasuring || viewModel.measurementPoints.count > 0 {
-                    floatingRSSICard
-                }
+        ZStack {
+            if viewModel.surveyProject != nil {
+                measurementCanvas
+            } else {
+                emptyState
             }
-            .navigationTitle("WiFi Survey")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Menu {
-                        Button {
-                            selectedPhotoItem = nil
-                            viewModel.showImportSheet = true
-                        } label: {
-                            Label("Import from Photos", systemImage: "photo")
-                        }
 
-                        Button {
-                            // File picker handled elsewhere
-                        } label: {
-                            Label("Import from Files", systemImage: "folder")
-                        }
-
-                        Divider()
-
-                        Picker("Mode", selection: $viewModel.measurementMode) {
-                            Text("Passive").tag(HeatmapSurveyViewModel.MeasurementMode.passive)
-                            Text("Active").tag(HeatmapSurveyViewModel.MeasurementMode.active)
-                        }
+            // Floating RSSI card
+            if viewModel.isMeasuring || !viewModel.measurementPoints.isEmpty {
+                floatingRSSICard
+            }
+        }
+        .navigationTitle("WiFi Survey")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                Menu {
+                    Button {
+                        selectedPhotoItem = nil
+                        viewModel.showImportSheet = true
                     } label: {
-                        Image(systemName: "ellipsis.circle")
+                        Label("Import from Photos", systemImage: "photo")
                     }
-                }
 
-                ToolbarItem(placement: .topBarTrailing) {
-                    Menu {
-                        Picker("Visualization", selection: $viewModel.selectedVisualization) {
-                            ForEach(HeatmapVisualization.allCases, id: \.self) { viz in
-                                Text(viz.displayName).tag(viz)
-                            }
-                        }
-
-                        Divider()
-
-                        Button("Clear Points") {
-                            viewModel.clearMeasurements()
-                            heatmapImage = nil
-                        }
+                    Button {
+                        // File picker handled elsewhere
                     } label: {
-                        Image(systemName: "slider.horizontal.3")
+                        Label("Import from Files", systemImage: "folder")
                     }
+
+                    Divider()
+
+                    Picker("Mode", selection: $viewModel.measurementMode) {
+                        Text("Passive").tag(HeatmapSurveyViewModel.MeasurementMode.passive)
+                        Text("Active").tag(HeatmapSurveyViewModel.MeasurementMode.active)
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
                 }
             }
-            .photosPicker(isPresented: $viewModel.showImportSheet, selection: $selectedPhotoItem, matching: .images)
-            .onChange(of: selectedPhotoItem) { _, newValue in
-                handlePhotoImport(newValue)
+
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Picker("Visualization", selection: $viewModel.selectedVisualization) {
+                        ForEach(HeatmapVisualization.allCases, id: \.self) { viz in
+                            Text(viz.displayName).tag(viz)
+                        }
+                    }
+
+                    Divider()
+
+                    Button("Clear Points") {
+                        viewModel.clearMeasurements()
+                        heatmapImage = nil
+                    }
+                } label: {
+                    Image(systemName: "slider.horizontal.3")
+                }
             }
+        }
+        .photosPicker(isPresented: $viewModel.showImportSheet, selection: $selectedPhotoItem, matching: .images)
+        .onChange(of: selectedPhotoItem) { _, newValue in
+            handlePhotoImport(newValue)
+        }
+        .onAppear {
+            viewModel.onAppear()
         }
     }
 

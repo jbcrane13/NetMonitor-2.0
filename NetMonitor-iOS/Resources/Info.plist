@@ -88,8 +88,6 @@
 	<string>NetMonitor uses your location in the background to trigger GeoFence alerts when you enter or exit defined zones.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>NetMonitor uses your location to display WiFi network information and monitor GeoFence zones.</string>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>NetMonitor needs access to your photo library to import floor plan images for WiFi surveys.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>fetch</string>
