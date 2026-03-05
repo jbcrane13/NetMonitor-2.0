@@ -4,6 +4,8 @@
 {"created_at":"2026-03-04T20:18:57Z","created_by":"Blake Crane","depends_on_id":"NetMonitor20-hay","issue_id":"NetMonitor20-hay.2","type":"parent-child"}
 {"created_at":"2026-03-04T20:18:57Z","created_by":"Blake Crane","depends_on_id":"NetMonitor20-hay","issue_id":"NetMonitor20-hay.3","type":"parent-child"}
 {"created_at":"2026-03-04T20:18:57Z","created_by":"Blake Crane","depends_on_id":"NetMonitor20-hay","issue_id":"NetMonitor20-hay.4","type":"parent-child"}
+{"created_at":"2026-03-04T20:35:14Z","created_by":"Blake Crane","depends_on_id":"NetMonitor20-yj2","issue_id":"NetMonitor20-kbw","type":"blocks"}
+{"created_at":"2026-03-04T20:35:14Z","created_by":"Blake Crane","depends_on_id":"NetMonitor20-kbw","issue_id":"NetMonitor20-nuz","type":"blocks"}
 {"created_at":"2026-03-04T20:18:27Z","created_by":"Blake Crane","depends_on_id":"NetMonitor20-q9a","issue_id":"NetMonitor20-o2d","type":"parent-child"}
 {"created_at":"2026-03-04T20:18:56Z","created_by":"Blake Crane","depends_on_id":"NetMonitor20-q9a","issue_id":"NetMonitor20-q9a.1","type":"parent-child"}
 {"created_at":"2026-03-04T20:18:56Z","created_by":"Blake Crane","depends_on_id":"NetMonitor20-q9a","issue_id":"NetMonitor20-q9a.2","type":"parent-child"}
