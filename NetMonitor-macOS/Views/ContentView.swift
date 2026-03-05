@@ -63,7 +63,7 @@ struct ContentView: View {
             // Handle Finder double-click on .netmonsurvey files
             if url.pathExtension == "netmonsurvey" {
                 pendingSurveyURL = url
-                selectedSection = .section(.heatmap)
+                selectedSection = .tool(.wifiHeatmap)
             }
         }
     }
@@ -97,9 +97,6 @@ struct ContentView: View {
     @ViewBuilder
     private func sectionView(for section: NavigationSection) -> some View {
         switch section {
-        case .heatmap:
-            HeatmapProjectListView(pendingSurveyURL: $pendingSurveyURL)
-                .accessibilityIdentifier("detail_heatmap")
         case .tools:
             ToolsView(selection: $selectedSection)
                 .accessibilityIdentifier("detail_tools")
@@ -125,6 +122,7 @@ struct ContentView: View {
             case .worldPing: WorldPingToolView()
             case .geoTrace: GeoTraceView()
             case .sslMonitor: SSLCertificateMonitorView()
+            case .wifiHeatmap: HeatmapSurveyView()
             }
         }
         .toolbar {
