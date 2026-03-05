@@ -1,4 +1,4 @@
-thaimport SwiftUI
+import SwiftUI
 import NetMonitorCore
 
 struct ToolsView: View {
