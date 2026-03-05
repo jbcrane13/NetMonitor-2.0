@@ -82,7 +82,7 @@ enum ToolDestination: Hashable {
         case .sslMonitor:
             SSLCertificateMonitorView()
         case .wifiHeatmap:
-            HeatmapDashboardView()
+            HeatmapSurveyView()
         }
     }
 }
