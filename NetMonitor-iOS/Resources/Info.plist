@@ -58,8 +58,6 @@
 			</dict>
 		</dict>
 	</dict>
-	<key>NSCameraUsageDescription</key>
-	<string>NetMonitor uses the camera for AR-assisted room scanning to create floor plans for Wi-Fi coverage surveys.</string>
 	<key>NSBonjourServices</key>
 	<array>
 		<string>_netmon._tcp</string>
@@ -82,12 +80,16 @@
 		<string>_sonos._tcp</string>
 		<string>_workstation._tcp</string>
 	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>NetMonitor uses the camera for AR-assisted room scanning to create floor plans for Wi-Fi coverage surveys.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>NetMonitor scans your local network to discover devices, services, and the macOS companion app.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>NetMonitor uses your location in the background to trigger GeoFence alerts when you enter or exit defined zones.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>NetMonitor uses your location to display WiFi network information and monitor GeoFence zones.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>NetMonitor needs access to your photo library to import floor plan images for WiFi surveys.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>fetch</string>
