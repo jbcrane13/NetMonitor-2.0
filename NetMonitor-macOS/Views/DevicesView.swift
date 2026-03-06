@@ -13,6 +13,7 @@ struct DevicesView: View {
     @State private var searchText: String = ""
     @State private var filterOnlineOnly: Bool = false
     @State private var sortOrder: DeviceSortOrder = .lastSeen
+    @State private var viewMode: DeviceViewMode = .consumer
     @State private var wolAction = WakeOnLanAction()
     @State private var availableNetworks: [NetworkProfile] = []
     @State private var selectedNetworkID: UUID?
@@ -33,6 +34,20 @@ struct DevicesView: View {
             case .name: return "textformat"
             case .ipAddress: return "number"
             case .status: return "circle.fill"
+            }
+        }
+    }
+
+    // MARK: - View Mode
+
+    enum DeviceViewMode: String, CaseIterable {
+        case consumer = "Consumer"
+        case pro = "Pro"
+
+        var icon: String {
+            switch self {
+            case .consumer: return "square.grid.2x2"
+            case .pro: return "list.bullet"
             }
         }
     }
@@ -150,15 +165,11 @@ struct DevicesView: View {
                 )
                 .accessibilityIdentifier("devices_label_empty")
             } else {
-                List(filteredDevices, selection: $selectedDevice) { device in
-                    DeviceRowView(device: device)
-                        .tag(device)
-                        .contextMenu {
-                            deviceContextMenu(for: device)
-                        }
+                if viewMode == .consumer {
+                    consumerModeList
+                } else {
+                    proModeList
                 }
-                .listStyle(.inset)
-                .accessibilityIdentifier("devices_list")
             }
         }
         .overlay {
@@ -166,6 +177,73 @@ struct DevicesView: View {
                 scanningOverlay
             }
         }
+    }
+
+    // MARK: - Consumer Mode List (Card-based)
+
+    private var consumerModeList: some View {
+        ScrollView {
+            LazyVStack(spacing: 8) {
+                ForEach(filteredDevices) { device in
+                    DeviceCardView(device: device, isSelected: selectedDevice?.id == device.id)
+                        .onTapGesture {
+                            selectedDevice = device
+                        }
+                }
+            }
+            .padding()
+        }
+    }
+
+    // MARK: - Pro Mode List (Dense Table)
+
+    private var proModeList: some View {
+        ScrollView {
+            LazyVStack(spacing: 0) {
+                // Header row
+                proModeHeaderRow
+
+                Divider()
+
+                // Data rows
+                ForEach(filteredDevices) { device in
+                    ProModeRowView(device: device, isSelected: selectedDevice?.id == device.id)
+                        .onTapGesture {
+                            selectedDevice = device
+                        }
+                    Divider()
+                }
+            }
+        }
+    }
+
+    private var proModeHeaderRow: some View {
+        HStack(spacing: 0) {
+            Text("Status")
+                .frame(width: 50, alignment: .center)
+            Text("Name")
+                .frame(minWidth: 120, alignment: .leading)
+            Text("IP Address")
+                .frame(width: 100, alignment: .leading)
+            Text("MAC")
+                .frame(width: 100, alignment: .leading)
+            Text("Vendor")
+                .frame(minWidth: 80, alignment: .leading)
+            Text("Ports")
+                .frame(width: 80, alignment: .center)
+            Text("Services")
+                .frame(minWidth: 100, alignment: .leading)
+            Text("Latency")
+                .frame(width: 60, alignment: .trailing)
+            Text("Last Seen")
+                .frame(width: 80, alignment: .trailing)
+        }
+        .font(.caption)
+        .fontWeight(.semibold)
+        .foregroundStyle(.secondary)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(Color.gray.opacity(0.1))
     }
 
     // MARK: - Scanning Overlay
@@ -245,6 +323,18 @@ struct DevicesView: View {
                 Label("Sort", systemImage: "arrow.up.arrow.down")
             }
             .accessibilityIdentifier("devices_menu_sort")
+        }
+
+        ToolbarItemGroup(placement: .automatic) {
+            Picker("View", selection: $viewMode) {
+                ForEach(DeviceViewMode.allCases, id: \.self) { mode in
+                    Label(mode.rawValue, systemImage: mode.icon)
+                        .tag(mode)
+                }
+            }
+            .pickerStyle(.segmented)
+            .frame(width: 180)
+            .accessibilityIdentifier("devices_picker_viewMode")
         }
 
         ToolbarItem(placement: .automatic) {
