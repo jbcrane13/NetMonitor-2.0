@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 63;
+	objectVersion = 77;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -350,7 +350,7 @@
 		016F16F5B8551E19BA9B89C0 /* NetMonitorCore */ = {isa = PBXFileReference; lastKnownFileType = folder; name = NetMonitorCore; path = Packages/NetMonitorCore; sourceTree = SOURCE_ROOT; };
 		01E6AFDD85C2E113081B9646 /* TargetManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TargetManagerTests.swift; sourceTree = "<group>"; };
 		02D429D7F12642A26F1D2045 /* WHOISToolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WHOISToolView.swift; sourceTree = "<group>"; };
-		040158ED31B51401B56621DB /* NetMonitor-iOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "NetMonitor-iOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		040158ED31B51401B56621DB /* NetMonitor-iOS.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = "NetMonitor-iOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		04BDC838230764B6AA69A835 /* VPNInfoUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VPNInfoUITests.swift; sourceTree = "<group>"; };
 		04C7FA2561E26185AE834BE0 /* NetworkHealthScoreViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkHealthScoreViewModel.swift; sourceTree = "<group>"; };
 		04EA4B2B980CA11E3A52CE1C /* VPNInfoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VPNInfoView.swift; sourceTree = "<group>"; };
@@ -1407,6 +1407,10 @@
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1600;
 				TargetAttributes = {
+					1F7C65C74B339FCF977C4759 = {
+						DevelopmentTeam = 32XZRDTGK3;
+						ProvisioningStyle = Automatic;
+					};
 					55DBFE8BA4B4B55A24D71850 = {
 						DevelopmentTeam = 32XZRDTGK3;
 					};
@@ -1417,6 +1421,10 @@
 					A433A8E38101EED718D3EF55 = {
 						DevelopmentTeam = 32XZRDTGK3;
 						TestTargetID = 1F7C65C74B339FCF977C4759;
+					};
+					B151786BC5800BC9BC47A22C = {
+						DevelopmentTeam = 32XZRDTGK3;
+						ProvisioningStyle = Automatic;
 					};
 					BA9349CB56A8E5516B5F9B7C = {
 						DevelopmentTeam = 32XZRDTGK3;
@@ -1437,6 +1445,7 @@
 				A3D1C217DDAE38F2108EBEA7 /* XCLocalSwiftPackageReference "Packages/NetMonitorCore" */,
 				7BC6C0B438625FC120B3E9C4 /* XCLocalSwiftPackageReference "Packages/NetworkScanKit" */,
 			);
+			preferredProjectObjectVersion = 77;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -1957,7 +1966,6 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = "NetMonitor-macOS/Resources/NetMonitor-macOS.entitlements";
-				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				DEVELOPMENT_TEAM = 32XZRDTGK3;
@@ -1968,7 +1976,6 @@
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.netmonitor.NetMonitor;
-				PROVISIONING_PROFILE_SPECIFIER = "";
 				SDKROOT = macosx;
 				SWIFT_STRICT_CONCURRENCY = complete;
 				SWIFT_VERSION = 6.0;
@@ -2170,7 +2177,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = "NetMonitor-iOS/Resources/NetMonitor-iOS.entitlements";
-				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = 32XZRDTGK3;
 				INFOPLIST_FILE = "NetMonitor-iOS/Resources/Info.plist";
@@ -2180,7 +2187,6 @@
 					"@executable_path/Frameworks",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.blakemiller.netmonitor;
-				PROVISIONING_PROFILE_SPECIFIER = "";
 				SDKROOT = iphoneos;
 				SWIFT_STRICT_CONCURRENCY = complete;
 				SWIFT_VERSION = 6.0;

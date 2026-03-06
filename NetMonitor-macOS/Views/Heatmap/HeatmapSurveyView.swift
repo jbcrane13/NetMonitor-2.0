@@ -103,115 +103,29 @@ struct HeatmapSurveyView: View {
     // MARK: - Canvas
 
     private var measurementCanvas: some View {
-        GeometryReader { geometry in
-            ZStack {
-                // Floor plan image
-                if let imageData = viewModel.surveyProject?.floorPlan.imageData,
-                   let nsImage = NSImage(data: imageData) {
-                    Image(nsImage: nsImage)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .scaleEffect(scale)
-                        .offset(offset)
-                        .gesture(
-                            MagnificationGesture()
-                                .onChanged { scale = $0 }
-                        )
-                        .gesture(
-                            DragGesture()
-                                .onChanged { offset = $0.translation }
-                        )
-                }
-
-                // Heatmap overlay
-                if let heatmap = heatmapImage {
-                    Image(nsImage: heatmap)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .scaleEffect(scale)
-                        .offset(offset)
-                        .opacity(0.7)
-                }
-
-                // Measurement points overlay
-                ForEach(viewModel.measurementPoints) { point in
-                    Circle()
-                        .fill(colorForRSSI(point.rssi))
-                        .frame(width: 12, height: 12)
-                        .position(
-                            x: point.floorPlanX * geometry.size.width * scale + offset.width,
-                            y: point.floorPlanY * geometry.size.height * scale + offset.height
-                        )
-                }
-
-                // Calibration points overlay
+        HeatmapCanvasView(
+            floorPlanImageData: viewModel.surveyProject?.floorPlan.imageData,
+            measurementPoints: viewModel.measurementPoints,
+            calibrationPoints: viewModel.calibrationPoints,
+            isCalibrating: viewModel.isCalibrating,
+            heatmapImage: heatmapImage,
+            scale: scale,
+            offset: offset,
+            onTap: { normalizedPoint in
                 if viewModel.isCalibrating {
-                    ForEach(viewModel.calibrationPoints) { point in
-                        ZStack {
-                            Circle()
-                                .stroke(Color.blue, lineWidth: 3)
-                                .frame(width: 20, height: 20)
-                            Circle()
-                                .fill(Color.blue.opacity(0.3))
-                                .frame(width: 20, height: 20)
-                            Text(viewModel.calibrationPoints.firstIndex(where: { $0.id == point.id }) == 0 ? "1" : "2")
-                                .font(.caption.bold())
-                                .foregroundStyle(.white)
-                        }
-                        .position(
-                            x: point.pixelX * geometry.size.width * scale + offset.width,
-                            y: point.pixelY * geometry.size.height * scale + offset.height
-                        )
+                    viewModel.addCalibrationPoint(at: normalizedPoint)
+                } else {
+                    Task {
+                        await viewModel.takeMeasurement(at: normalizedPoint)
+                        updateHeatmap()
                     }
                 }
-
-                // Calibration points overlay
-                if viewModel.isCalibrating {
-                    ForEach(viewModel.calibrationPoints) { point in
-                        ZStack {
-                            Circle()
-                                .stroke(Color.blue, lineWidth: 3)
-                                .frame(width: 20, height: 20)
-                            Circle()
-                                .fill(Color.blue.opacity(0.3))
-                                .frame(width: 20, height: 20)
-                            Text(viewModel.calibrationPoints.firstIndex(where: { $0.id == point.id }) == 0 ? "1" : "2")
-                                .font(.caption.bold())
-                                .foregroundStyle(.white)
-                        }
-                        .position(
-                            x: point.pixelX * geometry.size.width * scale + offset.width,
-                            y: point.pixelY * geometry.size.height * scale + offset.height
-                        )
-                    }
-                }
-
-                // Click to measure or calibrate
-                Color.clear
-                    .contentShape(Rectangle())
-                    .onTapGesture { location in
-                        let normalizedX = location.x / (geometry.size.width * scale)
-                        let normalizedY = location.y / (geometry.size.height * scale)
-                        let point = CGPoint(x: normalizedX, y: normalizedY)
-
-                        if viewModel.isCalibrating {
-                            viewModel.addCalibrationPoint(at: point)
-                        } else {
-                            Task {
-                                await viewModel.takeMeasurement(at: point)
-                                updateHeatmap()
-                            }
-                        }
-                    }
-
-                // Measuring indicator
-                if viewModel.isMeasuring {
-                    ProgressView()
-                        .scaleEffect(2)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                }
+            },
+            onPointDelete: { pointId in
+                viewModel.deletePoint(id: pointId)
+                updateHeatmap()
             }
-        }
+        )
         .background(Color.black.opacity(0.05))
     }
 
@@ -243,7 +157,6 @@ struct HeatmapSurveyView: View {
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
         ToolbarItemGroup(placement: .primaryAction) {
-            // Live RSSI badge (AC-1.4)
             if viewModel.surveyProject != nil {
                 HStack(spacing: 4) {
                     Image(systemName: "wifi")
@@ -290,6 +203,21 @@ struct HeatmapSurveyView: View {
             } label: {
                 Label("Open", systemImage: "folder")
             }
+
+            Button {
+                exportPDF()
+            } label: {
+                Label("Export PDF", systemImage: "doc.richtext")
+            }
+            .disabled(viewModel.surveyProject == nil || viewModel.measurementPoints.isEmpty)
+
+            Button {
+                viewModel.undo()
+                updateHeatmap()
+            } label: {
+                Label("Undo", systemImage: "arrow.uturn.backward")
+            }
+            .disabled(!viewModel.canUndo())
         }
     }
 
@@ -353,6 +281,190 @@ struct HeatmapSurveyView: View {
             } catch {
                 print("Load failed: \(error)")
             }
+        }
+    }
+
+    private func exportPDF() {
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.pdf]
+        panel.nameFieldStringValue = "\(viewModel.surveyProject?.name ?? "Survey")-Report"
+
+        if panel.runModal() == .OK, let url = panel.url {
+            if let pdfData = viewModel.generatePDFReport() {
+                do {
+                    try pdfData.write(to: url)
+                } catch {
+                    print("PDF export failed: \(error)")
+                }
+            }
+        }
+    }
+}
+
+// MARK: - HeatmapCanvasView
+
+struct HeatmapCanvasView: NSViewRepresentable {
+    let floorPlanImageData: Data?
+    let measurementPoints: [MeasurementPoint]
+    let calibrationPoints: [CalibrationPoint]
+    let isCalibrating: Bool
+    let heatmapImage: NSImage?
+    let scale: CGFloat
+    let offset: CGSize
+    let onTap: (CGPoint) -> Void
+    let onPointDelete: (UUID) -> Void
+
+    func makeNSView(context: Context) -> HeatmapCanvasNSView {
+        let view = HeatmapCanvasNSView()
+        view.onTap = onTap
+        view.onPointDelete = onPointDelete
+        return view
+    }
+
+    func updateNSView(_ nsView: HeatmapCanvasNSView, context: Context) {
+        nsView.floorPlanImageData = floorPlanImageData
+        nsView.measurementPoints = measurementPoints
+        nsView.calibrationPoints = calibrationPoints
+        nsView.isCalibrating = isCalibrating
+        nsView.heatmapImage = heatmapImage
+        nsView.scale = scale
+        nsView.offset = offset
+        nsView.needsDisplay = true
+    }
+}
+
+class HeatmapCanvasNSView: NSView {
+    var floorPlanImageData: Data?
+    var measurementPoints: [MeasurementPoint] = []
+    var calibrationPoints: [CalibrationPoint] = []
+    var isCalibrating: Bool = false
+    var heatmapImage: NSImage?
+    var scale: CGFloat = 1.0
+    var offset: CGSize = .zero
+    var onTap: ((CGPoint) -> Void)?
+    var onPointDelete: ((UUID) -> Void)?
+
+    override var acceptsFirstResponder: Bool { true }
+
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+
+        guard let context = NSGraphicsContext.current?.cgContext else { return }
+
+        // Background
+        NSColor.black.withAlphaComponent(0.05).setFill()
+        dirtyRect.fill()
+
+        guard let imageData = floorPlanImageData,
+              let nsImage = NSImage(data: imageData),
+              let cgImage = nsImage.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
+            return
+        }
+
+        let imageSize = nsImage.size
+        let aspectRatio = imageSize.width / imageSize.height
+        let containerAspect = bounds.width / bounds.height
+
+        var displayedWidth: CGFloat
+        var displayedHeight: CGFloat
+        if aspectRatio > containerAspect {
+            displayedWidth = bounds.width
+            displayedHeight = bounds.width / aspectRatio
+        } else {
+            displayedWidth = bounds.height * aspectRatio
+            displayedHeight = bounds.height
+        }
+
+        let offsetX = (bounds.width - displayedWidth) / 2
+        let offsetY = (bounds.height - displayedHeight) / 2
+
+        // Draw floor plan
+        let imageRect = CGRect(x: offsetX, y: offsetY, width: displayedWidth, height: displayedHeight)
+        context.draw(cgImage, in: imageRect)
+
+        // Draw heatmap overlay
+        if let heatmap = heatmapImage,
+           let heatmapCG = heatmap.cgImage(forProposedRect: nil, context: nil, hints: nil) {
+            context.saveGState()
+            context.setAlpha(0.7)
+            context.draw(heatmapCG, in: imageRect)
+            context.restoreGState()
+        }
+
+        // Draw measurement points
+        for point in measurementPoints {
+            let x = offsetX + point.floorPlanX * displayedWidth
+            let y = offsetY + (1 - point.floorPlanY) * displayedHeight
+            let rect = CGRect(x: x - 6, y: y - 6, width: 12, height: 12)
+
+            colorForRSSI(point.rssi).setFill()
+            NSBezierPath(ovalIn: rect).fill()
+        }
+
+        // Draw calibration points
+        if isCalibrating {
+            for (index, point) in calibrationPoints.enumerated() {
+                let x = offsetX + point.pixelX * displayedWidth
+                let y = offsetY + (1 - point.pixelY) * displayedHeight
+                let rect = CGRect(x: x - 10, y: y - 10, width: 20, height: 20)
+
+                NSColor.blue.setStroke()
+                NSBezierPath(ovalIn: rect).stroke()
+
+                NSColor.blue.withAlphaComponent(0.3).setFill()
+                NSBezierPath(ovalIn: rect).fill()
+
+                let label = "\(index + 1)"
+                let attrs: [NSAttributedString.Key: Any] = [
+                    .font: NSFont.boldSystemFont(ofSize: 10),
+                    .foregroundColor: NSColor.white
+                ]
+                let size = label.size(withAttributes: attrs)
+                label.draw(at: CGPoint(x: x - size.width/2, y: y - size.height/2), withAttributes: attrs)
+            }
+        }
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        let location = convert(event.locationInWindow, from: nil)
+        handleTap(at: location)
+    }
+
+    private func handleTap(at location: CGPoint) {
+        guard let imageData = floorPlanImageData,
+              let nsImage = NSImage(data: imageData) else { return }
+
+        let imageSize = nsImage.size
+        let aspectRatio = imageSize.width / imageSize.height
+        let containerAspect = bounds.width / bounds.height
+
+        var displayedWidth: CGFloat
+        var displayedHeight: CGFloat
+        if aspectRatio > containerAspect {
+            displayedWidth = bounds.width
+            displayedHeight = bounds.width / aspectRatio
+        } else {
+            displayedWidth = bounds.height * aspectRatio
+            displayedHeight = bounds.height
+        }
+
+        let offsetX = (bounds.width - displayedWidth) / 2
+        let offsetY = (bounds.height - displayedHeight) / 2
+
+        let tapX = (location.x - offsetX) / displayedWidth
+        let tapY = 1.0 - (location.y - offsetY) / displayedHeight
+
+        guard tapX >= 0 && tapX <= 1 && tapY >= 0 && tapY <= 1 else { return }
+
+        onTap?(CGPoint(x: tapX, y: tapY))
+    }
+
+    private func colorForRSSI(_ rssi: Int) -> NSColor {
+        switch rssi {
+        case -50...0: return .systemGreen
+        case -60 ..< -50: return .systemYellow
+        case -70 ..< -60: return .systemOrange
+        default: return .systemRed
         }
     }
 }
