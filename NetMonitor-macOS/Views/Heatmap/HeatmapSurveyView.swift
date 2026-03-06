@@ -21,6 +21,9 @@ struct HeatmapSurveyView: View {
         ) { result in
             handleImport(result)
         }
+        .sheet(isPresented: $viewModel.showCalibrationSheet) {
+            CalibrationSheetMac(viewModel: viewModel)
+        }
         .toolbar {
             toolbarContent
         }
@@ -135,15 +138,63 @@ struct HeatmapSurveyView: View {
                         )
                 }
 
-                // Click to measure
+                // Calibration points overlay
+                if viewModel.isCalibrating {
+                    ForEach(viewModel.calibrationPoints) { point in
+                        ZStack {
+                            Circle()
+                                .stroke(Color.blue, lineWidth: 3)
+                                .frame(width: 20, height: 20)
+                            Circle()
+                                .fill(Color.blue.opacity(0.3))
+                                .frame(width: 20, height: 20)
+                            Text(viewModel.calibrationPoints.firstIndex(where: { $0.id == point.id }) == 0 ? "1" : "2")
+                                .font(.caption.bold())
+                                .foregroundStyle(.white)
+                        }
+                        .position(
+                            x: point.pixelX * geometry.size.width * scale + offset.width,
+                            y: point.pixelY * geometry.size.height * scale + offset.height
+                        )
+                    }
+                }
+
+                // Calibration points overlay
+                if viewModel.isCalibrating {
+                    ForEach(viewModel.calibrationPoints) { point in
+                        ZStack {
+                            Circle()
+                                .stroke(Color.blue, lineWidth: 3)
+                                .frame(width: 20, height: 20)
+                            Circle()
+                                .fill(Color.blue.opacity(0.3))
+                                .frame(width: 20, height: 20)
+                            Text(viewModel.calibrationPoints.firstIndex(where: { $0.id == point.id }) == 0 ? "1" : "2")
+                                .font(.caption.bold())
+                                .foregroundStyle(.white)
+                        }
+                        .position(
+                            x: point.pixelX * geometry.size.width * scale + offset.width,
+                            y: point.pixelY * geometry.size.height * scale + offset.height
+                        )
+                    }
+                }
+
+                // Click to measure or calibrate
                 Color.clear
                     .contentShape(Rectangle())
                     .onTapGesture { location in
                         let normalizedX = location.x / (geometry.size.width * scale)
                         let normalizedY = location.y / (geometry.size.height * scale)
-                        Task {
-                            await viewModel.takeMeasurement(at: CGPoint(x: normalizedX, y: normalizedY))
-                            updateHeatmap()
+                        let point = CGPoint(x: normalizedX, y: normalizedY)
+
+                        if viewModel.isCalibrating {
+                            viewModel.addCalibrationPoint(at: point)
+                        } else {
+                            Task {
+                                await viewModel.takeMeasurement(at: point)
+                                updateHeatmap()
+                            }
                         }
                     }
 
@@ -186,10 +237,39 @@ struct HeatmapSurveyView: View {
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
         ToolbarItemGroup(placement: .primaryAction) {
+            // Live RSSI badge (AC-1.4)
+            if viewModel.surveyProject != nil {
+                HStack(spacing: 4) {
+                    Image(systemName: "wifi")
+                        .foregroundStyle(colorForRSSI(viewModel.currentRSSI))
+                    Text("\(viewModel.currentRSSI) dBm")
+                        .foregroundStyle(colorForRSSI(viewModel.currentRSSI))
+                        .monospacedDigit()
+                }
+                .padding(.horizontal, 8)
+            }
+
+            Divider()
+
             Button {
                 viewModel.showImportSheet = true
             } label: {
                 Label("Import", systemImage: "square.and.arrow.down")
+            }
+
+            if viewModel.isCalibrating {
+                Button {
+                    viewModel.cancelCalibration()
+                } label: {
+                    Label("Cancel Calibration", systemImage: "xmark")
+                }
+            } else {
+                Button {
+                    viewModel.startCalibration()
+                } label: {
+                    Label("Calibrate", systemImage: "ruler")
+                }
+                .disabled(viewModel.surveyProject == nil)
             }
 
             Button {
@@ -268,5 +348,92 @@ struct HeatmapSurveyView: View {
                 print("Load failed: \(error)")
             }
         }
+    }
+}
+
+// MARK: - Calibration Sheet (macOS)
+
+struct CalibrationSheetMac: View {
+    @Bindable var viewModel: HeatmapSurveyViewModel
+    @State private var distanceText: String = "5.0"
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            Text("Calibrate Floor Plan Scale")
+                .font(.headline)
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Known Distance")
+                    .font(.subheadline)
+
+                HStack {
+                    TextField("Distance", text: $distanceText)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 100)
+                    Text("meters")
+                        .foregroundStyle(.secondary)
+                }
+
+                Text("Enter the real-world distance between the two calibration points")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            if viewModel.calibrationPoints.count == 2 {
+                Divider()
+
+                let p1 = viewModel.calibrationPoints[0]
+                let p2 = viewModel.calibrationPoints[1]
+                let pixelDistance = sqrt(
+                    pow(p1.pixelX - p2.pixelX, 2) +
+                    pow(p1.pixelY - p2.pixelY, 2)
+                )
+                let metersPerPixel = CalibrationPoint.metersPerPixel(
+                    pointA: p1,
+                    pointB: p2,
+                    knownDistanceMeters: Double(distanceText) ?? 5.0
+                )
+
+                VStack(alignment: .leading, spacing: 4) {
+                    LabeledContent("Pixel Distance:") {
+                        Text(String(format: "%.1f px", pixelDistance))
+                    }
+                    LabeledContent("Scale:") {
+                        Text(String(format: "%.4f m/px", metersPerPixel))
+                    }
+                    if let project = viewModel.surveyProject {
+                        let widthMeters = Double(project.floorPlan.pixelWidth) * metersPerPixel
+                        let heightMeters = Double(project.floorPlan.pixelHeight) * metersPerPixel
+                        LabeledContent("Floor Plan Size:") {
+                            Text(String(format: "%.1f x %.1f m", widthMeters, heightMeters))
+                        }
+                    }
+                }
+                .font(.caption)
+            }
+
+            Spacer()
+
+            HStack {
+                Button("Cancel") {
+                    viewModel.cancelCalibration()
+                    dismiss()
+                }
+
+                Spacer()
+
+                Button("Save Calibration") {
+                    if let distance = Double(distanceText) {
+                        viewModel.completeCalibration(withDistance: distance)
+                        dismiss()
+                    }
+                }
+                .disabled(Double(distanceText) == nil)
+                .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding()
+        .frame(width: 320, height: 300)
     }
 }
