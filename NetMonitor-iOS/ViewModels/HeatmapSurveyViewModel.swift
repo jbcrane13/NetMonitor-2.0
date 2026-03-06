@@ -13,11 +13,20 @@ final class HeatmapSurveyViewModel {
     var isMeasuring: Bool = false
     var showImportSheet: Bool = false
     var currentRSSI: Int = -100
+    var currentSSID: String?
+    var isLocationAuthorized: Bool = false
+
+    // MARK: - Calibration State
+    var isCalibrating: Bool = false
+    var calibrationPoints: [CalibrationPoint] = []
+    var calibrationDistance: Double = 5.0 // meters
+    var showCalibrationSheet: Bool = false
 
     // MARK: - Services
     private var wifiEngine: WiFiMeasurementEngine?
     private var renderer: HeatmapRenderer
     private var wifiService: WiFiInfoService?
+    private var rssiTimer: Timer?
 
     // MARK: - Measurement Mode
     enum MeasurementMode: String, CaseIterable {
@@ -45,6 +54,47 @@ final class HeatmapSurveyViewModel {
 
     func onAppear() {
         setupEngineIfNeeded()
+        startLiveRSSITimer()
+        checkLocationAuthorization()
+    }
+
+    func onDisappear() {
+        stopLiveRSSITimer()
+    }
+
+    // MARK: - Live RSSI Updates (AC-1.4)
+
+    private func startLiveRSSITimer() {
+        rssiTimer?.invalidate()
+        rssiTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                await self?.updateLiveRSSI()
+            }
+        }
+    }
+
+    private func stopLiveRSSITimer() {
+        rssiTimer?.invalidate()
+        rssiTimer = nil
+    }
+
+    private func updateLiveRSSI() async {
+        guard let service = wifiService else { return }
+        if let wifiInfo = await service.fetchCurrentWiFi() {
+            currentRSSI = wifiInfo.signalDBm ?? -100
+            currentSSID = wifiInfo.ssid
+        }
+    }
+
+    // MARK: - Location Authorization
+
+    func checkLocationAuthorization() {
+        guard let service = wifiService else { return }
+        isLocationAuthorized = service.isLocationAuthorized
+    }
+
+    func requestLocationPermission() {
+        wifiService?.requestLocationPermission()
     }
 
     // MARK: - Floor Plan Import
@@ -64,6 +114,62 @@ final class HeatmapSurveyViewModel {
             floorPlan: floorPlan
         )
         measurementPoints = []
+        calibrationPoints = []
+    }
+
+    // MARK: - Calibration
+
+    func startCalibration() {
+        isCalibrating = true
+        calibrationPoints = []
+    }
+
+    func cancelCalibration() {
+        isCalibrating = false
+        calibrationPoints = []
+    }
+
+    func addCalibrationPoint(at normalizedPoint: CGPoint) {
+        guard calibrationPoints.count < 2 else { return }
+
+        let point = CalibrationPoint(
+            pixelX: Double(normalizedPoint.x),
+            pixelY: Double(normalizedPoint.y)
+        )
+        calibrationPoints.append(point)
+
+        if calibrationPoints.count == 2 {
+            showCalibrationSheet = true
+        }
+    }
+
+    func completeCalibration(withDistance distance: Double) {
+        guard calibrationPoints.count == 2,
+              var project = surveyProject else { return }
+
+        let metersPerPixel = CalibrationPoint.metersPerPixel(
+            pointA: calibrationPoints[0],
+            pointB: calibrationPoints[1],
+            knownDistanceMeters: distance
+        )
+
+        let floorPlan = FloorPlan(
+            id: project.floorPlan.id,
+            imageData: project.floorPlan.imageData,
+            widthMeters: Double(project.floorPlan.pixelWidth) * metersPerPixel,
+            heightMeters: Double(project.floorPlan.pixelHeight) * metersPerPixel,
+            pixelWidth: project.floorPlan.pixelWidth,
+            pixelHeight: project.floorPlan.pixelHeight,
+            origin: project.floorPlan.origin,
+            calibrationPoints: calibrationPoints,
+            walls: project.floorPlan.walls
+        )
+
+        project.floorPlan = floorPlan
+        surveyProject = project
+        isCalibrating = false
+        calibrationPoints = []
+        showCalibrationSheet = false
     }
 
     // MARK: - Measurement

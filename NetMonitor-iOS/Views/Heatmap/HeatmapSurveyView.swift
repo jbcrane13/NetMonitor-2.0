@@ -65,6 +65,18 @@ struct HeatmapSurveyView: View {
                         viewModel.clearMeasurements()
                         heatmapImage = nil
                     }
+
+                    Divider()
+
+                    if viewModel.isCalibrating {
+                        Button("Cancel Calibration") {
+                            viewModel.cancelCalibration()
+                        }
+                    } else {
+                        Button("Calibrate Scale") {
+                            viewModel.startCalibration()
+                        }
+                    }
                 } label: {
                     Image(systemName: "slider.horizontal.3")
                 }
@@ -76,6 +88,12 @@ struct HeatmapSurveyView: View {
         }
         .onAppear {
             viewModel.onAppear()
+        }
+        .onDisappear {
+            viewModel.onDisappear()
+        }
+        .sheet(isPresented: $viewModel.showCalibrationSheet) {
+            CalibrationSheet(viewModel: viewModel)
         }
     }
 
@@ -123,15 +141,42 @@ struct HeatmapSurveyView: View {
                         )
                 }
 
-                // Tap to measure
+                // Calibration points
+                if viewModel.isCalibrating {
+                    ForEach(viewModel.calibrationPoints) { point in
+                        ZStack {
+                            Circle()
+                                .stroke(Color.blue, lineWidth: 3)
+                                .frame(width: 24, height: 24)
+                            Circle()
+                                .fill(Color.blue.opacity(0.3))
+                                .frame(width: 24, height: 24)
+                            Text(viewModel.calibrationPoints.firstIndex(where: { $0.id == point.id }) == 0 ? "1" : "2")
+                                .font(.caption.bold())
+                                .foregroundStyle(.white)
+                        }
+                        .position(
+                            x: point.pixelX * geometry.size.width * scale + offset.width,
+                            y: point.pixelY * geometry.size.height * scale + offset.height
+                        )
+                    }
+                }
+
+                // Tap to measure or calibrate
                 Color.clear
                     .contentShape(Rectangle())
                     .onTapGesture { location in
                         let normalizedX = min(max(location.x / geometry.size.width, 0), 1)
                         let normalizedY = min(max(location.y / geometry.size.height, 0), 1)
-                        Task {
-                            await viewModel.takeMeasurement(at: CGPoint(x: normalizedX, y: normalizedY))
-                            updateHeatmap()
+                        let point = CGPoint(x: normalizedX, y: normalizedY)
+
+                        if viewModel.isCalibrating {
+                            viewModel.addCalibrationPoint(at: point)
+                        } else {
+                            Task {
+                                await viewModel.takeMeasurement(at: point)
+                                updateHeatmap()
+                            }
                         }
                     }
 
@@ -162,6 +207,22 @@ struct HeatmapSurveyView: View {
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
 
+            // Location permission prompt
+            if !viewModel.isLocationAuthorized {
+                VStack(spacing: 8) {
+                    Text("Location access required to read WiFi signal strength")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                        .multilineTextAlignment(.center)
+
+                    Button("Grant Location Permission") {
+                        viewModel.requestLocationPermission()
+                    }
+                    .buttonStyle(.bordered)
+                }
+                .padding(.horizontal)
+            }
+
             PhotosPicker(selection: $selectedPhotoItem, matching: .images) {
                 Text("Import from Photos")
             }
@@ -178,14 +239,20 @@ struct HeatmapSurveyView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
-            if let lastPoint = viewModel.measurementPoints.last {
-                HStack(spacing: 8) {
-                    Image(systemName: "wifi")
-                        .foregroundStyle(colorForRSSI(lastPoint.rssi))
-                    Text("\(lastPoint.rssi) dBm")
-                        .font(.headline)
-                        .monospacedDigit()
-                }
+            // Live RSSI indicator (AC-1.4)
+            HStack(spacing: 8) {
+                Image(systemName: "wifi")
+                    .foregroundStyle(colorForRSSI(viewModel.currentRSSI))
+                Text("\(viewModel.currentRSSI) dBm")
+                    .font(.headline)
+                    .monospacedDigit()
+            }
+
+            if let ssid = viewModel.currentSSID {
+                Text(ssid)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
             }
         }
         .padding(12)
@@ -224,6 +291,82 @@ struct HeatmapSurveyView: View {
         case -60 ..< -50: return .yellow
         case -70 ..< -60: return .orange
         default: return .red
+        }
+    }
+}
+
+// MARK: - Calibration Sheet
+
+struct CalibrationSheet: View {
+    @Bindable var viewModel: HeatmapSurveyViewModel
+    @State private var distanceText: String = "5.0"
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Distance") {
+                    TextField("Distance", text: $distanceText)
+                        .keyboardType(.decimalPad)
+                        .autocorrectionDisabled()
+                    Text("Enter the real-world distance between the two points in meters")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Section("Preview") {
+                    if viewModel.calibrationPoints.count == 2 {
+                        let p1 = viewModel.calibrationPoints[0]
+                        let p2 = viewModel.calibrationPoints[1]
+                        let pixelDistance = sqrt(
+                            pow(p1.pixelX - p2.pixelX, 2) +
+                            pow(p1.pixelY - p2.pixelY, 2)
+                        )
+                        let metersPerPixel = CalibrationPoint.metersPerPixel(
+                            pointA: p1,
+                            pointB: p2,
+                            knownDistanceMeters: Double(distanceText) ?? 5.0
+                        )
+
+                        LabeledContent("Pixel Distance") {
+                            Text(String(format: "%.1f px", pixelDistance))
+                        }
+
+                        LabeledContent("Scale") {
+                            Text(String(format: "%.4f m/px", metersPerPixel))
+                        }
+
+                        if let project = viewModel.surveyProject {
+                            let widthMeters = Double(project.floorPlan.pixelWidth) * metersPerPixel
+                            let heightMeters = Double(project.floorPlan.pixelHeight) * metersPerPixel
+
+                            LabeledContent("Floor Plan Size") {
+                                Text(String(format: "%.1f × %.1f m", widthMeters, heightMeters))
+                            }
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Calibrate Scale")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        viewModel.cancelCalibration()
+                        dismiss()
+                    }
+                }
+
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        if let distance = Double(distanceText) {
+                            viewModel.completeCalibration(withDistance: distance)
+                            dismiss()
+                        }
+                    }
+                    .disabled(Double(distanceText) == nil)
+                }
+            }
         }
     }
 }

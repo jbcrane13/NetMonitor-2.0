@@ -98,22 +98,27 @@ final class WiFiInfoService: NSObject, WiFiInfoServiceProtocol {
     }
     
     // MARK: - Modern API (iOS 14+)
-    
+
     private func fetchWiFiInfoModern() async -> WiFiInfo? {
         guard let network = await NEHotspotNetwork.fetchCurrent() else {
             return nil
         }
 
-        // signalStrength is 0.0 when the system can't read the actual value
-        // (e.g. transient failure). Treat as nil so the HUD doesn't show "0%".
+        // signalStrength is 0.0-1.0 representing 0-100%
+        // Map 0.0-1.0 to 0-100%, then convert to approximate dBm
+        // Even 0% signal gives -100 dBm (valid reading), not nil
         let strength = network.signalStrength
-        let clamped = max(0, min(1, strength))
-        let signalStrength = strength > 0 ? Int(clamped * 100) : nil
+        let clamped = max(0.0, min(1.0, strength))
+        let signalStrengthPercent = Int(clamped * 100)
+
+        // Always convert to dBm, even for 0% signal
+        let signalDBm = Self.percentToApproxDBm(signalStrengthPercent)
+
         return WiFiInfo(
             ssid: network.ssid,
             bssid: network.bssid,
-            signalStrength: signalStrength,
-            signalDBm: signalStrength.map { Self.percentToApproxDBm($0) },
+            signalStrength: signalStrengthPercent,
+            signalDBm: signalDBm,
             channel: nil,
             frequency: nil,
             band: nil,
