@@ -22,6 +22,30 @@ final class HeatmapSurveyViewModel {
     var calibrationDistance: Double = 5.0 // meters
     var showCalibrationSheet: Bool = false
 
+    // MARK: - Drawing Mode
+    var isDrawingMode: Bool = false
+    var drawingTool: DrawingTool = .wall
+    var drawnWalls: [WallSegment] = []
+
+    // MARK: - Canvas Interaction
+    var recommendedSpacingMeters: Double = 3.0 // guidance for measurement spacing
+
+    enum DrawingTool: String, CaseIterable {
+        case wall
+        case door
+        case room
+        case erase
+
+        var icon: String {
+            switch self {
+            case .wall: return "line.diagonal"
+            case .door: return "door.left.hand.open"
+            case .room: return "rectangle"
+            case .erase: return "eraser"
+            }
+        }
+    }
+
     // MARK: - Services
     private var wifiEngine: WiFiMeasurementEngine?
     private var renderer: HeatmapRenderer

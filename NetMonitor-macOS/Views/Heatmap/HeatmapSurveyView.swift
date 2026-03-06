@@ -66,6 +66,18 @@ struct HeatmapSurveyView: View {
 
             Section("Statistics") {
                 LabeledContent("Points", value: "\(viewModel.measurementPoints.count)")
+                if viewModel.surveyProject?.floorPlan.metersPerPixelX != nil && viewModel.surveyProject?.floorPlan.metersPerPixelX != 0 {
+                    Picker("Recommended Spacing", selection: $viewModel.recommendedSpacingMeters) {
+                        Text("2 meters").tag(2.0)
+                        Text("3 meters").tag(3.0)
+                        Text("5 meters").tag(5.0)
+                        Text("7 meters").tag(7.0)
+                        Text("10 meters").tag(10.0)
+                    }
+                    .onChange(of: viewModel.recommendedSpacingMeters) { _, _ in
+                        updateHeatmap()
+                    }
+                }
                 if let avg = viewModel.surveyProject?.averageRSSI {
                     LabeledContent("Avg RSSI", value: String(format: "%.1f dBm", avg))
                 }
@@ -74,6 +86,27 @@ struct HeatmapSurveyView: View {
                 }
                 if let max = viewModel.surveyProject?.maxRSSI {
                     LabeledContent("Max RSSI", value: "\(max) dBm")
+                }
+            }
+
+            Section("Drawing Mode") {
+                Toggle("Enable Drawing", isOn: $viewModel.isDrawingMode)
+
+                if viewModel.isDrawingMode {
+                    Picker("Tool", selection: $viewModel.drawingTool) {
+                        ForEach(HeatmapSurveyViewModel.DrawingTool.allCases, id: \.self) { tool in
+                            Label(tool.rawValue.capitalized, systemImage: tool.icon)
+                                .tag(tool)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+
+                    if !viewModel.drawnWalls.isEmpty {
+                        Button("Clear Walls") {
+                            viewModel.drawnWalls = []
+                        }
+                        .foregroundStyle(.red)
+                    }
                 }
             }
 
@@ -111,6 +144,10 @@ struct HeatmapSurveyView: View {
             heatmapImage: heatmapImage,
             scale: scale,
             offset: offset,
+            isDrawingMode: viewModel.isDrawingMode,
+            drawingTool: viewModel.drawingTool,
+            walls: viewModel.drawnWalls,
+            metersPerPixel: viewModel.surveyProject?.floorPlan.metersPerPixelX,
             onTap: { normalizedPoint in
                 if viewModel.isCalibrating {
                     viewModel.addCalibrationPoint(at: normalizedPoint)
@@ -124,6 +161,9 @@ struct HeatmapSurveyView: View {
             onPointDelete: { pointId in
                 viewModel.deletePoint(id: pointId)
                 updateHeatmap()
+            },
+            onWallAdd: { wall in
+                viewModel.drawnWalls.append(wall)
             }
         )
         .background(Color.black.opacity(0.05))
@@ -311,13 +351,19 @@ struct HeatmapCanvasView: NSViewRepresentable {
     let heatmapImage: NSImage?
     let scale: CGFloat
     let offset: CGSize
+    let isDrawingMode: Bool
+    let drawingTool: HeatmapSurveyViewModel.DrawingTool
+    var walls: [WallSegment]
+    var metersPerPixel: Double?
     let onTap: (CGPoint) -> Void
     let onPointDelete: (UUID) -> Void
+    let onWallAdd: (WallSegment) -> Void
 
     func makeNSView(context: Context) -> HeatmapCanvasNSView {
         let view = HeatmapCanvasNSView()
         view.onTap = onTap
         view.onPointDelete = onPointDelete
+        view.onWallAdd = onWallAdd
         return view
     }
 
@@ -329,6 +375,10 @@ struct HeatmapCanvasView: NSViewRepresentable {
         nsView.heatmapImage = heatmapImage
         nsView.scale = scale
         nsView.offset = offset
+        nsView.isDrawingMode = isDrawingMode
+        nsView.drawingTool = drawingTool
+        nsView.walls = walls
+        nsView.metersPerPixel = metersPerPixel
         nsView.needsDisplay = true
     }
 }
@@ -338,13 +388,53 @@ class HeatmapCanvasNSView: NSView {
     var measurementPoints: [MeasurementPoint] = []
     var calibrationPoints: [CalibrationPoint] = []
     var isCalibrating: Bool = false
+    var isDrawingMode: Bool = false
+    var drawingTool: HeatmapSurveyViewModel.DrawingTool = .wall
+    var walls: [WallSegment] = []
+    var metersPerPixel: Double?
     var heatmapImage: NSImage?
     var scale: CGFloat = 1.0
     var offset: CGSize = .zero
     var onTap: ((CGPoint) -> Void)?
     var onPointDelete: ((UUID) -> Void)?
+    var onWallAdd: ((WallSegment) -> Void)?
+
+    // Drawing state
+    var isDrawing: Bool = false
+    var drawStartPoint: CGPoint?
+    var currentDrawingPoint: CGPoint?
 
     override var acceptsFirstResponder: Bool { true }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        for area in trackingAreas {
+            removeTrackingArea(area)
+        }
+        let area = NSTrackingArea(
+            rect: bounds,
+            options: [.activeInKeyWindow, .mouseMoved, .mouseEnteredAndExited],
+            owner: self,
+            userInfo: nil
+        )
+        addTrackingArea(area)
+    }
+
+    override func scrollWheel(with event: NSEvent) {
+        // Pan with scroll
+        offset = CGSize(
+            width: offset.width + event.deltaX,
+            height: offset.height - event.deltaY
+        )
+        needsDisplay = true
+    }
+
+    override func magnify(with event: NSEvent) {
+        // Zoom with pinch
+        let newScale = scale + event.magnification
+        scale = max(0.5, min(3.0, newScale))
+        needsDisplay = true
+    }
 
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
@@ -423,11 +513,142 @@ class HeatmapCanvasNSView: NSView {
                 label.draw(at: CGPoint(x: x - size.width/2, y: y - size.height/2), withAttributes: attrs)
             }
         }
+
+        // Draw walls
+        for wall in walls {
+            let startX = offsetX + wall.startX * displayedWidth
+            let startY = offsetY + (1 - wall.startY) * displayedHeight
+            let endX = offsetX + wall.endX * displayedWidth
+            let endY = offsetY + (1 - wall.endY) * displayedHeight
+
+            let path = NSBezierPath()
+            path.move(to: CGPoint(x: startX, y: startY))
+            path.line(to: CGPoint(x: endX, y: endY))
+            path.lineWidth = CGFloat(wall.thickness * 50)
+            NSColor.darkGray.setStroke()
+            path.stroke()
+        }
+
+        // Draw current wall being drawn
+        if isDrawing, let start = drawStartPoint, let current = currentDrawingPoint {
+            let path = NSBezierPath()
+            path.move(to: start)
+            path.line(to: current)
+            path.lineWidth = 3
+            NSColor.blue.withAlphaComponent(0.7).setStroke()
+            path.stroke()
+        }
+
+        // Draw scale bar
+        if let mPerPixel = metersPerPixel, mPerPixel > 0 {
+            let scaleBarPixels: CGFloat = 100 // Fixed pixel width
+            let scaleBarMeters = Double(scaleBarPixels) * mPerPixel
+            let barY: CGFloat = 30
+
+            // Scale bar background
+            NSColor.white.withAlphaComponent(0.8).setFill()
+            NSBezierPath(roundedRect: CGRect(x: offsetX + 20, y: barY, width: scaleBarPixels + 20, height: 25), xRadius: 4, yRadius: 4).fill()
+
+            // Scale bar line
+            NSColor.black.setStroke()
+            let barPath = NSBezierPath()
+            barPath.move(to: CGPoint(x: offsetX + 30, y: barY + 12))
+            barPath.line(to: CGPoint(x: offsetX + 30 + scaleBarPixels, y: barY + 12))
+            barPath.lineWidth = 3
+            barPath.stroke()
+
+            // End caps
+            barPath.move(to: CGPoint(x: offsetX + 30, y: barY + 5))
+            barPath.line(to: CGPoint(x: offsetX + 30, y: barY + 19))
+            barPath.move(to: CGPoint(x: offsetX + 30 + scaleBarPixels, y: barY + 5))
+            barPath.line(to: CGPoint(x: offsetX + 30 + scaleBarPixels, y: barY + 19))
+            barPath.lineWidth = 2
+            barPath.stroke()
+
+            // Label
+            let scaleLabel: String
+            if scaleBarMeters >= 1 {
+                scaleLabel = String(format: "%.1f m", scaleBarMeters)
+            } else {
+                scaleLabel = String(format: "%.0f cm", scaleBarMeters * 100)
+            }
+            let labelAttrs: [NSAttributedString.Key: Any] = [
+                .font: NSFont.systemFont(ofSize: 11, weight: .medium),
+                .foregroundColor: NSColor.black
+            ]
+            scaleLabel.draw(at: CGPoint(x: offsetX + 30, y: barY + 25), withAttributes: labelAttrs)
+        }
     }
 
     override func mouseDown(with event: NSEvent) {
         let location = convert(event.locationInWindow, from: nil)
-        handleTap(at: location)
+
+        if isDrawingMode && !isCalibrating {
+            drawStartPoint = location
+            isDrawing = true
+        } else {
+            handleTap(at: location)
+        }
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        guard isDrawing, let start = drawStartPoint else { return }
+        let location = convert(event.locationInWindow, from: nil)
+        currentDrawingPoint = location
+        needsDisplay = true
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        guard isDrawing, let start = drawStartPoint else { return }
+        let location = convert(event.locationInWindow, from: nil)
+
+        // Calculate image coordinates
+        guard let imageData = floorPlanImageData,
+              let nsImage = NSImage(data: imageData) else { return }
+
+        let imageSize = nsImage.size
+        let aspectRatio = imageSize.width / imageSize.height
+        let containerAspect = bounds.width / bounds.height
+
+        var displayedWidth: CGFloat
+        var displayedHeight: CGFloat
+        if aspectRatio > containerAspect {
+            displayedWidth = bounds.width
+            displayedHeight = bounds.width / aspectRatio
+        } else {
+            displayedWidth = bounds.height * aspectRatio
+            displayedHeight = bounds.height
+        }
+
+        let offsetX = (bounds.width - displayedWidth) / 2
+        let offsetY = (bounds.height - displayedHeight) / 2
+
+        let startX = (start.x - offsetX) / displayedWidth
+        let startY = 1.0 - (start.y - offsetY) / displayedHeight
+        let endX = (location.x - offsetX) / displayedWidth
+        let endY = 1.0 - (location.y - offsetY) / displayedHeight
+
+        guard startX >= 0 && startX <= 1 && startY >= 0 && startY <= 1,
+              endX >= 0 && endX <= 1 && endY >= 0 && endY <= 1 else {
+            isDrawing = false
+            drawStartPoint = nil
+            currentDrawingPoint = nil
+            return
+        }
+
+        // Create wall segment
+        let wall = WallSegment(
+            startX: Double(startX),
+            startY: Double(startY),
+            endX: Double(endX),
+            endY: Double(endY),
+            thickness: drawingTool == .wall ? 0.15 : 0.08
+        )
+        onWallAdd?(wall)
+
+        isDrawing = false
+        drawStartPoint = nil
+        currentDrawingPoint = nil
     }
 
     private func handleTap(at location: CGPoint) {
