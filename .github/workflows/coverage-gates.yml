@@ -18,6 +18,38 @@ jobs:
       - name: Run coverage collection and gate checks
         run: scripts/coverage/collect-and-gate.sh
 
+      - name: Extract test timing from xcodebuild output
+        if: always()
+        run: |
+          echo "## Test Timing Summary" > build/coverage/test-timing.md
+          echo "" >> build/coverage/test-timing.md
+          echo "| Target | Duration |" >> build/coverage/test-timing.md
+          echo "|--------|----------|" >> build/coverage/test-timing.md
+
+          for log in build/coverage/*-xcodebuild.log; do
+            [ -f "$log" ] || continue
+            target=$(basename "$log" -xcodebuild.log)
+            duration=$(grep -oE 'Test Suite .* passed .* in [0-9]+\.[0-9]+ \([0-9]+\.[0-9]+\) seconds' "$log" \
+              | tail -1 | grep -oE '[0-9]+\.[0-9]+ \([0-9]+\.[0-9]+\) seconds' || echo "—")
+            if [ "$duration" = "—" ]; then
+              duration=$(grep -oE 'Executed [0-9]+ tests?, with [0-9]+ failures? .* in [0-9]+\.[0-9]+ \([0-9]+\.[0-9]+\) seconds' "$log" \
+                | tail -1 | grep -oE '[0-9]+\.[0-9]+ \([0-9]+\.[0-9]+\) seconds' || echo "—")
+            fi
+            echo "| $target | $duration |" >> build/coverage/test-timing.md
+          done
+
+          for pkg in NetMonitorCore NetworkScanKit; do
+            log="build/coverage/${pkg}-swift-test.log"
+            [ -f "$log" ] || continue
+            duration=$(grep -oE 'Test run .* in [0-9]+\.[0-9]+ seconds' "$log" \
+              | tail -1 | grep -oE '[0-9]+\.[0-9]+ seconds' || echo "—")
+            echo "| $pkg (SPM) | $duration |" >> build/coverage/test-timing.md
+          done
+
+          echo "" >> build/coverage/test-timing.md
+          echo "Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> build/coverage/test-timing.md
+          cat build/coverage/test-timing.md
+
       - name: Upload coverage artifacts
         if: always()
         uses: actions/upload-artifact@v7
@@ -26,6 +58,7 @@ jobs:
           path: |
             build/coverage/coverage-summary.json
             build/coverage/coverage-summary.md
+            build/coverage/test-timing.md
             build/coverage/NetMonitor-iOS-coverage.json
             build/coverage/NetMonitor-macOS-coverage.json
             build/coverage/NetMonitorCore-coverage.json

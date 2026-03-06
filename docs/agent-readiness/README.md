@@ -7,8 +7,8 @@
 | Field | Value |
 |-------|-------|
 | Readiness level | **Level 5** |
-| Pass rate | ~81% |
-| Last updated | 2026-03-01 |
+| Pass rate | ~88% |
+| Last updated | 2026-03-06 |
 | Full report | https://app.factory.ai/analytics/readiness/https%253A%252F%252Fgithub.com%252Fjbcrane13%252Fnetmonitor-2.0 |
 
 ## Score History
@@ -20,6 +20,7 @@
 | [02 — Agent Infrastructure](./02-session-agent-infrastructure.md) | 69% | +3% | Agent skills, release workflow, env template, AGENTS.md validation |
 | [03 — Code Quality Analysis](./03-session-code-quality-analysis.md) | 79% | +10% | Periphery, jscpd, LogSanitizer, doc freshness CI, runbooks |
 | [04 — Coverage Gates & Xcode 26 Fixes](./04-session-coverage-and-build-fixes.md) | 81% | +2% | Simulator destination, simd types, test mock conformance; NetworkScanKit 87.2% verified |
+| [05 — Easy Wins](./05-session-easy-wins.md) | 88% | +7% | Issue templates, labels, data model docs, test isolation, test timing, complexity metrics |
 
 ## Conventions Established
 
@@ -34,6 +35,8 @@ The following project conventions were introduced during readiness sessions. Res
 | Dead code baseline | `.periphery.yml` | 117 baseline warnings exist; new warnings should be resolved or suppressed with justification |
 | PR template | `.github/pull_request_template.md` | Auto-fills on PR open; include beads issue link |
 | CODEOWNERS | `.github/CODEOWNERS` | Path-based ownership — respect when reviewing cross-boundary changes |
+| Test isolation | All test commands | `-parallel-testing-enabled NO` (Xcode) and `--no-parallel` (SPM) on all targets |
+| Issue labels | GitHub labels | Use `platform:`, `P0-P3:`, `agent-ready`, domain labels when filing GitHub issues |
 
 ## Key Files Introduced
 
@@ -47,6 +50,9 @@ The following project conventions were introduced during readiness sessions. Res
 | `.github/workflows/code-quality.yml` | Quality CI (dead code, duplicate code, log scrubbing, doc freshness) |
 | `.github/workflows/release.yml` | Tag-triggered release pipeline |
 | `Packages/NetMonitorCore/Sources/NetMonitorCore/Utilities/LogSanitizer.swift` | Log redaction utilities |
+| `.github/ISSUE_TEMPLATE/bug_report.yml` | Structured bug report form |
+| `.github/ISSUE_TEMPLATE/feature_request.yml` | Structured feature request form |
+| `docs/data-model.md` | Full persistence layer reference (SwiftData + UserDefaults) |
 
 ## How to Add a Session Report
 

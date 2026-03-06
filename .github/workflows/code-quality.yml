@@ -98,6 +98,59 @@ jobs:
           fi
           exit 0
 
+  complexity-metrics:
+    name: Complexity Metrics
+    runs-on: macos-15
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install SwiftLint
+        run: brew install swiftlint
+
+      - name: Generate complexity report
+        run: |
+          echo "## Cyclomatic Complexity Report" > build/complexity-report.md
+          echo "" >> build/complexity-report.md
+          echo "Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> build/complexity-report.md
+          echo "" >> build/complexity-report.md
+
+          # Extract cyclomatic_complexity violations (warning at 10, error at 20)
+          violations=$(swiftlint lint --quiet --reporter json 2>/dev/null \
+            | python3 -c "
+          import json, sys
+          data = json.load(sys.stdin)
+          cc = [v for v in data if v.get('rule_id') == 'cyclomatic_complexity']
+          print(f'Total functions exceeding complexity threshold: {len(cc)}')
+          if cc:
+              print('')
+              print('| File | Line | Severity |')
+              print('|------|------|----------|')
+              for v in sorted(cc, key=lambda x: x.get('severity', ''), reverse=True):
+                  f = v.get('file', '').split('NetMonitor-2.0/')[-1]
+                  print(f'| {f} | {v.get(\"line\", \"?\")} | {v.get(\"severity\", \"?\")} |')
+          " 2>/dev/null || echo "Could not parse complexity data")
+
+          echo "$violations" >> build/complexity-report.md
+
+          # Summary stats
+          echo "" >> build/complexity-report.md
+          total_swift=$(find . -name '*.swift' \
+            -not -path './.build/*' -not -path './build/*' \
+            -not -path './*Tests*/*' -not -path './*.xcodeproj/*' | wc -l | tr -d ' ')
+          echo "Total Swift source files scanned: $total_swift" >> build/complexity-report.md
+
+          cat build/complexity-report.md
+
+      - name: Upload complexity report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: complexity-report
+          path: build/complexity-report.md
+
   doc-freshness:
     name: Documentation Freshness
     runs-on: ubuntu-latest

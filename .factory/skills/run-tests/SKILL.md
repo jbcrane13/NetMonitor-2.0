@@ -18,8 +18,7 @@ ssh mac-mini "cd ~/Projects/NetMonitor-2.0 && xcodebuild test \
   -configuration Debug \
   -destination 'platform=macOS' \
   CODE_SIGN_IDENTITY='' CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO \
-  CODE_SIGNING_REQUIRED=NO \
-  CODE_SIGNING_ALLOWED=NO \
+  -parallel-testing-enabled NO \
   -only-testing:NetMonitor-macOSTests \
   2>&1 | tail -30"
 

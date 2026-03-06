@@ -113,7 +113,7 @@ Each major view directory contains an `AGENTS.md` with purpose, sub-directory la
 Tests MUST run on the Mac mini (secondary node) via SSH:
 ```bash
 # Unit tests (no signing needed):
-ssh mac-mini "cd ~/Projects/NetMonitor-2.0 && xcodebuild test -scheme NetMonitor-macOS -configuration Debug -destination 'platform=macOS' CODE_SIGN_IDENTITY='-' CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO -only-testing:NetMonitor-macOSTests"
+ssh mac-mini "cd ~/Projects/NetMonitor-2.0 && xcodebuild test -scheme NetMonitor-macOS -configuration Debug -destination 'platform=macOS' CODE_SIGN_IDENTITY='-' CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO -parallel-testing-enabled NO -only-testing:NetMonitor-macOSTests"
 
 # UI tests (need signed build + GUI session):
 ssh mac-mini "cd ~/Projects/NetMonitor-2.0 && xcodebuild test -scheme NetMonitor-macOS -configuration Debug -destination 'platform=macOS' -only-testing:NetMonitor-macOSUITests"

@@ -72,14 +72,16 @@ xcodebuild -scheme NetMonitor-iOS -configuration Debug build   # Build iOS
 **⚠️ Tests run on `mac-mini` via SSH — never run `xcodebuild test` locally.**
 
 ```bash
-# All macOS unit tests
+# All macOS unit tests (parallel MUST be disabled — Swift 6 strict concurrency + @MainActor tests)
 xcodebuild test -scheme NetMonitor-macOS -destination 'platform=macOS' \
   CODE_SIGN_IDENTITY='' CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO \
+  -parallel-testing-enabled NO \
   -only-testing:NetMonitor-macOSTests 2>&1 | tail -30
 
 # Single test suite (macOS)
 xcodebuild test -scheme NetMonitor-macOS -destination 'platform=macOS' \
   CODE_SIGN_IDENTITY='' CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO \
+  -parallel-testing-enabled NO \
   -only-testing:NetMonitor-macOSTests/ShellPingResultTests 2>&1 | tail -20
 
 # All iOS unit tests (parallel MUST be disabled)

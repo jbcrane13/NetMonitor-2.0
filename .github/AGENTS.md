@@ -17,6 +17,7 @@ GitHub configuration directory. Contains CI/CD workflow definitions, project aut
 
 | Directory | Purpose |
 |-----------|---------|
+| `ISSUE_TEMPLATE/` | GitHub issue form templates (bug report, feature request) |
 | `workflows/` | GitHub Actions workflow YAML files |
 
 ## Workflows
