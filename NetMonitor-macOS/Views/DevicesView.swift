@@ -13,6 +13,7 @@ struct DevicesView: View {
     @State private var searchText: String = ""
     @State private var filterOnlineOnly: Bool = false
     @State private var sortOrder: DeviceSortOrder = .lastSeen
+    @State private var viewMode: DeviceViewMode = .consumer
     @State private var wolAction = WakeOnLanAction()
     @State private var availableNetworks: [NetworkProfile] = []
     @State private var selectedNetworkID: UUID?
@@ -33,6 +34,20 @@ struct DevicesView: View {
             case .name: return "textformat"
             case .ipAddress: return "number"
             case .status: return "circle.fill"
+            }
+        }
+    }
+
+    // MARK: - View Mode
+
+    enum DeviceViewMode: String, CaseIterable {
+        case consumer = "Consumer"
+        case pro = "Pro"
+
+        var icon: String {
+            switch self {
+            case .consumer: return "square.grid.2x2"
+            case .pro: return "list.bullet"
             }
         }
     }
@@ -150,21 +165,265 @@ struct DevicesView: View {
                 )
                 .accessibilityIdentifier("devices_label_empty")
             } else {
-                List(filteredDevices, selection: $selectedDevice) { device in
-                    DeviceRowView(device: device)
-                        .tag(device)
-                        .contextMenu {
-                            deviceContextMenu(for: device)
-                        }
+                if viewMode == .consumer {
+                    consumerModeList
+                } else {
+                    proModeList
                 }
-                .listStyle(.inset)
-                .accessibilityIdentifier("devices_list")
             }
         }
         .overlay {
             if coordinator?.isScanning == true {
                 scanningOverlay
             }
+        }
+    }
+
+    // MARK: - Consumer Mode List (Card-based)
+
+    private var consumerModeList: some View {
+        ScrollView {
+            LazyVStack(spacing: 8) {
+                ForEach(filteredDevices) { device in
+                    DeviceCardView(device: device, isSelected: selectedDevice?.id == device.id)
+                        .onTapGesture {
+                            selectedDevice = device
+                        }
+                }
+            }
+            .padding()
+        }
+    }
+
+    // MARK: - Pro Mode List (Dense Table)
+
+    private var proModeList: some View {
+        ScrollView {
+            LazyVStack(spacing: 0) {
+                // Header row
+                proModeHeaderRow
+
+                Divider()
+
+                // Data rows
+                ForEach(filteredDevices) { device in
+                    ProModeRowView(device: device, isSelected: selectedDevice?.id == device.id)
+                        .onTapGesture {
+                            selectedDevice = device
+                        }
+                    Divider()
+                }
+            }
+        }
+    }
+
+    private var proModeHeaderRow: some View {
+        HStack(spacing: 0) {
+            Text("Status")
+                .frame(width: 50, alignment: .center)
+            Text("Name")
+                .frame(minWidth: 120, alignment: .leading)
+            Text("IP Address")
+                .frame(width: 100, alignment: .leading)
+            Text("MAC")
+                .frame(width: 100, alignment: .leading)
+            Text("Vendor")
+                .frame(minWidth: 80, alignment: .leading)
+            Text("Ports")
+                .frame(width: 80, alignment: .center)
+            Text("Services")
+                .frame(minWidth: 100, alignment: .leading)
+            Text("Latency")
+                .frame(width: 60, alignment: .trailing)
+            Text("Last Seen")
+                .frame(width: 80, alignment: .trailing)
+        }
+        .font(.caption)
+        .fontWeight(.semibold)
+        .foregroundStyle(.secondary)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(Color.gray.opacity(0.1))
+    }
+
+    // MARK: - Device Card View (Consumer Mode)
+
+    struct DeviceCardView: View {
+        let device: LocalDevice
+        let isSelected: Bool
+
+        var body: some View {
+            HStack(spacing: 12) {
+                // Status indicator and icon
+                ZStack {
+                    Circle()
+                        .fill(device.status == .online ? MacTheme.Colors.success.opacity(0.2) : Color.gray.opacity(0.2))
+                        .frame(width: 48, height: 48)
+
+                    Image(systemName: device.deviceType.iconName)
+                        .font(.title3)
+                        .foregroundStyle(device.status == .online ? MacTheme.Colors.success : .gray)
+                }
+
+                // Device info
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text(device.displayName)
+                            .font(.headline)
+                            .lineLimit(1)
+
+                        if device.isGateway {
+                            Text("Gateway")
+                                .font(.caption2)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(MacTheme.Colors.info.opacity(0.2))
+                                .foregroundStyle(MacTheme.Colors.info)
+                                .clipShape(Capsule())
+                        }
+                    }
+
+                    HStack(spacing: 8) {
+                        Text(device.ipAddress)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .monospacedDigit()
+
+                        if let vendor = device.vendor {
+                            Text("·")
+                                .foregroundStyle(.tertiary)
+                            Text(vendor)
+                                .font(.caption)
+                                .foregroundStyle(.tertiary)
+                                .lineLimit(1)
+                        }
+                    }
+                }
+
+                Spacer()
+
+                // Connection info
+                VStack(alignment: .trailing, spacing: 4) {
+                    HStack(spacing: 4) {
+                        Circle()
+                            .fill(device.status == .online ? MacTheme.Colors.success : Color.gray)
+                            .frame(width: 8, height: 8)
+
+                        Text(device.status == .online ? "Online" : "Offline")
+                            .font(.caption)
+                            .foregroundStyle(device.status == .online ? MacTheme.Colors.success : .secondary)
+                    }
+
+                    if let latency = device.lastLatency {
+                        Text(latencyText(latency))
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+            }
+            .padding(12)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color(nsColor: .controlBackgroundColor))
+                    .shadow(color: .black.opacity(0.05), radius: 2, x: 0, y: 1)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(isSelected ? Color.accentColor : Color.clear, lineWidth: 2)
+            )
+        }
+
+        private func latencyText(_ latency: Double) -> String {
+            if latency < 1 { return "<1 ms" }
+            return String(format: "%.0f ms", latency)
+        }
+    }
+
+    // MARK: - Pro Mode Row View
+
+    struct ProModeRowView: View {
+        let device: LocalDevice
+        let isSelected: Bool
+
+        var body: some View {
+            HStack(spacing: 0) {
+                // Status
+                Circle()
+                    .fill(device.status == .online ? MacTheme.Colors.success : Color.gray)
+                    .frame(width: 8, height: 8)
+                    .frame(width: 50, alignment: .center)
+
+                // Name
+                Text(device.displayName)
+                    .lineLimit(1)
+                    .frame(minWidth: 120, alignment: .leading)
+
+                // IP
+                Text(device.ipAddress)
+                    .fontDesign(.monospaced)
+                    .font(.caption)
+                    .frame(width: 100, alignment: .leading)
+
+                // MAC
+                Text(device.macAddress.isEmpty ? "-" : String(device.macAddress.suffix(8)))
+                    .fontDesign(.monospaced)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 100, alignment: .leading)
+
+                // Vendor
+                Text(device.vendor ?? "-")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .frame(minWidth: 80, alignment: .leading)
+
+                // Ports
+                let ports = device.openPorts ?? []
+                Text(ports.isEmpty ? "-" : "\(ports.prefix(3).map(String.init).joined(separator: ","))")
+                    .font(.caption)
+                    .foregroundStyle(ports.isEmpty ? .secondary : MacTheme.Colors.info)
+                    .frame(width: 80, alignment: .center)
+
+                // Services
+                let services = device.discoveredServices ?? []
+                Text(services.isEmpty ? "-" : "\(services.prefix(2).joined(separator: ", "))")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .frame(minWidth: 100, alignment: .leading)
+
+                // Latency
+                if let latency = device.lastLatency {
+                    Text(latency < 1 ? "<1ms" : String(format: "%.0fms", latency))
+                        .font(.caption)
+                        .monospacedDigit()
+                        .frame(width: 60, alignment: .trailing)
+                } else {
+                    Text("-")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .frame(width: 60, alignment: .trailing)
+                }
+
+                // Last Seen
+                Text(lastSeenText)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 80, alignment: .trailing)
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+            .contentShape(Rectangle())
+            .background(isSelected ? Color.accentColor.opacity(0.1) : Color.clear)
+        }
+
+        private var lastSeenText: String {
+            let interval = Date().timeIntervalSince(device.lastSeen)
+            if interval < 60 { return "Now" }
+            if interval < 3600 { return "\(Int(interval/60))m" }
+            if interval < 86400 { return "\(Int(interval/3600))h" }
+            return "\(Int(interval/86400))d"
         }
     }
 
@@ -245,6 +504,18 @@ struct DevicesView: View {
                 Label("Sort", systemImage: "arrow.up.arrow.down")
             }
             .accessibilityIdentifier("devices_menu_sort")
+        }
+
+        ToolbarItemGroup(placement: .automatic) {
+            Picker("View", selection: $viewMode) {
+                ForEach(DeviceViewMode.allCases, id: \.self) { mode in
+                    Label(mode.rawValue, systemImage: mode.icon)
+                        .tag(mode)
+                }
+            }
+            .pickerStyle(.segmented)
+            .frame(width: 180)
+            .accessibilityIdentifier("devices_picker_viewMode")
         }
 
         ToolbarItem(placement: .automatic) {
