@@ -254,6 +254,16 @@ struct HeatmapSurveyView: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
+
+            // Status message for debugging
+            if let status = viewModel.wifiStatusMessage {
+                Text(status)
+                    .font(.caption2)
+                    .foregroundStyle(.orange)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: 150)
+            }
         }
         .padding(12)
         .background(.regularMaterial)

@@ -27,6 +27,12 @@ struct HeatmapSurveyView: View {
         .toolbar {
             toolbarContent
         }
+        .onAppear {
+            viewModel.onAppear()
+        }
+        .onDisappear {
+            viewModel.onDisappear()
+        }
     }
 
     // MARK: - Sidebar

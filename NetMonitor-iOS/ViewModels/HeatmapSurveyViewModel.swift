@@ -15,6 +15,7 @@ final class HeatmapSurveyViewModel {
     var currentRSSI: Int = -100
     var currentSSID: String?
     var isLocationAuthorized: Bool = false
+    var wifiStatusMessage: String? = nil
 
     // MARK: - Calibration State
     var isCalibrating: Bool = false
@@ -79,10 +80,29 @@ final class HeatmapSurveyViewModel {
     }
 
     private func updateLiveRSSI() async {
-        guard let service = wifiService else { return }
-        if let wifiInfo = await service.fetchCurrentWiFi() {
+        guard let service = wifiService else {
+            wifiStatusMessage = "WiFi service not initialized"
+            return
+        }
+
+        // Re-check location authorization each time
+        isLocationAuthorized = service.isLocationAuthorized
+
+        if !isLocationAuthorized {
+            wifiStatusMessage = "Location permission required"
+            return
+        }
+
+        let wifiInfo = await service.fetchCurrentWiFi()
+        if let wifiInfo {
             currentRSSI = wifiInfo.signalDBm ?? -100
             currentSSID = wifiInfo.ssid
+            wifiStatusMessage = nil
+        } else {
+            // fetchCurrentWiFi returned nil - could be:
+            // 1. Not connected to WiFi
+            // 2. NEHotspotNetwork.fetchCurrent() returned nil
+            wifiStatusMessage = "No WiFi connection detected"
         }
     }
 

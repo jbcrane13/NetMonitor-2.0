@@ -36,22 +36,31 @@ final class HeatmapSurveyViewModel {
     init() {
         renderer = HeatmapRenderer()
         setupEngine()
-        startLiveRSSITimer()
-    }
-
-    deinit {
-        rssiTimer?.invalidate()
     }
 
     // MARK: - Live RSSI Updates
 
-    private func startLiveRSSITimer() {
-        rssiTimer?.invalidate()
+    func startLiveRSSITimer() {
+        guard rssiTimer == nil else { return }
         rssiTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+            guard let self else { return }
             Task { @MainActor in
-                await self?.updateLiveRSSI()
+                await self.updateLiveRSSI()
             }
         }
+    }
+
+    func stopLiveRSSITimer() {
+        rssiTimer?.invalidate()
+        rssiTimer = nil
+    }
+
+    func onAppear() {
+        startLiveRSSITimer()
+    }
+
+    func onDisappear() {
+        stopLiveRSSITimer()
     }
 
     private func updateLiveRSSI() async {
