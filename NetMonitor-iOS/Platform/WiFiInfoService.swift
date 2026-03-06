@@ -26,6 +26,13 @@ final class WiFiInfoService: NSObject, WiFiInfoServiceProtocol {
         super.init()
         locationManager.delegate = self
         checkAuthorizationStatus()
+
+        // Force an initial refresh after a short delay
+        // NEHotspotNetwork often needs a moment after init
+        Task {
+            try? await Task.sleep(for: .milliseconds(500))
+            await refreshWiFiInfo()
+        }
     }
     
     func requestLocationPermission() {
@@ -61,14 +68,16 @@ final class WiFiInfoService: NSObject, WiFiInfoServiceProtocol {
 
         // Try modern API first. Some devices return nil transiently; a short
         // retry improves reliability without introducing noticeable UI delay.
-        for attempt in 0..<2 {
+        // Try up to 3 times with increasing delays
+        for attempt in 0..<3 {
             if let info = await fetchWiFiInfoModern() {
                 lastFetchTime = Date()
                 cachedResult = info
                 return info
             }
-            if attempt == 0 {
-                try? await Task.sleep(for: .milliseconds(250))
+            if attempt < 2 {
+                let delay = Double(attempt + 1) * 0.3 // 300ms, 600ms
+                try? await Task.sleep(for: .seconds(delay))
                 guard !Task.isCancelled else { return nil }
             }
         }
@@ -100,9 +109,19 @@ final class WiFiInfoService: NSObject, WiFiInfoServiceProtocol {
     // MARK: - Modern API (iOS 14+)
 
     private func fetchWiFiInfoModern() async -> WiFiInfo? {
-        guard let network = await NEHotspotNetwork.fetchCurrent() else {
+        // Check location authorization first
+        let authStatus = locationManager.authorizationStatus
+        guard authStatus == .authorizedWhenInUse || authStatus == .authorizedAlways else {
+            print("[WiFiInfoService] Location not authorized: \(authStatus)")
             return nil
         }
+
+        guard let network = await NEHotspotNetwork.fetchCurrent() else {
+            print("[WiFiInfoService] NEHotspotNetwork.fetchCurrent() returned nil")
+            return nil
+        }
+
+        print("[WiFiInfoService] Got network: SSID=\(network.ssid ?? "nil"), signalStrength=\(network.signalStrength)")
 
         // signalStrength is 0.0-1.0 representing 0-100%
         // Map 0.0-1.0 to 0-100%, then convert to approximate dBm
@@ -113,6 +132,8 @@ final class WiFiInfoService: NSObject, WiFiInfoServiceProtocol {
 
         // Always convert to dBm, even for 0% signal
         let signalDBm = Self.percentToApproxDBm(signalStrengthPercent)
+
+        print("[WiFiInfoService] Converted: \(signalStrengthPercent)% = \(signalDBm) dBm")
 
         return WiFiInfo(
             ssid: network.ssid,

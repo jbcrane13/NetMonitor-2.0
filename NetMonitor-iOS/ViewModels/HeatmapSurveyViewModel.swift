@@ -82,27 +82,34 @@ final class HeatmapSurveyViewModel {
     private func updateLiveRSSI() async {
         guard let service = wifiService else {
             wifiStatusMessage = "WiFi service not initialized"
+            print("[HeatmapSurveyViewModel] WiFi service is nil")
             return
         }
 
         // Re-check location authorization each time
         isLocationAuthorized = service.isLocationAuthorized
+        print("[HeatmapSurveyViewModel] Location authorized: \(isLocationAuthorized)")
 
         if !isLocationAuthorized {
             wifiStatusMessage = "Location permission required"
+            print("[HeatmapSurveyViewModel] Location not authorized")
             return
         }
 
         let wifiInfo = await service.fetchCurrentWiFi()
+        print("[HeatmapSurveyViewModel] fetchCurrentWiFi returned: \(wifiInfo != nil ? "success" : "nil")")
+
         if let wifiInfo {
             currentRSSI = wifiInfo.signalDBm ?? -100
             currentSSID = wifiInfo.ssid
             wifiStatusMessage = nil
+            print("[HeatmapSurveyViewModel] Updated RSSI: \(currentRSSI) dBm, SSID: \(wifiInfo.ssid ?? "nil")")
         } else {
             // fetchCurrentWiFi returned nil - could be:
             // 1. Not connected to WiFi
             // 2. NEHotspotNetwork.fetchCurrent() returned nil
             wifiStatusMessage = "No WiFi connection detected"
+            print("[HeatmapSurveyViewModel] WiFi info is nil")
         }
     }
 
