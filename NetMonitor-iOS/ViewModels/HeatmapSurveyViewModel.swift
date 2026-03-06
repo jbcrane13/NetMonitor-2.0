@@ -100,10 +100,18 @@ final class HeatmapSurveyViewModel {
         print("[HeatmapSurveyViewModel] fetchCurrentWiFi returned: \(wifiInfo != nil ? "success" : "nil")")
 
         if let wifiInfo {
-            currentRSSI = wifiInfo.signalDBm ?? -100
             currentSSID = wifiInfo.ssid
-            wifiStatusMessage = nil
-            print("[HeatmapSurveyViewModel] Updated RSSI: \(currentRSSI) dBm, SSID: \(wifiInfo.ssid ?? "nil")")
+
+            if let rssi = wifiInfo.signalDBm {
+                currentRSSI = rssi
+                wifiStatusMessage = nil
+                print("[HeatmapSurveyViewModel] Updated RSSI: \(currentRSSI) dBm, SSID: \(wifiInfo.ssid ?? "nil")")
+            } else {
+                // Have SSID but no signal strength (iOS API limitation)
+                currentRSSI = -100
+                wifiStatusMessage = "Signal strength unavailable"
+                print("[HeatmapSurveyViewModel] Have SSID but signalDBm is nil (iOS limitation)")
+            }
         } else {
             // fetchCurrentWiFi returned nil - could be:
             // 1. Not connected to WiFi

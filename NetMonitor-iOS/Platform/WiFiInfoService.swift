@@ -124,16 +124,25 @@ final class WiFiInfoService: NSObject, WiFiInfoServiceProtocol {
         print("[WiFiInfoService] Got network: SSID=\(network.ssid ?? "nil"), signalStrength=\(network.signalStrength)")
 
         // signalStrength is 0.0-1.0 representing 0-100%
-        // Map 0.0-1.0 to 0-100%, then convert to approximate dBm
-        // Even 0% signal gives -100 dBm (valid reading), not nil
+        // Note: iOS often returns 0.0 even when connected with good signal
+        // If we have an SSID but signalStrength is 0, mark it as unavailable
         let strength = network.signalStrength
-        let clamped = max(0.0, min(1.0, strength))
-        let signalStrengthPercent = Int(clamped * 100)
 
-        // Always convert to dBm, even for 0% signal
-        let signalDBm = Self.percentToApproxDBm(signalStrengthPercent)
+        let signalStrengthPercent: Int?
+        let signalDBm: Int?
 
-        print("[WiFiInfoService] Converted: \(signalStrengthPercent)% = \(signalDBm) dBm")
+        if strength > 0 {
+            let clamped = max(0.0, min(1.0, strength))
+            signalStrengthPercent = Int(clamped * 100)
+            signalDBm = Self.percentToApproxDBm(signalStrengthPercent!)
+            print("[WiFiInfoService] Converted: \(signalStrengthPercent!)% = \(signalDBm!) dBm")
+        } else {
+            // signalStrength is 0.0 - could be very weak or iOS not reporting
+            // Return nil to indicate unavailable, rather than -100 dBm
+            signalStrengthPercent = nil
+            signalDBm = nil
+            print("[WiFiInfoService] signalStrength is 0.0, marking as unavailable")
+        }
 
         return WiFiInfo(
             ssid: network.ssid,
