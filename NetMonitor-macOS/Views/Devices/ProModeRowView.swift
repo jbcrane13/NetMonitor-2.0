@@ -17,65 +17,66 @@ struct ProModeRowView: View {
 
             // Name
             Text(device.displayName)
+                .font(.footnote)
                 .lineLimit(1)
-                .frame(minWidth: 120, alignment: .leading)
+                .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
 
             // IP
             Text(device.ipAddress)
+                .font(.footnote)
                 .fontDesign(.monospaced)
-                .font(.caption)
-                .frame(width: 100, alignment: .leading)
+                .frame(width: 110, alignment: .leading)
 
             // MAC
             Text(device.macAddress.isEmpty ? "-" : String(device.macAddress.suffix(8)))
+                .font(.footnote)
                 .fontDesign(.monospaced)
-                .font(.caption)
                 .foregroundStyle(.secondary)
                 .frame(width: 100, alignment: .leading)
 
             // Vendor
             Text(device.vendor ?? "-")
-                .font(.caption)
+                .font(.footnote)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
-                .frame(minWidth: 80, alignment: .leading)
+                .frame(width: 100, alignment: .leading)
 
             // Ports
             let ports = device.openPorts ?? []
             Text(ports.isEmpty ? "-" : "\(ports.prefix(3).map(String.init).joined(separator: ","))")
-                .font(.caption)
+                .font(.footnote)
                 .foregroundStyle(ports.isEmpty ? .secondary : MacTheme.Colors.info)
                 .frame(width: 80, alignment: .center)
 
             // Services
             let services = device.discoveredServices ?? []
             Text(services.isEmpty ? "-" : "\(services.prefix(2).joined(separator: ", "))")
-                .font(.caption)
+                .font(.footnote)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
-                .frame(minWidth: 100, alignment: .leading)
+                .frame(width: 130, alignment: .leading)
 
             // Latency
             if let latency = device.lastLatency {
                 Text(latency < 1 ? "<1ms" : String(format: "%.0fms", latency))
-                    .font(.caption)
+                    .font(.footnote)
                     .monospacedDigit()
-                    .frame(width: 60, alignment: .trailing)
+                    .frame(width: 65, alignment: .trailing)
             } else {
                 Text("-")
-                    .font(.caption)
+                    .font(.footnote)
                     .foregroundStyle(.secondary)
-                    .frame(width: 60, alignment: .trailing)
+                    .frame(width: 65, alignment: .trailing)
             }
 
             // Last Seen
             Text(lastSeenText)
-                .font(.caption)
+                .font(.footnote)
                 .foregroundStyle(.secondary)
                 .frame(width: 80, alignment: .trailing)
         }
         .padding(.horizontal, 8)
-        .padding(.vertical, 6)
+        .padding(.vertical, 10)
         .contentShape(Rectangle())
         .background(isSelected ? Color.accentColor.opacity(0.1) : Color.clear)
     }

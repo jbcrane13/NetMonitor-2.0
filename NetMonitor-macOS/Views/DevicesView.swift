@@ -237,11 +237,13 @@ struct DevicesView: View {
                 Divider()
 
                 // Data rows
-                ForEach(filteredDevices) { device in
+                ForEach(Array(filteredDevices.enumerated()), id: \.element.id) { index, device in
                     NavigationLink(value: device) {
                         ProModeRowView(device: device, isSelected: false)
                     }
                     .buttonStyle(.plain)
+                    .frame(maxWidth: .infinity)
+                    .background(index % 2 == 1 ? Color.gray.opacity(0.04) : Color.clear)
                     Divider()
                 }
             }
@@ -253,19 +255,19 @@ struct DevicesView: View {
             Text("Status")
                 .frame(width: 50, alignment: .center)
             Text("Name")
-                .frame(minWidth: 120, alignment: .leading)
+                .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
             Text("IP Address")
-                .frame(width: 100, alignment: .leading)
+                .frame(width: 110, alignment: .leading)
             Text("MAC")
                 .frame(width: 100, alignment: .leading)
             Text("Vendor")
-                .frame(minWidth: 80, alignment: .leading)
+                .frame(width: 100, alignment: .leading)
             Text("Ports")
                 .frame(width: 80, alignment: .center)
             Text("Services")
-                .frame(minWidth: 100, alignment: .leading)
+                .frame(width: 130, alignment: .leading)
             Text("Latency")
-                .frame(width: 60, alignment: .trailing)
+                .frame(width: 65, alignment: .trailing)
             Text("Last Seen")
                 .frame(width: 80, alignment: .trailing)
         }
@@ -273,7 +275,7 @@ struct DevicesView: View {
         .fontWeight(.semibold)
         .foregroundStyle(.secondary)
         .padding(.horizontal, 8)
-        .padding(.vertical, 6)
+        .padding(.vertical, 8)
         .background(Color.gray.opacity(0.1))
     }
 
