@@ -1,0 +1,558 @@
+import Foundation
+import SwiftUI
+import SwiftData
+import NetMonitorCore
+
+struct ProDeviceDetailView: View {
+    @Bindable var device: LocalDevice
+    @Environment(\.modelContext) private var modelContext
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var isEditing = false
+    @State private var editedName: String = ""
+    @State private var editedNotes: String = ""
+    @State private var selectedDeviceType: DeviceType = .unknown
+
+    @State private var showPingSheet = false
+    @State private var showPortScanSheet = false
+    @State private var wolAction = WakeOnLanAction()
+
+    @State private var bonjourServices: [String] = []
+    @State private var latencyHistory: [Double] = []
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 20) {
+                headerSection
+                networkDetailsSection
+                portsAndServicesSection
+                latencyStatsSection
+                hardwareSection
+                wakeOnLanSection
+                timelineSection
+                notesSection
+                actionsSection
+            }
+            .padding()
+        }
+        .navigationTitle(device.displayName)
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button(isEditing ? "Done" : "Edit") {
+                    if isEditing {
+                        saveChanges()
+                    } else {
+                        startEditing()
+                    }
+                    isEditing.toggle()
+                }
+            }
+        }
+        .task { await loadData() }
+        .wakeOnLanAlert(wolAction)
+        .sheet(isPresented: $showPingSheet) {
+            DevicePingSheet(device: device, isPresented: $showPingSheet)
+        }
+        .sheet(isPresented: $showPortScanSheet) {
+            DevicePortScanSheet(device: device, isPresented: $showPortScanSheet)
+        }
+    }
+
+    private var headerSection: some View {
+        HStack(spacing: 16) {
+            ZStack {
+                Circle()
+                    .fill(device.status == .online ? MacTheme.Colors.success.opacity(0.2) : Color.gray.opacity(0.2))
+                    .frame(width: 80, height: 80)
+
+                Image(systemName: device.deviceType.iconName)
+                    .font(.largeTitle)
+                    .foregroundStyle(device.status == .online ? MacTheme.Colors.success : .gray)
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                if isEditing {
+                    TextField("Device Name", text: $editedName)
+                        .textFieldStyle(.roundedBorder)
+                } else {
+                    Text(device.displayName)
+                        .font(.title)
+                        .fontWeight(.bold)
+                }
+
+                HStack(spacing: 8) {
+                    Circle()
+                        .fill(device.status == .online ? MacTheme.Colors.success : Color.gray)
+                        .frame(width: 10, height: 10)
+
+                    Text(device.status == .online ? "Online" : "Offline")
+                        .font(.headline)
+                        .foregroundStyle(device.status == .online ? MacTheme.Colors.success : .secondary)
+
+                    if device.status == .online, let latency = device.lastLatency {
+                        Text("•")
+                            .foregroundStyle(.secondary)
+                        Text(latencyText(latency))
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                if let vendor = device.vendor {
+                    Text(vendor)
+                        .font(.subheadline)
+                        .foregroundStyle(.tertiary)
+                }
+
+                if device.isGateway {
+                    Text("Gateway")
+                        .font(.caption)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(MacTheme.Colors.info.opacity(0.2))
+                        .foregroundStyle(MacTheme.Colors.info)
+                        .clipShape(Capsule())
+                }
+            }
+
+            Spacer()
+
+            if isEditing {
+                Picker("Type", selection: $selectedDeviceType) {
+                    ForEach(DeviceType.allCases, id: \.self) { type in
+                        Label(type.rawValue.capitalized, systemImage: type.iconName)
+                            .tag(type)
+                    }
+                }
+                .labelsHidden()
+            }
+        }
+        .padding()
+        .macGlassCard(cornerRadius: MacTheme.Layout.cardCornerRadius)
+    }
+
+    private var networkDetailsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("Network Details", systemImage: "network")
+                .font(.headline)
+
+            Divider()
+
+            Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 8) {
+                GridRow {
+                    Text("IP Address")
+                        .foregroundStyle(.secondary)
+                    Text(device.ipAddress)
+                        .fontDesign(.monospaced)
+                        .textSelection(.enabled)
+                }
+
+                GridRow {
+                    Text("MAC Address")
+                        .foregroundStyle(.secondary)
+                    HStack {
+                        Text(device.macAddress.isEmpty ? "-" : device.macAddress)
+                            .fontDesign(.monospaced)
+                            .textSelection(.enabled)
+
+                        if !device.macAddress.isEmpty {
+                            Button {
+                                NSPasteboard.general.clearContents()
+                                NSPasteboard.general.setString(device.macAddress, forType: .string)
+                            } label: {
+                                Image(systemName: "doc.on.doc")
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+
+                if let hostname = device.hostname, !hostname.isEmpty {
+                    GridRow {
+                        Text("Hostname")
+                            .foregroundStyle(.secondary)
+                        Text(hostname)
+                            .fontDesign(.monospaced)
+                            .textSelection(.enabled)
+                    }
+                }
+
+                if let resolved = device.resolvedHostname, !resolved.isEmpty {
+                    GridRow {
+                        Text("Resolved")
+                            .foregroundStyle(.secondary)
+                        Text(resolved)
+                            .fontDesign(.monospaced)
+                            .textSelection(.enabled)
+                    }
+                }
+            }
+        }
+        .padding()
+        .macGlassCard(cornerRadius: MacTheme.Layout.cardCornerRadius)
+    }
+
+    private var portsAndServicesSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("Ports & Services", systemImage: "server.rack")
+                .font(.headline)
+
+            Divider()
+
+            if let ports = device.openPorts, !ports.isEmpty {
+                Text("Open Ports: \(ports.sorted().map(String.init).joined(separator: ", "))")
+                    .font(.subheadline)
+                    .foregroundStyle(MacTheme.Colors.info)
+            } else {
+                Text("No open ports detected")
+                    .font(.subheadline)
+                    .foregroundStyle(.tertiary)
+            }
+
+            if !bonjourServices.isEmpty {
+                Divider()
+                Text("Discovered Services:")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                FlowLayout(spacing: 8) {
+                    ForEach(bonjourServices, id: \.self) { service in
+                        Text(service)
+                            .font(.caption)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(MacTheme.Colors.info.opacity(0.1))
+                            .foregroundStyle(MacTheme.Colors.info)
+                            .clipShape(Capsule())
+                    }
+                }
+            }
+        }
+        .padding()
+        .macGlassCard(cornerRadius: MacTheme.Layout.cardCornerRadius)
+    }
+
+    private var latencyStatsSection: some View {
+        let currentLatency = device.lastLatency
+        let minLatency = latencyHistory.min()
+        let maxLatency = latencyHistory.max()
+        let avgLatency = latencyHistory.isEmpty ? nil : latencyHistory.reduce(0, +) / Double(latencyHistory.count)
+
+        return VStack(alignment: .leading, spacing: 12) {
+            Label("Latency Statistics", systemImage: "waveform.path")
+                .font(.headline)
+
+            Divider()
+
+            HStack(spacing: 24) {
+                latencyStatItem(title: "Current", value: currentLatency.map(latencyText) ?? "-")
+                latencyStatItem(title: "Min", value: minLatency.map(latencyText) ?? "-")
+                latencyStatItem(title: "Max", value: maxLatency.map(latencyText) ?? "-")
+                latencyStatItem(title: "Avg", value: avgLatency.map(latencyText) ?? "-")
+            }
+        }
+        .padding()
+        .macGlassCard(cornerRadius: MacTheme.Layout.cardCornerRadius)
+    }
+
+    private func latencyStatItem(title: String, value: String) -> some View {
+        VStack(spacing: 4) {
+            Text(title)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Text(value)
+                .font(.title3)
+                .fontWeight(.semibold)
+                .fontDesign(.monospaced)
+        }
+    }
+
+    private var hardwareSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("Hardware", systemImage: "cpu")
+                .font(.headline)
+
+            Divider()
+
+            Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 8) {
+                GridRow {
+                    Text("Manufacturer")
+                        .foregroundStyle(.secondary)
+                    Text(device.vendor ?? "Unknown")
+                }
+
+                GridRow {
+                    Text("Device Type")
+                        .foregroundStyle(.secondary)
+                    Label(device.deviceType.rawValue.capitalized, systemImage: device.deviceType.iconName)
+                }
+
+                GridRow {
+                    Text("Supports WOL")
+                        .foregroundStyle(.secondary)
+                    Text(device.supportsWakeOnLan ? "Yes" : "No")
+                        .foregroundStyle(device.supportsWakeOnLan ? MacTheme.Colors.success : .secondary)
+                }
+
+                if !device.macAddress.isEmpty {
+                    GridRow {
+                        Text("OUI")
+                            .foregroundStyle(.secondary)
+                        Text(String(device.macAddress.replacingOccurrences(of: ":", with: "").prefix(6)))
+                            .fontDesign(.monospaced)
+                    }
+                }
+            }
+        }
+        .padding()
+        .macGlassCard(cornerRadius: MacTheme.Layout.cardCornerRadius)
+    }
+
+    private var wakeOnLanSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("Wake on LAN", systemImage: "power")
+                .font(.headline)
+
+            Divider()
+
+            if device.supportsWakeOnLan && !device.macAddress.isEmpty {
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("MAC Address")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Text(device.macAddress)
+                            .fontDesign(.monospaced)
+                    }
+
+                    Spacer()
+
+                    Button {
+                        Task {
+                            await wolAction.wake(device: device)
+                        }
+                    } label: {
+                        Label("Wake", systemImage: "power")
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+            } else {
+                Text("Wake on LAN not supported")
+                    .foregroundStyle(.tertiary)
+            }
+        }
+        .padding()
+        .macGlassCard(cornerRadius: MacTheme.Layout.cardCornerRadius)
+    }
+
+    private var timelineSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("Timeline", systemImage: "clock")
+                .font(.headline)
+
+            Divider()
+
+            Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 8) {
+                GridRow {
+                    Text("First Seen")
+                        .foregroundStyle(.secondary)
+                    Text(device.firstSeen.formatted(date: .abbreviated, time: .shortened))
+                }
+
+                GridRow {
+                    Text("Last Seen")
+                        .foregroundStyle(.secondary)
+                    Text(device.lastSeen.formatted(date: .abbreviated, time: .shortened))
+                }
+
+                GridRow {
+                    Text("Time Since Last")
+                        .foregroundStyle(.secondary)
+                    Text(timeSinceLastSeen)
+                }
+
+                GridRow {
+                    Text("Total Tracked")
+                        .foregroundStyle(.secondary)
+                    Text(totalTimeTracked)
+                }
+            }
+        }
+        .padding()
+        .macGlassCard(cornerRadius: MacTheme.Layout.cardCornerRadius)
+    }
+
+    private var notesSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("Notes", systemImage: "note.text")
+                .font(.headline)
+
+            Divider()
+
+            if isEditing {
+                TextEditor(text: $editedNotes)
+                    .frame(minHeight: 100)
+                    .scrollContentBackground(.hidden)
+                    .background(Color.gray.opacity(0.1))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+            } else if let notes = device.notes, !notes.isEmpty {
+                Text(notes)
+                    .font(.body)
+                    .foregroundStyle(.secondary)
+            } else {
+                Text("No notes")
+                    .foregroundStyle(.tertiary)
+                    .italic()
+            }
+        }
+        .padding()
+        .macGlassCard(cornerRadius: MacTheme.Layout.cardCornerRadius)
+    }
+
+    private var actionsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("Actions", systemImage: "bolt")
+                .font(.headline)
+
+            Divider()
+
+            HStack(spacing: 12) {
+                actionButton(title: "Ping", icon: "waveform.path") {
+                    showPingSheet = true
+                }
+
+                actionButton(title: "Port Scan", icon: "network") {
+                    showPortScanSheet = true
+                }
+
+                actionButton(title: "Copy IP", icon: "doc.on.doc") {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(device.ipAddress, forType: .string)
+                }
+
+                actionButton(title: "Copy MAC", icon: "doc.on.doc") {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(device.macAddress, forType: .string)
+                }
+                .disabled(device.macAddress.isEmpty)
+            }
+        }
+        .padding()
+        .macGlassCard(cornerRadius: MacTheme.Layout.cardCornerRadius)
+    }
+
+    private func actionButton(title: String, icon: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            VStack(spacing: 4) {
+                Image(systemName: icon)
+                    .font(.title3)
+                Text(title)
+                    .font(.caption)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 8)
+        }
+        .buttonStyle(.bordered)
+    }
+
+    private func latencyText(_ latency: Double) -> String {
+        if latency < 1 { return "<1 ms" }
+        return String(format: "%.0f ms", latency)
+    }
+
+    private var timeSinceLastSeen: String {
+        let interval = Date().timeIntervalSince(device.lastSeen)
+        if interval < 60 { return "Just now" }
+        if interval < 3600 { return "\(Int(interval / 60)) min" }
+        if interval < 86400 { return "\(Int(interval / 3600)) hours" }
+        return "\(Int(interval / 86400)) days"
+    }
+
+    private var totalTimeTracked: String {
+        let interval = Date().timeIntervalSince(device.firstSeen)
+        if interval < 3600 { return "\(Int(interval / 60)) min" }
+        if interval < 86400 { return "\(Int(interval / 3600)) hours" }
+        return "\(Int(interval / 86400)) days"
+    }
+
+    private func startEditing() {
+        editedName = device.customName ?? ""
+        editedNotes = device.notes ?? ""
+        selectedDeviceType = device.deviceType
+    }
+
+    private func saveChanges() {
+        device.customName = editedName.isEmpty ? nil : editedName
+        device.notes = editedNotes.isEmpty ? nil : editedNotes
+        device.deviceType = selectedDeviceType
+        try? modelContext.save()
+    }
+
+    private func loadData() async {
+        bonjourServices = device.discoveredServices ?? []
+        latencyHistory = device.lastLatency.map { [$0] } ?? []
+    }
+}
+
+struct FlowLayout: Layout {
+    var spacing: CGFloat = 8
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let availableWidth = proposal.width ?? .greatestFiniteMagnitude
+        let result = FlowResult(in: availableWidth, subviews: subviews, spacing: spacing)
+        return result.size
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let result = FlowResult(in: bounds.width, subviews: subviews, spacing: spacing)
+        for (index, subview) in subviews.enumerated() {
+            subview.place(
+                at: CGPoint(x: bounds.minX + result.positions[index].x, y: bounds.minY + result.positions[index].y),
+                proposal: .unspecified
+            )
+        }
+    }
+
+    struct FlowResult {
+        var size: CGSize = .zero
+        var positions: [CGPoint] = []
+
+        init(in width: CGFloat, subviews: Subviews, spacing: CGFloat) {
+            var x: CGFloat = 0
+            var y: CGFloat = 0
+            var maxHeight: CGFloat = 0
+
+            for subview in subviews {
+                let size = subview.sizeThatFits(.unspecified)
+                if x + size.width > width, x > 0 {
+                    x = 0
+                    y += maxHeight + spacing
+                    maxHeight = 0
+                }
+                positions.append(CGPoint(x: x, y: y))
+                maxHeight = max(maxHeight, size.height)
+                x += size.width + spacing
+            }
+
+            let finalWidth = width.isFinite ? width : x
+            self.size = CGSize(width: finalWidth, height: y + maxHeight)
+        }
+    }
+}
+
+#Preview {
+    ProDeviceDetailView(device: LocalDevice(
+        ipAddress: "192.168.1.1",
+        macAddress: "AA:BB:CC:DD:EE:FF",
+        hostname: "router.local",
+        vendor: "Apple",
+        deviceType: .router,
+        status: .online,
+        lastLatency: 2.5,
+        isGateway: true,
+        supportsWakeOnLan: true,
+        openPorts: [22, 80, 443, 8080],
+        discoveredServices: ["SSH", "HTTP", "HTTPS", "HTTP-ALT"]
+    ))
+}

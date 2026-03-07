@@ -875,14 +875,6 @@ struct DevicePortScanSheet: View {
     }
 }
 
-private struct ProDeviceDetailView: View {
-    let device: LocalDevice
-
-    var body: some View {
-        DeviceDetailView(device: device)
-    }
-}
-
 #if DEBUG
 #Preview {
     DevicesView()
