@@ -88,6 +88,7 @@ final class DeviceDiscoveryCoordinator {
 
                 await resolveDeviceNames(profileID: profileID)
                 await resolveDeviceVendors(profileID: profileID)
+                inferDeviceTypes(profileID: profileID)
                 await measureDeviceLatencies(profileID: profileID)
                 markOfflineDevices(currentIPs: Set(allDiscovered.map(\.ipAddress)), profileID: profileID)
 
@@ -292,6 +293,25 @@ final class DeviceDiscoveryCoordinator {
 
         do { try modelContext.save() } catch {
             Logger.discovery.error("Failed to save device vendors: \(error)")
+        }
+    }
+
+    private func inferDeviceTypes(profileID: UUID?) {
+        let inference = DeviceTypeInferenceService()
+        let devices = fetchDevices(for: profileID).filter { $0.deviceType == .unknown }
+        var changed = false
+        for device in devices {
+            let inferred = inference.inferDeviceType(for: device)
+            if inferred != .unknown {
+                device.deviceType = inferred
+                changed = true
+            }
+        }
+        if changed {
+            do { try modelContext.save() } catch {
+                Logger.discovery.error("Failed to save inferred device types: \(error)")
+            }
+            loadPersistedDevices(for: profileID)
         }
     }
 

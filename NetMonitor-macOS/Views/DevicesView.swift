@@ -235,13 +235,11 @@ struct DevicesView: View {
                 Divider()
 
                 // Data rows
-                ForEach(Array(filteredDevices.enumerated()), id: \.element.id) { index, device in
+                ForEach(filteredDevices) { device in
                     NavigationLink(value: device) {
                         ProModeRowView(device: device, isSelected: false)
                     }
                     .buttonStyle(.plain)
-                    .frame(maxWidth: .infinity)
-                    .background(index % 2 == 1 ? Color.gray.opacity(0.04) : Color.clear)
                     Divider()
                 }
             }
@@ -250,31 +248,34 @@ struct DevicesView: View {
 
     private var proModeHeaderRow: some View {
         HStack(spacing: 0) {
-            Text("Status")
-                .frame(width: 50, alignment: .center)
-            Text("Name")
-                .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
+            Text("")
+                .frame(width: 36, alignment: .center)
             Text("IP Address")
-                .frame(width: 110, alignment: .leading)
-            Text("MAC")
-                .frame(width: 100, alignment: .leading)
-            Text("Vendor")
-                .frame(width: 100, alignment: .leading)
-            Text("Ports")
-                .frame(width: 80, alignment: .center)
-            Text("Services")
                 .frame(width: 130, alignment: .leading)
+            Text("Name")
+                .frame(minWidth: 150, alignment: .leading)
+            Text("")
+                .frame(width: 32, alignment: .center)
+            Text("Vendor")
+                .frame(width: 120, alignment: .leading)
+            Text("MAC")
+                .frame(width: 110, alignment: .leading)
+            Text("Ports")
+                .frame(width: 90, alignment: .leading)
             Text("Latency")
-                .frame(width: 65, alignment: .trailing)
-            Text("Last Seen")
-                .frame(width: 80, alignment: .trailing)
+                .frame(width: 70, alignment: .trailing)
+            Text("Seen")
+                .frame(width: 70, alignment: .trailing)
         }
         .font(.caption)
         .fontWeight(.semibold)
         .foregroundStyle(.secondary)
-        .padding(.horizontal, 8)
+        .padding(.horizontal, 12)
         .padding(.vertical, 8)
-        .background(Color.gray.opacity(0.1))
+        .background(Color.gray.opacity(0.08))
+        .overlay(alignment: .bottom) {
+            Divider()
+        }
     }
 
     // MARK: - Scanning Overlay
