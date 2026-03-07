@@ -107,12 +107,7 @@ struct DevicesView: View {
     var body: some View {
         Group {
             if viewMode == .pro {
-                NavigationStack {
-                    proModeFullScreenList
-                        .navigationDestination(for: LocalDevice.self) { device in
-                            ProDeviceDetailView(device: device)
-                        }
-                }
+                proModeFullScreenList
             } else {
                 HStack(spacing: 0) {
                     // Device list
@@ -138,6 +133,9 @@ struct DevicesView: View {
                     }
                 }
             }
+        }
+        .navigationDestination(for: LocalDevice.self) { device in
+            ProDeviceDetailView(device: device)
         }
         .navigationTitle("Devices")
         .toolbar {
