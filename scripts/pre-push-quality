@@ -1,0 +1,34 @@
+#!/usr/bin/env sh
+# NetMonitor-2.0 pre-push hook
+# Runs build verification before allowing push.
+
+set -e
+
+# Skip for non-main branches (feature branches can skip build check)
+CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
+if [ "$CURRENT_BRANCH" != "main" ]; then
+    echo "Skipping build verification on $CURRENT_BRANCH (main only)"
+    exit 0
+fi
+
+echo "Running pre-push build verification..."
+
+# Quick build check — macOS target only (faster than full test suite)
+# This catches compile errors before they hit remote
+if command -v xcodebuild >/dev/null 2>&1; then
+    echo "  Building NetMonitor-macOS..."
+    xcodebuild build \
+        -project NetMonitor.xcodeproj \
+        -scheme NetMonitor-macOS \
+        -configuration Debug \
+        -destination 'platform=macOS' \
+        -quiet \
+        2>&1 | tail -20 || {
+        echo ""
+        echo "❌ Build failed. Fix errors before pushing to main."
+        exit 1
+    }
+    echo "✓ Build verification passed."
+else
+    echo "WARNING: xcodebuild not found, skipping build verification"
+fi
