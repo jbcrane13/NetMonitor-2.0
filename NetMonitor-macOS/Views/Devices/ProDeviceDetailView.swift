@@ -6,7 +6,6 @@ import NetMonitorCore
 struct ProDeviceDetailView: View {
     @Bindable var device: LocalDevice
     @Environment(\.modelContext) private var modelContext
-    @Environment(\.dismiss) private var dismiss
 
     @State private var isEditing = false
     @State private var editedName: String = ""
@@ -19,6 +18,8 @@ struct ProDeviceDetailView: View {
 
     @State private var bonjourServices: [String] = []
     @State private var latencyHistory: [Double] = []
+
+    // MARK: - Body
 
     var body: some View {
         ScrollView {
@@ -58,7 +59,12 @@ struct ProDeviceDetailView: View {
         }
     }
 
-    private var headerSection: some View {
+}
+
+private extension ProDeviceDetailView {
+    // MARK: - Header Section
+
+    var headerSection: some View {
         HStack(spacing: 16) {
             ZStack {
                 Circle()
@@ -131,7 +137,9 @@ struct ProDeviceDetailView: View {
         .macGlassCard(cornerRadius: MacTheme.Layout.cardCornerRadius)
     }
 
-    private var networkDetailsSection: some View {
+    // MARK: - Network Details Section
+
+    var networkDetailsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             Label("Network Details", systemImage: "network")
                 .font(.headline)
@@ -193,7 +201,9 @@ struct ProDeviceDetailView: View {
         .macGlassCard(cornerRadius: MacTheme.Layout.cardCornerRadius)
     }
 
-    private var portsAndServicesSection: some View {
+    // MARK: - Ports and Services Section
+
+    var portsAndServicesSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             Label("Ports & Services", systemImage: "server.rack")
                 .font(.headline)
@@ -233,7 +243,9 @@ struct ProDeviceDetailView: View {
         .macGlassCard(cornerRadius: MacTheme.Layout.cardCornerRadius)
     }
 
-    private var latencyStatsSection: some View {
+    // MARK: - Latency Stats Section
+
+    var latencyStatsSection: some View {
         let currentLatency = device.lastLatency
         let minLatency = latencyHistory.min()
         let maxLatency = latencyHistory.max()
@@ -256,7 +268,9 @@ struct ProDeviceDetailView: View {
         .macGlassCard(cornerRadius: MacTheme.Layout.cardCornerRadius)
     }
 
-    private func latencyStatItem(title: String, value: String) -> some View {
+    // MARK: - Latency Stat Item
+
+    func latencyStatItem(title: String, value: String) -> some View {
         VStack(spacing: 4) {
             Text(title)
                 .font(.caption)
@@ -268,7 +282,9 @@ struct ProDeviceDetailView: View {
         }
     }
 
-    private var hardwareSection: some View {
+    // MARK: - Hardware Section
+
+    var hardwareSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             Label("Hardware", systemImage: "cpu")
                 .font(.headline)
@@ -309,7 +325,9 @@ struct ProDeviceDetailView: View {
         .macGlassCard(cornerRadius: MacTheme.Layout.cardCornerRadius)
     }
 
-    private var wakeOnLanSection: some View {
+    // MARK: - Wake on LAN Section
+
+    var wakeOnLanSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             Label("Wake on LAN", systemImage: "power")
                 .font(.headline)
@@ -346,7 +364,9 @@ struct ProDeviceDetailView: View {
         .macGlassCard(cornerRadius: MacTheme.Layout.cardCornerRadius)
     }
 
-    private var timelineSection: some View {
+    // MARK: - Timeline Section
+
+    var timelineSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             Label("Timeline", systemImage: "clock")
                 .font(.headline)
@@ -383,7 +403,9 @@ struct ProDeviceDetailView: View {
         .macGlassCard(cornerRadius: MacTheme.Layout.cardCornerRadius)
     }
 
-    private var notesSection: some View {
+    // MARK: - Notes Section
+
+    var notesSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             Label("Notes", systemImage: "note.text")
                 .font(.headline)
@@ -410,7 +432,9 @@ struct ProDeviceDetailView: View {
         .macGlassCard(cornerRadius: MacTheme.Layout.cardCornerRadius)
     }
 
-    private var actionsSection: some View {
+    // MARK: - Actions Section
+
+    var actionsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             Label("Actions", systemImage: "bolt")
                 .font(.headline)
@@ -442,7 +466,9 @@ struct ProDeviceDetailView: View {
         .macGlassCard(cornerRadius: MacTheme.Layout.cardCornerRadius)
     }
 
-    private func actionButton(title: String, icon: String, action: @escaping () -> Void) -> some View {
+    // MARK: - Action Button
+
+    func actionButton(title: String, icon: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             VStack(spacing: 4) {
                 Image(systemName: icon)
@@ -456,12 +482,14 @@ struct ProDeviceDetailView: View {
         .buttonStyle(.bordered)
     }
 
-    private func latencyText(_ latency: Double) -> String {
+    // MARK: - Helpers
+
+    func latencyText(_ latency: Double) -> String {
         if latency < 1 { return "<1 ms" }
         return String(format: "%.0f ms", latency)
     }
 
-    private var timeSinceLastSeen: String {
+    var timeSinceLastSeen: String {
         let interval = Date().timeIntervalSince(device.lastSeen)
         if interval < 60 { return "Just now" }
         if interval < 3600 { return "\(Int(interval / 60)) min" }
@@ -469,75 +497,29 @@ struct ProDeviceDetailView: View {
         return "\(Int(interval / 86400)) days"
     }
 
-    private var totalTimeTracked: String {
+    var totalTimeTracked: String {
         let interval = Date().timeIntervalSince(device.firstSeen)
         if interval < 3600 { return "\(Int(interval / 60)) min" }
         if interval < 86400 { return "\(Int(interval / 3600)) hours" }
         return "\(Int(interval / 86400)) days"
     }
 
-    private func startEditing() {
+    func startEditing() {
         editedName = device.customName ?? ""
         editedNotes = device.notes ?? ""
         selectedDeviceType = device.deviceType
     }
 
-    private func saveChanges() {
+    func saveChanges() {
         device.customName = editedName.isEmpty ? nil : editedName
         device.notes = editedNotes.isEmpty ? nil : editedNotes
         device.deviceType = selectedDeviceType
         try? modelContext.save()
     }
 
-    private func loadData() async {
+    func loadData() async {
         bonjourServices = device.discoveredServices ?? []
         latencyHistory = device.lastLatency.map { [$0] } ?? []
-    }
-}
-
-struct FlowLayout: Layout {
-    var spacing: CGFloat = 8
-
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let availableWidth = proposal.width ?? .greatestFiniteMagnitude
-        let result = FlowResult(in: availableWidth, subviews: subviews, spacing: spacing)
-        return result.size
-    }
-
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        let result = FlowResult(in: bounds.width, subviews: subviews, spacing: spacing)
-        for (index, subview) in subviews.enumerated() {
-            subview.place(
-                at: CGPoint(x: bounds.minX + result.positions[index].x, y: bounds.minY + result.positions[index].y),
-                proposal: .unspecified
-            )
-        }
-    }
-
-    struct FlowResult {
-        var size: CGSize = .zero
-        var positions: [CGPoint] = []
-
-        init(in width: CGFloat, subviews: Subviews, spacing: CGFloat) {
-            var x: CGFloat = 0
-            var y: CGFloat = 0
-            var maxHeight: CGFloat = 0
-
-            for subview in subviews {
-                let size = subview.sizeThatFits(.unspecified)
-                if x + size.width > width, x > 0 {
-                    x = 0
-                    y += maxHeight + spacing
-                    maxHeight = 0
-                }
-                positions.append(CGPoint(x: x, y: y))
-                maxHeight = max(maxHeight, size.height)
-                x += size.width + spacing
-            }
-
-            let finalWidth = width.isFinite ? width : x
-            self.size = CGSize(width: finalWidth, height: y + maxHeight)
-        }
     }
 }
 

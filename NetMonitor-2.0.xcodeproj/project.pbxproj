@@ -10,6 +10,7 @@
 		0055D51F8BD23898CBE4228A /* WHOISToolViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CEDECC888A595D0072CFCCDD /* WHOISToolViewModel.swift */; };
 		00899F0FC4FC9AB23FB9ECA0 /* ISPHealthCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = EEF6AF5675CD44C4FC29A84E /* ISPHealthCard.swift */; };
 		01FB5C6201BA805E45FE9B0A /* ConnectivityCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F6D2120C3C1F97E4FB231D8 /* ConnectivityCard.swift */; };
+		02E54AEEFC82F6E9746AA53B /* FlowLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F7663D6B71E58A8F1302100 /* FlowLayout.swift */; };
 		02F1D11D8040B5ABE82A311B /* GatewayService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11ECEB0143FB17F5EE8C4EB4 /* GatewayService.swift */; };
 		0339F8A0415336098C06AF55 /* ConnectionSettingsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DA713685A5D01F84A2D34A6 /* ConnectionSettingsSection.swift */; };
 		03B3955D9B9092EBB8326001 /* GeoTraceViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A442A04A1D5C91B75152740 /* GeoTraceViewModel.swift */; };
@@ -529,6 +530,7 @@
 		8E42E03E6C5BFDF617454119 /* MacGlassCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacGlassCard.swift; sourceTree = "<group>"; };
 		8E9B7FBD1F07CF6425DC114A /* ScheduledScanSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduledScanSettingsView.swift; sourceTree = "<group>"; };
 		8EE6DAA8D618B3A85832866F /* HeatmapSurveyView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeatmapSurveyView.swift; sourceTree = "<group>"; };
+		8F7663D6B71E58A8F1302100 /* FlowLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlowLayout.swift; sourceTree = "<group>"; };
 		902FDF34A4DD511DF5326DA1 /* Logging.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Logging.swift; sourceTree = "<group>"; };
 		90C80E0B4CA9F68347CE03CB /* WorldPingToolUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorldPingToolUITests.swift; sourceTree = "<group>"; };
 		90F317095264FEEBC1533465 /* ToolsViewUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolsViewUITests.swift; sourceTree = "<group>"; };
@@ -894,6 +896,7 @@
 				6A3C5A26C422CE3455CD55A3 /* TimelineView.swift */,
 				3FF4F9ADB872CDB93DAA9636 /* ToolsView.swift */,
 				510EEA7FD3EAFD346225709B /* VPNInfoView.swift */,
+				F4781678B634B6487A9F4DF2 /* Components */,
 				81FA8CDA1031DD565B47AEBC /* Dashboard */,
 				401F3610A2D986F7DDEEC4AE /* Devices */,
 				B97B80CC3985B2E3BCA69A45 /* Heatmap */,
@@ -1293,6 +1296,14 @@
 			path = "NetMonitor-macOSUITests";
 			sourceTree = "<group>";
 		};
+		F4781678B634B6487A9F4DF2 /* Components */ = {
+			isa = PBXGroup;
+			children = (
+				8F7663D6B71E58A8F1302100 /* FlowLayout.swift */,
+			);
+			path = Components;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -1567,6 +1578,7 @@
 				FF16C7008539D9C78DCBB9F5 /* DeviceRowView.swift in Sources */,
 				5D4B058BFA8125C350ADBB50 /* DevicesView.swift in Sources */,
 				516EF4009098D3018F255138 /* EnumExtensions.swift in Sources */,
+				02E54AEEFC82F6E9746AA53B /* FlowLayout.swift in Sources */,
 				0C10A0C43E7227793151C643 /* GatewayInfoCard.swift in Sources */,
 				0AA7514D54E6807C05B93492 /* GeneralSettingsView.swift in Sources */,
 				C5187D03FCD8F2551064E6FD /* GeoTraceView.swift in Sources */,
