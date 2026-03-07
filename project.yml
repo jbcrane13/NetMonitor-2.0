@@ -23,6 +23,8 @@ targets:
       - path: NetMonitor-macOS
         includes:
           - "**/*.swift"
+          - "Views/Components/FlowLayout.swift"
+          - "Views/Devices/ProDeviceDetailView.swift"
       - path: NetMonitor-macOS/Resources/Assets.xcassets
     info:
       path: NetMonitor-macOS/Resources/Info.plist

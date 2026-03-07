@@ -105,27 +105,38 @@ struct DevicesView: View {
     }
 
     var body: some View {
-        HStack(spacing: 0) {
-            // Device list
-            VStack(spacing: 0) {
-                deviceList
-            }
-            .frame(minWidth: 280, idealWidth: 350, maxWidth: 450)
-
-            Divider()
-
-            // Detail pane
-            if let device = selectedDevice {
-                DeviceDetailView(device: device)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+        Group {
+            if viewMode == .pro {
+                NavigationStack {
+                    proModeFullScreenList
+                        .navigationDestination(for: LocalDevice.self) { device in
+                            ProDeviceDetailView(device: device)
+                        }
+                }
             } else {
-                ContentUnavailableView(
-                    "Select a Device",
-                    systemImage: "desktopcomputer",
-                    description: Text("Choose a device from the list to view details")
-                )
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .accessibilityIdentifier("devices_label_selectDevice")
+                HStack(spacing: 0) {
+                    // Device list
+                    VStack(spacing: 0) {
+                        deviceList
+                    }
+                    .frame(minWidth: 280, idealWidth: 350, maxWidth: 450)
+
+                    Divider()
+
+                    // Detail pane
+                    if let device = selectedDevice {
+                        DeviceDetailView(device: device)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    } else {
+                        ContentUnavailableView(
+                            "Select a Device",
+                            systemImage: "desktopcomputer",
+                            description: Text("Choose a device from the list to view details")
+                        )
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .accessibilityIdentifier("devices_label_selectDevice")
+                    }
+                }
             }
         }
         .navigationTitle("Devices")
@@ -197,6 +208,26 @@ struct DevicesView: View {
 
     // MARK: - Pro Mode List (Dense Table)
 
+    private var proModeFullScreenList: some View {
+        Group {
+            if filteredDevices.isEmpty && coordinator?.isScanning != true {
+                ContentUnavailableView(
+                    "No Devices Found",
+                    systemImage: "network",
+                    description: Text("Click Scan to discover devices on your network")
+                )
+                .accessibilityIdentifier("devices_label_empty")
+            } else {
+                proModeList
+            }
+        }
+        .overlay {
+            if coordinator?.isScanning == true {
+                scanningOverlay
+            }
+        }
+    }
+
     private var proModeList: some View {
         ScrollView {
             LazyVStack(spacing: 0) {
@@ -207,10 +238,10 @@ struct DevicesView: View {
 
                 // Data rows
                 ForEach(filteredDevices) { device in
-                    ProModeRowView(device: device, isSelected: selectedDevice?.id == device.id)
-                        .onTapGesture {
-                            selectedDevice = device
-                        }
+                    NavigationLink(value: device) {
+                        ProModeRowView(device: device, isSelected: false)
+                    }
+                    .buttonStyle(.plain)
                     Divider()
                 }
             }
