@@ -40,14 +40,14 @@ struct ProModeRowView: View {
 
             // Vendor
             Text(device.vendor ?? "")
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.white.opacity(0.7))
                 .lineLimit(1)
                 .frame(width: Self.vendorWidth, alignment: .leading)
 
             // MAC Address (last 8 chars)
             Text(device.macAddress.isEmpty ? "" : String(device.macAddress.suffix(8)))
                 .fontDesign(.monospaced)
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(Color.white.opacity(0.5))
                 .frame(width: Self.macWidth, alignment: .leading)
 
             // Open Ports
@@ -60,10 +60,11 @@ struct ProModeRowView: View {
 
             // Last Seen
             Text(lastSeenText)
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(Color.white.opacity(0.5))
                 .frame(width: Self.seenWidth, alignment: .leading)
         }
         .font(.system(.body, design: .default))
+        .foregroundStyle(Color.white)
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
         .contentShape(Rectangle())

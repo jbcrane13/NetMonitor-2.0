@@ -232,8 +232,6 @@ struct DevicesView: View {
                 // Header row
                 proModeHeaderRow
 
-                Divider()
-
                 // Data rows
                 ForEach(filteredDevices) { device in
                     NavigationLink(value: device) {
@@ -241,11 +239,12 @@ struct DevicesView: View {
                     }
                     .buttonStyle(.plain)
                     Rectangle()
-                        .fill(Color.white.opacity(0.06))
+                        .fill(Color.white.opacity(0.08))
                         .frame(height: 1)
                 }
             }
         }
+        .background(Color(red: 0.06, green: 0.06, blue: 0.07))
     }
 
     private var proModeHeaderRow: some View {
@@ -269,13 +268,13 @@ struct DevicesView: View {
         }
         .font(.caption)
         .fontWeight(.semibold)
-        .foregroundStyle(.secondary)
+        .foregroundStyle(Color.white.opacity(0.6))
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
-        .background(Color.white.opacity(0.04))
+        .background(Color.white.opacity(0.05))
         .overlay(alignment: .bottom) {
             Rectangle()
-                .fill(Color.white.opacity(0.12))
+                .fill(Color.white.opacity(0.15))
                 .frame(height: 1)
         }
     }
