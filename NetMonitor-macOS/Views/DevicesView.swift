@@ -240,41 +240,43 @@ struct DevicesView: View {
                         ProModeRowView(device: device, isSelected: false)
                     }
                     .buttonStyle(.plain)
-                    Divider()
+                    Rectangle()
+                        .fill(Color.white.opacity(0.06))
+                        .frame(height: 1)
                 }
             }
         }
     }
 
     private var proModeHeaderRow: some View {
-        HStack(spacing: 0) {
+        HStack(spacing: ProModeRowView.columnSpacing) {
             Text("")
-                .frame(width: 36, alignment: .center)
+                .frame(width: ProModeRowView.statusWidth, alignment: .leading)
             Text("IP Address")
-                .frame(width: 130, alignment: .leading)
+                .frame(width: ProModeRowView.ipWidth, alignment: .leading)
             Text("Name")
-                .frame(minWidth: 150, alignment: .leading)
-            Text("")
-                .frame(width: 32, alignment: .center)
+                .frame(width: ProModeRowView.nameWidth, alignment: .leading)
             Text("Vendor")
-                .frame(width: 120, alignment: .leading)
+                .frame(width: ProModeRowView.vendorWidth, alignment: .leading)
             Text("MAC")
-                .frame(width: 110, alignment: .leading)
+                .frame(width: ProModeRowView.macWidth, alignment: .leading)
             Text("Ports")
-                .frame(width: 90, alignment: .leading)
+                .frame(width: ProModeRowView.portsWidth, alignment: .leading)
             Text("Latency")
-                .frame(width: 70, alignment: .trailing)
+                .frame(width: ProModeRowView.latencyWidth, alignment: .leading)
             Text("Seen")
-                .frame(width: 70, alignment: .trailing)
+                .frame(width: ProModeRowView.seenWidth, alignment: .leading)
         }
         .font(.caption)
         .fontWeight(.semibold)
         .foregroundStyle(.secondary)
-        .padding(.horizontal, 12)
+        .padding(.horizontal, 16)
         .padding(.vertical, 8)
-        .background(Color.gray.opacity(0.08))
+        .background(Color.white.opacity(0.04))
         .overlay(alignment: .bottom) {
-            Divider()
+            Rectangle()
+                .fill(Color.white.opacity(0.12))
+                .frame(height: 1)
         }
     }
 

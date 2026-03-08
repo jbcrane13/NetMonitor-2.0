@@ -7,62 +7,64 @@ struct ProModeRowView: View {
     let device: LocalDevice
     let isSelected: Bool
 
+    // Column widths — must match proModeHeaderRow in DevicesView
+    static let statusWidth: CGFloat = 28
+    static let ipWidth: CGFloat = 140
+    static let nameWidth: CGFloat = 220
+    static let vendorWidth: CGFloat = 160
+    static let macWidth: CGFloat = 100
+    static let portsWidth: CGFloat = 100
+    static let latencyWidth: CGFloat = 70
+    static let seenWidth: CGFloat = 50
+    static let columnSpacing: CGFloat = 12
+
     var body: some View {
-        HStack(spacing: 0) {
+        HStack(spacing: Self.columnSpacing) {
             // Status
             Circle()
-                .fill(device.status == .online ? MacTheme.Colors.success : Color.gray.opacity(0.5))
-                .frame(width: 10, height: 10)
-                .frame(width: 36, alignment: .center)
+                .fill(device.status == .online ? MacTheme.Colors.success : Color.gray.opacity(0.4))
+                .frame(width: 8, height: 8)
+                .frame(width: Self.statusWidth, alignment: .leading)
 
             // IP Address
             Text(device.ipAddress)
                 .fontDesign(.monospaced)
-                .font(.callout)
-                .frame(width: 130, alignment: .leading)
+                .frame(width: Self.ipWidth, alignment: .leading)
 
             // Name
             Text(device.displayName)
-                .font(.callout)
                 .fontWeight(device.customName != nil ? .semibold : .regular)
                 .lineLimit(1)
-                .frame(minWidth: 150, alignment: .leading)
-
-            // Type Icon
-            Image(systemName: device.deviceType.iconName)
-                .font(.callout)
-                .foregroundStyle(device.deviceType == .unknown ? .tertiary : .secondary)
-                .frame(width: 32, alignment: .center)
+                .truncationMode(.middle)
+                .frame(width: Self.nameWidth, alignment: .leading)
 
             // Vendor
-            Text(device.vendor ?? "-")
-                .font(.callout)
+            Text(device.vendor ?? "")
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
-                .frame(width: 120, alignment: .leading)
+                .frame(width: Self.vendorWidth, alignment: .leading)
 
             // MAC Address (last 8 chars)
-            Text(device.macAddress.isEmpty ? "-" : String(device.macAddress.suffix(8)))
+            Text(device.macAddress.isEmpty ? "" : String(device.macAddress.suffix(8)))
                 .fontDesign(.monospaced)
-                .font(.callout)
                 .foregroundStyle(.tertiary)
-                .frame(width: 110, alignment: .leading)
+                .frame(width: Self.macWidth, alignment: .leading)
 
             // Open Ports
             portsView
-                .frame(width: 90, alignment: .leading)
+                .frame(width: Self.portsWidth, alignment: .leading)
 
             // Latency
             latencyView
-                .frame(width: 70, alignment: .trailing)
+                .frame(width: Self.latencyWidth, alignment: .leading)
 
             // Last Seen
             Text(lastSeenText)
-                .font(.callout)
                 .foregroundStyle(.tertiary)
-                .frame(width: 70, alignment: .trailing)
+                .frame(width: Self.seenWidth, alignment: .leading)
         }
-        .padding(.horizontal, 12)
+        .font(.system(.body, design: .default))
+        .padding(.horizontal, 16)
         .padding(.vertical, 10)
         .contentShape(Rectangle())
         .background(isSelected ? Color.accentColor.opacity(0.15) : Color.clear)
@@ -74,12 +76,9 @@ struct ProModeRowView: View {
     private var portsView: some View {
         let ports = device.openPorts ?? []
         if ports.isEmpty {
-            Text("-")
-                .font(.callout)
-                .foregroundStyle(.tertiary)
+            Text("")
         } else {
             Text(ports.prefix(3).map(String.init).joined(separator: ", "))
-                .font(.callout)
                 .foregroundStyle(MacTheme.Colors.info)
                 .lineLimit(1)
         }
@@ -92,13 +91,10 @@ struct ProModeRowView: View {
         if let latency = device.lastLatency {
             let text = latency < 1 ? "<1 ms" : String(format: "%.0f ms", latency)
             Text(text)
-                .font(.callout)
                 .monospacedDigit()
                 .foregroundStyle(MacTheme.Colors.latencyColor(ms: latency))
         } else {
-            Text("-")
-                .font(.callout)
-                .foregroundStyle(.tertiary)
+            Text("")
         }
     }
 
@@ -136,7 +132,7 @@ struct ProModeRowView: View {
                 ipAddress: "192.168.1.42",
                 macAddress: "11:22:33:44:55:66",
                 hostname: "MacBook-Pro.local",
-                vendor: "Apple",
+                vendor: "Apple, Inc.",
                 deviceType: .laptop,
                 status: .online,
                 lastLatency: 45.0
@@ -154,5 +150,5 @@ struct ProModeRowView: View {
             isSelected: false
         )
     }
-    .frame(width: 900)
+    .frame(width: 1100)
 }
