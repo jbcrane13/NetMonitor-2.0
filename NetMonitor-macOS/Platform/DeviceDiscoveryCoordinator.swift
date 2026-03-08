@@ -1,6 +1,7 @@
 import Foundation
 import SwiftData
 import NetMonitorCore
+import Darwin
 import os
 
 @MainActor
@@ -84,14 +85,24 @@ final class DeviceDiscoveryCoordinator {
                 mergeDiscoveredDevices(allDiscovered, profileID: profileID)
 
                 try Task.checkCancellation()
-                scanProgress = 0.95
-
+                scanProgress = 0.92
                 await resolveDeviceNames(profileID: profileID)
-                await resolveDeviceVendors(profileID: profileID)
-                inferDeviceTypes(profileID: profileID)
-                await measureDeviceLatencies(profileID: profileID)
-                markOfflineDevices(currentIPs: Set(allDiscovered.map(\.ipAddress)), profileID: profileID)
 
+                try Task.checkCancellation()
+                scanProgress = 0.94
+                await resolveDeviceVendors(profileID: profileID)
+
+                try Task.checkCancellation()
+                scanProgress = 0.96
+                await quickPortScan(profileID: profileID)
+
+                inferDeviceTypes(profileID: profileID)
+
+                try Task.checkCancellation()
+                scanProgress = 0.98
+                await measureDeviceLatencies(profileID: profileID)
+
+                markOfflineDevices(currentIPs: Set(allDiscovered.map(\.ipAddress)), profileID: profileID)
                 scanProgress = 1.0
                 lastScanTime = Date()
 
@@ -196,7 +207,7 @@ final class DeviceDiscoveryCoordinator {
         loadPersistedDevices(for: profileID)
     }
 
-    /// Ping each online device (1 probe, 2s timeout) and store latency.
+    /// Ping each online device (3 probes, 3s timeout) and store best latency.
     private func measureDeviceLatencies(profileID: UUID?) async {
         let devices = fetchDevices(for: profileID).filter { $0.status == .online }
         guard !devices.isEmpty else { return }
@@ -207,13 +218,17 @@ final class DeviceDiscoveryCoordinator {
             for device in devices {
                 let ip = device.ipAddress
                 group.addTask {
-                    let stream = await pingService.ping(host: ip, count: 1, timeout: 2)
+                    var bestLatency: Double?
+                    let stream = await pingService.ping(host: ip, count: 3, timeout: 3)
                     for await result in stream {
                         if !result.isTimeout {
-                            return (ip, result.time)
+                            let t = result.time
+                            if bestLatency == nil || t < (bestLatency ?? .infinity) {
+                                bestLatency = t
+                            }
                         }
                     }
-                    return (ip, nil)
+                    return (ip, bestLatency)
                 }
             }
 
@@ -293,6 +308,128 @@ final class DeviceDiscoveryCoordinator {
 
         do { try modelContext.save() } catch {
             Logger.discovery.error("Failed to save device vendors: \(error)")
+        }
+    }
+
+    /// Quick port scan of common ports for all online devices.
+    /// Uses 1s timeout per port, 10 concurrent devices at a time.
+    private func quickPortScan(profileID: UUID?) async {
+        let devices = fetchDevices(for: profileID).filter { $0.status == .online }
+        guard !devices.isEmpty else { return }
+
+        // Top common ports — fast fingerprinting set
+        let commonPorts = [22, 53, 80, 443, 445, 548, 631, 3389, 5900, 8080, 8443, 8008, 9100, 32400, 62078]
+
+        await withTaskGroup(of: (UUID, [Int]).self) { group in
+            var activeCount = 0
+            var iter = devices.makeIterator()
+
+            // Limit concurrency to 10 devices at a time
+            while activeCount < 10, let device = iter.next() {
+                let id = device.id
+                let ip = device.ipAddress
+                group.addTask {
+                    var openPorts: [Int] = []
+                    await withTaskGroup(of: (Int, Bool).self) { portGroup in
+                        for port in commonPorts {
+                            portGroup.addTask {
+                                let isOpen = await Self.checkPort(host: ip, port: port, timeoutMs: 1000)
+                                return (port, isOpen)
+                            }
+                        }
+                        for await (port, isOpen) in portGroup {
+                            if isOpen { openPorts.append(port) }
+                        }
+                    }
+                    return (id, openPorts.sorted())
+                }
+                activeCount += 1
+            }
+
+            for await (id, openPorts) in group {
+                if let device = devices.first(where: { $0.id == id }) {
+                    let existing = Set(device.openPorts ?? [])
+                    let combined = existing.union(openPorts).sorted()
+                    if !combined.isEmpty {
+                        device.openPorts = combined
+                    }
+                }
+                if let next = iter.next() {
+                    let id = next.id
+                    let ip = next.ipAddress
+                    group.addTask {
+                        var openPorts: [Int] = []
+                        await withTaskGroup(of: (Int, Bool).self) { portGroup in
+                            for port in commonPorts {
+                                portGroup.addTask {
+                                    let isOpen = await Self.checkPort(host: ip, port: port, timeoutMs: 1000)
+                                    return (port, isOpen)
+                                }
+                            }
+                            for await (port, isOpen) in portGroup {
+                                if isOpen { openPorts.append(port) }
+                            }
+                        }
+                        return (id, openPorts.sorted())
+                    }
+                }
+            }
+        }
+
+        do { try modelContext.save() } catch {
+            Logger.discovery.error("Failed to save port scan results: \(error)")
+        }
+        loadPersistedDevices(for: profileID)
+    }
+
+    /// Non-blocking TCP connect check with configurable timeout.
+    private static func checkPort(host: String, port: Int, timeoutMs: Int32) async -> Bool {
+        await withCheckedContinuation { continuation in
+            DispatchQueue(label: "com.netmonitor.quickportscan").async {
+                var hints = addrinfo()
+                hints.ai_family = AF_INET
+                hints.ai_socktype = SOCK_STREAM
+                hints.ai_protocol = IPPROTO_TCP
+
+                var result: UnsafeMutablePointer<addrinfo>?
+                let portString = String(port)
+                let resolveStatus = getaddrinfo(host, portString, &hints, &result)
+
+                guard resolveStatus == 0, let addrInfo = result else {
+                    continuation.resume(returning: false)
+                    return
+                }
+                defer { freeaddrinfo(result) }
+
+                let sock = socket(addrInfo.pointee.ai_family, addrInfo.pointee.ai_socktype, addrInfo.pointee.ai_protocol)
+                guard sock >= 0 else {
+                    continuation.resume(returning: false)
+                    return
+                }
+                defer { close(sock) }
+
+                // Non-blocking
+                var flags = fcntl(sock, F_GETFL, 0)
+                flags |= O_NONBLOCK
+                _ = fcntl(sock, F_SETFL, flags)
+
+                _ = connect(sock, addrInfo.pointee.ai_addr, addrInfo.pointee.ai_addrlen)
+
+                if errno == EINPROGRESS {
+                    var pfd = pollfd(fd: sock, events: Int16(POLLOUT), revents: 0)
+                    let pollResult = poll(&pfd, 1, timeoutMs)
+                    if pollResult > 0 {
+                        var socketError: Int32 = 0
+                        var errorLen = socklen_t(MemoryLayout<Int32>.size)
+                        getsockopt(sock, SOL_SOCKET, SO_ERROR, &socketError, &errorLen)
+                        continuation.resume(returning: socketError == 0)
+                    } else {
+                        continuation.resume(returning: false)
+                    }
+                } else {
+                    continuation.resume(returning: errno == 0)
+                }
+            }
         }
     }
 
