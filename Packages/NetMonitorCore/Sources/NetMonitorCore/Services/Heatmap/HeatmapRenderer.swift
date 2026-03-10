@@ -74,7 +74,8 @@ public struct HeatmapRenderer: Sendable {
 
     public func colorForValue(
         _ value: Double,
-        visualization: HeatmapVisualization
+        visualization: HeatmapVisualization,
+        colorScheme: HeatmapColorScheme = .thermal
     ) -> (r: UInt8, g: UInt8, b: UInt8, a: UInt8) {
         let range = visualization.valueRange
         let clamped = min(max(value, range.lowerBound), range.upperBound)
@@ -85,14 +86,23 @@ public struct HeatmapRenderer: Sendable {
             normalized = 1.0 - (clamped - range.lowerBound) / (range.upperBound - range.lowerBound)
         }
         let alpha = UInt8(configuration.opacity * 255)
-        return gradientColor(normalizedValue: normalized, alpha: alpha)
+
+        switch colorScheme {
+        case .thermal:
+            return thermalGradient(t: normalized, alpha: alpha)
+        case .stoplight:
+            return stoplightGradient(t: normalized, alpha: alpha)
+        case .plasma:
+            return plasmaGradient(t: normalized, alpha: alpha)
+        }
     }
 
     // MARK: - Rendering
 
     public func render(
         points: [MeasurementPoint],
-        visualization: HeatmapVisualization
+        visualization: HeatmapVisualization,
+        colorScheme: HeatmapColorScheme = .thermal
     ) -> CGImage? {
         let grid = interpolateGrid(points: points, visualization: visualization)
         let gridW = configuration.gridWidth
@@ -105,7 +115,7 @@ public struct HeatmapRenderer: Sendable {
         for row in 0 ..< gridH {
             for col in 0 ..< gridW {
                 let value = grid[row][col]
-                let color = colorForValue(value, visualization: visualization)
+                let color = colorForValue(value, visualization: visualization, colorScheme: colorScheme)
                 let offset = (row * gridW + col) * 4
                 pixelData[offset] = color.r
                 pixelData[offset + 1] = color.g
@@ -130,7 +140,7 @@ public struct HeatmapRenderer: Sendable {
         return context.makeImage()
     }
 
-    // MARK: - Private
+    // MARK: - Private IDW
 
     private func idwValue(
         x: Double,
@@ -160,31 +170,107 @@ public struct HeatmapRenderer: Sendable {
         return weightedSum / totalWeight
     }
 
-    private func gradientColor(
-        normalizedValue: Double,
-        alpha: UInt8
-    ) -> (r: UInt8, g: UInt8, b: UInt8, a: UInt8) {
-        let clamped = min(max(normalizedValue, 0), 1)
+    // MARK: - Gradient Functions
 
-        let red: Double
-        let green: Double
-        let blue = 0.0
+    /// Thermal: Blue → Cyan → Green → Yellow → Red
+    /// Standard network heatmap gradient used by NetSpot and similar tools.
+    private func thermalGradient(t: Double, alpha: UInt8) -> (r: UInt8, g: UInt8, b: UInt8, a: UInt8) {
+        let c = min(max(t, 0), 1)
+        let r: Double
+        let g: Double
+        let b: Double
 
-        if clamped < 0.5 {
-            let local = clamped / 0.5
-            red = 1.0
-            green = local
+        if c < 0.25 {
+            // Blue → Cyan
+            let local = c / 0.25
+            r = 0
+            g = local
+            b = 1.0
+        } else if c < 0.5 {
+            // Cyan → Green
+            let local = (c - 0.25) / 0.25
+            r = 0
+            g = 1.0
+            b = 1.0 - local
+        } else if c < 0.75 {
+            // Green → Yellow
+            let local = (c - 0.5) / 0.25
+            r = local
+            g = 1.0
+            b = 0
         } else {
-            let local = (clamped - 0.5) / 0.5
-            red = 1.0 - local
-            green = 1.0
+            // Yellow → Red
+            let local = (c - 0.75) / 0.25
+            r = 1.0
+            g = 1.0 - local
+            b = 0
         }
 
-        return (
-            r: UInt8(red * 255),
-            g: UInt8(green * 255),
-            b: UInt8(blue * 255),
-            a: alpha
-        )
+        return (r: UInt8(r * 255), g: UInt8(g * 255), b: UInt8(b * 255), a: alpha)
+    }
+
+    /// Stoplight: Red → Orange → Yellow → Green
+    /// Intuitive traffic-light gradient.
+    private func stoplightGradient(t: Double, alpha: UInt8) -> (r: UInt8, g: UInt8, b: UInt8, a: UInt8) {
+        let c = min(max(t, 0), 1)
+        let r: Double
+        let g: Double
+        let b: Double = 0
+
+        if c < 0.33 {
+            // Red → Orange
+            let local = c / 0.33
+            r = 1.0
+            g = 0.4 * local
+        } else if c < 0.66 {
+            // Orange → Yellow
+            let local = (c - 0.33) / 0.33
+            r = 1.0
+            g = 0.4 + 0.6 * local
+        } else {
+            // Yellow → Green
+            let local = (c - 0.66) / 0.34
+            r = 1.0 - local
+            g = 0.6 + 0.4 * local
+        }
+
+        return (r: UInt8(r * 255), g: UInt8(g * 255), b: UInt8(b * 255), a: alpha)
+    }
+
+    /// Plasma: Indigo → Purple → Red → Orange → Yellow
+    /// Scientific color map with high perceptual contrast.
+    private func plasmaGradient(t: Double, alpha: UInt8) -> (r: UInt8, g: UInt8, b: UInt8, a: UInt8) {
+        let c = min(max(t, 0), 1)
+        let r: Double
+        let g: Double
+        let b: Double
+
+        if c < 0.25 {
+            // Dark indigo → Purple
+            let local = c / 0.25
+            r = 0.05 + 0.35 * local
+            g = 0.01 + 0.01 * local
+            b = 0.2 + 0.3 * local
+        } else if c < 0.5 {
+            // Purple → Red
+            let local = (c - 0.25) / 0.25
+            r = 0.4 + 0.55 * local
+            g = 0.02 + 0.08 * local
+            b = 0.5 - 0.45 * local
+        } else if c < 0.75 {
+            // Red → Orange
+            let local = (c - 0.5) / 0.25
+            r = 0.95 + 0.05 * local
+            g = 0.1 + 0.4 * local
+            b = 0.05 - 0.05 * local
+        } else {
+            // Orange → Yellow
+            let local = (c - 0.75) / 0.25
+            r = 1.0
+            g = 0.5 + 0.5 * local
+            b = local * 0.1
+        }
+
+        return (r: UInt8(r * 255), g: UInt8(g * 255), b: UInt8(b * 255), a: alpha)
     }
 }

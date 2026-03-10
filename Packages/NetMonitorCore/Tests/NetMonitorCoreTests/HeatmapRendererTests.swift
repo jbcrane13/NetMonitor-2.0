@@ -343,6 +343,66 @@ struct HeatmapRendererConfigTests {
     }
 }
 
+// MARK: - Color Scheme Tests
+
+@Suite("HeatmapRenderer Color Schemes")
+struct HeatmapRendererColorSchemeTests {
+
+    @Test("thermal gradient: strong signal maps to red region")
+    func thermalStrongSignal() {
+        let renderer = HeatmapRenderer()
+        // Strong signal = -30 dBm, top of range
+        let color = renderer.colorForValue(-30, visualization: .signalStrength, colorScheme: .thermal)
+        // Should be in the red/warm end: R high
+        #expect(color.r > 200)
+    }
+
+    @Test("thermal gradient: weak signal maps to blue region")
+    func thermalWeakSignal() {
+        let renderer = HeatmapRenderer()
+        // Weak signal = -90 dBm, bottom of range
+        let color = renderer.colorForValue(-90, visualization: .signalStrength, colorScheme: .thermal)
+        // Should be in the blue/cool end: B high
+        #expect(color.b > 150)
+    }
+
+    @Test("stoplight gradient: strong signal maps to green")
+    func stoplightStrongSignal() {
+        let renderer = HeatmapRenderer()
+        let color = renderer.colorForValue(-30, visualization: .signalStrength, colorScheme: .stoplight)
+        #expect(color.g > 150)
+        #expect(color.r < 100)
+    }
+
+    @Test("stoplight gradient: weak signal maps to red")
+    func stoplightWeakSignal() {
+        let renderer = HeatmapRenderer()
+        let color = renderer.colorForValue(-90, visualization: .signalStrength, colorScheme: .stoplight)
+        #expect(color.r > 150)
+        #expect(color.g < 100)
+    }
+
+    @Test("plasma gradient: strong signal maps to yellow")
+    func plasmaStrongSignal() {
+        let renderer = HeatmapRenderer()
+        let color = renderer.colorForValue(-30, visualization: .signalStrength, colorScheme: .plasma)
+        // Yellow = high R + high G
+        #expect(color.r > 200)
+        #expect(color.g > 150)
+    }
+
+    @Test("render with colorScheme parameter produces non-nil image")
+    func renderWithScheme() {
+        let renderer = HeatmapRenderer()
+        let points = [
+            MeasurementPoint(floorPlanX: 0.3, floorPlanY: 0.3, rssi: -45),
+            MeasurementPoint(floorPlanX: 0.7, floorPlanY: 0.7, rssi: -75)
+        ]
+        let image = renderer.render(points: points, visualization: .signalStrength, colorScheme: .thermal)
+        #expect(image != nil)
+    }
+}
+
 // MARK: - HeatmapVisualization extractValue Tests
 
 @Suite("HeatmapVisualization — Value Extraction")
