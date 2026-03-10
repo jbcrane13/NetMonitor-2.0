@@ -156,6 +156,7 @@ struct NetworkIntelCard: View {
         // Refresh every 10 seconds
         while !Task.isCancelled {
             try? await Task.sleep(for: .seconds(10))
+            guard !Task.isCancelled else { break }
             await parseNetstat()
             await measureDNS()
             recentEvents = generateEvents()
@@ -206,14 +207,21 @@ struct NetworkIntelCard: View {
             }
         }
 
-        // Measure DNS lookup latency
+        // Measure DNS lookup latency via shell dig — avoids blocking the main actor
+        // CFHostStartInfoResolution is synchronous and can hang indefinitely
         let start = ContinuousClock.now
-        let host = CFHostCreateWithName(nil, "apple.com" as CFString).takeRetainedValue()
-        var resolved = DarwinBoolean(false)
-        CFHostStartInfoResolution(host, .addresses, nil)
-        _ = CFHostGetAddressing(host, &resolved)
+        let runner = ShellCommandRunner()
+        guard (try? await runner.run(
+            "/usr/bin/dig",
+            arguments: ["+time=2", "+tries=1", "+short", "apple.com"],
+            timeout: 3
+        )) != nil else {
+            dnsLatencyMs = nil
+            return
+        }
         let elapsed = ContinuousClock.now - start
-        dnsLatencyMs = Double(elapsed.components.attoseconds) / 1e15
+        let ms = Double(elapsed.components.seconds) * 1000 + Double(elapsed.components.attoseconds) / 1e15
+        dnsLatencyMs = ms
     }
 
     private func generateEvents() -> [NetEvent] {
