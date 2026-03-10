@@ -114,7 +114,7 @@ struct NetworkIntelCard: View {
         }
         .macGlassCard(cornerRadius: 14, padding: 10)
         .accessibilityIdentifier("dashboard_card_networkIntel")
-        .task { await refresh() }
+        .task(priority: .utility) { await refresh() }
     }
 
     // MARK: - Sub-views
