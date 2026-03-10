@@ -283,6 +283,22 @@ public enum HeatmapVisualization: String, Sendable, Codable, CaseIterable {
     }
 }
 
+// MARK: - HeatmapColorScheme
+
+public enum HeatmapColorScheme: String, Sendable, Codable, CaseIterable {
+    case thermal
+    case stoplight
+    case plasma
+
+    public var displayName: String {
+        switch self {
+        case .thermal: "Thermal"
+        case .stoplight: "Stoplight"
+        case .plasma: "Plasma"
+        }
+    }
+}
+
 // MARK: - SurveyProject
 
 public struct SurveyProject: Sendable, Codable, Identifiable, Equatable {
