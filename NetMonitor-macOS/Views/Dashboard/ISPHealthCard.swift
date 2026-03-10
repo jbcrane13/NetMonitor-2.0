@@ -14,6 +14,7 @@ struct ISPHealthCard: View {
 
     @State private var vm: ISPCardViewModel
     @State private var bandwidth: BandwidthMonitorService
+    @State private var showHistory = false
 
     var gatewayAddress: String = "—"
     var resolvedDomain: String? = nil
@@ -47,6 +48,15 @@ struct ISPHealthCard: View {
                     .foregroundStyle(.secondary)
                     .tracking(1.4)
                 Spacer()
+                Button {
+                    showHistory = true
+                } label: {
+                    Image(systemName: "clock.arrow.circlepath")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("ispHealth_button_history")
                 Text("GATEWAY")
                     .font(.system(size: 10, weight: .bold))
                     .foregroundStyle(MacTheme.Colors.success)
@@ -157,6 +167,12 @@ struct ISPHealthCard: View {
         .accessibilityIdentifier("dashboard_card_networkHealth")
         .task { await vm.load() }
         .task(priority: .utility) { await bandwidth.start() }
+        .sheet(isPresented: $showHistory) {
+            NavigationStack {
+                UptimeHistoryView(profileID: uptime?.profileID ?? UUID())
+            }
+            .frame(minWidth: 600, minHeight: 500)
+        }
     }
 
     // MARK: Sub-views

@@ -185,6 +185,7 @@
 		85EE6279FE466C8293D9C413 /* DeviceDetailViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91D34A17E8BFC3829CC161AA /* DeviceDetailViewModel.swift */; };
 		86BABB12476B7BDFBBFBCF1D /* LiveActivityManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C420F52BE76942C60D4925B /* LiveActivityManagerTests.swift */; };
 		87073AF5E1F7C32B62C3286E /* BonjourDiscoveryToolViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5BC316F3DB96C6B180E0814 /* BonjourDiscoveryToolViewModel.swift */; };
+		87F8C04AE709A8337D320FCB /* UptimeHistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C02F9A3B9E5936A4B1BD948D /* UptimeHistoryView.swift */; };
 		88972A34C3E66281CF1A0CD3 /* SSLCertificateMonitorUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4D1CAE1F08AF8C7C2450636 /* SSLCertificateMonitorUITests.swift */; };
 		88CA4E319D8AC8D6C5F4F83A /* MacTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92BF0C346E28EDB80D9A26AB /* MacTheme.swift */; };
 		8942A94C0CA1A6F0DFB6E087 /* WHOISToolUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6DBA0C16A1DE7F77F218E6A /* WHOISToolUITests.swift */; };
@@ -589,6 +590,7 @@
 		BF59316A7FACA0F164BBDD46 /* BackgroundTaskService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundTaskService.swift; sourceTree = "<group>"; };
 		BFFFC1B4D003723AC37ADE9E /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		C013B807313C6826599BFFF1 /* NetMonitorIOSUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetMonitorIOSUITests.swift; sourceTree = "<group>"; };
+		C02F9A3B9E5936A4B1BD948D /* UptimeHistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UptimeHistoryView.swift; sourceTree = "<group>"; };
 		C3BCE242373C1C9239B66573 /* ConnectivityCardViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectivityCardViewModel.swift; sourceTree = "<group>"; };
 		C3E66364D030234E1B45A6BA /* DevicesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DevicesView.swift; sourceTree = "<group>"; };
 		C415295A040809C20DB62832 /* MenuBarController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarController.swift; sourceTree = "<group>"; };
@@ -953,6 +955,7 @@
 				EEF6AF5675CD44C4FC29A84E /* ISPHealthCard.swift */,
 				1EB3E1D27CA2099DD420EEAE /* LatencyAnalysisCard.swift */,
 				92FC33B00D8C70AAB9AA8679 /* NetworkIntelCard.swift */,
+				C02F9A3B9E5936A4B1BD948D /* UptimeHistoryView.swift */,
 			);
 			path = Dashboard;
 			sourceTree = "<group>";
@@ -1648,6 +1651,7 @@
 				440037C2034642687BC2008D /* ToolSheetContainer.swift in Sources */,
 				46A2AA640F5B4C1E7ED80A14 /* ToolsView.swift in Sources */,
 				D4D3B95726C78BCAC7085754 /* TracerouteToolView.swift in Sources */,
+				87F8C04AE709A8337D320FCB /* UptimeHistoryView.swift in Sources */,
 				DD9702E4A201DEC52A645FE6 /* UptimeViewModel.swift in Sources */,
 				4307376A81A84D911254D86C /* VPNInfoView.swift in Sources */,
 				48F7A9075D2952F3E64F7899 /* WHOISToolView.swift in Sources */,
