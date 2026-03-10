@@ -1,0 +1,128 @@
+<h2>Phase 1 Feature Scope</h2>
+<p class="subtitle">Select everything you want in Phase 1. We'll cut nothing that's checked — and nothing else goes in.</p>
+
+<div class="options" data-multiselect>
+
+  <div class="option" data-choice="floor-plan-import" onclick="toggleSelect(this)">
+    <div class="letter">✓</div>
+    <div class="content">
+      <h3>Floor plan import</h3>
+      <p>Import PNG/JPEG/PDF as the survey canvas. Already partially implemented.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="scale-calibration" onclick="toggleSelect(this)">
+    <div class="letter">✓</div>
+    <div class="content">
+      <h3>Scale calibration</h3>
+      <p>Draw a line between two known points, enter real distance (ft or m). Enables distance-based stats.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="live-rssi" onclick="toggleSelect(this)">
+    <div class="letter">✓</div>
+    <div class="content">
+      <h3>Live RSSI + noise floor (CoreWLAN)</h3>
+      <p>Real-time signal meter in sidebar. RSSI, noise floor, SNR, channel, band, link speed — all from CoreWLAN.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="click-to-record" onclick="toggleSelect(this)">
+    <div class="letter">✓</div>
+    <div class="content">
+      <h3>Click-to-record measurement points</h3>
+      <p>Click anywhere on the canvas to stamp a measurement at that location using current RSSI.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="heatmap-overlay" onclick="toggleSelect(this)">
+    <div class="letter">✓</div>
+    <div class="content">
+      <h3>IDW heatmap overlay (Signal / SNR)</h3>
+      <p>Inverse-distance-weighted interpolation rendered as a color gradient on top of the floor plan. Signal strength and SNR overlays minimum.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="multi-viz" onclick="toggleSelect(this)">
+    <div class="letter"></div>
+    <div class="content">
+      <h3>Multiple visualization overlays</h3>
+      <p>Latency, download speed, upload speed, channel overlap, AP coverage — switchable from toolbar. Requires active mode data for speed/latency.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="active-mode" onclick="toggleSelect(this)">
+    <div class="letter"></div>
+    <div class="content">
+      <h3>Active scan mode (speed + latency per point)</h3>
+      <p>When enabled, each recorded point runs a quick gateway ping and short speed test. Slower but richer data.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="nearby-aps" onclick="toggleSelect(this)">
+    <div class="letter"></div>
+    <div class="content">
+      <h3>Nearby AP list (CoreWLAN scan)</h3>
+      <p>CoreWLAN can scan and return all visible access points with RSSI, channel, band, BSSID. Shows a list of detected APs in the sidebar.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="ap-filter" onclick="toggleSelect(this)">
+    <div class="letter"></div>
+    <div class="content">
+      <h3>Per-AP heatmap filter</h3>
+      <p>When you have multiple APs, show the heatmap for a specific BSSID only. Lets you compare coverage zones of AP1 vs AP2.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="project-save" onclick="toggleSelect(this)">
+    <div class="letter"></div>
+    <div class="content">
+      <h3>Project save / load</h3>
+      <p>Save named survey projects to disk (JSON + image). Open previous projects. Project list shown via File menu or open sheet.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="export-png" onclick="toggleSelect(this)">
+    <div class="letter"></div>
+    <div class="content">
+      <h3>Export heatmap as PNG/PDF</h3>
+      <p>Save the rendered heatmap (floor plan + overlay + legend) as a file. Useful for reports.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="undo" onclick="toggleSelect(this)">
+    <div class="letter"></div>
+    <div class="content">
+      <h3>Undo last measurement point</h3>
+      <p>Cmd+Z removes the most recently recorded point. Essential for fixing misclicks.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="point-tooltip" onclick="toggleSelect(this)">
+    <div class="letter"></div>
+    <div class="content">
+      <h3>Hover tooltip on measurement points</h3>
+      <p>Hover over a recorded dot to see all its data (RSSI, SNR, channel, timestamp, speed if active). Like NetSpot's popover.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="coverage-threshold" onclick="toggleSelect(this)">
+    <div class="letter"></div>
+    <div class="content">
+      <h3>Coverage threshold indicator</h3>
+      <p>Set a minimum acceptable RSSI (e.g., -70 dBm). Areas below threshold shown with a hatched red overlay. NetSpot's "zones of poor coverage."</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="channel-viz" onclick="toggleSelect(this)">
+    <div class="letter"></div>
+    <div class="content">
+      <h3>Channel / band visualization</h3>
+      <p>Color each measurement dot by frequency band (blue = 5 GHz, orange = 2.4 GHz, green = 6 GHz). Quick visual scan of band distribution.</p>
+    </div>
+  </div>
+
+</div>
+
+<p style="margin-top:16px;font-size:12px;color:#64748b">Pre-checked items are already partially built. Select all you want — we'll use this to scope the implementation plan.</p>

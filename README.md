@@ -1,142 +1,142 @@
-<p align="center">
-  <h1 align="center">NetMonitor</h1>
-  <p align="center">Professional-grade network monitoring and diagnostics for macOS and iOS</p>
-</p>
+<div align="center">
 
-<p align="center">
-  <a href="#"><img src="https://img.shields.io/badge/macOS-15.0%2B-blue?logo=apple&logoColor=white" alt="macOS 15.0+"></a>
-  <a href="#"><img src="https://img.shields.io/badge/iOS-18.0%2B-blue?logo=apple&logoColor=white" alt="iOS 18.0+"></a>
-  <a href="#"><img src="https://img.shields.io/badge/Swift-6.0-orange?logo=swift&logoColor=white" alt="Swift 6.0"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License"></a>
-</p>
+# NetMonitor
 
-<!-- Screenshots (uncomment when assets are available)
-<p align="center">
-  <img src="docs/screenshots/macos-dashboard.png" width="720" alt="NetMonitor macOS Dashboard">
-</p>
-<p align="center">
-  <img src="docs/screenshots/ios-dashboard.png" width="280" alt="NetMonitor iOS Dashboard">
-  <img src="docs/screenshots/ios-tools.png" width="280" alt="NetMonitor iOS Tools">
-  <img src="docs/screenshots/ios-network-map.png" width="280" alt="NetMonitor iOS Network Map">
-</p>
--->
+**Professional-grade network monitoring for macOS and iOS.**
 
-## What is NetMonitor?
+A native Swift application with complete visibility into your network. Discover devices, diagnose connectivity, monitor uptime, and run professional diagnostics — all from a single cross-platform codebase.
 
-NetMonitor is a native Swift application that gives you complete visibility into your network. Discover every device, diagnose connectivity issues, monitor uptime, and run professional diagnostics — all from a single app on your Mac or iPhone.
+[![macOS](https://img.shields.io/badge/macOS-15%2B-007AFF?style=flat-square&logo=apple)](https://www.apple.com/macos/)
+[![iOS](https://img.shields.io/badge/iOS-18%2B-007AFF?style=flat-square&logo=apple)](https://developer.apple.com/ios/)
+[![Swift](https://img.shields.io/badge/Swift-6.0-F05138?style=flat-square&logo=swift)](https://swift.org)
+[![License](https://img.shields.io/badge/License-MIT-4A4A4A?style=flat-square)](LICENSE)
 
-Version 2.0 is a ground-up rewrite with a shared core architecture, 14+ diagnostic tools, a companion protocol that bridges macOS and iOS, and full Swift 6 strict concurrency.
+[Features](#features) • [Architecture](#architecture) • [Quick Start](#quick-start) • [Tools](#network-tools)
+
+</div>
+
+---
+
+## Why NetMonitor?
+
+Modern networks are complex. You need visibility into what's happening — who's connected, what's responding, and where problems are.
+
+| Need | Solution |
+|------|----------|
+| **"What's on my network?"** | Multi-phase scanner (ARP + Bonjour + TCP + SSDP + ICMP) |
+| **"Is my internet stable?"** | Continuous monitoring with latency graphs and uptime history |
+| **"Why can't I reach X?"** | 14+ diagnostic tools — ping, traceroute, port scan, DNS, WHOIS, speed test |
+| **"I need to prove coverage"** | WiFi heatmap with AR-assisted site survey |
+| **"I manage multiple hosts"** | Target monitoring with custom intervals and alert thresholds |
+
+---
 
 ## Features
 
-### Dashboard & Device Discovery
+### 📊 Dashboard & Device Discovery
 
-- **Real-time network overview** — connection status, gateway info, public IP, ISP details, and latency analysis at a glance
-- **Network health score** — composite health metric derived from latency, packet loss, and device responsiveness
-- **Device discovery** — multi-phase scan engine (ARP + Bonjour + TCP probe + SSDP + ICMP) identifies every device on your LAN
-- **Device detail sheets** — MAC address, vendor lookup, open ports, hostname, Bonjour services, and latency history per device
-- **VPN detection** — identifies active VPN connections and displays tunnel interface details
-- **Scan change alerts** — notifies you when new devices appear or known devices disappear
+| Feature | Description |
+|---------|-------------|
+| **Real-time overview** | Connection status, gateway info, public IP, ISP details, latency |
+| **Network health score** | Composite metric from latency, packet loss, device responsiveness |
+| **Device discovery** | Multi-phase scan (ARP + Bonjour + TCP + SSDP + ICMP) finds every device |
+| **Device details** | MAC address, vendor lookup, open ports, hostname, Bonjour services |
+| **VPN detection** | Identifies active VPN connections and tunnel interface details |
+| **Change alerts** | Notifications when new devices appear or known devices disappear |
 
-### Network Tools
+### 🛠️ Network Tools
 
-| Tool | Description |
-|---|---|
-| **Ping** | Continuous ICMP ping with live statistics, jitter, and packet loss graphing |
-| **Traceroute** | Hop-by-hop path analysis with latency per hop |
-| **GeoTrace** | Visual traceroute plotted on a MapKit world map |
-| **DNS Lookup** | Query A, AAAA, MX, CNAME, TXT, NS, SOA, and PTR records |
-| **Port Scanner** | TCP connect scan with preset profiles (Common, Web, Database, All) |
-| **WHOIS** | Domain and IP registration lookups |
-| **Speed Test** | Download and upload throughput measurement with progress tracking |
-| **Bonjour Browser** | Discover and inspect all Bonjour/mDNS services on the local network |
-| **Wake on LAN** | Send magic packets to wake sleeping devices by MAC address |
-| **SSL Certificate Monitor** | Inspect certificate chains, expiration dates, and issuer details |
-| **Subnet Calculator** | CIDR notation, network/broadcast address, and host range computation |
-| **World Ping** | Ping global endpoints to visualize latency from your location |
-| **WiFi Heatmap** | Walk-survey tool that maps signal strength across a floor plan with thermal gradient visualization |
-| **Web Browser** | *(iOS only)* Lightweight in-app browser for testing connectivity to specific URLs |
+| Tool | macOS | iOS | Description |
+|------|:-----:|:---:|-------------|
+| **Ping** | ✅ | ✅ | Continuous ICMP with live stats, jitter, packet loss graphing |
+| **Traceroute** | ✅ | ✅ | Hop-by-hop path analysis with latency per hop |
+| **GeoTrace** | ✅ | ✅ | Visual traceroute on MapKit world map |
+| **DNS Lookup** | ✅ | ✅ | Query A, AAAA, MX, CNAME, TXT, NS, SOA, PTR records |
+| **Port Scanner** | ✅ | ✅ | TCP connect scan with presets (Common, Web, Database, All) |
+| **WHOIS** | ✅ | ✅ | Domain and IP registration lookups |
+| **Speed Test** | ✅ | ✅ | Download/upload throughput with progress tracking |
+| **Bonjour Browser** | ✅ | ✅ | Discover all mDNS services on local network |
+| **Wake on LAN** | ✅ | ✅ | Send magic packets to wake sleeping devices |
+| **SSL Certificate** | ✅ | ❌ | Inspect certificate chains, expiration dates, issuers |
+| **Subnet Calculator** | ✅ | ❌ | CIDR notation, network/broadcast address, host range |
+| **World Ping** | ✅ | ✅ | Ping global endpoints for latency visualization |
+| **WiFi Heatmap** | ✅ | ✅ | Signal strength survey with thermal gradient overlay |
+| **Web Browser** | ❌ | ✅ | In-app browser for testing connectivity |
 
-### macOS
+### 🖥️ macOS Features
 
-- **Sidebar navigation** with Dashboard, Devices, Networks, Targets, and Tools sections
-- **Targets view** — add monitored hosts with HTTP/ICMP/TCP checks and uptime history
-- **Network detail** — per-SSID statistics, device history, and profile management
-- **Timeline** — event history log of network changes, scans, and alerts
-- **Menu bar app** — quick-glance network status from the macOS menu bar
-- **Scheduled scans** — automatic periodic device discovery
-- **SwiftData persistence** — local storage for devices, targets, sessions, and network profiles
-- **Shell-based diagnostics** — leverages system binaries (`ping`, `arp`, `traceroute`) for maximum accuracy
+- **Sidebar navigation** — Dashboard, Devices, Networks, Targets, Tools
+- **Target monitoring** — Add hosts with HTTP/ICMP/TCP checks and uptime history
+- **Network detail** — Per-SSID statistics, device history, profile management
+- **Timeline** — Event history log of network changes, scans, alerts
+- **Menu bar app** — Quick-glance network status from macOS menu bar
+- **Scheduled scans** — Automatic periodic device discovery
+- **Shell-based diagnostics** — Maximum accuracy with system binaries
 
-### iOS
+### 📱 iOS Features
 
-- **Liquid Glass UI** — custom design system with translucent cards, glass buttons, and themed components
-- **Network map** — visual topology of discovered devices
-- **Mac companion** — connect to a paired Mac running NetMonitor to execute privileged scans remotely
-- **Home screen widgets** — network status widget showing connection type, SSID, latency, and device count
-- **GeoFence monitoring** — trigger network scans automatically when entering or leaving configured locations
-- **Scheduled background scans** — configurable scan intervals that run via `BGTaskScheduler`
-- **AR WiFi signal view** — augmented reality overlay showing real-time signal strength
+- **Liquid Glass UI** — Custom design system with translucent cards
+- **Network map** — Visual topology of discovered devices
+- **Mac companion** — Connect to NetMonitor Pro for remote diagnostics
+- **Home screen widgets** — Network status at a glance
+- **AR WiFi signal** — Augmented reality overlay for signal strength
+- **GeoFence monitoring** — Automatic scans on location changes
 
-### WiFi Heatmap & Site Survey
+### 📡 WiFi Heatmap & Site Survey
 
-NetMonitor includes a professional WiFi site survey tool that maps signal strength across floor plans. Import a building blueprint, walk the space collecting measurements, and generate a thermal heatmap overlay showing coverage gaps and dead zones.
+Professional WiFi site survey tool:
 
-**Phase 1 — Blueprint Walk Survey** (macOS + iOS)
-- Import floor plan images and calibrate to real-world scale
-- Click (macOS) or tap (iOS) measurement points during a walkthrough
-- IDW (Inverse Distance Weighting) interpolation generates smooth heatmap overlays
-- WiFiman-compatible color scheme from deep red (weak) to bright green (strong)
-- Spatial indexing with R-tree acceleration supports 2,000+ measurement points
-- Save/load `.netmonsurvey` bundles containing floor plan, calibration, and measurements
-- Export survey reports to PDF (macOS)
+| Phase | Description |
+|-------|-------------|
+| **Blueprint Import** | Import floor plan images, calibrate to real-world scale |
+| **Walk Survey** | Click/tap measurement points during walkthrough |
+| **Thermal Map** | IDW interpolation generates smooth heatmap overlay |
+| **AR-Assisted** | LiDAR scanning generates floor plans from geometry |
+| **AR Continuous** | Real-time Metal rendering composites heatmap over camera feed |
+| **Export** | Save `.netmonsurvey` bundles, export PDF reports (macOS) |
 
-**Phase 2 — AR-Assisted Map Creation** (iOS)
-- LiDAR mesh scanning generates floor plans from real-world geometry
-- Non-LiDAR devices fall back to ARKit plane detection
-- AR position tracking enables hands-free survey — walk and record automatically
+### 🔗 Mac–iOS Companion Protocol
 
-**Phase 3 — AR Continuous Scan** (iOS)
-- Real-time Metal rendering pipeline composites heatmap over the AR camera feed
-- Concurrent AR + WiFi capture at 2 Hz with adaptive rate control
-- Spatial downsampling prevents over-sampling in already-covered areas
-- Thermal management monitors device temperature and throttles capture to prevent overheating
+Pair iOS with Mac over local network:
 
-The heatmap pipeline shares the same service protocol pattern as all other tools — `WiFiHeatmapServiceProtocol` in NetMonitorCore with platform-specific implementations. Survey data is stored in `.netmonsurvey` document bundles (a directory containing `survey.json`, the floor plan image, and optional AR mesh data).
+- **Bonjour discovery** (`_netmon._tcp` on port 8849)
+- **JSON protocol** — Newline-delimited JSON over `NWConnection`
+- **Remote execution** — iOS leverages Mac's shell-based tools
+- **Live streaming** — Real-time results pushed to iOS
 
-### Mac–iOS Companion Protocol
-
-NetMonitor on iOS can pair with a Mac running NetMonitor over the local network. The companion protocol uses Bonjour discovery (`_netmon._tcp` on port 8849) and exchanges newline-delimited JSON messages over `NWConnection`. This lets the iOS app leverage the Mac's shell-based tools (raw ICMP, ARP scanning) that aren't available on iOS.
+---
 
 ## Requirements
 
-| | Minimum |
-|---|---|
-| **macOS** | 15.0 (Sequoia) |
-| **iOS** | 18.0 |
-| **Xcode** | 16.0 |
-| **Swift** | 6.0 |
+| Platform | Minimum |
+|----------|---------|
+| macOS | 15.0 (Sequoia) |
+| iOS | 18.0 |
+| Xcode | 16.0 |
+| Swift | 6.0 |
 
-## Installation
+---
+
+## Quick Start
 
 ### From Source
 
 ```bash
-# Clone the repository
+# Clone
 git clone https://github.com/blakecrane/NetMonitor-2.0.git
 cd NetMonitor-2.0
 
-# Install XcodeGen if needed
+# Install XcodeGen
 brew install xcodegen
 
-# Generate the Xcode project
+# Generate project
 xcodegen generate
 
-# Open in Xcode
+# Open
 open NetMonitor-2.0.xcodeproj
 ```
 
-Select the **NetMonitor-macOS** or **NetMonitor-iOS** scheme and build (⌘B).
+Select **NetMonitor-macOS** or **NetMonitor-iOS** scheme and build (⌘B).
 
 ### Command Line
 
@@ -153,36 +153,39 @@ xcodebuild test -scheme NetMonitor-macOS
 xcodebuild test -scheme NetMonitor-iOS
 ```
 
-<!-- ### App Store
-Coming soon.
--->
+### App Store
+
+| Platform | Link |
+|----------|------|
+| **macOS** | [NetMonitor Pro — $9.99](https://apps.apple.com/app/netmonitor-pro/id6759060882) |
+| **iOS** | [NetMonitor Mobile — $4.99](https://apps.apple.com/app/netmonitor-ios/id6759060947) |
+
+---
 
 ## Architecture
 
-NetMonitor is a monorepo with two local Swift packages and two platform targets:
+Monorepo with two local Swift packages and two platform targets:
 
 ```
 NetMonitor-2.0/
 ├── Packages/
-│   ├── NetMonitorCore/          # Shared models, protocols, services  (~5,600 LOC)
-│   │   └── Sources/
-│   │       └── NetMonitorCore/
-│   │           ├── Models/      # CompanionMessage, Enums, NetworkModels, etc.
-│   │           └── Services/    # 20+ service protocols + shared implementations
-│   └── NetworkScanKit/          # Device discovery engine              (~2,200 LOC)
-│       └── Sources/
-│           └── NetworkScanKit/
-│               ├── ScanEngine, ScanPipeline, ScanContext
-│               ├── Phases/      # ARP, Bonjour, TCP, SSDP, ICMP, DNS phases
-│               └── ConnectionBudget, ThermalThrottleMonitor
-├── NetMonitor-macOS/
+│   ├── NetMonitorCore/          # Shared models, protocols, services (~5,600 LOC)
+│   │   └── Sources/NetMonitorCore/
+│   │       ├── Models/          # CompanionMessage, NetworkModels, etc.
+│   │       └── Services/        # 20+ service protocols + implementations
+│   └── NetworkScanKit/          # Device discovery engine (~2,200 LOC)
+│       └── Sources/NetworkScanKit/
+│           ├── ScanEngine, ScanPipeline, ScanContext
+│           ├── Phases/          # ARP, Bonjour, TCP, SSDP, ICMP, DNS
+│           └── ConnectionBudget, ThermalThrottleMonitor
+├── NetMonitor-macOS/            # macOS app
 │   ├── Views/                   # Dashboard, Devices, Targets, Tools, Settings
 │   ├── MenuBar/                 # Menu bar popover and commands
-│   └── Platform/                # Shell services, companion host, ARP scanner
-├── NetMonitor-iOS/
-│   ├── Views/                   # Dashboard, NetworkMap, DeviceDetail, Tools, Settings
+│   └── Platform/               # Shell services, companion host, ARP scanner
+├── NetMonitor-iOS/              # iOS app
+│   ├── Views/                   # Dashboard, NetworkMap, DeviceDetail, Tools
 │   ├── ViewModels/              # @Observable ViewModels (25 files)
-│   ├── Platform/                # Theme, GlassCard, MacConnectionService
+│   ├── Platform/               # Theme, GlassCard, MacConnectionService
 │   └── Widget/                  # Home screen widget
 ├── Tests/                       # 111 test files
 ├── docs/                        # ADRs, protocol spec, PRDs
@@ -205,19 +208,19 @@ NetMonitor-2.0/
           └──────────┬──────────┘
                      ▼
           ┌─────────────────────┐
-          │   NetworkScanKit    │
-          │  scan engine · ARP  │
-          │  Bonjour · TCP/SSDP │
+          │   NetworkScanKit   │
+          │  scan engine · ARP │
+          │  Bonjour · TCP/SSDP│
           └─────────────────────┘
 ```
 
 ### Key Services
 
 | Service | Protocol | Description |
-|---|---|---|
-| DeviceDiscovery | `DeviceDiscoveryServiceProtocol` | Coordinates multi-phase LAN scanning via NetworkScanKit |
-| Ping | `PingServiceProtocol` | Continuous ICMP ping with `AsyncStream<PingResult>` |
-| Traceroute | `TracerouteServiceProtocol` | Hop-by-hop path tracing with `AsyncStream<TracerouteHop>` |
+|---------|----------|-------------|
+| DeviceDiscovery | `DeviceDiscoveryServiceProtocol` | Multi-phase LAN scanning via NetworkScanKit |
+| Ping | `PingServiceProtocol` | Continuous ICMP with `AsyncStream<PingResult>` |
+| Traceroute | `TracerouteServiceProtocol` | Hop-by-hop tracing with `AsyncStream<TracerouteHop>` |
 | PortScanner | `PortScannerServiceProtocol` | TCP connect scanner with `AsyncStream<PortScanResult>` |
 | DNS Lookup | `DNSLookupServiceProtocol` | Multi-record-type DNS resolution |
 | WHOIS | `WHOISServiceProtocol` | Domain/IP WHOIS queries |
@@ -225,51 +228,46 @@ NetMonitor-2.0/
 | Bonjour | `BonjourDiscoveryServiceProtocol` | mDNS service browser |
 | WakeOnLAN | `WakeOnLANServiceProtocol` | Magic packet sender |
 | SSL Certificate | `SSLCertificateServiceProtocol` | TLS certificate chain inspector |
-| NetworkMonitor | `NetworkMonitorServiceProtocol` | Connectivity and interface change tracking |
 | NetworkHealthScore | `NetworkHealthScoreServiceProtocol` | Composite network quality metric |
 | VPN Detection | `VPNDetectionServiceProtocol` | Active VPN tunnel identification |
-| GeoLocation | `GeoLocationServiceProtocol` | IP-to-location mapping for GeoTrace |
 | WorldPing | `WorldPingServiceProtocol` | Global endpoint latency measurement |
-| MAC Vendor Lookup | `MACVendorLookupServiceProtocol` | OUI database lookup for device identification |
-| Notification | `NotificationServiceProtocol` | System notification delivery |
-| ScanScheduler | `ScanSchedulerServiceProtocol` | Periodic automatic scanning |
 | WiFi Heatmap | `WiFiHeatmapServiceProtocol` | Signal strength survey and thermal mapping |
 
 ### Key Patterns
 
-- **Protocol-backed services** — every service conforms to a protocol defined in `ServiceProtocols.swift` for dependency injection and testability
-- **Observable ViewModels** (iOS) — `@MainActor @Observable final class` ViewModels keep views free of business logic
-- **AsyncStream** — long-running operations (ping, port scan, traceroute) yield incremental results via `AsyncStream<T>`
-- **Actor-based concurrency** — Swift 6 strict concurrency with `Sendable` protocols, actors, and `@MainActor` isolation
-- **Multi-phase scan pipeline** — NetworkScanKit runs ARP + Bonjour → TCP + SSDP → ICMP → DNS phases with connection budgeting and thermal throttling
+| Pattern | Description |
+|---------|-------------|
+| **Protocol-backed services** | Every service conforms to a protocol for DI and testability |
+| **Observable ViewModels** | `@MainActor @Observable final class` |
+| **AsyncStream** | Long-running operations yield incremental results |
+| **Actor-based concurrency** | Swift 6 strict concurrency with `Sendable` protocols |
+| **Multi-phase scan pipeline** | ARP + Bonjour → TCP + SSDP → ICMP → DNS with connection budgeting |
 
-## Project Structure
-
-| Directory | Contents |
-|---|---|
-| `Packages/NetMonitorCore/` | Shared models, enums, service protocols, and platform-agnostic service implementations |
-| `Packages/NetworkScanKit/` | `ScanEngine`, `ScanPipeline`, phase runners, `ConnectionBudget`, `ThermalThrottleMonitor` |
-| `NetMonitor-macOS/Views/` | Dashboard, Devices, Targets, Networks, Tools (14 tools), Settings (7 panes), Timeline |
-| `NetMonitor-macOS/MenuBar/` | `MenuBarController`, `MenuBarPopoverView`, `MenuBarCommands` |
-| `NetMonitor-macOS/Platform/` | Shell services, companion host, ARP scanner, ISP lookup, monitoring sessions |
-| `NetMonitor-iOS/Views/` | Dashboard, NetworkMap, DeviceDetail, Tools (15 tools), Settings, Timeline, Components |
-| `NetMonitor-iOS/ViewModels/` | 25 `@Observable` ViewModels |
-| `NetMonitor-iOS/Platform/` | Theme system, GlassCard, MacConnectionService |
-| `NetMonitor-iOS/Widget/` | Home screen widget with network status |
-| `Tests/` | 111 test files covering core services, models, and view models |
-| `docs/` | Architecture docs, ADRs, companion protocol spec, PRDs |
+---
 
 ## Contributing
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/my-feature`)
-3. Install [XcodeGen](https://github.com/yonaskolb/XcodeGen) and regenerate after any `project.yml` changes
-4. Ensure strict concurrency compliance — the project uses `SWIFT_STRICT_CONCURRENCY: complete`
-5. Run the test suite before submitting (`xcodebuild test -scheme NetMonitor-macOS`)
-6. Open a pull request
+1. **Fork** the repository
+2. **Create a branch:** `git checkout -b feature/my-feature`
+3. **Install XcodeGen** — regenerate after any `project.yml` changes
+4. **Ensure strict concurrency** — project uses `SWIFT_STRICT_CONCURRENCY: complete`
+5. **Run tests:** `xcodebuild test -scheme NetMonitor-macOS`
+6. **Open a pull request** against `main`
+
+---
 
 ## License
 
-This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
+MIT License. See [LICENSE](LICENSE) for details.
 
-Copyright (c) 2026 Blake Crane
+Copyright © 2026 Blake Crane
+
+---
+
+<div align="center">
+
+**[macOS App Store](https://apps.apple.com/app/netmonitor-pro/id6759060882)** • 
+**[iOS App Store](https://apps.apple.com/app/netmonitor-ios/id6759060947)** • 
+**[Report a Bug](https://github.com/blakecrane/NetMonitor-2.0/issues/new?labels=bug)**
+
+</div>

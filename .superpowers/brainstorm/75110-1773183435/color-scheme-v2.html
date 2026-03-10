@@ -1,0 +1,33 @@
+<h2>Heatmap Color Gradient</h2>
+<p class="subtitle">Which gradient for signal strength? Weak → Strong (left to right on legend)</p>
+
+<div class="options">
+
+  <div class="option" data-choice="thermal" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Thermal Spectrum (NetSpot style)</h3>
+      <div style="margin:8px 0;height:28px;border-radius:6px;background:linear-gradient(to right, #0000ff, #0066ff, #00ccff, #00ff99, #99ff00, #ffff00, #ff9900, #ff0000)"></div>
+      <p>Blue (weak) → cyan → green → yellow → red (strong). The industry standard for network heatmaps. Most nuanced — you can see subtle gradations easily.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="stoplight" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Stoplight (WiFiman style)</h3>
+      <div style="margin:8px 0;height:28px;border-radius:6px;background:linear-gradient(to right, #dc2626, #f97316, #eab308, #84cc16, #22c55e)"></div>
+      <p>Red (weak) → orange → yellow → green (strong). Instantly readable — red means bad, green means good. Less nuanced but very intuitive.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="plasma" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Plasma (Scientific)</h3>
+      <div style="margin:8px 0;height:28px;border-radius:6px;background:linear-gradient(to right, #0d0221, #3d1a78, #7b2d8b, #c0392b, #e67e22, #f1c40f)"></div>
+      <p>Dark indigo (weak) → purple → red → orange → yellow (strong). Beautiful, high contrast on dark backgrounds. Less familiar but striking.</p>
+    </div>
+  </div>
+
+</div>

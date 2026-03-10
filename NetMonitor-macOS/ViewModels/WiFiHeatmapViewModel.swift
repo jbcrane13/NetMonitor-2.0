@@ -395,3 +395,19 @@ final class WiFiHeatmapViewModel {
     var minRSSI: Int? { filteredPoints.map(\.rssi).min() }
     var maxRSSI: Int? { filteredPoints.map(\.rssi).max() }
 }
+
+// MARK: - HeatmapError
+
+enum HeatmapError: Error, LocalizedError {
+    case invalidImage
+    case noFloorPlan
+    case saveFailed
+
+    var errorDescription: String? {
+        switch self {
+        case .invalidImage: "Invalid image format"
+        case .noFloorPlan: "No floor plan loaded"
+        case .saveFailed: "Failed to save project"
+        }
+    }
+}
