@@ -56,6 +56,7 @@ struct ISPHealthCard: View {
                         .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
+                .disabled(uptime == nil)
                 .accessibilityIdentifier("ispHealth_button_history")
                 Text("GATEWAY")
                     .font(.system(size: 10, weight: .bold))
