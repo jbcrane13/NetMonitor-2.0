@@ -12,8 +12,14 @@ struct NetworkDetailView: View {
     @Environment(NetworkProfileManager.self)     private var profileManager: NetworkProfileManager?
     // periphery:ignore
     @Environment(DeviceDiscoveryCoordinator.self) private var deviceDiscovery: DeviceDiscoveryCoordinator?
+    @Environment(\.modelContext)                 private var modelContext
 
     @Query private var targets: [NetworkTarget]
+
+    /// Persists connectivity transitions and latency samples for this profile.
+    @State private var connectivityMonitor: ConnectivityMonitor?
+    /// Computes uptime statistics from persisted records for display in ISPHealthCard.
+    @State private var uptimeViewModel: UptimeViewModel?
 
     private var gatewayLatencyHistory: [Double] {
         guard let session else { return [] }
@@ -63,7 +69,7 @@ struct NetworkDetailView: View {
                     // Left column — scrollable so all 4 cards are reachable on smaller screens
                     ScrollView(.vertical, showsIndicators: false) {
                         VStack(spacing: gap) {
-                            ISPHealthCard(interfaceName: profile.interfaceName)
+                            ISPHealthCard(interfaceName: profile.interfaceName, uptime: uptimeViewModel)
                                 .accessibilityIdentifier("network_detail_card_isp")
 
                             LatencyAnalysisCard(
@@ -97,10 +103,27 @@ struct NetworkDetailView: View {
             }
         }
         .onAppear {
-            // Auto-start monitoring so dashboard cards get live data
+            // Initialize connectivity monitoring and uptime stats if not yet set up.
+            if connectivityMonitor == nil {
+                let monitor = ConnectivityMonitor(
+                    profileID: profile.id,
+                    gatewayIP: profile.gatewayIP,
+                    modelContext: modelContext
+                )
+                connectivityMonitor = monitor
+                let vm = UptimeViewModel(profileID: profile.id, modelContext: modelContext)
+                vm.load()
+                uptimeViewModel = vm
+            }
+            // Auto-start monitoring so dashboard cards get live data.
             if let session, !session.isMonitoring {
                 session.startMonitoring()
             }
+        }
+        .task(priority: .utility) {
+            // Starts NWPathMonitor and periodic latency sampling.
+            // Automatically cancelled when the view disappears.
+            await connectivityMonitor?.start()
         }
     }
 }

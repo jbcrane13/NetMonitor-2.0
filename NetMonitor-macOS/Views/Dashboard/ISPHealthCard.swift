@@ -14,20 +14,25 @@ struct ISPHealthCard: View {
 
     @State private var vm: ISPCardViewModel
     @State private var bandwidth: BandwidthMonitorService
-    @State private var uptimeSegments: [Bool] = []
 
     var gatewayAddress: String = "—"
     var resolvedDomain: String? = nil
+
+    /// Real uptime data computed from persisted connectivity history.
+    /// Nil until the parent view has initialized `UptimeViewModel`.
+    var uptime: UptimeViewModel? = nil
 
     init(
         interfaceName: String = "en0",
         gatewayAddress: String = "—",
         resolvedDomain: String? = nil,
+        uptime: UptimeViewModel? = nil,
         service: any ISPLookupServiceProtocol = ISPLookupService()
     ) {
         self.interfaceName = interfaceName
         self.gatewayAddress = gatewayAddress
         self.resolvedDomain = resolvedDomain
+        self.uptime = uptime
         _vm = State(initialValue: ISPCardViewModel(service: service))
         _bandwidth = State(initialValue: BandwidthMonitorService(interfaceName: interfaceName))
     }
@@ -85,18 +90,31 @@ struct ISPHealthCard: View {
                         }
                     }
                     Spacer()
-                    // Right: Uptime summary
+                    // Right: Uptime summary — real data when available, placeholder otherwise.
                     VStack(alignment: .trailing, spacing: 2) {
                         Text("30-DAY UPTIME")
                             .font(.system(size: 9, weight: .semibold))
                             .foregroundStyle(.secondary)
                             .tracking(1)
-                        Text("99.8%")
-                            .font(.system(size: 20, weight: .bold, design: .rounded))
-                            .foregroundStyle(MacTheme.Colors.success)
-                        Text("0 outages")
-                            .font(.system(size: 10))
-                            .foregroundStyle(.tertiary)
+                        if let pct = uptime?.uptimePct {
+                            Text(String(format: "%.1f%%", pct))
+                                .font(.system(size: 20, weight: .bold, design: .rounded))
+                                .foregroundStyle(
+                                    pct > 99 ? MacTheme.Colors.success :
+                                    pct > 95 ? MacTheme.Colors.warning :
+                                    MacTheme.Colors.error
+                                )
+                            Text("\(uptime?.outageCount ?? 0) outage\(uptime?.outageCount == 1 ? "" : "s")")
+                                .font(.system(size: 11))
+                                .foregroundStyle(.secondary)
+                        } else {
+                            Text("—")
+                                .font(.system(size: 20, weight: .bold, design: .rounded))
+                                .foregroundStyle(.secondary)
+                            Text("No history yet")
+                                .font(.system(size: 11))
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
 
@@ -137,7 +155,7 @@ struct ISPHealthCard: View {
         .frame(maxWidth: .infinity)
         .macGlassCard(cornerRadius: 14, padding: 10)
         .accessibilityIdentifier("dashboard_card_networkHealth")
-        .task { await load() }
+        .task { await vm.load() }
         .task(priority: .utility) { await bandwidth.start() }
     }
 
@@ -145,16 +163,27 @@ struct ISPHealthCard: View {
 
     private var uptimeBarView: some View {
         GeometryReader { g in
+            let segments = uptime?.uptimeBar ?? []
             HStack(spacing: 1) {
-                ForEach(0..<uptimeSegments.count, id: \.self) { i in
-                    RoundedRectangle(cornerRadius: 1)
-                        .fill(uptimeSegments[i]
-                              ? MacTheme.Colors.success.opacity(0.6)
-                              : MacTheme.Colors.error)
-                        .frame(
-                            width: uptimeSegments.isEmpty ? 0 :
-                                max(1, (g.size.width - CGFloat(uptimeSegments.count - 1)) / CGFloat(uptimeSegments.count))
-                        )
+                if segments.isEmpty {
+                    // No history yet — render neutral gray placeholder capsules.
+                    ForEach(0..<30, id: \.self) { _ in
+                        RoundedRectangle(cornerRadius: 1)
+                            .fill(Color.white.opacity(0.15))
+                            .frame(
+                                width: max(1, (g.size.width - 29) / 30)
+                            )
+                    }
+                } else {
+                    ForEach(0..<segments.count, id: \.self) { i in
+                        RoundedRectangle(cornerRadius: 1)
+                            .fill(segments[i]
+                                  ? MacTheme.Colors.success.opacity(0.6)
+                                  : MacTheme.Colors.error)
+                            .frame(
+                                width: max(1, (g.size.width - CGFloat(segments.count - 1)) / CGFloat(segments.count))
+                            )
+                    }
                 }
             }
         }
@@ -167,18 +196,5 @@ struct ISPHealthCard: View {
             Text(arrow).font(.system(size: 11, weight: .bold)).foregroundStyle(color)
             Text(value).font(.system(size: 14, weight: .bold, design: .rounded)).foregroundStyle(color)
         }
-    }
-
-    // MARK: Data loading
-
-    private func load() async {
-        uptimeSegments = generateUptimeSegments()
-        await vm.load()
-    }
-
-    /// Simulated 30-day uptime (99.8% ≈ 3 down out of 180 segments).
-    /// TODO: Replace with real uptime data when available.
-    private func generateUptimeSegments() -> [Bool] {
-        (0..<180).map { i in !(i == 42 || i == 97 || i == 153) }
     }
 }
