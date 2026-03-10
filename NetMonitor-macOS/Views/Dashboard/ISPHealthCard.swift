@@ -10,18 +10,26 @@ import NetMonitorCore
 
 /// Row B (left): Compact ISP info card — name, public IP, uptime bar, speeds, mini chart.
 struct ISPHealthCard: View {
+    let interfaceName: String
+
     @State private var vm: ISPCardViewModel
-    @State private var throughputHistory: [Double] = []
-    @State private var uploadHistory:     [Double] = []
-    @State private var uptimeSegments:    [Bool]   = []
+    @State private var bandwidth: BandwidthMonitorService
+    @State private var uptimeSegments: [Bool] = []
 
     var gatewayAddress: String = "—"
     var resolvedDomain: String? = nil
 
-    init(gatewayAddress: String = "—", resolvedDomain: String? = nil, service: any ISPLookupServiceProtocol = ISPLookupService()) {
+    init(
+        interfaceName: String = "en0",
+        gatewayAddress: String = "—",
+        resolvedDomain: String? = nil,
+        service: any ISPLookupServiceProtocol = ISPLookupService()
+    ) {
+        self.interfaceName = interfaceName
         self.gatewayAddress = gatewayAddress
         self.resolvedDomain = resolvedDomain
         _vm = State(initialValue: ISPCardViewModel(service: service))
+        _bandwidth = State(initialValue: BandwidthMonitorService(interfaceName: interfaceName))
     }
 
     var body: some View {
@@ -41,11 +49,12 @@ struct ISPHealthCard: View {
             }
 
             if vm.isLoading {
-                HStack { Spacer()
-                ProgressView().controlSize(.mini)
-                Spacer()
+                HStack {
+                    Spacer()
+                    ProgressView().controlSize(.mini)
+                    Spacer()
                 }
-                    .frame(maxHeight: .infinity)
+                .frame(maxHeight: .infinity)
             } else {
                 HStack(alignment: .top, spacing: 12) {
                     // Left: ISP details
@@ -71,8 +80,8 @@ struct ISPHealthCard: View {
                         }
                         uptimeBarView
                         HStack(spacing: 16) {
-                            speedLabel("↓", value: "921 Mbps", color: MacTheme.Colors.info)
-                            speedLabel("↑", value: "458 Mbps", color: Color(hex: "8B5CF6"))
+                            speedLabel("↓", value: BandwidthMonitorService.formatMbps(bandwidth.downloadMbps), color: MacTheme.Colors.info)
+                            speedLabel("↑", value: BandwidthMonitorService.formatMbps(bandwidth.uploadMbps), color: Color(hex: "8B5CF6"))
                         }
                     }
                     Spacer()
@@ -94,9 +103,9 @@ struct ISPHealthCard: View {
                 // Mini throughput sparkline
                 ZStack {
                     RoundedRectangle(cornerRadius: 6).fill(Color.black.opacity(0.28))
-                    if !throughputHistory.isEmpty {
+                    if !bandwidth.downloadHistory.isEmpty {
                         HistorySparkline(
-                            data: uploadHistory,
+                            data: bandwidth.uploadHistory,
                             color: Color(hex: "8B5CF6"),
                             lineWidth: 1.2,
                             showPulse: false
@@ -104,7 +113,7 @@ struct ISPHealthCard: View {
                         .opacity(0.7)
                         .overlay(alignment: .topLeading) {
                             HistorySparkline(
-                                data: throughputHistory,
+                                data: bandwidth.downloadHistory,
                                 color: MacTheme.Colors.info,
                                 lineWidth: 1.5,
                                 showPulse: true
@@ -129,6 +138,7 @@ struct ISPHealthCard: View {
         .macGlassCard(cornerRadius: 14, padding: 10)
         .accessibilityIdentifier("dashboard_card_networkHealth")
         .task { await load() }
+        .task(priority: .utility) { await bandwidth.start() }
     }
 
     // MARK: Sub-views
@@ -161,43 +171,9 @@ struct ISPHealthCard: View {
 
     // MARK: Data loading
 
-    /// Window size: show last N seconds at 1s refresh rate.
-    private static let windowSize = 30
-
     private func load() async {
-        uptimeSegments    = generateUptimeSegments()
-        throughputHistory = seedSeries(base: 921, noise: 130)
-        uploadHistory     = seedSeries(base: 458, noise: 80)
+        uptimeSegments = generateUptimeSegments()
         await vm.load()
-        await runLiveUpdates()
-    }
-
-    /// Continuously appends new samples and slides the window forward.
-    private func runLiveUpdates() async {
-        var downSeed: UInt64 = 99991
-        var upSeed: UInt64   = 77771
-        while !Task.isCancelled {
-            try? await Task.sleep(for: .seconds(1))
-            withAnimation(.linear(duration: 0.8)) {
-                throughputHistory.append(nextSample(seed: &downSeed, base: 921, noise: 130))
-                uploadHistory.append(nextSample(seed: &upSeed,   base: 458, noise: 80))
-                if throughputHistory.count > Self.windowSize { throughputHistory.removeFirst() }
-                if uploadHistory.count     > Self.windowSize { uploadHistory.removeFirst() }
-            }
-        }
-    }
-
-    /// One deterministic sample using a linear-congruential step.
-    private func nextSample(seed: inout UInt64, base: Double, noise: Double) -> Double {
-        seed = seed &* 6364136223846793005 &+ 1442695040888963407
-        let r = Double(seed >> 33) / Double(UInt32.max)
-        return max(base * 0.1, base + (r - 0.5) * noise)
-    }
-
-    /// Seeded initial series so the chart isn't empty on first render.
-    private func seedSeries(base: Double, noise: Double) -> [Double] {
-        var seed: UInt64 = 12345 &+ UInt64(base)
-        return (0..<Self.windowSize).map { _ in nextSample(seed: &seed, base: base, noise: noise) }
     }
 
     /// Simulated 30-day uptime (99.8% ≈ 3 down out of 180 segments).

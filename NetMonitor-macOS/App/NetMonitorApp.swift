@@ -82,6 +82,8 @@ struct NetMonitorApp: App {
             .captureOpenWindow()
         }
         .modelContainer(Self.sharedModelContainer)
+        .windowResizability(.contentMinSize)
+        .defaultSize(width: 1200, height: 800)
         .commands {
             MenuBarCommands(
                 isMonitoring: Binding(

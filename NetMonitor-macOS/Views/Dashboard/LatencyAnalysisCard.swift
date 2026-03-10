@@ -17,6 +17,16 @@ struct LatencyAnalysisCard: View {
         return LatencyStats(latencies: latencies)
     }
 
+    /// Packet-loss string computed from the latest monitoring results.
+    /// A target is considered "lost" when it is not reachable (timeout / error).
+    private var packetLossString: String {
+        guard let results = session?.latestResults, !results.isEmpty else { return "—" }
+        let total = results.count
+        let lost = results.values.filter { !$0.isReachable }.count
+        let pct = Double(lost) / Double(total) * 100
+        return String(format: "%.1f%%", pct)
+    }
+
     private var currentLatency: Double? {
         waveformData.last
     }
@@ -58,7 +68,7 @@ struct LatencyAnalysisCard: View {
                 statCell(value: formatMs(stats.min),    label: "MIN",    ms: stats.min)
                 statCell(value: formatMs(stats.max),    label: "MAX",    ms: stats.max)
                 statCell(value: formatMs(stats.jitter), label: "JITTER", ms: stats.jitter)
-                statCell(value: "0.0%",                 label: "LOSS",   ms: 0)
+                statCell(value: packetLossString,        label: "LOSS",   ms: 0)
                 Spacer()
             }
         }

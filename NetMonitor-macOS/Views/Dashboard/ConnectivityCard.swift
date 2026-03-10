@@ -41,11 +41,11 @@ struct ConnectivityCard: View {
                 spacing: 4
             ) {
                 connRow(key: "ISP",       value: vm.ispInfo?.isp ?? "—")
-                connRow(key: "DNS",       value: "8.8.8.8 · 1.1.1.1")
+                connRow(key: "DNS",       value: vm.dnsServers)
                 connRow(key: "Public IP", value: vm.ispInfo?.publicIP ?? "—",
                         mono: true, color: MacTheme.Colors.info)
-                connRow(key: "IPv6",      value: "Enabled",
-                        color: MacTheme.Colors.success)
+                connRow(key: "IPv6",      value: vm.hasIPv6 ? "Enabled" : "Disabled",
+                        color: vm.hasIPv6 ? MacTheme.Colors.success : .secondary)
                 connRow(key: "Gateway",
                         value: profileManager?.activeProfile?.gatewayIP ?? "—",
                         mono: true)
@@ -107,13 +107,18 @@ struct ConnectivityCard: View {
     }
 
     private func anchorPill(name: String, host _: String) -> some View {
-        // Latency shown if a target with this host is being monitored
-        let latencyText: String? = nil // TODO: look up by host when anchor targets added
+        // vm.anchorLatencies[name] is nil when not yet measured,
+        // .some(nil) when unreachable, .some(latency) when live
+        let latencyText: String = {
+            guard let entry = vm.anchorLatencies[name] else { return "—" }
+            guard let ms = entry else { return "✕" }
+            return String(format: "%.0fms", ms)
+        }()
         return HStack(spacing: 4) {
             Text(name)
                 .font(.system(size: 10))
                 .foregroundStyle(.secondary)
-            Text(latencyText ?? "—")
+            Text(latencyText)
                 .font(.system(size: 10, weight: .bold))
                 .foregroundStyle(MacTheme.Colors.info)
         }

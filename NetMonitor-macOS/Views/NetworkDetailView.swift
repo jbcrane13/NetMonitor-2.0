@@ -48,11 +48,12 @@ struct NetworkDetailView: View {
             VStack(spacing: gap) {
                 // Row A: Internet Activity + Health Gauge (proportional height)
                 HStack(alignment: .top, spacing: gap) {
-                    InternetActivityCard(session: session)
+                    InternetActivityCard(session: session, interfaceName: profile.interfaceName)
                         .accessibilityIdentifier("network_detail_row_activity")
 
                     HealthGaugeCard()
-                        .frame(width: 210, maxHeight: .infinity)
+                        .frame(width: 210)
+                        .frame(maxHeight: .infinity)
                         .accessibilityIdentifier("network_detail_row_health")
                 }
                 .frame(height: rowAHeight)
@@ -62,7 +63,7 @@ struct NetworkDetailView: View {
                     // Left column — scrollable so all 4 cards are reachable on smaller screens
                     ScrollView(.vertical, showsIndicators: false) {
                         VStack(spacing: gap) {
-                            ISPHealthCard()
+                            ISPHealthCard(interfaceName: profile.interfaceName)
                                 .accessibilityIdentifier("network_detail_card_isp")
 
                             LatencyAnalysisCard(

@@ -1,18 +1,21 @@
 import SwiftUI
 import NetMonitorCore
 
-/// Row A (left): 24H bandwidth chart with download + upload sparklines.
-/// Data is simulated pending real bandwidth measurement wiring (TODO).
+/// Row A (left): Live bandwidth chart with download + upload sparklines.
 struct InternetActivityCard: View {
     let session: MonitoringSession?
+    let interfaceName: String
 
-    @State private var selectedRange: BandwidthRange = .h24
-    @State private var downloadHistory: [Double] = []
-    @State private var uploadHistory:   [Double] = []
+    @State private var bandwidth: BandwidthMonitorService
 
-    enum BandwidthRange: String, CaseIterable {
-        case h24 = "24H", d7 = "7D", d30 = "30D"
+    init(session: MonitoringSession?, interfaceName: String = "en0") {
+        self.session = session
+        self.interfaceName = interfaceName
+        _bandwidth = State(initialValue: BandwidthMonitorService(interfaceName: interfaceName))
     }
+
+    private var downloadHistory: [Double] { bandwidth.downloadHistory }
+    private var uploadHistory: [Double]   { bandwidth.uploadHistory }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -21,7 +24,7 @@ struct InternetActivityCard: View {
                 Circle()
                     .fill(MacTheme.Colors.info)
                     .frame(width: 5, height: 5)
-                Text("INTERNET ACTIVITY · \(selectedRange.rawValue)")
+                Text("INTERNET ACTIVITY")
                     .font(.system(size: 10, weight: .bold))
                     .foregroundStyle(.secondary)
                     .tracking(1.4)
@@ -30,24 +33,15 @@ struct InternetActivityCard: View {
                 Spacer()
 
                 HStack(spacing: 14) {
-                    Text("↓ 921 Mbps")
+                    Text("↓ \(BandwidthMonitorService.formatMbps(bandwidth.downloadMbps))")
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(MacTheme.Colors.info)
                         .accessibilityIdentifier("dashboard_activity_downloadSpeed")
-                    Text("↑ 458 Mbps")
+                    Text("↑ \(BandwidthMonitorService.formatMbps(bandwidth.uploadMbps))")
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(Color(hex: "8B5CF6"))
                         .accessibilityIdentifier("dashboard_activity_uploadSpeed")
                 }
-
-                Picker("", selection: $selectedRange) {
-                    ForEach(BandwidthRange.allCases, id: \.self) { r in
-                        Text(r.rawValue).tag(r)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .frame(width: 140)
-                .accessibilityIdentifier("dashboard_activity_rangePicker")
             }
 
             // Chart
@@ -74,21 +68,26 @@ struct InternetActivityCard: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .accessibilityLabel("Bandwidth activity chart, \(selectedRange.rawValue) view")
+            .accessibilityLabel("Bandwidth activity chart")
 
             // Stats row
             HStack(spacing: 18) {
-                statItem(value: "5.2 TB",  label: "↓ 24h total", color: MacTheme.Colors.info)
-                statItem(value: "1.8 TB",  label: "↑ 24h total", color: Color(hex: "8B5CF6"))
-                statItem(value: "7.0 TB",  label: "combined",    color: .white)
+                statItem(
+                    value: BandwidthMonitorService.formatBytes(bandwidth.sessionDownBytes),
+                    label: "↓ SESSION",
+                    color: MacTheme.Colors.info
+                )
+                statItem(
+                    value: BandwidthMonitorService.formatBytes(bandwidth.sessionUpBytes),
+                    label: "↑ SESSION",
+                    color: Color(hex: "8B5CF6")
+                )
                 Spacer()
-                statItem(value: "99.8%",   label: "ISP uptime",  color: MacTheme.Colors.success)
             }
         }
         .macGlassCard(cornerRadius: 14, padding: 12)
         .accessibilityIdentifier("dashboard_card_internetActivity")
-        .onAppear { generateHistory() }
-        .onChange(of: selectedRange) { _, _ in generateHistory() }
+        .task(priority: .utility) { await bandwidth.start() }
     }
 
     // MARK: Helpers
@@ -104,24 +103,5 @@ struct InternetActivityCard: View {
                 .tracking(0.8)
                 .textCase(.uppercase)
         }
-    }
-
-    /// Deterministic seeded series so values don't change on every re-render.
-    /// TODO: Replace with real bandwidth measurements from MonitoringSession.
-    private func generateHistory() {
-        let count = 60
-        var dl: [Double] = []
-        var ul: [Double] = []
-        var seed: UInt64 = 42 &+ UInt64(selectedRange.rawValue.hashValue & 0xFFFF)
-        func next() -> Double {
-            seed = seed &* 6364136223846793005 &+ 1442695040888963407
-            return Double(seed >> 33) / Double(UInt32.max)
-        }
-        for i in 0..<count {
-            dl.append(max(200, 921 + sin(Double(i) * 0.25) * 60 + (next() - 0.5) * 130))
-            ul.append(max(100, 458 + sin(Double(i) * 0.28) * 40 + (next() - 0.5) * 80))
-        }
-        downloadHistory = dl
-        uploadHistory   = ul
     }
 }
