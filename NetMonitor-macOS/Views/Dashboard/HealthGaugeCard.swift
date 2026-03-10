@@ -6,59 +6,71 @@ struct HealthGaugeCard: View {
     @State private var viewModel = NetworkHealthScoreMacViewModel()
 
     var body: some View {
-        VStack(alignment: .center, spacing: 6) {
-            // Widget label — pinned to top
-            HStack {
-                Circle().fill(MacTheme.Colors.success).frame(width: 5, height: 5)
-                Text("NETWORK HEALTH")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(.secondary)
-                    .tracking(1.4)
-                Spacer()
-            }
+        GeometryReader { geo in
+            // Circle scales between 70–130pt based on available height
+            let circleSize = min(130, max(70, geo.size.height * 0.45))
+            let lineW = circleSize / 9.4  // keep stroke proportional
+            let scoreFontSize = circleSize * 0.3
+            let gradeFontSize = max(7, circleSize * 0.1)
 
-            // Circular gauge
-            ZStack {
-                Circle()
-                    .stroke(Color.white.opacity(0.06), lineWidth: 9)
-                Circle()
-                    .trim(from: 0, to: scoreProgress)
-                    .stroke(
-                        AngularGradient(
-                            colors: [MacTheme.Colors.success, MacTheme.Colors.info, MacTheme.Colors.info],
-                            center: .center
-                        ),
-                        style: StrokeStyle(lineWidth: 9, lineCap: .round)
-                    )
-                    .rotationEffect(.degrees(-90))
-                    .shadow(color: MacTheme.Colors.info.opacity(0.4), radius: 4)
-                    .animation(.easeInOut(duration: 0.5), value: scoreProgress)
-
-                VStack(spacing: 2) {
-                    Text(scoreText)
-                        .font(.system(size: 26, weight: .bold, design: .rounded))
-                        .foregroundStyle(.white)
-                        .accessibilityIdentifier("dashboard_healthGauge_score")
-                    Text(gradeText)
-                        .font(.system(size: 9, weight: .bold))
+            VStack(alignment: .center, spacing: 6) {
+                // Widget label — pinned to top
+                HStack {
+                    Circle().fill(MacTheme.Colors.success).frame(width: 5, height: 5)
+                    Text("NETWORK HEALTH")
+                        .font(.system(size: 10, weight: .bold))
                         .foregroundStyle(.secondary)
-                        .tracking(1.5)
+                        .tracking(1.4)
+                    Spacer()
                 }
-            }
-            .frame(width: 85, height: 85)
 
-            // Score breakdown bars
-            if let score = viewModel.currentScore {
-                VStack(spacing: 3) {
-                    scoreBar(label: "Latency",  pct: latencyPct(score), color: MacTheme.Colors.success)
-                    scoreBar(label: "Loss",     pct: lossPct(score),    color: MacTheme.Colors.success)
-                    scoreBar(label: "Devices",  pct: 0.88,              color: MacTheme.Colors.warning)
+                Spacer(minLength: 4)
+
+                // Circular gauge — scales with card height
+                ZStack {
+                    Circle()
+                        .stroke(Color.white.opacity(0.06), lineWidth: lineW)
+                    Circle()
+                        .trim(from: 0, to: scoreProgress)
+                        .stroke(
+                            AngularGradient(
+                                colors: [MacTheme.Colors.success, MacTheme.Colors.info, MacTheme.Colors.info],
+                                center: .center
+                            ),
+                            style: StrokeStyle(lineWidth: lineW, lineCap: .round)
+                        )
+                        .rotationEffect(.degrees(-90))
+                        .shadow(color: MacTheme.Colors.info.opacity(0.4), radius: 4)
+                        .animation(.easeInOut(duration: 0.5), value: scoreProgress)
+
+                    VStack(spacing: 2) {
+                        Text(scoreText)
+                            .font(.system(size: scoreFontSize, weight: .bold, design: .rounded))
+                            .foregroundStyle(.white)
+                            .accessibilityIdentifier("dashboard_healthGauge_score")
+                        Text(gradeText)
+                            .font(.system(size: gradeFontSize, weight: .bold))
+                            .foregroundStyle(.secondary)
+                            .tracking(1.5)
+                    }
                 }
-            } else if viewModel.isCalculating {
-                ProgressView().controlSize(.small)
+                .frame(width: circleSize, height: circleSize)
+
+                Spacer(minLength: 4)
+
+                // Score breakdown bars
+                if let score = viewModel.currentScore {
+                    VStack(spacing: 3) {
+                        scoreBar(label: "Latency",  pct: latencyPct(score), color: MacTheme.Colors.success)
+                        scoreBar(label: "Loss",     pct: lossPct(score),    color: MacTheme.Colors.success)
+                        scoreBar(label: "Devices",  pct: 0.88,              color: MacTheme.Colors.warning)
+                    }
+                } else if viewModel.isCalculating {
+                    ProgressView().controlSize(.small)
+                }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .frame(maxWidth: .infinity)
         .macGlassCard(cornerRadius: 14, padding: 10)
         .clipped()
         .accessibilityIdentifier("dashboard_card_healthGauge")

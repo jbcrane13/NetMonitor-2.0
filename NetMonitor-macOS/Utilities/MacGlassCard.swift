@@ -88,7 +88,7 @@ struct MacThemedBackground: ViewModifier {
                         colors: [Color(red: 30/255, green: 35/255, blue: 55/255).opacity(0.25), .clear],
                         center: .top,
                         startRadius: 0,
-                        endRadius: 500
+                        endRadius: 2000
                     )
                     .ignoresSafeArea()
                 }

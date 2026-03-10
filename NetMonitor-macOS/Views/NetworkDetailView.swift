@@ -52,7 +52,7 @@ struct NetworkDetailView: View {
                         .accessibilityIdentifier("network_detail_row_activity")
 
                     HealthGaugeCard()
-                        .frame(width: 210)
+                        .frame(width: 210, maxHeight: .infinity)
                         .accessibilityIdentifier("network_detail_row_health")
                 }
                 .frame(height: rowAHeight)
@@ -84,7 +84,7 @@ struct NetworkDetailView: View {
                     NetworkDevicesPanel(networkProfileID: profile.id)
                         .accessibilityIdentifier("network_detail_panel_devices")
                 }
-                .frame(height: availH - rowAHeight - gap)
+                .frame(height: max(0, availH - rowAHeight - gap))
             }
             .padding(pad)
         }
