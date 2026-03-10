@@ -9,7 +9,8 @@ enum SchemaV1: VersionedSchema {
             NetworkTarget.self,
             TargetMeasurement.self,
             LocalDevice.self,
-            SessionRecord.self
+            SessionRecord.self,
+            ConnectivityRecord.self
         ]
     }
 }
