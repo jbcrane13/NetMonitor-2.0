@@ -37,47 +37,57 @@ struct NetworkDetailView: View {
     }
 
     var body: some View {
-        VStack(spacing: 10) {
-            // Row A: Internet Activity + Health Gauge
-            HStack(alignment: .top, spacing: 10) {
-                InternetActivityCard(session: session)
-                    .accessibilityIdentifier("network_detail_row_activity")
+        GeometryReader { geo in
+            let gap: CGFloat = 10
+            let pad: CGFloat = 14
+            let availH = geo.size.height - pad * 2
+            let rowAHeight = max(160, availH * 0.26)
+            // Left column: 44% of width. Device panel gets the rest (~56%), still wide for hostnames.
+            let leftWidth = max(340, geo.size.width * 0.44 - pad)
 
-                HealthGaugeCard()
-                    .frame(width: 210)
-                    .frame(maxHeight: 180)
-                    .accessibilityIdentifier("network_detail_row_health")
-            }
-            .fixedSize(horizontal: false, vertical: true)
+            VStack(spacing: gap) {
+                // Row A: Internet Activity + Health Gauge (proportional height)
+                HStack(alignment: .top, spacing: gap) {
+                    InternetActivityCard(session: session)
+                        .accessibilityIdentifier("network_detail_row_activity")
 
-            // Row B: Left diagnostics stack + Right device grid
-            HStack(alignment: .top, spacing: 10) {
-                // Left column — ISP / Latency / Connectivity stacked
-                VStack(spacing: 10) {
-                    ISPHealthCard()
-                        .accessibilityIdentifier("network_detail_card_isp")
-
-                    LatencyAnalysisCard(
-                        session: session,
-                        gatewayLatencyHistory: gatewayLatencyHistory
-                    )
-                    .accessibilityIdentifier("network_detail_card_latency")
-
-                    ConnectivityCard(session: session, profileManager: profileManager)
-                        .accessibilityIdentifier("network_detail_card_connectivity")
-
-                    NetworkIntelCard()
-                        .accessibilityIdentifier("network_detail_card_intel")
+                    HealthGaugeCard()
+                        .frame(width: 210)
+                        .accessibilityIdentifier("network_detail_row_health")
                 }
-                .frame(minWidth: 300, idealWidth: 420)
+                .frame(height: rowAHeight)
 
-                // Right column — device grid
-                NetworkDevicesPanel(networkProfileID: profile.id)
-                    .accessibilityIdentifier("network_detail_panel_devices")
+                // Row B: Left diagnostics stack + Right device grid
+                HStack(alignment: .top, spacing: gap) {
+                    // Left column — scrollable so all 4 cards are reachable on smaller screens
+                    ScrollView(.vertical, showsIndicators: false) {
+                        VStack(spacing: gap) {
+                            ISPHealthCard()
+                                .accessibilityIdentifier("network_detail_card_isp")
+
+                            LatencyAnalysisCard(
+                                session: session,
+                                gatewayLatencyHistory: gatewayLatencyHistory
+                            )
+                            .accessibilityIdentifier("network_detail_card_latency")
+
+                            ConnectivityCard(session: session, profileManager: profileManager)
+                                .accessibilityIdentifier("network_detail_card_connectivity")
+
+                            NetworkIntelCard()
+                                .accessibilityIdentifier("network_detail_card_intel")
+                        }
+                    }
+                    .frame(width: leftWidth)
+
+                    // Right column — device grid
+                    NetworkDevicesPanel(networkProfileID: profile.id)
+                        .accessibilityIdentifier("network_detail_panel_devices")
+                }
+                .frame(height: availH - rowAHeight - gap)
             }
-            .frame(maxHeight: .infinity)
+            .padding(pad)
         }
-        .padding(14)
         .macThemedBackground()
         .navigationTitle(profile.displayName)
         .onChange(of: profileManager?.profiles) {

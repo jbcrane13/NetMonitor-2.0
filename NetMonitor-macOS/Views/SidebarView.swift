@@ -18,9 +18,7 @@ struct SidebarView: View {
     @Query(sort: \LocalDevice.lastSeen, order: .reverse) private var devices: [LocalDevice]
 
     var body: some View {
-        VStack(spacing: 0) {
-            // 1. Networks Section
-            List(selection: $selection) {
+        List(selection: $selection) {
                 Section {
                     ForEach(profileManager.profiles) { profile in
                         let isActive = profileManager.activeProfile?.id == profile.id
@@ -71,9 +69,8 @@ struct SidebarView: View {
                         .tracking(1.5)
                         .padding(.top, 12)
                 }
-            }
-            .scrollContentBackground(.hidden)
         }
+        .scrollContentBackground(.hidden)
         .background(
             ZStack {
                 MacTheme.Colors.backgroundElevated

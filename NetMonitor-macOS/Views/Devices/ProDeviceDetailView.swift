@@ -6,6 +6,7 @@ import NetMonitorCore
 struct ProDeviceDetailView: View {
     @Bindable var device: LocalDevice
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.dismiss) private var dismiss
 
     @State private var isEditing = false
     @State private var editedName: String = ""
@@ -37,7 +38,18 @@ struct ProDeviceDetailView: View {
             .padding()
         }
         .navigationTitle(device.displayName)
+        .navigationBarBackButtonHidden(false)
         .toolbar {
+            ToolbarItem(placement: .navigation) {
+                Button {
+                    dismiss()
+                } label: {
+                    Label("Back", systemImage: "chevron.left")
+                }
+                .keyboardShortcut(.escape, modifiers: [])
+                .accessibilityIdentifier("deviceDetail_button_back")
+            }
+
             ToolbarItem(placement: .primaryAction) {
                 Button(isEditing ? "Done" : "Edit") {
                     if isEditing {

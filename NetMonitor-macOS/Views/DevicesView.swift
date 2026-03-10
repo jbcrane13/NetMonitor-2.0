@@ -7,6 +7,7 @@ import Darwin
 struct DevicesView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(DeviceDiscoveryCoordinator.self) private var coordinator: DeviceDiscoveryCoordinator?
+    @Environment(\.dismiss) private var dismiss
     @Query(sort: \LocalDevice.lastSeen, order: .reverse) private var devices: [LocalDevice]
 
     @State private var selectedDevice: LocalDevice?
@@ -307,6 +308,17 @@ struct DevicesView: View {
 
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
+        ToolbarItem(placement: .cancellationAction) {
+            Button {
+                dismiss()
+            } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .foregroundStyle(.secondary)
+            }
+            .keyboardShortcut(.escape, modifiers: [])
+            .accessibilityIdentifier("devices_button_close")
+        }
+
         ToolbarItem(placement: .primaryAction) {
             Button {
                 if let profile = selectedNetwork {

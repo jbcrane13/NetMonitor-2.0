@@ -207,28 +207,21 @@ final class DeviceDiscoveryCoordinator {
         loadPersistedDevices(for: profileID)
     }
 
-    /// Ping each online device (3 probes, 3s timeout) and store best latency.
+    /// Ping each online device (3 probes, 2s timeout) and store best latency.
+    /// Uses ShellPingService (/sbin/ping) which works within the sandbox via shell,
+    /// unlike ICMPSocket which requires a raw socket entitlement we don't have.
     private func measureDeviceLatencies(profileID: UUID?) async {
         let devices = fetchDevices(for: profileID).filter { $0.status == .online }
         guard !devices.isEmpty else { return }
-
-        let pingService = PingService()
 
         await withTaskGroup(of: (String, Double?).self) { group in
             for device in devices {
                 let ip = device.ipAddress
                 group.addTask {
-                    var bestLatency: Double?
-                    let stream = await pingService.ping(host: ip, count: 3, timeout: 3)
-                    for await result in stream {
-                        if !result.isTimeout {
-                            let t = result.time
-                            if bestLatency == nil || t < (bestLatency ?? .infinity) {
-                                bestLatency = t
-                            }
-                        }
-                    }
-                    return (ip, bestLatency)
+                    let pingService = ShellPingService()
+                    let result = try? await pingService.ping(host: ip, count: 3, timeout: 2)
+                    let latency = result?.isReachable == true ? result?.minLatency : nil
+                    return (ip, latency)
                 }
             }
 

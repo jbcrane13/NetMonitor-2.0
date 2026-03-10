@@ -107,6 +107,18 @@ Each major view directory contains an `AGENTS.md` with purpose, sub-directory la
 - `docs/ADR.md` — Architecture Decision Records
 - `docs/SwiftUI Best Practices.md` — UI patterns and conventions
 
+## macOS UI Theme Notes
+
+**Dark theme contrast** — macOS views use `MacTheme` (in `MacTheme.swift`) with explicit colors, not system semantic styles. Use `Color.white.opacity(0.7)` for secondary text and `Color.white.opacity(0.5)` for tertiary — SwiftUI's `.secondary`/`.tertiary` are too dim against the dark backgrounds.
+
+**Pro mode table** — `ProModeRowView` defines shared column width constants (`statusWidth`, `ipWidth`, etc.) that `DevicesView.proModeHeaderRow` references. Always keep header and row widths in sync via these constants.
+
+**Scan pipeline** — `DeviceDiscoveryCoordinator.startScan()` runs: ARP → Bonjour → merge → name resolution → vendor lookup → quick port scan (15 common ports) → device type inference → latency (3 pings) → mark offline. `DeviceTypeInferenceService` classifies unknown devices from hostname/services/ports/vendor.
+
+## Git Workflow Note
+
+Feature worktrees frequently land on `main` between sessions. Always `git pull --rebase` before pushing. Expect merge conflicts in `DevicesView.swift` and `ProModeRowView.swift` which are actively evolving.
+
 ## CRITICAL: Test Execution Policy
 
 **NEVER run `xcodebuild test` on this machine (Mac mini Pro / gateway host).**

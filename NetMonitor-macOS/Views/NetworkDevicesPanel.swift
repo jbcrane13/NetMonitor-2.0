@@ -198,8 +198,10 @@ struct NetworkDevicesPanel: View {
                 .frame(minWidth: 500, minHeight: 400)
         }
         .sheet(isPresented: $showFullDevicesView) {
-            DevicesView()
-                .frame(minWidth: 900, minHeight: 600)
+            NavigationStack {
+                DevicesView()
+            }
+            .frame(minWidth: 900, minHeight: 600)
         }
         .overlay {
             if coordinator?.isScanning == true {
