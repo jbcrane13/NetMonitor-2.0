@@ -110,12 +110,38 @@ public struct HeatmapRenderer: Sendable {
 
         guard gridW > 0, gridH > 0 else { return nil }
 
+        // Pre-compute point positions for distance-based alpha falloff
+        let pointPositions = points.compactMap { p -> (x: Double, y: Double)? in
+            guard visualization.extractValue(from: p) != nil else { return nil }
+            return (x: p.floorPlanX, y: p.floorPlanY)
+        }
+        // Falloff radius in normalized coordinates — pixels beyond this distance are transparent
+        let falloffRadius = 0.15
+
         var pixelData = [UInt8](repeating: 0, count: gridW * gridH * 4)
 
         for row in 0 ..< gridH {
+            let ny = Double(row) / max(Double(gridH - 1), 1)
             for col in 0 ..< gridW {
+                let nx = Double(col) / max(Double(gridW - 1), 1)
                 let value = grid[row][col]
-                let color = colorForValue(value, visualization: visualization, colorScheme: colorScheme)
+                var color = colorForValue(value, visualization: visualization, colorScheme: colorScheme)
+
+                // Compute distance to nearest measurement point
+                let minDist = pointPositions.reduce(Double.greatestFiniteMagnitude) { best, pt in
+                    let dx = nx - pt.x
+                    let dy = ny - pt.y
+                    return min(best, (dx * dx + dy * dy).squareRoot())
+                }
+
+                // Fade alpha based on distance from nearest point
+                if minDist > falloffRadius {
+                    color.a = 0
+                } else if minDist > falloffRadius * 0.5 {
+                    let fadeT = (minDist - falloffRadius * 0.5) / (falloffRadius * 0.5)
+                    color.a = UInt8(Double(color.a) * (1.0 - fadeT))
+                }
+
                 let offset = (row * gridW + col) * 4
                 pixelData[offset] = color.r
                 pixelData[offset + 1] = color.g

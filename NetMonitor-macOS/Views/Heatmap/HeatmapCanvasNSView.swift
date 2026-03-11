@@ -131,8 +131,9 @@ class HeatmapCanvasNS: NSView {
         // Measurement points
         drawMeasurementPoints(context: context, imageRect: imageRect)
 
-        // Calibration points
+        // Calibration overlay
         if isCalibrating {
+            drawCalibrationOverlay(context: context, imageRect: imageRect)
             drawCalibrationPoints(context: context, imageRect: imageRect)
         }
 
@@ -181,6 +182,61 @@ class HeatmapCanvasNS: NSView {
             context.setLineWidth(1)
             context.strokeEllipse(in: dotRect)
         }
+    }
+
+    // MARK: - Calibration Overlay
+
+    private func drawCalibrationOverlay(context: CGContext, imageRect: CGRect) {
+        // Semi-transparent overlay
+        context.setFillColor(NSColor.black.withAlphaComponent(0.4).cgColor)
+        context.fill(imageRect)
+
+        // Instruction banner
+        let bannerH: CGFloat = 60
+        let bannerRect = CGRect(
+            x: imageRect.midX - 200,
+            y: imageRect.midY - bannerH / 2,
+            width: 400,
+            height: bannerH
+        )
+        context.setFillColor(NSColor(white: 0.1, alpha: 0.9).cgColor)
+        let bannerPath = CGPath(roundedRect: bannerRect, cornerWidth: 10, cornerHeight: 10, transform: nil)
+        context.addPath(bannerPath)
+        context.fillPath()
+
+        let pointsNeeded = 2 - calibrationPoints.count
+        let title: String
+        let subtitle: String
+        if pointsNeeded > 0 {
+            title = "Calibrate Floor Plan Scale"
+            subtitle = "Click \(pointsNeeded) point\(pointsNeeded == 1 ? "" : "s") with a known distance between them"
+        } else {
+            title = "Calibration Points Set"
+            subtitle = "Enter the distance in the calibration panel"
+        }
+
+        let titleAttrs: [NSAttributedString.Key: Any] = [
+            .font: NSFont.boldSystemFont(ofSize: 14),
+            .foregroundColor: NSColor.white
+        ]
+        let subtitleAttrs: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: 11),
+            .foregroundColor: NSColor.lightGray
+        ]
+
+        let titleStr = title as NSString
+        let subtitleStr = subtitle as NSString
+        let titleSize = titleStr.size(withAttributes: titleAttrs)
+        let subtitleSize = subtitleStr.size(withAttributes: subtitleAttrs)
+
+        titleStr.draw(at: CGPoint(
+            x: bannerRect.midX - titleSize.width / 2,
+            y: bannerRect.midY - titleSize.height + 2
+        ), withAttributes: titleAttrs)
+        subtitleStr.draw(at: CGPoint(
+            x: bannerRect.midX - subtitleSize.width / 2,
+            y: bannerRect.midY + 4
+        ), withAttributes: subtitleAttrs)
     }
 
     // MARK: - Calibration Points
