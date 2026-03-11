@@ -64,6 +64,7 @@ final class WiFiHeatmapViewModel {
     // MARK: - Calibration
 
     var isCalibrating: Bool = false
+    var isCalibrated: Bool = false
     var calibrationPoints: [CalibrationPoint] = []
     var showCalibrationSheet: Bool = false
 
@@ -143,7 +144,7 @@ final class WiFiHeatmapViewModel {
     // MARK: - Survey Control
 
     func startSurvey() {
-        guard surveyProject != nil else { return }
+        guard surveyProject != nil, isCalibrated else { return }
         isSurveying = true
         sidebarMode = .survey
         isHeatmapGenerated = false
@@ -274,6 +275,7 @@ final class WiFiHeatmapViewModel {
 
     func startCalibration() {
         isCalibrating = true
+        isCalibrated = false
         calibrationPoints = []
     }
 
@@ -318,6 +320,7 @@ final class WiFiHeatmapViewModel {
 
         surveyProject = project
         isCalibrating = false
+        isCalibrated = true
         calibrationPoints = []
         showCalibrationSheet = false
     }
@@ -365,6 +368,7 @@ final class WiFiHeatmapViewModel {
         let manager = ProjectSaveLoadManager()
         surveyProject = try manager.load(from: url)
         measurementPoints = surveyProject?.measurementPoints ?? []
+        isCalibrated = surveyProject?.floorPlan.calibrationPoints?.isEmpty == false
         if !measurementPoints.isEmpty {
             generateHeatmap()
         }

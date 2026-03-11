@@ -67,6 +67,8 @@ struct HeatmapSidebarView: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
+                .disabled(!viewModel.isCalibrated)
+                .help(viewModel.isCalibrated ? "Begin recording measurements" : "Calibrate the floor plan first")
                 .accessibilityIdentifier("heatmap_button_startSurvey")
             }
         }
