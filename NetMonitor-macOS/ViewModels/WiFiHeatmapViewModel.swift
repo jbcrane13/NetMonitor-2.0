@@ -71,6 +71,7 @@ final class WiFiHeatmapViewModel {
 
     var heatmapCGImage: CGImage?
     var showImportSheet: Bool = false
+    var showPhotoPicker: Bool = false
 
     // MARK: - Heatmap State
 

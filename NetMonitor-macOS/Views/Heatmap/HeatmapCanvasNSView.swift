@@ -18,6 +18,7 @@ struct HeatmapCanvasRepresentable: NSViewRepresentable {
 
     func makeNSView(context: Context) -> HeatmapCanvasNS {
         let view = HeatmapCanvasNS()
+        view.autoresizingMask = [.width, .height]
         view.onTap = onTap
         view.onPointDelete = onPointDelete
         return view

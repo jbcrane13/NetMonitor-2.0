@@ -7,6 +7,8 @@ import UniformTypeIdentifiers
 
 struct WiFiHeatmapView: View {
     @State private var viewModel = WiFiHeatmapViewModel()
+    @State private var selectedPhotoItem: PhotosPickerItem?
+    @State private var showImportOptions = false
 
     var body: some View {
         HSplitView {
@@ -14,15 +16,38 @@ struct WiFiHeatmapView: View {
                 HeatmapSidebarView(viewModel: viewModel)
             }
             canvas
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .frame(minWidth: 900, minHeight: 600)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .toolbar { toolbarContent }
+        .confirmationDialog("Import Floor Plan", isPresented: $showImportOptions) {
+            Button("Choose File…") {
+                viewModel.showImportSheet = true
+            }
+            Button("Choose from Photos…") {
+                viewModel.showPhotoPicker = true
+            }
+            Button("Cancel", role: .cancel) {}
+        }
         .fileImporter(
             isPresented: $viewModel.showImportSheet,
             allowedContentTypes: [.png, .jpeg, .pdf, .heic],
             allowsMultipleSelection: false
         ) { result in
             handleFileImport(result)
+        }
+        .photosPicker(
+            isPresented: $viewModel.showPhotoPicker,
+            selection: $selectedPhotoItem,
+            matching: .images,
+            photoLibrary: .shared()
+        )
+        .onChange(of: selectedPhotoItem) { _, newItem in
+            guard let newItem else { return }
+            Task<Void, Never> {
+                await handlePhotoImport(newItem)
+            }
+            selectedPhotoItem = nil
         }
         .sheet(isPresented: $viewModel.showCalibrationSheet) {
             CalibrationSheet(viewModel: viewModel)
@@ -79,7 +104,7 @@ struct WiFiHeatmapView: View {
                 .multilineTextAlignment(.center)
             HStack(spacing: 12) {
                 Button("Import Floor Plan") {
-                    viewModel.showImportSheet = true
+                    showImportOptions = true
                 }
                 .buttonStyle(.borderedProminent)
                 .accessibilityIdentifier("heatmap_button_import")
@@ -90,6 +115,7 @@ struct WiFiHeatmapView: View {
                 .accessibilityIdentifier("heatmap_button_open")
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(40)
     }
 
@@ -130,7 +156,7 @@ struct WiFiHeatmapView: View {
 
             // Import
             Button {
-                viewModel.showImportSheet = true
+                showImportOptions = true
             } label: {
                 Label("Import", systemImage: "square.and.arrow.down")
             }
@@ -203,6 +229,8 @@ struct WiFiHeatmapView: View {
         switch result {
         case .success(let urls):
             guard let url = urls.first else { return }
+            let didAccess = url.startAccessingSecurityScopedResource()
+            defer { if didAccess { url.stopAccessingSecurityScopedResource() } }
             do {
                 try viewModel.importFloorPlan(from: url)
             } catch {
@@ -210,6 +238,16 @@ struct WiFiHeatmapView: View {
             }
         case .failure(let error):
             print("Import error: \(error)")
+        }
+    }
+
+    private func handlePhotoImport(_ item: PhotosPickerItem) async {
+        guard let data = try? await item.loadTransferable(type: Data.self) else { return }
+        let name = "Photo Import"
+        do {
+            try viewModel.importFloorPlan(imageData: data, name: name)
+        } catch {
+            print("Photo import failed: \(error)")
         }
     }
 
