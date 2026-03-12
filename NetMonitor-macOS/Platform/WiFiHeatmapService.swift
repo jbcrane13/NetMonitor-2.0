@@ -21,10 +21,16 @@ struct NearbyAP: Identifiable, Sendable {
 @MainActor
 final class WiFiHeatmapService {
 
-    private let client = CWWiFiClient.shared()
+    private let interfaceName: String?
 
+    init() {
+        interfaceName = CWWiFiClient.shared().interface()?.interfaceName
+    }
+
+    /// Returns a fresh CWInterface each call to avoid cached RSSI values
     private var iface: CWInterface? {
-        client.interface()
+        guard let name = interfaceName else { return nil }
+        return CWInterface(name: name)
     }
 
     // MARK: - Live Signal
