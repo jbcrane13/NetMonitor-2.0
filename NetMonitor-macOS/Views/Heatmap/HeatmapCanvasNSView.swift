@@ -10,6 +10,8 @@ struct HeatmapCanvasRepresentable: NSViewRepresentable {
     let calibrationPoints: [CalibrationPoint]
     let isCalibrating: Bool
     let isSurveying: Bool
+    let isMeasuring: Bool
+    let pendingMeasurementLocation: CGPoint?
     let heatmapCGImage: CGImage?
     let overlayOpacity: Double
     let coverageThreshold: Double?
@@ -30,6 +32,9 @@ struct HeatmapCanvasRepresentable: NSViewRepresentable {
         nsView.calibrationPoints = calibrationPoints
         nsView.isCalibrating = isCalibrating
         nsView.isSurveying = isSurveying
+        nsView.isMeasuring = isMeasuring
+        nsView.pendingMeasurementLocation = pendingMeasurementLocation
+        if !isMeasuring { nsView.stopPulseAnimation() }
         nsView.heatmapCGImage = heatmapCGImage
         nsView.overlayOpacity = overlayOpacity
         nsView.coverageThreshold = coverageThreshold
@@ -46,6 +51,8 @@ class HeatmapCanvasNS: NSView {
     var calibrationPoints: [CalibrationPoint] = []
     var isCalibrating: Bool = false
     var isSurveying: Bool = false
+    var isMeasuring: Bool = false
+    var pendingMeasurementLocation: CGPoint?
     var heatmapCGImage: CGImage?
     var overlayOpacity: Double = 0.7
     var coverageThreshold: Double?
@@ -131,6 +138,11 @@ class HeatmapCanvasNS: NSView {
         // Measurement points
         drawMeasurementPoints(context: context, imageRect: imageRect)
 
+        // Pending measurement spinner
+        if isMeasuring, let pending = pendingMeasurementLocation {
+            drawPendingIndicator(context: context, at: pending, imageRect: imageRect)
+        }
+
         // Calibration overlay
         if isCalibrating {
             drawCalibrationOverlay(context: context, imageRect: imageRect)
@@ -147,6 +159,72 @@ class HeatmapCanvasNS: NSView {
            let point = measurementPoints.first(where: { $0.id == hoveredID }) {
             drawTooltip(context: context, point: point, imageRect: imageRect)
         }
+    }
+
+    // MARK: - Pending Measurement Indicator
+
+    private var pulsePhase: CGFloat = 0
+    private var pulseTimer: Timer?
+
+    private func startPulseAnimation() {
+        guard pulseTimer == nil else { return }
+        pulseTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 30.0, repeats: true) { [weak self] _ in
+            guard let self else { return }
+            self.pulsePhase += 0.08
+            if self.pulsePhase > .pi * 2 { self.pulsePhase -= .pi * 2 }
+            self.needsDisplay = true
+        }
+    }
+
+    func stopPulseAnimation() {
+        pulseTimer?.invalidate()
+        pulseTimer = nil
+        pulsePhase = 0
+    }
+
+    private func drawPendingIndicator(context: CGContext, at normalizedPoint: CGPoint, imageRect: CGRect) {
+        startPulseAnimation()
+
+        let x = imageRect.minX + normalizedPoint.x * imageRect.width
+        let y = imageRect.minY + (1 - normalizedPoint.y) * imageRect.height
+
+        let pulseScale = 1.0 + 0.3 * sin(pulsePhase)
+        let radius: CGFloat = 14 * pulseScale
+        let rect = CGRect(x: x - radius, y: y - radius, width: radius * 2, height: radius * 2)
+
+        // Pulsing ring
+        context.setStrokeColor(NSColor.systemBlue.withAlphaComponent(0.8).cgColor)
+        context.setLineWidth(2.5)
+        context.strokeEllipse(in: rect)
+
+        // Inner fill
+        context.setFillColor(NSColor.systemBlue.withAlphaComponent(0.15).cgColor)
+        context.fillEllipse(in: rect)
+
+        // Center dot
+        let dotR: CGFloat = 3
+        let dotRect = CGRect(x: x - dotR, y: y - dotR, width: dotR * 2, height: dotR * 2)
+        context.setFillColor(NSColor.systemBlue.cgColor)
+        context.fillEllipse(in: dotRect)
+
+        // "Measuring..." label
+        let label = "Measuring..." as NSString
+        let attrs: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: 10, weight: .medium),
+            .foregroundColor: NSColor.systemBlue
+        ]
+        let labelSize = label.size(withAttributes: attrs)
+        let bgRect = CGRect(
+            x: x - labelSize.width / 2 - 6,
+            y: y + radius + 4,
+            width: labelSize.width + 12,
+            height: labelSize.height + 4
+        )
+        context.setFillColor(NSColor(white: 0.1, alpha: 0.85).cgColor)
+        let bgPath = CGPath(roundedRect: bgRect, cornerWidth: 4, cornerHeight: 4, transform: nil)
+        context.addPath(bgPath)
+        context.fillPath()
+        label.draw(at: CGPoint(x: bgRect.minX + 6, y: bgRect.minY + 2), withAttributes: attrs)
     }
 
     // MARK: - Measurement Points

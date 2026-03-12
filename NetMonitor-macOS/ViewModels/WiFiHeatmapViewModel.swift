@@ -15,6 +15,7 @@ final class WiFiHeatmapViewModel {
     var measurementPoints: [MeasurementPoint] = []
     var isSurveying: Bool = false
     var isMeasuring: Bool = false
+    var pendingMeasurementLocation: CGPoint?
 
     // MARK: - Live Signal
 
@@ -161,7 +162,11 @@ final class WiFiHeatmapViewModel {
     func takeMeasurement(at normalizedPoint: CGPoint) async {
         guard surveyProject != nil, !isMeasuring else { return }
         isMeasuring = true
-        defer { isMeasuring = false }
+        pendingMeasurementLocation = normalizedPoint
+        defer {
+            isMeasuring = false
+            pendingMeasurementLocation = nil
+        }
 
         saveUndoState()
 

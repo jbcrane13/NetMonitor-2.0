@@ -208,23 +208,21 @@ public struct MeasurementPoint: Sendable, Codable, Identifiable, Equatable {
 public enum HeatmapVisualization: String, Sendable, Codable, CaseIterable {
     case signalStrength
     case signalToNoise
+    case noiseFloor
     case downloadSpeed
     case uploadSpeed
     case latency
-    case channelOverlap
     case frequencyBand
-    case apCoverage
 
     public var displayName: String {
         switch self {
         case .signalStrength: "Signal Strength"
-        case .signalToNoise: "Signal-to-Noise Ratio"
+        case .signalToNoise: "Signal-to-Noise"
+        case .noiseFloor: "Noise Floor"
         case .downloadSpeed: "Download Speed"
         case .uploadSpeed: "Upload Speed"
         case .latency: "Latency"
-        case .channelOverlap: "Channel Overlap"
         case .frequencyBand: "Frequency Band"
-        case .apCoverage: "AP Coverage"
         }
     }
 
@@ -232,12 +230,21 @@ public enum HeatmapVisualization: String, Sendable, Codable, CaseIterable {
         switch self {
         case .signalStrength: "dBm"
         case .signalToNoise: "dB"
+        case .noiseFloor: "dBm"
         case .downloadSpeed: "Mbps"
         case .uploadSpeed: "Mbps"
         case .latency: "ms"
-        case .channelOverlap: "APs"
-        case .frequencyBand: ""
-        case .apCoverage: ""
+        case .frequencyBand: "GHz"
+        }
+    }
+
+    /// Whether this visualization requires active scan data (speed test / ping)
+    public var requiresActiveScan: Bool {
+        switch self {
+        case .downloadSpeed, .uploadSpeed, .latency:
+            return true
+        case .signalStrength, .signalToNoise, .noiseFloor, .frequencyBand:
+            return false
         }
     }
 
@@ -247,14 +254,22 @@ public enum HeatmapVisualization: String, Sendable, Codable, CaseIterable {
             return Double(point.rssi)
         case .signalToNoise:
             return point.snr.map(Double.init)
+        case .noiseFloor:
+            return point.noiseFloor.map(Double.init)
         case .downloadSpeed:
             return point.downloadSpeed
         case .uploadSpeed:
             return point.uploadSpeed
         case .latency:
             return point.latency
-        case .channelOverlap, .frequencyBand, .apCoverage:
-            return nil
+        case .frequencyBand:
+            // 2.4 GHz → 1, 5 GHz → 2, 6 GHz → 3
+            guard let band = point.band else { return nil }
+            switch band {
+            case .band2_4GHz: return 1.0
+            case .band5GHz: return 2.0
+            case .band6GHz: return 3.0
+            }
         }
     }
 
@@ -262,12 +277,11 @@ public enum HeatmapVisualization: String, Sendable, Codable, CaseIterable {
         switch self {
         case .signalStrength: -100...0
         case .signalToNoise: 0...50
+        case .noiseFloor: -100 ... -60
         case .downloadSpeed: 0...500
         case .uploadSpeed: 0...500
         case .latency: 0...200
-        case .channelOverlap: 0...10
-        case .frequencyBand: 0...3
-        case .apCoverage: 0...10
+        case .frequencyBand: 0...4
         }
     }
 
@@ -275,11 +289,16 @@ public enum HeatmapVisualization: String, Sendable, Codable, CaseIterable {
         switch self {
         case .signalStrength, .signalToNoise, .downloadSpeed, .uploadSpeed:
             return true
-        case .latency, .channelOverlap:
+        case .noiseFloor, .latency:
             return false
-        case .frequencyBand, .apCoverage:
+        case .frequencyBand:
             return true
         }
+    }
+
+    /// Check whether the given points have data for this visualization
+    public func hasData(in points: [MeasurementPoint]) -> Bool {
+        points.contains { extractValue(from: $0) != nil }
     }
 }
 

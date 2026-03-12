@@ -68,6 +68,8 @@ struct WiFiHeatmapView: View {
                     calibrationPoints: viewModel.calibrationPoints,
                     isCalibrating: viewModel.isCalibrating,
                     isSurveying: viewModel.isSurveying,
+                    isMeasuring: viewModel.isMeasuring,
+                    pendingMeasurementLocation: viewModel.pendingMeasurementLocation,
                     heatmapCGImage: viewModel.heatmapCGImage,
                     overlayOpacity: viewModel.overlayOpacity,
                     coverageThreshold: viewModel.isCoverageThresholdEnabled ? viewModel.coverageThreshold : nil,
@@ -135,7 +137,9 @@ struct WiFiHeatmapView: View {
             if viewModel.surveyProject != nil {
                 Picker("Viz", selection: $viewModel.selectedVisualization) {
                     ForEach(HeatmapVisualization.allCases, id: \.self) { viz in
-                        Text(viz.displayName).tag(viz)
+                        let hasData = viz.hasData(in: viewModel.filteredPoints)
+                        Text(viz.displayName + (hasData ? "" : " (no data)"))
+                            .tag(viz)
                     }
                 }
                 .frame(width: 140)
