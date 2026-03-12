@@ -66,11 +66,14 @@ struct NetworkDetailView: View {
 
                 // Row B: Left diagnostics stack + Right device grid
                 HStack(alignment: .top, spacing: gap) {
-                    // Left column — scrollable so all 4 cards are reachable on smaller screens
+                    // Left column — scrollable so all cards are reachable on smaller screens
                     ScrollView(.vertical, showsIndicators: false) {
                         VStack(spacing: gap) {
                             ISPHealthCard(interfaceName: profile.interfaceName, uptime: uptimeViewModel)
                                 .accessibilityIdentifier("network_detail_card_isp")
+
+                            WiFiSignalCard()
+                                .accessibilityIdentifier("network_detail_card_wifi_signal")
 
                             LatencyAnalysisCard(
                                 session: session,
