@@ -135,10 +135,10 @@ struct WiFiHeatmapView: View {
 
             // Visualization picker (toolbar)
             if viewModel.surveyProject != nil {
+                let pts = viewModel.filteredPoints
                 Picker("Viz", selection: $viewModel.selectedVisualization) {
                     ForEach(HeatmapVisualization.allCases, id: \.self) { viz in
-                        let hasData = viz.hasData(in: viewModel.filteredPoints)
-                        Text(viz.displayName + (hasData ? "" : " (no data)"))
+                        Text(viz.displayName + (viz.hasData(in: pts) ? "" : " (no data)"))
                             .tag(viz)
                     }
                 }
@@ -147,10 +147,16 @@ struct WiFiHeatmapView: View {
                     if viewModel.isHeatmapGenerated { viewModel.generateHeatmap() }
                 }
                 .accessibilityIdentifier("heatmap_toolbar_viz")
+
+                if !pts.isEmpty {
+                    Text("\(pts.count) pts")
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                }
             }
 
-            // Point count
-            if !viewModel.measurementPoints.isEmpty {
+            // Point count (fallback for when no project)
+            if viewModel.surveyProject == nil, !viewModel.measurementPoints.isEmpty {
                 Text("\(viewModel.filteredPoints.count) pts")
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)

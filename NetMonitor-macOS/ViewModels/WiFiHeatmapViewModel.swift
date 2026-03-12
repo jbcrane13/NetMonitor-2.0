@@ -550,6 +550,13 @@ final class WiFiHeatmapViewModel {
                     pdfContext.endPDFPage()
                     pdfContext.beginPDFPage(nil)
                     tableY = pageHeight - margin - 20
+                    // Redraw column headers on continuation page
+                    colX = margin
+                    for (header, width) in columns {
+                        (header as NSString).draw(at: CGPoint(x: colX, y: tableY), withAttributes: headerAttrs)
+                        colX += width
+                    }
+                    tableY -= 14
                 }
 
                 colX = margin
