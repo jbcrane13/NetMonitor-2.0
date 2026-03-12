@@ -52,17 +52,10 @@ struct NetworkDetailView: View {
             let leftWidth = max(340, geo.size.width * 0.44 - pad)
 
             VStack(spacing: gap) {
-                // Row A: Internet Activity + Health Gauge (proportional height)
-                HStack(alignment: .top, spacing: gap) {
-                    InternetActivityCard(session: session, interfaceName: profile.interfaceName)
-                        .accessibilityIdentifier("network_detail_row_activity")
-
-                    HealthGaugeCard()
-                        .frame(width: 210)
-                        .frame(maxHeight: .infinity)
-                        .accessibilityIdentifier("network_detail_row_health")
-                }
-                .frame(height: rowAHeight)
+                // Row A: Network Health Hero (full-width, promoted from gauge)
+                HealthGaugeCard()
+                    .frame(height: rowAHeight)
+                    .accessibilityIdentifier("network_detail_row_health")
 
                 // Row B: Left diagnostics stack + Right device grid
                 HStack(alignment: .top, spacing: gap) {
