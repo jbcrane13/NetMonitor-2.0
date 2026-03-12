@@ -284,14 +284,12 @@ struct WiFiHeatmapView: View {
     }
 
     private func exportPDF() {
-        // Reuse the ViewModel's PDF generation (port from old ViewModel if needed)
+        guard let pdfData = viewModel.exportPDF() else { return }
         let panel = NSSavePanel()
         panel.allowedContentTypes = [.pdf]
         panel.nameFieldStringValue = "\(viewModel.surveyProject?.name ?? "heatmap")-report"
         if panel.runModal() == .OK, let url = panel.url {
-            if let pngData = viewModel.exportPNG(canvasSize: CGSize(width: 1600, height: 1200)) {
-                try? pngData.write(to: url)
-            }
+            try? pdfData.write(to: url)
         }
     }
 }
