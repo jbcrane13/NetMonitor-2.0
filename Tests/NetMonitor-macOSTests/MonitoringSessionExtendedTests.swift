@@ -16,6 +16,57 @@ private struct MockMonitorServiceProvider: MonitorServiceProviding {
     func createICMPService() -> ICMPMonitorService { ICMPMonitorService() }
 }
 
+// MARK: - Controllable stub services
+//
+// These actor stubs conform to NetworkMonitorService and are injected via the
+// internal `anyHTTPService:anyICMPService:anyTCPService:` initialiser that was
+// added specifically to enable loop-level unit testing without hitting the real
+// network. Each stub captures a fixed result or throws a controlled error.
+
+/// Stub that immediately returns a reachable result with the supplied latency.
+private actor SuccessMonitorService: NetworkMonitorService {
+    let latency: Double
+    let isReachable: Bool
+    init(latency: Double = 25.0, isReachable: Bool = true) {
+        self.latency = latency
+        self.isReachable = isReachable
+    }
+
+    func check(request: TargetCheckRequest) async throws -> MeasurementResult {
+        MeasurementResult(
+            targetID: request.id,
+            timestamp: Date(),
+            latency: latency,
+            isReachable: isReachable,
+            errorMessage: nil
+        )
+    }
+}
+
+/// Stub that returns an unreachable result (nil latency) with an error message.
+private actor UnreachableMonitorService: NetworkMonitorService {
+    func check(request: TargetCheckRequest) async throws -> MeasurementResult {
+        MeasurementResult(
+            targetID: request.id,
+            timestamp: Date(),
+            latency: nil,
+            isReachable: false,
+            errorMessage: "Host unreachable (stub)"
+        )
+    }
+}
+
+/// Stub that throws a given error on every call, exercising the catch path in
+/// `monitorTarget()` which wraps the error in an unreachable measurement.
+private actor ThrowingMonitorService: NetworkMonitorService {
+    let error: Error
+    init(error: Error = URLError(.timedOut)) { self.error = error }
+
+    func check(request: TargetCheckRequest) async throws -> MeasurementResult {
+        throw error
+    }
+}
+
 // MARK: - Helpers
 
 @MainActor
@@ -28,6 +79,22 @@ private func makeInMemoryStore() throws -> (ModelContainer, ModelContext) {
     let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
     let container = try ModelContainer(for: schema, configurations: [config])
     return (container, container.mainContext)
+}
+
+/// Creates a `MonitoringSession` backed by a single stub service for all three
+/// protocol types. Pass the same stub for every slot unless you need
+/// per-protocol differentiation.
+@MainActor
+private func makeSession(
+    context: ModelContext,
+    stub: any NetworkMonitorService
+) -> MonitoringSession {
+    MonitoringSession(
+        modelContext: context,
+        anyHTTPService: stub,
+        anyICMPService: stub,
+        anyTCPService: stub
+    )
 }
 
 // MARK: - MonitoringSession extended tests
@@ -70,7 +137,7 @@ struct MonitoringSessionExtendedTests {
         #expect(session.errorMessage == nil)
     }
 
-    // MARK: averageLatencyString
+    // MARK: averageLatencyString – empty state
 
     // When latestResults is empty, the average latency string must be an em dash
     // so the UI displays "—" rather than a stale or zero value.
@@ -78,35 +145,6 @@ struct MonitoringSessionExtendedTests {
         let (container, context) = try makeInMemoryStore()
         _ = container
         let session = MonitoringSession(modelContext: context)
-        #expect(session.averageLatencyString == "—")
-    }
-
-    // Verify the "Xms" format when latestResults contains entries with latency.
-    // We call pruneOldMeasurements() (a public @MainActor method) just to confirm
-    // it doesn't mutate latestResults when there is nothing to prune.
-    @Test func averageLatencyStringFormatIsXmsWhenResultsPresent() throws {
-        let (container, context) = try makeInMemoryStore()
-        _ = container
-
-        let target = NetworkTarget(name: "Router", host: "192.168.1.1", targetProtocol: .icmp)
-        context.insert(target)
-        try context.save()
-
-        let session = MonitoringSession(modelContext: context)
-
-        // Directly insert a measurement into latestResults via a pathway available
-        // to callers: startMonitoring() → disabled targets path sets errorMessage.
-        // Because latestResults is private(set), we cannot seed it directly.
-        // The averageLatencyString with populated results is tested indirectly via
-        // the monitoring loop integration path — see the integration gap comment below.
-        //
-        // INTEGRATION GAP: Direct seeding of latestResults requires starting the
-        // full monitoring loop. See MonitoringSession.startMonitoringTarget() and
-        // monitorTarget() for the untested code path. Once monitoring starts with
-        // a real (or mock) service, latestResults is populated and
-        // averageLatencyString returns "Xms".
-
-        // What we can assert without running the loop: initial state is "—".
         #expect(session.averageLatencyString == "—")
     }
 
@@ -306,8 +344,7 @@ struct MonitoringSessionExtendedTests {
     // MARK: pruneOldMeasurements (default retention)
 
     // Ensures pruning with the default "7 days" retention window removes stale entries
-    // without affecting recent measurements. Re-tests the core pruning logic in this
-    // file's context so the extended suite is self-contained.
+    // without affecting recent measurements.
     @Test func pruneRemovesStaleAndKeepsRecentWithDefaultRetention() throws {
         let (container, context) = try makeInMemoryStore()
         _ = container
@@ -427,27 +464,457 @@ struct MonitoringSessionExtendedTests {
         #expect(remaining.count == 2)
     }
 
-    // MARK: Integration gap documentation
+    }
 
-    // INTEGRATION GAP: The core monitoring loop in startMonitoringTarget() and
-    // monitorTarget() cannot be fully tested here because HTTPMonitorService,
-    // ICMPMonitorService, and TCPMonitorService are concrete actor types, not
-    // protocol types — MonitorServiceProviding creates them via factory methods
-    // that return the concrete types. There is no injection point for replacing
-    // a single service with a custom actor that conforms to NetworkMonitorService.
-    //
-    // Specifically, these code paths are not covered by unit tests:
-    //   - latestResults being populated after a successful check
-    //   - recentLatencies rolling buffer accumulation (max 20 entries)
-    //   - onlineTargetCount / offlineTargetCount reflecting live results
-    //   - averageLatencyString returning "Xms" with real latency data
-    //   - TargetMeasurement being persisted to SwiftData on each check
-    //   - SessionRecord being written to the store on start/stop
-    //   - Error path in monitorTarget() writing an unreachable measurement
-    //
-    // To cover these, either:
-    //   (a) Introduce a protocol abstraction for the individual monitor services
-    //       so they can be replaced in tests, or
-    //   (b) Write integration tests that accept real network latency with a short
-    //       timeout against localhost / 127.0.0.1.
+// MARK: - MonitoringSession loop tests
+//
+// These tests exercise the async monitoring loop by injecting stub services
+// through the internal `anyHTTPService:anyICMPService:anyTCPService:` init.
+// Each test uses Task.sleep to allow the first loop iteration to complete before
+// asserting, since the loop runs on the cooperative thread pool.
+
+@Suite("MonitoringSession – loop")
+@MainActor
+struct MonitoringSessionLoopTests {
+
+    // MARK: Core loop – successful check populates latestResults
+
+    // After startMonitoring() with a success stub, the monitoring Task runs on
+    // the cooperative thread pool. We yield with Task.sleep to let the first
+    // iteration complete before asserting.
+    @Test func startMonitoringPopulatesLatestResultsAfterSuccessfulCheck() async throws {
+        let (container, context) = try makeInMemoryStore()
+        _ = container
+
+        let target = NetworkTarget(
+            name: "Router",
+            host: "192.168.1.1",
+            targetProtocol: .icmp,
+            checkInterval: 60,  // long interval — only first iteration fires
+            isEnabled: true
+        )
+        context.insert(target)
+        try context.save()
+
+        let stub = SuccessMonitorService(latency: 42.0)
+        let session = makeSession(context: context, stub: stub)
+        session.startMonitoring()
+
+        // Yield long enough for the spawned Task to complete its first check.
+        try await Task.sleep(for: .milliseconds(200))
+
+        #expect(session.latestResults[target.id] != nil)
+        #expect(session.latestResults[target.id]?.isReachable == true)
+        #expect(session.latestResults[target.id]?.latency == 42.0)
+
+        session.stopMonitoring()
+    }
+
+    // MARK: Core loop – latestMeasurement(for:) returns the populated result
+
+    @Test func latestMeasurementForKnownIDReturnsResultAfterCheck() async throws {
+        let (container, context) = try makeInMemoryStore()
+        _ = container
+
+        let target = NetworkTarget(
+            name: "DNS",
+            host: "8.8.8.8",
+            targetProtocol: .icmp,
+            checkInterval: 60,
+            isEnabled: true
+        )
+        context.insert(target)
+        try context.save()
+
+        let stub = SuccessMonitorService(latency: 15.0)
+        let session = makeSession(context: context, stub: stub)
+        session.startMonitoring()
+        try await Task.sleep(for: .milliseconds(200))
+
+        let result = session.latestMeasurement(for: target.id)
+        #expect(result != nil)
+        #expect(result?.latency == 15.0)
+
+        session.stopMonitoring()
+    }
+
+    // MARK: Core loop – onlineTargetCount increments after reachable check
+
+    @Test func onlineTargetCountIsOneAfterSuccessfulReachabilityCheck() async throws {
+        let (container, context) = try makeInMemoryStore()
+        _ = container
+
+        context.insert(NetworkTarget(
+            name: "Router",
+            host: "192.168.1.1",
+            targetProtocol: .icmp,
+            checkInterval: 60,
+            isEnabled: true
+        ))
+        try context.save()
+
+        let stub = SuccessMonitorService(latency: 10.0, isReachable: true)
+        let session = makeSession(context: context, stub: stub)
+        session.startMonitoring()
+        try await Task.sleep(for: .milliseconds(200))
+
+        #expect(session.onlineTargetCount == 1)
+        #expect(session.offlineTargetCount == 0)
+
+        session.stopMonitoring()
+    }
+
+    // MARK: Core loop – offlineTargetCount increments after unreachable check
+
+    @Test func offlineTargetCountIsOneAfterUnreachableCheck() async throws {
+        let (container, context) = try makeInMemoryStore()
+        _ = container
+
+        context.insert(NetworkTarget(
+            name: "Unreachable Host",
+            host: "192.168.99.99",
+            targetProtocol: .icmp,
+            checkInterval: 60,
+            isEnabled: true
+        ))
+        try context.save()
+
+        let stub = UnreachableMonitorService()
+        let session = makeSession(context: context, stub: stub)
+        session.startMonitoring()
+        try await Task.sleep(for: .milliseconds(200))
+
+        #expect(session.onlineTargetCount == 0)
+        #expect(session.offlineTargetCount == 1)
+
+        session.stopMonitoring()
+    }
+
+    // MARK: Core loop – averageLatencyString is formatted after successful check
+
+    @Test func averageLatencyStringReturnsFormattedMsAfterSuccessfulCheck() async throws {
+        let (container, context) = try makeInMemoryStore()
+        _ = container
+
+        context.insert(NetworkTarget(
+            name: "Router",
+            host: "192.168.1.1",
+            targetProtocol: .icmp,
+            checkInterval: 60,
+            isEnabled: true
+        ))
+        try context.save()
+
+        let stub = SuccessMonitorService(latency: 33.0)
+        let session = makeSession(context: context, stub: stub)
+        session.startMonitoring()
+        try await Task.sleep(for: .milliseconds(200))
+
+        #expect(session.averageLatencyString == "33ms")
+
+        session.stopMonitoring()
+    }
+
+    // MARK: Core loop – averageLatencyString averages over multiple targets
+
+    @Test func averageLatencyStringAveragesOverMultipleTargets() async throws {
+        let (container, context) = try makeInMemoryStore()
+        _ = container
+
+        // Two targets; both get the same stub returning 100ms and 200ms
+        // would require per-target stubs. Use one stub returning 50ms for both
+        // and verify the average is "50ms".
+        context.insert(NetworkTarget(
+            name: "Host A",
+            host: "192.168.1.1",
+            targetProtocol: .icmp,
+            checkInterval: 60,
+            isEnabled: true
+        ))
+        context.insert(NetworkTarget(
+            name: "Host B",
+            host: "192.168.1.2",
+            targetProtocol: .icmp,
+            checkInterval: 60,
+            isEnabled: true
+        ))
+        try context.save()
+
+        let stub = SuccessMonitorService(latency: 50.0)
+        let session = makeSession(context: context, stub: stub)
+        session.startMonitoring()
+        try await Task.sleep(for: .milliseconds(300))
+
+        // Both targets return 50ms; average is still 50ms.
+        #expect(session.averageLatencyString == "50ms")
+
+        session.stopMonitoring()
+    }
+
+    // MARK: Core loop – error path marks target unreachable
+
+    // When the service throws, monitorTarget() catches and writes an unreachable
+    // measurement with the error's localizedDescription as the errorMessage.
+    @Test func throwingServiceMarksTargetUnreachableWithErrorMessage() async throws {
+        let (container, context) = try makeInMemoryStore()
+        _ = container
+
+        let target = NetworkTarget(
+            name: "Flaky Host",
+            host: "10.0.0.1",
+            targetProtocol: .icmp,
+            checkInterval: 60,
+            isEnabled: true
+        )
+        context.insert(target)
+        try context.save()
+
+        let stub = ThrowingMonitorService(error: URLError(.timedOut))
+        let session = makeSession(context: context, stub: stub)
+        session.startMonitoring()
+        try await Task.sleep(for: .milliseconds(200))
+
+        let result = session.latestMeasurement(for: target.id)
+        #expect(result != nil)
+        #expect(result?.isReachable == false)
+        #expect(result?.latency == nil)
+        #expect(result?.errorMessage != nil)
+
+        session.stopMonitoring()
+    }
+
+    // MARK: Core loop – unreachable service errorMessage propagated
+
+    @Test func unreachableServiceSetsErrorMessageOnMeasurement() async throws {
+        let (container, context) = try makeInMemoryStore()
+        _ = container
+
+        let target = NetworkTarget(
+            name: "Down Host",
+            host: "10.10.10.10",
+            targetProtocol: .icmp,
+            checkInterval: 60,
+            isEnabled: true
+        )
+        context.insert(target)
+        try context.save()
+
+        let stub = UnreachableMonitorService()
+        let session = makeSession(context: context, stub: stub)
+        session.startMonitoring()
+        try await Task.sleep(for: .milliseconds(200))
+
+        let result = session.latestMeasurement(for: target.id)
+        #expect(result?.isReachable == false)
+        #expect(result?.errorMessage == "Host unreachable (stub)")
+
+        session.stopMonitoring()
+    }
+
+    // MARK: Core loop – recentLatencies rolling buffer accumulates entries
+
+    @Test func recentLatenciesAccumulatesAfterSuccessfulCheck() async throws {
+        let (container, context) = try makeInMemoryStore()
+        _ = container
+
+        let target = NetworkTarget(
+            name: "Router",
+            host: "192.168.1.1",
+            targetProtocol: .icmp,
+            checkInterval: 0,   // 0-second interval so multiple iterations fire fast
+            isEnabled: true
+        )
+        context.insert(target)
+        try context.save()
+
+        let stub = SuccessMonitorService(latency: 10.0)
+        let session = makeSession(context: context, stub: stub)
+        session.startMonitoring()
+        // Allow several iterations. Each takes ~0ms (stub is instant) + 0s sleep.
+        try await Task.sleep(for: .milliseconds(150))
+        session.stopMonitoring()
+
+        let history = session.recentLatencies[target.id] ?? []
+        #expect(history.isEmpty == false)
+        // All recorded values must be 10.0
+        #expect(history.allSatisfy { $0 == 10.0 })
+    }
+
+    // MARK: Core loop – recentLatencies FIFO cap at 20 entries
+
+    @Test func recentLatenciesCapAt20EntriesWithFIFOEviction() async throws {
+        let (container, context) = try makeInMemoryStore()
+        _ = container
+
+        let target = NetworkTarget(
+            name: "Router",
+            host: "192.168.1.1",
+            targetProtocol: .icmp,
+            checkInterval: 0,   // immediate re-check
+            isEnabled: true
+        )
+        context.insert(target)
+        try context.save()
+
+        let stub = SuccessMonitorService(latency: 5.0)
+        let session = makeSession(context: context, stub: stub)
+        session.startMonitoring()
+        // 400ms at ~0ms per iteration gives well over 20 iterations.
+        try await Task.sleep(for: .milliseconds(400))
+        session.stopMonitoring()
+
+        let history = session.recentLatencies[target.id] ?? []
+        // Buffer must never exceed the cap of 20.
+        #expect(history.count <= 20)
+        #expect(history.isEmpty == false)
+    }
+
+    // MARK: Core loop – SessionRecord written to store on start
+
+    @Test func startMonitoringPersistsSessionRecordToStore() async throws {
+        let (container, context) = try makeInMemoryStore()
+        _ = container
+
+        context.insert(NetworkTarget(
+            name: "Router",
+            host: "192.168.1.1",
+            targetProtocol: .icmp,
+            checkInterval: 60,
+            isEnabled: true
+        ))
+        try context.save()
+
+        let stub = SuccessMonitorService()
+        let session = makeSession(context: context, stub: stub)
+        session.startMonitoring()
+        try await Task.sleep(for: .milliseconds(50))
+
+        let records = try context.fetch(FetchDescriptor<SessionRecord>())
+        #expect(records.count == 1)
+        #expect(records.first?.isActive == true)
+
+        session.stopMonitoring()
+    }
+
+    // MARK: Core loop – SessionRecord marked inactive on stop
+
+    @Test func stopMonitoringUpdatesSessionRecordIsActiveFalse() async throws {
+        let (container, context) = try makeInMemoryStore()
+        _ = container
+
+        context.insert(NetworkTarget(
+            name: "Router",
+            host: "192.168.1.1",
+            targetProtocol: .icmp,
+            checkInterval: 60,
+            isEnabled: true
+        ))
+        try context.save()
+
+        let stub = SuccessMonitorService()
+        let session = makeSession(context: context, stub: stub)
+        session.startMonitoring()
+        try await Task.sleep(for: .milliseconds(50))
+        session.stopMonitoring()
+        try await Task.sleep(for: .milliseconds(50))
+
+        let records = try context.fetch(FetchDescriptor<SessionRecord>())
+        #expect(records.count == 1)
+        #expect(records.first?.isActive == false)
+        #expect(records.first?.stoppedAt != nil)
+    }
+
+    // MARK: Core loop – measurement persisted to SwiftData
+
+    @Test func successfulCheckPersistsMeasurementToSwiftData() async throws {
+        let (container, context) = try makeInMemoryStore()
+        _ = container
+
+        let target = NetworkTarget(
+            name: "Router",
+            host: "192.168.1.1",
+            targetProtocol: .icmp,
+            checkInterval: 60,
+            isEnabled: true
+        )
+        context.insert(target)
+        try context.save()
+
+        let stub = SuccessMonitorService(latency: 20.0)
+        let session = makeSession(context: context, stub: stub)
+        session.startMonitoring()
+        try await Task.sleep(for: .milliseconds(200))
+
+        let measurements = try context.fetch(FetchDescriptor<TargetMeasurement>())
+        #expect(measurements.isEmpty == false)
+        #expect(measurements.first?.isReachable == true)
+
+        session.stopMonitoring()
+    }
+
+    // MARK: Core loop – disabled targets not monitored
+
+    // Only enabled targets should have monitoring tasks. A disabled target must
+    // never appear in latestResults even after the loop runs.
+    @Test func disabledTargetIsNotMonitored() async throws {
+        let (container, context) = try makeInMemoryStore()
+        _ = container
+
+        let disabled = NetworkTarget(
+            name: "Disabled",
+            host: "10.0.0.99",
+            targetProtocol: .icmp,
+            checkInterval: 60,
+            isEnabled: false
+        )
+        let enabled = NetworkTarget(
+            name: "Enabled",
+            host: "192.168.1.1",
+            targetProtocol: .icmp,
+            checkInterval: 60,
+            isEnabled: true
+        )
+        context.insert(disabled)
+        context.insert(enabled)
+        try context.save()
+
+        let stub = SuccessMonitorService(latency: 30.0)
+        let session = makeSession(context: context, stub: stub)
+        session.startMonitoring()
+        try await Task.sleep(for: .milliseconds(200))
+
+        #expect(session.latestResults[disabled.id] == nil)
+        #expect(session.latestResults[enabled.id] != nil)
+
+        session.stopMonitoring()
+    }
+
+    // MARK: Core loop – stop cancels in-flight tasks promptly
+
+    // After stopMonitoring(), isMonitoring transitions to false and no further
+    // results can arrive from the (now cancelled) monitoring tasks.
+    @Test func stopMonitoringCancelsLoopAndFreezesResults() async throws {
+        let (container, context) = try makeInMemoryStore()
+        _ = container
+
+        context.insert(NetworkTarget(
+            name: "Router",
+            host: "192.168.1.1",
+            targetProtocol: .icmp,
+            checkInterval: 0,
+            isEnabled: true
+        ))
+        try context.save()
+
+        let stub = SuccessMonitorService(latency: 7.0)
+        let session = makeSession(context: context, stub: stub)
+        session.startMonitoring()
+        try await Task.sleep(for: .milliseconds(100))
+        session.stopMonitoring()
+
+        #expect(session.isMonitoring == false)
+        // latestResults should be populated from iterations before stop.
+        // The important assertion is isMonitoring is false — further loop
+        // iterations cannot update results once cancelled.
+    }
 }

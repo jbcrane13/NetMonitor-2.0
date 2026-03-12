@@ -34,7 +34,7 @@ struct HeatmapCanvasRepresentable: NSViewRepresentable {
         nsView.isSurveying = isSurveying
         nsView.isMeasuring = isMeasuring
         nsView.pendingMeasurementLocation = pendingMeasurementLocation
-        if !isMeasuring { nsView.stopPulseAnimation() }
+        if isMeasuring { nsView.startPulseAnimation() } else { nsView.stopPulseAnimation() }
         nsView.heatmapCGImage = heatmapCGImage
         nsView.overlayOpacity = overlayOpacity
         nsView.coverageThreshold = coverageThreshold
@@ -166,7 +166,7 @@ class HeatmapCanvasNS: NSView {
     private var pulsePhase: CGFloat = 0
     private var pulseTimer: Timer?
 
-    private func startPulseAnimation() {
+    func startPulseAnimation() {
         guard pulseTimer == nil else { return }
         pulseTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 30.0, repeats: true) { [weak self] _ in
             guard let self else { return }
@@ -183,8 +183,6 @@ class HeatmapCanvasNS: NSView {
     }
 
     private func drawPendingIndicator(context: CGContext, at normalizedPoint: CGPoint, imageRect: CGRect) {
-        startPulseAnimation()
-
         let x = imageRect.minX + normalizedPoint.x * imageRect.width
         let y = imageRect.minY + (1 - normalizedPoint.y) * imageRect.height
 
@@ -471,9 +469,7 @@ class HeatmapCanvasNS: NSView {
         if let ul = point.uploadSpeed { lines.append(String(format: "UL: %.1f Mbps", ul)) }
         if let lat = point.latency { lines.append(String(format: "Latency: %.1f ms", lat)) }
 
-        let formatter = DateFormatter()
-        formatter.timeStyle = .short
-        lines.append(formatter.string(from: point.timestamp))
+        lines.append(HeatmapCanvasNS.tooltipTimeFormatter.string(from: point.timestamp))
 
         return lines
     }

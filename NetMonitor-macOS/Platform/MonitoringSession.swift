@@ -36,9 +36,9 @@ final class MonitoringSession {
     private var pruneTimer: Task<Void, Never>?
 
     private let modelContext: ModelContext
-    private let httpService: HTTPMonitorService
-    private let icmpService: ICMPMonitorService
-    private let tcpService: TCPMonitorService
+    private let httpService: any NetworkMonitorService
+    private let icmpService: any NetworkMonitorService
+    private let tcpService: any NetworkMonitorService
 
     init(
         modelContext: ModelContext,
@@ -60,6 +60,20 @@ final class MonitoringSession {
         self.httpService = httpService
         self.icmpService = icmpService
         self.tcpService = tcpService
+    }
+
+    /// Internal initialiser for unit testing. Accepts any `NetworkMonitorService` actors
+    /// so tests can inject controllable stubs without hitting the real network.
+    init(
+        modelContext: ModelContext,
+        anyHTTPService: any NetworkMonitorService,
+        anyICMPService: any NetworkMonitorService,
+        anyTCPService: any NetworkMonitorService
+    ) {
+        self.modelContext = modelContext
+        self.httpService = anyHTTPService
+        self.icmpService = anyICMPService
+        self.tcpService = anyTCPService
     }
 
     // MARK: - Public API
@@ -154,7 +168,7 @@ final class MonitoringSession {
 
     private func monitorTarget(_ target: NetworkTarget) async {
         while !Task.isCancelled && isMonitoring {
-            let service: any NetworkMonitorService = switch target.targetProtocol {
+            let service = switch target.targetProtocol {
             case .http, .https: httpService
             case .icmp: icmpService
             case .tcp: tcpService

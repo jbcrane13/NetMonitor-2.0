@@ -387,6 +387,19 @@ final class WiFiHeatmapViewModel {
         return rep.representation(using: .png, properties: [:])
     }
 
+    private static let pdfDateFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateStyle = .long
+        f.timeStyle = .short
+        return f
+    }()
+
+    private static let pdfTimeFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.timeStyle = .short
+        return f
+    }()
+
     func exportPDF() -> Data? {
         guard let project = surveyProject,
               let floorPlanImage = NSImage(data: project.floorPlan.imageData) else { return nil }
@@ -419,10 +432,7 @@ final class WiFiHeatmapViewModel {
             .font: NSFont.systemFont(ofSize: 10),
             .foregroundColor: NSColor.darkGray
         ]
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateStyle = .long
-        dateFormatter.timeStyle = .short
-        let subtitle = "Generated \(dateFormatter.string(from: Date())) · \(selectedVisualization.displayName) · \(colorScheme.displayName) scheme" as NSString
+        let subtitle = "Generated \(WiFiHeatmapViewModel.pdfDateFormatter.string(from: Date())) · \(selectedVisualization.displayName) · \(colorScheme.displayName) scheme" as NSString
         subtitle.draw(at: CGPoint(x: margin, y: pageHeight - margin - 38), withAttributes: subtitleAttrs)
 
         // Floor plan + heatmap overlay
@@ -535,9 +545,6 @@ final class WiFiHeatmapViewModel {
             tableY -= 14
 
             // Data rows
-            let timeFormatter = DateFormatter()
-            timeFormatter.timeStyle = .short
-
             for (i, point) in pts.enumerated() {
                 if tableY < margin + 20 {
                     pdfContext.endPDFPage()
@@ -556,7 +563,7 @@ final class WiFiHeatmapViewModel {
                     point.downloadSpeed.map { String(format: "%.1f", $0) } ?? "—",
                     point.uploadSpeed.map { String(format: "%.1f", $0) } ?? "—",
                     point.latency.map { String(format: "%.0f", $0) } ?? "—",
-                    timeFormatter.string(from: point.timestamp)
+                    WiFiHeatmapViewModel.pdfTimeFormatter.string(from: point.timestamp)
                 ]
 
                 for (j, cell) in rowData.enumerated() {

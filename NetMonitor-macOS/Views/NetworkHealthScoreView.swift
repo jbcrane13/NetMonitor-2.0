@@ -95,8 +95,16 @@ final class NetworkHealthScoreMacViewModel {
     var currentScore: NetworkHealthScore?
     var isCalculating: Bool = false
 
-    private let service = NetworkHealthScoreService()
-    private let pingService: any PingServiceProtocol = PingService()
+    private let service: NetworkHealthScoreService
+    private let pingService: any PingServiceProtocol
+
+    init(
+        service: NetworkHealthScoreService = NetworkHealthScoreService(),
+        pingService: any PingServiceProtocol = PingService()
+    ) {
+        self.service = service
+        self.pingService = pingService
+    }
 
     func refresh() async {
         isCalculating = true
