@@ -46,6 +46,12 @@ struct HeatmapCanvasRepresentable: NSViewRepresentable {
 
 class HeatmapCanvasNS: NSView {
 
+    private static let tooltipTimeFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.timeStyle = .short
+        return f
+    }()
+
     var floorPlanImageData: Data?
     var measurementPoints: [MeasurementPoint] = []
     var calibrationPoints: [CalibrationPoint] = []
