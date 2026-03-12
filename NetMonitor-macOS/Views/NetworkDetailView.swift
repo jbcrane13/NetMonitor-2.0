@@ -52,17 +52,10 @@ struct NetworkDetailView: View {
             let leftWidth = max(340, geo.size.width * 0.44 - pad)
 
             VStack(spacing: gap) {
-                // Row A: Internet Activity + Health Gauge (proportional height)
-                HStack(alignment: .top, spacing: gap) {
-                    InternetActivityCard(session: session, interfaceName: profile.interfaceName)
-                        .accessibilityIdentifier("network_detail_row_activity")
-
-                    HealthGaugeCard()
-                        .frame(width: 210)
-                        .frame(maxHeight: .infinity)
-                        .accessibilityIdentifier("network_detail_row_health")
-                }
-                .frame(height: rowAHeight)
+                // Row A: Network Health Hero (promoted from side gauge)
+                HealthGaugeCard()
+                    .frame(height: rowAHeight)
+                    .accessibilityIdentifier("network_detail_row_health")
 
                 // Row B: Left diagnostics stack + Right device grid
                 HStack(alignment: .top, spacing: gap) {
@@ -71,9 +64,6 @@ struct NetworkDetailView: View {
                         VStack(spacing: gap) {
                             ISPHealthCard(interfaceName: profile.interfaceName, uptime: uptimeViewModel)
                                 .accessibilityIdentifier("network_detail_card_isp")
-
-                            WiFiSignalCard()
-                                .accessibilityIdentifier("network_detail_card_wifi_signal")
 
                             LatencyAnalysisCard(
                                 session: session,
@@ -86,6 +76,9 @@ struct NetworkDetailView: View {
 
                             NetworkIntelCard()
                                 .accessibilityIdentifier("network_detail_card_intel")
+
+                            WiFiSignalCard()
+                                .accessibilityIdentifier("network_detail_card_wifi_signal")
                         }
                     }
                     .frame(width: leftWidth)
