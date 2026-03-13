@@ -52,19 +52,21 @@ struct NetworkDetailView: View {
             let leftWidth = max(340, geo.size.width * 0.44 - pad)
 
             VStack(spacing: gap) {
-                // Row A: Network Health Hero (promoted from side gauge)
-                HealthGaugeCard()
-                    .frame(height: rowAHeight)
-                    .accessibilityIdentifier("network_detail_row_health")
+                // Row A: ISP Health hero (left) + Health Gauge (right, untouched)
+                HStack(spacing: gap) {
+                    ISPHealthCard(interfaceName: profile.interfaceName, uptime: uptimeViewModel)
+                        .accessibilityIdentifier("network_detail_card_isp")
+
+                    HealthGaugeCard()
+                        .accessibilityIdentifier("network_detail_row_health")
+                }
+                .frame(height: rowAHeight)
 
                 // Row B: Left diagnostics stack + Right device grid
                 HStack(alignment: .top, spacing: gap) {
                     // Left column — scrollable so all cards are reachable on smaller screens
                     ScrollView(.vertical, showsIndicators: false) {
                         VStack(spacing: gap) {
-                            ISPHealthCard(interfaceName: profile.interfaceName, uptime: uptimeViewModel)
-                                .accessibilityIdentifier("network_detail_card_isp")
-
                             LatencyAnalysisCard(
                                 session: session,
                                 gatewayLatencyHistory: gatewayLatencyHistory

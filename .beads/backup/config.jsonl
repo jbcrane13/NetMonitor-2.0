@@ -7,5 +7,8 @@
 {"key":"compact_tier2_days","value":"90"}
 {"key":"compact_tier2_dep_levels","value":"5"}
 {"key":"compaction_enabled","value":"false"}
+{"key":"github.last_sync","value":"2026-03-12T17:48:32Z"}
+{"key":"github.owner","value":"jbcrane13"}
+{"key":"github.repo","value":"NetMonitor-2.0"}
 {"key":"issue_prefix","value":"NetMonitor20"}
 {"key":"schema_version","value":"6"}
