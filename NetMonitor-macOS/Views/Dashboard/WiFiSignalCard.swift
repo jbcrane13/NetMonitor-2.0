@@ -33,124 +33,100 @@ struct WiFiSignalCard: View {
     private let maxHistoryCount = 60 // ~2 minutes at 2-second intervals
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // Header
+        VStack(alignment: .leading, spacing: 6) {
+            // Header — compact, matches other card style
             HStack {
-                Label("WiFi Signal", systemImage: "wifi")
-                    .font(.headline)
-                    .foregroundStyle(.white)
-
+                Circle().fill(isMonitoring ? MacTheme.Colors.success : .secondary)
+                    .frame(width: 5, height: 5)
+                Text("WIFI SIGNAL")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(.secondary)
+                    .tracking(1.4)
                 Spacer()
-
-                // Live indicator
-                if isMonitoring {
-                    HStack(spacing: 4) {
-                        Circle()
-                            .fill(.green)
-                            .frame(width: 6, height: 6)
-                        Text("Live")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-
-                // Toggle monitoring button
                 Button(action: toggleMonitoring) {
                     Image(systemName: isMonitoring ? "pause.circle.fill" : "play.circle.fill")
-                        .font(.title3)
+                        .font(.system(size: 11))
                         .foregroundStyle(isMonitoring ? .orange : MacTheme.Colors.info)
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("wifi_signal_button_toggle")
+                if let ssid = ssid {
+                    Text(ssid)
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(MacTheme.Colors.info)
+                        .tracking(1)
+                        .lineLimit(1)
+                }
             }
-
-            Divider()
 
             if isLoading {
                 HStack {
                     Spacer()
-                    ProgressView()
-                        .controlSize(.small)
+                    ProgressView().controlSize(.mini)
                     Spacer()
                 }
-                .frame(height: 80)
             } else if currentRSSI == nil {
-                VStack(spacing: 8) {
+                HStack(spacing: 4) {
                     Image(systemName: "wifi.slash")
-                        .font(.title2)
+                        .font(.system(size: 11))
                         .foregroundStyle(.secondary)
-                    Text("No WiFi connection")
-                        .font(.callout)
+                    Text("No WiFi")
+                        .font(.system(size: 11))
                         .foregroundStyle(.secondary)
                 }
-                .frame(maxWidth: .infinity)
-                .frame(height: 80)
             } else {
-                // Signal Strength Gauge
-                HStack(spacing: 20) {
-                    // Current RSSI with quality indicator
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack(alignment: .firstTextBaseline, spacing: 4) {
+                // Compact signal row: RSSI + quality + bars + details
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(alignment: .firstTextBaseline, spacing: 2) {
                             Text("\(currentRSSI ?? 0)")
-                                .font(.system(size: 32, weight: .bold, design: .rounded))
+                                .font(.system(size: 20, weight: .bold, design: .rounded))
                                 .foregroundStyle(.white)
                             Text("dBm")
-                                .font(.caption)
+                                .font(.system(size: 9))
                                 .foregroundStyle(.secondary)
                         }
-
                         Text(signalQualityLabel)
-                            .font(.caption)
+                            .font(.system(size: 10, weight: .medium))
                             .foregroundStyle(signalQualityColor)
                     }
 
-                    Spacer()
-
-                    // Signal bars visualization
                     signalBarsView
-                }
-
-                // Trend Graph
-                if !signalHistory.isEmpty {
-                    chartView
-                        .frame(height: 80)
-                }
-
-                // Additional info row
-                HStack(spacing: 16) {
-                    if let ssid = ssid {
-                        Label(ssid, systemImage: "network")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                    }
-
-                    if let channel = currentChannel {
-                        Label("Ch \(channel)", systemImage: "wave.3.right")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    if let speed = linkSpeed {
-                        Label("\(speed) Mbps", systemImage: "bolt.horizontal")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
 
                     Spacer()
 
-                    // Average over history
-                    if !signalHistory.isEmpty {
-                        let avg = signalHistory.map(\.rssi).reduce(0, +) / signalHistory.count
-                        Text("Avg: \(avg) dBm")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                    // Info column
+                    VStack(alignment: .trailing, spacing: 2) {
+                        if let channel = currentChannel {
+                            Text("Ch \(channel)")
+                                .font(.system(size: 10, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                        }
+                        if let speed = linkSpeed {
+                            Text("\(speed) Mbps")
+                                .font(.system(size: 10, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                        }
+                        if !signalHistory.isEmpty {
+                            let avg = signalHistory.map(\.rssi).reduce(0, +) / signalHistory.count
+                            Text("Avg \(avg)")
+                                .font(.system(size: 10, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                        }
                     }
+                }
+
+                // Compact sparkline
+                if !signalHistory.isEmpty {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 6).fill(Color.black.opacity(0.28))
+                        chartView.padding(4)
+                    }
+                    .frame(height: 34)
                 }
             }
         }
-        .padding()
-        .macGlassCard(cornerRadius: 14, padding: 0)
+        .macGlassCard(cornerRadius: 14, padding: 10)
         .task {
             await loadInitialSignal()
         }
