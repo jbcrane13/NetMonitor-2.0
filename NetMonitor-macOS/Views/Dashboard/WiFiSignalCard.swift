@@ -214,7 +214,7 @@ struct WiFiSignalCard: View {
                 }
             }
         }
-        .chartYScale(domain: -100 ... -20 as ClosedRange<Int>)
+        .chartYScale(domain: -75 ... -20 as ClosedRange<Int>)
         .chartXAxis(.hidden)
     }
 
