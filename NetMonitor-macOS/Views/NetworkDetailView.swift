@@ -52,12 +52,14 @@ struct NetworkDetailView: View {
             let leftWidth = max(340, geo.size.width * 0.44 - pad)
 
             VStack(spacing: gap) {
-                // Row A: ISP Health hero (left) + Health Gauge (right, untouched)
+                // Row A: ISP Health hero (left, fills width) + Health Gauge (right, nearly square)
                 HStack(spacing: gap) {
                     ISPHealthCard(interfaceName: profile.interfaceName, uptime: uptimeViewModel)
+                        .frame(maxWidth: .infinity)
                         .accessibilityIdentifier("network_detail_card_isp")
 
                     HealthGaugeCard()
+                        .frame(width: rowAHeight) // square: width = height
                         .accessibilityIdentifier("network_detail_row_health")
                 }
                 .frame(height: rowAHeight)
