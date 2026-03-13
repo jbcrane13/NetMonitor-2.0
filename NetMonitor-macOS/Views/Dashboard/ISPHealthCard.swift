@@ -40,6 +40,7 @@ struct ISPHealthCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
+            // Card fills available height when placed in a sized container
             // Header
             HStack {
                 Circle().fill(MacTheme.Colors.success).frame(width: 5, height: 5)
@@ -129,7 +130,7 @@ struct ISPHealthCard: View {
                     }
                 }
 
-                // Mini throughput sparkline
+                // Throughput sparkline — expands to fill remaining height
                 ZStack {
                     RoundedRectangle(cornerRadius: 6).fill(Color.black.opacity(0.28))
                     if !bandwidth.downloadHistory.isEmpty {
@@ -151,7 +152,7 @@ struct ISPHealthCard: View {
                         .padding(4)
                     }
                 }
-                .frame(height: 34)
+                .frame(minHeight: 34, maxHeight: .infinity)
                 .accessibilityLabel("Live throughput chart")
             }
 
@@ -163,7 +164,7 @@ struct ISPHealthCard: View {
                     .accessibilityIdentifier("dashboard_networkHealth_error")
             }
         }
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .macGlassCard(cornerRadius: 14, padding: 10)
         .accessibilityIdentifier("dashboard_card_networkHealth")
         .task { await vm.load() }
