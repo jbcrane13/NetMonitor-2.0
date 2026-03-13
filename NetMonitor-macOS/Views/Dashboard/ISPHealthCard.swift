@@ -43,7 +43,7 @@ struct ISPHealthCard: View {
             // Header
             HStack {
                 Circle().fill(MacTheme.Colors.success).frame(width: 5, height: 5)
-                Text("NETWORK HEALTH")
+                Text("GATEWAY HEALTH")
                     .font(.system(size: 10, weight: .bold))
                     .foregroundStyle(.secondary)
                     .tracking(1.4)
