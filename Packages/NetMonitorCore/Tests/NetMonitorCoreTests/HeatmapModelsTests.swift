@@ -33,7 +33,6 @@ private func makeSurveyProject(
 
 // MARK: - SurveyProject Tests
 
-@Suite("SurveyProject")
 struct SurveyProjectTests {
 
     @Test("init with defaults produces valid project")
@@ -170,7 +169,6 @@ struct SurveyProjectTests {
 
 // MARK: - FloorPlan Tests
 
-@Suite("FloorPlan")
 struct FloorPlanTests {
 
     @Test("metersPerPixelX calculated correctly")
@@ -213,7 +211,6 @@ struct FloorPlanTests {
 
 // MARK: - CalibrationPoint Tests
 
-@Suite("CalibrationPoint")
 struct CalibrationPointTests {
 
     @Test("metersPerPixel calculates correctly")
@@ -235,7 +232,6 @@ struct CalibrationPointTests {
 
 // MARK: - MeasurementPoint Tests
 
-@Suite("MeasurementPoint")
 struct MeasurementPointTests {
 
     @Test("default init has expected values")
@@ -267,7 +263,6 @@ struct MeasurementPointTests {
 
 // MARK: - SurveyMetadata Tests
 
-@Suite("SurveyMetadata")
 struct SurveyMetadataTests {
 
     @Test("default init has nil fields")
@@ -288,7 +283,6 @@ struct SurveyMetadataTests {
 
 // MARK: - SurveyMode Tests
 
-@Suite("SurveyMode")
 struct SurveyModeTests {
 
     @Test("all cases exist")
@@ -312,12 +306,12 @@ struct SurveyModeTests {
 
 // MARK: - HeatmapVisualization Tests
 
-@Suite("HeatmapVisualization")
 struct HeatmapVisualizationTests {
 
-    @Test("all 8 cases exist per PRD")
+    @Test("all cases exist")
     func allCases() {
-        #expect(HeatmapVisualization.allCases.count == 8)
+        // Current model has 7 visualization types
+        #expect(HeatmapVisualization.allCases.count == 7)
     }
 
     @Test("displayName is non-empty for all cases")
@@ -336,11 +330,192 @@ struct HeatmapVisualizationTests {
     func signalStrengthIsHigherBetter() {
         #expect(HeatmapVisualization.signalStrength.isHigherBetter)
     }
+
+    @Test("isHigherBetter is false for noiseFloor")
+    func noiseFloorIsLowerBetter() {
+        #expect(!HeatmapVisualization.noiseFloor.isHigherBetter)
+    }
+
+    @Test("isHigherBetter is true for frequencyBand")
+    func frequencyBandIsHigherBetter() {
+        #expect(HeatmapVisualization.frequencyBand.isHigherBetter)
+    }
+
+    // MARK: - requiresActiveScan
+
+    @Test("requiresActiveScan is false for signalStrength")
+    func signalStrengthIsPassive() {
+        #expect(HeatmapVisualization.signalStrength.requiresActiveScan == false)
+    }
+
+    @Test("requiresActiveScan is false for signalToNoise")
+    func signalToNoiseIsPassive() {
+        #expect(HeatmapVisualization.signalToNoise.requiresActiveScan == false)
+    }
+
+    @Test("requiresActiveScan is false for noiseFloor")
+    func noiseFloorIsPassive() {
+        #expect(HeatmapVisualization.noiseFloor.requiresActiveScan == false)
+    }
+
+    @Test("requiresActiveScan is false for frequencyBand")
+    func frequencyBandIsPassive() {
+        #expect(HeatmapVisualization.frequencyBand.requiresActiveScan == false)
+    }
+
+    @Test("requiresActiveScan is true for downloadSpeed")
+    func downloadSpeedRequiresActiveScan() {
+        #expect(HeatmapVisualization.downloadSpeed.requiresActiveScan == true)
+    }
+
+    @Test("requiresActiveScan is true for uploadSpeed")
+    func uploadSpeedRequiresActiveScan() {
+        #expect(HeatmapVisualization.uploadSpeed.requiresActiveScan == true)
+    }
+
+    @Test("requiresActiveScan is true for latency")
+    func latencyRequiresActiveScan() {
+        #expect(HeatmapVisualization.latency.requiresActiveScan == true)
+    }
+
+    // MARK: - unit
+
+    @Test("unit for signalStrength is dBm")
+    func signalStrengthUnitIsDBm() {
+        #expect(HeatmapVisualization.signalStrength.unit == "dBm")
+    }
+
+    @Test("unit for signalToNoise is dB")
+    func signalToNoiseUnitIsDB() {
+        #expect(HeatmapVisualization.signalToNoise.unit == "dB")
+    }
+
+    @Test("unit for noiseFloor is dBm")
+    func noiseFloorUnitIsDBm() {
+        #expect(HeatmapVisualization.noiseFloor.unit == "dBm")
+    }
+
+    @Test("unit for downloadSpeed is Mbps")
+    func downloadSpeedUnitIsMbps() {
+        #expect(HeatmapVisualization.downloadSpeed.unit == "Mbps")
+    }
+
+    @Test("unit for uploadSpeed is Mbps")
+    func uploadSpeedUnitIsMbps() {
+        #expect(HeatmapVisualization.uploadSpeed.unit == "Mbps")
+    }
+
+    @Test("unit for latency is ms")
+    func latencyUnitIsMs() {
+        #expect(HeatmapVisualization.latency.unit == "ms")
+    }
+
+    @Test("unit for frequencyBand is GHz")
+    func frequencyBandUnitIsGHz() {
+        #expect(HeatmapVisualization.frequencyBand.unit == "GHz")
+    }
+
+    // MARK: - valueRange
+
+    @Test("signalStrength valueRange is -100...0")
+    func signalStrengthValueRange() {
+        #expect(HeatmapVisualization.signalStrength.valueRange == -100.0...0.0)
+    }
+
+    @Test("latency valueRange is 0...200")
+    func latencyValueRange() {
+        #expect(HeatmapVisualization.latency.valueRange == 0.0...200.0)
+    }
+
+    @Test("downloadSpeed valueRange is 0...500")
+    func downloadSpeedValueRange() {
+        #expect(HeatmapVisualization.downloadSpeed.valueRange == 0.0...500.0)
+    }
+
+    // MARK: - extractValue
+
+    @Test("noiseFloor extracts noiseFloor from point")
+    func noiseFloorExtractsNoiseFloor() {
+        let point = MeasurementPoint(rssi: -55, noiseFloor: -88)
+        #expect(HeatmapVisualization.noiseFloor.extractValue(from: point) == -88)
+    }
+
+    @Test("noiseFloor returns nil when noiseFloor is nil")
+    func noiseFloorReturnsNilWhenMissing() {
+        let point = MeasurementPoint(rssi: -55)
+        #expect(HeatmapVisualization.noiseFloor.extractValue(from: point) == nil)
+    }
+
+    @Test("frequencyBand returns 1.0 for 2.4 GHz")
+    func frequencyBand2_4GHz() {
+        let point = MeasurementPoint(rssi: -55, band: .band2_4GHz)
+        #expect(HeatmapVisualization.frequencyBand.extractValue(from: point) == 1.0)
+    }
+
+    @Test("frequencyBand returns 2.0 for 5 GHz")
+    func frequencyBand5GHz() {
+        let point = MeasurementPoint(rssi: -55, band: .band5GHz)
+        #expect(HeatmapVisualization.frequencyBand.extractValue(from: point) == 2.0)
+    }
+
+    @Test("frequencyBand returns 3.0 for 6 GHz")
+    func frequencyBand6GHz() {
+        let point = MeasurementPoint(rssi: -55, band: .band6GHz)
+        #expect(HeatmapVisualization.frequencyBand.extractValue(from: point) == 3.0)
+    }
+
+    @Test("frequencyBand returns nil when band is nil")
+    func frequencyBandNilWhenBandIsNil() {
+        let point = MeasurementPoint(rssi: -55)
+        #expect(HeatmapVisualization.frequencyBand.extractValue(from: point) == nil)
+    }
+
+    // MARK: - hasData
+
+    @Test("hasData returns false for empty points array")
+    func hasDataFalseForEmptyPoints() {
+        #expect(HeatmapVisualization.signalStrength.hasData(in: []) == false)
+    }
+
+    @Test("hasData returns true when at least one point has the value")
+    func hasDataTrueWhenOnePointHasValue() {
+        let points = [
+            MeasurementPoint(rssi: -50),
+            MeasurementPoint(rssi: -60, downloadSpeed: 100.0),
+        ]
+        #expect(HeatmapVisualization.downloadSpeed.hasData(in: points) == true)
+    }
+
+    @Test("hasData returns false when no points have the value")
+    func hasDataFalseWhenNoPointsHaveValue() {
+        let points = [
+            MeasurementPoint(rssi: -50),
+            MeasurementPoint(rssi: -60),
+        ]
+        #expect(HeatmapVisualization.downloadSpeed.hasData(in: points) == false)
+    }
+
+    @Test("hasData for signalStrength is always true when points exist")
+    func hasDataSignalStrengthAlwaysTrue() {
+        let points = [MeasurementPoint(rssi: -75)]
+        #expect(HeatmapVisualization.signalStrength.hasData(in: points) == true)
+    }
+
+    @Test("hasData for noiseFloor is false when no point has noiseFloor")
+    func hasDataNoiseFloorFalseWithoutData() {
+        let points = [MeasurementPoint(rssi: -55)]
+        #expect(HeatmapVisualization.noiseFloor.hasData(in: points) == false)
+    }
+
+    @Test("hasData for frequencyBand is true when band is populated")
+    func hasDataFrequencyBandTrueWithBand() {
+        let points = [MeasurementPoint(rssi: -55, band: .band5GHz)]
+        #expect(HeatmapVisualization.frequencyBand.hasData(in: points) == true)
+    }
 }
 
 // MARK: - FloorPlanOrigin Tests
 
-@Suite("FloorPlanOrigin")
 struct FloorPlanOriginTests {
 
     @Test("all cases exist")

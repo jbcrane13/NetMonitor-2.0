@@ -3,7 +3,7 @@ import Testing
 @testable import NetMonitor_iOS
 import NetMonitorCore
 
-@Suite("GeoTraceViewModel", .serialized)
+@Suite(.serialized)
 @MainActor
 struct GeoTraceViewModelTests {
 
@@ -98,6 +98,91 @@ struct GeoTraceViewModelTests {
         #expect(vm.hops.count == 2)
         #expect(vm.locatedHops.count == 1)
         #expect(vm.locatedHops.first?.hop.ipAddress == "8.8.8.8")
+    }
+
+    // MARK: - Stop Trace
+
+    @Test func stopTraceWhileRunningCancelsAndSetsNotRunning() {
+        let tracerouteService = MockTracerouteService()
+        // Provide no hops so the stream finishes immediately — enough to test the stop path
+        let vm = GeoTraceViewModel(
+            tracerouteService: tracerouteService,
+            geoLocationService: MockGeoLocationService()
+        )
+        vm.host = "1.1.1.1"
+        vm.startTrace()
+        vm.stopTrace()
+
+        #expect(vm.isRunning == false)
+    }
+
+    @Test func stopTraceCallsTracerouteServiceStop() async {
+        let tracerouteService = MockTracerouteService()
+        let vm = GeoTraceViewModel(
+            tracerouteService: tracerouteService,
+            geoLocationService: MockGeoLocationService()
+        )
+        vm.host = "1.1.1.1"
+        vm.startTrace()
+        vm.stopTrace()
+
+        await waitUntil { tracerouteService.stopCallCount > 0 }
+        #expect(tracerouteService.stopCallCount >= 1)
+    }
+
+    // MARK: - mapCoordinates
+
+    @Test func mapCoordinatesIsEmptyWhenNoLocatedHops() {
+        let vm = GeoTraceViewModel(
+            tracerouteService: MockTracerouteService(),
+            geoLocationService: MockGeoLocationService()
+        )
+        #expect(vm.mapCoordinates.isEmpty)
+    }
+
+    @Test func mapCoordinatesCountMatchesLocatedHops() async {
+        let tracerouteService = MockTracerouteService()
+        tracerouteService.mockHops = [
+            TracerouteHop(hopNumber: 1, ipAddress: "8.8.8.8"),
+            TracerouteHop(hopNumber: 2, ipAddress: "8.8.4.4"),
+        ]
+
+        let geoService = MockGeoLocationService()
+        geoService.successIPs = ["8.8.8.8", "8.8.4.4"]
+
+        let vm = GeoTraceViewModel(
+            tracerouteService: tracerouteService,
+            geoLocationService: geoService
+        )
+        vm.host = "8.8.8.8"
+        vm.startTrace()
+
+        await waitUntil { vm.isRunning == false }
+        // Give geo lookups a moment to resolve (they spawn inner Tasks)
+        await waitUntil { vm.locatedHops.count == 2 }
+
+        #expect(vm.mapCoordinates.count == vm.locatedHops.count)
+    }
+
+    // MARK: - canTrace while running
+
+    @Test func canTraceIsFalseWhileRunning() async {
+        let tracerouteService = MockTracerouteService()
+        // Give it some hops so the trace takes a moment
+        tracerouteService.mockHops = [
+            TracerouteHop(hopNumber: 1, ipAddress: "192.168.1.1"),
+        ]
+        let vm = GeoTraceViewModel(
+            tracerouteService: tracerouteService,
+            geoLocationService: MockGeoLocationService()
+        )
+        vm.host = "192.168.1.1"
+        vm.startTrace()
+        // isRunning is set synchronously before the async task yields
+        #expect(vm.isRunning == true)
+        #expect(vm.canTrace == false)
+
+        await waitUntil { vm.isRunning == false }
     }
 }
 
