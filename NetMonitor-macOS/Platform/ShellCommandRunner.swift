@@ -35,7 +35,7 @@ enum ToolError: Error, LocalizedError {
 }
 
 /// Result of a completed shell command
-struct CommandOutput: Sendable {
+struct CommandOutput {
     let stdout: String
     let stderr: String
     let exitCode: Int32
@@ -101,33 +101,32 @@ actor ShellCommandRunner {
                     return
                 }
 
-                // Wait for completion in background
-                Task.detached { [weak self] in
-                    process.waitUntilExit()
+                // Use terminationHandler (OS-called on a GCD thread) instead of
+                // Task.detached { waitUntilExit() } — the latter blocks a cooperative
+                // thread and causes timeouts under heavy parallel test load.
+                process.terminationHandler = { [weak self] proc in
                     timeoutTask.cancel()
 
                     let duration = Date().timeIntervalSince(startTime)
                     let stdout = String(data: stdoutPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
                     let stderr = String(data: stderrPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
 
-                    await self?.clearCurrentProcess()
+                    Task {
+                        await self?.clearCurrentProcess()
 
-                    if tracker.tryResume() {
-                        if self != nil {
+                        if tracker.tryResume() {
                             let wasCancelled = await self?.isCancelled ?? false
                             if wasCancelled {
                                 continuation.resume(throwing: ToolError.cancelled)
-                                return
+                            } else {
+                                continuation.resume(returning: CommandOutput(
+                                    stdout: stdout,
+                                    stderr: stderr,
+                                    exitCode: proc.terminationStatus,
+                                    duration: duration
+                                ))
                             }
                         }
-
-                        let output = CommandOutput(
-                            stdout: stdout,
-                            stderr: stderr,
-                            exitCode: process.terminationStatus,
-                            duration: duration
-                        )
-                        continuation.resume(returning: output)
                     }
                 }
             }

@@ -80,6 +80,8 @@
 	<string>Copyright © 2026 Blake Crane. All rights reserved.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>NetMonitor Pro scans your local network to discover devices, services, and the iOS companion app.</string>
+	<key>NSLocationUsageDescription</key>
+	<string>NetMonitor Pro uses your location to scan for nearby Wi-Fi access points in the heatmap tool.</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
 	<key>UTExportedTypeDeclarations</key>

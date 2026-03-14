@@ -10,6 +10,16 @@ import Testing
 /// loadProfiles() and the CertificateExpirationTracker init silently swallows
 /// decode errors and returns an empty collection. These tests document and verify
 /// that behavior (no crash, empty result) and ensure valid data round-trips correctly.
+
+// MARK: - Shared Helpers
+
+private func makeFreshDefaults() -> (UserDefaults, String) {
+    let suite = "NetMonitorRobustnessTests.\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: suite)!
+    defaults.removePersistentDomain(forName: suite)
+    return (defaults, suite)
+}
+
 struct NetworkProfileManagerRobustnessTests {
 
     // MARK: - Helpers
@@ -20,13 +30,6 @@ struct NetworkProfileManagerRobustnessTests {
             userDefaults: defaults,
             activeProfilesProvider: { [] }
         )
-    }
-
-    private func makeFreshDefaults() -> (UserDefaults, String) {
-        let suite = "NetworkProfileManagerRobustnessTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suite)!
-        defaults.removePersistentDomain(forName: suite)
-        return (defaults, suite)
     }
 
     /// Build a minimal NetworkProfile that round-trips through JSON correctly.
@@ -289,13 +292,6 @@ struct CertificateExpirationTrackerRobustnessTests {
     }
 
     // MARK: - Helpers
-
-    private func makeFreshDefaults() -> (UserDefaults, String) {
-        let suite = "CertificateExpirationTrackerRobustnessTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suite)!
-        defaults.removePersistentDomain(forName: suite)
-        return (defaults, suite)
-    }
 
     private func makeTracker(defaults: UserDefaults) -> CertificateExpirationTracker {
         nonisolated(unsafe) let ud = defaults

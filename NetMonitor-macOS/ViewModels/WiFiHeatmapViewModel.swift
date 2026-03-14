@@ -21,6 +21,7 @@ final class WiFiHeatmapViewModel {
 
     private(set) var currentSignal: WiFiHeatmapService.SignalSnapshot?
     private(set) var nearbyAPs: [NearbyAP] = []
+    private(set) var isScanning: Bool = false
 
     // MARK: - Sidebar State
 
@@ -46,7 +47,7 @@ final class WiFiHeatmapViewModel {
 
     var uniqueBSSIDs: [(bssid: String, ssid: String)] {
         let seen = Dictionary(grouping: measurementPoints, by: { $0.bssid ?? "unknown" })
-        return seen.compactMap { (bssid, points) in
+        return seen.compactMap { bssid, points in
             guard bssid != "unknown" else { return nil }
             let ssid = points.first?.ssid ?? bssid
             return (bssid: bssid, ssid: ssid)
@@ -139,7 +140,17 @@ final class WiFiHeatmapViewModel {
     // MARK: - Nearby AP Scan
 
     func refreshNearbyAPs() {
-        nearbyAPs = heatmapService.scanForNearbyAPs()
+        guard !isScanning else { return }
+        isScanning = true
+        let service = heatmapService
+        Task.detached {
+            // CWInterface.scanForNetworks is a blocking call (3-10s) — run off main thread
+            let aps = service.scanForNearbyAPs()
+            await MainActor.run { [weak self] in
+                self?.nearbyAPs = aps
+                self?.isScanning = false
+            }
+        }
     }
 
     // MARK: - Survey Control

@@ -4,7 +4,7 @@ import NetMonitorCore
 
 // MARK: - NearbyAP
 
-struct NearbyAP: Identifiable, Sendable {
+struct NearbyAP: Identifiable {
     let id: String // BSSID
     let ssid: String
     let bssid: String
@@ -17,25 +17,27 @@ struct NearbyAP: Identifiable, Sendable {
 // MARK: - WiFiHeatmapService
 
 /// CoreWLAN wrapper providing live signal data and nearby AP scanning for the heatmap tool.
-/// All reads are synchronous via CWWiFiClient — safe to call from @MainActor.
+/// `currentSignal()` is fast and called on @MainActor from the poll loop.
+/// `scanForNearbyAPs()` is blocking (3-10s) and nonisolated — callers must dispatch it
+/// off the main thread via Task.detached.
 @MainActor
-final class WiFiHeatmapService {
+final class WiFiHeatmapService: @unchecked Sendable {
 
-    private let interfaceName: String?
+    nonisolated let interfaceName: String?
 
     init() {
         interfaceName = CWWiFiClient.shared().interface()?.interfaceName
     }
 
     /// Returns a fresh CWInterface each call to avoid cached RSSI values
-    private var iface: CWInterface? {
+    nonisolated private var iface: CWInterface? {
         guard let name = interfaceName else { return nil }
         return CWInterface(name: name)
     }
 
     // MARK: - Live Signal
 
-    struct SignalSnapshot: Sendable {
+    struct SignalSnapshot {
         let rssi: Int
         let noiseFloor: Int?
         let snr: Int?
@@ -74,7 +76,7 @@ final class WiFiHeatmapService {
 
     // MARK: - Nearby AP Scan
 
-    func scanForNearbyAPs() -> [NearbyAP] {
+    nonisolated func scanForNearbyAPs() -> [NearbyAP] {
         guard let iface else { return [] }
         do {
             let networks = try iface.scanForNetworks(withName: nil)
@@ -100,7 +102,7 @@ final class WiFiHeatmapService {
 
     // MARK: - Private
 
-    private func bandFromChannel(_ channel: CWChannel?) -> WiFiBand? {
+    nonisolated private func bandFromChannel(_ channel: CWChannel?) -> WiFiBand? {
         guard let channel else { return nil }
         switch channel.channelBand {
         case .band2GHz: return .band2_4GHz

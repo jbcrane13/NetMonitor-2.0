@@ -145,27 +145,31 @@ public final class SpeedTestService: SpeedTestServiceProtocol {
         let parallelStreams = 8
         let startTime = Date()
         let totalBytesAtomic = AtomicInt64()
-        let downloadURLString = server?.downloadURL ?? "https://speed.cloudflare.com/__down?bytes=25000000"
+        // Use a large payload to avoid exhausting the stream mid-test on fast connections
+        let downloadURLString = server?.downloadURL ?? "https://speed.cloudflare.com/__down?bytes=100000000"
         let url = URL(string: downloadURLString)!
 
-        let delegate = DownloadMeasurementDelegate(
-            bytesReceived: totalBytesAtomic,
-            downloadURL: url,
-            startTime: startTime,
-            duration: duration
-        )
-        let config = URLSessionConfiguration.ephemeral
-        config.httpMaximumConnectionsPerHost = parallelStreams
-        let downloadSession = URLSession(configuration: config, delegate: delegate, delegateQueue: nil)
+        // Create one URLSession per stream. A single session with multiple tasks to the same
+        // host will have all tasks multiplexed over one HTTP/2 TCP connection, capping throughput.
+        // Separate sessions each establish their own TCP connection, giving true parallel streams.
+        var downloadSessions: [URLSession] = []
+        defer { downloadSessions.forEach { $0.invalidateAndCancel() } }
 
-        defer { downloadSession.invalidateAndCancel() }
-
-        // Launch initial parallel download streams
         for _ in 0..<parallelStreams {
+            let delegate = DownloadMeasurementDelegate(
+                bytesReceived: totalBytesAtomic,
+                downloadURL: url,
+                startTime: startTime,
+                duration: duration
+            )
+            let config = URLSessionConfiguration.ephemeral
+            let session = URLSession(configuration: config, delegate: delegate, delegateQueue: nil)
+            downloadSessions.append(session)
+
             var request = URLRequest(url: url)
             request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
             request.timeoutInterval = max(duration + 10, 30)
-            downloadSession.dataTask(with: request).resume()
+            session.dataTask(with: request).resume()
         }
 
         // Progress loop — runs on MainActor, samples every 200ms
@@ -215,7 +219,7 @@ public final class SpeedTestService: SpeedTestServiceProtocol {
     /// Uses delegate-based URLSession with didSendBodyData callbacks to count
     /// bytes as they leave the device, rather than waiting for server acknowledgement.
     private func measureUpload(server: SpeedTestServer?) async throws -> Double {
-        let chunkSize = 4_000_000 // 4 MB upload payload
+        let chunkSize = 16_000_000 // 16 MB per stream — reduces restart gaps on fast connections
         let parallelStreams = 6
         let startTime = Date()
         let totalBytesAtomic = AtomicInt64()
@@ -223,26 +227,27 @@ public final class SpeedTestService: SpeedTestServiceProtocol {
         let url = URL(string: uploadURLString)!
         let uploadPayload = Data(count: chunkSize)
 
-        let delegate = UploadMeasurementDelegate(
-            bytesSent: totalBytesAtomic,
-            uploadURL: url,
-            uploadData: uploadPayload,
-            startTime: startTime,
-            duration: duration
-        )
-        let config = URLSessionConfiguration.ephemeral
-        config.httpMaximumConnectionsPerHost = parallelStreams
-        let uploadSession = URLSession(configuration: config, delegate: delegate, delegateQueue: nil)
+        // One URLSession per stream to force independent TCP connections (see measureDownload).
+        var uploadSessions: [URLSession] = []
+        defer { uploadSessions.forEach { $0.invalidateAndCancel() } }
 
-        defer { uploadSession.invalidateAndCancel() }
-
-        // Launch initial parallel upload streams
         for _ in 0..<parallelStreams {
+            let delegate = UploadMeasurementDelegate(
+                bytesSent: totalBytesAtomic,
+                uploadURL: url,
+                uploadData: uploadPayload,
+                startTime: startTime,
+                duration: duration
+            )
+            let config = URLSessionConfiguration.ephemeral
+            let session = URLSession(configuration: config, delegate: delegate, delegateQueue: nil)
+            uploadSessions.append(session)
+
             var request = URLRequest(url: url)
             request.httpMethod = "POST"
             request.setValue("application/octet-stream", forHTTPHeaderField: "Content-Type")
             request.timeoutInterval = max(duration + 10, 15)
-            uploadSession.uploadTask(with: request, from: uploadPayload).resume()
+            session.uploadTask(with: request, from: uploadPayload).resume()
         }
 
         // Progress loop — runs on MainActor, samples every 200ms

@@ -166,7 +166,13 @@ struct HeatmapSidebarView: View {
 
     private var nearbyAPsSection: some View {
         DisclosureGroup("Nearby APs (\(viewModel.nearbyAPs.count))") {
-            if viewModel.nearbyAPs.isEmpty {
+            if viewModel.isScanning {
+                HStack(spacing: 6) {
+                    ProgressView().scaleEffect(0.6)
+                    Text("Scanning…").font(.caption).foregroundStyle(.secondary)
+                }
+                .padding(.vertical, 2)
+            } else if viewModel.nearbyAPs.isEmpty {
                 Button("Scan") {
                     viewModel.refreshNearbyAPs()
                 }
@@ -199,6 +205,7 @@ struct HeatmapSidebarView: View {
                     viewModel.refreshNearbyAPs()
                 }
                 .font(.caption)
+                .disabled(viewModel.isScanning)
             }
         }
         .font(.caption)
