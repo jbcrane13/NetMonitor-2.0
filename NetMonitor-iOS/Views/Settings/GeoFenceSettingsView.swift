@@ -215,7 +215,7 @@ struct GeoFenceAddSheet: View {
                         TextField("Name (e.g. Home, Office)", text: $name)
                             .foregroundStyle(Theme.Colors.textPrimary)
                             .autocorrectionDisabled()
-                            .accessibilityIdentifier("geoFence_input_name")
+                            .accessibilityIdentifier("geofence_name_field")
                     } header: {
                         Text("GeoFence Name")
                             .foregroundStyle(Theme.Colors.textSecondary)

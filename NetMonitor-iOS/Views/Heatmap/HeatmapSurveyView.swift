@@ -33,12 +33,14 @@ struct HeatmapSurveyView: View {
                     } label: {
                         Label("Import from Photos", systemImage: "photo")
                     }
+                    .accessibilityIdentifier("heatmap_button_import_photos")
 
                     Button {
                         // File picker handled elsewhere
                     } label: {
                         Label("Import from Files", systemImage: "folder")
                     }
+                    .accessibilityIdentifier("heatmap_button_import_files")
 
                     Divider()
 
@@ -49,6 +51,7 @@ struct HeatmapSurveyView: View {
                 } label: {
                     Image(systemName: "ellipsis.circle")
                 }
+                .accessibilityIdentifier("heatmap_menu_options")
             }
 
             ToolbarItem(placement: .topBarTrailing) {
@@ -65,6 +68,7 @@ struct HeatmapSurveyView: View {
                         viewModel.clearMeasurements()
                         heatmapImage = nil
                     }
+                    .accessibilityIdentifier("heatmap_button_clear_points")
 
                     Divider()
 
@@ -72,14 +76,17 @@ struct HeatmapSurveyView: View {
                         Button("Cancel Calibration") {
                             viewModel.cancelCalibration()
                         }
+                        .accessibilityIdentifier("heatmap_button_cancel_calibration")
                     } else {
                         Button("Calibrate Scale") {
                             viewModel.startCalibration()
                         }
+                        .accessibilityIdentifier("heatmap_button_calibrate_scale")
                     }
                 } label: {
                     Image(systemName: "slider.horizontal.3")
                 }
+                .accessibilityIdentifier("heatmap_menu_visualization")
             }
         }
         .photosPicker(isPresented: $viewModel.showImportSheet, selection: $selectedPhotoItem, matching: .images)
@@ -219,6 +226,7 @@ struct HeatmapSurveyView: View {
                         viewModel.requestLocationPermission()
                     }
                     .buttonStyle(.bordered)
+                    .accessibilityIdentifier("heatmap_button_grant_location")
                 }
                 .padding(.horizontal)
             }
@@ -227,6 +235,7 @@ struct HeatmapSurveyView: View {
                 Text("Import from Photos")
             }
             .buttonStyle(.borderedProminent)
+            .accessibilityIdentifier("heatmap_button_import_photos_picker")
         }
         .padding(40)
     }
@@ -319,6 +328,7 @@ struct CalibrationSheet: View {
                     TextField("Distance", text: $distanceText)
                         .keyboardType(.decimalPad)
                         .autocorrectionDisabled()
+                        .accessibilityIdentifier("heatmap_distance_field")
                     Text("Enter the real-world distance between the two points in meters")
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -365,6 +375,7 @@ struct CalibrationSheet: View {
                         viewModel.cancelCalibration()
                         dismiss()
                     }
+                    .accessibilityIdentifier("heatmap_calibration_button_cancel")
                 }
 
                 ToolbarItem(placement: .confirmationAction) {
@@ -375,6 +386,7 @@ struct CalibrationSheet: View {
                         }
                     }
                     .disabled(Double(distanceText) == nil)
+                    .accessibilityIdentifier("heatmap_calibration_button_save")
                 }
             }
         }

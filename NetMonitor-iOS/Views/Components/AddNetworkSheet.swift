@@ -135,16 +135,16 @@ struct AddNetworkSheet: View {
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled(true)
                 .keyboardType(.decimalPad)
-                .accessibilityIdentifier("network_sheet_field_gateway")
+                .accessibilityIdentifier("add_network_gateway_field")
 
             TextField("Subnet CIDR (e.g. 192.168.1.0/24)", text: $subnetText)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled(true)
                 .keyboardType(.asciiCapable)
-                .accessibilityIdentifier("network_sheet_field_cidr")
+                .accessibilityIdentifier("add_network_subnet_field")
 
             TextField("Display Name", text: $nameText)
-                .accessibilityIdentifier("network_sheet_field_name")
+                .accessibilityIdentifier("add_network_name_field")
 
             Button {
                 Task {

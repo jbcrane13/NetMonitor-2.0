@@ -83,6 +83,7 @@ struct SSLCertificateMonitorView: View {
                         .font(.system(.body, design: .monospaced))
                         .foregroundStyle(Theme.Colors.textPrimary)
                         .frame(width: 60)
+                        .accessibilityIdentifier("ssl_monitor_port_field")
                 }
 
                 Spacer()
@@ -227,6 +228,7 @@ struct SSLCertificateMonitorView: View {
                             .textFieldStyle(.plain)
                             .font(.subheadline)
                             .foregroundStyle(Theme.Colors.textPrimary)
+                            .accessibilityIdentifier("ssl_monitor_notes_field")
 
                         HStack(spacing: 12) {
                             Button("Cancel") {

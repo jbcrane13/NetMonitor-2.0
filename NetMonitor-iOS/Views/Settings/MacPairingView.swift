@@ -118,13 +118,13 @@ struct MacPairingView: View {
                                 .autocorrectionDisabled()
                                 .textInputAutocapitalization(.never)
                                 .foregroundStyle(Theme.Colors.textPrimary)
-                                .accessibilityIdentifier("pairing_manual_host")
+                                .accessibilityIdentifier("mac_pairing_host_field")
 
                             TextField("Port", text: $manualPort)
                                 .textFieldStyle(.roundedBorder)
                                 .keyboardType(.numberPad)
                                 .foregroundStyle(Theme.Colors.textPrimary)
-                                .accessibilityIdentifier("pairing_manual_port")
+                                .accessibilityIdentifier("mac_pairing_port_field")
 
                             GlassButton(
                                 title: "Connect",
