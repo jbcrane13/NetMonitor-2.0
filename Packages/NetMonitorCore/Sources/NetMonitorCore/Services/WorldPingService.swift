@@ -49,6 +49,16 @@ public final class WorldPingService: WorldPingServiceProtocol, @unchecked Sendab
             throw URLError(.badURL)
         }
 
+        // Strip URL scheme prefix if user typed "https://example.com" — Globalping
+        // requires a bare hostname or IP; passing a URL with scheme causes a
+        // "parameter validation failed" error from the API.
+        let cleanHost: String
+        if let parsed = URL(string: host), let bareHost = parsed.host, !bareHost.isEmpty {
+            cleanHost = bareHost
+        } else {
+            cleanHost = host.trimmingCharacters(in: .whitespaces)
+        }
+
         // Distribute probes across all 6 continents for true global coverage.
         let continents = ["NA", "EU", "AS", "SA", "OC", "AF"]
         let locations = continents.map { code in
@@ -57,7 +67,7 @@ public final class WorldPingService: WorldPingServiceProtocol, @unchecked Sendab
 
         let body: [String: Any] = [
             "type": "http",
-            "target": host,
+            "target": cleanHost,
             "locations": locations,
             "measurementOptions": [
                 "protocol": "HTTPS",

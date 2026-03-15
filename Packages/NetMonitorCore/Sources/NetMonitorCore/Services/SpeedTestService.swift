@@ -145,8 +145,10 @@ public final class SpeedTestService: SpeedTestServiceProtocol {
         let parallelStreams = 8
         let startTime = Date()
         let totalBytesAtomic = AtomicInt64()
-        // Use a large payload to avoid exhausting the stream mid-test on fast connections
-        let downloadURLString = server?.downloadURL ?? "https://speed.cloudflare.com/__down?bytes=100000000"
+        // 25 MB per stream: large enough to saturate fast connections for the full
+        // test duration without exhausting memory on iPhone (100 MB × 8 streams
+        // caused stalls and download failures on device).
+        let downloadURLString = server?.downloadURL ?? "https://speed.cloudflare.com/__down?bytes=25000000"
         let url = URL(string: downloadURLString)!
 
         // Create one URLSession per stream. A single session with multiple tasks to the same

@@ -92,16 +92,52 @@ public actor TracerouteService: TracerouteServiceProtocol {
 
         // Try ICMP traceroute first; fall back to HTTP (check-host.net) when ICMP
         // sockets are unavailable, then to TCP probing as last resort.
+        //
+        // iOS sandbox caveat: ICMPSocket() may succeed (SOCK_DGRAM/IPPROTO_ICMP is
+        // allowed) but setsockopt(IP_TTL) can be silently ignored on some iOS builds,
+        // causing TTL to remain at the system default (64) so the probe reaches the
+        // destination at TTL=1 — the "only 1 hop" bug. Detect this by checking
+        // whether the first probe returned echoReply (destination reached) at TTL=1:
+        // if so, TTL setting is broken and we fall through to the HTTP fallback.
+        var icmpSucceeded = false
         if let socket = try? ICMPSocket() {
-            await performICMPTrace(
-                socket: socket,
-                host: host,
-                targetIP: targetIP,
-                maxHops: maxHops,
-                timeout: timeout,
-                continuation: continuation
-            )
-        } else {
+            // Peek: send a TTL=1 probe and check if we get Time Exceeded back.
+            // If we get echoReply at TTL=1, the packet bypassed TTL limiting → ICMP
+            // is unusable for traceroute on this device; fall through to HTTP fallback.
+            let peekResponse = await socket.sendProbe(to: targetIP, ttl: 1, timeout: 1.5)
+            switch peekResponse.kind {
+            case .timeExceeded:
+                // TTL=1 correctly expired at a router — ICMP traceroute is working.
+                // Restart the full trace (the peek consumed TTL=1 but we'll re-send it).
+                icmpSucceeded = true
+                await performICMPTrace(
+                    socket: socket,
+                    host: host,
+                    targetIP: targetIP,
+                    maxHops: maxHops,
+                    timeout: timeout,
+                    continuation: continuation
+                )
+            case .echoReply:
+                // Destination replied at TTL=1 — setsockopt(IP_TTL) is being ignored.
+                // Fall through to HTTP fallback below.
+                icmpSucceeded = false
+            default:
+                // Timeout/error at TTL=1 on a local network is suspicious but possible
+                // (some routers don't respond). Give ICMP a chance anyway.
+                icmpSucceeded = true
+                await performICMPTrace(
+                    socket: socket,
+                    host: host,
+                    targetIP: targetIP,
+                    maxHops: maxHops,
+                    timeout: timeout,
+                    continuation: continuation
+                )
+            }
+        }
+
+        if !icmpSucceeded {
             let httpSucceeded = await performHTTPTracerouteFallback(
                 host: host,
                 continuation: continuation
