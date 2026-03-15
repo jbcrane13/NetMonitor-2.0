@@ -7,6 +7,7 @@ struct ProDeviceDetailView: View {
     @Bindable var device: LocalDevice
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @Environment(DeviceDiscoveryCoordinator.self) private var coordinator: DeviceDiscoveryCoordinator?
 
     @State private var isEditing = false
     @State private var editedName: String = ""
@@ -19,6 +20,12 @@ struct ProDeviceDetailView: View {
 
     @State private var bonjourServices: [String] = []
     @State private var latencyHistory: [Double] = []
+
+    // Enrichment loading states — shown as subtle spinners in each section
+    @State private var isLoadingLatency = false
+    @State private var isLoadingPorts = false
+    @State private var isLoadingVendor = false
+    @State private var isLoadingHostname = false
 
     // MARK: - Body
 
@@ -154,8 +161,14 @@ private extension ProDeviceDetailView {
 
     var networkDetailsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label("Network Details", systemImage: "network")
-                .font(.headline)
+            HStack {
+                Label("Network Details", systemImage: "network")
+                    .font(.headline)
+                if isLoadingHostname {
+                    Spacer()
+                    ProgressView().scaleEffect(0.7)
+                }
+            }
 
             Divider()
 
@@ -218,8 +231,14 @@ private extension ProDeviceDetailView {
 
     var portsAndServicesSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label("Ports & Services", systemImage: "server.rack")
-                .font(.headline)
+            HStack {
+                Label("Ports & Services", systemImage: "server.rack")
+                    .font(.headline)
+                if isLoadingPorts {
+                    Spacer()
+                    ProgressView().scaleEffect(0.7)
+                }
+            }
 
             Divider()
 
@@ -265,8 +284,14 @@ private extension ProDeviceDetailView {
         let avgLatency = latencyHistory.isEmpty ? nil : latencyHistory.reduce(0, +) / Double(latencyHistory.count)
 
         return VStack(alignment: .leading, spacing: 12) {
-            Label("Latency Statistics", systemImage: "waveform.path")
-                .font(.headline)
+            HStack {
+                Label("Latency Statistics", systemImage: "waveform.path")
+                    .font(.headline)
+                if isLoadingLatency {
+                    Spacer()
+                    ProgressView().scaleEffect(0.7)
+                }
+            }
 
             Divider()
 
@@ -299,8 +324,14 @@ private extension ProDeviceDetailView {
 
     var hardwareSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label("Hardware", systemImage: "cpu")
-                .font(.headline)
+            HStack {
+                Label("Hardware", systemImage: "cpu")
+                    .font(.headline)
+                if isLoadingVendor {
+                    Spacer()
+                    ProgressView().scaleEffect(0.7)
+                }
+            }
 
             Divider()
 
@@ -531,8 +562,128 @@ private extension ProDeviceDetailView {
     }
 
     func loadData() async {
+        // Seed immediately from persisted model so UI is never blank on open
         bonjourServices = device.discoveredServices ?? []
         latencyHistory = device.lastLatency.map { [$0] } ?? []
+
+        // Run all enrichment in parallel — each writes back to the persisted
+        // device model so the data is available on subsequent opens too.
+        async let _ = enrichLatency()
+        async let _ = enrichVendor()
+        async let _ = enrichHostname()
+        async let _ = enrichPorts()
+        async let _ = enrichBonjourServices()
+    }
+
+    // MARK: - Live Enrichment
+
+    /// Ping the device (5 probes) and populate latencyHistory with real stats.
+    private func enrichLatency() async {
+        isLoadingLatency = true
+        defer { isLoadingLatency = false }
+
+        let pingService = ShellPingService()
+        guard let result = try? await pingService.ping(host: device.ipAddress, count: 5, timeout: 3),
+              result.isReachable else { return }
+
+        // Build history from min/avg/max so the stats table shows meaningful data
+        let samples = [result.minLatency, result.avgLatency, result.maxLatency]
+            .filter { $0 > 0 }
+        latencyHistory = samples
+
+        // Update the persisted lastLatency to the average
+        device.updateLatency(result.avgLatency)
+        try? modelContext.save()
+    }
+
+    /// Look up vendor from MAC if missing, write it back.
+    private func enrichVendor() async {
+        guard !device.macAddress.isEmpty,
+              (device.vendor == nil || device.vendor?.isEmpty == true) else { return }
+        isLoadingVendor = true
+        defer { isLoadingVendor = false }
+
+        let service = MACVendorLookupService()
+        if let vendor = await service.lookupVendorEnhanced(macAddress: device.macAddress) {
+            device.vendor = vendor
+            try? modelContext.save()
+        }
+    }
+
+    /// Resolve hostname via reverse DNS / mDNS / NetBIOS if missing.
+    private func enrichHostname() async {
+        guard device.hostname == nil || device.hostname?.isEmpty == true else { return }
+        isLoadingHostname = true
+        defer { isLoadingHostname = false }
+
+        let resolver = DeviceNameResolver()
+        if let name = await resolver.resolveName(for: device.ipAddress) {
+            device.hostname = name
+            try? modelContext.save()
+        }
+    }
+
+    /// Quick scan of common ports if we have none yet.
+    private func enrichPorts() async {
+        guard device.openPorts == nil || device.openPorts?.isEmpty == true else { return }
+        isLoadingPorts = true
+        defer { isLoadingPorts = false }
+
+        // Common fingerprinting ports — same set as the coordinator uses
+        let commonPorts = [22, 53, 80, 443, 445, 548, 631, 3389, 5900, 8080, 8443, 8008, 9100, 32400, 62078]
+        let ip = device.ipAddress
+
+        // PortScannerService is an actor; call scan() within a Task to satisfy isolation
+        let found: [Int] = await Task.detached {
+            let scanner = PortScannerService()
+            var open: [Int] = []
+            for await result in await scanner.scan(host: ip, ports: commonPorts, timeout: 1.5) {
+                if result.state == .open {
+                    open.append(result.port)
+                }
+            }
+            return open.sorted()
+        }.value
+
+        if !found.isEmpty {
+            device.openPorts = found
+            try? modelContext.save()
+        }
+    }
+
+    /// Browse Bonjour for up to 4 seconds to collect services advertised by this device.
+    private func enrichBonjourServices() async {
+        guard let bonjourScanner = coordinator?.bonjourScanner else { return }
+
+        let targetIP = device.ipAddress
+        let targetHostname = device.hostname ?? device.resolvedHostname ?? ""
+        var found = Set(device.discoveredServices ?? [])
+
+        let stream = await bonjourScanner.discoveryStream(serviceType: nil)
+        let browseTask = Task {
+            for await service in stream {
+                let matchesIP = service.addresses.contains(targetIP)
+                let matchesHost = !targetHostname.isEmpty &&
+                    (service.hostName?.localizedCaseInsensitiveContains(targetHostname) == true ||
+                     targetHostname.localizedCaseInsensitiveContains(service.hostName ?? "") == true)
+                if matchesIP || matchesHost {
+                    let label = service.name.isEmpty ? service.type : "\(service.name) (\(service.type))"
+                    found.insert(label)
+                }
+            }
+        }
+
+        // Browse for up to 4 seconds
+        try? await Task.sleep(for: .seconds(4))
+        browseTask.cancel()
+        await bonjourScanner.stopDiscovery()
+
+        let services = found.sorted()
+        if !services.isEmpty {
+            bonjourServices = services
+            device.discoveredServices = services
+            try? modelContext.save()
+        }
     }
 }
 
