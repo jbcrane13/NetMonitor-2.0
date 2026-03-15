@@ -38,15 +38,16 @@ struct ProDeviceDetailView: View {
             .padding()
         }
         .navigationTitle(device.displayName)
-        .navigationBarBackButtonHidden(false)
         .toolbar {
-            ToolbarItem(placement: .navigation) {
+            ToolbarItem(placement: .cancellationAction) {
                 Button {
                     dismiss()
                 } label: {
                     Label("Back", systemImage: "chevron.left")
                 }
-                .keyboardShortcut(.escape, modifiers: [])
+                // ⌘[ is the standard macOS "Back" shortcut; avoids conflict with
+                // the sheet's own ESC handler which would dismiss the whole sheet.
+                .keyboardShortcut("[", modifiers: .command)
                 .accessibilityIdentifier("deviceDetail_button_back")
             }
 
