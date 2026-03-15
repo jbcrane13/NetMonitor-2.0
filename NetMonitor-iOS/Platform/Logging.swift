@@ -18,5 +18,4 @@ extension Logger {
     // periphery:ignore
     static let geofence = Logger(subsystem: "com.blakemiller.netmonitor", category: "geofence")
     // periphery:ignore
-    static let heatmap = Logger(subsystem: "com.blakemiller.netmonitor", category: "heatmap")
 }
