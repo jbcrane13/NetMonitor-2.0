@@ -61,10 +61,10 @@ private final class RecoveringISPService: ISPLookupServiceProtocol, @unchecked S
     private let lock = NSLock()
 
     func lookup() async throws -> ISPLookupService.ISPInfo {
-        lock.lock()
-        callCount += 1
-        let count = callCount
-        lock.unlock()
+        let count = lock.withLock {
+            callCount += 1
+            return callCount
+        }
         if count == 1 {
             throw URLError(.notConnectedToInternet)
         }
@@ -168,7 +168,7 @@ struct ISPCardViewModelExtendedTests {
     }
 
     // All optional fields on ISPInfo are populated when the service returns them.
-    @Test func allOptionalFieldsPopulated() async {
+    @Test func allOptionalFieldsPopulated() async throws {
         let vm = ISPCardViewModel(service: FullInfoISPService())
         await vm.load()
         let info = try #require(vm.ispInfo)
@@ -183,7 +183,7 @@ struct ISPCardViewModelExtendedTests {
     }
 
     // When only country is set (city is nil), ispInfo.city is nil.
-    @Test func ispInfoCityNilWhenServiceReturnsNone() async {
+    @Test func ispInfoCityNilWhenServiceReturnsNone() async throws {
         let vm = ISPCardViewModel(service: CountryOnlyISPService())
         await vm.load()
         let info = try #require(vm.ispInfo)
@@ -346,7 +346,7 @@ struct ConnectivityCardViewModelExtendedTests {
     }
 
     // When city is nil but country is set, ispInfo.city is nil and country is populated.
-    @Test func countryOnlyLocationFieldsSetCorrectly() async {
+    @Test func countryOnlyLocationFieldsSetCorrectly() async throws {
         let vm = ConnectivityCardViewModel(service: CountryOnlyISPService())
         await vm.load()
         let info = try #require(vm.ispInfo)
@@ -355,7 +355,7 @@ struct ConnectivityCardViewModelExtendedTests {
     }
 
     // All optional fields are surfaced correctly from the ViewModel.
-    @Test func allISPInfoFieldsPopulatedOnFullLoad() async {
+    @Test func allISPInfoFieldsPopulatedOnFullLoad() async throws {
         let vm = ConnectivityCardViewModel(service: FullInfoISPService())
         await vm.load()
         let info = try #require(vm.ispInfo)

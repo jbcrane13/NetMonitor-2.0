@@ -7,7 +7,7 @@ import NetMonitorCore
 // UptimeViewModel is part of the NetMonitor-macOS app target.
 // Tests access it via @testable import NetMonitor_macOS.
 
-@Suite("UptimeViewModel logic")
+@Suite("UptimeViewModel logic", .serialized)
 @MainActor
 struct UptimeViewModelTests {
 

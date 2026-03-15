@@ -94,6 +94,9 @@ public struct HeatmapRenderer: Sendable {
             return stoplightGradient(t: normalized, alpha: alpha)
         case .plasma:
             return plasmaGradient(t: normalized, alpha: alpha)
+        case .wifiman:
+            // Green (strong signal, t≈1) → yellow → red (weak signal, t≈0)
+            return wifimanGradient(t: normalized, alpha: alpha)
         }
     }
 
@@ -298,5 +301,44 @@ public struct HeatmapRenderer: Sendable {
         }
 
         return (r: UInt8(r * 255), g: UInt8(g * 255), b: UInt8(b * 255), a: alpha)
+    }
+
+    /// WiFiman-style gradient: green (t=1, strong signal) → yellow → red (t=0, weak signal).
+    private func wifimanGradient(t: Double, alpha: UInt8) -> (r: UInt8, g: UInt8, b: UInt8, a: UInt8) {
+        let c = min(max(t, 0), 1)
+        let r: Double
+        let g: Double
+        if c < 0.5 {
+            // Red → Yellow (t: 0→0.5)
+            r = 1.0
+            g = c * 2.0
+        } else {
+            // Yellow → Green (t: 0.5→1.0)
+            r = 1.0 - (c - 0.5) * 2.0
+            g = 1.0
+        }
+        return (r: UInt8(r * 255), g: UInt8(g * 255), b: 0, a: alpha)
+    }
+
+    // MARK: - Static Convenience
+
+    /// Renders a heatmap using a temporary renderer sized to the given floor plan dimensions.
+    /// Grid resolution is clamped to the floor plan size for accurate pixel mapping.
+    public static func render(
+        points: [MeasurementPoint],
+        floorPlanWidth: Int,
+        floorPlanHeight: Int,
+        visualization: HeatmapVisualization,
+        colorScheme: HeatmapColorScheme = .thermal
+    ) -> CGImage? {
+        let config = Configuration(
+            gridWidth: min(floorPlanWidth, 512),
+            gridHeight: min(floorPlanHeight, 512)
+        )
+        return HeatmapRenderer(configuration: config).render(
+            points: points,
+            visualization: visualization,
+            colorScheme: colorScheme
+        )
     }
 }

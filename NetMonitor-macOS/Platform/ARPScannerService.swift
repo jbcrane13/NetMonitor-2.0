@@ -147,6 +147,11 @@ actor ARPScannerService: LocalDeviceScanner {
 
         let hostCount = min(hostBits - 2, maxHosts) // -2 for network and broadcast
 
+        // Guard against empty host range (e.g., /31 subnet where hostBits=2, hostCount=0)
+        guard hostCount > 0 else {
+            return []
+        }
+
         var ipRange: [String] = []
         ipRange.reserveCapacity(hostCount)
 

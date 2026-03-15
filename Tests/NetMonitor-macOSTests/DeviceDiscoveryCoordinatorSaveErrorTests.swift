@@ -11,6 +11,7 @@ import NetMonitorCore
 /// - Line 167: `let existing = try? modelContext.fetch(descriptor).first`
 /// - Line 463: `return (try? modelContext.fetch(descriptor)) ?? []`
 /// - The save + reload loop inside mergeDiscoveredDevices / markOfflineDevices
+@Suite(.serialized)
 @MainActor
 struct DeviceDiscoveryCoordinatorSaveErrorTests {
 

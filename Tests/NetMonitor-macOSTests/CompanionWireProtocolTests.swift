@@ -29,7 +29,7 @@ struct CompanionWireProtocolFramingTests {
 
         // Extract length prefix
         #expect(framed.count > 4)
-        let length = framed.prefix(4).withUnsafeBytes { $0.load(as: UInt32.self).bigEndian }
+        let length = framed.prefix(4).withUnsafeBytes { $0.loadUnaligned(as: UInt32.self).bigEndian }
         let jsonData = Data(framed.dropFirst(4))
         #expect(jsonData.count == Int(length))
 
@@ -53,7 +53,7 @@ struct CompanionWireProtocolFramingTests {
         let original = CompanionMessage.statusUpdate(payload)
         let framed = try original.encodeLengthPrefixed()
 
-        let length = framed.prefix(4).withUnsafeBytes { $0.load(as: UInt32.self).bigEndian }
+        let length = framed.prefix(4).withUnsafeBytes { $0.loadUnaligned(as: UInt32.self).bigEndian }
         let jsonData = Data(framed.dropFirst(4))
         #expect(jsonData.count == Int(length))
 
@@ -134,7 +134,7 @@ struct CompanionWireProtocolFramingTests {
             let framed = try message.encodeLengthPrefixed()
             #expect(framed.count > 4, "Frame for \(message) must have more than 4 bytes")
 
-            let prefixedLength = framed.prefix(4).withUnsafeBytes { $0.load(as: UInt32.self).bigEndian }
+            let prefixedLength = framed.prefix(4).withUnsafeBytes { $0.loadUnaligned(as: UInt32.self).bigEndian }
             let jsonPayloadCount = framed.count - 4
             #expect(Int(prefixedLength) == jsonPayloadCount,
                     "Length prefix \(prefixedLength) must equal JSON payload size \(jsonPayloadCount) for \(message)")
@@ -156,7 +156,7 @@ struct CompanionWireProtocolFramingTests {
         stream.append(frame2)
 
         // Parse first message from the stream
-        let len1 = stream.prefix(4).withUnsafeBytes { $0.load(as: UInt32.self).bigEndian }
+        let len1 = stream.prefix(4).withUnsafeBytes { $0.loadUnaligned(as: UInt32.self).bigEndian }
         let json1 = Data(stream[4..<(4 + Int(len1))])
         let decoded1 = try CompanionMessage.decode(from: json1)
         guard case .heartbeat(let p1) = decoded1 else {
@@ -167,7 +167,7 @@ struct CompanionWireProtocolFramingTests {
 
         // Parse second message from the remaining stream
         let offset = 4 + Int(len1)
-        let len2 = stream[offset..<(offset + 4)].withUnsafeBytes { $0.load(as: UInt32.self).bigEndian }
+        let len2 = stream[offset..<(offset + 4)].withUnsafeBytes { $0.loadUnaligned(as: UInt32.self).bigEndian }
         let json2 = Data(stream[(offset + 4)..<(offset + 4 + Int(len2))])
         let decoded2 = try CompanionMessage.decode(from: json2)
         guard case .command(let p2) = decoded2 else {
@@ -191,7 +191,7 @@ struct CompanionWireProtocolFramingTests {
         var offset = 0
         var decodedActions: [CommandAction] = []
         while offset + 4 <= stream.count {
-            let len = stream[offset..<(offset + 4)].withUnsafeBytes { $0.load(as: UInt32.self).bigEndian }
+            let len = stream[offset..<(offset + 4)].withUnsafeBytes { $0.loadUnaligned(as: UInt32.self).bigEndian }
             let payloadStart = offset + 4
             let payloadEnd = payloadStart + Int(len)
             guard payloadEnd <= stream.count else { break }
@@ -225,7 +225,7 @@ struct CompanionWireProtocolFramingTests {
 
         // Simulate a partial receive: only the first half of the framed data arrived
         let partialFrame = framed.prefix(framed.count / 2)
-        let claimedLength = partialFrame.prefix(4).withUnsafeBytes { $0.load(as: UInt32.self).bigEndian }
+        let claimedLength = partialFrame.prefix(4).withUnsafeBytes { $0.loadUnaligned(as: UInt32.self).bigEndian }
         let availablePayload = partialFrame.count - 4
 
         // The claimed length must exceed what is available — this is a partial frame

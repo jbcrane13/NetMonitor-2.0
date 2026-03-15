@@ -276,11 +276,10 @@ public struct HeartbeatPayload: Codable, Sendable {
 // MARK: - JSON Encoder/Decoder Configuration
 
 extension CompanionMessage {
-    /// Shared JSON encoder for the companion service wire format.
-    public static let jsonEncoder: JSONEncoder = .init()
-
-    /// Shared JSON decoder for the companion service wire format.
-    public static let jsonDecoder: JSONDecoder = .init()
+    // JSONEncoder/JSONDecoder are not thread-safe; compute vars create a new instance
+    // per call to avoid data races when tests or services encode/decode concurrently.
+    public static var jsonEncoder: JSONEncoder { JSONEncoder() }
+    public static var jsonDecoder: JSONDecoder { JSONDecoder() }
 
     /// Encode this message to length-prefixed JSON data.
     /// Format: 4-byte big-endian length prefix + JSON payload.

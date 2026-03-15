@@ -308,12 +308,15 @@ public enum HeatmapColorScheme: String, Sendable, Codable, CaseIterable {
     case thermal
     case stoplight
     case plasma
+    /// WiFiman-style: green (strong) → yellow → red (weak), matching familiar network app conventions.
+    case wifiman
 
     public var displayName: String {
         switch self {
         case .thermal: "Thermal"
         case .stoplight: "Stoplight"
         case .plasma: "Plasma"
+        case .wifiman: "WiFiman"
         }
     }
 }

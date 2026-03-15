@@ -4,7 +4,7 @@ import Testing
 import NetMonitorCore
 @testable import NetMonitor_macOS
 
-@Suite("DeviceDiscoveryCoordinator")
+@Suite("DeviceDiscoveryCoordinator", .serialized)
 @MainActor
 struct DeviceDiscoveryCoordinatorTests {
 

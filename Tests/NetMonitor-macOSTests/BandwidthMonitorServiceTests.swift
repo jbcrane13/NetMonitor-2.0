@@ -9,6 +9,7 @@ import Foundation
 // The static formatters (formatBytes / formatMbps) are pure functions and are
 // fully testable here.
 
+@MainActor
 struct BandwidthMonitorFormatBytesTests {
 
     // MARK: Byte-level values
@@ -89,6 +90,7 @@ struct BandwidthMonitorFormatBytesTests {
 
 // MARK: - BandwidthMonitorService Static Formatter Tests – formatMbps
 
+@MainActor
 struct BandwidthMonitorFormatMbpsTests {
 
     // MARK: Sub-Mbps (Kbps) range

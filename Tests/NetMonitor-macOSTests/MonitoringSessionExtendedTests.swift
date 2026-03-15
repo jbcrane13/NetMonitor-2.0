@@ -23,7 +23,7 @@ private struct MockMonitorServiceProvider: MonitorServiceProviding {
 // MonitoringSession specifically for loop-level unit testing without hitting
 // the real network.
 
-private actor SuccessMonitorService: NetworkMonitorService {
+private actor SuccessMonitorService: NetMonitor_macOS.NetworkMonitorService {
     let latency: Double
     let isReachable: Bool
     init(latency: Double = 25.0, isReachable: Bool = true) {
@@ -41,7 +41,7 @@ private actor SuccessMonitorService: NetworkMonitorService {
     }
 }
 
-private actor UnreachableMonitorService: NetworkMonitorService {
+private actor UnreachableMonitorService: NetMonitor_macOS.NetworkMonitorService {
     func check(request: TargetCheckRequest) async throws -> MeasurementResult {
         MeasurementResult(
             targetID: request.id,
@@ -53,7 +53,7 @@ private actor UnreachableMonitorService: NetworkMonitorService {
     }
 }
 
-private actor ThrowingMonitorService: NetworkMonitorService {
+private actor ThrowingMonitorService: NetMonitor_macOS.NetworkMonitorService {
     let error: Error
     init(error: Error = URLError(.timedOut)) { self.error = error }
     func check(request: TargetCheckRequest) async throws -> MeasurementResult {
@@ -78,7 +78,7 @@ private func makeInMemoryStore() throws -> (ModelContainer, ModelContext) {
 @MainActor
 private func makeSession(
     context: ModelContext,
-    stub: any NetworkMonitorService
+    stub: any NetMonitor_macOS.NetworkMonitorService
 ) -> MonitoringSession {
     MonitoringSession(
         modelContext: context,
@@ -90,7 +90,7 @@ private func makeSession(
 
 // MARK: - MonitoringSession extended tests (state / lifecycle)
 
-@Suite("MonitoringSession – extended")
+@Suite("MonitoringSession – extended", .serialized)
 @MainActor
 struct MonitoringSessionExtendedTests {
 
@@ -372,7 +372,7 @@ struct MonitoringSessionExtendedTests {
 // Each test uses Task.sleep to allow the first loop iteration to complete before
 // asserting, since the loop runs on the cooperative thread pool.
 
-@Suite("MonitoringSession – loop")
+@Suite("MonitoringSession – loop", .serialized)
 @MainActor
 struct MonitoringSessionLoopTests {
 
