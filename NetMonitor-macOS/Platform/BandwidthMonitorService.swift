@@ -59,8 +59,10 @@ import Observation
             downloadMbps = dlMbps
             uploadMbps = ulMbps
 
-            sessionDownBytes += rxDelta
-            sessionUpBytes += txDelta
+            // Use saturating addition — overflow traps here caused EXC_BREAKPOINT after
+            // multi-hour sessions (crash report 2026-03-15 incident 2E4A241A).
+            sessionDownBytes = sessionDownBytes &+ rxDelta
+            sessionUpBytes = sessionUpBytes &+ txDelta
 
             downloadHistory.append(dlMbps)
             uploadHistory.append(ulMbps)
