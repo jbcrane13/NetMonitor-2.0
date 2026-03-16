@@ -19,6 +19,9 @@ struct DevicesView: View {
     @State private var availableNetworks: [NetworkProfile] = []
     @State private var selectedNetworkID: UUID?
 
+    // Pro mode detail sheet
+    @State private var selectedProDevice: LocalDevice?
+
     // Context menu action state
     @State private var deviceToPing: LocalDevice?
     @State private var deviceToScan: LocalDevice?
@@ -106,7 +109,6 @@ struct DevicesView: View {
     }
 
     var body: some View {
-        NavigationStack {
         Group {
             if viewMode == .pro {
                 proModeFullScreenList
@@ -136,9 +138,6 @@ struct DevicesView: View {
                 }
             }
         }
-        .navigationDestination(for: LocalDevice.self) { device in
-            ProDeviceDetailView(device: device)
-        }
         .navigationTitle("Devices")
         .toolbar {
             toolbarContent
@@ -146,6 +145,12 @@ struct DevicesView: View {
         .searchable(text: $searchText, prompt: "Search devices...")
         .accessibilityIdentifier("devices_search_field")
         .wakeOnLanAlert(wolAction)
+        .sheet(item: $selectedProDevice) { device in
+            NavigationStack {
+                ProDeviceDetailView(device: device)
+            }
+            .frame(minWidth: 700, minHeight: 500)
+        }
         .sheet(item: $deviceToPing) { device in
             DevicePingSheet(device: device, isPresented: Binding(
                 get: { deviceToPing != nil },
@@ -162,7 +167,6 @@ struct DevicesView: View {
             availableNetworks = coordinator?.networkProfileManager.profiles
                 ?? NetworkProfileManager.detectActiveProfiles()
         }
-        } // NavigationStack
     }
 
     // MARK: - Device List
@@ -237,10 +241,10 @@ struct DevicesView: View {
 
                 // Data rows
                 ForEach(filteredDevices) { device in
-                    NavigationLink(value: device) {
-                        ProModeRowView(device: device, isSelected: false)
-                    }
-                    .buttonStyle(.plain)
+                    ProModeRowView(device: device, isSelected: selectedProDevice?.id == device.id)
+                        .onTapGesture {
+                            selectedProDevice = device
+                        }
                     Rectangle()
                         .fill(Color.white.opacity(0.08))
                         .frame(height: 1)
