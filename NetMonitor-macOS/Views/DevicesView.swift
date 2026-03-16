@@ -14,7 +14,7 @@ struct DevicesView: View {
     @State private var searchText: String = ""
     @State private var filterOnlineOnly: Bool = false
     @State private var sortOrder: DeviceSortOrder = .lastSeen
-    @State private var viewMode: DeviceViewMode = .consumer
+    @AppStorage("netmonitor.devices.viewMode") private var viewMode: DeviceViewMode = .consumer
     @State private var wolAction = WakeOnLanAction()
     @State private var availableNetworks: [NetworkProfile] = []
     @State private var selectedNetworkID: UUID?
