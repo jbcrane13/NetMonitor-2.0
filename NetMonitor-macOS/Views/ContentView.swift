@@ -97,6 +97,9 @@ struct ContentView: View {
     @ViewBuilder
     private func sectionView(for section: NavigationSection) -> some View {
         switch section {
+        case .devices:
+            DevicesView()
+                .accessibilityIdentifier("detail_devices")
         case .tools:
             ToolsView(selection: $selectedSection)
                 .accessibilityIdentifier("detail_tools")

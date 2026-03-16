@@ -10,6 +10,8 @@ struct DeviceDetailView: View {
     @Environment(DeviceDiscoveryCoordinator.self) private var discoveryCoordinator: DeviceDiscoveryCoordinator?
     @Environment(\.appAccentColor) private var accentColor
 
+    @Environment(\.dismiss) private var dismiss
+
     @State private var isEditing = false
     @State private var editedName: String = ""
     @State private var editedNotes: String = ""
@@ -42,7 +44,16 @@ struct DeviceDetailView: View {
             }
             .padding()
         }
+        .navigationTitle(device.displayName)
         .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button {
+                    dismiss()
+                } label: {
+                    Label("Back", systemImage: "chevron.left")
+                }
+                .accessibilityIdentifier("device_detail_button_back")
+            }
             ToolbarItem(placement: .primaryAction) {
                 Button(isEditing ? "Done" : "Edit") {
                     if isEditing {

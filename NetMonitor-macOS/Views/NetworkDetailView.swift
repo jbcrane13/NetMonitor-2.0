@@ -99,6 +99,26 @@ struct NetworkDetailView: View {
         }
         .macThemedBackground()
         .navigationTitle(profile.displayName)
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    if session?.isMonitoring == true {
+                        session?.stopMonitoring()
+                    } else {
+                        session?.startMonitoring()
+                    }
+                } label: {
+                    if session?.isMonitoring == true {
+                        Label("Stop Monitoring", systemImage: "stop.fill")
+                    } else {
+                        Label("Start Monitoring", systemImage: "play.fill")
+                    }
+                }
+                .buttonStyle(.bordered)
+                .tint(session?.isMonitoring == true ? .red : .green)
+                .accessibilityIdentifier("network_detail_button_monitoringToggle")
+            }
+        }
         .onChange(of: profileManager?.profiles) {
             if let updated = profileManager?.profiles.first(where: { $0.id == profile.id }) {
                 profile = updated

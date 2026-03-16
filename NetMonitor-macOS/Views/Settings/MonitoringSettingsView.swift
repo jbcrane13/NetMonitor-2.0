@@ -12,9 +12,12 @@ struct MonitoringSettingsView: View {
     @AppStorage("netmonitor.monitoring.defaultTimeout") private var defaultTimeout = 5
     @AppStorage("netmonitor.monitoring.retryEnabled") private var retryEnabled = false
     @AppStorage("netmonitor.monitoring.retryCount") private var retryCount = 3
+    @AppStorage("netmonitor.monitoring.scanFrequency") private var scanFrequency = 300
 
     private let intervalOptions = [5, 10, 30, 60]
     private let timeoutOptions = [3, 5, 10, 30]
+    private let scanFrequencyOptions = [60, 120, 300, 600, 1800, 3600]
+    private let scanFrequencyLabels = ["1 minute", "2 minutes", "5 minutes", "10 minutes", "30 minutes", "1 hour"]
 
     var body: some View {
         Form {
@@ -36,6 +39,19 @@ struct MonitoringSettingsView: View {
                 Text("Timing")
             } footer: {
                 Text("These defaults apply to new targets. Existing targets keep their settings.")
+            }
+
+            SwiftUI.Section {
+                Picker("Scan frequency", selection: $scanFrequency) {
+                    ForEach(Array(zip(scanFrequencyOptions, scanFrequencyLabels)), id: \.0) { seconds, label in
+                        Text(label).tag(seconds)
+                    }
+                }
+                .accessibilityIdentifier("settings_picker_scanFrequency")
+            } header: {
+                Text("Device Scanning")
+            } footer: {
+                Text("How often NetMonitor automatically re-scans the network for new devices.")
             }
 
             SwiftUI.Section {

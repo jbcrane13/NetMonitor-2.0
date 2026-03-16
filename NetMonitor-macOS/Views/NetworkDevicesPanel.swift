@@ -194,8 +194,10 @@ struct NetworkDevicesPanel: View {
         }
         .macGlassCard(cornerRadius: MacTheme.Layout.cardCornerRadius, padding: 0)
         .sheet(item: $selectedDevice) { device in
-            DeviceDetailView(device: device)
-                .frame(minWidth: 500, minHeight: 400)
+            NavigationStack {
+                DeviceDetailView(device: device)
+            }
+            .frame(minWidth: 500, minHeight: 400)
         }
         .sheet(isPresented: $showFullDevicesView) {
             NavigationStack {
