@@ -195,15 +195,13 @@ struct NetworkDevicesPanel: View {
         .macGlassCard(cornerRadius: MacTheme.Layout.cardCornerRadius, padding: 0)
         .sheet(item: $selectedDevice) { device in
             NavigationStack {
-                DeviceDetailView(device: device)
+                DeviceDetailView(device: device, isSheet: true)
             }
             .frame(minWidth: 500, minHeight: 400)
         }
         .sheet(isPresented: $showFullDevicesView) {
-            NavigationStack {
-                DevicesView()
-            }
-            .frame(minWidth: 900, minHeight: 600)
+            DevicesView()
+                .frame(minWidth: 900, minHeight: 600)
         }
         .overlay {
             if coordinator?.isScanning == true {

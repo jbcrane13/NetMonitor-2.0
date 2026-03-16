@@ -6,6 +6,7 @@ import os
 
 struct DeviceDetailView: View {
     @Bindable var device: LocalDevice
+    var isSheet: Bool = false
     @Environment(\.modelContext) private var modelContext
     @Environment(DeviceDiscoveryCoordinator.self) private var discoveryCoordinator: DeviceDiscoveryCoordinator?
     @Environment(\.appAccentColor) private var accentColor
@@ -46,13 +47,15 @@ struct DeviceDetailView: View {
         }
         .navigationTitle(device.displayName)
         .toolbar {
-            ToolbarItem(placement: .cancellationAction) {
-                Button {
-                    dismiss()
-                } label: {
-                    Label("Back", systemImage: "chevron.left")
+            if isSheet {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button {
+                        dismiss()
+                    } label: {
+                        Label("Back", systemImage: "chevron.left")
+                    }
+                    .accessibilityIdentifier("device_detail_button_back")
                 }
-                .accessibilityIdentifier("device_detail_button_back")
             }
             ToolbarItem(placement: .primaryAction) {
                 Button(isEditing ? "Done" : "Edit") {

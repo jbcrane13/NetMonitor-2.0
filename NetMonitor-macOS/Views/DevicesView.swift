@@ -106,6 +106,7 @@ struct DevicesView: View {
     }
 
     var body: some View {
+        NavigationStack {
         Group {
             if viewMode == .pro {
                 proModeFullScreenList
@@ -161,6 +162,7 @@ struct DevicesView: View {
             availableNetworks = coordinator?.networkProfileManager.profiles
                 ?? NetworkProfileManager.detectActiveProfiles()
         }
+        } // NavigationStack
     }
 
     // MARK: - Device List
