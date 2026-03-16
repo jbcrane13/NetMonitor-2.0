@@ -50,12 +50,11 @@ struct ProDeviceDetailView: View {
                 Button {
                     dismiss()
                 } label: {
-                    Label("Back", systemImage: "chevron.left")
+                    Label("Close", systemImage: "xmark")
                 }
-                // ⌘[ is the standard macOS "Back" shortcut; avoids conflict with
-                // the sheet's own ESC handler which would dismiss the whole sheet.
-                .keyboardShortcut("[", modifiers: .command)
-                .accessibilityIdentifier("deviceDetail_button_back")
+                .buttonStyle(.bordered)
+                .keyboardShortcut(.escape, modifiers: [])
+                .accessibilityIdentifier("deviceDetail_button_close")
             }
 
             ToolbarItem(placement: .primaryAction) {

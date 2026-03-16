@@ -52,9 +52,11 @@ struct DeviceDetailView: View {
                     Button {
                         dismiss()
                     } label: {
-                        Label("Back", systemImage: "chevron.left")
+                        Label("Close", systemImage: "xmark")
                     }
-                    .accessibilityIdentifier("device_detail_button_back")
+                    .buttonStyle(.bordered)
+                    .keyboardShortcut(.escape, modifiers: [])
+                    .accessibilityIdentifier("device_detail_button_close")
                 }
             }
             ToolbarItem(placement: .primaryAction) {

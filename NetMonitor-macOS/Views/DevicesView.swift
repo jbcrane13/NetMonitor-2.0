@@ -318,9 +318,9 @@ struct DevicesView: View {
             Button {
                 dismiss()
             } label: {
-                Image(systemName: "xmark.circle.fill")
-                    .foregroundStyle(.secondary)
+                Label("Close", systemImage: "xmark")
             }
+            .buttonStyle(.bordered)
             .keyboardShortcut(.escape, modifiers: [])
             .accessibilityIdentifier("devices_button_close")
         }
