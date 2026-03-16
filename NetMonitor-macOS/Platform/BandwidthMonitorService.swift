@@ -52,8 +52,9 @@ import Observation
             let rxDelta = rxBytes >= prevRx ? rxBytes - prevRx : rxBytes &+ (UInt64.max - prevRx) &+ 1
             let txDelta = txBytes >= prevTx ? txBytes - prevTx : txBytes &+ (UInt64.max - prevTx) &+ 1
 
-            let dlMbps = Double(rxDelta * 8) / 1_000_000.0
-            let ulMbps = Double(txDelta * 8) / 1_000_000.0
+            // Convert to Double before multiplying to avoid UInt64 overflow trap.
+            let dlMbps = Double(rxDelta) * 8.0 / 1_000_000.0
+            let ulMbps = Double(txDelta) * 8.0 / 1_000_000.0
 
             downloadMbps = dlMbps
             uploadMbps = ulMbps
