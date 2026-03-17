@@ -1,6 +1,7 @@
 import SwiftUI
-import NetMonitorCore
 import SwiftData
+import StoreKit
+import NetMonitorCore
 
 struct SettingsView: View {
     @Environment(\.modelContext) private var modelContext
@@ -319,13 +320,13 @@ struct SettingsView: View {
                 .accessibilityIdentifier("settings_link_support")
 
                 Button {
-                    // Rate App action - will open App Store review page
-                    if let url = URL(string: "itms-apps://itunes.apple.com/app/id") {
-                        UIApplication.shared.open(url)
+                    // Rate App action - request in-app review
+                    if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
+                        SKStoreReviewController.requestReview(in: windowScene)
                     }
                 } label: {
                     HStack {
-                        Text("Rate App")
+                        Text("Rate NetMonitor")
                             .foregroundStyle(Theme.Colors.textPrimary)
                         Spacer()
                         Image(systemName: "star.fill")
