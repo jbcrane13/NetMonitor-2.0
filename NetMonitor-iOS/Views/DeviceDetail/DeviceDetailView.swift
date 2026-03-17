@@ -6,6 +6,7 @@ struct DeviceDetailView: View {
     let ipAddress: String
     @State private var viewModel = DeviceDetailViewModel()
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         ScrollView {
@@ -37,6 +38,42 @@ struct DeviceDetailView: View {
         .navigationTitle(viewModel.device?.displayName ?? ipAddress)
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
+        .toolbarColorScheme(.dark, for: .navigationBar)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Button {
+                        Task<Void, Never> {
+                            await viewModel.scanPorts()
+                        }
+                    } label: {
+                        Label(viewModel.isScanning ? "Scanning Ports..." : "Scan Ports", systemImage: "network")
+                    }
+                    .disabled(viewModel.isScanning)
+                    .accessibilityIdentifier("deviceDetail_menu_scanPorts")
+
+                    Button {
+                        Task<Void, Never> {
+                            await viewModel.discoverServices()
+                        }
+                    } label: {
+                        Label(viewModel.isDiscovering ? "Discovering..." : "Discover Services", systemImage: "bonjour")
+                    }
+                    .disabled(viewModel.isDiscovering)
+                    .accessibilityIdentifier("deviceDetail_menu_discoverServices")
+                } label: {
+                    if viewModel.isScanning || viewModel.isDiscovering {
+                        ProgressView()
+                            .controlSize(.small)
+                            .tint(Theme.Colors.accent)
+                    } else {
+                        Image(systemName: "ellipsis.circle")
+                            .foregroundStyle(Theme.Colors.textPrimary)
+                    }
+                }
+                .accessibilityIdentifier("deviceDetail_button_actions")
+            }
+        }
         .task(id: ipAddress) {
             viewModel.loadDevice(ipAddress: ipAddress, context: modelContext)
             guard !Task.isCancelled else { return }

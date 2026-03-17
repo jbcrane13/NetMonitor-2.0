@@ -5,7 +5,6 @@ import Testing
 
 // MARK: - IDW Interpolation Tests
 
-@Suite("HeatmapRenderer — IDW Interpolation")
 struct HeatmapRendererIDWTests {
 
     private func makeRenderer(
@@ -216,7 +215,6 @@ struct HeatmapRendererIDWTests {
 
 // MARK: - Color Mapping Tests
 
-@Suite("HeatmapRenderer — Color Mapping")
 struct HeatmapRendererColorTests {
 
     private func makeRenderer(opacity: Double = 1.0) -> HeatmapRenderer {
@@ -252,13 +250,14 @@ struct HeatmapRendererColorTests {
     @Test("clamping to valid range for out-of-range values")
     func clampingOutOfRange() {
         let renderer = makeRenderer()
+        let range = HeatmapVisualization.signalStrength.valueRange
         let veryStrong = renderer.colorForValue(10, visualization: .signalStrength)
-        let atMax = renderer.colorForValue(0, visualization: .signalStrength)
+        let atMax = renderer.colorForValue(range.upperBound, visualization: .signalStrength)
         #expect(veryStrong.r == atMax.r && veryStrong.g == atMax.g && veryStrong.b == atMax.b,
                 "Values above range should clamp to max")
 
         let veryWeak = renderer.colorForValue(-150, visualization: .signalStrength)
-        let atMin = renderer.colorForValue(-100, visualization: .signalStrength)
+        let atMin = renderer.colorForValue(range.lowerBound, visualization: .signalStrength)
         #expect(veryWeak.r == atMin.r && veryWeak.g == atMin.g && veryWeak.b == atMin.b,
                 "Values below range should clamp to min")
     }
@@ -275,7 +274,6 @@ struct HeatmapRendererColorTests {
 
 // MARK: - CGImage Rendering Tests
 
-@Suite("HeatmapRenderer — Image Rendering")
 struct HeatmapRendererImageTests {
 
     @Test("render returns CGImage with correct dimensions")
@@ -321,7 +319,6 @@ struct HeatmapRendererImageTests {
 
 // MARK: - Configuration Tests
 
-@Suite("HeatmapRenderer — Configuration")
 struct HeatmapRendererConfigTests {
 
     @Test("default configuration has expected values")
@@ -345,7 +342,6 @@ struct HeatmapRendererConfigTests {
 
 // MARK: - Color Scheme Tests
 
-@Suite("HeatmapRenderer Color Schemes")
 struct HeatmapRendererColorSchemeTests {
 
     @Test("thermal gradient: strong signal maps to red region")
@@ -405,7 +401,6 @@ struct HeatmapRendererColorSchemeTests {
 
 // MARK: - HeatmapVisualization extractValue Tests
 
-@Suite("HeatmapVisualization — Value Extraction")
 struct HeatmapVisualizationExtractionTests {
 
     @Test("signalStrength extracts RSSI")

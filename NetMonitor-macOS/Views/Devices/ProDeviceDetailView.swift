@@ -21,7 +21,7 @@ struct ProDeviceDetailView: View {
     @State private var bonjourServices: [String] = []
     @State private var latencyHistory: [Double] = []
 
-    // Enrichment loading states — shown as subtle spinners in each section
+    // Enrichment loading states
     @State private var isLoadingLatency = false
     @State private var isLoadingPorts = false
     @State private var isLoadingVendor = false
@@ -30,44 +30,23 @@ struct ProDeviceDetailView: View {
     // MARK: - Body
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 20) {
-                headerSection
-                networkDetailsSection
-                portsAndServicesSection
-                latencyStatsSection
-                hardwareSection
-                wakeOnLanSection
-                timelineSection
-                notesSection
-                actionsSection
-            }
-            .padding()
-        }
-        .navigationTitle(device.displayName)
-        .toolbar {
-            ToolbarItem(placement: .cancellationAction) {
-                Button {
-                    dismiss()
-                } label: {
-                    Label("Close", systemImage: "xmark")
-                }
-                .buttonStyle(.bordered)
-                .keyboardShortcut(.escape, modifiers: [])
-                .accessibilityIdentifier("deviceDetail_button_close")
-            }
+        VStack(spacing: 0) {
+            // Top toolbar bar
+            topBar
+            Divider()
 
-            ToolbarItem(placement: .primaryAction) {
-                Button(isEditing ? "Done" : "Edit") {
-                    if isEditing {
-                        saveChanges()
-                    } else {
-                        startEditing()
-                    }
-                    isEditing.toggle()
+            ScrollView {
+                VStack(spacing: 16) {
+                    headerSection
+                    detailColumns
+                    portsAndServicesSection
+                    notesSection
                 }
+                .padding(20)
             }
         }
+        .frame(minWidth: 640, minHeight: 480)
+        .background(Color(nsColor: .windowBackgroundColor))
         .task { await loadData() }
         .wakeOnLanAlert(wolAction)
         .sheet(isPresented: $showPingSheet) {
@@ -76,50 +55,160 @@ struct ProDeviceDetailView: View {
         .sheet(isPresented: $showPortScanSheet) {
             DevicePortScanSheet(device: device, isPresented: $showPortScanSheet)
         }
+        .accessibilityIdentifier("deviceDetail_screen")
     }
-
 }
 
 private extension ProDeviceDetailView {
+
+    // MARK: - Top Bar
+
+    var topBar: some View {
+        HStack(spacing: 12) {
+            // Close
+            Button {
+                dismiss()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 24, height: 24)
+                    .background(Color.primary.opacity(0.06))
+                    .clipShape(Circle())
+            }
+            .buttonStyle(.plain)
+            .keyboardShortcut(.escape, modifiers: [])
+            .accessibilityIdentifier("deviceDetail_button_close")
+
+            Text(device.displayName)
+                .font(.headline)
+                .lineLimit(1)
+
+            if isAnyLoading {
+                ProgressView()
+                    .scaleEffect(0.5)
+                    .frame(width: 16, height: 16)
+            }
+
+            Spacer()
+
+            // Action buttons
+            HStack(spacing: 8) {
+                Button {
+                    showPingSheet = true
+                } label: {
+                    Label("Ping", systemImage: "waveform.path")
+                }
+                .accessibilityIdentifier("deviceDetail_button_ping")
+
+                Button {
+                    showPortScanSheet = true
+                } label: {
+                    Label("Scan Ports", systemImage: "network")
+                }
+                .accessibilityIdentifier("deviceDetail_button_portScan")
+
+                if device.supportsWakeOnLan && !device.macAddress.isEmpty {
+                    Button {
+                        Task<Void, Never> {
+                            await wolAction.wake(device: device)
+                        }
+                    } label: {
+                        Label("Wake", systemImage: "power")
+                    }
+                    .accessibilityIdentifier("deviceDetail_button_wake")
+                }
+
+                Divider()
+                    .frame(height: 18)
+
+                Button(isEditing ? "Done" : "Edit") {
+                    if isEditing {
+                        saveChanges()
+                    } else {
+                        startEditing()
+                    }
+                    isEditing.toggle()
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+                .accessibilityIdentifier("deviceDetail_button_edit")
+            }
+            .controlSize(.small)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(.ultraThinMaterial)
+    }
+
+    var isAnyLoading: Bool {
+        isLoadingLatency || isLoadingPorts || isLoadingVendor || isLoadingHostname
+    }
+
     // MARK: - Header Section
 
     var headerSection: some View {
         HStack(spacing: 16) {
             ZStack {
-                Circle()
-                    .fill(device.status == .online ? MacTheme.Colors.success.opacity(0.2) : Color.gray.opacity(0.2))
-                    .frame(width: 80, height: 80)
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(device.status == .online ? MacTheme.Colors.success.opacity(0.12) : Color.gray.opacity(0.12))
+                    .frame(width: 64, height: 64)
 
                 Image(systemName: device.deviceType.iconName)
-                    .font(.largeTitle)
+                    .font(.system(size: 28))
                     .foregroundStyle(device.status == .online ? MacTheme.Colors.success : .gray)
             }
 
             VStack(alignment: .leading, spacing: 4) {
                 if isEditing {
-                    TextField("Device Name", text: $editedName)
-                        .textFieldStyle(.roundedBorder)
+                    HStack(spacing: 8) {
+                        TextField("Device Name", text: $editedName)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(maxWidth: 260)
+                            .accessibilityIdentifier("deviceDetail_textField_name")
+
+                        Picker("Type", selection: $selectedDeviceType) {
+                            ForEach(DeviceType.allCases, id: \.self) { type in
+                                Label(type.rawValue.capitalized, systemImage: type.iconName)
+                                    .tag(type)
+                            }
+                        }
+                        .labelsHidden()
+                        .frame(width: 140)
+                        .accessibilityIdentifier("deviceDetail_picker_type")
+                    }
                 } else {
                     Text(device.displayName)
-                        .font(.title)
+                        .font(.title2)
                         .fontWeight(.bold)
                 }
 
                 HStack(spacing: 8) {
                     Circle()
                         .fill(device.status == .online ? MacTheme.Colors.success : Color.gray)
-                        .frame(width: 10, height: 10)
+                        .frame(width: 8, height: 8)
 
                     Text(device.status == .online ? "Online" : "Offline")
-                        .font(.headline)
+                        .font(.subheadline)
                         .foregroundStyle(device.status == .online ? MacTheme.Colors.success : .secondary)
 
                     if device.status == .online, let latency = device.lastLatency {
-                        Text("•")
-                            .foregroundStyle(.secondary)
+                        Text("·")
+                            .foregroundStyle(.tertiary)
                         Text(latencyText(latency))
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
+                    }
+
+                    if device.isGateway {
+                        Text("Gateway")
+                            .font(.caption2)
+                            .fontWeight(.semibold)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(MacTheme.Colors.info.opacity(0.15))
+                            .foregroundStyle(MacTheme.Colors.info)
+                            .clipShape(Capsule())
                     }
                 }
 
@@ -128,123 +217,128 @@ private extension ProDeviceDetailView {
                         .font(.subheadline)
                         .foregroundStyle(.tertiary)
                 }
-
-                if device.isGateway {
-                    Text("Gateway")
-                        .font(.caption)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(MacTheme.Colors.info.opacity(0.2))
-                        .foregroundStyle(MacTheme.Colors.info)
-                        .clipShape(Capsule())
-                }
             }
 
             Spacer()
 
-            if isEditing {
-                Picker("Type", selection: $selectedDeviceType) {
-                    ForEach(DeviceType.allCases, id: \.self) { type in
-                        Label(type.rawValue.capitalized, systemImage: type.iconName)
-                            .tag(type)
-                    }
-                }
-                .labelsHidden()
+            // Latency stats cluster (top-right)
+            if !latencyHistory.isEmpty || device.lastLatency != nil {
+                latencyCluster
             }
         }
-        .padding()
+        .padding(16)
         .macGlassCard(cornerRadius: MacTheme.Layout.cardCornerRadius)
     }
 
-    // MARK: - Network Details Section
+    // MARK: - Latency Cluster (compact)
 
-    var networkDetailsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Label("Network Details", systemImage: "network")
-                    .font(.headline)
-                if isLoadingHostname {
-                    Spacer()
-                    ProgressView().scaleEffect(0.7)
-                }
-            }
+    var latencyCluster: some View {
+        let currentLatency = device.lastLatency
+        let minLatency = latencyHistory.min()
+        let maxLatency = latencyHistory.max()
+        let avgLatency = latencyHistory.isEmpty ? nil : latencyHistory.reduce(0, +) / Double(latencyHistory.count)
 
-            Divider()
-
-            Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 8) {
-                GridRow {
-                    Text("IP Address")
-                        .foregroundStyle(.secondary)
-                    Text(device.ipAddress)
-                        .fontDesign(.monospaced)
-                        .textSelection(.enabled)
-                }
-
-                GridRow {
-                    Text("MAC Address")
-                        .foregroundStyle(.secondary)
-                    HStack {
-                        Text(device.macAddress.isEmpty ? "-" : device.macAddress)
-                            .fontDesign(.monospaced)
-                            .textSelection(.enabled)
-
-                        if !device.macAddress.isEmpty {
-                            Button {
-                                NSPasteboard.general.clearContents()
-                                NSPasteboard.general.setString(device.macAddress, forType: .string)
-                            } label: {
-                                Image(systemName: "doc.on.doc")
-                            }
-                            .buttonStyle(.plain)
-                            .foregroundStyle(.secondary)
-                        }
-                    }
-                }
-
-                if let hostname = device.hostname, !hostname.isEmpty {
-                    GridRow {
-                        Text("Hostname")
-                            .foregroundStyle(.secondary)
-                        Text(hostname)
-                            .fontDesign(.monospaced)
-                            .textSelection(.enabled)
-                    }
-                }
-
-                if let resolved = device.resolvedHostname, !resolved.isEmpty {
-                    GridRow {
-                        Text("Resolved")
-                            .foregroundStyle(.secondary)
-                        Text(resolved)
-                            .fontDesign(.monospaced)
-                            .textSelection(.enabled)
-                    }
-                }
-            }
+        return HStack(spacing: 16) {
+            latencyStatItem(title: "CUR", value: currentLatency.map(latencyText) ?? "—")
+            latencyStatItem(title: "MIN", value: minLatency.map(latencyText) ?? "—")
+            latencyStatItem(title: "MAX", value: maxLatency.map(latencyText) ?? "—")
+            latencyStatItem(title: "AVG", value: avgLatency.map(latencyText) ?? "—")
         }
-        .padding()
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(Color.primary.opacity(0.03))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+
+    func latencyStatItem(title: String, value: String) -> some View {
+        VStack(spacing: 2) {
+            Text(title)
+                .font(.system(size: 9, weight: .bold))
+                .foregroundStyle(.tertiary)
+                .tracking(0.5)
+            Text(value)
+                .font(.system(size: 13, weight: .semibold, design: .monospaced))
+        }
+    }
+
+    // MARK: - Two-Column Details
+
+    var detailColumns: some View {
+        HStack(alignment: .top, spacing: 16) {
+            // Left: Network
+            networkColumn
+            // Right: Hardware & Timeline
+            hardwareAndTimelineColumn
+        }
+    }
+
+    var networkColumn: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            sectionHeader("Network", icon: "network", loading: isLoadingHostname)
+
+            detailRow("IP Address", device.ipAddress, mono: true, copyable: true)
+            detailRow("MAC Address", device.macAddress.isEmpty ? "—" : device.formattedMacAddress, mono: true, copyable: !device.macAddress.isEmpty)
+
+            if let hostname = device.hostname, !hostname.isEmpty {
+                detailRow("Hostname", hostname, mono: true)
+            }
+            if let resolved = device.resolvedHostname, !resolved.isEmpty {
+                detailRow("Resolved", resolved, mono: true)
+            }
+
+            Divider().padding(.vertical, 2)
+
+            detailRow("First Seen", device.firstSeen.formatted(date: .abbreviated, time: .shortened))
+            detailRow("Last Seen", device.lastSeen.formatted(date: .abbreviated, time: .shortened))
+            detailRow("Since Last", timeSinceLastSeen)
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .macGlassCard(cornerRadius: MacTheme.Layout.cardCornerRadius)
     }
 
-    // MARK: - Ports and Services Section
+    var hardwareAndTimelineColumn: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            sectionHeader("Hardware", icon: "cpu", loading: isLoadingVendor)
+
+            detailRow("Manufacturer", device.vendor ?? "Unknown")
+            detailRow("Device Type", device.deviceType.rawValue.capitalized)
+
+            if !device.macAddress.isEmpty {
+                detailRow("OUI", String(device.macAddress.replacingOccurrences(of: ":", with: "").prefix(6)), mono: true)
+            }
+
+            detailRow("Wake-on-LAN", device.supportsWakeOnLan ? "Supported" : "No",
+                       valueColor: device.supportsWakeOnLan ? MacTheme.Colors.success : .secondary)
+
+            Divider().padding(.vertical, 2)
+
+            detailRow("Tracked For", totalTimeTracked)
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .macGlassCard(cornerRadius: MacTheme.Layout.cardCornerRadius)
+    }
+
+    // MARK: - Ports & Services
 
     var portsAndServicesSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Label("Ports & Services", systemImage: "server.rack")
-                    .font(.headline)
-                if isLoadingPorts {
-                    Spacer()
-                    ProgressView().scaleEffect(0.7)
-                }
-            }
-
-            Divider()
+        VStack(alignment: .leading, spacing: 10) {
+            sectionHeader("Ports & Services", icon: "server.rack", loading: isLoadingPorts)
 
             if let ports = device.openPorts, !ports.isEmpty {
-                Text("Open Ports: \(ports.sorted().map(String.init).joined(separator: ", "))")
-                    .font(.subheadline)
-                    .foregroundStyle(MacTheme.Colors.info)
+                HStack(spacing: 6) {
+                    ForEach(ports.sorted(), id: \.self) { port in
+                        Text("\(port)")
+                            .font(.system(size: 11, weight: .medium, design: .monospaced))
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(MacTheme.Colors.info.opacity(0.1))
+                            .foregroundStyle(MacTheme.Colors.info)
+                            .clipShape(RoundedRectangle(cornerRadius: 5))
+                    }
+                }
+                .accessibilityIdentifier("deviceDetail_ports_list")
             } else {
                 Text("No open ports detected")
                     .font(.subheadline)
@@ -252,10 +346,12 @@ private extension ProDeviceDetailView {
             }
 
             if !bonjourServices.isEmpty {
-                Divider()
-                Text("Discovered Services:")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                Divider().padding(.vertical, 2)
+
+                Text("BONJOUR SERVICES")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(.tertiary)
+                    .tracking(0.5)
 
                 FlowLayout(spacing: 8) {
                     ForEach(bonjourServices, id: \.self) { service in
@@ -263,266 +359,101 @@ private extension ProDeviceDetailView {
                             .font(.caption)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
-                            .background(MacTheme.Colors.info.opacity(0.1))
-                            .foregroundStyle(MacTheme.Colors.info)
+                            .background(MacTheme.Colors.success.opacity(0.08))
+                            .foregroundStyle(MacTheme.Colors.success)
                             .clipShape(Capsule())
                     }
                 }
             }
         }
-        .padding()
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .macGlassCard(cornerRadius: MacTheme.Layout.cardCornerRadius)
     }
 
-    // MARK: - Latency Stats Section
-
-    var latencyStatsSection: some View {
-        let currentLatency = device.lastLatency
-        let minLatency = latencyHistory.min()
-        let maxLatency = latencyHistory.max()
-        let avgLatency = latencyHistory.isEmpty ? nil : latencyHistory.reduce(0, +) / Double(latencyHistory.count)
-
-        return VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Label("Latency Statistics", systemImage: "waveform.path")
-                    .font(.headline)
-                if isLoadingLatency {
-                    Spacer()
-                    ProgressView().scaleEffect(0.7)
-                }
-            }
-
-            Divider()
-
-            HStack(spacing: 24) {
-                latencyStatItem(title: "Current", value: currentLatency.map(latencyText) ?? "-")
-                latencyStatItem(title: "Min", value: minLatency.map(latencyText) ?? "-")
-                latencyStatItem(title: "Max", value: maxLatency.map(latencyText) ?? "-")
-                latencyStatItem(title: "Avg", value: avgLatency.map(latencyText) ?? "-")
-            }
-        }
-        .padding()
-        .macGlassCard(cornerRadius: MacTheme.Layout.cardCornerRadius)
-    }
-
-    // MARK: - Latency Stat Item
-
-    func latencyStatItem(title: String, value: String) -> some View {
-        VStack(spacing: 4) {
-            Text(title)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            Text(value)
-                .font(.title3)
-                .fontWeight(.semibold)
-                .fontDesign(.monospaced)
-        }
-    }
-
-    // MARK: - Hardware Section
-
-    var hardwareSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Label("Hardware", systemImage: "cpu")
-                    .font(.headline)
-                if isLoadingVendor {
-                    Spacer()
-                    ProgressView().scaleEffect(0.7)
-                }
-            }
-
-            Divider()
-
-            Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 8) {
-                GridRow {
-                    Text("Manufacturer")
-                        .foregroundStyle(.secondary)
-                    Text(device.vendor ?? "Unknown")
-                }
-
-                GridRow {
-                    Text("Device Type")
-                        .foregroundStyle(.secondary)
-                    Label(device.deviceType.rawValue.capitalized, systemImage: device.deviceType.iconName)
-                }
-
-                GridRow {
-                    Text("Supports WOL")
-                        .foregroundStyle(.secondary)
-                    Text(device.supportsWakeOnLan ? "Yes" : "No")
-                        .foregroundStyle(device.supportsWakeOnLan ? MacTheme.Colors.success : .secondary)
-                }
-
-                if !device.macAddress.isEmpty {
-                    GridRow {
-                        Text("OUI")
-                            .foregroundStyle(.secondary)
-                        Text(String(device.macAddress.replacingOccurrences(of: ":", with: "").prefix(6)))
-                            .fontDesign(.monospaced)
-                    }
-                }
-            }
-        }
-        .padding()
-        .macGlassCard(cornerRadius: MacTheme.Layout.cardCornerRadius)
-    }
-
-    // MARK: - Wake on LAN Section
-
-    var wakeOnLanSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Label("Wake on LAN", systemImage: "power")
-                .font(.headline)
-
-            Divider()
-
-            if device.supportsWakeOnLan && !device.macAddress.isEmpty {
-                HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("MAC Address")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Text(device.macAddress)
-                            .fontDesign(.monospaced)
-                    }
-
-                    Spacer()
-
-                    Button {
-                        Task {
-                            await wolAction.wake(device: device)
-                        }
-                    } label: {
-                        Label("Wake", systemImage: "power")
-                    }
-                    .buttonStyle(.borderedProminent)
-                }
-            } else {
-                Text("Wake on LAN not supported")
-                    .foregroundStyle(.tertiary)
-            }
-        }
-        .padding()
-        .macGlassCard(cornerRadius: MacTheme.Layout.cardCornerRadius)
-    }
-
-    // MARK: - Timeline Section
-
-    var timelineSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Label("Timeline", systemImage: "clock")
-                .font(.headline)
-
-            Divider()
-
-            Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 8) {
-                GridRow {
-                    Text("First Seen")
-                        .foregroundStyle(.secondary)
-                    Text(device.firstSeen.formatted(date: .abbreviated, time: .shortened))
-                }
-
-                GridRow {
-                    Text("Last Seen")
-                        .foregroundStyle(.secondary)
-                    Text(device.lastSeen.formatted(date: .abbreviated, time: .shortened))
-                }
-
-                GridRow {
-                    Text("Time Since Last")
-                        .foregroundStyle(.secondary)
-                    Text(timeSinceLastSeen)
-                }
-
-                GridRow {
-                    Text("Total Tracked")
-                        .foregroundStyle(.secondary)
-                    Text(totalTimeTracked)
-                }
-            }
-        }
-        .padding()
-        .macGlassCard(cornerRadius: MacTheme.Layout.cardCornerRadius)
-    }
-
-    // MARK: - Notes Section
+    // MARK: - Notes
 
     var notesSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Label("Notes", systemImage: "note.text")
-                .font(.headline)
-
-            Divider()
+        VStack(alignment: .leading, spacing: 10) {
+            sectionHeader("Notes", icon: "note.text")
 
             if isEditing {
                 TextEditor(text: $editedNotes)
-                    .frame(minHeight: 100)
+                    .frame(minHeight: 80)
                     .scrollContentBackground(.hidden)
-                    .background(Color.gray.opacity(0.1))
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .background(Color.primary.opacity(0.03))
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                    .accessibilityIdentifier("deviceDetail_textEditor_notes")
             } else if let notes = device.notes, !notes.isEmpty {
                 Text(notes)
                     .font(.body)
                     .foregroundStyle(.secondary)
             } else {
-                Text("No notes")
+                Text("No notes — click Edit to add")
                     .foregroundStyle(.tertiary)
                     .italic()
+                    .font(.subheadline)
             }
         }
-        .padding()
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .macGlassCard(cornerRadius: MacTheme.Layout.cardCornerRadius)
     }
 
-    // MARK: - Actions Section
+    // MARK: - Reusable Components
 
-    var actionsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Label("Actions", systemImage: "bolt")
-                .font(.headline)
-
-            Divider()
-
-            HStack(spacing: 12) {
-                actionButton(title: "Ping", icon: "waveform.path") {
-                    showPingSheet = true
-                }
-
-                actionButton(title: "Port Scan", icon: "network") {
-                    showPortScanSheet = true
-                }
-
-                actionButton(title: "Copy IP", icon: "doc.on.doc") {
-                    NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(device.ipAddress, forType: .string)
-                }
-
-                actionButton(title: "Copy MAC", icon: "doc.on.doc") {
-                    NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(device.macAddress, forType: .string)
-                }
-                .disabled(device.macAddress.isEmpty)
+    func sectionHeader(_ title: String, icon: String, loading: Bool = false) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: icon)
+                .font(.system(size: 11))
+                .foregroundStyle(.tertiary)
+            Text(title.uppercased())
+                .font(.system(size: 11, weight: .bold))
+                .foregroundStyle(.secondary)
+                .tracking(0.8)
+            if loading {
+                ProgressView()
+                    .scaleEffect(0.5)
+                    .frame(width: 12, height: 12)
             }
         }
-        .padding()
-        .macGlassCard(cornerRadius: MacTheme.Layout.cardCornerRadius)
+        .padding(.bottom, 2)
     }
 
-    // MARK: - Action Button
+    func detailRow(_ label: String, _ value: String, mono: Bool = false, copyable: Bool = false, valueColor: Color? = nil) -> some View {
+        HStack(spacing: 8) {
+            Text(label)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .frame(width: 100, alignment: .leading)
 
-    func actionButton(title: String, icon: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            VStack(spacing: 4) {
-                Image(systemName: icon)
-                    .font(.title3)
-                Text(title)
-                    .font(.caption)
+            Group {
+                if mono {
+                    Text(value)
+                        .fontDesign(.monospaced)
+                } else {
+                    Text(value)
+                }
             }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 8)
+            .font(.subheadline)
+            .foregroundStyle(valueColor ?? .primary)
+            .textSelection(.enabled)
+
+            if copyable {
+                Button {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(value, forType: .string)
+                } label: {
+                    Image(systemName: "doc.on.doc")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.tertiary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("deviceDetail_button_copy_\(label.lowercased().replacingOccurrences(of: " ", with: "_"))")
+            }
+
+            Spacer()
         }
-        .buttonStyle(.bordered)
     }
 
     // MARK: - Helpers
@@ -565,8 +496,7 @@ private extension ProDeviceDetailView {
         bonjourServices = device.discoveredServices ?? []
         latencyHistory = device.lastLatency.map { [$0] } ?? []
 
-        // Run all enrichment in parallel — each writes back to the persisted
-        // device model so the data is available on subsequent opens too.
+        // Run all enrichment in parallel
         async let _ = enrichLatency()
         async let _ = enrichVendor()
         async let _ = enrichHostname()
@@ -576,7 +506,6 @@ private extension ProDeviceDetailView {
 
     // MARK: - Live Enrichment
 
-    /// Ping the device (5 probes) and populate latencyHistory with real stats.
     private func enrichLatency() async {
         isLoadingLatency = true
         defer { isLoadingLatency = false }
@@ -585,17 +514,14 @@ private extension ProDeviceDetailView {
         guard let result = try? await pingService.ping(host: device.ipAddress, count: 5, timeout: 3),
               result.isReachable else { return }
 
-        // Build history from min/avg/max so the stats table shows meaningful data
         let samples = [result.minLatency, result.avgLatency, result.maxLatency]
             .filter { $0 > 0 }
         latencyHistory = samples
 
-        // Update the persisted lastLatency to the average
         device.updateLatency(result.avgLatency)
         try? modelContext.save()
     }
 
-    /// Look up vendor from MAC if missing, write it back.
     private func enrichVendor() async {
         guard !device.macAddress.isEmpty,
               (device.vendor == nil || device.vendor?.isEmpty == true) else { return }
@@ -609,7 +535,6 @@ private extension ProDeviceDetailView {
         }
     }
 
-    /// Resolve hostname via reverse DNS / mDNS / NetBIOS if missing.
     private func enrichHostname() async {
         guard device.hostname == nil || device.hostname?.isEmpty == true else { return }
         isLoadingHostname = true
@@ -622,17 +547,14 @@ private extension ProDeviceDetailView {
         }
     }
 
-    /// Quick scan of common ports if we have none yet.
     private func enrichPorts() async {
         guard device.openPorts == nil || device.openPorts?.isEmpty == true else { return }
         isLoadingPorts = true
         defer { isLoadingPorts = false }
 
-        // Common fingerprinting ports — same set as the coordinator uses
         let commonPorts = [22, 53, 80, 443, 445, 548, 631, 3389, 5900, 8080, 8443, 8008, 9100, 32400, 62078]
         let ip = device.ipAddress
 
-        // PortScannerService is an actor; call scan() within a Task to satisfy isolation
         let found: [Int] = await Task.detached {
             let scanner = PortScannerService()
             var open: [Int] = []
@@ -650,7 +572,6 @@ private extension ProDeviceDetailView {
         }
     }
 
-    /// Browse Bonjour for up to 4 seconds to collect services advertised by this device.
     private func enrichBonjourServices() async {
         guard let bonjourScanner = coordinator?.bonjourScanner else { return }
 
@@ -672,7 +593,6 @@ private extension ProDeviceDetailView {
             }
         }
 
-        // Browse for up to 4 seconds
         try? await Task.sleep(for: .seconds(4))
         browseTask.cancel()
         await bonjourScanner.stopDiscovery()

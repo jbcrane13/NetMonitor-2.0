@@ -9,11 +9,11 @@ struct ProModeRowView: View {
 
     // Column widths — must match proModeHeaderRow in DevicesView
     static let statusWidth: CGFloat = 28
-    static let ipWidth: CGFloat = 140
-    static let nameWidth: CGFloat = 220
-    static let vendorWidth: CGFloat = 160
-    static let macWidth: CGFloat = 100
-    static let portsWidth: CGFloat = 100
+    static let ipWidth: CGFloat = 130
+    static let nameWidth: CGFloat = 200
+    static let vendorWidth: CGFloat = 110
+    static let macWidth: CGFloat = 130
+    static let portsWidth: CGFloat = 120
     static let latencyWidth: CGFloat = 70
     static let seenWidth: CGFloat = 50
     static let columnSpacing: CGFloat = 12
@@ -39,15 +39,17 @@ struct ProModeRowView: View {
                 .frame(width: Self.nameWidth, alignment: .leading)
 
             // Vendor
-            Text(device.vendor ?? "")
-                .foregroundStyle(Color.white.opacity(0.7))
+            Text(device.vendor ?? "—")
+                .foregroundStyle(Color.white.opacity(device.vendor != nil ? 0.7 : 0.3))
                 .lineLimit(1)
+                .truncationMode(.tail)
                 .frame(width: Self.vendorWidth, alignment: .leading)
 
-            // MAC Address (last 8 chars)
-            Text(device.macAddress.isEmpty ? "" : String(device.macAddress.suffix(8)))
+            // MAC Address
+            Text(device.macAddress.isEmpty ? "" : device.formattedMacAddress)
                 .fontDesign(.monospaced)
                 .foregroundStyle(Color.white.opacity(0.5))
+                .lineLimit(1)
                 .frame(width: Self.macWidth, alignment: .leading)
 
             // Open Ports
@@ -77,9 +79,10 @@ struct ProModeRowView: View {
     private var portsView: some View {
         let ports = device.openPorts ?? []
         if ports.isEmpty {
-            Text("")
+            Text("—")
+                .foregroundStyle(Color.white.opacity(0.3))
         } else {
-            Text(ports.prefix(3).map(String.init).joined(separator: ", "))
+            Text(ports.prefix(4).map(String.init).joined(separator: ", "))
                 .foregroundStyle(MacTheme.Colors.info)
                 .lineLimit(1)
         }
@@ -151,5 +154,5 @@ struct ProModeRowView: View {
             isSelected: false
         )
     }
-    .frame(width: 1100)
+    .frame(width: 1000)
 }

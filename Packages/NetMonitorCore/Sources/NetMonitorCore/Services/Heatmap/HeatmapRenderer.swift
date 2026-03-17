@@ -79,12 +79,19 @@ public struct HeatmapRenderer: Sendable {
     ) -> (r: UInt8, g: UInt8, b: UInt8, a: UInt8) {
         let range = visualization.valueRange
         let clamped = min(max(value, range.lowerBound), range.upperBound)
-        let normalized: Double
+        var normalized: Double
         if visualization.isHigherBetter {
             normalized = (clamped - range.lowerBound) / (range.upperBound - range.lowerBound)
         } else {
             normalized = 1.0 - (clamped - range.lowerBound) / (range.upperBound - range.lowerBound)
         }
+
+        // Apply a contrast-enhancing S-curve for signal-based visualizations
+        // to spread the perceptually important mid-range across more colors.
+        if visualization == .signalStrength || visualization == .signalToNoise {
+            normalized = contrastCurve(normalized)
+        }
+
         let alpha = UInt8(configuration.opacity * 255)
 
         switch colorScheme {
@@ -167,6 +174,21 @@ public struct HeatmapRenderer: Sendable {
         }
 
         return context.makeImage()
+    }
+
+    // MARK: - Contrast Curve
+
+    /// Smooth S-curve that steepens transitions in the 0.3-0.7 range so
+    /// nearby signal values map to visually distinct colors.
+    /// Keeps 0->0 and 1->1 but spreads the mid-range across more of the gradient.
+    private func contrastCurve(_ t: Double) -> Double {
+        // Logistic sigmoid centered at 0.5
+        let k = 5.0  // steepness — higher = more contrast in the mid-range
+        let raw = 1.0 / (1.0 + exp(-k * (t - 0.5)))
+        // Normalize so f(0)=0 and f(1)=1
+        let low = 1.0 / (1.0 + exp(-k * (0.0 - 0.5)))
+        let high = 1.0 / (1.0 + exp(-k * (1.0 - 0.5)))
+        return (raw - low) / (high - low)
     }
 
     // MARK: - Private IDW

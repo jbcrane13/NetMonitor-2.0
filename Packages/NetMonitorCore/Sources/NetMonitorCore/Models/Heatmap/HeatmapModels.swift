@@ -275,7 +275,7 @@ public enum HeatmapVisualization: String, Sendable, Codable, CaseIterable {
 
     public var valueRange: ClosedRange<Double> {
         switch self {
-        case .signalStrength: -100...0
+        case .signalStrength: -85 ... -25
         case .signalToNoise: 0...50
         case .noiseFloor: -100 ... -60
         case .downloadSpeed: 0...500
