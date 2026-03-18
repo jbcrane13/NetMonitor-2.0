@@ -1,7 +1,0 @@
-{
-  "database": "dolt",
-  "backend": "dolt",
-  "dolt_mode": "server",
-  "dolt_server_port": 53219,
-  "dolt_database": "beads_netmonitor20"
-}
