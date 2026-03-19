@@ -105,7 +105,12 @@ final class MonitoringSession {
         let sessionRecord = SessionRecord(startedAt: Date(), isActive: true)
         currentSessionRecord = sessionRecord
         modelContext.insert(sessionRecord)
-        do { try modelContext.save() } catch { Logger.monitoring.error("Failed to save session: \(error)") }
+        do {
+            try modelContext.save()
+        } catch {
+            Logger.monitoring.error("Failed to save session: \(error)")
+            errorMessage = "Failed to save monitoring session: \(error.localizedDescription)"
+        }
 
         for target in targets {
             startMonitoringTarget(target)
@@ -126,7 +131,12 @@ final class MonitoringSession {
         if let session = currentSessionRecord {
             session.stoppedAt = Date()
             session.isActive = false
-            do { try modelContext.save() } catch { Logger.monitoring.error("Failed to save stop: \(error)") }
+            do {
+                try modelContext.save()
+            } catch {
+                Logger.monitoring.error("Failed to save stop: \(error)")
+                errorMessage = "Failed to save session stop: \(error.localizedDescription)"
+            }
             currentSessionRecord = nil
         }
 
@@ -218,7 +228,12 @@ final class MonitoringSession {
             recentLatencies[target.id] = history
         }
 
-        do { try modelContext.save() } catch { Logger.monitoring.error("Failed to save measurement: \(error)") }
+        do {
+            try modelContext.save()
+        } catch {
+            Logger.monitoring.error("Failed to save measurement: \(error)")
+            errorMessage = "Failed to save measurement: \(error.localizedDescription)"
+        }
     }
 
     @MainActor

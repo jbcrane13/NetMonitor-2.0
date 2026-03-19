@@ -18,6 +18,12 @@ final class PublicIPService: PublicIPServiceProtocol {
         config.timeoutIntervalForResource = 15
         self.session = URLSession(configuration: config)
     }
+
+    /// Initialiser for testing — injects a custom URLSession (e.g. one configured with
+    /// MockURLProtocol) so the two-step ipify + ipapi.co fetch can be intercepted in tests.
+    init(session: URLSession) {
+        self.session = session
+    }
     
     func fetchPublicIP(forceRefresh: Bool = false) async {
         if !forceRefresh,

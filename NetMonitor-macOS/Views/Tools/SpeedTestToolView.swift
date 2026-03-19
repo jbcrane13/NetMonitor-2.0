@@ -403,7 +403,12 @@ struct SpeedTestToolView: View {
                 if let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) {
                     times.append(Date().timeIntervalSince(start) * 1000)
                 }
-            } catch {}
+            } catch {
+                // Probe failed (timeout, network error, etc.) — skip and continue
+                // with remaining probes. If all probes fail, the guard below sets
+                // errorMessage so the failure is visible to the user.
+                continue
+            }
         }
 
         guard !times.isEmpty else {

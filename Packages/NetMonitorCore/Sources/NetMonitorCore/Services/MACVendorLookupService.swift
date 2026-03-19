@@ -4,13 +4,26 @@ import Foundation
 public actor MACVendorLookupService: MACVendorLookupServiceProtocol {
 
     // MARK: - Initialization
-    public init() {}
+
+    /// Creates a MACVendorLookupService using the shared URLSession for online lookups.
+    public init() {
+        self.session = .shared
+    }
+
+    /// Creates a MACVendorLookupService with an injected URLSession.
+    /// Use this initialiser in tests to intercept online API calls with MockURLProtocol.
+    public init(session: URLSession) {
+        self.session = session
+    }
 
     // MARK: - Protocol conformance
     /// MACVendorLookupServiceProtocol: async lookup (delegates to enhanced lookup)
     // Implemented as lookupVendorEnhanced below
 
     // MARK: - Properties
+
+    /// URLSession used for online OUI API lookups.
+    private let session: URLSession
 
     /// In-memory cache for API lookups
     private var vendorCache: [String: String] = [:]
@@ -244,7 +257,7 @@ public actor MACVendorLookupService: MACVendorLookupServiceProtocol {
             var request = URLRequest(url: url)
             request.timeoutInterval = 5
 
-            let (data, response) = try await URLSession.shared.data(for: request)
+            let (data, response) = try await session.data(for: request)
 
             guard let httpResponse = response as? HTTPURLResponse,
                   httpResponse.statusCode == 200,
