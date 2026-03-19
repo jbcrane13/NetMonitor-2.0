@@ -5,7 +5,6 @@ import NetworkScanKit
 struct NetworkMapView: View {
     @State private var viewModel = NetworkMapViewModel()
     @State private var sortOrder: DeviceSortOrder = .ip
-    // periphery:ignore
     @State private var isAddNetworkSheetPresented = false
 
     private var sortedDevices: [DiscoveredDevice] {
@@ -29,6 +28,11 @@ struct NetworkMapView: View {
         }
     }
 
+    private var gatewayDevice: DiscoveredDevice? {
+        guard let gatewayIP = viewModel.gateway?.ipAddress else { return nil }
+        return viewModel.discoveredDevices.first { $0.ipAddress == gatewayIP }
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -36,7 +40,13 @@ struct NetworkMapView: View {
                     // 1. Network Context Header
                     networkSummary
 
-                    // 2. Control Bar
+                    // 2. Topology Map
+                    NetworkTopologyMapView(
+                        devices: viewModel.discoveredDevices,
+                        gatewayIP: viewModel.gateway?.ipAddress
+                    )
+
+                    // 3. Control Bar
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("SIGNAL GRID")
@@ -47,9 +57,9 @@ struct NetworkMapView: View {
                                 .font(.system(size: 12, weight: .bold, design: .rounded))
                                 .foregroundStyle(Theme.Colors.accent)
                         }
-                        
+
                         Spacer()
-                        
+
                         Picker("Sort", selection: $sortOrder) {
                             ForEach(DeviceSortOrder.allCases, id: \.self) { order in
                                 Text(order.rawValue).tag(order)
@@ -60,7 +70,7 @@ struct NetworkMapView: View {
                     }
                     .padding(.horizontal, 4)
 
-                    // 3. High-Density Device Grid
+                    // 4. High-Density Device Grid
                     if sortedDevices.isEmpty && !viewModel.isScanning {
                         ContentUnavailableView(
                             "No Nodes Active",
@@ -91,9 +101,21 @@ struct NetworkMapView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    networksMenu
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     scanButton
                 }
+            }
+            .sheet(isPresented: $isAddNetworkSheetPresented) {
+                AddNetworkSheet(
+                    discoveredDevices: viewModel.discoveredDevices,
+                    gatewayHint: viewModel.activeNetwork?.gatewayIP,
+                    onAddNetwork: { gateway, subnet, name in
+                        await viewModel.addNetworkProfile(gateway: gateway, subnet: subnet, name: name)
+                    }
+                )
             }
             .task {
                 viewModel.refreshAvailableNetworks()
@@ -103,6 +125,36 @@ struct NetworkMapView: View {
     }
 
     // MARK: - Sub-components
+
+    private var networksMenu: some View {
+        Menu {
+            ForEach(viewModel.availableNetworks) { network in
+                Button {
+                    Task { await viewModel.selectNetwork(id: network.id) }
+                } label: {
+                    if viewModel.activeNetwork?.id == network.id {
+                        Label(network.displayName, systemImage: "checkmark")
+                    } else {
+                        Text(network.displayName)
+                    }
+                }
+            }
+
+            Divider()
+
+            Button {
+                isAddNetworkSheetPresented = true
+            } label: {
+                Label("Add Network", systemImage: "plus.circle")
+            }
+            .accessibilityIdentifier("networkMap_button_addNetwork")
+        } label: {
+            Label(viewModel.activeNetwork?.displayName ?? "Networks", systemImage: "network")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(Theme.Colors.accent)
+        }
+        .accessibilityIdentifier("networkMap_menu_networks")
+    }
 
     private var networkSummary: some View {
         GlassCard(padding: 16) {
@@ -125,9 +177,9 @@ struct NetworkMapView: View {
                             .foregroundStyle(Theme.Colors.accent)
                     }
                 }
-                
+
                 Divider().background(Color.white.opacity(0.05))
-                
+
                 HStack {
                     Label("\(viewModel.activeNetworkDeviceCount ?? 0) Devices", systemImage: "cpu")
                     Spacer()
@@ -157,11 +209,103 @@ struct NetworkMapView: View {
     }
 }
 
+// MARK: - Topology Map
+
+@MainActor
+struct NetworkTopologyMapView: View {
+    let devices: [DiscoveredDevice]
+    let gatewayIP: String?
+
+    private let radius: CGFloat = 120
+
+    private var nonGatewayDevices: [DiscoveredDevice] {
+        Array(devices.filter { $0.ipAddress != gatewayIP }.prefix(8))
+    }
+
+    var body: some View {
+        GeometryReader { geo in
+            let center = CGPoint(x: geo.size.width / 2, y: geo.size.height / 2)
+            let displayDevices = nonGatewayDevices
+            let count = max(displayDevices.count, 1)
+
+            ZStack {
+                // Connection lines
+                Canvas { context, _ in
+                    for index in 0..<displayDevices.count {
+                        let angle = (2 * Double.pi / Double(count)) * Double(index) - Double.pi / 2
+                        let x = center.x + cos(angle) * radius
+                        let y = center.y + sin(angle) * radius
+                        var path = Path()
+                        path.move(to: center)
+                        path.addLine(to: CGPoint(x: x, y: y))
+                        context.stroke(
+                            path,
+                            with: .color(.green.opacity(0.3)),
+                            lineWidth: 1
+                        )
+                    }
+                }
+
+                // Gateway node at center
+                NetworkTopologyNode(
+                    label: "Gateway",
+                    icon: "wifi.router",
+                    color: Theme.Colors.accent
+                )
+                .position(center)
+
+                // Device nodes around gateway
+                ForEach(Array(displayDevices.enumerated()), id: \.offset) { index, device in
+                    let angle = (2 * Double.pi / Double(count)) * Double(index) - Double.pi / 2
+                    let x = center.x + cos(angle) * radius
+                    let y = center.y + sin(angle) * radius
+                    NetworkTopologyNode(
+                        label: device.displayName,
+                        icon: device.iconName,
+                        color: Theme.Colors.success
+                    )
+                    .position(CGPoint(x: x, y: y))
+                }
+            }
+        }
+        .frame(height: 300)
+        .background(Theme.Colors.crystalBase)
+        .clipShape(RoundedRectangle(cornerRadius: Theme.Layout.cardCornerRadius))
+        .accessibilityIdentifier("networkMap_topology")
+    }
+}
+
+@MainActor
+struct NetworkTopologyNode: View {
+    let label: String
+    let icon: String
+    let color: Color
+
+    var body: some View {
+        VStack(spacing: 4) {
+            Circle()
+                .fill(color.opacity(0.2))
+                .frame(width: 44, height: 44)
+                .overlay(
+                    Image(systemName: icon)
+                        .font(.system(size: 18))
+                        .foregroundStyle(color)
+                )
+                .overlay(Circle().stroke(color.opacity(0.4), lineWidth: 1))
+            Text(label)
+                .font(.system(size: 9))
+                .foregroundStyle(Theme.Colors.textSecondary)
+                .lineLimit(1)
+                .frame(width: 60)
+        }
+    }
+}
+
 struct ProDeviceRow: View {
     let device: DiscoveredDevice
     let isScanning: Bool
     @State private var sweepOffset: CGFloat = -1.0
-    
+
     var body: some View {
         GlassCard(padding: 12) {
             HStack(spacing: 12) {
@@ -171,12 +315,12 @@ struct ProDeviceRow: View {
                         .fill(Theme.Colors.crystalBase)
                         .frame(width: 40, height: 40)
                         .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.white.opacity(0.05), lineWidth: 1))
-                    
+
                     Image(systemName: device.iconName)
                         .font(.system(size: 18))
                         .foregroundStyle(Theme.Colors.accent)
                 }
-                
+
                 VStack(alignment: .leading, spacing: 2) {
                     Text(device.displayName)
                         .font(.system(size: 14, weight: .bold))
@@ -185,14 +329,14 @@ struct ProDeviceRow: View {
                         .font(.system(size: 11, design: .monospaced))
                         .foregroundStyle(Theme.Colors.textTertiary)
                 }
-                
+
                 Spacer()
-                
+
                 VStack(alignment: .trailing, spacing: 4) {
                     Text(device.latencyText)
                         .font(.system(size: 13, weight: .bold, design: .rounded))
                         .foregroundStyle(Theme.Colors.success)
-                    
+
                     Text(device.source == .local ? "DIRECT" : "PEER")
                         .font(.system(size: 8, weight: .black))
                         .padding(.horizontal, 4)
