@@ -7,6 +7,8 @@ import BackgroundTasks
 struct NetmonitorApp: App {
     // periphery:ignore
     @AppStorage("selectedTheme") private var selectedTheme: String = "system"
+    @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
+    @State private var showOnboarding = false
 
     private static var isUITesting: Bool {
         let args = ProcessInfo.processInfo.arguments
@@ -59,12 +61,17 @@ struct NetmonitorApp: App {
             ContentView()
                 .preferredColorScheme(resolvedColorScheme)
                 .accessibilityIdentifier("screen_main")
+                .sheet(isPresented: $showOnboarding) {
+                    OnboardingView(isPresented: $showOnboarding)
+                }
                 .onAppear {
                     UITestBootstrap.configureIfNeeded()
 
                     if Self.isUITesting {
                         return
                     }
+
+                    showOnboarding = !hasCompletedOnboarding
 
                     // Start network monitor early so the first dashboard render
                     // sees real connectivity instead of the default "No Connection".
