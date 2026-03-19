@@ -4,9 +4,11 @@ import SwiftData
 
 struct ContentView: View {
     @State private var selectedTab: Tab = .dashboard
+    @State private var selectedSidebarTab: Tab? = .dashboard
     // Observe ThemeManager so the entire view tree re-renders on accent color change
     @State private var themeManager = ThemeManager.shared
-    
+    @Environment(\.horizontalSizeClass) var sizeClass
+
     enum Tab: String, CaseIterable {
         case dashboard
         case map
@@ -31,39 +33,63 @@ struct ContentView: View {
             }
         }
     }
-    
+
     var body: some View {
-        TabView(selection: $selectedTab) {
-            DashboardView()
-                .tabItem {
-                    Label(Tab.dashboard.title, systemImage: Tab.dashboard.icon)
+        if sizeClass == .regular {
+            NavigationSplitView {
+                List(Tab.allCases, id: \.self, selection: $selectedSidebarTab) { tab in
+                    Label(tab.title, systemImage: tab.icon)
+                        .accessibilityIdentifier("contentView_sidebar_\(tab.rawValue)")
                 }
-                .tag(Tab.dashboard)
-                .accessibilityIdentifier("contentView_tab_dashboard")
+                .navigationTitle("NetMonitor")
+            } detail: {
+                detailView
+            }
+            .tint(themeManager.accent)
+            .accessibilityIdentifier("screen_main")
+        } else {
+            TabView(selection: $selectedTab) {
+                DashboardView()
+                    .tabItem {
+                        Label(Tab.dashboard.title, systemImage: Tab.dashboard.icon)
+                    }
+                    .tag(Tab.dashboard)
+                    .accessibilityIdentifier("contentView_tab_dashboard")
 
-            NetworkMapView()
-                .tabItem {
-                    Label(Tab.map.title, systemImage: Tab.map.icon)
-                }
-                .tag(Tab.map)
-                .accessibilityIdentifier("contentView_tab_map")
+                NetworkMapView()
+                    .tabItem {
+                        Label(Tab.map.title, systemImage: Tab.map.icon)
+                    }
+                    .tag(Tab.map)
+                    .accessibilityIdentifier("contentView_tab_map")
 
-            ToolsView()
-                .tabItem {
-                    Label(Tab.tools.title, systemImage: Tab.tools.icon)
-                }
-                .tag(Tab.tools)
-                .accessibilityIdentifier("contentView_tab_tools")
+                ToolsView()
+                    .tabItem {
+                        Label(Tab.tools.title, systemImage: Tab.tools.icon)
+                    }
+                    .tag(Tab.tools)
+                    .accessibilityIdentifier("contentView_tab_tools")
 
-            TimelineView()
-                .tabItem {
-                    Label(Tab.timeline.title, systemImage: Tab.timeline.icon)
-                }
-                .tag(Tab.timeline)
-                .accessibilityIdentifier("contentView_tab_timeline")
+                TimelineView()
+                    .tabItem {
+                        Label(Tab.timeline.title, systemImage: Tab.timeline.icon)
+                    }
+                    .tag(Tab.timeline)
+                    .accessibilityIdentifier("contentView_tab_timeline")
+            }
+            .tint(themeManager.accent)
+            .accessibilityIdentifier("screen_main")
         }
-        .tint(themeManager.accent)
-        .accessibilityIdentifier("screen_main")
+    }
+
+    @ViewBuilder
+    private var detailView: some View {
+        switch selectedSidebarTab ?? .dashboard {
+        case .dashboard: DashboardView()
+        case .map: NetworkMapView()
+        case .tools: ToolsView()
+        case .timeline: TimelineView()
+        }
     }
 }
 
