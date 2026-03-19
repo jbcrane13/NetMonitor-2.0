@@ -5,6 +5,7 @@ import SwiftData
 struct DeviceDetailView: View {
     let ipAddress: String
     @State private var viewModel = DeviceDetailViewModel()
+    @State private var showingTimeline = false
     @Environment(\.modelContext) private var modelContext
 
     var body: some View {
@@ -313,6 +314,29 @@ struct DeviceDetailView: View {
 
                 infoRow(label: "Last Seen", value: device.lastSeen.formatted(date: .abbreviated, time: .shortened))
                     .accessibilityIdentifier("deviceDetail_row_lastSeen")
+
+                Divider().background(Theme.Colors.glassBorder)
+
+                Button {
+                    showingTimeline = true
+                } label: {
+                    HStack {
+                        Image(systemName: "clock.arrow.circlepath")
+                            .foregroundStyle(Theme.Colors.accent)
+                            .frame(width: 24)
+                        Text("View Network Timeline")
+                            .foregroundStyle(Theme.Colors.textPrimary)
+                            .font(.subheadline)
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.caption)
+                            .foregroundStyle(Theme.Colors.textTertiary)
+                    }
+                }
+                .accessibilityIdentifier("deviceDetail_button_viewTimeline")
+                .sheet(isPresented: $showingTimeline) {
+                    TimelineView()
+                }
 
                 if device.isGateway {
                     HStack {

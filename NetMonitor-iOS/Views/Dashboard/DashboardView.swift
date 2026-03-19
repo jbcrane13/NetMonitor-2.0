@@ -1,6 +1,7 @@
 import SwiftUI
 import NetMonitorCore
 import NetworkScanKit
+import SwiftData
 
 struct DashboardView: View {
     @State private var viewModel = DashboardViewModel()
@@ -22,7 +23,9 @@ struct DashboardView: View {
                     SignalEQView(viewModel: viewModel)
                     
                     ProConnectivityPanel(viewModel: viewModel)
-                    
+
+                    SpeedTestQuickCard()
+
                     LiveEventTicker()
 
                     LocalDevicesCard(
@@ -672,6 +675,64 @@ struct DeviceRow: View {
             }
         }
         .padding(.vertical, 4)
+    }
+}
+
+// MARK: - Speed Test Quick Card
+
+struct SpeedTestQuickCard: View {
+    @Query(sort: \SpeedTestResult.timestamp, order: .reverse) private var history: [SpeedTestResult]
+
+    private var lastResult: SpeedTestResult? { history.first }
+
+    var body: some View {
+        NavigationLink(destination: SpeedTestToolView()) {
+            GlassCard(padding: 14) {
+                HStack(spacing: 14) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(Theme.Colors.accent.opacity(0.15))
+                            .frame(width: 40, height: 40)
+                        Image(systemName: "speedometer")
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundStyle(Theme.Colors.accent)
+                    }
+
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Speed Test")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundStyle(Theme.Colors.textPrimary)
+
+                        if let result = lastResult {
+                            Text(String(format: "Last: %.0f Mbps ↓ • %.0f Mbps ↑", result.downloadSpeed, result.uploadSpeed))
+                                .font(.system(size: 11, design: .monospaced))
+                                .foregroundStyle(Theme.Colors.textSecondary)
+                        } else {
+                            Text("Tap to measure your connection speed")
+                                .font(.system(size: 11))
+                                .foregroundStyle(Theme.Colors.textSecondary)
+                        }
+                    }
+
+                    Spacer()
+
+                    HStack(spacing: 4) {
+                        Text("Run Now")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundStyle(Theme.Colors.accent)
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(Theme.Colors.accent)
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(Theme.Colors.accent.opacity(0.12))
+                    .clipShape(Capsule())
+                }
+            }
+        }
+        .buttonStyle(PlainButtonStyle())
+        .accessibilityIdentifier("dashboard_card_speedTest")
     }
 }
 
