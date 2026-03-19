@@ -11,6 +11,10 @@ struct DashboardView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: Theme.Layout.itemSpacing) {
+                    if !viewModel.isConnected {
+                        OfflineBanner(lastScanDate: viewModel.lastScanDate)
+                    }
+
                     TacticalHUDHeader(viewModel: viewModel)
                     
                     RefinedNetworkHealthCard(viewModel: viewModel)
@@ -80,6 +84,41 @@ struct ConnectionStatusHeader: View {
                 .foregroundStyle(Theme.Colors.textSecondary)
         }
         .accessibilityIdentifier("dashboard_header_connectionStatus")
+    }
+}
+
+struct OfflineBanner: View {
+    let lastScanDate: Date?
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "wifi.slash")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(Theme.Colors.warning)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Offline — showing cached data")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Theme.Colors.warning)
+
+                if let date = lastScanDate {
+                    Text("Updated \(date, style: .relative) ago")
+                        .font(.system(size: 11))
+                        .foregroundStyle(Theme.Colors.textSecondary)
+                }
+            }
+
+            Spacer()
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(Color(.systemYellow).opacity(0.15))
+        .clipShape(RoundedRectangle(cornerRadius: Theme.Layout.cardCornerRadius))
+        .overlay(
+            RoundedRectangle(cornerRadius: Theme.Layout.cardCornerRadius)
+                .stroke(Theme.Colors.warning.opacity(0.3), lineWidth: 1)
+        )
+        .accessibilityIdentifier("dashboard_banner_offline")
     }
 }
 

@@ -111,12 +111,12 @@ struct PingToolView: View {
                     .chartYAxis {
                         AxisMarks(position: .leading) { value in
                             AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
-                                .foregroundStyle(Color.white.opacity(0.1))
+                                .foregroundStyle(Theme.Colors.crystalBase)
                             AxisValueLabel {
                                 if let v = value.as(Double.self) {
                                     Text(String(format: "%.0f", v))
                                         .font(.caption2)
-                                        .foregroundStyle(Color.white.opacity(0.5))
+                                        .foregroundStyle(Theme.Colors.textTertiary)
                                 }
                             }
                         }
@@ -124,12 +124,12 @@ struct PingToolView: View {
                     .chartXAxis {
                         AxisMarks { value in
                             AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
-                                .foregroundStyle(Color.white.opacity(0.1))
+                                .foregroundStyle(Theme.Colors.crystalBase)
                             AxisValueLabel {
                                 if let v = value.as(Int.self) {
                                     Text("\(v)")
                                         .font(.caption2)
-                                        .foregroundStyle(Color.white.opacity(0.5))
+                                        .foregroundStyle(Theme.Colors.textTertiary)
                                 }
                             }
                         }

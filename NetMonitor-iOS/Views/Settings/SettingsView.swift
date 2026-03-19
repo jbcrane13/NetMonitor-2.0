@@ -17,6 +17,8 @@ struct SettingsView: View {
     // periphery:ignore
     @State private var showingPDFExport = false
     @State private var showingPairingSheet = false
+    @State private var newDeviceAlertEnabled =
+        (UserDefaults.standard.object(forKey: AppSettings.Keys.newDeviceAlertEnabled) as? Bool) ?? true
     @State private var highLatencyAlertEnabled =
         (UserDefaults.standard.object(forKey: AppSettings.Keys.highLatencyAlertEnabled) as? Bool) ?? false
     @State var connectionService = MacConnectionService.shared
@@ -110,6 +112,13 @@ struct SettingsView: View {
 
             // MARK: - Notification Settings Section
             Section {
+                Toggle(isOn: $newDeviceAlertEnabled) {
+                    Text("New Device Alerts")
+                        .foregroundStyle(Theme.Colors.textPrimary)
+                }
+                .tint(Theme.Colors.accent)
+                .accessibilityIdentifier("settings_toggle_newDeviceAlert")
+
                 Toggle(isOn: $highLatencyAlertEnabled) {
                     Text("High Latency Alerts")
                         .foregroundStyle(Theme.Colors.textPrimary)
@@ -377,7 +386,14 @@ struct SettingsView: View {
             MacPairingView()
         }
         .onAppear {
+            newDeviceAlertEnabled = viewModel.newDeviceAlertEnabled
             highLatencyAlertEnabled = viewModel.highLatencyAlertEnabled
+        }
+        .onChange(of: newDeviceAlertEnabled) {
+            viewModel.newDeviceAlertEnabled = newDeviceAlertEnabled
+        }
+        .onChange(of: viewModel.newDeviceAlertEnabled) {
+            newDeviceAlertEnabled = viewModel.newDeviceAlertEnabled
         }
         .onChange(of: highLatencyAlertEnabled) {
             viewModel.highLatencyAlertEnabled = highLatencyAlertEnabled
