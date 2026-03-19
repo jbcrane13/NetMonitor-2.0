@@ -11,6 +11,7 @@ import SwiftData
 
 struct MenuBarPopoverView: View {
     @Bindable var session: MonitoringSession
+    var deviceDiscovery: DeviceDiscoveryCoordinator
     let onClose: () -> Void
 
     var body: some View {
@@ -20,8 +21,13 @@ struct MenuBarPopoverView: View {
 
             Divider()
 
-            // Quick stats
-            quickStats
+            // Connection status + quick stats
+            connectionStatus
+
+            Divider()
+
+            // Device count + gateway latency
+            networkStats
 
             Divider()
 
@@ -76,41 +82,120 @@ struct MenuBarPopoverView: View {
         .padding()
     }
 
-    // MARK: - Quick Stats
+    // MARK: - Connection Status
 
-    private var quickStats: some View {
-        HStack(spacing: 16) {
-            statItem(
-                value: "\(onlineTargetCount)",
-                label: "Online",
-                color: .green
+    private var connectionStatus: some View {
+        HStack(spacing: 12) {
+            let profile = deviceDiscovery.networkProfile
+            let connectionType = profile?.connectionType ?? .none
+            let isOnline = profile != nil
+
+            // Connection type icon + label
+            HStack(spacing: 6) {
+                Image(systemName: isOnline ? connectionType.iconName : "wifi.slash")
+                    .foregroundStyle(isOnline ? .green : .red)
+                    .font(.system(size: 14, weight: .medium))
+
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(isOnline ? connectionType.displayName : "No Connection")
+                        .font(.caption)
+                        .fontWeight(.medium)
+
+                    if let ssid = profile?.name, !ssid.isEmpty, connectionType == .wifi {
+                        Text(ssid)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    } else if let gw = profile?.gatewayIP, !gw.isEmpty {
+                        Text("Gateway: \(gw)")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+
+            Spacer()
+
+            // Online/Offline badge
+            Text(isOnline ? "Online" : "Offline")
+                .font(.caption2)
+                .fontWeight(.semibold)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(isOnline ? Color.green.opacity(0.15) : Color.red.opacity(0.15))
+                .foregroundStyle(isOnline ? .green : .red)
+                .clipShape(Capsule())
+        }
+        .padding(.horizontal)
+        .padding(.vertical, 10)
+        .accessibilityIdentifier("menubar_connectionStatus")
+    }
+
+    // MARK: - Network Stats
+
+    private var networkStats: some View {
+        HStack(spacing: 0) {
+            // Device count
+            networkStatItem(
+                value: deviceCountString,
+                label: "Devices Online",
+                systemImage: "desktopcomputer",
+                color: .blue,
+                isLoading: deviceDiscovery.isScanning
             )
-            .accessibilityIdentifier("menubar_stat_online")
+            .accessibilityIdentifier("menubar_stat_devices")
 
-            statItem(
-                value: "\(offlineTargetCount)",
-                label: "Offline",
-                color: .red
+            Divider()
+                .frame(height: 36)
+
+            // Gateway latency
+            networkStatItem(
+                value: gatewayLatencyString,
+                label: "Gateway",
+                systemImage: "bolt.fill",
+                color: gatewayLatencyColor,
+                isLoading: false
             )
-            .accessibilityIdentifier("menubar_stat_offline")
+            .accessibilityIdentifier("menubar_stat_gatewayLatency")
 
-            statItem(
+            Divider()
+                .frame(height: 36)
+
+            // Avg target latency
+            networkStatItem(
                 value: averageLatencyString,
                 label: "Avg Latency",
-                color: .blue
+                systemImage: "waveform",
+                color: .purple,
+                isLoading: false
             )
             .accessibilityIdentifier("menubar_stat_latency")
         }
-        .padding()
+        .padding(.vertical, 10)
     }
 
-    private func statItem(value: String, label: String, color: Color) -> some View {
-        VStack(spacing: 2) {
-            Text(value)
-                .font(.title2)
-                .fontWeight(.semibold)
-                .foregroundStyle(color)
-
+    private func networkStatItem(
+        value: String,
+        label: String,
+        systemImage: String,
+        color: Color,
+        isLoading: Bool
+    ) -> some View {
+        VStack(spacing: 3) {
+            if isLoading {
+                ProgressView()
+                    .scaleEffect(0.6)
+                    .frame(height: 18)
+            } else {
+                HStack(spacing: 3) {
+                    Image(systemName: systemImage)
+                        .font(.system(size: 9))
+                        .foregroundStyle(color)
+                    Text(value)
+                        .font(.system(size: 14, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(color)
+                }
+            }
             Text(label)
                 .font(.caption2)
                 .foregroundStyle(.secondary)
@@ -148,7 +233,7 @@ struct MenuBarPopoverView: View {
             }
             .padding(.horizontal)
         }
-        .frame(maxHeight: 200)
+        .frame(maxHeight: 160)
     }
 
     /// Display name for a measurement: prefer target name, fall back to host
@@ -201,20 +286,79 @@ struct MenuBarPopoverView: View {
 
             Spacer()
 
-            if let startTime = session.startTime {
-                Text("Running: \(startTime, style: .relative)")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
+            Button {
+                guard !deviceDiscovery.isScanning else { return }
+                deviceDiscovery.startScan()
+            } label: {
+                HStack(spacing: 4) {
+                    if deviceDiscovery.isScanning {
+                        ProgressView()
+                            .scaleEffect(0.6)
+                            .frame(width: 12, height: 12)
+                    } else {
+                        Image(systemName: "arrow.triangle.2.circlepath")
+                            .font(.system(size: 11))
+                    }
+                    Text(deviceDiscovery.isScanning ? "Scanning…" : "Quick Scan")
+                        .font(.caption)
+                }
             }
+            .buttonStyle(.borderless)
+            .disabled(deviceDiscovery.isScanning)
+            .accessibilityIdentifier("menubar_button_quickScan")
         }
         .padding()
     }
 
-    // MARK: - Computed Properties (delegated to MonitoringSession for testability)
+    // MARK: - Computed Properties
 
     private var onlineTargetCount: Int { session.onlineTargetCount }
     private var offlineTargetCount: Int { session.offlineTargetCount }
     private var averageLatencyString: String { session.averageLatencyString }
+
+    /// Number of online devices discovered by the scanner
+    private var deviceCountString: String {
+        let total = deviceDiscovery.discoveredDevices.count
+        if total == 0 { return "—" }
+        let online = deviceDiscovery.discoveredDevices.filter { $0.status == .online }.count
+        return "\(online)/\(total)"
+    }
+
+    /// Gateway latency from the latest monitoring measurement for the gateway IP,
+    /// falling back to "—" when not available.
+    private var gatewayLatencyString: String {
+        guard let gatewayIP = deviceDiscovery.networkProfile?.gatewayIP,
+              !gatewayIP.isEmpty else { return "—" }
+
+        // Look for a target measurement whose host matches the gateway IP
+        if let measurement = session.latestResults.values.first(where: {
+            $0.target?.host == gatewayIP
+        }), measurement.isReachable, let latency = measurement.latency {
+            return "\(Int(latency))ms"
+        }
+
+        // Fallback: use the lowest latency online target as a proxy
+        if let best = session.latestResults.values
+            .filter({ $0.isReachable })
+            .compactMap({ m -> (Double, TargetMeasurement)? in
+                guard let l = m.latency else { return nil }
+                return (l, m)
+            })
+            .min(by: { $0.0 < $1.0 }) {
+            return "\(Int(best.0))ms"
+        }
+
+        return "—"
+    }
+
+    private var gatewayLatencyColor: Color {
+        guard let str = Double(gatewayLatencyString.replacingOccurrences(of: "ms", with: "")) else {
+            return .secondary
+        }
+        if str < 10 { return .green }
+        if str < 50 { return .yellow }
+        return .red
+    }
 }
 
 // MARK: - Preview
@@ -234,6 +378,13 @@ struct MenuBarPopoverView: View {
         icmpService: icmpService,
         tcpService: tcpService
     )
-    
-    return MenuBarPopoverView(session: session, onClose: {})
+    let profileManager = NetworkProfileManager()
+    let discovery = DeviceDiscoveryCoordinator(
+        modelContext: context,
+        arpScanner: ARPScannerService(),
+        bonjourScanner: BonjourDiscoveryService(),
+        networkProfileManager: profileManager
+    )
+
+    return MenuBarPopoverView(session: session, deviceDiscovery: discovery, onClose: {})
 }

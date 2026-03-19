@@ -186,8 +186,10 @@ struct NetMonitorApp: App {
             }
         }
 
-        if let session = monitoringSession, menuBarController == nil {
-            menuBarController = MenuBarController(monitoringSession: session)
+        if let session = monitoringSession,
+           let discovery = deviceDiscovery,
+           menuBarController == nil {
+            menuBarController = MenuBarController(monitoringSession: session, deviceDiscovery: discovery)
             menuBarController?.setup()
         }
 

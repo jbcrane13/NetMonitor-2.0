@@ -7,6 +7,7 @@
 
 import SwiftUI
 import AppKit
+import NetMonitorCore
 
 /// Controls the menu bar status item and popover
 @MainActor
@@ -18,9 +19,11 @@ final class MenuBarController: NSObject {
     var isVisible: Bool = false
 
     private let monitoringSession: MonitoringSession
+    private let deviceDiscovery: DeviceDiscoveryCoordinator
 
-    init(monitoringSession: MonitoringSession) {
+    init(monitoringSession: MonitoringSession, deviceDiscovery: DeviceDiscoveryCoordinator) {
         self.monitoringSession = monitoringSession
+        self.deviceDiscovery = deviceDiscovery
     }
 
     /// Observation task for auto-updating the icon
@@ -31,20 +34,21 @@ final class MenuBarController: NSObject {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
 
         if let button = statusItem?.button {
-            button.image = NSImage(systemSymbolName: "network", accessibilityDescription: "NetMonitor")
+            button.image = NSImage(systemSymbolName: "wifi", accessibilityDescription: "NetMonitor")
             button.action = #selector(togglePopover)
             button.target = self
         }
 
         // Create popover
         popover = NSPopover()
-        popover?.contentSize = NSSize(width: 320, height: 400)
+        popover?.contentSize = NSSize(width: 320, height: 420)
         popover?.behavior = .transient
         popover?.animates = true
 
         // Set SwiftUI content
         let contentView = MenuBarPopoverView(
             session: monitoringSession,
+            deviceDiscovery: deviceDiscovery,
             onClose: { [weak self] in self?.closePopover() }
         )
         popover?.contentViewController = NSHostingController(rootView: contentView)
@@ -53,16 +57,22 @@ final class MenuBarController: NSObject {
         startIconObservation()
     }
 
-    /// Periodically update the menu bar icon based on monitoring state
+    /// Periodically update the menu bar icon based on network profile connection state
     private func startIconObservation() {
         observationTask?.cancel()
         observationTask = Task { [weak self] in
             while !Task.isCancelled {
                 guard let self else { return }
-                let isMonitoring = self.monitoringSession.isMonitoring
+                let profile = self.deviceDiscovery.networkProfile
+                let connectionType = profile?.connectionType ?? .none
+                let isOnline = profile != nil
                 let hasIssues = self.monitoringSession.latestResults.values.contains { !$0.isReachable }
-                self.updateIcon(isMonitoring: isMonitoring, hasIssues: isMonitoring && hasIssues)
-                try? await Task.sleep(for: .seconds(2))
+                self.updateIcon(
+                    connectionType: connectionType,
+                    isOnline: isOnline,
+                    hasIssues: self.monitoringSession.isMonitoring && hasIssues
+                )
+                try? await Task.sleep(for: .seconds(3))
             }
         }
     }
@@ -94,28 +104,28 @@ final class MenuBarController: NSObject {
         isVisible = false
     }
 
-    /// Update the status item icon based on monitoring state
-    func updateIcon(isMonitoring: Bool, hasIssues: Bool) {
+    /// Update the status item icon based on connection type and network state
+    func updateIcon(connectionType: ConnectionType, isOnline: Bool, hasIssues: Bool) {
         guard let button = statusItem?.button else { return }
 
         let symbolName: String
-        if !isMonitoring {
-            symbolName = "network"
+        if !isOnline || connectionType == .none {
+            symbolName = "wifi.slash"
         } else if hasIssues {
-            symbolName = "network.slash"
+            symbolName = connectionType == .ethernet ? "cable.connector.slash" : "wifi.exclamationmark"
         } else {
-            symbolName = "network"
+            symbolName = connectionType.iconName
         }
 
         button.image = NSImage(systemSymbolName: symbolName, accessibilityDescription: "NetMonitor")
 
-        // Color the icon
-        if hasIssues {
+        // Color the icon based on status
+        if !isOnline || connectionType == .none {
             button.contentTintColor = .systemRed
-        } else if isMonitoring {
-            button.contentTintColor = .systemGreen
+        } else if hasIssues {
+            button.contentTintColor = .systemYellow
         } else {
-            button.contentTintColor = nil
+            button.contentTintColor = .systemGreen
         }
     }
 }
