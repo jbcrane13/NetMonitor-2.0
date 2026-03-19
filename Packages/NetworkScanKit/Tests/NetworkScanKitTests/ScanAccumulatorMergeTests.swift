@@ -112,9 +112,8 @@ struct ScanAccumulatorMergeTests {
         await acc.upsert(deviceA)
         await acc.upsert(deviceB)
 
-        #expect(await acc.count == 2,
-                "Devices with the same MAC but different IPs should be stored as two entries " +
-                "(accumulator keys by IP, not MAC)")
+        // Accumulator keys by IP only — different IPs always produce separate entries
+        #expect(await acc.count == 2)
         #expect(await acc.contains(ip: "192.168.1.10"))
         #expect(await acc.contains(ip: "192.168.1.11"))
     }
