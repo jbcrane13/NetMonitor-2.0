@@ -40,13 +40,7 @@ struct NetworkMapView: View {
                     // 1. Network Context Header
                     networkSummary
 
-                    // 2. Topology Map
-                    NetworkTopologyMapView(
-                        devices: viewModel.discoveredDevices,
-                        gatewayIP: viewModel.gateway?.ipAddress
-                    )
-
-                    // 3. Control Bar
+                    // 2. Control Bar
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("SIGNAL GRID")
@@ -209,97 +203,6 @@ struct NetworkMapView: View {
     }
 }
 
-// MARK: - Topology Map
-
-@MainActor
-struct NetworkTopologyMapView: View {
-    let devices: [DiscoveredDevice]
-    let gatewayIP: String?
-
-    private let radius: CGFloat = 120
-
-    private var nonGatewayDevices: [DiscoveredDevice] {
-        Array(devices.filter { $0.ipAddress != gatewayIP }.prefix(8))
-    }
-
-    var body: some View {
-        GeometryReader { geo in
-            let center = CGPoint(x: geo.size.width / 2, y: geo.size.height / 2)
-            let displayDevices = nonGatewayDevices
-            let count = max(displayDevices.count, 1)
-
-            ZStack {
-                // Connection lines
-                Canvas { context, _ in
-                    for index in 0..<displayDevices.count {
-                        let angle = (2 * Double.pi / Double(count)) * Double(index) - Double.pi / 2
-                        let x = center.x + cos(angle) * radius
-                        let y = center.y + sin(angle) * radius
-                        var path = Path()
-                        path.move(to: center)
-                        path.addLine(to: CGPoint(x: x, y: y))
-                        context.stroke(
-                            path,
-                            with: .color(.green.opacity(0.3)),
-                            lineWidth: 1
-                        )
-                    }
-                }
-
-                // Gateway node at center
-                NetworkTopologyNode(
-                    label: "Gateway",
-                    icon: "wifi.router",
-                    color: Theme.Colors.accent
-                )
-                .position(center)
-
-                // Device nodes around gateway
-                ForEach(Array(displayDevices.enumerated()), id: \.offset) { index, device in
-                    let angle = (2 * Double.pi / Double(count)) * Double(index) - Double.pi / 2
-                    let x = center.x + cos(angle) * radius
-                    let y = center.y + sin(angle) * radius
-                    NetworkTopologyNode(
-                        label: device.displayName,
-                        icon: device.iconName,
-                        color: Theme.Colors.success
-                    )
-                    .position(CGPoint(x: x, y: y))
-                }
-            }
-        }
-        .frame(height: 300)
-        .background(Theme.Colors.crystalBase)
-        .clipShape(RoundedRectangle(cornerRadius: Theme.Layout.cardCornerRadius))
-        .accessibilityIdentifier("networkMap_topology")
-    }
-}
-
-@MainActor
-struct NetworkTopologyNode: View {
-    let label: String
-    let icon: String
-    let color: Color
-
-    var body: some View {
-        VStack(spacing: 4) {
-            Circle()
-                .fill(color.opacity(0.2))
-                .frame(width: 44, height: 44)
-                .overlay(
-                    Image(systemName: icon)
-                        .font(.system(size: 18))
-                        .foregroundStyle(color)
-                )
-                .overlay(Circle().stroke(color.opacity(0.4), lineWidth: 1))
-            Text(label)
-                .font(.system(size: 9))
-                .foregroundStyle(Theme.Colors.textSecondary)
-                .lineLimit(1)
-                .frame(width: 60)
-        }
-    }
-}
 
 struct ProDeviceRow: View {
     let device: DiscoveredDevice
