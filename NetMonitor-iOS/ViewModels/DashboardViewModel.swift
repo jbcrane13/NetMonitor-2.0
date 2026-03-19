@@ -2,6 +2,7 @@ import Foundation
 import NetMonitorCore
 import SwiftUI
 import NetworkScanKit
+import WidgetKit
 
 @MainActor
 @Observable
@@ -289,13 +290,25 @@ final class DashboardViewModel {
         await deviceDiscoveryService.scanNetwork(profile: profile)
         updateScanMetadata(for: profile)
 
-        let count = scopedDevices(from: deviceDiscoveryService.discoveredDevices).count
+        let scoped = scopedDevices(from: deviceDiscoveryService.discoveredDevices)
+        let count = scoped.count
         ToolActivityLog.shared.add(
             tool: "Scan",
             target: profile?.displayName ?? "Local Network",
             result: "\(count) devices found",
             success: count > 0
         )
+
+        // Update widget with top 3 discovered devices
+        let topDevicesList = scoped.prefix(3).map { device in
+            ["name": device.displayName, "ip": device.ipAddress]
+        }
+        let defaults = UserDefaults(suiteName: AppSettings.appGroupSuiteName) ?? .standard
+        if let data = try? JSONSerialization.data(withJSONObject: Array(topDevicesList)) {
+            defaults.set(data, forKey: AppSettings.Keys.widgetTopDevices)
+        }
+        defaults.set(count, forKey: AppSettings.Keys.widgetDeviceCount)
+        WidgetCenter.shared.reloadTimelines(ofKind: "DeviceGlanceWidget")
     }
 
     // periphery:ignore
@@ -454,4 +467,3 @@ final class DashboardViewModel {
         refreshAvailableNetworks()
     }
 }
-

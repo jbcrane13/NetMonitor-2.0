@@ -2,6 +2,13 @@ import WidgetKit
 import NetMonitorCore
 import SwiftUI
 
+// MARK: - Widget Device Model
+
+struct WidgetDevice: Codable {
+    let name: String  // matches "name" key in stored dict
+    let ip: String    // matches "ip" key in stored dict
+}
+
 // MARK: - Timeline Entry
 
 struct NetworkStatusEntry: TimelineEntry {
@@ -14,6 +21,7 @@ struct NetworkStatusEntry: TimelineEntry {
     let deviceCount: Int
     let downloadSpeed: String?
     let uploadSpeed: String?
+    let topDevices: [WidgetDevice]
 
     static let placeholder = NetworkStatusEntry(
         date: .now,
@@ -24,7 +32,8 @@ struct NetworkStatusEntry: TimelineEntry {
         gatewayLatency: "3 ms",
         deviceCount: 12,
         downloadSpeed: "245.8 Mbps",
-        uploadSpeed: "50.2 Mbps"
+        uploadSpeed: "50.2 Mbps",
+        topDevices: []
     )
 
     static let disconnected = NetworkStatusEntry(
@@ -36,7 +45,8 @@ struct NetworkStatusEntry: TimelineEntry {
         gatewayLatency: nil,
         deviceCount: 0,
         downloadSpeed: nil,
-        uploadSpeed: nil
+        uploadSpeed: nil,
+        topDevices: []
     )
 }
 
@@ -55,6 +65,9 @@ struct NetworkStatusProvider: TimelineProvider {
         // Read cached data from shared UserDefaults (app group)
         let defaults = UserDefaults(suiteName: AppSettings.appGroupSuiteName) ?? .standard
 
+        let topDevicesData = defaults.data(forKey: AppSettings.Keys.widgetTopDevices) ?? Data()
+        let topDevices = (try? JSONDecoder().decode([WidgetDevice].self, from: topDevicesData)) ?? []
+
         let entry = NetworkStatusEntry(
             date: .now,
             isConnected: defaults.bool(forKey: AppSettings.Keys.widgetIsConnected),
@@ -64,7 +77,8 @@ struct NetworkStatusProvider: TimelineProvider {
             gatewayLatency: defaults.string(forKey: AppSettings.Keys.widgetGatewayLatency),
             deviceCount: defaults.integer(forKey: AppSettings.Keys.widgetDeviceCount),
             downloadSpeed: defaults.string(forKey: AppSettings.Keys.widgetDownloadSpeed),
-            uploadSpeed: defaults.string(forKey: AppSettings.Keys.widgetUploadSpeed)
+            uploadSpeed: defaults.string(forKey: AppSettings.Keys.widgetUploadSpeed),
+            topDevices: topDevices
         )
 
         // Refresh every 15 minutes
@@ -293,12 +307,122 @@ struct NetmonitorWidget: Widget {
     }
 }
 
+// MARK: - Device Glance Timeline Entry
+
+struct DeviceGlanceEntry: TimelineEntry {
+    let date: Date
+    let devices: [WidgetDevice]
+
+    static let placeholder = DeviceGlanceEntry(
+        date: .now,
+        devices: [
+            WidgetDevice(name: "MacBook Pro", ip: "192.168.1.2"),
+            WidgetDevice(name: "iPhone", ip: "192.168.1.3"),
+            WidgetDevice(name: "Apple TV", ip: "192.168.1.4")
+        ]
+    )
+}
+
+// MARK: - Device Glance Timeline Provider
+
+struct DeviceGlanceProvider: TimelineProvider {
+    func placeholder(in context: Context) -> DeviceGlanceEntry {
+        .placeholder
+    }
+
+    func getSnapshot(in context: Context, completion: @escaping (DeviceGlanceEntry) -> Void) {
+        completion(.placeholder)
+    }
+
+    func getTimeline(in context: Context, completion: @escaping (Timeline<DeviceGlanceEntry>) -> Void) {
+        let defaults = UserDefaults(suiteName: AppSettings.appGroupSuiteName) ?? .standard
+        let topDevicesData = defaults.data(forKey: AppSettings.Keys.widgetTopDevices) ?? Data()
+        let devices = (try? JSONDecoder().decode([WidgetDevice].self, from: topDevicesData)) ?? []
+
+        let entry = DeviceGlanceEntry(date: .now, devices: devices)
+        let nextUpdate = Calendar.current.date(byAdding: .minute, value: 15, to: .now)!
+        let timeline = Timeline(entries: [entry], policy: .after(nextUpdate))
+        completion(timeline)
+    }
+}
+
+// MARK: - Device Glance Widget View
+
+struct DeviceGlanceWidgetView: View {
+    @Environment(\.widgetFamily) var widgetFamily
+    let entry: DeviceGlanceEntry
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Image(systemName: "wifi")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text("Top Devices")
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(.secondary)
+            }
+
+            if entry.devices.isEmpty {
+                Spacer()
+                Text("No devices found")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                Spacer()
+            } else {
+                let displayCount = widgetFamily == .systemSmall ? min(3, entry.devices.count) : min(3, entry.devices.count)
+                ForEach(Array(entry.devices.prefix(displayCount).enumerated()), id: \.offset) { _, device in
+                    HStack(spacing: 6) {
+                        Circle()
+                            .fill(Color.green)
+                            .frame(width: 7, height: 7)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(device.name)
+                                .font(.caption)
+                                .fontWeight(.medium)
+                                .lineLimit(1)
+                            Text(device.ip)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                                .monospacedDigit()
+                        }
+                        Spacer()
+                    }
+                    .accessibilityIdentifier("deviceGlance_row_\(device.ip)")
+                }
+
+                Spacer()
+            }
+        }
+        .padding()
+        .accessibilityIdentifier("deviceGlance_widget_view")
+    }
+}
+
+// MARK: - Device Glance Widget Definition
+
+struct DeviceGlanceWidget: Widget {
+    let kind: String = "DeviceGlanceWidget"
+
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: kind, provider: DeviceGlanceProvider()) { entry in
+            DeviceGlanceWidgetView(entry: entry)
+                .containerBackground(.fill.tertiary, for: .widget)
+        }
+        .configurationDisplayName("Top Devices")
+        .description("Quick glance at your top 3 online devices.")
+        .supportedFamilies([.systemSmall, .systemMedium])
+    }
+}
+
 // MARK: - Widget Bundle
 
 @main
 struct NetmonitorWidgetBundle: WidgetBundle {
     var body: some Widget {
         NetmonitorWidget()
+        DeviceGlanceWidget()
     }
 }
 
@@ -320,4 +444,16 @@ struct NetmonitorWidgetBundle: WidgetBundle {
     NetmonitorWidget()
 } timeline: {
     NetworkStatusEntry.placeholder
+}
+
+#Preview("Device Glance Small", as: .systemSmall) {
+    DeviceGlanceWidget()
+} timeline: {
+    DeviceGlanceEntry.placeholder
+}
+
+#Preview("Device Glance Medium", as: .systemMedium) {
+    DeviceGlanceWidget()
+} timeline: {
+    DeviceGlanceEntry.placeholder
 }

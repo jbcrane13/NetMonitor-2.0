@@ -50,6 +50,7 @@ enum AppSettings {
         static let widgetDeviceCount     = "widget_deviceCount"
         static let widgetDownloadSpeed   = "widget_downloadSpeed"
         static let widgetUploadSpeed     = "widget_uploadSpeed"
+        static let widgetTopDevices      = "widget_topDevices"  // JSON encoded [[String: String]]
     }
 }
 
