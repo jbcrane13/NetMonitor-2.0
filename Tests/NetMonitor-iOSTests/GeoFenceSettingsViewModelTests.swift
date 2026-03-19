@@ -4,157 +4,13 @@ import Testing
 @testable import NetMonitor_iOS
 import NetMonitorCore
 
-// NOTE: GeoFenceService, GeoFenceSettingsViewModel, GeoFenceManager, and GeoFenceEntry
-// types are not yet implemented. These tests are placeholders for when the GeoFence
-// feature is fully built. All tests are disabled until the types exist.
-//
-// To re-enable: remove the #if false / #endif guards.
+// NOTE: These tests use GeoFenceManager and GeoFenceEntry, the types present in
+// NetMonitor-iOS/Platform/GeoFenceManager.swift.
+// API changed from original placeholders: GeoFenceService/NetworkProfileManager/GeoFenceSettingsViewModel
+// were never implemented; GeoFenceManager is the actual service type.
 
-#if false
-
-@Suite("GeoFenceSettingsViewModel")
 @MainActor
 struct GeoFenceSettingsViewModelTests {
-
-    @Test func refreshLoadsProfilesFromProfileManager() {
-        let context = isolatedDefaults()
-        defer { cleanup(context) }
-
-        let profileManager = NetworkProfileManager(
-            userDefaults: context.defaults,
-            activeProfilesProvider: { [] }
-        )
-        let geoFenceService = GeoFenceService(userDefaults: context.defaults)
-
-        let profile = profileManager.addProfile(
-            gateway: "192.168.1.1",
-            subnet: "192.168.1.0/24",
-            name: "Home"
-        )
-
-        let vm = GeoFenceSettingsViewModel(
-            geoFenceService: geoFenceService,
-            profileManager: profileManager
-        )
-        vm.refresh()
-
-        #expect(vm.profiles.count == 1)
-        #expect(vm.profiles.first?.name == "Home")
-        #expect(vm.profileName(for: profile?.id ?? UUID()) == "Home")
-    }
-
-    @Test func configureAndDisableGeoFenceUpdatesSettings() {
-        let context = isolatedDefaults()
-        defer { cleanup(context) }
-
-        let profileManager = NetworkProfileManager(
-            userDefaults: context.defaults,
-            activeProfilesProvider: { [] }
-        )
-        let geoFenceService = GeoFenceService(userDefaults: context.defaults)
-
-        guard let profile = profileManager.addProfile(
-            gateway: "10.0.0.1",
-            subnet: "10.0.0.0/24",
-            name: "Office"
-        ) else {
-            Issue.record("Expected profile to be created")
-            return
-        }
-
-        let vm = GeoFenceSettingsViewModel(
-            geoFenceService: geoFenceService,
-            profileManager: profileManager
-        )
-
-        vm.configureGeoFence(
-            for: profile,
-            center: CLLocationCoordinate2D(latitude: 37.3317, longitude: -122.0301),
-            radius: 150,
-            trustedType: .trusted
-        )
-
-        let enabledSettings = vm.settings(for: profile.id)
-        #expect(enabledSettings?.isEnabled == true)
-        #expect(enabledSettings?.trustedType == .trusted)
-        #expect(enabledSettings?.region != nil)
-        #expect(enabledSettings?.region?.radius == 150)
-
-        vm.disableGeoFence(for: profile)
-
-        let disabledSettings = vm.settings(for: profile.id)
-        #expect(disabledSettings?.isEnabled == false)
-        #expect(disabledSettings?.region == nil)
-    }
-
-    @Test func clearEventHistoryResetsRecentEvents() {
-        let context = isolatedDefaults()
-        defer { cleanup(context) }
-
-        let profileManager = NetworkProfileManager(
-            userDefaults: context.defaults,
-            activeProfilesProvider: { [] }
-        )
-        let geoFenceService = GeoFenceService(userDefaults: context.defaults)
-
-        let vm = GeoFenceSettingsViewModel(
-            geoFenceService: geoFenceService,
-            profileManager: profileManager
-        )
-
-        vm.recentEvents = [
-            GeoFenceEvent(
-                regionID: UUID(),
-                profileID: UUID(),
-                eventType: .entry,
-                latitude: 37.0,
-                longitude: -122.0
-            )
-        ]
-
-        vm.clearEventHistory()
-
-        #expect(vm.recentEvents.isEmpty)
-    }
-
-    @Test func isAuthorizedReflectsAuthorizationStatus() {
-        let context = isolatedDefaults()
-        defer { cleanup(context) }
-
-        let vm = GeoFenceSettingsViewModel(
-            geoFenceService: GeoFenceService(userDefaults: context.defaults),
-            profileManager: NetworkProfileManager(userDefaults: context.defaults, activeProfilesProvider: { [] })
-        )
-
-        vm.authorizationStatus = .notDetermined
-        #expect(vm.isAuthorized == false)
-
-        vm.authorizationStatus = .authorizedWhenInUse
-        #expect(vm.isAuthorized == true)
-
-        vm.authorizationStatus = .authorizedAlways
-        #expect(vm.isAuthorized == true)
-    }
-
-    private func isolatedDefaults() -> (defaults: UserDefaults, suiteName: String) {
-        let suiteName = "GeoFenceSettingsViewModelTests.\(UUID().uuidString)"
-        guard let defaults = UserDefaults(suiteName: suiteName) else {
-            fatalError("Unable to create isolated UserDefaults suite")
-        }
-        defaults.removePersistentDomain(forName: suiteName)
-        return (defaults, suiteName)
-    }
-
-    private func cleanup(_ context: (defaults: UserDefaults, suiteName: String)) {
-        context.defaults.removePersistentDomain(forName: context.suiteName)
-    }
-}
-
-// MARK: - GeoFenceManager Edge Case Tests
-
-@Suite("GeoFenceManager Edge Cases")
-@MainActor
-struct GeoFenceManagerEdgeCaseTests {
 
     @Test func addGeofenceAppearsInList() {
         let manager = GeoFenceManager()
@@ -208,6 +64,7 @@ struct GeoFenceManagerEdgeCaseTests {
     }
 
     @Test func radiusIsClampedToMinimum() {
+        // API changed: radius clamping is performed in GeoFenceEntry.init, not GeoFenceService.
         let entry = GeoFenceEntry(
             name: "SmallFence",
             latitude: 0,
@@ -218,6 +75,7 @@ struct GeoFenceManagerEdgeCaseTests {
     }
 
     @Test func radiusIsClampedToMaximum() {
+        // API changed: radius clamping is performed in GeoFenceEntry.init, not GeoFenceService.
         let entry = GeoFenceEntry(
             name: "HugeFence",
             latitude: 0,
@@ -228,11 +86,64 @@ struct GeoFenceManagerEdgeCaseTests {
     }
 
     @Test func isAuthorizedFalseByDefault() {
+        // API changed: isAuthorized is a computed property on GeoFenceManager, not GeoFenceSettingsViewModel.
         let manager = GeoFenceManager()
         if manager.authorizationStatus == .notDetermined {
             #expect(manager.isAuthorized == false)
         }
     }
+
+    @Test func geoFenceEntryHasCorrectDefaultTrigger() {
+        let entry = GeoFenceEntry(
+            name: "DefaultTriggerFence",
+            latitude: 37.0,
+            longitude: -122.0
+        )
+        // API changed: was configureGeoFence(trustedType:), now triggerOn stored on entry directly.
+        #expect(entry.triggerOn == .enter)
+        #expect(entry.isEnabled == true)
+    }
+
+    @Test func geoFenceEntryCoordinatesArePreserved() {
+        let lat = 37.3317
+        let lon = -122.0301
+        let entry = GeoFenceEntry(name: "CoordFence", latitude: lat, longitude: lon, radius: 300)
+        #expect(entry.latitude == lat)
+        #expect(entry.longitude == lon)
+        #expect(entry.radius == 300)
+    }
 }
 
-#endif
+// MARK: - GeoFenceManager Edge Case Tests
+
+@MainActor
+struct GeoFenceManagerEdgeCaseTests {
+
+    @Test func removeGeofencesByOffsetWorks() {
+        let manager = GeoFenceManager()
+        let before = manager.geofences.count
+        let e1 = GeoFenceEntry(name: "Offset1-\(UUID().uuidString)", latitude: 0, longitude: 0)
+        let e2 = GeoFenceEntry(name: "Offset2-\(UUID().uuidString)", latitude: 1, longitude: 1)
+        manager.addGeofence(e1)
+        manager.addGeofence(e2)
+        #expect(manager.geofences.count == before + 2)
+
+        // Remove entries added at end via IndexSet
+        let lastTwo = IndexSet([manager.geofences.count - 2, manager.geofences.count - 1])
+        manager.removeGeofences(at: lastTwo)
+        #expect(manager.geofences.count == before)
+    }
+
+    @Test func geoFenceTriggerDisplayNamesAreNonEmpty() {
+        for trigger in GeoFenceTrigger.allCases {
+            #expect(!trigger.displayName.isEmpty)
+        }
+    }
+
+    @Test func geoFenceEventFieldsArePopulated() {
+        // API changed: GeoFenceEvent uses geofenceName/trigger/timestamp, not regionID/profileID/eventType.
+        let event = GeoFenceEvent(geofenceName: "Home", trigger: .enter, timestamp: Date())
+        #expect(!event.geofenceName.isEmpty)
+        #expect(event.trigger == .enter)
+    }
+}

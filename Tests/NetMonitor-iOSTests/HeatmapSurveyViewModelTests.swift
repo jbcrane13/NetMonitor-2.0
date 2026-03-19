@@ -3,6 +3,11 @@ import Testing
 @testable import NetMonitor_iOS
 import NetMonitorCore
 
+// NOTE: HeatmapSurveyViewModel was removed in commit 620afec ("Remove all heatmap-related code").
+// These tests are disabled until the type is re-implemented.
+// To re-enable: remove the #if false / #endif guards.
+#if false
+
 // MARK: - HeatmapSurveyViewModel Tests
 
 @MainActor
@@ -336,3 +341,5 @@ struct HeatmapSurveyViewModelSaveLoadTests {
         #expect(vm2.measurementPoints.first?.ssid == "Office")
     }
 }
+
+#endif

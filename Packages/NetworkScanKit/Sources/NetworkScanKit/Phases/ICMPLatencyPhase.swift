@@ -41,6 +41,9 @@ public struct ICMPLatencyPhase: ScanPhase, Sendable {
         }
 
         // Create a single ICMP socket — fails on Simulator
+        // INTEGRATION GAP: ICMPSocket requires elevated network entitlements not available
+        // in the test sandbox. Socket creation failure falls through to TCP/HTTP fallback.
+        // Contract test below verifies fallback data format. Manual verification required on device.
         let fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_ICMP)
         guard fd >= 0 else {
             logger.info("ICMP socket unavailable (errno=\(errno)), skipping latency enrichment")

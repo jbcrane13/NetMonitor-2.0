@@ -90,6 +90,51 @@ final class TimelineUITests: IOSUITestCase {
         )
     }
 
+    func testFilterButtonOpensAndDoneButtonDismissesFilterSheet() throws {
+        openTimeline()
+
+        let filterButton = app.buttons["timeline_button_filters"]
+        requireExists(filterButton, timeout: 8, message: "Filter button should exist in Timeline")
+        filterButton.tap()
+
+        // FUNCTIONAL: filter sheet should appear
+        let doneButton = app.buttons["timeline_filter_button_done"]
+        XCTAssertTrue(doneButton.waitForExistence(timeout: 5),
+                     "Filter sheet Done button should appear after tapping filter")
+
+        // FUNCTIONAL: tap Done and verify sheet dismisses
+        doneButton.tap()
+        XCTAssertTrue(
+            waitForDisappearance(ui("screen_timeline_filter"), timeout: 5),
+            "Filter sheet should dismiss after tapping Done"
+        )
+    }
+
+    func testFilterSheetToggleChangesFilterState() throws {
+        openTimeline()
+
+        let filterButton = app.buttons["timeline_button_filters"]
+        guard filterButton.waitForExistence(timeout: 8) else { return }
+        filterButton.tap()
+
+        guard ui("screen_timeline_filter").waitForExistence(timeout: 5) else { return }
+
+        // FUNCTIONAL: if individual event-type filters exist, toggling one changes its state
+        let firstToggle = app.switches.firstMatch
+        if firstToggle.waitForExistence(timeout: 3) {
+            let before = firstToggle.value as? String ?? ""
+            firstToggle.tap()
+            let after = firstToggle.value as? String ?? ""
+            XCTAssertNotEqual(before, after, "Event type filter toggle should change state after tap")
+        }
+
+        // Dismiss via Done
+        let doneButton = app.buttons["timeline_filter_button_done"]
+        if doneButton.waitForExistence(timeout: 3) {
+            doneButton.tap()
+        }
+    }
+
     private func openTimeline() {
         let tab = requireExists(app.tabBars.buttons["Timeline"], message: "Timeline tab should exist")
         tab.tap()

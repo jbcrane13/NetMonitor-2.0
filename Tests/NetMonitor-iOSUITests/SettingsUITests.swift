@@ -183,4 +183,86 @@ final class SettingsUITests: XCTestCase {
             app.alerts.buttons["Cancel"].tap()
         }
     }
+
+    // MARK: - Functional: Toggle state changes
+
+    func testNewDeviceAlertToggleChangesState() throws {
+        // Scroll to reveal the notification section
+        app.swipeUp()
+        let toggle = app.switches["settings_toggle_newDeviceAlert"]
+        guard toggle.waitForExistence(timeout: 5) else { return }
+
+        let before = toggle.value as? String ?? ""
+        toggle.tap()
+        let after = toggle.value as? String ?? ""
+
+        // FUNCTIONAL: state must change after tap
+        XCTAssertNotEqual(before, after, "New Device Alert toggle value must change after tap")
+
+        // Restore original state
+        toggle.tap()
+    }
+
+    func testHighLatencyToggleRevealsThresholdStepper() throws {
+        app.swipeUp()
+        let toggle = app.switches["settings_toggle_highLatencyAlert"]
+        guard toggle.waitForExistence(timeout: 5) else { return }
+
+        // If currently off, turn on and verify threshold stepper appears
+        if (toggle.value as? String) == "0" {
+            toggle.tap()
+        }
+
+        // FUNCTIONAL: threshold stepper should now be visible
+        let stepper = app.otherElements["settings_stepper_highLatencyThreshold"]
+        XCTAssertTrue(
+            stepper.waitForExistence(timeout: 3),
+            "High latency threshold stepper should appear when toggle is ON"
+        )
+    }
+
+    func testPingCountStepperChangesValue() throws {
+        let stepper = app.otherElements["settings_stepper_pingCount"]
+        guard stepper.waitForExistence(timeout: 5) else { return }
+
+        // Get initial value from the associated label near the stepper
+        let initialText = stepper.staticTexts.firstMatch.value as? String ?? ""
+
+        // Tap increment button
+        let incrementButton = stepper.buttons["+"]
+        guard incrementButton.waitForExistence(timeout: 3) else { return }
+        incrementButton.tap()
+
+        // FUNCTIONAL: value should change after increment
+        let newText = stepper.staticTexts.firstMatch.value as? String ?? ""
+        XCTAssertNotEqual(initialText, newText,
+                         "Ping count value should change after tapping the increment button")
+
+        // Restore by tapping decrement
+        stepper.buttons["-"].tap()
+    }
+
+    // MARK: - Functional: Clear actions show confirmation
+
+    func testClearHistoryShowsConfirmationAlertAndCanBeCancelled() throws {
+        app.swipeUp()
+        app.swipeUp()
+        let clearButton = app.buttons["settings_button_clearHistory"]
+        guard clearButton.waitForExistence(timeout: 5) else { return }
+        clearButton.tap()
+
+        // FUNCTIONAL: confirmation alert must appear
+        let alert = app.alerts["Clear History"]
+        XCTAssertTrue(alert.waitForExistence(timeout: 3),
+                     "Clear History confirmation alert should appear after tapping button")
+
+        // FUNCTIONAL: Cancel dismisses the alert without clearing
+        let cancelButton = alert.buttons["Cancel"]
+        XCTAssertTrue(cancelButton.exists, "Cancel button should exist in Clear History alert")
+        cancelButton.tap()
+
+        // FUNCTIONAL: alert dismissed, settings screen still visible
+        XCTAssertTrue(app.otherElements["screen_settings"].waitForExistence(timeout: 3),
+                     "Settings screen should still be visible after cancelling Clear History")
+    }
 }

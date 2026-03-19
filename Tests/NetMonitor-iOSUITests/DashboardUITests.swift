@@ -202,6 +202,46 @@ final class DashboardUITests: IOSUITestCase {
         requireExists(ui("screen_dashboard"), timeout: 8, message: "Dashboard should still exist after pull-to-refresh")
     }
 
+    // MARK: - Functional Verification Tests (behavioral outcomes, not just existence)
+
+    func testSettingsButtonNavigatesAndReturnsCorrectly() throws {
+        // FUNCTIONAL: tap settings, verify settings screen appears, then go back
+        let settingsButton = app.buttons["dashboard_button_settings"]
+        requireExists(settingsButton, message: "Settings button should exist")
+        settingsButton.tap()
+
+        // FUNCTIONAL: verify navigation occurred (settings screen identifier or nav title)
+        requireExists(app.otherElements["screen_settings"], timeout: 8,
+                     message: "Tapping Settings button should navigate to Settings screen")
+
+        // FUNCTIONAL: go back and verify dashboard is still there
+        app.navigationBars.buttons.firstMatch.tap()
+        requireExists(app.otherElements["screen_dashboard"], timeout: 5,
+                     message: "Dashboard should be restored after returning from Settings")
+    }
+
+    func testTabNavigationCycleWorks() throws {
+        // FUNCTIONAL: navigate through all 4 tabs and verify each screen appears
+        let tabBar = app.tabBars.firstMatch
+        requireExists(tabBar, message: "Tab bar should exist")
+
+        tabBar.buttons["Map"].tap()
+        requireExists(app.navigationBars["Network Map"], timeout: 8,
+                     message: "Network Map screen should appear after tapping Map tab")
+
+        tabBar.buttons["Tools"].tap()
+        requireExists(app.otherElements["screen_tools"], timeout: 8,
+                     message: "Tools screen should appear after tapping Tools tab")
+
+        tabBar.buttons["Timeline"].tap()
+        requireExists(app.navigationBars["Timeline"], timeout: 8,
+                     message: "Timeline screen should appear after tapping Timeline tab")
+
+        tabBar.buttons["Dashboard"].tap()
+        requireExists(app.otherElements["screen_dashboard"], timeout: 8,
+                     message: "Dashboard should be restored after tapping Dashboard tab")
+    }
+
     // MARK: - Helpers
 
     private func ui(_ identifier: String) -> XCUIElement {
