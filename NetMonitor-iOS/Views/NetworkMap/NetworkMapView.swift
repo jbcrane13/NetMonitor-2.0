@@ -90,7 +90,6 @@ struct NetworkMapView: View {
             .accessibilityIdentifier("screen_networkMap")
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
-            .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     scanButton

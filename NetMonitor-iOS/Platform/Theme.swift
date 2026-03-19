@@ -1,44 +1,69 @@
 import SwiftUI
+import UIKit
 import NetMonitorCore
 
 // MARK: - App Theme
 /// Centralized theme configuration for NetMonitor iOS
-/// Implements iOS 26 Liquid Glass design aesthetic
+/// Implements iOS 26 Liquid Glass design aesthetic with full light/dark mode support
 enum Theme {
-    
+
     // MARK: - Colors
     enum Colors {
-        // Background — lifted charcoal (Apple News-inspired)
-        static let backgroundBase = Color(hex: "141416")
+        // Background — adaptive: lifted charcoal in dark, system background in light
+        static let backgroundBase = Color(UIColor { traits in
+            traits.userInterfaceStyle == .dark
+                ? UIColor(red: 20/255, green: 20/255, blue: 22/255, alpha: 1)
+                : UIColor.systemGroupedBackground
+        })
         // periphery:ignore
-        static let backgroundElevated = Color(hex: "1C1C1E")
-        // Subtle blue shimmer for top glow
+        static let backgroundElevated = Color(UIColor { traits in
+            traits.userInterfaceStyle == .dark
+                ? UIColor(red: 28/255, green: 28/255, blue: 30/255, alpha: 1)
+                : UIColor.secondarySystemGroupedBackground
+        })
+        // Subtle blue shimmer for top glow (dark mode only)
         // periphery:ignore
         static let shimmerBlue = Color(red: 60/255, green: 80/255, blue: 140/255)
-        // Legacy aliases
-        static let backgroundGradientStart = Color(hex: "0F172A")
+        // Adaptive gradient colors
+        static let backgroundGradientStart = Color(UIColor { traits in
+            traits.userInterfaceStyle == .dark
+                ? UIColor(red: 15/255, green: 23/255, blue: 42/255, alpha: 1)
+                : UIColor.systemGroupedBackground
+        })
         static let backgroundGradientEnd = backgroundBase
 
         // Primary accent — reads from ThemeManager for reactive updates
         @MainActor static var accent: Color { ThemeManager.shared.accent }
         @MainActor static var accentLight: Color { ThemeManager.shared.accentLight }
-        
+
         // Semantic colors
         static let success = Color(hex: "10B981")     // emerald-500
         static let warning = Color(hex: "F59E0B")     // amber-500
         static let error = Color(hex: "EF4444")       // red-500
         static let info = Color(hex: "3B82F6")        // blue-500
-        
-        // Text colors
-        static let textPrimary = Color.white
-        static let textSecondary = Color.white.opacity(0.7)
-        static let textTertiary = Color.white.opacity(0.5)
-        
-        // Luminous tokens
-        static let crystalBase = Color(hex: "1A1F26").opacity(0.6)
-        static let crystalHighlight = Color.white.opacity(0.12)
-        static let crystalBorder = Color.white.opacity(0.15)
-        
+
+        // Text colors — adaptive via system semantic colors
+        static let textPrimary = Color.primary
+        static let textSecondary = Color.secondary
+        static let textTertiary = Color(.tertiaryLabel)
+
+        // Luminous tokens — adaptive glass effects
+        static let crystalBase = Color(UIColor { traits in
+            traits.userInterfaceStyle == .dark
+                ? UIColor(red: 26/255, green: 31/255, blue: 38/255, alpha: 0.6)
+                : UIColor(white: 1.0, alpha: 0.55)
+        })
+        static let crystalHighlight = Color(UIColor { traits in
+            traits.userInterfaceStyle == .dark
+                ? UIColor(white: 1.0, alpha: 0.12)
+                : UIColor(white: 0.95, alpha: 0.8)
+        })
+        static let crystalBorder = Color(UIColor { traits in
+            traits.userInterfaceStyle == .dark
+                ? UIColor(white: 1.0, alpha: 0.15)
+                : UIColor(white: 0.0, alpha: 0.08)
+        })
+
         @MainActor static var glassBackground: Color { crystalBase }
         static let glassBorder = crystalBorder
         static let glassHighlight = crystalHighlight
@@ -141,22 +166,26 @@ enum Theme {
 
 // MARK: - Themed Background Modifier
 struct ThemedBackground: ViewModifier {
+    @Environment(\.colorScheme) private var colorScheme
+
     func body(content: Content) -> some View {
         content
             .background(
                 ZStack {
-                    // Lifted charcoal base
+                    // Adaptive base background
                     Theme.Colors.backgroundBase
                         .ignoresSafeArea()
 
-                    // Subtle blue-gray wash near the top
-                    RadialGradient(
-                        colors: [Color(red: 30/255, green: 35/255, blue: 55/255).opacity(0.25), .clear],
-                        center: .top,
-                        startRadius: 0,
-                        endRadius: 500
-                    )
-                    .ignoresSafeArea()
+                    // Dark mode only: subtle blue-gray wash near the top
+                    if colorScheme == .dark {
+                        RadialGradient(
+                            colors: [Color(red: 30/255, green: 35/255, blue: 55/255).opacity(0.25), .clear],
+                            center: .top,
+                            startRadius: 0,
+                            endRadius: 500
+                        )
+                        .ignoresSafeArea()
+                    }
                 }
             )
     }

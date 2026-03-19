@@ -77,7 +77,7 @@ final class SettingsViewModel {
 
     // MARK: - Appearance Settings
     var selectedTheme: String {
-        get { defaults.string(forKey: AppSettings.Keys.selectedTheme) ?? "dark" }
+        get { defaults.string(forKey: AppSettings.Keys.selectedTheme) ?? "system" }
         set { defaults.set(newValue, forKey: AppSettings.Keys.selectedTheme) }
     }
 

@@ -148,7 +148,6 @@ struct ScheduledScanSettingsView: View {
         .navigationTitle("Scheduled Scans")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
-        .toolbarColorScheme(.dark, for: .navigationBar)
         .accessibilityIdentifier("screen_scheduledScan")
     }
 }

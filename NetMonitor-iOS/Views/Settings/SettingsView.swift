@@ -154,6 +154,14 @@ struct SettingsView: View {
 
             // MARK: - Appearance Section
             Section {
+                Picker("Color Scheme", selection: $viewModel.selectedTheme) {
+                    Text("System").tag("system")
+                    Text("Light").tag("light")
+                    Text("Dark").tag("dark")
+                }
+                .foregroundStyle(Theme.Colors.textPrimary)
+                .accessibilityIdentifier("settings_picker_colorScheme")
+
                 Picker("Accent Color", selection: $viewModel.selectedAccentColor) {
                     Text("Cyan").tag("cyan")
                     Text("Blue").tag("blue")
@@ -344,7 +352,6 @@ struct SettingsView: View {
         .navigationTitle("Settings")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
-        .toolbarColorScheme(.dark, for: .navigationBar)
         .alert("Clear History", isPresented: $showingClearHistoryAlert) {
             Button("Cancel", role: .cancel) {}
             Button("Clear", role: .destructive) {

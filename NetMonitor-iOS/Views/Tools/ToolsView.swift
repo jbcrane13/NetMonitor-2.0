@@ -21,7 +21,6 @@ struct ToolsView: View {
             .navigationTitle("Tools")
             .navigationBarTitleDisplayMode(.large)
             .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
-            .toolbarColorScheme(.dark, for: .navigationBar)
             .navigationDestination(for: ToolDestination.self) { destination in
                 destination.view
             }
@@ -283,7 +282,6 @@ struct SetTargetSheet: View {
             .navigationTitle("Set Target")
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
-            .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Cancel") {
