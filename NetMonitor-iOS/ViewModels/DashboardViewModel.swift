@@ -249,7 +249,7 @@ final class DashboardViewModel {
 
     /// Ping well-known anchors to show real external latency.
     private func measureAnchors() async {
-        let anchors = ["Google": "8.8.8.8", "Cloudflare": "1.1.1.1", "AWS": "3.3.3.3"]
+        let anchors = ["Google": "8.8.8.8", "Cloudflare": "1.1.1.1", "Apple": "17.253.144.10"]
         for (name, host) in anchors {
             let stream = await pingService.ping(host: host, count: 1, timeout: 2)
             var measured = false

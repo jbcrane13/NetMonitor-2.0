@@ -387,8 +387,11 @@ struct SignalEQView: View {
                 HStack(alignment: .bottom, spacing: 2) {
                     ForEach(0..<eqData.count, id: \.self) { i in
                         let val = eqData[i]
-                        let maxVal = eqData.max() ?? 100
-                        let height = CGFloat((val / maxVal) * 32)
+                        // Use a fixed ceiling (200ms) so small jitter differences
+                        // produce visible bar-height variation instead of equal bars.
+                        let ceiling: Double = 200
+                        let normalized = min(val / ceiling, 1.0)
+                        let height = CGFloat(normalized * 32)
                         
                         RoundedRectangle(cornerRadius: 1)
                             .fill(
@@ -453,7 +456,7 @@ struct AnchorLatencyCard: View {
     private let anchors: [(label: String, key: String)] = [
         ("Google", "Google"),
         ("Cloudflare", "Cloudflare"),
-        ("AWS", "AWS")
+        ("Apple", "Apple")
     ]
 
     var body: some View {

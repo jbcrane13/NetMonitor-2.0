@@ -44,8 +44,8 @@ enum Theme {
 
         // Text colors — adaptive via system semantic colors
         static let textPrimary = Color.primary
-        static let textSecondary = Color.secondary
-        static let textTertiary = Color(.tertiaryLabel)
+        static let textSecondary = Color.white.opacity(0.72)
+        static let textTertiary = Color.white.opacity(0.55)
 
         // Luminous tokens — adaptive glass effects
         static let crystalBase = Color(UIColor { traits in
