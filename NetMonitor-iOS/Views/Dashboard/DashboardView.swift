@@ -22,7 +22,8 @@ struct DashboardView: View {
                     
                     SignalEQView(viewModel: viewModel)
                     
-                    ProConnectivityPanel(viewModel: viewModel)
+                    WANInfoCard(viewModel: viewModel)
+                    AnchorLatencyCard(viewModel: viewModel)
 
                     SpeedTestQuickCard()
 
@@ -408,43 +409,118 @@ struct SignalEQView: View {
 
 // MARK: - Pro Panels
 
-struct ProConnectivityPanel: View {
+// MARK: - WAN Info Card
+struct WANInfoCard: View {
     let viewModel: DashboardViewModel
-    
-    var body: some View {
-        VStack(spacing: 8) {
-            GlassCard(padding: 12) {
-                VStack(spacing: 16) {
-                    // Header now lives inside the card
-                    HStack {
-                        Text("PRO CONNECTIVITY")
-                            .font(.system(size: 10, weight: .black))
-                            .foregroundStyle(Theme.Colors.textTertiary)
-                            .tracking(1.5)
-                        Spacer()
-                    }
 
-                    LinkTopologyView(viewModel: viewModel)
-                        .padding(.bottom, 4)
-                    
-                    VStack(spacing: 12) {
-                        ConnectivityRow(label: "ISP", value: viewModel.ispInfo?.ispName ?? "Detecting...", icon: "antenna.radiowaves.left.and.right")
-                        Divider().background(Color.white.opacity(0.05))
-                        ConnectivityRow(label: "DNS", value: viewModel.systemDNS, icon: "magnifyingglass")
-                        Divider().background(Color.white.opacity(0.05))
-                        ConnectivityRow(label: "Public IP", value: viewModel.ispInfo?.publicIP ?? "---.---.---.---", icon: "network")
-                    }
+    var body: some View {
+        GlassCard(padding: 12) {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("WAN INFO")
+                    .font(.system(size: 10, weight: .black))
+                    .foregroundStyle(Theme.Colors.textTertiary)
+                    .tracking(1.5)
+
+                VStack(spacing: 0) {
+                    ConnectivityRow(
+                        label: "ISP",
+                        value: viewModel.ispInfo?.ispName ?? "Detecting…",
+                        icon: "antenna.radiowaves.left.and.right"
+                    )
+                    Divider().background(Color.white.opacity(0.06)).padding(.vertical, 6)
+                    ConnectivityRow(
+                        label: "Public IP",
+                        value: viewModel.ispInfo?.publicIP ?? "—",
+                        icon: "network"
+                    )
+                    Divider().background(Color.white.opacity(0.06)).padding(.vertical, 6)
+                    ConnectivityRow(
+                        label: "DNS",
+                        value: viewModel.systemDNS,
+                        icon: "magnifyingglass"
+                    )
                 }
             }
-            
-            HStack(spacing: 8) {
-                AnchorPill(label: "Google", latency: viewModel.anchorLatencies["Google"])
-                AnchorPill(label: "Cloudflare", latency: viewModel.anchorLatencies["Cloudflare"])
-                AnchorPill(label: "AWS", latency: viewModel.anchorLatencies["AWS"])
-            }
-            .padding(.top, 4)
         }
-        .accessibilityIdentifier("dashboard_card_connectivity")
+        .accessibilityIdentifier("dashboard_card_wan")
+    }
+}
+
+// MARK: - Anchor Latency Card
+struct AnchorLatencyCard: View {
+    let viewModel: DashboardViewModel
+
+    private let anchors: [(label: String, key: String)] = [
+        ("Google", "Google"),
+        ("Cloudflare", "Cloudflare"),
+        ("AWS", "AWS")
+    ]
+
+    var body: some View {
+        GlassCard(padding: 12) {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("INTERNET LATENCY")
+                    .font(.system(size: 10, weight: .black))
+                    .foregroundStyle(Theme.Colors.textTertiary)
+                    .tracking(1.5)
+
+                HStack(spacing: 0) {
+                    ForEach(anchors, id: \.key) { anchor in
+                        AnchorMetricColumn(
+                            label: anchor.label,
+                            latency: viewModel.anchorLatencies[anchor.key]
+                        )
+                        if anchor.key != anchors.last?.key {
+                            Divider()
+                                .background(Color.white.opacity(0.06))
+                                .frame(height: 36)
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity)
+            }
+        }
+        .accessibilityIdentifier("dashboard_card_anchorLatency")
+    }
+}
+
+struct AnchorMetricColumn: View {
+    let label: String
+    let latency: Double?
+
+    private var dotColor: Color {
+        guard let ms = latency else { return Theme.Colors.textTertiary }
+        if ms < 50 { return Theme.Colors.success }
+        if ms < 120 { return Theme.Colors.warning }
+        return .red
+    }
+
+    var body: some View {
+        VStack(spacing: 4) {
+            Circle()
+                .fill(dotColor)
+                .frame(width: 6, height: 6)
+            if let ms = latency {
+                Text("\(Int(ms))")
+                    .font(.system(size: 18, weight: .black, design: .rounded))
+                    .foregroundStyle(.white)
+                Text("ms")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(Theme.Colors.textTertiary)
+            } else {
+                Text("—")
+                    .font(.system(size: 18, weight: .black, design: .rounded))
+                    .foregroundStyle(Theme.Colors.textTertiary)
+                Text("ms")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(Theme.Colors.textTertiary)
+            }
+            Text(label.uppercased())
+                .font(.system(size: 8, weight: .black))
+                .foregroundStyle(Theme.Colors.textTertiary)
+                .tracking(0.8)
+        }
+        .frame(maxWidth: .infinity)
     }
 }
 
@@ -473,109 +549,7 @@ struct ConnectivityRow: View {
     }
 }
 
-struct AnchorPill: View {
-    let label: String
-    let latency: Double?
-    
-    var body: some View {
-        HStack(spacing: 6) {
-            Circle()
-                .fill(latency != nil ? Theme.Colors.success : Theme.Colors.textTertiary)
-                .frame(width: 4, height: 4)
-            Text(label.uppercased())
-                .font(.system(size: 8, weight: .black))
-                .foregroundStyle(Theme.Colors.textSecondary)
-            if let ms = latency {
-                Text("\(Int(ms))ms")
-                    .font(.system(size: 9, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white)
-            } else {
-                Text("—")
-                    .font(.system(size: 9, weight: .bold, design: .rounded))
-                    .foregroundStyle(Theme.Colors.textTertiary)
-            }
-        }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 6)
-        .background(Theme.Colors.crystalBase)
-        .clipShape(Capsule())
-        .overlay(Capsule().stroke(Color.white.opacity(0.05), lineWidth: 1))
-    }
-}
 
-struct LinkTopologyView: View {
-    let viewModel: DashboardViewModel
-    @State private var packetOffset: CGFloat = 0
-    
-    var body: some View {
-        HStack(spacing: 0) {
-            TopologyNode(icon: "iphone", label: "Local")
-            TopologyLink(active: viewModel.isConnected, color: .blue, offset: packetOffset)
-            TopologyNode(icon: "server.rack", label: "Gateway")
-            TopologyLink(active: viewModel.isConnected && viewModel.gateway?.latency != nil, color: Theme.Colors.latencyColor(ms: viewModel.gateway?.latency ?? 0), offset: packetOffset)
-            TopologyNode(icon: "globe", label: "Internet")
-        }
-        .onAppear {
-            withAnimation(.linear(duration: 2.0).repeatForever(autoreverses: false)) {
-                packetOffset = 1.0
-            }
-        }
-    }
-}
-
-struct TopologyNode: View {
-    let icon: String
-    let label: String
-    
-    var body: some View {
-        VStack(spacing: 6) {
-            ZStack {
-                Circle()
-                    .fill(Theme.Colors.crystalBase)
-                    .frame(width: 28, height: 28)
-                    .overlay(Circle().stroke(Color.white.opacity(0.1), lineWidth: 1))
-                
-                Image(systemName: icon)
-                    .font(.system(size: 12))
-                    .foregroundStyle(.white)
-            }
-            Text(label.uppercased())
-                .font(.system(size: 7, weight: .black))
-                .foregroundStyle(Theme.Colors.textTertiary)
-        }
-        .frame(width: 44)
-    }
-}
-
-struct TopologyLink: View {
-    let active: Bool
-    let color: Color
-    let offset: CGFloat
-    
-    var body: some View {
-        GeometryReader { geo in
-            ZStack {
-                Rectangle()
-                    .fill(Color.white.opacity(0.05))
-                    .frame(height: 1)
-                
-                if active {
-                    Rectangle()
-                        .fill(color.opacity(0.2))
-                        .frame(height: 1)
-                    
-                    Circle()
-                        .fill(.white)
-                        .frame(width: 3, height: 3)
-                        .shadow(color: color, radius: 3)
-                        .offset(x: -geo.size.width/2 + (geo.size.width * offset))
-                }
-            }
-            .frame(maxHeight: .infinity)
-        }
-        .frame(height: 28)
-    }
-}
 
 // MARK: - Devices
 
