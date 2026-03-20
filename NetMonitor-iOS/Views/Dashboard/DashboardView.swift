@@ -267,8 +267,8 @@ struct RefinedNetworkHealthCard: View {
     }
     
     var body: some View {
-        GlassCard(padding: 16) {
-            VStack(alignment: .leading, spacing: 14) {
+        GlassCard(padding: 12) {
+            VStack(alignment: .leading, spacing: 10) {
                 HStack {
                     Text("NETWORK HEALTH")
                         .font(.system(size: 11, weight: .black))
@@ -284,10 +284,10 @@ struct RefinedNetworkHealthCard: View {
                         .clipShape(RoundedRectangle(cornerRadius: 3))
                 }
                 
-                HStack(spacing: 20) {
+                HStack(spacing: 16) {
                     ZStack {
                         Circle()
-                            .stroke(Color.white.opacity(0.05), lineWidth: 6)
+                            .stroke(Color.white.opacity(0.05), lineWidth: 5)
                         Circle()
                             .trim(from: 0, to: CGFloat(healthScore) / 100.0)
                             .stroke(
@@ -296,38 +296,38 @@ struct RefinedNetworkHealthCard: View {
                                     startPoint: .leading,
                                     endPoint: .trailing
                                 ),
-                                style: StrokeStyle(lineWidth: 6, lineCap: .round)
+                                style: StrokeStyle(lineWidth: 5, lineCap: .round)
                             )
                             .rotationEffect(.degrees(-90))
-                            .shadow(color: .cyan.opacity(0.3), radius: 6)
+                            .shadow(color: .cyan.opacity(0.3), radius: 4)
                         
                         VStack(spacing: -2) {
                             Text("\(healthScore)")
-                                .font(.system(size: 28, weight: .black, design: .rounded))
+                                .font(.system(size: 22, weight: .black, design: .rounded))
                                 .foregroundStyle(.white)
                             Text("SCORE")
-                                .font(.system(size: 8, weight: .black))
+                                .font(.system(size: 7, weight: .black))
                                 .foregroundStyle(Theme.Colors.textTertiary)
                                 .tracking(1)
                         }
                     }
-                    .frame(width: 80, height: 80)
+                    .frame(width: 64, height: 64)
                     
-                    VStack(alignment: .leading, spacing: 6) {
+                    VStack(alignment: .leading, spacing: 4) {
                         HStack(spacing: 6) {
                             Circle()
                                 .fill(healthScore > 70 ? Theme.Colors.success : Theme.Colors.warning)
-                                .frame(width: 7, height: 7)
+                                .frame(width: 6, height: 6)
                             
                             Text(healthStatusTitle)
-                                .font(.system(size: 15, weight: .bold))
+                                .font(.system(size: 14, weight: .bold))
                                 .foregroundStyle(.white)
                         }
                         
                         Text(healthDetailText)
-                            .font(.system(size: 12))
+                            .font(.system(size: 11))
                             .foregroundStyle(Theme.Colors.textSecondary)
-                            .lineSpacing(2)
+                            .lineSpacing(1)
                     }
                 }
             }
@@ -413,17 +413,17 @@ struct ProConnectivityPanel: View {
     
     var body: some View {
         VStack(spacing: 8) {
-            HStack {
-                Text("PRO CONNECTIVITY")
-                    .font(.system(size: 10, weight: .black))
-                    .foregroundStyle(Theme.Colors.textTertiary)
-                    .tracking(1.5)
-                Spacer()
-            }
-            .padding(.horizontal, 4)
-            
             GlassCard(padding: 12) {
                 VStack(spacing: 16) {
+                    // Header now lives inside the card
+                    HStack {
+                        Text("PRO CONNECTIVITY")
+                            .font(.system(size: 10, weight: .black))
+                            .foregroundStyle(Theme.Colors.textTertiary)
+                            .tracking(1.5)
+                        Spacer()
+                    }
+
                     LinkTopologyView(viewModel: viewModel)
                         .padding(.bottom, 4)
                     
