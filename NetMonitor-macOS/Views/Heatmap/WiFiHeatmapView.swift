@@ -9,6 +9,7 @@ struct WiFiHeatmapView: View {
     @State private var viewModel = WiFiHeatmapViewModel()
     @State private var selectedPhotoItem: PhotosPickerItem?
     @State private var showImportOptions = false
+    @State private var showBlueprintImporter = false
 
     var body: some View {
         HSplitView {
@@ -21,11 +22,14 @@ struct WiFiHeatmapView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .toolbar { toolbarContent }
         .confirmationDialog("Import Floor Plan", isPresented: $showImportOptions) {
-            Button("Choose File…") {
+            Button("Choose Image File…") {
                 viewModel.showImportSheet = true
             }
             Button("Choose from Photos…") {
                 viewModel.showPhotoPicker = true
+            }
+            Button("Import Blueprint (.netmonblueprint)…") {
+                showBlueprintImporter = true
             }
             Button("Cancel", role: .cancel) {}
         }
@@ -51,6 +55,13 @@ struct WiFiHeatmapView: View {
         }
         .sheet(isPresented: $viewModel.showCalibrationSheet) {
             CalibrationSheet(viewModel: viewModel)
+        }
+        .onOpenURL { url in
+            if url.pathExtension == "netmonblueprint" {
+                let didAccess = url.startAccessingSecurityScopedResource()
+                defer { if didAccess { url.stopAccessingSecurityScopedResource() } }
+                try? viewModel.importBlueprint(from: url)
+            }
         }
         .onAppear { viewModel.onAppear() }
         .onDisappear { viewModel.onDisappear() }
@@ -110,6 +121,11 @@ struct WiFiHeatmapView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .accessibilityIdentifier("heatmap_button_import")
+
+                Button("Import Blueprint") {
+                    importBlueprint()
+                }
+                .accessibilityIdentifier("heatmap_button_importBlueprint")
 
                 Button("Open Project") {
                     loadProject()
@@ -275,7 +291,21 @@ struct WiFiHeatmapView: View {
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = true
         if panel.runModal() == .OK, let url = panel.url {
-            try? viewModel.loadProject(from: url)
+            if url.pathExtension == "netmonblueprint" {
+                try? viewModel.importBlueprint(from: url)
+            } else {
+                try? viewModel.loadProject(from: url)
+            }
+        }
+    }
+
+    private func importBlueprint() {
+        let panel = NSOpenPanel()
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = true
+        panel.message = "Select a .netmonblueprint file exported from the iOS Room Scanner"
+        if panel.runModal() == .OK, let url = panel.url {
+            try? viewModel.importBlueprint(from: url)
         }
     }
 

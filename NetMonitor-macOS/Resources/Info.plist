@@ -20,6 +20,18 @@
 				<string>com.netmonitor.survey</string>
 			</array>
 		</dict>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>NetMonitor Blueprint</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Owner</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>com.netmonitor.blueprint</string>
+			</array>
+		</dict>
 	</array>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
@@ -98,6 +110,23 @@
 				<key>public.filename-extension</key>
 				<array>
 					<string>netmonsurvey</string>
+				</array>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>com.apple.package</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>NetMonitor Blueprint</string>
+			<key>UTTypeIdentifier</key>
+			<string>com.netmonitor.blueprint</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>netmonblueprint</string>
 				</array>
 			</dict>
 		</dict>

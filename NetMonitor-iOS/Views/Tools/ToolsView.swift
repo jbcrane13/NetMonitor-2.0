@@ -45,6 +45,7 @@ enum ToolDestination: Hashable {
     case worldPing
     case geoTrace
     case sslMonitor
+    case roomScanner
     @ViewBuilder
     @MainActor
     var view: some View {
@@ -78,6 +79,8 @@ enum ToolDestination: Hashable {
             GeoTraceView(initialHost: target)
         case .sslMonitor:
             SSLCertificateMonitorView()
+        case .roomScanner:
+            RoomPlanScannerView()
         }
     }
 }
@@ -360,7 +363,8 @@ struct ToolsGridSection: View {
         ToolItem(name: "Subnet Calc", icon: "square.split.bottomrightquarter", color: .purple, description: "Calculate subnet ranges", destination: .subnetCalculator),
         ToolItem(name: "World Ping", icon: "globe.americas", color: .teal, description: "Global latency check", destination: .worldPing),
         ToolItem(name: "Geo Trace", icon: "map", color: .mint, description: "Visual route on map", destination: .geoTrace),
-        ToolItem(name: "SSL Monitor", icon: "lock.shield", color: .green, description: "Certificate expiry check", destination: .sslMonitor)
+        ToolItem(name: "SSL Monitor", icon: "lock.shield", color: .green, description: "Certificate expiry check", destination: .sslMonitor),
+        ToolItem(name: "Room Scanner", icon: "cube.transparent", color: .indigo, description: "3D room scan for heatmap", destination: .roomScanner)
     ]
 
     private let columns = [

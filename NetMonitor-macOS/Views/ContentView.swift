@@ -60,8 +60,8 @@ struct ContentView: View {
             }
         }
         .onOpenURL { url in
-            // Handle Finder double-click on .netmonsurvey files
-            if url.pathExtension == "netmonsurvey" {
+            // Handle Finder double-click / AirDrop for heatmap files
+            if url.pathExtension == "netmonsurvey" || url.pathExtension == "netmonblueprint" {
                 pendingSurveyURL = url
                 selectedSection = .tool(.wifiHeatmap)
             }

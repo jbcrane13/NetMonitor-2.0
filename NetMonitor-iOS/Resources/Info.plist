@@ -26,6 +26,18 @@
 				<string>com.netmonitor.survey</string>
 			</array>
 		</dict>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>NetMonitor Blueprint</string>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>LSHandlerRank</key>
+			<string>Owner</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>com.netmonitor.blueprint</string>
+			</array>
+		</dict>
 	</array>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
@@ -40,9 +52,9 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>2.0.3</string>
+	<string>2.0</string>
 	<key>CFBundleVersion</key>
-	<string>15</string>
+	<string>1</string>
 	<key>LSSupportsOpeningDocumentsInPlace</key>
 	<true/>
 	<key>NSAppTransportSecurity</key>
@@ -133,6 +145,23 @@
 				<key>public.filename-extension</key>
 				<array>
 					<string>netmonsurvey</string>
+				</array>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>com.apple.package</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>NetMonitor Blueprint</string>
+			<key>UTTypeIdentifier</key>
+			<string>com.netmonitor.blueprint</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>netmonblueprint</string>
 				</array>
 			</dict>
 		</dict>

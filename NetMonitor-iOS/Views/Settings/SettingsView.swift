@@ -465,7 +465,7 @@ private enum ExportOption: String, CaseIterable, Identifiable {
     }
 }
 
-private struct ShareSheet: UIViewControllerRepresentable {
+struct ShareSheet: UIViewControllerRepresentable {
     let activityItems: [Any]
 
     func makeUIViewController(context: Context) -> UIActivityViewController {

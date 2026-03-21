@@ -72,12 +72,24 @@ targets:
             UTTypeTagSpecification:
               public.filename-extension:
                 - netmonsurvey
+          - UTTypeIdentifier: com.netmonitor.blueprint
+            UTTypeDescription: NetMonitor Blueprint
+            UTTypeConformsTo:
+              - com.apple.package
+            UTTypeTagSpecification:
+              public.filename-extension:
+                - netmonblueprint
         CFBundleDocumentTypes:
           - CFBundleTypeName: NetMonitor Survey Project
             CFBundleTypeRole: Editor
             LSHandlerRank: Owner
             LSItemContentTypes:
               - com.netmonitor.survey
+          - CFBundleTypeName: NetMonitor Blueprint
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Owner
+            LSItemContentTypes:
+              - com.netmonitor.blueprint
     entitlements:
       path: NetMonitor-macOS/Resources/NetMonitor-macOS.entitlements
       properties:
@@ -192,6 +204,13 @@ targets:
             UTTypeTagSpecification:
               public.filename-extension:
                 - netmonsurvey
+          - UTTypeIdentifier: com.netmonitor.blueprint
+            UTTypeDescription: NetMonitor Blueprint
+            UTTypeConformsTo:
+              - com.apple.package
+            UTTypeTagSpecification:
+              public.filename-extension:
+                - netmonblueprint
         UIFileSharingEnabled: true
         LSSupportsOpeningDocumentsInPlace: true
         CFBundleDocumentTypes:
@@ -200,6 +219,11 @@ targets:
             LSHandlerRank: Owner
             LSItemContentTypes:
               - com.netmonitor.survey
+          - CFBundleTypeName: NetMonitor Blueprint
+            CFBundleTypeRole: Editor
+            LSHandlerRank: Owner
+            LSItemContentTypes:
+              - com.netmonitor.blueprint
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.blakemiller.netmonitor

@@ -287,6 +287,38 @@ final class WiFiHeatmapViewModel {
         startCalibration()
     }
 
+    // MARK: - Blueprint Import
+
+    func importBlueprint(from url: URL) throws {
+        let manager = BlueprintSaveLoadManager()
+        let blueprint = try manager.load(from: url)
+
+        guard let floor = blueprint.floors.first else {
+            throw HeatmapError.noFloorPlan
+        }
+
+        // Convert blueprint floor to a FloorPlan (pre-calibrated, no manual calibration needed)
+        let floorPlan = BlueprintSaveLoadManager.floorPlanFromBlueprint(floor)
+
+        surveyProject = SurveyProject(
+            name: blueprint.name,
+            floorPlan: floorPlan,
+            metadata: SurveyMetadata(
+                buildingName: blueprint.metadata.buildingName,
+                floorNumber: floor.label,
+                notes: blueprint.metadata.notes
+            )
+        )
+        measurementPoints = []
+        heatmapCGImage = nil
+        isHeatmapGenerated = false
+
+        // Blueprint is pre-calibrated — skip manual calibration
+        isCalibrating = false
+        isCalibrated = true
+        calibrationPoints = []
+    }
+
     // MARK: - Calibration
 
     func startCalibration() {
