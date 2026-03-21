@@ -385,11 +385,12 @@ struct SignalEQView: View {
                 }
                 
                 HStack(alignment: .bottom, spacing: 2) {
+                    // Adaptive ceiling: max observed value × 1.5, floored at 20ms.
+                    // This keeps bars proportional to actual jitter — a fixed 200ms
+                    // ceiling makes typical LAN latency (2–15ms) render as invisible stubs.
+                    let ceiling = max((eqData.max() ?? 20.0) * 1.5, 20.0)
                     ForEach(0..<eqData.count, id: \.self) { i in
                         let val = eqData[i]
-                        // Use a fixed ceiling (200ms) so small jitter differences
-                        // produce visible bar-height variation instead of equal bars.
-                        let ceiling: Double = 200
                         let normalized = min(val / ceiling, 1.0)
                         let height = CGFloat(normalized * 32)
                         
