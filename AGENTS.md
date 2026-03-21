@@ -1,14 +1,13 @@
 # Agent Instructions
 
-This project uses **bd** (beads) for issue tracking. Run `bd onboard` to get started.
+This project uses **GitHub Issues** (`gh` CLI) for issue tracking. Repo: `jbcrane13/NetMonitor-2.0`.
 
 ## Quick Reference
 
 ```bash
-bd ready              # Find available work
-bd update <id> --claim  # Claim work atomically
-bd close <id>         # Complete work
-bd sync               # Sync with git
+gh issue list --repo jbcrane13/NetMonitor-2.0 --label "status:ready" --state open --json number,title,labels
+gh issue edit <number> --repo jbcrane13/NetMonitor-2.0 --add-label "status:in-progress" --remove-label "status:ready"
+gh issue close <number> --repo jbcrane13/NetMonitor-2.0 --comment "Done: <summary>"
 ```
 
 ## Landing the Plane (Session Completion)
@@ -23,7 +22,6 @@ bd sync               # Sync with git
 4. **PUSH TO REMOTE** - This is MANDATORY:
    ```bash
    git pull --rebase
-   bd sync
    git push
    git status  # MUST show "up to date with origin"
    ```
@@ -134,7 +132,7 @@ Unsorted (no enforced order). Conventional grouping: Foundation → Apple framew
 | Test suites | `*Tests` suffix | `ShellPingResultTests`, `DashboardViewModelTests` |
 | Booleans | `is*`/`has*`/`needs*` | `isConnected`, `isScanning`, `hasError` |
 | Accessibility IDs | `{screen}_{element}_{descriptor}` | `"dashboard_card_healthScore"` |
-| TODOs | Must reference beads ticket | `// TODO: (NetMonitor-2.0-xyz) description` |
+| TODOs | Must reference GitHub issue | `// TODO: (#123) description` |
 
 ### Types and Access Control
 - **Packages:** Explicit `public` on all API types, inits, and methods. Omit `internal`.
@@ -214,89 +212,38 @@ CI runs all four on every PR via `lint.yml` and `code-quality.yml`. Periphery an
 
 **Runbooks:** `.factory/skills/run-tests/`, `check-coverage/`, `create-release/`, `fix-lint/` — each has `SKILL.md`.
 
-<!-- BEGIN BEADS INTEGRATION -->
-## Issue Tracking with bd (beads)
+## Issue Tracking with GitHub Issues
 
-**IMPORTANT**: This project uses **bd (beads)** for ALL issue tracking. Do NOT use markdown TODOs, task lists, or other tracking methods.
-
-### Why bd?
-
-- Dependency-aware: Track blockers and relationships between issues
-- Git-friendly: Dolt-powered version control with native sync
-- Agent-optimized: JSON output, ready work detection, discovered-from links
-- Prevents duplicate tracking systems and confusion
+**IMPORTANT**: This project uses **GitHub Issues via `gh` CLI** for ALL issue tracking. Do NOT use `bd`/beads, markdown TODOs, or other tracking methods.
 
 ### Quick Start
 
-**Check for ready work:**
-
 ```bash
-bd ready --json
+# Check ready work
+gh issue list --repo jbcrane13/NetMonitor-2.0 --label "status:ready" --state open --json number,title,labels
+
+# Create issue
+gh issue create --repo jbcrane13/NetMonitor-2.0 --title "Title" --body "Details" --label "type:feature,priority:medium,status:ready"
+
+# Claim task
+gh issue edit <number> --repo jbcrane13/NetMonitor-2.0 --add-label "status:in-progress" --remove-label "status:ready" --add-assignee "@me"
+
+# Close when done
+gh issue close <number> --repo jbcrane13/NetMonitor-2.0 --comment "Done: <summary>"
 ```
 
-**Create new issues:**
+### Label Schema
 
-```bash
-bd create "Issue title" --description="Detailed context" -t bug|feature|task -p 0-4 --json
-bd create "Issue title" --description="What this issue is about" -p 1 --deps discovered-from:bd-123 --json
-```
+**Type:** `type:bug` · `type:feature` · `type:task` · `type:epic` · `type:chore`
+**Priority:** `priority:critical` · `priority:high` · `priority:medium` · `priority:low` · `priority:backlog`
+**Status:** `status:ready` · `status:in-progress` · `status:blocked` · `status:review`
+**Agent:** `agent:daneel` · `agent:quentin`
 
-**Claim and update:**
+### Rules
 
-```bash
-bd update <id> --claim --json
-bd update bd-42 --priority 1 --json
-```
-
-**Complete work:**
-
-```bash
-bd close bd-42 --reason "Completed" --json
-```
-
-### Issue Types
-
-- `bug` - Something broken
-- `feature` - New functionality
-- `task` - Work item (tests, docs, refactoring)
-- `epic` - Large feature with subtasks
-- `chore` - Maintenance (dependencies, tooling)
-
-### Priorities
-
-- `0` - Critical (security, data loss, broken builds)
-- `1` - High (major features, important bugs)
-- `2` - Medium (default, nice-to-have)
-- `3` - Low (polish, optimization)
-- `4` - Backlog (future ideas)
-
-### Workflow for AI Agents
-
-1. **Check ready work**: `bd ready` shows unblocked issues
-2. **Claim your task atomically**: `bd update <id> --claim`
-3. **Work on it**: Implement, test, document
-4. **Discover new work?** Create linked issue:
-   - `bd create "Found bug" --description="Details about what was found" -p 1 --deps discovered-from:<parent-id>`
-5. **Complete**: `bd close <id> --reason "Done"`
-
-### Auto-Sync
-
-bd automatically syncs via Dolt:
-
-- Each write auto-commits to Dolt history
-- Use `bd dolt push`/`bd dolt pull` for remote sync
-- No manual export/import needed!
-
-### Important Rules
-
-- ✅ Use bd for ALL task tracking
-- ✅ Always use `--json` flag for programmatic use
-- ✅ Link discovered work with `discovered-from` dependencies
-- ✅ Check `bd ready` before asking "what should I work on?"
+- ✅ Use GitHub Issues for ALL task tracking
+- ✅ Label every issue with type + priority + status
+- ✅ Use milestones for phases (v2.1, v2.2, Backlog)
+- ❌ Do NOT use `bd` / beads
 - ❌ Do NOT create markdown TODO lists
-- ❌ Do NOT use external issue trackers
-- ❌ Do NOT duplicate tracking systems
 
-For more details, see README.md and docs/QUICKSTART.md.
-
-<!-- END BEADS INTEGRATION -->
