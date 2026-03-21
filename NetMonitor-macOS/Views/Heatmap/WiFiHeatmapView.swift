@@ -60,8 +60,20 @@ struct WiFiHeatmapView: View {
             if url.pathExtension == "netmonblueprint" {
                 let didAccess = url.startAccessingSecurityScopedResource()
                 defer { if didAccess { url.stopAccessingSecurityScopedResource() } }
-                try? viewModel.importBlueprint(from: url)
+                do {
+                    try viewModel.importBlueprint(from: url)
+                } catch {
+                    viewModel.errorMessage = error.localizedDescription
+                }
             }
+        }
+        .alert("Error", isPresented: Binding(
+            get: { viewModel.errorMessage != nil },
+            set: { if !$0 { viewModel.errorMessage = nil } }
+        )) {
+            Button("OK") { viewModel.errorMessage = nil }
+        } message: {
+            Text(viewModel.errorMessage ?? "")
         }
         .onAppear { viewModel.onAppear() }
         .onDisappear { viewModel.onDisappear() }
@@ -282,7 +294,11 @@ struct WiFiHeatmapView: View {
         panel.allowedContentTypes = [UTType(filenameExtension: "netmonsurvey")].compactMap { $0 }
         panel.nameFieldStringValue = viewModel.surveyProject?.name ?? "Survey"
         if panel.runModal() == .OK, let url = panel.url {
-            try? viewModel.saveProject(to: url)
+            do {
+                try viewModel.saveProject(to: url)
+            } catch {
+                viewModel.errorMessage = error.localizedDescription
+            }
         }
     }
 
@@ -291,10 +307,14 @@ struct WiFiHeatmapView: View {
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = true
         if panel.runModal() == .OK, let url = panel.url {
-            if url.pathExtension == "netmonblueprint" {
-                try? viewModel.importBlueprint(from: url)
-            } else {
-                try? viewModel.loadProject(from: url)
+            do {
+                if url.pathExtension == "netmonblueprint" {
+                    try viewModel.importBlueprint(from: url)
+                } else {
+                    try viewModel.loadProject(from: url)
+                }
+            } catch {
+                viewModel.errorMessage = error.localizedDescription
             }
         }
     }
@@ -305,7 +325,11 @@ struct WiFiHeatmapView: View {
         panel.canChooseDirectories = true
         panel.message = "Select a .netmonblueprint file exported from the iOS Room Scanner"
         if panel.runModal() == .OK, let url = panel.url {
-            try? viewModel.importBlueprint(from: url)
+            do {
+                try viewModel.importBlueprint(from: url)
+            } catch {
+                viewModel.errorMessage = error.localizedDescription
+            }
         }
     }
 
@@ -315,7 +339,11 @@ struct WiFiHeatmapView: View {
         panel.allowedContentTypes = [.png]
         panel.nameFieldStringValue = "\(viewModel.surveyProject?.name ?? "heatmap")-export"
         if panel.runModal() == .OK, let url = panel.url {
-            try? data.write(to: url)
+            do {
+                try data.write(to: url)
+            } catch {
+                viewModel.errorMessage = error.localizedDescription
+            }
         }
     }
 
@@ -325,7 +353,11 @@ struct WiFiHeatmapView: View {
         panel.allowedContentTypes = [.pdf]
         panel.nameFieldStringValue = "\(viewModel.surveyProject?.name ?? "heatmap")-report"
         if panel.runModal() == .OK, let url = panel.url {
-            try? pdfData.write(to: url)
+            do {
+                try pdfData.write(to: url)
+            } catch {
+                viewModel.errorMessage = error.localizedDescription
+            }
         }
     }
 }

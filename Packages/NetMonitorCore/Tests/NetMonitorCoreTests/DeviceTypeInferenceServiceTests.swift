@@ -31,7 +31,6 @@ private func makeDevice(
 
 // MARK: - Guard: already-typed devices
 
-@Suite("DeviceTypeInferenceService — guard: already-typed devices")
 struct DeviceTypeInferenceGuardTests {
 
     let sut = DeviceTypeInferenceService()
@@ -54,7 +53,6 @@ struct DeviceTypeInferenceGuardTests {
 
 // MARK: - Level 1: Gateway flag
 
-@Suite("DeviceTypeInferenceService — Level 1: gateway flag")
 struct DeviceTypeInferenceGatewayTests {
 
     let sut = DeviceTypeInferenceService()
@@ -80,7 +78,6 @@ struct DeviceTypeInferenceGatewayTests {
 
 // MARK: - Level 2: Hostname inference
 
-@Suite("DeviceTypeInferenceService — Level 2: hostname inference")
 struct DeviceTypeInferenceHostnameTests {
 
     let sut = DeviceTypeInferenceService()
@@ -236,7 +233,6 @@ struct DeviceTypeInferenceHostnameTests {
 
 // MARK: - Level 3: Bonjour service inference
 
-@Suite("DeviceTypeInferenceService — Level 3: Bonjour services")
 struct DeviceTypeInferenceServicesTests {
 
     let sut = DeviceTypeInferenceService()
@@ -291,7 +287,6 @@ struct DeviceTypeInferenceServicesTests {
 
 // MARK: - Level 4: Port-based inference
 
-@Suite("DeviceTypeInferenceService — Level 4: port inference")
 struct DeviceTypeInferencePortTests {
 
     let sut = DeviceTypeInferenceService()
@@ -334,7 +329,6 @@ struct DeviceTypeInferencePortTests {
 
 // MARK: - Level 5: Vendor inference
 
-@Suite("DeviceTypeInferenceService — Level 5: vendor inference")
 struct DeviceTypeInferenceVendorTests {
 
     let sut = DeviceTypeInferenceService()
@@ -366,17 +360,17 @@ struct DeviceTypeInferenceVendorTests {
 
     @Test("Vendor 'Samsung' with port 8001 resolves to tv")
     func vendorSamsungWithSmartTVPort8001ResolvesToTV() {
-        #expect(sut.inferDeviceType(for: makeDevice(vendor: "Samsung", openPorts: [8001])) == .tv)
+        #expect(sut.inferDeviceType(for: makeDevice(openPorts: [8001], vendor: "Samsung")) == .tv)
     }
 
     @Test("Vendor 'Samsung' with port 8002 resolves to tv")
     func vendorSamsungWithSmartTVPort8002ResolvesToTV() {
-        #expect(sut.inferDeviceType(for: makeDevice(vendor: "Samsung", openPorts: [8002])) == .tv)
+        #expect(sut.inferDeviceType(for: makeDevice(openPorts: [8002], vendor: "Samsung")) == .tv)
     }
 
     @Test("Vendor 'Samsung' without smart-TV ports does not resolve to tv")
     func vendorSamsungWithoutSmartTVPortsFallsThrough() {
-        #expect(sut.inferDeviceType(for: makeDevice(vendor: "Samsung", openPorts: [22, 80])) == .unknown)
+        #expect(sut.inferDeviceType(for: makeDevice(openPorts: [22, 80], vendor: "Samsung")) == .unknown)
     }
 
     @Test("Vendor 'Synology' resolves to storage")
@@ -476,13 +470,13 @@ struct DeviceTypeInferenceVendorTests {
 
     @Test("Vendor 'Microsoft' with Xbox port 3074 resolves to gaming")
     func vendorMicrosoftWithXboxPortResolvesToGaming() {
-        let device = makeDevice(vendor: "Microsoft Corporation", openPorts: [3074])
+        let device = makeDevice(openPorts: [3074], vendor: "Microsoft Corporation")
         #expect(sut.inferDeviceType(for: device) == .gaming)
     }
 
     @Test("Vendor 'Microsoft' without Xbox port stays unknown")
     func vendorMicrosoftWithoutXboxPortFallsThrough() {
-        #expect(sut.inferDeviceType(for: makeDevice(vendor: "Microsoft Corporation", openPorts: [445])) == .unknown)
+        #expect(sut.inferDeviceType(for: makeDevice(openPorts: [445], vendor: "Microsoft Corporation")) == .unknown)
     }
 
     @Test("Vendor 'Apple' resolves to computer")
@@ -535,7 +529,6 @@ struct DeviceTypeInferenceVendorTests {
 
 // MARK: - Level 6: Fallback and priority ordering
 
-@Suite("DeviceTypeInferenceService — Level 6: fallback and priority")
 struct DeviceTypeInferenceFallbackTests {
 
     let sut = DeviceTypeInferenceService()

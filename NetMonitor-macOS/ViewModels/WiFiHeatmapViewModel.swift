@@ -9,6 +9,10 @@ import SwiftUI
 @Observable
 final class WiFiHeatmapViewModel {
 
+    // MARK: - State
+
+    var errorMessage: String?
+
     // MARK: - Survey State
 
     var surveyProject: SurveyProject?

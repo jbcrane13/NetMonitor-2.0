@@ -53,11 +53,10 @@ final class HeatmapSurveyModelsContractTests: XCTestCase {
             .downloadSpeed,
             .uploadSpeed,
             .latency,
-            .channelOverlap,
+            .noiseFloor,
             .frequencyBand,
-            .apCoverage
         ]
 
-        XCTAssertEqual(visualizations.count, 8)
+        XCTAssertEqual(visualizations.count, 7)
     }
 }
