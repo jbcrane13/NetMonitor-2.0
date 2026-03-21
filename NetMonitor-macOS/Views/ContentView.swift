@@ -12,6 +12,7 @@ struct ContentView: View {
     @State private var selectedNetworkProfile: NetworkProfile?
     @State private var showingAddNetworkSheet = false
     @State private var pendingSurveyURL: URL?
+    @State private var showQuickJump = false
 
     // periphery:ignore
     private var activeSession: MonitoringSession? {
@@ -65,6 +66,63 @@ struct ContentView: View {
                 pendingSurveyURL = url
                 selectedSection = .tool(.wifiHeatmap)
             }
+        }
+        // MARK: - Keyboard Shortcuts
+        // ⌘1 — Jump to active network dashboard
+        .background {
+            Button("") { jumpToActiveNetwork() }
+                .keyboardShortcut("1", modifiers: .command)
+                .hidden()
+        }
+        // ⌘2 — Devices list
+        .background {
+            Button("") { selectedSection = .section(.devices) }
+                .keyboardShortcut("2", modifiers: .command)
+                .hidden()
+        }
+        // ⌘3 — Tools
+        .background {
+            Button("") { selectedSection = .section(.tools) }
+                .keyboardShortcut("3", modifiers: .command)
+                .hidden()
+        }
+        // ⌘4 — Settings
+        .background {
+            Button("") { selectedSection = .section(.settings) }
+                .keyboardShortcut("4", modifiers: .command)
+                .hidden()
+        }
+        // ⌘R — Rescan network
+        .background {
+            Button("") {
+                guard let deviceDiscovery, !deviceDiscovery.isScanning else { return }
+                deviceDiscovery.startScan()
+            }
+            .keyboardShortcut("r", modifiers: .command)
+            .hidden()
+        }
+        // ⌘K — Quick jump to device
+        .background {
+            Button("") { showQuickJump = true }
+                .keyboardShortcut("k", modifiers: .command)
+                .hidden()
+        }
+        // ⌘T — Quick tool launch
+        .background {
+            Button("") { selectedSection = .section(.tools) }
+                .keyboardShortcut("t", modifiers: .command)
+                .hidden()
+        }
+        .sheet(isPresented: $showQuickJump) {
+            QuickJumpSheet(selection: $selectedSection, isPresented: $showQuickJump)
+        }
+    }
+
+    // MARK: - ⌘1 handler (navigate to active network)
+    private func jumpToActiveNetwork() {
+        if let activeProfile = profileManager?.profiles.first(where: { $0.isLocal })
+               ?? profileManager?.profiles.first {
+            selectedSection = .network(activeProfile.id)
         }
     }
 

@@ -14,6 +14,7 @@ struct DevicesView: View {
     @State private var searchText: String = ""
     @State private var filterOnlineOnly: Bool = false
     @State private var sortOrder: DeviceSortOrder = .lastSeen
+    @State private var sortAscending: Bool = false
     @AppStorage("netmonitor.devices.viewMode") private var viewMode: DeviceViewMode = .consumer
     @State private var wolAction = WakeOnLanAction()
     @State private var availableNetworks: [NetworkProfile] = []
@@ -31,6 +32,8 @@ struct DevicesView: View {
         case name = "Name"
         case ipAddress = "IP Address"
         case status = "Status"
+        case vendor = "Vendor"
+        case latency = "Latency"
 
         var icon: String {
             switch self {
@@ -38,6 +41,8 @@ struct DevicesView: View {
             case .name: return "textformat"
             case .ipAddress: return "number"
             case .status: return "circle.fill"
+            case .vendor: return "building.2"
+            case .latency: return "waveform.path"
             }
         }
     }
@@ -82,6 +87,15 @@ struct DevicesView: View {
             result.sort { compareIPAddresses($0.ipAddress, $1.ipAddress) }
         case .status:
             result.sort { ($0.status == .online ? 0 : 1) < ($1.status == .online ? 0 : 1) }
+        case .vendor:
+            result.sort { ($0.vendor ?? "zzz").localizedCaseInsensitiveCompare($1.vendor ?? "zzz") == .orderedAscending }
+        case .latency:
+            result.sort { ($0.lastLatency ?? .infinity) < ($1.lastLatency ?? .infinity) }
+        }
+
+        // Reverse for descending (lastSeen defaults descending, so invert logic)
+        if sortOrder == .lastSeen ? sortAscending : !sortAscending {
+            result.reverse()
         }
 
         return result
@@ -256,22 +270,16 @@ struct DevicesView: View {
 
     private var proModeHeaderRow: some View {
         HStack(spacing: ProModeRowView.columnSpacing) {
-            Text("")
-                .frame(width: ProModeRowView.statusWidth, alignment: .leading)
-            Text("IP Address")
-                .frame(width: ProModeRowView.ipWidth, alignment: .leading)
-            Text("Name")
-                .frame(width: ProModeRowView.nameWidth, alignment: .leading)
-            Text("Vendor")
-                .frame(width: ProModeRowView.vendorWidth, alignment: .leading)
+            sortableHeader("", order: .status, width: ProModeRowView.statusWidth)
+            sortableHeader("IP Address", order: .ipAddress, width: ProModeRowView.ipWidth)
+            sortableHeader("Name", order: .name, width: ProModeRowView.nameWidth)
+            sortableHeader("Vendor", order: .vendor, width: ProModeRowView.vendorWidth)
             Text("MAC")
                 .frame(width: ProModeRowView.macWidth, alignment: .leading)
             Text("Ports")
                 .frame(width: ProModeRowView.portsWidth, alignment: .leading)
-            Text("Latency")
-                .frame(width: ProModeRowView.latencyWidth, alignment: .leading)
-            Text("Seen")
-                .frame(width: ProModeRowView.seenWidth, alignment: .leading)
+            sortableHeader("Latency", order: .latency, width: ProModeRowView.latencyWidth)
+            sortableHeader("Seen", order: .lastSeen, width: ProModeRowView.seenWidth)
         }
         .font(.caption)
         .fontWeight(.semibold)
@@ -284,6 +292,31 @@ struct DevicesView: View {
                 .fill(Color.white.opacity(0.15))
                 .frame(height: 1)
         }
+    }
+
+    private func sortableHeader(_ label: String, order: DeviceSortOrder, width: CGFloat) -> some View {
+        Button {
+            if sortOrder == order {
+                sortAscending.toggle()
+            } else {
+                sortOrder = order
+                sortAscending = (order == .lastSeen) ? false : true
+            }
+        } label: {
+            HStack(spacing: 3) {
+                Text(label)
+                if sortOrder == order {
+                    Image(systemName: sortAscending ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 8, weight: .bold))
+                        .foregroundStyle(Color.accentColor)
+                }
+            }
+            .frame(width: width, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(sortOrder == order ? Color.white : Color.white.opacity(0.6))
+        .accessibilityIdentifier("devices_proHeader_\(order.rawValue.lowercased().replacingOccurrences(of: " ", with: "_"))")
     }
 
     // MARK: - Scanning Overlay

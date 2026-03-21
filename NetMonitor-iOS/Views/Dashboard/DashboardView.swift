@@ -361,7 +361,7 @@ struct SignalEQView: View {
     var eqData: [Double] {
         let history = viewModel.latencyHistory
         guard !history.isEmpty else {
-            // No data yet — show flat baseline
+            // No data yet — show animated placeholder bars
             return Array(repeating: 4.0, count: 40)
         }
         // Pad or trim to 40 bars, newest on right
@@ -373,6 +373,10 @@ struct SignalEQView: View {
         return padding + reversed
     }
     
+    var hasRealData: Bool {
+        viewModel.latencyHistory.count >= 3
+    }
+    
     var body: some View {
         GlassCard(padding: 12) {
             VStack(alignment: .leading, spacing: 10) {
@@ -382,12 +386,16 @@ struct SignalEQView: View {
                         .foregroundStyle(Theme.Colors.textTertiary)
                         .tracking(1.5)
                     Spacer()
+                    if !hasRealData {
+                        Text("COLLECTING…")
+                            .font(.system(size: 9, weight: .black))
+                            .foregroundStyle(Theme.Colors.textTertiary)
+                    }
                 }
                 
                 HStack(alignment: .bottom, spacing: 2) {
-                    // Adaptive ceiling: max observed value × 1.5, floored at 20ms.
-                    // This keeps bars proportional to actual jitter — a fixed 200ms
-                    // ceiling makes typical LAN latency (2–15ms) render as invisible stubs.
+                    // Use minimum ceiling of 20ms so baseline 4ms bars render at ~6.4pt (visible)
+                    // Scale up actual jitter values proportionally
                     let ceiling = max((eqData.max() ?? 20.0) * 1.5, 20.0)
                     ForEach(0..<eqData.count, id: \.self) { i in
                         let val = eqData[i]
@@ -397,17 +405,28 @@ struct SignalEQView: View {
                         RoundedRectangle(cornerRadius: 1)
                             .fill(
                                 LinearGradient(
-                                    colors: [Theme.Colors.latencyColor(ms: val), Theme.Colors.latencyColor(ms: val).opacity(0.4)],
+                                    colors: [
+                                        barColor(for: val, hasData: hasRealData),
+                                        barColor(for: val, hasData: hasRealData).opacity(0.4)
+                                    ],
                                     startPoint: .top,
                                     endPoint: .bottom
                                 )
                             )
-                            .frame(height: max(2, height))
+                            .frame(height: max(3, height))
                     }
                 }
                 .frame(height: 32)
             }
         }
+    }
+    
+    private func barColor(for latency: Double, hasData: Bool) -> Color {
+        if !hasData {
+            // Placeholder bars: subtle amber/gold to indicate "warming up"
+            return Theme.Colors.accent.opacity(0.6)
+        }
+        return Theme.Colors.latencyColor(ms: latency)
     }
 }
 

@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import NetMonitorCore
 import SwiftData
 
@@ -13,6 +14,7 @@ struct DeviceDetailView: View {
             if let device = viewModel.device {
                 VStack(spacing: Theme.Layout.sectionSpacing) {
                     headerSection(device)
+                    quickActionBar(device)
                     networkInfoSection(device)
                     servicesAndPortsSection(device)
                     statusSection(device)
@@ -92,6 +94,62 @@ struct DeviceDetailView: View {
         }
         .frame(maxWidth: .infinity)
         .glassCard()
+    }
+
+    // MARK: - Quick Action Bar
+
+    @ViewBuilder
+    private func quickActionBar(_ device: LocalDevice) -> some View {
+        HStack(spacing: 10) {
+            NavigationLink(destination: PingToolView(initialHost: device.ipAddress)) {
+                quickActionPill(icon: "waveform.path", label: "Ping", color: Theme.Colors.accent)
+            }
+            .accessibilityIdentifier("deviceDetail_quickAction_ping")
+
+            NavigationLink(destination: PortScannerToolView(initialHost: device.ipAddress)) {
+                quickActionPill(icon: "network", label: "Scan", color: Theme.Colors.info)
+            }
+            .accessibilityIdentifier("deviceDetail_quickAction_portScan")
+
+            NavigationLink(destination: DNSLookupToolView(initialDomain: device.ipAddress)) {
+                quickActionPill(icon: "globe", label: "DNS", color: Theme.Colors.success)
+            }
+            .accessibilityIdentifier("deviceDetail_quickAction_dns")
+
+            if device.supportsWakeOnLan {
+                NavigationLink(destination: WakeOnLANToolView(initialMacAddress: device.macAddress)) {
+                    quickActionPill(icon: "power", label: "Wake", color: Theme.Colors.warning)
+                }
+                .accessibilityIdentifier("deviceDetail_quickAction_wake")
+            }
+
+            Button {
+                UIPasteboard.general.string = device.ipAddress
+            } label: {
+                quickActionPill(icon: "doc.on.doc", label: "Copy IP", color: Theme.Colors.textSecondary)
+            }
+            .accessibilityIdentifier("deviceDetail_quickAction_copyIP")
+        }
+        .accessibilityIdentifier("deviceDetail_bar_quickActions")
+    }
+
+    private func quickActionPill(icon: String, label: String, color: Color) -> some View {
+        VStack(spacing: 4) {
+            Image(systemName: icon)
+                .font(.system(size: 16))
+                .foregroundStyle(color)
+            Text(label)
+                .font(.system(size: 9, weight: .medium))
+                .foregroundStyle(Theme.Colors.textSecondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 10)
+        .background(color.opacity(0.1))
+        .clipShape(RoundedRectangle(cornerRadius: Theme.Layout.smallCornerRadius))
+        .overlay(
+            RoundedRectangle(cornerRadius: Theme.Layout.smallCornerRadius)
+                .stroke(color.opacity(0.15), lineWidth: 0.5)
+        )
     }
 
     // MARK: - Network Info Section
@@ -381,10 +439,15 @@ struct DeviceDetailView: View {
         .glassCard()
     }
 
+} // end DeviceDetailView
+
+// MARK: - Quick Actions + Notes + Helpers (extension keeps main body ≤ 500 lines)
+
+private extension DeviceDetailView {
     // MARK: - Quick Actions Section
 
     @ViewBuilder
-    private func quickActionsSection(_ device: LocalDevice) -> some View {
+    func quickActionsSection(_ device: LocalDevice) -> some View {
         VStack(alignment: .leading, spacing: Theme.Layout.itemSpacing) {
             Text("Quick Actions")
                 .font(.headline)

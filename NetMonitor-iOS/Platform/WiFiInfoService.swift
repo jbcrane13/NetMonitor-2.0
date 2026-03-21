@@ -112,16 +112,12 @@ final class WiFiInfoService: NSObject, WiFiInfoServiceProtocol {
         // Check location authorization first
         let authStatus = locationManager.authorizationStatus
         guard authStatus == .authorizedWhenInUse || authStatus == .authorizedAlways else {
-            print("[WiFiInfoService] Location not authorized: \(authStatus)")
             return nil
         }
 
         guard let network = await NEHotspotNetwork.fetchCurrent() else {
-            print("[WiFiInfoService] NEHotspotNetwork.fetchCurrent() returned nil")
             return nil
         }
-
-        print("[WiFiInfoService] Got network: SSID=\(network.ssid ?? "nil"), signalStrength=\(network.signalStrength)")
 
         // signalStrength is 0.0-1.0 representing 0-100%
         // Note: iOS often returns 0.0 even when connected with good signal
@@ -135,13 +131,11 @@ final class WiFiInfoService: NSObject, WiFiInfoServiceProtocol {
             let clamped = max(0.0, min(1.0, strength))
             signalStrengthPercent = Int(clamped * 100)
             signalDBm = Self.percentToApproxDBm(signalStrengthPercent!)
-            print("[WiFiInfoService] Converted: \(signalStrengthPercent!)% = \(signalDBm!) dBm")
         } else {
             // signalStrength is 0.0 - could be very weak or iOS not reporting
             // Return nil to indicate unavailable, rather than -100 dBm
             signalStrengthPercent = nil
             signalDBm = nil
-            print("[WiFiInfoService] signalStrength is 0.0, marking as unavailable")
         }
 
         return WiFiInfo(

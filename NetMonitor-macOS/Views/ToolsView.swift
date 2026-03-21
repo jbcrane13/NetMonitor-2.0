@@ -2,11 +2,43 @@
 //  ToolsView.swift
 //  NetMonitor
 //
-//  Grid launcher for network diagnostic tools.
+//  Grid launcher for network diagnostic tools, organized by category.
 //
 
 import SwiftUI
 import NetMonitorCore
+
+// MARK: - Tool Category
+
+/// Groups network tools into logical categories for easier scanning.
+enum ToolCategory: String, CaseIterable, Identifiable {
+    case diagnostics = "Diagnostics"
+    case discovery   = "Discovery"
+    case monitoring  = "Monitoring"
+    case actions     = "Actions"
+
+    var id: String { rawValue }
+
+    var iconName: String {
+        switch self {
+        case .diagnostics: return "stethoscope"
+        case .discovery:   return "magnifyingglass.circle"
+        case .monitoring:  return "chart.line.uptrend.xyaxis"
+        case .actions:     return "bolt.circle"
+        }
+    }
+
+    var tools: [NetworkTool] {
+        switch self {
+        case .diagnostics: return [.ping, .traceroute, .dnsLookup, .whois]
+        case .discovery:   return [.portScanner, .bonjourBrowser, .subnetCalculator]
+        case .monitoring:  return [.speedTest, .worldPing, .sslMonitor, .wifiHeatmap]
+        case .actions:     return [.wakeOnLan, .geoTrace]
+        }
+    }
+}
+
+// MARK: - Available network tools
 
 /// Available network tools
 enum NetworkTool: String, CaseIterable, Identifiable {
@@ -63,6 +95,8 @@ enum NetworkTool: String, CaseIterable, Identifiable {
     }
 }
 
+// MARK: - Tools View
+
 struct ToolsView: View {
     @Binding var selection: SidebarSelection?
 
@@ -72,13 +106,33 @@ struct ToolsView: View {
 
     var body: some View {
         ScrollView {
-            LazyVGrid(columns: columns, spacing: 16) {
-                ForEach(NetworkTool.allCases) { tool in
-                    ToolCard(tool: tool)
-                        .onTapGesture {
-                            selection = .tool(tool)
+            LazyVStack(alignment: .leading, spacing: 24) {
+                ForEach(ToolCategory.allCases) { category in
+                    VStack(alignment: .leading, spacing: 12) {
+                        // Section header
+                        HStack(spacing: 6) {
+                            Image(systemName: category.iconName)
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(MacTheme.Colors.textTertiary)
+                            Text(category.rawValue.uppercased())
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundStyle(MacTheme.Colors.textTertiary)
+                                .tracking(1.2)
                         }
-                        .accessibilityIdentifier("tools_card_\(tool.rawValue.lowercased().replacingOccurrences(of: " ", with: "_"))")
+                        .padding(.leading, 4)
+                        .accessibilityIdentifier("tools_section_\(category.rawValue.lowercased())")
+
+                        // Tool cards grid
+                        LazyVGrid(columns: columns, spacing: 16) {
+                            ForEach(category.tools) { tool in
+                                ToolCard(tool: tool)
+                                    .onTapGesture {
+                                        selection = .tool(tool)
+                                    }
+                                    .accessibilityIdentifier("tools_card_\(tool.rawValue.lowercased().replacingOccurrences(of: " ", with: "_"))")
+                            }
+                        }
+                    }
                 }
             }
             .padding()

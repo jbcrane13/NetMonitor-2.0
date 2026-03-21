@@ -49,10 +49,7 @@ struct NetworkIntelCard: View {
             }
 
             if isLoading {
-                HStack { Spacer()
-                ProgressView().controlSize(.small)
-                Spacer()
-                }
+                CardLoadingSkeleton(showChart: false, lineCount: 4)
             } else {
                 // Connection stats grid
                 HStack(spacing: 0) {

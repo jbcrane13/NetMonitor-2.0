@@ -349,22 +349,50 @@ struct QuickActionButton: View {
     }
 }
 
+/// Groups iOS tools into logical categories for easier scanning.
+enum IOSToolCategory: String, CaseIterable, Identifiable {
+    case diagnostics = "Diagnostics"
+    case discovery   = "Discovery"
+    case monitoring  = "Monitoring"
+    case actions     = "Actions"
+
+    var id: String { rawValue }
+
+    var iconName: String {
+        switch self {
+        case .diagnostics: return "stethoscope"
+        case .discovery:   return "magnifyingglass.circle"
+        case .monitoring:  return "chart.line.uptrend.xyaxis"
+        case .actions:     return "bolt.circle"
+        }
+    }
+}
+
 struct ToolsGridSection: View {
-    private let tools: [ToolItem] = [
-        ToolItem(name: "Ping", icon: "arrow.up.arrow.down", color: Theme.Colors.accent, description: "Test host reachability", destination: .ping),
-        ToolItem(name: "Traceroute", icon: "point.topleft.down.to.point.bottomright.curvepath", color: Theme.Colors.info, description: "Trace network path", destination: .traceroute),
-        ToolItem(name: "DNS Lookup", icon: "globe", color: Theme.Colors.success, description: "Query DNS records", destination: .dnsLookup),
-        ToolItem(name: "Port Scanner", icon: "door.left.hand.open", color: Theme.Colors.warning, description: "Scan open ports", destination: .portScanner),
-        ToolItem(name: "Web Browser", icon: "safari.fill", color: Theme.Colors.info, description: "Browse network sites", destination: .webBrowser),
-        ToolItem(name: "Bonjour", icon: "bonjour", color: Theme.Colors.accent, description: "Discover services", destination: .bonjour),
-        ToolItem(name: "Speed Test", icon: "speedometer", color: Theme.Colors.success, description: "Test bandwidth", destination: .speedTest),
-        ToolItem(name: "WHOIS", icon: "doc.text.magnifyingglass", color: Theme.Colors.info, description: "Domain information", destination: .whois),
-        ToolItem(name: "Wake on LAN", icon: "power", color: Theme.Colors.error, description: "Wake devices remotely", destination: .wakeOnLAN),
-        ToolItem(name: "Subnet Calc", icon: "square.split.bottomrightquarter", color: .purple, description: "Calculate subnet ranges", destination: .subnetCalculator),
-        ToolItem(name: "World Ping", icon: "globe.americas", color: .teal, description: "Global latency check", destination: .worldPing),
-        ToolItem(name: "Geo Trace", icon: "map", color: .mint, description: "Visual route on map", destination: .geoTrace),
-        ToolItem(name: "SSL Monitor", icon: "lock.shield", color: .green, description: "Certificate expiry check", destination: .sslMonitor),
-        ToolItem(name: "Room Scanner", icon: "cube.transparent", color: .indigo, description: "3D room scan for heatmap", destination: .roomScanner)
+    private let categorizedTools: [(category: IOSToolCategory, tools: [ToolItem])] = [
+        (.diagnostics, [
+            ToolItem(name: "Ping", icon: "arrow.up.arrow.down", color: Theme.Colors.accent, description: "Test host reachability", destination: .ping),
+            ToolItem(name: "Traceroute", icon: "point.topleft.down.to.point.bottomright.curvepath", color: Theme.Colors.info, description: "Trace network path", destination: .traceroute),
+            ToolItem(name: "DNS Lookup", icon: "globe", color: Theme.Colors.success, description: "Query DNS records", destination: .dnsLookup),
+            ToolItem(name: "WHOIS", icon: "doc.text.magnifyingglass", color: Theme.Colors.info, description: "Domain information", destination: .whois),
+        ]),
+        (.discovery, [
+            ToolItem(name: "Port Scanner", icon: "door.left.hand.open", color: Theme.Colors.warning, description: "Scan open ports", destination: .portScanner),
+            ToolItem(name: "Bonjour", icon: "bonjour", color: Theme.Colors.accent, description: "Discover services", destination: .bonjour),
+            ToolItem(name: "Subnet Calc", icon: "square.split.bottomrightquarter", color: .purple, description: "Calculate subnet ranges", destination: .subnetCalculator),
+            ToolItem(name: "Network Monitor", icon: "network", color: Theme.Colors.info, description: "Network device map", destination: .networkMonitor),
+        ]),
+        (.monitoring, [
+            ToolItem(name: "Speed Test", icon: "speedometer", color: Theme.Colors.success, description: "Test bandwidth", destination: .speedTest),
+            ToolItem(name: "World Ping", icon: "globe.americas", color: .teal, description: "Global latency check", destination: .worldPing),
+            ToolItem(name: "SSL Monitor", icon: "lock.shield", color: .green, description: "Certificate expiry check", destination: .sslMonitor),
+            ToolItem(name: "Room Scanner", icon: "cube.transparent", color: .indigo, description: "3D room scan for heatmap", destination: .roomScanner),
+        ]),
+        (.actions, [
+            ToolItem(name: "Wake on LAN", icon: "power", color: Theme.Colors.error, description: "Wake devices remotely", destination: .wakeOnLAN),
+            ToolItem(name: "Geo Trace", icon: "map", color: .mint, description: "Visual route on map", destination: .geoTrace),
+            ToolItem(name: "Web Browser", icon: "safari.fill", color: Theme.Colors.info, description: "Browse network sites", destination: .webBrowser),
+        ]),
     ]
 
     private let columns = [
@@ -373,14 +401,27 @@ struct ToolsGridSection: View {
     ]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Theme.Layout.itemSpacing) {
-            Text("Network Tools")
-                .font(.headline)
-                .foregroundStyle(Theme.Colors.textPrimary)
+        VStack(alignment: .leading, spacing: Theme.Layout.sectionSpacing) {
+            ForEach(categorizedTools, id: \.category.id) { section in
+                VStack(alignment: .leading, spacing: Theme.Layout.itemSpacing) {
+                    // Section header
+                    HStack(spacing: 6) {
+                        Image(systemName: section.category.iconName)
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(Theme.Colors.textTertiary)
+                        Text(section.category.rawValue.uppercased())
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(Theme.Colors.textTertiary)
+                            .tracking(1.2)
+                    }
+                    .padding(.leading, 4)
+                    .accessibilityIdentifier("tools_section_\(section.category.rawValue.lowercased())")
 
-            LazyVGrid(columns: columns, spacing: Theme.Layout.itemSpacing) {
-                ForEach(tools) { tool in
-                    ToolCard(tool: tool)
+                    LazyVGrid(columns: columns, spacing: Theme.Layout.itemSpacing) {
+                        ForEach(section.tools) { tool in
+                            ToolCard(tool: tool)
+                        }
+                    }
                 }
             }
         }

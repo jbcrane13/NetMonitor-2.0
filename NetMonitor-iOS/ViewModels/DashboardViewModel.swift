@@ -94,6 +94,27 @@ final class DashboardViewModel {
         gatewayService.gateway
     }
 
+    /// SF Symbol name for the current connection type (used by iPad sidebar)
+    var connectionTypeIcon: String {
+        connectionType.iconName
+    }
+
+    /// Human-readable network name for sidebar display
+    var networkName: String {
+        if let wifi = currentWiFi, !wifi.ssid.isEmpty {
+            return wifi.ssid
+        }
+        if let network = activeNetwork {
+            return network.displayName
+        }
+        return connectionType == .cellular ? "Cellular" : ""
+    }
+
+    /// Gateway latency in milliseconds (nil if not available)
+    var gatewayLatency: Double? {
+        gateway?.latency
+    }
+
     /// Rolling latency history from GatewayService (for jitter visualization).
     var latencyHistory: [Double] {
         (gatewayService as? GatewayService)?.latencyHistory ?? []

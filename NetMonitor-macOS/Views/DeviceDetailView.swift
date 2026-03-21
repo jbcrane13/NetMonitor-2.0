@@ -36,6 +36,7 @@ struct DeviceDetailView: View {
         ScrollView {
             VStack(spacing: 24) {
                 headerCard
+                quickActionBar
                 networkInfoCard
                 manufacturerSection
                 timelineSection
@@ -146,6 +147,87 @@ struct DeviceDetailView: View {
         }
         .macGlassCard(cornerRadius: MacTheme.Layout.cardCornerRadius)
         .accessibilityIdentifier("device_detail_card_header")
+    }
+
+    // MARK: - Quick Action Bar
+
+    private var quickActionBar: some View {
+        HStack(spacing: 8) {
+            quickActionIcon(
+                title: "Ping",
+                systemImage: "waveform.path",
+                color: accentColor,
+                action: { showPingSheet = true }
+            )
+            .accessibilityIdentifier("device_detail_quickAction_ping")
+
+            quickActionIcon(
+                title: "Scan Ports",
+                systemImage: "network",
+                color: MacTheme.Colors.info,
+                action: { showPortScanSheet = true }
+            )
+            .accessibilityIdentifier("device_detail_quickAction_portScan")
+
+            if !device.macAddress.isEmpty {
+                quickActionIcon(
+                    title: "Wake",
+                    systemImage: "power",
+                    color: MacTheme.Colors.success,
+                    action: { Task { await wolAction.wake(device: device) } }
+                )
+                .accessibilityIdentifier("device_detail_quickAction_wake")
+            }
+
+            quickActionIcon(
+                title: "Copy IP",
+                systemImage: "doc.on.doc",
+                color: .secondary,
+                action: {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(device.ipAddress, forType: .string)
+                }
+            )
+            .accessibilityIdentifier("device_detail_quickAction_copyIP")
+
+            quickActionIcon(
+                title: "Monitor",
+                systemImage: "plus.circle",
+                color: MacTheme.Colors.warning,
+                action: { addToTargets() }
+            )
+            .accessibilityIdentifier("device_detail_quickAction_addTarget")
+        }
+        .accessibilityIdentifier("device_detail_bar_quickActions")
+    }
+
+    private func quickActionIcon(
+        title: String,
+        systemImage: String,
+        color: Color,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            VStack(spacing: 4) {
+                Image(systemName: systemImage)
+                    .font(.system(size: 16))
+                    .foregroundStyle(color)
+                Text(title)
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundStyle(Color.white.opacity(0.7))
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 8)
+        }
+        .buttonStyle(.plain)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(color.opacity(0.08))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(color.opacity(0.15), lineWidth: 0.5)
+        )
     }
 
     // MARK: - Network Info Card

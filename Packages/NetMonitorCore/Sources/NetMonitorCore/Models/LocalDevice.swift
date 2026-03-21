@@ -25,6 +25,13 @@ public final class LocalDevice {
     public var discoveredServices: [String]?
     public var networkProfileID: UUID?
 
+    /// In-memory buffer of recent latency readings for sparkline display.
+    /// Not persisted — resets each session. Capped at 20 samples.
+    @Transient public var latencyHistory: [Double] = []
+
+    /// Maximum number of latency samples to retain in memory.
+    private static let maxLatencyHistory = 20
+
     public init(
         id: UUID = UUID(),
         ipAddress: String,
@@ -89,6 +96,11 @@ public final class LocalDevice {
         lastSeen = Date()
         if status == .offline {
             status = .online
+        }
+        // Append to in-memory sparkline buffer
+        latencyHistory.append(latency)
+        if latencyHistory.count > Self.maxLatencyHistory {
+            latencyHistory.removeFirst(latencyHistory.count - Self.maxLatencyHistory)
         }
     }
 }

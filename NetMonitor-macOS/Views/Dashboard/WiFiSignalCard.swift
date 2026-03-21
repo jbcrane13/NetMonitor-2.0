@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import Charts
 import NetMonitorCore
 
 /// Model for tracking signal strength history
@@ -60,20 +59,13 @@ struct WiFiSignalCard: View {
             }
 
             if isLoading {
-                HStack {
-                    Spacer()
-                    ProgressView().controlSize(.mini)
-                    Spacer()
-                }
+                CardLoadingSkeleton(showChart: true, lineCount: 2)
             } else if currentRSSI == nil {
-                HStack(spacing: 4) {
-                    Image(systemName: "wifi.slash")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                    Text("No WiFi")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                }
+                CardEmptyState(
+                    icon: "wifi.slash",
+                    title: "No WiFi",
+                    description: "Connect to a wireless network"
+                )
             } else {
                 // Compact signal row: RSSI + quality + bars + details
                 HStack(spacing: 12) {
@@ -118,11 +110,13 @@ struct WiFiSignalCard: View {
 
                 // Compact sparkline
                 if !signalHistory.isEmpty {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 6).fill(Color.black.opacity(0.28))
-                        chartView.padding(4)
-                    }
-                    .frame(height: 34)
+                    MiniSparklineView(
+                        data: signalHistory.map { Double($0.rssi) },
+                        color: signalQualityColor,
+                        lineWidth: 1.5,
+                        showPulse: true,
+                        height: 34
+                    )
                 }
             }
         }
@@ -179,43 +173,6 @@ struct WiFiSignalCard: View {
         default: barsFilled = 0
         }
         return index < barsFilled ? signalQualityColor : Color.white.opacity(0.3)
-    }
-
-    private var chartView: some View {
-        Chart(signalHistory) { sample in
-            LineMark(
-                x: .value("Time", sample.timestamp, unit: .minute),
-                y: .value("RSSI", sample.rssi)
-            )
-            .foregroundStyle(MacTheme.Colors.info.gradient)
-            .interpolationMethod(.catmullRom)
-
-            AreaMark(
-                x: .value("Time", sample.timestamp, unit: .minute),
-                y: .value("RSSI", sample.rssi)
-            )
-            .foregroundStyle(
-                LinearGradient(
-                    colors: [MacTheme.Colors.info.opacity(0.3), MacTheme.Colors.info.opacity(0.05)],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-            )
-            .interpolationMethod(.catmullRom)
-        }
-        .chartYAxis {
-            AxisMarks(position: .leading) { value in
-                AxisGridLine()
-                AxisValueLabel {
-                    if let rssi = value.as(Int.self) {
-                        Text("\(rssi)")
-                            .font(.caption2)
-                    }
-                }
-            }
-        }
-        .chartYScale(domain: -75 ... -20 as ClosedRange<Int>)
-        .chartXAxis(.hidden)
     }
 
     // MARK: - Actions

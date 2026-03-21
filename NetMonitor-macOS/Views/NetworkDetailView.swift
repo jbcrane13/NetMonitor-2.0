@@ -21,6 +21,26 @@ struct NetworkDetailView: View {
     /// Computes uptime statistics from persisted records for display in ISPHealthCard.
     @State private var uptimeViewModel: UptimeViewModel?
 
+    /// Shared diagnostics card stack used across all layout modes.
+    private func diagnosticsStack(gap: CGFloat) -> some View {
+        VStack(spacing: gap) {
+            LatencyAnalysisCard(
+                session: session,
+                gatewayLatencyHistory: gatewayLatencyHistory
+            )
+            .accessibilityIdentifier("network_detail_card_latency")
+
+            ConnectivityCard(session: session, profileManager: profileManager)
+                .accessibilityIdentifier("network_detail_card_connectivity")
+
+            NetworkIntelCard()
+                .accessibilityIdentifier("network_detail_card_intel")
+
+            WiFiSignalCard()
+                .accessibilityIdentifier("network_detail_card_wifi_signal")
+        }
+    }
+
     private var gatewayLatencyHistory: [Double] {
         guard let session else { return [] }
         // Match any gateway-like target name
@@ -42,60 +62,119 @@ struct NetworkDetailView: View {
         return []
     }
 
+    /// Responsive layout breakpoints:
+    /// - Compact  (< 1200pt): single-column stacked layout
+    /// - Standard (1200–1599pt): 2-column (44% diagnostics / 56% devices)
+    /// - Wide     (≥ 1600pt): 3-column (ISP+gauge left, diagnostics center, devices right)
+    private enum DashboardLayout {
+        case compact, standard, wide
+
+        init(width: CGFloat) {
+            if width >= 1600 { self = .wide }
+            else if width >= 1200 { self = .standard }
+            else { self = .compact }
+        }
+    }
+
     var body: some View {
         GeometryReader { geo in
             let gap: CGFloat = 10
             let pad: CGFloat = 14
             let availH = geo.size.height - pad * 2
+            let layout = DashboardLayout(width: geo.size.width)
             let rowAHeight = max(160, availH * 0.26)
-            // Left column: 44% of width. Device panel gets the rest (~56%), still wide for hostnames.
-            let leftWidth = max(340, geo.size.width * 0.44 - pad)
 
-            VStack(spacing: gap) {
-                // Row A: Gateway Health (left) + Health Gauge (right, square)
-                // Both locked to rowAHeight — gauge is 1:1, gateway fills remaining width
+            switch layout {
+            case .wide:
+                // 3-column: ISP+gauge left column, diagnostics center, devices right
+                let colWidth = (geo.size.width - pad * 2 - gap * 2) / 3
                 HStack(alignment: .top, spacing: gap) {
-                    ISPHealthCard(interfaceName: profile.interfaceName, uptime: uptimeViewModel)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: rowAHeight)
-                        .clipped()
-                        .accessibilityIdentifier("network_detail_card_isp")
+                    // Left column — ISP health + gauge stacked
+                    VStack(spacing: gap) {
+                        ISPHealthCard(interfaceName: profile.interfaceName, uptime: uptimeViewModel)
+                            .frame(height: rowAHeight)
+                            .clipped()
+                            .accessibilityIdentifier("network_detail_card_isp")
 
-                    HealthGaugeCard()
-                        .frame(width: rowAHeight, height: rowAHeight)
-                        .accessibilityIdentifier("network_detail_row_health")
-                }
+                        HealthGaugeCard()
+                            .frame(maxWidth: .infinity)
+                            .frame(height: rowAHeight)
+                            .accessibilityIdentifier("network_detail_row_health")
 
-                // Row B: Left diagnostics stack + Right device grid
-                HStack(alignment: .top, spacing: gap) {
-                    // Left column — scrollable so all cards are reachable on smaller screens
-                    ScrollView(.vertical, showsIndicators: false) {
-                        VStack(spacing: gap) {
-                            LatencyAnalysisCard(
-                                session: session,
-                                gatewayLatencyHistory: gatewayLatencyHistory
-                            )
-                            .accessibilityIdentifier("network_detail_card_latency")
-
-                            ConnectivityCard(session: session, profileManager: profileManager)
-                                .accessibilityIdentifier("network_detail_card_connectivity")
-
-                            NetworkIntelCard()
-                                .accessibilityIdentifier("network_detail_card_intel")
-
-                            WiFiSignalCard()
-                                .accessibilityIdentifier("network_detail_card_wifi_signal")
-                        }
+                        Spacer()
                     }
-                    .frame(width: leftWidth)
+                    .frame(width: colWidth)
+
+                    // Center column — diagnostics
+                    ScrollView(.vertical, showsIndicators: false) {
+                        diagnosticsStack(gap: gap)
+                    }
+                    .frame(width: colWidth)
 
                     // Right column — device grid
                     NetworkDevicesPanel(networkProfileID: profile.id)
                         .accessibilityIdentifier("network_detail_panel_devices")
+                        .frame(width: colWidth)
                 }
-                .frame(height: max(0, availH - rowAHeight - gap))
+                .padding(pad)
+
+            case .standard:
+                // Original 2-column layout
+                let leftWidth = max(340, geo.size.width * 0.44 - pad)
+                VStack(spacing: gap) {
+                    // Row A: Gateway Health + Health Gauge
+                    HStack(alignment: .top, spacing: gap) {
+                        ISPHealthCard(interfaceName: profile.interfaceName, uptime: uptimeViewModel)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: rowAHeight)
+                            .clipped()
+                            .accessibilityIdentifier("network_detail_card_isp")
+
+                        HealthGaugeCard()
+                            .frame(width: rowAHeight, height: rowAHeight)
+                            .accessibilityIdentifier("network_detail_row_health")
+                    }
+
+                    // Row B: Left diagnostics + Right device grid
+                    HStack(alignment: .top, spacing: gap) {
+                        ScrollView(.vertical, showsIndicators: false) {
+                            diagnosticsStack(gap: gap)
+                        }
+                        .frame(width: leftWidth)
+
+                        NetworkDevicesPanel(networkProfileID: profile.id)
+                            .accessibilityIdentifier("network_detail_panel_devices")
+                    }
+                    .frame(height: max(0, availH - rowAHeight - gap))
+                }
+                .padding(pad)
+
+            case .compact:
+                // Single-column stacked layout for narrow windows
+                ScrollView(.vertical, showsIndicators: false) {
+                    VStack(spacing: gap) {
+                        // ISP + gauge side by side, compressed
+                        HStack(alignment: .top, spacing: gap) {
+                            ISPHealthCard(interfaceName: profile.interfaceName, uptime: uptimeViewModel)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 140)
+                                .clipped()
+                                .accessibilityIdentifier("network_detail_card_isp")
+
+                            HealthGaugeCard()
+                                .frame(width: 140, height: 140)
+                                .accessibilityIdentifier("network_detail_row_health")
+                        }
+
+                        diagnosticsStack(gap: gap)
+
+                        NetworkDevicesPanel(networkProfileID: profile.id)
+                            .frame(height: 300)
+                            .accessibilityIdentifier("network_detail_panel_devices")
+                    }
+                    .padding(pad)
+                }
             }
-            .padding(pad)
         }
         .macThemedBackground()
         .navigationTitle(profile.displayName)

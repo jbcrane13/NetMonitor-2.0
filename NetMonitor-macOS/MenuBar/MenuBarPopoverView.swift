@@ -31,6 +31,23 @@ struct MenuBarPopoverView: View {
 
             Divider()
 
+            // Mini latency graph
+            latencySparkline
+
+            Divider()
+
+            // Quick action buttons
+            quickActions
+
+            Divider()
+
+            // Problem devices (offline / high latency)
+            problemDevicesSection
+
+            if !problemDevices.isEmpty {
+                Divider()
+            }
+
             // Target status list
             targetList
 
@@ -203,6 +220,179 @@ struct MenuBarPopoverView: View {
         .frame(maxWidth: .infinity)
     }
 
+    // MARK: - Latency Sparkline
+
+    /// Mini latency graph for the gateway / primary target
+    private var latencySparkline: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("GATEWAY LATENCY")
+                .font(.system(size: 9, weight: .bold))
+                .foregroundStyle(.secondary)
+                .tracking(0.5)
+
+            if gatewayLatencyHistory.count > 1 {
+                MiniSparklineView(
+                    data: gatewayLatencyHistory,
+                    lineWidth: 1.2,
+                    showPulse: true,
+                    height: 32,
+                    cornerRadius: 6,
+                    thresholdColor: { MacTheme.Colors.latencyColor(ms: $0) }
+                )
+            } else {
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(Color.white.opacity(0.04))
+                    .frame(height: 32)
+                    .overlay(
+                        Text("Collecting data…")
+                            .font(.system(size: 9))
+                            .foregroundStyle(.tertiary)
+                    )
+            }
+        }
+        .padding(.horizontal)
+        .padding(.vertical, 8)
+        .accessibilityIdentifier("menubar_latencySparkline")
+    }
+
+    /// Gateway latency history from monitoring session
+    private var gatewayLatencyHistory: [Double] {
+        guard let gatewayIP = deviceDiscovery.networkProfile?.gatewayIP,
+              !gatewayIP.isEmpty else { return [] }
+
+        // Find the target ID that matches gateway IP
+        for (id, history) in session.recentLatencies {
+            if let measurement = session.latestResults[id],
+               measurement.target?.host == gatewayIP,
+               !history.isEmpty {
+                return history
+            }
+        }
+
+        // Fall back to any target with latency data
+        for (_, history) in session.recentLatencies where !history.isEmpty {
+            return history
+        }
+        return []
+    }
+
+    // MARK: - Problem Devices
+
+    /// Devices that are offline or have high latency — surfaced prominently
+    private var problemDevices: [LocalDevice] {
+        deviceDiscovery.discoveredDevices.filter { device in
+            device.status == .offline ||
+            (device.lastLatency ?? 0) > 100
+        }
+        .prefix(3)
+        .map { $0 }
+    }
+
+    @ViewBuilder
+    private var problemDevicesSection: some View {
+        if !problemDevices.isEmpty {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 4) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 9))
+                        .foregroundStyle(MacTheme.Colors.warning)
+                    Text("ATTENTION")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(MacTheme.Colors.warning)
+                        .tracking(0.5)
+                }
+
+                ForEach(problemDevices, id: \.id) { device in
+                    HStack(spacing: 6) {
+                        Image(systemName: device.deviceType.iconName)
+                            .font(.system(size: 10))
+                            .foregroundStyle(device.status == .offline ? .red : MacTheme.Colors.warning)
+                            .frame(width: 14)
+
+                        Text(device.displayName)
+                            .font(.caption)
+                            .lineLimit(1)
+
+                        Spacer()
+
+                        if device.status == .offline {
+                            Text("Offline")
+                                .font(.system(size: 9, weight: .medium))
+                                .foregroundStyle(.red)
+                        } else if let latency = device.lastLatency {
+                            Text("\(Int(latency))ms")
+                                .font(.system(size: 9, weight: .medium, design: .monospaced))
+                                .foregroundStyle(MacTheme.Colors.warning)
+                        }
+                    }
+                }
+            }
+            .padding(.horizontal)
+            .padding(.vertical, 8)
+            .accessibilityIdentifier("menubar_problemDevices")
+        }
+    }
+
+    // MARK: - Quick Actions
+
+    private var quickActions: some View {
+        HStack(spacing: 0) {
+            popoverQuickAction(
+                title: "Scan",
+                systemImage: "antenna.radiowaves.left.and.right",
+                color: .blue
+            ) {
+                guard !deviceDiscovery.isScanning else { return }
+                deviceDiscovery.startScan()
+            }
+            .disabled(deviceDiscovery.isScanning)
+
+            Divider().frame(height: 28)
+
+            popoverQuickAction(
+                title: "Ping",
+                systemImage: "waveform.path",
+                color: .green
+            ) {
+                WindowOpener.shared.openMainWindow()
+                onClose()
+            }
+
+            Divider().frame(height: 28)
+
+            popoverQuickAction(
+                title: "Speed",
+                systemImage: "speedometer",
+                color: .purple
+            ) {
+                WindowOpener.shared.openMainWindow()
+                onClose()
+            }
+        }
+        .padding(.vertical, 6)
+        .accessibilityIdentifier("menubar_quickActions")
+    }
+
+    private func popoverQuickAction(
+        title: String,
+        systemImage: String,
+        color: Color,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            VStack(spacing: 3) {
+                Image(systemName: systemImage)
+                    .font(.system(size: 12))
+                    .foregroundStyle(color)
+                Text(title)
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.plain)
+    }
+
     // MARK: - Target List
 
     /// Sorted measurement entries for stable display order (by target name, then host)
@@ -233,7 +423,7 @@ struct MenuBarPopoverView: View {
             }
             .padding(.horizontal)
         }
-        .frame(maxHeight: 160)
+        .frame(maxHeight: 140)
     }
 
     /// Display name for a measurement: prefer target name, fall back to host

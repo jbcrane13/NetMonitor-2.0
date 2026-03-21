@@ -66,12 +66,8 @@ struct ISPHealthCard: View {
             }
 
             if vm.isLoading {
-                HStack {
-                    Spacer()
-                    ProgressView().controlSize(.mini)
-                    Spacer()
-                }
-                .frame(maxHeight: .infinity)
+                CardLoadingSkeleton(showChart: true, lineCount: 3)
+                    .frame(maxHeight: .infinity)
             } else {
                 HStack(alignment: .top, spacing: 12) {
                     // Left: ISP details
@@ -131,27 +127,16 @@ struct ISPHealthCard: View {
                 }
 
                 // Throughput sparkline — expands to fill remaining height
-                ZStack {
-                    RoundedRectangle(cornerRadius: 6).fill(Color.black.opacity(0.28))
-                    if !bandwidth.downloadHistory.isEmpty {
-                        HistorySparkline(
-                            data: bandwidth.uploadHistory,
-                            color: Color(hex: "8B5CF6"),
-                            lineWidth: 1.2,
-                            showPulse: false
-                        )
-                        .opacity(0.7)
-                        .overlay(alignment: .topLeading) {
-                            HistorySparkline(
-                                data: bandwidth.downloadHistory,
-                                color: MacTheme.Colors.info,
-                                lineWidth: 1.5,
-                                showPulse: true
-                            )
-                        }
-                        .padding(4)
-                    }
-                }
+                MiniSparklineView(
+                    data: bandwidth.downloadHistory,
+                    color: MacTheme.Colors.info,
+                    lineWidth: 1.5,
+                    showPulse: true,
+                    height: 34,
+                    overlayData: bandwidth.uploadHistory,
+                    overlayColor: Color(hex: "8B5CF6"),
+                    overlayLineWidth: 1.2
+                )
                 .frame(minHeight: 34, maxHeight: .infinity)
                 .accessibilityLabel("Live throughput chart")
             }
