@@ -26,8 +26,8 @@ NetMonitor 2.0 currently provides device discovery, ping, traceroute, port scann
 | Phase | Name | Platforms | Description | Reference |
 |-------|------|-----------|-------------|-----------|
 | 1 | Blueprint Walk Survey | macOS (full), iOS (basic) | Import a floor plan image, walk the space tapping your location at each measurement point, generate heatmap overlays. | NetSpot Survey Mode |
-| 2 | AR-Assisted Map + Survey | iOS only (LiDAR preferred) | Use ARKit to scan a room and auto-generate a floor plan, then walk and record measurement points on the generated map. | WiFiman Floorplan Mapper |
-| 3 | AR Continuous Scan | iOS only (LiDAR required) | Walk through a space while ARKit + LiDAR continuously maps the environment and records Wi-Fi signal, producing a real-time heatmap as you move. | WiFiman Signal Mapper |
+| 2 | ~~AR-Assisted Map + Survey~~ | ~~iOS only~~ | **DEPRECATED** — iPhone cannot read Wi-Fi signal accurately (Apple removed CWInterface scan APIs in iOS 9). Replaced by Phase 4. | — |
+| 3 | ~~AR Continuous Scan~~ | ~~iOS only~~ | **DEPRECATED** — Same iOS Wi-Fi API limitation. Replaced by Phase 4. | — |
 
 ## Problem Statement
 
@@ -47,6 +47,7 @@ Network administrators, IT professionals, and power users frequently need to und
 - **Spectrum analysis** — WiFiman Wizard provides RF spectrum analysis via dedicated hardware. NetMonitor will not require external hardware.
 - **UniFi/vendor integration** — WiFiman requires UniFi consoles for some features. NetMonitor's heatmap will be vendor-agnostic, working with any Wi-Fi network.
 - **3D volumetric heatmaps** — The heatmap is a 2D floor-plan overlay. ARKit 3D mesh data is used for room boundary detection, not 3D signal visualization.
+- **iOS Wi-Fi heatmap** — iPhone cannot read Wi-Fi scan data accurately (Apple removed CWInterface scan APIs in iOS 9). iOS role is limited to room scanning (Phase 4 RoomPlan) — all actual signal measurement happens on macOS.
 - **Cross-platform project sync** — Projects saved on macOS will not automatically sync to iOS or vice versa (iCloud sync is a future consideration).
 
 ---
