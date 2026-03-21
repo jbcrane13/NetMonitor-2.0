@@ -181,6 +181,10 @@ struct WiFiSignalCard: View {
         isLoading = true
         await refreshSignal()
         isLoading = false
+        // Auto-start monitoring so the sparkline begins populating immediately
+        if currentRSSI != nil && !isMonitoring {
+            startMonitoring()
+        }
     }
 
     private func toggleMonitoring() {

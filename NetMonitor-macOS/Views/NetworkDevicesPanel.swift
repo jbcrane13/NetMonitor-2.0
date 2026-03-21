@@ -11,7 +11,7 @@ struct NetworkDevicesPanel: View {
     @Query(sort: \LocalDevice.lastSeen, order: .reverse) private var allDevices: [LocalDevice]
 
     @State private var searchText: String = ""
-    @State private var sortOrder: PanelSortOrder = .status
+    @AppStorage("netmonitor.devicesPanel.sortOrder") private var sortOrder: PanelSortOrder = .ipAddress
     @State private var selectedDevice: LocalDevice?
     @State private var showFullDevicesView = false
 
@@ -243,7 +243,7 @@ private struct DevicePanelRow: View {
     @State private var isHovering = false
 
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 8) {
             // Status dot
             Circle()
                 .fill(device.status == .online ? MacTheme.Colors.success : Color.gray.opacity(0.5))
@@ -252,11 +252,11 @@ private struct DevicePanelRow: View {
 
             // Device icon
             Image(systemName: device.deviceType.iconName)
-                .font(.system(size: 13))
+                .font(.system(size: 12))
                 .foregroundStyle(.secondary)
-                .frame(width: 20)
+                .frame(width: 16)
 
-            // Name + IP
+            // Name + IP — flexible but capped
             VStack(alignment: .leading, spacing: 1) {
                 Text(device.displayName)
                     .font(.system(size: 12, weight: .medium))
@@ -266,18 +266,29 @@ private struct DevicePanelRow: View {
                     .font(.system(size: 10, design: .monospaced))
                     .foregroundStyle(.secondary)
             }
+            .frame(minWidth: 120, maxWidth: 200, alignment: .leading)
 
-            Spacer()
+            // Vendor — constrained width
+            Text(device.vendor ?? "")
+                .font(.system(size: 10))
+                .foregroundStyle(.tertiary)
+                .lineLimit(1)
+                .frame(width: 120, alignment: .leading)
 
-            // Vendor
-            if let vendor = device.vendor {
-                Text(vendor)
-                    .font(.system(size: 10))
-                    .foregroundStyle(.tertiary)
-                    .lineLimit(1)
-            }
+            // MAC Address (last 8 chars)
+            Text(device.macAddress.isEmpty ? "" : String(device.macAddress.suffix(8)))
+                .font(.system(size: 10, design: .monospaced))
+                .foregroundStyle(Color.white.opacity(0.4))
+                .frame(width: 70, alignment: .leading)
 
-            Spacer()
+            // Open Ports (top 3)
+            portsText
+                .font(.system(size: 10, design: .monospaced))
+                .foregroundStyle(MacTheme.Colors.info.opacity(0.8))
+                .lineLimit(1)
+                .frame(width: 70, alignment: .leading)
+
+            Spacer(minLength: 4)
 
             // Latency — bright threshold-colored
             if let latency = device.lastLatency, latency > 0 {
@@ -300,12 +311,21 @@ private struct DevicePanelRow: View {
         .onHover { isHovering = $0 }
     }
 
+    private var portsText: some View {
+        let ports = device.openPorts ?? []
+        if ports.isEmpty {
+            return Text("")
+        } else {
+            return Text(ports.prefix(3).map(String.init).joined(separator: ","))
+        }
+    }
+
     private func latencyColor(_ ms: Double) -> Color {
         switch ms {
-        case ..<5:   return MacTheme.Colors.success          // green
-        case ..<20:  return MacTheme.Colors.info             // blue
-        case ..<50:  return MacTheme.Colors.warning          // yellow/amber
-        default:     return MacTheme.Colors.error            // red
+        case ..<5:   return MacTheme.Colors.success
+        case ..<20:  return MacTheme.Colors.info
+        case ..<50:  return MacTheme.Colors.warning
+        default:     return MacTheme.Colors.error
         }
     }
 }

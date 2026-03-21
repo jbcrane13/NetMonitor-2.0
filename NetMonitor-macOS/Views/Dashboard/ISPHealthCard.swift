@@ -126,18 +126,18 @@ struct ISPHealthCard: View {
                     }
                 }
 
-                // Throughput sparkline — expands to fill remaining height
+                // Throughput sparkline — expands to fill remaining card height
                 MiniSparklineView(
                     data: bandwidth.downloadHistory,
                     color: MacTheme.Colors.info,
                     lineWidth: 1.5,
                     showPulse: true,
-                    height: 34,
+                    height: 60,
                     overlayData: bandwidth.uploadHistory,
                     overlayColor: Color(hex: "8B5CF6"),
                     overlayLineWidth: 1.2
                 )
-                .frame(minHeight: 34, maxHeight: .infinity)
+                .frame(minHeight: 60, maxHeight: .infinity)
                 .accessibilityLabel("Live throughput chart")
             }
 

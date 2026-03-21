@@ -20,6 +20,24 @@ struct ContentView: View {
     }
 
     var body: some View {
+        mainContent
+            .modifier(KeyboardShortcutsModifier(
+                selectedSection: $selectedSection,
+                showQuickJump: $showQuickJump,
+                onRescan: {
+                    guard let deviceDiscovery, !deviceDiscovery.isScanning else { return }
+                    deviceDiscovery.startScan()
+                },
+                onJumpToNetwork: { jumpToActiveNetwork() }
+            ))
+            .sheet(isPresented: $showQuickJump) {
+                QuickJumpSheet(selection: $selectedSection, isPresented: $showQuickJump)
+            }
+    }
+
+    // MARK: - Main Content (extracted to reduce body complexity)
+
+    private var mainContent: some View {
         NavigationSplitView {
             SidebarView(
                 selection: $selectedSection,
@@ -66,55 +84,6 @@ struct ContentView: View {
                 pendingSurveyURL = url
                 selectedSection = .tool(.wifiHeatmap)
             }
-        }
-        // MARK: - Keyboard Shortcuts
-        // ⌘1 — Jump to active network dashboard
-        .background {
-            Button("") { jumpToActiveNetwork() }
-                .keyboardShortcut("1", modifiers: .command)
-                .hidden()
-        }
-        // ⌘2 — Devices list
-        .background {
-            Button("") { selectedSection = .section(.devices) }
-                .keyboardShortcut("2", modifiers: .command)
-                .hidden()
-        }
-        // ⌘3 — Tools
-        .background {
-            Button("") { selectedSection = .section(.tools) }
-                .keyboardShortcut("3", modifiers: .command)
-                .hidden()
-        }
-        // ⌘4 — Settings
-        .background {
-            Button("") { selectedSection = .section(.settings) }
-                .keyboardShortcut("4", modifiers: .command)
-                .hidden()
-        }
-        // ⌘R — Rescan network
-        .background {
-            Button("") {
-                guard let deviceDiscovery, !deviceDiscovery.isScanning else { return }
-                deviceDiscovery.startScan()
-            }
-            .keyboardShortcut("r", modifiers: .command)
-            .hidden()
-        }
-        // ⌘K — Quick jump to device
-        .background {
-            Button("") { showQuickJump = true }
-                .keyboardShortcut("k", modifiers: .command)
-                .hidden()
-        }
-        // ⌘T — Quick tool launch
-        .background {
-            Button("") { selectedSection = .section(.tools) }
-                .keyboardShortcut("t", modifiers: .command)
-                .hidden()
-        }
-        .sheet(isPresented: $showQuickJump) {
-            QuickJumpSheet(selection: $selectedSection, isPresented: $showQuickJump)
         }
     }
 
@@ -195,6 +164,54 @@ struct ContentView: View {
                 }
             }
         }
+    }
+}
+
+// MARK: - Keyboard Shortcuts (extracted as ViewModifier to reduce type-checker pressure)
+
+private struct KeyboardShortcutsModifier: ViewModifier {
+    @Binding var selectedSection: SidebarSelection?
+    @Binding var showQuickJump: Bool
+    var onRescan: () -> Void
+    var onJumpToNetwork: () -> Void
+
+    func body(content: Content) -> some View {
+        content
+            .background { shortcutButtons }
+    }
+
+    // All shortcut buttons grouped in a single background overlay
+    private var shortcutButtons: some View {
+        Group {
+            // ⌘1 — Jump to active network dashboard
+            Button("", action: onJumpToNetwork)
+                .keyboardShortcut("1", modifiers: .command)
+
+            // ⌘2 — Devices list
+            Button("") { selectedSection = .section(.devices) }
+                .keyboardShortcut("2", modifiers: .command)
+
+            // ⌘3 — Tools
+            Button("") { selectedSection = .section(.tools) }
+                .keyboardShortcut("3", modifiers: .command)
+
+            // ⌘4 — Settings
+            Button("") { selectedSection = .section(.settings) }
+                .keyboardShortcut("4", modifiers: .command)
+
+            // ⌘R — Rescan network
+            Button("", action: onRescan)
+                .keyboardShortcut("r", modifiers: .command)
+
+            // ⌘K — Quick jump to device
+            Button("") { showQuickJump = true }
+                .keyboardShortcut("k", modifiers: .command)
+
+            // ⌘T — Quick tool launch
+            Button("") { selectedSection = .section(.tools) }
+                .keyboardShortcut("t", modifiers: .command)
+        }
+        .hidden()
     }
 }
 
