@@ -661,3 +661,88 @@ Each phase is independently shippable. Phase 1 alone delivers significant value 
 | Export | PDF, CSV | Limited | PDF, .netmonsurvey |
 
 *Sources: netspotapp.com, help.ui.com (WiFiman), community.ui.com, larsklint.com*
+
+---
+
+# Phase 4 — 3D Room Scanner & Blueprint Export (iOS → macOS)
+
+**Version:** 1.1 — added 2026-03-20 | **Requested by:** Blake Crane
+
+## Overview
+
+Phase 4 introduces a dedicated **3D room scanning mode** on iPhone that lets users create a full floor plan of their home or office, then export it as a blueprint file that the macOS app can import as the base map for a Wi-Fi heatmap survey. This decouples the scanning step from the measurement step — users can scan their space once, save it, and reuse it across multiple survey sessions or share it with others.
+
+This complements Phase 2 (AR scan + survey simultaneously) by offering a standalone, reusable scanning workflow that produces higher-quality floor plans.
+
+## User Stories
+
+| ID | Story |
+|----|-------|
+| US-4.1 | As a homeowner, I want to scan my house with my iPhone to create a 3D floor plan so I can use it as a blueprint in the Mac app without needing an external CAD file. |
+| US-4.2 | As a network admin, I want to scan each floor of a building separately and import them as layers in the macOS heatmap tool. |
+| US-4.3 | As a user, I want to review and lightly edit the generated floor plan on my iPhone before exporting it to the Mac. |
+| US-4.4 | As a Mac user, I want to import a scanned blueprint from my iPhone via AirDrop, Files, or iCloud Drive and use it immediately as the heatmap base map. |
+| US-4.5 | As a user, I want the scanner to distinguish rooms and label them (living room, bedroom, etc.) so the exported blueprint is annotated. |
+
+## Technical Approach
+
+### Scanning Engine: RoomPlan API (iOS 16+)
+Use Apple's [RoomPlan](https://developer.apple.com/documentation/roomplan) framework (introduced iOS 16) — the same technology powering the iPhone's built-in Measure app room scan feature. RoomPlan uses:
+- **LiDAR** (iPhone 12 Pro+ / iPad Pro) for precise depth measurement
+- **ARKit** + **Vision** for room structure detection on non-LiDAR devices (reduced accuracy)
+- Outputs a `CapturedRoom` struct: walls, doors, windows, furniture bounding boxes, room dimensions
+
+### Export Format: `.netmonblueprint`
+A new file format (JSON bundle) containing:
+- **2D SVG floor plan** generated from RoomPlan's `CapturedRoom` data (walls, doorways, room labels)
+- **Scale metadata** (meters-per-unit) — already measured by RoomPlan, no manual calibration needed
+- **Room labels** — inferred from RoomPlan's `CapturedRoom.identifier` or user-edited
+- **3D mesh reference** (optional) — the full RoomPlan `CapturedStructure` USDZ for future 3D visualization
+- **Multi-floor support** — array of floor objects, each with its own scan
+
+### macOS Import Flow
+1. User opens a `.netmonblueprint` file (AirDrop, Files, iCloud Drive)
+2. macOS app renders the SVG floor plan as the base image for the heatmap survey
+3. Scale is pre-calibrated from RoomPlan data — no manual two-point calibration needed
+4. User selects which floor to survey (if multi-floor)
+5. Normal Phase 1 walk survey proceeds on top of the imported blueprint
+
+### Companion Transfer Options
+- **AirDrop** — tap Share → AirDrop from iOS scanning screen, auto-opens in NetMonitor macOS
+- **iCloud Drive** — save to shared NetMonitor folder, auto-imported on macOS
+- **Companion protocol** — direct device-to-device transfer via existing CompanionService (LAN)
+
+## Platform Requirements
+
+| Requirement | Value |
+|------------|-------|
+| Minimum iOS version | iOS 16.0 (RoomPlan GA) |
+| LiDAR requirement | Recommended (iPhone 12 Pro+). Non-LiDAR falls back to ARKit-only (walls detected, no depth). |
+| Minimum macOS version | macOS 13.0 (for SVG rendering; existing app min target applies) |
+| New frameworks | `RoomPlan` (iOS only), `SwiftUI.Canvas` or `PDFKit` for SVG render (macOS) |
+
+## Feature Flags
+- `roomPlanScanningEnabled` — gates RoomPlan features (iOS 16+, LiDAR recommended)
+- `multiFloorBlueprintEnabled` — gates multi-floor scanning UI (can ship single-floor first)
+
+## Non-Goals
+- Real-time Wi-Fi scanning during the room scan (that is Phase 2/3) — Phase 4 is scan-only
+- 3D volumetric heatmap display on the Mac (heatmap remains 2D floor plan overlay)
+- Windows / Android support
+
+## Dependencies on Existing Phases
+- Requires Phase 1 `.netmonsurvey` project foundation (file format, macOS import UI already built)
+- `.netmonblueprint` replaces the manual blueprint import in Phase 1 with a scanned, pre-calibrated version
+
+## Estimated Effort
+
+| Component | Effort |
+|----------|--------|
+| iOS RoomPlan scanning UI + session management | 1–2 weeks |
+| `.netmonblueprint` export (SVG generation from CapturedRoom) | 1 week |
+| Multi-floor scanning + floor selection UI | 0.5 weeks |
+| macOS `.netmonblueprint` import + SVG renderer | 1 week |
+| AirDrop / iCloud Drive / Companion transfer | 0.5 weeks |
+| Testing (LiDAR + non-LiDAR devices) | 0.5 weeks |
+| **Total** | **~4.5–5.5 weeks** |
+
