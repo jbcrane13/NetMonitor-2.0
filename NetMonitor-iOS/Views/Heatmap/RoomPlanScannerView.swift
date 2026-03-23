@@ -10,45 +10,43 @@ struct RoomPlanScannerView: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        NavigationStack {
-            Group {
-                switch viewModel.scanState {
-                case .idle:
-                    scanSetupView
-                case .scanning:
-                    activeScanView
-                case .processing:
-                    processingView
-                case .complete:
-                    scanCompleteView
-                case .error(let message):
-                    errorView(message: message)
-                }
+        Group {
+            switch viewModel.scanState {
+            case .idle:
+                scanSetupView
+            case .scanning:
+                activeScanView
+            case .processing:
+                processingView
+            case .complete:
+                scanCompleteView
+            case .error(let message):
+                errorView(message: message)
             }
-            .themedBackground()
-            .navigationTitle("Room Scanner")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("Close") {
-                        dismiss()
-                    }
-                    .foregroundStyle(Theme.Colors.textSecondary)
-                    .accessibilityIdentifier("roomScanner_button_close")
+        }
+        .themedBackground()
+        .navigationTitle("Room Scanner")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
+        .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                Button("Close") {
+                    dismiss()
                 }
+                .foregroundStyle(Theme.Colors.textSecondary)
+                .accessibilityIdentifier("roomScanner_button_close")
             }
-            .sheet(isPresented: $viewModel.showShareSheet) {
-                if let url = viewModel.exportedFileURL {
-                    ShareSheet(activityItems: [url])
-                        .accessibilityIdentifier("roomScanner_shareSheet")
-                }
+        }
+        .sheet(isPresented: $viewModel.showShareSheet) {
+            if let url = viewModel.exportedFileURL {
+                ShareSheet(activityItems: [url])
+                    .accessibilityIdentifier("roomScanner_shareSheet")
             }
-            .sheet(isPresented: $showDocumentExporter) {
-                if let url = viewModel.exportedFileURL {
-                    DocumentExporterView(sourceURL: url)
-                        .accessibilityIdentifier("roomScanner_documentExporter")
-                }
+        }
+        .sheet(isPresented: $showDocumentExporter) {
+            if let url = viewModel.exportedFileURL {
+                DocumentExporterView(sourceURL: url)
+                    .accessibilityIdentifier("roomScanner_documentExporter")
             }
         }
     }
