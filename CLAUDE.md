@@ -16,9 +16,7 @@ xcodebuild -scheme NetMonitor-macOS -configuration Debug build
 # Build iOS target
 xcodebuild -scheme NetMonitor-iOS -configuration Debug build
 
-# Run tests
-xcodebuild test -scheme NetMonitor-macOS
-xcodebuild test -scheme NetMonitor-iOS
+# Run tests — see "Test Execution Policy" section below (NEVER run locally)
 
 # Build Swift packages directly
 swift build -c debug  # from Packages/NetMonitorCore or Packages/NetworkScanKit
@@ -30,11 +28,11 @@ swift build -c debug  # from Packages/NetMonitorCore or Packages/NetworkScanKit
 
 ```
 Packages/
-  NetMonitorCore/     # Shared models, service protocols, core services (~5,600 LOC)
-  NetworkScanKit/     # Network device discovery engine (~2,200 LOC)
+  NetMonitorCore/     # Shared models, service protocols, core services (~10,800 LOC)
+  NetworkScanKit/     # Network device discovery engine (~2,400 LOC)
 NetMonitor-macOS/     # macOS app target (SwiftData, menu bar, shell-based services)
 NetMonitor-iOS/       # iOS app target (companion connection, widget, liquid glass UI)
-Tests/                # Unit tests (minimal coverage currently)
+Tests/                # Unit + UI tests (135 test files across 4 targets)
 docs/                 # Architecture docs, ADRs, companion protocol spec
 ```
 
@@ -115,64 +113,40 @@ Each major view directory contains an `AGENTS.md` with purpose, sub-directory la
 
 **Scan pipeline** — `DeviceDiscoveryCoordinator.startScan()` runs: ARP → Bonjour → merge → name resolution → vendor lookup → quick port scan (15 common ports) → device type inference → latency (3 pings) → mark offline. `DeviceTypeInferenceService` classifies unknown devices from hostname/services/ports/vendor.
 
-## UI Enhancement Components (March 2026)
+## Shared UI Components (March 2026)
 
-The following shared components and patterns were introduced during the UI polish pass. These are reusable building blocks — check for them before creating new one-off implementations.
+Check for these reusable building blocks before creating new one-off implementations.
 
-### Shared Components (macOS)
+### macOS Components
 
-**MiniSparklineView** (`NetMonitor-macOS/Views/Components/MiniSparklineView.swift`) — Reusable sparkline wrapper around `HistorySparkline` (from NetMonitorCore). Renders a dark recessed container with Catmull-Rom spline. Supports threshold-based coloring via `thresholdColor: ((Double) -> Color)?`, dual data overlays, configurable height/pulse/corner radius. Used by ISPHealthCard (dual-overlay latency), WiFiSignalCard (RSSI history), DeviceCardView (per-device latency), and MenuBarPopoverView (gateway latency).
+| Component | File | Purpose |
+|---|---|---|
+| `MiniSparklineView` | `macOS/Views/Components/MiniSparklineView.swift` | Sparkline with threshold coloring, dual overlays. Used by ISPHealthCard, WiFiSignalCard, DeviceCardView, MenuBarPopoverView |
+| `CardStateViews` | `macOS/Views/Components/CardStateViews.swift` | Shimmer/skeleton/empty/error states for cards. Use instead of bare `ProgressView()` |
+| `QuickJumpSheet` | `macOS/Views/Components/QuickJumpSheet.swift` | ⌘K Spotlight-style device search overlay |
+| `DashboardLayout` | `macOS/Views/NetworkDetailView.swift` | 3 breakpoints: compact (<1200pt), standard (1200–1599pt), wide (≥1600pt) |
 
-**CardStateViews** (`NetMonitor-macOS/Views/Components/CardStateViews.swift`) — Loading/empty/error state views for dashboard cards. Includes `ShimmerModifier`, `SkeletonBar`, `SkeletonCircle`, `CardLoadingSkeleton(showChart:lineCount:)`, `CardEmptyState(icon:title:subtitle:)`, `CardErrorState`, and `CardStateView` (enum-driven wrapper). Use these instead of bare `ProgressView()` in card loading states.
+### Cross-Platform Patterns
 
-**QuickJumpSheet** (`NetMonitor-macOS/Views/Components/QuickJumpSheet.swift`) — ⌘K Spotlight-style device search overlay. Filters `LocalDevice` by name, IP, vendor, hostname. Presented as a `.sheet` from ContentView.
-
-### Tool Categories
-
-Both platforms now group tools into categories: Diagnostics, Discovery, Monitoring, Actions.
-
-- macOS: `ToolCategory` enum in `NetMonitor-macOS/Views/ToolsView.swift`
-- iOS: `IOSToolCategory` enum in `NetMonitor-iOS/Views/Tools/ToolsView.swift` (note: slightly different tool sets per platform — iOS includes Network Monitor, Room Scanner, Web Browser)
-
-### Sortable Pro Mode Columns (macOS DevicesView)
-
-`DevicesView` has `sortOrder: DeviceSortOrder` and `sortAscending: Bool` state. The `sortableHeader()` helper renders clickable column headers with directional chevrons. Sort cases: `lastSeen`, `name`, `ipAddress`, `status`, `vendor`, `latency`. Last-seen defaults descending; all others default ascending on first click.
-
-### Device Quick Actions
-
-Both macOS `DeviceDetailView` and iOS `DeviceDetailView` include a `quickActionBar` between the header card and network info section. Actions: Ping, Scan Ports, Wake (conditional on MAC address), Copy IP, and DNS/Monitor depending on platform.
-
-### Latency History on LocalDevice
-
-`LocalDevice.latencyHistory` is a `@Transient` `[Double]` buffer (max 20 samples) populated by `updateLatency()`. Not persisted to SwiftData — in-memory only, resets on app restart. Used by `DeviceCardView` to show per-device sparklines.
-
-### Responsive Dashboard Layout (macOS NetworkDetailView)
-
-`NetworkDetailView` uses a `DashboardLayout` enum with three breakpoints: `.compact` (< 1200pt, single-column scroll), `.standard` (1200–1599pt, original 2-column), `.wide` (≥ 1600pt, 3-column with ISP/gauge stacked left). The `diagnosticsStack(gap:)` helper is shared across all three layouts.
-
-### Menu Bar Popover Sections (macOS)
-
-`MenuBarPopoverView` now includes: header → connection status → network stats → **gateway latency sparkline** → **quick actions (Scan/Ping/Speed)** → **problem devices (offline or >100ms)** → target list → footer. The sparkline uses `MiniSparklineView`; problem devices are capped at 3.
-
-### Keyboard Shortcuts (macOS)
-
-Defined in `KeyboardShortcutsModifier` (private struct in `ContentView.swift`). All shortcuts are grouped in a single hidden `.background` to avoid Swift type-checker timeouts from long modifier chains.
-
-| Shortcut | Action |
+| Pattern | Details |
 |---|---|
-| ⌘1 | Jump to active network dashboard |
-| ⌘2 | Devices list |
-| ⌘3 | Tools |
-| ⌘4 | Settings |
-| ⌘R | Rescan network |
-| ⌘K | Quick jump to device (search overlay) |
-| ⌘T | Quick tool launch |
+| Tool categories | Both platforms: Diagnostics, Discovery, Monitoring, Actions. macOS: `ToolCategory`, iOS: `IOSToolCategory` (different tool sets) |
+| Device quick actions | `quickActionBar` in both DeviceDetailViews: Ping, Scan Ports, Wake (conditional), Copy IP, DNS/Monitor |
+| Latency history | `LocalDevice.latencyHistory` — `@Transient [Double]` buffer (max 20), in-memory only, drives per-device sparklines |
 
-**Important pattern note:** Never chain 5+ `.background { Button... }` modifiers on a single view — extract into a `ViewModifier` with a single `.background` containing a `Group` of hidden buttons. The Swift type-checker will time out otherwise.
+### macOS Keyboard Shortcuts
 
-### iPad Sidebar Polish (iOS ContentView)
+Defined in `KeyboardShortcutsModifier` (ContentView.swift). ⌘1-4 sidebar nav, ⌘R rescan, ⌘K quick jump, ⌘T quick tool.
 
-iPad `sizeClass == .regular` uses a structured `iPadSidebar` with two sections: NETWORK (shows active network name, ACTIVE badge, device count, gateway latency with threshold coloring) and NAVIGATE (tab rows with accent selection indicator bar). The sidebar reads from a shared `DashboardViewModel` instance for live network status. Helper properties added to `DashboardViewModel`: `connectionTypeIcon`, `networkName`, `gatewayLatency`.
+**Gotcha:** Never chain 5+ `.background { Button... }` modifiers — extract into a `ViewModifier` with a single `.background` containing a `Group`. The Swift type-checker will time out otherwise.
+
+### iPad Sidebar (iOS)
+
+iPad uses `iPadSidebar` with NETWORK (name, ACTIVE badge, device count, gateway latency) and NAVIGATE sections. Reads from shared `DashboardViewModel` (`connectionTypeIcon`, `networkName`, `gatewayLatency`).
+
+### iOS Tool View Navigation (Gotcha)
+
+Tool views are pushed via `NavigationLink(value:)` inside `ToolsView`'s `NavigationStack`. Destination views must NOT wrap their body in a second `NavigationStack` — this creates a nested navigation context that silently swallows the push on iOS 18+. Use toolbar modifiers directly on the view body instead.
 
 ## Git Workflow Note
 

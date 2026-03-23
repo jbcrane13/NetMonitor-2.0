@@ -44,6 +44,18 @@ struct GeneralSettingsView: View {
                     Text(Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1")
                         .foregroundStyle(.secondary)
                 }
+
+                HStack {
+                    Button("Rate App") {
+                        RateAppService.requestReview()
+                    }
+                    .accessibilityIdentifier("settings_button_rateApp")
+
+                    Button("Write a Review") {
+                        RateAppService.openReviewPage()
+                    }
+                    .accessibilityIdentifier("settings_button_writeReview")
+                }
             } header: {
                 Text("About")
             }

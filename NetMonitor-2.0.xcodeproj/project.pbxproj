@@ -343,6 +343,8 @@
 		FEB59352F6EE8F464D7612B9 /* TimelineViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C9A3CE431FD0207EA5C06D5 /* TimelineViewModelTests.swift */; };
 		FF16C7008539D9C78DCBB9F5 /* DeviceRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF43C912ACE0DEB478B1BD11 /* DeviceRowView.swift */; };
 		FF6898C0C95598DCEB6D50F6 /* NetworkInfoService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E8D38F19275D03369E77C3E /* NetworkInfoService.swift */; };
+		825DE4A1850117ED9C27E9C4 /* RateAppService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 469AC3D96D60C2EE6C2EA341 /* RateAppService.swift */; };
+		C866F275E250AA1EA47105D2 /* RateAppService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E87C38EB3CF85EC4D76B8F80 /* RateAppService.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -715,6 +717,8 @@
 		FA3B15479F5CBB23DFFDC05E /* MacPairingUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacPairingUITests.swift; sourceTree = "<group>"; };
 		FC804A214B32FE44709510C9 /* DeviceDetailViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceDetailViewModelTests.swift; sourceTree = "<group>"; };
 		FEA56070D9F03D65EA3EC10D /* AddTargetSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddTargetSheet.swift; sourceTree = "<group>"; };
+		469AC3D96D60C2EE6C2EA341 /* RateAppService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RateAppService.swift; sourceTree = "<group>"; };
+		E87C38EB3CF85EC4D76B8F80 /* RateAppService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RateAppService.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -859,6 +863,7 @@
 				C6CBE58C2938DC79DF670A35 /* ThemeManager.swift */,
 				3DE29B6619C0856A7E827AA2 /* UITestBootstrap.swift */,
 				3FE1A85A0AC80D9B08D16B53 /* WiFiInfoService.swift */,
+				469AC3D96D60C2EE6C2EA341 /* RateAppService.swift */,
 				A2051FEFE4B32F74411F8312 /* AppIntents */,
 			);
 			path = Platform;
@@ -1140,6 +1145,7 @@
 				902FDF34A4DD511DF5326DA1 /* Logging.swift */,
 				E3DE27495CAFD0EF97D63222 /* MacNetworkMonitor.swift */,
 				1885F20A5827B051C5546251 /* MacWiFiInfoService.swift */,
+				E87C38EB3CF85EC4D76B8F80 /* RateAppService.swift */,
 				CFCF80A32B7899970DFA3C3B /* MonitoringSession.swift */,
 				5E8D38F19275D03369E77C3E /* NetworkInfoService.swift */,
 				4AF56381168C3FD77815FE7B /* NoOpSpeedTestService.swift */,
@@ -1717,6 +1723,7 @@
 				ACC95524FDB6D069334A6DE6 /* MacNetworkMonitor.swift in Sources */,
 				88CA4E319D8AC8D6C5F4F83A /* MacTheme.swift in Sources */,
 				2A7AE89B0756DB0B5C61153F /* MacWiFiInfoService.swift in Sources */,
+				C866F275E250AA1EA47105D2 /* RateAppService.swift in Sources */,
 				097A650172E9B2C29CF796B3 /* MenuBarCommands.swift in Sources */,
 				25860CEF3284B9B3375ED175 /* MenuBarController.swift in Sources */,
 				8A2B73CB46EEE33E55704BCA /* MenuBarPopoverView.swift in Sources */,
@@ -1915,6 +1922,7 @@
 				4F0B754BE3498779A22DDB1A /* WebBrowserToolView.swift in Sources */,
 				26305CE06BC04D36606602D9 /* WiFiInfoService.swift in Sources */,
 				E1D58C3DDD0809F181AF580F /* WorldPingToolView.swift in Sources */,
+				825DE4A1850117ED9C27E9C4 /* RateAppService.swift in Sources */,
 				3C62E16E5D47E754A344DC1F /* WorldPingToolViewModel.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

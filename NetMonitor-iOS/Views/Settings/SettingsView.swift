@@ -336,10 +336,7 @@ struct SettingsView: View {
                 .accessibilityIdentifier("settings_link_support")
 
                 Button {
-                    // Rate App action - will open App Store review page
-                    if let url = URL(string: "itms-apps://itunes.apple.com/app/id") {
-                        UIApplication.shared.open(url)
-                    }
+                    RateAppService.requestReview()
                 } label: {
                     HStack {
                         Text("Rate App")
@@ -350,6 +347,19 @@ struct SettingsView: View {
                     }
                 }
                 .accessibilityIdentifier("settings_button_rateApp")
+
+                Button {
+                    RateAppService.openReviewPage()
+                } label: {
+                    HStack {
+                        Text("Write a Review")
+                            .foregroundStyle(Theme.Colors.textPrimary)
+                        Spacer()
+                        Image(systemName: "text.quote")
+                            .foregroundStyle(Theme.Colors.accent)
+                    }
+                }
+                .accessibilityIdentifier("settings_button_writeReview")
             } header: {
                 Text("About")
                     .foregroundStyle(Theme.Colors.textSecondary)
