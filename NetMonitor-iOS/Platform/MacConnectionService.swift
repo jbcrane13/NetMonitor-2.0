@@ -293,8 +293,12 @@ final class MacConnectionService: MacConnectionServiceProtocol {
     private func processReceiveBuffer() {
         // Process all complete frames in the buffer
         while receiveBuffer.count >= 4 {
-            let lengthBytes = receiveBuffer.prefix(4)
-            let length = lengthBytes.withUnsafeBytes { $0.loadUnaligned(as: UInt32.self).bigEndian }
+            // Read 4 bytes explicitly to avoid UnsafeRawBufferPointer slice issues
+            let b0 = receiveBuffer[receiveBuffer.startIndex]
+            let b1 = receiveBuffer[receiveBuffer.startIndex + 1]
+            let b2 = receiveBuffer[receiveBuffer.startIndex + 2]
+            let b3 = receiveBuffer[receiveBuffer.startIndex + 3]
+            let length = UInt32(b0) << 24 | UInt32(b1) << 16 | UInt32(b2) << 8 | UInt32(b3)
 
             // Sanity check — reject absurdly large frames (max 10 MB)
             guard length > 0, length <= 10_000_000 else {
@@ -309,7 +313,8 @@ final class MacConnectionService: MacConnectionServiceProtocol {
                 break
             }
 
-            let jsonData = receiveBuffer.subdata(in: 4..<totalFrameSize)
+            let start = receiveBuffer.startIndex
+            let jsonData = receiveBuffer.subdata(in: (start + 4)..<(start + totalFrameSize))
             receiveBuffer.removeFirst(totalFrameSize)
 
             do {
