@@ -10,67 +10,101 @@ struct DashboardView: View {
     
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: Theme.Layout.itemSpacing) {
-                    if !viewModel.isConnected {
-                        OfflineBanner(lastScanDate: viewModel.lastScanDate)
+            GeometryReader { geo in
+                ScrollView {
+                    dashboardContent(width: geo.size.width)
+                        .padding(.horizontal, Theme.Layout.screenPadding)
+                        .padding(.top, Theme.Layout.smallCornerRadius)
+                        .padding(.bottom, Theme.Layout.sectionSpacing)
+                }
+                .themedBackground()
+                .navigationTitle("Dashboard")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
+                .toolbar {
+                    ToolbarItem(placement: .topBarLeading) {
+                        ConnectionStatusHeader(viewModel: viewModel)
                     }
+                    ToolbarItem(placement: .topBarTrailing) {
+                        NavigationLink {
+                            SettingsView()
+                        } label: {
+                            Image(systemName: "gear")
+                                .foregroundStyle(Theme.Colors.textPrimary)
+                        }
+                        .accessibilityIdentifier("dashboard_button_settings")
+                    }
+                }
+                .refreshable {
+                    await viewModel.refresh(forceIP: true)
+                }
+                .task {
+                    viewModel.refreshAvailableNetworks()
+                    await viewModel.refresh(forceIP: true)
+                    viewModel.startAutoRefresh()
+                }
+                .onReceive(NotificationCenter.default.publisher(for: .networkProfilesDidChange)) { _ in
+                    viewModel.refreshAvailableNetworks()
+                }
+                .onDisappear {
+                    viewModel.stopAutoRefresh()
+                }
+                .accessibilityIdentifier("screen_dashboard")
+            }
+        }
+    }
 
-                    TacticalHUDHeader(viewModel: viewModel)
-                    
+    @ViewBuilder
+    private func dashboardContent(width: CGFloat) -> some View {
+        VStack(spacing: Theme.Layout.itemSpacing) {
+            if !viewModel.isConnected {
+                OfflineBanner(lastScanDate: viewModel.lastScanDate)
+            }
+
+            TacticalHUDHeader(viewModel: viewModel)
+
+            if width > 900 {
+                // Wide: 3-column grid for metric cards
+                LazyVGrid(columns: [
+                    GridItem(.flexible()),
+                    GridItem(.flexible()),
+                    GridItem(.flexible())
+                ], spacing: Theme.Layout.itemSpacing) {
                     RefinedNetworkHealthCard(viewModel: viewModel)
-                    
                     SignalEQView(viewModel: viewModel)
-                    
                     WANInfoCard(viewModel: viewModel)
+                }
+                AnchorLatencyCard(viewModel: viewModel)
+            } else if width > 600 {
+                // Regular: 2-column pairs
+                HStack(spacing: Theme.Layout.itemSpacing) {
+                    RefinedNetworkHealthCard(viewModel: viewModel)
+                        .frame(maxWidth: .infinity)
+                    SignalEQView(viewModel: viewModel)
+                        .frame(maxWidth: .infinity)
+                }
+                HStack(spacing: Theme.Layout.itemSpacing) {
+                    WANInfoCard(viewModel: viewModel)
+                        .frame(maxWidth: .infinity)
                     AnchorLatencyCard(viewModel: viewModel)
-
-                    SpeedTestQuickCard()
-
-                    LiveEventTicker()
-
-                    LocalDevicesCard(
-                        viewModel: viewModel,
-                        selectedNetwork: viewModel.activeNetwork
-                    )
+                        .frame(maxWidth: .infinity)
                 }
-                .padding(.horizontal, Theme.Layout.screenPadding)
-                .padding(.top, Theme.Layout.smallCornerRadius)
-                .padding(.bottom, Theme.Layout.sectionSpacing)
+            } else {
+                // Compact: single column (iPhone default)
+                RefinedNetworkHealthCard(viewModel: viewModel)
+                SignalEQView(viewModel: viewModel)
+                WANInfoCard(viewModel: viewModel)
+                AnchorLatencyCard(viewModel: viewModel)
             }
-            .themedBackground()
-            .navigationTitle("Dashboard")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    ConnectionStatusHeader(viewModel: viewModel)
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    NavigationLink {
-                        SettingsView()
-                    } label: {
-                        Image(systemName: "gear")
-                            .foregroundStyle(Theme.Colors.textPrimary)
-                    }
-                    .accessibilityIdentifier("dashboard_button_settings")
-                }
-            }
-            .refreshable {
-                await viewModel.refresh(forceIP: true)
-            }
-            .task {
-                viewModel.refreshAvailableNetworks()
-                await viewModel.refresh(forceIP: true)
-                viewModel.startAutoRefresh()
-            }
-            .onReceive(NotificationCenter.default.publisher(for: .networkProfilesDidChange)) { _ in
-                viewModel.refreshAvailableNetworks()
-            }
-            .onDisappear {
-                viewModel.stopAutoRefresh()
-            }
-            .accessibilityIdentifier("screen_dashboard")
+
+            SpeedTestQuickCard()
+
+            LiveEventTicker()
+
+            LocalDevicesCard(
+                viewModel: viewModel,
+                selectedNetwork: viewModel.activeNetwork
+            )
         }
     }
 }
@@ -571,8 +605,6 @@ struct ConnectivityRow: View {
         }
     }
 }
-
-
 
 // MARK: - Devices
 
