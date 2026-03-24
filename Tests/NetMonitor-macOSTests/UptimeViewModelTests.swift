@@ -12,7 +12,7 @@ import NetMonitorCore
 struct UptimeViewModelTests {
 
     func makeContainer() throws -> ModelContainer {
-        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        let config = ModelConfiguration(UUID().uuidString, isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         return try ModelContainer(for: ConnectivityRecord.self, configurations: config)
     }
 
@@ -49,7 +49,7 @@ struct UptimeViewModelTests {
         #expect(vm.uptimeBar.isEmpty)
     }
 
-    @Test("Always online (only samples, no transitions) → uptimePct is nil")
+    @Test("Always online (only samples, no transitions) → uptimePct is 100%")
     func alwaysOnline() throws {
         let container = try makeContainer()
         let context = ModelContext(container)
@@ -60,8 +60,8 @@ struct UptimeViewModelTests {
         let vm = UptimeViewModel(profileID: profileID, modelContext: context, windowDays: 1, barSegments: 4)
         vm.load()
 
-        // Only sample records exist — no transitions, so uptime cannot be computed.
-        #expect(vm.uptimePct == nil)
+        // Only sample records exist — no transitions means no outages, so 100% uptime.
+        #expect(vm.uptimePct == 100.0)
         #expect(vm.outageCount == 0)
     }
 

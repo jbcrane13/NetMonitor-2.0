@@ -147,6 +147,16 @@ final class MonitoringSession {
         monitoringTasks.removeAll()
     }
 
+    /// Stops monitoring and waits for all background tasks to finish.
+    /// Use in tests to prevent SwiftData crashes from dangling task references.
+    func stopMonitoringAndWait() async {
+        let tasks = monitoringTasks.values.map { $0 }
+        stopMonitoring()
+        for task in tasks {
+            _ = await task.result
+        }
+    }
+
     func latestMeasurement(for targetID: UUID) -> TargetMeasurement? {
         latestResults[targetID]
     }

@@ -70,7 +70,7 @@ private func makeInMemoryStore() throws -> (ModelContainer, ModelContext) {
         TargetMeasurement.self,
         SessionRecord.self
     ])
-    let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+    let config = ModelConfiguration(UUID().uuidString, schema: schema, isStoredInMemoryOnly: true, cloudKitDatabase: .none)
     let container = try ModelContainer(for: schema, configurations: [config])
     return (container, container.mainContext)
 }
@@ -183,7 +183,7 @@ struct MonitoringSessionExtendedTests {
 
     // MARK: startMonitoring with enabled target
 
-    @Test func startMonitoringWithEnabledTargetBecomesMonitoring() throws {
+    @Test func startMonitoringWithEnabledTargetBecomesMonitoring() async throws {
         let (container, context) = try makeInMemoryStore()
         _ = container
         context.insert(NetworkTarget(
@@ -201,10 +201,10 @@ struct MonitoringSessionExtendedTests {
         #expect(session.startTime != nil)
         if let t = session.startTime { #expect(t >= before) }
 
-        session.stopMonitoring()
+        await session.stopMonitoringAndWait()
     }
 
-    @Test func startMonitoringWhileAlreadyMonitoringIsIdempotent() throws {
+    @Test func startMonitoringWhileAlreadyMonitoringIsIdempotent() async throws {
         let (container, context) = try makeInMemoryStore()
         _ = container
         context.insert(NetworkTarget(
@@ -219,12 +219,12 @@ struct MonitoringSessionExtendedTests {
         session.startMonitoring()
         #expect(session.isMonitoring == true)
         #expect(session.startTime == startTimeAfterFirst)
-        session.stopMonitoring()
+        await session.stopMonitoringAndWait()
     }
 
     // MARK: stopMonitoring after starting
 
-    @Test func stopMonitoringTransitionsIsMonitoringToFalse() throws {
+    @Test func stopMonitoringTransitionsIsMonitoringToFalse() async throws {
         let (container, context) = try makeInMemoryStore()
         _ = container
         context.insert(NetworkTarget(
@@ -236,11 +236,11 @@ struct MonitoringSessionExtendedTests {
         let session = MonitoringSession(modelContext: context)
         session.startMonitoring()
         #expect(session.isMonitoring == true)
-        session.stopMonitoring()
+        await session.stopMonitoringAndWait()
         #expect(session.isMonitoring == false)
     }
 
-    @Test func startTimeRetainedAfterStopMonitoring() throws {
+    @Test func startTimeRetainedAfterStopMonitoring() async throws {
         let (container, context) = try makeInMemoryStore()
         _ = container
         context.insert(NetworkTarget(
@@ -252,7 +252,7 @@ struct MonitoringSessionExtendedTests {
         let session = MonitoringSession(modelContext: context)
         session.startMonitoring()
         let capturedStart = session.startTime
-        session.stopMonitoring()
+        await session.stopMonitoringAndWait()
         #expect(session.startTime == capturedStart)
     }
 
@@ -394,7 +394,7 @@ struct MonitoringSessionLoopTests {
         #expect(session.latestResults[target.id] != nil)
         #expect(session.latestResults[target.id]?.isReachable == true)
         #expect(session.latestResults[target.id]?.latency == 42.0)
-        session.stopMonitoring()
+        await session.stopMonitoringAndWait()
     }
 
     // MARK: latestMeasurement(for:) returns populated result
@@ -415,7 +415,7 @@ struct MonitoringSessionLoopTests {
         let result = session.latestMeasurement(for: target.id)
         #expect(result != nil)
         #expect(result?.latency == 15.0)
-        session.stopMonitoring()
+        await session.stopMonitoringAndWait()
     }
 
     // MARK: onlineTargetCount / offlineTargetCount after check
@@ -434,7 +434,7 @@ struct MonitoringSessionLoopTests {
 
         #expect(session.onlineTargetCount == 1)
         #expect(session.offlineTargetCount == 0)
-        session.stopMonitoring()
+        await session.stopMonitoringAndWait()
     }
 
     @Test func offlineTargetCountIsOneAfterUnreachableCheck() async throws {
@@ -451,7 +451,7 @@ struct MonitoringSessionLoopTests {
 
         #expect(session.onlineTargetCount == 0)
         #expect(session.offlineTargetCount == 1)
-        session.stopMonitoring()
+        await session.stopMonitoringAndWait()
     }
 
     // MARK: averageLatencyString format after successful check
@@ -469,7 +469,7 @@ struct MonitoringSessionLoopTests {
         try await Task.sleep(for: .milliseconds(200))
 
         #expect(session.averageLatencyString == "33ms")
-        session.stopMonitoring()
+        await session.stopMonitoringAndWait()
     }
 
     // MARK: averageLatencyString averages over multiple targets
@@ -490,7 +490,7 @@ struct MonitoringSessionLoopTests {
         try await Task.sleep(for: .milliseconds(300))
 
         #expect(session.averageLatencyString == "50ms")
-        session.stopMonitoring()
+        await session.stopMonitoringAndWait()
     }
 
     // MARK: Error path – throwing service marks target unreachable
@@ -512,7 +512,7 @@ struct MonitoringSessionLoopTests {
         #expect(result?.isReachable == false)
         #expect(result?.latency == nil)
         #expect(result?.errorMessage != nil)
-        session.stopMonitoring()
+        await session.stopMonitoringAndWait()
     }
 
     // MARK: Unreachable stub propagates errorMessage
@@ -532,7 +532,7 @@ struct MonitoringSessionLoopTests {
         let result = session.latestMeasurement(for: target.id)
         #expect(result?.isReachable == false)
         #expect(result?.errorMessage == "Host unreachable (stub)")
-        session.stopMonitoring()
+        await session.stopMonitoringAndWait()
     }
 
     // MARK: recentLatencies rolling buffer accumulates entries
@@ -550,7 +550,7 @@ struct MonitoringSessionLoopTests {
         let session = makeSession(context: context, stub: SuccessMonitorService(latency: 10.0))
         session.startMonitoring()
         try await Task.sleep(for: .milliseconds(150))
-        session.stopMonitoring()
+        await session.stopMonitoringAndWait()
 
         let history = session.recentLatencies[target.id] ?? []
         #expect(history.isEmpty == false)
@@ -572,7 +572,7 @@ struct MonitoringSessionLoopTests {
         let session = makeSession(context: context, stub: SuccessMonitorService(latency: 5.0))
         session.startMonitoring()
         try await Task.sleep(for: .milliseconds(400))
-        session.stopMonitoring()
+        await session.stopMonitoringAndWait()
 
         let history = session.recentLatencies[target.id] ?? []
         #expect(history.count <= 20)
@@ -596,7 +596,7 @@ struct MonitoringSessionLoopTests {
         let records = try context.fetch(FetchDescriptor<SessionRecord>())
         #expect(records.count == 1)
         #expect(records.first?.isActive == true)
-        session.stopMonitoring()
+        await session.stopMonitoringAndWait()
     }
 
     @Test func stopMonitoringUpdatesSessionRecordIsActiveFalse() async throws {
@@ -610,7 +610,7 @@ struct MonitoringSessionLoopTests {
         let session = makeSession(context: context, stub: SuccessMonitorService())
         session.startMonitoring()
         try await Task.sleep(for: .milliseconds(50))
-        session.stopMonitoring()
+        await session.stopMonitoringAndWait()
         try await Task.sleep(for: .milliseconds(50))
 
         let records = try context.fetch(FetchDescriptor<SessionRecord>())
@@ -636,7 +636,7 @@ struct MonitoringSessionLoopTests {
         let measurements = try context.fetch(FetchDescriptor<TargetMeasurement>())
         #expect(measurements.isEmpty == false)
         #expect(measurements.first?.isReachable == true)
-        session.stopMonitoring()
+        await session.stopMonitoringAndWait()
     }
 
     // MARK: Disabled targets excluded from monitoring
@@ -659,7 +659,7 @@ struct MonitoringSessionLoopTests {
 
         #expect(session.latestResults[disabled.id] == nil)
         #expect(session.latestResults[enabled.id] != nil)
-        session.stopMonitoring()
+        await session.stopMonitoringAndWait()
     }
 
     // MARK: stopMonitoring cancels in-flight tasks
@@ -675,7 +675,7 @@ struct MonitoringSessionLoopTests {
         let session = makeSession(context: context, stub: SuccessMonitorService(latency: 7.0))
         session.startMonitoring()
         try await Task.sleep(for: .milliseconds(100))
-        session.stopMonitoring()
+        await session.stopMonitoringAndWait()
 
         #expect(session.isMonitoring == false)
     }

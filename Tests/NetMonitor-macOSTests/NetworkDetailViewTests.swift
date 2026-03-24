@@ -43,7 +43,7 @@ struct NDVGatewayLatencyFallbackTests {
             TargetMeasurement.self,
             SessionRecord.self
         ])
-        let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+        let config = ModelConfiguration(UUID().uuidString, schema: schema, isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         let container = try ModelContainer(for: schema, configurations: [config])
         return (container, container.mainContext)
     }
@@ -295,13 +295,13 @@ struct NetworkDetailViewLifecycleTests {
             TargetMeasurement.self,
             SessionRecord.self
         ])
-        let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+        let config = ModelConfiguration(UUID().uuidString, schema: schema, isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         let container = try ModelContainer(for: schema, configurations: [config])
         return (container, container.mainContext)
     }
 
     private func makeUptimeStore() throws -> (ModelContainer, ModelContext) {
-        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        let config = ModelConfiguration(UUID().uuidString, isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         let container = try ModelContainer(for: ConnectivityRecord.self, configurations: config)
         return (container, container.mainContext)
     }

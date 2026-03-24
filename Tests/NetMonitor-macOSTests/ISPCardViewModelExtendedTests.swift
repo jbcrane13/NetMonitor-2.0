@@ -393,14 +393,20 @@ struct ConnectivityCardViewModelExtendedTests {
         #expect(vm.loadError == nil)
     }
 
-    // Verifies that anchorLatencies is non-empty after a full load() completes.
-    // The anchors are hardcoded inside the ViewModel; after pingAllAnchors() runs
-    // (even with unreachable hosts) each anchor key should be present.
+    // Verifies that anchorLatencies is populated after a full load() completes.
+    // pingAllAnchors() runs in a background Task, so we poll briefly for results.
     @Test func anchorLatenciesPopulatedAfterLoad() async {
         let vm = ConnectivityCardViewModel(service: SucceedingISPService())
         await vm.load()
-        // The four built-in anchors are always seeded in anchorLatencies after load.
-        #expect(!vm.anchorLatencies.isEmpty)
+
+        // Anchor pings run asynchronously — wait up to 10s for results.
+        for _ in 0..<20 {
+            if !vm.anchorLatencies.isEmpty { break }
+            try? await Task.sleep(for: .milliseconds(500))
+        }
+
+        #expect(!vm.anchorLatencies.isEmpty,
+                "Expected anchor latencies to be populated within 10s of load()")
         #expect(vm.anchorLatencies["Google"] != nil || vm.anchorLatencies["Cloudflare"] != nil
              || vm.anchorLatencies["AWS"] != nil   || vm.anchorLatencies["Apple"] != nil,
                 "At least one anchor key should be populated after load()")

@@ -78,7 +78,7 @@ struct DeviceDiscoveryCoordinatorTests {
 
     private func makeInMemoryStore() throws -> (ModelContainer, ModelContext) {
         let schema = Schema([LocalDevice.self])
-        let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+        let config = ModelConfiguration(UUID().uuidString, schema: schema, isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         let container = try ModelContainer(for: schema, configurations: [config])
         return (container, container.mainContext)
     }

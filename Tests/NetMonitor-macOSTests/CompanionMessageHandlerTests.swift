@@ -154,7 +154,7 @@ struct CompanionMessageHandlerTests {
             SessionRecord.self,
             LocalDevice.self
         ])
-        let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+        let config = ModelConfiguration(UUID().uuidString, schema: schema, isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         let container = try ModelContainer(for: schema, configurations: [config])
         let context = container.mainContext
 

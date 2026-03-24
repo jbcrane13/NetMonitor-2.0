@@ -40,9 +40,10 @@ struct NetMonitorApp: App {
 
     private static let sharedModelContainer: ModelContainer = {
         let schema = Schema(versionedSchema: SchemaV1.self)
+        let isTestEnv = NSClassFromString("XCTest") != nil
         let modelConfiguration = ModelConfiguration(
             schema: schema,
-            isStoredInMemoryOnly: false,
+            isStoredInMemoryOnly: isTestEnv,
             cloudKitDatabase: .none
         )
 
@@ -74,6 +75,11 @@ struct NetMonitorApp: App {
                 }
             }
             .task {
+                // Skip full setup when running unit tests — test host
+                // doesn't need real services, and seeding NetworkTargets
+                // into the shared container causes SwiftData crashes
+                // when test containers reset.
+                guard NSClassFromString("XCTest") == nil else { return }
                 await setupServices()
             }
             .tint(Color(hex: accentColorHex))
