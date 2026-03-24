@@ -170,6 +170,7 @@
 		704495B08284EF7410FEA601 /* AppearanceSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FAA2A8A1F011FBCFA824E15 /* AppearanceSettingsView.swift */; };
 		70926F040D08693ACF1B16B9 /* RateAppService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41299411CDDE99A5C409A044 /* RateAppService.swift */; };
 		70B6BCE0269CC96E02CC719D /* MonitoringSessionSaveErrorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85EADE9676FF124E9D257FBC /* MonitoringSessionSaveErrorTests.swift */; };
+		729D787511EEF4842026B42F /* WorldPingToolViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA1DA22FDAA0AE45CB063132 /* WorldPingToolViewModel.swift */; };
 		72E137FE98FFCEB9477A7085 /* DashboardViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D7904358AD4EFE10410C4C /* DashboardViewModelTests.swift */; };
 		737BD05750E732CBAB510C7C /* DeviceCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E9283B241BBF265DC019B4B /* DeviceCardView.swift */; };
 		73F2F6001B52ABD3E04D4EEC /* ScheduledScanUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8D54CA3F23F80DECD04EB0F /* ScheduledScanUITests.swift */; };
@@ -654,6 +655,7 @@
 		C8B2E1F20FD28A5768AD703B /* ToolsViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolsViewModelTests.swift; sourceTree = "<group>"; };
 		C8CC68CA1629217A3CE5A80F /* ShellCommandRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShellCommandRunner.swift; sourceTree = "<group>"; };
 		C9ABDDE5D7F62221ED44B711 /* DeviceDiscoveryCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceDiscoveryCoordinatorTests.swift; sourceTree = "<group>"; };
+		CA1DA22FDAA0AE45CB063132 /* WorldPingToolViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorldPingToolViewModel.swift; sourceTree = "<group>"; };
 		CA68C9F028D615CA0BC8C90D /* ToolStatisticsCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolStatisticsCard.swift; sourceTree = "<group>"; };
 		CB2FB492B725F8BD55638731 /* GatewayInfoCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GatewayInfoCard.swift; sourceTree = "<group>"; };
 		CB84885DADC6FEC24984A6BE /* TracerouteToolUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TracerouteToolUITests.swift; sourceTree = "<group>"; };
@@ -889,6 +891,7 @@
 				926AB2C0DCBFD54EFD5480B8 /* UptimeViewModel.swift */,
 				A76DD42C0ACB3B6EC149A66C /* WiFiHeatmapViewModel.swift */,
 				1F4E4C6BE9137BDF9599A021 /* WiFiHeatmapViewModel+Export.swift */,
+				CA1DA22FDAA0AE45CB063132 /* WorldPingToolViewModel.swift */,
 			);
 			path = ViewModels;
 			sourceTree = "<group>";
@@ -1780,6 +1783,7 @@
 				68C056F3B5447DD36C94ABDF /* WiFiSignalCard.swift in Sources */,
 				D36D133311A2A1347194DD61 /* WindowOpener.swift in Sources */,
 				D7045D880D0EEAB388B04132 /* WorldPingToolView.swift in Sources */,
+				729D787511EEF4842026B42F /* WorldPingToolViewModel.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

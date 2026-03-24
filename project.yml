@@ -31,14 +31,15 @@ targets:
       properties:
         CFBundleName: NetMonitor Pro
         CFBundleDisplayName: NetMonitor Pro
-        CFBundleShortVersionString: "2.0"
-        CFBundleVersion: "15"
+        CFBundleShortVersionString: "2.1.1"
+        CFBundleVersion: "29"
         LSMinimumSystemVersion: "15.0"
         NSPrincipalClass: NSApplication
         NSHighResolutionCapable: true
         LSApplicationCategoryType: public.app-category.utilities
         NSHumanReadableCopyright: "Copyright © 2026 Blake Crane. All rights reserved."
         NSLocalNetworkUsageDescription: "NetMonitor Pro scans your local network to discover devices, services, and the iOS companion app."
+        NSLocationUsageDescription: "NetMonitor Pro uses your location to scan for nearby Wi-Fi access points in the heatmap tool."
         NSBonjourServices:
           - _netmon._tcp
           - _http._tcp
@@ -144,7 +145,7 @@ targets:
       properties:
         CFBundleName: Netmonitor
         CFBundleDisplayName: Netmonitor
-        CFBundleShortVersionString: "2.0"
+        CFBundleShortVersionString: "2.1.1"
         CFBundleVersion: "1"
         CFBundleIconName: AppIcon
         NSCameraUsageDescription: "NetMonitor uses the camera for AR-assisted room scanning to create floor plans for Wi-Fi coverage surveys."

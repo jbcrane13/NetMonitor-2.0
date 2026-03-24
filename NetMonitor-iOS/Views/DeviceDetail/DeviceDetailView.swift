@@ -40,6 +40,14 @@ struct DeviceDetailView: View {
         .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
         .toolbarColorScheme(.dark, for: .navigationBar)
         .toolbar {
+            if let device = viewModel.device {
+                ToolbarItem(placement: .topBarTrailing) {
+                    ShareLink(item: shareText(for: device)) {
+                        Image(systemName: "square.and.arrow.up")
+                    }
+                    .accessibilityIdentifier("deviceDetail_button_share")
+                }
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
                     Button {
@@ -541,6 +549,23 @@ struct DeviceDetailView: View {
     }
 
     // MARK: - Helper Functions
+
+    private func shareText(for device: LocalDevice) -> String {
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateStyle = .medium
+        dateFormatter.timeStyle = .short
+        return """
+        NetMonitor Device Report
+        Name: \(device.displayName)
+        IP: \(device.ipAddress)
+        MAC: \(device.macAddress.isEmpty ? "—" : device.macAddress)
+        Vendor: \(device.vendor ?? "Unknown")
+        Type: \(device.deviceType.rawValue)
+        Status: \(device.status.rawValue)
+        First Seen: \(dateFormatter.string(from: device.firstSeen))
+        Last Seen: \(dateFormatter.string(from: device.lastSeen))
+        """
+    }
 
     private func wellKnownServiceName(for port: Int) -> String? {
         let wellKnownPorts: [Int: String] = [

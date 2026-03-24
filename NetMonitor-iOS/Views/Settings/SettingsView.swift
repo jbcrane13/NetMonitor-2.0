@@ -1,6 +1,5 @@
 import SwiftUI
 import SwiftData
-import StoreKit
 import NetMonitorCore
 
 struct SettingsView: View {
@@ -320,10 +319,7 @@ struct SettingsView: View {
                 .accessibilityIdentifier("settings_link_support")
 
                 Button {
-                    // Rate App action - request in-app review
-                    if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
-                        SKStoreReviewController.requestReview(in: windowScene)
-                    }
+                    RateAppService.requestReview()
                 } label: {
                     HStack {
                         Text("Rate NetMonitor")
@@ -443,7 +439,7 @@ private enum ExportOption: String, CaseIterable, Identifiable {
     }
 }
 
-private struct ShareSheet: UIViewControllerRepresentable {
+struct ShareSheet: UIViewControllerRepresentable {
     let activityItems: [Any]
 
     func makeUIViewController(context: Context) -> UIActivityViewController {

@@ -2,7 +2,7 @@
 //  WorldPingToolView.swift
 //  NetMonitor
 //
-//  World Ping tool for macOS — pings a host from global locations via check-host.net.
+//  World Ping tool for macOS — pings a host from global locations via Globalping.io.
 //
 
 import SwiftUI
@@ -11,13 +11,7 @@ import NetMonitorCore
 struct WorldPingToolView: View {
     // periphery:ignore
     @Environment(\.appAccentColor) private var accentColor
-    @State private var hostInput = ""
-    @State private var isRunning = false
-    @State private var results: [WorldPingLocationResult] = []
-    @State private var errorMessage: String?
-    @State private var runTask: Task<Void, Never>?
-
-    private let service: any WorldPingServiceProtocol = WorldPingService()
+    @State private var viewModel = MacWorldPingToolViewModel()
 
     var body: some View {
         ToolSheetContainer(
@@ -29,7 +23,7 @@ struct WorldPingToolView: View {
             footerContent: { footer }
         )
         .onDisappear {
-            runTask?.cancel()
+            viewModel.stop()
         }
     }
 
@@ -37,17 +31,17 @@ struct WorldPingToolView: View {
 
     private var inputArea: some View {
         HStack(spacing: 12) {
-            TextField("Host (e.g., google.com)", text: $hostInput)
+            TextField("Host (e.g., google.com)", text: $viewModel.hostInput)
                 .textFieldStyle(.roundedBorder)
-                .onSubmit { startPing() }
-                .disabled(isRunning)
+                .onSubmit { viewModel.run() }
+                .disabled(viewModel.isRunning)
                 .accessibilityIdentifier("worldPing_input_host")
 
-            Button(isRunning ? "Stop" : "Run") {
-                if isRunning { stopPing() } else { startPing() }
+            Button(viewModel.isRunning ? "Stop" : "Run") {
+                if viewModel.isRunning { viewModel.stop() } else { viewModel.run() }
             }
             .buttonStyle(.borderedProminent)
-            .disabled(hostInput.trimmingCharacters(in: .whitespaces).isEmpty && !isRunning)
+            .disabled(!viewModel.canRun && !viewModel.isRunning)
             .accessibilityIdentifier("worldPing_button_run")
         }
         .padding()
@@ -57,7 +51,7 @@ struct WorldPingToolView: View {
 
     @ViewBuilder
     private var outputArea: some View {
-        if let error = errorMessage {
+        if let error = viewModel.errorMessage {
             ScrollView {
                 HStack(spacing: 8) {
                     Image(systemName: "exclamationmark.triangle.fill")
@@ -68,9 +62,9 @@ struct WorldPingToolView: View {
                 .padding()
             }
             .background(MacTheme.Colors.subtleBackground)
-        } else if results.isEmpty {
+        } else if viewModel.results.isEmpty {
             ScrollView {
-                if isRunning {
+                if viewModel.isRunning {
                     HStack(spacing: 8) {
                         ProgressView().scaleEffect(0.8)
                         Text("Pinging from global nodes…")
@@ -94,7 +88,7 @@ struct WorldPingToolView: View {
     private var resultsList: some View {
         ScrollView {
             VStack(spacing: 0) {
-                ForEach(results) { result in
+                ForEach(viewModel.results) { result in
                     HStack(spacing: 12) {
                         Circle()
                             .fill(result.isSuccess ? Color.green : Color.red)
@@ -121,7 +115,7 @@ struct WorldPingToolView: View {
                             Text(latency < 10 ? String(format: "%.1f ms", latency) : String(format: "%.0f ms", latency))
                                 .font(.system(.body, design: .monospaced))
                                 .fontWeight(.medium)
-                                .foregroundStyle(latencyColor(latency))
+                                .foregroundStyle(MacTheme.Colors.latencyColor(ms: latency))
                         } else {
                             Text("—")
                                 .font(.system(.body, design: .monospaced))
@@ -145,14 +139,13 @@ struct WorldPingToolView: View {
 
     private var footer: some View {
         HStack {
-            if isRunning {
+            if viewModel.isRunning {
                 ProgressView().scaleEffect(0.7)
                 Text("Pinging from global nodes…")
                     .foregroundStyle(.secondary)
-            } else if !results.isEmpty {
-                let successCount = results.filter { $0.isSuccess }.count
+            } else if viewModel.hasResults {
                 Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
-                Text("\(successCount) / \(results.count) nodes responded")
+                Text("\(viewModel.successCount) / \(viewModel.results.count) nodes responded")
                     .foregroundStyle(.secondary)
             } else {
                 Text("Ping from up to 20 global locations")
@@ -161,53 +154,14 @@ struct WorldPingToolView: View {
 
             Spacer()
 
-            if !results.isEmpty && !isRunning {
+            if viewModel.hasResults && !viewModel.isRunning {
                 Button("Clear") {
-                    results.removeAll()
-                    errorMessage = nil
+                    viewModel.clear()
                 }
                 .accessibilityIdentifier("worldPing_button_clear")
             }
         }
         .padding()
-    }
-
-    // MARK: - Actions
-
-    private func startPing() {
-        let host = hostInput.trimmingCharacters(in: .whitespaces)
-        guard !host.isEmpty else { return }
-
-        results.removeAll()
-        errorMessage = nil
-        isRunning = true
-
-        runTask = Task {
-            let stream = await service.ping(host: host, maxNodes: 20)
-            for await result in stream {
-                guard !Task.isCancelled else { break }
-                await MainActor.run {
-                    results.append(result)
-                    results.sort { ($0.latencyMs ?? .infinity) < ($1.latencyMs ?? .infinity) }
-                }
-            }
-            await MainActor.run {
-                if results.isEmpty && !Task.isCancelled {
-                    errorMessage = service.lastError ?? "No results returned. Check the host and your network connection."
-                }
-                isRunning = false
-            }
-        }
-    }
-
-    private func stopPing() {
-        runTask?.cancel()
-        runTask = nil
-        isRunning = false
-    }
-
-    private func latencyColor(_ ms: Double) -> Color {
-        MacTheme.Colors.latencyColor(ms: ms)
     }
 }
 
