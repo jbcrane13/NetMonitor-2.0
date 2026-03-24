@@ -313,9 +313,11 @@ final class MacConnectionService: MacConnectionServiceProtocol {
                 break
             }
 
-            let start = receiveBuffer.startIndex
-            let jsonData = receiveBuffer.subdata(in: (start + 4)..<(start + totalFrameSize))
-            receiveBuffer.removeFirst(totalFrameSize)
+            let startIndex = receiveBuffer.startIndex
+            let payloadStartIndex = startIndex + 4
+            let payloadEndIndex = startIndex + totalFrameSize
+            let jsonData = receiveBuffer.subdata(in: payloadStartIndex..<payloadEndIndex)
+            receiveBuffer.removeSubrange(startIndex..<payloadEndIndex)
 
             do {
                 let message = try CompanionMessage.decode(from: jsonData)
@@ -357,6 +359,13 @@ final class MacConnectionService: MacConnectionServiceProtocol {
             // Commands are outbound only from iOS; ignore if received
             break
         }
+    }
+
+    // MARK: - Testing Support
+
+    func processIncomingDataForTesting(_ data: Data) {
+        receiveBuffer.append(data)
+        processReceiveBuffer()
     }
 
     private func sendLocalNetworkProfile() async {
