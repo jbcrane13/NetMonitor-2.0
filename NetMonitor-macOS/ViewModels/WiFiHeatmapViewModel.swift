@@ -475,6 +475,33 @@ final class WiFiHeatmapViewModel {
     var maxRSSI: Int? { filteredPoints.map(\.rssi).max() }
 }
 
+// MARK: - Export
+
+extension WiFiHeatmapViewModel {
+
+    /// Renders the heatmap to PNG data at the given canvas size.
+    func exportPNG(canvasSize: CGSize) -> Data? {
+        guard let cgImage = heatmapCGImage else { return nil }
+        let rep = NSBitmapImageRep(cgImage: cgImage)
+        rep.size = canvasSize
+        return rep.representation(using: .png, properties: [:])
+    }
+
+    /// Renders the heatmap to a PDF document containing a full-page image.
+    func exportPDF() -> Data? {
+        guard let cgImage = heatmapCGImage else { return nil }
+        let pdfData = NSMutableData()
+        let pageRect = CGRect(x: 0, y: 0, width: 792, height: 612) // US Letter landscape
+        guard let consumer = CGDataConsumer(data: pdfData as CFMutableData),
+              let context = CGContext(consumer: consumer, mediaBox: nil, nil) else { return nil }
+        context.beginPDFPage(([kCGPDFContextMediaBox: NSValue(rect: pageRect)] as NSDictionary) as CFDictionary)
+        context.draw(cgImage, in: pageRect)
+        context.endPDFPage()
+        context.closePDF()
+        return pdfData as Data
+    }
+}
+
 // MARK: - HeatmapError
 
 enum HeatmapError: Error, LocalizedError {
