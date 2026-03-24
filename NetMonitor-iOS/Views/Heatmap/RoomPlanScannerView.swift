@@ -212,9 +212,19 @@ struct RoomPlanScannerView: View {
                 if let image = viewModel.previewImage {
                     GlassCard {
                         VStack(spacing: 12) {
-                            Text("Floor Plan Preview")
-                                .font(.subheadline.bold())
-                                .foregroundStyle(Theme.Colors.textPrimary)
+                            HStack(spacing: 8) {
+                                Text("Floor Plan Preview")
+                                    .font(.subheadline.bold())
+                                    .foregroundStyle(Theme.Colors.textPrimary)
+                                Spacer()
+                                Label("2D from 3D scan", systemImage: "cube.transparent")
+                                    .font(.system(size: 10, weight: .bold))
+                                    .foregroundStyle(Theme.Colors.accent)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
+                                    .background(Theme.Colors.accent.opacity(0.15))
+                                    .clipShape(Capsule())
+                            }
 
                             Image(uiImage: image)
                                 .resizable()
@@ -239,6 +249,17 @@ struct RoomPlanScannerView: View {
                             detailRow(label: "Walls Detected", value: "\(floor.wallSegments.count)")
                             detailRow(label: "Rooms Labeled", value: "\(floor.roomLabels.count)")
                             detailRow(label: "LiDAR Used", value: blueprint.metadata.hasLiDAR ? "Yes" : "No")
+                            if viewModel.localSaveURL != nil {
+                                Divider().background(Color.white.opacity(0.08))
+                                HStack(spacing: 6) {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .foregroundStyle(Theme.Colors.success)
+                                        .font(.caption)
+                                    Text("Saved to Documents/Blueprints")
+                                        .font(.caption)
+                                        .foregroundStyle(Theme.Colors.textSecondary)
+                                }
+                            }
                         }
                     }
                     .accessibilityIdentifier("roomScanner_card_results")
@@ -387,6 +408,10 @@ final class RoomPlanScanViewController: UIViewController, RoomCaptureSessionDele
     private var doneButton: UIButton!
     private var cancelButton: UIButton!
 
+    // Strong reference kept across async boundary so the Task in captureSession(_:didEndWith:)
+    // can complete even after SwiftUI removes this UIViewController from the hierarchy.
+    nonisolated(unsafe) private var processingViewModel: RoomPlanScannerViewModel?
+
     override func viewDidLoad() {
         super.viewDidLoad()
 
@@ -449,6 +474,19 @@ final class RoomPlanScanViewController: UIViewController, RoomCaptureSessionDele
     }
 
     @objc private func doneTapped() {
+        guard let viewModel else { return }
+        doneButton.isEnabled = false
+        cancelButton.isEnabled = false
+
+        // Capture strong ref BEFORE stop() — SwiftUI may remove this UIViewController
+        // from the hierarchy (by transitioning from .scanning to .processing) before the
+        // RoomBuilder async processing completes.
+        processingViewModel = viewModel
+
+        // Transition immediately — prevents the built-in RoomCaptureView review UI from
+        // appearing and triggering a navigation-stack pop before .complete is set.
+        viewModel.scanState = .processing
+
         captureSession.stop()
     }
 
@@ -462,10 +500,28 @@ final class RoomPlanScanViewController: UIViewController, RoomCaptureSessionDele
     // MARK: - RoomCaptureSessionDelegate
 
     nonisolated func captureSession(_ session: RoomCaptureSession, didEndWith data: CapturedRoomData, error: (any Error)?) {
-        // Session ended — RoomCaptureView will process the data and call captureView(_:didPresent:)
+        let vm = processingViewModel
         if let error {
-            Task { @MainActor [weak self] in
-                self?.viewModel?.handleScanError(error)
+            Task { @MainActor in
+                vm?.handleScanError(error)
+            }
+            return
+        }
+
+        // Use RoomBuilder directly instead of the built-in RoomCaptureView review UI.
+        // This bypasses the post-capture editing screen whose "Done" button can pop the
+        // SwiftUI NavigationStack before our state machine reaches .complete.
+        let roomBuilder = RoomBuilder(options: .beautifyObjects)
+        Task {
+            do {
+                let capturedRoom = try await roomBuilder.capturedRoom(from: data)
+                await MainActor.run {
+                    vm?.processCapturedRoom(capturedRoom)
+                }
+            } catch {
+                await MainActor.run {
+                    vm?.handleScanError(error)
+                }
             }
         }
     }
@@ -477,14 +533,8 @@ final class RoomPlanScanViewController: UIViewController, RoomCaptureSessionDele
     // MARK: - RoomCaptureViewDelegate
 
     nonisolated func captureView(_ view: RoomCaptureView, didPresent processedResult: CapturedRoom, error: (any Error)?) {
-        Task { @MainActor [weak self] in
-            guard let self else { return }
-            if let error {
-                self.viewModel?.handleScanError(error)
-                return
-            }
-            self.viewModel?.processCapturedRoom(processedResult)
-        }
+        // No-op: processing is now handled entirely in captureSession(_:didEndWith:) via
+        // RoomBuilder, which bypasses this built-in review step.
     }
 }
 

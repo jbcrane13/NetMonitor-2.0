@@ -44,6 +44,9 @@ final class RoomPlanScannerViewModel {
 
     private var capturedRoom: CapturedRoom?
 
+    /// Local URL where the blueprint was auto-saved on scan completion.
+    private(set) var localSaveURL: URL?
+
     // MARK: - Scan Control
 
     func processCapturedRoom(_ room: CapturedRoom) {
@@ -64,7 +67,28 @@ final class RoomPlanScannerViewModel {
             previewImage = UIImage(data: pngData)
         }
 
+        // Auto-save locally so the blueprint exists without requiring an export tap
+        autoSaveBlueprint(blueprint)
+
         scanState = .complete
+    }
+
+    private func autoSaveBlueprint(_ blueprint: BlueprintProject) {
+        let fileName = blueprint.name
+            .replacingOccurrences(of: " ", with: "-")
+            .lowercased()
+        let blueprintsDir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("Blueprints", isDirectory: true)
+        do {
+            try FileManager.default.createDirectory(at: blueprintsDir, withIntermediateDirectories: true)
+            let url = blueprintsDir.appendingPathComponent("\(fileName).netmonblueprint")
+            let manager = BlueprintSaveLoadManager()
+            try manager.save(project: blueprint, to: url)
+            localSaveURL = url
+        } catch {
+            // Non-fatal — user can still export manually
+            localSaveURL = nil
+        }
     }
 
     func handleScanError(_ error: Error) {
@@ -77,6 +101,7 @@ final class RoomPlanScannerViewModel {
         completedBlueprint = nil
         previewImage = nil
         exportedFileURL = nil
+        localSaveURL = nil
     }
 
     // MARK: - Export
