@@ -271,6 +271,8 @@ struct DevicesView: View {
     private var proModeHeaderRow: some View {
         HStack(spacing: ProModeRowView.columnSpacing) {
             sortableHeader("", order: .status, width: ProModeRowView.statusWidth)
+            Text("Type")
+                .frame(width: ProModeRowView.typeWidth, alignment: .leading)
             sortableHeader("IP Address", order: .ipAddress, width: ProModeRowView.ipWidth)
             sortableHeader("Name", order: .name, width: ProModeRowView.nameWidth)
             sortableHeader("Vendor", order: .vendor, width: ProModeRowView.vendorWidth)

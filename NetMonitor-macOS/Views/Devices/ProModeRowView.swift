@@ -9,6 +9,7 @@ struct ProModeRowView: View {
 
     // Column widths — must match proModeHeaderRow in DevicesView
     static let statusWidth: CGFloat = 28
+    static let typeWidth: CGFloat = 80
     static let ipWidth: CGFloat = 140
     static let nameWidth: CGFloat = 220
     static let vendorWidth: CGFloat = 160
@@ -25,6 +26,18 @@ struct ProModeRowView: View {
                 .fill(device.status == .online ? MacTheme.Colors.success : Color.gray.opacity(0.4))
                 .frame(width: 8, height: 8)
                 .frame(width: Self.statusWidth, alignment: .leading)
+
+            // Device Type
+            HStack(spacing: 4) {
+                Image(systemName: device.deviceType.iconName)
+                    .font(.system(size: 11))
+                    .foregroundStyle(Color.white.opacity(0.6))
+                Text(device.deviceType.displayName)
+                    .font(.system(size: 11))
+                    .foregroundStyle(Color.white.opacity(0.5))
+                    .lineLimit(1)
+            }
+            .frame(width: Self.typeWidth, alignment: .leading)
 
             // IP Address
             Text(device.ipAddress)
