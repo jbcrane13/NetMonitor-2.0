@@ -293,7 +293,7 @@ final class MacConnectionService: MacConnectionServiceProtocol {
         // Process all complete frames in the buffer
         while receiveBuffer.count >= 4 {
             let lengthBytes = receiveBuffer.prefix(4)
-            let length = lengthBytes.withUnsafeBytes { $0.load(as: UInt32.self).bigEndian }
+            let length = lengthBytes.withUnsafeBytes { $0.loadUnaligned(as: UInt32.self).bigEndian }
 
             let totalFrameSize = 4 + Int(length)
             guard receiveBuffer.count >= totalFrameSize else {
