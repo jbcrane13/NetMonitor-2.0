@@ -183,7 +183,7 @@ actor CompanionService {
         receiveBuffers[clientID, default: Data()].append(data)
 
         while var buffer = receiveBuffers[clientID], buffer.count >= 4 {
-            let length = buffer.prefix(4).withUnsafeBytes { $0.load(as: UInt32.self).bigEndian }
+            let length = buffer.prefix(4).withUnsafeBytes { $0.loadUnaligned(as: UInt32.self).bigEndian }
             let totalFrameSize = 4 + Int(length)
 
             guard buffer.count >= totalFrameSize else {
