@@ -66,6 +66,10 @@ final class WiFiHeatmapViewModel {
     }
 
     var measurementMode: MeasurementMode = .passive
+    var isContinuousScan: Bool = false
+    var continuousScanInterval: Double = 3.0
+    private(set) var liveCursorLocation: CGPoint?
+    private var continuousScanTask: Task<Void, Never>?
 
     // MARK: - Calibration
 
@@ -165,11 +169,37 @@ final class WiFiHeatmapViewModel {
         sidebarMode = .survey
         isHeatmapGenerated = false
         heatmapCGImage = nil
+        if isContinuousScan {
+            startContinuousScanTimer()
+        }
     }
 
     func stopSurvey() {
         isSurveying = false
+        stopContinuousScanTimer()
         generateHeatmap()
+    }
+
+    private func startContinuousScanTimer() {
+        continuousScanTask?.cancel()
+        continuousScanTask = Task { [weak self] in
+            while !Task.isCancelled {
+                guard let self else { return }
+                try? await Task.sleep(for: .seconds(self.continuousScanInterval))
+                if Task.isCancelled { return }
+                guard self.isSurveying, let loc = self.liveCursorLocation else { continue }
+                await self.takeMeasurement(at: loc)
+            }
+        }
+    }
+
+    private func stopContinuousScanTimer() {
+        continuousScanTask?.cancel()
+        continuousScanTask = nil
+    }
+
+    func updateCursorLocation(_ point: CGPoint) {
+        liveCursorLocation = point
     }
 
     // MARK: - Measurement

@@ -145,7 +145,7 @@ struct HeatmapSidebarView: View {
     // MARK: - Measurement Mode
 
     private var measurementModeSection: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 6) {
             sectionHeader("Measurement")
             Picker("Mode", selection: $viewModel.measurementMode) {
                 Text("Passive").tag(WiFiHeatmapViewModel.MeasurementMode.passive)
@@ -158,6 +158,34 @@ struct HeatmapSidebarView: View {
                 Text("Speed + latency at each point (slower)")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
+            }
+
+            Divider()
+
+            Toggle(isOn: $viewModel.isContinuousScan) {
+                Label("Auto-capture", systemImage: "timer")
+                    .font(.caption)
+            }
+            .accessibilityIdentifier("heatmap_toggle_continuousScan")
+
+            if viewModel.isContinuousScan {
+                HStack {
+                    Text("Every")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    Stepper(
+                        "\(Int(viewModel.continuousScanInterval))s",
+                        value: $viewModel.continuousScanInterval,
+                        in: 1...30,
+                        step: 1
+                    )
+                    .font(.caption)
+                    .accessibilityIdentifier("heatmap_stepper_scanInterval")
+                }
+                Text("Hover cursor over your position — measurements captured automatically.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
     }

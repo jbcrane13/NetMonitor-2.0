@@ -107,6 +107,9 @@ struct WiFiHeatmapView: View {
                     },
                     onPointDelete: { pointId in
                         viewModel.deletePoint(id: pointId)
+                    },
+                    onHover: { point in
+                        viewModel.updateCursorLocation(point)
                     }
                 )
             } else {

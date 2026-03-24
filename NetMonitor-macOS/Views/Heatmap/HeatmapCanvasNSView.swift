@@ -17,12 +17,14 @@ struct HeatmapCanvasRepresentable: NSViewRepresentable {
     let coverageThreshold: Double?
     let onTap: (CGPoint) -> Void
     let onPointDelete: (UUID) -> Void
+    let onHover: ((CGPoint) -> Void)?
 
     func makeNSView(context: Context) -> HeatmapCanvasNS {
         let view = HeatmapCanvasNS()
         view.autoresizingMask = [.width, .height]
         view.onTap = onTap
         view.onPointDelete = onPointDelete
+        view.onHover = onHover
         return view
     }
 
@@ -38,6 +40,7 @@ struct HeatmapCanvasRepresentable: NSViewRepresentable {
         nsView.heatmapCGImage = heatmapCGImage
         nsView.overlayOpacity = overlayOpacity
         nsView.coverageThreshold = coverageThreshold
+        nsView.onHover = onHover
         nsView.needsDisplay = true
     }
 }
@@ -64,6 +67,7 @@ class HeatmapCanvasNS: NSView {
     var coverageThreshold: Double?
     var onTap: ((CGPoint) -> Void)?
     var onPointDelete: ((UUID) -> Void)?
+    var onHover: ((CGPoint) -> Void)?
 
     // Hover state
     private var hoveredPointID: UUID?
@@ -87,6 +91,16 @@ class HeatmapCanvasNS: NSView {
         mouseLocation = convert(event.locationInWindow, from: nil)
         updateHoveredPoint()
         needsDisplay = true
+        if isSurveying,
+           let imageData = floorPlanImageData,
+           let nsImage = NSImage(data: imageData) {
+            let imageRect = calculateImageRect(imageSize: nsImage.size)
+            let nx = (mouseLocation.x - imageRect.minX) / imageRect.width
+            let ny = 1.0 - (mouseLocation.y - imageRect.minY) / imageRect.height
+            if nx >= 0, nx <= 1, ny >= 0, ny <= 1 {
+                onHover?(CGPoint(x: nx, y: ny))
+            }
+        }
     }
 
     override func mouseExited(with event: NSEvent) {
