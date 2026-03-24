@@ -123,7 +123,10 @@ struct DevicesView: View {
     }
 
     var body: some View {
-        Group {
+        VStack(spacing: 0) {
+            topBar
+            Divider()
+
             if viewMode == .pro {
                 proModeFullScreenList
             } else {
@@ -152,18 +155,11 @@ struct DevicesView: View {
                 }
             }
         }
-        .navigationTitle("Devices")
-        .toolbar {
-            toolbarContent
-        }
-        .searchable(text: $searchText, prompt: "Search devices...")
-        .accessibilityIdentifier("devices_search_field")
+        .background(Color(nsColor: .windowBackgroundColor))
         .wakeOnLanAlert(wolAction)
         .sheet(item: $selectedProDevice) { device in
-            NavigationStack {
-                ProDeviceDetailView(device: device)
-            }
-            .frame(minWidth: 700, minHeight: 500)
+            ProDeviceDetailView(device: device)
+                .frame(minWidth: 700, minHeight: 500)
         }
         .sheet(item: $deviceToPing) { device in
             DevicePingSheet(device: device, isPresented: Binding(
@@ -178,6 +174,10 @@ struct DevicesView: View {
             ))
         }
         .onReceive(NotificationCenter.default.publisher(for: .networkProfilesDidChange)) { _ in
+            availableNetworks = coordinator?.networkProfileManager.profiles
+                ?? NetworkProfileManager.detectActiveProfiles()
+        }
+        .onAppear {
             availableNetworks = coordinator?.networkProfileManager.profiles
                 ?? NetworkProfileManager.detectActiveProfiles()
         }
@@ -345,36 +345,75 @@ struct DevicesView: View {
         .macGlassCard(cornerRadius: MacTheme.Layout.cardCornerRadius, padding: 24)
     }
 
-    // MARK: - Toolbar
+    // MARK: - Top Bar
 
-    @ToolbarContentBuilder
-    private var toolbarContent: some ToolbarContent {
-        ToolbarItem(placement: .cancellationAction) {
+    private var topBar: some View {
+        HStack(spacing: 10) {
+            // Close
             Button {
                 dismiss()
             } label: {
-                Label("Close", systemImage: "xmark")
+                Image(systemName: "xmark")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 24, height: 24)
+                    .background(Color.primary.opacity(0.06))
+                    .clipShape(Circle())
             }
-            .buttonStyle(.bordered)
+            .buttonStyle(.plain)
             .keyboardShortcut(.escape, modifiers: [])
             .accessibilityIdentifier("devices_button_close")
-        }
 
-        ToolbarItem(placement: .primaryAction) {
-            Button {
-                if let profile = selectedNetwork {
-                    coordinator?.scanNetwork(profile)
-                } else {
-                    coordinator?.startScan()
-                }
-            } label: {
-                Label("Scan", systemImage: "antenna.radiowaves.left.and.right")
+            Text("Devices")
+                .font(.headline)
+
+            // Device count
+            Text("\(filteredDevices.count)")
+                .font(.system(size: 11, weight: .bold, design: .rounded))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(Color.secondary.opacity(0.5))
+                .clipShape(Capsule())
+
+            if coordinator?.isScanning == true {
+                ProgressView()
+                    .scaleEffect(0.5)
+                    .frame(width: 16, height: 16)
             }
-            .disabled(coordinator?.isScanning == true)
-            .accessibilityIdentifier("devices_button_scan")
-        }
 
-        ToolbarItem(placement: .automatic) {
+            Spacer()
+
+            // Search
+            HStack(spacing: 6) {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.tertiary)
+                TextField("Search...", text: $searchText)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 12))
+                if !searchText.isEmpty {
+                    Button {
+                        searchText = ""
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.tertiary)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .background(Color.primary.opacity(0.04))
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .frame(width: 180)
+            .accessibilityIdentifier("devices_search_field")
+
+            Divider()
+                .frame(height: 18)
+
+            // Network picker
             Picker("Network", selection: $selectedNetworkID) {
                 Label("Auto", systemImage: "sparkles")
                     .tag(UUID?.none)
@@ -384,14 +423,10 @@ struct DevicesView: View {
                 }
             }
             .pickerStyle(.menu)
+            .frame(width: 120)
             .accessibilityIdentifier("devices_picker_network")
-            .onAppear {
-                availableNetworks = coordinator?.networkProfileManager.profiles
-                    ?? NetworkProfileManager.detectActiveProfiles()
-            }
-        }
 
-        ToolbarItem(placement: .automatic) {
+            // Sort
             Menu {
                 ForEach(DeviceSortOrder.allCases, id: \.self) { order in
                     Button {
@@ -408,56 +443,54 @@ struct DevicesView: View {
             } label: {
                 Label("Sort", systemImage: "arrow.up.arrow.down")
             }
+            .menuStyle(.borderlessButton)
+            .frame(width: 60)
             .accessibilityIdentifier("devices_menu_sort")
-        }
 
-        ToolbarItemGroup(placement: .automatic) {
+            // View mode
             Picker("View", selection: $viewMode) {
                 ForEach(DeviceViewMode.allCases, id: \.self) { mode in
-                    Label(mode.rawValue, systemImage: mode.icon)
+                    Image(systemName: mode.icon)
                         .tag(mode)
                 }
             }
             .pickerStyle(.segmented)
-            .frame(width: 180)
+            .frame(width: 80)
             .accessibilityIdentifier("devices_picker_viewMode")
-        }
 
-        ToolbarItem(placement: .automatic) {
+            // Online only filter
             Toggle(isOn: $filterOnlineOnly) {
-                Label("Online Only", systemImage: "circle.fill")
+                Image(systemName: filterOnlineOnly ? "circle.fill" : "circle")
+                    .font(.system(size: 10))
+                    .foregroundStyle(filterOnlineOnly ? MacTheme.Colors.success : .secondary)
             }
             .toggleStyle(.button)
+            .controlSize(.small)
+            .help("Online Only")
             .accessibilityIdentifier("devices_toggle_onlineOnly")
-        }
 
-        ToolbarItem(placement: .automatic) {
+            Divider()
+                .frame(height: 18)
+
+            // Scan button
             Button {
-                clearDevices()
-            } label: {
-                Label("Clear List", systemImage: "trash")
-            }
-            .disabled(filteredDevices.isEmpty)
-            .accessibilityIdentifier("devices_button_clear")
-        }
-
-        ToolbarItem(placement: .status) {
-            HStack(spacing: 4) {
-                Text("\(filteredDevices.count)")
-                    .fontWeight(.semibold)
-                Text("devices")
-                    .foregroundStyle(.secondary)
-
-                if let lastScan = coordinator?.lastScanTime {
-                    Text("· Last scan: \(lastScan, style: .relative)")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
+                if let profile = selectedNetwork {
+                    coordinator?.scanNetwork(profile)
+                } else {
+                    coordinator?.startScan()
                 }
+            } label: {
+                Label("Scan", systemImage: "antenna.radiowaves.left.and.right")
             }
-            .font(.caption)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 4)
+            .buttonStyle(.borderedProminent)
+            .controlSize(.small)
+            .disabled(coordinator?.isScanning == true)
+            .accessibilityIdentifier("devices_button_scan")
         }
+        .controlSize(.small)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .background(.ultraThinMaterial)
     }
 
     // MARK: - Actions

@@ -250,13 +250,14 @@ struct HeatmapRendererColorTests {
     @Test("clamping to valid range for out-of-range values")
     func clampingOutOfRange() {
         let renderer = makeRenderer()
+        let range = HeatmapVisualization.signalStrength.valueRange
         let veryStrong = renderer.colorForValue(10, visualization: .signalStrength)
-        let atMax = renderer.colorForValue(0, visualization: .signalStrength)
+        let atMax = renderer.colorForValue(range.upperBound, visualization: .signalStrength)
         #expect(veryStrong.r == atMax.r && veryStrong.g == atMax.g && veryStrong.b == atMax.b,
                 "Values above range should clamp to max")
 
         let veryWeak = renderer.colorForValue(-150, visualization: .signalStrength)
-        let atMin = renderer.colorForValue(-100, visualization: .signalStrength)
+        let atMin = renderer.colorForValue(range.lowerBound, visualization: .signalStrength)
         #expect(veryWeak.r == atMin.r && veryWeak.g == atMin.g && veryWeak.b == atMin.b,
                 "Values below range should clamp to min")
     }

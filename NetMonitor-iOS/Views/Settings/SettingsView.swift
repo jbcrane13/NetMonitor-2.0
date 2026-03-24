@@ -1,6 +1,7 @@
 import SwiftUI
-import NetMonitorCore
 import SwiftData
+import StoreKit
+import NetMonitorCore
 
 struct SettingsView: View {
     @Environment(\.modelContext) private var modelContext
@@ -17,8 +18,6 @@ struct SettingsView: View {
     // periphery:ignore
     @State private var showingPDFExport = false
     @State private var showingPairingSheet = false
-    @State private var newDeviceAlertEnabled =
-        (UserDefaults.standard.object(forKey: AppSettings.Keys.newDeviceAlertEnabled) as? Bool) ?? true
     @State private var highLatencyAlertEnabled =
         (UserDefaults.standard.object(forKey: AppSettings.Keys.highLatencyAlertEnabled) as? Bool) ?? false
     @State var connectionService = MacConnectionService.shared
@@ -112,13 +111,6 @@ struct SettingsView: View {
 
             // MARK: - Notification Settings Section
             Section {
-                Toggle(isOn: $newDeviceAlertEnabled) {
-                    Text("New Device Alerts")
-                        .foregroundStyle(Theme.Colors.textPrimary)
-                }
-                .tint(Theme.Colors.accent)
-                .accessibilityIdentifier("settings_toggle_newDeviceAlert")
-
                 Toggle(isOn: $highLatencyAlertEnabled) {
                     Text("High Latency Alerts")
                         .foregroundStyle(Theme.Colors.textPrimary)
@@ -163,14 +155,6 @@ struct SettingsView: View {
 
             // MARK: - Appearance Section
             Section {
-                Picker("Color Scheme", selection: $viewModel.selectedTheme) {
-                    Text("System").tag("system")
-                    Text("Light").tag("light")
-                    Text("Dark").tag("dark")
-                }
-                .foregroundStyle(Theme.Colors.textPrimary)
-                .accessibilityIdentifier("settings_picker_colorScheme")
-
                 Picker("Accent Color", selection: $viewModel.selectedAccentColor) {
                     Text("Cyan").tag("cyan")
                     Text("Blue").tag("blue")
@@ -336,10 +320,13 @@ struct SettingsView: View {
                 .accessibilityIdentifier("settings_link_support")
 
                 Button {
-                    RateAppService.requestReview()
+                    // Rate App action - request in-app review
+                    if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
+                        SKStoreReviewController.requestReview(in: windowScene)
+                    }
                 } label: {
                     HStack {
-                        Text("Rate App")
+                        Text("Rate NetMonitor")
                             .foregroundStyle(Theme.Colors.textPrimary)
                         Spacer()
                         Image(systemName: "star.fill")
@@ -347,19 +334,6 @@ struct SettingsView: View {
                     }
                 }
                 .accessibilityIdentifier("settings_button_rateApp")
-
-                Button {
-                    RateAppService.openReviewPage()
-                } label: {
-                    HStack {
-                        Text("Write a Review")
-                            .foregroundStyle(Theme.Colors.textPrimary)
-                        Spacer()
-                        Image(systemName: "text.quote")
-                            .foregroundStyle(Theme.Colors.accent)
-                    }
-                }
-                .accessibilityIdentifier("settings_button_writeReview")
             } header: {
                 Text("About")
                     .foregroundStyle(Theme.Colors.textSecondary)
@@ -371,6 +345,7 @@ struct SettingsView: View {
         .navigationTitle("Settings")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
+        .toolbarColorScheme(.dark, for: .navigationBar)
         .alert("Clear History", isPresented: $showingClearHistoryAlert) {
             Button("Cancel", role: .cancel) {}
             Button("Clear", role: .destructive) {
@@ -396,14 +371,7 @@ struct SettingsView: View {
             MacPairingView()
         }
         .onAppear {
-            newDeviceAlertEnabled = viewModel.newDeviceAlertEnabled
             highLatencyAlertEnabled = viewModel.highLatencyAlertEnabled
-        }
-        .onChange(of: newDeviceAlertEnabled) {
-            viewModel.newDeviceAlertEnabled = newDeviceAlertEnabled
-        }
-        .onChange(of: viewModel.newDeviceAlertEnabled) {
-            newDeviceAlertEnabled = viewModel.newDeviceAlertEnabled
         }
         .onChange(of: highLatencyAlertEnabled) {
             viewModel.highLatencyAlertEnabled = highLatencyAlertEnabled
@@ -475,7 +443,7 @@ private enum ExportOption: String, CaseIterable, Identifiable {
     }
 }
 
-struct ShareSheet: UIViewControllerRepresentable {
+private struct ShareSheet: UIViewControllerRepresentable {
     let activityItems: [Any]
 
     func makeUIViewController(context: Context) -> UIActivityViewController {

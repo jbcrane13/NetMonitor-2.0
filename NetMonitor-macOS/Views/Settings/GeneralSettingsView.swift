@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import StoreKit
 import ServiceManagement
 import os
 
@@ -32,6 +33,24 @@ struct GeneralSettingsView: View {
                 Text("Startup")
             } footer: {
                 Text("Configure how NetMonitor starts and where it appears.")
+            }
+
+            SwiftUI.Section {
+                Button {
+                    // Request in-app review (macOS uses no-argument version)
+                    SKStoreReviewController.requestReview()
+                } label: {
+                    HStack {
+                        Text("Rate NetMonitor")
+                        Spacer()
+                        Image(systemName: "star.fill")
+                            .foregroundStyle(.yellow)
+                    }
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("settings_button_rateApp")
+            } header: {
+                Text("Feedback")
             }
 
             SwiftUI.Section {
