@@ -41,9 +41,9 @@ struct MonitoringSessionSaveErrorTests {
 
     /// Stub service that immediately returns a successful measurement so
     /// MonitoringSession exercises the updateMeasurement save path.
-    private actor StubMonitorService: NetworkMonitorService {
+    private actor StubMonitorService: NetMonitor_macOS.NetworkMonitorService {
         func check(request: TargetCheckRequest) async throws -> MeasurementResult {
-            MeasurementResult(latency: 10.0, isReachable: true, errorMessage: nil)
+            MeasurementResult(targetID: UUID(), timestamp: Date(), latency: 10.0, isReachable: true, errorMessage: nil)
         }
     }
 

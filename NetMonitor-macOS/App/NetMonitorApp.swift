@@ -79,6 +79,7 @@ struct NetMonitorApp: App {
             .tint(Color(hex: accentColorHex))
             .environment(\.appAccentColor, Color(hex: accentColorHex))
             .environment(\.compactMode, compactMode)
+            .environment(\.companionService, companionService)
             .captureOpenWindow()
         }
         .modelContainer(Self.sharedModelContainer)
@@ -100,6 +101,7 @@ struct NetMonitorApp: App {
                 .tint(Color(hex: accentColorHex))
                 .environment(\.appAccentColor, Color(hex: accentColorHex))
                 .environment(\.compactMode, compactMode)
+                .environment(\.companionService, companionService)
         }
         .modelContainer(Self.sharedModelContainer)
     }

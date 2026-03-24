@@ -10,6 +10,13 @@ import Network
 import NetMonitorCore
 import os
 
+/// Metadata for a connected companion client
+struct ConnectedClientInfo {
+    let id: UUID
+    let endpoint: String
+    let connectedSince: Date
+}
+
 /// Bonjour service for companion app communication
 actor CompanionService {
 
@@ -19,6 +26,12 @@ actor CompanionService {
 
     private(set) var isRunning = false
     private(set) var connectedClients: [UUID: NWConnection] = [:]
+    private var clientInfos: [UUID: ConnectedClientInfo] = [:]
+
+    /// Returns info about all currently connected companion clients.
+    func getConnectedClientInfos() -> [ConnectedClientInfo] {
+        Array(clientInfos.values)
+    }
 
     private var listener: NWListener?
     private var messageHandler: ((CompanionMessage, UUID) async -> CompanionMessage?)?
@@ -74,6 +87,7 @@ actor CompanionService {
         }
         connectedClients.removeAll()
         receiveBuffers.removeAll()
+        clientInfos.removeAll()
 
         isRunning = false
     }
@@ -116,6 +130,11 @@ actor CompanionService {
         let clientID = UUID()
         connectedClients[clientID] = connection
         receiveBuffers[clientID] = Data()
+        clientInfos[clientID] = ConnectedClientInfo(
+            id: clientID,
+            endpoint: "\(connection.endpoint)",
+            connectedSince: Date()
+        )
 
         Logger.companion.info("New connection from client \(clientID)")
 
@@ -144,10 +163,12 @@ actor CompanionService {
             Logger.companion.error("Client \(clientID) failed: \(error, privacy: .public)")
             connectedClients.removeValue(forKey: clientID)
             receiveBuffers.removeValue(forKey: clientID)
+            clientInfos.removeValue(forKey: clientID)
         case .cancelled:
             Logger.companion.info("Client \(clientID) disconnected")
             connectedClients.removeValue(forKey: clientID)
             receiveBuffers.removeValue(forKey: clientID)
+            clientInfos.removeValue(forKey: clientID)
         default:
             break
         }

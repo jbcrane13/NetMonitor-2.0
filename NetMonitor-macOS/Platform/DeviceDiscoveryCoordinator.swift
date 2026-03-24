@@ -37,6 +37,7 @@ final class DeviceDiscoveryCoordinator {
         self.nameResolver = nameResolver
         self.macVendorService = macVendorService
         self.networkProfileManager = networkProfileManager
+        self.networkProfile = networkProfileManager.activeProfile
         loadPersistedDevices(for: effectiveProfileID())
     }
 

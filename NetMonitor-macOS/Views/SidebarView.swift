@@ -96,7 +96,9 @@ struct ProfilePill: View {
     let profile: NetworkProfile
     let isActive: Bool
     let isSelected: Bool
-    
+
+    @Environment(\.appAccentColor) private var accentColor
+
     var body: some View {
         VStack(spacing: 4) {
             ZStack {
@@ -105,7 +107,7 @@ struct ProfilePill: View {
                     .frame(width: 44, height: 44)
                     .overlay(
                         RoundedRectangle(cornerRadius: 10)
-                            .stroke(isSelected ? MacTheme.Colors.sidebarActiveBorder : Color.white.opacity(0.1), lineWidth: 1)
+                            .stroke(isSelected ? accentColor : Color.white.opacity(0.1), lineWidth: 1)
                     )
                 
                 Image(systemName: profile.connectionType.iconName)
@@ -137,22 +139,24 @@ struct SidebarRow: View {
     let badge: String?
     let badgeColor: Color
     var deviceCount: Int? = nil
-    
+
+    @Environment(\.appAccentColor) private var accentColor
+
     var body: some View {
         HStack(spacing: 10) {
             // Active Indicator
             if isSelected {
                 RoundedRectangle(cornerRadius: 2)
-                    .fill(MacTheme.Colors.sidebarActiveBorder)
+                    .fill(accentColor)
                     .frame(width: 3, height: 16)
-                    .shadow(color: MacTheme.Colors.sidebarActiveBorder.opacity(0.5), radius: 4)
+                    .shadow(color: accentColor.opacity(0.5), radius: 4)
             } else {
                 Spacer().frame(width: 3)
             }
-            
+
             Image(systemName: icon)
                 .font(.system(size: 14, weight: isSelected ? .bold : .medium))
-                .foregroundStyle(isSelected ? MacTheme.Colors.sidebarActiveBorder : MacTheme.Colors.sidebarTextSecondary)
+                .foregroundStyle(isSelected ? accentColor : MacTheme.Colors.sidebarTextSecondary)
                 .frame(width: 20)
             
             Text(title)

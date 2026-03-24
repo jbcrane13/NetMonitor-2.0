@@ -11,6 +11,7 @@ struct CompanionSettingsView: View {
     @AppStorage("netmonitor.companion.enabled") private var companionEnabled = true
     @AppStorage("netmonitor.companion.port") private var servicePort = "8849"
 
+    @Environment(\.companionService) private var companionService
     @State private var connectedDevices: [ConnectedDevice] = []
 
     var body: some View {
@@ -89,6 +90,20 @@ struct CompanionSettingsView: View {
         .formStyle(.grouped)
         .padding()
         .navigationTitle("Companion")
+        .task {
+            guard let service = companionService else { return }
+            while !Task.isCancelled {
+                let infos = await service.getConnectedClientInfos()
+                connectedDevices = infos.map { info in
+                    ConnectedDevice(
+                        name: "iOS Device",
+                        ipAddress: info.endpoint,
+                        connectedSince: info.connectedSince
+                    )
+                }
+                try? await Task.sleep(for: .seconds(2))
+            }
+        }
     }
 }
 
