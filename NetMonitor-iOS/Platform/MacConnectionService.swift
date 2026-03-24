@@ -152,6 +152,7 @@ final class MacConnectionService: MacConnectionServiceProtocol {
         shouldAutoReconnect = true
 
         let parameters = NWParameters.tcp
+        parameters.includePeerToPeer = true
         let conn = NWConnection(to: endpoint, using: parameters)
         setupConnection(conn, macName: mac.name)
     }
@@ -294,6 +295,13 @@ final class MacConnectionService: MacConnectionServiceProtocol {
         while receiveBuffer.count >= 4 {
             let lengthBytes = receiveBuffer.prefix(4)
             let length = lengthBytes.withUnsafeBytes { $0.loadUnaligned(as: UInt32.self).bigEndian }
+
+            // Sanity check — reject absurdly large frames (max 10 MB)
+            guard length > 0, length <= 10_000_000 else {
+                Self.logger.error("Invalid frame length \(length), clearing buffer")
+                receiveBuffer.removeAll()
+                break
+            }
 
             let totalFrameSize = 4 + Int(length)
             guard receiveBuffer.count >= totalFrameSize else {

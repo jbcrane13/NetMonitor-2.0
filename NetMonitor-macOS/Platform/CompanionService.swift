@@ -184,6 +184,14 @@ actor CompanionService {
 
         while var buffer = receiveBuffers[clientID], buffer.count >= 4 {
             let length = buffer.prefix(4).withUnsafeBytes { $0.loadUnaligned(as: UInt32.self).bigEndian }
+
+            // Sanity check — reject absurdly large frames (max 10 MB)
+            guard length > 0, length <= 10_000_000 else {
+                Logger.companion.error("Invalid frame length \(length), clearing buffer for \(clientID)")
+                receiveBuffers[clientID] = Data()
+                break
+            }
+
             let totalFrameSize = 4 + Int(length)
 
             guard buffer.count >= totalFrameSize else {
