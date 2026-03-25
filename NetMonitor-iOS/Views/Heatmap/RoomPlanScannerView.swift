@@ -430,6 +430,14 @@ final class RoomPlanScanViewController: UIViewController, RoomCaptureSessionDele
         startSession()
     }
 
+    override func viewWillDisappear(_ animated: Bool) {
+        super.viewWillDisappear(animated)
+        // Stop the session and clear the delegate to release all retained ARFrames
+        // when SwiftUI transitions away from this view controller.
+        captureSession.stop()
+        roomCaptureView.captureSession.delegate = nil
+    }
+
     private func setupOverlayButtons() {
         // Done button
         doneButton = UIButton(type: .system)
@@ -483,11 +491,14 @@ final class RoomPlanScanViewController: UIViewController, RoomCaptureSessionDele
         // RoomBuilder async processing completes.
         processingViewModel = viewModel
 
-        // Transition immediately — prevents the built-in RoomCaptureView review UI from
-        // appearing and triggering a navigation-stack pop before .complete is set.
-        viewModel.scanState = .processing
-
+        // Stop the session first, then transition state. This ensures captureSession(_:didEndWith:)
+        // fires while processingViewModel is already set. The viewWillDisappear stop (triggered by
+        // the state transition) is idempotent and harmless.
         captureSession.stop()
+
+        // Transition after stop so the delegate nil-out in viewWillDisappear doesn't race with
+        // the session ending — by this point didEndWith has been dispatched.
+        viewModel.scanState = .processing
     }
 
     @objc private func cancelTapped() {
