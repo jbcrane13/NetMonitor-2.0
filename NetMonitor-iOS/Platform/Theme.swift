@@ -172,19 +172,23 @@ struct ThemedBackground: ViewModifier {
         content
             .background(
                 ZStack {
-                    // Adaptive base background
-                    Theme.Colors.backgroundBase
-                        .ignoresSafeArea()
-
-                    // Dark mode only: subtle blue-gray wash near the top
                     if colorScheme == .dark {
+                        // Dark grey — halfway between true black and Apple TV grey
+                        Color(red: 0.055, green: 0.055, blue: 0.06)
+                            .ignoresSafeArea()
+
+                        // Subtle lighter wash at top
                         RadialGradient(
-                            colors: [Color(red: 30/255, green: 35/255, blue: 55/255).opacity(0.25), .clear],
-                            center: .top,
+                            colors: [Color.white.opacity(0.025), .clear],
+                            center: UnitPoint(x: 0.5, y: 0.0),
                             startRadius: 0,
                             endRadius: 500
                         )
                         .ignoresSafeArea()
+                    } else {
+                        // Light mode: keep system adaptive background
+                        Theme.Colors.backgroundBase
+                            .ignoresSafeArea()
                     }
                 }
             )

@@ -7,6 +7,8 @@ struct MacGlassCardModifier: ViewModifier {
     var cornerRadius: CGFloat = MacTheme.Layout.cardCornerRadius
     var padding: CGFloat = MacTheme.Layout.cardPadding
     var showBorder: Bool = true
+    /// Optional status glow color — adds a colored top-edge stroke and inner glow.
+    var statusGlow: Color?
 
     func body(content: Content) -> some View {
         content
@@ -31,6 +33,30 @@ struct MacGlassCardModifier: ViewModifier {
                     .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
                 }
             )
+            // Status glow: inner top glow
+            .overlay(alignment: .top) {
+                if let glow = statusGlow {
+                    Rectangle()
+                        .fill(glow.opacity(0.08))
+                        .frame(height: 40)
+                        .blur(radius: 20)
+                        .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
+                }
+            }
+            // Status glow: top-edge colored stroke
+            .overlay {
+                if let glow = statusGlow {
+                    RoundedRectangle(cornerRadius: cornerRadius)
+                        .stroke(
+                            LinearGradient(
+                                colors: [glow.opacity(0.4), glow.opacity(0.15), .clear],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            ),
+                            lineWidth: 1.5
+                        )
+                }
+            }
             .overlay(
                 // Rim light
                 RoundedRectangle(cornerRadius: cornerRadius)
@@ -62,12 +88,14 @@ extension View {
     func macGlassCard(
         cornerRadius: CGFloat = MacTheme.Layout.cardCornerRadius,
         padding: CGFloat = MacTheme.Layout.cardPadding,
-        showBorder: Bool = true
+        showBorder: Bool = true,
+        statusGlow: Color? = nil
     ) -> some View {
         modifier(MacGlassCardModifier(
             cornerRadius: cornerRadius,
             padding: padding,
-            showBorder: showBorder
+            showBorder: showBorder,
+            statusGlow: statusGlow
         ))
     }
 }
@@ -79,16 +107,48 @@ struct MacThemedBackground: ViewModifier {
         content
             .background(
                 ZStack {
-                    // Lifted charcoal base
-                    MacTheme.Colors.backgroundBase
+                    // Deep charcoal base (slightly cooler than flat #141416)
+                    Color(red: 0.04, green: 0.04, blue: 0.07)
                         .ignoresSafeArea()
 
-                    // Subtle blue-gray wash near the top
+                    // Mesh gradient: layered radial blooms for atmospheric depth
                     RadialGradient(
-                        colors: [Color(red: 30/255, green: 35/255, blue: 55/255).opacity(0.25), .clear],
-                        center: .top,
+                        colors: [Color(red: 0.08, green: 0.06, blue: 0.16).opacity(0.7), .clear],
+                        center: UnitPoint(x: 0.15, y: 0.2),
                         startRadius: 0,
-                        endRadius: 2000
+                        endRadius: 600
+                    )
+                    .ignoresSafeArea()
+
+                    RadialGradient(
+                        colors: [Color(red: 0.06, green: 0.10, blue: 0.18).opacity(0.5), .clear],
+                        center: UnitPoint(x: 0.85, y: 0.15),
+                        startRadius: 0,
+                        endRadius: 500
+                    )
+                    .ignoresSafeArea()
+
+                    RadialGradient(
+                        colors: [Color(red: 0.10, green: 0.06, blue: 0.12).opacity(0.4), .clear],
+                        center: UnitPoint(x: 0.5, y: 0.8),
+                        startRadius: 0,
+                        endRadius: 550
+                    )
+                    .ignoresSafeArea()
+
+                    RadialGradient(
+                        colors: [Color(red: 0.04, green: 0.08, blue: 0.14).opacity(0.3), .clear],
+                        center: UnitPoint(x: 0.75, y: 0.6),
+                        startRadius: 0,
+                        endRadius: 400
+                    )
+                    .ignoresSafeArea()
+
+                    RadialGradient(
+                        colors: [Color(red: 0.07, green: 0.05, blue: 0.11).opacity(0.35), .clear],
+                        center: UnitPoint(x: 0.2, y: 0.7),
+                        startRadius: 0,
+                        endRadius: 450
                     )
                     .ignoresSafeArea()
                 }

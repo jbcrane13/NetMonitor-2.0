@@ -7,7 +7,9 @@ struct GlassCardModifier: ViewModifier {
     var cornerRadius: CGFloat = Theme.Layout.cardCornerRadius
     var padding: CGFloat = Theme.Layout.cardPadding
     var showBorder: Bool = true
-    
+    /// Optional status glow color — adds a colored top-edge stroke and inner glow.
+    var statusGlow: Color?
+
     func body(content: Content) -> some View {
         content
             .padding(padding)
@@ -17,7 +19,7 @@ struct GlassCardModifier: ViewModifier {
                     RoundedRectangle(cornerRadius: cornerRadius)
                         .fill(.ultraThinMaterial)
                         .opacity(0.8)
-                    
+
                     RoundedRectangle(cornerRadius: cornerRadius)
                         .fill(Theme.Colors.glassBackground)
 
@@ -30,6 +32,29 @@ struct GlassCardModifier: ViewModifier {
                     .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
                 }
             )
+            // Subtle edge definition + faint top glow
+            .overlay {
+                if let glow = statusGlow {
+                    RoundedRectangle(cornerRadius: cornerRadius)
+                        .stroke(
+                            LinearGradient(
+                                colors: [glow.opacity(0.15), glow.opacity(0.04), .white.opacity(0.06)],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            ),
+                            lineWidth: 0.75
+                        )
+                }
+            }
+            .overlay(alignment: .top) {
+                if let glow = statusGlow {
+                    Rectangle()
+                        .fill(glow.opacity(0.04))
+                        .frame(height: 30)
+                        .blur(radius: 15)
+                        .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
+                }
+            }
             .overlay(
                 // Rim Light
                 RoundedRectangle(cornerRadius: cornerRadius)
@@ -61,11 +86,12 @@ struct GlassCard<Content: View>: View {
     var cornerRadius: CGFloat = Theme.Layout.cardCornerRadius
     var padding: CGFloat = Theme.Layout.cardPadding
     var showBorder: Bool = true
+    var statusGlow: Color? = nil
     @ViewBuilder var content: () -> Content
-    
+
     var body: some View {
         content()
-            .glassCard(cornerRadius: cornerRadius, padding: padding, showBorder: showBorder)
+            .glassCard(cornerRadius: cornerRadius, padding: padding, showBorder: showBorder, statusGlow: statusGlow)
     }
 }
 
@@ -74,12 +100,14 @@ extension View {
     func glassCard(
         cornerRadius: CGFloat = Theme.Layout.cardCornerRadius,
         padding: CGFloat = Theme.Layout.cardPadding,
-        showBorder: Bool = true
+        showBorder: Bool = true,
+        statusGlow: Color? = nil
     ) -> some View {
         modifier(GlassCardModifier(
             cornerRadius: cornerRadius,
             padding: padding,
-            showBorder: showBorder
+            showBorder: showBorder,
+            statusGlow: statusGlow
         ))
     }
 }

@@ -165,7 +165,7 @@ struct TacticalHUDHeader: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            GlassCard(padding: 16) {
+            GlassCard(padding: 16, statusGlow: Theme.Colors.info) {
                 VStack(alignment: .leading, spacing: Theme.Layout.itemSpacing) {
                     HStack(alignment: .top) {
                         VStack(alignment: .leading, spacing: 4) {
@@ -209,7 +209,7 @@ struct TacticalHUDHeader: View {
                             if let signal = viewModel.currentWiFi?.signalStrength {
                                 // WiFi connected — show signal strength as hero
                                 Text("\(signal)%")
-                                    .font(.system(size: 22, weight: .bold, design: .rounded))
+                                    .font(.system(size: 24, weight: .semibold, design: .rounded))
                                     .foregroundStyle(
                                         LinearGradient(
                                             colors: [signalColor(signal), .white.opacity(0.8)],
@@ -225,7 +225,7 @@ struct TacticalHUDHeader: View {
                             } else if let latency = viewModel.gateway?.latency {
                                 // No WiFi info — show latency as hero
                                 Text("\(latency, specifier: "%.0f") ms")
-                                    .font(.system(size: 22, weight: .bold, design: .rounded))
+                                    .font(.system(size: 24, weight: .semibold, design: .rounded))
                                     .foregroundStyle(
                                         LinearGradient(
                                             colors: [Theme.Colors.latencyColor(ms: latency), .white.opacity(0.8)],
@@ -235,7 +235,7 @@ struct TacticalHUDHeader: View {
                                     )
                             } else {
                                 Text("—")
-                                    .font(.system(size: 22, weight: .bold, design: .rounded))
+                                    .font(.system(size: 24, weight: .semibold, design: .rounded))
                                     .foregroundStyle(Theme.Colors.textTertiary)
                             }
                         }
@@ -300,15 +300,15 @@ struct RefinedNetworkHealthCard: View {
 
         return max(0, min(100, score))
     }
-    
+
     var body: some View {
-        GlassCard(padding: 12) {
+        GlassCard(padding: 12, statusGlow: Theme.Colors.info) {
             VStack(alignment: .leading, spacing: 10) {
                 HStack {
                     Text("NETWORK HEALTH")
-                        .font(.system(size: 11, weight: .black))
+                        .font(.system(size: 9, weight: .heavy))
                         .foregroundStyle(Theme.Colors.textTertiary)
-                        .tracking(1.5)
+                        .tracking(2.0)
                     Spacer()
                     Text("LIVE")
                         .font(.system(size: 9, weight: .black))
@@ -338,7 +338,7 @@ struct RefinedNetworkHealthCard: View {
                         
                         VStack(spacing: -2) {
                             Text("\(healthScore)")
-                                .font(.system(size: 22, weight: .black, design: .rounded))
+                                .font(.system(size: 24, weight: .semibold, design: .rounded))
                                 .foregroundStyle(.white)
                             Text("SCORE")
                                 .font(.system(size: 7, weight: .black))
@@ -410,15 +410,15 @@ struct SignalEQView: View {
     var hasRealData: Bool {
         viewModel.latencyHistory.count >= 3
     }
-    
+
     var body: some View {
-        GlassCard(padding: 12) {
+        GlassCard(padding: 12, statusGlow: Theme.Colors.info) {
             VStack(alignment: .leading, spacing: 10) {
                 HStack {
                     Text("STABILITY SPECTRUM (JITTER)")
-                        .font(.system(size: 10, weight: .black))
+                        .font(.system(size: 9, weight: .heavy))
                         .foregroundStyle(Theme.Colors.textTertiary)
-                        .tracking(1.5)
+                        .tracking(2.0)
                     Spacer()
                     if !hasRealData {
                         Text("COLLECTING…")
@@ -471,12 +471,12 @@ struct WANInfoCard: View {
     let viewModel: DashboardViewModel
 
     var body: some View {
-        GlassCard(padding: 12) {
+        GlassCard(padding: 12, statusGlow: Theme.Colors.info) {
             VStack(alignment: .leading, spacing: 10) {
                 Text("WAN INFO")
-                    .font(.system(size: 10, weight: .black))
+                    .font(.system(size: 9, weight: .heavy))
                     .foregroundStyle(Theme.Colors.textTertiary)
-                    .tracking(1.5)
+                    .tracking(2.0)
 
                 VStack(spacing: 0) {
                     ConnectivityRow(
@@ -514,12 +514,12 @@ struct AnchorLatencyCard: View {
     ]
 
     var body: some View {
-        GlassCard(padding: 12) {
+        GlassCard(padding: 12, statusGlow: Theme.Colors.info) {
             VStack(alignment: .leading, spacing: 10) {
                 Text("INTERNET LATENCY")
-                    .font(.system(size: 10, weight: .black))
+                    .font(.system(size: 9, weight: .heavy))
                     .foregroundStyle(Theme.Colors.textTertiary)
-                    .tracking(1.5)
+                    .tracking(2.0)
 
                 HStack(spacing: 0) {
                     ForEach(anchors, id: \.key) { anchor in
@@ -559,23 +559,25 @@ struct AnchorMetricColumn: View {
                 .frame(width: 6, height: 6)
             if let ms = latency {
                 Text("\(Int(ms))")
-                    .font(.system(size: 18, weight: .black, design: .rounded))
+                    .font(.system(size: 20, weight: .semibold, design: .rounded))
                     .foregroundStyle(.white)
                 Text("ms")
-                    .font(.system(size: 9, weight: .semibold))
+                    .font(.system(size: 8, weight: .heavy))
                     .foregroundStyle(Theme.Colors.textTertiary)
+                    .tracking(0.5)
             } else {
                 Text("—")
-                    .font(.system(size: 18, weight: .black, design: .rounded))
+                    .font(.system(size: 20, weight: .semibold, design: .rounded))
                     .foregroundStyle(Theme.Colors.textTertiary)
                 Text("ms")
-                    .font(.system(size: 9, weight: .semibold))
+                    .font(.system(size: 8, weight: .heavy))
                     .foregroundStyle(Theme.Colors.textTertiary)
+                    .tracking(0.5)
             }
             Text(label.uppercased())
-                .font(.system(size: 8, weight: .black))
+                .font(.system(size: 7, weight: .heavy))
                 .foregroundStyle(Theme.Colors.textTertiary)
-                .tracking(0.8)
+                .tracking(1.2)
         }
         .frame(maxWidth: .infinity)
     }
@@ -619,13 +621,13 @@ struct LocalDevicesCard: View {
                 networkProfile: selectedNetwork
             )
         ) {
-            GlassCard {
+            GlassCard(statusGlow: Theme.Colors.info) {
                 VStack(alignment: .leading, spacing: 14) {
                     HStack {
                         Text("ACTIVE DEVICES")
-                            .font(.system(size: 11, weight: .black))
+                            .font(.system(size: 9, weight: .heavy))
                             .foregroundStyle(Theme.Colors.textTertiary)
-                            .tracking(1.5)
+                            .tracking(2.0)
                         Spacer()
                         HStack(spacing: 4) {
                             Text("\(viewModel.deviceCount) total")
@@ -716,7 +718,7 @@ struct SpeedTestQuickCard: View {
 
     var body: some View {
         NavigationLink(destination: SpeedTestToolView()) {
-            GlassCard(padding: 14) {
+            GlassCard(padding: 14, statusGlow: Theme.Colors.info) {
                 HStack(spacing: 14) {
                     ZStack {
                         RoundedRectangle(cornerRadius: 10)
@@ -779,16 +781,16 @@ struct LiveEventTicker: View {
     }()
 
     var body: some View {
-        GlassCard(padding: 12) {
+        GlassCard(padding: 12, statusGlow: Theme.Colors.info) {
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
                     Image(systemName: "terminal")
                         .font(.caption)
                         .foregroundStyle(Theme.Colors.accent)
                     Text("LIVE EVENTS")
-                        .font(.system(size: 10, weight: .black))
+                        .font(.system(size: 9, weight: .heavy))
                         .foregroundStyle(Theme.Colors.textSecondary)
-                        .tracking(1.5)
+                        .tracking(2.0)
                     Spacer()
                     Circle().fill(recentEvents.isEmpty ? Theme.Colors.textTertiary : Theme.Colors.success).frame(width: 4, height: 4)
                 }

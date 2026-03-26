@@ -125,11 +125,19 @@ struct PingToolView: View {
         chartableResults.map(\.time).max() ?? 0
     }
 
-    /// Y-axis max: actual max value with 20% padding, minimum 10ms ceiling so
-    /// small latency variations produce visible line movement instead of a flat trace.
+    /// Y-axis range: tight around actual data so small variations are visible.
+    /// Uses a minimum span of 5ms so the chart never looks flat.
+    private var chartYMin: Double {
+        guard let minTime = chartableResults.map(\.time).min() else { return 0 }
+        return max(0, minTime - max(minTime * 0.3, 1))
+    }
+
     private var chartYMax: Double {
         guard let maxTime = chartableResults.map(\.time).max() else { return 10 }
-        return max(maxTime * 1.2, 10)
+        let min = chartYMin
+        let span = maxTime - min
+        // Ensure minimum 5ms visible range so small jitter is readable
+        return max(maxTime + max(span * 0.2, 1), min + 5)
     }
 
     private var latencyChartView: some View {
@@ -170,7 +178,7 @@ struct PingToolView: View {
                 )
                 .interpolationMethod(.catmullRom)
             }
-            .chartYScale(domain: 0...chartYMax)
+            .chartYScale(domain: chartYMin...chartYMax)
             .chartYAxis {
                 AxisMarks(position: .leading) { value in
                     AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))

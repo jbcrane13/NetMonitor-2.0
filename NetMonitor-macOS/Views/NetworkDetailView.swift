@@ -142,7 +142,6 @@ struct NetworkDetailView: View {
             }
             .padding(pad)
         }
-        .macThemedBackground()
         .navigationTitle(profile.displayName)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {

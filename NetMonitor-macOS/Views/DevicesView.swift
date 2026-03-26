@@ -5,6 +5,8 @@ import AppKit
 import Darwin
 
 struct DevicesView: View {
+    var isSheet: Bool = false
+
     @Environment(\.modelContext) private var modelContext
     @Environment(DeviceDiscoveryCoordinator.self) private var coordinator: DeviceDiscoveryCoordinator?
     @Environment(\.dismiss) private var dismiss
@@ -155,7 +157,6 @@ struct DevicesView: View {
                 }
             }
         }
-        .background(Color(nsColor: .windowBackgroundColor))
         .wakeOnLanAlert(wolAction)
         .sheet(item: $selectedProDevice) { device in
             ProDeviceDetailView(device: device)
@@ -265,7 +266,7 @@ struct DevicesView: View {
                 }
             }
         }
-        .background(Color(red: 0.06, green: 0.06, blue: 0.07))
+        .background(Color.black.opacity(0.3))
     }
 
     private var proModeHeaderRow: some View {
@@ -349,20 +350,22 @@ struct DevicesView: View {
 
     private var topBar: some View {
         HStack(spacing: 10) {
-            // Close
-            Button {
-                dismiss()
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 24, height: 24)
-                    .background(Color.primary.opacity(0.06))
-                    .clipShape(Circle())
+            // Close — only shown in sheet context
+            if isSheet {
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 24, height: 24)
+                        .background(Color.primary.opacity(0.06))
+                        .clipShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .keyboardShortcut(.escape, modifiers: [])
+                .accessibilityIdentifier("devices_button_close")
             }
-            .buttonStyle(.plain)
-            .keyboardShortcut(.escape, modifiers: [])
-            .accessibilityIdentifier("devices_button_close")
 
             Text("Devices")
                 .font(.headline)

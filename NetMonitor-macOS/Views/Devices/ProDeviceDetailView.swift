@@ -46,7 +46,7 @@ struct ProDeviceDetailView: View {
             }
         }
         .frame(minWidth: 640, minHeight: 480)
-        .background(Color(nsColor: .windowBackgroundColor))
+        .macThemedBackground()
         .task { await loadData() }
         .wakeOnLanAlert(wolAction)
         .sheet(isPresented: $showPingSheet) {

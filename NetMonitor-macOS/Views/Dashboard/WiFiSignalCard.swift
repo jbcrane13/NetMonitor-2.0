@@ -120,7 +120,7 @@ struct WiFiSignalCard: View {
                 }
             }
         }
-        .macGlassCard(cornerRadius: 14, padding: 10)
+        .macGlassCard(cornerRadius: 14, padding: 10, statusGlow: MacTheme.Colors.info)
         .task {
             await loadInitialSignal()
         }

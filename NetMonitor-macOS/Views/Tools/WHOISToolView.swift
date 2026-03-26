@@ -188,8 +188,7 @@ struct WHOISToolView: View {
         }
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(nsColor: .controlBackgroundColor))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .macGlassCard(cornerRadius: 8, padding: 0)
     }
 
     private func infoRow(_ label: String, _ value: String) -> some View {

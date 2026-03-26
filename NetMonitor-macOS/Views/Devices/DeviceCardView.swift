@@ -94,13 +94,34 @@ struct DeviceCardView: View {
             }
         }
         .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color(nsColor: .controlBackgroundColor))
-                .shadow(color: .black.opacity(0.05), radius: 2, x: 0, y: 1)
+            ZStack {
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(.ultraThinMaterial)
+                    .opacity(0.8)
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(MacTheme.Colors.glassBackground)
+                LinearGradient(
+                    colors: [.white.opacity(0.08), .clear, .white.opacity(0.02)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+            }
         )
         .overlay(
             RoundedRectangle(cornerRadius: 12)
-                .stroke(isSelected ? Color.accentColor : Color.clear, lineWidth: 2)
+                .stroke(
+                    isSelected
+                        ? Color.accentColor
+                        : MacTheme.Colors.glassBorder,
+                    lineWidth: isSelected ? 2 : 0.5
+                )
+        )
+        .shadow(
+            color: MacTheme.Shadows.card,
+            radius: MacTheme.Shadows.cardRadius,
+            x: 0,
+            y: MacTheme.Shadows.cardY
         )
     }
 

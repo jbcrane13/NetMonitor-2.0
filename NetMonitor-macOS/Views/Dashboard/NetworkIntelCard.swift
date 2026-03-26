@@ -109,7 +109,7 @@ struct NetworkIntelCard: View {
                 }
             }
         }
-        .macGlassCard(cornerRadius: 14, padding: 10)
+        .macGlassCard(cornerRadius: 14, padding: 10, statusGlow: MacTheme.Colors.info)
         .accessibilityIdentifier("dashboard_card_networkIntel")
         .task(priority: .utility) { await refresh() }
     }
@@ -208,7 +208,7 @@ struct NetworkIntelCard: View {
         // CFHostStartInfoResolution is synchronous and can hang indefinitely
         let start = ContinuousClock.now
         let runner = ShellCommandRunner()
-        guard (try? await runner.run(
+        guard await (try? runner.run(
             "/usr/bin/dig",
             arguments: ["+time=2", "+tries=1", "+short", "apple.com"],
             timeout: 3

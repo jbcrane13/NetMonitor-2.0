@@ -72,7 +72,7 @@ struct LatencyAnalysisCard: View {
                 Spacer()
             }
         }
-        .macGlassCard(cornerRadius: 14, padding: 10)
+        .macGlassCard(cornerRadius: 14, padding: 10, statusGlow: MacTheme.Colors.info)
         .accessibilityIdentifier("dashboard_card_latencyAnalysis")
     }
 

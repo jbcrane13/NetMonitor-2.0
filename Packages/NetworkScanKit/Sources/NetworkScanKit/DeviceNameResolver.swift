@@ -16,14 +16,14 @@ public final class DeviceNameResolver: Sendable {
 
     // MARK: - Private Helpers
 
-    /// Perform DNS PTR lookup with a 1-second timeout.
+    /// Perform DNS PTR lookup with a 3-second timeout.
     private func resolvePTRWithTimeout(ipAddress: String) async -> String? {
         await withTaskGroup(of: String?.self) { group in
             group.addTask {
                 await self.performPTRLookup(ipAddress: ipAddress)
             }
             group.addTask {
-                try? await Task.sleep(for: .seconds(1))
+                try? await Task.sleep(for: .seconds(3))
                 return nil
             }
             let result = await group.next()

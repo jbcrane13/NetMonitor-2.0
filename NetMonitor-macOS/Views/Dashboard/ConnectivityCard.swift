@@ -63,7 +63,7 @@ struct ConnectivityCard: View {
             // Anchor ping pills
             anchorPingsView
         }
-        .macGlassCard(cornerRadius: 14, padding: 10)
+        .macGlassCard(cornerRadius: 14, padding: 10, statusGlow: MacTheme.Colors.info)
         .accessibilityIdentifier("dashboard_card_connectivity")
         .task {
             await vm.load()

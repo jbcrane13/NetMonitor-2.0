@@ -10,7 +10,7 @@ public struct ReverseDNSScanPhase: ScanPhase, Sendable {
     /// Maximum number of concurrent PTR lookups.
     let maxConcurrentResolves: Int
 
-    public init(maxConcurrentResolves: Int = 20) {
+    public init(maxConcurrentResolves: Int = 8) {
         self.maxConcurrentResolves = maxConcurrentResolves
     }
 

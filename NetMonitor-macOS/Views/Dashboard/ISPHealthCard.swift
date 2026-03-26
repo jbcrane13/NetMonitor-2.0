@@ -150,7 +150,7 @@ struct ISPHealthCard: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .macGlassCard(cornerRadius: 14, padding: 10)
+        .macGlassCard(cornerRadius: 14, padding: 10, statusGlow: MacTheme.Colors.info)
         .accessibilityIdentifier("dashboard_card_networkHealth")
         .task { await vm.load() }
         .task(priority: .utility) { await bandwidth.start() }

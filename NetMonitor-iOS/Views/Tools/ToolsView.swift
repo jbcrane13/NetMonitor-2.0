@@ -380,7 +380,6 @@ struct ToolsGridSection: View {
             ToolItem(name: "Port Scanner", icon: "door.left.hand.open", color: Theme.Colors.warning, description: "Scan open ports", destination: .portScanner),
             ToolItem(name: "Bonjour", icon: "bonjour", color: Theme.Colors.accent, description: "Discover services", destination: .bonjour),
             ToolItem(name: "Subnet Calc", icon: "square.split.bottomrightquarter", color: .purple, description: "Calculate subnet ranges", destination: .subnetCalculator),
-            ToolItem(name: "Network Monitor", icon: "network", color: Theme.Colors.info, description: "Network device map", destination: .networkMonitor),
         ]),
         (.monitoring, [
             ToolItem(name: "Speed Test", icon: "speedometer", color: Theme.Colors.success, description: "Test bandwidth", destination: .speedTest),

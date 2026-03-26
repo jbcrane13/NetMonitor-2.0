@@ -44,6 +44,7 @@ struct SettingsView: View {
                     .accessibilityIdentifier("settings_tab_\(tab.rawValue.lowercased())")
             }
             .listStyle(.sidebar)
+            .scrollContentBackground(.hidden)
             .frame(width: 200)
             .accessibilityIdentifier("settings_sidebar")
 
@@ -51,6 +52,7 @@ struct SettingsView: View {
 
             // Settings detail
             settingsContent(for: selectedTab)
+                .scrollContentBackground(.hidden)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .navigationTitle("Settings")

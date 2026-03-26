@@ -71,7 +71,7 @@ struct HealthGaugeCard: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .macGlassCard(cornerRadius: 14, padding: 10)
+        .macGlassCard(cornerRadius: 14, padding: 10, statusGlow: MacTheme.Colors.info)
         .clipped()
         .accessibilityIdentifier("dashboard_card_healthGauge")
         .task { await viewModel.refresh() }
