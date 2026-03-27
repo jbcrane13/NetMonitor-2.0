@@ -163,6 +163,7 @@ struct ContentView: View {
                 } label: {
                     Label("Back", systemImage: "chevron.left")
                 }
+                .accessibilityIdentifier("contentView_button_back")
             }
         }
     }
@@ -187,30 +188,37 @@ private struct KeyboardShortcutsModifier: ViewModifier {
             // ⌘1 — Jump to active network dashboard
             Button("", action: onJumpToNetwork)
                 .keyboardShortcut("1", modifiers: .command)
+                .accessibilityIdentifier("contentView_shortcut_jumpToNetwork")
 
             // ⌘2 — Devices list
             Button("") { selectedSection = .section(.devices) }
                 .keyboardShortcut("2", modifiers: .command)
+                .accessibilityIdentifier("contentView_shortcut_devices")
 
             // ⌘3 — Tools
             Button("") { selectedSection = .section(.tools) }
                 .keyboardShortcut("3", modifiers: .command)
+                .accessibilityIdentifier("contentView_shortcut_tools")
 
             // ⌘4 — Settings
             Button("") { selectedSection = .section(.settings) }
                 .keyboardShortcut("4", modifiers: .command)
+                .accessibilityIdentifier("contentView_shortcut_settings")
 
             // ⌘R — Rescan network
             Button("", action: onRescan)
                 .keyboardShortcut("r", modifiers: .command)
+                .accessibilityIdentifier("contentView_shortcut_rescan")
 
             // ⌘K — Quick jump to device
             Button("") { showQuickJump = true }
                 .keyboardShortcut("k", modifiers: .command)
+                .accessibilityIdentifier("contentView_shortcut_quickJump")
 
             // ⌘T — Quick tool launch
             Button("") { selectedSection = .section(.tools) }
                 .keyboardShortcut("t", modifiers: .command)
+                .accessibilityIdentifier("contentView_shortcut_launchTools")
         }
         .hidden()
     }

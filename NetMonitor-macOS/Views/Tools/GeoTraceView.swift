@@ -109,6 +109,7 @@ struct GeoTraceView: View {
                     Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
+                .accessibilityIdentifier("geoTrace_popup_button_close")
             }
             if let ip = hop.hop.ipAddress {
                 Text(ip)
@@ -156,6 +157,7 @@ struct GeoTraceView: View {
                     selectedHop = nil
                     cameraPosition = .automatic
                 }
+                .accessibilityIdentifier("geoTrace_button_clear")
             }
         }
         .padding()

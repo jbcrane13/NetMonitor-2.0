@@ -346,6 +346,7 @@ struct MenuBarPopoverView: View {
                 deviceDiscovery.startScan()
             }
             .disabled(deviceDiscovery.isScanning)
+            .accessibilityIdentifier("menubar_quickAction_button_scan")
 
             Divider().frame(height: 28)
 
@@ -357,6 +358,7 @@ struct MenuBarPopoverView: View {
                 WindowOpener.shared.openMainWindow()
                 onClose()
             }
+            .accessibilityIdentifier("menubar_quickAction_button_ping")
 
             Divider().frame(height: 28)
 
@@ -368,6 +370,7 @@ struct MenuBarPopoverView: View {
                 WindowOpener.shared.openMainWindow()
                 onClose()
             }
+            .accessibilityIdentifier("menubar_quickAction_button_speed")
         }
         .padding(.vertical, 6)
         .accessibilityIdentifier("menubar_quickActions")
@@ -412,6 +415,7 @@ struct MenuBarPopoverView: View {
             LazyVStack(spacing: 8) {
                 ForEach(sortedEntries, id: \.id) { entry in
                     targetRow(measurement: entry.measurement)
+                        .accessibilityIdentifier("menubar_targetRow_\(entry.id)")
                 }
 
                 if session.latestResults.isEmpty {

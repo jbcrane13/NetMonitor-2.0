@@ -47,6 +47,7 @@ struct QuickJumpSheet: View {
                     .textFieldStyle(.plain)
                     .font(.system(size: 16))
                     .focused($isFocused)
+                    .accessibilityIdentifier("quickJump_textField_search")
                     .onSubmit {
                         if let first = filteredDevices.first {
                             navigateToDevice(first)
@@ -61,6 +62,7 @@ struct QuickJumpSheet: View {
                             .foregroundStyle(.tertiary)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityIdentifier("quickJump_button_clearSearch")
                 }
 
                 Text("⌘K")
@@ -164,6 +166,7 @@ struct QuickJumpSheet: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier("quickJump_row_\(device.id)")
     }
 
     private func navigateToDevice(_ device: LocalDevice) {

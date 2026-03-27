@@ -132,11 +132,11 @@ struct WebBrowserToolView: View {
             GlassCard {
                 VStack(spacing: 0) {
                     ForEach(Array(recentURLs.enumerated()), id: \.offset) { index, url in
-                        RecentURLRow(url: url) {
+                        RecentURLRow(url: url, index: index) {
                             urlText = url
                             openURL()
                         }
-                        
+
                         if index < recentURLs.count - 1 {
                             Divider()
                                 .background(Theme.Colors.glassBorder)
@@ -266,8 +266,9 @@ struct BookmarkRow: View {
 
 struct RecentURLRow: View {
     let url: String
+    let index: Int
     let action: () -> Void
-    
+
     var body: some View {
         Button(action: action) {
             HStack(spacing: 12) {
@@ -275,22 +276,22 @@ struct RecentURLRow: View {
                     .font(.caption)
                     .foregroundStyle(Theme.Colors.textTertiary)
                     .frame(width: 16)
-                
+
                 Text(url)
                     .font(.caption)
                     .fontDesign(.monospaced)
                     .foregroundStyle(Theme.Colors.textSecondary)
                     .lineLimit(1)
-                
+
                 Spacer()
-                
+
                 Image(systemName: "chevron.right")
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(Theme.Colors.textTertiary)
             }
         }
         .buttonStyle(.plain)
-        .accessibilityIdentifier("webBrowser_recent_url")
+        .accessibilityIdentifier("webBrowser_recent_url_\(index)")
     }
 }
 

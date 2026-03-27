@@ -220,6 +220,7 @@ struct DevicesView: View {
                         .onTapGesture {
                             selectedDevice = device
                         }
+                        .accessibilityIdentifier("devices_card_\(device.ipAddress)")
                 }
             }
             .padding()
@@ -260,6 +261,7 @@ struct DevicesView: View {
                         .onTapGesture {
                             selectedProDevice = device
                         }
+                        .accessibilityIdentifier("devices_proRow_\(device.ipAddress)")
                     Rectangle()
                         .fill(Color.white.opacity(0.08))
                         .frame(height: 1)
@@ -404,6 +406,7 @@ struct DevicesView: View {
                             .foregroundStyle(.tertiary)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityIdentifier("devices_button_clearSearch")
                 }
             }
             .padding(.horizontal, 8)
@@ -442,6 +445,7 @@ struct DevicesView: View {
                             }
                         }
                     }
+                    .accessibilityIdentifier("devices_sortOption_\(order.rawValue.lowercased())")
                 }
             } label: {
                 Label("Sort", systemImage: "arrow.up.arrow.down")
@@ -595,6 +599,7 @@ struct DevicePingSheet: View {
                         .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
+                .accessibilityIdentifier("devicePingSheet_button_close")
             }
             .padding()
 
@@ -659,6 +664,7 @@ struct DevicePingSheet: View {
                     Button("Clear") {
                         pingResults.removeAll()
                     }
+                    .accessibilityIdentifier("devicePingSheet_button_clear")
                 }
 
                 Button(isPinging ? "Stop" : "Run") {
@@ -745,6 +751,7 @@ struct DevicePortScanSheet: View {
                         .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
+                .accessibilityIdentifier("devicePortScanSheet_button_close")
             }
             .padding()
 
@@ -829,6 +836,7 @@ struct DevicePortScanSheet: View {
                         portScanResults.removeAll()
                         scanProgress = 0.0
                     }
+                    .accessibilityIdentifier("devicePortScanSheet_button_clear")
                 }
 
                 Button(isScanning ? "Stop" : "Scan") {

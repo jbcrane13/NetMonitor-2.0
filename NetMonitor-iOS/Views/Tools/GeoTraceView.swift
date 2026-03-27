@@ -175,6 +175,7 @@ struct GeoTraceView: View {
                         .font(.caption)
                         .foregroundStyle(Theme.Colors.textSecondary)
                 }
+                .accessibilityIdentifier("geoTrace_button_deselectHop")
             }
 
             HStack(spacing: 16) {

@@ -61,6 +61,7 @@ struct NetworkMapView: View {
                         }
                         .pickerStyle(.menu)
                         .tint(Theme.Colors.accent)
+                        .accessibilityIdentifier("networkMap_picker_sort")
                     }
                     .padding(.horizontal, 4)
 
@@ -132,6 +133,7 @@ struct NetworkMapView: View {
                         Text(network.displayName)
                     }
                 }
+                .accessibilityIdentifier("networkMap_menu_selectNetwork_\(network.id)")
             }
 
             Divider()
@@ -202,7 +204,6 @@ struct NetworkMapView: View {
         .accessibilityIdentifier("networkMap_button_scan")
     }
 }
-
 
 struct ProDeviceRow: View {
     let device: DiscoveredDevice

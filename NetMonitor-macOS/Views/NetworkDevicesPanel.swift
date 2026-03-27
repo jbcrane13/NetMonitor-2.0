@@ -79,6 +79,7 @@ struct NetworkDevicesPanel: View {
                     }
                 }
                 .buttonStyle(.plain)
+                .accessibilityIdentifier("networkDevicesPanel_button_openFullDevices")
                 .help("Open full devices view")
 
                 Spacer()
@@ -96,6 +97,7 @@ struct NetworkDevicesPanel: View {
                         .foregroundStyle(coordinator?.isScanning == true ? MacTheme.Colors.info : .secondary)
                 }
                 .buttonStyle(.plain)
+                .accessibilityIdentifier("networkDevicesPanel_button_scan")
                 .disabled(coordinator?.isScanning == true)
                 .help("Scan network")
 
@@ -120,12 +122,14 @@ struct NetworkDevicesPanel: View {
                                 }
                             }
                         }
+                        .accessibilityIdentifier("networkDevicesPanel_sortOption_\(order.rawValue.lowercased())")
                     }
                 } label: {
                     Image(systemName: "arrow.up.arrow.down")
                         .font(.system(size: 12))
                         .foregroundStyle(.secondary)
                 }
+                .accessibilityIdentifier("networkDevicesPanel_menu_sort")
                 .menuStyle(.borderlessButton)
                 .fixedSize()
             }
@@ -141,6 +145,7 @@ struct NetworkDevicesPanel: View {
                 TextField("Search devices...", text: $searchText)
                     .textFieldStyle(.plain)
                     .font(.system(size: 12))
+                    .accessibilityIdentifier("networkDevicesPanel_textField_search")
                 if !searchText.isEmpty {
                     Button {
                         searchText = ""
@@ -150,6 +155,7 @@ struct NetworkDevicesPanel: View {
                             .foregroundStyle(.secondary)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityIdentifier("networkDevicesPanel_button_clearSearch")
                 }
             }
             .padding(.horizontal, 10)
@@ -185,6 +191,7 @@ struct NetworkDevicesPanel: View {
                                 .onTapGesture {
                                     selectedDevice = selectedDevice?.id == device.id ? nil : device
                                 }
+                                .accessibilityIdentifier("networkDevicesPanel_row_\(device.ipAddress)")
                         }
                     }
                     .padding(.vertical, 4)

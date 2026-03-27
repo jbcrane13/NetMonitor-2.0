@@ -63,6 +63,7 @@ struct TargetsView: View {
                                           systemImage: target.isEnabled ? "pause.circle" : "play.circle")
                                 }
                                 .tint(target.isEnabled ? .orange : .green)
+                                .accessibilityIdentifier("targets_row_swipe_toggleEnabled_\(target.id)")
                             }
                             .accessibilityIdentifier("targets_row_\(target.id)")
                             .contextMenu {
@@ -122,7 +123,9 @@ struct TargetsView: View {
             Button("Delete", role: .destructive) {
                 deleteSelectedTargets()
             }
+            .accessibilityIdentifier("targets_confirmDialog_button_delete")
             Button("Cancel", role: .cancel) {}
+                .accessibilityIdentifier("targets_confirmDialog_button_cancel")
         } message: {
             if selectedTargets.count == 1, let target = selectedTargets.first {
                 Text("This will permanently delete '\(target.name)' and all its measurement history.")

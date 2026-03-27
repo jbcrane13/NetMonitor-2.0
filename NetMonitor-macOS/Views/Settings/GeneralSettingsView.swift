@@ -48,7 +48,7 @@ struct GeneralSettingsView: View {
                     }
                 }
                 .buttonStyle(.plain)
-                .accessibilityIdentifier("settings_button_rateApp")
+                .accessibilityIdentifier("settings_button_rateApp_feedback")
             } header: {
                 Text("Feedback")
             }
@@ -68,7 +68,7 @@ struct GeneralSettingsView: View {
                     Button("Rate App") {
                         RateAppService.requestReview()
                     }
-                    .accessibilityIdentifier("settings_button_rateApp")
+                    .accessibilityIdentifier("settings_button_rateApp_about")
 
                     Button("Write a Review") {
                         RateAppService.openReviewPage()

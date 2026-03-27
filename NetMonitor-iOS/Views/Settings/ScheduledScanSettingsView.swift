@@ -136,6 +136,7 @@ struct ScheduledScanSettingsView: View {
                         viewModel.clearHistory()
                     }
                     .foregroundStyle(Theme.Colors.error)
+                    .accessibilityIdentifier("scheduledScan_button_clearHistory")
                 } header: {
                     Text("Scan History")
                         .foregroundStyle(Theme.Colors.textSecondary)

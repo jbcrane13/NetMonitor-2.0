@@ -43,6 +43,7 @@ struct TimelineView: View {
                         }
                         .font(.caption)
                         .foregroundStyle(Theme.Colors.error)
+                        .accessibilityIdentifier("timeline_button_clearAll")
                     }
                 }
             }
@@ -210,6 +211,7 @@ struct TimelineFilterSheet: View {
                                 }
                             }
                         }
+                        .accessibilityIdentifier("timeline_filter_type_\(type.rawValue)")
                     }
                 }
                 .listRowBackground(Theme.Colors.glassBackground)

@@ -146,6 +146,7 @@ struct BonjourBrowserToolView: View {
         }
         .buttonStyle(.plain)
         .background(selectedService?.id == service.id ? accentColor.opacity(0.2) : Color.clear)
+        .accessibilityIdentifier("bonjour_serviceRow_\(service.id)")
     }
 
     private var detailView: some View {

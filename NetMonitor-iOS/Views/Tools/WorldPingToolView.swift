@@ -234,7 +234,7 @@ private struct WorldPingLocationRow: View {
                     .foregroundStyle(Theme.Colors.textTertiary)
             }
         }
-        .accessibilityIdentifier("worldPing_location_row")
+        .accessibilityIdentifier("worldPing_location_row_\(result.id)")
     }
 }
 

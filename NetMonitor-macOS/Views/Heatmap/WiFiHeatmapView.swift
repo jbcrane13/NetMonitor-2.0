@@ -25,13 +25,17 @@ struct WiFiHeatmapView: View {
             Button("Choose Image File…") {
                 viewModel.showImportSheet = true
             }
+            .accessibilityIdentifier("heatmap_confirmDialog_button_chooseFile")
             Button("Choose from Photos…") {
                 viewModel.showPhotoPicker = true
             }
+            .accessibilityIdentifier("heatmap_confirmDialog_button_choosePhoto")
             Button("Import Blueprint (.netmonblueprint)…") {
                 showBlueprintImporter = true
             }
+            .accessibilityIdentifier("heatmap_confirmDialog_button_importBlueprint")
             Button("Cancel", role: .cancel) {}
+                .accessibilityIdentifier("heatmap_confirmDialog_button_cancel")
         }
         .fileImporter(
             isPresented: $viewModel.showImportSheet,
@@ -403,6 +407,7 @@ struct CalibrationSheet: View {
                         Text("feet").tag("feet")
                     }
                     .frame(width: 100)
+                    .accessibilityIdentifier("heatmap_picker_calibrationUnit")
                 }
             }
 
@@ -432,6 +437,7 @@ struct CalibrationSheet: View {
                     viewModel.cancelCalibration()
                     dismiss()
                 }
+                .accessibilityIdentifier("heatmap_button_cancelCalibration")
                 Spacer()
                 Button("Save Calibration") {
                     if let dist = Double(distanceText) {

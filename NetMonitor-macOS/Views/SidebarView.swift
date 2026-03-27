@@ -32,6 +32,7 @@ struct SidebarView: View {
                             deviceCount: deviceCount > 0 ? deviceCount : nil
                         )
                         .tag(SidebarSelection.network(profile.id))
+                        .accessibilityIdentifier("sidebar_row_network_\(profile.id)")
                     }
                 } header: {
                     HStack {
@@ -46,6 +47,7 @@ struct SidebarView: View {
                                 .foregroundStyle(MacTheme.Colors.sidebarTextSecondary)
                         }
                         .buttonStyle(.plain)
+                        .accessibilityIdentifier("sidebar_button_addNetwork")
                     }
                     .padding(.vertical, 4)
                 }

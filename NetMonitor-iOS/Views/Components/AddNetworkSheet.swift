@@ -77,6 +77,7 @@ struct AddNetworkSheet: View {
                         dismiss()
                     }
                     .disabled(isSubmitting)
+                    .accessibilityIdentifier("network_sheet_button_cancel")
                 }
             }
         }

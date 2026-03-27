@@ -234,6 +234,7 @@ struct HeatmapSidebarView: View {
                 }
                 .font(.caption)
                 .disabled(viewModel.isScanning)
+                .accessibilityIdentifier("heatmap_button_rescanAPs")
             }
         }
         .font(.caption)

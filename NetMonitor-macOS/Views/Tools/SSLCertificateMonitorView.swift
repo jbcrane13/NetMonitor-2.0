@@ -60,6 +60,7 @@ struct SSLCertificateMonitorView: View {
                 .textFieldStyle(.roundedBorder)
                 .frame(width: 60)
                 .disabled(isLoading)
+                .accessibilityIdentifier("ssl_monitor_input_port")
 
             Button(isLoading ? "Querying…" : "Query") { runQuery() }
                 .buttonStyle(.borderedProminent)
@@ -221,6 +222,7 @@ struct SSLCertificateMonitorView: View {
             }
             .buttonStyle(.plain)
             .foregroundStyle(.red)
+            .accessibilityIdentifier("ssl_monitor_watchlist_row_button_delete_\(status.domain)")
         }
     }
 
@@ -248,6 +250,7 @@ struct SSLCertificateMonitorView: View {
                             Button("Cancel") { showAddNotes = false
                             notes = ""
                             }
+                            .accessibilityIdentifier("ssl_monitor_button_cancel_notes")
                         } else {
                             Button("Add to Watch List") { showAddNotes = true }
                                 .accessibilityIdentifier("ssl_monitor_button_add")

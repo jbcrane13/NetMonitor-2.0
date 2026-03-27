@@ -236,6 +236,7 @@ struct SSLCertificateMonitorView: View {
                                 viewModel.notes = ""
                             }
                             .foregroundStyle(Theme.Colors.textSecondary)
+                            .accessibilityIdentifier("ssl_monitor_button_cancel_add")
 
                             Spacer()
 
@@ -411,6 +412,7 @@ private struct WatchListRow: View {
             }
             .buttonStyle(.plain)
             .foregroundStyle(Theme.Colors.error)
+            .accessibilityIdentifier("ssl_monitor_button_delete_\(status.domain)")
         }
         .padding(.vertical, 8)
         .padding(.horizontal, 12)

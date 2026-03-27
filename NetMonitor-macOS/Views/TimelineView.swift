@@ -78,11 +78,13 @@ struct TimelineView: View {
                 }
                 .pickerStyle(.menu)
                 .frame(maxWidth: 180)
+                .accessibilityIdentifier("timeline_picker_filter")
 
                 Button("Clear All") { viewModel.clearAll() }
                     .buttonStyle(.plain)
                     .foregroundStyle(MacTheme.Colors.error)
                     .font(.caption)
+                    .accessibilityIdentifier("timeline_button_clearAll")
             }
             .macGlassCard(cornerRadius: MacTheme.Layout.smallCornerRadius, padding: MacTheme.Layout.cardPadding, showBorder: false)
 
