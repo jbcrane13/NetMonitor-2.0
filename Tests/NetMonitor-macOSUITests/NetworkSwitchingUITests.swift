@@ -180,7 +180,7 @@ final class NetworkSwitchingUITests: MacOSUITestCase {
         XCTAssertTrue(scanButton.waitForExistence(timeout: 3))
         scanButton.tap()
 
-        XCTAssertTrue(app.descendants(matching: .any)["sidebar_devices"].waitForExistence(timeout: 3),
+        XCTAssertTrue(app.descendants(matching: .any)["sidebar_nav_devices"].waitForExistence(timeout: 3),
                       "Should navigate to devices after initiating scan")
     }
 }

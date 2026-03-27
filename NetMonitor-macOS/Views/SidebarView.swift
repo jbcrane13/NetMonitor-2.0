@@ -62,7 +62,7 @@ struct SidebarView: View {
                             badgeColor: badgeColor(for: section)
                         )
                         .tag(SidebarSelection.section(section))
-                        .accessibilityIdentifier("sidebar_\(section.rawValue.lowercased())")
+                        .accessibilityIdentifier("sidebar_nav_\(section.rawValue.lowercased())")
                     }
                 } header: {
                     Text("COMMAND")
@@ -164,7 +164,6 @@ struct SidebarRow: View {
             Text(title)
                 .font(.system(size: 13, weight: isSelected ? .bold : .semibold))
                 .foregroundStyle(isSelected ? MacTheme.Colors.sidebarTextPrimary : MacTheme.Colors.sidebarTextSecondary)
-                .accessibilityIdentifier("sidebar_\(title.lowercased())")
             
             Spacer()
 
