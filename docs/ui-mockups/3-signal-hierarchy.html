@@ -1,0 +1,934 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NetMonitor 2.0 — Mockup 3: Signal Hierarchy</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100;200;300;400;500;600;700;800;900&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #141416;
+    --sidebar-bg: #1C1C1E;
+    --card-bg: rgba(255, 255, 255, 0.04);
+    --card-border: rgba(255, 255, 255, 0.06);
+    --cyan: #06B6D4;
+    --cyan-dim: rgba(6, 182, 212, 0.15);
+    --green: #34D399;
+    --green-dim: rgba(52, 211, 153, 0.15);
+    --amber: #FBBF24;
+    --amber-dim: rgba(251, 191, 36, 0.12);
+    --red: #F87171;
+    --white-90: rgba(255, 255, 255, 0.9);
+    --white-70: rgba(255, 255, 255, 0.7);
+    --white-50: rgba(255, 255, 255, 0.5);
+    --white-30: rgba(255, 255, 255, 0.3);
+    --white-15: rgba(255, 255, 255, 0.15);
+    --white-08: rgba(255, 255, 255, 0.08);
+    --white-04: rgba(255, 255, 255, 0.04);
+  }
+
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--white-90);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Banner */
+  .banner {
+    background: rgba(6, 182, 212, 0.06);
+    border-bottom: 1px solid rgba(6, 182, 212, 0.12);
+    padding: 6px 20px;
+    text-align: center;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    color: var(--cyan);
+    text-transform: uppercase;
+  }
+
+  /* Layout */
+  .app {
+    display: flex;
+    height: calc(100vh - 29px);
+    background: radial-gradient(ellipse 80% 50% at 50% 0%, rgba(6, 182, 212, 0.03) 0%, transparent 60%);
+  }
+
+  /* Sidebar */
+  .sidebar {
+    width: 240px;
+    min-width: 240px;
+    background: var(--sidebar-bg);
+    border-right: 1px solid var(--card-border);
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    overflow: hidden;
+  }
+  .sidebar::before {
+    content: '';
+    position: absolute;
+    top: -40px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 180px;
+    height: 120px;
+    background: radial-gradient(ellipse, rgba(6, 182, 212, 0.08) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .sidebar-section {
+    padding: 16px 14px 8px;
+  }
+  .sidebar-section-label {
+    font-size: 8px;
+    font-weight: 900;
+    letter-spacing: 2.5px;
+    color: var(--white-30);
+    margin-bottom: 10px;
+    text-transform: uppercase;
+  }
+  .sidebar-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 10px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--white-70);
+    cursor: pointer;
+    margin-bottom: 2px;
+    transition: background 0.15s;
+  }
+  .sidebar-item:hover {
+    background: var(--white-04);
+  }
+  .sidebar-item.active {
+    background: rgba(6, 182, 212, 0.1);
+    color: var(--cyan);
+  }
+  .sidebar-item .icon {
+    width: 18px;
+    height: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+  }
+  .sidebar-network {
+    padding: 18px 14px 14px;
+    border-bottom: 1px solid var(--card-border);
+  }
+  .sidebar-network-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--white-90);
+    margin-bottom: 3px;
+  }
+  .sidebar-network-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 8px;
+    font-weight: 800;
+    letter-spacing: 1.5px;
+    color: var(--green);
+    text-transform: uppercase;
+  }
+  .sidebar-network-badge::before {
+    content: '';
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--green);
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+  .sidebar-stat-row {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 10px;
+  }
+  .sidebar-stat {
+    text-align: center;
+  }
+  .sidebar-stat-value {
+    font-size: 16px;
+    font-weight: 100;
+    color: var(--white-90);
+    font-variant-numeric: tabular-nums;
+  }
+  .sidebar-stat-label {
+    font-size: 7px;
+    font-weight: 900;
+    letter-spacing: 1.5px;
+    color: var(--white-30);
+    text-transform: uppercase;
+    margin-top: 2px;
+  }
+
+  /* Main Content */
+  .main {
+    flex: 1;
+    padding: 14px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  /* Glass Card */
+  .card {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 16px;
+    padding: 14px;
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    position: relative;
+    overflow: hidden;
+  }
+  .card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent 10%, rgba(255,255,255,0.06) 50%, transparent 90%);
+  }
+
+  /* Card Header — THE KEY CHANGE: tiny militant labels */
+  .card-header {
+    font-size: 8px;
+    font-weight: 900;
+    letter-spacing: 2.5px;
+    color: var(--white-30);
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+
+  /* Row layouts */
+  .row-a {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    min-height: 160px;
+  }
+  .row-b {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+  }
+  .row-b-pair {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  /* ==========================================
+     ISP HEALTH CARD
+     ========================================== */
+  .isp-body {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .isp-gateway {
+    font-size: 18px;
+    font-weight: 200;
+    color: var(--cyan);
+    font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
+    font-variant-numeric: tabular-nums;
+  }
+  .isp-wan {
+    font-size: 9px;
+    font-weight: 500;
+    color: var(--white-50);
+  }
+  .isp-wan span {
+    font-family: 'SF Mono', 'Menlo', monospace;
+    font-weight: 300;
+    color: var(--white-70);
+  }
+  .isp-speeds {
+    display: flex;
+    gap: 16px;
+    margin-top: 2px;
+  }
+  .isp-speed {
+    display: flex;
+    align-items: baseline;
+    gap: 3px;
+  }
+  .isp-speed-arrow {
+    font-size: 10px;
+    color: var(--white-30);
+  }
+  .isp-speed-val {
+    font-size: 14px;
+    font-weight: 200;
+    color: var(--white-90);
+    font-variant-numeric: tabular-nums;
+  }
+  .isp-speed-unit {
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    color: var(--white-30);
+    text-transform: uppercase;
+  }
+  .isp-uptime-section {
+    margin-top: auto;
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+  }
+  .isp-uptime-val {
+    font-size: 26px;
+    font-weight: 100;
+    color: var(--green);
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'ss01' on;
+  }
+  .isp-uptime-label {
+    font-size: 8px;
+    font-weight: 900;
+    letter-spacing: 2px;
+    color: var(--white-30);
+    text-transform: uppercase;
+  }
+
+  /* ==========================================
+     HEALTH GAUGE CARD
+     ========================================== */
+  .health-body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    flex: 1;
+    justify-content: center;
+  }
+  .health-score-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+  }
+  .health-score {
+    font-size: 42px;
+    font-weight: 100;
+    background: linear-gradient(180deg, rgba(255,255,255,0.95) 30%, rgba(255,255,255,0.75) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+    letter-spacing: -1px;
+  }
+  .health-grade {
+    font-size: 12px;
+    font-weight: 800;
+    color: var(--green);
+    margin-left: 6px;
+    align-self: flex-start;
+    margin-top: 6px;
+  }
+  .health-label-sub {
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    color: var(--white-30);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .health-bars {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    margin-top: 4px;
+  }
+  .health-bar-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .health-bar-label {
+    font-size: 8px;
+    font-weight: 700;
+    color: var(--white-50);
+    width: 52px;
+    text-align: right;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .health-bar-track {
+    flex: 1;
+    height: 3px;
+    background: var(--white-08);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .health-bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.6s ease;
+  }
+  .health-bar-value {
+    font-size: 10px;
+    font-weight: 300;
+    color: var(--white-70);
+    width: 28px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ==========================================
+     LATENCY ANALYSIS CARD
+     ========================================== */
+  .latency-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 10px;
+  }
+  .latency-badge {
+    font-size: 18px;
+    font-weight: 800;
+    color: var(--green);
+    display: flex;
+    align-items: baseline;
+    gap: 2px;
+  }
+  .latency-badge-unit {
+    font-size: 9px;
+    font-weight: 700;
+    color: var(--green);
+    opacity: 0.7;
+  }
+  .latency-status {
+    font-size: 8px;
+    font-weight: 700;
+    color: var(--green);
+    background: var(--green-dim);
+    padding: 3px 8px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  .latency-chart {
+    height: 48px;
+    margin-bottom: 10px;
+  }
+  .latency-stats {
+    display: flex;
+    justify-content: space-between;
+  }
+  .latency-stat {
+    text-align: center;
+  }
+  .latency-stat-val {
+    font-size: 18px;
+    font-weight: 200;
+    color: var(--white-90);
+    font-variant-numeric: tabular-nums;
+    font-family: 'SF Mono', 'Menlo', monospace;
+  }
+  .latency-stat-label {
+    font-size: 7px;
+    font-weight: 900;
+    letter-spacing: 1.5px;
+    color: var(--white-30);
+    text-transform: uppercase;
+    margin-top: 2px;
+  }
+
+  /* ==========================================
+     WIFI SIGNAL CARD
+     ========================================== */
+  .wifi-body {
+    display: flex;
+    gap: 14px;
+  }
+  .wifi-left {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .wifi-signal-row {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+  }
+  .wifi-signal-val {
+    font-size: 28px;
+    font-weight: 100;
+    color: var(--green);
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+  .wifi-signal-unit {
+    font-size: 8px;
+    font-weight: 700;
+    color: var(--white-30);
+    text-transform: uppercase;
+  }
+  .wifi-quality {
+    font-size: 9px;
+    font-weight: 600;
+    color: var(--green);
+    margin-top: 4px;
+  }
+  .wifi-bars-visual {
+    display: flex;
+    align-items: flex-end;
+    gap: 2px;
+    margin-top: 8px;
+  }
+  .wifi-bar {
+    width: 4px;
+    border-radius: 1px;
+    background: var(--white-15);
+  }
+  .wifi-bar.active {
+    background: var(--green);
+  }
+  .wifi-right {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  .wifi-detail-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .wifi-detail-label {
+    font-size: 8px;
+    font-weight: 900;
+    color: var(--white-30);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  .wifi-detail-val {
+    font-size: 11px;
+    font-weight: 300;
+    color: var(--white-70);
+    font-family: 'SF Mono', 'Menlo', monospace;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ==========================================
+     CONNECTIVITY CARD
+     ========================================== */
+  .conn-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+  }
+  .conn-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .conn-label {
+    font-size: 8px;
+    font-weight: 900;
+    color: var(--white-30);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  .conn-val {
+    font-size: 12px;
+    font-weight: 300;
+    color: var(--white-70);
+    font-family: 'SF Mono', 'Menlo', monospace;
+    font-variant-numeric: tabular-nums;
+  }
+  .conn-val.ok {
+    color: var(--green);
+  }
+  .conn-dot {
+    display: inline-block;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    margin-right: 5px;
+  }
+  .conn-dot.green { background: var(--green); }
+  .conn-dot.amber { background: var(--amber); }
+  .conn-dot.red { background: var(--red); }
+
+  /* ==========================================
+     NETWORK INTEL CARD
+     ========================================== */
+  .intel-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 10px;
+  }
+  .intel-stat {
+    text-align: center;
+  }
+  .intel-stat-val {
+    font-size: 22px;
+    font-weight: 200;
+    color: var(--white-90);
+    font-family: 'SF Mono', 'Menlo', monospace;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.1;
+  }
+  .intel-stat-label {
+    font-size: 6px;
+    font-weight: 900;
+    letter-spacing: 1px;
+    color: var(--white-30);
+    text-transform: uppercase;
+    margin-top: 3px;
+  }
+  .intel-divider {
+    height: 1px;
+    background: var(--card-border);
+    margin: 10px 0;
+  }
+  .intel-detail-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  .intel-detail-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .intel-detail-label {
+    font-size: 7px;
+    font-weight: 900;
+    color: var(--white-30);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  .intel-detail-val {
+    font-size: 10px;
+    font-weight: 300;
+    color: var(--white-70);
+    font-family: 'SF Mono', 'Menlo', monospace;
+  }
+</style>
+</head>
+<body>
+
+<div class="banner">Mockup 3: Signal Hierarchy &mdash; Dramatic typography contrast</div>
+
+<div class="app">
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="sidebar-network">
+      <div class="sidebar-network-name">CRANE-5G</div>
+      <div class="sidebar-network-badge">Active</div>
+      <div class="sidebar-stat-row">
+        <div class="sidebar-stat">
+          <div class="sidebar-stat-value">14</div>
+          <div class="sidebar-stat-label">Devices</div>
+        </div>
+        <div class="sidebar-stat">
+          <div class="sidebar-stat-value">12</div>
+          <div class="sidebar-stat-label">Online</div>
+        </div>
+        <div class="sidebar-stat">
+          <div class="sidebar-stat-value">8ms</div>
+          <div class="sidebar-stat-label">Gateway</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-section-label">Navigate</div>
+      <div class="sidebar-item active">
+        <div class="icon">&#9673;</div>
+        Dashboard
+      </div>
+      <div class="sidebar-item">
+        <div class="icon">&#9783;</div>
+        Devices
+      </div>
+      <div class="sidebar-item">
+        <div class="icon">&#9881;</div>
+        Tools
+      </div>
+      <div class="sidebar-item">
+        <div class="icon">&#9201;</div>
+        History
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-section-label">Quick Actions</div>
+      <div class="sidebar-item">
+        <div class="icon">&#8635;</div>
+        Rescan Network
+      </div>
+      <div class="sidebar-item">
+        <div class="icon">&#9889;</div>
+        Speed Test
+      </div>
+      <div class="sidebar-item">
+        <div class="icon">&#128269;</div>
+        DNS Lookup
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Content -->
+  <div class="main">
+    <!-- Row A: ISP Health + Health Gauge -->
+    <div class="row-a">
+      <!-- ISP Health Card -->
+      <div class="card">
+        <div class="card-header">Gateway Health</div>
+        <div class="isp-body">
+          <div class="isp-gateway">192.168.1.1</div>
+          <div class="isp-wan">WAN <span>73.42.118.205</span></div>
+          <div class="isp-speeds">
+            <div class="isp-speed">
+              <span class="isp-speed-arrow">&darr;</span>
+              <span class="isp-speed-val">245</span>
+              <span class="isp-speed-unit">Mbps</span>
+            </div>
+            <div class="isp-speed">
+              <span class="isp-speed-arrow">&uarr;</span>
+              <span class="isp-speed-val">38</span>
+              <span class="isp-speed-unit">Mbps</span>
+            </div>
+          </div>
+          <div class="isp-uptime-section">
+            <span class="isp-uptime-val">99.7%</span>
+            <span class="isp-uptime-label">30-Day Uptime</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Health Gauge Card -->
+      <div class="card">
+        <div class="card-header">Network Health</div>
+        <div class="health-body">
+          <div class="health-score-wrap">
+            <span class="health-score">87</span>
+            <span class="health-grade">A+</span>
+          </div>
+          <div class="health-label-sub">Overall Score</div>
+          <div class="health-bars">
+            <div class="health-bar-row">
+              <span class="health-bar-label">Latency</span>
+              <div class="health-bar-track">
+                <div class="health-bar-fill" style="width: 92%; background: var(--green);"></div>
+              </div>
+              <span class="health-bar-value">92</span>
+            </div>
+            <div class="health-bar-row">
+              <span class="health-bar-label">Uptime</span>
+              <div class="health-bar-track">
+                <div class="health-bar-fill" style="width: 97%; background: var(--green);"></div>
+              </div>
+              <span class="health-bar-value">97</span>
+            </div>
+            <div class="health-bar-row">
+              <span class="health-bar-label">Packet Loss</span>
+              <div class="health-bar-track">
+                <div class="health-bar-fill" style="width: 85%; background: var(--cyan);"></div>
+              </div>
+              <span class="health-bar-value">85</span>
+            </div>
+            <div class="health-bar-row">
+              <span class="health-bar-label">Jitter</span>
+              <div class="health-bar-track">
+                <div class="health-bar-fill" style="width: 78%; background: var(--amber);"></div>
+              </div>
+              <span class="health-bar-value">78</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Row B -->
+    <div class="row-b">
+      <!-- Left pair -->
+      <div class="row-b-pair">
+        <!-- Latency Analysis -->
+        <div class="card">
+          <div class="card-header">Latency Analysis &middot; Gateway</div>
+          <div class="latency-top">
+            <div class="latency-badge">
+              12<span class="latency-badge-unit">ms</span>
+            </div>
+            <div class="latency-status">Excellent</div>
+          </div>
+          <div class="latency-chart">
+            <svg width="100%" height="48" viewBox="0 0 400 48" preserveAspectRatio="none">
+              <defs>
+                <linearGradient id="latGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#06B6D4" stop-opacity="0.3"/>
+                  <stop offset="100%" stop-color="#06B6D4" stop-opacity="0"/>
+                </linearGradient>
+              </defs>
+              <path d="M0,30 C20,28 40,26 60,24 C80,22 100,18 120,20 C140,22 160,15 180,12 C200,9 220,14 240,16 C260,18 280,10 300,8 C320,6 340,11 360,14 C380,16 400,12 400,12 L400,48 L0,48 Z" fill="url(#latGrad)"/>
+              <path d="M0,30 C20,28 40,26 60,24 C80,22 100,18 120,20 C140,22 160,15 180,12 C200,9 220,14 240,16 C260,18 280,10 300,8 C320,6 340,11 360,14 C380,16 400,12 400,12" fill="none" stroke="#06B6D4" stroke-width="1.5" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <div class="latency-stats">
+            <div class="latency-stat">
+              <div class="latency-stat-val">8</div>
+              <div class="latency-stat-label">Min</div>
+            </div>
+            <div class="latency-stat">
+              <div class="latency-stat-val">12</div>
+              <div class="latency-stat-label">Avg</div>
+            </div>
+            <div class="latency-stat">
+              <div class="latency-stat-val">24</div>
+              <div class="latency-stat-label">Max</div>
+            </div>
+            <div class="latency-stat">
+              <div class="latency-stat-val">2.1</div>
+              <div class="latency-stat-label">Jitter</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- WiFi Signal -->
+        <div class="card">
+          <div class="card-header">WiFi Signal</div>
+          <div class="wifi-body">
+            <div class="wifi-left">
+              <div class="wifi-signal-row">
+                <span class="wifi-signal-val">-42</span>
+                <span class="wifi-signal-unit">dBm</span>
+              </div>
+              <div class="wifi-quality">Excellent</div>
+              <div class="wifi-bars-visual">
+                <div class="wifi-bar active" style="height: 6px;"></div>
+                <div class="wifi-bar active" style="height: 10px;"></div>
+                <div class="wifi-bar active" style="height: 14px;"></div>
+                <div class="wifi-bar active" style="height: 18px;"></div>
+                <div class="wifi-bar active" style="height: 22px;"></div>
+              </div>
+            </div>
+            <div class="wifi-right">
+              <div class="wifi-detail-row">
+                <span class="wifi-detail-label">Channel</span>
+                <span class="wifi-detail-val">149</span>
+              </div>
+              <div class="wifi-detail-row">
+                <span class="wifi-detail-label">Band</span>
+                <span class="wifi-detail-val">5 GHz</span>
+              </div>
+              <div class="wifi-detail-row">
+                <span class="wifi-detail-label">Width</span>
+                <span class="wifi-detail-val">80 MHz</span>
+              </div>
+              <div class="wifi-detail-row">
+                <span class="wifi-detail-label">Noise</span>
+                <span class="wifi-detail-val">-95 dBm</span>
+              </div>
+              <div class="wifi-detail-row">
+                <span class="wifi-detail-label">SNR</span>
+                <span class="wifi-detail-val">53 dB</span>
+              </div>
+              <div class="wifi-detail-row">
+                <span class="wifi-detail-label">Tx Rate</span>
+                <span class="wifi-detail-val">866 Mbps</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right pair -->
+      <div class="row-b-pair">
+        <!-- Connectivity -->
+        <div class="card">
+          <div class="card-header">Connectivity</div>
+          <div class="conn-rows">
+            <div class="conn-row">
+              <span class="conn-label">Gateway</span>
+              <span class="conn-val ok"><span class="conn-dot green"></span>Reachable</span>
+            </div>
+            <div class="conn-row">
+              <span class="conn-label">DNS</span>
+              <span class="conn-val ok"><span class="conn-dot green"></span>1.1.1.1</span>
+            </div>
+            <div class="conn-row">
+              <span class="conn-label">Internet</span>
+              <span class="conn-val ok"><span class="conn-dot green"></span>Connected</span>
+            </div>
+            <div class="conn-row">
+              <span class="conn-label">IPv6</span>
+              <span class="conn-val"><span class="conn-dot amber"></span>Not Available</span>
+            </div>
+            <div class="conn-row">
+              <span class="conn-label">VPN</span>
+              <span class="conn-val"><span class="conn-dot red"></span>Inactive</span>
+            </div>
+            <div class="conn-row">
+              <span class="conn-label">NAT Type</span>
+              <span class="conn-val">Moderate</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Network Intel -->
+        <div class="card">
+          <div class="card-header">Network Intel</div>
+          <div class="intel-grid">
+            <div class="intel-stat">
+              <div class="intel-stat-val">14</div>
+              <div class="intel-stat-label">Devices</div>
+            </div>
+            <div class="intel-stat">
+              <div class="intel-stat-val">47</div>
+              <div class="intel-stat-label">Open Ports</div>
+            </div>
+            <div class="intel-stat">
+              <div class="intel-stat-val">3</div>
+              <div class="intel-stat-label">Services</div>
+            </div>
+          </div>
+          <div class="intel-divider"></div>
+          <div class="intel-detail-rows">
+            <div class="intel-detail-row">
+              <span class="intel-detail-label">Subnet</span>
+              <span class="intel-detail-val">192.168.1.0/24</span>
+            </div>
+            <div class="intel-detail-row">
+              <span class="intel-detail-label">DHCP Range</span>
+              <span class="intel-detail-val">.100 - .254</span>
+            </div>
+            <div class="intel-detail-row">
+              <span class="intel-detail-label">Last Scan</span>
+              <span class="intel-detail-val">2m ago</span>
+            </div>
+            <div class="intel-detail-row">
+              <span class="intel-detail-label">Scan Duration</span>
+              <span class="intel-detail-val">4.2s</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

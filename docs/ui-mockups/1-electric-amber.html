@@ -1,0 +1,1164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NetMonitor 2.0 — Electric Amber Mockup</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --accent: #F5A623;
+    --accent-light: #FFCC02;
+    --accent-dim: rgba(245, 166, 35, 0.15);
+    --accent-glow: rgba(245, 166, 35, 0.3);
+
+    --bg-window: #141416;
+    --bg-sidebar: #1C1C1E;
+    --bg-card: rgba(26, 31, 38, 0.6);
+    --bg-recessed: rgba(0, 0, 0, 0.35);
+
+    --green: #34C759;
+    --green-dim: rgba(52, 199, 89, 0.15);
+    --red: #FF3B30;
+    --red-dim: rgba(255, 59, 48, 0.15);
+    --blue: #0A84FF;
+    --blue-dim: rgba(10, 132, 255, 0.15);
+    --purple: #BF5AF2;
+    --purple-dim: rgba(191, 90, 242, 0.15);
+    --amber-warn: #FF9F0A;
+    --amber-warn-dim: rgba(255, 159, 10, 0.15);
+
+    --text-primary: rgba(255, 255, 255, 0.95);
+    --text-secondary: rgba(255, 255, 255, 0.7);
+    --text-tertiary: rgba(255, 255, 255, 0.5);
+    --text-quaternary: rgba(255, 255, 255, 0.35);
+
+    --font-system: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+    --font-mono: "SF Mono", ui-monospace, "Cascadia Code", "Menlo", monospace;
+
+    --card-radius: 16px;
+    --card-padding: 14px;
+    --card-border: 0.5px solid rgba(255, 255, 255, 0.15);
+    --card-shadow: 0 5px 10px rgba(0, 0, 0, 0.25);
+    --gap: 10px;
+  }
+
+  body {
+    font-family: var(--font-system);
+    background: var(--bg-window);
+    color: var(--text-primary);
+    min-height: 100vh;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Mockup banner */
+  .mockup-banner {
+    background: rgba(245, 166, 35, 0.08);
+    border-bottom: 1px solid rgba(245, 166, 35, 0.2);
+    padding: 6px 20px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    color: var(--accent);
+    text-align: center;
+    font-family: var(--font-mono);
+  }
+
+  /* Window chrome */
+  .window-chrome {
+    display: flex;
+    align-items: center;
+    height: 36px;
+    padding: 0 14px;
+    background: rgba(28, 28, 30, 0.9);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    -webkit-app-region: drag;
+  }
+  .traffic-lights {
+    display: flex;
+    gap: 7px;
+    align-items: center;
+  }
+  .traffic-light {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+  }
+  .tl-close { background: #FF5F56; }
+  .tl-minimize { background: #FFBD2E; }
+  .tl-maximize { background: #27C93F; }
+  .window-title {
+    flex: 1;
+    text-align: center;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-right: 50px;
+  }
+
+  /* Layout */
+  .app-layout {
+    display: flex;
+    height: calc(100vh - 36px - 25px);
+    position: relative;
+  }
+  .app-layout::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(30, 35, 55, 0.25) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* Sidebar */
+  .sidebar {
+    width: 240px;
+    min-width: 240px;
+    background: var(--bg-sidebar);
+    border-right: 1px solid rgba(255, 255, 255, 0.06);
+    padding: 14px 12px;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    z-index: 1;
+    overflow: hidden;
+  }
+  .sidebar::before {
+    content: '';
+    position: absolute;
+    top: -40px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 200px;
+    height: 120px;
+    background: radial-gradient(ellipse, rgba(100, 70, 30, 0.15) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .sidebar-section-header {
+    font-size: 10px;
+    font-weight: 900;
+    letter-spacing: 1.5px;
+    color: rgba(255, 255, 255, 0.6);
+    margin-bottom: 8px;
+    margin-top: 18px;
+    padding-left: 10px;
+  }
+  .sidebar-section-header:first-child {
+    margin-top: 6px;
+  }
+
+  .sidebar-row {
+    display: flex;
+    align-items: center;
+    padding: 8px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    position: relative;
+    margin-bottom: 2px;
+    transition: background 0.15s;
+  }
+  .sidebar-row:hover {
+    background: rgba(255, 255, 255, 0.05);
+  }
+  .sidebar-row.active {
+    background: rgba(245, 166, 35, 0.08);
+  }
+  .sidebar-row.active::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 3px;
+    height: 16px;
+    background: var(--accent);
+    border-radius: 0 2px 2px 0;
+  }
+  .sidebar-row-icon {
+    width: 18px;
+    height: 18px;
+    margin-right: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-tertiary);
+    font-size: 14px;
+  }
+  .sidebar-row.active .sidebar-row-icon {
+    color: var(--accent);
+  }
+  .sidebar-row-label {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    flex: 1;
+  }
+  .sidebar-row.active .sidebar-row-label {
+    color: var(--text-primary);
+    font-weight: 600;
+  }
+  .sidebar-badge {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 1px 6px;
+    border-radius: 5px;
+    margin-left: 4px;
+  }
+  .sidebar-badge.count {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-tertiary);
+  }
+  .sidebar-badge.active-badge {
+    background: var(--green-dim);
+    color: var(--green);
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+  }
+
+  /* Main content */
+  .main-content {
+    flex: 1;
+    padding: 14px;
+    overflow-y: auto;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* Dashboard header */
+  .dashboard-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+  }
+  .dashboard-title {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text-primary);
+  }
+  .dashboard-tabs {
+    display: flex;
+    gap: 2px;
+    background: rgba(255, 255, 255, 0.06);
+    padding: 2px;
+    border-radius: 8px;
+  }
+  .dashboard-tab {
+    font-size: 12px;
+    font-weight: 600;
+    padding: 5px 14px;
+    border-radius: 6px;
+    color: var(--text-tertiary);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .dashboard-tab.active {
+    background: var(--accent);
+    color: #000;
+  }
+  .dashboard-tab:hover:not(.active) {
+    color: var(--text-secondary);
+  }
+
+  /* Glass card */
+  .glass-card {
+    background: var(--bg-card);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-radius: var(--card-radius);
+    border: var(--card-border);
+    box-shadow: var(--card-shadow);
+    padding: var(--card-padding);
+    position: relative;
+    overflow: hidden;
+  }
+  .glass-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: linear-gradient(135deg, rgba(255,255,255,0.08) 0%, transparent 50%, rgba(255,255,255,0.02) 100%);
+    border-radius: var(--card-radius);
+    pointer-events: none;
+  }
+  .glass-card::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: var(--card-radius);
+    padding: 1px;
+    background: linear-gradient(135deg, rgba(255,255,255,0.20), rgba(255,255,255,0.05) 50%, transparent);
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+
+  /* Card header */
+  .card-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 10px;
+  }
+  .card-header-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+  }
+  .card-header-title {
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 1px;
+    color: var(--text-tertiary);
+  }
+  .card-header-badge {
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    padding: 1px 6px;
+    border-radius: 4px;
+    margin-left: auto;
+  }
+
+  /* Grid layouts */
+  .row-a {
+    display: flex;
+    gap: var(--gap);
+    margin-bottom: var(--gap);
+  }
+  .row-a .isp-health { flex: 6; min-width: 0; }
+  .row-a .health-gauge { flex: 4; min-width: 0; }
+  .row-a .glass-card { height: 160px; }
+
+  .row-b {
+    display: flex;
+    gap: var(--gap);
+  }
+  .row-b-left {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap);
+  }
+  .row-b-right {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap);
+  }
+
+  /* ISP Health Card */
+  .isp-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr auto;
+    gap: 8px;
+    height: calc(100% - 30px);
+    position: relative;
+    z-index: 1;
+  }
+  .isp-left { display: flex; flex-direction: column; gap: 4px; }
+  .isp-center { display: flex; flex-direction: column; gap: 4px; }
+  .isp-right { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+
+  .gateway-ip {
+    font-size: 16px;
+    font-weight: 700;
+    font-family: var(--font-mono);
+    color: var(--text-primary);
+  }
+  .gateway-host {
+    font-size: 11px;
+    color: var(--blue);
+    font-family: var(--font-mono);
+  }
+  .badge-online {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    background: var(--green-dim);
+    color: var(--green);
+    padding: 2px 7px;
+    border-radius: 4px;
+  }
+  .badge-gateway {
+    font-size: 9px;
+    font-weight: 700;
+    background: rgba(255,255,255,0.08);
+    color: var(--text-quaternary);
+    padding: 2px 6px;
+    border-radius: 4px;
+    letter-spacing: 0.5px;
+  }
+
+  .wan-ip {
+    font-size: 11px;
+    font-family: var(--font-mono);
+    color: var(--text-secondary);
+  }
+  .wan-label {
+    font-size: 9px;
+    font-weight: 700;
+    color: var(--text-quaternary);
+    letter-spacing: 0.5px;
+  }
+  .speed-down {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--blue);
+  }
+  .speed-up {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--purple);
+  }
+
+  .uptime-label {
+    font-size: 9px;
+    font-weight: 700;
+    color: var(--text-quaternary);
+    letter-spacing: 0.5px;
+  }
+  .uptime-value {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--green);
+  }
+  .uptime-sub {
+    font-size: 10px;
+    color: var(--text-quaternary);
+  }
+
+  .sparkline-container {
+    width: 100%;
+    height: 50px;
+    background: var(--bg-recessed);
+    border-radius: 8px;
+    padding: 6px;
+    margin-top: auto;
+  }
+
+  /* Health Gauge */
+  .gauge-layout {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    height: calc(100% - 30px);
+    position: relative;
+    z-index: 1;
+  }
+  .gauge-circle {
+    position: relative;
+    width: 100px;
+    height: 100px;
+    flex-shrink: 0;
+  }
+  .gauge-center-text {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+  }
+  .gauge-score {
+    font-size: 30px;
+    font-weight: 800;
+    color: var(--text-primary);
+    line-height: 1;
+  }
+  .gauge-grade {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--accent);
+    margin-top: 2px;
+  }
+  .gauge-bars {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .gauge-bar-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .gauge-bar-label {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text-tertiary);
+    width: 55px;
+    text-align: right;
+  }
+  .gauge-bar-track {
+    flex: 1;
+    height: 5px;
+    background: rgba(255,255,255,0.08);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .gauge-bar-fill {
+    height: 100%;
+    border-radius: 3px;
+  }
+  .gauge-bar-value {
+    font-size: 10px;
+    font-weight: 700;
+    font-family: var(--font-mono);
+    width: 30px;
+    color: var(--text-secondary);
+  }
+
+  /* Latency Card */
+  .latency-card-content {
+    position: relative;
+    z-index: 1;
+  }
+  .waveform-container {
+    height: 60px;
+    background: var(--bg-recessed);
+    border-radius: 8px;
+    padding: 6px;
+    margin-bottom: 10px;
+    position: relative;
+    overflow: hidden;
+  }
+  .latency-gradient-legend {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-bottom: 8px;
+  }
+  .gradient-bar {
+    flex: 1;
+    height: 3px;
+    border-radius: 2px;
+    background: linear-gradient(90deg, var(--green), var(--accent), var(--red));
+  }
+  .gradient-label {
+    font-size: 9px;
+    color: var(--text-quaternary);
+    font-weight: 600;
+  }
+  .latency-stats {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .latency-stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex: 1;
+    min-width: 50px;
+  }
+  .latency-stat-label {
+    font-size: 9px;
+    font-weight: 700;
+    color: var(--text-quaternary);
+    letter-spacing: 0.5px;
+  }
+  .latency-stat-value {
+    font-size: 13px;
+    font-weight: 700;
+    font-family: var(--font-mono);
+    color: var(--text-primary);
+  }
+
+  /* WiFi Signal Card */
+  .wifi-content {
+    position: relative;
+    z-index: 1;
+  }
+  .wifi-top {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 10px;
+  }
+  .wifi-dbm {
+    font-size: 22px;
+    font-weight: 800;
+    color: var(--green);
+    font-family: var(--font-mono);
+  }
+  .wifi-quality {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--green);
+  }
+  .wifi-bars {
+    display: flex;
+    align-items: flex-end;
+    gap: 2px;
+    margin-left: auto;
+  }
+  .wifi-bar {
+    width: 5px;
+    border-radius: 2px;
+    background: var(--green);
+  }
+  .wifi-meta {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 8px;
+  }
+  .wifi-meta-item {
+    font-size: 11px;
+    color: var(--text-tertiary);
+    font-family: var(--font-mono);
+  }
+  .wifi-meta-item span {
+    color: var(--text-secondary);
+    font-weight: 600;
+  }
+  .wifi-sparkline {
+    height: 34px;
+    background: var(--bg-recessed);
+    border-radius: 6px;
+    padding: 4px;
+  }
+
+  /* Connectivity Card */
+  .conn-content {
+    position: relative;
+    z-index: 1;
+  }
+  .conn-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px 12px;
+    margin-bottom: 10px;
+  }
+  .conn-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .conn-label {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    color: var(--text-quaternary);
+    width: 55px;
+  }
+  .conn-value {
+    font-size: 11px;
+    font-family: var(--font-mono);
+    color: var(--text-secondary);
+    font-weight: 500;
+  }
+  .anchor-pills {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .anchor-pill {
+    font-size: 10px;
+    font-weight: 600;
+    font-family: var(--font-mono);
+    padding: 3px 8px;
+    border-radius: 6px;
+    background: var(--accent-dim);
+    color: var(--accent);
+  }
+
+  /* Network Intel Card */
+  .intel-content {
+    position: relative;
+    z-index: 1;
+  }
+  .intel-stats {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 10px;
+  }
+  .intel-stat-tile {
+    flex: 1;
+    background: rgba(255,255,255,0.04);
+    border-radius: 8px;
+    padding: 8px;
+    text-align: center;
+  }
+  .intel-stat-value {
+    font-size: 16px;
+    font-weight: 800;
+    font-family: var(--font-mono);
+    color: var(--text-primary);
+  }
+  .intel-stat-label {
+    font-size: 9px;
+    font-weight: 700;
+    color: var(--text-quaternary);
+    letter-spacing: 0.5px;
+    margin-top: 2px;
+  }
+  .intel-dns-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 8px;
+    padding: 4px 0;
+  }
+  .intel-dns-label {
+    font-size: 9px;
+    font-weight: 700;
+    color: var(--text-quaternary);
+    letter-spacing: 0.5px;
+  }
+  .intel-dns-value {
+    font-size: 11px;
+    font-family: var(--font-mono);
+    color: var(--text-secondary);
+  }
+  .intel-events {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .intel-event {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 10px;
+  }
+  .intel-event-dot {
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .intel-event-text {
+    color: var(--text-tertiary);
+    flex: 1;
+  }
+  .intel-event-time {
+    font-size: 9px;
+    font-family: var(--font-mono);
+    color: var(--text-quaternary);
+  }
+  .badge-live {
+    font-size: 8px;
+    font-weight: 800;
+    letter-spacing: 0.8px;
+    background: var(--green-dim);
+    color: var(--green);
+    padding: 2px 6px;
+    border-radius: 4px;
+    animation: pulse-live 2s ease-in-out infinite;
+  }
+  @keyframes pulse-live {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+  }
+
+  /* Sidebar bottom */
+  .sidebar-spacer { flex: 1; }
+  .sidebar-footer {
+    padding: 10px;
+    border-top: 1px solid rgba(255,255,255,0.06);
+    margin-top: 8px;
+  }
+  .sidebar-footer-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--text-quaternary);
+  }
+  .sidebar-status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--green);
+  }
+</style>
+</head>
+<body>
+
+<div class="mockup-banner">MOCKUP 1: Electric Amber &mdash; Warm accent shift from cyan to amber/gold</div>
+
+<!-- Window chrome -->
+<div class="window-chrome">
+  <div class="traffic-lights">
+    <div class="traffic-light tl-close"></div>
+    <div class="traffic-light tl-minimize"></div>
+    <div class="traffic-light tl-maximize"></div>
+  </div>
+  <div class="window-title">NetMonitor 2.0</div>
+</div>
+
+<div class="app-layout">
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="sidebar-section-header">NETWORKS</div>
+    <div class="sidebar-row active">
+      <div class="sidebar-row-icon">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+          <circle cx="8" cy="5" r="3" stroke="currentColor" stroke-width="1.5" fill="none"/>
+          <path d="M3 14c0-2.8 2.2-5 5-5s5 2.2 5 5" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <span class="sidebar-row-label">Home Network</span>
+      <span class="sidebar-badge count">12</span>
+      <span class="sidebar-badge active-badge">ACTIVE</span>
+    </div>
+
+    <div class="sidebar-section-header">COMMAND</div>
+    <div class="sidebar-row">
+      <div class="sidebar-row-icon">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+          <rect x="2" y="3" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.3" fill="none"/>
+          <rect x="9" y="3" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.3" fill="none"/>
+          <rect x="2" y="9.5" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.3" fill="none"/>
+          <rect x="9" y="9.5" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.3" fill="none"/>
+        </svg>
+      </div>
+      <span class="sidebar-row-label">Devices</span>
+    </div>
+    <div class="sidebar-row">
+      <div class="sidebar-row-icon">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+          <path d="M4 12L8 4l4 8" stroke="currentColor" stroke-width="1.3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+          <line x1="5.5" y1="9.5" x2="10.5" y2="9.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <span class="sidebar-row-label">Tools</span>
+    </div>
+
+    <div class="sidebar-spacer"></div>
+    <div class="sidebar-footer">
+      <div class="sidebar-footer-row">
+        <div class="sidebar-status-dot"></div>
+        <span>Connected &middot; en0</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Content -->
+  <div class="main-content">
+    <!-- Dashboard header -->
+    <div class="dashboard-header">
+      <div class="dashboard-title">Dashboard</div>
+      <div class="dashboard-tabs">
+        <div class="dashboard-tab active">Overview</div>
+        <div class="dashboard-tab">Health</div>
+        <div class="dashboard-tab">History</div>
+      </div>
+    </div>
+
+    <!-- Row A -->
+    <div class="row-a">
+      <!-- ISP Health Card -->
+      <div class="glass-card isp-health">
+        <div class="card-header">
+          <div class="card-header-dot" style="background: var(--green);"></div>
+          <div class="card-header-title">GATEWAY HEALTH</div>
+          <span class="badge-gateway">GATEWAY</span>
+          <span class="badge-online">ONLINE</span>
+        </div>
+        <div class="isp-grid">
+          <div class="isp-left">
+            <div class="gateway-ip">192.168.1.1</div>
+            <div class="gateway-host">router.home</div>
+            <div style="margin-top: 4px;">
+              <div class="wan-label">WAN</div>
+              <div class="wan-ip">73.241.58.102</div>
+            </div>
+            <div style="display:flex; gap:8px; margin-top:2px;">
+              <span class="speed-down">&darr; 245 Mbps</span>
+              <span class="speed-up">&uarr; 12 Mbps</span>
+            </div>
+          </div>
+          <div class="isp-center">
+            <div class="uptime-label">30-DAY UPTIME</div>
+            <div class="uptime-value">99.7%</div>
+            <div class="uptime-sub">2 outages</div>
+          </div>
+          <div class="isp-right">
+            <div class="sparkline-container">
+              <svg width="100%" height="100%" viewBox="0 0 140 38" preserveAspectRatio="none">
+                <defs>
+                  <linearGradient id="spark-fill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#34C759" stop-opacity="0.3"/>
+                    <stop offset="100%" stop-color="#34C759" stop-opacity="0"/>
+                  </linearGradient>
+                </defs>
+                <path d="M0,28 Q10,24 20,26 T40,20 T60,22 T80,16 T100,18 T120,12 T140,14" fill="none" stroke="#34C759" stroke-width="1.5" stroke-linecap="round"/>
+                <path d="M0,28 Q10,24 20,26 T40,20 T60,22 T80,16 T100,18 T120,12 T140,14 V38 H0Z" fill="url(#spark-fill)"/>
+                <circle cx="140" cy="14" r="2.5" fill="#34C759">
+                  <animate attributeName="opacity" values="1;0.4;1" dur="2s" repeatCount="indefinite"/>
+                </circle>
+              </svg>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Health Gauge Card -->
+      <div class="glass-card health-gauge">
+        <div class="card-header">
+          <div class="card-header-dot" style="background: var(--accent);"></div>
+          <div class="card-header-title">HEALTH SCORE</div>
+        </div>
+        <div class="gauge-layout">
+          <div class="gauge-circle">
+            <svg width="100" height="100" viewBox="0 0 100 100">
+              <defs>
+                <linearGradient id="gauge-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="#34C759"/>
+                  <stop offset="60%" stop-color="#F5A623"/>
+                  <stop offset="100%" stop-color="#FFCC02"/>
+                </linearGradient>
+              </defs>
+              <!-- Track -->
+              <circle cx="50" cy="50" r="42" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="10" stroke-linecap="round"
+                transform="rotate(-90 50 50)"
+                stroke-dasharray="263.9" stroke-dashoffset="0"/>
+              <!-- Progress: 87% of 263.9 = 229.6 → offset = 263.9 - 229.6 = 34.3 -->
+              <circle cx="50" cy="50" r="42" fill="none" stroke="url(#gauge-grad)" stroke-width="10" stroke-linecap="round"
+                transform="rotate(-90 50 50)"
+                stroke-dasharray="263.9" stroke-dashoffset="34.3"/>
+            </svg>
+            <div class="gauge-center-text">
+              <div class="gauge-score">87</div>
+              <div class="gauge-grade">A+</div>
+            </div>
+          </div>
+          <div class="gauge-bars">
+            <div class="gauge-bar-row">
+              <div class="gauge-bar-label">Latency</div>
+              <div class="gauge-bar-track">
+                <div class="gauge-bar-fill" style="width:92%; background: var(--green);"></div>
+              </div>
+              <div class="gauge-bar-value">92%</div>
+            </div>
+            <div class="gauge-bar-row">
+              <div class="gauge-bar-label">Stability</div>
+              <div class="gauge-bar-track">
+                <div class="gauge-bar-fill" style="width:88%; background: var(--green);"></div>
+              </div>
+              <div class="gauge-bar-value">88%</div>
+            </div>
+            <div class="gauge-bar-row">
+              <div class="gauge-bar-label">Uptime</div>
+              <div class="gauge-bar-track">
+                <div class="gauge-bar-fill" style="width:99%; background: var(--green);"></div>
+              </div>
+              <div class="gauge-bar-value">99%</div>
+            </div>
+            <div class="gauge-bar-row">
+              <div class="gauge-bar-label">DNS</div>
+              <div class="gauge-bar-track">
+                <div class="gauge-bar-fill" style="width:78%; background: var(--accent);"></div>
+              </div>
+              <div class="gauge-bar-value" style="color: var(--accent);">78%</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Row B -->
+    <div class="row-b">
+      <div class="row-b-left">
+        <!-- Latency Analysis Card -->
+        <div class="glass-card">
+          <div class="card-header">
+            <div class="card-header-dot" style="background: var(--green);"></div>
+            <div class="card-header-title">LATENCY ANALYSIS</div>
+          </div>
+          <div class="latency-card-content">
+            <div class="waveform-container">
+              <svg width="100%" height="100%" viewBox="0 0 400 48" preserveAspectRatio="none">
+                <defs>
+                  <linearGradient id="lat-fill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#34C759" stop-opacity="0.25"/>
+                    <stop offset="100%" stop-color="#34C759" stop-opacity="0"/>
+                  </linearGradient>
+                  <filter id="lat-glow">
+                    <feGaussianBlur stdDeviation="2" result="blur"/>
+                    <feMerge>
+                      <feMergeNode in="blur"/>
+                      <feMergeNode in="SourceGraphic"/>
+                    </feMerge>
+                  </filter>
+                </defs>
+                <path d="M0,30 C20,28 30,18 50,20 S70,32 90,28 S110,14 130,16 S150,30 170,26 S190,12 210,18 S230,34 250,24 S270,10 290,20 S310,30 330,22 S350,14 370,18 S390,26 400,24" fill="url(#lat-fill)" stroke="none"/>
+                <path d="M0,30 C20,28 30,18 50,20 S70,32 90,28 S110,14 130,16 S150,30 170,26 S190,12 210,18 S230,34 250,24 S270,10 290,20 S310,30 330,22 S350,14 370,18 S390,26 400,24" fill="none" stroke="#34C759" stroke-width="2" stroke-linecap="round" filter="url(#lat-glow)"/>
+                <circle cx="400" cy="24" r="3" fill="#34C759">
+                  <animate attributeName="r" values="3;5;3" dur="1.5s" repeatCount="indefinite"/>
+                  <animate attributeName="opacity" values="1;0.5;1" dur="1.5s" repeatCount="indefinite"/>
+                </circle>
+              </svg>
+            </div>
+            <div class="latency-gradient-legend">
+              <span class="gradient-label">0ms</span>
+              <div class="gradient-bar"></div>
+              <span class="gradient-label">100ms+</span>
+            </div>
+            <div class="latency-stats">
+              <div class="latency-stat">
+                <span class="latency-stat-label">AVG</span>
+                <span class="latency-stat-value" style="color: var(--green);">12ms</span>
+              </div>
+              <div class="latency-stat">
+                <span class="latency-stat-label">MIN</span>
+                <span class="latency-stat-value">8ms</span>
+              </div>
+              <div class="latency-stat">
+                <span class="latency-stat-label">MAX</span>
+                <span class="latency-stat-value">24ms</span>
+              </div>
+              <div class="latency-stat">
+                <span class="latency-stat-label">JITTER</span>
+                <span class="latency-stat-value">3ms</span>
+              </div>
+              <div class="latency-stat">
+                <span class="latency-stat-label">LOSS</span>
+                <span class="latency-stat-value" style="color: var(--green);">0.0%</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- WiFi Signal Card -->
+        <div class="glass-card">
+          <div class="card-header">
+            <div class="card-header-dot" style="background: var(--green);"></div>
+            <div class="card-header-title">WIFI SIGNAL</div>
+          </div>
+          <div class="wifi-content">
+            <div class="wifi-top">
+              <div>
+                <div class="wifi-dbm">-42 dBm</div>
+                <div class="wifi-quality">Excellent</div>
+              </div>
+              <div class="wifi-bars">
+                <div class="wifi-bar" style="height:8px;"></div>
+                <div class="wifi-bar" style="height:14px;"></div>
+                <div class="wifi-bar" style="height:20px;"></div>
+                <div class="wifi-bar" style="height:26px;"></div>
+              </div>
+            </div>
+            <div class="wifi-meta">
+              <div class="wifi-meta-item">Ch <span>149</span></div>
+              <div class="wifi-meta-item"><span>866 Mbps</span></div>
+              <div class="wifi-meta-item">Avg <span>-44</span></div>
+            </div>
+            <div class="wifi-sparkline">
+              <svg width="100%" height="100%" viewBox="0 0 300 26" preserveAspectRatio="none">
+                <defs>
+                  <linearGradient id="wifi-grad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#34C759" stop-opacity="0.2"/>
+                    <stop offset="100%" stop-color="#34C759" stop-opacity="0"/>
+                  </linearGradient>
+                </defs>
+                <path d="M0,16 Q15,14 30,15 T60,12 T90,14 T120,10 T150,12 T180,8 T210,10 T240,6 T270,8 T300,7" fill="url(#wifi-grad)" stroke="#34C759" stroke-width="1.5"/>
+              </svg>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row-b-right">
+        <!-- Connectivity Card -->
+        <div class="glass-card">
+          <div class="card-header">
+            <div class="card-header-dot" style="background: var(--accent);"></div>
+            <div class="card-header-title">CONNECTIVITY</div>
+          </div>
+          <div class="conn-content">
+            <div class="conn-grid">
+              <div class="conn-item">
+                <span class="conn-label">INTERFACE</span>
+                <span class="conn-value">en0</span>
+              </div>
+              <div class="conn-item">
+                <span class="conn-label">IPv4</span>
+                <span class="conn-value">192.168.1.42</span>
+              </div>
+              <div class="conn-item">
+                <span class="conn-label">IPv6</span>
+                <span class="conn-value" style="font-size:9px;">fe80::1a2b</span>
+              </div>
+              <div class="conn-item">
+                <span class="conn-label">SUBNET</span>
+                <span class="conn-value">255.255.255.0</span>
+              </div>
+              <div class="conn-item">
+                <span class="conn-label">MAC</span>
+                <span class="conn-value" style="font-size:9px;">A4:83:E7:2F:1B:C0</span>
+              </div>
+              <div class="conn-item">
+                <span class="conn-label">MTU</span>
+                <span class="conn-value">1500</span>
+              </div>
+            </div>
+            <div class="anchor-pills">
+              <div class="anchor-pill">Google 11ms</div>
+              <div class="anchor-pill">Cloudflare 8ms</div>
+              <div class="anchor-pill">Apple 14ms</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Network Intel Card -->
+        <div class="glass-card">
+          <div class="card-header">
+            <div class="card-header-dot" style="background: var(--accent);"></div>
+            <div class="card-header-title">NETWORK INTEL</div>
+            <span class="badge-live" style="margin-left:auto;">LIVE</span>
+          </div>
+          <div class="intel-content">
+            <div class="intel-stats">
+              <div class="intel-stat-tile">
+                <div class="intel-stat-value">847</div>
+                <div class="intel-stat-label">TCP</div>
+              </div>
+              <div class="intel-stat-tile">
+                <div class="intel-stat-value">12</div>
+                <div class="intel-stat-label">UDP</div>
+              </div>
+              <div class="intel-stat-tile">
+                <div class="intel-stat-value">3</div>
+                <div class="intel-stat-label">EST</div>
+              </div>
+            </div>
+            <div class="intel-dns-row">
+              <span class="intel-dns-label">DNS</span>
+              <span class="intel-dns-value">1.1.1.1, 8.8.8.8</span>
+            </div>
+            <div class="intel-events">
+              <div class="intel-event">
+                <div class="intel-event-dot" style="background: var(--green);"></div>
+                <span class="intel-event-text">New device joined: iPhone-Blake</span>
+                <span class="intel-event-time">2m ago</span>
+              </div>
+              <div class="intel-event">
+                <div class="intel-event-dot" style="background: var(--accent);"></div>
+                <span class="intel-event-text">DNS latency spike: 45ms</span>
+                <span class="intel-event-time">8m ago</span>
+              </div>
+              <div class="intel-event">
+                <div class="intel-event-dot" style="background: var(--blue);"></div>
+                <span class="intel-event-text">Port scan completed: 192.168.1.1</span>
+                <span class="intel-event-time">14m ago</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

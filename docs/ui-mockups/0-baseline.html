@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NetMonitor 2.0 — Dashboard Baseline</title>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --bg:#141416;
+    --sidebar-bg:#1C1C1E;
+    --cyan:#06B6D4;
+    --green:#10B981;
+    --blue:#3B82F6;
+    --purple:#8B5CF6;
+    --amber:#F59E0B;
+    --red:#EF4444;
+    --card-bg:rgba(26,31,38,0.6);
+    --card-radius:16px;
+    --card-pad:14px;
+    --gap:10px;
+    --font:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display","Helvetica Neue",Arial,sans-serif;
+    --mono:"SF Mono",ui-monospace,"Cascadia Mono","Segoe UI Mono","Roboto Mono",monospace;
+  }
+  html,body{
+    height:100%;width:100%;overflow:hidden;
+    font-family:var(--font);color:#fff;background:var(--bg);
+    -webkit-font-smoothing:antialiased;
+  }
+  /* ---- Window Shell ---- */
+  .window{display:flex;flex-direction:column;height:100vh;width:100vw;position:relative;overflow:hidden}
+  .window::before{
+    content:'';position:absolute;top:0;left:0;right:0;bottom:0;
+    background:radial-gradient(ellipse 70% 50% at 50% 0%,rgba(30,35,55,0.25),transparent 70%);
+    pointer-events:none;z-index:0;
+  }
+  /* Title bar */
+  .titlebar{
+    height:38px;display:flex;align-items:center;justify-content:center;
+    border-bottom:1px solid rgba(255,255,255,0.05);
+    background:rgba(20,20,22,0.9);flex-shrink:0;position:relative;z-index:10;
+    -webkit-app-region:drag;
+  }
+  .titlebar-dots{position:absolute;left:14px;display:flex;gap:8px}
+  .titlebar-dots span{width:12px;height:12px;border-radius:50%;display:block}
+  .titlebar-dots .dot-close{background:#FF5F57}
+  .titlebar-dots .dot-min{background:#FEBC2E}
+  .titlebar-dots .dot-max{background:#28C840}
+  .titlebar-title{font-size:13px;font-weight:600;color:rgba(255,255,255,0.85);letter-spacing:0.2px}
+  /* Main layout */
+  .main{display:flex;flex:1;overflow:hidden;position:relative;z-index:1}
+  /* ---- Sidebar ---- */
+  .sidebar{
+    width:240px;min-width:240px;background:var(--sidebar-bg);
+    display:flex;flex-direction:column;padding:12px 10px;
+    position:relative;overflow:hidden;
+  }
+  .sidebar::before{
+    content:'';position:absolute;top:0;left:0;right:0;height:120px;
+    background:radial-gradient(ellipse 80% 80% at 50% -10%,rgba(60,80,140,0.15),transparent);
+    pointer-events:none;
+  }
+  .sidebar-section{margin-bottom:18px}
+  .sidebar-header{
+    font-size:10px;font-weight:900;letter-spacing:1.5px;
+    color:rgba(255,255,255,0.6);margin-bottom:6px;padding:0 8px;
+    text-transform:uppercase;
+  }
+  .sidebar-row{
+    display:flex;align-items:center;padding:6px 8px;
+    border-radius:6px;cursor:default;position:relative;
+    font-size:13px;color:rgba(255,255,255,0.55);
+    transition:background 0.15s;margin-bottom:1px;
+  }
+  .sidebar-row.selected{
+    background:rgba(30,35,41,0.5);color:#fff;font-weight:600;
+  }
+  .sidebar-row.selected::before{
+    content:'';position:absolute;left:0;top:50%;transform:translateY(-50%);
+    width:3px;height:16px;border-radius:1.5px;background:var(--cyan);
+  }
+  .sidebar-row-icon{
+    width:18px;height:18px;margin-right:8px;display:flex;align-items:center;justify-content:center;
+    opacity:0.6;
+  }
+  .sidebar-row.selected .sidebar-row-icon{opacity:1}
+  .sidebar-row-label{flex:1}
+  .sidebar-badge{
+    font-size:10px;font-family:var(--mono);
+    background:rgba(255,255,255,0.07);padding:1px 6px;border-radius:4px;
+    color:rgba(255,255,255,0.7);margin-left:6px;
+  }
+  .sidebar-status{
+    font-size:9px;font-weight:700;letter-spacing:0.5px;
+    background:rgba(16,185,129,0.8);color:#000;
+    padding:1px 5px;border-radius:4px;margin-left:6px;
+  }
+  /* ---- Content ---- */
+  .content{flex:1;padding:14px;overflow-y:auto;display:flex;flex-direction:column;gap:var(--gap)}
+  /* ---- Glass Card ---- */
+  .card{
+    background:var(--card-bg);
+    backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+    border-radius:var(--card-radius);
+    padding:var(--card-pad);
+    position:relative;overflow:hidden;
+    box-shadow:0 5px 10px rgba(0,0,0,0.25);
+  }
+  .card::before{
+    content:'';position:absolute;inset:0;border-radius:var(--card-radius);
+    background:linear-gradient(135deg,rgba(255,255,255,0.08) 0%,transparent 50%,rgba(255,255,255,0.02) 100%);
+    pointer-events:none;
+  }
+  .card::after{
+    content:'';position:absolute;inset:0;border-radius:var(--card-radius);
+    border:1px solid transparent;
+    background:linear-gradient(135deg,rgba(255,255,255,0.20) 0%,rgba(255,255,255,0.05) 50%,transparent 100%) border-box;
+    -webkit-mask:linear-gradient(#fff 0 0) padding-box,linear-gradient(#fff 0 0);
+    -webkit-mask-composite:xor;mask-composite:exclude;
+    pointer-events:none;
+  }
+  .card-inner-border{
+    position:absolute;inset:0;border-radius:var(--card-radius);
+    border:0.5px solid rgba(255,255,255,0.15);pointer-events:none;
+  }
+  /* Card header */
+  .card-hdr{display:flex;align-items:center;margin-bottom:10px;gap:6px}
+  .card-hdr .dot{width:5px;height:5px;border-radius:50%;background:var(--green);flex-shrink:0}
+  .card-hdr .dot.blue{background:var(--blue)}
+  .card-hdr .title{font-size:10px;font-weight:700;letter-spacing:1.4px;color:rgba(255,255,255,0.7);text-transform:uppercase}
+  .card-hdr .spacer{flex:1}
+  .card-hdr .badge-online{
+    font-size:9px;font-weight:700;letter-spacing:0.5px;
+    background:rgba(16,185,129,0.2);color:var(--green);
+    padding:2px 6px;border-radius:4px;
+  }
+  .card-hdr .badge-label{font-size:9px;font-weight:600;color:rgba(255,255,255,0.5);letter-spacing:0.5px;margin-right:4px}
+  /* Recessed chart area */
+  .chart-recess{
+    background:rgba(0,0,0,0.28);border-radius:6px;
+    overflow:hidden;position:relative;
+  }
+  /* Rows */
+  .row-a{display:flex;gap:var(--gap)}
+  .row-b{display:flex;gap:var(--gap);flex:1;min-height:0}
+  .col{display:flex;flex-direction:column;gap:var(--gap)}
+  .col-left{flex:1.1}
+  .col-right{flex:0.9}
+  .card-isp{flex:1.4;min-height:160px}
+  .card-gauge{flex:0.6;min-height:160px;display:flex;flex-direction:column}
+  /* ---- ISP Health Card ---- */
+  .isp-body{display:flex;gap:16px;flex:1}
+  .isp-left{flex:1;display:flex;flex-direction:column;gap:4px}
+  .isp-right{width:120px;display:flex;flex-direction:column;align-items:flex-end;gap:2px}
+  .isp-gw-ip{font-size:16px;font-weight:700;font-family:var(--mono);color:#fff}
+  .isp-gw-domain{font-size:11px;color:var(--blue);font-weight:500}
+  .isp-wan-row{display:flex;align-items:center;gap:6px;margin-top:2px}
+  .isp-wan-label{font-size:9px;font-weight:700;color:rgba(255,255,255,0.4);letter-spacing:0.8px}
+  .isp-wan-ip{font-size:11px;font-family:var(--mono);color:rgba(255,255,255,0.7)}
+  .isp-speed{display:flex;gap:10px;margin-top:4px}
+  .isp-speed span{font-size:11px;font-weight:700;border-radius:6px}
+  .isp-speed .down{color:var(--blue)}
+  .isp-speed .up{color:var(--purple)}
+  .isp-uptime-label{font-size:9px;font-weight:600;letter-spacing:1px;color:rgba(255,255,255,0.5);text-align:right}
+  .isp-uptime-val{font-size:20px;font-weight:700;color:var(--green);text-align:right;font-variant-numeric:tabular-nums}
+  .isp-uptime-sub{font-size:11px;color:rgba(255,255,255,0.45);text-align:right}
+  .isp-chart{margin-top:auto;height:60px}
+  /* ---- Health Gauge ---- */
+  .gauge-body{display:flex;flex-direction:column;align-items:center;flex:1;justify-content:center;gap:6px}
+  .gauge-ring{position:relative;width:100px;height:100px}
+  .gauge-ring svg{width:100%;height:100%}
+  .gauge-center{
+    position:absolute;inset:0;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;
+  }
+  .gauge-num{font-size:30px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums}
+  .gauge-grade{font-size:10px;font-weight:700;color:rgba(255,255,255,0.5);margin-top:2px}
+  .gauge-bars{width:100%;display:flex;flex-direction:column;gap:4px;margin-top:4px}
+  .gauge-bar-row{display:flex;align-items:center;gap:4px}
+  .gauge-bar-label{font-size:9px;font-weight:600;color:rgba(255,255,255,0.5);width:46px;text-align:right}
+  .gauge-bar-track{flex:1;height:4px;background:rgba(255,255,255,0.06);border-radius:2px;overflow:hidden}
+  .gauge-bar-fill{height:100%;border-radius:2px}
+  .gauge-bar-pct{font-size:9px;font-weight:700;width:26px;text-align:right;font-variant-numeric:tabular-nums}
+  /* ---- Latency ---- */
+  .lat-badge{
+    font-size:10px;font-weight:700;font-family:var(--mono);
+    color:var(--green);margin-left:auto;display:flex;align-items:center;gap:4px;
+  }
+  .lat-badge .dot{width:4px;height:4px;background:var(--green);border-radius:50%}
+  .lat-chart{height:60px}
+  .lat-legend{display:flex;align-items:center;gap:0;margin-top:6px}
+  .lat-legend-bar{
+    flex:1;height:2px;border-radius:1px;
+    background:linear-gradient(90deg,var(--green) 0%,var(--blue) 33%,var(--amber) 66%,var(--red) 100%);
+  }
+  .lat-legend-labels{display:flex;justify-content:space-between;margin-top:2px}
+  .lat-legend-labels span{font-size:8px;font-weight:600;color:rgba(255,255,255,0.4)}
+  .lat-stats{display:flex;gap:0;margin-top:8px}
+  .lat-stat{flex:1;text-align:center}
+  .lat-stat-val{font-size:14px;font-weight:700;font-variant-numeric:tabular-nums}
+  .lat-stat-label{font-size:9px;font-weight:600;color:rgba(255,255,255,0.4);letter-spacing:0.5px;margin-top:1px}
+  /* ---- WiFi Signal ---- */
+  .wifi-body{display:flex;align-items:center;gap:12px}
+  .wifi-dbm{font-size:20px;font-weight:700;color:var(--green);line-height:1;font-variant-numeric:tabular-nums}
+  .wifi-unit{font-size:9px;color:rgba(255,255,255,0.45);font-weight:500}
+  .wifi-quality{font-size:10px;color:var(--green);font-weight:600;margin-top:2px}
+  .wifi-bars{display:flex;align-items:flex-end;gap:3px;margin-left:8px}
+  .wifi-bars .bar{width:6px;border-radius:1.5px;background:var(--green)}
+  .wifi-meta{margin-left:auto;display:flex;flex-direction:column;align-items:flex-end;gap:1px}
+  .wifi-meta span{font-size:10px;font-family:var(--mono);color:rgba(255,255,255,0.45)}
+  .wifi-sparkline{margin-top:8px;height:34px}
+  /* ---- Connectivity ---- */
+  .conn-grid{
+    display:grid;grid-template-columns:1fr 1fr;gap:6px 16px;
+  }
+  .conn-item-label{font-size:9px;font-weight:700;color:rgba(255,255,255,0.4);letter-spacing:0.8px;text-transform:uppercase}
+  .conn-item-val{font-size:11px;font-family:var(--mono);color:rgba(255,255,255,0.8);margin-top:1px}
+  .conn-pills{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
+  .conn-pill{
+    font-size:10px;font-family:var(--mono);font-weight:500;
+    color:var(--blue);
+    background:rgba(59,130,246,0.08);
+    border:1px solid rgba(59,130,246,0.2);
+    padding:3px 8px;border-radius:12px;
+  }
+  /* ---- Network Intel ---- */
+  .intel-stats{display:flex;margin-bottom:10px}
+  .intel-stat{flex:1;text-align:center;position:relative}
+  .intel-stat+.intel-stat::before{
+    content:'';position:absolute;left:0;top:4px;bottom:4px;
+    width:1px;background:rgba(255,255,255,0.08);
+  }
+  .intel-stat-val{font-size:16px;font-weight:700;font-family:var(--mono);font-variant-numeric:tabular-nums}
+  .intel-stat-label{font-size:7px;font-weight:700;color:rgba(255,255,255,0.35);letter-spacing:0.8px;margin-top:2px}
+  .intel-dns{display:flex;align-items:center;gap:6px;margin-bottom:8px;padding:6px 8px;background:rgba(255,255,255,0.03);border-radius:6px}
+  .intel-dns-icon{width:14px;height:14px;opacity:0.5}
+  .intel-dns-label{font-size:10px;font-weight:600;color:rgba(255,255,255,0.5)}
+  .intel-dns-ip{font-size:10px;font-family:var(--mono);color:rgba(255,255,255,0.7);margin-left:auto}
+  .intel-dns-ms{font-size:10px;font-family:var(--mono);color:var(--green);margin-left:6px}
+  .intel-event{display:flex;align-items:center;gap:6px;padding:3px 0}
+  .intel-event-icon{width:12px;height:12px;opacity:0.4;flex-shrink:0}
+  .intel-event-text{font-size:10px;color:rgba(255,255,255,0.55);flex:1}
+  .intel-event-time{font-size:9px;font-family:var(--mono);color:rgba(255,255,255,0.3)}
+  .intel-live{display:flex;align-items:center;gap:4px}
+  .intel-live .dot{width:4px;height:4px;background:var(--green);border-radius:50%;animation:pulse 2s infinite}
+  .intel-live span{font-size:9px;font-weight:700;color:var(--green);letter-spacing:0.5px}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+  /* Card header right-aligned items */
+  .card-hdr .right{display:flex;align-items:center;gap:6px;margin-left:auto}
+  .card-hdr .net-name{font-size:10px;font-weight:500;color:rgba(255,255,255,0.5)}
+  /* Grid lines for charts */
+  .grid-line{stroke:rgba(255,255,255,0.04);stroke-width:0.5}
+  /* SVG glow filter */
+  .glow{filter:drop-shadow(0 0 4px rgba(16,185,129,0.5))}
+  /* Scrollbar */
+  .content::-webkit-scrollbar{width:6px}
+  .content::-webkit-scrollbar-track{background:transparent}
+  .content::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.1);border-radius:3px}
+  /* Info icon placeholder */
+  .icon-info{
+    width:14px;height:14px;border-radius:50%;
+    border:1.5px solid rgba(59,130,246,0.6);
+    display:flex;align-items:center;justify-content:center;
+    font-size:9px;font-weight:700;color:rgba(59,130,246,0.6);
+    flex-shrink:0;
+  }
+</style>
+</head>
+<body>
+<div class="window">
+  <!-- Title Bar -->
+  <div class="titlebar">
+    <div class="titlebar-dots">
+      <span class="dot-close"></span>
+      <span class="dot-min"></span>
+      <span class="dot-max"></span>
+    </div>
+    <span class="titlebar-title">NetMonitor &mdash; Dashboard</span>
+  </div>
+  <!-- Main -->
+  <div class="main">
+    <!-- Sidebar -->
+    <div class="sidebar">
+      <div class="sidebar-section">
+        <div class="sidebar-header">Networks</div>
+        <div class="sidebar-row selected">
+          <div class="sidebar-row-icon">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 12h12M4 8h8M6 4h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          </div>
+          <span class="sidebar-row-label">Home Network</span>
+          <span class="sidebar-status">ACTIVE</span>
+          <span class="sidebar-badge">12</span>
+        </div>
+      </div>
+      <div class="sidebar-section">
+        <div class="sidebar-header">Command</div>
+        <div class="sidebar-row">
+          <div class="sidebar-row-icon">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="10" rx="2" stroke="currentColor" stroke-width="1.3"/><circle cx="5" cy="8" r="1" fill="currentColor"/><circle cx="8" cy="8" r="1" fill="currentColor"/><circle cx="11" cy="8" r="1" fill="currentColor"/></svg>
+          </div>
+          <span class="sidebar-row-label">Devices</span>
+        </div>
+        <div class="sidebar-row">
+          <div class="sidebar-row-icon">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 4l4 4-4 4M9 12h4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <span class="sidebar-row-label">Tools</span>
+        </div>
+      </div>
+    </div>
+    <!-- Content -->
+    <div class="content">
+      <!-- Row A -->
+      <div class="row-a">
+        <!-- ISP Health Card -->
+        <div class="card card-isp">
+          <div class="card-inner-border"></div>
+          <div class="card-hdr">
+            <span class="dot"></span>
+            <span class="title">Gateway Health</span>
+            <div class="right">
+              <span class="badge-label">GATEWAY</span>
+              <span class="badge-online">ONLINE</span>
+            </div>
+          </div>
+          <div class="isp-body">
+            <div class="isp-left">
+              <div class="isp-gw-ip">192.168.1.1</div>
+              <div class="isp-gw-domain">router.home</div>
+              <div class="isp-wan-row">
+                <span class="isp-wan-label">WAN</span>
+                <span class="isp-wan-ip">73.241.58.102</span>
+              </div>
+              <div class="isp-speed">
+                <span class="down">&#8595; 245 Mbps</span>
+                <span class="up">&#8593; 12 Mbps</span>
+              </div>
+              <div class="isp-chart chart-recess" style="margin-top:auto">
+                <svg width="100%" height="60" preserveAspectRatio="none" viewBox="0 0 400 60">
+                  <defs>
+                    <linearGradient id="ispFill" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stop-color="#3B82F6" stop-opacity="0.3"/>
+                      <stop offset="100%" stop-color="#3B82F6" stop-opacity="0.02"/>
+                    </linearGradient>
+                    <linearGradient id="ispFill2" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stop-color="#8B5CF6" stop-opacity="0.2"/>
+                      <stop offset="100%" stop-color="#8B5CF6" stop-opacity="0.01"/>
+                    </linearGradient>
+                  </defs>
+                  <path d="M0,45 Q20,42 40,40 T80,35 T120,38 T160,30 T200,28 T240,32 T280,25 T320,22 T360,18 T400,15 L400,60 L0,60Z" fill="url(#ispFill)"/>
+                  <path d="M0,45 Q20,42 40,40 T80,35 T120,38 T160,30 T200,28 T240,32 T280,25 T320,22 T360,18 T400,15" fill="none" stroke="#3B82F6" stroke-width="1.5" stroke-linecap="round"/>
+                  <path d="M0,50 Q30,48 60,47 T120,46 T180,44 T240,45 T300,43 T360,41 T400,40 L400,60 L0,60Z" fill="url(#ispFill2)"/>
+                  <path d="M0,50 Q30,48 60,47 T120,46 T180,44 T240,45 T300,43 T360,41 T400,40" fill="none" stroke="#8B5CF6" stroke-width="1" stroke-opacity="0.6" stroke-linecap="round"/>
+                </svg>
+              </div>
+            </div>
+            <div class="isp-right">
+              <div class="isp-uptime-label">30-DAY UPTIME</div>
+              <div class="isp-uptime-val">99.7%</div>
+              <div class="isp-uptime-sub">2 outages</div>
+            </div>
+          </div>
+        </div>
+        <!-- Health Gauge Card -->
+        <div class="card card-gauge">
+          <div class="card-inner-border"></div>
+          <div class="card-hdr">
+            <span class="dot"></span>
+            <span class="title">Network Health</span>
+          </div>
+          <div class="gauge-body">
+            <div class="gauge-ring">
+              <svg viewBox="0 0 100 100">
+                <defs>
+                  <linearGradient id="gaugeGrad" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0%" stop-color="#10B981"/>
+                    <stop offset="50%" stop-color="#06B6D4"/>
+                    <stop offset="100%" stop-color="#3B82F6"/>
+                  </linearGradient>
+                </defs>
+                <circle cx="50" cy="50" r="40" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="8"
+                  transform="rotate(-90 50 50)"/>
+                <circle cx="50" cy="50" r="40" fill="none" stroke="url(#gaugeGrad)" stroke-width="8"
+                  stroke-dasharray="219" stroke-dashoffset="28.5" stroke-linecap="round"
+                  transform="rotate(-90 50 50)"/>
+              </svg>
+              <div class="gauge-center">
+                <span class="gauge-num">87</span>
+                <span class="gauge-grade">A+</span>
+              </div>
+            </div>
+            <div class="gauge-bars">
+              <div class="gauge-bar-row">
+                <span class="gauge-bar-label">Latency</span>
+                <div class="gauge-bar-track"><div class="gauge-bar-fill" style="width:92%;background:var(--green)"></div></div>
+                <span class="gauge-bar-pct" style="color:var(--green)">92%</span>
+              </div>
+              <div class="gauge-bar-row">
+                <span class="gauge-bar-label">Stability</span>
+                <div class="gauge-bar-track"><div class="gauge-bar-fill" style="width:88%;background:var(--green)"></div></div>
+                <span class="gauge-bar-pct" style="color:var(--green)">88%</span>
+              </div>
+              <div class="gauge-bar-row">
+                <span class="gauge-bar-label">Uptime</span>
+                <div class="gauge-bar-track"><div class="gauge-bar-fill" style="width:99%;background:var(--green)"></div></div>
+                <span class="gauge-bar-pct" style="color:var(--green)">99%</span>
+              </div>
+              <div class="gauge-bar-row">
+                <span class="gauge-bar-label">DNS</span>
+                <div class="gauge-bar-track"><div class="gauge-bar-fill" style="width:78%;background:var(--amber)"></div></div>
+                <span class="gauge-bar-pct" style="color:var(--amber)">78%</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- Row B -->
+      <div class="row-b">
+        <!-- Left Column -->
+        <div class="col col-left">
+          <!-- Latency Analysis Card -->
+          <div class="card">
+            <div class="card-inner-border"></div>
+            <div class="card-hdr">
+              <span class="dot"></span>
+              <span class="title">Latency Analysis &middot; Gateway</span>
+              <div class="right">
+                <span class="lat-badge">12ms <span class="dot"></span></span>
+              </div>
+            </div>
+            <div class="lat-chart chart-recess">
+              <svg width="100%" height="60" preserveAspectRatio="none" viewBox="0 0 500 60">
+                <defs>
+                  <linearGradient id="latFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#10B981" stop-opacity="0.3"/>
+                    <stop offset="100%" stop-color="#10B981" stop-opacity="0"/>
+                  </linearGradient>
+                  <filter id="latGlow" x="-20%" y="-20%" width="140%" height="140%">
+                    <feGaussianBlur stdDeviation="2" result="blur"/>
+                    <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+                  </filter>
+                </defs>
+                <!-- Grid lines -->
+                <line x1="0" y1="15" x2="500" y2="15" class="grid-line"/>
+                <line x1="0" y1="30" x2="500" y2="30" class="grid-line"/>
+                <line x1="0" y1="45" x2="500" y2="45" class="grid-line"/>
+                <!-- Waveform fill -->
+                <path d="M0,35 C15,33 25,30 40,32 C55,34 65,28 80,26 C95,24 110,30 130,28 C150,26 165,22 180,24 C195,26 210,20 230,18 C250,16 265,22 280,20 C300,18 315,24 335,22 C355,20 370,16 390,18 C410,20 425,14 440,12 C455,10 470,16 485,14 L500,12 L500,60 L0,60Z" fill="url(#latFill)"/>
+                <!-- Waveform line -->
+                <path d="M0,35 C15,33 25,30 40,32 C55,34 65,28 80,26 C95,24 110,30 130,28 C150,26 165,22 180,24 C195,26 210,20 230,18 C250,16 265,22 280,20 C300,18 315,24 335,22 C355,20 370,16 390,18 C410,20 425,14 440,12 C455,10 470,16 485,14 L500,12" fill="none" stroke="#10B981" stroke-width="2" stroke-linecap="round" filter="url(#latGlow)"/>
+                <!-- Pulse dot at end -->
+                <circle cx="500" cy="12" r="4.5" fill="none" stroke="#10B981" stroke-width="1.5" opacity="0.6"/>
+                <circle cx="500" cy="12" r="2" fill="#fff"/>
+              </svg>
+            </div>
+            <div class="lat-legend">
+              <div class="lat-legend-bar"></div>
+            </div>
+            <div class="lat-legend-labels">
+              <span>&lt;5ms</span><span>5-20ms</span><span>20-50ms</span><span>&gt;50ms</span>
+            </div>
+            <div class="lat-stats">
+              <div class="lat-stat">
+                <div class="lat-stat-val" style="color:var(--green)">12ms</div>
+                <div class="lat-stat-label">AVG</div>
+              </div>
+              <div class="lat-stat">
+                <div class="lat-stat-val" style="color:var(--green)">8ms</div>
+                <div class="lat-stat-label">MIN</div>
+              </div>
+              <div class="lat-stat">
+                <div class="lat-stat-val" style="color:var(--green)">24ms</div>
+                <div class="lat-stat-label">MAX</div>
+              </div>
+              <div class="lat-stat">
+                <div class="lat-stat-val" style="color:var(--blue)">3ms</div>
+                <div class="lat-stat-label">JITTER</div>
+              </div>
+              <div class="lat-stat">
+                <div class="lat-stat-val" style="color:var(--green)">0.0%</div>
+                <div class="lat-stat-label">LOSS</div>
+              </div>
+            </div>
+          </div>
+          <!-- WiFi Signal Card -->
+          <div class="card">
+            <div class="card-inner-border"></div>
+            <div class="card-hdr">
+              <span class="dot"></span>
+              <span class="title">WiFi Signal</span>
+              <div class="right">
+                <span class="net-name">MyNetwork-5G</span>
+              </div>
+            </div>
+            <div class="wifi-body">
+              <div>
+                <div class="wifi-dbm">-42</div>
+                <div class="wifi-unit">dBm</div>
+                <div class="wifi-quality">Excellent</div>
+              </div>
+              <div class="wifi-bars">
+                <div class="bar" style="height:8px"></div>
+                <div class="bar" style="height:14px"></div>
+                <div class="bar" style="height:20px"></div>
+                <div class="bar" style="height:26px"></div>
+              </div>
+              <div class="wifi-meta">
+                <span>Ch 149</span>
+                <span>866 Mbps</span>
+                <span>Avg -44</span>
+              </div>
+            </div>
+            <div class="wifi-sparkline chart-recess">
+              <svg width="100%" height="34" preserveAspectRatio="none" viewBox="0 0 400 34">
+                <defs>
+                  <linearGradient id="wifiFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#10B981" stop-opacity="0.2"/>
+                    <stop offset="100%" stop-color="#10B981" stop-opacity="0"/>
+                  </linearGradient>
+                </defs>
+                <path d="M0,20 Q25,18 50,19 T100,17 T150,18 T200,16 T250,17 T300,15 T350,16 T400,14 L400,34 L0,34Z" fill="url(#wifiFill)"/>
+                <path d="M0,20 Q25,18 50,19 T100,17 T150,18 T200,16 T250,17 T300,15 T350,16 T400,14" fill="none" stroke="#10B981" stroke-width="1.5" stroke-linecap="round"/>
+              </svg>
+            </div>
+          </div>
+        </div>
+        <!-- Right Column -->
+        <div class="col col-right">
+          <!-- Connectivity Card -->
+          <div class="card">
+            <div class="card-inner-border"></div>
+            <div class="card-hdr">
+              <span class="icon-info">i</span>
+              <span class="title">Connectivity</span>
+            </div>
+            <div class="conn-grid">
+              <div>
+                <div class="conn-item-label">Interface</div>
+                <div class="conn-item-val">en0</div>
+              </div>
+              <div>
+                <div class="conn-item-label">IPv4</div>
+                <div class="conn-item-val">192.168.1.42</div>
+              </div>
+              <div>
+                <div class="conn-item-label">IPv6</div>
+                <div class="conn-item-val">fe80::1</div>
+              </div>
+              <div>
+                <div class="conn-item-label">Subnet</div>
+                <div class="conn-item-val">255.255.255.0</div>
+              </div>
+              <div>
+                <div class="conn-item-label">MAC</div>
+                <div class="conn-item-val">A4:83:E7:2B:41:F0</div>
+              </div>
+              <div>
+                <div class="conn-item-label">MTU</div>
+                <div class="conn-item-val">1500</div>
+              </div>
+            </div>
+            <div class="conn-pills">
+              <span class="conn-pill">Google 11ms</span>
+              <span class="conn-pill">Cloudflare 8ms</span>
+              <span class="conn-pill">Apple 14ms</span>
+            </div>
+          </div>
+          <!-- Network Intel Card -->
+          <div class="card">
+            <div class="card-inner-border"></div>
+            <div class="card-hdr">
+              <span class="icon-info">i</span>
+              <span class="title">Network Intel</span>
+              <div class="right">
+                <div class="intel-live"><span class="dot"></span><span>LIVE</span></div>
+              </div>
+            </div>
+            <div class="intel-stats">
+              <div class="intel-stat">
+                <div class="intel-stat-val" style="color:var(--green)">847</div>
+                <div class="intel-stat-label">TCP</div>
+              </div>
+              <div class="intel-stat">
+                <div class="intel-stat-val" style="color:var(--blue)">12</div>
+                <div class="intel-stat-label">UDP</div>
+              </div>
+              <div class="intel-stat">
+                <div class="intel-stat-val" style="color:var(--amber)">3</div>
+                <div class="intel-stat-label">EST</div>
+              </div>
+            </div>
+            <div class="intel-dns">
+              <svg class="intel-dns-icon" viewBox="0 0 16 16" fill="none">
+                <path d="M8 1L2 4v4.5c0 3.5 2.5 5.8 6 6.5 3.5-.7 6-3 6-6.5V4L8 1z" stroke="currentColor" stroke-width="1.3" fill="none"/>
+              </svg>
+              <span class="intel-dns-label">DNS</span>
+              <span class="intel-dns-ip">1.1.1.1</span>
+              <span class="intel-dns-ms">8ms</span>
+            </div>
+            <div>
+              <div class="intel-event">
+                <svg class="intel-event-icon" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.2"/><path d="M8 5v3l2 1.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+                <span class="intel-event-text">New device joined: iPhone-Blake</span>
+                <span class="intel-event-time">2m ago</span>
+              </div>
+              <div class="intel-event">
+                <svg class="intel-event-icon" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.2"/><path d="M8 5v3l2 1.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+                <span class="intel-event-text">DNS resolver switched to 1.1.1.1</span>
+                <span class="intel-event-time">14m ago</span>
+              </div>
+              <div class="intel-event">
+                <svg class="intel-event-icon" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.2"/><path d="M8 5v3l2 1.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+                <span class="intel-event-text">Port scan completed: 192.168.1.1</span>
+                <span class="intel-event-time">28m ago</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

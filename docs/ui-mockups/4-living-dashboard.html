@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NetMonitor 2.0 — Living Dashboard Mockup</title>
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #141416;
+    --sidebar-bg: #1C1C1E;
+    --card-bg: rgba(255,255,255,0.04);
+    --card-border: rgba(255,255,255,0.08);
+    --accent: #00D4FF;
+    --text-primary: rgba(255,255,255,0.92);
+    --text-secondary: rgba(255,255,255,0.55);
+    --text-tertiary: rgba(255,255,255,0.35);
+    --green: #10B981;
+    --blue: #3B82F6;
+    --amber: #F59E0B;
+    --red: #EF4444;
+    --sidebar-width: 240px;
+    --gap: 14px;
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', sans-serif;
+    background: var(--bg);
+    color: var(--text-primary);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Banner */
+  .mockup-banner {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    height: 32px;
+    background: rgba(0,212,255,0.06);
+    border-bottom: 1px solid rgba(0,212,255,0.15);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; letter-spacing: 0.8px; color: rgba(0,212,255,0.7);
+    font-weight: 500; text-transform: uppercase;
+    backdrop-filter: blur(20px);
+  }
+
+  /* Layout */
+  .app-shell {
+    display: flex;
+    margin-top: 32px;
+    min-height: calc(100vh - 32px);
+  }
+
+  /* Sidebar */
+  .sidebar {
+    width: var(--sidebar-width);
+    min-width: var(--sidebar-width);
+    background: var(--sidebar-bg);
+    border-right: 1px solid rgba(255,255,255,0.06);
+    padding: 20px 14px;
+    display: flex; flex-direction: column; gap: 6px;
+    position: relative; overflow: hidden;
+  }
+  .sidebar::before {
+    content: '';
+    position: absolute; top: -60%; left: -40%; width: 180%; height: 180%;
+    background: radial-gradient(ellipse at 30% 20%, rgba(0,212,255,0.04) 0%, transparent 60%);
+    pointer-events: none;
+  }
+
+  .sidebar-title {
+    font-size: 11px; font-weight: 600; letter-spacing: 1.2px;
+    color: var(--text-tertiary); text-transform: uppercase;
+    padding: 6px 10px 10px;
+  }
+  .sidebar-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 10px; border-radius: 8px;
+    font-size: 13px; font-weight: 500;
+    color: var(--text-secondary); cursor: pointer;
+    transition: all 0.2s;
+  }
+  .sidebar-item:hover { background: rgba(255,255,255,0.05); color: var(--text-primary); }
+  .sidebar-item.active {
+    background: rgba(0,212,255,0.1);
+    color: var(--accent);
+  }
+  .sidebar-item .icon { width: 18px; text-align: center; font-size: 14px; }
+  .sidebar-badge {
+    margin-left: auto; font-size: 10px; font-weight: 600;
+    background: rgba(0,212,255,0.15); color: var(--accent);
+    padding: 2px 7px; border-radius: 10px;
+  }
+  .sidebar-section { margin-top: 16px; }
+
+  .sidebar-network {
+    margin: 10px 0 6px;
+    padding: 10px;
+    background: rgba(255,255,255,0.03);
+    border-radius: 10px;
+    border: 1px solid rgba(255,255,255,0.05);
+  }
+  .sidebar-network .net-name {
+    font-size: 13px; font-weight: 600; color: var(--text-primary);
+    display: flex; align-items: center; gap: 6px;
+  }
+  .sidebar-network .net-name .dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 6px var(--green);
+  }
+  .sidebar-network .net-detail {
+    font-size: 11px; color: var(--text-tertiary); margin-top: 4px;
+  }
+
+  /* Main */
+  .main-content {
+    flex: 1; padding: var(--gap);
+    position: relative;
+    background: radial-gradient(ellipse at 50% 0%, rgba(0,212,255,0.02) 0%, transparent 50%);
+  }
+
+  .dashboard-grid {
+    display: flex; flex-direction: column; gap: var(--gap);
+    max-width: 1200px;
+  }
+
+  .row { display: flex; gap: var(--gap); }
+  .row > * { flex: 1; min-width: 0; }
+
+  /* Glass Card Base */
+  .glass-card {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 16px;
+    padding: 14px;
+    position: relative;
+    overflow: hidden;
+    backdrop-filter: blur(12px);
+  }
+  .glass-card::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent 5%, rgba(255,255,255,0.1) 50%, transparent 95%);
+  }
+
+  /* STATUS GLOW — The key mockup feature */
+
+  /* Top edge color stroke */
+  .glass-card .glow-edge {
+    position: absolute; top: 0; left: 0; right: 0;
+    height: 1.5px;
+    border-radius: 16px 16px 0 0;
+    pointer-events: none; z-index: 2;
+  }
+  .glow-green .glow-edge {
+    background: linear-gradient(90deg, transparent 5%, rgba(16,185,129,0.4) 30%, rgba(16,185,129,0.4) 70%, transparent 95%);
+  }
+  .glow-blue .glow-edge {
+    background: linear-gradient(90deg, transparent 5%, rgba(59,130,246,0.4) 30%, rgba(59,130,246,0.4) 70%, transparent 95%);
+  }
+  .glow-amber .glow-edge {
+    background: linear-gradient(90deg, transparent 5%, rgba(245,158,11,0.4) 30%, rgba(245,158,11,0.4) 70%, transparent 95%);
+  }
+
+  /* Inner top glow — pulsing */
+  .glass-card .glow-inner {
+    position: absolute; top: 0; left: 0; right: 0;
+    height: 40px;
+    filter: blur(20px);
+    pointer-events: none; z-index: 1;
+    border-radius: 16px 16px 0 0;
+  }
+  .glow-green .glow-inner {
+    background: rgba(16,185,129,0.08);
+    animation: pulse-green 3s ease-in-out infinite alternate;
+  }
+  .glow-blue .glow-inner {
+    background: rgba(59,130,246,0.08);
+    animation: pulse-blue 3.5s ease-in-out infinite alternate;
+  }
+  .glow-amber .glow-inner {
+    background: rgba(245,158,11,0.08);
+    animation: pulse-amber 4s ease-in-out infinite alternate;
+  }
+
+  @keyframes pulse-green {
+    0%   { background: rgba(16,185,129,0.06); }
+    100% { background: rgba(16,185,129,0.12); }
+  }
+  @keyframes pulse-blue {
+    0%   { background: rgba(59,130,246,0.06); }
+    100% { background: rgba(59,130,246,0.12); }
+  }
+  @keyframes pulse-amber {
+    0%   { background: rgba(245,158,11,0.06); }
+    100% { background: rgba(245,158,11,0.12); }
+  }
+
+  /* Card content styles */
+  .card-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 10px; position: relative; z-index: 3;
+  }
+  .card-title {
+    font-size: 11px; font-weight: 600; letter-spacing: 0.8px;
+    color: var(--text-secondary); text-transform: uppercase;
+  }
+  .card-status {
+    font-size: 10px; font-weight: 600; padding: 2px 8px;
+    border-radius: 8px; letter-spacing: 0.3px;
+  }
+  .status-healthy { background: rgba(16,185,129,0.15); color: #34D399; }
+  .status-info { background: rgba(59,130,246,0.15); color: #60A5FA; }
+  .status-notable { background: rgba(245,158,11,0.15); color: #FBBF24; }
+
+  .card-body { position: relative; z-index: 3; }
+
+  .big-value {
+    font-size: 28px; font-weight: 700; line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+  .big-value .unit {
+    font-size: 14px; font-weight: 500; color: var(--text-secondary);
+    margin-left: 2px;
+  }
+  .big-label {
+    font-size: 11px; color: var(--text-tertiary); margin-top: 3px;
+  }
+
+  .stat-row {
+    display: flex; gap: 16px; margin-top: 10px;
+  }
+  .stat-item {
+    display: flex; flex-direction: column; gap: 1px;
+  }
+  .stat-label { font-size: 10px; color: var(--text-tertiary); }
+  .stat-value { font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+  .sparkline-container {
+    margin-top: 10px;
+    height: 36px;
+  }
+
+  /* Health gauge */
+  .gauge-container {
+    display: flex; align-items: center; gap: 18px;
+  }
+  .gauge-ring { position: relative; width: 80px; height: 80px; flex-shrink: 0; }
+  .gauge-label {
+    position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+  }
+  .gauge-label .score { font-size: 22px; font-weight: 700; }
+  .gauge-label .grade { font-size: 10px; color: var(--green); font-weight: 600; }
+
+  .breakdown { flex: 1; display: flex; flex-direction: column; gap: 6px; }
+  .breakdown-item { display: flex; align-items: center; gap: 8px; font-size: 11px; }
+  .breakdown-label { color: var(--text-tertiary); width: 60px; }
+  .breakdown-bar-bg {
+    flex: 1; height: 4px; background: rgba(255,255,255,0.06);
+    border-radius: 2px; overflow: hidden;
+  }
+  .breakdown-bar {
+    height: 100%; border-radius: 2px;
+  }
+  .breakdown-val { font-size: 10px; color: var(--text-secondary); width: 28px; text-align: right; }
+
+  /* Signal bars */
+  .signal-bars {
+    display: flex; align-items: flex-end; gap: 3px;
+    height: 28px; margin-top: 6px;
+  }
+  .signal-bar {
+    width: 6px; border-radius: 2px;
+    background: rgba(255,255,255,0.08);
+  }
+  .signal-bar.active { background: var(--green); }
+
+  /* Info grid */
+  .info-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+    margin-top: 6px;
+  }
+  .info-cell {
+    display: flex; flex-direction: column; gap: 1px;
+  }
+  .info-label { font-size: 10px; color: var(--text-tertiary); }
+  .info-value { font-size: 12px; font-weight: 500; }
+
+  /* Pill tags */
+  .pill-row { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 8px; }
+  .pill {
+    font-size: 10px; padding: 3px 8px; border-radius: 6px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.08);
+    color: var(--text-secondary);
+  }
+
+  /* Stat tiles (for Network Intel) */
+  .stat-tiles {
+    display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;
+    margin-top: 6px;
+  }
+  .stat-tile {
+    text-align: center; padding: 8px 4px;
+    background: rgba(255,255,255,0.03);
+    border-radius: 8px; border: 1px solid rgba(255,255,255,0.05);
+  }
+  .stat-tile .tile-val { font-size: 18px; font-weight: 700; }
+  .stat-tile .tile-label { font-size: 10px; color: var(--text-tertiary); margin-top: 2px; }
+
+  .event-list { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; }
+  .event-item {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 11px; color: var(--text-secondary);
+  }
+  .event-dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
+
+  /* Waveform area */
+  .waveform-area { margin-top: 8px; height: 50px; }
+
+  /* Row heights */
+  .row-a .glass-card { min-height: 160px; }
+  .row-b .glass-card { min-height: 180px; }
+</style>
+</head>
+<body>
+
+<div class="mockup-banner">MOCKUP 4: Living Dashboard &mdash; Status-tinted card edge glows</div>
+
+<div class="app-shell">
+
+  <!-- Sidebar -->
+  <nav class="sidebar">
+    <div class="sidebar-title">NetMonitor</div>
+
+    <div class="sidebar-network">
+      <div class="net-name"><span class="dot"></span> BlakeNet 5G</div>
+      <div class="net-detail">192.168.1.0/24 &middot; 14 devices</div>
+    </div>
+
+    <div class="sidebar-item active">
+      <span class="icon">&#9673;</span> Dashboard
+    </div>
+    <div class="sidebar-item">
+      <span class="icon">&#9708;</span> Devices
+      <span class="sidebar-badge">14</span>
+    </div>
+    <div class="sidebar-item">
+      <span class="icon">&#9881;</span> Tools
+    </div>
+    <div class="sidebar-item">
+      <span class="icon">&#9878;</span> History
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-title">Saved Targets</div>
+      <div class="sidebar-item">
+        <span class="icon" style="color:var(--green);">&#9679;</span> Gateway
+        <span style="font-size:10px;color:var(--text-tertiary);margin-left:auto;">.1.1</span>
+      </div>
+      <div class="sidebar-item">
+        <span class="icon" style="color:var(--green);">&#9679;</span> NAS
+        <span style="font-size:10px;color:var(--text-tertiary);margin-left:auto;">.1.50</span>
+      </div>
+      <div class="sidebar-item">
+        <span class="icon" style="color:var(--amber);">&#9679;</span> Pi-hole
+        <span style="font-size:10px;color:var(--text-tertiary);margin-left:auto;">.1.53</span>
+      </div>
+      <div class="sidebar-item">
+        <span class="icon" style="color:var(--text-tertiary);">&#9679;</span> Printer
+        <span style="font-size:10px;color:var(--text-tertiary);margin-left:auto;">.1.80</span>
+      </div>
+    </div>
+
+    <div class="sidebar-section" style="margin-top:auto;">
+      <div class="sidebar-item">
+        <span class="icon">&#9881;</span> Settings
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main Content -->
+  <main class="main-content">
+    <div class="dashboard-grid">
+
+      <!-- Row A: ISP Health + Health Gauge -->
+      <div class="row row-a">
+
+        <!-- ISP Health Card (GREEN) -->
+        <div class="glass-card glow-green">
+          <div class="glow-edge"></div>
+          <div class="glow-inner"></div>
+          <div class="card-header">
+            <span class="card-title">ISP Health</span>
+            <span class="card-status status-healthy">Healthy</span>
+          </div>
+          <div class="card-body">
+            <div style="display:flex;align-items:flex-end;gap:14px;">
+              <div>
+                <div class="big-value">99.8<span class="unit">%</span></div>
+                <div class="big-label">Uptime (24h)</div>
+              </div>
+              <div>
+                <div style="font-size:18px;font-weight:600;">12<span style="font-size:12px;color:var(--text-secondary);"> ms</span></div>
+                <div class="big-label">Gateway Latency</div>
+              </div>
+            </div>
+            <div class="sparkline-container">
+              <svg width="100%" height="36" viewBox="0 0 300 36" preserveAspectRatio="none">
+                <defs>
+                  <linearGradient id="sparkG" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#10B981" stop-opacity="0.3"/>
+                    <stop offset="100%" stop-color="#10B981" stop-opacity="0"/>
+                  </linearGradient>
+                </defs>
+                <path d="M0,20 Q15,18 30,16 T60,14 T90,18 T120,12 T150,15 T180,10 T210,14 T240,11 T270,13 T300,12 V36 H0 Z" fill="url(#sparkG)"/>
+                <path d="M0,20 Q15,18 30,16 T60,14 T90,18 T120,12 T150,15 T180,10 T210,14 T240,11 T270,13 T300,12" fill="none" stroke="#10B981" stroke-width="1.5"/>
+              </svg>
+            </div>
+            <div class="stat-row">
+              <div class="stat-item">
+                <span class="stat-label">Jitter</span>
+                <span class="stat-value">1.2 ms</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">Packet Loss</span>
+                <span class="stat-value">0.00%</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">Last Check</span>
+                <span class="stat-value">8s ago</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Health Gauge Card (GREEN) -->
+        <div class="glass-card glow-green">
+          <div class="glow-edge"></div>
+          <div class="glow-inner"></div>
+          <div class="card-header">
+            <span class="card-title">Network Health</span>
+            <span class="card-status status-healthy">Good</span>
+          </div>
+          <div class="card-body">
+            <div class="gauge-container">
+              <div class="gauge-ring">
+                <svg width="80" height="80" viewBox="0 0 80 80">
+                  <circle cx="40" cy="40" r="34" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="6"/>
+                  <circle cx="40" cy="40" r="34" fill="none" stroke="#10B981" stroke-width="6"
+                    stroke-dasharray="186.5 213.6" stroke-dashoffset="0"
+                    stroke-linecap="round" transform="rotate(-90 40 40)"/>
+                </svg>
+                <div class="gauge-label">
+                  <div class="score">87</div>
+                  <div class="grade">A+</div>
+                </div>
+              </div>
+              <div class="breakdown">
+                <div class="breakdown-item">
+                  <span class="breakdown-label">Latency</span>
+                  <div class="breakdown-bar-bg"><div class="breakdown-bar" style="width:95%;background:var(--green);"></div></div>
+                  <span class="breakdown-val">95</span>
+                </div>
+                <div class="breakdown-item">
+                  <span class="breakdown-label">Stability</span>
+                  <div class="breakdown-bar-bg"><div class="breakdown-bar" style="width:90%;background:var(--green);"></div></div>
+                  <span class="breakdown-val">90</span>
+                </div>
+                <div class="breakdown-item">
+                  <span class="breakdown-label">Devices</span>
+                  <div class="breakdown-bar-bg"><div class="breakdown-bar" style="width:82%;background:var(--green);"></div></div>
+                  <span class="breakdown-val">82</span>
+                </div>
+                <div class="breakdown-item">
+                  <span class="breakdown-label">Security</span>
+                  <div class="breakdown-bar-bg"><div class="breakdown-bar" style="width:78%;background:var(--amber);"></div></div>
+                  <span class="breakdown-val">78</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Row B -->
+      <div class="row row-b">
+
+        <!-- Latency Analysis Card (GREEN) -->
+        <div class="glass-card glow-green">
+          <div class="glow-edge"></div>
+          <div class="glow-inner"></div>
+          <div class="card-header">
+            <span class="card-title">Latency Analysis</span>
+            <span class="card-status status-healthy">Excellent</span>
+          </div>
+          <div class="card-body">
+            <div class="big-value">12<span class="unit">ms</span></div>
+            <div class="big-label">Current avg. to gateway</div>
+            <div class="waveform-area">
+              <svg width="100%" height="50" viewBox="0 0 300 50" preserveAspectRatio="none">
+                <defs>
+                  <linearGradient id="waveG" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#10B981" stop-opacity="0.2"/>
+                    <stop offset="100%" stop-color="#10B981" stop-opacity="0"/>
+                  </linearGradient>
+                </defs>
+                <path d="M0,30 C10,28 20,22 30,25 C40,28 50,18 60,20 C70,22 80,15 90,18 C100,21 110,12 120,14 C130,16 140,10 150,13 C160,16 170,11 180,14 C190,17 200,10 210,12 C220,14 230,16 240,13 C250,10 260,14 270,12 C280,10 290,13 300,11 V50 H0 Z" fill="url(#waveG)"/>
+                <path d="M0,30 C10,28 20,22 30,25 C40,28 50,18 60,20 C70,22 80,15 90,18 C100,21 110,12 120,14 C130,16 140,10 150,13 C160,16 170,11 180,14 C190,17 200,10 210,12 C220,14 230,16 240,13 C250,10 260,14 270,12 C280,10 290,13 300,11" fill="none" stroke="#10B981" stroke-width="1.5" opacity="0.8"/>
+                <!-- Threshold line -->
+                <line x1="0" y1="8" x2="300" y2="8" stroke="rgba(239,68,68,0.2)" stroke-width="0.5" stroke-dasharray="4,4"/>
+                <text x="302" y="10" font-size="7" fill="rgba(239,68,68,0.4)" font-family="-apple-system">100ms</text>
+              </svg>
+            </div>
+            <div class="stat-row">
+              <div class="stat-item">
+                <span class="stat-label">Min</span>
+                <span class="stat-value">8 ms</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">Max</span>
+                <span class="stat-value">24 ms</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">P95</span>
+                <span class="stat-value">18 ms</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">Std Dev</span>
+                <span class="stat-value">3.1 ms</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- WiFi Signal Card (GREEN) -->
+        <div class="glass-card glow-green">
+          <div class="glow-edge"></div>
+          <div class="glow-inner"></div>
+          <div class="card-header">
+            <span class="card-title">WiFi Signal</span>
+            <span class="card-status status-healthy">Excellent</span>
+          </div>
+          <div class="card-body">
+            <div style="display:flex;align-items:center;gap:14px;">
+              <div>
+                <div class="big-value">-42<span class="unit">dBm</span></div>
+                <div class="big-label">RSSI</div>
+              </div>
+              <div class="signal-bars">
+                <div class="signal-bar active" style="height:6px;"></div>
+                <div class="signal-bar active" style="height:11px;"></div>
+                <div class="signal-bar active" style="height:16px;"></div>
+                <div class="signal-bar active" style="height:21px;"></div>
+                <div class="signal-bar active" style="height:26px;"></div>
+              </div>
+            </div>
+            <div class="stat-row" style="margin-top:14px;">
+              <div class="stat-item">
+                <span class="stat-label">Channel</span>
+                <span class="stat-value">149 (5G)</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">Width</span>
+                <span class="stat-value">80 MHz</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">Noise</span>
+                <span class="stat-value">-92 dBm</span>
+              </div>
+            </div>
+            <div class="stat-row" style="margin-top:6px;">
+              <div class="stat-item">
+                <span class="stat-label">Tx Rate</span>
+                <span class="stat-value">866 Mbps</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">SNR</span>
+                <span class="stat-value" style="color:var(--green);">50 dB</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">Security</span>
+                <span class="stat-value">WPA3</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Connectivity Card (BLUE) -->
+        <div class="glass-card glow-blue">
+          <div class="glow-edge"></div>
+          <div class="glow-inner"></div>
+          <div class="card-header">
+            <span class="card-title">Connectivity</span>
+            <span class="card-status status-info">Connected</span>
+          </div>
+          <div class="card-body">
+            <div class="info-grid">
+              <div class="info-cell">
+                <span class="info-label">Local IP</span>
+                <span class="info-value">192.168.1.142</span>
+              </div>
+              <div class="info-cell">
+                <span class="info-label">Public IP</span>
+                <span class="info-value">73.162.xx.xx</span>
+              </div>
+              <div class="info-cell">
+                <span class="info-label">Gateway</span>
+                <span class="info-value">192.168.1.1</span>
+              </div>
+              <div class="info-cell">
+                <span class="info-label">DNS</span>
+                <span class="info-value">1.1.1.1</span>
+              </div>
+              <div class="info-cell">
+                <span class="info-label">Interface</span>
+                <span class="info-value">en0 (Wi-Fi)</span>
+              </div>
+              <div class="info-cell">
+                <span class="info-label">Subnet</span>
+                <span class="info-value">255.255.255.0</span>
+              </div>
+            </div>
+            <div class="pill-row">
+              <span class="pill">IPv4</span>
+              <span class="pill">IPv6</span>
+              <span class="pill">NAT</span>
+              <span class="pill">DHCP</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Network Intel Card (AMBER) -->
+        <div class="glass-card glow-amber">
+          <div class="glow-edge"></div>
+          <div class="glow-inner"></div>
+          <div class="card-header">
+            <span class="card-title">Network Intel</span>
+            <span class="card-status status-notable">2 Notable</span>
+          </div>
+          <div class="card-body">
+            <div class="stat-tiles">
+              <div class="stat-tile">
+                <div class="tile-val">14</div>
+                <div class="tile-label">Devices</div>
+              </div>
+              <div class="stat-tile">
+                <div class="tile-val">47</div>
+                <div class="tile-label">Open Ports</div>
+              </div>
+              <div class="stat-tile">
+                <div class="tile-val">3</div>
+                <div class="tile-label">Services</div>
+              </div>
+            </div>
+            <div class="event-list">
+              <div class="event-item">
+                <span class="event-dot" style="background:var(--amber);"></span>
+                <span>Unknown device joined 12m ago</span>
+              </div>
+              <div class="event-item">
+                <span class="event-dot" style="background:var(--amber);"></span>
+                <span>Port 8080 opened on NAS</span>
+              </div>
+              <div class="event-item">
+                <span class="event-dot" style="background:var(--green);"></span>
+                <span>DNS resolution: 4ms avg</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </main>
+</div>
+
+</body>
+</html>
