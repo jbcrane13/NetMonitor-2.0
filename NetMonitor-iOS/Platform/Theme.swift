@@ -9,17 +9,17 @@ enum Theme {
 
     // MARK: - Colors
     enum Colors {
-        // Background — adaptive: lifted charcoal in dark, system background in light
+        // Background — adaptive: lifted charcoal in dark, grey slate in light (Apple TV-inspired)
         static let backgroundBase = Color(UIColor { traits in
             traits.userInterfaceStyle == .dark
                 ? UIColor(red: 20/255, green: 20/255, blue: 22/255, alpha: 1)
-                : UIColor.systemGroupedBackground
+                : UIColor(red: 232/255, green: 232/255, blue: 237/255, alpha: 1) // #E8E8ED grey slate
         })
         // periphery:ignore
         static let backgroundElevated = Color(UIColor { traits in
             traits.userInterfaceStyle == .dark
                 ? UIColor(red: 28/255, green: 28/255, blue: 30/255, alpha: 1)
-                : UIColor.secondarySystemGroupedBackground
+                : UIColor(red: 224/255, green: 224/255, blue: 230/255, alpha: 1) // slightly darker slate
         })
         // Subtle blue shimmer for top glow (dark mode only)
         // periphery:ignore
@@ -28,7 +28,7 @@ enum Theme {
         static let backgroundGradientStart = Color(UIColor { traits in
             traits.userInterfaceStyle == .dark
                 ? UIColor(red: 15/255, green: 23/255, blue: 42/255, alpha: 1)
-                : UIColor.systemGroupedBackground
+                : UIColor(red: 228/255, green: 228/255, blue: 234/255, alpha: 1) // slate gradient start
         })
         static let backgroundGradientEnd = backgroundBase
 
@@ -52,21 +52,21 @@ enum Theme {
         static let textTertiary = Color(UIColor { traits in
             traits.userInterfaceStyle == .dark
                 ? UIColor.white.withAlphaComponent(0.55)
-                : UIColor(red: 60/255, green: 60/255, blue: 67/255, alpha: 0.4)
+                : UIColor(red: 60/255, green: 60/255, blue: 67/255, alpha: 0.55) // improved contrast on slate
         })
 
         // Divider color — adaptive
         static let divider = Color(UIColor { traits in
             traits.userInterfaceStyle == .dark
                 ? UIColor.white.withAlphaComponent(0.06)
-                : UIColor(red: 60/255, green: 60/255, blue: 67/255, alpha: 0.12)
+                : UIColor(red: 60/255, green: 60/255, blue: 67/255, alpha: 0.18) // visible on slate
         })
 
         // Overlay highlight — used for card shine effects
         static let overlayHighlight = Color(UIColor { traits in
             traits.userInterfaceStyle == .dark
                 ? UIColor.white.withAlphaComponent(0.08)
-                : UIColor.black.withAlphaComponent(0.03)
+                : UIColor.white.withAlphaComponent(0.35) // bright glass highlight on slate
         })
 
         // Strong foreground — replaces hardcoded .white in text
@@ -80,17 +80,17 @@ enum Theme {
         static let crystalBase = Color(UIColor { traits in
             traits.userInterfaceStyle == .dark
                 ? UIColor(red: 26/255, green: 31/255, blue: 38/255, alpha: 0.6)
-                : UIColor(white: 1.0, alpha: 0.55)
+                : UIColor(white: 1.0, alpha: 0.72) // brighter glass on slate for contrast
         })
         static let crystalHighlight = Color(UIColor { traits in
             traits.userInterfaceStyle == .dark
                 ? UIColor(white: 1.0, alpha: 0.12)
-                : UIColor(white: 0.95, alpha: 0.8)
+                : UIColor(white: 1.0, alpha: 0.45) // softer highlight, not opaque
         })
         static let crystalBorder = Color(UIColor { traits in
             traits.userInterfaceStyle == .dark
                 ? UIColor(white: 1.0, alpha: 0.15)
-                : UIColor(white: 0.0, alpha: 0.08)
+                : UIColor(white: 0.0, alpha: 0.12) // stronger border on slate
         })
 
         @MainActor static var glassBackground: Color { crystalBase }
@@ -176,7 +176,7 @@ enum Theme {
         static let card = Color(UIColor { traits in
             traits.userInterfaceStyle == .dark
                 ? UIColor.black.withAlphaComponent(0.2)
-                : UIColor.black.withAlphaComponent(0.06)
+                : UIColor.black.withAlphaComponent(0.12) // deeper shadow for card lift on slate
         })
         static let cardRadius: CGFloat = 15
         static let cardY: CGFloat = 5
@@ -219,16 +219,16 @@ struct ThemedBackground: ViewModifier {
                         )
                         .ignoresSafeArea()
                     } else {
-                        // Light mode: warm off-white with subtle depth
-                        Color(red: 0.95, green: 0.95, blue: 0.97)
+                        // Light mode: Apple TV-inspired grey slate
+                        Color(red: 0.91, green: 0.91, blue: 0.93)
                             .ignoresSafeArea()
 
-                        // Subtle cool radial gradient at top for depth
+                        // Subtle lighter center wash for depth
                         RadialGradient(
-                            colors: [Color(red: 0.92, green: 0.94, blue: 0.98).opacity(0.8), .clear],
-                            center: UnitPoint(x: 0.5, y: 0.0),
+                            colors: [Color(red: 0.93, green: 0.93, blue: 0.95).opacity(0.6), .clear],
+                            center: UnitPoint(x: 0.5, y: 0.3),
                             startRadius: 0,
-                            endRadius: 600
+                            endRadius: 500
                         )
                         .ignoresSafeArea()
                     }

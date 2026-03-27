@@ -19,7 +19,7 @@ struct GlassCardModifier: ViewModifier {
                     // Base material
                     RoundedRectangle(cornerRadius: cornerRadius)
                         .fill(.ultraThinMaterial)
-                        .opacity(colorScheme == .dark ? 0.8 : 0.9)
+                        .opacity(colorScheme == .dark ? 0.8 : 0.95)
 
                     RoundedRectangle(cornerRadius: cornerRadius)
                         .fill(Theme.Colors.glassBackground)
@@ -28,7 +28,7 @@ struct GlassCardModifier: ViewModifier {
                     LinearGradient(
                         colors: colorScheme == .dark
                             ? [.white.opacity(0.08), .clear, .white.opacity(0.02)]
-                            : [.white.opacity(0.6), .white.opacity(0.2), .clear],
+                            : [.white.opacity(0.35), .white.opacity(0.1), .clear],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     )
@@ -67,11 +67,11 @@ struct GlassCardModifier: ViewModifier {
                         LinearGradient(
                             colors: colorScheme == .dark
                                 ? [.white.opacity(0.2), .white.opacity(0.05), .clear]
-                                : [.white.opacity(0.8), .white.opacity(0.3), .clear],
+                                : [.white.opacity(0.7), .white.opacity(0.2), .clear],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         ),
-                        lineWidth: 1
+                        lineWidth: colorScheme == .dark ? 1 : 0.75
                     )
             )
             .overlay(
@@ -80,9 +80,9 @@ struct GlassCardModifier: ViewModifier {
             )
             .shadow(
                 color: Theme.Shadows.card,
-                radius: colorScheme == .dark ? 10 : 8,
+                radius: colorScheme == .dark ? 10 : 12,
                 x: 0,
-                y: colorScheme == .dark ? 5 : 3
+                y: colorScheme == .dark ? 5 : 4
             )
     }
 }

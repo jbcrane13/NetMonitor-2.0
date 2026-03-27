@@ -105,6 +105,8 @@ struct ContentView: View {
                     .tracking(1.2)
             }
         }
+        .scrollContentBackground(.hidden)
+        .background(.ultraThinMaterial)
         .navigationTitle("NetMonitor")
     }
 

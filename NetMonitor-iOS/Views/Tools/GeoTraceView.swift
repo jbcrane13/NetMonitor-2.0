@@ -249,7 +249,7 @@ private struct HopAnnotationView: View {
                 .fill(hop.latencyColor)
                 .frame(width: isSelected ? 18 : 14)
                 .overlay(
-                    Circle().stroke(Color.white, lineWidth: 2)
+                    Circle().stroke(Theme.Colors.backgroundBase, lineWidth: 2)
                 )
 
             if isSelected {

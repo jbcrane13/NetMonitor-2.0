@@ -341,7 +341,7 @@ struct SettingsView: View {
         .navigationTitle("Settings")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
-        .toolbarColorScheme(.dark, for: .navigationBar)
+        .toolbarColorScheme(nil, for: .navigationBar)
         .alert("Clear History", isPresented: $showingClearHistoryAlert) {
             Button("Cancel", role: .cancel) {}
             Button("Clear", role: .destructive) {
