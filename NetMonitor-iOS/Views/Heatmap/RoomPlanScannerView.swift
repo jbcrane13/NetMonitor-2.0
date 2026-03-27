@@ -250,7 +250,7 @@ struct RoomPlanScannerView: View {
                             detailRow(label: "Rooms Labeled", value: "\(floor.roomLabels.count)")
                             detailRow(label: "LiDAR Used", value: blueprint.metadata.hasLiDAR ? "Yes" : "No")
                             if viewModel.localSaveURL != nil {
-                                Divider().background(Color.white.opacity(0.08))
+                                Divider().background(Theme.Colors.divider)
                                 HStack(spacing: 6) {
                                     Image(systemName: "checkmark.circle.fill")
                                         .foregroundStyle(Theme.Colors.success)

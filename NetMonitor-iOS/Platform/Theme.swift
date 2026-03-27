@@ -42,10 +42,39 @@ enum Theme {
         static let error = Color(hex: "EF4444")       // red-500
         static let info = Color(hex: "3B82F6")        // blue-500
 
-        // Text colors — adaptive via system semantic colors
+        // Text colors — adaptive for both light and dark modes
         static let textPrimary = Color.primary
-        static let textSecondary = Color.white.opacity(0.72)
-        static let textTertiary = Color.white.opacity(0.55)
+        static let textSecondary = Color(UIColor { traits in
+            traits.userInterfaceStyle == .dark
+                ? UIColor.white.withAlphaComponent(0.72)
+                : UIColor(red: 60/255, green: 60/255, blue: 67/255, alpha: 0.6) // iOS secondary label
+        })
+        static let textTertiary = Color(UIColor { traits in
+            traits.userInterfaceStyle == .dark
+                ? UIColor.white.withAlphaComponent(0.55)
+                : UIColor(red: 60/255, green: 60/255, blue: 67/255, alpha: 0.4)
+        })
+
+        // Divider color — adaptive
+        static let divider = Color(UIColor { traits in
+            traits.userInterfaceStyle == .dark
+                ? UIColor.white.withAlphaComponent(0.06)
+                : UIColor(red: 60/255, green: 60/255, blue: 67/255, alpha: 0.12)
+        })
+
+        // Overlay highlight — used for card shine effects
+        static let overlayHighlight = Color(UIColor { traits in
+            traits.userInterfaceStyle == .dark
+                ? UIColor.white.withAlphaComponent(0.08)
+                : UIColor.black.withAlphaComponent(0.03)
+        })
+
+        // Strong foreground — replaces hardcoded .white in text
+        static let textStrong = Color(UIColor { traits in
+            traits.userInterfaceStyle == .dark
+                ? UIColor.white
+                : UIColor(red: 28/255, green: 28/255, blue: 30/255, alpha: 1)
+        })
 
         // Luminous tokens — adaptive glass effects
         static let crystalBase = Color(UIColor { traits in
@@ -144,7 +173,11 @@ enum Theme {
     
     // MARK: - Shadows
     enum Shadows {
-        static let card = Color.black.opacity(0.2)
+        static let card = Color(UIColor { traits in
+            traits.userInterfaceStyle == .dark
+                ? UIColor.black.withAlphaComponent(0.2)
+                : UIColor.black.withAlphaComponent(0.06)
+        })
         static let cardRadius: CGFloat = 15
         static let cardY: CGFloat = 5
         
@@ -186,9 +219,18 @@ struct ThemedBackground: ViewModifier {
                         )
                         .ignoresSafeArea()
                     } else {
-                        // Light mode: keep system adaptive background
-                        Theme.Colors.backgroundBase
+                        // Light mode: warm off-white with subtle depth
+                        Color(red: 0.95, green: 0.95, blue: 0.97)
                             .ignoresSafeArea()
+
+                        // Subtle cool radial gradient at top for depth
+                        RadialGradient(
+                            colors: [Color(red: 0.92, green: 0.94, blue: 0.98).opacity(0.8), .clear],
+                            center: UnitPoint(x: 0.5, y: 0.0),
+                            startRadius: 0,
+                            endRadius: 600
+                        )
+                        .ignoresSafeArea()
                     }
                 }
             )

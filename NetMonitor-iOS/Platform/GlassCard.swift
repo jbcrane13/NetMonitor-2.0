@@ -9,6 +9,7 @@ struct GlassCardModifier: ViewModifier {
     var showBorder: Bool = true
     /// Optional status glow color — adds a colored top-edge stroke and inner glow.
     var statusGlow: Color?
+    @Environment(\.colorScheme) private var colorScheme
 
     func body(content: Content) -> some View {
         content
@@ -18,14 +19,16 @@ struct GlassCardModifier: ViewModifier {
                     // Base material
                     RoundedRectangle(cornerRadius: cornerRadius)
                         .fill(.ultraThinMaterial)
-                        .opacity(0.8)
+                        .opacity(colorScheme == .dark ? 0.8 : 0.9)
 
                     RoundedRectangle(cornerRadius: cornerRadius)
                         .fill(Theme.Colors.glassBackground)
 
-                    // Crystal Shine
+                    // Crystal Shine — adaptive
                     LinearGradient(
-                        colors: [.white.opacity(0.08), .clear, .white.opacity(0.02)],
+                        colors: colorScheme == .dark
+                            ? [.white.opacity(0.08), .clear, .white.opacity(0.02)]
+                            : [.white.opacity(0.6), .white.opacity(0.2), .clear],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     )
@@ -38,7 +41,9 @@ struct GlassCardModifier: ViewModifier {
                     RoundedRectangle(cornerRadius: cornerRadius)
                         .stroke(
                             LinearGradient(
-                                colors: [glow.opacity(0.15), glow.opacity(0.04), .white.opacity(0.06)],
+                                colors: colorScheme == .dark
+                                    ? [glow.opacity(0.15), glow.opacity(0.04), .white.opacity(0.06)]
+                                    : [glow.opacity(0.2), glow.opacity(0.06), .clear],
                                 startPoint: .top,
                                 endPoint: .bottom
                             ),
@@ -49,18 +54,20 @@ struct GlassCardModifier: ViewModifier {
             .overlay(alignment: .top) {
                 if let glow = statusGlow {
                     Rectangle()
-                        .fill(glow.opacity(0.04))
+                        .fill(glow.opacity(colorScheme == .dark ? 0.04 : 0.06))
                         .frame(height: 30)
                         .blur(radius: 15)
                         .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
                 }
             }
             .overlay(
-                // Rim Light
+                // Rim Light — adaptive
                 RoundedRectangle(cornerRadius: cornerRadius)
                     .stroke(
                         LinearGradient(
-                            colors: [.white.opacity(0.2), .white.opacity(0.05), .clear],
+                            colors: colorScheme == .dark
+                                ? [.white.opacity(0.2), .white.opacity(0.05), .clear]
+                                : [.white.opacity(0.8), .white.opacity(0.3), .clear],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         ),
@@ -72,10 +79,10 @@ struct GlassCardModifier: ViewModifier {
                     .stroke(Theme.Colors.glassBorder, lineWidth: showBorder ? 0.5 : 0)
             )
             .shadow(
-                color: Color.black.opacity(0.25),
-                radius: 10,
+                color: Theme.Shadows.card,
+                radius: colorScheme == .dark ? 10 : 8,
                 x: 0,
-                y: 5
+                y: colorScheme == .dark ? 5 : 3
             )
     }
 }

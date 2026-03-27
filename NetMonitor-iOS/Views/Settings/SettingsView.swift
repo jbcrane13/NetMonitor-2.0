@@ -201,7 +201,7 @@ struct SettingsView: View {
                         Text("PDF")
                             .font(.caption)
                             .fontWeight(.semibold)
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Theme.Colors.textStrong)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 3)
                             .background(Theme.Colors.error.opacity(0.8))

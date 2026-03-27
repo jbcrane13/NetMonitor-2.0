@@ -159,7 +159,7 @@ struct NetworkMapView: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(viewModel.activeNetwork?.displayName ?? "LOCAL NETWORK")
                             .font(.system(size: 16, weight: .bold, design: .rounded))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Theme.Colors.textStrong)
                         Text(viewModel.gateway?.ipAddress ?? "---.---.---.---")
                             .font(.system(size: 12, design: .monospaced))
                             .foregroundStyle(Theme.Colors.textTertiary)
@@ -174,7 +174,7 @@ struct NetworkMapView: View {
                     }
                 }
 
-                Divider().background(Color.white.opacity(0.05))
+                Divider().background(Theme.Colors.divider)
 
                 HStack {
                     Label("\(viewModel.activeNetworkDeviceCount ?? 0) Devices", systemImage: "cpu")
@@ -194,7 +194,7 @@ struct NetworkMapView: View {
             Task { await viewModel.startScan(forceRefresh: true) }
         } label: {
             if viewModel.isScanning {
-                ProgressView().tint(.white)
+                ProgressView().tint(Theme.Colors.textStrong)
             } else {
                 Image(systemName: "arrow.clockwise.circle.fill")
                     .font(.title3)
@@ -218,7 +218,7 @@ struct ProDeviceRow: View {
                     RoundedRectangle(cornerRadius: 10)
                         .fill(Theme.Colors.crystalBase)
                         .frame(width: 40, height: 40)
-                        .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.white.opacity(0.05), lineWidth: 1))
+                        .overlay(RoundedRectangle(cornerRadius: 10).stroke(Theme.Colors.divider, lineWidth: 1))
 
                     Image(systemName: device.iconName)
                         .font(.system(size: 18))
@@ -228,7 +228,7 @@ struct ProDeviceRow: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(device.displayName)
                         .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Theme.Colors.textStrong)
                     Text(device.ipAddress)
                         .font(.system(size: 11, design: .monospaced))
                         .foregroundStyle(Theme.Colors.textTertiary)
@@ -245,7 +245,7 @@ struct ProDeviceRow: View {
                         .font(.system(size: 8, weight: .black))
                         .padding(.horizontal, 4)
                         .padding(.vertical, 1)
-                        .background(Color.white.opacity(0.05))
+                        .background(Theme.Colors.divider)
                         .foregroundStyle(Theme.Colors.textTertiary)
                         .clipShape(RoundedRectangle(cornerRadius: 2))
                 }

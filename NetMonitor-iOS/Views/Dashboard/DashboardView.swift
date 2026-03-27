@@ -177,7 +177,7 @@ struct TacticalHUDHeader: View {
                                     .font(.system(size: 18, weight: .bold, design: .monospaced))
                                     .foregroundStyle(
                                         LinearGradient(
-                                            colors: [.white, .white.opacity(0.8)],
+                                            colors: [Theme.Colors.textStrong, Theme.Colors.textStrong.opacity(0.8)],
                                             startPoint: .top,
                                             endPoint: .bottom
                                         )
@@ -212,7 +212,7 @@ struct TacticalHUDHeader: View {
                                     .font(.system(size: 24, weight: .semibold, design: .rounded))
                                     .foregroundStyle(
                                         LinearGradient(
-                                            colors: [signalColor(signal), .white.opacity(0.8)],
+                                            colors: [signalColor(signal), Theme.Colors.textStrong.opacity(0.8)],
                                             startPoint: .top,
                                             endPoint: .bottom
                                         )
@@ -228,7 +228,7 @@ struct TacticalHUDHeader: View {
                                     .font(.system(size: 24, weight: .semibold, design: .rounded))
                                     .foregroundStyle(
                                         LinearGradient(
-                                            colors: [Theme.Colors.latencyColor(ms: latency), .white.opacity(0.8)],
+                                            colors: [Theme.Colors.latencyColor(ms: latency), Theme.Colors.textStrong.opacity(0.8)],
                                             startPoint: .top,
                                             endPoint: .bottom
                                         )
@@ -322,7 +322,7 @@ struct RefinedNetworkHealthCard: View {
                 HStack(spacing: 16) {
                     ZStack {
                         Circle()
-                            .stroke(Color.white.opacity(0.05), lineWidth: 5)
+                            .stroke(Theme.Colors.divider, lineWidth: 5)
                         Circle()
                             .trim(from: 0, to: CGFloat(healthScore) / 100.0)
                             .stroke(
@@ -339,7 +339,7 @@ struct RefinedNetworkHealthCard: View {
                         VStack(spacing: -2) {
                             Text("\(healthScore)")
                                 .font(.system(size: 24, weight: .semibold, design: .rounded))
-                                .foregroundStyle(.white)
+                                .foregroundStyle(Theme.Colors.textStrong)
                             Text("SCORE")
                                 .font(.system(size: 7, weight: .black))
                                 .foregroundStyle(Theme.Colors.textTertiary)
@@ -356,7 +356,7 @@ struct RefinedNetworkHealthCard: View {
                             
                             Text(healthStatusTitle)
                                 .font(.system(size: 14, weight: .bold))
-                                .foregroundStyle(.white)
+                                .foregroundStyle(Theme.Colors.textStrong)
                         }
                         
                         Text(healthDetailText)
@@ -484,13 +484,13 @@ struct WANInfoCard: View {
                         value: viewModel.ispInfo?.ispName ?? "Detecting…",
                         icon: "antenna.radiowaves.left.and.right"
                     )
-                    Divider().background(Color.white.opacity(0.06)).padding(.vertical, 6)
+                    Divider().background(Theme.Colors.divider).padding(.vertical, 6)
                     ConnectivityRow(
                         label: "Public IP",
                         value: viewModel.ispInfo?.publicIP ?? "—",
                         icon: "network"
                     )
-                    Divider().background(Color.white.opacity(0.06)).padding(.vertical, 6)
+                    Divider().background(Theme.Colors.divider).padding(.vertical, 6)
                     ConnectivityRow(
                         label: "DNS",
                         value: viewModel.systemDNS,
@@ -529,7 +529,7 @@ struct AnchorLatencyCard: View {
                         )
                         if anchor.key != anchors.last?.key {
                             Divider()
-                                .background(Color.white.opacity(0.06))
+                                .background(Theme.Colors.divider)
                                 .frame(height: 36)
                         }
                     }
@@ -560,7 +560,7 @@ struct AnchorMetricColumn: View {
             if let ms = latency {
                 Text("\(Int(ms))")
                     .font(.system(size: 20, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Theme.Colors.textStrong)
                 Text("ms")
                     .font(.system(size: 8, weight: .heavy))
                     .foregroundStyle(Theme.Colors.textTertiary)
@@ -603,7 +603,7 @@ struct ConnectivityRow: View {
             
             Text(value)
                 .font(.system(size: 13, weight: .semibold, design: .monospaced))
-                .foregroundStyle(.white)
+                .foregroundStyle(Theme.Colors.textStrong)
         }
     }
 }
@@ -644,7 +644,7 @@ struct LocalDevicesCard: View {
                             DeviceRow(device: device)
                             if device.id != viewModel.discoveredDevices.prefix(5).last?.id {
                                 Divider()
-                                    .background(Color.white.opacity(0.05))
+                                    .background(Theme.Colors.divider)
                                     .padding(.vertical, 4)
                             }
                         }
@@ -676,7 +676,7 @@ struct DeviceRow: View {
                     .frame(width: 36, height: 36)
                     .overlay(
                         RoundedRectangle(cornerRadius: 10)
-                            .stroke(Color.white.opacity(0.05), lineWidth: 1)
+                            .stroke(Theme.Colors.divider, lineWidth: 1)
                     )
                 
                 Image(systemName: device.iconName)
@@ -687,7 +687,7 @@ struct DeviceRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(device.displayName)
                     .font(.system(size: 14, weight: .bold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Theme.Colors.textStrong)
                 Text(device.ipAddress)
                     .font(.system(size: 11, design: .monospaced))
                     .foregroundStyle(Theme.Colors.textTertiary)
