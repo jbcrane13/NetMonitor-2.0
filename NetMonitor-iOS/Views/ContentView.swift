@@ -36,47 +36,48 @@ struct ContentView: View {
     }
 
     var body: some View {
-        if sizeClass == .regular {
-            NavigationSplitView {
-                iPadSidebar
-            } detail: {
-                detailView
+        Group {
+            if sizeClass == .regular {
+                NavigationSplitView {
+                    iPadSidebar
+                } detail: {
+                    detailView
+                }
+            } else {
+                TabView(selection: $selectedTab) {
+                    DashboardView()
+                        .tabItem {
+                            Label(Tab.dashboard.title, systemImage: Tab.dashboard.icon)
+                        }
+                        .tag(Tab.dashboard)
+                        .accessibilityIdentifier("contentView_tab_dashboard")
+
+                    NetworkMapView()
+                        .tabItem {
+                            Label(Tab.map.title, systemImage: Tab.map.icon)
+                        }
+                        .tag(Tab.map)
+                        .accessibilityIdentifier("contentView_tab_map")
+
+                    ToolsView()
+                        .tabItem {
+                            Label(Tab.tools.title, systemImage: Tab.tools.icon)
+                        }
+                        .tag(Tab.tools)
+                        .accessibilityIdentifier("contentView_tab_tools")
+
+                    TimelineView()
+                        .tabItem {
+                            Label(Tab.timeline.title, systemImage: Tab.timeline.icon)
+                        }
+                        .tag(Tab.timeline)
+                        .accessibilityIdentifier("contentView_tab_timeline")
+                }
             }
-            .tint(themeManager.accent)
-            .accessibilityIdentifier("screen_main")
-        } else {
-            TabView(selection: $selectedTab) {
-                DashboardView()
-                    .tabItem {
-                        Label(Tab.dashboard.title, systemImage: Tab.dashboard.icon)
-                    }
-                    .tag(Tab.dashboard)
-                    .accessibilityIdentifier("contentView_tab_dashboard")
-
-                NetworkMapView()
-                    .tabItem {
-                        Label(Tab.map.title, systemImage: Tab.map.icon)
-                    }
-                    .tag(Tab.map)
-                    .accessibilityIdentifier("contentView_tab_map")
-
-                ToolsView()
-                    .tabItem {
-                        Label(Tab.tools.title, systemImage: Tab.tools.icon)
-                    }
-                    .tag(Tab.tools)
-                    .accessibilityIdentifier("contentView_tab_tools")
-
-                TimelineView()
-                    .tabItem {
-                        Label(Tab.timeline.title, systemImage: Tab.timeline.icon)
-                    }
-                    .tag(Tab.timeline)
-                    .accessibilityIdentifier("contentView_tab_timeline")
-            }
-            .tint(themeManager.accent)
-            .accessibilityIdentifier("screen_main")
         }
+        .preferredColorScheme(.dark)
+        .tint(themeManager.accent)
+        .accessibilityIdentifier("screen_main")
     }
 
     // MARK: - iPad Sidebar

@@ -38,7 +38,7 @@ struct DeviceDetailView: View {
         .navigationTitle(viewModel.device?.displayName ?? ipAddress)
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
-        .toolbarColorScheme(nil, for: .navigationBar)
+        .toolbarColorScheme(.dark, for: .navigationBar)
         .toolbar {
             if let device = viewModel.device {
                 ToolbarItem(placement: .topBarTrailing) {
