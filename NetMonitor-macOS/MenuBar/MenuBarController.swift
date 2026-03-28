@@ -63,7 +63,11 @@ final class MenuBarController: NSObject {
         observationTask = Task { [weak self] in
             while !Task.isCancelled {
                 guard let self else { return }
+                // Use coordinator's profile first, fall back to profile manager's active profile
+                // (coordinator.networkProfile is only set at init or on manual switch,
+                //  but detectLocalNetwork() updates profileManager.activeProfile asynchronously)
                 let profile = self.deviceDiscovery.networkProfile
+                    ?? self.deviceDiscovery.networkProfileManager.activeProfile
                 let connectionType = profile?.connectionType ?? .none
                 let isOnline = profile != nil
                 let hasIssues = self.monitoringSession.latestResults.values.contains { !$0.isReachable }
