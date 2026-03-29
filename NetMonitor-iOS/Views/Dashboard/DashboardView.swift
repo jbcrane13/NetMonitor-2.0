@@ -391,6 +391,12 @@ struct RefinedNetworkHealthCard: View {
 
 struct SignalEQView: View {
     let viewModel: DashboardViewModel
+    @Environment(\.horizontalSizeClass) private var sizeClass
+    
+    /// Bar height scales up on iPad to fill the taller card
+    private var barMaxHeight: CGFloat {
+        sizeClass == .regular ? 64 : 32
+    }
     
     var eqData: [Double] {
         let history = viewModel.latencyHistory
@@ -434,7 +440,7 @@ struct SignalEQView: View {
                     ForEach(0..<eqData.count, id: \.self) { i in
                         let val = eqData[i]
                         let normalized = min(val / ceiling, 1.0)
-                        let height = CGFloat(normalized * 32)
+                        let height = CGFloat(normalized * Double(barMaxHeight))
                         
                         RoundedRectangle(cornerRadius: 1)
                             .fill(
@@ -450,7 +456,7 @@ struct SignalEQView: View {
                             .frame(height: max(3, height))
                     }
                 }
-                .frame(height: 32)
+                .frame(height: barMaxHeight)
             }
         }
     }
