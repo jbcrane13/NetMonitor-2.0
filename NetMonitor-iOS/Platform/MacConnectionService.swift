@@ -1,4 +1,4 @@
-import Foundation
+zimport Foundation
 import NetMonitorCore
 import Network
 import os
