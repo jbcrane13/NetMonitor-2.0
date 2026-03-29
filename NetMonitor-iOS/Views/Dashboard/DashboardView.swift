@@ -619,6 +619,15 @@ struct ConnectivityRow: View {
 struct LocalDevicesCard: View {
     @Bindable var viewModel: DashboardViewModel
     let selectedNetwork: NetworkProfile?
+    @Environment(\.horizontalSizeClass) private var sizeClass
+
+    /// Show all devices on iPad, cap at 5 on iPhone
+    private var visibleDevices: [DiscoveredDevice] {
+        if sizeClass == .regular {
+            return Array(viewModel.discoveredDevices)
+        }
+        return Array(viewModel.discoveredDevices.prefix(5))
+    }
 
     var body: some View {
         NavigationLink(
@@ -646,9 +655,9 @@ struct LocalDevicesCard: View {
                     }
 
                     VStack(spacing: 0) {
-                        ForEach(viewModel.discoveredDevices.prefix(5)) { device in
+                        ForEach(visibleDevices) { device in
                             DeviceRow(device: device)
-                            if device.id != viewModel.discoveredDevices.prefix(5).last?.id {
+                            if device.id != visibleDevices.last?.id {
                                 Divider()
                                     .background(Theme.Colors.divider)
                                     .padding(.vertical, 4)
@@ -667,6 +676,7 @@ struct LocalDevicesCard: View {
             }
         }
         .buttonStyle(PlainButtonStyle())
+        .frame(maxHeight: sizeClass == .regular ? .infinity : nil)
         .accessibilityIdentifier("dashboard_card_localDevices")
     }
 }
