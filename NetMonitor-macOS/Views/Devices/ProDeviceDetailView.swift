@@ -55,7 +55,7 @@ struct ProDeviceDetailView: View {
         .sheet(isPresented: $showPortScanSheet) {
             DevicePortScanSheet(device: device, isPresented: $showPortScanSheet)
         }
-        .accessibilityIdentifier("deviceDetail_screen")
+        .accessibilityIdentifier("screen_deviceDetail")
     }
 }
 
@@ -165,7 +165,7 @@ private extension ProDeviceDetailView {
                         TextField("Device Name", text: $editedName)
                             .textFieldStyle(.roundedBorder)
                             .frame(maxWidth: 260)
-                            .accessibilityIdentifier("deviceDetail_textField_name")
+                            .accessibilityIdentifier("deviceDetail_textfield_name")
 
                         Picker("Type", selection: $selectedDeviceType) {
                             ForEach(DeviceType.allCases, id: \.self) { type in
@@ -338,7 +338,7 @@ private extension ProDeviceDetailView {
                             .clipShape(RoundedRectangle(cornerRadius: 5))
                     }
                 }
-                .accessibilityIdentifier("deviceDetail_ports_list")
+                .accessibilityIdentifier("deviceDetail_list_ports")
             } else {
                 Text("No open ports detected")
                     .font(.subheadline)
@@ -383,7 +383,7 @@ private extension ProDeviceDetailView {
                     .scrollContentBackground(.hidden)
                     .background(Color.primary.opacity(0.03))
                     .clipShape(RoundedRectangle(cornerRadius: 6))
-                    .accessibilityIdentifier("deviceDetail_textEditor_notes")
+                    .accessibilityIdentifier("deviceDetail_textfield_notes")
             } else if let notes = device.notes, !notes.isEmpty {
                 Text(notes)
                     .font(.body)

@@ -57,7 +57,7 @@ struct ConnectivityCard: View {
                     .font(.system(size: 9))
                     .foregroundStyle(.red.opacity(0.9))
                     .lineLimit(2)
-                    .accessibilityIdentifier("dashboard_connectivity_error")
+                    .accessibilityIdentifier("connectivity_label_error")
             }
 
             // Anchor ping pills
@@ -126,7 +126,7 @@ struct ConnectivityCard: View {
         .background(MacTheme.Colors.info.opacity(0.08))
         .overlay(Capsule().stroke(MacTheme.Colors.info.opacity(0.2), lineWidth: 0.5))
         .clipShape(Capsule())
-        .accessibilityIdentifier("dashboard_connectivity_ping_\(name.lowercased())")
+        .accessibilityIdentifier("connectivity_label_ping\(name.lowercased())")
     }
 
     // MARK: Helpers

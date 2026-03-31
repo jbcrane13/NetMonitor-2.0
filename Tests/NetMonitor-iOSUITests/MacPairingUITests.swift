@@ -25,7 +25,7 @@ final class MacPairingUITests: IOSUITestCase {
         openSettings()
         openPairingSheet()
         if app.otherElements["screen_macPairing"].waitForExistence(timeout: 5) {
-            XCTAssertTrue(app.buttons["pairing_cancel"].exists)
+            XCTAssertTrue(app.buttons["pairing_button_cancel"].exists)
             XCTAssertTrue(app.navigationBars["Connect to Mac"].exists)
         }
     }
@@ -34,8 +34,8 @@ final class MacPairingUITests: IOSUITestCase {
         openSettings()
         openPairingSheet()
         if app.otherElements["screen_macPairing"].waitForExistence(timeout: 5) {
-            let searching = app.otherElements["pairing_searching"]
-            let empty = app.otherElements["pairing_empty"]
+            let searching = app.otherElements["pairing_label_searching"]
+            let empty = app.otherElements["pairing_label_empty"]
             let macList = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'pairing_mac_'")).firstMatch
             XCTAssertTrue(searching.waitForExistence(timeout: 5) || empty.exists || macList.exists)
         }
@@ -45,13 +45,13 @@ final class MacPairingUITests: IOSUITestCase {
         openSettings()
         openPairingSheet()
         if app.otherElements["screen_macPairing"].waitForExistence(timeout: 5) {
-            let manualToggle = app.buttons["pairing_manual_toggle"]
+            let manualToggle = app.buttons["pairing_toggle_manual"]
             if manualToggle.waitForExistence(timeout: 5) {
                 manualToggle.tap()
-                XCTAssertTrue(app.textFields["pairing_manual_host"].waitForExistence(timeout: 3))
-                XCTAssertTrue(app.textFields["pairing_manual_port"].exists)
-                XCTAssertTrue(app.buttons["pairing_manual_connect"].exists ||
-                              app.otherElements["pairing_manual_connect"].exists)
+                XCTAssertTrue(app.textFields["macPairing_textfield_host"].waitForExistence(timeout: 3))
+                XCTAssertTrue(app.textFields["macPairing_textfield_port"].exists)
+                XCTAssertTrue(app.buttons["pairing_button_manualConnect"].exists ||
+                              app.otherElements["pairing_button_manualConnect"].exists)
             }
         }
     }
@@ -60,10 +60,10 @@ final class MacPairingUITests: IOSUITestCase {
         openSettings()
         openPairingSheet()
         if app.otherElements["screen_macPairing"].waitForExistence(timeout: 5) {
-            let manualToggle = app.buttons["pairing_manual_toggle"]
+            let manualToggle = app.buttons["pairing_toggle_manual"]
             if manualToggle.waitForExistence(timeout: 5) {
                 manualToggle.tap()
-                let hostField = app.textFields["pairing_manual_host"]
+                let hostField = app.textFields["macPairing_textfield_host"]
                 if hostField.waitForExistence(timeout: 3) {
                     hostField.tap()
                     hostField.typeText("192.168.1.100")
@@ -77,7 +77,7 @@ final class MacPairingUITests: IOSUITestCase {
         openSettings()
         openPairingSheet()
         if app.otherElements["screen_macPairing"].waitForExistence(timeout: 5) {
-            app.buttons["pairing_cancel"].tap()
+            app.buttons["pairing_button_cancel"].tap()
             XCTAssertTrue(app.otherElements["screen_settings"].waitForExistence(timeout: 5))
         }
     }
@@ -96,9 +96,9 @@ final class MacPairingUITests: IOSUITestCase {
             return
         }
 
-        let cancelButton = app.buttons["pairing_cancel"]
-        let searchingIndicator = app.otherElements["pairing_searching"]
-        let emptyState = app.otherElements["pairing_empty"]
+        let cancelButton = app.buttons["pairing_button_cancel"]
+        let searchingIndicator = app.otherElements["pairing_label_searching"]
+        let emptyState = app.otherElements["pairing_label_empty"]
         let qrCode = app.otherElements["pairing_qrCode"]
 
         XCTAssertTrue(
@@ -119,7 +119,7 @@ final class MacPairingUITests: IOSUITestCase {
             return
         }
 
-        let cancelButton = app.buttons["pairing_cancel"]
+        let cancelButton = app.buttons["pairing_button_cancel"]
         guard cancelButton.waitForExistence(timeout: 5) else { return }
         cancelButton.tap()
 

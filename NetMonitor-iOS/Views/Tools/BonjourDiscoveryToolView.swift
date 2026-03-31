@@ -84,7 +84,7 @@ struct BonjourDiscoveryToolView: View {
                 title: "No Services Found",
                 description: "No Bonjour/mDNS services were discovered on your local network. Try scanning again or check that devices are advertising services."
             )
-            .accessibilityIdentifier("bonjour_emptystate_noservices")
+            .accessibilityIdentifier("bonjour_label_noServices")
         } else if !viewModel.services.isEmpty {
             VStack(alignment: .leading, spacing: 16) {
                 HStack {
@@ -165,7 +165,7 @@ private struct BonjourServiceRow: View {
                     .foregroundStyle(Theme.Colors.textTertiary)
             }
         }
-        .accessibilityIdentifier("bonjour_service_\(service.name)")
+        .accessibilityIdentifier("bonjour_row_\(service.name)")
     }
 
     private var iconForService: String {

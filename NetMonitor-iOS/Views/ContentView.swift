@@ -98,7 +98,7 @@ struct ContentView: View {
                 ForEach(Tab.allCases, id: \.self) { tab in
                     iPadSidebarRow(tab: tab)
                         .tag(tab)
-                        .accessibilityIdentifier("contentView_sidebar_\(tab.rawValue)")
+                        .accessibilityIdentifier("contentView_tab_\(tab.rawValue)")
                 }
             } header: {
                 Text("NAVIGATE")

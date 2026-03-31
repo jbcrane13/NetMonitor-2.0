@@ -63,7 +63,7 @@ struct OnboardingView: View {
                             .background(Theme.Colors.accent)
                             .clipShape(RoundedRectangle(cornerRadius: Theme.Layout.buttonCornerRadius))
                     }
-                    .accessibilityIdentifier(currentPage < totalPages - 1 ? "onboarding_button_continue" : "onboarding_button_get_started")
+                    .accessibilityIdentifier(currentPage < totalPages - 1 ? "onboarding_button_continue" : "onboarding_button_getStarted")
                     .padding(.horizontal, Theme.Layout.screenPadding)
                 }
                 .padding(.bottom, 32)
@@ -101,7 +101,7 @@ private struct NetworkAccessPage: View {
             accessibilityPrefix: "onboarding_network",
             actionButton: OnboardingActionButton(
                 label: "Allow Access",
-                accessibilityID: "onboarding_button_allow_network"
+                accessibilityID: "onboarding_button_allowNetwork"
             ) {
                 // Starting NWPathMonitor triggers the local network permission prompt
                 let monitor = NWPathMonitor()
@@ -127,7 +127,7 @@ private struct NotificationsPage: View {
             accessibilityPrefix: "onboarding_notifications",
             actionButton: OnboardingActionButton(
                 label: "Enable Notifications",
-                accessibilityID: "onboarding_button_enable_notifications"
+                accessibilityID: "onboarding_button_enableNotifications"
             ) {
                 Task<Void, Never> {
                     _ = try? await UNUserNotificationCenter.current()
@@ -160,7 +160,7 @@ private struct OnboardingPageView: View {
             Image(systemName: icon)
                 .font(.system(size: 80, weight: .light))
                 .foregroundStyle(Theme.Colors.accent)
-                .accessibilityIdentifier("\(accessibilityPrefix)_icon")
+                .accessibilityIdentifier("\(accessibilityPrefix)_image_icon")
 
             VStack(spacing: Theme.Layout.itemSpacing) {
                 Text(title)
@@ -168,14 +168,14 @@ private struct OnboardingPageView: View {
                     .fontWeight(.bold)
                     .foregroundStyle(Theme.Colors.textPrimary)
                     .multilineTextAlignment(.center)
-                    .accessibilityIdentifier("\(accessibilityPrefix)_title")
+                    .accessibilityIdentifier("\(accessibilityPrefix)_label_title")
 
                 Text(description)
                     .font(.subheadline)
                     .foregroundStyle(Theme.Colors.textSecondary)
                     .multilineTextAlignment(.center)
                     .lineSpacing(4)
-                    .accessibilityIdentifier("\(accessibilityPrefix)_description")
+                    .accessibilityIdentifier("\(accessibilityPrefix)_label_description")
             }
             .padding(.horizontal, Theme.Layout.screenPadding * 2)
 

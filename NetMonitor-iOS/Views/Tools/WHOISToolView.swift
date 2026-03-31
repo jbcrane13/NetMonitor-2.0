@@ -91,7 +91,7 @@ struct WHOISToolView: View {
                     Spacer()
                 }
             }
-            .accessibilityIdentifier("whois_error")
+            .accessibilityIdentifier("whois_label_error")
         }
 
         if let result = viewModel.result {
@@ -118,7 +118,7 @@ struct WHOISToolView: View {
                         }
                     }
                 }
-                .accessibilityIdentifier("whois_domainInfo")
+                .accessibilityIdentifier("whois_section_domainInfo")
 
                 // Dates
                 if result.creationDate != nil || result.expirationDate != nil {
@@ -163,7 +163,7 @@ struct WHOISToolView: View {
                             }
                         }
                     }
-                    .accessibilityIdentifier("whois_dates")
+                    .accessibilityIdentifier("whois_section_dates")
                 }
 
                 // Name servers
@@ -197,7 +197,7 @@ struct WHOISToolView: View {
                             }
                         }
                     }
-                    .accessibilityIdentifier("whois_nameServers")
+                    .accessibilityIdentifier("whois_section_nameServers")
                 }
             }
         }

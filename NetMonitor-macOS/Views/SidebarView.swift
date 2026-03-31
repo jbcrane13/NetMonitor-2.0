@@ -32,7 +32,7 @@ struct SidebarView: View {
                             deviceCount: deviceCount > 0 ? deviceCount : nil
                         )
                         .tag(SidebarSelection.network(profile.id))
-                        .accessibilityIdentifier("sidebar_row_network_\(profile.id)")
+                        .accessibilityIdentifier("sidebar_row_network\(profile.id)")
                     }
                 } header: {
                     HStack {

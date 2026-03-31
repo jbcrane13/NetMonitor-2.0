@@ -73,7 +73,7 @@ struct PortScannerToolView: View {
                         TextField("1", value: $viewModel.customRange.start, format: .number)
                             .textFieldStyle(.roundedBorder)
                             .keyboardType(.numberPad)
-                            .accessibilityIdentifier("portScanner_input_startPort")
+                            .accessibilityIdentifier("portScanner_textfield_startPort")
                     }
 
                     VStack(alignment: .leading, spacing: 4) {
@@ -83,7 +83,7 @@ struct PortScannerToolView: View {
                         TextField("1024", value: $viewModel.customRange.end, format: .number)
                             .textFieldStyle(.roundedBorder)
                             .keyboardType(.numberPad)
-                            .accessibilityIdentifier("portScanner_input_endPort")
+                            .accessibilityIdentifier("portScanner_textfield_endPort")
                     }
 
                     VStack(alignment: .leading, spacing: 4) {
@@ -151,7 +151,7 @@ struct PortScannerToolView: View {
                     }
                 }
             }
-            .accessibilityIdentifier("portScanner_progress")
+            .accessibilityIdentifier("portScanner_label_progress")
         }
     }
 
@@ -257,7 +257,7 @@ private struct PortResultRow: View {
                         .fill((result.state == .open ? Theme.Colors.success : Theme.Colors.error).opacity(0.2))
                 )
         }
-        .accessibilityIdentifier("portScanner_result_\(result.port)")
+        .accessibilityIdentifier("portScanner_row_\(result.port)")
     }
 }
 

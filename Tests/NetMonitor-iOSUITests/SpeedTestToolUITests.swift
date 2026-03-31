@@ -28,7 +28,7 @@ final class SpeedTestToolUITests: IOSUITestCase {
 
     func testSpeedGaugeExists() throws {
         navigateToSpeedTestTool()
-        requireExists(app.otherElements["speedTest_gauge"], message: "Speed gauge should exist")
+        requireExists(app.otherElements["speedTest_label_gauge"], message: "Speed gauge should exist")
     }
 
     func testRunButtonExists() throws {
@@ -43,7 +43,7 @@ final class SpeedTestToolUITests: IOSUITestCase {
         let runButton = requireExists(app.buttons["speedTest_button_run"], message: "Run button should exist")
         runButton.tap()
 
-        let results = app.otherElements["speedTest_results"]
+        let results = app.otherElements["speedTest_section_results"]
         let latencyPhase = app.staticTexts["Testing latency..."]
         let downloadPhase = app.staticTexts["Testing download..."]
         let uploadPhase = app.staticTexts["Testing upload..."]
@@ -68,7 +68,7 @@ final class SpeedTestToolUITests: IOSUITestCase {
         )
 
         runButton.tap()
-        requireExists(app.otherElements["speedTest_gauge"], message: "Speed gauge should remain visible after stopping")
+        requireExists(app.otherElements["speedTest_label_gauge"], message: "Speed gauge should remain visible after stopping")
     }
 
     // MARK: - History Section
@@ -78,7 +78,7 @@ final class SpeedTestToolUITests: IOSUITestCase {
         let runButton = requireExists(app.buttons["speedTest_button_run"], message: "Run button should exist")
         runButton.tap()
 
-        let results = app.otherElements["speedTest_results"]
+        let results = app.otherElements["speedTest_section_results"]
         if results.waitForExistence(timeout: 45) {
             scrollToElement(app.otherElements["speedTest_section_history"])
             let history = app.otherElements["speedTest_section_history"]
@@ -126,7 +126,7 @@ final class SpeedTestToolUITests: IOSUITestCase {
         runButton.tap()
 
         requireExists(
-            app.otherElements["speedTest_gauge"],
+            app.otherElements["speedTest_label_gauge"],
             timeout: 5,
             message: "Speed gauge should remain visible after run/stop cycle"
         )

@@ -146,7 +146,7 @@ struct ISPHealthCard: View {
                     .font(.system(size: 9))
                     .foregroundStyle(.red.opacity(0.9))
                     .lineLimit(2)
-                    .accessibilityIdentifier("dashboard_networkHealth_error")
+                    .accessibilityIdentifier("ispHealth_label_error")
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

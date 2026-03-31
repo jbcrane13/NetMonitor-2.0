@@ -188,7 +188,7 @@ struct SettingsView: View {
                                 .foregroundStyle(Theme.Colors.accent)
                         }
                     }
-                    .accessibilityIdentifier("settings_export_\(option.rawValue)")
+                    .accessibilityIdentifier("settings_button_export\(option.rawValue)")
                 }
 
                 Button {

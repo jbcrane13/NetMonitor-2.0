@@ -39,7 +39,7 @@ final class BonjourDiscoveryToolUITests: IOSUITestCase {
         runButton.tap()
 
         let services = app.otherElements["bonjour_section_services"]
-        let emptyState = app.otherElements["bonjour_emptystate_noservices"]
+        let emptyState = app.otherElements["bonjour_label_noServices"]
         let discovering = app.staticTexts["Discovering services..."]
         XCTAssertTrue(
             waitForEither([services, emptyState, discovering], timeout: 10),
@@ -54,7 +54,7 @@ final class BonjourDiscoveryToolUITests: IOSUITestCase {
 
         let discovering = app.staticTexts["Discovering services..."]
         let services = app.otherElements["bonjour_section_services"]
-        let emptyState = app.otherElements["bonjour_emptystate_noservices"]
+        let emptyState = app.otherElements["bonjour_label_noServices"]
         XCTAssertTrue(
             waitForEither([discovering, services, emptyState], timeout: 10),
             "Bonjour should enter running state"
@@ -70,7 +70,7 @@ final class BonjourDiscoveryToolUITests: IOSUITestCase {
         runButton.tap()
 
         let services = app.otherElements["bonjour_section_services"]
-        let emptyState = app.otherElements["bonjour_emptystate_noservices"]
+        let emptyState = app.otherElements["bonjour_label_noServices"]
         _ = waitForEither([services, emptyState], timeout: 10)
 
         runButton.tap()
@@ -90,7 +90,7 @@ final class BonjourDiscoveryToolUITests: IOSUITestCase {
         runButton.tap()
 
         let services = app.otherElements["bonjour_section_services"]
-        let emptyState = app.otherElements["bonjour_emptystate_noservices"]
+        let emptyState = app.otherElements["bonjour_label_noServices"]
         _ = waitForEither([services, emptyState], timeout: 10)
 
         runButton.tap()

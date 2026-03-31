@@ -261,7 +261,7 @@ struct DevicesView: View {
                         .onTapGesture {
                             selectedProDevice = device
                         }
-                        .accessibilityIdentifier("devices_proRow_\(device.ipAddress)")
+                        .accessibilityIdentifier("devices_row_pro\(device.ipAddress)")
                     Rectangle()
                         .fill(Color.white.opacity(0.08))
                         .frame(height: 1)
@@ -414,7 +414,7 @@ struct DevicesView: View {
             .background(Color.primary.opacity(0.04))
             .clipShape(RoundedRectangle(cornerRadius: 6))
             .frame(width: 180)
-            .accessibilityIdentifier("devices_search_field")
+            .accessibilityIdentifier("devices_textfield_search")
 
             Divider()
                 .frame(height: 18)
@@ -445,7 +445,7 @@ struct DevicesView: View {
                             }
                         }
                     }
-                    .accessibilityIdentifier("devices_sortOption_\(order.rawValue.lowercased())")
+                    .accessibilityIdentifier("devices_menu_sort\(order.rawValue.lowercased())")
                 }
             } label: {
                 Label("Sort", systemImage: "arrow.up.arrow.down")
@@ -675,12 +675,12 @@ struct DevicePingSheet: View {
                     }
                 }
                 .buttonStyle(.borderedProminent)
-                .accessibilityIdentifier("devices_ping_button_run")
+                .accessibilityIdentifier("devices_button_pingRun")
             }
             .padding()
         }
         .frame(width: 600, height: 500)
-        .accessibilityIdentifier("devices_sheet_ping")
+        .accessibilityIdentifier("devices_section_pingSheet")
         .onAppear {
             if !isPinging && pingResults.isEmpty {
                 runPing()
@@ -847,12 +847,12 @@ struct DevicePortScanSheet: View {
                     }
                 }
                 .buttonStyle(.borderedProminent)
-                .accessibilityIdentifier("devices_portScan_button_scan")
+                .accessibilityIdentifier("devices_button_portScan")
             }
             .padding()
         }
         .frame(width: 500, height: 600)
-        .accessibilityIdentifier("devices_sheet_portScan")
+        .accessibilityIdentifier("devices_section_portScanSheet")
         .onAppear {
             if !isScanning && portScanResults.isEmpty {
                 runPortScan()

@@ -47,7 +47,7 @@ struct HealthGaugeCard: View {
                         Text(scoreText)
                             .font(.system(size: scoreFontSize, weight: .bold, design: .rounded))
                             .foregroundStyle(.white)
-                            .accessibilityIdentifier("dashboard_healthGauge_score")
+                            .accessibilityIdentifier("healthGauge_label_score")
                         Text(gradeText)
                             .font(.system(size: gradeFontSize, weight: .bold))
                             .foregroundStyle(.secondary)

@@ -16,7 +16,7 @@ final class GeoTraceUITests: IOSUITestCase {
         openGeoTrace()
 
         requireExists(
-            app.textFields["geoTrace_input_host"],
+            app.textFields["geoTrace_textfield_host"],
             message: "Host input field should be visible"
         )
 
@@ -48,7 +48,7 @@ final class GeoTraceUITests: IOSUITestCase {
     func testGeoTraceButtonEnabledAfterHostEntry() {
         openGeoTrace()
 
-        clearAndTypeText("8.8.8.8", into: app.textFields["geoTrace_input_host"])
+        clearAndTypeText("8.8.8.8", into: app.textFields["geoTrace_textfield_host"])
 
         let traceButton = app.buttons["geoTrace_button_trace"]
         XCTAssertTrue(traceButton.isEnabled, "Trace button should be enabled with a host")
@@ -56,7 +56,7 @@ final class GeoTraceUITests: IOSUITestCase {
 
     func testGeoTraceTriggersTraceAndShowsOutcome() {
         openGeoTrace()
-        clearAndTypeText("8.8.8.8", into: app.textFields["geoTrace_input_host"])
+        clearAndTypeText("8.8.8.8", into: app.textFields["geoTrace_textfield_host"])
         app.buttons["geoTrace_button_trace"].tap()
 
         // After tap, verify either:
@@ -90,7 +90,7 @@ final class GeoTraceUITests: IOSUITestCase {
 
     func testGeoTraceClearRemovesResults() {
         openGeoTrace()
-        clearAndTypeText("1.1.1.1", into: app.textFields["geoTrace_input_host"])
+        clearAndTypeText("1.1.1.1", into: app.textFields["geoTrace_textfield_host"])
         app.buttons["geoTrace_button_trace"].tap()
 
         // Wait briefly for some outcome (running, results, or error)

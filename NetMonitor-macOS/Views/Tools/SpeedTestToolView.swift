@@ -21,7 +21,7 @@ struct SpeedTestToolView: View {
         ToolSheetContainer(
             title: "Speed Test",
             iconName: "speedometer",
-            closeAccessibilityID: "speedtest_button_close",
+            closeAccessibilityID: "speedTest_button_close",
             minWidth: 600,
             minHeight: 500,
             inputArea: { contentArea },
@@ -53,7 +53,7 @@ struct SpeedTestToolView: View {
                     .pickerStyle(.segmented)
                     .frame(maxWidth: 300)
                     .disabled(service.isRunning)
-                    .accessibilityIdentifier("speedtest_picker_duration")
+                    .accessibilityIdentifier("speedTest_picker_duration")
                 }
 
                 VStack(spacing: 8) {
@@ -68,7 +68,7 @@ struct SpeedTestToolView: View {
                     }
                     .frame(maxWidth: 180)
                     .disabled(service.isRunning)
-                    .accessibilityIdentifier("speedtest_picker_server")
+                    .accessibilityIdentifier("speedTest_picker_server")
                 }
             }
 
@@ -96,7 +96,7 @@ struct SpeedTestToolView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
-                .accessibilityIdentifier("speedtest_button_start")
+                .accessibilityIdentifier("speedTest_button_start")
             } else {
                 Button {
                     stopSpeedTest()
@@ -107,7 +107,7 @@ struct SpeedTestToolView: View {
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.large)
-                .accessibilityIdentifier("speedtest_button_stop")
+                .accessibilityIdentifier("speedTest_button_stop")
             }
 
             Spacer()
@@ -197,7 +197,7 @@ struct SpeedTestToolView: View {
                         .foregroundStyle(.tertiary)
                 }
             }
-            .accessibilityIdentifier("speedtest_stat_latency")
+            .accessibilityIdentifier("speedTest_label_latency")
 
             // Download
             VStack(spacing: 4) {
@@ -225,7 +225,7 @@ struct SpeedTestToolView: View {
                         .foregroundStyle(.tertiary)
                 }
             }
-            .accessibilityIdentifier("speedtest_stat_download")
+            .accessibilityIdentifier("speedTest_label_download")
 
             // Upload
             VStack(spacing: 4) {
@@ -253,7 +253,7 @@ struct SpeedTestToolView: View {
                         .foregroundStyle(.tertiary)
                 }
             }
-            .accessibilityIdentifier("speedtest_stat_upload")
+            .accessibilityIdentifier("speedTest_label_upload")
 
             // Server
             VStack(spacing: 4) {
@@ -267,9 +267,9 @@ struct SpeedTestToolView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            .accessibilityIdentifier("speedtest_stat_server")
+            .accessibilityIdentifier("speedTest_label_server")
         }
-        .accessibilityIdentifier("speedtest_section_results")
+        .accessibilityIdentifier("speedTest_section_results")
     }
 
     // MARK: - Footer
@@ -300,7 +300,7 @@ struct SpeedTestToolView: View {
                 Button("Reset") {
                     resetTest()
                 }
-                .accessibilityIdentifier("speedtest_button_reset")
+                .accessibilityIdentifier("speedTest_button_reset")
             }
         }
         .padding()

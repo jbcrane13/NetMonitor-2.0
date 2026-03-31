@@ -40,7 +40,7 @@ final class WorldPingToolUITests: IOSUITestCase {
     func testRunButtonEnabledAfterInput() {
         openWorldPing()
 
-        clearAndTypeText("google.com", into: app.textFields["worldPing_input_host"])
+        clearAndTypeText("google.com", into: app.textFields["worldPing_textfield_host"])
 
         let runButton = requireExists(
             app.buttons["worldPing_button_run"],
@@ -51,7 +51,7 @@ final class WorldPingToolUITests: IOSUITestCase {
 
     func testClearButtonAppearsAfterResults() {
         openWorldPing()
-        clearAndTypeText("google.com", into: app.textFields["worldPing_input_host"])
+        clearAndTypeText("google.com", into: app.textFields["worldPing_textfield_host"])
         app.buttons["worldPing_button_run"].tap()
 
         // Wait for results or timeout after ~30s (real network call)

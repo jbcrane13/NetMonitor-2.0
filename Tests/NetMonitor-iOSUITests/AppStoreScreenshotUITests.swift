@@ -31,7 +31,7 @@ final class AppStoreScreenshotUITests: IOSUITestCase {
 
         // 5) Speed Test
         captureToolScreen(
-            toolCardIdentifier: "quickAction_speed_test",
+            toolCardIdentifier: "quickAction_button_speedTest",
             expectedScreenIdentifier: "screen_speedTestTool",
             fileName: "05-speed-test"
         )

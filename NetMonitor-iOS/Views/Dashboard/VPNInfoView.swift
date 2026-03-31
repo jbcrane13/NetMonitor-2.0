@@ -20,7 +20,7 @@ struct VPNInfoView: View {
                         status: viewModel.isVPNActive ? .online : .offline,
                         size: .small
                     )
-                    .accessibilityIdentifier("dashboard_vpn_status")
+                    .accessibilityIdentifier("dashboard_label_vpnStatus")
                 }
 
                 if viewModel.isVPNActive {

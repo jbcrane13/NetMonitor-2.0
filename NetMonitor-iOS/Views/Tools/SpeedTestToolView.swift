@@ -64,7 +64,7 @@ struct SpeedTestToolView: View {
                             .foregroundStyle(Theme.Colors.textSecondary)
                     }
                 }
-                .accessibilityIdentifier("speedTest_gauge")
+                .accessibilityIdentifier("speedTest_label_gauge")
 
                 // Latency display during/after test
                 if viewModel.latency > 0 {
@@ -198,7 +198,7 @@ struct SpeedTestToolView: View {
                                 value: viewModel.downloadSpeedText,
                                 color: Theme.Colors.success
                             )
-                            .accessibilityIdentifier("speedTest_stat_download")
+                            .accessibilityIdentifier("speedTest_label_download")
 
                             Divider()
                                 .background(Theme.Colors.glassBorder)
@@ -210,7 +210,7 @@ struct SpeedTestToolView: View {
                                 value: viewModel.uploadSpeedText,
                                 color: Theme.Colors.warning
                             )
-                            .accessibilityIdentifier("speedTest_stat_upload")
+                            .accessibilityIdentifier("speedTest_label_upload")
 
                             Divider()
                                 .background(Theme.Colors.glassBorder)
@@ -222,7 +222,7 @@ struct SpeedTestToolView: View {
                                 value: viewModel.latencyText,
                                 color: Theme.Colors.info
                             )
-                            .accessibilityIdentifier("speedTest_stat_latency")
+                            .accessibilityIdentifier("speedTest_label_latency")
                         }
 
                         Divider().background(Theme.Colors.glassBorder)
@@ -250,7 +250,7 @@ struct SpeedTestToolView: View {
                     }
                 }
             }
-            .accessibilityIdentifier("speedTest_results")
+            .accessibilityIdentifier("speedTest_section_results")
         }
 
         if let error = viewModel.errorMessage {
@@ -263,7 +263,7 @@ struct SpeedTestToolView: View {
                         .foregroundStyle(Theme.Colors.error)
                 }
             }
-            .accessibilityIdentifier("speedTest_error")
+            .accessibilityIdentifier("speedTest_label_error")
         }
     }
 
@@ -361,7 +361,7 @@ private struct SpeedTestHistoryRow: View {
                 .font(.caption2)
                 .foregroundStyle(Theme.Colors.textTertiary)
         }
-        .accessibilityIdentifier("speedTest_historyRow_\(result.id)")
+        .accessibilityIdentifier("speedTest_row_\(result.id)")
     }
 }
 

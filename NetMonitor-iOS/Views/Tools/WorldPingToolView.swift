@@ -90,23 +90,23 @@ struct WorldPingToolView: View {
     private var statsBar: some View {
         HStack(spacing: 0) {
             statItem(label: "Nodes", value: "\(viewModel.results.count)")
-                .accessibilityIdentifier("worldPing_stat_nodes")
+                .accessibilityIdentifier("worldPing_label_nodes")
             Spacer()
             statItem(label: "Success", value: "\(viewModel.successCount)")
-                .accessibilityIdentifier("worldPing_stat_success")
+                .accessibilityIdentifier("worldPing_label_success")
             Spacer()
             if let avg = viewModel.averageLatencyMs {
                 statItem(label: "Avg", value: avg < 10 ? String(format: "%.1f ms", avg) : String(format: "%.0f ms", avg))
-                    .accessibilityIdentifier("worldPing_stat_avg")
+                    .accessibilityIdentifier("worldPing_label_avg")
                 Spacer()
             }
             if let best = viewModel.bestLatencyMs {
                 statItem(label: "Best", value: best < 10 ? String(format: "%.1f ms", best) : String(format: "%.0f ms", best), color: Theme.Colors.success)
-                    .accessibilityIdentifier("worldPing_stat_best")
+                    .accessibilityIdentifier("worldPing_label_best")
             }
         }
         .padding(.horizontal, 4)
-        .accessibilityIdentifier("worldPing_statsBar")
+        .accessibilityIdentifier("worldPing_section_statsBar")
     }
 
     private func statItem(label: String, value: String, color: Color = Theme.Colors.textPrimary) -> some View {
@@ -239,7 +239,7 @@ private struct WorldPingLocationRow: View {
                     .foregroundStyle(Theme.Colors.textTertiary)
             }
         }
-        .accessibilityIdentifier("worldPing_location_row_\(result.id)")
+        .accessibilityIdentifier("worldPing_row_\(result.id)")
     }
 }
 

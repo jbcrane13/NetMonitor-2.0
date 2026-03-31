@@ -42,7 +42,7 @@ final class InteractionFlowUITests: IOSUITestCase {
         )
         setTargetQuickAction.tap()
 
-        let addressField = app.textFields["setTarget_input_address"]
+        let addressField = app.textFields["setTarget_textfield_address"]
         clearAndTypeText("1.1.1.1", into: addressField)
 
         let setButton = requireExists(
@@ -220,7 +220,7 @@ final class InteractionFlowUITests: IOSUITestCase {
 
         requireExists(ui("screen_macPairing"), message: "Mac Pairing screen should appear after tapping Connect to Mac")
         let cancelButton = requireExists(
-            app.buttons["pairing_cancel"],
+            app.buttons["pairing_button_cancel"],
             message: "Pairing cancel button should be visible"
         )
         cancelButton.tap()
@@ -271,7 +271,7 @@ final class InteractionFlowUITests: IOSUITestCase {
     }
 
     private func quickActionSetTarget() -> XCUIElement {
-        let button = app.buttons["quickAction_set_target"]
+        let button = app.buttons["quickAction_button_setTarget"]
         if button.exists {
             return button
         }
@@ -285,7 +285,7 @@ final class InteractionFlowUITests: IOSUITestCase {
         if legacyIdentifier.exists {
             return legacyIdentifier
         }
-        return ui("quickAction_set_target")
+        return ui("quickAction_button_setTarget")
     }
 
     private func switchIsOn(_ toggle: XCUIElement) -> Bool {

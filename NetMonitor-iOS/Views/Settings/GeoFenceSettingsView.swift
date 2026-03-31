@@ -52,7 +52,7 @@ struct GeoFenceSettingsView: View {
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 16)
-                    .accessibilityIdentifier("geoFence_empty_state")
+                    .accessibilityIdentifier("geoFence_label_emptyState")
                 } else {
                     ForEach(manager.geofences) { fence in
                         GeoFenceRow(fence: fence, manager: manager)
@@ -214,7 +214,7 @@ struct GeoFenceAddSheet: View {
                         TextField("Name (e.g. Home, Office)", text: $name)
                             .foregroundStyle(Theme.Colors.textPrimary)
                             .autocorrectionDisabled()
-                            .accessibilityIdentifier("geofence_name_field")
+                            .accessibilityIdentifier("geoFence_textfield_name")
                     } header: {
                         Text("GeoFence Name")
                             .foregroundStyle(Theme.Colors.textSecondary)

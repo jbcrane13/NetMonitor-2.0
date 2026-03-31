@@ -17,7 +17,7 @@ final class NetworkHealthScoreUITests: IOSUITestCase {
         guard card.waitForExistence(timeout: 8) else { return }
 
         // Gauge or loading state should be present
-        let gauge = app.descendants(matching: .any)["healthScore_gauge"]
+        let gauge = app.descendants(matching: .any)["healthScore_label_gauge"]
         let hasGauge = gauge.waitForExistence(timeout: 10)
         // Either loading or gauge visible is acceptable
         XCTAssertTrue(card.exists, "Health score card should remain visible")
@@ -101,7 +101,7 @@ final class NetworkHealthScoreUITests: IOSUITestCase {
         let card = app.descendants(matching: .any)["dashboard_card_healthScore"]
         XCTAssertTrue(card.exists, "Health score card should still be visible after refresh")
 
-        let gauge = app.descendants(matching: .any)["healthScore_gauge"]
+        let gauge = app.descendants(matching: .any)["healthScore_label_gauge"]
         let gradeLabel = app.descendants(matching: .any)["healthScore_label_grade"]
         let scoreLabel = app.descendants(matching: .any)["healthScore_label_score"]
         let hasContent = gauge.exists || gradeLabel.exists || scoreLabel.exists

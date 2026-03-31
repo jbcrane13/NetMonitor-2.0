@@ -40,7 +40,7 @@ struct SubnetCalculatorToolView: View {
                 TextField("CIDR (e.g., 192.168.1.0/24)", text: $cidrInput)
                     .textFieldStyle(.roundedBorder)
                     .onSubmit { calculate() }
-                    .accessibilityIdentifier("subnetCalc_input_cidr")
+                    .accessibilityIdentifier("subnetCalc_textfield_cidr")
 
                 Button("Calculate") { calculate() }
                     .buttonStyle(.borderedProminent)

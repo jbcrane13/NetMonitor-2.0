@@ -7,12 +7,12 @@ final class ToolOutcomeUITests: IOSUITestCase {
         openToolsRoot()
 
         let setTargetQuickAction = requireExists(
-            app.buttons["quickAction_set_target"],
+            app.buttons["quickAction_button_setTarget"],
             message: "Set Target quick action should exist"
         )
         setTargetQuickAction.tap()
 
-        let addressField = app.textFields["setTarget_input_address"]
+        let addressField = app.textFields["setTarget_textfield_address"]
         clearAndTypeText(target, into: addressField)
         requireExists(
             app.buttons["setTarget_button_set"],
@@ -24,7 +24,7 @@ final class ToolOutcomeUITests: IOSUITestCase {
         )
 
         XCTAssertTrue(
-            app.buttons["quickAction_set_target"].label.contains(target),
+            app.buttons["quickAction_button_setTarget"].label.contains(target),
             "Set Target quick action should show the selected target"
         )
 
@@ -165,8 +165,8 @@ final class ToolOutcomeUITests: IOSUITestCase {
             waitForEither(
                 [
                     app.buttons["Looking up..."],
-                    app.otherElements["dnsLookup_error"],
-                    app.otherElements["dnsLookup_queryInfo"],
+                    app.otherElements["dnsLookup_label_error"],
+                    app.otherElements["dnsLookup_section_queryInfo"],
                     app.buttons["dnsLookup_button_clear"]
                 ],
                 timeout: 20
@@ -192,8 +192,8 @@ final class ToolOutcomeUITests: IOSUITestCase {
             waitForEither(
                 [
                     app.buttons["Looking up..."],
-                    app.otherElements["whois_error"],
-                    app.otherElements["whois_domainInfo"],
+                    app.otherElements["whois_label_error"],
+                    app.otherElements["whois_section_domainInfo"],
                     app.buttons["whois_button_clear"]
                 ],
                 timeout: 20
@@ -268,7 +268,7 @@ final class ToolOutcomeUITests: IOSUITestCase {
 
         runButton.tap()
         requireExists(runButton, message: "Speed test run button should remain visible after stopping")
-        requireExists(ui("speedTest_gauge"), message: "Speed test gauge should remain visible after running/stopping")
+        requireExists(ui("speedTest_label_gauge"), message: "Speed test gauge should remain visible after running/stopping")
     }
 
     func testBonjourStartStopOutcome() {
@@ -285,7 +285,7 @@ final class ToolOutcomeUITests: IOSUITestCase {
                 [
                     app.staticTexts["Discovering services..."],
                     app.otherElements["bonjour_section_services"],
-                    app.otherElements["bonjour_emptystate_noservices"]
+                    app.otherElements["bonjour_label_noServices"]
                 ],
                 timeout: 10
             ),
@@ -324,7 +324,7 @@ final class ToolOutcomeUITests: IOSUITestCase {
         XCTAssertTrue(
             waitForEither(
                 [
-                    app.buttons["quickAction_set_target"],
+                    app.buttons["quickAction_button_setTarget"],
                     ui("tools_section_grid"),
                     ui("tools_card_ping")
                 ],
@@ -371,7 +371,7 @@ final class ToolOutcomeUITests: IOSUITestCase {
         XCTAssertTrue(
             waitForEither(
                 [
-                    app.buttons["quickAction_set_target"],
+                    app.buttons["quickAction_button_setTarget"],
                     ui("tools_section_grid"),
                     ui("tools_card_ping")
                 ],

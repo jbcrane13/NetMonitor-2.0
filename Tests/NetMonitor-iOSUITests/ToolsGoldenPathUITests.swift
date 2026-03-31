@@ -82,8 +82,8 @@ final class ToolsGoldenPathUITests: IOSUITestCase {
         XCTAssertTrue(
             waitForEither([
                 app.buttons["Looking up..."],
-                ui("dnsLookup_queryInfo"),
-                ui("dnsLookup_error"),
+                ui("dnsLookup_section_queryInfo"),
+                ui("dnsLookup_label_error"),
                 app.buttons["dnsLookup_button_clear"]
             ], timeout: 20),
             "DNS Lookup: should enter loading state or show results/error"
@@ -150,7 +150,7 @@ final class ToolsGoldenPathUITests: IOSUITestCase {
             waitForEither([
                 app.staticTexts["Discovering services..."],
                 ui("bonjour_section_services"),
-                ui("bonjour_emptystate_noservices")
+                ui("bonjour_label_noServices")
             ], timeout: 12),
             "Bonjour: should enter discovering state or show services/empty state"
         )
@@ -201,8 +201,8 @@ final class ToolsGoldenPathUITests: IOSUITestCase {
         XCTAssertTrue(
             waitForEither([
                 app.buttons["Looking up..."],
-                ui("whois_domainInfo"),
-                ui("whois_error"),
+                ui("whois_section_domainInfo"),
+                ui("whois_label_error"),
                 app.buttons["whois_button_clear"]
             ], timeout: 20),
             "WHOIS: should enter loading state or show results/error"
@@ -272,7 +272,7 @@ final class ToolsGoldenPathUITests: IOSUITestCase {
         )
         XCTAssertFalse(runButton.isEnabled, "World Ping: run should be disabled without a host")
 
-        clearAndTypeText("google.com", into: app.textFields["worldPing_input_host"])
+        clearAndTypeText("google.com", into: app.textFields["worldPing_textfield_host"])
         XCTAssertTrue(runButton.isEnabled, "World Ping: run should be enabled after entering a host")
 
         runButton.tap()
@@ -282,7 +282,7 @@ final class ToolsGoldenPathUITests: IOSUITestCase {
                 app.staticTexts.matching(
                     NSPredicate(format: "label CONTAINS[c] 'pinging' OR label CONTAINS[c] 'checking'")
                 ).firstMatch,
-                ui("worldPing_location_row")
+                ui("worldPing_row")
             ], timeout: 20),
             "World Ping: should enter running state or show location results"
         )
@@ -303,7 +303,7 @@ final class ToolsGoldenPathUITests: IOSUITestCase {
         )
         XCTAssertFalse(traceButton.isEnabled, "Geo Trace: trace should be disabled without a host")
 
-        clearAndTypeText("8.8.8.8", into: app.textFields["geoTrace_input_host"])
+        clearAndTypeText("8.8.8.8", into: app.textFields["geoTrace_textfield_host"])
         XCTAssertTrue(traceButton.isEnabled, "Geo Trace: trace should be enabled after entering a host")
 
         traceButton.tap()
@@ -333,25 +333,25 @@ final class ToolsGoldenPathUITests: IOSUITestCase {
         openTool(card: "tools_card_ssl_monitor", screen: "screen_sslCertificateMonitor")
 
         requireExists(
-            ui("ssl_monitor_picker_view"),
+            ui("sslMonitor_picker_view"),
             message: "SSL Monitor: view picker (Query / Watch List) should exist"
         )
         let queryButton = requireExists(
-            app.buttons["ssl_monitor_button_query"],
+            app.buttons["sslMonitor_button_query"],
             message: "SSL Monitor: query button should exist"
         )
         XCTAssertFalse(queryButton.isEnabled, "SSL Monitor: query should be disabled with empty domain")
 
-        clearAndTypeText("example.com", into: app.textFields["ssl_monitor_input_domain"])
+        clearAndTypeText("example.com", into: app.textFields["sslMonitor_textfield_domain"])
         XCTAssertTrue(queryButton.isEnabled, "SSL Monitor: query should be enabled after entering a domain")
 
         queryButton.tap()
         XCTAssertTrue(
             waitForEither([
-                ui("ssl_monitor_ssl_card"),
-                ui("ssl_monitor_whois_card"),
-                ui("ssl_monitor_error"),
-                app.buttons["ssl_monitor_button_add"]
+                ui("sslMonitor_card_ssl"),
+                ui("sslMonitor_card_whois"),
+                ui("sslMonitor_label_error"),
+                app.buttons["sslMonitor_button_add"]
             ], timeout: 20),
             "SSL Monitor: should show certificate info, WHOIS info, or error after querying"
         )

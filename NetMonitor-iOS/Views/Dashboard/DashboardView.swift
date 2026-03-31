@@ -121,7 +121,7 @@ struct ConnectionStatusHeader: View {
                 .font(.system(size: 11, weight: .bold, design: .monospaced))
                 .foregroundStyle(Theme.Colors.textSecondary)
         }
-        .accessibilityIdentifier("dashboard_header_connectionStatus")
+        .accessibilityIdentifier("dashboard_label_connectionStatus")
     }
 }
 
@@ -156,7 +156,7 @@ struct OfflineBanner: View {
             RoundedRectangle(cornerRadius: Theme.Layout.cardCornerRadius)
                 .stroke(Theme.Colors.warning.opacity(0.3), lineWidth: 1)
         )
-        .accessibilityIdentifier("dashboard_banner_offline")
+        .accessibilityIdentifier("dashboard_label_offline")
     }
 }
 
@@ -244,7 +244,7 @@ struct TacticalHUDHeader: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
-        .accessibilityIdentifier("dashboard_header_network")
+        .accessibilityIdentifier("dashboard_label_network")
     }
 
     func signalColor(_ strength: Int) -> Color {

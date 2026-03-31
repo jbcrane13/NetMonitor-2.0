@@ -90,13 +90,13 @@ final class DashboardFunctionalUITests: IOSUITestCase {
         devicesCard.tap()
 
         // Must navigate to device list screen
-        let deviceList = ui("deviceList_screen")
+        let deviceList = ui("screen_deviceList")
         requireExists(deviceList, timeout: 8,
                       message: "Tapping local devices card should navigate to device list screen")
 
         // Verify functional content: device list should show network badge or device rows
         let hasContent = waitForEither([
-            ui("deviceList_badge_network"),
+            ui("deviceList_label_network"),
             app.staticTexts.matching(
                 NSPredicate(format: "label CONTAINS[c] '192.168'")
             ).firstMatch,
@@ -159,7 +159,7 @@ final class DashboardFunctionalUITests: IOSUITestCase {
         // Verify the dashboard still shows content (not blank/crashed)
         let hasContent = waitForEither([
             ui("dashboard_card_healthScore"),
-            ui("dashboard_header_connectionStatus"),
+            ui("dashboard_label_connectionStatus"),
             ui("dashboard_card_connectivity")
         ], timeout: 8)
 
@@ -226,7 +226,7 @@ final class DashboardFunctionalUITests: IOSUITestCase {
         // Verify dashboard still has its cards
         let hasCards = waitForEither([
             ui("dashboard_card_healthScore"),
-            ui("dashboard_header_connectionStatus")
+            ui("dashboard_label_connectionStatus")
         ], timeout: 5)
 
         XCTAssertTrue(hasCards, "Dashboard should retain its cards after tab round-trip")
@@ -235,7 +235,7 @@ final class DashboardFunctionalUITests: IOSUITestCase {
     // MARK: - 8. Connection Status Header Shows Real Status
 
     func testConnectionStatusHeaderShowsStatus() {
-        let header = ui("dashboard_header_connectionStatus")
+        let header = ui("dashboard_label_connectionStatus")
         requireExists(header, timeout: 10, message: "Connection status header should be visible")
 
         let headerLabel = header.label
@@ -289,7 +289,7 @@ final class DashboardFunctionalUITests: IOSUITestCase {
 
         // Save button should be disabled with empty fields
         let saveButton = app.buttons.matching(
-            NSPredicate(format: "identifier == 'network_sheet_button_save' OR label == 'Save' OR label == 'Add'")
+            NSPredicate(format: "identifier == 'networkSheet_button_save' OR label == 'Save' OR label == 'Add'")
         ).firstMatch
 
         if saveButton.waitForExistence(timeout: 3) {
@@ -297,7 +297,7 @@ final class DashboardFunctionalUITests: IOSUITestCase {
                           "Save button should be disabled with empty gateway field")
 
             // Fill gateway and verify save becomes enabled
-            let gatewayField = app.textFields["network_sheet_field_gateway"]
+            let gatewayField = app.textFields["networkSheet_field_gateway"]
             if gatewayField.waitForExistence(timeout: 3) {
                 clearAndTypeText("192.168.1.1", into: gatewayField)
                 XCTAssertTrue(saveButton.isEnabled,
@@ -307,7 +307,7 @@ final class DashboardFunctionalUITests: IOSUITestCase {
 
         // Cancel to dismiss
         let cancelButton = app.buttons.matching(
-            NSPredicate(format: "identifier == 'network_sheet_button_cancel' OR label == 'Cancel'")
+            NSPredicate(format: "identifier == 'networkSheet_button_cancel' OR label == 'Cancel'")
         ).firstMatch
         if cancelButton.waitForExistence(timeout: 3) {
             cancelButton.tap()

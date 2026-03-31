@@ -11,11 +11,11 @@ final class SSLCertificateMonitorUITests: MacOSUITestCase {
         openSSLMonitor()
 
         requireExists(
-            app.descendants(matching: .any)["ssl_monitor_input_domain"],
+            app.descendants(matching: .any)["sslMonitor_textfield_domain"],
             message: "Domain input field should be visible"
         )
 
-        let queryButton = app.buttons["ssl_monitor_button_query"]
+        let queryButton = app.buttons["sslMonitor_button_query"]
         requireExists(queryButton, message: "Query button should be visible")
         XCTAssertFalse(queryButton.isEnabled, "Query button should be disabled with empty domain")
     }
@@ -24,7 +24,7 @@ final class SSLCertificateMonitorUITests: MacOSUITestCase {
         openSSLMonitor()
 
         requireExists(
-            app.descendants(matching: .any)["ssl_monitor_picker_view"],
+            app.descendants(matching: .any)["sslMonitor_picker_view"],
             message: "Mode segmented control should be visible"
         )
     }
@@ -32,12 +32,12 @@ final class SSLCertificateMonitorUITests: MacOSUITestCase {
     func testSSLMonitorQueryButtonEnablesWithDomain() {
         openSSLMonitor()
 
-        let domainField = app.descendants(matching: .any)["ssl_monitor_input_domain"].firstMatch
+        let domainField = app.descendants(matching: .any)["sslMonitor_textfield_domain"].firstMatch
         requireExists(domainField, message: "Domain field should exist")
         domainField.click()
         domainField.typeText("example.com")
 
-        let queryButton = app.buttons["ssl_monitor_button_query"]
+        let queryButton = app.buttons["sslMonitor_button_query"]
         XCTAssertTrue(queryButton.isEnabled, "Query button should be enabled after entering a domain")
     }
 
@@ -53,9 +53,9 @@ final class SSLCertificateMonitorUITests: MacOSUITestCase {
 
             XCTAssertTrue(
                 waitForEither([
-                    app.descendants(matching: .any)["ssl_monitor_watchlist_empty"],
+                    app.descendants(matching: .any)["sslMonitor_label_watchlistEmpty"],
                     app.descendants(matching: .any).matching(
-                        NSPredicate(format: "identifier BEGINSWITH 'ssl_monitor_watchlist_row_'")
+                        NSPredicate(format: "identifier BEGINSWITH 'sslMonitor_row_'")
                     ).firstMatch
                 ], timeout: 5),
                 "Watch list should show empty state or rows"
@@ -71,7 +71,7 @@ final class SSLCertificateMonitorUITests: MacOSUITestCase {
         requireExists(card, timeout: 8, message: "SSL Monitor tool card should exist in tools grid").tap()
 
         requireExists(
-            app.descendants(matching: .any)["ssl_monitor_input_domain"],
+            app.descendants(matching: .any)["sslMonitor_textfield_domain"],
             timeout: 8,
             message: "SSL Monitor sheet should open"
         )

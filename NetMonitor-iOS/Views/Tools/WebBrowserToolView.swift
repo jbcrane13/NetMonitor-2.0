@@ -291,7 +291,7 @@ struct RecentURLRow: View {
             }
         }
         .buttonStyle(.plain)
-        .accessibilityIdentifier("webBrowser_recent_url_\(index)")
+        .accessibilityIdentifier("webBrowser_row_url\(index)")
     }
 }
 

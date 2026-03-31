@@ -112,7 +112,7 @@ struct DNSLookupToolView: View {
                     Spacer()
                 }
             }
-            .accessibilityIdentifier("dnsLookup_error")
+            .accessibilityIdentifier("dnsLookup_label_error")
         }
 
         if let result = viewModel.result {
@@ -143,7 +143,7 @@ struct DNSLookupToolView: View {
                         )
                     }
                 }
-                .accessibilityIdentifier("dnsLookup_queryInfo")
+                .accessibilityIdentifier("dnsLookup_section_queryInfo")
 
                 // Records
                 if !result.records.isEmpty {
@@ -172,7 +172,7 @@ struct DNSLookupToolView: View {
                             }
                         }
                     }
-                    .accessibilityIdentifier("dnsLookup_records")
+                    .accessibilityIdentifier("dnsLookup_section_records")
                 }
             }
         }
@@ -212,7 +212,7 @@ private struct DNSRecordRow: View {
 
             Spacer()
         }
-        .accessibilityIdentifier("dnsLookup_record_\(record.type.displayName)")
+        .accessibilityIdentifier("dnsLookup_row_\(record.type.displayName)")
     }
 }
 

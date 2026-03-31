@@ -45,8 +45,8 @@ final class WakeOnLANToolUITests: IOSUITestCase {
 
     func testInfoCardExists() throws {
         navigateToWoLTool()
-        scrollToElement(app.otherElements["wol_info"])
-        requireExists(app.otherElements["wol_info"], message: "Info card should exist")
+        scrollToElement(app.otherElements["wol_label_info"])
+        requireExists(app.otherElements["wol_label_info"], message: "Info card should exist")
     }
 
     // MARK: - Input Interaction
@@ -83,8 +83,8 @@ final class WakeOnLANToolUITests: IOSUITestCase {
         clearAndTypeText("AA:BB:CC:DD:EE:FF", into: app.textFields["wol_input_mac"])
         app.buttons["wol_button_send"].tap()
 
-        let success = app.otherElements["wol_success"]
-        let error = app.otherElements["wol_error"]
+        let success = app.otherElements["wol_label_success"]
+        let error = app.otherElements["wol_label_error"]
         let successText = app.staticTexts["Wake packet sent!"]
         let failText = app.staticTexts["Failed to send"]
         XCTAssertTrue(

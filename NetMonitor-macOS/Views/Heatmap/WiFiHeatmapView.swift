@@ -25,17 +25,17 @@ struct WiFiHeatmapView: View {
             Button("Choose Image File…") {
                 viewModel.showImportSheet = true
             }
-            .accessibilityIdentifier("heatmap_confirmDialog_button_chooseFile")
+            .accessibilityIdentifier("heatmap_button_chooseFile")
             Button("Choose from Photos…") {
                 viewModel.showPhotoPicker = true
             }
-            .accessibilityIdentifier("heatmap_confirmDialog_button_choosePhoto")
+            .accessibilityIdentifier("heatmap_button_choosePhoto")
             Button("Import Blueprint (.netmonblueprint)…") {
                 showBlueprintImporter = true
             }
-            .accessibilityIdentifier("heatmap_confirmDialog_button_importBlueprint")
+            .accessibilityIdentifier("heatmap_button_importBlueprint")
             Button("Cancel", role: .cancel) {}
-                .accessibilityIdentifier("heatmap_confirmDialog_button_cancel")
+                .accessibilityIdentifier("heatmap_button_dialogCancel")
         }
         .fileImporter(
             isPresented: $viewModel.showImportSheet,
@@ -81,7 +81,7 @@ struct WiFiHeatmapView: View {
         }
         .onAppear { viewModel.onAppear() }
         .onDisappear { viewModel.onDisappear() }
-        .accessibilityIdentifier("heatmap_view")
+        .accessibilityIdentifier("screen_heatmap")
     }
 
     // MARK: - Canvas
@@ -181,7 +181,7 @@ struct WiFiHeatmapView: View {
                 .onChange(of: viewModel.selectedVisualization) { _, _ in
                     if viewModel.isHeatmapGenerated { viewModel.generateHeatmap() }
                 }
-                .accessibilityIdentifier("heatmap_toolbar_viz")
+                .accessibilityIdentifier("heatmap_picker_viz")
 
                 if !pts.isEmpty {
                     Text("\(pts.count) pts")
@@ -205,7 +205,7 @@ struct WiFiHeatmapView: View {
             } label: {
                 Label("Import", systemImage: "square.and.arrow.down")
             }
-            .accessibilityIdentifier("heatmap_toolbar_import")
+            .accessibilityIdentifier("heatmap_button_import")
 
             // Calibrate
             if viewModel.isCalibrating {
@@ -221,7 +221,7 @@ struct WiFiHeatmapView: View {
                     Label("Calibrate", systemImage: "ruler")
                 }
                 .disabled(viewModel.surveyProject == nil)
-                .accessibilityIdentifier("heatmap_toolbar_calibrate")
+                .accessibilityIdentifier("heatmap_button_calibrate")
             }
 
             // Save
@@ -230,13 +230,13 @@ struct WiFiHeatmapView: View {
             }
             .disabled(viewModel.surveyProject == nil)
             .keyboardShortcut("s", modifiers: .command)
-            .accessibilityIdentifier("heatmap_toolbar_save")
+            .accessibilityIdentifier("heatmap_button_save")
 
             // Open
             Button { loadProject() } label: {
                 Label("Open", systemImage: "folder")
             }
-            .accessibilityIdentifier("heatmap_toolbar_open")
+            .accessibilityIdentifier("heatmap_button_open")
 
             // Export
             Menu {
@@ -246,7 +246,7 @@ struct WiFiHeatmapView: View {
                 Label("Export", systemImage: "doc.richtext")
             }
             .disabled(viewModel.surveyProject == nil || viewModel.measurementPoints.isEmpty)
-            .accessibilityIdentifier("heatmap_toolbar_export")
+            .accessibilityIdentifier("heatmap_button_export")
 
             // Undo
             Button {
@@ -256,7 +256,7 @@ struct WiFiHeatmapView: View {
             }
             .disabled(!viewModel.canUndo)
             .keyboardShortcut("z", modifiers: .command)
-            .accessibilityIdentifier("heatmap_toolbar_undo")
+            .accessibilityIdentifier("heatmap_button_undo")
 
             // Sidebar toggle
             Button {
@@ -264,7 +264,7 @@ struct WiFiHeatmapView: View {
             } label: {
                 Label("Sidebar", systemImage: viewModel.isSidebarCollapsed ? "sidebar.left" : "sidebar.left")
             }
-            .accessibilityIdentifier("heatmap_toolbar_sidebar")
+            .accessibilityIdentifier("heatmap_button_sidebar")
         }
     }
 

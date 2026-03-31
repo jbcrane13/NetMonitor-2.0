@@ -60,7 +60,7 @@ struct DeviceListView: View {
                                 .padding(.vertical, 2)
                                 .background(Theme.Colors.accent.opacity(0.15))
                                 .clipShape(Capsule())
-                                .accessibilityIdentifier("deviceList_badge_proMode")
+                                .accessibilityIdentifier("deviceList_label_proMode")
                         }
 
                         if let networkProfile {
@@ -72,7 +72,7 @@ struct DeviceListView: View {
                                 .padding(.vertical, 4)
                                 .background(Theme.Colors.accent.opacity(0.16))
                                 .clipShape(Capsule())
-                                .accessibilityIdentifier("deviceList_badge_network")
+                                .accessibilityIdentifier("deviceList_label_network")
                         } else {
                             Label("Auto", systemImage: "sparkles")
                                 .font(.caption)
@@ -81,7 +81,7 @@ struct DeviceListView: View {
                                 .padding(.vertical, 4)
                                 .background(Theme.Colors.accent.opacity(0.16))
                                 .clipShape(Capsule())
-                                .accessibilityIdentifier("deviceList_badge_network")
+                                .accessibilityIdentifier("deviceList_label_network")
                         }
 
                         Spacer()
@@ -126,7 +126,7 @@ struct DeviceListView: View {
                 .accessibilityIdentifier("deviceList_button_toggleViewMode")
             }
         }
-        .accessibilityIdentifier("deviceList_screen")
+        .accessibilityIdentifier("screen_deviceList")
     }
 
     @ViewBuilder

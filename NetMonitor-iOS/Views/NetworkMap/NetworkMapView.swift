@@ -133,7 +133,7 @@ struct NetworkMapView: View {
                         Text(network.displayName)
                     }
                 }
-                .accessibilityIdentifier("networkMap_menu_selectNetwork_\(network.id)")
+                .accessibilityIdentifier("networkMap_menu_selectNetwork\(network.id)")
             }
 
             Divider()
@@ -186,7 +186,7 @@ struct NetworkMapView: View {
                 .foregroundStyle(Theme.Colors.textSecondary)
             }
         }
-        .accessibilityIdentifier("networkMap_summary")
+        .accessibilityIdentifier("networkMap_label_summary")
     }
 
     private var scanButton: some View {

@@ -77,7 +77,7 @@ struct ScanChangeAlertView: View {
                 }
             }
         }
-        .accessibilityIdentifier("scanChangeAlert_view")
+        .accessibilityIdentifier("screen_scanChangeAlert")
     }
 
     private func changeChip(count: Int, label: String, icon: String, color: Color) -> some View {

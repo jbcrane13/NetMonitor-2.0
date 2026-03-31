@@ -21,7 +21,7 @@ final class NetworkSwitchingUITests: MacOSUITestCase {
         XCTAssertTrue(app.sheets.firstMatch.waitForExistence(timeout: 3),
                       "Add Network sheet should appear")
 
-        let cancelButton = app.buttons["add_network_button_cancel"]
+        let cancelButton = app.buttons["addNetwork_button_cancel"]
         XCTAssertTrue(cancelButton.waitForExistence(timeout: 3))
         cancelButton.tap()
 
@@ -36,9 +36,9 @@ final class NetworkSwitchingUITests: MacOSUITestCase {
 
         XCTAssertTrue(app.sheets.firstMatch.waitForExistence(timeout: 3))
 
-        let gatewayField = app.textFields["add_network_field_gateway"]
-        let subnetField = app.textFields["add_network_field_subnet"]
-        let addBarButton = app.buttons["add_network_button_add"]
+        let gatewayField = app.textFields["addNetwork_textfield_gateway"]
+        let subnetField = app.textFields["addNetwork_textfield_subnet"]
+        let addBarButton = app.buttons["addNetwork_button_add"]
 
         XCTAssertTrue(gatewayField.waitForExistence(timeout: 3))
         XCTAssertTrue(subnetField.waitForExistence(timeout: 3))
@@ -55,7 +55,7 @@ final class NetworkSwitchingUITests: MacOSUITestCase {
         clearAndTypeText("192.168.1.0/24", into: subnetField)
         XCTAssertTrue(addBarButton.isEnabled, "Add button should be enabled with valid input")
 
-        app.buttons["add_network_button_cancel"].tap()
+        app.buttons["addNetwork_button_cancel"].tap()
     }
 
     func testAddNetworkSuccessfully() {
@@ -65,15 +65,15 @@ final class NetworkSwitchingUITests: MacOSUITestCase {
 
         XCTAssertTrue(app.sheets.firstMatch.waitForExistence(timeout: 3))
 
-        let gatewayField = app.textFields["add_network_field_gateway"]
-        let subnetField = app.textFields["add_network_field_subnet"]
-        let nameField = app.textFields["add_network_field_name"]
+        let gatewayField = app.textFields["addNetwork_textfield_gateway"]
+        let subnetField = app.textFields["addNetwork_textfield_subnet"]
+        let nameField = app.textFields["addNetwork_textfield_name"]
 
         clearAndTypeText("10.0.0.1", into: gatewayField)
         clearAndTypeText("10.0.0.0/24", into: subnetField)
         clearAndTypeText("Test Network", into: nameField)
 
-        let addBarButton = app.buttons["add_network_button_add"]
+        let addBarButton = app.buttons["addNetwork_button_add"]
         XCTAssertTrue(addBarButton.isEnabled)
         addBarButton.tap()
 
@@ -91,17 +91,17 @@ final class NetworkSwitchingUITests: MacOSUITestCase {
 
         XCTAssertTrue(app.sheets.firstMatch.waitForExistence(timeout: 3))
 
-        clearAndTypeText("172.16.0.1", into: app.textFields["add_network_field_gateway"])
-        clearAndTypeText("172.16.0.0/24", into: app.textFields["add_network_field_subnet"])
+        clearAndTypeText("172.16.0.1", into: app.textFields["addNetwork_textfield_gateway"])
+        clearAndTypeText("172.16.0.0/24", into: app.textFields["addNetwork_textfield_subnet"])
 
-        app.buttons["add_network_button_add"].tap()
+        app.buttons["addNetwork_button_add"].tap()
         XCTAssertTrue(waitForDisappearance(app.sheets.firstMatch, timeout: 3))
 
         let networkItem = app.staticTexts.matching(NSPredicate(format: "label CONTAINS '172.16'")).firstMatch
         XCTAssertTrue(networkItem.waitForExistence(timeout: 5))
         networkItem.tap()
 
-        XCTAssertTrue(app.otherElements["network_detail_view"].waitForExistence(timeout: 3),
+        XCTAssertTrue(app.otherElements["contentView_nav_network"].waitForExistence(timeout: 3),
                       "Network detail view should appear after selecting a network")
     }
 
@@ -112,22 +112,22 @@ final class NetworkSwitchingUITests: MacOSUITestCase {
 
         XCTAssertTrue(app.sheets.firstMatch.waitForExistence(timeout: 3))
 
-        clearAndTypeText("192.168.50.1", into: app.textFields["add_network_field_gateway"])
-        clearAndTypeText("192.168.50.0/24", into: app.textFields["add_network_field_subnet"])
-        clearAndTypeText("Office Network", into: app.textFields["add_network_field_name"])
+        clearAndTypeText("192.168.50.1", into: app.textFields["addNetwork_textfield_gateway"])
+        clearAndTypeText("192.168.50.0/24", into: app.textFields["addNetwork_textfield_subnet"])
+        clearAndTypeText("Office Network", into: app.textFields["addNetwork_textfield_name"])
 
-        app.buttons["add_network_button_add"].tap()
+        app.buttons["addNetwork_button_add"].tap()
         XCTAssertTrue(waitForDisappearance(app.sheets.firstMatch, timeout: 3))
 
         let networkItem = app.staticTexts["Office Network"]
         XCTAssertTrue(networkItem.waitForExistence(timeout: 5))
         networkItem.tap()
 
-        XCTAssertTrue(app.otherElements["network_detail_card_header"].waitForExistence(timeout: 3))
-        XCTAssertTrue(app.otherElements["network_detail_card_networkInfo"].waitForExistence(timeout: 3))
-        XCTAssertTrue(app.otherElements["network_detail_card_discovery"].waitForExistence(timeout: 3))
-        XCTAssertTrue(app.otherElements["network_detail_card_devices"].waitForExistence(timeout: 3))
-        XCTAssertTrue(app.buttons["network_detail_button_scan"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.otherElements["networkDetail_card_header"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.otherElements["networkDetail_card_networkInfo"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.otherElements["networkDetail_card_discovery"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.otherElements["networkDetail_card_devices"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["networkDetail_button_scan"].waitForExistence(timeout: 3))
     }
 
     func testSwitchBetweenNetworks() {
@@ -138,11 +138,11 @@ final class NetworkSwitchingUITests: MacOSUITestCase {
             addButton.tap()
             XCTAssertTrue(app.sheets.firstMatch.waitForExistence(timeout: 3))
 
-            clearAndTypeText("10.\(i).0.1", into: app.textFields["add_network_field_gateway"])
-            clearAndTypeText("10.\(i).0.0/24", into: app.textFields["add_network_field_subnet"])
-            clearAndTypeText("Network \(i)", into: app.textFields["add_network_field_name"])
+            clearAndTypeText("10.\(i).0.1", into: app.textFields["addNetwork_textfield_gateway"])
+            clearAndTypeText("10.\(i).0.0/24", into: app.textFields["addNetwork_textfield_subnet"])
+            clearAndTypeText("Network \(i)", into: app.textFields["addNetwork_textfield_name"])
 
-            app.buttons["add_network_button_add"].tap()
+            app.buttons["addNetwork_button_add"].tap()
             XCTAssertTrue(waitForDisappearance(app.sheets.firstMatch, timeout: 3))
         }
 
@@ -153,10 +153,10 @@ final class NetworkSwitchingUITests: MacOSUITestCase {
         XCTAssertTrue(network2.waitForExistence(timeout: 5))
 
         network1.tap()
-        XCTAssertTrue(app.otherElements["network_detail_view"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.otherElements["contentView_nav_network"].waitForExistence(timeout: 3))
 
         network2.tap()
-        XCTAssertTrue(app.otherElements["network_detail_view"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.otherElements["contentView_nav_network"].waitForExistence(timeout: 3))
     }
 
     func testScanButtonFromNetworkDetail() {
@@ -166,17 +166,17 @@ final class NetworkSwitchingUITests: MacOSUITestCase {
 
         XCTAssertTrue(app.sheets.firstMatch.waitForExistence(timeout: 3))
 
-        clearAndTypeText("192.168.100.1", into: app.textFields["add_network_field_gateway"])
-        clearAndTypeText("192.168.100.0/24", into: app.textFields["add_network_field_subnet"])
+        clearAndTypeText("192.168.100.1", into: app.textFields["addNetwork_textfield_gateway"])
+        clearAndTypeText("192.168.100.0/24", into: app.textFields["addNetwork_textfield_subnet"])
 
-        app.buttons["add_network_button_add"].tap()
+        app.buttons["addNetwork_button_add"].tap()
         XCTAssertTrue(waitForDisappearance(app.sheets.firstMatch, timeout: 3))
 
         let networkItem = app.staticTexts.matching(NSPredicate(format: "label CONTAINS '192.168.100'")).firstMatch
         XCTAssertTrue(networkItem.waitForExistence(timeout: 5))
         networkItem.tap()
 
-        let scanButton = app.buttons["network_detail_button_scan"]
+        let scanButton = app.buttons["networkDetail_button_scan"]
         XCTAssertTrue(scanButton.waitForExistence(timeout: 3))
         scanButton.tap()
 

@@ -41,14 +41,14 @@ final class TimelineFunctionalUITests: IOSUITestCase {
         filterButton.tap()
 
         // Filter sheet should appear with identifiable elements
-        let filterSheet = ui("screen_timeline_filter")
+        let filterSheet = ui("screen_timelineFilter")
         requireExists(filterSheet, timeout: 5,
                       message: "Filter sheet should appear after tapping filter button")
 
         // Verify sheet has functional controls (not just an empty sheet)
         let hasControls = waitForEither([
-            app.buttons["timeline_filter_show_all"],
-            app.buttons["timeline_filter_button_done"],
+            app.buttons["timelineFilter_button_showAll"],
+            app.buttons["timelineFilter_button_done"],
             app.switches.firstMatch
         ], timeout: 5)
 
@@ -58,7 +58,7 @@ final class TimelineFunctionalUITests: IOSUITestCase {
         captureScreenshot(named: "Timeline_FilterSheet")
 
         // Dismiss
-        let doneButton = app.buttons["timeline_filter_button_done"]
+        let doneButton = app.buttons["timelineFilter_button_done"]
         if doneButton.exists {
             doneButton.tap()
         }
@@ -73,7 +73,7 @@ final class TimelineFunctionalUITests: IOSUITestCase {
         guard filterButton.waitForExistence(timeout: 8) else { return }
 
         filterButton.tap()
-        guard ui("screen_timeline_filter").waitForExistence(timeout: 5) else { return }
+        guard ui("screen_timelineFilter").waitForExistence(timeout: 5) else { return }
 
         // Toggle a filter if individual event-type toggles exist
         let firstToggle = app.switches.firstMatch
@@ -89,7 +89,7 @@ final class TimelineFunctionalUITests: IOSUITestCase {
         }
 
         // Dismiss filter sheet
-        let doneButton = app.buttons["timeline_filter_button_done"]
+        let doneButton = app.buttons["timelineFilter_button_done"]
         if doneButton.waitForExistence(timeout: 3) {
             doneButton.tap()
         }
@@ -110,23 +110,23 @@ final class TimelineFunctionalUITests: IOSUITestCase {
         guard filterButton.waitForExistence(timeout: 8) else { return }
 
         filterButton.tap()
-        guard ui("screen_timeline_filter").waitForExistence(timeout: 5) else { return }
+        guard ui("screen_timelineFilter").waitForExistence(timeout: 5) else { return }
 
         // Tap Show All to reset any active filters
-        let showAllButton = app.buttons["timeline_filter_show_all"]
+        let showAllButton = app.buttons["timelineFilter_button_showAll"]
         if showAllButton.waitForExistence(timeout: 3) {
             showAllButton.tap()
 
             // Filter sheet should dismiss after Show All
             XCTAssertTrue(
-                waitForDisappearance(ui("screen_timeline_filter"), timeout: 5),
+                waitForDisappearance(ui("screen_timelineFilter"), timeout: 5),
                 "Filter sheet should dismiss after tapping Show All"
             )
 
             // Timeline should show its content (list or empty state)
             let hasContent = waitForEither([
-                ui("timeline_list"),
-                ui("timeline_empty_state")
+                ui("timeline_list_events"),
+                ui("timeline_label_emptyState")
             ], timeout: 8)
 
             XCTAssertTrue(hasContent,
@@ -146,10 +146,10 @@ final class TimelineFunctionalUITests: IOSUITestCase {
 
         filterButton.tap()
 
-        let filterSheet = ui("screen_timeline_filter")
+        let filterSheet = ui("screen_timelineFilter")
         guard filterSheet.waitForExistence(timeout: 5) else { return }
 
-        let doneButton = app.buttons["timeline_filter_button_done"]
+        let doneButton = app.buttons["timelineFilter_button_done"]
         requireExists(doneButton, timeout: 3, message: "Done button should exist in filter sheet")
 
         doneButton.tap()
@@ -183,8 +183,8 @@ final class TimelineFunctionalUITests: IOSUITestCase {
 
         // Should still show either list or empty state
         let hasContent = waitForEither([
-            ui("timeline_list"),
-            ui("timeline_empty_state")
+            ui("timeline_list_events"),
+            ui("timeline_label_emptyState")
         ], timeout: 5)
 
         XCTAssertTrue(hasContent,
@@ -199,18 +199,18 @@ final class TimelineFunctionalUITests: IOSUITestCase {
         openTimeline()
 
         let hasTimeline = waitForEither([
-            ui("timeline_list"),
-            ui("timeline_empty_state")
+            ui("timeline_list_events"),
+            ui("timeline_label_emptyState")
         ], timeout: 8)
 
         XCTAssertTrue(hasTimeline,
                      "Timeline should show event list or empty state")
 
-        if ui("timeline_list").exists {
+        if ui("timeline_list_events").exists {
             // If events exist, verify they have content
             XCTAssertFalse(app.cells.allElementsBoundByIndex.isEmpty,
                           "Timeline list should contain at least one event row")
-        } else if ui("timeline_empty_state").exists {
+        } else if ui("timeline_label_emptyState").exists {
             // Empty state should have descriptive text
             let hasDescription = app.staticTexts.count > 0
             XCTAssertTrue(hasDescription,
@@ -230,11 +230,11 @@ final class TimelineFunctionalUITests: IOSUITestCase {
 
         // First open
         filterButton.tap()
-        let filterSheet = ui("screen_timeline_filter")
+        let filterSheet = ui("screen_timelineFilter")
         guard filterSheet.waitForExistence(timeout: 5) else { return }
 
         // Dismiss via Done
-        let doneButton = app.buttons["timeline_filter_button_done"]
+        let doneButton = app.buttons["timelineFilter_button_done"]
         if doneButton.exists {
             doneButton.tap()
             _ = waitForDisappearance(filterSheet, timeout: 3)
@@ -242,13 +242,13 @@ final class TimelineFunctionalUITests: IOSUITestCase {
 
         // Second open - should still work
         filterButton.tap()
-        let filterSheetAgain = ui("screen_timeline_filter")
+        let filterSheetAgain = ui("screen_timelineFilter")
         XCTAssertTrue(filterSheetAgain.waitForExistence(timeout: 5),
                      "Filter sheet should open successfully on second attempt")
 
         // Dismiss again
-        if app.buttons["timeline_filter_button_done"].exists {
-            app.buttons["timeline_filter_button_done"].tap()
+        if app.buttons["timelineFilter_button_done"].exists {
+            app.buttons["timelineFilter_button_done"].tap()
         }
 
         captureScreenshot(named: "Timeline_ReopenFilter")

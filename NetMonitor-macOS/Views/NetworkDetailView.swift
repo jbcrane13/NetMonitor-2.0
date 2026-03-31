@@ -29,16 +29,16 @@ struct NetworkDetailView: View {
                 session: session,
                 gatewayLatencyHistory: gatewayLatencyHistory
             )
-            .accessibilityIdentifier("network_detail_card_latency")
+            .accessibilityIdentifier("networkDetail_card_latency")
 
             WiFiSignalCard()
-                .accessibilityIdentifier("network_detail_card_wifi_signal")
+                .accessibilityIdentifier("networkDetail_card_wifiSignal")
 
             ConnectivityCard(session: session, profileManager: profileManager)
-                .accessibilityIdentifier("network_detail_card_connectivity")
+                .accessibilityIdentifier("networkDetail_card_connectivity")
 
             NetworkIntelCard()
-                .accessibilityIdentifier("network_detail_card_intel")
+                .accessibilityIdentifier("networkDetail_card_intel")
         }
     }
 
@@ -92,11 +92,11 @@ struct NetworkDetailView: View {
                         .frame(maxWidth: .infinity)
                         .frame(height: rowAHeight)
                         .clipped()
-                        .accessibilityIdentifier("network_detail_card_isp")
+                        .accessibilityIdentifier("networkDetail_card_isp")
 
                     HealthGaugeCard()
                         .frame(width: rowAHeight, height: rowAHeight)
-                        .accessibilityIdentifier("network_detail_row_health")
+                        .accessibilityIdentifier("networkDetail_row_health")
                 }
 
                 // Row B adapts based on layout breakpoint
@@ -111,7 +111,7 @@ struct NetworkDetailView: View {
                         .frame(width: colWidth)
 
                         NetworkDevicesPanel(networkProfileID: profile.id)
-                            .accessibilityIdentifier("network_detail_panel_devices")
+                            .accessibilityIdentifier("networkDetail_section_devices")
                     }
                     .frame(height: max(0, availH - rowAHeight - gap))
 
@@ -124,7 +124,7 @@ struct NetworkDetailView: View {
                         .frame(width: leftWidth)
 
                         NetworkDevicesPanel(networkProfileID: profile.id)
-                            .accessibilityIdentifier("network_detail_panel_devices")
+                            .accessibilityIdentifier("networkDetail_section_devices")
                     }
                     .frame(height: max(0, availH - rowAHeight - gap))
 
@@ -135,7 +135,7 @@ struct NetworkDetailView: View {
 
                             NetworkDevicesPanel(networkProfileID: profile.id)
                                 .frame(height: 300)
-                                .accessibilityIdentifier("network_detail_panel_devices")
+                                .accessibilityIdentifier("networkDetail_section_devices")
                         }
                     }
                 }
@@ -160,7 +160,7 @@ struct NetworkDetailView: View {
                 }
                 .buttonStyle(.bordered)
                 .tint(session?.isMonitoring == true ? .red : .green)
-                .accessibilityIdentifier("network_detail_button_monitoringToggle")
+                .accessibilityIdentifier("networkDetail_button_monitoringToggle")
             }
         }
         .onChange(of: profileManager?.profiles) {

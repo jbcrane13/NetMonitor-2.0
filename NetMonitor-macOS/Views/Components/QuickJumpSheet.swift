@@ -47,7 +47,7 @@ struct QuickJumpSheet: View {
                     .textFieldStyle(.plain)
                     .font(.system(size: 16))
                     .focused($isFocused)
-                    .accessibilityIdentifier("quickJump_textField_search")
+                    .accessibilityIdentifier("quickJump_textfield_search")
                     .onSubmit {
                         if let first = filteredDevices.first {
                             navigateToDevice(first)

@@ -36,11 +36,11 @@ struct InternetActivityCard: View {
                     Text("↓ \(BandwidthMonitorService.formatMbps(bandwidth.downloadMbps))")
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(MacTheme.Colors.info)
-                        .accessibilityIdentifier("dashboard_activity_downloadSpeed")
+                        .accessibilityIdentifier("internetActivity_label_downloadSpeed")
                     Text("↑ \(BandwidthMonitorService.formatMbps(bandwidth.uploadMbps))")
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(Color(hex: "8B5CF6"))
-                        .accessibilityIdentifier("dashboard_activity_uploadSpeed")
+                        .accessibilityIdentifier("internetActivity_label_uploadSpeed")
                 }
             }
 

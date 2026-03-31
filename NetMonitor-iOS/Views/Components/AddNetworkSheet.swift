@@ -54,7 +54,7 @@ struct AddNetworkSheet: View {
                     }
                 }
                 .pickerStyle(.segmented)
-                .accessibilityIdentifier("network_sheet_picker_tab")
+                .accessibilityIdentifier("networkSheet_picker_tab")
 
                 if selectedTab == .discovered {
                     discoveredNetworksSection
@@ -66,7 +66,7 @@ struct AddNetworkSheet: View {
                     Text(errorMessage)
                         .font(.footnote)
                         .foregroundStyle(Theme.Colors.error)
-                        .accessibilityIdentifier("network_sheet_label_error")
+                        .accessibilityIdentifier("networkSheet_label_error")
                 }
             }
             .navigationTitle("Add Network")
@@ -77,14 +77,14 @@ struct AddNetworkSheet: View {
                         dismiss()
                     }
                     .disabled(isSubmitting)
-                    .accessibilityIdentifier("network_sheet_button_cancel")
+                    .accessibilityIdentifier("networkSheet_button_cancel")
                 }
             }
         }
         .onAppear {
             prefillManualFieldsFromHint()
         }
-        .accessibilityIdentifier("network_sheet_add")
+        .accessibilityIdentifier("networkSheet_button_add")
     }
 
     private var discoveredNetworksSection: some View {
@@ -93,7 +93,7 @@ struct AddNetworkSheet: View {
                 Text("Run a scan to discover additional network ranges.")
                     .font(.subheadline)
                     .foregroundStyle(Theme.Colors.textSecondary)
-                    .accessibilityIdentifier("network_sheet_label_noDiscoveredNetworks")
+                    .accessibilityIdentifier("networkSheet_label_noDiscoveredNetworks")
             } else {
                 ForEach(Array(candidateNetworks.enumerated()), id: \.element.id) { index, candidate in
                     Button {
@@ -124,7 +124,7 @@ struct AddNetworkSheet: View {
                         }
                     }
                     .disabled(isSubmitting)
-                    .accessibilityIdentifier("network_sheet_button_add_discovered_\(index)")
+                    .accessibilityIdentifier("networkSheet_button_addDiscovered\(index)")
                 }
             }
         }
@@ -136,16 +136,16 @@ struct AddNetworkSheet: View {
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled(true)
                 .keyboardType(.decimalPad)
-                .accessibilityIdentifier("add_network_gateway_field")
+                .accessibilityIdentifier("addNetwork_textfield_gateway")
 
             TextField("Subnet CIDR (e.g. 192.168.1.0/24)", text: $subnetText)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled(true)
                 .keyboardType(.asciiCapable)
-                .accessibilityIdentifier("add_network_subnet_field")
+                .accessibilityIdentifier("addNetwork_textfield_subnet")
 
             TextField("Display Name", text: $nameText)
-                .accessibilityIdentifier("add_network_name_field")
+                .accessibilityIdentifier("addNetwork_textfield_name")
 
             Button {
                 Task {
@@ -161,7 +161,7 @@ struct AddNetworkSheet: View {
                 }
             }
             .disabled(isSubmitting || gatewayText.isEmpty || subnetText.isEmpty)
-            .accessibilityIdentifier("network_sheet_button_add_manual")
+            .accessibilityIdentifier("networkSheet_button_addManual")
         }
     }
 

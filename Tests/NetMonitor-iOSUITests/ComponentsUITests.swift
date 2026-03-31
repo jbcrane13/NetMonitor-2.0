@@ -17,7 +17,7 @@ final class ComponentsUITests: XCTestCase {
 
     func testStatusBadgeExistsOnDashboard() throws {
         // The dashboard connection status header uses StatusBadge
-        let header = app.otherElements["dashboard_header_connectionStatus"]
+        let header = app.otherElements["dashboard_label_connectionStatus"]
         XCTAssertTrue(header.waitForExistence(timeout: 5))
     }
 
@@ -26,16 +26,16 @@ final class ComponentsUITests: XCTestCase {
     func testGlassButtonOnToolsScreen() throws {
         app.tabBars.buttons["Tools"].tap()
         // Quick action buttons use GlassButton styling
-        let setTargetButton = app.buttons["quickAction_set_target"]
+        let setTargetButton = app.buttons["quickAction_button_setTarget"]
         XCTAssertTrue(setTargetButton.waitForExistence(timeout: 5) ||
-                      app.otherElements["quickAction_set_target"].waitForExistence(timeout: 3))
+                      app.otherElements["quickAction_button_setTarget"].waitForExistence(timeout: 3))
     }
 
     func testGlassButtonSpeedTestQuickAction() throws {
         app.tabBars.buttons["Tools"].tap()
-        let speedTestAction = app.buttons["quickAction_speed_test"]
+        let speedTestAction = app.buttons["quickAction_button_speedTest"]
         XCTAssertTrue(speedTestAction.waitForExistence(timeout: 5) ||
-                      app.otherElements["quickAction_speed_test"].waitForExistence(timeout: 3))
+                      app.otherElements["quickAction_button_speedTest"].waitForExistence(timeout: 3))
     }
 
     // MARK: - MetricCard (Dashboard cards)

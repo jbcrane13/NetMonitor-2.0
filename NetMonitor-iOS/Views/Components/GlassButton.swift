@@ -143,7 +143,7 @@ struct GlassButton: View {
         }
         .buttonStyle(GlassButtonStyle(style: style, size: size, isFullWidth: isFullWidth))
         .disabled(isLoading)
-        .accessibilityIdentifier("glassButton_\(title.lowercased().replacingOccurrences(of: " ", with: "_"))")
+        .accessibilityIdentifier("glassButton_button_\(title.lowercased().replacingOccurrences(of: " ", with: "_"))")
     }
 }
 
@@ -174,7 +174,7 @@ struct GlassIconButton: View {
                 )
                 .shadow(color: style.shadowColor, radius: 6, y: 2)
         }
-        .accessibilityIdentifier("iconButton_\(icon)")
+        .accessibilityIdentifier("glassButton_button_\(icon)")
     }
 }
 

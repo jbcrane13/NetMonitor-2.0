@@ -23,7 +23,7 @@ struct HeatmapSidebarView: View {
             }
         }
         .frame(width: 220)
-        .accessibilityIdentifier("heatmap_sidebar")
+        .accessibilityIdentifier("screen_heatmapSidebar")
     }
 
     // MARK: - Mode Picker
@@ -227,7 +227,7 @@ struct HeatmapSidebarView: View {
                         viewModel.selectedAPFilter = ap.bssid
                         viewModel.sidebarMode = .analyze
                     }
-                    .accessibilityIdentifier("heatmap_ap_\(ap.bssid)")
+                    .accessibilityIdentifier("heatmapSidebar_row_\(ap.bssid)")
                 }
                 Button("Rescan") {
                     viewModel.refreshNearbyAPs()

@@ -44,7 +44,7 @@ struct AppearanceSettingsView: View {
                                     .shadow(color: preset.color.opacity(0.5), radius: accentColorHex == preset.hex ? 4 : 0)
                             }
                             .buttonStyle(.plain)
-                            .accessibilityIdentifier("settings_color_\(preset.name.lowercased())")
+                            .accessibilityIdentifier("appearance_button_color\(preset.name.lowercased())")
                         }
                     }
                 }

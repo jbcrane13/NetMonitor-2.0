@@ -38,7 +38,7 @@ struct GeoTraceView: View {
                 .textFieldStyle(.roundedBorder)
                 .onSubmit { runTrace() }
                 .disabled(isRunning)
-                .accessibilityIdentifier("geoTrace_input_host")
+                .accessibilityIdentifier("geoTrace_textfield_host")
 
             Button(isRunning ? "Stop" : "Trace") {
                 if isRunning { stopTrace() } else { runTrace() }
@@ -62,7 +62,7 @@ struct GeoTraceView: View {
                                 .onTapGesture {
                                     selectedHop = (selectedHop?.id == hop.id) ? nil : hop
                                 }
-                                .accessibilityIdentifier("geoTrace_hop_annotation_\(hop.hop.hopNumber)")
+                                .accessibilityIdentifier("geoTrace_label_hopAnnotation\(hop.hop.hopNumber)")
                         }
                         .annotationTitles(.hidden)
                     }
@@ -73,7 +73,7 @@ struct GeoTraceView: View {
                         .stroke(.blue.opacity(0.7), lineWidth: 2)
                 }
             }
-            .accessibilityIdentifier("geoTrace_map")
+            .accessibilityIdentifier("geoTrace_label_map")
 
             if let hop = selectedHop {
                 hopPopup(hop)
@@ -109,7 +109,7 @@ struct GeoTraceView: View {
                     Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
-                .accessibilityIdentifier("geoTrace_popup_button_close")
+                .accessibilityIdentifier("geoTrace_button_popupClose")
             }
             if let ip = hop.hop.ipAddress {
                 Text(ip)

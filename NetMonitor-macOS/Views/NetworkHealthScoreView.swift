@@ -47,7 +47,7 @@ struct NetworkHealthScoreView: View {
                         }
                     }
                     .frame(width: 60, height: 60)
-                    .accessibilityIdentifier("healthScore_gauge")
+                    .accessibilityIdentifier("healthScore_label_gauge")
 
                     // Details
                     VStack(alignment: .leading, spacing: 4) {

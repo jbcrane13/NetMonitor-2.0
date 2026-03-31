@@ -13,17 +13,17 @@ final class MacOSInteractionFlowUITests: MacOSUITestCase {
 
     func testSidebarSwitchUpdatesDetailPane() {
         // Start at Tools (default).
-        requireExists(app.otherElements["detail_tools"], timeout: 5,
+        requireExists(app.otherElements["contentView_nav_tools"], timeout: 5,
                       message: "Tools should be the default detail pane")
 
         // Switch to Settings.
         navigateToSidebar("settings")
-        XCTAssertTrue(app.otherElements["detail_settings"].exists,
+        XCTAssertTrue(app.otherElements["contentView_nav_settings"].exists,
                       "Settings detail pane should be visible after selecting Settings")
 
         // Return to Tools.
         navigateToSidebar("tools")
-        XCTAssertTrue(app.otherElements["detail_tools"].exists,
+        XCTAssertTrue(app.otherElements["contentView_nav_tools"].exists,
                       "Tools detail pane should be visible after returning to Tools")
     }
 
@@ -40,7 +40,7 @@ final class MacOSInteractionFlowUITests: MacOSUITestCase {
 
         // Return to Tools to confirm round-trip.
         navigateToSidebar("tools")
-        XCTAssertTrue(app.otherElements["detail_tools"].exists,
+        XCTAssertTrue(app.otherElements["contentView_nav_tools"].exists,
                       "Tools should be reachable after cycling through all sections")
     }
 
@@ -57,15 +57,15 @@ final class MacOSInteractionFlowUITests: MacOSUITestCase {
 
         // Verify sheet elements appear.
         let nameField = requireExists(
-            app.textFields["add_target_field_name"], timeout: 5,
+            app.textFields["addTarget_textfield_name"], timeout: 5,
             message: "Name field should appear in add-target sheet"
         )
         let hostField = requireExists(
-            app.textFields["add_target_field_host"],
+            app.textFields["addTarget_textfield_host"],
             message: "Host field should appear in add-target sheet"
         )
         requireExists(
-            app.popUpButtons["add_target_picker_protocol"],
+            app.popUpButtons["addTarget_picker_protocol"],
             message: "Protocol picker should appear in add-target sheet"
         )
 
@@ -75,7 +75,7 @@ final class MacOSInteractionFlowUITests: MacOSUITestCase {
 
         // Cancel — sheet should dismiss.
         let cancelButton = requireExists(
-            app.buttons["add_target_button_cancel"],
+            app.buttons["addTarget_button_cancel"],
             message: "Cancel button should exist in add-target sheet"
         )
         cancelButton.tap()
@@ -91,20 +91,20 @@ final class MacOSInteractionFlowUITests: MacOSUITestCase {
         app.buttons["targets_button_add"].tap()
 
         let addButton = requireExists(
-            app.buttons["add_target_button_add"], timeout: 5,
+            app.buttons["addTarget_button_add"], timeout: 5,
             message: "Add button should exist in add-target sheet"
         )
 
         // Fill required fields.
-        clearAndTypeText("My Server", into: app.textFields["add_target_field_name"])
-        clearAndTypeText("1.1.1.1", into: app.textFields["add_target_field_host"])
+        clearAndTypeText("My Server", into: app.textFields["addTarget_textfield_name"])
+        clearAndTypeText("1.1.1.1", into: app.textFields["addTarget_textfield_host"])
 
         // The add button should be present (may or may not be enabled depending on
         // additional validation). Just confirm it's tappable.
         XCTAssertTrue(addButton.exists, "Add button should remain visible after filling fields")
 
         // Clean up: cancel instead of adding to avoid polluting state.
-        app.buttons["add_target_button_cancel"].tap()
+        app.buttons["addTarget_button_cancel"].tap()
     }
 
     func testDeleteButtonDisabledWithNoSelection() {
@@ -204,7 +204,7 @@ final class MacOSInteractionFlowUITests: MacOSUITestCase {
 
         // Appearance tab — color buttons
         app.staticTexts["settings_tab_appearance"].tap()
-        requireExists(app.buttons["settings_color_cyan"], timeout: 3,
+        requireExists(app.buttons["appearance_button_colorcyan"], timeout: 3,
                       message: "Cyan color button should appear on Appearance tab")
 
         // Companion tab — checkbox
@@ -256,12 +256,12 @@ final class MacOSInteractionFlowUITests: MacOSUITestCase {
         app.staticTexts["settings_tab_appearance"].tap()
 
         let colors = [
-            "settings_color_cyan",
-            "settings_color_blue",
-            "settings_color_purple",
-            "settings_color_pink",
-            "settings_color_green",
-            "settings_color_orange"
+            "appearance_button_colorcyan",
+            "appearance_button_colorblue",
+            "appearance_button_colorpurple",
+            "appearance_button_colorpink",
+            "appearance_button_colorgreen",
+            "appearance_button_colororange"
         ]
 
         for colorID in colors {
@@ -272,7 +272,7 @@ final class MacOSInteractionFlowUITests: MacOSUITestCase {
         }
 
         // Select a different color and verify it's tappable.
-        let purpleButton = app.buttons["settings_color_purple"]
+        let purpleButton = app.buttons["appearance_button_colorpurple"]
         if purpleButton.exists {
             purpleButton.tap()
             requireExists(purpleButton, message: "Purple color button should remain after selection")
@@ -320,10 +320,10 @@ final class MacOSInteractionFlowUITests: MacOSUITestCase {
         let tools: [(card: String, sheetElement: String, close: String)] = [
             ("tools_card_ping", "ping_textfield_host", "ping_button_close"),
             ("tools_card_traceroute", "traceroute_textfield_host", "traceroute_button_close"),
-            ("tools_card_port_scanner", "portscan_textfield_host", "portscan_button_close"),
+            ("tools_card_port_scanner", "portScan_textfield_host", "portScan_button_close"),
             ("tools_card_dns_lookup", "dns_textfield_hostname", "dns_button_close"),
             ("tools_card_whois", "whois_textfield_domain", "whois_button_close"),
-            ("tools_card_speed_test", "speedtest_button_start", "speedtest_button_close"),
+            ("tools_card_speed_test", "speedTest_button_start", "speedTest_button_close"),
             ("tools_card_bonjour_browser", "bonjour_button_close", "bonjour_button_close"),
             ("tools_card_wake_on_lan", "wol_textfield_mac", "wol_button_close"),
         ]

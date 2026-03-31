@@ -35,7 +35,7 @@ struct WorldPingToolView: View {
                 .textFieldStyle(.roundedBorder)
                 .onSubmit { viewModel.run() }
                 .disabled(viewModel.isRunning)
-                .accessibilityIdentifier("worldPing_input_host")
+                .accessibilityIdentifier("worldPing_textfield_host")
 
             Button(viewModel.isRunning ? "Stop" : "Run") {
                 if viewModel.isRunning { viewModel.stop() } else { viewModel.run() }
@@ -124,7 +124,7 @@ struct WorldPingToolView: View {
                     }
                     .padding(.horizontal)
                     .padding(.vertical, 6)
-                    .accessibilityIdentifier("worldPing_location_row")
+                    .accessibilityIdentifier("worldPing_row_location")
 
                     Divider().padding(.horizontal)
                 }

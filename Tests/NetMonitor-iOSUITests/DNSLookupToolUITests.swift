@@ -58,7 +58,7 @@ final class DNSLookupToolUITests: IOSUITestCase {
         navigateToDNSTool()
         clearAndTypeText("example.com", into: app.textFields["dnsLookup_input_domain"])
         app.buttons["dnsLookup_button_run"].tap()
-        let queryInfo = app.otherElements["dnsLookup_queryInfo"]
+        let queryInfo = app.otherElements["dnsLookup_section_queryInfo"]
         XCTAssertTrue(queryInfo.waitForExistence(timeout: 10), "Query info should appear after lookup")
     }
 
@@ -66,7 +66,7 @@ final class DNSLookupToolUITests: IOSUITestCase {
         navigateToDNSTool()
         clearAndTypeText("example.com", into: app.textFields["dnsLookup_input_domain"])
         app.buttons["dnsLookup_button_run"].tap()
-        let records = app.otherElements["dnsLookup_records"]
+        let records = app.otherElements["dnsLookup_section_records"]
         XCTAssertTrue(records.waitForExistence(timeout: 10), "Records should appear after lookup")
     }
 
@@ -74,7 +74,7 @@ final class DNSLookupToolUITests: IOSUITestCase {
         navigateToDNSTool()
         clearAndTypeText("example.com", into: app.textFields["dnsLookup_input_domain"])
         app.buttons["dnsLookup_button_run"].tap()
-        let queryInfo = app.otherElements["dnsLookup_queryInfo"]
+        let queryInfo = app.otherElements["dnsLookup_section_queryInfo"]
         if queryInfo.waitForExistence(timeout: 10) {
             let clearButton = app.buttons["dnsLookup_button_clear"]
             if clearButton.waitForExistence(timeout: 3) {
@@ -90,8 +90,8 @@ final class DNSLookupToolUITests: IOSUITestCase {
         navigateToDNSTool()
         clearAndTypeText("not-a-real-domain-12345.invalid", into: app.textFields["dnsLookup_input_domain"])
         app.buttons["dnsLookup_button_run"].tap()
-        let errorView = app.otherElements["dnsLookup_error"]
-        let queryInfo = app.otherElements["dnsLookup_queryInfo"]
+        let errorView = app.otherElements["dnsLookup_label_error"]
+        let queryInfo = app.otherElements["dnsLookup_section_queryInfo"]
         XCTAssertTrue(
             waitForEither([errorView, queryInfo], timeout: 10),
             "Either error or results should appear after lookup attempt"
@@ -132,7 +132,7 @@ final class DNSLookupToolUITests: IOSUITestCase {
         clearAndTypeText("example.com", into: app.textFields["dnsLookup_input_domain"])
         app.buttons["dnsLookup_button_run"].tap()
 
-        let queryInfo = app.otherElements["dnsLookup_queryInfo"]
+        let queryInfo = app.otherElements["dnsLookup_section_queryInfo"]
         let clearButton = app.buttons["dnsLookup_button_clear"]
 
         guard queryInfo.waitForExistence(timeout: 15) else { return }

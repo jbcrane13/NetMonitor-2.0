@@ -103,7 +103,7 @@ struct GeoTraceView: View {
                     Annotation("", coordinate: coord, anchor: .center) {
                         HopAnnotationView(hop: hop, isSelected: viewModel.selectedHop?.id == hop.id)
                             .onTapGesture { viewModel.selectHop(hop) }
-                            .accessibilityIdentifier("geoTrace_hop_annotation_\(hop.hop.hopNumber)")
+                            .accessibilityIdentifier("geoTrace_label_annotation\(hop.hop.hopNumber)")
                     }
                     .annotationTitles(.hidden)
                 }
@@ -121,7 +121,7 @@ struct GeoTraceView: View {
                     )
             }
         }
-        .accessibilityIdentifier("geoTrace_map")
+        .accessibilityIdentifier("geoTrace_label_map")
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .overlay(alignment: .center) {
             if viewModel.hops.isEmpty && !viewModel.isRunning {

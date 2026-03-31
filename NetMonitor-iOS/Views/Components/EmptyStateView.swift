@@ -54,7 +54,7 @@ struct EmptyStateView: View {
         }
         .padding()
         .frame(maxWidth: .infinity)
-        .accessibilityIdentifier("emptyState_\(icon)")
+        .accessibilityIdentifier("emptyState_image_\(icon)")
     }
 }
 

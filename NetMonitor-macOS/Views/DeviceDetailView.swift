@@ -57,7 +57,7 @@ struct DeviceDetailView: View {
                     }
                     .buttonStyle(.bordered)
                     .keyboardShortcut(.escape, modifiers: [])
-                    .accessibilityIdentifier("device_detail_button_close")
+                    .accessibilityIdentifier("deviceDetail_button_close")
                 }
             }
             ToolbarItem(placement: .primaryAction) {
@@ -69,7 +69,7 @@ struct DeviceDetailView: View {
                     }
                     isEditing.toggle()
                 }
-                .accessibilityIdentifier("device_detail_button_edit")
+                .accessibilityIdentifier("deviceDetail_button_edit")
             }
         }
         .task {
@@ -107,7 +107,7 @@ struct DeviceDetailView: View {
                 if isEditing {
                     TextField("Device Name", text: $editedName)
                         .textFieldStyle(.roundedBorder)
-                        .accessibilityIdentifier("device_detail_field_name")
+                        .accessibilityIdentifier("deviceDetail_textfield_name")
                 } else {
                     Text(device.displayName)
                         .font(.title2)
@@ -142,11 +142,11 @@ struct DeviceDetailView: View {
                 }
                 .labelsHidden()
                 .frame(width: 150)
-                .accessibilityIdentifier("device_detail_picker_type")
+                .accessibilityIdentifier("deviceDetail_picker_type")
             }
         }
         .macGlassCard(cornerRadius: MacTheme.Layout.cardCornerRadius)
-        .accessibilityIdentifier("device_detail_card_header")
+        .accessibilityIdentifier("deviceDetail_card_header")
     }
 
     // MARK: - Quick Action Bar
@@ -159,7 +159,7 @@ struct DeviceDetailView: View {
                 color: accentColor,
                 action: { showPingSheet = true }
             )
-            .accessibilityIdentifier("device_detail_quickAction_ping")
+            .accessibilityIdentifier("deviceDetail_button_qaPing")
 
             quickActionIcon(
                 title: "Scan Ports",
@@ -167,7 +167,7 @@ struct DeviceDetailView: View {
                 color: MacTheme.Colors.info,
                 action: { showPortScanSheet = true }
             )
-            .accessibilityIdentifier("device_detail_quickAction_portScan")
+            .accessibilityIdentifier("deviceDetail_button_qaPortScan")
 
             if !device.macAddress.isEmpty {
                 quickActionIcon(
@@ -176,7 +176,7 @@ struct DeviceDetailView: View {
                     color: MacTheme.Colors.success,
                     action: { Task { await wolAction.wake(device: device) } }
                 )
-                .accessibilityIdentifier("device_detail_quickAction_wake")
+                .accessibilityIdentifier("deviceDetail_button_qaWake")
             }
 
             quickActionIcon(
@@ -188,7 +188,7 @@ struct DeviceDetailView: View {
                     NSPasteboard.general.setString(device.ipAddress, forType: .string)
                 }
             )
-            .accessibilityIdentifier("device_detail_quickAction_copyIP")
+            .accessibilityIdentifier("deviceDetail_button_qaCopyIP")
 
             quickActionIcon(
                 title: "Monitor",
@@ -196,9 +196,9 @@ struct DeviceDetailView: View {
                 color: MacTheme.Colors.warning,
                 action: { addToTargets() }
             )
-            .accessibilityIdentifier("device_detail_quickAction_addTarget")
+            .accessibilityIdentifier("deviceDetail_button_qaAddTarget")
         }
-        .accessibilityIdentifier("device_detail_bar_quickActions")
+        .accessibilityIdentifier("deviceDetail_section_quickActions")
     }
 
     private func quickActionIcon(
@@ -250,7 +250,7 @@ struct DeviceDetailView: View {
             }
         }
         .macGlassCard(cornerRadius: MacTheme.Layout.cardCornerRadius)
-        .accessibilityIdentifier("device_detail_card_networkInfo")
+        .accessibilityIdentifier("deviceDetail_card_networkInfo")
     }
 
     // MARK: - Manufacturer Section
@@ -277,7 +277,7 @@ struct DeviceDetailView: View {
             }
         }
         .macGlassCard(cornerRadius: MacTheme.Layout.cardCornerRadius)
-        .accessibilityIdentifier("device_detail_card_hardware")
+        .accessibilityIdentifier("deviceDetail_card_hardware")
     }
 
     // MARK: - Timeline Section
@@ -304,7 +304,7 @@ struct DeviceDetailView: View {
             infoRow(label: "Total Time Tracked", value: totalTimeTracked)
         }
         .macGlassCard(cornerRadius: MacTheme.Layout.cardCornerRadius)
-        .accessibilityIdentifier("device_detail_card_timeline")
+        .accessibilityIdentifier("deviceDetail_card_timeline")
     }
 
     // MARK: - Services Section
@@ -332,7 +332,7 @@ struct DeviceDetailView: View {
             }
         }
         .macGlassCard(cornerRadius: MacTheme.Layout.cardCornerRadius)
-        .accessibilityIdentifier("device_detail_card_services")
+        .accessibilityIdentifier("deviceDetail_card_services")
     }
 
     // MARK: - Notes Card
@@ -350,7 +350,7 @@ struct DeviceDetailView: View {
                     .scrollContentBackground(.hidden)
                     .background(Color.gray.opacity(0.1))
                     .clipShape(RoundedRectangle(cornerRadius: 8))
-                    .accessibilityIdentifier("device_detail_field_notes")
+                    .accessibilityIdentifier("deviceDetail_textfield_notes")
             } else {
                 if let notes = device.notes, !notes.isEmpty {
                     Text(notes)
@@ -365,7 +365,7 @@ struct DeviceDetailView: View {
             }
         }
         .macGlassCard(cornerRadius: MacTheme.Layout.cardCornerRadius)
-        .accessibilityIdentifier("device_detail_card_notes")
+        .accessibilityIdentifier("deviceDetail_card_notes")
     }
 
     // MARK: - Actions Section
@@ -383,14 +383,14 @@ struct DeviceDetailView: View {
                     systemImage: "waveform.path",
                     action: { showPingSheet = true }
                 )
-                .accessibilityIdentifier("device_detail_button_ping")
+                .accessibilityIdentifier("deviceDetail_button_ping")
 
                 actionButton(
                     title: "Port Scan",
                     systemImage: "network",
                     action: { showPortScanSheet = true }
                 )
-                .accessibilityIdentifier("device_detail_button_portScan")
+                .accessibilityIdentifier("deviceDetail_button_portScan")
 
                 if !device.macAddress.isEmpty {
                     actionButton(
@@ -402,7 +402,7 @@ struct DeviceDetailView: View {
                             }
                         }
                     )
-                    .accessibilityIdentifier("device_detail_button_wake")
+                    .accessibilityIdentifier("deviceDetail_button_wake")
                 }
 
                 actionButton(
@@ -410,11 +410,11 @@ struct DeviceDetailView: View {
                     systemImage: "plus.circle",
                     action: { addToTargets() }
                 )
-                .accessibilityIdentifier("device_detail_button_addToTargets")
+                .accessibilityIdentifier("deviceDetail_button_addToTargets")
             }
         }
         .macGlassCard(cornerRadius: MacTheme.Layout.cardCornerRadius)
-        .accessibilityIdentifier("device_detail_card_actions")
+        .accessibilityIdentifier("deviceDetail_card_actions")
     }
 
     // MARK: - Helper Views

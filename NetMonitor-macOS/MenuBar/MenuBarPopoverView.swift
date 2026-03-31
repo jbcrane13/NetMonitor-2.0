@@ -57,7 +57,7 @@ struct MenuBarPopoverView: View {
             footer
         }
         .frame(width: 320)
-        .accessibilityIdentifier("menubar_popover")
+        .accessibilityIdentifier("screen_menubar")
     }
 
     // MARK: - Header
@@ -145,7 +145,7 @@ struct MenuBarPopoverView: View {
         }
         .padding(.horizontal)
         .padding(.vertical, 10)
-        .accessibilityIdentifier("menubar_connectionStatus")
+        .accessibilityIdentifier("menubar_label_connectionStatus")
     }
 
     // MARK: - Network Stats
@@ -160,7 +160,7 @@ struct MenuBarPopoverView: View {
                 color: .blue,
                 isLoading: deviceDiscovery.isScanning
             )
-            .accessibilityIdentifier("menubar_stat_devices")
+            .accessibilityIdentifier("menubar_label_devices")
 
             Divider()
                 .frame(height: 36)
@@ -173,7 +173,7 @@ struct MenuBarPopoverView: View {
                 color: gatewayLatencyColor,
                 isLoading: false
             )
-            .accessibilityIdentifier("menubar_stat_gatewayLatency")
+            .accessibilityIdentifier("menubar_label_gatewayLatency")
 
             Divider()
                 .frame(height: 36)
@@ -186,7 +186,7 @@ struct MenuBarPopoverView: View {
                 color: .purple,
                 isLoading: false
             )
-            .accessibilityIdentifier("menubar_stat_latency")
+            .accessibilityIdentifier("menubar_label_latency")
         }
         .padding(.vertical, 10)
     }
@@ -252,7 +252,7 @@ struct MenuBarPopoverView: View {
         }
         .padding(.horizontal)
         .padding(.vertical, 8)
-        .accessibilityIdentifier("menubar_latencySparkline")
+        .accessibilityIdentifier("menubar_label_latencySparkline")
     }
 
     /// Gateway latency history from monitoring session
@@ -329,7 +329,7 @@ struct MenuBarPopoverView: View {
             }
             .padding(.horizontal)
             .padding(.vertical, 8)
-            .accessibilityIdentifier("menubar_problemDevices")
+            .accessibilityIdentifier("menubar_label_problemDevices")
         }
     }
 
@@ -346,7 +346,7 @@ struct MenuBarPopoverView: View {
                 deviceDiscovery.startScan()
             }
             .disabled(deviceDiscovery.isScanning)
-            .accessibilityIdentifier("menubar_quickAction_button_scan")
+            .accessibilityIdentifier("menubar_button_scan")
 
             Divider().frame(height: 28)
 
@@ -358,7 +358,7 @@ struct MenuBarPopoverView: View {
                 WindowOpener.shared.openMainWindow()
                 onClose()
             }
-            .accessibilityIdentifier("menubar_quickAction_button_ping")
+            .accessibilityIdentifier("menubar_button_ping")
 
             Divider().frame(height: 28)
 
@@ -370,10 +370,10 @@ struct MenuBarPopoverView: View {
                 WindowOpener.shared.openMainWindow()
                 onClose()
             }
-            .accessibilityIdentifier("menubar_quickAction_button_speed")
+            .accessibilityIdentifier("menubar_button_speed")
         }
         .padding(.vertical, 6)
-        .accessibilityIdentifier("menubar_quickActions")
+        .accessibilityIdentifier("menubar_section_quickActions")
     }
 
     private func popoverQuickAction(
@@ -415,7 +415,7 @@ struct MenuBarPopoverView: View {
             LazyVStack(spacing: 8) {
                 ForEach(sortedEntries, id: \.id) { entry in
                     targetRow(measurement: entry.measurement)
-                        .accessibilityIdentifier("menubar_targetRow_\(entry.id)")
+                        .accessibilityIdentifier("menubar_row_\(entry.id)")
                 }
 
                 if session.latestResults.isEmpty {

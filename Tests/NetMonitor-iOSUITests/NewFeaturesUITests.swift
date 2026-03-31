@@ -22,7 +22,7 @@ final class NewFeaturesUITests: IOSUITestCase {
         // Banner only shows when offline — when connected, it must not appear
         requireExists(app.descendants(matching: .any)["screen_dashboard"],
                       message: "Dashboard should be visible")
-        let banner = app.descendants(matching: .any)["dashboard_banner_offline"]
+        let banner = app.descendants(matching: .any)["dashboard_label_offline"]
         XCTAssertFalse(banner.waitForExistence(timeout: 3),
                        "Offline banner should not appear when the device is connected")
     }

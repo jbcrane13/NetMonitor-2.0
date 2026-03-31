@@ -27,7 +27,7 @@ struct MacPairingView: View {
                         }
                         .frame(maxWidth: .infinity, alignment: .center)
                         .padding(.vertical, 20)
-                        .accessibilityIdentifier("pairing_searching")
+                        .accessibilityIdentifier("pairing_label_searching")
                     } else if connectionService.discoveredMacs.isEmpty {
                         VStack(spacing: 8) {
                             Image(systemName: "desktopcomputer.trianglebadge.exclamationmark")
@@ -43,7 +43,7 @@ struct MacPairingView: View {
                         }
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 20)
-                        .accessibilityIdentifier("pairing_empty")
+                        .accessibilityIdentifier("pairing_label_empty")
                     } else {
                         ForEach(connectionService.discoveredMacs) { mac in
                             Button {
@@ -79,7 +79,7 @@ struct MacPairingView: View {
                                 .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
-                            .accessibilityIdentifier("pairing_mac_\(mac.name)")
+                            .accessibilityIdentifier("pairing_row_\(mac.name)")
                         }
                     }
                 } header: {
@@ -109,7 +109,7 @@ struct MacPairingView: View {
                                 .foregroundStyle(Theme.Colors.textTertiary)
                         }
                     }
-                    .accessibilityIdentifier("pairing_manual_toggle")
+                    .accessibilityIdentifier("pairing_toggle_manual")
 
                     if showManualEntry {
                         VStack(spacing: 12) {
@@ -118,13 +118,13 @@ struct MacPairingView: View {
                                 .autocorrectionDisabled()
                                 .textInputAutocapitalization(.never)
                                 .foregroundStyle(Theme.Colors.textPrimary)
-                                .accessibilityIdentifier("mac_pairing_host_field")
+                                .accessibilityIdentifier("macPairing_textfield_host")
 
                             TextField("Port", text: $manualPort)
                                 .textFieldStyle(.roundedBorder)
                                 .keyboardType(.numberPad)
                                 .foregroundStyle(Theme.Colors.textPrimary)
-                                .accessibilityIdentifier("mac_pairing_port_field")
+                                .accessibilityIdentifier("macPairing_textfield_port")
 
                             GlassButton(
                                 title: "Connect",
@@ -135,7 +135,7 @@ struct MacPairingView: View {
                             ) {
                                 connectManually()
                             }
-                            .accessibilityIdentifier("pairing_manual_connect")
+                            .accessibilityIdentifier("pairing_button_manualConnect")
                         }
                         .padding(.vertical, 4)
                     }
@@ -178,7 +178,7 @@ struct MacPairingView: View {
                                     }
                                     .padding(.vertical, 8)
                                 }
-                                .accessibilityIdentifier("pairing_done")
+                                .accessibilityIdentifier("pairing_button_done")
                             }
                         }
                         .padding(.vertical, 4)
@@ -201,7 +201,7 @@ struct MacPairingView: View {
                         dismiss()
                     }
                     .foregroundStyle(Theme.Colors.accent)
-                    .accessibilityIdentifier("pairing_cancel")
+                    .accessibilityIdentifier("pairing_button_cancel")
                 }
             }
             .onAppear {

@@ -89,8 +89,8 @@ class MacOSUITestCase: XCTestCase {
         requireExists(sidebarItem, timeout: 5,
                       message: "Sidebar item sidebar_\(section) should exist")
         sidebarItem.tap()
-        requireExists(app.otherElements["detail_\(section)"], timeout: 5,
-                      message: "Detail pane detail_\(section) should appear after selecting sidebar_\(section)")
+        requireExists(app.otherElements["contentView_nav_\(section)"], timeout: 5,
+                      message: "Detail pane contentView_nav_\(section) should appear after selecting sidebar_\(section)")
     }
 
     /// Navigate to the Tools detail pane, tap a tool card, and verify the tool

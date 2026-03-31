@@ -41,12 +41,12 @@ struct SettingsView: View {
             List(SettingsTab.allCases, selection: $selectedTab) { tab in
                 Label(tab.rawValue, systemImage: tab.iconName)
                     .tag(tab)
-                    .accessibilityIdentifier("settings_tab_\(tab.rawValue.lowercased())")
+                    .accessibilityIdentifier("settings_tab_\(tab.rawValue)")
             }
             .listStyle(.sidebar)
             .scrollContentBackground(.hidden)
             .frame(width: 200)
-            .accessibilityIdentifier("settings_sidebar")
+            .accessibilityIdentifier("settings_nav_sidebar")
 
             Divider()
 

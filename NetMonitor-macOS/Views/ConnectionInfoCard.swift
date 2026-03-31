@@ -34,7 +34,7 @@ struct ConnectionInfoCard: View {
                 }
                 .buttonStyle(.plain)
                 .disabled(isLoading)
-                .accessibilityIdentifier("connection_card_button_refresh")
+                .accessibilityIdentifier("connectionCard_button_refresh")
             }
 
             Divider()
@@ -109,7 +109,7 @@ struct ConnectionInfoCard: View {
             }
         }
         .macGlassCard()
-        .accessibilityIdentifier("connection_card")
+        .accessibilityIdentifier("connectionCard_card_info")
         .task {
             await loadConnectionInfo()
         }

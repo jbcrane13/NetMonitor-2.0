@@ -107,10 +107,10 @@ struct ContentView: View {
                         set: { selectedNetworkProfile = $0 }
                     )
                 )
-                .accessibilityIdentifier("detail_network")
+                .accessibilityIdentifier("contentView_nav_network")
             } else {
                 Text("Network not found")
-                    .accessibilityIdentifier("detail_network_not_found")
+                    .accessibilityIdentifier("contentView_label_networkNotFound")
             }
         case .section(let section):
             sectionView(for: section)
@@ -118,7 +118,7 @@ struct ContentView: View {
             toolView(for: tool)
         case nil:
             Text("Select a section")
-                .accessibilityIdentifier("detail_empty")
+                .accessibilityIdentifier("contentView_label_empty")
         }
     }
 
@@ -127,13 +127,13 @@ struct ContentView: View {
         switch section {
         case .devices:
             DevicesView()
-                .accessibilityIdentifier("detail_devices")
+                .accessibilityIdentifier("contentView_nav_devices")
         case .tools:
             ToolsView(selection: $selectedSection)
-                .accessibilityIdentifier("detail_tools")
+                .accessibilityIdentifier("contentView_nav_tools")
         case .settings:
             SettingsView()
-                .accessibilityIdentifier("detail_settings")
+                .accessibilityIdentifier("contentView_nav_settings")
         }
     }
 
@@ -188,37 +188,37 @@ private struct KeyboardShortcutsModifier: ViewModifier {
             // ⌘1 — Jump to active network dashboard
             Button("", action: onJumpToNetwork)
                 .keyboardShortcut("1", modifiers: .command)
-                .accessibilityIdentifier("contentView_shortcut_jumpToNetwork")
+                .accessibilityIdentifier("contentView_nav_jumpToNetwork")
 
             // ⌘2 — Devices list
             Button("") { selectedSection = .section(.devices) }
                 .keyboardShortcut("2", modifiers: .command)
-                .accessibilityIdentifier("contentView_shortcut_devices")
+                .accessibilityIdentifier("contentView_nav_devicesShortcut")
 
             // ⌘3 — Tools
             Button("") { selectedSection = .section(.tools) }
                 .keyboardShortcut("3", modifiers: .command)
-                .accessibilityIdentifier("contentView_shortcut_tools")
+                .accessibilityIdentifier("contentView_nav_toolsShortcut")
 
             // ⌘4 — Settings
             Button("") { selectedSection = .section(.settings) }
                 .keyboardShortcut("4", modifiers: .command)
-                .accessibilityIdentifier("contentView_shortcut_settings")
+                .accessibilityIdentifier("contentView_nav_settingsShortcut")
 
             // ⌘R — Rescan network
             Button("", action: onRescan)
                 .keyboardShortcut("r", modifiers: .command)
-                .accessibilityIdentifier("contentView_shortcut_rescan")
+                .accessibilityIdentifier("contentView_button_rescan")
 
             // ⌘K — Quick jump to device
             Button("") { showQuickJump = true }
                 .keyboardShortcut("k", modifiers: .command)
-                .accessibilityIdentifier("contentView_shortcut_quickJump")
+                .accessibilityIdentifier("contentView_nav_quickJump")
 
             // ⌘T — Quick tool launch
             Button("") { selectedSection = .section(.tools) }
                 .keyboardShortcut("t", modifiers: .command)
-                .accessibilityIdentifier("contentView_shortcut_launchTools")
+                .accessibilityIdentifier("contentView_nav_launchTools")
         }
         .hidden()
     }

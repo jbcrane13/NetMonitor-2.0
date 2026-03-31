@@ -43,7 +43,7 @@ struct GatewayInfoCard: View {
                 }
                 .buttonStyle(.plain)
                 .disabled(isLoading)
-                .accessibilityIdentifier("gateway_card_button_refresh")
+                .accessibilityIdentifier("gatewayCard_button_refresh")
             }
 
             Divider()
@@ -149,7 +149,7 @@ struct GatewayInfoCard: View {
             }
         }
         .macGlassCard()
-        .accessibilityIdentifier("gateway_card")
+        .accessibilityIdentifier("screen_gatewayCard")
         .task {
             await refreshGatewayInfo()
         }

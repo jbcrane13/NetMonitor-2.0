@@ -131,7 +131,7 @@ struct WakeOnLANToolView: View {
                     Spacer()
                 }
             }
-            .accessibilityIdentifier("wol_error")
+            .accessibilityIdentifier("wol_label_error")
         }
 
         if let result = viewModel.lastResult, result.success {
@@ -154,7 +154,7 @@ struct WakeOnLANToolView: View {
                     Spacer()
                 }
             }
-            .accessibilityIdentifier("wol_success")
+            .accessibilityIdentifier("wol_label_success")
         }
 
         // Info card
@@ -174,7 +174,7 @@ struct WakeOnLANToolView: View {
                     .foregroundStyle(Theme.Colors.textSecondary)
             }
         }
-        .accessibilityIdentifier("wol_info")
+        .accessibilityIdentifier("wol_label_info")
     }
 }
 

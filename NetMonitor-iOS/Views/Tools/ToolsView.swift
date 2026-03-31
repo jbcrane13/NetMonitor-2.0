@@ -129,7 +129,7 @@ struct QuickActionsSection: View {
                     .glassCard(cornerRadius: 16, padding: 0)
                 }
                 .buttonStyle(.plain)
-                .accessibilityIdentifier("quickAction_set_target")
+                .accessibilityIdentifier("quickAction_button_setTarget")
 
                 NavigationLink(value: ToolDestination.speedTest) {
                     VStack(spacing: Theme.Layout.smallCornerRadius) {
@@ -149,7 +149,7 @@ struct QuickActionsSection: View {
                     .padding(.vertical, 16)
                     .glassCard(cornerRadius: 16, padding: 0)
                 }
-                .accessibilityIdentifier("quickAction_speed_test")
+                .accessibilityIdentifier("quickAction_button_speedTest")
 
                 VStack(spacing: 0) {
                     QuickActionButton(
@@ -202,7 +202,7 @@ struct SetTargetSheet: View {
                             .onSubmit {
                                 setAndDismiss(newTarget)
                             }
-                            .accessibilityIdentifier("setTarget_input_address")
+                            .accessibilityIdentifier("setTarget_textfield_address")
 
                         if !newTarget.isEmpty {
                             Button {
@@ -570,7 +570,7 @@ struct ActivityRow: View {
                 .font(.caption2)
                 .foregroundStyle(Theme.Colors.textTertiary)
         }
-        .accessibilityIdentifier("activityRow_\(activity.tool.lowercased())_\(activity.target)")
+        .accessibilityIdentifier("tools_row_\(activity.tool.lowercased())\(activity.target)")
     }
 }
 

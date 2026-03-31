@@ -148,11 +148,11 @@ struct PingToolView: View {
                 Spacer()
                 HStack(spacing: 16) {
                     chartStat("Avg", liveAvg, .primary)
-                        .accessibilityIdentifier("ping_stat_avg")
+                        .accessibilityIdentifier("ping_label_avg")
                     chartStat("Min", liveMin, .green)
-                        .accessibilityIdentifier("ping_stat_min")
+                        .accessibilityIdentifier("ping_label_min")
                     chartStat("Max", liveMax, .orange)
-                        .accessibilityIdentifier("ping_stat_max")
+                        .accessibilityIdentifier("ping_label_max")
                 }
             }
 
@@ -206,7 +206,7 @@ struct PingToolView: View {
                 }
             }
             .frame(height: 150)
-            .accessibilityIdentifier("ping_chart_latency")
+            .accessibilityIdentifier("ping_label_latencyChart")
         }
         .padding()
         .background(Color.black.opacity(0.1))

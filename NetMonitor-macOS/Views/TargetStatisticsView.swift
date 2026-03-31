@@ -78,7 +78,7 @@ struct TargetStatisticsView: View {
             }
         }
         .macGlassCard(cornerRadius: MacTheme.Layout.cardCornerRadius)
-        .accessibilityIdentifier("target_statistics_card")
+        .accessibilityIdentifier("targetStatistics_card_info")
     }
 
     // MARK: - Statistics (extracted to TargetMeasurement model for testability)

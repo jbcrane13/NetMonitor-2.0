@@ -66,7 +66,7 @@ final class TracerouteToolUITests: IOSUITestCase {
         navigateToTracerouteTool()
         clearAndTypeText("8.8.8.8", into: app.textFields["tracerouteTool_input_host"])
         app.buttons["tracerouteTool_button_run"].tap()
-        let firstHop = app.otherElements["tracerouteTool_hop_1"]
+        let firstHop = app.otherElements["tracerouteTool_row_1"]
         XCTAssertTrue(firstHop.waitForExistence(timeout: 15), "First hop row should appear")
     }
 
@@ -110,7 +110,7 @@ final class TracerouteToolUITests: IOSUITestCase {
         )
 
         if hopsSection.exists {
-            let firstHop = app.otherElements["tracerouteTool_hop_1"]
+            let firstHop = app.otherElements["tracerouteTool_row_1"]
             XCTAssertTrue(
                 firstHop.waitForExistence(timeout: 10),
                 "At least one hop row should appear in the hops section"

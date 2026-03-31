@@ -40,7 +40,7 @@ struct SSLCertificateMonitorView: View {
             .pickerStyle(.segmented)
             .padding(.horizontal)
             .padding(.top, 8)
-            .accessibilityIdentifier("ssl_monitor_picker_view")
+            .accessibilityIdentifier("sslMonitor_picker_view")
 
             if selectedTab == 0 {
                 queryInputRow
@@ -54,18 +54,18 @@ struct SSLCertificateMonitorView: View {
                 .textFieldStyle(.roundedBorder)
                 .onSubmit { runQuery() }
                 .disabled(isLoading)
-                .accessibilityIdentifier("ssl_monitor_input_domain")
+                .accessibilityIdentifier("sslMonitor_textfield_domain")
 
             TextField("443", text: $port)
                 .textFieldStyle(.roundedBorder)
                 .frame(width: 60)
                 .disabled(isLoading)
-                .accessibilityIdentifier("ssl_monitor_input_port")
+                .accessibilityIdentifier("sslMonitor_textfield_port")
 
             Button(isLoading ? "Querying…" : "Query") { runQuery() }
                 .buttonStyle(.borderedProminent)
                 .disabled(domain.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isLoading)
-                .accessibilityIdentifier("ssl_monitor_button_query")
+                .accessibilityIdentifier("sslMonitor_button_query")
         }
         .padding(.horizontal)
         .padding(.bottom, 8)
@@ -97,7 +97,7 @@ struct SSLCertificateMonitorView: View {
                     Label(error, systemImage: "exclamationmark.triangle.fill")
                         .foregroundStyle(.red)
                         .padding()
-                        .accessibilityIdentifier("ssl_monitor_error")
+                        .accessibilityIdentifier("sslMonitor_label_error")
                 } else if let result = currentResult {
                     resultContent(result)
                 } else {
@@ -119,14 +119,14 @@ struct SSLCertificateMonitorView: View {
             sslSection(ssl)
         } else if let err = result.sslError {
             Label("SSL Error: \(err)", systemImage: "xmark.shield").foregroundStyle(.red)
-                .accessibilityIdentifier("ssl_monitor_ssl_card")
+                .accessibilityIdentifier("sslMonitor_card_ssl")
         }
 
         if let whois = result.whoisResult {
             whoisSection(whois)
         } else if let err = result.whoisError {
             Label("WHOIS Error: \(err)", systemImage: "exclamationmark.circle").foregroundStyle(.orange)
-                .accessibilityIdentifier("ssl_monitor_whois_card")
+                .accessibilityIdentifier("sslMonitor_card_whois")
         }
     }
 
@@ -150,7 +150,7 @@ struct SSLCertificateMonitorView: View {
             Label("SSL Certificate", systemImage: ssl.isValid ? "checkmark.shield.fill" : "xmark.shield.fill")
                 .foregroundStyle(ssl.isValid ? .green : .red)
         }
-        .accessibilityIdentifier("ssl_monitor_ssl_card")
+        .accessibilityIdentifier("sslMonitor_card_ssl")
     }
 
     private func whoisSection(_ whois: WHOISResult) -> some View {
@@ -173,7 +173,7 @@ struct SSLCertificateMonitorView: View {
         } label: {
             Label("Domain Registration", systemImage: "doc.text.magnifyingglass")
         }
-        .accessibilityIdentifier("ssl_monitor_whois_card")
+        .accessibilityIdentifier("sslMonitor_card_whois")
     }
 
     private var watchListArea: some View {
@@ -183,13 +183,13 @@ struct SSLCertificateMonitorView: View {
                     .foregroundStyle(.tertiary)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
                     .padding()
-                    .accessibilityIdentifier("ssl_monitor_watchlist_empty")
+                    .accessibilityIdentifier("sslMonitor_label_watchlistEmpty")
             } else {
                 List(trackedDomains) { status in
                     watchListRow(status)
-                        .accessibilityIdentifier("ssl_monitor_watchlist_row_\(status.domain)")
+                        .accessibilityIdentifier("sslMonitor_row_\(status.domain)")
                 }
-                .accessibilityIdentifier("ssl_monitor_watchlist_section")
+                .accessibilityIdentifier("sslMonitor_section_watchlist")
             }
         }
     }
@@ -222,7 +222,7 @@ struct SSLCertificateMonitorView: View {
             }
             .buttonStyle(.plain)
             .foregroundStyle(.red)
-            .accessibilityIdentifier("ssl_monitor_watchlist_row_button_delete_\(status.domain)")
+            .accessibilityIdentifier("sslMonitor_button_delete\(status.domain)")
         }
     }
 
@@ -246,14 +246,14 @@ struct SSLCertificateMonitorView: View {
                                 }
                             }
                             .buttonStyle(.borderedProminent)
-                            .accessibilityIdentifier("ssl_monitor_button_add")
+                            .accessibilityIdentifier("sslMonitor_button_add")
                             Button("Cancel") { showAddNotes = false
                             notes = ""
                             }
-                            .accessibilityIdentifier("ssl_monitor_button_cancel_notes")
+                            .accessibilityIdentifier("sslMonitor_button_cancelNotes")
                         } else {
                             Button("Add to Watch List") { showAddNotes = true }
-                                .accessibilityIdentifier("ssl_monitor_button_add")
+                                .accessibilityIdentifier("sslMonitor_button_add")
                         }
                     } else {
                         Text("In watch list").foregroundStyle(.secondary).font(.caption)
@@ -270,7 +270,7 @@ struct SSLCertificateMonitorView: View {
                     Label("Refresh All", systemImage: "arrow.clockwise")
                 }
                 .disabled(isLoading)
-                .accessibilityIdentifier("ssl_monitor_button_refresh_all")
+                .accessibilityIdentifier("sslMonitor_button_refreshAll")
             }
 
             Spacer()

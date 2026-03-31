@@ -91,7 +91,7 @@ struct TimelineView: View {
             .padding(.top, Theme.Layout.smallCornerRadius)
             .padding(.bottom, Theme.Layout.sectionSpacing)
         }
-        .accessibilityIdentifier("timeline_list")
+        .accessibilityIdentifier("timeline_list_events")
     }
 
     private var emptyState: some View {
@@ -110,7 +110,7 @@ struct TimelineView: View {
                 .padding(.horizontal, 40)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .accessibilityIdentifier("timeline_empty_state")
+        .accessibilityIdentifier("timeline_label_emptyState")
     }
 }
 
@@ -191,7 +191,7 @@ struct TimelineFilterSheet: View {
                             }
                         }
                     }
-                    .accessibilityIdentifier("timeline_filter_show_all")
+                    .accessibilityIdentifier("timelineFilter_button_showAll")
                 }
                 .listRowBackground(Theme.Colors.glassBackground)
 
@@ -211,7 +211,7 @@ struct TimelineFilterSheet: View {
                                 }
                             }
                         }
-                        .accessibilityIdentifier("timeline_filter_type_\(type.rawValue)")
+                        .accessibilityIdentifier("timelineFilter_button_type\(type.rawValue)")
                     }
                 }
                 .listRowBackground(Theme.Colors.glassBackground)
@@ -227,11 +227,11 @@ struct TimelineFilterSheet: View {
                         dismiss()
                     }
                     .foregroundStyle(Theme.Colors.accent)
-                    .accessibilityIdentifier("timeline_filter_button_done")
+                    .accessibilityIdentifier("timelineFilter_button_done")
                 }
             }
         }
-        .accessibilityIdentifier("screen_timeline_filter")
+        .accessibilityIdentifier("screen_timelineFilter")
         .presentationDetents([.medium, .large])
     }
 }

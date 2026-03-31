@@ -16,18 +16,18 @@ struct AddNetworkSheet: View {
                     HStack {
                         TextField("Gateway IP", text: $gatewayIP)
                             .textContentType(.URL)
-                            .accessibilityIdentifier("add_network_field_gateway")
+                            .accessibilityIdentifier("addNetwork_textfield_gateway")
 
                         validationIndicator(isValid: isValidGateway)
-                            .accessibilityIdentifier("add_network_validation_gateway")
+                            .accessibilityIdentifier("addNetwork_label_validationGateway")
                     }
 
                     HStack {
                         TextField("Subnet CIDR (e.g., 192.168.1.0/24)", text: $subnetCIDR)
-                            .accessibilityIdentifier("add_network_field_subnet")
+                            .accessibilityIdentifier("addNetwork_textfield_subnet")
 
                         validationIndicator(isValid: isValidCIDR)
-                            .accessibilityIdentifier("add_network_validation_subnet")
+                            .accessibilityIdentifier("addNetwork_label_validationSubnet")
                     }
                 } header: {
                     Text("Network Details")
@@ -43,7 +43,7 @@ struct AddNetworkSheet: View {
 
                 SwiftUI.Section {
                     TextField("Network Name (optional)", text: $networkName)
-                        .accessibilityIdentifier("add_network_field_name")
+                        .accessibilityIdentifier("addNetwork_textfield_name")
                 } header: {
                     Text("Display Name")
                 } footer: {
@@ -56,7 +56,7 @@ struct AddNetworkSheet: View {
                     Button("Cancel") {
                         dismiss()
                     }
-                    .accessibilityIdentifier("add_network_button_cancel")
+                    .accessibilityIdentifier("addNetwork_button_cancel")
                 }
 
                 ToolbarItem(placement: .confirmationAction) {
@@ -65,7 +65,7 @@ struct AddNetworkSheet: View {
                         dismiss()
                     }
                     .disabled(!isValid)
-                    .accessibilityIdentifier("add_network_button_add")
+                    .accessibilityIdentifier("addNetwork_button_add")
                 }
             }
         }

@@ -124,7 +124,7 @@ struct TracerouteToolView: View {
             }
         }
         .padding(.vertical, 2)
-        .accessibilityIdentifier("traceroute_hop_\(hop.hopNumber)")
+        .accessibilityIdentifier("traceroute_row_\(hop.hopNumber)")
     }
 
     private var footer: some View {

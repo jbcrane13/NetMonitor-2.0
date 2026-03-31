@@ -100,21 +100,21 @@ final class MacOSToolOutcomeUITests: MacOSUITestCase {
     // MARK: - Port Scanner
 
     func testPortScannerValidationRunAndCloseOutcome() {
-        openTool(cardID: "tools_card_port_scanner", sheetElement: "portscan_textfield_host")
+        openTool(cardID: "tools_card_port_scanner", sheetElement: "portScan_textfield_host")
 
         let scanButton = requireExists(
-            app.buttons["portscan_button_scan"],
+            app.buttons["portScan_button_scan"],
             message: "Port scanner scan button should exist"
         )
         XCTAssertFalse(scanButton.isEnabled, "Scan should be disabled with empty host")
 
-        clearAndTypeText("127.0.0.1", into: app.textFields["portscan_textfield_host"])
+        clearAndTypeText("127.0.0.1", into: app.textFields["portScan_textfield_host"])
         XCTAssertTrue(scanButton.isEnabled, "Scan should be enabled after entering host")
 
         scanButton.tap()
         XCTAssertTrue(
             waitForEither(
-                [app.buttons["portscan_button_scan"], ui("portscan_results")],
+                [app.buttons["portScan_button_scan"], ui("portScan_results")],
                 timeout: 10
             ),
             "Port scanner should enter running state"
@@ -124,19 +124,19 @@ final class MacOSToolOutcomeUITests: MacOSUITestCase {
             scanButton.tap()
         }
 
-        closeTool(closeButtonID: "portscan_button_close", cardID: "tools_card_port_scanner")
+        closeTool(closeButtonID: "portScan_button_close", cardID: "tools_card_port_scanner")
     }
 
     func testPortScannerPresetPickerIsInteractive() {
-        openTool(cardID: "tools_card_port_scanner", sheetElement: "portscan_textfield_host")
+        openTool(cardID: "tools_card_port_scanner", sheetElement: "portScan_textfield_host")
 
         let presetPicker = requireExists(
-            app.popUpButtons["portscan_picker_preset"],
+            app.popUpButtons["portScan_picker_preset"],
             message: "Port scanner preset picker should exist"
         )
         XCTAssertTrue(presetPicker.isEnabled, "Preset picker should be interactive")
 
-        closeTool(closeButtonID: "portscan_button_close", cardID: "tools_card_port_scanner")
+        closeTool(closeButtonID: "portScan_button_close", cardID: "tools_card_port_scanner")
     }
 
     // MARK: - DNS Lookup
@@ -227,22 +227,22 @@ final class MacOSToolOutcomeUITests: MacOSUITestCase {
     // MARK: - Speed Test
 
     func testSpeedTestStartStopAndCloseOutcome() {
-        openTool(cardID: "tools_card_speed_test", sheetElement: "speedtest_button_start")
+        openTool(cardID: "tools_card_speed_test", sheetElement: "speedTest_button_start")
 
         let startButton = requireExists(
-            app.buttons["speedtest_button_start"],
+            app.buttons["speedTest_button_start"],
             message: "Speed test start button should exist"
         )
         XCTAssertTrue(startButton.isEnabled, "Start button should be enabled")
 
         requireExists(
-            app.segmentedControls["speedtest_picker_duration"],
+            app.segmentedControls["speedTest_picker_duration"],
             message: "Duration picker should exist"
         )
 
         startButton.tap()
 
-        let stopButton = app.buttons["speedtest_button_stop"]
+        let stopButton = app.buttons["speedTest_button_stop"]
         XCTAssertTrue(
             stopButton.waitForExistence(timeout: 8),
             "Stop button should appear after starting speed test"
@@ -251,23 +251,23 @@ final class MacOSToolOutcomeUITests: MacOSUITestCase {
         stopButton.tap()
 
         XCTAssertTrue(
-            app.buttons["speedtest_button_start"].waitForExistence(timeout: 8),
+            app.buttons["speedTest_button_start"].waitForExistence(timeout: 8),
             "Start button should reappear after stopping speed test"
         )
 
-        closeTool(closeButtonID: "speedtest_button_close", cardID: "tools_card_speed_test")
+        closeTool(closeButtonID: "speedTest_button_close", cardID: "tools_card_speed_test")
     }
 
     func testSpeedTestDurationPickerSegments() {
-        openTool(cardID: "tools_card_speed_test", sheetElement: "speedtest_button_start")
+        openTool(cardID: "tools_card_speed_test", sheetElement: "speedTest_button_start")
 
         let picker = requireExists(
-            app.segmentedControls["speedtest_picker_duration"],
+            app.segmentedControls["speedTest_picker_duration"],
             message: "Duration picker should exist"
         )
         XCTAssertEqual(picker.buttons.count, 3, "Duration picker should have 3 segments (5s, 10s, 30s)")
 
-        closeTool(closeButtonID: "speedtest_button_close", cardID: "tools_card_speed_test")
+        closeTool(closeButtonID: "speedTest_button_close", cardID: "tools_card_speed_test")
     }
 
     // MARK: - Wake on LAN

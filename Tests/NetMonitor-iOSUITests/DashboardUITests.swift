@@ -27,13 +27,13 @@ final class DashboardUITests: IOSUITestCase {
     // MARK: - Connection Status Header
 
     func testConnectionStatusHeaderExists() throws {
-        requireExists(ui("dashboard_header_connectionStatus"), message: "Connection status header should exist on dashboard")
+        requireExists(ui("dashboard_label_connectionStatus"), message: "Connection status header should exist on dashboard")
     }
 
     // MARK: - Dashboard Cards
 
     func testNetworkHUDHeaderExists() throws {
-        requireExists(ui("dashboard_header_network"), message: "Network HUD header should exist on dashboard")
+        requireExists(ui("dashboard_label_network"), message: "Network HUD header should exist on dashboard")
     }
 
     func testHealthScoreCardExists() throws {
@@ -81,15 +81,15 @@ final class DashboardUITests: IOSUITestCase {
         let devicesCard = ui("dashboard_card_localDevices")
         scrollToElement(devicesCard)
         requireExists(devicesCard, message: "Local devices card should exist").tap()
-        requireExists(ui("deviceList_screen"), timeout: 8, message: "Device list screen should appear after tapping local devices card")
+        requireExists(ui("screen_deviceList"), timeout: 8, message: "Device list screen should appear after tapping local devices card")
     }
 
     func testDeviceListShowsNetworkBadge() throws {
         let devicesCard = ui("dashboard_card_localDevices")
         scrollToElement(devicesCard)
         requireExists(devicesCard, message: "Local devices card should exist").tap()
-        requireExists(ui("deviceList_screen"), timeout: 8, message: "Device list screen should appear")
-        requireExists(ui("deviceList_badge_network"), timeout: 8, message: "Network badge should appear on device list screen")
+        requireExists(ui("screen_deviceList"), timeout: 8, message: "Device list screen should appear")
+        requireExists(ui("deviceList_label_network"), timeout: 8, message: "Network badge should appear on device list screen")
     }
 
     func testAddNetworkButtonPresentsSheet() throws {
@@ -116,7 +116,7 @@ final class DashboardUITests: IOSUITestCase {
         let devicesCard = ui("dashboard_card_localDevices")
         scrollToElement(devicesCard)
         requireExists(devicesCard, message: "Local devices card should exist").tap()
-        requireExists(ui("deviceList_screen"), timeout: 8, message: "Device list screen should appear")
+        requireExists(ui("screen_deviceList"), timeout: 8, message: "Device list screen should appear")
 
         let scanButton = app.buttons["deviceList_button_scan"]
         if scanButton.waitForExistence(timeout: 5) {
@@ -134,7 +134,7 @@ final class DashboardUITests: IOSUITestCase {
             )
         } else {
             // Scan button not present — device list may auto-scan; verify screen is still visible
-            requireExists(ui("deviceList_screen"), message: "Device list screen should remain visible")
+            requireExists(ui("screen_deviceList"), message: "Device list screen should remain visible")
         }
     }
 
@@ -151,13 +151,13 @@ final class DashboardUITests: IOSUITestCase {
 
         // Verify save/add button is disabled with empty fields
         let saveButton = app.buttons.matching(
-            NSPredicate(format: "identifier == 'network_sheet_button_save' OR label == 'Save' OR label == 'Add'")
+            NSPredicate(format: "identifier == 'networkSheet_button_save' OR label == 'Save' OR label == 'Add'")
         ).firstMatch
         if saveButton.waitForExistence(timeout: 3) {
             XCTAssertFalse(saveButton.isEnabled, "Save/Add button should be disabled with empty gateway field")
 
             // Fill in gateway field
-            let gatewayField = app.textFields["network_sheet_field_gateway"]
+            let gatewayField = app.textFields["networkSheet_field_gateway"]
             if gatewayField.waitForExistence(timeout: 3) {
                 clearAndTypeText("192.168.1.1", into: gatewayField)
                 XCTAssertTrue(saveButton.isEnabled, "Save/Add button should be enabled after filling gateway field")
@@ -166,7 +166,7 @@ final class DashboardUITests: IOSUITestCase {
 
         // Cancel the sheet
         let cancelButton = app.buttons.matching(
-            NSPredicate(format: "identifier == 'network_sheet_button_cancel' OR label == 'Cancel'")
+            NSPredicate(format: "identifier == 'networkSheet_button_cancel' OR label == 'Cancel'")
         ).firstMatch
         if cancelButton.waitForExistence(timeout: 3) {
             cancelButton.tap()
@@ -177,8 +177,8 @@ final class DashboardUITests: IOSUITestCase {
         let devicesCard = ui("dashboard_card_localDevices")
         scrollToElement(devicesCard)
         requireExists(devicesCard, message: "Local devices card should exist").tap()
-        requireExists(ui("deviceList_screen"), timeout: 8, message: "Device list screen should appear after tapping devices card")
-        requireExists(ui("deviceList_badge_network"), timeout: 8, message: "Network badge should be visible on device list screen")
+        requireExists(ui("screen_deviceList"), timeout: 8, message: "Device list screen should appear after tapping devices card")
+        requireExists(ui("deviceList_label_network"), timeout: 8, message: "Network badge should be visible on device list screen")
     }
 
     func testSettingsNavigationRoundTrip() {

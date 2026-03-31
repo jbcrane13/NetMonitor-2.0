@@ -35,7 +35,7 @@ struct SSLCertificateMonitorView: View {
             Text("Watch List (\(viewModel.trackedDomains.count))").tag(1)
         }
         .pickerStyle(.segmented)
-        .accessibilityIdentifier("ssl_monitor_picker_view")
+        .accessibilityIdentifier("sslMonitor_picker_view")
     }
 
     // MARK: - Query Section
@@ -83,7 +83,7 @@ struct SSLCertificateMonitorView: View {
                         .font(.system(.body, design: .monospaced))
                         .foregroundStyle(Theme.Colors.textPrimary)
                         .frame(width: 60)
-                        .accessibilityIdentifier("ssl_monitor_port_field")
+                        .accessibilityIdentifier("sslMonitor_textfield_port")
                 }
 
                 Spacer()
@@ -96,7 +96,7 @@ struct SSLCertificateMonitorView: View {
                 .buttonStyle(.borderedProminent)
                 .tint(Theme.Colors.accent)
                 .disabled(!viewModel.canQuery)
-                .accessibilityIdentifier("ssl_monitor_button_query")
+                .accessibilityIdentifier("sslMonitor_button_query")
             }
         }
     }
@@ -126,7 +126,7 @@ struct SSLCertificateMonitorView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .accessibilityIdentifier("ssl_monitor_error")
+        .accessibilityIdentifier("sslMonitor_label_error")
     }
 
     @ViewBuilder
@@ -141,7 +141,7 @@ struct SSLCertificateMonitorView: View {
                     .foregroundStyle(Theme.Colors.error)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .accessibilityIdentifier("ssl_monitor_ssl_card")
+            .accessibilityIdentifier("sslMonitor_card_sslError")
         }
 
         // WHOIS Card
@@ -154,7 +154,7 @@ struct SSLCertificateMonitorView: View {
                     .foregroundStyle(Theme.Colors.warning)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .accessibilityIdentifier("ssl_monitor_whois_card")
+            .accessibilityIdentifier("sslMonitor_card_whoisError")
         }
 
         // Add to watch list
@@ -186,7 +186,7 @@ struct SSLCertificateMonitorView: View {
                 )
             }
         }
-        .accessibilityIdentifier("ssl_monitor_ssl_card")
+        .accessibilityIdentifier("sslMonitor_card_ssl")
     }
 
     private func whoisCard(_ whois: WHOISResult) -> some View {
@@ -211,7 +211,7 @@ struct SSLCertificateMonitorView: View {
                 }
             }
         }
-        .accessibilityIdentifier("ssl_monitor_whois_card")
+        .accessibilityIdentifier("sslMonitor_card_whois")
     }
 
     private func addToWatchListButton(_ _: DomainExpirationStatus) -> some View {
@@ -228,7 +228,7 @@ struct SSLCertificateMonitorView: View {
                             .textFieldStyle(.plain)
                             .font(.subheadline)
                             .foregroundStyle(Theme.Colors.textPrimary)
-                            .accessibilityIdentifier("ssl_monitor_notes_field")
+                            .accessibilityIdentifier("sslMonitor_textfield_notes")
 
                         HStack(spacing: 12) {
                             Button("Cancel") {
@@ -236,7 +236,7 @@ struct SSLCertificateMonitorView: View {
                                 viewModel.notes = ""
                             }
                             .foregroundStyle(Theme.Colors.textSecondary)
-                            .accessibilityIdentifier("ssl_monitor_button_cancel_add")
+                            .accessibilityIdentifier("sslMonitor_button_cancelAdd")
 
                             Spacer()
 
@@ -245,7 +245,7 @@ struct SSLCertificateMonitorView: View {
                             }
                             .buttonStyle(.borderedProminent)
                             .tint(Theme.Colors.accent)
-                            .accessibilityIdentifier("ssl_monitor_button_add")
+                            .accessibilityIdentifier("sslMonitor_button_confirmAdd")
                         }
                     }
                 }
@@ -258,7 +258,7 @@ struct SSLCertificateMonitorView: View {
                 }
                 .buttonStyle(.bordered)
                 .tint(Theme.Colors.accent)
-                .accessibilityIdentifier("ssl_monitor_button_add")
+                .accessibilityIdentifier("sslMonitor_button_add")
             }
         }
     }
@@ -286,9 +286,9 @@ struct SSLCertificateMonitorView: View {
                 }
                 .disabled(viewModel.isLoading)
                 .foregroundStyle(Theme.Colors.accent)
-                .accessibilityIdentifier("ssl_monitor_button_refresh_all")
+                .accessibilityIdentifier("sslMonitor_button_refreshAll")
             }
-            .accessibilityIdentifier("ssl_monitor_watchlist_section")
+            .accessibilityIdentifier("sslMonitor_section_watchlist")
 
             if viewModel.trackedDomains.isEmpty {
                 watchListEmptyState
@@ -315,7 +315,7 @@ struct SSLCertificateMonitorView: View {
             .frame(maxWidth: .infinity)
             .padding(.vertical, 16)
         }
-        .accessibilityIdentifier("ssl_monitor_watchlist_empty")
+        .accessibilityIdentifier("sslMonitor_label_watchlistEmpty")
     }
 
     private var watchListRows: some View {
@@ -325,7 +325,7 @@ struct SSLCertificateMonitorView: View {
                     WatchListRow(status: status) {
                         Task { await viewModel.removeFromWatchList(domain: status.domain) }
                     }
-                    .accessibilityIdentifier("ssl_monitor_watchlist_row_\(status.domain)")
+                    .accessibilityIdentifier("sslMonitor_row_\(status.domain)")
 
                     if index < viewModel.trackedDomains.count - 1 {
                         Divider()
@@ -412,7 +412,7 @@ private struct WatchListRow: View {
             }
             .buttonStyle(.plain)
             .foregroundStyle(Theme.Colors.error)
-            .accessibilityIdentifier("ssl_monitor_button_delete_\(status.domain)")
+            .accessibilityIdentifier("sslMonitor_button_delete\(status.domain)")
         }
         .padding(.vertical, 8)
         .padding(.horizontal, 12)

@@ -46,7 +46,7 @@ struct ISPInfoCard: View {
                 }
                 .buttonStyle(.plain)
                 .disabled(isLoading)
-                .accessibilityIdentifier("isp_card_button_refresh")
+                .accessibilityIdentifier("ispCard_button_refresh")
             }
 
             Divider()
@@ -127,7 +127,7 @@ struct ISPInfoCard: View {
             }
         }
         .macGlassCard()
-        .accessibilityIdentifier("isp_card")
+        .accessibilityIdentifier("screen_ispCard")
         .task {
             await loadISPInfo()
         }

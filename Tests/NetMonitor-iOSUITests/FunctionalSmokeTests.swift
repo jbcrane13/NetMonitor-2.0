@@ -85,7 +85,7 @@ final class FunctionalSmokeTests: IOSUITestCase {
         captureScreenshot(named: "01_Dashboard_NetworkStatus")
 
         // Functional check: connection status header shows MONITORING or OFFLINE
-        let header = ui("dashboard_header_connectionStatus")
+        let header = ui("dashboard_label_connectionStatus")
         if header.exists {
             let headerLabel = header.label
             let hasStatus = headerLabel.localizedCaseInsensitiveContains("monitoring")
@@ -235,8 +235,8 @@ final class FunctionalSmokeTests: IOSUITestCase {
         app.tabBars.buttons["Timeline"].tap()
 
         let hasTimeline = waitForEither([
-            ui("timeline_list"),
-            ui("timeline_empty_state")
+            ui("timeline_list_events"),
+            ui("timeline_label_emptyState")
         ], timeout: 8)
         XCTAssertTrue(hasTimeline, "Timeline should show event list or empty state")
 
@@ -247,13 +247,13 @@ final class FunctionalSmokeTests: IOSUITestCase {
         if filterButton.exists {
             filterButton.tap()
             requireExists(
-                ui("timeline_filter_show_all"),
+                ui("timelineFilter_button_showAll"),
                 timeout: 5,
                 message: "Filter sheet should show 'All Events' option"
             )
             captureScreenshot(named: "09_Timeline_Filters")
             // Dismiss filter sheet
-            ui("timeline_filter_button_done").tap()
+            ui("timelineFilter_button_done").tap()
         }
     }
 
@@ -313,7 +313,7 @@ final class FunctionalSmokeTests: IOSUITestCase {
 
         if hopsSection.waitForExistence(timeout: 25) {
             // Functional check: at least one hop row appeared
-            let firstHop = ui("tracerouteTool_hop_1")
+            let firstHop = ui("tracerouteTool_row_1")
             let hasHop = firstHop.waitForExistence(timeout: 5)
             XCTAssertTrue(hasHop || screenContainsText("*"), "Should show at least hop 1 or timeout marker")
         }
@@ -329,11 +329,11 @@ final class FunctionalSmokeTests: IOSUITestCase {
         app.buttons["dnsLookup_button_run"].tap()
 
         // Wait for results
-        let queryInfo = ui("dnsLookup_queryInfo")
+        let queryInfo = ui("dnsLookup_section_queryInfo")
         let gotResults = waitForEither([
             queryInfo,
-            ui("dnsLookup_records"),
-            ui("dnsLookup_error")
+            ui("dnsLookup_section_records"),
+            ui("dnsLookup_label_error")
         ], timeout: 20)
 
         XCTAssertTrue(gotResults, "DNS Lookup should show query info, records, or error")
@@ -357,11 +357,11 @@ final class FunctionalSmokeTests: IOSUITestCase {
         clearAndTypeText("example.com", into: app.textFields["whois_input_domain"])
         app.buttons["whois_button_run"].tap()
 
-        let domainInfo = ui("whois_domainInfo")
+        let domainInfo = ui("whois_section_domainInfo")
         let gotResults = waitForEither([
             domainInfo,
-            ui("whois_dates"),
-            ui("whois_error")
+            ui("whois_section_dates"),
+            ui("whois_label_error")
         ], timeout: 25)
 
         XCTAssertTrue(gotResults, "WHOIS should show domain info, dates, or error")
@@ -375,7 +375,7 @@ final class FunctionalSmokeTests: IOSUITestCase {
             XCTAssertTrue(hasDomainData, "WHOIS should show domain registration data")
 
             // Check name servers section
-            let nameServers = ui("whois_nameServers")
+            let nameServers = ui("whois_section_nameServers")
             scrollToElement(nameServers)
             if nameServers.exists {
                 let hasNS = screenContainsText("ns") || screenContainsText("dns")
@@ -425,7 +425,7 @@ final class FunctionalSmokeTests: IOSUITestCase {
 
         let gotActivity = waitForEither([
             ui("bonjour_section_services"),
-            ui("bonjour_emptystate_noservices"),
+            ui("bonjour_label_noServices"),
             app.staticTexts["Discovering services..."]
         ], timeout: 15)
 
@@ -485,7 +485,7 @@ final class FunctionalSmokeTests: IOSUITestCase {
         XCTAssertTrue(gotActivity, "Speed test should enter an active phase")
 
         // Wait for completion or accept any phase result
-        let results = ui("speedTest_results")
+        let results = ui("speedTest_section_results")
         if results.waitForExistence(timeout: 90) {
             // Functional check: results show Mbps values
             let hasMbps = screenContainsText("Mbps") || screenContainsText("mbps")
@@ -500,12 +500,12 @@ final class FunctionalSmokeTests: IOSUITestCase {
     func test18_WorldPingShowsLocations() {
         openTool(card: "tools_card_world_ping", screen: "screen_worldPingTool")
 
-        clearAndTypeText("google.com", into: app.textFields["worldPing_input_host"])
+        clearAndTypeText("google.com", into: app.textFields["worldPing_textfield_host"])
         app.buttons["worldPing_button_run"].tap()
 
         let gotResults = waitForEither([
             ui("worldPing_section_results"),
-            ui("worldPing_location_row")
+            ui("worldPing_row")
         ], timeout: 25)
 
         if gotResults {
@@ -524,18 +524,18 @@ final class FunctionalSmokeTests: IOSUITestCase {
     func test19_SSLMonitorShowsCertificate() {
         openTool(card: "tools_card_ssl_monitor", screen: "screen_sslCertificateMonitor")
 
-        clearAndTypeText("example.com", into: app.textFields["ssl_monitor_input_domain"])
-        app.buttons["ssl_monitor_button_query"].tap()
+        clearAndTypeText("example.com", into: app.textFields["sslMonitor_textfield_domain"])
+        app.buttons["sslMonitor_button_query"].tap()
 
         let gotResults = waitForEither([
-            ui("ssl_monitor_ssl_card"),
-            ui("ssl_monitor_whois_card"),
-            ui("ssl_monitor_error")
+            ui("sslMonitor_card_ssl"),
+            ui("sslMonitor_card_whois"),
+            ui("sslMonitor_label_error")
         ], timeout: 25)
 
         XCTAssertTrue(gotResults, "SSL Monitor should show certificate info, WHOIS, or error")
 
-        if ui("ssl_monitor_ssl_card").exists {
+        if ui("sslMonitor_card_ssl").exists {
             // Functional check: certificate shows issuer and validity
             let hasCertData = screenContainsText("Valid")
                 || screenContainsText("Expires")
@@ -571,8 +571,8 @@ final class FunctionalSmokeTests: IOSUITestCase {
         sendButton.tap()
 
         let gotOutcome = waitForEither([
-            ui("wol_success"),
-            ui("wol_error")
+            ui("wol_label_success"),
+            ui("wol_label_error")
         ], timeout: 10)
 
         XCTAssertTrue(gotOutcome, "WoL should show success or error after sending")
@@ -587,7 +587,7 @@ final class FunctionalSmokeTests: IOSUITestCase {
         // Verify map renders
         requireExists(ui("geoTrace_map"), timeout: 8, message: "Map should be visible")
 
-        clearAndTypeText("8.8.8.8", into: app.textFields["geoTrace_input_host"])
+        clearAndTypeText("8.8.8.8", into: app.textFields["geoTrace_textfield_host"])
         app.buttons["geoTrace_button_trace"].tap()
 
         let gotActivity = waitForEither([

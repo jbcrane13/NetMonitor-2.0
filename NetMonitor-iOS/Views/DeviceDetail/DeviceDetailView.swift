@@ -24,7 +24,7 @@ struct DeviceDetailView: View {
             } else if viewModel.isLoading {
                 ProgressView()
                     .tint(Theme.Colors.accent)
-                    .accessibilityIdentifier("deviceDetail_progress_loading")
+                    .accessibilityIdentifier("deviceDetail_label_loading")
             } else {
                 ContentUnavailableView(
                     "Device Not Found",
@@ -98,7 +98,7 @@ struct DeviceDetailView: View {
             Image(systemName: device.deviceType.iconName)
                 .font(.system(size: 48))
                 .foregroundStyle(Theme.Colors.accent)
-                .accessibilityIdentifier("deviceDetail_icon_deviceType")
+                .accessibilityIdentifier("deviceDetail_image_deviceType")
 
             Text(device.displayName)
                 .font(.title2)
@@ -206,7 +206,7 @@ struct DeviceDetailView: View {
                                 .background(Theme.Colors.success.opacity(0.15))
                                 .cornerRadius(Theme.Layout.smallCornerRadius)
                         }
-                        .accessibilityIdentifier("deviceDetail_row_port_\(port)")
+                        .accessibilityIdentifier("deviceDetail_row_port\(port)")
 
                         if index < openPorts.count - 1 {
                             Divider().background(Theme.Colors.glassBorder)
@@ -232,7 +232,7 @@ struct DeviceDetailView: View {
 
                             Spacer()
                         }
-                        .accessibilityIdentifier("deviceDetail_row_service_\(index)")
+                        .accessibilityIdentifier("deviceDetail_row_service\(index)")
 
                         if index != services.count - 1 {
                             Divider().background(Theme.Colors.glassBorder)
@@ -526,7 +526,7 @@ struct DeviceDetailView: View {
                     }
                 }
             )
-            .accessibilityIdentifier("deviceDetail_textEditor_notes")
+            .accessibilityIdentifier("deviceDetail_textfield_notes")
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .glassCard()

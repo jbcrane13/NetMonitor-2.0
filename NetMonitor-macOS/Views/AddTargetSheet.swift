@@ -19,15 +19,15 @@ struct AddTargetSheet: View {
             Form(content: {
                 SwiftUI.Section {
                     TextField("Name", text: $name)
-                        .accessibilityIdentifier("add_target_field_name")
+                        .accessibilityIdentifier("addTarget_textfield_name")
                     TextField("Host", text: $host)
                         .textContentType(.URL)
-                        .accessibilityIdentifier("add_target_field_host")
+                        .accessibilityIdentifier("addTarget_textfield_host")
 
                     HStack {
                         TextField("Port (optional)", text: $port)
                             .textFieldStyle(.roundedBorder)
-                            .accessibilityIdentifier("add_target_field_port")
+                            .accessibilityIdentifier("addTarget_textfield_port")
 
                         Text("Optional")
                             .font(.caption)
@@ -45,7 +45,7 @@ struct AddTargetSheet: View {
                         }
                     }
                     .pickerStyle(.segmented)
-                    .accessibilityIdentifier("add_target_picker_protocol")
+                    .accessibilityIdentifier("addTarget_picker_protocol")
                 } header: {
                     Text("Protocol")
                 }
@@ -55,14 +55,14 @@ struct AddTargetSheet: View {
                         Text("Check Interval: \(Int(checkInterval))s")
                             .font(.subheadline)
                         Slider(value: $checkInterval, in: 1...60, step: 1)
-                            .accessibilityIdentifier("add_target_slider_checkInterval")
+                            .accessibilityIdentifier("addTarget_slider_checkInterval")
                     }
 
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Timeout: \(Int(timeout))s")
                             .font(.subheadline)
                         Slider(value: $timeout, in: 1...30, step: 1)
-                            .accessibilityIdentifier("add_target_slider_timeout")
+                            .accessibilityIdentifier("addTarget_slider_timeout")
                     }
                 } header: {
                     Text("Monitoring Settings")
@@ -74,7 +74,7 @@ struct AddTargetSheet: View {
                     Button("Cancel") {
                         dismiss()
                     }
-                    .accessibilityIdentifier("add_target_button_cancel")
+                    .accessibilityIdentifier("addTarget_button_cancel")
                 }
 
                 ToolbarItem(placement: .confirmationAction) {
@@ -83,7 +83,7 @@ struct AddTargetSheet: View {
                         dismiss()
                     }
                     .disabled(!isValid)
-                    .accessibilityIdentifier("add_target_button_add")
+                    .accessibilityIdentifier("addTarget_button_add")
                 }
             }
         }

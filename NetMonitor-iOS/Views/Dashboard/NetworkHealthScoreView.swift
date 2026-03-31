@@ -38,7 +38,7 @@ struct NetworkHealthScoreView: View {
                         // Circular gauge
                         ScoreGauge(score: score.score, grade: score.grade)
                             .frame(width: 90, height: 90)
-                            .accessibilityIdentifier("healthScore_gauge")
+                            .accessibilityIdentifier("healthScore_label_gauge")
 
                         // Breakdown
                         VStack(alignment: .leading, spacing: 6) {

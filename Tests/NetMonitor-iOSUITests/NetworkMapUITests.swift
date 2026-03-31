@@ -38,9 +38,9 @@ final class NetworkMapUITests: IOSUITestCase {
             manualTab.tap()
         }
 
-        requireExists(app.textFields["network_sheet_field_gateway"], timeout: 5, message: "Gateway field should exist in Manual tab")
-        requireExists(app.textFields["network_sheet_field_cidr"], timeout: 5, message: "CIDR field should exist in Manual tab")
-        requireExists(app.textFields["network_sheet_field_name"], timeout: 5, message: "Name field should exist in Manual tab")
+        requireExists(app.textFields["networkSheet_field_gateway"], timeout: 5, message: "Gateway field should exist in Manual tab")
+        requireExists(app.textFields["networkSheet_field_cidr"], timeout: 5, message: "CIDR field should exist in Manual tab")
+        requireExists(app.textFields["networkSheet_field_name"], timeout: 5, message: "Name field should exist in Manual tab")
     }
 
     // MARK: - Sort Controls
@@ -160,18 +160,18 @@ final class NetworkMapUITests: IOSUITestCase {
             manualTab.tap()
         }
 
-        let gatewayField = app.textFields["network_sheet_field_gateway"]
+        let gatewayField = app.textFields["networkSheet_field_gateway"]
         if gatewayField.waitForExistence(timeout: 5) {
             clearAndTypeText("192.168.1.1", into: gatewayField)
         }
 
-        let cidrField = app.textFields["network_sheet_field_cidr"]
+        let cidrField = app.textFields["networkSheet_field_cidr"]
         if cidrField.waitForExistence(timeout: 3) {
             clearAndTypeText("24", into: cidrField)
         }
 
         let cancelButton = app.buttons.matching(
-            NSPredicate(format: "identifier == 'network_sheet_button_cancel' OR label == 'Cancel'")
+            NSPredicate(format: "identifier == 'networkSheet_button_cancel' OR label == 'Cancel'")
         ).firstMatch
         requireExists(cancelButton, timeout: 5, message: "Cancel button should exist in Add Network sheet").tap()
 

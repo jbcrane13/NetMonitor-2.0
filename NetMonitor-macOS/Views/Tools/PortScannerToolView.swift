@@ -43,7 +43,7 @@ struct PortScannerToolView: View {
         ToolSheetContainer(
             title: "Port Scanner",
             iconName: "network",
-            closeAccessibilityID: "portscan_button_close",
+            closeAccessibilityID: "portScan_button_close",
             minWidth: 600,
             minHeight: 500,
             inputArea: { inputArea },
@@ -69,7 +69,7 @@ struct PortScannerToolView: View {
                 TextField("Hostname or IP address", text: $host)
                     .textFieldStyle(.roundedBorder)
                     .disabled(isRunning)
-                    .accessibilityIdentifier("portscan_textfield_host")
+                    .accessibilityIdentifier("portScan_textfield_host")
 
                 Picker("Preset", selection: $preset) {
                     ForEach(PortPreset.allCases, id: \.self) { p in
@@ -78,7 +78,7 @@ struct PortScannerToolView: View {
                 }
                 .frame(width: 120)
                 .disabled(isRunning)
-                .accessibilityIdentifier("portscan_picker_preset")
+                .accessibilityIdentifier("portScan_picker_preset")
 
                 Button(isRunning ? "Stop" : "Scan") {
                     if isRunning {
@@ -89,14 +89,14 @@ struct PortScannerToolView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(host.isEmpty && !isRunning)
-                .accessibilityIdentifier("portscan_button_scan")
+                .accessibilityIdentifier("portScan_button_scan")
             }
 
             if preset == .custom {
                 TextField("Custom ports (e.g., 22,80,443,8080 or 1-1024)", text: $customPorts)
                     .textFieldStyle(.roundedBorder)
                     .disabled(isRunning)
-                    .accessibilityIdentifier("portscan_textfield_custom")
+                    .accessibilityIdentifier("portScan_textfield_custom")
             }
         }
         .padding()
@@ -122,7 +122,7 @@ struct PortScannerToolView: View {
                             .font(.headline)
                             .foregroundStyle(.green)
                             .padding(.bottom, 4)
-                            .accessibilityIdentifier("portscan_label_openPorts")
+                            .accessibilityIdentifier("portScan_label_openPorts")
 
                         ForEach(openPorts) { result in
                             portRow(result)
@@ -177,7 +177,7 @@ struct PortScannerToolView: View {
             }
         }
         .padding(.vertical, 2)
-        .accessibilityIdentifier("portscan_row_\(result.port)")
+        .accessibilityIdentifier("portScan_row_\(result.port)")
     }
 
     // MARK: - Footer
@@ -216,7 +216,7 @@ struct PortScannerToolView: View {
                     errorMessage = nil
                     scannedCount = 0
                 }
-                .accessibilityIdentifier("portscan_button_clear")
+                .accessibilityIdentifier("portScan_button_clear")
             }
         }
         .padding()

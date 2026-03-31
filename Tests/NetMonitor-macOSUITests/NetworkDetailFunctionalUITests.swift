@@ -12,17 +12,17 @@ final class NetworkDetailFunctionalUITests: MacOSUITestCase {
 
     /// Ensure a network is selected so NetworkDetailView is visible.
     private func ensureNetworkDetailVisible() {
-        if app.otherElements["detail_network"].waitForExistence(timeout: 4) {
+        if app.otherElements["contentView_nav_network"].waitForExistence(timeout: 4) {
             return
         }
 
         // Try selecting a network from the sidebar
         let networkItems = app.outlines.descendants(matching: .any).matching(
-            NSPredicate(format: "identifier BEGINSWITH 'sidebar_network_'")
+            NSPredicate(format: "identifier BEGINSWITH 'sidebar_row_network_'")
         )
         if networkItems.firstMatch.waitForExistence(timeout: 5) {
             networkItems.firstMatch.tap()
-            if app.otherElements["detail_network"].waitForExistence(timeout: 5) {
+            if app.otherElements["contentView_nav_network"].waitForExistence(timeout: 5) {
                 return
             }
         }
@@ -40,11 +40,11 @@ final class NetworkDetailFunctionalUITests: MacOSUITestCase {
             return
         }
 
-        clearAndTypeText("10.99.0.1", into: app.textFields["add_network_field_gateway"])
-        clearAndTypeText("10.99.0.0/24", into: app.textFields["add_network_field_subnet"])
-        clearAndTypeText("UITest Network", into: app.textFields["add_network_field_name"])
+        clearAndTypeText("10.99.0.1", into: app.textFields["addNetwork_textfield_gateway"])
+        clearAndTypeText("10.99.0.0/24", into: app.textFields["addNetwork_textfield_subnet"])
+        clearAndTypeText("UITest Network", into: app.textFields["addNetwork_textfield_name"])
 
-        let addNetworkButton = app.buttons["add_network_button_add"]
+        let addNetworkButton = app.buttons["addNetwork_button_add"]
         if addNetworkButton.waitForExistence(timeout: 3), addNetworkButton.isEnabled {
             addNetworkButton.tap()
         }
@@ -56,7 +56,7 @@ final class NetworkDetailFunctionalUITests: MacOSUITestCase {
             networkItem.tap()
         }
 
-        _ = app.otherElements["detail_network"].waitForExistence(timeout: 5)
+        _ = app.otherElements["contentView_nav_network"].waitForExistence(timeout: 5)
     }
 
     private func captureScreenshot(named name: String) {
@@ -72,7 +72,7 @@ final class NetworkDetailFunctionalUITests: MacOSUITestCase {
     func testClickDeviceRowShowsDeviceInfo() {
         ensureNetworkDetailVisible()
 
-        let devicesPanel = ui("network_detail_panel_devices")
+        let devicesPanel = ui("networkDetail_section_devices")
         requireExists(devicesPanel, timeout: 5, message: "Devices panel should exist")
 
         // Look for device rows in the panel
@@ -101,7 +101,7 @@ final class NetworkDetailFunctionalUITests: MacOSUITestCase {
             captureScreenshot(named: "NetworkDetail_DeviceSelected")
         } else {
             // No devices discovered — verify empty state is shown instead
-            let emptyState = ui("network_devices_panel_empty")
+            let emptyState = ui("networkDevicesPanel_label_empty")
             XCTAssertTrue(emptyState.exists || devicesPanel.exists,
                          "Devices panel should show empty state when no devices found")
 
@@ -121,7 +121,7 @@ final class NetworkDetailFunctionalUITests: MacOSUITestCase {
 
         guard scanButton.waitForExistence(timeout: 5) else {
             // Try the devices panel scan button specifically
-            let panelScanButton = ui("network_devices_panel_scan")
+            let panelScanButton = ui("networkDevicesPanel_button_scan")
             guard panelScanButton.waitForExistence(timeout: 3) else {
                 captureScreenshot(named: "NetworkDetail_NoScanButton")
                 return
@@ -136,7 +136,7 @@ final class NetworkDetailFunctionalUITests: MacOSUITestCase {
                 ).firstMatch
             ], timeout: 8)
 
-            XCTAssertTrue(scanStarted || app.otherElements["detail_network"].exists,
+            XCTAssertTrue(scanStarted || app.otherElements["contentView_nav_network"].exists,
                          "Scan should produce visible activity or remain on detail view")
             return
         }
@@ -156,7 +156,7 @@ final class NetworkDetailFunctionalUITests: MacOSUITestCase {
         ], timeout: 10)
 
         XCTAssertTrue(
-            scanStarted || app.otherElements["detail_network"].exists,
+            scanStarted || app.otherElements["contentView_nav_network"].exists,
             "Clicking scan should trigger scanning state (progress, stop button, or device rows)"
         )
 
@@ -287,12 +287,12 @@ final class NetworkDetailFunctionalUITests: MacOSUITestCase {
         ensureNetworkDetailVisible()
 
         let requiredCards = [
-            "network_detail_row_activity",
-            "network_detail_row_health",
-            "network_detail_card_isp",
-            "network_detail_card_latency",
-            "network_detail_card_connectivity",
-            "network_detail_panel_devices"
+            "networkDetail_row_activity",
+            "networkDetail_row_health",
+            "networkDetail_card_isp",
+            "networkDetail_card_latency",
+            "networkDetail_card_connectivity",
+            "networkDetail_section_devices"
         ]
 
         var missingCards: [String] = []

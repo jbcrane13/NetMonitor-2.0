@@ -122,7 +122,7 @@ struct NetworkDevicesPanel: View {
                                 }
                             }
                         }
-                        .accessibilityIdentifier("networkDevicesPanel_sortOption_\(order.rawValue.lowercased())")
+                        .accessibilityIdentifier("networkDevicesPanel_menu_sort\(order.rawValue.lowercased())")
                     }
                 } label: {
                     Image(systemName: "arrow.up.arrow.down")
@@ -145,7 +145,7 @@ struct NetworkDevicesPanel: View {
                 TextField("Search devices...", text: $searchText)
                     .textFieldStyle(.plain)
                     .font(.system(size: 12))
-                    .accessibilityIdentifier("networkDevicesPanel_textField_search")
+                    .accessibilityIdentifier("networkDevicesPanel_textfield_search")
                 if !searchText.isEmpty {
                     Button {
                         searchText = ""
@@ -180,7 +180,7 @@ struct NetworkDevicesPanel: View {
                                 : "No devices match your search"
                     )
                 )
-                .accessibilityIdentifier("network_devices_panel_empty")
+                .accessibilityIdentifier("networkDevicesPanel_label_empty")
                 Spacer()
             } else {
                 ScrollView {
@@ -196,7 +196,7 @@ struct NetworkDevicesPanel: View {
                     }
                     .padding(.vertical, 4)
                 }
-                .accessibilityIdentifier("network_devices_panel_list")
+                .accessibilityIdentifier("networkDevicesPanel_list_devices")
             }
         }
         .macGlassCard(cornerRadius: MacTheme.Layout.cardCornerRadius, padding: 0)

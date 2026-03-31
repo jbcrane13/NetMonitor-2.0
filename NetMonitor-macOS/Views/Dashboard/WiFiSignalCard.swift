@@ -48,7 +48,7 @@ struct WiFiSignalCard: View {
                         .foregroundStyle(isMonitoring ? .orange : MacTheme.Colors.info)
                 }
                 .buttonStyle(.plain)
-                .accessibilityIdentifier("wifi_signal_button_toggle")
+                .accessibilityIdentifier("wifiSignal_button_toggle")
                 if let ssid = ssid {
                     Text(ssid)
                         .font(.system(size: 10, weight: .bold))

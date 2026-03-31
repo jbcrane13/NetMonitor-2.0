@@ -40,13 +40,13 @@ struct RoomPlanScannerView: View {
         .sheet(isPresented: $viewModel.showShareSheet) {
             if let url = viewModel.exportedFileURL {
                 ShareSheet(activityItems: [url])
-                    .accessibilityIdentifier("roomScanner_shareSheet")
+                    .accessibilityIdentifier("roomScanner_label_shareSheet")
             }
         }
         .sheet(isPresented: $showDocumentExporter) {
             if let url = viewModel.exportedFileURL {
                 DocumentExporterView(sourceURL: url)
-                    .accessibilityIdentifier("roomScanner_documentExporter")
+                    .accessibilityIdentifier("roomScanner_label_documentExporter")
             }
         }
     }
@@ -61,7 +61,7 @@ struct RoomPlanScannerView: View {
                     Image(systemName: "cube.transparent")
                         .font(.system(size: 60))
                         .foregroundStyle(Theme.Colors.accent)
-                        .accessibilityIdentifier("roomScanner_icon_setup")
+                        .accessibilityIdentifier("roomScanner_image_setup")
 
                     Text("3D Room Scanner")
                         .font(.title2.bold())
@@ -180,7 +180,7 @@ struct RoomPlanScannerView: View {
     private var activeScanView: some View {
         RoomPlanScanContainer(viewModel: viewModel)
             .ignoresSafeArea()
-            .accessibilityIdentifier("roomScanner_scanContainer")
+            .accessibilityIdentifier("roomScanner_label_scanContainer")
     }
 
     // MARK: - Processing View
@@ -200,7 +200,7 @@ struct RoomPlanScannerView: View {
                 .foregroundStyle(Theme.Colors.textSecondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .accessibilityIdentifier("roomScanner_processing")
+        .accessibilityIdentifier("roomScanner_label_processing")
     }
 
     // MARK: - Complete View
@@ -380,7 +380,7 @@ struct RoomPlanScannerView: View {
             .accessibilityIdentifier("roomScanner_button_retry")
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .accessibilityIdentifier("roomScanner_error")
+        .accessibilityIdentifier("roomScanner_label_error")
     }
 }
 

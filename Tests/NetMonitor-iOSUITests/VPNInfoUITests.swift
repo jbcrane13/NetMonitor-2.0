@@ -15,7 +15,7 @@ final class VPNInfoUITests: IOSUITestCase {
         guard app.descendants(matching: .any)["dashboard_card_vpn"].waitForExistence(timeout: 8) else {
             return
         }
-        let statusEl = app.descendants(matching: .any)["dashboard_vpn_status"]
+        let statusEl = app.descendants(matching: .any)["dashboard_label_vpnStatus"]
         XCTAssertTrue(
             statusEl.waitForExistence(timeout: 5),
             "VPN status indicator should be visible"
@@ -56,7 +56,7 @@ final class VPNInfoUITests: IOSUITestCase {
             return
         }
 
-        let statusEl = app.descendants(matching: .any)["dashboard_vpn_status"]
+        let statusEl = app.descendants(matching: .any)["dashboard_label_vpnStatus"]
         guard statusEl.waitForExistence(timeout: 5) else {
             return
         }

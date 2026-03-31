@@ -239,8 +239,8 @@ final class NetworkMapFunctionalUITests: IOSUITestCase {
         // Sheet should contain input fields
         let hasFields = waitForEither([
             app.segmentedControls.firstMatch,
-            app.textFields["network_sheet_field_gateway"],
-            app.textFields["network_sheet_field_name"]
+            app.textFields["networkSheet_field_gateway"],
+            app.textFields["networkSheet_field_name"]
         ], timeout: 5)
 
         XCTAssertTrue(hasFields,
@@ -248,7 +248,7 @@ final class NetworkMapFunctionalUITests: IOSUITestCase {
 
         // Cancel to dismiss
         let cancelButton = app.buttons.matching(
-            NSPredicate(format: "identifier == 'network_sheet_button_cancel' OR label == 'Cancel'")
+            NSPredicate(format: "identifier == 'networkSheet_button_cancel' OR label == 'Cancel'")
         ).firstMatch
         if cancelButton.waitForExistence(timeout: 3) {
             cancelButton.tap()

@@ -182,7 +182,7 @@ private struct TracerouteHopRow: View {
                 .foregroundStyle(hop.isTimeout ? Theme.Colors.textTertiary : timeColor)
         }
         .padding(.vertical, 8)
-        .accessibilityIdentifier("tracerouteTool_hop_\(hop.hopNumber)")
+        .accessibilityIdentifier("tracerouteTool_row_\(hop.hopNumber)")
     }
 
     private var hopColor: Color {

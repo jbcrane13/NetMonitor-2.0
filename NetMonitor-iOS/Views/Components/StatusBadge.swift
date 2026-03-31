@@ -59,7 +59,7 @@ struct StatusBadge: View {
             Capsule()
                 .stroke(status.color.opacity(0.3), lineWidth: 1)
         )
-        .accessibilityIdentifier("statusBadge_\(status.rawValue)")
+        .accessibilityIdentifier("statusBadge_label_\(status.rawValue)")
         .accessibilityLabel("\(status.label) status")
     }
 }
@@ -86,7 +86,7 @@ struct StatusDot: View {
                     }
                 }
             }
-            .accessibilityIdentifier("statusDot_\(status.rawValue)")
+            .accessibilityIdentifier("statusDot_image_\(status.rawValue)")
             .accessibilityLabel("\(status.label)")
     }
 }

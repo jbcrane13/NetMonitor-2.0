@@ -11,20 +11,20 @@ import XCTest
 // are covered below.
 //
 // Accessibility identifiers used (from source):
-//   NetworkDetailView wrapper:      "detail_network"
+//   NetworkDetailView wrapper:      "contentView_nav_network"
 //   InternetActivityCard:           "dashboard_card_internetActivity"
 //   HealthGaugeCard:                "dashboard_card_healthGauge"
 //   ISPHealthCard:                  (set by ISPHealthCard internally — see note)
-//   LatencyAnalysisCard:            "network_detail_card_latency"      (wrapper)
+//   LatencyAnalysisCard:            "networkDetail_card_latency"      (wrapper)
 //   ConnectivityCard:               "dashboard_card_connectivity"
-//   NetworkDevicesPanel:            "network_detail_panel_devices"
+//   NetworkDevicesPanel:            "networkDetail_section_devices"
 //   Range picker (in activity):     "dashboard_activity_rangePicker"
 //   Health score text:              "dashboard_healthGauge_score"
-//   NetworkDetailView outer wrap:   .accessibilityIdentifier("network_detail_row_activity")
-//                                   .accessibilityIdentifier("network_detail_row_health")
+//   NetworkDetailView outer wrap:   .accessibilityIdentifier("networkDetail_row_activity")
+//                                   .accessibilityIdentifier("networkDetail_row_health")
 //
 // NOTE: Some cards (ISP, Latency, Connectivity, Intel) carry the accessibility
-// identifier added in NetworkDetailView (.accessibilityIdentifier("network_detail_card_*")).
+// identifier added in NetworkDetailView (.accessibilityIdentifier("networkDetail_card_*")).
 // These wrap the card's own identifier. Both are present in the hierarchy and
 // either can be used to verify presence.
 
@@ -38,7 +38,7 @@ final class NetworkDetailViewUITests: MacOSUITestCase {
     private func ensureNetworkDetailVisible() {
         // The app auto-selects the first network on launch.
         // If detail_network already exists we're done.
-        if app.otherElements["detail_network"].waitForExistence(timeout: 4) {
+        if app.otherElements["contentView_nav_network"].waitForExistence(timeout: 4) {
             return
         }
 
@@ -55,11 +55,11 @@ final class NetworkDetailViewUITests: MacOSUITestCase {
             return
         }
 
-        clearAndTypeText("10.99.0.1", into: app.textFields["add_network_field_gateway"])
-        clearAndTypeText("10.99.0.0/24", into: app.textFields["add_network_field_subnet"])
-        clearAndTypeText("UITest Network", into: app.textFields["add_network_field_name"])
+        clearAndTypeText("10.99.0.1", into: app.textFields["addNetwork_textfield_gateway"])
+        clearAndTypeText("10.99.0.0/24", into: app.textFields["addNetwork_textfield_subnet"])
+        clearAndTypeText("UITest Network", into: app.textFields["addNetwork_textfield_name"])
 
-        let addNetworkButton = app.buttons["add_network_button_add"]
+        let addNetworkButton = app.buttons["addNetwork_button_add"]
         XCTAssertTrue(addNetworkButton.waitForExistence(timeout: 3))
         XCTAssertTrue(addNetworkButton.isEnabled, "Add button should be enabled after valid input")
         addNetworkButton.tap()
@@ -73,7 +73,7 @@ final class NetworkDetailViewUITests: MacOSUITestCase {
             networkItem.tap()
         }
 
-        XCTAssertTrue(app.otherElements["detail_network"].waitForExistence(timeout: 5),
+        XCTAssertTrue(app.otherElements["contentView_nav_network"].waitForExistence(timeout: 5),
                       "NetworkDetailView (detail_network) should appear after selecting network")
     }
 
@@ -81,7 +81,7 @@ final class NetworkDetailViewUITests: MacOSUITestCase {
 
     func testNetworkDetailViewAppearsAfterSelectingNetwork() {
         ensureNetworkDetailVisible()
-        requireExists(app.otherElements["detail_network"], timeout: 5,
+        requireExists(app.otherElements["contentView_nav_network"], timeout: 5,
                       message: "detail_network container should be visible after navigation")
     }
 
@@ -92,7 +92,7 @@ final class NetworkDetailViewUITests: MacOSUITestCase {
 
         // The InternetActivityCard carries both its own identifier and the
         // wrapper identifier added in NetworkDetailView.
-        let card = app.otherElements["network_detail_row_activity"]
+        let card = app.otherElements["networkDetail_row_activity"]
         XCTAssertTrue(card.waitForExistence(timeout: 5),
                       "network_detail_row_activity (InternetActivityCard wrapper) should be present")
     }
@@ -149,7 +149,7 @@ final class NetworkDetailViewUITests: MacOSUITestCase {
     func testHealthGaugeCardIsPresent() {
         ensureNetworkDetailVisible()
 
-        let card = app.otherElements["network_detail_row_health"]
+        let card = app.otherElements["networkDetail_row_health"]
         XCTAssertTrue(card.waitForExistence(timeout: 5),
                       "network_detail_row_health (HealthGaugeCard wrapper) should be present")
     }
@@ -172,25 +172,25 @@ final class NetworkDetailViewUITests: MacOSUITestCase {
 
     func testISPCardIsPresent() {
         ensureNetworkDetailVisible()
-        requireExists(app.otherElements["network_detail_card_isp"], timeout: 5,
+        requireExists(app.otherElements["networkDetail_card_isp"], timeout: 5,
                       message: "network_detail_card_isp should be present in the left column")
     }
 
     func testLatencyAnalysisCardIsPresent() {
         ensureNetworkDetailVisible()
-        requireExists(app.otherElements["network_detail_card_latency"], timeout: 5,
+        requireExists(app.otherElements["networkDetail_card_latency"], timeout: 5,
                       message: "network_detail_card_latency should be present in the left column")
     }
 
     func testConnectivityCardIsPresent() {
         ensureNetworkDetailVisible()
-        requireExists(app.otherElements["network_detail_card_connectivity"], timeout: 5,
+        requireExists(app.otherElements["networkDetail_card_connectivity"], timeout: 5,
                       message: "network_detail_card_connectivity should be present in the left column")
     }
 
     func testNetworkIntelCardIsPresent() {
         ensureNetworkDetailVisible()
-        requireExists(app.otherElements["network_detail_card_intel"], timeout: 5,
+        requireExists(app.otherElements["networkDetail_card_intel"], timeout: 5,
                       message: "network_detail_card_intel should be present in the left column")
     }
 
@@ -198,7 +198,7 @@ final class NetworkDetailViewUITests: MacOSUITestCase {
 
     func testNetworkDevicesPanelIsPresent() {
         ensureNetworkDetailVisible()
-        requireExists(app.otherElements["network_detail_panel_devices"], timeout: 5,
+        requireExists(app.otherElements["networkDetail_section_devices"], timeout: 5,
                       message: "network_detail_panel_devices should be present in the right column")
     }
 
@@ -207,8 +207,8 @@ final class NetworkDetailViewUITests: MacOSUITestCase {
 
         // Either the device list or the empty state placeholder should be visible.
         // We accept both: the panel is functional either way.
-        let panelList  = app.scrollViews["network_devices_panel_list"]
-        let panelEmpty = app.otherElements["network_devices_panel_empty"]
+        let panelList  = app.scrollViews["networkDevicesPanel_list"]
+        let panelEmpty = app.otherElements["networkDevicesPanel_label_empty"]
 
         XCTAssertTrue(
             waitForEither([panelList, panelEmpty], timeout: 5),
@@ -224,13 +224,13 @@ final class NetworkDetailViewUITests: MacOSUITestCase {
         // These identifiers are the wrappers set in NetworkDetailView.
         // They guarantee the structural layout of the "war room" is intact.
         let identifiers: [(id: String, description: String)] = [
-            ("network_detail_row_activity", "InternetActivityCard row wrapper"),
-            ("network_detail_row_health", "HealthGaugeCard row wrapper"),
-            ("network_detail_card_isp", "ISPHealthCard"),
-            ("network_detail_card_latency", "LatencyAnalysisCard"),
-            ("network_detail_card_connectivity", "ConnectivityCard"),
-            ("network_detail_card_intel", "NetworkIntelCard"),
-            ("network_detail_panel_devices", "NetworkDevicesPanel"),
+            ("networkDetail_row_activity", "InternetActivityCard row wrapper"),
+            ("networkDetail_row_health", "HealthGaugeCard row wrapper"),
+            ("networkDetail_card_isp", "ISPHealthCard"),
+            ("networkDetail_card_latency", "LatencyAnalysisCard"),
+            ("networkDetail_card_connectivity", "ConnectivityCard"),
+            ("networkDetail_card_intel", "NetworkIntelCard"),
+            ("networkDetail_section_devices", "NetworkDevicesPanel"),
         ]
 
         for item in identifiers {

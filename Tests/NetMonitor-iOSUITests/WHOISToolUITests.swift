@@ -51,7 +51,7 @@ final class WHOISToolUITests: IOSUITestCase {
         navigateToWHOISTool()
         clearAndTypeText("example.com", into: app.textFields["whois_input_domain"])
         app.buttons["whois_button_run"].tap()
-        let domainInfo = app.otherElements["whois_domainInfo"]
+        let domainInfo = app.otherElements["whois_section_domainInfo"]
         XCTAssertTrue(domainInfo.waitForExistence(timeout: 15), "Domain info should appear after lookup")
     }
 
@@ -59,8 +59,8 @@ final class WHOISToolUITests: IOSUITestCase {
         navigateToWHOISTool()
         clearAndTypeText("example.com", into: app.textFields["whois_input_domain"])
         app.buttons["whois_button_run"].tap()
-        let dates = app.otherElements["whois_dates"]
-        let domainInfo = app.otherElements["whois_domainInfo"]
+        let dates = app.otherElements["whois_section_dates"]
+        let domainInfo = app.otherElements["whois_section_domainInfo"]
         XCTAssertTrue(
             waitForEither([dates, domainInfo], timeout: 15),
             "Dates or domain info should appear after lookup"
@@ -71,8 +71,8 @@ final class WHOISToolUITests: IOSUITestCase {
         navigateToWHOISTool()
         clearAndTypeText("example.com", into: app.textFields["whois_input_domain"])
         app.buttons["whois_button_run"].tap()
-        let nameServers = app.otherElements["whois_nameServers"]
-        let domainInfo = app.otherElements["whois_domainInfo"]
+        let nameServers = app.otherElements["whois_section_nameServers"]
+        let domainInfo = app.otherElements["whois_section_domainInfo"]
         XCTAssertTrue(
             waitForEither([nameServers, domainInfo], timeout: 15),
             "Name servers or domain info should appear after lookup"
@@ -83,7 +83,7 @@ final class WHOISToolUITests: IOSUITestCase {
         navigateToWHOISTool()
         clearAndTypeText("example.com", into: app.textFields["whois_input_domain"])
         app.buttons["whois_button_run"].tap()
-        let domainInfo = app.otherElements["whois_domainInfo"]
+        let domainInfo = app.otherElements["whois_section_domainInfo"]
         if domainInfo.waitForExistence(timeout: 15) {
             let clearButton = app.buttons["whois_button_clear"]
             if clearButton.waitForExistence(timeout: 3) {
@@ -99,8 +99,8 @@ final class WHOISToolUITests: IOSUITestCase {
         navigateToWHOISTool()
         clearAndTypeText("thisisnotarealdomain12345.invalidtld", into: app.textFields["whois_input_domain"])
         app.buttons["whois_button_run"].tap()
-        let errorView = app.otherElements["whois_error"]
-        let domainInfo = app.otherElements["whois_domainInfo"]
+        let errorView = app.otherElements["whois_label_error"]
+        let domainInfo = app.otherElements["whois_section_domainInfo"]
         XCTAssertTrue(
             waitForEither([errorView, domainInfo], timeout: 15),
             "Either error or domain info should appear after lookup attempt"
@@ -114,8 +114,8 @@ final class WHOISToolUITests: IOSUITestCase {
         clearAndTypeText("example.com", into: app.textFields["whois_input_domain"])
         app.buttons["whois_button_run"].tap()
 
-        let domainInfo = app.otherElements["whois_domainInfo"]
-        let errorView = app.otherElements["whois_error"]
+        let domainInfo = app.otherElements["whois_section_domainInfo"]
+        let errorView = app.otherElements["whois_label_error"]
         guard waitForEither([domainInfo, errorView], timeout: 20) else { return }
         guard domainInfo.exists else { return }
 
@@ -145,7 +145,7 @@ final class WHOISToolUITests: IOSUITestCase {
         clearAndTypeText("example.com", into: app.textFields["whois_input_domain"])
         app.buttons["whois_button_run"].tap()
 
-        let domainInfo = app.otherElements["whois_domainInfo"]
+        let domainInfo = app.otherElements["whois_section_domainInfo"]
         let clearButton = app.buttons["whois_button_clear"]
 
         guard domainInfo.waitForExistence(timeout: 20) else { return }
