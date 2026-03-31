@@ -73,6 +73,7 @@ struct TracerouteToolView: View {
                         ForEach(hops) { hop in
                             hopRow(hop).id(hop.id)
                         }
+                        .accessibilityIdentifier("traceroute_section_hops")
                         if let error = errorMessage {
                             Text(error)
                                 .font(.system(.body, design: .monospaced))
@@ -123,6 +124,7 @@ struct TracerouteToolView: View {
             }
         }
         .padding(.vertical, 2)
+        .accessibilityIdentifier("traceroute_hop_\(hop.hopNumber)")
     }
 
     private var footer: some View {

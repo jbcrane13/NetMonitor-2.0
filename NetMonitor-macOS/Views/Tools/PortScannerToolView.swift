@@ -122,6 +122,7 @@ struct PortScannerToolView: View {
                             .font(.headline)
                             .foregroundStyle(.green)
                             .padding(.bottom, 4)
+                            .accessibilityIdentifier("portscan_label_openPorts")
 
                         ForEach(openPorts) { result in
                             portRow(result)
@@ -176,6 +177,7 @@ struct PortScannerToolView: View {
             }
         }
         .padding(.vertical, 2)
+        .accessibilityIdentifier("portscan_row_\(result.port)")
     }
 
     // MARK: - Footer

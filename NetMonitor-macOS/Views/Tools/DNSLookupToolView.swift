@@ -83,6 +83,7 @@ struct DNSLookupToolView: View {
                     ForEach(Array(results.enumerated()), id: \.offset) { _, result in
                         resultRow(result)
                     }
+                    .accessibilityIdentifier("dns_section_results")
 
                     if let error = errorMessage {
                         Text(error)

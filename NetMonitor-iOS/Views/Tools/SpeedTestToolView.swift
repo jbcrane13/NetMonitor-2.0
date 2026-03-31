@@ -198,6 +198,7 @@ struct SpeedTestToolView: View {
                                 value: viewModel.downloadSpeedText,
                                 color: Theme.Colors.success
                             )
+                            .accessibilityIdentifier("speedTest_stat_download")
 
                             Divider()
                                 .background(Theme.Colors.glassBorder)
@@ -209,6 +210,7 @@ struct SpeedTestToolView: View {
                                 value: viewModel.uploadSpeedText,
                                 color: Theme.Colors.warning
                             )
+                            .accessibilityIdentifier("speedTest_stat_upload")
 
                             Divider()
                                 .background(Theme.Colors.glassBorder)
@@ -220,6 +222,7 @@ struct SpeedTestToolView: View {
                                 value: viewModel.latencyText,
                                 color: Theme.Colors.info
                             )
+                            .accessibilityIdentifier("speedTest_stat_latency")
                         }
 
                         Divider().background(Theme.Colors.glassBorder)

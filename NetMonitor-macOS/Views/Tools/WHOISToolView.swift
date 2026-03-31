@@ -173,6 +173,7 @@ struct WHOISToolView: View {
             .padding()
         }
         .background(MacTheme.Colors.subtleBackground)
+        .accessibilityIdentifier("whois_section_parsed")
     }
 
     private func sectionView(title: String, icon: String, @ViewBuilder content: () -> some View) -> some View {

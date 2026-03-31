@@ -197,6 +197,7 @@ struct SpeedTestToolView: View {
                         .foregroundStyle(.tertiary)
                 }
             }
+            .accessibilityIdentifier("speedtest_stat_latency")
 
             // Download
             VStack(spacing: 4) {
@@ -224,6 +225,7 @@ struct SpeedTestToolView: View {
                         .foregroundStyle(.tertiary)
                 }
             }
+            .accessibilityIdentifier("speedtest_stat_download")
 
             // Upload
             VStack(spacing: 4) {
@@ -251,6 +253,7 @@ struct SpeedTestToolView: View {
                         .foregroundStyle(.tertiary)
                 }
             }
+            .accessibilityIdentifier("speedtest_stat_upload")
 
             // Server
             VStack(spacing: 4) {
@@ -264,7 +267,9 @@ struct SpeedTestToolView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+            .accessibilityIdentifier("speedtest_stat_server")
         }
+        .accessibilityIdentifier("speedtest_section_results")
     }
 
     // MARK: - Footer
