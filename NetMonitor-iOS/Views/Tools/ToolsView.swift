@@ -388,6 +388,7 @@ struct ToolsGridSection: View {
             ToolItem(name: "Speed Test", icon: "speedometer", color: Theme.Colors.success, description: "Test bandwidth", destination: .speedTest),
             ToolItem(name: "World Ping", icon: "globe.americas", color: .teal, description: "Global latency check", destination: .worldPing),
             ToolItem(name: "SSL Monitor", icon: "lock.shield", color: .green, description: "Certificate expiry check", destination: .sslMonitor),
+            ToolItem(name: "Wi-Fi Heatmap", icon: "wifi.circle", color: .cyan, description: "Map signal strength", destination: .wifiHeatmap),
             ToolItem(name: "Room Scanner", icon: "cube.transparent", color: .indigo, description: "3D room scan for heatmap", destination: .roomScanner),
         ]),
         (.actions, [

@@ -99,6 +99,8 @@ struct DashboardView: View {
 
             SpeedTestQuickCard()
 
+            WiFiHeatmapQuickCard()
+
             LiveEventTicker()
 
             LocalDevicesCard(
@@ -780,6 +782,54 @@ struct SpeedTestQuickCard: View {
         }
         .buttonStyle(PlainButtonStyle())
         .accessibilityIdentifier("dashboard_card_speedTest")
+    }
+}
+
+// MARK: - Wi-Fi Heatmap Quick Card
+
+struct WiFiHeatmapQuickCard: View {
+    var body: some View {
+        NavigationLink(destination: HeatmapSurveyView()) {
+            GlassCard(padding: 14) {
+                HStack(spacing: 14) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(Color.cyan.opacity(0.15))
+                            .frame(width: 40, height: 40)
+                        Image(systemName: "wifi.circle")
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundStyle(.cyan)
+                    }
+
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Wi-Fi Heatmap")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundStyle(Theme.Colors.textPrimary)
+
+                        Text("Map signal coverage across your space")
+                            .font(.system(size: 11))
+                            .foregroundStyle(Theme.Colors.textSecondary)
+                    }
+
+                    Spacer()
+
+                    HStack(spacing: 4) {
+                        Text("Start")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundStyle(.cyan)
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(.cyan)
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(Color.cyan.opacity(0.12))
+                    .clipShape(Capsule())
+                }
+            }
+        }
+        .buttonStyle(PlainButtonStyle())
+        .accessibilityIdentifier("dashboard_card_wifiHeatmap")
     }
 }
 
