@@ -6,6 +6,7 @@ import UniformTypeIdentifiers
 // MARK: - HeatmapSurveyView
 
 struct HeatmapSurveyView: View {
+    @Environment(DeepLinkRouter.self) private var deepLinkRouter: DeepLinkRouter?
     @State private var viewModel = HeatmapSurveyViewModel()
     @State private var selectedPhotoItem: PhotosPickerItem?
     @State private var showImportOptions = false
@@ -82,6 +83,17 @@ struct HeatmapSurveyView: View {
             Text(viewModel.errorMessage ?? "")
         }
         .accessibilityIdentifier("screen_heatmapSurvey")
+        .onAppear {
+            // Check if a .netmonsurvey file was opened via deep link
+            if let url = deepLinkRouter?.consumePendingFile() {
+                openFileFromDeepLink(url)
+            }
+        }
+        .onChange(of: deepLinkRouter?.pendingSurveyFileURL) { _, newURL in
+            if newURL != nil, let url = deepLinkRouter?.consumePendingFile() {
+                openFileFromDeepLink(url)
+            }
+        }
     }
 
     // MARK: - UTTypes
@@ -328,6 +340,20 @@ struct HeatmapSurveyView: View {
         }
         do {
             try viewModel.importFloorPlan(imageData: data, name: "Photo Import")
+        } catch {
+            viewModel.errorMessage = error.localizedDescription
+        }
+    }
+
+    private func openFileFromDeepLink(_ url: URL) {
+        let didAccess = url.startAccessingSecurityScopedResource()
+        defer { if didAccess { url.stopAccessingSecurityScopedResource() } }
+        do {
+            if url.pathExtension == "netmonblueprint" {
+                try viewModel.importBlueprint(from: url)
+            } else {
+                try viewModel.loadProject(from: url)
+            }
         } catch {
             viewModel.errorMessage = error.localizedDescription
         }

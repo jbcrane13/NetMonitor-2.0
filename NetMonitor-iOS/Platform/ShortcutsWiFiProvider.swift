@@ -49,7 +49,16 @@ final class ShortcutsWiFiProvider: @unchecked Sendable {
 
     // MARK: - Init
 
-    init() {}
+    init() {
+        // Listen for deep link callback from DeepLinkRouter
+        NotificationCenter.default.addObserver(
+            forName: .shortcutsWiFiCallbackReceived,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.handleURLCallback()
+        }
+    }
 
     // MARK: - Public API
 

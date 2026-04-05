@@ -53,6 +53,17 @@
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
 	<string>2.1.1</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.blakemiller.netmonitor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>netmonitor</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleVersion</key>
 	<string>1</string>
 	<key>LSSupportsOpeningDocumentsInPlace</key>

@@ -9,6 +9,7 @@ struct NetmonitorApp: App {
     @AppStorage("selectedTheme") private var selectedTheme: String = "system"
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
     @State private var showOnboarding = false
+    @State private var deepLinkRouter = DeepLinkRouter()
 
     private static var isUITesting: Bool {
         let args = ProcessInfo.processInfo.arguments
@@ -61,6 +62,10 @@ struct NetmonitorApp: App {
             ContentView()
                 .preferredColorScheme(resolvedColorScheme)
                 .accessibilityIdentifier("screen_main")
+                .environment(deepLinkRouter)
+                .onOpenURL { url in
+                    deepLinkRouter.handle(url: url)
+                }
                 .sheet(isPresented: $showOnboarding) {
                     OnboardingView(isPresented: $showOnboarding)
                 }

@@ -212,6 +212,10 @@ targets:
             UTTypeTagSpecification:
               public.filename-extension:
                 - netmonblueprint
+        CFBundleURLTypes:
+          - CFBundleURLSchemes:
+              - netmonitor
+            CFBundleURLName: com.blakemiller.netmonitor
         UIFileSharingEnabled: true
         LSSupportsOpeningDocumentsInPlace: true
         CFBundleDocumentTypes:
