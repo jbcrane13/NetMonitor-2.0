@@ -39,7 +39,7 @@ struct HeatmapSurveyView: View {
         }
         .fileImporter(
             isPresented: $viewModel.showImportSheet,
-            allowedContentTypes: [.png, .jpeg, .heic],
+            allowedContentTypes: [.png, .jpeg, .heic, netmonSurveyType, netmonBlueprintType],
             allowsMultipleSelection: false
         ) { result in
             handleFileImport(result)
@@ -63,7 +63,9 @@ struct HeatmapSurveyView: View {
         }
         .sheet(isPresented: $showRoomScanner) {
             NavigationStack {
-                RoomPlanScannerView()
+                RoomPlanScannerView { blueprint in
+                    viewModel.importBlueprintProject(blueprint)
+                }
             }
         }
         .sheet(isPresented: $showShareSheet) {
@@ -80,6 +82,16 @@ struct HeatmapSurveyView: View {
             Text(viewModel.errorMessage ?? "")
         }
         .accessibilityIdentifier("screen_heatmapSurvey")
+    }
+
+    // MARK: - UTTypes
+
+    private var netmonSurveyType: UTType {
+        UTType("com.netmonitor.survey") ?? .data
+    }
+
+    private var netmonBlueprintType: UTType {
+        UTType("com.netmonitor.blueprint") ?? .data
     }
 
     // MARK: - Start Content
@@ -188,9 +200,9 @@ struct HeatmapSurveyView: View {
 
     private var signalHUD: some View {
         HStack(spacing: 16) {
-            // Live RSSI
+            // Live RSSI with color
             HStack(spacing: 6) {
-                Image(systemName: "wifi")
+                Image(systemName: rssiWiFiIcon(viewModel.currentRSSI))
                     .font(.caption.bold())
                     .foregroundStyle(rssiColor(viewModel.currentRSSI))
                 Text("\(viewModel.currentRSSI) dBm")
@@ -213,17 +225,30 @@ struct HeatmapSurveyView: View {
                 .frame(height: 16)
 
             // Point count
-            Text("\(viewModel.measurementPoints.count)")
-                .font(.caption.monospacedDigit().bold())
-                .foregroundStyle(Theme.Colors.textPrimary)
-            + Text(" pts")
-                .font(.caption)
-                .foregroundStyle(Theme.Colors.textSecondary)
+            HStack(spacing: 2) {
+                Text("\(viewModel.measurementPoints.count)")
+                    .font(.caption.monospacedDigit().bold())
+                    .foregroundStyle(Theme.Colors.textPrimary)
+                Text("pts")
+                    .font(.caption)
+                    .foregroundStyle(Theme.Colors.textSecondary)
+            }
+            .accessibilityIdentifier("heatmap_hud_pointcount")
+
+            // Save indicator
+            if viewModel.isSaving {
+                ProgressView()
+                    .scaleEffect(0.5)
+            } else if let lastSave = viewModel.lastSaveDate {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.caption2)
+                    .foregroundStyle(Theme.Colors.success)
+                    .help("Last saved \(lastSave.formatted(.relative(presentation: .numeric)))")
+            }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
         .glassCard(cornerRadius: 24, padding: 0)
-        .accessibilityIdentifier("heatmap_hud_pointcount")
     }
 
     // MARK: - Toolbar
@@ -309,7 +334,6 @@ struct HeatmapSurveyView: View {
     }
 
     private func openSurvey() {
-        // Trigger file importer for .netmonsurvey
         viewModel.showImportSheet = true
     }
 
@@ -325,8 +349,20 @@ struct HeatmapSurveyView: View {
     }
 
     private func shareHeatmap() {
-        guard let image = viewModel.exportImage(canvasSize: CGSize(width: 1024, height: 768)) else { return }
-        shareItems = [image]
+        var items: [Any] = []
+
+        // PNG image export
+        if let image = viewModel.exportImage(canvasSize: CGSize(width: 1024, height: 768)) {
+            items.append(image)
+        }
+
+        // .netmonsurvey file export
+        if let projectURL = viewModel.exportProjectFile() {
+            items.append(projectURL)
+        }
+
+        guard !items.isEmpty else { return }
+        shareItems = items
         showShareSheet = true
     }
 
@@ -340,6 +376,13 @@ struct HeatmapSurveyView: View {
         default: .red
         }
     }
-}
 
-// ShareSheet defined in SettingsView.swift — shared across the app
+    private func rssiWiFiIcon(_ rssi: Int) -> String {
+        switch rssi {
+        case -50...0: "wifi"
+        case -60 ..< -50: "wifi"
+        case -70 ..< -60: "wifi.exclamationmark"
+        default: "wifi.slash"
+        }
+    }
+}

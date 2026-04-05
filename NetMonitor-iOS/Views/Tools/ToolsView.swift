@@ -46,6 +46,7 @@ enum ToolDestination: Hashable {
     case geoTrace
     case sslMonitor
     case roomScanner
+    case wifiHeatmap
     @ViewBuilder
     @MainActor
     var view: some View {
@@ -81,6 +82,8 @@ enum ToolDestination: Hashable {
             SSLCertificateMonitorView()
         case .roomScanner:
             RoomPlanScannerView()
+        case .wifiHeatmap:
+            HeatmapSurveyView()
         }
     }
 }

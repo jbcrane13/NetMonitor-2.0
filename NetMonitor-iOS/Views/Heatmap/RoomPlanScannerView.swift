@@ -5,6 +5,9 @@ import SwiftUI
 // MARK: - RoomPlanScannerView
 
 struct RoomPlanScannerView: View {
+    /// Optional callback when a blueprint is completed and ready for heatmap use.
+    var onBlueprintComplete: ((BlueprintProject) -> Void)?
+
     @State private var viewModel = RoomPlanScannerViewModel()
     @State private var showDocumentExporter = false
     @Environment(\.dismiss) private var dismiss
@@ -296,6 +299,26 @@ struct RoomPlanScannerView: View {
                         .background(Theme.Colors.accent.opacity(0.15), in: RoundedRectangle(cornerRadius: 14))
                     }
                     .accessibilityIdentifier("roomScanner_button_saveFiles")
+
+                    if onBlueprintComplete != nil {
+                        Button {
+                            if let blueprint = viewModel.completedBlueprint {
+                                onBlueprintComplete?(blueprint)
+                                dismiss()
+                            }
+                        } label: {
+                            HStack {
+                                Image(systemName: "wifi.circle")
+                                Text("Use for Wi-Fi Heatmap")
+                            }
+                            .font(.headline)
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 16)
+                            .background(Theme.Colors.success, in: RoundedRectangle(cornerRadius: 14))
+                        }
+                        .accessibilityIdentifier("roomScanner_button_useForHeatmap")
+                    }
 
                     Button {
                         viewModel.resetScan()

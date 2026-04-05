@@ -23,10 +23,8 @@ enum HeatmapError: Error, LocalizedError {
 
 /// iOS heatmap survey state management.
 ///
-/// Modeled after the macOS `WiFiHeatmapViewModel` but adapted for touch/sheet UI
-/// and Shortcuts-based Wi-Fi measurement. Phase B (#127) will flesh out remaining
-/// implementation including live RSSI polling, IOSHeatmapService integration, and
-/// full heatmap rendering pipeline.
+/// Uses ``IOSHeatmapService`` for Shortcuts-based Wi-Fi measurement and
+/// ``HeatmapRenderer`` for IDW interpolation + color mapping.
 @MainActor
 @Observable
 final class HeatmapSurveyViewModel {
@@ -110,16 +108,28 @@ final class HeatmapSurveyViewModel {
     var lastSaveDate: Date?
     private var measurementsSinceLastSave: Int = 0
 
+    // MARK: - Live RSSI Polling
+
+    private var signalPollTask: Task<Void, Never>?
+    /// Adaptive polling interval — increases when Shortcuts round-trip exceeds 1.5s.
+    private var pollInterval: TimeInterval = 2.0
+
     // MARK: - Dependencies
 
     private let renderer: HeatmapRenderer
     private let projectManager: ProjectSaveLoadManager
+    private var heatmapService: IOSHeatmapService?
 
     // MARK: - Init
 
     init() {
         renderer = HeatmapRenderer()
         projectManager = ProjectSaveLoadManager()
+    }
+
+    /// Inject the heatmap service after construction (services require DI from the app).
+    func configure(service: IOSHeatmapService) {
+        self.heatmapService = service
     }
 
     // MARK: - Computed
@@ -144,7 +154,6 @@ final class HeatmapSurveyViewModel {
 
     // MARK: - Floor Plan Import
 
-    /// Creates a new survey project from raw image data, decoding to get pixel dimensions.
     func importFloorPlan(imageData: Data, name: String) throws {
         guard let uiImage = UIImage(data: imageData),
               let cgImage = uiImage.cgImage else {
@@ -174,8 +183,6 @@ final class HeatmapSurveyViewModel {
         startCalibration()
     }
 
-    /// Creates a new survey project from raw image data with explicit pixel dimensions.
-    /// Used when pixel dimensions are known without needing to decode the image.
     func importFloorPlan(imageData: Data, width: Int, height: Int) {
         measurementPoints = []
         calibrationPoints = []
@@ -185,7 +192,7 @@ final class HeatmapSurveyViewModel {
 
         let floorPlan = FloorPlan(
             imageData: imageData,
-            widthMeters: Double(width) * 0.01,  // placeholder scale until calibrated
+            widthMeters: Double(width) * 0.01,
             heightMeters: Double(height) * 0.01,
             pixelWidth: width,
             pixelHeight: height,
@@ -209,9 +216,14 @@ final class HeatmapSurveyViewModel {
     func importBlueprint(from url: URL) throws {
         let manager = BlueprintSaveLoadManager()
         let blueprint = try manager.load(from: url)
+        importBlueprintProject(blueprint)
+    }
 
+    /// Import a RoomPlan-scanned blueprint directly as a pre-calibrated floor plan.
+    func importBlueprintProject(_ blueprint: BlueprintProject) {
         guard let floor = blueprint.floors.first else {
-            throw HeatmapError.noFloorPlan
+            errorMessage = HeatmapError.noFloorPlan.localizedDescription
+            return
         }
 
         let floorPlan = BlueprintSaveLoadManager.floorPlanFromBlueprint(floor)
@@ -231,7 +243,7 @@ final class HeatmapSurveyViewModel {
         isHeatmapGenerated = false
         undoStack = []
 
-        // Blueprint is pre-calibrated
+        // Blueprint is pre-calibrated from RoomPlan dimensions
         isCalibrating = false
         isCalibrated = true
         calibrationPoints = []
@@ -273,8 +285,6 @@ final class HeatmapSurveyViewModel {
         completeCalibration(withDistance: realDistance)
     }
 
-    /// Completes calibration using the known real-world distance (in meters) between the two points.
-    /// Updates the floor plan's metric dimensions based on the computed scale.
     func completeCalibration(withDistance distanceMeters: Double) {
         guard calibrationPoints.count == 2 else {
             calibrationPoints = []
@@ -315,16 +325,12 @@ final class HeatmapSurveyViewModel {
 
     // MARK: - Survey Control
 
-    // Phase B (#127) will flesh out remaining implementation:
-    // - IOSHeatmapService integration for takeMeasurement
-    // - Live RSSI polling
-    // - Full heatmap rendering pipeline
-
     func startSurvey() {
         guard surveyProject != nil, isCalibrated else { return }
         isSurveying = true
         isHeatmapGenerated = false
         heatmapImage = nil
+        startSignalPolling()
         if isContinuousScan {
             startContinuousScanTimer()
         }
@@ -332,6 +338,7 @@ final class HeatmapSurveyViewModel {
 
     func stopSurvey() {
         isSurveying = false
+        stopSignalPolling()
         stopContinuousScanTimer()
         updateHeatmap()
     }
@@ -354,6 +361,44 @@ final class HeatmapSurveyViewModel {
         continuousScanTask = nil
     }
 
+    // MARK: - Live RSSI Polling
+
+    private func startSignalPolling() {
+        signalPollTask?.cancel()
+        signalPollTask = Task<Void, Never> { [weak self] in
+            while !Task.isCancelled {
+                guard let self, let service = self.heatmapService else {
+                    try? await Task.sleep(for: .seconds(2))
+                    continue
+                }
+                let start = ContinuousClock.now
+                let point = await service.takeMeasurement(at: 0, floorPlanY: 0)
+                let elapsed = ContinuousClock.now - start
+
+                if Task.isCancelled { return }
+
+                self.currentRSSI = point.rssi
+                self.currentSSID = point.ssid
+
+                // Adaptive backoff: if round-trip exceeds 1.5s, slow down polling
+                let roundTripSeconds = Double(elapsed.components.seconds)
+                    + Double(elapsed.components.attoseconds) / 1e18
+                if roundTripSeconds > 1.5 {
+                    self.pollInterval = min(self.pollInterval + 0.5, 5.0)
+                } else {
+                    self.pollInterval = max(2.0, self.pollInterval - 0.2)
+                }
+
+                try? await Task.sleep(for: .seconds(self.pollInterval))
+            }
+        }
+    }
+
+    private func stopSignalPolling() {
+        signalPollTask?.cancel()
+        signalPollTask = nil
+    }
+
     // MARK: - Measurement
 
     func takeMeasurement(at normalizedPoint: CGPoint) async {
@@ -367,17 +412,35 @@ final class HeatmapSurveyViewModel {
 
         saveUndoState()
 
-        // Create measurement point with current signal data.
-        // Phase B (#127): calls IOSHeatmapService for Shortcuts-based signal.
-        let point = MeasurementPoint(
-            floorPlanX: normalizedPoint.x,
-            floorPlanY: normalizedPoint.y,
-            rssi: currentRSSI,
-            ssid: currentSSID
-        )
+        let point: MeasurementPoint
+        if let service = heatmapService {
+            if measurementMode == .active {
+                point = await service.takeActiveMeasurement(
+                    at: Double(normalizedPoint.x),
+                    floorPlanY: Double(normalizedPoint.y)
+                )
+            } else {
+                point = await service.takeMeasurement(
+                    at: Double(normalizedPoint.x),
+                    floorPlanY: Double(normalizedPoint.y)
+                )
+            }
+        } else {
+            // Fallback without service — use current polled values
+            point = MeasurementPoint(
+                floorPlanX: normalizedPoint.x,
+                floorPlanY: normalizedPoint.y,
+                rssi: currentRSSI,
+                ssid: currentSSID
+            )
+        }
 
         measurementPoints.append(point)
         measurementsSinceLastSave += 1
+
+        // Update live display
+        currentRSSI = point.rssi
+        currentSSID = point.ssid
 
         // Auto-update heatmap after 3+ points
         if measurementPoints.count >= 3 {
@@ -459,7 +522,6 @@ final class HeatmapSurveyViewModel {
 
         project.measurementPoints = measurementPoints
 
-        // Use bundle-based manager for .netmonsurvey files, plain JSON otherwise
         if url.pathExtension == "netmonsurvey" {
             try projectManager.save(project: project, to: url)
         } else {
@@ -489,14 +551,13 @@ final class HeatmapSurveyViewModel {
         }
     }
 
-    private func autoSave() {
+    func autoSave() {
         guard let project = surveyProject else { return }
         let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
         guard let saveURL = documentsURL?.appendingPathComponent("\(project.name).netmonsurvey") else { return }
         do {
             try saveProject(to: saveURL)
         } catch {
-            // Auto-save failure is non-fatal
             errorMessage = "Auto-save failed: \(error.localizedDescription)"
         }
     }
@@ -520,25 +581,59 @@ final class HeatmapSurveyViewModel {
                 ctx.cgContext.setAlpha(1.0)
             }
 
-            // Draw measurement dots
+            // Draw measurement dots with glow
             for point in filteredPoints {
                 let x = point.floorPlanX * canvasSize.width
                 let y = point.floorPlanY * canvasSize.height
+                let color = rssiColor(point.rssi)
                 let dotRadius: CGFloat = 6
+
+                // Outer glow
+                let glowRect = CGRect(
+                    x: x - dotRadius * 1.5,
+                    y: y - dotRadius * 1.5,
+                    width: dotRadius * 3,
+                    height: dotRadius * 3
+                )
+                ctx.cgContext.setFillColor(color.withAlphaComponent(0.3).cgColor)
+                ctx.cgContext.fillEllipse(in: glowRect)
+
+                // Inner dot
                 let dotRect = CGRect(
                     x: x - dotRadius,
                     y: y - dotRadius,
                     width: dotRadius * 2,
                     height: dotRadius * 2
                 )
-                ctx.cgContext.setFillColor(UIColor.white.cgColor)
+                ctx.cgContext.setFillColor(color.withAlphaComponent(0.8).cgColor)
                 ctx.cgContext.fillEllipse(in: dotRect)
-                ctx.cgContext.setStrokeColor(rssiColor(point.rssi).cgColor)
-                ctx.cgContext.setLineWidth(2)
-                ctx.cgContext.strokeEllipse(in: dotRect)
+
+                // Center highlight
+                let highlightRect = CGRect(x: x - 2, y: y - 2, width: 4, height: 4)
+                ctx.cgContext.setFillColor(UIColor.white.withAlphaComponent(0.6).cgColor)
+                ctx.cgContext.fillEllipse(in: highlightRect)
             }
 
-            _ = project // suppress unused warning
+            _ = project
+        }
+    }
+
+    /// Exports the project as a .netmonsurvey file URL for sharing.
+    func exportProjectFile() -> URL? {
+        guard var project = surveyProject else { return nil }
+        project.measurementPoints = measurementPoints
+
+        let fileName = project.name
+            .replacingOccurrences(of: " ", with: "-")
+            .lowercased()
+        let tempURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("\(fileName).netmonsurvey")
+
+        do {
+            try projectManager.save(project: project, to: tempURL)
+            return tempURL
+        } catch {
+            return nil
         }
     }
 
