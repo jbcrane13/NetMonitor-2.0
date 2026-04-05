@@ -379,4 +379,20 @@ The `.prefix(while:)` trims the null terminator; `.map { UInt8(bitPattern:) }` r
 
 ---
 
+## ADR-020: Apple Shortcuts URL scheme + App Group as primary Wi-Fi RSSI acquisition on iOS
+**Date:** 2026-04-04
+**Status:** Active
+**Decision:** Use the Shortcuts "Get Network Details" action (iOS 17+), invoked via URL scheme from the app and returning data through an App Group shared `UserDefaults` container, as the primary method for reading Wi-Fi signal metrics on iOS. `NEHotspotNetwork.fetchCurrent()` serves as a degraded fallback providing SSID and BSSID only.
+
+**Context:** iOS exposes no public API for reading Wi-Fi RSSI in dBm. `NEHotspotNetwork.signalStrength` returns `0.0` for apps without the Wi-Fi Information entitlement, and the underlying chipset data (RSSI, noise floor, channel, TX/RX rate) is simply not surfaced. The Shortcuts "Get Network Details" action returns real chipset-level data on iOS 17+ and is App Store-safe, validated by the nOversight app. Four alternatives were rejected: `AppIntents` runs in the wrong direction (system calls the app, not vice versa); `NEHotspotHelper` requires a restricted carrier entitlement unavailable to consumer apps; private APIs risk App Store rejection; Shortcuts Automation triggers require explicit user confirmation on every execution.
+
+**Consequences:**
+- ~1.5-2.5s measurement latency per reading due to the URL scheme round-trip through the Shortcuts app
+- One-time user setup required: install a companion Shortcut that writes results to the shared App Group container
+- Brief Shortcuts app flash is visible during each measurement; cannot be suppressed
+- iOS heatmap supports 7 of 8 visualization types — Channel Overlap is unavailable because it requires scanning neighboring BSSIDs, which this approach does not provide
+- `NEHotspotNetwork.fetchCurrent()` fallback activates automatically when the companion Shortcut is not installed or the App Group read times out
+
+---
+
 *To add a new ADR: append with the next number, include date, status, decision, context, and consequences. Reference the bead ID if applicable.*

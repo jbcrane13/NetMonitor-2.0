@@ -73,6 +73,8 @@ Key types: `ScanEngine`, `ScanPipeline`, `ScanContext`, `ScanAccumulator`, `Conn
 | UI theme | Standard system appearance | Liquid glass (`Theme`, `GlassCard`, `GlassButton`) |
 | Background | — | `BGTaskScheduler` |
 | Mac link | Advertises `_netmon._tcp` on port 8849 | Discovers and connects via `MacConnectionService` |
+| Wi-Fi signal | CoreWLAN (`CWInterface`) — direct RSSI, noise, channel | Shortcuts "Get Network Details" via `ShortcutsWiFiProvider` (~2s round-trip); `NEHotspotNetwork` fallback (SSID/BSSID only) |
+| Heatmap service | `WiFiHeatmapService` (CoreWLAN wrapper) | `IOSHeatmapService` (Shortcuts + NEHotspotNetwork) |
 
 ## Mac–iOS Companion Protocol
 
@@ -104,6 +106,8 @@ Each major view directory contains an `AGENTS.md` with purpose, sub-directory la
 - `docs/Companion-Protocol-API.md` — Mac–iOS wire protocol spec
 - `docs/ADR.md` — Architecture Decision Records
 - `docs/SwiftUI Best Practices.md` — UI patterns and conventions
+- `docs/WiFi-Heatmap-PRD.md` — Wi-Fi Heatmap & Site Survey PRD (macOS + iOS)
+- `docs/iOS-WiFi-Heatmap-Spec.md` — iOS Wi-Fi signal acquisition via Shortcuts (technical spec)
 
 ## macOS UI Theme Notes
 

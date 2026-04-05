@@ -2,7 +2,7 @@
 # Wi-Fi Heatmap & Site Survey
 ## NetMonitor 2.0 — macOS & iOS
 
-**Version 1.0 | March 2026**
+**Version 1.1 | April 2026** (v1.0 March 2026)
 **Author:** Claude (Agent PRD) | **Stakeholder:** Blake Crane
 
 | Field | Value |
@@ -25,9 +25,9 @@ NetMonitor 2.0 currently provides device discovery, ping, traceroute, port scann
 
 | Phase | Name | Platforms | Description | Reference |
 |-------|------|-----------|-------------|-----------|
-| 1 | Blueprint Walk Survey | macOS (full), iOS (basic) | Import a floor plan image, walk the space tapping your location at each measurement point, generate heatmap overlays. | NetSpot Survey Mode |
-| 2 | ~~AR-Assisted Map + Survey~~ | ~~iOS only~~ | **DEPRECATED** — iPhone cannot read Wi-Fi signal accurately (Apple removed CWInterface scan APIs in iOS 9). Replaced by Phase 4. | — |
-| 3 | ~~AR Continuous Scan~~ | ~~iOS only~~ | **DEPRECATED** — Same iOS Wi-Fi API limitation. Replaced by Phase 4. | — |
+| 1 | Blueprint Walk Survey | macOS (full), **iOS (full)** | Import a floor plan image, walk the space tapping your location at each measurement point, generate heatmap overlays. iOS uses Shortcuts-based Wi-Fi measurement (see `docs/iOS-WiFi-Heatmap-Spec.md`). | NetSpot Survey Mode |
+| 2 | AR-Assisted Map + Survey | iOS only | **REINSTATED** — iOS can now read Wi-Fi RSSI via Shortcuts "Get Network Details" action (iOS 17+). Use ARKit to scan room, generate floor plan, then walk and record measurement points. | WiFiman Floorplan Mapper |
+| 3 | AR Continuous Scan | iOS only (LiDAR required) | **REINSTATED** — Walk through space with LiDAR; map is drawn and colored by Wi-Fi signal in real time. Wi-Fi data acquired via Shortcuts pipeline. | WiFiman Signal Mapper |
 
 ## Problem Statement
 
@@ -47,7 +47,7 @@ Network administrators, IT professionals, and power users frequently need to und
 - **Spectrum analysis** — WiFiman Wizard provides RF spectrum analysis via dedicated hardware. NetMonitor will not require external hardware.
 - **UniFi/vendor integration** — WiFiman requires UniFi consoles for some features. NetMonitor's heatmap will be vendor-agnostic, working with any Wi-Fi network.
 - **3D volumetric heatmaps** — The heatmap is a 2D floor-plan overlay. ARKit 3D mesh data is used for room boundary detection, not 3D signal visualization.
-- **iOS Wi-Fi heatmap** — iPhone cannot read Wi-Fi scan data accurately (Apple removed CWInterface scan APIs in iOS 9). iOS role is limited to room scanning (Phase 4 RoomPlan) — all actual signal measurement happens on macOS.
+- **iOS visible network scanning** — iOS cannot scan for neighboring APs (Apple removed CWInterface scan APIs in iOS 9). Channel overlap heatmaps remain macOS-only. However, iOS **can** read Wi-Fi RSSI, noise, channel, and link speed for the connected network via the Shortcuts "Get Network Details" action (iOS 17+). See `docs/iOS-WiFi-Heatmap-Spec.md` for details.
 - **Cross-platform project sync** — Projects saved on macOS will not automatically sync to iOS or vice versa (iCloud sync is a future consideration).
 
 ---
@@ -190,17 +190,19 @@ Generates the 2D color overlay image from measurement points using Inverse Dista
 
 ## 1.2 iOS Limitations (Phase 1)
 
-iOS Wi-Fi APIs impose constraints that do not exist on macOS. The agent must account for these during implementation:
+iOS Wi-Fi APIs impose constraints that do not exist on macOS. **However, the Shortcuts "Get Network Details" action (iOS 17+) closes most of the gap.** See `docs/iOS-WiFi-Heatmap-Spec.md` for full details.
 
-| Capability | macOS (CoreWLAN) | iOS (NEHotspotNetwork) | Impact |
-|-----------|-----------------|----------------------|--------|
-| RSSI | Yes, real-time via CWInterface.rssiValue() | Yes, via fetchCurrent() but requires precise location permission + connected network only | iOS can only measure RSSI on the currently-connected network; macOS can see all visible networks |
-| Noise Floor | Yes, via CWInterface.noiseMeasurement() | No | SNR visualization unavailable on iOS (signal strength only) |
-| BSSID | Yes, immediate access | Yes, but requires precise location permission | Must request location permission on iOS |
-| Visible Networks | Yes, CWInterface.scanForNetworks() | No — Apple removed scan API in iOS 9 | Cannot show channel overlap or AP coverage heatmaps on iOS |
-| Channel / Band | Yes | Limited — no direct channel API, must infer from BSSID vendor data | Channel heatmap degraded on iOS |
-| Link Speed (Tx Rate) | Yes, via CWInterface.transmitRate() | No direct API | Link speed visualization macOS-only |
-| Background Scanning | Not needed (laptop stays open) | No background CL + NEHotspotNetwork access | Survey must be active/foreground on iOS |
+| Capability | macOS (CoreWLAN) | iOS (Shortcuts, iOS 17+) | iOS (NEHotspotNetwork fallback) | Impact |
+|-----------|-----------------|-------------------------|--------------------------------|--------|
+| RSSI | Yes, real-time via CWInterface.rssiValue() | **Yes, real dBm via Shortcuts** | Returns 0.0 (broken) | iOS near-parity with Shortcuts |
+| Noise Floor | Yes, via CWInterface.noiseMeasurement() | **Yes, via Shortcuts** | No | SNR available on both platforms |
+| BSSID | Yes, immediate access | **Yes, via Shortcuts** | Yes (with location permission) | Available on both |
+| Visible Networks | Yes, CWInterface.scanForNetworks() | No | No | Channel overlap heatmaps macOS-only |
+| Channel / Band | Yes | **Yes (channel via Shortcuts; band inferred)** | No | Near-parity |
+| Link Speed | Yes (TX via CWInterface.transmitRate()) | **Yes (TX + RX via Shortcuts)** | No | iOS actually gets more data (RX too) |
+| Background Scanning | Not needed (laptop stays open) | No (foreground only; Shortcuts requires app switch) | No | Survey must be active/foreground on iOS |
+| Measurement Latency | ~10ms (synchronous) | ~1.5-2.5s (URL scheme round-trip) | ~300ms | iOS has higher per-measurement overhead |
+| User Setup | None | Must install companion Shortcut (one-time) | Location permission only | Trade-off for accurate data |
 
 ## 1.3 Functional Requirements
 
@@ -279,11 +281,20 @@ macOS has rich Wi-Fi APIs via CoreWLAN framework. The existing WiFiInfoService o
 
 ### iOS Wi-Fi Data Collection
 
-iOS is more restricted. Use NEHotspotNetwork.fetchCurrent() which requires:
+**Primary: Shortcuts "Get Network Details" (iOS 17+)** — See `docs/iOS-WiFi-Heatmap-Spec.md` for full specification.
+
+The app invokes a companion Shortcut ("Wi-Fi to NetMonitor") via `shortcuts://x-callback-url/run-shortcut`. The Shortcut runs the system "Get Network Details" action and writes the result to an App Group shared container. The app reads the data when the Shortcut returns control via URL scheme callback. This approach is proven by nOversight (Numerous Networks) on the App Store.
+
+- Returns: SSID, BSSID, RSSI (dBm), Noise (dBm), Channel, TX Rate, RX Rate, Wi-Fi Standard
+- Latency: ~1.5-2.5 seconds per measurement (URL scheme round-trip)
+- Requires: iOS 17+, one-time companion Shortcut installation (guided setup)
+- UX: Brief Shortcuts app flash during each measurement (~0.5s)
+
+**Fallback: NEHotspotNetwork.fetchCurrent()** — Used when Shortcut is not installed.
 
 - Access WiFi Information entitlement (already in NetMonitor iOS entitlements)
 - Precise location permission (CLLocationManager, already granted for network scanning)
-- Returns: SSID, BSSID, signalStrength (RSSI as Double, -100 to 0), isSecure
+- Returns: SSID, BSSID only (signalStrength returns 0.0 for non-helper apps)
 - Does NOT return: noise floor, channel, visible networks, link speed
 - Rate limit: Apple may throttle calls. Cache results for 1s minimum between polls.
 
@@ -330,9 +341,11 @@ A .netmonsurvey file is a directory bundle (UTI: com.netmonitor.survey) containi
 
 # PHASE 2: AR-Assisted Map Creation + Survey
 
+> **STATUS: REINSTATED** (April 2026) — Previously deprecated due to iOS Wi-Fi API limitations. Now viable via Shortcuts "Get Network Details" signal acquisition. See `docs/iOS-WiFi-Heatmap-Spec.md`.
+
 **Reference:** WiFiman Floorplan Mapper — Use ARKit to scan room, generate floor plan, then walk and record measurement points.
 
-**Platform:** iOS only (iPhone/iPad with ARKit support; LiDAR preferred but not required)
+**Platform:** iOS only (iPhone/iPad with ARKit support; LiDAR preferred but not required; **iOS 17+ required** for Shortcuts Wi-Fi measurement)
 
 ## 2.1 Overview
 
@@ -454,9 +467,11 @@ After the map is generated, the AR session continues running to provide real-tim
 
 # PHASE 3: AR Continuous Scan (WiFiman-Style)
 
+> **STATUS: REINSTATED** (April 2026) — Previously deprecated due to iOS Wi-Fi API limitations. Now viable via Shortcuts "Get Network Details" signal acquisition. See `docs/iOS-WiFi-Heatmap-Spec.md`. **Note:** Continuous scan at 2 Hz is limited by the ~2s Shortcuts round-trip; effective rate will be ~0.5 Hz (one measurement every ~2s). This is sufficient for walking pace (~1m/s) but produces lower density than the original 2 Hz spec.
+
 **Reference:** WiFiman Signal Mapper — Walk through space with LiDAR; map is drawn and colored by Wi-Fi signal in real time.
 
-**Platform:** iOS only (**LiDAR required** — iPhone 12 Pro and later, iPad Pro 2020 and later)
+**Platform:** iOS only (**LiDAR required** — iPhone 12 Pro and later, iPad Pro 2020 and later; **iOS 17+ required** for Shortcuts Wi-Fi measurement)
 
 ## 3.1 Overview
 
@@ -637,11 +652,13 @@ Each phase is independently shippable. Phase 1 alone delivers significant value 
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|-----------|--------|------------|
-| iOS Wi-Fi API restrictions tighten in future iOS versions | Medium | High | Abstract all Wi-Fi access behind WiFiMeasurementEngine protocol. If APIs change, only one implementation file updates. |
+| iOS Wi-Fi API restrictions tighten in future iOS versions | Medium | High | Abstract all Wi-Fi access behind WiFiMeasurementEngine protocol. If APIs change, only one implementation file updates. Shortcuts "Get Network Details" action has been stable since iOS 17 and is used by multiple App Store apps (nOversight, WiFi Signal). |
 | AR mesh-to-2D floor plan produces noisy results | Medium | Medium | Phase 2 is P1 nice-to-have. Fallback to manual floor plan import always available. RoomPlan API (P2) produces cleaner output. |
 | Continuous scan (Phase 3) thermal throttling on older devices | High | Medium | ThermalThrottleMonitor (already exists in NetworkScanKit) gates scan intensity. Auto-pause at .serious. Document minimum device: iPhone 12 Pro. |
 | Metal rendering pipeline complexity | Medium | High | Phase 3 Metal renderer is the most complex new code. Prototype early. Fallback: CoreGraphics-based renderer at lower frame rate. |
-| NEHotspotNetwork rate limiting by Apple | Low | High | Cache measurements for 1s minimum. If throttled, reduce polling rate and notify user. |
+| NEHotspotNetwork rate limiting by Apple | Low | Low | NEHotspotNetwork is now only the fallback; primary path uses Shortcuts which is not rate-limited. Cache NEHotspotNetwork results for 1s minimum. |
+| Users refuse to install companion Shortcut | Medium | High | Provide guided one-time setup flow with clear value explanation. Offer NEHotspotNetwork fallback (SSID/BSSID only). Consider distributing shortcut via iCloud sharing link for one-tap install. |
+| Shortcuts round-trip latency limits continuous scan density | Low | Medium | ~2s round-trip means ~0.5 Hz effective measurement rate. Sufficient for walking pace surveys. For Phase 3, combine with position interpolation between measurements. |
 
 ---
 
