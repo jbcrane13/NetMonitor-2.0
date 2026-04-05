@@ -192,6 +192,31 @@ final class WiFiInfoService: NSObject, WiFiInfoServiceProtocol {
         )
     }
     
+    // MARK: - Shortcuts-Based WiFi (Heatmap)
+
+    /// Fetches Wi-Fi details via the Apple Shortcuts "Get Network Details" action,
+    /// falling back to ``NEHotspotNetwork`` if the shortcut is unavailable or times out.
+    ///
+    /// The Shortcuts path returns real RSSI (dBm), noise floor, channel, band, and
+    /// link speed — data that ``NEHotspotNetwork`` cannot provide. A 3-second timeout
+    /// covers the typical ~1.5-2.5s Shortcuts round-trip.
+    ///
+    /// - Parameter shortcutsProvider: The Shortcuts bridge to use. Defaults to a new instance.
+    /// - Returns: A ``WiFiInfo`` with the best available data, or `nil` if both paths fail.
+    func fetchWiFiViaShortcuts(
+        using shortcutsProvider: ShortcutsWiFiProvider = ShortcutsWiFiProvider()
+    ) async throws -> WiFiInfo? {
+        // Primary: Shortcuts-based measurement (reliable RSSI, noise, channel)
+        if let reading = try? await shortcutsProvider.fetchWiFiSignal(
+            timeout: ShortcutsWiFiProvider.defaultTimeout
+        ) {
+            return ShortcutsWiFiProvider.wifiInfo(from: reading)
+        }
+
+        // Fallback: NEHotspotNetwork (SSID + BSSID only, no RSSI on most devices)
+        return await fetchCurrentWiFi()
+    }
+
     // MARK: - Simulator Mock
     
     // periphery:ignore
