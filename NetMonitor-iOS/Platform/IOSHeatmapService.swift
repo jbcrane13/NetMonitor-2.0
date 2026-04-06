@@ -17,7 +17,7 @@ final class IOSHeatmapService: HeatmapServiceProtocol, @unchecked Sendable {
 
     // MARK: - Dependencies
 
-    private let wifiInfoService: WiFiInfoService
+    private let wifiInfoService: any WiFiInfoServiceProtocol
     private let shortcutsProvider: ShortcutsWiFiProvider
     nonisolated(unsafe) private let speedTestService: any SpeedTestServiceProtocol
     private let pingService: any PingServiceProtocol
@@ -33,7 +33,7 @@ final class IOSHeatmapService: HeatmapServiceProtocol, @unchecked Sendable {
     // MARK: - Init
 
     init(
-        wifiInfoService: WiFiInfoService,
+        wifiInfoService: any WiFiInfoServiceProtocol,
         shortcutsProvider: ShortcutsWiFiProvider = ShortcutsWiFiProvider(),
         speedTestService: any SpeedTestServiceProtocol,
         pingService: any PingServiceProtocol
