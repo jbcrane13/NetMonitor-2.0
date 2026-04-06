@@ -199,7 +199,7 @@ final class CompanionMessageHandler {
         }
 
         do {
-            let _ = await wakeOnLanService.wake(macAddress: mac, broadcastAddress: "255.255.255.255", port: 9)
+            _ = await wakeOnLanService.wake(macAddress: mac, broadcastAddress: "255.255.255.255", port: 9)
             return .toolResult(ToolResultPayload(
                 tool: "wakeOnLan",
                 success: true,

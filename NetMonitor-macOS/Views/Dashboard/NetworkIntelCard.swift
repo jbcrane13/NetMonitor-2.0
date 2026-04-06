@@ -173,14 +173,11 @@ struct NetworkIntelCard: View {
                 if trimmed.contains("ESTABLISHED") {
                     established += 1
                     total += 1
-                }
-                else if trimmed.contains("LISTEN") { listening += 1
+                } else if trimmed.contains("LISTEN") { listening += 1
                 total += 1
-                }
-                else if trimmed.contains("TIME_WAIT") { timeWait += 1
+                } else if trimmed.contains("TIME_WAIT") { timeWait += 1
                 total += 1
-                }
-                else if trimmed.contains("CLOSE_WAIT") || trimmed.contains("SYN_SENT") ||
+                } else if trimmed.contains("CLOSE_WAIT") || trimmed.contains("SYN_SENT") ||
                         trimmed.contains("SYN_RECEIVED") || trimmed.contains("FIN_WAIT") {
                     total += 1
                 }

@@ -122,10 +122,10 @@ struct UptimeViewModelTests {
         vm.load()
 
         #expect(vm.uptimeBar.count == 4)
-        #expect(vm.uptimeBar[0] == true,  "Segment 0 (24–18h ago) should be online")
+        #expect(vm.uptimeBar[0] == true, "Segment 0 (24–18h ago) should be online")
         #expect(vm.uptimeBar[1] == false, "Segment 1 (18–12h ago) should be offline")
         #expect(vm.uptimeBar[2] == false, "Segment 2 (12–6h ago) should be offline")
-        #expect(vm.uptimeBar[3] == true,  "Segment 3 (6–0h ago) should be online")
+        #expect(vm.uptimeBar[3] == true, "Segment 3 (6–0h ago) should be online")
     }
 
     @Test("Latest latency from most recent sample")

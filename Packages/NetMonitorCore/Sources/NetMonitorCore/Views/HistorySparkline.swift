@@ -7,14 +7,14 @@ public struct HistorySparkline: View {
     public let color: Color
     public let lineWidth: CGFloat
     public let showPulse: Bool
-    
+
     public init(data: [Double], color: Color = .green, lineWidth: CGFloat = 2, showPulse: Bool = true) {
         self.data = data
         self.color = color
         self.lineWidth = lineWidth
         self.showPulse = showPulse
     }
-    
+
     public var body: some View {
         GeometryReader { geometry in
             if data.count > 1 {
@@ -55,18 +55,18 @@ public struct HistorySparkline: View {
                     }
                     .stroke(color, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round, lineJoin: .round))
                     .shadow(color: color.opacity(0.3), radius: 3, x: 0, y: 0)
-                    
+
                     // 3. The Pulse Node
                     if showPulse, let lastVal = data.last {
                         let normalizedVal = CGFloat((lastVal - minVal) / range)
                         let y = geometry.size.height - (normalizedVal * geometry.size.height)
                         let x = geometry.size.width
-                        
+
                         Circle()
                             .fill(.white)
                             .frame(width: lineWidth * 1.5, height: lineWidth * 1.5)
                             .position(x: x, y: y)
-                        
+
                         Circle()
                             .stroke(color, lineWidth: 1)
                             .frame(width: lineWidth * 4, height: lineWidth * 4)

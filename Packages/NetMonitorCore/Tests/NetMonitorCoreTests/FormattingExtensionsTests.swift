@@ -28,12 +28,12 @@ struct FormatSpeedTests {
     @Test(
         "Values under 10 Mbps use 2 decimal places",
         arguments: [
-            (0.1,   "0.10 Mbps"),
-            (0.5,   "0.50 Mbps"),
-            (1.0,   "1.00 Mbps"),
-            (3.14,  "3.14 Mbps"),
-            (9.99,  "9.99 Mbps"),
-            (0.01,  "0.01 Mbps"),
+            (0.1, "0.10 Mbps"),
+            (0.5, "0.50 Mbps"),
+            (1.0, "1.00 Mbps"),
+            (3.14, "3.14 Mbps"),
+            (9.99, "9.99 Mbps"),
+            (0.01, "0.01 Mbps"),
             (5.555, "5.55 Mbps"),  // truncation due to IEEE 754
         ]
     )
@@ -46,9 +46,9 @@ struct FormatSpeedTests {
     @Test(
         "Values 10-99 Mbps use 1 decimal place",
         arguments: [
-            (10.0,  "10.0 Mbps"),
-            (45.3,  "45.3 Mbps"),
-            (99.9,  "99.9 Mbps"),
+            (10.0, "10.0 Mbps"),
+            (45.3, "45.3 Mbps"),
+            (99.9, "99.9 Mbps"),
             (50.55, "50.5 Mbps"),  // truncation due to IEEE 754
             (10.05, "10.1 Mbps"),  // IEEE 754: 10.05 is slightly > 10.05
         ]
@@ -62,11 +62,11 @@ struct FormatSpeedTests {
     @Test(
         "Values 100-999 Mbps use 0 decimal places",
         arguments: [
-            (100.0,  "100 Mbps"),
-            (250.0,  "250 Mbps"),
-            (999.9,  "1000 Mbps"),  // rounds to 1000 at display level
+            (100.0, "100 Mbps"),
+            (250.0, "250 Mbps"),
+            (999.9, "1000 Mbps"),  // rounds to 1000 at display level
             (500.49, "500 Mbps"),
-            (100.5,  "100 Mbps"),   // rounds down
+            (100.5, "100 Mbps"),   // rounds down
         ]
     )
     func hundredToThousandMbps(input: Double, expected: String) {
@@ -78,12 +78,12 @@ struct FormatSpeedTests {
     @Test(
         "Values >= 1000 Mbps are shown as Gbps with 2 decimal places",
         arguments: [
-            (1000.0,  "1.00 Gbps"),
-            (1250.0,  "1.25 Gbps"),
-            (2500.0,  "2.50 Gbps"),
+            (1000.0, "1.00 Gbps"),
+            (1250.0, "1.25 Gbps"),
+            (2500.0, "2.50 Gbps"),
             (10000.0, "10.00 Gbps"),
-            (1000.5,  "1.00 Gbps"),
-            (1999.9,  "2.00 Gbps"),
+            (1000.5, "1.00 Gbps"),
+            (1999.9, "2.00 Gbps"),
         ]
     )
     func gbpsValues(input: Double, expected: String) {
@@ -146,10 +146,10 @@ struct FormatDurationTests {
     @Test(
         "Under 60 seconds (no hours)",
         arguments: [
-            (1.0,  "0:01"),
+            (1.0, "0:01"),
             (30.0, "0:30"),
             (59.0, "0:59"),
-            (5.0,  "0:05"),
+            (5.0, "0:05"),
         ]
     )
     func underSixtySeconds(seconds: Double, expected: String) {
@@ -159,7 +159,7 @@ struct FormatDurationTests {
     @Test(
         "Under 60 seconds with alwaysShowHours",
         arguments: [
-            (1.0,  "00:00:01"),
+            (1.0, "00:00:01"),
             (30.0, "00:00:30"),
             (59.0, "00:00:59"),
         ]
@@ -178,10 +178,10 @@ struct FormatDurationTests {
     @Test(
         "Minutes and seconds",
         arguments: [
-            (75.0,   "1:15"),
-            (120.0,  "2:00"),
-            (185.0,  "3:05"),
-            (599.0,  "9:59"),
+            (75.0, "1:15"),
+            (120.0, "2:00"),
+            (185.0, "3:05"),
+            (599.0, "9:59"),
             (3540.0, "59:00"),
         ]
     )
@@ -199,10 +199,10 @@ struct FormatDurationTests {
     @Test(
         "Hours, minutes and seconds (alwaysShowHours=false)",
         arguments: [
-            (3723.0,  "1:02:03"),
-            (7200.0,  "2:00:00"),
+            (3723.0, "1:02:03"),
+            (7200.0, "2:00:00"),
             (86399.0, "23:59:59"),
-            (3661.0,  "1:01:01"),
+            (3661.0, "1:01:01"),
         ]
     )
     func hoursMinutesSeconds(seconds: Double, expected: String) {
@@ -212,9 +212,9 @@ struct FormatDurationTests {
     @Test(
         "Hours, minutes and seconds with alwaysShowHours",
         arguments: [
-            (75.0,    "00:01:15"),
-            (3723.0,  "01:02:03"),
-            (7200.0,  "02:00:00"),
+            (75.0, "00:01:15"),
+            (3723.0, "01:02:03"),
+            (7200.0, "02:00:00"),
             (86399.0, "23:59:59"),
         ]
     )

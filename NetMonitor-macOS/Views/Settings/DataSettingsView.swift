@@ -73,7 +73,7 @@ struct DataSettingsView: View {
             document: CSVDocument(url: exportURL),
             contentType: .commaSeparatedText,
             defaultFilename: "netmonitor-export"
-        ) { result in
+        ) { _ in
             // Handle export result
         }
         .alert("Clear All Data?", isPresented: $showClearConfirmation) {

@@ -648,7 +648,7 @@ struct MonitoringSessionLoopTests {
             name: "Disabled", host: "10.0.0.99",
             targetProtocol: .icmp, checkInterval: 60, isEnabled: false)
         let enabled  = NetworkTarget(
-            name: "Enabled",  host: "192.168.1.1",
+            name: "Enabled", host: "192.168.1.1",
             targetProtocol: .icmp, checkInterval: 60, isEnabled: true)
         context.insert(disabled); context.insert(enabled)
         try context.save()

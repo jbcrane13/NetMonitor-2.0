@@ -112,6 +112,15 @@ class IOSUITestCase: XCTestCase {
         coordinate.tap()
     }
 
+    /// Captures a screenshot and attaches it to the test for visual review.
+    func captureScreenshot(named name: String) {
+        let screenshot = app.screenshot()
+        let attachment = XCTAttachment(screenshot: screenshot)
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
     func waitForEither(_ elements: [XCUIElement], timeout: TimeInterval) -> Bool {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {

@@ -10,10 +10,10 @@ public struct ScanContext: Sendable {
 
     /// The local device's IP address (excluded from probing).
     public let localIP: String?
-    
+
     /// The network profile associated with this scan.
     public let networkProfile: NetworkScanProfile?
-    
+
     /// The scan strategy determining which phases are included.
     public let scanStrategy: ScanStrategy
 

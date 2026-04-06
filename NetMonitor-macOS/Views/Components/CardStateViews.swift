@@ -19,7 +19,7 @@ struct ShimmerModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
             .overlay(
-                GeometryReader { g in
+                GeometryReader { _ in
                     LinearGradient(
                         stops: [
                             .init(color: .clear, location: max(0, phase - 0.15)),

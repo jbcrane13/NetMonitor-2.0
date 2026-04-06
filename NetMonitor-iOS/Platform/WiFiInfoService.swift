@@ -11,7 +11,7 @@ final class WiFiInfoService: NSObject, WiFiInfoServiceProtocol {
     private(set) var currentWiFi: WiFiInfo?
     private(set) var isLocationAuthorized: Bool = false
     private(set) var authorizationStatus: CLAuthorizationStatus = .notDetermined
-    
+
     private let locationManager = CLLocationManager()
     private var retryTask: Task<Void, Never>?
 
@@ -21,7 +21,7 @@ final class WiFiInfoService: NSObject, WiFiInfoServiceProtocol {
     private static let cacheTTL: TimeInterval = 1.0
     private var lastFetchTime: Date?
     private var cachedResult: WiFiInfo?
-    
+
     override init() {
         super.init()
         locationManager.delegate = self
@@ -34,11 +34,11 @@ final class WiFiInfoService: NSObject, WiFiInfoServiceProtocol {
             await refreshWiFiInfo()
         }
     }
-    
+
     func requestLocationPermission() {
         locationManager.requestWhenInUseAuthorization()
     }
-    
+
     func refreshWiFiInfo() {
         retryTask?.cancel()
         retryTask = Task { [weak self] in
@@ -105,7 +105,7 @@ final class WiFiInfoService: NSObject, WiFiInfoServiceProtocol {
         }
         #endif
     }
-    
+
     // MARK: - Modern API (iOS 14+)
 
     private func fetchWiFiInfoModern() async -> WiFiInfo? {
@@ -149,9 +149,9 @@ final class WiFiInfoService: NSObject, WiFiInfoServiceProtocol {
             securityType: Self.securityLabel(for: network)
         )
     }
-    
+
     // MARK: - Security Type Mapping
-    
+
     private static func securityLabel(for network: NEHotspotNetwork) -> String {
         // NEHotspotNetworkSecurityType raw values: 0=Open, 1=WEP, 2=Personal, 3=Enterprise, 4=Unknown
         switch network.securityType.rawValue {
@@ -167,9 +167,9 @@ final class WiFiInfoService: NSObject, WiFiInfoServiceProtocol {
         let clamped = max(0, min(100, percent))
         return Int(-100.0 + (Double(clamped) / 100.0 * 70.0))
     }
-    
+
     // MARK: - Legacy API (fallback)
-    
+
     private func fetchWiFiInfoLegacy() -> WiFiInfo? {
         guard let interfaces = CNCopySupportedInterfaces() as? [String],
               let interface = interfaces.first,
@@ -191,7 +191,7 @@ final class WiFiInfoService: NSObject, WiFiInfoServiceProtocol {
             securityType: nil
         )
     }
-    
+
     // MARK: - Shortcuts-Based WiFi (Heatmap)
 
     /// Fetches Wi-Fi details via the Apple Shortcuts "Get Network Details" action,
@@ -218,7 +218,7 @@ final class WiFiInfoService: NSObject, WiFiInfoServiceProtocol {
     }
 
     // MARK: - Simulator Mock
-    
+
     // periphery:ignore
     private func mockWiFiInfo() -> WiFiInfo {
         WiFiInfo(

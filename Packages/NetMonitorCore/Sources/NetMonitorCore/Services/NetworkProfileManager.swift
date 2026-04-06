@@ -252,7 +252,7 @@ public final class NetworkProfileManager {
     /// - Link-local addresses (169.254.x.x)
     /// - Interfaces that are not UP and RUNNING
     /// - Duplicate interface entries
-    public nonisolated static func detectActiveProfiles() -> [NetworkProfile] {
+    nonisolated public static func detectActiveProfiles() -> [NetworkProfile] {
         var ifaddr: UnsafeMutablePointer<ifaddrs>?
         guard getifaddrs(&ifaddr) == 0, let firstAddr = ifaddr else { return [] }
         defer { freeifaddrs(ifaddr) }
@@ -293,7 +293,7 @@ public final class NetworkProfileManager {
 
     /// Returns the "primary" profile — the first active interface by priority,
     /// or nil if no interfaces are active.
-    public nonisolated static func primaryProfile() -> NetworkProfile? {
+    nonisolated public static func primaryProfile() -> NetworkProfile? {
         detectActiveProfiles().first
     }
 
@@ -320,7 +320,7 @@ public final class NetworkProfileManager {
         let cidr: String
     }
 
-    private nonisolated static func parseCIDR(_ value: String) -> CIDRDescriptor? {
+    nonisolated private static func parseCIDR(_ value: String) -> CIDRDescriptor? {
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         let parts = trimmed.split(separator: "/")
         guard parts.count == 2,
@@ -350,11 +350,11 @@ public final class NetworkProfileManager {
         )
     }
 
-    private nonisolated static func primaryProfile(from profiles: [NetworkProfile]) -> NetworkProfile? {
+    nonisolated private static func primaryProfile(from profiles: [NetworkProfile]) -> NetworkProfile? {
         profiles.first(where: { $0.isLocal }) ?? profiles.first
     }
 
-    private nonisolated static func inferConnectionType(for interface: String) -> ConnectionType {
+    nonisolated private static func inferConnectionType(for interface: String) -> ConnectionType {
         switch interface {
         case "en0":
             return .wifi
@@ -367,7 +367,7 @@ public final class NetworkProfileManager {
         }
     }
 
-    private nonisolated static func sortPriority(_ profile: NetworkProfile) -> Int {
+    nonisolated private static func sortPriority(_ profile: NetworkProfile) -> Int {
         switch profile.connectionType {
         case .wifi: return 0
         case .ethernet: return 1

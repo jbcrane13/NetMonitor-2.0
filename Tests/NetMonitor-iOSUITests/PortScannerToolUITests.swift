@@ -17,6 +17,7 @@ final class PortScannerToolUITests: IOSUITestCase {
     func testPortScannerScreenExists() throws {
         navigateToPortScannerTool()
         requireExists(app.otherElements["screen_portScannerTool"], message: "Port scanner screen should exist")
+        captureScreenshot(named: "PortScanner_Screen")
     }
 
     func testNavigationTitleExists() throws {
@@ -60,6 +61,7 @@ final class PortScannerToolUITests: IOSUITestCase {
         app.buttons["portScanner_button_run"].tap()
         let progress = app.otherElements["portScanner_progress"]
         XCTAssertTrue(progress.waitForExistence(timeout: 10), "Progress indicator should appear after starting scan")
+        captureScreenshot(named: "PortScanner_Scanning")
     }
 
     func testResultsSectionAppearsAfterScan() throws {
@@ -68,6 +70,7 @@ final class PortScannerToolUITests: IOSUITestCase {
         app.buttons["portScanner_button_run"].tap()
         let results = app.otherElements["portScanner_section_results"]
         XCTAssertTrue(results.waitForExistence(timeout: 30), "Results section should appear after scan completes")
+        captureScreenshot(named: "PortScanner_Results")
     }
 
     func testClearResultsButton() throws {

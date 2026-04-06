@@ -5,7 +5,7 @@ import Foundation
 public actor ScanEngine {
     /// The accumulator collecting all discovered devices.
     /// Declared `nonisolated` so callers can reference it without awaiting the actor.
-    public nonisolated let accumulator: ScanAccumulator
+    nonisolated public let accumulator: ScanAccumulator
 
     public init() {
         self.accumulator = ScanAccumulator()

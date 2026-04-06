@@ -96,10 +96,10 @@ final class ConnectivityCardViewModel {
     // MARK: - Anchor Pings
 
     private static let anchors: [(name: String, host: String)] = [
-        ("Google",     "8.8.8.8"),
+        ("Google", "8.8.8.8"),
         ("Cloudflare", "1.1.1.1"),
-        ("AWS",        "52.94.236.248"),
-        ("Apple",      "17.253.144.10"),
+        ("AWS", "52.94.236.248"),
+        ("Apple", "17.253.144.10"),
     ]
 
     private func pingAllAnchors() async {

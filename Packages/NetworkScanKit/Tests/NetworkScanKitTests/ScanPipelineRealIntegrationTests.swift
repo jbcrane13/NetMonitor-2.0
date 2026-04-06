@@ -40,7 +40,7 @@ struct ScanPipelineRealIntegrationTests {
             #expect(v >= 0.0 && v <= 1.0, "Progress value \(v) out of [0,1] range")
         }
         // Results may be empty (loopback doesn't respond to all probe types) — no crash is what matters
-        #expect(results.count >= 0, "Pipeline must complete and return results array (may be empty on loopback)")
+        #expect(results.isEmpty, "Pipeline must complete and return results array (may be empty on loopback)")
     }
 
     @Test("ScanPipeline.standard() on local subnet finds at least 1 device", .tags(.integration))

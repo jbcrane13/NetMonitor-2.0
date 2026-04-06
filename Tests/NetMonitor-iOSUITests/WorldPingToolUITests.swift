@@ -25,6 +25,7 @@ final class WorldPingToolUITests: IOSUITestCase {
         let card = ui("tools_card_world_ping")
         scrollToElement(card)
         XCTAssertTrue(card.waitForExistence(timeout: 8), "World Ping card should exist in tools grid")
+        captureScreenshot(named: "WorldPing_CardInGrid")
     }
 
     func testRunButtonExistsAndIsDisabledWithoutInput() {
@@ -61,6 +62,7 @@ final class WorldPingToolUITests: IOSUITestCase {
                 app.buttons["worldPing_button_clear"].waitForExistence(timeout: 5),
                 "Clear button should appear after results"
             )
+            captureScreenshot(named: "WorldPing_Results")
         } else {
             // Skip if network unavailable in test environment
             XCTSkip("Network unavailable; skipping results assertion")

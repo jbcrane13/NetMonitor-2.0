@@ -196,7 +196,7 @@ struct HeatmapSurveyViewModelCalibrationTests {
         let vm = HeatmapSurveyViewModel()
         vm.importFloorPlan(imageData: Data([1]), width: 1000, height: 500)
 
-        vm.addCalibrationPoint(at: CGPoint(x: 0.0, y: 0.0))
+        vm.addCalibrationPoint(at: CGPoint.zero)
         vm.addCalibrationPoint(at: CGPoint(x: 100.0, y: 0.0))
         vm.completeCalibration(withDistance: 10.0)
 
@@ -208,7 +208,7 @@ struct HeatmapSurveyViewModelCalibrationTests {
     func completeCalibrationResetsFlag() {
         let vm = HeatmapSurveyViewModel()
         vm.importFloorPlan(imageData: Data([1]), width: 800, height: 600)
-        vm.addCalibrationPoint(at: CGPoint(x: 0, y: 0))
+        vm.addCalibrationPoint(at: CGPoint.zero)
         vm.addCalibrationPoint(at: CGPoint(x: 100, y: 0))
         vm.isCalibrating = true
         vm.completeCalibration(withDistance: 5.0)
@@ -229,7 +229,7 @@ struct HeatmapSurveyViewModelCalibrationTests {
     func completeCalibrationClearsArray() {
         let vm = HeatmapSurveyViewModel()
         vm.importFloorPlan(imageData: Data([1]), width: 800, height: 600)
-        vm.addCalibrationPoint(at: CGPoint(x: 0, y: 0))
+        vm.addCalibrationPoint(at: CGPoint.zero)
         vm.addCalibrationPoint(at: CGPoint(x: 100, y: 0))
         vm.completeCalibration(withDistance: 10.0)
         #expect(vm.calibrationPoints.isEmpty)
@@ -238,7 +238,7 @@ struct HeatmapSurveyViewModelCalibrationTests {
     @Test("completeCalibration does nothing without a survey project")
     func completeCalibrationNoOpWithoutProject() {
         let vm = HeatmapSurveyViewModel()
-        vm.addCalibrationPoint(at: CGPoint(x: 0, y: 0))
+        vm.addCalibrationPoint(at: CGPoint.zero)
         vm.addCalibrationPoint(at: CGPoint(x: 100, y: 0))
         vm.completeCalibration(withDistance: 5.0)
         #expect(vm.surveyProject == nil)
@@ -256,7 +256,7 @@ struct HeatmapSurveyViewModelCalibrationTests {
     func completeCalibrationWithFeetConverts() {
         let vm = HeatmapSurveyViewModel()
         vm.importFloorPlan(imageData: Data([1]), width: 1000, height: 500)
-        vm.addCalibrationPoint(at: CGPoint(x: 0.0, y: 0.0))
+        vm.addCalibrationPoint(at: CGPoint.zero)
         vm.addCalibrationPoint(at: CGPoint(x: 100.0, y: 0.0))
         // 10 feet = 3.048 meters → metersPerPixel = 3.048/100 = 0.03048
         vm.completeCalibration(distance: 10.0, isFeet: true)
@@ -581,7 +581,7 @@ struct HeatmapSurveyViewModelSaveLoadTests {
     func loadProjectRestoresCalibrationState() throws {
         let vm = HeatmapSurveyViewModel()
         vm.importFloorPlan(imageData: Data([1]), width: 800, height: 600)
-        vm.addCalibrationPoint(at: CGPoint(x: 0, y: 0))
+        vm.addCalibrationPoint(at: CGPoint.zero)
         vm.addCalibrationPoint(at: CGPoint(x: 100, y: 0))
         vm.completeCalibration(withDistance: 10.0)
 

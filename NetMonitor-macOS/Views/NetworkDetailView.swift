@@ -71,9 +71,7 @@ struct NetworkDetailView: View {
         case compact, standard, wide
 
         init(width: CGFloat) {
-            if width >= 1600 { self = .wide }
-            else if width >= 1200 { self = .standard }
-            else { self = .compact }
+            if width >= 1600 { self = .wide } else if width >= 1200 { self = .standard } else { self = .compact }
         }
     }
 

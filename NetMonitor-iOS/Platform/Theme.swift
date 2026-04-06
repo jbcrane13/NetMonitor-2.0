@@ -96,7 +96,7 @@ enum Theme {
         @MainActor static var glassBackground: Color { crystalBase }
         static let glassBorder = crystalBorder
         static let glassHighlight = crystalHighlight
-        
+
         // Status colors
         static let online = success
         static let offline = error
@@ -122,7 +122,7 @@ enum Theme {
             startPoint: .topLeading,
             endPoint: .bottomTrailing
         )
-        
+
         // periphery:ignore
         @MainActor static var accentGlow: LinearGradient {
             LinearGradient(
@@ -131,7 +131,7 @@ enum Theme {
                 endPoint: .bottom
             )
         }
-        
+
         // periphery:ignore
         static let cardShine = LinearGradient(
             colors: [Colors.glassHighlight, Color.clear],
@@ -139,7 +139,7 @@ enum Theme {
             endPoint: .bottomTrailing
         )
     }
-    
+
     // MARK: - Layout
     enum Layout {
         static let cardCornerRadius: CGFloat = 20
@@ -170,7 +170,7 @@ enum Theme {
         static let latencyGood: Double = 50
         static let latencyWarning: Double = 150
     }
-    
+
     // MARK: - Shadows
     enum Shadows {
         static let card = Color(UIColor { traits in
@@ -180,12 +180,12 @@ enum Theme {
         })
         static let cardRadius: CGFloat = 15
         static let cardY: CGFloat = 5
-        
+
         // periphery:ignore
         @MainActor static var glow: Color { Colors.accent.opacity(0.3) }
         static let glowRadius: CGFloat = 20
     }
-    
+
     // MARK: - Animation
     enum Animation {
         static let standard = SwiftUI.Animation.easeInOut(duration: 0.3)

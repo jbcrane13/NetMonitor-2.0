@@ -14,7 +14,7 @@ public actor PingService: PingServiceProtocol {
     /// SAFETY: nonisolated is safe here because DispatchQueue is an immutable, thread-safe
     /// reference created at init and never reassigned (let). Accessing it from outside the
     /// actor's isolation domain is safe — DispatchQueue itself is Sendable.
-    private nonisolated let pingQueue = DispatchQueue(label: "com.netmonitor.ping", qos: .userInteractive)
+    nonisolated private let pingQueue = DispatchQueue(label: "com.netmonitor.ping", qos: .userInteractive)
 
     public init() {}
 

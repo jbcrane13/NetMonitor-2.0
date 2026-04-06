@@ -49,15 +49,15 @@ struct WebBrowserToolView: View {
             detectRouterAddress()
         }
     }
-    
+
     // MARK: - URL Input Section
-    
+
     private var urlInputSection: some View {
         VStack(alignment: .leading, spacing: Theme.Layout.itemSpacing) {
             Text("Enter URL")
                 .font(.headline)
                 .foregroundStyle(Theme.Colors.textPrimary)
-            
+
             ToolInputField(
                 text: $urlText,
                 placeholder: "https://example.com or 192.168.1.1",
@@ -68,7 +68,7 @@ struct WebBrowserToolView: View {
                     openURL()
                 }
             )
-            
+
             ToolRunButton(
                 title: "Open URL",
                 icon: "safari.fill",
@@ -79,15 +79,15 @@ struct WebBrowserToolView: View {
             .accessibilityIdentifier("webBrowser_button_open")
         }
     }
-    
+
     // MARK: - Quick Bookmarks Section
-    
+
     private var quickBookmarksSection: some View {
         VStack(alignment: .leading, spacing: Theme.Layout.itemSpacing) {
             Text("Network Tools & Common Sites")
                 .font(.headline)
                 .foregroundStyle(Theme.Colors.textPrimary)
-            
+
             GlassCard {
                 VStack(spacing: 0) {
                     ForEach(Array(quickBookmarks.enumerated()), id: \.element.id) { index, bookmark in
@@ -95,7 +95,7 @@ struct WebBrowserToolView: View {
                             urlText = bookmark.url
                             openURL()
                         }
-                        
+
                         if index < quickBookmarks.count - 1 {
                             Divider()
                                 .background(Theme.Colors.glassBorder)
@@ -107,9 +107,9 @@ struct WebBrowserToolView: View {
         }
         .accessibilityIdentifier("webBrowser_section_bookmarks")
     }
-    
+
     // MARK: - Recent URLs Section
-    
+
     @ViewBuilder
     private var recentURLsSection: some View {
         VStack(alignment: .leading, spacing: Theme.Layout.itemSpacing) {
@@ -117,9 +117,9 @@ struct WebBrowserToolView: View {
                 Text("Recent URLs")
                     .font(.headline)
                     .foregroundStyle(Theme.Colors.textPrimary)
-                
+
                 Spacer()
-                
+
                 Button("Clear") {
                     recentURLs.removeAll()
                     saveRecentURLs()
@@ -128,7 +128,7 @@ struct WebBrowserToolView: View {
                 .foregroundStyle(Theme.Colors.textSecondary)
                 .accessibilityIdentifier("webBrowser_button_clearRecent")
             }
-            
+
             GlassCard {
                 VStack(spacing: 0) {
                     ForEach(Array(recentURLs.enumerated()), id: \.offset) { index, url in
@@ -148,59 +148,59 @@ struct WebBrowserToolView: View {
         }
         .accessibilityIdentifier("webBrowser_section_recent")
     }
-    
+
     // MARK: - Actions
-    
+
     private func openURL() {
         guard !urlText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         showingSafari = true
     }
-    
+
     private func validURL(from text: String) -> URL? {
         let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        
+
         // Try as-is first (for full URLs)
         if let url = URL(string: trimmedText), url.scheme != nil {
             return url
         }
-        
+
         // Try with https:// prefix
         if let url = URL(string: "https://" + trimmedText), url.host != nil {
             return url
         }
-        
+
         // Try with http:// prefix (for local network devices)
         if let url = URL(string: "http://" + trimmedText), url.host != nil {
             return url
         }
-        
+
         return nil
     }
-    
+
     private func addToRecentURLs(_ url: String) {
         let trimmedURL = url.trimmingCharacters(in: .whitespacesAndNewlines)
-        
+
         // Remove if already exists
         recentURLs.removeAll { $0 == trimmedURL }
-        
+
         // Add to beginning
         recentURLs.insert(trimmedURL, at: 0)
-        
+
         // Keep only last 10
         if recentURLs.count > 10 {
             recentURLs = Array(recentURLs.prefix(10))
         }
-        
+
         saveRecentURLs()
     }
-    
+
     private func loadRecentURLs() {
         if let data = UserDefaults.standard.data(forKey: AppSettings.Keys.webBrowserRecentURLs),
            let urls = try? JSONDecoder().decode([String].self, from: data) {
             recentURLs = urls
         }
     }
-    
+
     private func saveRecentURLs() {
         if let data = try? JSONEncoder().encode(recentURLs) {
             UserDefaults.standard.set(data, forKey: AppSettings.Keys.webBrowserRecentURLs)
@@ -227,7 +227,7 @@ struct BookmarkItem: Identifiable {
 struct BookmarkRow: View {
     let bookmark: BookmarkItem
     let action: () -> Void
-    
+
     var body: some View {
         Button(action: action) {
             HStack(spacing: 12) {
@@ -300,28 +300,28 @@ struct RecentURLRow: View {
 struct SafariView: UIViewControllerRepresentable {
     let url: URL
     let onDismiss: () -> Void
-    
+
     func makeUIViewController(context: Context) -> SFSafariViewController {
         let safariVC = SFSafariViewController(url: url)
         safariVC.delegate = context.coordinator
         return safariVC
     }
-    
+
     func updateUIViewController(_ uiViewController: SFSafariViewController, context: Context) {
         // No updates needed
     }
-    
+
     func makeCoordinator() -> Coordinator {
         Coordinator(onDismiss: onDismiss)
     }
-    
+
     class Coordinator: NSObject, SFSafariViewControllerDelegate {
         let onDismiss: () -> Void
-        
+
         init(onDismiss: @escaping () -> Void) {
             self.onDismiss = onDismiss
         }
-        
+
         func safariViewControllerDidFinish(_ controller: SFSafariViewController) {
             onDismiss()
         }

@@ -71,7 +71,7 @@ final class NetworkMapViewModel {
     var scanProgress: Double {
         deviceDiscoveryService.scanProgress
     }
-    
+
     // periphery:ignore
     var scanPhaseText: String {
         let phase = deviceDiscoveryService.scanPhase
@@ -121,7 +121,7 @@ final class NetworkMapViewModel {
         if gatewayService.gateway == nil {
             await gatewayService.detectGateway()
         }
-        
+
         // Skip device scan if we already have cached results and not forcing refresh
         if !forceRefresh, !discoveredDevices.isEmpty {
             return

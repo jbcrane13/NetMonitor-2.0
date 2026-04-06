@@ -6,7 +6,7 @@ import os
 /// Uses UserNotifications framework, which is cross-platform (iOS + macOS 11+).
 @MainActor
 public final class NotificationService {
-    private nonisolated static let logger = Logger(
+    nonisolated private static let logger = Logger(
         subsystem: Bundle.main.bundleIdentifier ?? "com.blakemiller.netmonitor",
         category: "NotificationService"
     )

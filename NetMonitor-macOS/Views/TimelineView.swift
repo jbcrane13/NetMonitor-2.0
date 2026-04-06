@@ -30,9 +30,7 @@ final class TimelineMacViewModel {
         for e in filteredEvents {
             let day = cal.startOfDay(for: e.timestamp)
             let label: String
-            if day == today { label = "Today" }
-            else if day == yesterday { label = "Yesterday" }
-            else { label = DateFormatter.localizedString(from: day, dateStyle: .medium, timeStyle: .none) }
+            if day == today { label = "Today" } else if day == yesterday { label = "Yesterday" } else { label = DateFormatter.localizedString(from: day, dateStyle: .medium, timeStyle: .none) }
             groups[label, default: []].append(e)
         }
         let keys = groups.keys.sorted {

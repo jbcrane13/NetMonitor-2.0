@@ -212,7 +212,7 @@ public final class BonjourDiscoveryService: BonjourDiscoveryServiceProtocol {
 
     // MARK: - Service resolution
 
-    public nonisolated func resolveService(_ service: BonjourService) async -> BonjourService? {
+    nonisolated public func resolveService(_ service: BonjourService) async -> BonjourService? {
         await ConnectionBudget.shared.acquire()
         defer { Task { await ConnectionBudget.shared.release() } }
 
@@ -285,11 +285,11 @@ public final class BonjourDiscoveryService: BonjourDiscoveryServiceProtocol {
         return result
     }
 
-    private nonisolated static func normalizeHostName(_ host: String) -> String {
+    nonisolated private static func normalizeHostName(_ host: String) -> String {
         host.split(separator: "%", maxSplits: 1).first.map(String.init) ?? host
     }
 
-    private nonisolated static func isIPv4Address(_ value: String) -> Bool {
+    nonisolated private static func isIPv4Address(_ value: String) -> Bool {
         let components = value.split(separator: ".")
         guard components.count == 4 else { return false }
         return components.allSatisfy { UInt8($0) != nil }

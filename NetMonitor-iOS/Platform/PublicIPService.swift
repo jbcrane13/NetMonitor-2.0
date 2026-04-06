@@ -7,11 +7,11 @@ final class PublicIPService: PublicIPServiceProtocol {
     private(set) var ispInfo: ISPInfo?
     private(set) var isLoading: Bool = false
     private(set) var lastError: String?
-    
+
     private let session: URLSession
     private var lastFetch: Date?
     private let cacheDuration: TimeInterval = 300
-    
+
     init() {
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 10
@@ -24,7 +24,7 @@ final class PublicIPService: PublicIPServiceProtocol {
     init(session: URLSession) {
         self.session = session
     }
-    
+
     func fetchPublicIP(forceRefresh: Bool = false) async {
         if !forceRefresh,
            let lastFetch = lastFetch,
@@ -32,12 +32,12 @@ final class PublicIPService: PublicIPServiceProtocol {
            ispInfo != nil {
             return
         }
-        
+
         isLoading = true
         lastError = nil
-        
+
         defer { isLoading = false }
-        
+
         do {
             ispInfo = try await fetchFromIPAPI()
             lastFetch = Date()
@@ -45,7 +45,7 @@ final class PublicIPService: PublicIPServiceProtocol {
             lastError = error.localizedDescription
         }
     }
-    
+
     private func fetchFromIPAPI() async throws -> ISPInfo {
         // Step 1: Get guaranteed IPv4 address from ipify (IPv4-only service)
         let ipv4URL = URL(string: "https://api.ipify.org")!
@@ -86,7 +86,7 @@ final class PublicIPService: PublicIPServiceProtocol {
 enum PublicIPError: LocalizedError {
     case invalidResponse
     case decodingError
-    
+
     var errorDescription: String? {
         switch self {
         case .invalidResponse: "Invalid response from server"

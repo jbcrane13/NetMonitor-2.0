@@ -59,11 +59,11 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
 
     private let maxHostsPerScan = 1024
 
-    private nonisolated func cacheKey(for profile: NetworkProfile?) -> String {
+    nonisolated private func cacheKey(for profile: NetworkProfile?) -> String {
         profile?.id.uuidString ?? "auto"
     }
 
-    private nonisolated func withProfile(_ device: DiscoveredDevice, profileID: UUID?) -> DiscoveredDevice {
+    nonisolated private func withProfile(_ device: DiscoveredDevice, profileID: UUID?) -> DiscoveredDevice {
         DiscoveredDevice(
             id: device.id,
             ipAddress: device.ipAddress,
@@ -235,12 +235,12 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
 
     // MARK: - Scan Target Planning
 
-    private nonisolated func makeScanTarget(profile: NetworkProfile) -> ScanTarget {
+    nonisolated private func makeScanTarget(profile: NetworkProfile) -> ScanTarget {
         let hosts = profile.network.hostAddresses(limit: maxHostsPerScan)
         return ScanTarget(hosts: hosts, filter: .network(profile.network))
     }
 
-    private nonisolated func makeScanTarget(subnet: String?) -> ScanTarget {
+    nonisolated private func makeScanTarget(subnet: String?) -> ScanTarget {
         let localIP = NetworkUtilities.detectLocalIPAddress()
 
         if let subnet, !subnet.isEmpty {
@@ -264,7 +264,7 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
         )
     }
 
-    private nonisolated func hostsForSubnetPrefix(_ subnet: String, excluding ipToSkip: String?) -> [String] {
+    nonisolated private func hostsForSubnetPrefix(_ subnet: String, excluding ipToSkip: String?) -> [String] {
         var hosts: [String] = []
         hosts.reserveCapacity(254)
 

@@ -150,7 +150,7 @@ struct ScanPipelineIntegrationTests {
         #expect(await engine.accumulator.count == 1)
 
         await engine.reset()
-        #expect(await engine.accumulator.count == 0)
+        #expect(await engine.accumulator.isEmpty)
 
         let results2 = await engine.scan(pipeline: pipeline, context: makeContext(hosts: [])) { _, _ in }
         #expect(results2.count == 1)

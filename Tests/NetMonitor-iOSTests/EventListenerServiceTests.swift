@@ -113,7 +113,7 @@ struct EventListenerServiceTests {
         #expect(spy.loggedEvents.count == 2)
         #expect(spy.events(ofType: .connectivityChange).count == 1)
         #expect(spy.events(ofType: .scanComplete).count == 1)
-        #expect(spy.events(ofType: .deviceJoined).count == 0)
+        #expect(spy.events(ofType: .deviceJoined).isEmpty)
     }
 
     @Test("SpyNetworkEventService clearAll removes all events")

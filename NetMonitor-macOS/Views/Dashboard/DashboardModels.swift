@@ -28,10 +28,10 @@ struct LatencyStats {
 
     // periphery:ignore
     struct HistogramBuckets {
-        let under5ms:  Int
-        let ms5to20:   Int
-        let ms20to50:  Int
-        let over50ms:  Int
+        let under5ms: Int
+        let ms5to20: Int
+        let ms20to50: Int
+        let over50ms: Int
 
         var total: Int { under5ms + ms5to20 + ms20to50 + over50ms }
 

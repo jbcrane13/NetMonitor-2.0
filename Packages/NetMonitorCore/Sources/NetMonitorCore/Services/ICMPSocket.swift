@@ -51,7 +51,7 @@ actor ICMPSocket {
     /// Monotonically increasing sequence counter for correlating probes.
     private var sequenceCounter: UInt16 = 0
     /// Dedicated queue for blocking BSD socket I/O to avoid blocking the cooperative pool.
-    private nonisolated let ioQueue = DispatchQueue(label: "com.netmonitor.icmp.io", qos: .userInteractive)
+    nonisolated private let ioQueue = DispatchQueue(label: "com.netmonitor.icmp.io", qos: .userInteractive)
 
     init() throws {
         let rawFd = socket(AF_INET, SOCK_DGRAM, IPPROTO_ICMP)
@@ -136,7 +136,7 @@ actor ICMPSocket {
 
     /// Builds an ICMP echo request, sends it, waits for a response, and parses it.
     /// Entirely self-contained — no actor state accessed.
-    private nonisolated static func performProbe(
+    nonisolated private static func performProbe(
         fd: Int32,
         target: String,
         sequence: UInt16,
@@ -391,7 +391,7 @@ actor ICMPSocket {
     /// Drains any pending data from the socket receive buffer.
     /// Called before each new probe to prevent stale responses from being
     /// read as replies to the current probe.
-    private nonisolated static func drainSocket(fd: Int32) {
+    nonisolated private static func drainSocket(fd: Int32) {
         var buf = [UInt8](repeating: 0, count: 1024)
         var drained = 0
         while true {
@@ -407,7 +407,7 @@ actor ICMPSocket {
     // MARK: - Utilities
 
     /// Converts a sockaddr_in to a human-readable IPv4 string.
-    private nonisolated static func ipString(from addr: sockaddr_in) -> String? {
+    nonisolated private static func ipString(from addr: sockaddr_in) -> String? {
         var addrCopy = addr
         var buffer = [CChar](repeating: 0, count: Int(INET_ADDRSTRLEN))
         let result = inet_ntop(AF_INET, &addrCopy.sin_addr, &buffer, socklen_t(INET_ADDRSTRLEN))

@@ -145,7 +145,7 @@ public actor WHOISService: WHOISServiceProtocol {
         }
     }
 
-    private nonisolated func receiveAll(
+    nonisolated private func receiveAll(
         connection: NWConnection,
         accumulated: Data = Data(),
         completion: @escaping @Sendable (Result<String, Error>) -> Void

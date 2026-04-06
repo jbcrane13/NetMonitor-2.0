@@ -115,7 +115,7 @@ public final class SpeedTestService: SpeedTestServiceProtocol {
             request.httpMethod = "HEAD"
             request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
             do {
-                let _ = try await session.data(for: request)
+                _ = try await session.data(for: request)
                 let elapsed = Date().timeIntervalSince(start) * 1000
                 times.append(elapsed)
             } catch {

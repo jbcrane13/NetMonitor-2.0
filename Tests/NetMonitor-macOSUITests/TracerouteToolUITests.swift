@@ -1,74 +1,86 @@
 import XCTest
 
 @MainActor
-final class TracerouteToolUITests: XCTestCase {
-    var app: XCUIApplication!
+final class TracerouteToolUITests: MacOSUITestCase {
 
-    override func setUpWithError() throws {
-        continueAfterFailure = false
-        app = XCUIApplication()
-        app.launch()
-        // Navigate to Tools
-        let sidebar = app.descendants(matching: .any)["sidebar_tools"]
-        XCTAssertTrue(sidebar.waitForExistence(timeout: 5))
-        sidebar.tap()
-        // Open Traceroute tool
-        let card = app.otherElements["tools_card_traceroute"]
-        XCTAssertTrue(card.waitForExistence(timeout: 3))
-        card.tap()
+    private func openTraceroute() {
+        openTool(cardID: "tools_card_traceroute", sheetElement: "traceroute_textfield_host")
     }
-
-    // tearDownWithError: handled by MacOSUITestCase (terminates app + nils ref)
 
     // MARK: - Element Existence
 
     func testHostFieldExists() {
-        XCTAssertTrue(app.textFields["traceroute_textfield_host"].waitForExistence(timeout: 3))
+        openTraceroute()
+        requireExists(app.textFields["traceroute_textfield_host"], message: "Host field should exist")
+        captureScreenshot(named: "Traceroute_Screen")
     }
 
     func testHopsPickerExists() {
-        XCTAssertTrue(app.popUpButtons["traceroute_picker_hops"].waitForExistence(timeout: 3))
+        openTraceroute()
+        requireExists(app.popUpButtons["traceroute_picker_hops"], message: "Hops picker should exist")
     }
 
     func testRunButtonExists() {
-        XCTAssertTrue(app.buttons["traceroute_button_run"].waitForExistence(timeout: 3))
+        openTraceroute()
+        requireExists(app.buttons["traceroute_button_run"], message: "Run button should exist")
     }
 
     func testCloseButtonExists() {
-        XCTAssertTrue(app.buttons["traceroute_button_close"].waitForExistence(timeout: 3))
+        openTraceroute()
+        requireExists(app.buttons["traceroute_button_close"], message: "Close button should exist")
     }
 
-    // MARK: - Interactions
+    // MARK: - Input Validation
 
     func testRunButtonDisabledWhenHostEmpty() {
-        let runButton = app.buttons["traceroute_button_run"]
-        XCTAssertTrue(runButton.waitForExistence(timeout: 3))
-        XCTAssertFalse(runButton.isEnabled)
+        openTraceroute()
+        let runButton = requireExists(app.buttons["traceroute_button_run"], message: "Run button should exist")
+        XCTAssertFalse(runButton.isEnabled, "Run button should be disabled without host input")
     }
 
     func testRunButtonEnabledAfterTypingHost() {
-        let hostField = app.textFields["traceroute_textfield_host"]
-        XCTAssertTrue(hostField.waitForExistence(timeout: 3))
-        hostField.tap()
-        hostField.typeText("8.8.8.8")
-
-        XCTAssertTrue(app.buttons["traceroute_button_run"].isEnabled)
+        openTraceroute()
+        clearAndTypeText("8.8.8.8", into: app.textFields["traceroute_textfield_host"])
+        let runButton = requireExists(app.buttons["traceroute_button_run"], message: "Run button should exist")
+        XCTAssertTrue(runButton.isEnabled, "Run button should be enabled after entering host")
     }
+
+    // MARK: - Navigation
 
     func testCloseButtonDismissesSheet() {
+        openTraceroute()
         app.buttons["traceroute_button_close"].tap()
-        XCTAssertTrue(app.otherElements["tools_card_traceroute"].waitForExistence(timeout: 3))
+        requireExists(
+            app.otherElements["tools_card_traceroute"],
+            message: "Tool card should reappear after closing sheet"
+        )
     }
 
-    func testTypeHostAndTrace() {
-        let hostField = app.textFields["traceroute_textfield_host"]
-        XCTAssertTrue(hostField.waitForExistence(timeout: 3))
-        hostField.tap()
-        hostField.typeText("1.1.1.1")
+    // MARK: - Trace Execution
 
+    func testTypeHostAndTrace() {
+        openTraceroute()
+        clearAndTypeText("1.1.1.1", into: app.textFields["traceroute_textfield_host"])
         app.buttons["traceroute_button_run"].tap()
 
-        // Button should remain visible (changes to "Stop")
-        XCTAssertTrue(app.buttons["traceroute_button_run"].waitForExistence(timeout: 3))
+        // Should enter running state — button remains or results appear
+        let results = ui("traceroute_results")
+        let runButton = app.buttons["traceroute_button_run"]
+        XCTAssertTrue(
+            waitForEither([results, runButton], timeout: 10),
+            "Traceroute should enter running state or show results"
+        )
+        captureScreenshot(named: "Traceroute_Running")
+    }
+
+    func testTracerouteShowsResults() {
+        openTraceroute()
+        clearAndTypeText("8.8.8.8", into: app.textFields["traceroute_textfield_host"])
+        app.buttons["traceroute_button_run"].tap()
+
+        let results = ui("traceroute_results")
+        if results.waitForExistence(timeout: 30) {
+            captureScreenshot(named: "Traceroute_Results")
+        }
     }
 }

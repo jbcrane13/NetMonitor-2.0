@@ -78,9 +78,9 @@ struct PingServiceTests {
         // 2 success (10ms, 20ms), 2 timeouts
         let results = [
             makeResult(sequence: 1, time: 10.0),
-            makeResult(sequence: 2, time: 0,  isTimeout: true),
+            makeResult(sequence: 2, time: 0, isTimeout: true),
             makeResult(sequence: 3, time: 20.0),
-            makeResult(sequence: 4, time: 0,  isTimeout: true),
+            makeResult(sequence: 4, time: 0, isTimeout: true),
         ]
         let stats = await service.calculateStatistics(results, requestedCount: 4)
         #expect(stats != nil)

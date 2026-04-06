@@ -73,23 +73,23 @@ final class DashboardViewModel {
             selectedNetworkID: &selectedNetworkID
         )
     }
-    
+
     var isConnected: Bool {
         networkMonitor.isConnected
     }
-    
+
     var connectionType: ConnectionType {
         networkMonitor.connectionType
     }
-    
+
     var connectionStatusText: String {
         networkMonitor.statusText
     }
-    
+
     var currentWiFi: WiFiInfo? {
         wifiService.currentWiFi
     }
-    
+
     var gateway: GatewayInfo? {
         gatewayService.gateway
     }
@@ -130,11 +130,11 @@ final class DashboardViewModel {
     var recentEvents: [ToolActivityItem] {
         Array(ToolActivityLog.shared.entries.prefix(3))
     }
-    
+
     var ispInfo: ISPInfo? {
         publicIPService.ispInfo
     }
-    
+
     var discoveredDevices: [DiscoveredDevice] {
         let currentDevices = scopedDevices(from: deviceDiscoveryService.discoveredDevices)
         if !currentDevices.isEmpty {
@@ -142,16 +142,16 @@ final class DashboardViewModel {
         }
         return scopedDevices(from: deviceDiscoveryService.cachedDevices(for: activeNetwork))
     }
-    
+
     var deviceCount: Int {
         discoveredDevices.count
     }
-    
+
     // periphery:ignore
     var lastScanDate: Date? {
         deviceDiscoveryService.lastScanDate
     }
-    
+
     var isScanning: Bool {
         deviceDiscoveryService.isScanning
     }
@@ -175,30 +175,30 @@ final class DashboardViewModel {
     var isShowingStaleActiveNetworkData: Bool {
         (activeNetwork?.gatewayReachable == false) && (activeNetwork?.lastScanned != nil)
     }
-    
+
     var sessionDuration: String {
         let interval = Date().timeIntervalSince(sessionStartTime)
         let hours = Int(interval) / 3600
         let minutes = (Int(interval) % 3600) / 60
-        
+
         if hours > 0 {
             return "\(hours)h \(minutes)m"
         }
         return "\(minutes)m"
     }
-    
+
     // periphery:ignore
     var sessionStartTimeFormatted: String {
         let formatter = DateFormatter()
         formatter.dateFormat = "h:mm a"
         return "Today, \(formatter.string(from: sessionStartTime))"
     }
-    
+
     func refresh(forceIP: Bool = false) async {
         guard !isRefreshing else { return }
         isRefreshing = true
         defer { isRefreshing = false }
-        
+
         wifiService.refreshWiFiInfo()
         detectSystemDNS()
 
@@ -215,7 +215,7 @@ final class DashboardViewModel {
                 success: true
             )
         }
-        
+
         await gatewayService.detectGateway()
 
         // Log gateway check — only on significant change
@@ -297,7 +297,7 @@ final class DashboardViewModel {
             )
         }
     }
-    
+
     func refreshAvailableNetworks() {
         networkProfileManager.detectLocalNetwork()
         availableNetworks = networkProfileManager.profiles.sorted(by: sortProfiles)
@@ -336,17 +336,17 @@ final class DashboardViewModel {
     func stopDeviceScan() {
         deviceDiscoveryService.stopScan()
     }
-    
+
     // periphery:ignore
     func refreshPublicIP() async {
         await publicIPService.fetchPublicIP(forceRefresh: true)
     }
-    
+
     // periphery:ignore
     func requestLocationPermission() {
         wifiService.requestLocationPermission()
     }
-    
+
     var needsLocationPermission: Bool {
         !wifiService.isLocationAuthorized
     }

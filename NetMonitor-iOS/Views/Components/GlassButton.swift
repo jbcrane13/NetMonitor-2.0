@@ -6,7 +6,7 @@ struct GlassButtonStyle: ButtonStyle {
     var style: GlassButton.Style = .primary
     var size: GlassButton.Size = .medium
     var isFullWidth: Bool = false
-    
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(size.font)
@@ -18,7 +18,7 @@ struct GlassButtonStyle: ButtonStyle {
                 ZStack {
                     RoundedRectangle(cornerRadius: Theme.Layout.buttonCornerRadius)
                         .fill(.ultraThinMaterial)
-                    
+
                     RoundedRectangle(cornerRadius: Theme.Layout.buttonCornerRadius)
                         .fill(style.backgroundColor)
                 }
@@ -47,14 +47,14 @@ struct GlassButton: View {
     var isFullWidth: Bool = false
     var isLoading: Bool = false
     let action: () -> Void
-    
+
     @MainActor enum Style {
         case primary
         case secondary
         case success
         case danger
         case ghost
-        
+
         var backgroundColor: Color {
             switch self {
             case .primary: Theme.Colors.accent.opacity(0.3)
@@ -64,7 +64,7 @@ struct GlassButton: View {
             case .ghost: Color.clear
             }
         }
-        
+
         var foregroundColor: Color {
             switch self {
             case .primary: Theme.Colors.accentLight
@@ -74,7 +74,7 @@ struct GlassButton: View {
             case .ghost: Theme.Colors.textSecondary
             }
         }
-        
+
         var borderColor: Color {
             switch self {
             case .primary: Theme.Colors.accent.opacity(0.5)
@@ -84,7 +84,7 @@ struct GlassButton: View {
             case .ghost: Color.clear
             }
         }
-        
+
         var shadowColor: Color {
             switch self {
             case .primary: Theme.Colors.accent.opacity(0.3)
@@ -95,12 +95,12 @@ struct GlassButton: View {
             }
         }
     }
-    
+
     enum Size {
         case small
         case medium
         case large
-        
+
         var font: Font {
             switch self {
             case .small: .caption
@@ -108,7 +108,7 @@ struct GlassButton: View {
             case .large: .body
             }
         }
-        
+
         var padding: EdgeInsets {
             switch self {
             case .small: EdgeInsets(top: 6, leading: 12, bottom: 6, trailing: 12)
@@ -116,7 +116,7 @@ struct GlassButton: View {
             case .large: EdgeInsets(top: 14, leading: 24, bottom: 14, trailing: 24)
             }
         }
-        
+
         var iconSize: CGFloat {
             switch self {
             case .small: 12
@@ -125,7 +125,7 @@ struct GlassButton: View {
             }
         }
     }
-    
+
     var body: some View {
         Button(action: action) {
             HStack(spacing: 8) {
@@ -137,7 +137,7 @@ struct GlassButton: View {
                     Image(systemName: icon)
                         .font(.system(size: size.iconSize, weight: .semibold))
                 }
-                
+
                 Text(title)
             }
         }
@@ -153,7 +153,7 @@ struct GlassIconButton: View {
     var style: GlassButton.Style = .secondary
     var size: CGFloat = 44
     let action: () -> Void
-    
+
     var body: some View {
         Button(action: action) {
             Image(systemName: icon)
@@ -183,13 +183,13 @@ struct GlassIconButton: View {
     ZStack {
         Theme.Gradients.background
             .ignoresSafeArea()
-        
+
         ScrollView {
             VStack(spacing: 24) {
                 Text("Button Styles")
                     .font(.headline)
                     .foregroundStyle(Theme.Colors.textPrimary)
-                
+
                 VStack(spacing: 12) {
                     GlassButton(title: "Primary", icon: "arrow.right", style: .primary) {}
                     GlassButton(title: "Secondary", icon: "gear", style: .secondary) {}
@@ -197,33 +197,33 @@ struct GlassIconButton: View {
                     GlassButton(title: "Danger", icon: "trash", style: .danger) {}
                     GlassButton(title: "Ghost", style: .ghost) {}
                 }
-                
+
                 Text("Sizes")
                     .font(.headline)
                     .foregroundStyle(Theme.Colors.textPrimary)
-                
+
                 HStack(spacing: 12) {
                     GlassButton(title: "Small", size: .small) {}
                     GlassButton(title: "Medium", size: .medium) {}
                     GlassButton(title: "Large", size: .large) {}
                 }
-                
+
                 Text("Full Width")
                     .font(.headline)
                     .foregroundStyle(Theme.Colors.textPrimary)
-                
+
                 GlassButton(title: "Full Width Button", icon: "wifi", isFullWidth: true) {}
-                
+
                 Text("Loading")
                     .font(.headline)
                     .foregroundStyle(Theme.Colors.textPrimary)
-                
+
                 GlassButton(title: "Loading...", isLoading: true) {}
-                
+
                 Text("Icon Buttons")
                     .font(.headline)
                     .foregroundStyle(Theme.Colors.textPrimary)
-                
+
                 HStack(spacing: 16) {
                     GlassIconButton(icon: "plus", style: .primary) {}
                     GlassIconButton(icon: "gear", style: .secondary) {}

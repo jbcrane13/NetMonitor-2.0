@@ -27,7 +27,7 @@ struct ScanAccumulatorTests {
     @Test("starts empty")
     func startsEmpty() async {
         let acc = ScanAccumulator()
-        #expect(await acc.count == 0)
+        #expect(await acc.isEmpty)
         #expect(await acc.snapshot().isEmpty)
     }
 
@@ -144,7 +144,7 @@ struct ScanAccumulatorTests {
     func updateLatencyUnknownIP() async {
         let acc = ScanAccumulator()
         await acc.updateLatency(ip: "10.0.0.99", latency: 5.0)  // should not crash
-        #expect(await acc.count == 0)
+        #expect(await acc.isEmpty)
     }
 
     @Test("replaceLatency overwrites existing latency")
@@ -160,7 +160,7 @@ struct ScanAccumulatorTests {
     func replaceLatencyUnknownIP() async {
         let acc = ScanAccumulator()
         await acc.replaceLatency(ip: "10.0.0.99", latency: 5.0)  // should not crash
-        #expect(await acc.count == 0)
+        #expect(await acc.isEmpty)
     }
 
     @Test("sortedSnapshot returns devices in numeric IP order")
@@ -182,7 +182,7 @@ struct ScanAccumulatorTests {
         await acc.upsert(makeDevice(ip: "192.168.1.2"))
         #expect(await acc.count == 2)
         await acc.reset()
-        #expect(await acc.count == 0)
+        #expect(await acc.isEmpty)
         #expect(await acc.snapshot().isEmpty)
         #expect(await acc.knownIPs().isEmpty)
         #expect(await acc.contains(ip: "192.168.1.1") == false)

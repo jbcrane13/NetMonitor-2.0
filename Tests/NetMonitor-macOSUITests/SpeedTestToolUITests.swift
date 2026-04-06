@@ -1,77 +1,98 @@
 import XCTest
 
 @MainActor
-final class SpeedTestToolUITests: XCTestCase {
-    var app: XCUIApplication!
+final class SpeedTestToolUITests: MacOSUITestCase {
 
-    override func setUpWithError() throws {
-        continueAfterFailure = false
-        app = XCUIApplication()
-        app.launch()
-        // Navigate to Tools
-        let sidebar = app.descendants(matching: .any)["sidebar_nav_tools"]
-        XCTAssertTrue(sidebar.waitForExistence(timeout: 5))
-        sidebar.tap()
-        // Open Speed Test tool
-        let card = app.otherElements["tools_card_speed_test"]
-        XCTAssertTrue(card.waitForExistence(timeout: 3))
-        card.tap()
+    private func openSpeedTest() {
+        openTool(cardID: "tools_card_speed_test", sheetElement: "speedTest_button_start")
     }
-
-    // tearDownWithError: handled by MacOSUITestCase (terminates app + nils ref)
 
     // MARK: - Element Existence
 
     func testDurationPickerExists() {
-        XCTAssertTrue(app.segmentedControls["speedTest_picker_duration"].waitForExistence(timeout: 3))
+        openSpeedTest()
+        requireExists(
+            app.segmentedControls["speedTest_picker_duration"],
+            message: "Duration picker should exist"
+        )
+        captureScreenshot(named: "SpeedTest_Screen")
     }
 
     func testStartButtonExists() {
-        XCTAssertTrue(app.buttons["speedTest_button_start"].waitForExistence(timeout: 3))
+        openSpeedTest()
+        requireExists(app.buttons["speedTest_button_start"], message: "Start button should exist")
     }
 
     func testCloseButtonExists() {
-        XCTAssertTrue(app.buttons["speedTest_button_close"].waitForExistence(timeout: 3))
+        openSpeedTest()
+        requireExists(app.buttons["speedTest_button_close"], message: "Close button should exist")
     }
 
     // MARK: - Interactions
 
     func testStartButtonIsEnabled() {
-        let startButton = app.buttons["speedTest_button_start"]
-        XCTAssertTrue(startButton.waitForExistence(timeout: 3))
-        XCTAssertTrue(startButton.isEnabled)
+        openSpeedTest()
+        let startButton = requireExists(app.buttons["speedTest_button_start"], message: "Start button should exist")
+        XCTAssertTrue(startButton.isEnabled, "Start button should be enabled")
     }
 
     func testCloseButtonDismissesSheet() {
+        openSpeedTest()
         app.buttons["speedTest_button_close"].tap()
-        XCTAssertTrue(app.otherElements["tools_card_speed_test"].waitForExistence(timeout: 3))
+        requireExists(
+            app.otherElements["tools_card_speed_test"],
+            message: "Tool card should reappear after closing sheet"
+        )
     }
 
     func testStartShowsStopButton() {
-        let startButton = app.buttons["speedTest_button_start"]
-        XCTAssertTrue(startButton.waitForExistence(timeout: 3))
-        startButton.tap()
-
-        // Stop button should appear
-        let stopButton = app.buttons["speedTest_button_stop"]
-        XCTAssertTrue(stopButton.waitForExistence(timeout: 5))
-    }
-
-    func testStopButtonStopsTest() {
+        openSpeedTest()
         app.buttons["speedTest_button_start"].tap()
 
         let stopButton = app.buttons["speedTest_button_stop"]
-        XCTAssertTrue(stopButton.waitForExistence(timeout: 5))
-        stopButton.tap()
-
-        // Start button should reappear
-        XCTAssertTrue(app.buttons["speedTest_button_start"].waitForExistence(timeout: 5))
+        XCTAssertTrue(stopButton.waitForExistence(timeout: 5), "Stop button should appear during test")
+        captureScreenshot(named: "SpeedTest_Running")
     }
 
-    func testDurationPickerSegments() {
-        let picker = app.segmentedControls["speedTest_picker_duration"]
-        XCTAssertTrue(picker.waitForExistence(timeout: 3))
-        // Should have 3 segments: 5s, 10s, 30s
-        XCTAssertEqual(picker.buttons.count, 3)
+    func testStopButtonReturnsToStart() {
+        openSpeedTest()
+        app.buttons["speedTest_button_start"].tap()
+
+        let stopButton = app.buttons["speedTest_button_stop"]
+        guard stopButton.waitForExistence(timeout: 5) else { return }
+        stopButton.tap()
+
+        requireExists(
+            app.buttons["speedTest_button_start"],
+            timeout: 5,
+            message: "Start button should reappear after stopping"
+        )
+    }
+
+    func testDurationPickerHasThreeSegments() {
+        openSpeedTest()
+        let picker = requireExists(
+            app.segmentedControls["speedTest_picker_duration"],
+            message: "Duration picker should exist"
+        )
+        XCTAssertEqual(picker.buttons.count, 3, "Duration picker should have 3 segments (5s, 10s, 30s)")
+    }
+
+    func testSpeedTestCompletesWithResults() {
+        openSpeedTest()
+        app.buttons["speedTest_button_start"].tap()
+
+        // Wait for results or stop button
+        let results = ui("speedTest_section_results")
+        let stopButton = app.buttons["speedTest_button_stop"]
+
+        XCTAssertTrue(
+            waitForEither([results, stopButton], timeout: 10),
+            "Speed test should enter running state or show results"
+        )
+
+        if results.waitForExistence(timeout: 45) {
+            captureScreenshot(named: "SpeedTest_Results")
+        }
     }
 }

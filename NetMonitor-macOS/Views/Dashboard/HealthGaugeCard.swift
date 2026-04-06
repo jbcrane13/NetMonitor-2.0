@@ -61,9 +61,9 @@ struct HealthGaugeCard: View {
                 // Score breakdown bars
                 if let score = viewModel.currentScore {
                     VStack(spacing: 3) {
-                        scoreBar(label: "Latency",  pct: latencyPct(score), color: MacTheme.Colors.success)
-                        scoreBar(label: "Loss",     pct: lossPct(score),    color: MacTheme.Colors.success)
-                        scoreBar(label: "Devices",  pct: 0.88,              color: MacTheme.Colors.warning)
+                        scoreBar(label: "Latency", pct: latencyPct(score), color: MacTheme.Colors.success)
+                        scoreBar(label: "Loss", pct: lossPct(score), color: MacTheme.Colors.success)
+                        scoreBar(label: "Devices", pct: 0.88, color: MacTheme.Colors.warning)
                     }
                 } else if viewModel.isCalculating {
                     ProgressView().controlSize(.small)

@@ -7,7 +7,7 @@ struct DashboardView: View {
     @State private var viewModel = DashboardViewModel()
     // periphery:ignore
     @State private var isAddNetworkSheetPresented = false
-    
+
     var body: some View {
         NavigationStack {
             GeometryReader { geo in
@@ -185,12 +185,12 @@ struct TacticalHUDHeader: View {
                                         )
                                     )
                             }
-                            
+
                             HStack(spacing: 6) {
                                 Text(viewModel.activeNetwork?.displayName ?? viewModel.currentWiFi?.ssid ?? "Unknown Network")
                                     .font(.system(size: 12, weight: .semibold))
                                     .foregroundStyle(Theme.Colors.textSecondary)
-                                
+
                                 if let channel = viewModel.currentWiFi?.channel {
                                     Text("•")
                                         .foregroundStyle(Theme.Colors.textTertiary)
@@ -204,9 +204,9 @@ struct TacticalHUDHeader: View {
                                 }
                             }
                         }
-                        
+
                         Spacer()
-                        
+
                         VStack(alignment: .trailing, spacing: 4) {
                             if let signal = viewModel.currentWiFi?.signalStrength {
                                 // WiFi connected — show signal strength as hero
@@ -268,7 +268,7 @@ struct TacticalHUDHeader: View {
 
 struct RefinedNetworkHealthCard: View {
     let viewModel: DashboardViewModel
-    
+
     var healthScore: Int {
         if !viewModel.isConnected { return 0 }
 
@@ -276,18 +276,14 @@ struct RefinedNetworkHealthCard: View {
 
         // Factor 1: Gateway latency (0-50 points)
         if let latency = viewModel.gateway?.latency {
-            if latency > 100 { score -= 50 }
-            else if latency > 50 { score -= 30 }
-            else if latency > 20 { score -= 10 }
+            if latency > 100 { score -= 50 } else if latency > 50 { score -= 30 } else if latency > 20 { score -= 10 }
         } else {
             score -= 30 // No gateway response
         }
 
         // Factor 2: WiFi signal (0-30 points)
         if let signal = viewModel.currentWiFi?.signalStrength {
-            if signal < 30 { score -= 30 }
-            else if signal < 50 { score -= 20 }
-            else if signal < 70 { score -= 10 }
+            if signal < 30 { score -= 30 } else if signal < 50 { score -= 20 } else if signal < 70 { score -= 10 }
         }
 
         // Factor 3: Jitter (0-20 points) — variance in recent latency
@@ -296,8 +292,7 @@ struct RefinedNetworkHealthCard: View {
             let avg = history.reduce(0, +) / Double(history.count)
             let variance = history.map { ($0 - avg) * ($0 - avg) }.reduce(0, +) / Double(history.count)
             let stddev = variance.squareRoot()
-            if stddev > 20 { score -= 20 }
-            else if stddev > 10 { score -= 10 }
+            if stddev > 20 { score -= 20 } else if stddev > 10 { score -= 10 }
         }
 
         return max(0, min(100, score))
@@ -320,7 +315,7 @@ struct RefinedNetworkHealthCard: View {
                         .background(Theme.Colors.success.opacity(0.1))
                         .clipShape(RoundedRectangle(cornerRadius: 3))
                 }
-                
+
                 HStack(spacing: 16) {
                     ZStack {
                         Circle()
@@ -337,7 +332,7 @@ struct RefinedNetworkHealthCard: View {
                             )
                             .rotationEffect(.degrees(-90))
                             .shadow(color: .cyan.opacity(0.3), radius: 4)
-                        
+
                         VStack(spacing: -2) {
                             Text("\(healthScore)")
                                 .font(.system(size: 24, weight: .semibold, design: .rounded))
@@ -349,18 +344,18 @@ struct RefinedNetworkHealthCard: View {
                         }
                     }
                     .frame(width: 64, height: 64)
-                    
+
                     VStack(alignment: .leading, spacing: 4) {
                         HStack(spacing: 6) {
                             Circle()
                                 .fill(healthScore > 70 ? Theme.Colors.success : Theme.Colors.warning)
                                 .frame(width: 6, height: 6)
-                            
+
                             Text(healthStatusTitle)
                                 .font(.system(size: 14, weight: .bold))
                                 .foregroundStyle(Theme.Colors.textStrong)
                         }
-                        
+
                         Text(healthDetailText)
                             .font(.system(size: 11))
                             .foregroundStyle(Theme.Colors.textSecondary)
@@ -376,7 +371,7 @@ struct RefinedNetworkHealthCard: View {
         if !viewModel.isConnected { return "Network Offline" }
         return healthScore > 80 ? "Optimal Performance" : "Degraded Signal"
     }
-    
+
     private var healthDetailText: String {
         if !viewModel.isConnected { return "Check your local connection" }
         var parts: [String] = []
@@ -394,12 +389,12 @@ struct RefinedNetworkHealthCard: View {
 struct SignalEQView: View {
     let viewModel: DashboardViewModel
     @Environment(\.horizontalSizeClass) private var sizeClass
-    
+
     /// Bar height scales up on iPad to fill the taller card
     private var barMaxHeight: CGFloat {
         sizeClass == .regular ? 64 : 32
     }
-    
+
     var eqData: [Double] {
         let history = viewModel.latencyHistory
         guard !history.isEmpty else {
@@ -414,7 +409,7 @@ struct SignalEQView: View {
         let padding = Array(repeating: reversed.first ?? 4.0, count: 40 - reversed.count)
         return padding + reversed
     }
-    
+
     var hasRealData: Bool {
         viewModel.latencyHistory.count >= 3
     }
@@ -434,7 +429,7 @@ struct SignalEQView: View {
                             .foregroundStyle(Theme.Colors.textTertiary)
                     }
                 }
-                
+
                 HStack(alignment: .bottom, spacing: 2) {
                     // Use minimum ceiling of 20ms so baseline 4ms bars render at ~6.4pt (visible)
                     // Scale up actual jitter values proportionally
@@ -443,7 +438,7 @@ struct SignalEQView: View {
                         let val = eqData[i]
                         let normalized = min(val / ceiling, 1.0)
                         let height = CGFloat(normalized * Double(barMaxHeight))
-                        
+
                         RoundedRectangle(cornerRadius: 1)
                             .fill(
                                 LinearGradient(
@@ -462,7 +457,7 @@ struct SignalEQView: View {
             }
         }
     }
-    
+
     private func barColor(for latency: Double, hasData: Bool) -> Color {
         if !hasData {
             // Placeholder bars: subtle amber/gold to indicate "warming up"
@@ -595,20 +590,20 @@ struct ConnectivityRow: View {
     let label: String
     let value: String
     let icon: String
-    
+
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: icon)
                 .font(.system(size: 14))
                 .foregroundStyle(Theme.Colors.accent)
                 .frame(width: 20)
-            
+
             Text(label.uppercased())
                 .font(.system(size: 10, weight: .bold))
                 .foregroundStyle(Theme.Colors.textTertiary)
-            
+
             Spacer()
-            
+
             Text(value)
                 .font(.system(size: 13, weight: .semibold, design: .monospaced))
                 .foregroundStyle(Theme.Colors.textStrong)
@@ -666,7 +661,7 @@ struct LocalDevicesCard: View {
                             }
                         }
                     }
-                    
+
                     if viewModel.discoveredDevices.isEmpty {
                         Text("SEARCHING FOR HARDWARE...")
                             .font(.system(size: 10, weight: .black, design: .monospaced))
@@ -685,7 +680,7 @@ struct LocalDevicesCard: View {
 
 struct DeviceRow: View {
     let device: DiscoveredDevice
-    
+
     var body: some View {
         HStack(spacing: 12) {
             ZStack {
@@ -696,12 +691,12 @@ struct DeviceRow: View {
                         RoundedRectangle(cornerRadius: 10)
                             .stroke(Theme.Colors.divider, lineWidth: 1)
                     )
-                
+
                 Image(systemName: device.iconName)
                     .font(.system(size: 16))
                     .foregroundStyle(Theme.Colors.accent)
             }
-            
+
             VStack(alignment: .leading, spacing: 2) {
                 Text(device.displayName)
                     .font(.system(size: 14, weight: .bold))
@@ -711,9 +706,9 @@ struct DeviceRow: View {
                     .foregroundStyle(Theme.Colors.textTertiary)
                     .tracking(0.3)
             }
-            
+
             Spacer()
-            
+
             HStack(spacing: 6) {
                 Circle()
                     .fill(Theme.Colors.success)

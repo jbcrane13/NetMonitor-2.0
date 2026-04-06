@@ -174,7 +174,7 @@ struct BonjourDiscoveryServiceTests {
     func discoveryStreamReEntrancyGuard() async {
         let service = BonjourDiscoveryService()
         // Start first stream
-        let _ = service.discoveryStream(serviceType: "_http._tcp")
+        _ = service.discoveryStream(serviceType: "_http._tcp")
         #expect(service.isDiscovering == true)
 
         // Start second stream — should tear down first

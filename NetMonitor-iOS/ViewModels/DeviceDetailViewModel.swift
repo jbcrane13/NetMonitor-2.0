@@ -76,7 +76,7 @@ final class DeviceDetailViewModel {
                 }
                 let result = await group.next()
                 group.cancelAll()
-                return result ?? nil
+                return result
             }
             if !Task.isCancelled { device.manufacturer = manufacturer }
         }
@@ -95,7 +95,7 @@ final class DeviceDetailViewModel {
                 }
                 let result = await group.next()
                 group.cancelAll()
-                return result ?? nil
+                return result
             }
             if !Task.isCancelled { device.resolvedHostname = hostname }
         }
@@ -196,7 +196,7 @@ final class DeviceDetailViewModel {
         return unique
     }
 
-    private nonisolated static func serviceMatchesDeviceIP(_ resolved: BonjourService, deviceIP: String) async -> Bool {
+    nonisolated private static func serviceMatchesDeviceIP(_ resolved: BonjourService, deviceIP: String) async -> Bool {
         var candidates: Set<String> = []
 
         for address in resolved.addresses where isIPv4Address(address) {
@@ -218,15 +218,15 @@ final class DeviceDetailViewModel {
         return candidates.contains(deviceIP)
     }
 
-    private nonisolated static func normalizeHostName(_ host: String) -> String {
+    nonisolated private static func normalizeHostName(_ host: String) -> String {
         host.split(separator: "%", maxSplits: 1).first.map(String.init) ?? host
     }
 
-    private nonisolated static func isIPv4Address(_ value: String) -> Bool {
+    nonisolated private static func isIPv4Address(_ value: String) -> Bool {
         ServiceUtilities.isIPv4Address(value)
     }
 
-    private nonisolated static func resolveIPv4Addresses(for host: String) async -> [String] {
+    nonisolated private static func resolveIPv4Addresses(for host: String) async -> [String] {
         await withCheckedContinuation { continuation in
             let cfHost = CFHostCreateWithName(nil, host as CFString).takeRetainedValue()
             var streamError = CFStreamError()

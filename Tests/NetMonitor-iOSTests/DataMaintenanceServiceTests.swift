@@ -22,8 +22,7 @@ struct DataMaintenanceServiceTests {
         let saved = UserDefaults.standard.object(forKey: key)
         UserDefaults.standard.removeObject(forKey: key)
         defer {
-            if let saved { UserDefaults.standard.set(saved, forKey: key) }
-            else { UserDefaults.standard.removeObject(forKey: key) }
+            if let saved { UserDefaults.standard.set(saved, forKey: key) } else { UserDefaults.standard.removeObject(forKey: key) }
         }
 
         let retentionDays = UserDefaults.standard.object(forKey: key) as? Int ?? 30
@@ -35,8 +34,7 @@ struct DataMaintenanceServiceTests {
         let key = AppSettings.Keys.dataRetentionDays
         let saved = UserDefaults.standard.object(forKey: key)
         defer {
-            if let saved { UserDefaults.standard.set(saved, forKey: key) }
-            else { UserDefaults.standard.removeObject(forKey: key) }
+            if let saved { UserDefaults.standard.set(saved, forKey: key) } else { UserDefaults.standard.removeObject(forKey: key) }
         }
 
         UserDefaults.standard.set(7, forKey: key)
@@ -49,8 +47,7 @@ struct DataMaintenanceServiceTests {
         let key = AppSettings.Keys.dataRetentionDays
         let saved = UserDefaults.standard.object(forKey: key)
         defer {
-            if let saved { UserDefaults.standard.set(saved, forKey: key) }
-            else { UserDefaults.standard.removeObject(forKey: key) }
+            if let saved { UserDefaults.standard.set(saved, forKey: key) } else { UserDefaults.standard.removeObject(forKey: key) }
         }
 
         UserDefaults.standard.set(0, forKey: key)

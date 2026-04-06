@@ -31,13 +31,13 @@ public struct IPv4CIDR: Sendable, Equatable {
     public let networkAddress: UInt32
     public let prefixLength: Int
     public let subnetMask: UInt32
-    
+
     public init(networkAddress: UInt32, prefixLength: Int) {
         self.networkAddress = networkAddress
         self.prefixLength = prefixLength
         self.subnetMask = prefixLength > 0 ? ~UInt32(0) << (32 - prefixLength) : 0
     }
-    
+
     /// Parses a CIDR string in the format "xxx.xxx.xxx.xxx/xx".
     /// - Parameter cidr: The CIDR notation string
     /// - Throws: `CIDRParseError` if the format is invalid
@@ -46,36 +46,36 @@ public struct IPv4CIDR: Sendable, Equatable {
         guard parts.count == 2 else {
             throw CIDRParseError.invalidFormat
         }
-        
+
         let ipPart = String(parts[0])
         guard isValidIPv4Address(ipPart) else {
             throw CIDRParseError.invalidIPAddress
         }
-        
+
         guard let prefix = Int(parts[1]), prefix >= 0, prefix <= 32 else {
             throw CIDRParseError.invalidPrefixLength
         }
-        
+
         self.prefixLength = prefix
         self.networkAddress = ipPart.ipv4ToUInt32() & ((~UInt32(0)) << (32 - prefix))
         self.subnetMask = prefix > 0 ? ~UInt32(0) << (32 - prefix) : 0
     }
-    
+
     /// The first usable host address (network address + 1).
     public var firstHost: UInt32 {
         networkAddress + 1
     }
-    
+
     /// The last usable host address (broadcast - 1).
     public var lastHost: UInt32 {
         broadcastAddress - 1
     }
-    
+
     /// The broadcast address for this subnet.
     public var broadcastAddress: UInt32 {
         networkAddress | ~subnetMask
     }
-    
+
     /// Total number of usable host addresses.
     public var usableHostCount: Int {
         let count = Int(broadcastAddress - networkAddress - 1)
@@ -93,21 +93,21 @@ public enum IPv4Helpers {
         guard let cidrBlock = try? IPv4CIDR(parsing: cidr) else {
             return []
         }
-        
+
         // Limit to reasonable subnet sizes to prevent memory issues
         // Only allow /17 to /30 (max 32,766 hosts for /17, min 2 hosts for /30)
         // Skip /16 and larger (65k+ hosts), skip /31 and /32
         guard cidrBlock.prefixLength >= 17 && cidrBlock.prefixLength <= 30 else {
             return []
         }
-        
+
         var hosts: [String] = []
         hosts.reserveCapacity(cidrBlock.usableHostCount)
-        
+
         for host in cidrBlock.firstHost...cidrBlock.lastHost {
             hosts.append(host.ipv4ToString())
         }
-        
+
         return hosts
     }
 }
@@ -119,7 +119,7 @@ private extension String {
     func ipv4ToUInt32() -> UInt32 {
         let components = self.split(separator: ".")
         guard components.count == 4 else { return 0 }
-        
+
         var result: UInt32 = 0
         for (index, component) in components.enumerated() {
             guard let octet = UInt8(component) else { return 0 }

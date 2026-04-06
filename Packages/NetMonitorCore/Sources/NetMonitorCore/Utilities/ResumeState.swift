@@ -6,7 +6,7 @@ import Foundation
 /// Also available in the NetworkScanKit package; provided here for services
 /// in NetMonitorCore that need it without a NetworkScanKit import.
 public actor ResumeState {
-    private(set) public var hasResumed = false
+    public private(set) var hasResumed = false
 
     public init() {}
 

@@ -28,7 +28,7 @@ public final class DeviceNameResolver: Sendable {
             }
             let result = await group.next()
             group.cancelAll()
-            return result ?? nil
+            return result
         }
     }
 

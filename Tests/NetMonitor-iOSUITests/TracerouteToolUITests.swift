@@ -17,6 +17,7 @@ final class TracerouteToolUITests: IOSUITestCase {
     func testTracerouteScreenExists() throws {
         navigateToTracerouteTool()
         requireExists(app.otherElements["screen_tracerouteTool"], message: "Traceroute screen should exist")
+        captureScreenshot(named: "Traceroute_Screen")
     }
 
     func testNavigationTitleExists() throws {
@@ -60,6 +61,7 @@ final class TracerouteToolUITests: IOSUITestCase {
         app.buttons["tracerouteTool_button_run"].tap()
         let hopsSection = app.otherElements["tracerouteTool_section_hops"]
         XCTAssertTrue(hopsSection.waitForExistence(timeout: 15), "Hops section should appear after starting trace")
+        captureScreenshot(named: "Traceroute_HopsAppearing")
     }
 
     func testHopRowsAppear() throws {
@@ -115,6 +117,7 @@ final class TracerouteToolUITests: IOSUITestCase {
                 firstHop.waitForExistence(timeout: 10),
                 "At least one hop row should appear in the hops section"
             )
+            captureScreenshot(named: "Traceroute_HopRows")
         }
     }
 }

@@ -43,17 +43,17 @@ public final class NetworkMonitorService: NetworkMonitorServiceProtocol {
         // the default `false` / `.none`.
         updatePath(newMonitor.currentPath)
     }
-    
+
     public func stopMonitoring() {
         monitor?.cancel()
         monitor = nil
     }
-    
+
     private func updatePath(_ path: NWPath) {
         isConnected = path.status == .satisfied
         isExpensive = path.isExpensive
         isConstrained = path.isConstrained
-        
+
         if path.usesInterfaceType(.wifi) {
             connectionType = .wifi
         } else if path.usesInterfaceType(.cellular) {
@@ -63,10 +63,10 @@ public final class NetworkMonitorService: NetworkMonitorServiceProtocol {
         } else {
             connectionType = .none
         }
-        
+
         interfaceName = path.availableInterfaces.first?.name
     }
-    
+
     public var statusText: String {
         guard isConnected else { return "No Connection" }
         return connectionType.displayName

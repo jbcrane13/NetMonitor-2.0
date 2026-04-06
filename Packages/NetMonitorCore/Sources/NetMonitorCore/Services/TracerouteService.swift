@@ -353,7 +353,7 @@ public actor TracerouteService: TracerouteServiceProtocol {
     ///
     /// This is the same behaviour as `tcptraceroute` on macOS/Linux: timeouts for intermediate
     /// routers that don't respond to TCP, real RTT when the destination is reached.
-    private nonisolated func performTCPFallback(
+    nonisolated private func performTCPFallback(
         host: String,
         targetIP: String,
         maxHops: Int,
@@ -418,7 +418,7 @@ public actor TracerouteService: TracerouteServiceProtocol {
     ///     traceroute-style probing — the packet will be dropped by the router at
     ///     that hop count, causing a timeout here while routers along the path
     ///     see (and silently discard) the probe.
-    private nonisolated func tcpProbe(
+    nonisolated private func tcpProbe(
         host: String,
         port: UInt16,
         timeout: TimeInterval,
@@ -496,7 +496,7 @@ public actor TracerouteService: TracerouteServiceProtocol {
 
     // MARK: - DNS Resolution
 
-    private nonisolated func resolveHostname(_ hostname: String) -> String? {
+    nonisolated private func resolveHostname(_ hostname: String) -> String? {
         ServiceUtilities.resolveHostnameSync(hostname)
     }
 

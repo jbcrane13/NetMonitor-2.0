@@ -124,7 +124,7 @@ extension View {
     ZStack {
         Theme.Gradients.background
             .ignoresSafeArea()
-        
+
         VStack(spacing: 20) {
             GlassCard {
                 VStack(alignment: .leading, spacing: 8) {
@@ -138,7 +138,7 @@ extension View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             .accessibilityIdentifier("preview_glassCard")
-            
+
             Text("Using modifier")
                 .font(.headline)
                 .foregroundStyle(Theme.Colors.textPrimary)

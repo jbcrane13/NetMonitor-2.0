@@ -11,7 +11,7 @@ enum SidebarSelection: Hashable {
 struct SidebarView: View {
     @Binding var selection: SidebarSelection?
     var onAddNetwork: () -> Void = {}
-    
+
     @Environment(NetworkProfileManager.self) private var profileManager
     // periphery:ignore
     @Environment(MonitoringSession.self) private var monitoringSession: MonitoringSession?
@@ -111,7 +111,7 @@ struct ProfilePill: View {
                         RoundedRectangle(cornerRadius: 10)
                             .stroke(isSelected ? accentColor : Color.white.opacity(0.1), lineWidth: 1)
                     )
-                
+
                 Image(systemName: profile.connectionType.iconName)
                     .font(.system(size: 18))
                     .foregroundStyle(isSelected ? MacTheme.Colors.sidebarTextPrimary : MacTheme.Colors.sidebarTextSecondary)
@@ -124,7 +124,7 @@ struct ProfilePill: View {
                         .offset(x: 18, y: -18)
                 }
             }
-            
+
             Text(profile.displayName)
                 .font(.system(size: 9, weight: .bold))
                 .foregroundStyle(isSelected ? MacTheme.Colors.sidebarTextPrimary : MacTheme.Colors.sidebarTextSecondary)
@@ -160,11 +160,11 @@ struct SidebarRow: View {
                 .font(.system(size: 14, weight: isSelected ? .bold : .medium))
                 .foregroundStyle(isSelected ? accentColor : MacTheme.Colors.sidebarTextSecondary)
                 .frame(width: 20)
-            
+
             Text(title)
                 .font(.system(size: 13, weight: isSelected ? .bold : .semibold))
                 .foregroundStyle(isSelected ? MacTheme.Colors.sidebarTextPrimary : MacTheme.Colors.sidebarTextSecondary)
-            
+
             Spacer()
 
             // Device count badge (subtle, for network rows)

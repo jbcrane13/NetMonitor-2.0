@@ -113,21 +113,21 @@ struct IPv4HelpersTests {
     }
 
     // MARK: - CIDR Parsing
-    
+
     @Test("IPv4CIDR parsing valid /24")
     func cidrParsingValid24() throws {
         let cidr = try IPv4CIDR(parsing: "192.168.1.0/24")
         #expect(cidr.prefixLength == 24)
         #expect(cidr.usableHostCount == 254)
     }
-    
+
     @Test("IPv4CIDR parsing valid /16")
     func cidrParsingValid16() throws {
         let cidr = try IPv4CIDR(parsing: "10.0.0.0/16")
         #expect(cidr.prefixLength == 16)
         #expect(cidr.usableHostCount == 65534)
     }
-    
+
     @Test("IPv4CIDR parsing valid /30")
     func cidrParsingValid30() throws {
         let cidr = try IPv4CIDR(parsing: "192.168.1.0/30")
@@ -136,7 +136,7 @@ struct IPv4HelpersTests {
         #expect(cidr.firstHost == cidr.networkAddress + 1)
         #expect(cidr.lastHost == cidr.broadcastAddress - 1)
     }
-    
+
     @Test("IPv4CIDR parsing throws invalid format")
     func cidrParsingInvalidFormat() {
         #expect(throws: CIDRParseError.invalidFormat) {
@@ -146,7 +146,7 @@ struct IPv4HelpersTests {
             try IPv4CIDR(parsing: "192.168.1.0/24/32")
         }
     }
-    
+
     @Test("IPv4CIDR parsing throws invalid IP")
     func cidrParsingInvalidIP() {
         #expect(throws: CIDRParseError.invalidIPAddress) {
@@ -156,7 +156,7 @@ struct IPv4HelpersTests {
             try IPv4CIDR(parsing: "abc.def.ghi.jkl/24")
         }
     }
-    
+
     @Test("IPv4CIDR parsing throws invalid prefix")
     func cidrParsingInvalidPrefix() {
         #expect(throws: CIDRParseError.invalidPrefixLength) {
@@ -171,7 +171,7 @@ struct IPv4HelpersTests {
     }
 
     // MARK: - hostsInSubnet
-    
+
     @Test("hostsInSubnet /30 returns 2 hosts")
     func hostsInSubnet30() {
         let hosts = IPv4Helpers.hostsInSubnet(cidr: "192.168.1.0/30")
@@ -179,7 +179,7 @@ struct IPv4HelpersTests {
         #expect(hosts[0] == "192.168.1.1")
         #expect(hosts[1] == "192.168.1.2")
     }
-    
+
     @Test("hostsInSubnet /24 returns 254 hosts")
     func hostsInSubnet24() {
         let hosts = IPv4Helpers.hostsInSubnet(cidr: "10.0.0.0/24")
@@ -187,31 +187,31 @@ struct IPv4HelpersTests {
         #expect(hosts.first == "10.0.0.1")
         #expect(hosts.last == "10.0.0.254")
     }
-    
+
     @Test("hostsInSubnet /16 returns empty (too large)")
     func hostsInSubnet16ReturnsEmpty() {
         let hosts = IPv4Helpers.hostsInSubnet(cidr: "10.0.0.0/16")
         #expect(hosts.isEmpty)
     }
-    
+
     @Test("hostsInSubnet /15 returns empty (too large)")
     func hostsInSubnet15ReturnsEmpty() {
         let hosts = IPv4Helpers.hostsInSubnet(cidr: "10.0.0.0/15")
         #expect(hosts.isEmpty)
     }
-    
+
     @Test("hostsInSubnet /32 returns empty (no hosts)")
     func hostsInSubnet32ReturnsEmpty() {
         let hosts = IPv4Helpers.hostsInSubnet(cidr: "192.168.1.1/32")
         #expect(hosts.isEmpty)
     }
-    
+
     @Test("hostsInSubnet /31 returns empty (no usable hosts)")
     func hostsInSubnet31ReturnsEmpty() {
         let hosts = IPv4Helpers.hostsInSubnet(cidr: "192.168.1.0/31")
         #expect(hosts.isEmpty)
     }
-    
+
     @Test("hostsInSubnet invalid CIDR returns empty")
     func hostsInSubnetInvalidReturnsEmpty() {
         #expect(IPv4Helpers.hostsInSubnet(cidr: "invalid").isEmpty)
@@ -219,7 +219,7 @@ struct IPv4HelpersTests {
         #expect(IPv4Helpers.hostsInSubnet(cidr: "192.168.1.0/33").isEmpty)
         #expect(IPv4Helpers.hostsInSubnet(cidr: "").isEmpty)
     }
-    
+
     @Test("hostsInSubnet handles non-zero network addresses")
     func hostsInSubnetNonZeroNetwork() {
         let hosts = IPv4Helpers.hostsInSubnet(cidr: "192.168.5.0/30")

@@ -6,7 +6,7 @@ import Foundation
 /// On a consistent LAN (20-80ms RTT), this converges to ~100-200ms timeouts
 /// instead of the conservative 500-800ms base values, dramatically reducing
 /// scan time for unreachable hosts.
-public actor RTTTracker: Sendable {
+public actor RTTTracker {
     private var samples: [Double] = []
     private var srtt: Double = 0
     private var rttVar: Double = 0

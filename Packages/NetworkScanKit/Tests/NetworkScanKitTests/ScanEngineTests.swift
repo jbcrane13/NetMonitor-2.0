@@ -126,7 +126,7 @@ struct ScanEngineTests {
         #expect(await engine.accumulator.count == 1)
 
         await engine.reset()
-        #expect(await engine.accumulator.count == 0)
+        #expect(await engine.accumulator.isEmpty)
     }
 
     private func makeContext(hosts: [String]) -> ScanContext {

@@ -64,11 +64,11 @@ struct LatencyAnalysisCard: View {
             // Stats divider + row
             Divider().background(Color.white.opacity(0.06))
             HStack(spacing: 14) {
-                statCell(value: formatMs(stats.avg),    label: "AVG",    ms: stats.avg)
-                statCell(value: formatMs(stats.min),    label: "MIN",    ms: stats.min)
-                statCell(value: formatMs(stats.max),    label: "MAX",    ms: stats.max)
+                statCell(value: formatMs(stats.avg), label: "AVG", ms: stats.avg)
+                statCell(value: formatMs(stats.min), label: "MIN", ms: stats.min)
+                statCell(value: formatMs(stats.max), label: "MAX", ms: stats.max)
                 statCell(value: formatMs(stats.jitter), label: "JITTER", ms: stats.jitter)
-                statCell(value: packetLossString,        label: "LOSS",   ms: 0)
+                statCell(value: packetLossString, label: "LOSS", ms: 0)
                 Spacer()
             }
         }

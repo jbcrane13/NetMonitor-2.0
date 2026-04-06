@@ -7,10 +7,10 @@ struct StatusBadge: View {
     let status: StatusType
     var showLabel: Bool = true
     var size: BadgeSize = .medium
-    
+
     enum BadgeSize {
         case small, medium, large
-        
+
         var fontSize: Font {
             switch self {
             case .small: .caption2
@@ -18,7 +18,7 @@ struct StatusBadge: View {
             case .large: .subheadline
             }
         }
-        
+
         var iconSize: CGFloat {
             switch self {
             case .small: 8
@@ -26,7 +26,7 @@ struct StatusBadge: View {
             case .large: 14
             }
         }
-        
+
         var padding: EdgeInsets {
             switch self {
             case .small: EdgeInsets(top: 2, leading: 6, bottom: 2, trailing: 6)
@@ -35,14 +35,14 @@ struct StatusBadge: View {
             }
         }
     }
-    
+
     var body: some View {
         HStack(spacing: 4) {
             Circle()
                 .fill(status.color)
                 .frame(width: size.iconSize, height: size.iconSize)
                 .shadow(color: status.color.opacity(0.5), radius: 4)
-            
+
             if showLabel {
                 Text(status.label)
                     .font(size.fontSize)
@@ -70,9 +70,9 @@ struct StatusDot: View {
     let status: StatusType
     var size: CGFloat = 10
     var animated: Bool = false
-    
+
     @State private var isPulsing = false
-    
+
     var body: some View {
         Circle()
             .fill(status.color)
@@ -96,32 +96,32 @@ struct StatusDot: View {
     ZStack {
         Theme.Gradients.background
             .ignoresSafeArea()
-        
+
         VStack(spacing: 20) {
             Text("Status Badges")
                 .font(.headline)
                 .foregroundStyle(Theme.Colors.textPrimary)
-            
+
             HStack(spacing: 12) {
                 StatusBadge(status: .online)
                 StatusBadge(status: .offline)
                 StatusBadge(status: .idle)
             }
-            
+
             Text("Sizes")
                 .font(.headline)
                 .foregroundStyle(Theme.Colors.textPrimary)
-            
+
             HStack(spacing: 12) {
                 StatusBadge(status: .online, size: .small)
                 StatusBadge(status: .online, size: .medium)
                 StatusBadge(status: .online, size: .large)
             }
-            
+
             Text("Status Dots")
                 .font(.headline)
                 .foregroundStyle(Theme.Colors.textPrimary)
-            
+
             HStack(spacing: 20) {
                 StatusDot(status: .online, animated: true)
                 StatusDot(status: .offline)

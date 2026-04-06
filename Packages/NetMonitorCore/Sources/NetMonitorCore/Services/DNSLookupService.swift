@@ -41,7 +41,7 @@ public final class DNSLookupService: DNSLookupServiceProtocol {
             return nil
         }
     }
-    
+
     nonisolated private func performLookup(domain: String, type: DNSRecordType) async throws -> [DNSRecord] {
         // Use getaddrinfo for A and AAAA records
         if type == .a || type == .aaaa {
@@ -430,7 +430,7 @@ private class QueryContext {
 enum DNSError: LocalizedError {
     case lookupFailed
     case timeout
-    
+
     var errorDescription: String? {
         switch self {
         case .lookupFailed: "DNS lookup failed"

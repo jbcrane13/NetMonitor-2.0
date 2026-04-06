@@ -17,6 +17,7 @@ final class DNSLookupToolUITests: IOSUITestCase {
     func testDNSLookupScreenExists() throws {
         navigateToDNSTool()
         requireExists(app.otherElements["screen_dnsLookupTool"], message: "DNS lookup screen should exist")
+        captureScreenshot(named: "DNSLookup_Screen")
     }
 
     func testNavigationTitleExists() throws {
@@ -68,6 +69,7 @@ final class DNSLookupToolUITests: IOSUITestCase {
         app.buttons["dnsLookup_button_run"].tap()
         let records = app.otherElements["dnsLookup_section_records"]
         XCTAssertTrue(records.waitForExistence(timeout: 10), "Records should appear after lookup")
+        captureScreenshot(named: "DNSLookup_Records")
     }
 
     func testClearResultsButton() throws {
@@ -96,6 +98,7 @@ final class DNSLookupToolUITests: IOSUITestCase {
             waitForEither([errorView, queryInfo], timeout: 10),
             "Either error or results should appear after lookup attempt"
         )
+        captureScreenshot(named: "DNSLookup_ErrorOrResults")
     }
 
     // MARK: - Record Type Picker Interaction

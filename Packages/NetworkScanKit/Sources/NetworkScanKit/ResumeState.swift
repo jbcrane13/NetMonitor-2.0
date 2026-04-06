@@ -3,7 +3,7 @@ import Foundation
 /// A thread-safe helper actor for managing single-use continuation state.
 /// Prevents multiple resumes of a CheckedContinuation in async/await patterns.
 public actor ResumeState {
-    private(set) public var hasResumed = false
+    public private(set) var hasResumed = false
 
     public init() {}
 

@@ -46,7 +46,7 @@ public struct ScanPipeline: Sendable {
             Step(phases: [ReverseDNSScanPhase()], concurrent: false),
         ])
     }
-    
+
     /// Creates a pipeline for the specified scan strategy.
     ///
     /// - `.full`: Standard 4-step pipeline with all discovery methods (ARP, Bonjour, TCP, SSDP, ICMP, DNS)

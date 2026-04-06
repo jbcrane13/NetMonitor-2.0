@@ -524,7 +524,7 @@ private extension ProDeviceDetailView {
 
     private func enrichVendor() async {
         guard !device.macAddress.isEmpty,
-              (device.vendor == nil || device.vendor?.isEmpty == true) else { return }
+              device.vendor == nil || device.vendor?.isEmpty == true else { return }
         isLoadingVendor = true
         defer { isLoadingVendor = false }
 

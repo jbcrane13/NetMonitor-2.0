@@ -111,7 +111,7 @@ struct PortScannerServiceTests {
         let range = PortRange(start: 1000, end: 500)
         #expect(range.isValid == false)
         #expect(range.ports.isEmpty)
-        #expect(range.count == 0)
+        #expect(range.isEmpty)
     }
 
     @Test("PortRange clamps values to valid port range")

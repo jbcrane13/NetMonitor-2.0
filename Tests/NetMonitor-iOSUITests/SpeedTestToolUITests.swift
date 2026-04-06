@@ -17,6 +17,7 @@ final class SpeedTestToolUITests: IOSUITestCase {
     func testSpeedTestScreenExists() throws {
         navigateToSpeedTestTool()
         requireExists(app.otherElements["screen_speedTestTool"], message: "Speed test screen should exist")
+        captureScreenshot(named: "SpeedTest_Screen")
     }
 
     func testNavigationTitleExists() throws {
@@ -53,6 +54,7 @@ final class SpeedTestToolUITests: IOSUITestCase {
             waitForEither([results, latencyPhase, downloadPhase, uploadPhase, stopButton], timeout: 30),
             "Speed test should enter a running phase or show results"
         )
+        captureScreenshot(named: "SpeedTest_Running")
     }
 
     func testStopSpeedTest() throws {
@@ -86,6 +88,7 @@ final class SpeedTestToolUITests: IOSUITestCase {
                 history.waitForExistence(timeout: 5) || results.exists,
                 "History section or results should be visible after test completes"
             )
+            captureScreenshot(named: "SpeedTest_Results")
         }
     }
 

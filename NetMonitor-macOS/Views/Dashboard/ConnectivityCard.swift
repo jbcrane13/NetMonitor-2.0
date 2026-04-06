@@ -10,7 +10,7 @@ import NetMonitorCore
 
 /// Row C (left): Public IP, gateway, DNS, anchor ping pills.
 struct ConnectivityCard: View {
-    let session:        MonitoringSession?
+    let session: MonitoringSession?
     let profileManager: NetworkProfileManager?
 
     @State private var vm: ConnectivityCardViewModel
@@ -40,16 +40,16 @@ struct ConnectivityCard: View {
                 alignment: .leading,
                 spacing: 4
             ) {
-                connRow(key: "ISP",       value: vm.ispInfo?.isp ?? "—")
-                connRow(key: "DNS",       value: vm.dnsServers)
+                connRow(key: "ISP", value: vm.ispInfo?.isp ?? "—")
+                connRow(key: "DNS", value: vm.dnsServers)
                 connRow(key: "Public IP", value: vm.ispInfo?.publicIP ?? "—",
                         mono: true, color: MacTheme.Colors.info)
-                connRow(key: "IPv6",      value: vm.hasIPv6 ? "Enabled" : "Disabled",
+                connRow(key: "IPv6", value: vm.hasIPv6 ? "Enabled" : "Disabled",
                         color: vm.hasIPv6 ? MacTheme.Colors.success : .secondary)
                 connRow(key: "Gateway",
                         value: profileManager?.activeProfile?.gatewayIP ?? "—",
                         mono: true)
-                connRow(key: "Location",  value: locationString)
+                connRow(key: "Location", value: locationString)
             }
 
             if let loadError = vm.loadError {
@@ -94,10 +94,10 @@ struct ConnectivityCard: View {
 
     private var anchorPingsView: some View {
         let anchors: [(name: String, host: String)] = [
-            ("Google",     "8.8.8.8"),
+            ("Google", "8.8.8.8"),
             ("Cloudflare", "1.1.1.1"),
-            ("AWS",        "52.94.236.248"),
-            ("Apple",      "17.253.144.10"),
+            ("AWS", "52.94.236.248"),
+            ("Apple", "17.253.144.10"),
         ]
         return HStack(spacing: 6) {
             ForEach(anchors, id: \.name) { anchor in

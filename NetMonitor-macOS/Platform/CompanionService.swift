@@ -174,7 +174,7 @@ actor CompanionService {
         }
     }
 
-    private nonisolated func receiveMessage(from connection: NWConnection, clientID: UUID) {
+    nonisolated private func receiveMessage(from connection: NWConnection, clientID: UUID) {
         let capturedClientID = clientID
         let capturedConnection = connection
 
@@ -250,7 +250,7 @@ actor CompanionService {
     }
 
     /// Send length-prefixed JSON data to a client.
-    private nonisolated func send(data: Data, to connection: NWConnection, clientID: UUID) async {
+    nonisolated private func send(data: Data, to connection: NWConnection, clientID: UUID) async {
         let capturedClientID = clientID
 
         var length = UInt32(data.count).bigEndian

@@ -23,7 +23,7 @@ final class BackgroundTaskService {
 
     func registerTasks() {
         Self.logger.info("Registering background tasks...")
-        
+
         BGTaskScheduler.shared.register(forTaskWithIdentifier: Self.refreshTaskIdentifier, using: .main) { task in
             Task { @MainActor in
                 await self.handleRefreshTask(task as! BGAppRefreshTask)
@@ -44,7 +44,7 @@ final class BackgroundTaskService {
             }
         }
         Self.logger.debug("✅ Registered: \(Self.scheduledNetworkScanTaskIdentifier)")
-        
+
         Self.logger.info("Background task registration complete")
     }
 
@@ -90,7 +90,7 @@ final class BackgroundTaskService {
     private func handleRefreshTask(_ task: BGAppRefreshTask) async {
         let taskStartTime = Date()
         Self.logger.info("📱 Refresh task started")
-        
+
         // Schedule the next refresh
         scheduleRefreshTask()
 
@@ -128,9 +128,9 @@ final class BackgroundTaskService {
 
         Self.logger.debug("Detecting gateway...")
         await gatewayService.detectGateway()
-        guard !taskCancelled else { 
+        guard !taskCancelled else {
             Self.logger.info("Task cancelled after gateway detection")
-            return 
+            return
         }
 
         // Update shared UserDefaults for widget
@@ -151,16 +151,16 @@ final class BackgroundTaskService {
         }
 
         // Check monitoring targets
-        guard !taskCancelled else { 
+        guard !taskCancelled else {
             Self.logger.info("Task cancelled before monitoring targets")
-            return 
+            return
         }
         Self.logger.debug("Checking monitoring targets...")
         await checkMonitoringTargets()
 
-        guard !taskCancelled else { 
+        guard !taskCancelled else {
             Self.logger.info("Task cancelled before widget reload")
-            return 
+            return
         }
         // Reload widget timeline
         Self.logger.debug("Reloading widget timelines")
@@ -170,7 +170,7 @@ final class BackgroundTaskService {
     private func handleSyncTask(_ task: BGProcessingTask) async {
         let taskStartTime = Date()
         Self.logger.info("🔄 Sync task started")
-        
+
         // Schedule the next sync
         scheduleSyncTask()
 
@@ -210,9 +210,9 @@ final class BackgroundTaskService {
         Self.logger.debug("Detecting gateway...")
         await gatewayService.detectGateway()
 
-        guard !taskCancelled else { 
+        guard !taskCancelled else {
             Self.logger.info("Task cancelled after gateway detection")
-            return 
+            return
         }
         Self.logger.debug("Fetching public IP...")
         await publicIPService.fetchPublicIP(forceRefresh: true)
@@ -233,16 +233,16 @@ final class BackgroundTaskService {
         }
 
         // Check monitoring targets
-        guard !taskCancelled else { 
+        guard !taskCancelled else {
             Self.logger.info("Task cancelled before monitoring targets")
-            return 
+            return
         }
         Self.logger.debug("Checking monitoring targets...")
         await checkMonitoringTargets()
 
-        guard !taskCancelled else { 
+        guard !taskCancelled else {
             Self.logger.info("Task cancelled before widget reload")
-            return 
+            return
         }
         // Reload widget timeline
         Self.logger.debug("Reloading widget timelines")
@@ -253,7 +253,7 @@ final class BackgroundTaskService {
 
     private func checkMonitoringTargets() async {
         let checkStartTime = Date()
-        
+
         // Create a new ModelContainer for background context with full schema
         let schema = Schema([
             PairedMac.self, LocalDevice.self, MonitoringTarget.self,
@@ -375,7 +375,7 @@ final class BackgroundTaskService {
             }
 
             // Wait for first result; group.next() returns (Bool?)? because element type is Bool?
-            let nextResult: Bool? = await group.next() ?? nil
+            let nextResult: Bool? = await group.next()
             let result = nextResult ?? false
             group.cancelAll()
             connection.cancel()
@@ -407,7 +407,7 @@ final class BackgroundTaskService {
     private func handleScheduledNetworkScanTask(_ task: BGProcessingTask) async {
         let taskStartTime = Date()
         Self.logger.info("🔍 Network scan task started")
-        
+
         scheduleNetworkScanTask()
 
         guard (UserDefaults.standard.object(forKey: "scheduledScan_enabled") as? Bool) == true else {
@@ -424,10 +424,10 @@ final class BackgroundTaskService {
                 didComplete = true
                 return true
             }
-            if shouldComplete { 
+            if shouldComplete {
                 let duration = Date().timeIntervalSince(taskStartTime)
                 Self.logger.info("🔍 Network scan task completed: success=\(success), duration=\(duration, format: .fixed(precision: 2))s, cancelled=\(taskCancelled)")
-                task.setTaskCompleted(success: success) 
+                task.setTaskCompleted(success: success)
             }
         }
         defer { complete(!taskCancelled) }
@@ -442,14 +442,14 @@ final class BackgroundTaskService {
 
         Self.logger.debug("Starting network scan...")
         await DeviceDiscoveryService.shared.scanNetwork(subnet: nil)
-        guard !taskCancelled else { 
+        guard !taskCancelled else {
             Self.logger.info("Task cancelled after network scan")
-            return 
+            return
         }
 
         let devices = DeviceDiscoveryService.shared.discoveredDevices
         Self.logger.info("Network scan found \(devices.count) device(s)")
-        
+
         let diff = ScanSchedulerService.shared.computeDiff(current: devices)
         Self.logger.info("Scan diff: \(diff.newDevices.count) new, \(diff.removedDevices.count) removed")
 

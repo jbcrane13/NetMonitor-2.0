@@ -186,10 +186,10 @@ struct TargetProtocolTests {
     func decodeUppercase() throws {
         struct Wrapper: Codable { let proto: TargetProtocol }
         let cases: [(String, TargetProtocol)] = [
-            (#"{"proto":"HTTPS"}"#,    .https),
-            (#"{"proto":"HTTP"}"#,     .http),
-            (#"{"proto":"TCP"}"#,      .tcp),
-            (#"{"proto":"ICMP"}"#,     .icmp),
+            (#"{"proto":"HTTPS"}"#, .https),
+            (#"{"proto":"HTTP"}"#, .http),
+            (#"{"proto":"TCP"}"#, .tcp),
+            (#"{"proto":"ICMP"}"#, .icmp),
         ]
         for (json, expected) in cases {
             let decoded = try JSONDecoder().decode(Wrapper.self, from: Data(json.utf8))
@@ -335,7 +335,7 @@ struct PortRangeTests {
         let range = PortRange(start: 500, end: 100)
         #expect(range.isValid == false)
         #expect(range.ports.isEmpty)
-        #expect(range.count == 0)
+        #expect(range.isEmpty)
     }
 
     @Test func singlePortRange() {

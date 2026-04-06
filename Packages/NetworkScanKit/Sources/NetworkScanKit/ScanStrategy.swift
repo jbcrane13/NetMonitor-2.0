@@ -5,7 +5,7 @@ public enum ScanStrategy: Sendable, Equatable {
     /// Full local network scan with all discovery methods.
     /// Includes: ARP, Bonjour, TCP Probe, SSDP, ICMP Latency, Reverse DNS
     case full
-    
+
     /// Remote network scan optimized for non-local subnets.
     /// Includes: TCP Probe, ICMP Latency, Reverse DNS (no ARP, Bonjour, SSDP)
     case remote
@@ -16,7 +16,7 @@ public struct NetworkScanProfile: Sendable, Equatable, Identifiable {
     public let id: String
     public let name: String
     public let subnetCIDR: String?
-    
+
     public init(id: String, name: String, subnetCIDR: String? = nil) {
         self.id = id
         self.name = name

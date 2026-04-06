@@ -212,7 +212,7 @@ final class TimelineFunctionalUITests: IOSUITestCase {
                           "Timeline list should contain at least one event row")
         } else if ui("timeline_label_emptyState").exists {
             // Empty state should have descriptive text
-            let hasDescription = app.staticTexts.count > 0
+            let hasDescription = !app.staticTexts.isEmpty
             XCTAssertTrue(hasDescription,
                          "Empty state should display descriptive text")
         }
