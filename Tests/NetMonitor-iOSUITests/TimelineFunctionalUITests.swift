@@ -14,14 +14,6 @@ final class TimelineFunctionalUITests: IOSUITestCase {
         app.descendants(matching: .any)[identifier]
     }
 
-    private func captureScreenshot(named name: String) {
-        let screenshot = app.screenshot()
-        let attachment = XCTAttachment(screenshot: screenshot)
-        attachment.name = name
-        attachment.lifetime = .keepAlways
-        add(attachment)
-    }
-
     private func openTimeline() {
         let tab = requireExists(app.tabBars.buttons["Timeline"],
                                 message: "Timeline tab should exist")
@@ -212,7 +204,7 @@ final class TimelineFunctionalUITests: IOSUITestCase {
                           "Timeline list should contain at least one event row")
         } else if ui("timeline_label_emptyState").exists {
             // Empty state should have descriptive text
-            let hasDescription = !app.staticTexts.isEmpty
+            let hasDescription = app.staticTexts.count > 0
             XCTAssertTrue(hasDescription,
                          "Empty state should display descriptive text")
         }

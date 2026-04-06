@@ -14,14 +14,6 @@ final class SettingsFunctionalUITests: IOSUITestCase {
         app.descendants(matching: .any)[identifier]
     }
 
-    private func captureScreenshot(named name: String) {
-        let screenshot = app.screenshot()
-        let attachment = XCTAttachment(screenshot: screenshot)
-        attachment.name = name
-        attachment.lifetime = .keepAlways
-        add(attachment)
-    }
-
     private func navigateToSettings() {
         let settingsButton = app.buttons["dashboard_button_settings"]
         requireExists(settingsButton, timeout: 5, message: "Settings gear button should exist on dashboard")

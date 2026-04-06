@@ -19,17 +19,6 @@ import XCTest
 @MainActor
 final class FunctionalSmokeTests: IOSUITestCase {
 
-    // MARK: - Screenshot Helper
-
-    /// Captures a screenshot and attaches it to the test for visual review.
-    private func captureScreenshot(named name: String) {
-        let screenshot = app.screenshot()
-        let attachment = XCTAttachment(screenshot: screenshot)
-        attachment.name = name
-        attachment.lifetime = .keepAlways
-        add(attachment)
-    }
-
     /// Shorthand for `app.descendants(matching: .any)[identifier]`.
     private func ui(_ identifier: String) -> XCUIElement {
         app.descendants(matching: .any)[identifier]

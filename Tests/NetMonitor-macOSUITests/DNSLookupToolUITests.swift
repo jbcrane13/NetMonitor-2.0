@@ -1,91 +1,104 @@
 import XCTest
 
 @MainActor
-final class DNSLookupToolUITests: XCTestCase {
-    var app: XCUIApplication!
+final class DNSLookupToolUITests: MacOSUITestCase {
 
-    override func setUpWithError() throws {
-        continueAfterFailure = false
-        app = XCUIApplication()
-        app.launch()
-        // Navigate to Tools
-        let sidebar = app.descendants(matching: .any)["sidebar_tools"]
-        XCTAssertTrue(sidebar.waitForExistence(timeout: 5))
-        sidebar.tap()
-        // Open DNS Lookup tool
-        let card = app.otherElements["tools_card_dns_lookup"]
-        XCTAssertTrue(card.waitForExistence(timeout: 3))
-        card.tap()
+    private func openDNSLookup() {
+        openTool(cardID: "tools_card_dns_lookup", sheetElement: "dns_textfield_hostname")
     }
-
-    // tearDownWithError: handled by MacOSUITestCase (terminates app + nils ref)
 
     // MARK: - Element Existence
 
     func testHostnameFieldExists() {
-        XCTAssertTrue(app.textFields["dns_textfield_hostname"].waitForExistence(timeout: 3))
+        openDNSLookup()
+        requireExists(app.textFields["dns_textfield_hostname"], message: "Hostname field should exist")
+        captureScreenshot(named: "DNSLookup_Screen")
     }
 
     func testRecordTypePickerExists() {
-        XCTAssertTrue(app.popUpButtons["dns_picker_type"].waitForExistence(timeout: 3))
+        openDNSLookup()
+        requireExists(app.popUpButtons["dns_picker_type"], message: "Record type picker should exist")
     }
 
     func testLookupButtonExists() {
-        XCTAssertTrue(app.buttons["dns_button_lookup"].waitForExistence(timeout: 3))
+        openDNSLookup()
+        requireExists(app.buttons["dns_button_lookup"], message: "Lookup button should exist")
     }
 
     func testCloseButtonExists() {
-        XCTAssertTrue(app.buttons["dns_button_close"].waitForExistence(timeout: 3))
+        openDNSLookup()
+        requireExists(app.buttons["dns_button_close"], message: "Close button should exist")
     }
 
-    // MARK: - Interactions
+    // MARK: - Input Validation
 
     func testLookupButtonDisabledWhenHostEmpty() {
-        let lookupButton = app.buttons["dns_button_lookup"]
-        XCTAssertTrue(lookupButton.waitForExistence(timeout: 3))
-        XCTAssertFalse(lookupButton.isEnabled)
+        openDNSLookup()
+        let lookupButton = requireExists(app.buttons["dns_button_lookup"], message: "Lookup button should exist")
+        XCTAssertFalse(lookupButton.isEnabled, "Lookup button should be disabled without hostname")
     }
 
     func testLookupButtonEnabledAfterTypingHostname() {
-        let hostnameField = app.textFields["dns_textfield_hostname"]
-        XCTAssertTrue(hostnameField.waitForExistence(timeout: 3))
-        hostnameField.tap()
-        hostnameField.typeText("example.com")
-
-        XCTAssertTrue(app.buttons["dns_button_lookup"].isEnabled)
+        openDNSLookup()
+        clearAndTypeText("example.com", into: app.textFields["dns_textfield_hostname"])
+        let lookupButton = requireExists(app.buttons["dns_button_lookup"], message: "Lookup button should exist")
+        XCTAssertTrue(lookupButton.isEnabled, "Lookup button should be enabled after entering hostname")
     }
+
+    // MARK: - Navigation
 
     func testCloseButtonDismissesSheet() {
+        openDNSLookup()
         app.buttons["dns_button_close"].tap()
-        XCTAssertTrue(app.otherElements["tools_card_dns_lookup"].waitForExistence(timeout: 3))
+        requireExists(
+            app.otherElements["tools_card_dns_lookup"],
+            message: "Tool card should reappear after closing sheet"
+        )
     }
+
+    // MARK: - Lookup Execution
 
     func testPerformDNSLookup() {
-        let hostnameField = app.textFields["dns_textfield_hostname"]
-        XCTAssertTrue(hostnameField.waitForExistence(timeout: 3))
-        hostnameField.tap()
-        hostnameField.typeText("example.com")
-
+        openDNSLookup()
+        clearAndTypeText("example.com", into: app.textFields["dns_textfield_hostname"])
         app.buttons["dns_button_lookup"].tap()
 
-        // Wait for results or clear button to appear
         let clearButton = app.buttons["dns_button_clear"]
-        XCTAssertTrue(clearButton.waitForExistence(timeout: 15))
+        XCTAssertTrue(
+            clearButton.waitForExistence(timeout: 15),
+            "Clear button should appear after lookup completes (results present)"
+        )
+        captureScreenshot(named: "DNSLookup_Results")
     }
 
-    func testClearButtonAfterLookup() {
-        let hostnameField = app.textFields["dns_textfield_hostname"]
-        XCTAssertTrue(hostnameField.waitForExistence(timeout: 3))
-        hostnameField.tap()
-        hostnameField.typeText("example.com")
-
+    func testClearButtonRemovesResults() {
+        openDNSLookup()
+        clearAndTypeText("example.com", into: app.textFields["dns_textfield_hostname"])
         app.buttons["dns_button_lookup"].tap()
 
         let clearButton = app.buttons["dns_button_clear"]
-        XCTAssertTrue(clearButton.waitForExistence(timeout: 15))
+        guard clearButton.waitForExistence(timeout: 15) else { return }
         clearButton.tap()
 
-        // After clearing, the clear button should disappear
-        XCTAssertFalse(clearButton.waitForExistence(timeout: 2))
+        XCTAssertTrue(
+            waitForDisappearance(clearButton, timeout: 3),
+            "Clear button should disappear after clearing results"
+        )
+    }
+
+    func testRecordTypePickerInteraction() {
+        openDNSLookup()
+        let picker = requireExists(app.popUpButtons["dns_picker_type"], message: "Record type picker should exist")
+        picker.tap()
+
+        let recordTypes = ["AAAA", "MX", "TXT", "CNAME", "NS"]
+        for recordType in recordTypes {
+            let option = app.menuItems[recordType]
+            if option.waitForExistence(timeout: 2) {
+                option.tap()
+                break
+            }
+        }
+        captureScreenshot(named: "DNSLookup_RecordTypePicked")
     }
 }

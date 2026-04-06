@@ -375,7 +375,7 @@ final class BackgroundTaskService {
             }
 
             // Wait for first result; group.next() returns (Bool?)? because element type is Bool?
-            let nextResult: Bool? = await group.next()
+            let nextResult: Bool? = await (group.next()) ?? nil
             let result = nextResult ?? false
             group.cancelAll()
             connection.cancel()

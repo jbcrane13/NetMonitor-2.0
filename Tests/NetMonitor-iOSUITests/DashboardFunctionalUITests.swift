@@ -14,14 +14,6 @@ final class DashboardFunctionalUITests: IOSUITestCase {
         app.descendants(matching: .any)[identifier]
     }
 
-    private func captureScreenshot(named name: String) {
-        let screenshot = app.screenshot()
-        let attachment = XCTAttachment(screenshot: screenshot)
-        attachment.name = name
-        attachment.lifetime = .keepAlways
-        add(attachment)
-    }
-
     private func screenContainsText(_ substring: String) -> Bool {
         app.staticTexts.matching(
             NSPredicate(format: "label CONTAINS[c] %@", substring)

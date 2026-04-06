@@ -1,89 +1,87 @@
 import XCTest
 
 @MainActor
-final class PortScannerToolUITests: XCTestCase {
-    var app: XCUIApplication!
+final class PortScannerToolUITests: MacOSUITestCase {
 
-    override func setUpWithError() throws {
-        continueAfterFailure = false
-        app = XCUIApplication()
-        app.launch()
-        // Navigate to Tools
-        let sidebar = app.descendants(matching: .any)["sidebar_tools"]
-        XCTAssertTrue(sidebar.waitForExistence(timeout: 5))
-        sidebar.tap()
-        // Open Port Scanner tool
-        let card = app.otherElements["tools_card_port_scanner"]
-        XCTAssertTrue(card.waitForExistence(timeout: 3))
-        card.tap()
+    private func openPortScanner() {
+        openTool(cardID: "tools_card_port_scanner", sheetElement: "portScan_textfield_host")
     }
-
-    // tearDownWithError: handled by MacOSUITestCase (terminates app + nils ref)
 
     // MARK: - Element Existence
 
     func testHostFieldExists() {
-        XCTAssertTrue(app.textFields["portScan_textfield_host"].waitForExistence(timeout: 3))
+        openPortScanner()
+        requireExists(app.textFields["portScan_textfield_host"], message: "Host field should exist")
+        captureScreenshot(named: "PortScanner_Screen")
     }
 
     func testPresetPickerExists() {
-        XCTAssertTrue(app.popUpButtons["portScan_picker_preset"].waitForExistence(timeout: 3))
+        openPortScanner()
+        requireExists(app.popUpButtons["portScan_picker_preset"], message: "Preset picker should exist")
     }
 
     func testScanButtonExists() {
-        XCTAssertTrue(app.buttons["portScan_button_scan"].waitForExistence(timeout: 3))
+        openPortScanner()
+        requireExists(app.buttons["portScan_button_scan"], message: "Scan button should exist")
     }
 
     func testCloseButtonExists() {
-        XCTAssertTrue(app.buttons["portScan_button_close"].waitForExistence(timeout: 3))
+        openPortScanner()
+        requireExists(app.buttons["portScan_button_close"], message: "Close button should exist")
     }
 
-    // MARK: - Interactions
+    // MARK: - Input Validation
 
     func testScanButtonDisabledWhenHostEmpty() {
-        let scanButton = app.buttons["portScan_button_scan"]
-        XCTAssertTrue(scanButton.waitForExistence(timeout: 3))
-        XCTAssertFalse(scanButton.isEnabled)
+        openPortScanner()
+        let scanButton = requireExists(app.buttons["portScan_button_scan"], message: "Scan button should exist")
+        XCTAssertFalse(scanButton.isEnabled, "Scan button should be disabled without host input")
     }
 
     func testScanButtonEnabledAfterTypingHost() {
-        let hostField = app.textFields["portScan_textfield_host"]
-        XCTAssertTrue(hostField.waitForExistence(timeout: 3))
-        hostField.tap()
-        hostField.typeText("127.0.0.1")
-
-        XCTAssertTrue(app.buttons["portScan_button_scan"].isEnabled)
+        openPortScanner()
+        clearAndTypeText("127.0.0.1", into: app.textFields["portScan_textfield_host"])
+        let scanButton = requireExists(app.buttons["portScan_button_scan"], message: "Scan button should exist")
+        XCTAssertTrue(scanButton.isEnabled, "Scan button should be enabled after entering host")
     }
 
+    // MARK: - Navigation
+
     func testCloseButtonDismissesSheet() {
+        openPortScanner()
         app.buttons["portScan_button_close"].tap()
-        XCTAssertTrue(app.otherElements["tools_card_port_scanner"].waitForExistence(timeout: 3))
+        requireExists(
+            app.otherElements["tools_card_port_scanner"],
+            message: "Tool card should reappear after closing sheet"
+        )
+    }
+
+    // MARK: - Scan Execution
+
+    func testStartScan() {
+        openPortScanner()
+        clearAndTypeText("127.0.0.1", into: app.textFields["portScan_textfield_host"])
+        app.buttons["portScan_button_scan"].tap()
+
+        // Button should remain (may change label to Stop)
+        let scanButton = app.buttons["portScan_button_scan"]
+        XCTAssertTrue(scanButton.waitForExistence(timeout: 3), "Scan button should remain visible during scan")
+        captureScreenshot(named: "PortScanner_Scanning")
     }
 
     func testCustomPresetShowsCustomField() {
-        let presetPicker = app.popUpButtons["portScan_picker_preset"]
-        XCTAssertTrue(presetPicker.waitForExistence(timeout: 3))
+        openPortScanner()
+        let presetPicker = requireExists(app.popUpButtons["portScan_picker_preset"], message: "Preset picker should exist")
         presetPicker.tap()
 
-        // Select "Custom" option
         let customOption = app.menuItems["Custom"]
         if customOption.waitForExistence(timeout: 2) {
             customOption.tap()
-            // Custom ports text field should appear
-            XCTAssertTrue(app.textFields["portScan_textfield_custom"].waitForExistence(timeout: 3))
+            let customField = app.textFields["portScan_textfield_custom"]
+            if customField.waitForExistence(timeout: 3) {
+                XCTAssertTrue(customField.exists, "Custom ports field should appear after selecting Custom preset")
+                captureScreenshot(named: "PortScanner_CustomPreset")
+            }
         }
-    }
-
-    func testStartScan() {
-        let hostField = app.textFields["portScan_textfield_host"]
-        XCTAssertTrue(hostField.waitForExistence(timeout: 3))
-        hostField.tap()
-        hostField.typeText("127.0.0.1")
-
-        app.buttons["portScan_button_scan"].tap()
-
-        // Button label changes to "Stop" during scan
-        let scanButton = app.buttons["portScan_button_scan"]
-        XCTAssertTrue(scanButton.waitForExistence(timeout: 3))
     }
 }

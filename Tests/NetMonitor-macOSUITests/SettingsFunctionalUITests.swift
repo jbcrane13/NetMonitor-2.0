@@ -13,16 +13,6 @@ final class SettingsFunctionalUITests: MacOSUITestCase {
         navigateToSidebar("settings")
     }
 
-    // MARK: - Helpers
-
-    private func captureScreenshot(named name: String) {
-        let screenshot = app.screenshot()
-        let attachment = XCTAttachment(screenshot: screenshot)
-        attachment.name = name
-        attachment.lifetime = .keepAlways
-        add(attachment)
-    }
-
     // MARK: - 1. Click Settings Tab -> Verify Tab Content Loads
 
     func testGeneralTabLoadsContent() {

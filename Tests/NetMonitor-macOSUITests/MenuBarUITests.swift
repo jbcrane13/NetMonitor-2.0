@@ -20,7 +20,7 @@ final class MenuBarUITests: XCTestCase {
     /// prerequisite for the menu bar controller to initialize.
 
     func testAppLaunchesSuccessfully() {
-        XCTAssertTrue(!app.windows.isEmpty, "App should have at least one window")
+        XCTAssertTrue(app.windows.count > 0, "App should have at least one window")
     }
 
     func testMainWindowExists() {

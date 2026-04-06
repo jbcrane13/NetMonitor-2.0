@@ -59,14 +59,6 @@ final class NetworkDetailFunctionalUITests: MacOSUITestCase {
         _ = app.otherElements["contentView_nav_network"].waitForExistence(timeout: 5)
     }
 
-    private func captureScreenshot(named name: String) {
-        let screenshot = app.screenshot()
-        let attachment = XCTAttachment(screenshot: screenshot)
-        attachment.name = name
-        attachment.lifetime = .keepAlways
-        add(attachment)
-    }
-
     // MARK: - 1. Click Device in Table -> Detail Panel Shows Device Info
 
     func testClickDeviceRowShowsDeviceInfo() {

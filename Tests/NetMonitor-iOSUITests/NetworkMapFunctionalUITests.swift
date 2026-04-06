@@ -14,14 +14,6 @@ final class NetworkMapFunctionalUITests: IOSUITestCase {
         app.descendants(matching: .any)[identifier]
     }
 
-    private func captureScreenshot(named name: String) {
-        let screenshot = app.screenshot()
-        let attachment = XCTAttachment(screenshot: screenshot)
-        attachment.name = name
-        attachment.lifetime = .keepAlways
-        add(attachment)
-    }
-
     private func openNetworkMap() {
         app.tabBars.buttons["Map"].tap()
         requireExists(ui("screen_networkMap"), timeout: 8,

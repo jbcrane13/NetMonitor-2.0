@@ -8,16 +8,6 @@ import XCTest
 @MainActor
 final class SidebarFunctionalUITests: MacOSUITestCase {
 
-    // MARK: - Helpers
-
-    private func captureScreenshot(named name: String) {
-        let screenshot = app.screenshot()
-        let attachment = XCTAttachment(screenshot: screenshot)
-        attachment.name = name
-        attachment.lifetime = .keepAlways
-        add(attachment)
-    }
-
     // MARK: - 1. Click Each Sidebar Section -> Verify Content Area Updates
 
     func testSidebarDashboardSectionUpdatesContent() {

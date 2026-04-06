@@ -1,80 +1,67 @@
 import XCTest
 
 @MainActor
-final class WorldPingToolUITests: XCTestCase {
-    let app = XCUIApplication()
-
-    override func setUpWithError() throws {
-        continueAfterFailure = false
-        app.launch()
-    }
-
-    // tearDownWithError: handled by MacOSUITestCase (terminates app + nils ref)
-
-    // MARK: - Helpers
+final class WorldPingToolUITests: MacOSUITestCase {
 
     private func openWorldPing() {
-        let card = app.buttons["tools_card_world_ping"]
-        if card.waitForExistence(timeout: 5) {
-            card.click()
-        }
+        navigateToSidebar("tools")
+        let card = ui("tools_card_world_ping")
+        requireExists(card, timeout: 5, message: "World Ping card should exist in tools grid")
+        card.tap()
     }
 
-    // MARK: - Tests
+    // MARK: - Screen & Navigation
 
     func testWorldPingCardExistsInToolsGrid() {
-        let card = app.buttons["tools_card_world_ping"]
+        navigateToSidebar("tools")
+        let card = ui("tools_card_world_ping")
         XCTAssertTrue(card.waitForExistence(timeout: 5), "World Ping tool card should exist in tools grid")
+        captureScreenshot(named: "WorldPing_CardInGrid")
     }
+
+    // MARK: - Input Validation
 
     func testRunButtonExistsAndInitiallyDisabled() {
         openWorldPing()
-
         let runButton = app.buttons["worldPing_button_run"]
         guard runButton.waitForExistence(timeout: 5) else {
             XCTFail("Run button not found")
             return
         }
         XCTAssertFalse(runButton.isEnabled, "Run button should be disabled without host input")
+        captureScreenshot(named: "WorldPing_Screen")
     }
 
-    func testInputFieldAcceptsText() {
+    func testRunButtonEnabledAfterInput() {
         openWorldPing()
-
         let input = app.textFields["worldPing_input_host"]
         guard input.waitForExistence(timeout: 5) else {
             XCTFail("Host input field not found")
             return
         }
-
-        input.click()
-        input.typeText("google.com")
-
-        XCTAssertTrue(
-            app.buttons["worldPing_button_run"].isEnabled,
-            "Run button should be enabled after entering host"
-        )
+        clearAndTypeText("google.com", into: input)
+        let runButton = app.buttons["worldPing_button_run"]
+        XCTAssertTrue(runButton.isEnabled, "Run button should be enabled after entering host")
     }
+
+    // MARK: - Execution
 
     func testClearButtonAppearsAfterResults() throws {
         openWorldPing()
-
         let input = app.textFields["worldPing_input_host"]
         guard input.waitForExistence(timeout: 5) else {
-            XCTFail("Host input not found")
-            return
+            throw XCTSkip("Host input not found")
         }
-        input.click()
-        input.typeText("google.com")
-        app.buttons["worldPing_button_run"].click()
+        clearAndTypeText("google.com", into: input)
+        app.buttons["worldPing_button_run"].tap()
 
-        // Network-dependent: skip if no response
-        let results = app.staticTexts["worldPing_section_results"]
+        let results = ui("worldPing_section_results")
         if results.waitForExistence(timeout: 30) {
             XCTAssertTrue(
                 app.buttons["worldPing_button_clear"].waitForExistence(timeout: 5),
                 "Clear button should appear after results"
             )
+            captureScreenshot(named: "WorldPing_Results")
         } else {
             throw XCTSkip("Network unavailable; skipping results check")
         }
