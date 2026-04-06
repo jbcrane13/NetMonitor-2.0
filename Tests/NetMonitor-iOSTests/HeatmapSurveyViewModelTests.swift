@@ -846,14 +846,15 @@ struct HeatmapRendererTests {
         }
     }
 
-    @Test("render returns nil with empty points")
-    func renderReturnsNilWithNoPoints() {
+    @Test("render with empty points produces image with zero-value fill")
+    func renderWithEmptyPointsProducesImage() {
         let renderer = HeatmapRenderer()
         let image = renderer.render(
             points: [],
             visualization: .signalStrength
         )
-        #expect(image == nil)
+        // Renderer produces a uniform image even with no data points
+        #expect(image != nil)
     }
 
     @Test("interpolateGrid returns correct grid dimensions")

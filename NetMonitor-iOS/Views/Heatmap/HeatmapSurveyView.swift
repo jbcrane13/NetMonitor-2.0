@@ -69,10 +69,12 @@ struct HeatmapSurveyView: View {
                     viewModel.importBlueprintProject(blueprint)
                 }
             }
+            .accessibilityIdentifier("heatmap_sheet_roomScanner")
         }
         .sheet(isPresented: $showShareSheet) {
             if !shareItems.isEmpty {
                 ShareSheet(activityItems: shareItems)
+                    .accessibilityIdentifier("heatmap_sheet_share")
             }
         }
         .sheet(isPresented: $showProjectsList) {
@@ -268,6 +270,7 @@ struct HeatmapSurveyView: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
         .glassCard(cornerRadius: 24, padding: 0)
+        .accessibilityIdentifier("heatmap_hud_signal")
     }
 
     // MARK: - Toolbar
@@ -299,6 +302,7 @@ struct HeatmapSurveyView: View {
                     } label: {
                         Label("Open Survey", systemImage: "folder")
                     }
+                    .accessibilityIdentifier("heatmap_button_openSurveyMenu")
 
                     Divider()
 
@@ -312,6 +316,7 @@ struct HeatmapSurveyView: View {
                 } label: {
                     Image(systemName: "ellipsis.circle")
                 }
+                .accessibilityIdentifier("heatmap_menu_more")
             }
         }
     }

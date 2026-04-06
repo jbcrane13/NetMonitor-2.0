@@ -280,6 +280,7 @@ struct HeatmapSidebarSheet: View {
                         .font(.caption.monospacedDigit())
                         .foregroundStyle(Theme.Colors.textSecondary)
                 }
+                .accessibilityIdentifier("heatmap_label_averageRSSI")
             }
 
             Spacer()

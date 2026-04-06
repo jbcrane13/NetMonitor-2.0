@@ -41,13 +41,15 @@ struct DataExportServiceAdditionalTests {
 
     @Test("Speed tests CSV has correct number of data rows")
     func multiSpeedTestCSVRowCount() {
-        let results = (0..<3).map { i in
-            SpeedTestResult(
+        var results: [SpeedTestResult] = []
+        for i in 0..<3 {
+            let result = SpeedTestResult(
                 downloadSpeed: Double(i * 100),
                 uploadSpeed: Double(i * 50),
                 latency: Double(i * 10),
                 success: true
             )
+            results.append(result)
         }
 
         let data = DataExportService.exportSpeedTests(results, format: .csv)!
