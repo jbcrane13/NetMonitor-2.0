@@ -19,6 +19,23 @@ enum HeatmapError: Error, LocalizedError {
     }
 }
 
+// MARK: - SavedSurveyInfo
+
+struct SavedSurveyInfo: Identifiable {
+    let name: String
+    let url: URL
+    let modifiedDate: Date
+    let fileSize: Int
+
+    var id: URL { url }
+
+    var formattedSize: String {
+        let formatter = ByteCountFormatter()
+        formatter.countStyle = .file
+        return formatter.string(fromByteCount: Int64(fileSize))
+    }
+}
+
 // MARK: - HeatmapSurveyViewModel
 
 /// iOS heatmap survey state management.
@@ -560,6 +577,40 @@ final class HeatmapSurveyViewModel {
         } catch {
             errorMessage = "Auto-save failed: \(error.localizedDescription)"
         }
+    }
+
+    // MARK: - Saved Projects
+
+    /// Lists all .netmonsurvey files in the Documents directory.
+    static func listSavedProjects() -> [SavedSurveyInfo] {
+        let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
+        guard let documentsURL else { return [] }
+
+        let fileManager = FileManager.default
+        guard let contents = try? fileManager.contentsOfDirectory(
+            at: documentsURL,
+            includingPropertiesForKeys: [.contentModificationDateKey, .fileSizeKey],
+            options: .skipsHiddenFiles
+        ) else { return [] }
+
+        return contents
+            .filter { $0.pathExtension == "netmonsurvey" }
+            .compactMap { url -> SavedSurveyInfo? in
+                let attrs = try? url.resourceValues(forKeys: [.contentModificationDateKey, .fileSizeKey])
+                let name = url.deletingPathExtension().lastPathComponent
+                return SavedSurveyInfo(
+                    name: name,
+                    url: url,
+                    modifiedDate: attrs?.contentModificationDate ?? Date.distantPast,
+                    fileSize: attrs?.fileSize ?? 0
+                )
+            }
+            .sorted { $0.modifiedDate > $1.modifiedDate }
+    }
+
+    /// Deletes a saved project file.
+    static func deleteSavedProject(at url: URL) throws {
+        try FileManager.default.removeItem(at: url)
     }
 
     // MARK: - Export

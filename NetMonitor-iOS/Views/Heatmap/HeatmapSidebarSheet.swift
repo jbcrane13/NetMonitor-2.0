@@ -7,6 +7,7 @@ import SwiftUI
 /// opacity slider, measurement list, and action buttons.
 struct HeatmapSidebarSheet: View {
     @Bindable var viewModel: HeatmapSurveyViewModel
+    var onShare: (() -> Void)?
     @State private var isExpanded = false
 
     var body: some View {
@@ -304,6 +305,17 @@ struct HeatmapSidebarSheet: View {
             }
             .disabled(viewModel.measurementPoints.isEmpty)
             .accessibilityIdentifier("heatmap_button_clear")
+
+            // Share
+            Button {
+                onShare?()
+            } label: {
+                Image(systemName: "square.and.arrow.up")
+                    .font(.caption.bold())
+                    .foregroundStyle(viewModel.measurementPoints.isEmpty ? Theme.Colors.textTertiary : Theme.Colors.accent)
+            }
+            .disabled(viewModel.measurementPoints.isEmpty)
+            .accessibilityIdentifier("heatmap_button_sidebarShare")
 
             // Calibrate
             Button {

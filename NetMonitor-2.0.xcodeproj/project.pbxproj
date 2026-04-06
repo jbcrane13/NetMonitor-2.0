@@ -177,6 +177,7 @@
 		6CB5EC8FBF227876853694D3 /* NewFeaturesUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03EFF7191F7CE4A05EB616BE /* NewFeaturesUITests.swift */; };
 		6DC157EE440BBCA2DF330049 /* ThemeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 839A8CA84224C1AB94D4209C /* ThemeTests.swift */; };
 		6EB5085FAF3E0BF2D8A781D3 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87C68BBDE6DB8F7C4E446FEE /* DashboardView.swift */; };
+		6F3BB4AE74315FC6A865640B /* HeatmapProjectsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5EB2C9B29C581E1FD46C516 /* HeatmapProjectsView.swift */; };
 		6F667AFE95FEF38A5B5FC876 /* ISPCardViewModelExtendedTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAC76B1286C767294ED03042 /* ISPCardViewModelExtendedTests.swift */; };
 		6F730638BB3137E5647973FF /* CompanionWireProtocolTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 990516DEBF35121379695630 /* CompanionWireProtocolTests.swift */; };
 		704495B08284EF7410FEA601 /* AppearanceSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FAA2A8A1F011FBCFA824E15 /* AppearanceSettingsView.swift */; };
@@ -741,6 +742,7 @@
 		D33FA8CEF889C0CD95DE23EF /* GlassButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassButton.swift; sourceTree = "<group>"; };
 		D43B91C6C0FC9D62E3100938 /* AppearanceEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppearanceEnvironment.swift; sourceTree = "<group>"; };
 		D57A89F7F3F2BDCC7BFD8444 /* SpeedTestToolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeedTestToolView.swift; sourceTree = "<group>"; };
+		D5EB2C9B29C581E1FD46C516 /* HeatmapProjectsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeatmapProjectsView.swift; sourceTree = "<group>"; };
 		D62C76BE608EADB467F2B149 /* NetworkScanKit */ = {isa = PBXFileReference; lastKnownFileType = folder; name = NetworkScanKit; path = Packages/NetworkScanKit; sourceTree = SOURCE_ROOT; };
 		D6861528C7B73A27CA7BEDCC /* WiFiInfoServiceCacheTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WiFiInfoServiceCacheTests.swift; sourceTree = "<group>"; };
 		D7463FAF02969BDCF9623947 /* CoreWLANService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreWLANService.swift; sourceTree = "<group>"; };
@@ -1099,6 +1101,7 @@
 			children = (
 				77162B7DF007D0F2FA59F3D8 /* HeatmapCalibrationSheet.swift */,
 				DDE2894320F30D1F5B1A0B12 /* HeatmapCanvasView.swift */,
+				D5EB2C9B29C581E1FD46C516 /* HeatmapProjectsView.swift */,
 				207F5A4C57A503A97B48F7D9 /* HeatmapSidebarSheet.swift */,
 				8EE6DAA8D618B3A85832866F /* HeatmapSurveyView.swift */,
 				0B11D2E300E8D181366B7D24 /* RoomPlanScannerView.swift */,
@@ -2002,6 +2005,7 @@
 				07AC9FAE35CF72270CED8F2B /* GlassCard.swift in Sources */,
 				6AECEC66F4DA85EC8EDDB36D /* HeatmapCalibrationSheet.swift in Sources */,
 				5818D0D98146932BBE66DB10 /* HeatmapCanvasView.swift in Sources */,
+				6F3BB4AE74315FC6A865640B /* HeatmapProjectsView.swift in Sources */,
 				4604FF1A5966EFBD1C2F7190 /* HeatmapSidebarSheet.swift in Sources */,
 				CEFD08671D1E06FEBD714AD1 /* HeatmapSurveyView.swift in Sources */,
 				9B7E31EEE3622C87037B6E54 /* HeatmapSurveyViewModel.swift in Sources */,

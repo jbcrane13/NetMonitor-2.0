@@ -12,6 +12,7 @@ struct HeatmapSurveyView: View {
     @State private var showImportOptions = false
     @State private var showRoomScanner = false
     @State private var showShareSheet = false
+    @State private var showProjectsList = false
     @State private var shareItems: [Any] = []
 
     var body: some View {
@@ -73,6 +74,12 @@ struct HeatmapSurveyView: View {
             if !shareItems.isEmpty {
                 ShareSheet(activityItems: shareItems)
             }
+        }
+        .sheet(isPresented: $showProjectsList) {
+            HeatmapProjectsView { url in
+                openFileFromDeepLink(url)
+            }
+            .accessibilityIdentifier("heatmap_sheet_projects")
         }
         .alert("Error", isPresented: Binding(
             get: { viewModel.errorMessage != nil },
@@ -204,7 +211,7 @@ struct HeatmapSurveyView: View {
             }
 
             // Bottom sheet
-            HeatmapSidebarSheet(viewModel: viewModel)
+            HeatmapSidebarSheet(viewModel: viewModel, onShare: { shareHeatmap() })
         }
     }
 
@@ -360,7 +367,7 @@ struct HeatmapSurveyView: View {
     }
 
     private func openSurvey() {
-        viewModel.showImportSheet = true
+        showProjectsList = true
     }
 
     private func saveSurvey() {
