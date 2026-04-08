@@ -140,6 +140,8 @@ targets:
       path: NetMonitor-iOS/Resources/NetMonitor-iOS.entitlements
       properties:
         com.apple.developer.networking.wifi-info: true
+        com.apple.security.application-groups:
+          - group.com.blakemiller.netmonitor
     info:
       path: NetMonitor-iOS/Resources/Info.plist
       properties:
@@ -172,6 +174,8 @@ targets:
           - _sonos._tcp
           - _workstation._tcp
         NSLocalNetworkUsageDescription: "NetMonitor scans your local network to discover devices, services, and the macOS companion app."
+        LSApplicationQueriesSchemes:
+          - shortcuts
         NSAppTransportSecurity:
           NSExceptionDomains:
             ip-api.com:

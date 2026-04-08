@@ -367,6 +367,7 @@
 		EE77FC99A4078F436EC2CC07 /* SettingsFunctionalUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33E6F369E46AF5B3A79156B1 /* SettingsFunctionalUITests.swift */; };
 		EE8C0634AF1A1278308D2657 /* ContinuousScanViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FD598B5F7E6FC696199C524 /* ContinuousScanViewModelTests.swift */; };
 		EFF7065E3EC004D737300505 /* TimelineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEB6FA46197AB64C06827B57 /* TimelineView.swift */; };
+		F05FB206EFD7E4CE072CCAEC /* OnboardingViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 172DD803998F508A24071CB3 /* OnboardingViewTests.swift */; };
 		F0A67D40676BC3A7277D1A88 /* IOSHeatmapService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4C66593DA429DA1FB792D1B /* IOSHeatmapService.swift */; };
 		F0DA93D232132A64FE567152 /* WiFiHeatmapViewModelBlueprintTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E56046F3C1668E68228A5411 /* WiFiHeatmapViewModelBlueprintTests.swift */; };
 		F247B8093C015308B82488E8 /* SubnetCalculatorToolUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EE0C034AEC9A3722D935218 /* SubnetCalculatorToolUITests.swift */; };
@@ -464,6 +465,7 @@
 		152C60E77B4F26FE190B6091 /* InteractionFlowUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InteractionFlowUITests.swift; sourceTree = "<group>"; };
 		15CF57CCF80C504B5D2A4F7E /* TracerouteToolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TracerouteToolView.swift; sourceTree = "<group>"; };
 		15F8F1960BEB3D161E3A289A /* DeviceDiscoveryCoordinatorExtendedTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceDiscoveryCoordinatorExtendedTests.swift; sourceTree = "<group>"; };
+		172DD803998F508A24071CB3 /* OnboardingViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingViewTests.swift; sourceTree = "<group>"; };
 		18300B34F5E90EE2E552E8E5 /* MacPairingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacPairingView.swift; sourceTree = "<group>"; };
 		185704DD77179DFE62766E0D /* SpeedTestToolViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeedTestToolViewModel.swift; sourceTree = "<group>"; };
 		18594F466B7F7B0935132FD2 /* DefaultTargetsProviderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefaultTargetsProviderTests.swift; sourceTree = "<group>"; };
@@ -1180,6 +1182,7 @@
 				ED3B7AE861BC947A81FBCFD0 /* NetworkHealthScoreViewModelTests.swift */,
 				EDCF0E7F7BD33CA4B909385C /* NetworkMapViewModelTests.swift */,
 				B95AD20B5D8E360138D27BC7 /* NewFeatureUnitTests.swift */,
+				172DD803998F508A24071CB3 /* OnboardingViewTests.swift */,
 				D8A6E7FD29C99FBEC41B588C /* PDFReportGeneratorTests.swift */,
 				188CE56C7F99450209487467 /* PingToolViewModelTests.swift */,
 				EA00C4C5EBE0D3D8E1D9B806 /* PortScannerToolViewModelTests.swift */,
@@ -1947,6 +1950,7 @@
 				91E8395EA4E41C1E53A80061 /* NetworkHealthScoreViewModelTests.swift in Sources */,
 				310BA7BFB9EF86D0917DA6F7 /* NetworkMapViewModelTests.swift in Sources */,
 				788A8716E0EDEA1A0BCB71D6 /* NewFeatureUnitTests.swift in Sources */,
+				F05FB206EFD7E4CE072CCAEC /* OnboardingViewTests.swift in Sources */,
 				C8A1D1542966EAD744A3905F /* PDFReportGeneratorTests.swift in Sources */,
 				C557FD376DC02C0FFF46E49A /* PingToolViewModelTests.swift in Sources */,
 				43224005F1DAA6CA62DC7826 /* PortScannerToolViewModelTests.swift in Sources */,
