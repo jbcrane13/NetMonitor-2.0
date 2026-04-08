@@ -1,4 +1,5 @@
 import SwiftUI
+import CoreLocation
 import Network
 import UserNotifications
 
@@ -6,7 +7,7 @@ struct OnboardingView: View {
     @Binding var isPresented: Bool
     @State private var currentPage = 0
 
-    private let totalPages = 3
+    private let totalPages = 4
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -34,11 +35,14 @@ struct OnboardingView: View {
                     WelcomePage()
                         .tag(0)
 
-                    NetworkAccessPage()
+                    LocationAccessPage()
                         .tag(1)
 
-                    NotificationsPage()
+                    NetworkAccessPage()
                         .tag(2)
+
+                    NotificationsPage()
+                        .tag(3)
                 }
                 .tabViewStyle(.page(indexDisplayMode: .always))
                 .indexViewStyle(.page(backgroundDisplayMode: .always))
@@ -90,9 +94,36 @@ private struct WelcomePage: View {
     }
 }
 
+// MARK: - Location Access Page
+
+private struct LocationAccessPage: View {
+    // Retained so the system dialog stays visible until the user responds
+    @State private var locationManager: CLLocationManager?
+
+    var body: some View {
+        OnboardingPageView(
+            icon: "location",
+            title: "Location Access",
+            description: "NetMonitor uses your location to read Wi-Fi network details like SSID and signal strength. This stays on-device — nothing is shared.",
+            accessibilityPrefix: "onboarding_location",
+            actionButton: OnboardingActionButton(
+                label: "Allow Location",
+                accessibilityID: "onboarding_button_allowLocation"
+            ) {
+                let manager = CLLocationManager()
+                locationManager = manager
+                manager.requestWhenInUseAuthorization()
+            }
+        )
+    }
+}
+
 // MARK: - Network Access Page
 
 private struct NetworkAccessPage: View {
+    // Retained so the Bonjour browse triggers and sustains the local network prompt
+    @State private var browser: NWBrowser?
+
     var body: some View {
         OnboardingPageView(
             icon: "network",
@@ -103,13 +134,16 @@ private struct NetworkAccessPage: View {
                 label: "Allow Access",
                 accessibilityID: "onboarding_button_allowNetwork"
             ) {
-                // Starting NWPathMonitor triggers the local network permission prompt
-                let monitor = NWPathMonitor()
-                monitor.start(queue: DispatchQueue.global(qos: .background))
-                // Brief delay then cancel — we just need the prompt to fire
+                // NWBrowser for Bonjour triggers the local network permission prompt
+                let nwBrowser = NWBrowser(
+                    for: .bonjour(type: "_netmon._tcp", domain: nil),
+                    using: .tcp
+                )
+                browser = nwBrowser
+                nwBrowser.start(queue: .global(qos: .userInitiated))
                 Task<Void, Never> {
-                    try? await Task.sleep(nanoseconds: 500_000_000)
-                    monitor.cancel()
+                    try? await Task.sleep(nanoseconds: 2_000_000_000)
+                    nwBrowser.cancel()
                 }
             }
         )
