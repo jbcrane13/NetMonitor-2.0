@@ -7,7 +7,9 @@ import SwiftUI
 /// opacity slider, measurement list, and action buttons.
 struct HeatmapSidebarSheet: View {
     @Bindable var viewModel: HeatmapSurveyViewModel
+    var shortcutsProvider: ShortcutsWiFiProvider?
     var onShare: (() -> Void)?
+    var onSetup: (() -> Void)?
     @State private var isExpanded = false
 
     var body: some View {
@@ -96,6 +98,29 @@ struct HeatmapSidebarSheet: View {
 
     private var expandedControls: some View {
         VStack(spacing: 12) {
+            // Fallback banner when Shortcuts not available
+            if shortcutsProvider?.isAvailable != true {
+                Button {
+                    onSetup?()
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "antenna.radiowaves.left.and.right")
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                        Text("Install Wi-Fi Shortcut for signal data")
+                            .font(.caption)
+                            .foregroundStyle(Theme.Colors.textPrimary)
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.caption2)
+                            .foregroundStyle(Theme.Colors.textTertiary)
+                    }
+                    .padding(10)
+                    .background(Color.orange.opacity(0.1), in: RoundedRectangle(cornerRadius: 8))
+                }
+                .accessibilityIdentifier("heatmap_button_shortcutBanner")
+            }
+
             Divider().background(Theme.Colors.divider)
 
             // Visualization picker

@@ -14,6 +14,8 @@ struct HeatmapSurveyView: View {
     @State private var showShareSheet = false
     @State private var showProjectsList = false
     @State private var shareItems: [Any] = []
+    @State private var showShortcutSetup = false
+    @State private var shortcutsProvider = ShortcutsWiFiProvider()
 
     var body: some View {
         ZStack {
@@ -83,6 +85,14 @@ struct HeatmapSurveyView: View {
             }
             .accessibilityIdentifier("heatmap_sheet_projects")
         }
+        .sheet(isPresented: $showShortcutSetup) {
+            WiFiShortcutSetupView(
+                shortcutsProvider: shortcutsProvider,
+                onDismiss: { showShortcutSetup = false },
+                onSkip: { showShortcutSetup = false }
+            )
+            .accessibilityIdentifier("heatmap_sheet_shortcutSetup")
+        }
         .alert("Error", isPresented: Binding(
             get: { viewModel.errorMessage != nil },
             set: { if !$0 { viewModel.errorMessage = nil } }
@@ -96,6 +106,16 @@ struct HeatmapSurveyView: View {
             // Check if a .netmonsurvey file was opened via deep link
             if let url = deepLinkRouter?.consumePendingFile() {
                 openFileFromDeepLink(url)
+            }
+            // Check if shortcut setup should be shown
+            Task<Void, Never> {
+                let hasSeen = UserDefaults.standard.bool(forAppKey: AppSettings.Keys.hasSeenShortcutSetup)
+                if !hasSeen {
+                    let available = await shortcutsProvider.checkAvailability()
+                    if !available {
+                        showShortcutSetup = true
+                    }
+                }
             }
         }
         .onChange(of: deepLinkRouter?.pendingSurveyFileURL) { _, newURL in
@@ -213,7 +233,12 @@ struct HeatmapSurveyView: View {
             }
 
             // Bottom sheet
-            HeatmapSidebarSheet(viewModel: viewModel, onShare: { shareHeatmap() })
+            HeatmapSidebarSheet(
+                viewModel: viewModel,
+                shortcutsProvider: shortcutsProvider,
+                onShare: { shareHeatmap() },
+                onSetup: { showShortcutSetup = true }
+            )
         }
     }
 
@@ -223,12 +248,21 @@ struct HeatmapSurveyView: View {
         HStack(spacing: 16) {
             // Live RSSI with color
             HStack(spacing: 6) {
-                Image(systemName: rssiWiFiIcon(viewModel.currentRSSI))
-                    .font(.caption.bold())
-                    .foregroundStyle(rssiColor(viewModel.currentRSSI))
-                Text("\(viewModel.currentRSSI) dBm")
-                    .font(.caption.monospacedDigit().bold())
-                    .foregroundStyle(Theme.Colors.textPrimary)
+                if shortcutsProvider.isAvailable {
+                    Image(systemName: rssiWiFiIcon(viewModel.currentRSSI))
+                        .font(.caption.bold())
+                        .foregroundStyle(rssiColor(viewModel.currentRSSI))
+                    Text("\(viewModel.currentRSSI) dBm")
+                        .font(.caption.monospacedDigit().bold())
+                        .foregroundStyle(Theme.Colors.textPrimary)
+                } else {
+                    Image(systemName: "wifi.slash")
+                        .font(.caption.bold())
+                        .foregroundStyle(Theme.Colors.textTertiary)
+                    Text("No Signal Data")
+                        .font(.caption.bold())
+                        .foregroundStyle(Theme.Colors.textTertiary)
+                }
             }
             .accessibilityIdentifier("heatmap_hud_rssi")
 
