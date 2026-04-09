@@ -306,7 +306,8 @@ final class DeviceDiscoveryCoordinator {
         }
     }
 
-    /// Uses 1s timeout per port, 10 concurrent devices at a time.
+    /// Performs a quick scan of common ports on online devices for the given profile.
+    /// Uses a 1-second timeout per port and scans 10 concurrent devices at a time.
     private func quickPortScan(profileID: UUID?) async {
         let devices = fetchDevices(for: profileID).filter { $0.status == .online }
         guard !devices.isEmpty else { return }
