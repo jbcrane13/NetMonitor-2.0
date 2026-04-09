@@ -11,38 +11,49 @@ import Sentry
 /// Configuration:
 ///   Call `ObservabilityService.shared.configure(dsn:)` on app launch, or set SENTRY_DSN
 ///   in the Xcode scheme environment.
-@MainActor
 @Observable
-public final class ObservabilityService: Sendable {
+public final class ObservabilityService: @unchecked Sendable {
+    private struct State {
+        var isInitialized = false
+    }
+
     public static let shared = ObservabilityService()
 
     private let logger = Logger(subsystem: "com.netmonitor", category: "Observability")
-    private(set) var isInitialized = false
+    private let state = OSAllocatedUnfairLock(initialState: State())
+    private(set) var isInitialized: Bool {
+        get { state.withLock { $0.isInitialized } }
+    }
 
     private init() {}
 
     // MARK: - Setup
 
     public func configure(dsn: String? = nil, environment: String = "production") {
-        guard !isInitialized else { return }
-
         let resolvedDSN = dsn ?? ProcessInfo.processInfo.environment["SENTRY_DSN"] ?? ""
         guard !resolvedDSN.isEmpty else {
             logger.warning("Sentry DSN not configured — error tracking disabled")
             return
         }
 
-        SentrySDK.start { options in
-            options.dsn = resolvedDSN
-            options.environment = environment
-            options.debug = false
-            options.tracesSampleRate = NSNumber(value: environment == "production" ? 0.2 : 1.0)
-            options.sendDefaultPii = false
-            options.enableAutoSessionTracking = true
-            options.swiftAsyncStacktraces = true
+        let didInitialize = state.withLock { state in
+            guard !state.isInitialized else { return false }
+
+            SentrySDK.start { options in
+                options.dsn = resolvedDSN
+                options.environment = environment
+                options.debug = false
+                options.tracesSampleRate = NSNumber(value: environment == "production" ? 0.2 : 1.0)
+                options.sendDefaultPii = false
+                options.enableAutoSessionTracking = true
+                options.swiftAsyncStacktraces = true
+            }
+
+            state.isInitialized = true
+            return true
         }
 
-        isInitialized = true
+        guard didInitialize else { return }
         logger.info("Sentry initialized (environment: \(environment, privacy: .public))")
     }
 
