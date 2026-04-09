@@ -14,12 +14,16 @@ let package = Package(
         ),
     ],
     dependencies: [
-        .package(path: "../NetworkScanKit")
+        .package(path: "../NetworkScanKit"),
+        .package(url: "https://github.com/getsentry/sentry-cocoa", from: "8.49.0")
     ],
     targets: [
         .target(
             name: "NetMonitorCore",
-            dependencies: ["NetworkScanKit"],
+            dependencies: [
+                "NetworkScanKit",
+                .product(name: "Sentry", package: "sentry-cocoa")
+            ],
             path: "Sources/NetMonitorCore",
             swiftSettings: [
                 .swiftLanguageMode(.v6)

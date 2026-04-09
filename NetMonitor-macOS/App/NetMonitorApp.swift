@@ -82,6 +82,10 @@ struct NetMonitorApp: App {
                 guard NSClassFromString("XCTest") == nil else { return }
                 await setupServices()
             }
+            // Force dark appearance on macOS to prevent light mode rendering issues.
+            // The app's UI uses hardcoded dark theme colors (MacTheme) and system-adaptive
+            // colors (.secondary) that would break in light mode.
+            .preferredColorScheme(.dark)
             .tint(Color(hex: accentColorHex))
             .environment(\.appAccentColor, Color(hex: accentColorHex))
             .environment(\.compactMode, compactMode)
@@ -108,12 +112,24 @@ struct NetMonitorApp: App {
                 .environment(\.appAccentColor, Color(hex: accentColorHex))
                 .environment(\.compactMode, compactMode)
                 .environment(\.companionService, companionService)
+                // Force dark appearance for Settings window too (refs #132)
+                .preferredColorScheme(.dark)
         }
         .modelContainer(Self.sharedModelContainer)
     }
 
     @MainActor
     private func setupServices() async {
+        // Initialize Sentry error tracking
+        if !isUITesting,
+           let sentryDSN = ProcessInfo.processInfo.environment["SENTRY_DSN"],
+           !sentryDSN.isEmpty {
+            ObservabilityService.shared.configure(
+                dsn: sentryDSN,
+                environment: "production"
+            )
+        }
+
         let context = Self.sharedModelContainer.mainContext
 
         if isUITesting {

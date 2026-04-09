@@ -4,6 +4,8 @@
 excluded:
   - build
   - .build
+  - Packages/**/.build
+  - Packages/**/checkouts
   - .worktrees
   - "**/*.xcodeproj"
   - Packages/NetMonitorCore/Tests/NetMonitorCoreTests/TestFixtures

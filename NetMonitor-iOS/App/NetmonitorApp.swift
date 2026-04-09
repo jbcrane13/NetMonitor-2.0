@@ -76,6 +76,12 @@ struct NetmonitorApp: App {
                         return
                     }
 
+                    // Initialize Sentry error tracking
+                    ObservabilityService.shared.configure(
+                        dsn: nil,
+                        environment: "production"
+                    )
+
                     showOnboarding = !hasCompletedOnboarding
 
                     // Start network monitor early so the first dashboard render
