@@ -121,9 +121,11 @@ struct NetMonitorApp: App {
     @MainActor
     private func setupServices() async {
         // Initialize Sentry error tracking
-        if !isUITesting {
+        if !isUITesting,
+           let sentryDSN = ProcessInfo.processInfo.environment["SENTRY_DSN"],
+           !sentryDSN.isEmpty {
             ObservabilityService.shared.configure(
-                dsn: "https://5accceed7df159944d3ff855b0070176@o4510965380808704.ingest.us.sentry.io/4511185304092672",
+                dsn: sentryDSN,
                 environment: "production"
             )
         }
