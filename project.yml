@@ -148,7 +148,7 @@ targets:
         CFBundleName: Netmonitor
         CFBundleDisplayName: Netmonitor
         CFBundleShortVersionString: "2.2.0"
-        CFBundleVersion: "2"
+        CFBundleVersion: "3"
         CFBundleIconName: AppIcon
         NSCameraUsageDescription: "NetMonitor uses the camera for AR-assisted room scanning to create floor plans for Wi-Fi coverage surveys."
         NSLocationWhenInUseUsageDescription: "NetMonitor uses your location to display WiFi network information and monitor GeoFence zones."
