@@ -4,7 +4,7 @@ import Foundation
 // Renamed from "PingResult" to avoid conflict with NetMonitorCore.PingResult.
 
 /// Aggregate result from a shell /sbin/ping invocation.
-struct ShellPingResult: Sendable {
+struct ShellPingResult {
     let transmitted: Int
     let received: Int
     let packetLoss: Double      // 0-100
@@ -17,7 +17,7 @@ struct ShellPingResult: Sendable {
 }
 
 /// A single parsed ping response line.
-struct ShellPingLine: Sendable {
+struct ShellPingLine {
     let sequenceNumber: Int
     let latency: Double?
     let ttl: Int?

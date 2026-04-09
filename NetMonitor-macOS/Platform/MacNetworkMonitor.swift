@@ -37,7 +37,7 @@ enum NetworkMonitorError: Error, CustomStringConvertible {
 // MARK: - TargetCheckRequest
 
 /// Sendable value type for passing target info across actor boundaries.
-struct TargetCheckRequest: Sendable {
+struct TargetCheckRequest {
     let id: UUID
     let host: String
     let port: Int?
@@ -48,7 +48,7 @@ struct TargetCheckRequest: Sendable {
 // MARK: - MeasurementResult
 
 /// Sendable value type for returning measurement results across actor boundaries.
-struct MeasurementResult: Sendable {
+struct MeasurementResult {
     let targetID: UUID
     let timestamp: Date
     let latency: Double?
@@ -59,7 +59,7 @@ struct MeasurementResult: Sendable {
 // MARK: - Local Device Discovery Support Types
 
 /// Represents a device discovered on the local network (macOS ARP scanner output).
-struct LocalDiscoveredDevice: Sendable, Equatable {
+struct LocalDiscoveredDevice: Equatable {
     let ipAddress: String
     let macAddress: String
     let hostname: String?
@@ -72,7 +72,7 @@ struct LocalDiscoveredDevice: Sendable, Equatable {
 }
 
 /// Errors that can occur during device discovery.
-enum LocalDeviceDiscoveryError: Error, Sendable {
+enum LocalDeviceDiscoveryError: Error {
     case networkUnavailable
     // periphery:ignore
     case permissionDenied

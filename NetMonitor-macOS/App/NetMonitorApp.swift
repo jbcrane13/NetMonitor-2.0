@@ -217,4 +217,5 @@ struct NetMonitorApp: App {
         }
     }
 }
+
 // swiftlint:enable function_body_length

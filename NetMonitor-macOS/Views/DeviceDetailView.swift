@@ -559,4 +559,5 @@ struct DeviceDetailView: View {
         DevicePortScanSheet(device: device, isPresented: $showPortScanSheet)
     }
 }
+
 // swiftlint:enable type_body_length

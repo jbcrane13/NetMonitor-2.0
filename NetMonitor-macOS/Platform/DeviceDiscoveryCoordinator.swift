@@ -491,4 +491,5 @@ final class DeviceDiscoveryCoordinator {
         networkProfile?.id ?? networkProfileManager.activeProfile?.id
     }
 }
+
 // swiftlint:enable type_body_length

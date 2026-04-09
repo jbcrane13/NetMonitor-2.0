@@ -206,4 +206,5 @@ extension WiFiHeatmapViewModel {
         return pdfData as Data
     }
 }
+
 // swiftlint:enable function_body_length

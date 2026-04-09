@@ -579,4 +579,5 @@ class HeatmapCanvasNS: NSView {
         ), withAttributes: attrs)
     }
 }
+
 // swiftlint:enable type_body_length

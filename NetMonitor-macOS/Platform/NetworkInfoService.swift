@@ -29,7 +29,7 @@ enum NetworkInfoError: Error, LocalizedError {
 }
 
 /// Network connection information
-struct ConnectionInfo: Sendable {
+struct ConnectionInfo {
     let connectionType: ConnectionType
     let ssid: String?
     let bssid: String?

@@ -10,7 +10,7 @@ import NetMonitorCore
 import Foundation
 
 /// Time window for statistics calculation
-enum StatisticsWindow: String, Sendable, CaseIterable {
+enum StatisticsWindow: String, CaseIterable {
     case twoMinutes = "2min"
     case tenMinutes = "10min"
     case allTime = "all"
@@ -33,7 +33,7 @@ enum StatisticsWindow: String, Sendable, CaseIterable {
 }
 
 /// Statistics for a single target within a time window
-struct TargetStatistics: Sendable {
+struct TargetStatistics {
     let targetID: UUID
     let targetName: String
     let window: StatisticsWindow
@@ -51,7 +51,7 @@ struct TargetStatistics: Sendable {
 }
 
 /// Aggregated statistics across all targets
-struct OverallStatistics: Sendable {
+struct OverallStatistics {
     let window: StatisticsWindow
     let averageLatency: Double?
     let averageUptime: Double

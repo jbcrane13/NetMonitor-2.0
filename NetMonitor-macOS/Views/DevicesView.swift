@@ -982,4 +982,5 @@ struct DevicePortScanSheet: View {
         .modelContainer(PreviewContainer().container)
 }
 #endif
+
 // swiftlint:enable type_body_length

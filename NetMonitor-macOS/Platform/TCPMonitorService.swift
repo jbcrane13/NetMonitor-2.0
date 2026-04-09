@@ -131,4 +131,5 @@ actor TCPMonitorService: NetworkMonitorService {
         }
     }
 }
+
 // swiftlint:enable function_body_length

@@ -586,4 +586,5 @@ struct MenuBarPopoverView: View {
 
     return MenuBarPopoverView(session: session, deviceDiscovery: discovery, onClose: {})
 }
+
 // swiftlint:enable type_body_length

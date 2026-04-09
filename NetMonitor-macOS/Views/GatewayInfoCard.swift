@@ -207,12 +207,11 @@ struct GatewayInfoCard: View {
         let lines = output.stdout.components(separatedBy: .newlines)
         for line in lines where line.hasPrefix("default") {
             let components = line.split(separator: " ", omittingEmptySubsequences: true)
-                if components.count >= 2 {
-                    let gateway = String(components[1])
-                    // Validate it's an IPv4 address
-                    if gateway.contains(".") && !gateway.contains("%") {
-                        return gateway
-                    }
+            if components.count >= 2 {
+                let gateway = String(components[1])
+                // Validate it's an IPv4 address
+                if gateway.contains(".") && !gateway.contains("%") {
+                    return gateway
                 }
             }
         }
