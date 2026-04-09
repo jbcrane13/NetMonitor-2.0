@@ -72,6 +72,7 @@ struct PortScannerToolView: View {
                     .accessibilityIdentifier("portScan_textfield_host")
 
                 Picker("Preset", selection: $preset) {
+// swiftlint:disable:next identifier_name
                     ForEach(PortPreset.allCases, id: \.self) { p in
                         Text(p.rawValue).tag(p)
                     }

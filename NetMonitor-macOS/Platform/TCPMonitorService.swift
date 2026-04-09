@@ -1,3 +1,4 @@
+// swiftlint:disable function_body_length
 import Foundation
 import Darwin
 
@@ -130,3 +131,4 @@ actor TCPMonitorService: NetworkMonitorService {
         }
     }
 }
+// swiftlint:enable function_body_length

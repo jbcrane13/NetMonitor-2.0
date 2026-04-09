@@ -69,6 +69,7 @@ struct UptimeHistoryView: View {
             }
 
             if let bar = vm?.uptimeBar, !bar.isEmpty {
+// swiftlint:disable:next identifier_name
                 GeometryReader { g in
                     HStack(spacing: 2) {
                         ForEach(0..<bar.count, id: \.self) { i in

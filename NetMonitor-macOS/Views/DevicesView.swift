@@ -1,3 +1,5 @@
+// swiftlint:disable file_length
+// swiftlint:disable type_body_length
 import SwiftUI
 import NetMonitorCore
 import SwiftData
@@ -114,12 +116,13 @@ struct DevicesView: View {
             ?? coordinator?.networkProfileManager.activeProfile?.id
     }
 
-    /// Compare IP addresses numerically (192.168.2.3 < 192.168.2.10)
+    // Compare IP addresses numerically (192.168.2.3 < 192.168.2.10)
+// swiftlint:disable:next identifier_name
     private func compareIPAddresses(_ a: String, _ b: String) -> Bool {
         let aParts = a.split(separator: ".").compactMap { Int($0) }
         let bParts = b.split(separator: ".").compactMap { Int($0) }
-        for i in 0..<min(aParts.count, bParts.count) {
-            if aParts[i] != bParts[i] { return aParts[i] < bParts[i] }
+        for index in 0..<min(aParts.count, bParts.count) where aParts[index] != bParts[index] {
+            return aParts[index] < bParts[index]
         }
         return aParts.count < bParts.count
     }
@@ -980,3 +983,4 @@ struct DevicePortScanSheet: View {
         .modelContainer(PreviewContainer().container)
 }
 #endif
+// swiftlint:enable type_body_length

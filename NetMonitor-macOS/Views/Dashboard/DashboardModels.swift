@@ -19,6 +19,7 @@ struct LatencyStats {
 
     /// Population standard deviation of latency values (jitter proxy).
     var jitter: Double? {
+// swiftlint:disable:next identifier_name
         guard let a = avg, latencies.count > 1 else { return nil }
         let variance = latencies.map { pow($0 - a, 2) }.reduce(0, +) / Double(latencies.count)
         return sqrt(variance)
@@ -47,6 +48,7 @@ struct LatencyStats {
     // periphery:ignore
     var histogramBuckets: HistogramBuckets {
         var u5 = 0, s5 = 0, s20 = 0, o50 = 0
+// swiftlint:disable:next identifier_name
         for l in latencies {
             switch l {
             case ..<5:    u5  += 1

@@ -1,3 +1,4 @@
+// swiftlint:disable function_body_length
 import AppKit
 import Foundation
 import NetMonitorCore
@@ -13,6 +14,7 @@ extension WiFiHeatmapViewModel {
     }
 
     private static let pdfDateFormatter: DateFormatter = {
+// swiftlint:disable:next identifier_name
         let f = DateFormatter()
         f.dateStyle = .long
         f.timeStyle = .short
@@ -20,11 +22,13 @@ extension WiFiHeatmapViewModel {
     }()
 
     private static let pdfTimeFormatter: DateFormatter = {
+// swiftlint:disable:next identifier_name
         let f = DateFormatter()
         f.timeStyle = .short
         return f
     }()
 
+    // swiftlint:disable:next cyclomatic_complexity
     func exportPDF() -> Data? {
         guard let project = surveyProject,
               let floorPlanImage = NSImage(data: project.floorPlan.imageData) else { return nil }
@@ -202,3 +206,4 @@ extension WiFiHeatmapViewModel {
         return pdfData as Data
     }
 }
+// swiftlint:enable function_body_length

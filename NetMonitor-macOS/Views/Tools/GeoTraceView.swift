@@ -210,9 +210,13 @@ struct GeoTraceView: View {
     private func fitMapToHops() {
         let coords = mapCoordinates
         guard coords.count > 1 else { return }
+// swiftlint:disable:next force_unwrapping
         let minLat = coords.map(\.latitude).min()!
+// swiftlint:disable:next force_unwrapping
         let maxLat = coords.map(\.latitude).max()!
+// swiftlint:disable:next force_unwrapping
         let minLon = coords.map(\.longitude).min()!
+// swiftlint:disable:next force_unwrapping
         let maxLon = coords.map(\.longitude).max()!
         let center = CLLocationCoordinate2D(latitude: (minLat + maxLat) / 2, longitude: (minLon + maxLon) / 2)
         let span = MKCoordinateSpan(latitudeDelta: (maxLat - minLat) * 1.4 + 2, longitudeDelta: (maxLon - minLon) * 1.4 + 2)

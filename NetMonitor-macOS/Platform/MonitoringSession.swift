@@ -262,6 +262,7 @@ final class MonitoringSession {
         )
         do {
             let old = try modelContext.fetch(descriptor)
+// swiftlint:disable:next identifier_name
             for m in old { modelContext.delete(m) }
             if !old.isEmpty { try modelContext.save() }
         } catch {

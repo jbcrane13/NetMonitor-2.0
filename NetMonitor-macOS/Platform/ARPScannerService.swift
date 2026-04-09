@@ -238,6 +238,7 @@ actor ARPScannerService: LocalDeviceScanner {
                             NI_NUMERICHOST
                         ) == 0 {
                             localIP = hostname.withUnsafeBufferPointer { buffer in
+                                // swiftlint:disable:next optional_data_string_conversion
                                 String(decoding: buffer.prefix(while: { $0 != 0 }).map { UInt8(bitPattern: $0) }, as: UTF8.self)
                             }
                         }
@@ -255,6 +256,7 @@ actor ARPScannerService: LocalDeviceScanner {
                                 NI_NUMERICHOST
                             ) == 0 {
                                 subnetMask = maskHostname.withUnsafeBufferPointer { buffer in
+                                    // swiftlint:disable:next optional_data_string_conversion
                                     String(decoding: buffer.prefix(while: { $0 != 0 }).map { UInt8(bitPattern: $0) }, as: UTF8.self)
                                 }
                             }

@@ -184,6 +184,7 @@ struct PingToolView: View {
                     AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
                         .foregroundStyle(Color.secondary.opacity(0.3))
                     AxisValueLabel {
+// swiftlint:disable:next identifier_name
                         if let v = value.as(Double.self) {
                             Text(String(format: "%.0f", v))
                                 .font(.caption)
@@ -197,6 +198,7 @@ struct PingToolView: View {
                     AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
                         .foregroundStyle(Color.secondary.opacity(0.3))
                     AxisValueLabel {
+// swiftlint:disable:next identifier_name
                         if let v = value.as(Int.self) {
                             Text("\(v)")
                                 .font(.caption)

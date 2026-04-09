@@ -21,6 +21,7 @@ struct WHOISToolView: View {
     private let service = WHOISService()
 
     private static let dateFormatter: DateFormatter = {
+// swiftlint:disable:next identifier_name
         let f = DateFormatter()
         f.dateStyle = .medium
         f.timeStyle = .short

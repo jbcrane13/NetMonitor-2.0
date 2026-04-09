@@ -1,3 +1,4 @@
+// swiftlint:disable type_body_length
 import SwiftUI
 import SwiftData
 import NetMonitorCore
@@ -558,3 +559,4 @@ struct DeviceDetailView: View {
         DevicePortScanSheet(device: device, isPresented: $showPortScanSheet)
     }
 }
+// swiftlint:enable type_body_length

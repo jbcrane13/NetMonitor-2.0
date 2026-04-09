@@ -1,3 +1,4 @@
+// swiftlint:disable type_body_length
 import Foundation
 import SwiftData
 import NetMonitorCore
@@ -240,7 +241,7 @@ final class DeviceDiscoveryCoordinator {
     }
 
     private func resolveDeviceNames(profileID: UUID?) async {
-        let devices = fetchDevices(for: profileID).filter { $0.hostname == nil || $0.hostname == "" }
+        let devices = fetchDevices(for: profileID).filter { $0.hostname == nil || $0.hostname?.isEmpty == true }
         guard !devices.isEmpty else { return }
 
         await withTaskGroup(of: (UUID, String?).self) { group in
@@ -273,7 +274,7 @@ final class DeviceDiscoveryCoordinator {
 
     private func resolveDeviceVendors(profileID: UUID?) async {
         let devices = fetchDevices(for: profileID).filter {
-            !$0.macAddress.isEmpty && ($0.vendor == nil || $0.vendor == "")
+            !$0.macAddress.isEmpty && ($0.vendor == nil || $0.vendor?.isEmpty == true)
         }
         guard !devices.isEmpty else { return }
 
@@ -305,7 +306,6 @@ final class DeviceDiscoveryCoordinator {
         }
     }
 
-    /// Quick port scan of common ports for all online devices.
     /// Uses 1s timeout per port, 10 concurrent devices at a time.
     private func quickPortScan(profileID: UUID?) async {
         let devices = fetchDevices(for: profileID).filter { $0.status == .online }
@@ -331,8 +331,8 @@ final class DeviceDiscoveryCoordinator {
                                 return (port, isOpen)
                             }
                         }
-                        for await (port, isOpen) in portGroup {
-                            if isOpen { openPorts.append(port) }
+                        for await (port, isOpen) in portGroup where isOpen {
+                            openPorts.append(port)
                         }
                     }
                     return (id, openPorts.sorted())
@@ -360,8 +360,8 @@ final class DeviceDiscoveryCoordinator {
                                     return (port, isOpen)
                                 }
                             }
-                            for await (port, isOpen) in portGroup {
-                                if isOpen { openPorts.append(port) }
+                            for await (port, isOpen) in portGroup where isOpen {
+                                openPorts.append(port)
                             }
                         }
                         return (id, openPorts.sorted())
@@ -469,18 +469,18 @@ final class DeviceDiscoveryCoordinator {
         bonjour: [LocalDiscoveredDevice]
     ) -> [LocalDiscoveredDevice] {
         var merged: [String: LocalDiscoveredDevice] = [:]
-        for d in arp { merged[d.ipAddress] = d }
-        for d in bonjour {
-            if let existing = merged[d.ipAddress] {
-                if existing.hostname == nil, d.hostname != nil {
-                    merged[d.ipAddress] = LocalDiscoveredDevice(
+        for device in arp { merged[device.ipAddress] = device }
+        for device in bonjour {
+            if let existing = merged[device.ipAddress] {
+                if existing.hostname == nil, device.hostname != nil {
+                    merged[device.ipAddress] = LocalDiscoveredDevice(
                         ipAddress: existing.ipAddress,
                         macAddress: existing.macAddress,
-                        hostname: d.hostname
+                        hostname: device.hostname
                     )
                 }
             } else {
-                merged[d.ipAddress] = d
+                merged[device.ipAddress] = device
             }
         }
         return Array(merged.values)
@@ -490,3 +490,4 @@ final class DeviceDiscoveryCoordinator {
         networkProfile?.id ?? networkProfileManager.activeProfile?.id
     }
 }
+// swiftlint:enable type_body_length

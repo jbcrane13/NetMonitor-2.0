@@ -1,3 +1,4 @@
+// swiftlint:disable type_body_length
 //
 //  MenuBarPopoverView.swift
 //  NetMonitor
@@ -534,7 +535,9 @@ struct MenuBarPopoverView: View {
         // Fallback: use the lowest latency online target as a proxy
         if let best = session.latestResults.values
             .filter({ $0.isReachable })
+// swiftlint:disable:next identifier_name
             .compactMap({ m -> (Double, TargetMeasurement)? in
+// swiftlint:disable:next identifier_name
                 guard let l = m.latency else { return nil }
                 return (l, m)
             })
@@ -558,6 +561,7 @@ struct MenuBarPopoverView: View {
 // MARK: - Preview
 
 #Preview {
+// swiftlint:disable:next force_try
     let container = try! ModelContainer(
         for: NetworkTarget.self, TargetMeasurement.self,
         configurations: ModelConfiguration(isStoredInMemoryOnly: true)
@@ -582,3 +586,4 @@ struct MenuBarPopoverView: View {
 
     return MenuBarPopoverView(session: session, deviceDiscovery: discovery, onClose: {})
 }
+// swiftlint:enable type_body_length

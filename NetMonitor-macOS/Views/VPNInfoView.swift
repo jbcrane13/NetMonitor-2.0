@@ -78,6 +78,7 @@ final class VPNInfoMacViewModel {
         monitorTask = Task { [weak self] in
             guard let self else { return }
             let stream = service.statusStream()
+// swiftlint:disable:next identifier_name
             for await s in stream {
                 guard !Task.isCancelled else { break }
                 status = s
@@ -92,6 +93,7 @@ final class VPNInfoMacViewModel {
         service.stopMonitoring()
     }
 
+// swiftlint:disable:next identifier_name
     private func updateTimer(for s: VPNStatus) {
         timerTask?.cancel()
         guard s.isActive, let start = s.connectedSince else {

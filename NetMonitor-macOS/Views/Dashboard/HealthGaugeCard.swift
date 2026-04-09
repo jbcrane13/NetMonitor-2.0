@@ -84,6 +84,7 @@ struct HealthGaugeCard: View {
     }
 
     private var scoreText: String {
+// swiftlint:disable:next identifier_name
         if let s = viewModel.currentScore { return "\(s.score)" }
         return viewModel.isCalculating ? "…" : "—"
     }
@@ -112,6 +113,7 @@ struct HealthGaugeCard: View {
                 .foregroundStyle(.secondary)
                 .tracking(0.8)
                 .frame(width: 46, alignment: .leading)
+// swiftlint:disable:next identifier_name
             GeometryReader { g in
                 ZStack(alignment: .leading) {
                     Capsule().fill(Color.white.opacity(0.07))

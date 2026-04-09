@@ -44,8 +44,7 @@ actor DeviceNameResolver {
             if result.exitCode == 0, !result.stdout.isEmpty {
                 // Parse "X.X.X.X.in-addr.arpa domain name pointer hostname."
                 let lines = result.stdout.components(separatedBy: "\n")
-                for line in lines {
-                    if line.contains("domain name pointer") {
+                for line in lines where line.contains("domain name pointer") {
                         let parts = line.components(separatedBy: "domain name pointer ")
                         if parts.count > 1 {
                             var hostname = parts[1].trimmingCharacters(in: .whitespacesAndNewlines)

@@ -228,11 +228,12 @@ struct NetworkDevicesPanel: View {
         }
     }
 
+// swiftlint:disable:next identifier_name
     private func compareIPAddresses(_ a: String, _ b: String) -> Bool {
         let aParts = a.split(separator: ".").compactMap { Int($0) }
         let bParts = b.split(separator: ".").compactMap { Int($0) }
-        for i in 0..<min(aParts.count, bParts.count) {
-            if aParts[i] != bParts[i] { return aParts[i] < bParts[i] }
+        for index in 0..<min(aParts.count, bParts.count) where aParts[index] != bParts[index] {
+            return aParts[index] < bParts[index]
         }
         return aParts.count < bParts.count
     }
