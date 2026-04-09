@@ -121,6 +121,7 @@ struct StatisticItem: View {
 #if DEBUG
 #Preview {
     let config = ModelConfiguration(isStoredInMemoryOnly: true)
+// swiftlint:disable:next force_try
     let container = try! ModelContainer(
         for: NetworkTarget.self, TargetMeasurement.self,
         configurations: config

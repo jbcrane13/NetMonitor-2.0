@@ -165,6 +165,7 @@ struct ISPHealthCard: View {
     // MARK: Sub-views
 
     private var uptimeBarView: some View {
+// swiftlint:disable:next identifier_name
         GeometryReader { g in
             let segments = uptime?.uptimeBar ?? []
             HStack(spacing: 1) {

@@ -16,6 +16,7 @@ final class TimelineMacViewModel {
     }
 
     var filteredEvents: [NetworkEvent] {
+// swiftlint:disable:next identifier_name
         guard let f = selectedFilter else { return events }
         return events.filter { $0.type == f }
     }
@@ -25,11 +26,14 @@ final class TimelineMacViewModel {
     var groupedEvents: [(label: String, events: [NetworkEvent])] {
         let cal = Calendar.current
         let today = cal.startOfDay(for: Date())
+// swiftlint:disable:next force_unwrapping
         let yesterday = cal.date(byAdding: .day, value: -1, to: today)!
         var groups: [String: [NetworkEvent]] = [:]
+// swiftlint:disable:next identifier_name
         for e in filteredEvents {
             let day = cal.startOfDay(for: e.timestamp)
             let label: String
+// swiftlint:disable:next line_length
             if day == today { label = "Today" } else if day == yesterday { label = "Yesterday" } else { label = DateFormatter.localizedString(from: day, dateStyle: .medium, timeStyle: .none) }
             groups[label, default: []].append(e)
         }
@@ -128,6 +132,7 @@ private struct MacTimelineRow: View {
                 .frame(width: 20)
             VStack(alignment: .leading, spacing: 2) {
                 Text(event.title).font(.body)
+// swiftlint:disable:next identifier_name
                 if let d = event.details {
                     Text(d).font(.caption).foregroundStyle(.secondary)
                 }

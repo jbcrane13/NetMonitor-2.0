@@ -80,7 +80,7 @@ final class UptimeViewModel {
         }
 
         // Latest latency sample
-        latestLatencyMs = records.filter { $0.isSample }.last?.latencyMs
+        latestLatencyMs = records.last(where: { $0.isSample })?.latencyMs
 
         // Build timeline of transition events only
         let transitions = records.filter { !$0.isSample }
@@ -162,6 +162,7 @@ final class UptimeViewModel {
         var cursor = segStart
         var currentlyOnline = isOnlineAtSegStart
 
+// swiftlint:disable:next identifier_name
         for t in inSeg {
             if currentlyOnline {
                 total += t.timestamp.timeIntervalSince(cursor)

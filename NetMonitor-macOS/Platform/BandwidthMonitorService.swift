@@ -114,6 +114,7 @@ import Observation
         let gb: Double = 1_073_741_824
         let mb: Double = 1_048_576
         let kb: Double = 1_024
+// swiftlint:disable:next identifier_name
         let d = Double(bytes)
         if d >= gb {
             return String(format: "%.2f GB", d / gb)

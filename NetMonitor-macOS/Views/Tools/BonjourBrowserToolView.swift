@@ -290,10 +290,8 @@ struct BonjourBrowserToolView: View {
 
             // Iterate results until the stream finishes (either by timeout or
             // by the service's own 30-second auto-finish).
-            for await service in stream {
-                if !services.contains(where: { $0.id == service.id }) {
-                    services.append(service)
-                }
+            for await service in stream where !services.contains(where: { $0.id == service.id }) {
+                services.append(service)
             }
 
             timeoutTask.cancel()

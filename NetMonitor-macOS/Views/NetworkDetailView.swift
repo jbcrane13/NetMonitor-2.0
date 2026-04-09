@@ -57,8 +57,8 @@ struct NetworkDetailView: View {
             if !history.isEmpty { return history }
         }
         // Fall back to any target with latency data
-        for (id, history) in session.recentLatencies {
-            if !history.isEmpty { return history }
+        for (_, history) in session.recentLatencies where !history.isEmpty {
+            return history
         }
         return []
     }
@@ -198,9 +198,13 @@ struct NetworkDetailView: View {
         interfaceName: "en0",
         ipAddress: "192.168.1.100",
         network: NetworkUtilities.IPv4Network(
+// swiftlint:disable:next force_unwrapping
             networkAddress: NetworkUtilities.ipv4ToUInt32("192.168.1.0")!,
+// swiftlint:disable:next force_unwrapping
             broadcastAddress: NetworkUtilities.ipv4ToUInt32("192.168.1.255")!,
+// swiftlint:disable:next force_unwrapping
             interfaceAddress: NetworkUtilities.ipv4ToUInt32("192.168.1.100")!,
+// swiftlint:disable:next force_unwrapping
             netmask: NetworkUtilities.ipv4ToUInt32("255.255.255.0")!
         ),
         connectionType: .wifi,

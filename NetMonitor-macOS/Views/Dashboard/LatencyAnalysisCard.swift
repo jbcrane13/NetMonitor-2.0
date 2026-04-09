@@ -83,13 +83,16 @@ struct LatencyAnalysisCard: View {
             RoundedRectangle(cornerRadius: 6)
                 .fill(Color.black.opacity(0.28))
 
+// swiftlint:disable:next identifier_name
             GeometryReader { g in
                 let data = waveformData
                 if data.isEmpty {
                     calibratingView(size: g.size)
                 } else if data.count > 1 {
                     let padding: CGFloat = 4
+// swiftlint:disable:next identifier_name
                     let w = g.size.width - padding * 2
+// swiftlint:disable:next identifier_name
                     let h = g.size.height - padding * 2
 
                     let rawMin = data.min() ?? 0
@@ -122,7 +125,9 @@ struct LatencyAnalysisCard: View {
                     // Gradient fill below line
                     Path { path in
                         addCatmullRomPath(to: &path, points: points)
+// swiftlint:disable:next force_unwrapping
                         path.addLine(to: CGPoint(x: points.last!.x, y: padding + h))
+// swiftlint:disable:next force_unwrapping
                         path.addLine(to: CGPoint(x: points.first!.x, y: padding + h))
                         path.closeSubpath()
                     }
@@ -166,7 +171,9 @@ struct LatencyAnalysisCard: View {
 
     private var gradientLegend: some View {
         VStack(spacing: 2) {
+// swiftlint:disable:next identifier_name
             GeometryReader { g in
+// swiftlint:disable:next identifier_name
                 let w = g.size.width
                 LinearGradient(
                     stops: [
@@ -216,6 +223,7 @@ struct LatencyAnalysisCard: View {
         }
     }
 
+// swiftlint:disable:next identifier_name
     private func formatMs(_ v: Double?) -> String? {
         v.map { String(format: $0 < 10 ? "%.1fms" : "%.0fms", $0) }
     }

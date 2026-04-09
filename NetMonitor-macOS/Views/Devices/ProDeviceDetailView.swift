@@ -558,10 +558,8 @@ private extension ProDeviceDetailView {
         let found: [Int] = await Task.detached {
             let scanner = PortScannerService()
             var open: [Int] = []
-            for await result in await scanner.scan(host: ip, ports: commonPorts, timeout: 1.5) {
-                if result.state == .open {
-                    open.append(result.port)
-                }
+            for await result in await scanner.scan(host: ip, ports: commonPorts, timeout: 1.5) where result.state == .open {
+                open.append(result.port)
             }
             return open.sorted()
         }.value

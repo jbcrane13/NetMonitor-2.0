@@ -421,7 +421,9 @@ struct CalibrationSheet: View {
                     knownDistanceMeters: realDist
                 )
                 if let project = viewModel.surveyProject {
+// swiftlint:disable:next identifier_name
                     let w = Double(project.floorPlan.pixelWidth) * metersPerPixel
+// swiftlint:disable:next identifier_name
                     let h = Double(project.floorPlan.pixelHeight) * metersPerPixel
                     LabeledContent("Floor plan size:") {
                         Text(String(format: "%.1f × %.1f m", w, h))

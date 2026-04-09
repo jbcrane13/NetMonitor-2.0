@@ -11,7 +11,7 @@ actor ISPLookupService {
 
     // MARK: - Types
 
-    struct ISPInfo: Sendable, Codable {
+    struct ISPInfo: Codable {
         let publicIP: String
         let isp: String
         let organization: String?

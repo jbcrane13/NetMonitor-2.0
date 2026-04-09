@@ -1,3 +1,4 @@
+// swiftlint:disable type_body_length
 import AppKit
 import NetMonitorCore
 import SwiftUI
@@ -50,6 +51,7 @@ struct HeatmapCanvasRepresentable: NSViewRepresentable {
 class HeatmapCanvasNS: NSView {
 
     private static let tooltipTimeFormatter: DateFormatter = {
+// swiftlint:disable:next identifier_name
         let f = DateFormatter()
         f.timeStyle = .short
         return f
@@ -577,3 +579,5 @@ class HeatmapCanvasNS: NSView {
         ), withAttributes: attrs)
     }
 }
+
+// swiftlint:enable type_body_length

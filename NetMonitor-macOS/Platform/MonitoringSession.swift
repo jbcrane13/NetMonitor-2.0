@@ -262,7 +262,7 @@ final class MonitoringSession {
         )
         do {
             let old = try modelContext.fetch(descriptor)
-            for m in old { modelContext.delete(m) }
+            for measurement in old { modelContext.delete(measurement) }
             if !old.isEmpty { try modelContext.save() }
         } catch {
             Logger.data.error("Failed to prune measurements: \(error)")

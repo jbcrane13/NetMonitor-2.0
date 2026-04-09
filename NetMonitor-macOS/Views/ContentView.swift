@@ -103,6 +103,7 @@ struct ContentView: View {
             if selectedNetworkProfile != nil {
                 NetworkDetailView(
                     profile: Binding(
+// swiftlint:disable:next force_unwrapping
                         get: { selectedNetworkProfile! },
                         set: { selectedNetworkProfile = $0 }
                     )

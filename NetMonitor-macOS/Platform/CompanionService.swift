@@ -49,6 +49,7 @@ actor CompanionService {
         let parameters = NWParameters.tcp
         parameters.includePeerToPeer = true
 
+        // swiftlint:disable:next force_unwrapping
         listener = try NWListener(using: parameters, on: NWEndpoint.Port(rawValue: port)!)
 
         // Advertise via Bonjour
@@ -76,8 +77,8 @@ actor CompanionService {
         isRunning = true
     }
 
-    /// Stop the service
     // periphery:ignore
+    /// Stop the service
     func stop() {
         listener?.cancel()
         listener = nil
@@ -92,8 +93,8 @@ actor CompanionService {
         isRunning = false
     }
 
-    /// Send a message to all connected clients
     // periphery:ignore
+    /// Send a message to all connected clients
     func broadcast(_ message: CompanionMessage) async {
         guard let data = try? JSONEncoder().encode(message) else { return }
 

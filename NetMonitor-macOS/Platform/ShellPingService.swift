@@ -4,7 +4,7 @@ import Foundation
 // Renamed from "PingResult" to avoid conflict with NetMonitorCore.PingResult.
 
 /// Aggregate result from a shell /sbin/ping invocation.
-struct ShellPingResult: Sendable {
+struct ShellPingResult {
     let transmitted: Int
     let received: Int
     let packetLoss: Double      // 0-100
@@ -17,7 +17,7 @@ struct ShellPingResult: Sendable {
 }
 
 /// A single parsed ping response line.
-struct ShellPingLine: Sendable {
+struct ShellPingLine {
     let sequenceNumber: Int
     let latency: Double?
     let ttl: Int?
@@ -67,15 +67,19 @@ actor ShellPingService {
 // MARK: - Parser
 
 enum ShellPingOutputParser {
+    // swiftlint:disable:next force_try
     private static let responsePattern = try! NSRegularExpression(
         pattern: #"(\d+) bytes from ([^:]+): icmp_seq=(\d+) ttl=(\d+) time=([0-9.]+) ms"#
     )
+    // swiftlint:disable:next force_try
     private static let summaryPattern = try! NSRegularExpression(
         pattern: #"(\d+) packets transmitted, (\d+) (?:packets )?received, ([0-9.]+)% packet loss"#
     )
+    // swiftlint:disable:next force_try
     private static let statsPattern = try! NSRegularExpression(
         pattern: #"min/avg/max/(?:stddev|mdev) = ([0-9.]+)/([0-9.]+)/([0-9.]+)/([0-9.]+) ms"#
     )
+    // swiftlint:disable:next force_try
     private static let timeoutPattern = try! NSRegularExpression(
         pattern: #"Request timeout for icmp_seq (\d+)"#
     )
@@ -109,23 +113,23 @@ enum ShellPingOutputParser {
         var packetLoss: Double = 100, minL: Double = 0, avgL: Double = 0, maxL: Double = 0, stddev: Double = 0
         for line in lines {
             let range = NSRange(line.startIndex..., in: line)
-            if let m = summaryPattern.firstMatch(in: line, range: range),
-               let r1 = Range(m.range(at: 1), in: line),
-               let r2 = Range(m.range(at: 2), in: line),
-               let r3 = Range(m.range(at: 3), in: line) {
-                transmitted = Int(line[r1]) ?? 0
-                received = Int(line[r2]) ?? 0
-                packetLoss = Double(line[r3]) ?? 100
+            if let match = summaryPattern.firstMatch(in: line, range: range),
+               let range1 = Range(match.range(at: 1), in: line),
+               let range2 = Range(match.range(at: 2), in: line),
+               let range3 = Range(match.range(at: 3), in: line) {
+                transmitted = Int(line[range1]) ?? 0
+                received = Int(line[range2]) ?? 0
+                packetLoss = Double(line[range3]) ?? 100
             }
-            if let m = statsPattern.firstMatch(in: line, range: range),
-               let r1 = Range(m.range(at: 1), in: line),
-               let r2 = Range(m.range(at: 2), in: line),
-               let r3 = Range(m.range(at: 3), in: line),
-               let r4 = Range(m.range(at: 4), in: line) {
-                minL = Double(line[r1]) ?? 0
-                avgL = Double(line[r2]) ?? 0
-                maxL = Double(line[r3]) ?? 0
-                stddev = Double(line[r4]) ?? 0
+            if let match = statsPattern.firstMatch(in: line, range: range),
+               let range1 = Range(match.range(at: 1), in: line),
+               let range2 = Range(match.range(at: 2), in: line),
+               let range3 = Range(match.range(at: 3), in: line),
+               let range4 = Range(match.range(at: 4), in: line) {
+                minL = Double(line[range1]) ?? 0
+                avgL = Double(line[range2]) ?? 0
+                maxL = Double(line[range3]) ?? 0
+                stddev = Double(line[range4]) ?? 0
             }
         }
         return ShellPingResult(transmitted: transmitted, received: received, packetLoss: packetLoss,

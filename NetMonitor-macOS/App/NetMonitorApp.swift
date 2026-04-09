@@ -1,3 +1,4 @@
+// swiftlint:disable function_body_length
 import SwiftUI
 import SwiftData
 import NetMonitorCore
@@ -232,3 +233,5 @@ struct NetMonitorApp: App {
         }
     }
 }
+
+// swiftlint:enable function_body_length

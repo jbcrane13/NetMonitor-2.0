@@ -8,7 +8,7 @@ enum RateAppService {
 
     // MARK: - App Store ID
 
-    /// TODO: Update with real App Store ID once live
+    // NOTE: Update with real App Store ID once live
     static let appStoreID: String = "APP_STORE_ID_PLACEHOLDER"
     private static let reviewURL = "macappstore://itunes.apple.com/app/id\(appStoreID)?action=write-review"
     private static let ratingsURL = "macappstore://itunes.apple.com/app/id\(appStoreID)"

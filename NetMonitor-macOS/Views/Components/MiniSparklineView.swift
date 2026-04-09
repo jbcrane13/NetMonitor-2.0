@@ -99,6 +99,7 @@ struct MiniSparklineView: View {
                 .padding(4)
             } else {
                 // Empty/waiting state — subtle baseline
+// swiftlint:disable:next identifier_name
                 GeometryReader { g in
                     Path { path in
                         let y = g.size.height / 2

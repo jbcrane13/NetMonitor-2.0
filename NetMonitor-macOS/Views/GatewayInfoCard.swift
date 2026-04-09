@@ -205,15 +205,13 @@ struct GatewayInfoCard: View {
         // Parse netstat output for default route
         // Format: "default            192.168.1.1        UGScg         en0"
         let lines = output.stdout.components(separatedBy: .newlines)
-        for line in lines {
-            if line.hasPrefix("default") {
-                let components = line.split(separator: " ", omittingEmptySubsequences: true)
-                if components.count >= 2 {
-                    let gateway = String(components[1])
-                    // Validate it's an IPv4 address
-                    if gateway.contains(".") && !gateway.contains("%") {
-                        return gateway
-                    }
+        for line in lines where line.hasPrefix("default") {
+            let components = line.split(separator: " ", omittingEmptySubsequences: true)
+            if components.count >= 2 {
+                let gateway = String(components[1])
+                // Validate it's an IPv4 address
+                if gateway.contains(".") && !gateway.contains("%") {
+                    return gateway
                 }
             }
         }
