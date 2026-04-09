@@ -115,8 +115,7 @@ final class NetworkHealthScoreMacViewModel {
 
         let stream = await pingService.ping(host: "8.8.8.8", count: 5, timeout: 3)
         var results: [PingResult] = []
-// swiftlint:disable:next identifier_name
-        for await r in stream { results.append(r) }
+        for await result in stream { results.append(result) }
 
         if !results.isEmpty {
             let ok = results.filter { !$0.isTimeout }
