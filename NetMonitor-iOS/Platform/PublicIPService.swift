@@ -48,7 +48,9 @@ final class PublicIPService: PublicIPServiceProtocol {
 
     private func fetchFromIPAPI() async throws -> ISPInfo {
         // Step 1: Get guaranteed IPv4 address from ipify (IPv4-only service)
-        let ipv4URL = URL(string: "https://api.ipify.org")!
+        guard let ipv4URL = URL(string: "https://api.ipify.org") else {
+            throw PublicIPError.invalidResponse
+        }
         let (ipData, ipResponse) = try await session.data(from: ipv4URL)
         guard let ipHTTP = ipResponse as? HTTPURLResponse, ipHTTP.statusCode == 200,
               let ipv4 = String(data: ipData, encoding: .utf8)?
@@ -58,7 +60,9 @@ final class PublicIPService: PublicIPServiceProtocol {
         }
 
         // Step 2: Look up ISP details for that IPv4 address
-        let url = URL(string: "https://ipapi.co/\(ipv4)/json/")!
+        guard let url = URL(string: "https://ipapi.co/\(ipv4)/json/") else {
+            throw PublicIPError.invalidResponse
+        }
         let (data, response) = try await session.data(from: url)
 
         guard let httpResponse = response as? HTTPURLResponse,
