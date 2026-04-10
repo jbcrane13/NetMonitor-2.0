@@ -21,8 +21,8 @@ public final class ObservabilityService: @unchecked Sendable {
 
     private let logger = Logger(subsystem: "com.netmonitor", category: "Observability")
     private let state = OSAllocatedUnfairLock(initialState: State())
-    private(set) var isInitialized: Bool {
-        get { state.withLock { $0.isInitialized } }
+    var isInitialized: Bool {
+        state.withLock { $0.isInitialized }
     }
 
     private init() {}
