@@ -27,15 +27,19 @@ struct ICMPLatencyFallbackTests {
         // INTEGRATION GAP: ICMP socket creation will fail in the simulator sandbox.
         // The phase must complete onProgress(1.0) and return without crashing.
         let phase = ICMPLatencyPhase(collectTimeout: 0.1)
-        let context = ScanContext(subnet: "192.168.1.0/24", knownHosts: [])
+        let context = ScanContext(hosts: [], subnetFilter: { _ in true }, localIP: nil)
         let accumulator = ScanAccumulator()
-        var progressValues: [Double] = []
+        final class ProgressCollector: @unchecked Sendable {
+            var values: [Double] = []
+            func append(_ v: Double) { values.append(v) }
+        }
+        let progressValues = ProgressCollector()
 
         await phase.execute(context: context, accumulator: accumulator) { value in
             progressValues.append(value)
         }
 
-        #expect(progressValues.last == 1.0,
+        #expect(progressValues.values.last == 1.0,
                "Phase must report 100% completion even when no devices are present")
     }
 
