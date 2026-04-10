@@ -43,8 +43,7 @@ struct PingServiceTests {
             makeResult(sequence: 3, time: 0, isTimeout: true),
         ]
         let stats = await service.calculateStatistics(results, requestedCount: 3)
-        #expect(stats != nil)
-        let s = stats!
+        guard let s = stats else { Issue.record("Expected non-nil stats"); return }
         #expect(s.received == 0)
         #expect(s.transmitted == 3)
         #expect(s.packetLoss == 100.0)
@@ -60,8 +59,7 @@ struct PingServiceTests {
         let service = PingService()
         let results = [makeResult(sequence: 1, time: 42.0)]
         let stats = await service.calculateStatistics(results, requestedCount: 1)
-        #expect(stats != nil)
-        let s = stats!
+        guard let s = stats else { Issue.record("Expected non-nil stats"); return }
         #expect(s.received == 1)
         #expect(s.transmitted == 1)
         #expect(s.packetLoss == 0.0)
@@ -83,8 +81,7 @@ struct PingServiceTests {
             makeResult(sequence: 4, time: 0, isTimeout: true),
         ]
         let stats = await service.calculateStatistics(results, requestedCount: 4)
-        #expect(stats != nil)
-        let s = stats!
+        guard let s = stats else { Issue.record("Expected non-nil stats"); return }
         #expect(s.transmitted == 4)
         #expect(s.received == 2)
         #expect(s.packetLoss == 50.0)
@@ -104,8 +101,7 @@ struct PingServiceTests {
             makeResult(sequence: 2, time: 20.0),
         ]
         let stats = await service.calculateStatistics(results, requestedCount: 4)
-        #expect(stats != nil)
-        let s = stats!
+        guard let s = stats else { Issue.record("Expected non-nil stats"); return }
         #expect(s.transmitted == 4)
         #expect(s.received == 2)
         #expect(s.packetLoss == 50.0)
@@ -118,8 +114,8 @@ struct PingServiceTests {
         let service = PingService()
         let results = [makeResult(sequence: 1, time: 100.0)]
         let stats = await service.calculateStatistics(results, requestedCount: 1)
-        #expect(stats != nil)
-        #expect(stats!.stdDev == 0.0)
+        guard let stats else { Issue.record("Expected non-nil stats"); return }
+        #expect(stats.stdDev == 0.0)
     }
 
     @Test("stdDev is computed correctly for multiple results")
@@ -132,10 +128,10 @@ struct PingServiceTests {
             makeResult(sequence: 3, time: 30.0),
         ]
         let stats = await service.calculateStatistics(results, requestedCount: 3)
-        #expect(stats != nil)
-        let s = stats!
+        guard let s = stats else { Issue.record("Expected non-nil stats"); return }
         let expectedStdDev = Foundation.sqrt(200.0 / 3.0)
-        #expect(abs(s.stdDev! - expectedStdDev) < 0.001)
+        guard let stdDev = s.stdDev else { Issue.record("Expected non-nil stdDev"); return }
+        #expect(abs(stdDev - expectedStdDev) < 0.001)
     }
 
     @Test("stdDev is zero when all times are identical")
@@ -147,8 +143,8 @@ struct PingServiceTests {
             makeResult(sequence: 3, time: 5.0),
         ]
         let stats = await service.calculateStatistics(results, requestedCount: 3)
-        #expect(stats != nil)
-        #expect(stats!.stdDev == 0.0)
+        guard let stats else { Issue.record("Expected non-nil stats"); return }
+        #expect(stats.stdDev == 0.0)
     }
 
     // MARK: - Host name propagation

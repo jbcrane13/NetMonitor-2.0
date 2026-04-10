@@ -25,22 +25,34 @@ final class BackgroundTaskService {
         Self.logger.info("Registering background tasks...")
 
         BGTaskScheduler.shared.register(forTaskWithIdentifier: Self.refreshTaskIdentifier, using: .main) { task in
+            guard let refreshTask = task as? BGAppRefreshTask else {
+                task.setTaskCompleted(success: false)
+                return
+            }
             Task { @MainActor in
-                await self.handleRefreshTask(task as! BGAppRefreshTask)
+                await self.handleRefreshTask(refreshTask)
             }
         }
         Self.logger.debug("✅ Registered: \(Self.refreshTaskIdentifier)")
 
         BGTaskScheduler.shared.register(forTaskWithIdentifier: Self.syncTaskIdentifier, using: .main) { task in
+            guard let syncTask = task as? BGProcessingTask else {
+                task.setTaskCompleted(success: false)
+                return
+            }
             Task { @MainActor in
-                await self.handleSyncTask(task as! BGProcessingTask)
+                await self.handleSyncTask(syncTask)
             }
         }
         Self.logger.debug("✅ Registered: \(Self.syncTaskIdentifier)")
 
         BGTaskScheduler.shared.register(forTaskWithIdentifier: Self.scheduledNetworkScanTaskIdentifier, using: .main) { task in
+            guard let scanTask = task as? BGProcessingTask else {
+                task.setTaskCompleted(success: false)
+                return
+            }
             Task { @MainActor in
-                await self.handleScheduledNetworkScanTask(task as! BGProcessingTask)
+                await self.handleScheduledNetworkScanTask(scanTask)
             }
         }
         Self.logger.debug("✅ Registered: \(Self.scheduledNetworkScanTaskIdentifier)")
@@ -375,7 +387,7 @@ final class BackgroundTaskService {
             }
 
             // Wait for first result; group.next() returns (Bool?)? because element type is Bool?
-            let nextResult: Bool? = await (group.next()) ?? nil
+            let nextResult: Bool? = (await group.next()).flatMap { $0 }
             let result = nextResult ?? false
             group.cancelAll()
             connection.cancel()

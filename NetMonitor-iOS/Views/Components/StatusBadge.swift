@@ -2,7 +2,7 @@ import SwiftUI
 import NetMonitorCore
 
 // MARK: - Status Badge
-/// A pill-shaped badge showing connection/device status
+// A pill-shaped badge showing connection/device status
 struct StatusBadge: View {
     let status: StatusType
     var showLabel: Bool = true
@@ -65,7 +65,7 @@ struct StatusBadge: View {
 }
 
 // MARK: - Status Dot
-/// A simple status indicator dot without label
+// A simple status indicator dot without label
 struct StatusDot: View {
     let status: StatusType
     var size: CGFloat = 10
