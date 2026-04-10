@@ -36,6 +36,7 @@ jobs:
       - name: Upload Periphery report
         if: always()
         run: |
+          mkdir -p build
           periphery scan --quiet --format json 2>/dev/null \
             > build/periphery-report.json || true
           echo "Periphery report saved to build/periphery-report.json"
@@ -136,6 +137,7 @@ jobs:
 
       - name: Generate complexity report
         run: |
+          mkdir -p build
           echo "## Cyclomatic Complexity Report" > build/complexity-report.md
           echo "" >> build/complexity-report.md
           echo "Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> build/complexity-report.md
