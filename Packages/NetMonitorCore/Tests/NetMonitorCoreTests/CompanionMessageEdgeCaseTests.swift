@@ -68,7 +68,8 @@ struct CompanionMessageEdgeCaseTests {
             return
         }
         #expect(l.onlineTargets == 999_999)
-        #expect(abs(l.averageLatency! - 99999.99) < 0.01)
+        guard let latency = l.averageLatency else { Issue.record("Expected non-nil averageLatency"); return }
+        #expect(abs(latency - 99999.99) < 0.01)
     }
 
     // MARK: - Empty String and Empty Dictionary Payloads
@@ -91,8 +92,8 @@ struct CompanionMessageEdgeCaseTests {
         guard case .error(let e) = errDecoded else { Issue.record("Expected .error")
         return
         }
-        #expect(e.code == "")
-        #expect(e.message == "")
+        #expect(e.code.isEmpty)
+        #expect(e.message.isEmpty)
 
         // toolResult with empty result
         let trPayload = ToolResultPayload(tool: "ping", success: true, result: "", timestamp: fixedDate)
@@ -101,7 +102,7 @@ struct CompanionMessageEdgeCaseTests {
         guard case .toolResult(let t) = trDecoded else { Issue.record("Expected .toolResult")
         return
         }
-        #expect(t.result == "")
+        #expect(t.result.isEmpty)
     }
 
     // MARK: - All-Nil Optional Fields

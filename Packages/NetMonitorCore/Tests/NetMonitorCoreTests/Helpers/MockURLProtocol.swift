@@ -124,22 +124,26 @@ final class MockURLProtocol: URLProtocol, @unchecked Sendable {
             let path = request.url?.absoluteString ?? ""
             for (key, value) in responses {
                 if path.contains(key) {
+                    guard let requestURL = request.url else { continue }
                     let response = HTTPURLResponse(
-                        url: request.url!,
+                        url: requestURL,
                         statusCode: value.0,
                         httpVersion: nil,
                         headerFields: ["Content-Type": "application/json"]
-                    )!
-                    return (response, value.1)
+                    )
+                    if let response {
+                        return (response, value.1)
+                    }
                 }
             }
+            let fallbackURL = request.url ?? URL(string: "https://example.com")!
             let response = HTTPURLResponse(
-                url: request.url!,
+                url: fallbackURL,
                 statusCode: 404,
                 httpVersion: nil,
                 headerFields: nil
-            )!
-            return (response, Data())
+            )
+            return (response ?? HTTPURLResponse(), Data())
         }
     }
 
@@ -163,12 +167,13 @@ final class MockURLProtocol: URLProtocol, @unchecked Sendable {
     /// Sets the global `requestHandler` — use inside `.serialized` suites only.
     static func stub(json: String, statusCode: Int = 200) {
         requestHandler = { request in
+            let url = request.url ?? URL(string: "https://example.com")!
             let response = HTTPURLResponse(
-                url: request.url ?? URL(string: "https://example.com")!,
+                url: url,
                 statusCode: statusCode,
                 httpVersion: nil,
                 headerFields: ["Content-Type": "application/json"]
-            )!
+            ) ?? HTTPURLResponse()
             return (response, Data(json.utf8))
         }
     }
@@ -179,12 +184,13 @@ final class MockURLProtocol: URLProtocol, @unchecked Sendable {
         requestHandler = { request in
             let path = request.url?.absoluteString ?? ""
             let json = routes.first(where: { path.contains($0.key) })?.value ?? "{}"
+            let url = request.url ?? URL(string: "https://example.com")!
             let response = HTTPURLResponse(
-                url: request.url ?? URL(string: "https://example.com")!,
+                url: url,
                 statusCode: statusCode,
                 httpVersion: nil,
                 headerFields: ["Content-Type": "application/json"]
-            )!
+            ) ?? HTTPURLResponse()
             return (response, Data(json.utf8))
         }
     }
