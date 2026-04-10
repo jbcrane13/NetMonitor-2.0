@@ -4,7 +4,6 @@ import Testing
 
 // MARK: - Regression Tests (yp7)
 
-@Suite("TargetProtocol Codable Regression")
 struct TargetProtocolCodableTests {
 
     @Test("Case-insensitive decode: lowercase")
@@ -46,7 +45,6 @@ struct TargetProtocolCodableTests {
     }
 }
 
-@Suite("LocalDevice Default Values Regression")
 struct LocalDeviceDefaultsTests {
 
     @Test("isGateway defaults to false")

@@ -2,7 +2,6 @@ import Foundation
 import Testing
 @testable import NetMonitorCore
 
-@Suite("NetworkProfileManager")
 struct NetworkProfileManagerTests {
     @Test("Profile CRUD: add, switch, remove")
     @MainActor

@@ -151,7 +151,6 @@ private func makeTestPingResult(
 
 // MARK: - WiFiMeasurementEngine Tests
 
-@Suite("WiFiMeasurementEngine")
 struct WiFiMeasurementEngineTests {
 
     // MARK: - Actor Type Verification

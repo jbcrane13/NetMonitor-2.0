@@ -401,7 +401,7 @@ public actor TracerouteService: TracerouteServiceProtocol {
 
     // MARK: - TCP Probe
 
-    private enum ProbeResult: Sendable {
+    private enum ProbeResult {
         case connected(Double)   // RTT in milliseconds
         case refused(Double)     // Host responded with RST (still reachable)
         case timeout

@@ -4,12 +4,11 @@ import Testing
 
 /// All URL contract tests live in one `.serialized` suite to prevent shared
 /// `MockURLProtocol.requestHandler` from being overwritten by concurrent tests.
-@Suite("Contract Tests", .serialized)
+@Suite(.serialized)
 struct ContractTests {
 
     // MARK: - WorldPingService
 
-    @Suite("WorldPingService")
     struct WorldPingServiceContractTests {
 
         // Resets shared handler before each test runs to prevent bleed-in from
@@ -164,7 +163,6 @@ struct ContractTests {
 
     // MARK: - GeoLocationService
 
-    @Suite("GeoLocationService Contract")
     struct GeoLocationServiceContractTests {
 
         init() { MockURLProtocol.requestHandler = nil }

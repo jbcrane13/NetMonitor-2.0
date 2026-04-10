@@ -1,7 +1,6 @@
 import Testing
 @testable import NetworkScanKit
 
-@Suite("ConnectionBudget")
 struct ConnectionBudgetTests {
 
     @Test("starts with zero active connections")

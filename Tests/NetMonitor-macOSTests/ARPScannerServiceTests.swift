@@ -12,7 +12,6 @@ import Testing
 // Pure-logic methods (calculateIPRange, calculateBaseIP, isScanning guard)
 // are covered directly.
 
-@Suite("ARPScannerService – calculateIPRange")
 struct ARPScannerIPRangeTests {
 
     // MARK: - /24 subnet
@@ -147,7 +146,6 @@ struct ARPScannerIPRangeTests {
 
 // MARK: - ARPScannerService – actor state and timeout
 
-@Suite("ARPScannerService – actor state")
 struct ARPScannerServiceActorTests {
 
     // MARK: - isScanning guard
@@ -225,7 +223,6 @@ struct ARPScannerServiceActorTests {
 
 // MARK: - ARPScannerService – multi-interface logic
 
-@Suite("ARPScannerService – multi-interface scanning")
 struct ARPScannerMultiInterfaceTests {
 
     // MARK: - calculateIPRange covers all active subnet sizes
@@ -285,7 +282,6 @@ struct ARPScannerMultiInterfaceTests {
 
 // MARK: - ARPScannerService – subnet edge cases
 
-@Suite("ARPScannerService – subnet edge cases")
 struct ARPScannerSubnetEdgeCaseTests {
 
     @Test("all-zeros base IP is rejected")

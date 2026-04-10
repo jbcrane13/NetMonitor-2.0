@@ -8,7 +8,6 @@ import NetMonitorCore
 // timestamps). Uses an isolated instance (not the shared singleton) for each
 // test to avoid cross-test pollution.
 
-@Suite("NetworkEventService")
 struct NetworkEventServiceTests {
 
     init() {

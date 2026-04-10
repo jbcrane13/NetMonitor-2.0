@@ -3,7 +3,6 @@ import Testing
 
 /// Tests for SpeedTestService state management and AtomicInt64 helper.
 /// Network-dependent speed measurement (URLSession) is excluded.
-@Suite("SpeedTestService")
 struct SpeedTestServiceTests {
 
     // MARK: - Initial state
@@ -122,7 +121,6 @@ struct SpeedTestServiceTests {
 
 // MARK: - AtomicInt64 Tests
 
-@Suite("AtomicInt64")
 struct AtomicInt64Tests {
 
     @Test("initial load returns 0")

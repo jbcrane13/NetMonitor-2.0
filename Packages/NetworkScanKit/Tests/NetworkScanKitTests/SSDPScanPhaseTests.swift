@@ -4,7 +4,6 @@ import Testing
 /// Tests for SSDPScanPhase metadata and extractIPFromSSDPResponse parsing.
 /// The actual M-SEARCH multicast (NWConnection over Wi-Fi) is excluded — it
 /// requires a live network interface and is non-deterministic in a test host.
-@Suite("SSDPScanPhase")
 struct SSDPScanPhaseTests {
 
     // MARK: - Phase metadata

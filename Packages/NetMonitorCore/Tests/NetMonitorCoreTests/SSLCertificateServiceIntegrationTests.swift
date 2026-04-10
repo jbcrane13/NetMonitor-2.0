@@ -7,7 +7,6 @@ import Testing
 ///
 /// The DER parsing contract (parseDERValidityDates) is exercised through the
 /// integration path since the method is private.
-@Suite("SSLCertificateService Integration & Error Tests")
 struct SSLCertificateServiceIntegrationTests {
 
     // MARK: - Error tests (no network required)

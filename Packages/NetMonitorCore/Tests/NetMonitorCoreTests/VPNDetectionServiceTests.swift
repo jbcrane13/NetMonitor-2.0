@@ -2,7 +2,6 @@ import Foundation
 import Testing
 @testable import NetMonitorCore
 
-@Suite("VPNDetectionService")
 struct VPNDetectionServiceTests {
 
     // MARK: - VPNStatus model
@@ -124,7 +123,6 @@ struct VPNDetectionServiceTests {
 
 // MARK: - VPNProtocolType Edge Cases
 
-@Suite("VPNProtocolType - Edge Cases")
 struct VPNProtocolTypeEdgeCaseTests {
 
     @Test("Empty interface name maps to .unknown")
@@ -171,7 +169,6 @@ struct VPNProtocolTypeEdgeCaseTests {
 
 // MARK: - VPNStatus Equality
 
-@Suite("VPNStatus - Equatable")
 struct VPNStatusEqualityTests {
 
     @Test("Two active statuses with same fields are equal")

@@ -2,7 +2,6 @@ import Foundation
 import Testing
 @testable import NetworkScanKit
 
-@Suite("ScanEngine")
 struct ScanEngineTests {
 
     @Test("scan executes sequential phases, reports progress, and returns sorted devices")
@@ -181,7 +180,7 @@ private struct FixturePhase: ScanPhase {
 }
 
 private actor ProgressRecorder {
-    struct Update: Sendable {
+    struct Update {
         let value: Double
         let phaseName: String
     }

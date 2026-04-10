@@ -26,7 +26,6 @@ private final class MockVPNDetectionService: VPNDetectionServiceProtocol, @unche
 
 // MARK: - Tests
 
-@Suite("VPNInfoViewModel")
 @MainActor
 struct VPNInfoViewModelTests {
 
@@ -76,7 +75,6 @@ struct VPNInfoViewModelTests {
 
 // MARK: - Lifecycle Tests
 
-@Suite("VPNInfoViewModel Lifecycle")
 @MainActor
 struct VPNInfoViewModelLifecycleTests {
 
@@ -163,7 +161,6 @@ struct VPNInfoViewModelLifecycleTests {
 
 // MARK: - VPN Protocol Type Tests
 
-@Suite("VPNProtocolType")
 struct VPNProtocolTypeTests {
 
     @Test func utunInterfaceDetectedAsOther() {
@@ -195,7 +192,6 @@ struct VPNProtocolTypeTests {
 
 // MARK: - VPNStatus Tests
 
-@Suite("VPNStatus")
 struct VPNStatusTests {
 
     @Test func inactiveStaticIsNotActive() {

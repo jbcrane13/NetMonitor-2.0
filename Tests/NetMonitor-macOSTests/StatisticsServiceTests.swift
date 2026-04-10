@@ -5,7 +5,6 @@ import NetMonitorCore
 
 // MARK: - StatisticsWindow Tests
 
-@Suite("StatisticsWindow")
 struct StatisticsWindowTests {
 
     @Test func twoMinutesTimeInterval() {
@@ -45,7 +44,6 @@ struct StatisticsWindowTests {
 
 // MARK: - TargetStatistics Tests
 
-@Suite("TargetStatistics")
 struct TargetStatisticsTests {
 
     @Test func successfulChecksIsTotal_minus_failed() {
@@ -99,7 +97,6 @@ struct TargetStatisticsTests {
 
 // MARK: - StatisticsService Tests
 
-@Suite("StatisticsService")
 struct StatisticsServiceTests {
 
     let service = StatisticsService()
@@ -329,7 +326,6 @@ struct StatisticsServiceTests {
 
 // MARK: - StatisticsService Extended Tests
 
-@Suite("StatisticsService Extended")
 struct StatisticsServiceExtendedTests {
 
     let service = StatisticsService()

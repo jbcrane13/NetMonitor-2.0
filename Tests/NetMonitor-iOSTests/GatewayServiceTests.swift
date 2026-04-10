@@ -3,7 +3,6 @@ import Foundation
 @testable import NetMonitor_iOS
 import NetMonitorCore
 
-@Suite("GatewayService")
 @MainActor
 struct GatewayServiceTests {
 

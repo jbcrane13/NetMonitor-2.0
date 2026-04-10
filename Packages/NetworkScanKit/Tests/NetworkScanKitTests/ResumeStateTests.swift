@@ -1,7 +1,6 @@
 import Testing
 @testable import NetworkScanKit
 
-@Suite("ResumeState")
 struct ResumeStateTests {
 
     @Test("starts with hasResumed false")

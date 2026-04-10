@@ -4,7 +4,6 @@ import Testing
 
 // MARK: - DeviceType
 
-@Suite("DeviceType")
 struct DeviceTypeTests {
     @Test func iconNames() {
         #expect(DeviceType.router.iconName == "wifi.router")
@@ -45,7 +44,6 @@ struct DeviceTypeTests {
 
 // MARK: - StatusType
 
-@Suite("StatusType")
 struct StatusTypeTests {
     @Test func labels() {
         #expect(StatusType.online.label == "Online")
@@ -68,7 +66,6 @@ struct StatusTypeTests {
 
 // MARK: - DeviceStatus
 
-@Suite("DeviceStatus")
 struct DeviceStatusTests {
     @Test func statusTypeMapping() {
         #expect(DeviceStatus.online.statusType == .online)
@@ -83,7 +80,6 @@ struct DeviceStatusTests {
 
 // MARK: - ConnectionType
 
-@Suite("ConnectionType")
 struct ConnectionTypeTests {
     @Test func iconNames() {
         #expect(ConnectionType.wifi.iconName == "wifi")
@@ -130,7 +126,6 @@ struct ConnectionTypeTests {
 
 // MARK: - ToolType
 
-@Suite("ToolType")
 struct ToolTypeTests {
     @Test func iconNames() {
         #expect(ToolType.ping.iconName == "arrow.up.arrow.down")
@@ -163,7 +158,6 @@ struct ToolTypeTests {
 
 // MARK: - TargetProtocol
 
-@Suite("TargetProtocol")
 struct TargetProtocolTests {
     @Test func displayNames() {
         #expect(TargetProtocol.icmp.displayName == "ICMP (Ping)")
@@ -216,7 +210,6 @@ struct TargetProtocolTests {
 
 // MARK: - DNSRecordType
 
-@Suite("DNSRecordType")
 struct DNSRecordTypeTests {
     @Test func displayNameEqualsRawValue() {
         #expect(DNSRecordType.a.displayName == "A")
@@ -236,7 +229,6 @@ struct DNSRecordTypeTests {
 
 // MARK: - PortScanPreset
 
-@Suite("PortScanPreset")
 struct PortScanPresetTests {
     @Test func displayNames() {
         #expect(PortScanPreset.common.displayName == "Common Ports")
@@ -304,7 +296,6 @@ struct PortScanPresetTests {
 
 // MARK: - PortRange
 
-@Suite("PortRange")
 struct PortRangeTests {
     @Test func defaultInit() {
         let range = PortRange()

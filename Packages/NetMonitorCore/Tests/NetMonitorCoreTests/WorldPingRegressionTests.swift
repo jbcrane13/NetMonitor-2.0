@@ -16,7 +16,7 @@ import Testing
 
 // MARK: - WorldPing Globalping.io format regression tests
 
-@Suite("WorldPingService — real API format regression", .serialized)
+@Suite(.serialized)
 struct WorldPingRegressionContractTests {
 
     init() { MockURLProtocol.requestHandler = nil }
@@ -118,7 +118,7 @@ struct WorldPingRegressionContractTests {
 
 // MARK: - Bug 4 Regression Tests: poll endpoint error surfacing (NetMonitor-2.0-82l)
 
-@Suite("WorldPingService — poll endpoint error surfacing regression", .serialized)
+@Suite(.serialized)
 struct WorldPingPollErrorRegressionTests {
 
     init() { MockURLProtocol.requestHandler = nil }
@@ -248,7 +248,6 @@ struct WorldPingPollErrorRegressionTests {
 
 // MARK: - GeoLocationService ATS Regression Test
 
-@Suite("GeoLocationService — ATS regression")
 struct GeoLocationServiceATSRegressionTests {
 
     @Test("GeoLocationService URL scheme is http — Info.plist must have ATS exception",

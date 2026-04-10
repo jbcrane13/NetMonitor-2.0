@@ -4,7 +4,7 @@ import Testing
 import NetMonitorCore
 @testable import NetMonitor_macOS
 
-@Suite("CompanionMessageHandler Extended", .serialized)
+@Suite(.serialized)
 @MainActor
 struct CompanionMessageHandlerExtendedTests {
 

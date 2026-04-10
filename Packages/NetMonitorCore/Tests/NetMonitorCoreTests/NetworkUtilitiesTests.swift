@@ -1,7 +1,6 @@
 import Testing
 @testable import NetMonitorCore
 
-@Suite("NetworkUtilities")
 struct NetworkUtilitiesTests {
 
     // MARK: - ipv4ToUInt32
@@ -235,7 +234,6 @@ struct NetworkUtilitiesTests {
 
 // MARK: - IPv4Network Extended Tests
 
-@Suite("IPv4Network Extended")
 struct IPv4NetworkExtendedTests {
 
     // MARK: - CIDR Parsing via prefixLength

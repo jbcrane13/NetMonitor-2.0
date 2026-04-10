@@ -4,7 +4,6 @@ import Foundation
 
 // MARK: - NetworkEventType Tests
 
-@Suite("NetworkEventType")
 struct NetworkEventTypeTests {
 
     @Test func allCasesArePresent() {
@@ -48,7 +47,6 @@ struct NetworkEventTypeTests {
 
 // MARK: - NetworkEventSeverity Tests
 
-@Suite("NetworkEventSeverity")
 struct NetworkEventSeverityTests {
 
     @Test func codableRoundTrip() throws {
@@ -63,7 +61,6 @@ struct NetworkEventSeverityTests {
 
 // MARK: - NetworkEvent Tests
 
-@Suite("NetworkEvent")
 struct NetworkEventTests {
 
     private let fixedDate = Date(timeIntervalSinceReferenceDate: 2_000_000)

@@ -1,7 +1,6 @@
 import Testing
 @testable import NetMonitorCore
 
-@Suite("ResumeState")
 struct ResumeStateTests {
 
     @Test("hasResumed starts as false")

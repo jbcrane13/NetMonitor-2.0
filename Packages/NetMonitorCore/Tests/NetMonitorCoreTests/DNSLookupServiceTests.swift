@@ -5,7 +5,6 @@ import Foundation
 /// Tests for DNSLookupService.
 /// Network-dependent DNS resolution (getaddrinfo, DNSServiceQueryRecord) is excluded.
 /// Tests focus on record type classification and service state management.
-@Suite("DNSLookupService")
 struct DNSLookupServiceTests {
 
     // MARK: - Initial state

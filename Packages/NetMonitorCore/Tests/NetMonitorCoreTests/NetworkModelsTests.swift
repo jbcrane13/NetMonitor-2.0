@@ -4,7 +4,6 @@ import Foundation
 
 // MARK: - NetworkStatus
 
-@Suite("NetworkStatus")
 struct NetworkStatusTests {
     @Test func defaultInitHasExpectedValues() {
         let status = NetworkStatus()
@@ -48,7 +47,6 @@ struct NetworkStatusTests {
 
 // MARK: - WiFiInfo signalQuality
 
-@Suite("WiFiInfo.signalQuality")
 struct WiFiInfoSignalQualityTests {
     @Test func nilDbmIsUnknown() {
         let wifi = WiFiInfo(ssid: "Net")
@@ -100,7 +98,6 @@ struct WiFiInfoSignalQualityTests {
 
 // MARK: - WiFiInfo signalBars
 
-@Suite("WiFiInfo.signalBars")
 struct WiFiInfoSignalBarsTests {
     @Test func nilDbmIsZeroBars() {
         let wifi = WiFiInfo(ssid: "Net")
@@ -158,7 +155,6 @@ struct WiFiInfoSignalBarsTests {
 
 // MARK: - GatewayInfo.latencyText
 
-@Suite("GatewayInfo.latencyText")
 struct GatewayInfoLatencyTextTests {
     @Test func nilLatencyReturnsNil() {
         let gateway = GatewayInfo(ipAddress: "192.168.1.1")
@@ -193,7 +189,6 @@ struct GatewayInfoLatencyTextTests {
 
 // MARK: - ISPInfo.locationText
 
-@Suite("ISPInfo.locationText")
 struct ISPInfoLocationTextTests {
     @Test func cityAndCountryCodeProducesCommaSeparated() {
         let isp = ISPInfo(publicIP: "1.2.3.4", city: "San Francisco", countryCode: "US")
@@ -233,7 +228,6 @@ struct ISPInfoLocationTextTests {
 
 // MARK: - NetworkProfile Extended Tests
 
-@Suite("NetworkProfile Extended")
 struct NetworkProfileExtendedTests {
 
     private func makeNetwork() -> NetworkUtilities.IPv4Network {

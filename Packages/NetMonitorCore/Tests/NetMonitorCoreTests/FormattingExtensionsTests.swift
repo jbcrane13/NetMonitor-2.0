@@ -3,7 +3,6 @@ import Testing
 
 // MARK: - formatSpeed Tests
 
-@Suite("formatSpeed")
 struct FormatSpeedTests {
 
     // MARK: - Zero and negative values
@@ -126,7 +125,6 @@ struct FormatSpeedTests {
 
 // MARK: - formatDuration Tests
 
-@Suite("formatDuration")
 struct FormatDurationTests {
 
     // MARK: - Zero

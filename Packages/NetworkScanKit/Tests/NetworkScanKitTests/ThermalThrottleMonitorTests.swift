@@ -1,7 +1,6 @@
 import Testing
 @testable import NetworkScanKit
 
-@Suite("ThermalThrottleMonitor")
 struct ThermalThrottleMonitorTests {
 
     @Test("multiplier is one of the expected values")

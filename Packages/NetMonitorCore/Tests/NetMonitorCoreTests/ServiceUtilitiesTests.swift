@@ -1,7 +1,6 @@
 import Testing
 @testable import NetMonitorCore
 
-@Suite("ServiceUtilities")
 struct ServiceUtilitiesTests {
 
     // MARK: - isIPAddress

@@ -2,7 +2,6 @@ import Foundation
 import Testing
 @testable import NetMonitor_iOS
 
-@Suite("DataExportService")
 struct DataExportServiceTests {
 
     // MARK: - ExportFormat

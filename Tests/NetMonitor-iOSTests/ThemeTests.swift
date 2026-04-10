@@ -4,7 +4,6 @@ import Testing
 
 // MARK: - Theme.Layout Constants
 
-@Suite("Theme.Layout")
 struct ThemeLayoutTests {
     @Test func cornerRadii() {
         #expect(Theme.Layout.cardCornerRadius == 20)
@@ -41,7 +40,6 @@ struct ThemeLayoutTests {
 
 // MARK: - Theme.Thresholds
 
-@Suite("Theme.Thresholds")
 struct ThemeThresholdsTests {
     @Test func latencyThresholds() {
         #expect(Theme.Thresholds.latencyGood == 50.0)
@@ -51,7 +49,6 @@ struct ThemeThresholdsTests {
 
 // MARK: - Theme.Shadows
 
-@Suite("Theme.Shadows")
 struct ThemeShadowsTests {
     @Test func shadowRadii() {
         #expect(Theme.Shadows.cardRadius == 15)
@@ -62,7 +59,6 @@ struct ThemeShadowsTests {
 
 // MARK: - Color Hex Extension
 
-@Suite("Color(hex:)")
 struct ColorHexExtensionTests {
     @Test func sixCharHexDoesNotCrash() {
         // Verify Color can be constructed from 6-char hex without crashing

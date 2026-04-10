@@ -10,7 +10,6 @@ import Foundation
 
 #if os(iOS)
 
-@Suite("LiveActivityManager")
 @MainActor
 struct LiveActivityManagerTests {
 
@@ -87,7 +86,6 @@ struct LiveActivityManagerTests {
 
 // MARK: - NetworkScanActivityAttributes Tests
 
-@Suite("NetworkScanActivityAttributes")
 struct NetworkScanActivityAttributesTests {
 
     @Test("content state stores progress")
@@ -118,7 +116,6 @@ struct NetworkScanActivityAttributesTests {
 
 // MARK: - SpeedTestActivityAttributes Tests
 
-@Suite("SpeedTestActivityAttributes")
 struct SpeedTestActivityAttributesTests {
 
     @Test("content state stores speeds and phase")
@@ -140,7 +137,6 @@ struct SpeedTestActivityAttributesTests {
 
 // MARK: - MonitoringActivityAttributes Tests
 
-@Suite("MonitoringActivityAttributes")
 struct MonitoringActivityAttributesTests {
 
     @Test("content state stores connection info")

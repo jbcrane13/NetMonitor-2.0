@@ -33,7 +33,6 @@ private final class MockNetworkEventService: NetworkEventServiceProtocol, @unche
 
 // MARK: - Tests
 
-@Suite("TimelineViewModel")
 @MainActor
 struct TimelineViewModelTests {
 
@@ -145,7 +144,6 @@ struct TimelineViewModelTests {
 
 // MARK: - NetworkEvent Model Tests
 
-@Suite("NetworkEvent")
 struct NetworkEventTests {
 
     @Test func defaultInitUsesCurrentDate() {

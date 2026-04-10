@@ -13,7 +13,7 @@ import NetMonitorCore
 // scanNetwork(_:) must trigger a scan, set isScanning=true, and be idempotent
 // when already scanning. If scanNetwork() ever silently regresses, these fail.
 
-@Suite("NetworkDetailView Scan Regression", .serialized)
+@Suite(.serialized)
 @MainActor
 struct NetworkDetailViewScanRegressionTests {
 

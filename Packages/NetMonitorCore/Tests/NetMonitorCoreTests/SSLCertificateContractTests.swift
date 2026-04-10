@@ -15,7 +15,6 @@ import Testing
 /// - Expiry calculation scenarios
 /// - Error types and descriptions
 /// - SSLCertificateInfo edge cases (expired, about-to-expire, far-future)
-@Suite("SSLCertificateService Contract Tests")
 struct SSLCertificateContractTests {
 
     // MARK: - Domain Sanitization Contract

@@ -1,7 +1,6 @@
 import Testing
 @testable import NetworkScanKit
 
-@Suite("RTTTracker")
 struct RTTTrackerTests {
 
     @Test("starts with zero samples")

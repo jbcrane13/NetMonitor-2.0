@@ -1,7 +1,6 @@
 import Testing
 @testable import NetworkScanKit
 
-@Suite("ScanPipeline")
 struct ScanPipelineTests {
 
     @Test("init stores steps")

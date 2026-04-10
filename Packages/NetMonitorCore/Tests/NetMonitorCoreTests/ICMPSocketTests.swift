@@ -4,7 +4,6 @@ import Foundation
 
 /// Tests for ICMPSocket pure static functions: buildEchoRequest, icmpChecksum, parseResponse.
 /// These are all nonisolated static methods — no network, no socket, no entitlements needed.
-@Suite("ICMPSocket — Pure Functions")
 struct ICMPSocketTests {
 
     // MARK: - buildEchoRequest

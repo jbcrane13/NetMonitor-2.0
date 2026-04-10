@@ -53,7 +53,6 @@ private func makeProject(
 
 // MARK: - Save/Load Round-Trip Tests
 
-@Suite("ProjectSaveLoadManager — Round-Trip")
 struct ProjectSaveLoadRoundTripTests {
 
     @Test("save and load round-trips all project fields")
@@ -182,7 +181,6 @@ struct ProjectSaveLoadRoundTripTests {
 
 // MARK: - Bundle Structure Tests
 
-@Suite("ProjectSaveLoadManager — Bundle Structure")
 struct ProjectSaveLoadBundleTests {
 
     @Test("save creates directory bundle with required files")
@@ -262,7 +260,6 @@ struct ProjectSaveLoadBundleTests {
 
 // MARK: - Overwrite Tests
 
-@Suite("ProjectSaveLoadManager — Overwrite Safety")
 struct ProjectSaveLoadOverwriteTests {
 
     @Test("saving to existing bundle replaces it cleanly")
@@ -313,7 +310,6 @@ struct ProjectSaveLoadOverwriteTests {
 
 // MARK: - Error Handling Tests
 
-@Suite("ProjectSaveLoadManager — Error Handling")
 struct ProjectSaveLoadErrorTests {
 
     @Test("load from non-existent path throws bundleNotFound")
@@ -377,7 +373,6 @@ struct ProjectSaveLoadErrorTests {
 
 // MARK: - Heatmap Cache Tests
 
-@Suite("ProjectSaveLoadManager — Heatmap Cache")
 struct ProjectSaveLoadCacheTests {
 
     @Test("save and load heatmap cache image")
@@ -434,7 +429,6 @@ struct ProjectSaveLoadCacheTests {
 
 // MARK: - Empty Project Tests
 
-@Suite("ProjectSaveLoadManager — Edge Cases")
 struct ProjectSaveLoadEdgeCaseTests {
 
     @Test("save and load project with zero measurement points")
@@ -488,7 +482,6 @@ struct ProjectSaveLoadEdgeCaseTests {
 
 // MARK: - SurveyFileError Tests
 
-@Suite("SurveyFileError")
 struct SurveyFileErrorTests {
 
     @Test("error descriptions are non-empty")

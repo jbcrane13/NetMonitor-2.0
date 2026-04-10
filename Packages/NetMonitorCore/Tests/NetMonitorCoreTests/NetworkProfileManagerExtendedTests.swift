@@ -4,7 +4,6 @@ import Testing
 
 /// Extended tests for NetworkProfileManager.
 /// Does NOT duplicate the tests in NetworkProfileManagerTests.swift.
-@Suite("NetworkProfileManager Extended")
 struct NetworkProfileManagerExtendedTests {
 
     // MARK: - Helpers (mirrors the pattern in NetworkProfileManagerTests)

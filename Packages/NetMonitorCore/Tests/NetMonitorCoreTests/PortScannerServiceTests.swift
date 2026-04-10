@@ -4,7 +4,6 @@ import Foundation
 
 /// Tests for PortScannerService state management and PortScanResult / PortScanPreset logic.
 /// Network-dependent port scanning (NWConnection) is excluded.
-@Suite("PortScannerService")
 struct PortScannerServiceTests {
 
     // MARK: - State management
@@ -126,7 +125,6 @@ struct PortScannerServiceTests {
 
 /// Integration tests that exercise the real PortScannerService NWConnection stack.
 /// Tagged .integration — require local network access.
-@Suite("PortScannerService Integration Tests")
 struct PortScannerServiceIntegrationTests {
 
     @Test("Scanning localhost ports 80 and 443 completes without crash", .tags(.integration))
@@ -187,7 +185,6 @@ struct PortScannerServiceIntegrationTests {
 // MARK: - PortScanResult Field Storage Tests
 // (commonServiceName and displayName already tested in ToolModelsTests.swift)
 
-@Suite("PortScanResult - Field Storage")
 struct PortScanResultFieldTests {
 
     @Test("init stores port and state correctly")
@@ -231,7 +228,6 @@ struct PortScanResultFieldTests {
 
 // MARK: - PortState Raw Values
 
-@Suite("PortState - Raw Values")
 struct PortStateRawValueTests {
 
     @Test("raw values match expected strings")

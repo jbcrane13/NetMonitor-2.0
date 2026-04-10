@@ -11,7 +11,7 @@ import Testing
 ///
 /// All tests use per-session MockURLProtocol handlers (makeSession(handler:) /
 /// makeSession(responses:)) so they are safe to run concurrently with other test suites.
-@Suite("GeoLocationService Extended Contract Tests", .serialized)
+@Suite(.serialized)
 struct GeoLocationExtendedContractTests {
 
     // MARK: - Helper

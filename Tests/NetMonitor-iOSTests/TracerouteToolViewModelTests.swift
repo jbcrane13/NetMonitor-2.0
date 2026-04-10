@@ -3,7 +3,7 @@ import Foundation
 @testable import NetMonitor_iOS
 import NetMonitorCore
 
-@Suite("TracerouteToolViewModel", .serialized)
+@Suite(.serialized)
 @MainActor
 struct TracerouteToolViewModelTests {
 
@@ -99,7 +99,6 @@ struct TracerouteToolViewModelTests {
 
 // MARK: - Error & Edge Case Tests
 
-@Suite("TracerouteToolViewModel Error & Edge Cases")
 @MainActor
 struct TracerouteToolViewModelErrorTests {
 

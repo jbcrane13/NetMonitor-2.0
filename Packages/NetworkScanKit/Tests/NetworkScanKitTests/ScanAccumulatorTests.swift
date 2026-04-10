@@ -2,7 +2,6 @@ import Testing
 import Foundation
 @testable import NetworkScanKit
 
-@Suite("ScanAccumulator")
 struct ScanAccumulatorTests {
 
     private func makeDevice(

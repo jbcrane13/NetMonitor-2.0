@@ -111,14 +111,14 @@ public struct TCPProbeScanPhase: ScanPhase, Sendable {
     // MARK: - Probe logic
 
     /// Result of probing a group of ports on a single host.
-    private enum ProbeGroupResult: Sendable {
+    private enum ProbeGroupResult {
         case reachable(latency: Double)
         case allTimedOut
         case allFailed
     }
 
     /// Per-port probe outcome.
-    private enum PortProbeOutcome: Sendable {
+    private enum PortProbeOutcome {
         case reachable(latency: Double)
         case refused(latency: Double)
         case timeout

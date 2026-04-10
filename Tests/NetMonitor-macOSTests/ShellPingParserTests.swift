@@ -3,7 +3,6 @@ import Testing
 
 // MARK: - ShellPingResult Tests
 
-@Suite("ShellPingResult")
 struct ShellPingResultTests {
 
     @Test func isReachableWhenReceivedGreaterThanZero() {
@@ -36,7 +35,6 @@ struct ShellPingResultTests {
 
 // MARK: - ShellPingOutputParser.parseResponseLine Tests
 
-@Suite("ShellPingOutputParser - parseResponseLine")
 struct ShellPingParseResponseLineTests {
 
     @Test func parsesValidResponseLine() {
@@ -95,7 +93,6 @@ struct ShellPingParseResponseLineTests {
 
 // MARK: - ShellPingOutputParser.parseResult Tests
 
-@Suite("ShellPingOutputParser - parseResult")
 struct ShellPingParseResultTests {
 
     @Test func parsesSuccessfulPingOutput() throws {
@@ -183,7 +180,6 @@ struct ShellPingParseResultTests {
 
 // MARK: - ShellPingOutputParser - Malformed & Edge Case Tests
 
-@Suite("ShellPingOutputParser - Malformed Input")
 struct ShellPingParserMalformedTests {
 
     // MARK: - parseResponseLine: garbage strings

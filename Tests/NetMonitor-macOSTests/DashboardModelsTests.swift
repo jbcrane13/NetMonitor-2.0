@@ -4,7 +4,6 @@ import Foundation
 
 // MARK: - LatencyStats Basic Stats
 
-@Suite("LatencyStats – basic stats")
 struct LatencyStatsBasicTests {
 
     @Test func emptyArrayYieldsNilAvg() {
@@ -93,7 +92,6 @@ struct LatencyStatsBasicTests {
 
 // MARK: - LatencyStats Histogram Buckets
 
-@Suite("LatencyStats – histogram buckets")
 struct LatencyStatsHistogramTests {
 
     @Test func allUnder5msGoesToUnder5Bucket() {
@@ -160,7 +158,6 @@ struct LatencyStatsHistogramTests {
 
 // MARK: - LatencyStats normalizedHeights
 
-@Suite("LatencyStats – normalizedHeights")
 struct LatencyStatsNormalizedHeightsTests {
 
     @Test func emptyInputAllHeightsAreZero() {

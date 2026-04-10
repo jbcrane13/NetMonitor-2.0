@@ -31,7 +31,7 @@ import NetMonitorCore
 // approach for testing logic that is embedded in a View struct and cannot be
 // extracted without wider refactoring.
 
-@Suite("NetworkDetailView — gatewayLatencyHistory fallback chain", .serialized)
+@Suite(.serialized)
 @MainActor
 struct NDVGatewayLatencyFallbackTests {
 
@@ -283,7 +283,7 @@ struct NDVGatewayLatencyFallbackTests {
 
 // MARK: - NetworkDetailView lifecycle behaviour tests
 
-@Suite("NetworkDetailView — lifecycle (onAppear / onChange)", .serialized)
+@Suite(.serialized)
 @MainActor
 struct NetworkDetailViewLifecycleTests {
 

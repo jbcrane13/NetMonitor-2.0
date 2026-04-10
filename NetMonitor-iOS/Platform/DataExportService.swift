@@ -7,7 +7,7 @@ import os
 enum DataExportService {
     private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "com.blakemiller.netmonitor", category: "DataExportService")
 
-    enum ExportFormat: String, CaseIterable, Sendable {
+    enum ExportFormat: String, CaseIterable {
         case json = "JSON"
         case csv = "CSV"
         case pdf = "PDF"

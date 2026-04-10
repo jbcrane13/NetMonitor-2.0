@@ -1,7 +1,6 @@
 import Testing
 @testable import NetMonitorCore
 
-@Suite("MACVendorLookupService")
 struct MACVendorLookupServiceTests {
 
     @Test("lookup resolves known Apple OUI from colon-separated MAC")

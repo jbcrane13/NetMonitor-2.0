@@ -78,7 +78,6 @@ private final class RecoveringISPService: ISPLookupServiceProtocol, @unchecked S
 
 // MARK: - ISPCardViewModel extended tests
 
-@Suite("ISPCardViewModel – extended")
 @MainActor
 struct ISPCardViewModelExtendedTests {
 
@@ -230,7 +229,6 @@ struct ISPCardViewModelExtendedTests {
 
 // MARK: - ConnectivityCardViewModel extended tests
 
-@Suite("ConnectivityCardViewModel – extended")
 @MainActor
 struct ConnectivityCardViewModelExtendedTests {
 

@@ -5,7 +5,6 @@ import Testing
 /// Tests for BonjourDiscoveryService lifecycle.
 /// Verifies start/stop without crash — the real NWBrowser is exercised but
 /// service discovery results are non-deterministic on test hosts.
-@Suite("BonjourDiscoveryService")
 @MainActor
 struct BonjourDiscoveryServiceTests {
 

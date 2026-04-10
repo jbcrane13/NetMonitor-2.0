@@ -3,7 +3,6 @@ import Testing
 
 /// Tests for WHOISService pure logic: TLD-based server selection.
 /// Network-dependent WHOIS queries (NWConnection) are excluded.
-@Suite("WHOISService")
 struct WHOISServiceTests {
 
     // MARK: - TLD → WHOIS server selection

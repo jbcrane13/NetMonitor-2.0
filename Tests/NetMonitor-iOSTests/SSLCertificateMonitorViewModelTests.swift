@@ -3,7 +3,6 @@ import Testing
 @testable import NetMonitor_iOS
 import NetMonitorCore
 
-@Suite("SSLCertificateMonitorViewModel")
 @MainActor
 struct SSLCertificateMonitorViewModelTests {
 
@@ -105,7 +104,6 @@ struct SSLCertificateMonitorViewModelTests {
 
 // MARK: - Extended SSL Certificate Monitor Tests
 
-@Suite("SSLCertificateMonitorViewModel Extended")
 @MainActor
 struct SSLCertificateMonitorViewModelExtendedTests {
 

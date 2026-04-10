@@ -5,7 +5,6 @@ import Testing
 /// Integration tests for DNSLookupService.
 /// Exercises real getaddrinfo / DNSServiceQueryRecord — requires network access.
 /// Tagged .integration for offline CI filtering.
-@Suite("DNSLookupService Integration Tests")
 struct DNSLookupServiceIntegrationTests {
 
     // MARK: - A record resolution

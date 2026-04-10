@@ -2,7 +2,6 @@ import Testing
 import Foundation
 @testable import NetworkScanKit
 
-@Suite("DiscoveredDevice")
 struct DiscoveredDeviceTests {
 
     // MARK: - Convenience init

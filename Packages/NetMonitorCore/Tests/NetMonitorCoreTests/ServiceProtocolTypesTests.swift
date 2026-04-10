@@ -2,7 +2,6 @@ import Testing
 import Foundation
 @testable import NetMonitorCore
 
-@Suite("ServiceProtocol Supporting Types")
 struct ServiceProtocolTypesTests {
 
     // MARK: - WakeOnLANResult

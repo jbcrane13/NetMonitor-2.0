@@ -4,7 +4,6 @@ import Testing
 
 // MARK: - PingResult
 
-@Suite("PingResult.timeText")
 struct PingResultTimeTextTests {
     @Test func timeoutReturnsTimeoutString() {
         let result = PingResult(sequence: 1, host: "host", ttl: 64, time: 0, isTimeout: true)
@@ -39,7 +38,6 @@ struct PingResultTimeTextTests {
 
 // MARK: - PingStatistics
 
-@Suite("PingStatistics")
 struct PingStatisticsTests {
     @Test func packetLossTextZeroPercent() {
         let stats = PingStatistics(host: "h", transmitted: 4, received: 4, packetLoss: 0, minTime: 1, maxTime: 5, avgTime: 3)
@@ -79,7 +77,6 @@ struct PingStatisticsTests {
 
 // MARK: - TracerouteHop
 
-@Suite("TracerouteHop")
 struct TracerouteHopTests {
     @Test func displayAddressForTimeoutIsAsterisk() {
         let hop = TracerouteHop(hopNumber: 1, isTimeout: true)
@@ -134,7 +131,6 @@ struct TracerouteHopTests {
 
 // MARK: - PortScanResult
 
-@Suite("PortScanResult.commonServiceName")
 struct PortScanResultTests {
     @Test func knownPorts() {
         #expect(PortScanResult.commonServiceName(for: 20) == "FTP Data")
@@ -178,7 +174,6 @@ struct PortScanResultTests {
 
 // MARK: - PortState
 
-@Suite("PortState.displayName")
 struct PortStateTests {
     @Test func displayNamesAreCapitalized() {
         #expect(PortState.open.displayName == "Open")
@@ -189,7 +184,6 @@ struct PortStateTests {
 
 // MARK: - DNSRecord
 
-@Suite("DNSRecord.ttlText")
 struct DNSRecordTTLTextTests {
     @Test func secondsBelowOneMinute() {
         let record = DNSRecord(name: "n", type: .a, value: "v", ttl: 30)
@@ -249,7 +243,6 @@ struct DNSRecordTTLTextTests {
 
 // MARK: - DNSQueryResult
 
-@Suite("DNSQueryResult.queryTimeText")
 struct DNSQueryResultTests {
     @Test func formatsQueryTimeRounded() {
         let result = DNSQueryResult(domain: "example.com", server: "8.8.8.8", queryType: .a, records: [], queryTime: 125.7)
@@ -269,7 +262,6 @@ struct DNSQueryResultTests {
 
 // MARK: - BonjourService
 
-@Suite("BonjourService")
 struct BonjourServiceTests {
     @Test func fullTypeJoinsTypeAndDomain() {
         let service = BonjourService(name: "MyServer", type: "_http._tcp", domain: "local.")
@@ -326,7 +318,6 @@ struct BonjourServiceTests {
 
 // MARK: - WHOISResult
 
-@Suite("WHOISResult")
 struct WHOISResultTests {
     @Test func domainAgeWithNilCreationDateIsNil() {
         let result = WHOISResult(query: "example.com", rawData: "raw")

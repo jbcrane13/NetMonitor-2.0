@@ -187,7 +187,6 @@ final class SubnetCalculatorToolViewModelTests: XCTestCase {
 
 // MARK: - Swift Testing Suite
 
-@Suite("SubnetCalculatorToolViewModel Edge Cases")
 @MainActor
 struct SubnetCalculatorToolViewModelEdgeCaseTests {
 

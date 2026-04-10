@@ -8,7 +8,6 @@ import Foundation
 ///
 /// This test validates that the ScanPipeline orchestration works end-to-end
 /// with real network stack phases, not just stub phases.
-@Suite("ScanPipeline Real Integration")
 struct ScanPipelineRealIntegrationTests {
 
     // MARK: - Real pipeline run

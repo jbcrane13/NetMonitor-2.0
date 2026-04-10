@@ -5,7 +5,6 @@ import Testing
 /// Integration tests for PingService.
 /// The real service uses ICMPSocket/NetworkFramework — requires network access.
 /// Pinging 127.0.0.1 (loopback) works without internet connectivity.
-@Suite("PingService Integration Tests")
 struct PingServiceIntegrationTests {
 
     // MARK: - Loopback ping (no internet required)

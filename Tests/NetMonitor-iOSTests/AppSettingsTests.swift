@@ -4,7 +4,6 @@ import Testing
 
 // MARK: - AppSettings Key Constants
 
-@Suite("AppSettings.Keys")
 struct AppSettingsKeysTests {
     @Test func networkToolKeys() {
         #expect(AppSettings.Keys.defaultPingCount == "defaultPingCount")
@@ -54,7 +53,6 @@ struct AppSettingsKeysTests {
 
 // MARK: - UserDefaults Typed Accessors
 
-@Suite("UserDefaults Typed Accessors")
 struct UserDefaultsTypedAccessorsTests {
     // Creates isolated UserDefaults for each test to avoid cross-test pollution
     private func freshDefaults() -> UserDefaults {

@@ -18,7 +18,7 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
 
     // MARK: - Private scan filter / target types
 
-    private enum ScanFilter: Sendable {
+    private enum ScanFilter {
         case prefix(String)
         case network(NetworkUtilities.IPv4Network)
 
@@ -32,7 +32,7 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
         }
     }
 
-    private struct ScanTarget: Sendable {
+    private struct ScanTarget {
         let hosts: [String]
         let filter: ScanFilter
     }

@@ -3,7 +3,6 @@ import Foundation
 import NetMonitorCore
 @testable import NetMonitor_iOS
 
-@Suite("MacConnectionService receive buffer")
 @MainActor
 struct MacConnectionServiceReceiveBufferTests {
 

@@ -35,7 +35,6 @@ private func makePingResult(sequence: Int, time: Double, isTimeout: Bool = false
 
 // MARK: - Initial State Tests
 
-@Suite("NetworkHealthScoreMacViewModel – initial state")
 @MainActor
 struct HealthScoreMacVMInitialStateTests {
 
@@ -58,7 +57,6 @@ struct HealthScoreMacVMInitialStateTests {
 
 // MARK: - Lifecycle Tests
 
-@Suite("NetworkHealthScoreMacViewModel – lifecycle")
 @MainActor
 struct HealthScoreMacVMLifecycleTests {
 
@@ -119,7 +117,6 @@ struct HealthScoreMacVMLifecycleTests {
 
 // MARK: - Score Population Tests
 
-@Suite("NetworkHealthScoreMacViewModel – score population")
 @MainActor
 struct HealthScoreMacVMScorePopulationTests {
 
@@ -284,7 +281,6 @@ struct HealthScoreMacVMScorePopulationTests {
 
 // MARK: - Ping Parameters Tests
 
-@Suite("NetworkHealthScoreMacViewModel – ping parameters")
 @MainActor
 struct HealthScoreMacVMPingParametersTests {
 

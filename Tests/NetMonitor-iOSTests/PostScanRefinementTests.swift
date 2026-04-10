@@ -6,7 +6,6 @@ import Testing
 
 // MARK: - PostScanRefinement Tests
 
-@Suite("PostScanRefinement")
 struct PostScanRefinementTests {
 
     // MARK: - IDW Refinement Performance
