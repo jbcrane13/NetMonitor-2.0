@@ -17,6 +17,15 @@ struct NetMonitorApp: App {
     @AppStorage("autoStartMonitoring") private var autoStartMonitoring = false
     @AppStorage("netmonitor.appearance.accentColor") private var accentColorHex = "#06B6D4"
     @AppStorage("netmonitor.appearance.compactMode") private var compactMode = false
+    @AppStorage("netmonitor.appearance.theme") private var appearanceRaw = AppearanceMode.system.rawValue
+
+    private var colorSchemeOverride: ColorScheme? {
+        switch AppearanceMode(rawValue: appearanceRaw) ?? .system {
+        case .system: nil
+        case .dark: .dark
+        case .light: .light
+        }
+    }
 
     private var shouldDisableMonitoring: Bool {
         isUITesting || ProcessInfo.processInfo.environment["DISABLE_MONITORING"] == "1"
@@ -83,10 +92,11 @@ struct NetMonitorApp: App {
                 guard NSClassFromString("XCTest") == nil else { return }
                 await setupServices()
             }
-            // Force dark appearance on macOS to prevent light mode rendering issues.
-            // The app's UI uses hardcoded dark theme colors (MacTheme) and system-adaptive
-            // colors (.secondary) that would break in light mode.
-            .preferredColorScheme(.dark)
+            // Apply appearance based on user preference (.system = follow macOS,
+            // .dark = force dark, .light = force light).
+            // MacTheme now uses adaptive colors (Color(NSColor { traits in ... }))
+            // that look correct in both modes.
+            .preferredColorScheme(colorSchemeOverride)
             .tint(Color(hex: accentColorHex))
             .environment(\.appAccentColor, Color(hex: accentColorHex))
             .environment(\.compactMode, compactMode)
@@ -113,8 +123,8 @@ struct NetMonitorApp: App {
                 .environment(\.appAccentColor, Color(hex: accentColorHex))
                 .environment(\.compactMode, compactMode)
                 .environment(\.companionService, companionService)
-                // Force dark appearance for Settings window too (refs #132)
-                .preferredColorScheme(.dark)
+                // Apply appearance for Settings window too
+                .preferredColorScheme(colorSchemeOverride)
         }
         .modelContainer(Self.sharedModelContainer)
     }
