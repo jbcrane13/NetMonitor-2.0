@@ -1,4 +1,4 @@
-import XCTest
+@preconcurrency import XCTest
 
 /// Shared base class for deterministic macOS UI tests.
 ///

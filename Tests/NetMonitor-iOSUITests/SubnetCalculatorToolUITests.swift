@@ -1,4 +1,4 @@
-import XCTest
+@preconcurrency import XCTest
 
 final class SubnetCalculatorToolUITests: IOSUITestCase {
     func testSubnetCalculatorValidationErrorAndClearFlow() {

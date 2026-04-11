@@ -1,4 +1,4 @@
-import XCTest
+@preconcurrency import XCTest
 
 class NetMonitorIOSUITests: XCTestCase {
     var app: XCUIApplication!

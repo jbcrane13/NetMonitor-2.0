@@ -1,4 +1,4 @@
-import XCTest
+@preconcurrency import XCTest
 
 /// Functional smoke tests that verify each major screen and tool produces
 /// correct **outcomes**, not just element existence. Each test captures a

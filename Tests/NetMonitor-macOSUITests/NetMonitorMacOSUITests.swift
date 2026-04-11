@@ -1,4 +1,4 @@
-import XCTest
+@preconcurrency import XCTest
 
 class NetMonitorMacOSUITests: XCTestCase {
     nonisolated(unsafe) var app: XCUIApplication!

@@ -1,4 +1,4 @@
-import XCTest
+@preconcurrency import XCTest
 
 final class TabNavigationUITests: XCTestCase {
     nonisolated(unsafe) var app: XCUIApplication!

@@ -1,4 +1,4 @@
-import XCTest
+@preconcurrency import XCTest
 
 /// UI tests for the AR WiFi Signal view.
 ///

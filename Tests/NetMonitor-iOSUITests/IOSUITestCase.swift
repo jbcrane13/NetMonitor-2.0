@@ -1,4 +1,4 @@
-import XCTest
+@preconcurrency import XCTest
 
 class IOSUITestCase: XCTestCase {
     nonisolated(unsafe) var app: XCUIApplication!

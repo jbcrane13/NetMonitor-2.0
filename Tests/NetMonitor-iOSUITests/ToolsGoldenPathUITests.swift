@@ -1,4 +1,4 @@
-import XCTest
+@preconcurrency import XCTest
 
 /// Golden path tests for all 14 network tools.
 ///

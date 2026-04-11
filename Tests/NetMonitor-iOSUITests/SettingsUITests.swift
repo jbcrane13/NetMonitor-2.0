@@ -1,4 +1,4 @@
-import XCTest
+@preconcurrency import XCTest
 
 final class SettingsUITests: XCTestCase {
     nonisolated(unsafe) var app: XCUIApplication!

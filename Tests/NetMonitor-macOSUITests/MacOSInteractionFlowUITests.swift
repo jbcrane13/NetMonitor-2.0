@@ -1,4 +1,4 @@
-import XCTest
+@preconcurrency import XCTest
 
 /// Cross-screen interaction flow tests for the macOS app.
 ///

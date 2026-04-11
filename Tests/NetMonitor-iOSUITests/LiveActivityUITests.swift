@@ -1,4 +1,4 @@
-import XCTest
+@preconcurrency import XCTest
 
 /// UI tests for Live Activities / Dynamic Island integration.
 ///
