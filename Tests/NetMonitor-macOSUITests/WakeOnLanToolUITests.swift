@@ -1,6 +1,7 @@
 import XCTest
 
 @MainActor
+@MainActor
 final class WakeOnLanToolUITests: XCTestCase {
     var app: XCUIApplication!
 

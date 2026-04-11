@@ -1,6 +1,7 @@
 import XCTest
 
 @MainActor
+@MainActor
 final class PingToolUITests: XCTestCase {
     var app: XCUIApplication!
 

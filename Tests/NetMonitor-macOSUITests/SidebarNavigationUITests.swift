@@ -1,6 +1,7 @@
 import XCTest
 
 @MainActor
+@MainActor
 final class SidebarNavigationUITests: XCTestCase {
     var app: XCUIApplication!
 

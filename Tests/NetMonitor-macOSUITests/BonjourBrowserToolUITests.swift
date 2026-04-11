@@ -1,6 +1,7 @@
 import XCTest
 
 @MainActor
+@MainActor
 final class BonjourBrowserToolUITests: XCTestCase {
     var app: XCUIApplication!
 

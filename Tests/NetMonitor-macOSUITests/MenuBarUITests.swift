@@ -1,6 +1,7 @@
 import XCTest
 
 @MainActor
+@MainActor
 final class MenuBarUITests: XCTestCase {
     var app: XCUIApplication!
 

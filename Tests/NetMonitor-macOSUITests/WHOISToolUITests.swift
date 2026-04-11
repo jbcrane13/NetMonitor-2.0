@@ -1,6 +1,7 @@
 import XCTest
 
 @MainActor
+@MainActor
 final class WHOISToolUITests: XCTestCase {
     var app: XCUIApplication!
 

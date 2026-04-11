@@ -5,6 +5,7 @@ import XCTest
 /// ARKit requires a real device with a camera; these tests run on the simulator
 /// and verify that the fallback UI is shown gracefully. Full AR testing requires
 /// a physical device and cannot be driven by XCUITest.
+@MainActor
 final class ARWiFiSignalUITests: XCTestCase {
     var app: XCUIApplication!
 
