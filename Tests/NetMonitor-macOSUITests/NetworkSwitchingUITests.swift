@@ -1,5 +1,6 @@
 import XCTest
 
+@MainActor
 final class NetworkSwitchingUITests: MacOSUITestCase {
 
     func testNetworksSectionExistsInSidebar() {

@@ -1,5 +1,6 @@
 import XCTest
 
+@MainActor
 final class DashboardUITests: IOSUITestCase {
 
     // MARK: - Screen Existence

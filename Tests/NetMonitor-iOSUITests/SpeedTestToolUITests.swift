@@ -1,5 +1,6 @@
 import XCTest
 
+@MainActor
 final class SpeedTestToolUITests: IOSUITestCase {
 
     private func navigateToSpeedTestTool() {

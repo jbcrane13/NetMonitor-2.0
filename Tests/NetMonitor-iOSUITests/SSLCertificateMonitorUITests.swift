@@ -1,5 +1,6 @@
 import XCTest
 
+@MainActor
 final class SSLCertificateMonitorUITests: IOSUITestCase {
     func testSSLMonitorQueryValidationAndOutcome() {
         openSSLMonitor()

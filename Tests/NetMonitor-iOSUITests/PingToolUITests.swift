@@ -1,5 +1,6 @@
 import XCTest
 
+@MainActor
 final class PingToolUITests: IOSUITestCase {
 
     private func navigateToPingTool() {

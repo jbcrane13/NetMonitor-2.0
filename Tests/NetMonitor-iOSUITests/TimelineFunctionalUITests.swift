@@ -5,6 +5,7 @@ import XCTest
 /// Tests verify **outcomes** of timeline interactions: filter sheet behavior,
 /// filter application, and clear-all functionality.
 /// Existing tests in TimelineUITests are NOT modified.
+@MainActor
 final class TimelineFunctionalUITests: IOSUITestCase {
 
     // MARK: - Helpers

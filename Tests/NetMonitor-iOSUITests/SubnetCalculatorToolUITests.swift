@@ -1,5 +1,6 @@
 import XCTest
 
+@MainActor
 final class SubnetCalculatorToolUITests: IOSUITestCase {
     func testSubnetCalculatorValidationErrorAndClearFlow() {
         openSubnetCalculator()

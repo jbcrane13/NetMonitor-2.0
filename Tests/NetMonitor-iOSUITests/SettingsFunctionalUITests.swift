@@ -5,6 +5,7 @@ import XCTest
 /// Tests verify **outcomes** of settings interactions: toggle persistence,
 /// stepper value changes, alert confirmation flows, and navigation.
 /// Existing tests in SettingsUITests are NOT modified.
+@MainActor
 final class SettingsFunctionalUITests: IOSUITestCase {
 
     // MARK: - Helpers

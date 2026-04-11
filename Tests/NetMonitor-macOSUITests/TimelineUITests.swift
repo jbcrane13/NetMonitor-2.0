@@ -1,5 +1,6 @@
 import XCTest
 
+@MainActor
 final class TimelineUITests: MacOSUITestCase {
 
     func testTimelineViewAccessibleFromTools() {

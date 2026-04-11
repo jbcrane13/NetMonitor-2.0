@@ -1,5 +1,6 @@
 import XCTest
 
+@MainActor
 final class GeoTraceUITests: IOSUITestCase {
 
     func testGeoTraceScreenOpensFromToolsGrid() {

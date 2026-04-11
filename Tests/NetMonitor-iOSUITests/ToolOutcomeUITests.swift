@@ -1,5 +1,6 @@
 import XCTest
 
+@MainActor
 final class ToolOutcomeUITests: IOSUITestCase {
     func testSetTargetPrefillsTargetAwareToolInputs() {
         let target = "9.9.9.9"

@@ -6,6 +6,7 @@ import XCTest
 /// and device scan interactions produce the expected observable outcomes.
 /// Modelled after the iOS ``InteractionFlowUITests`` but adapted for the
 /// macOS sidebar/detail-pane layout and macOS-specific controls.
+@MainActor
 final class MacOSInteractionFlowUITests: MacOSUITestCase {
 
     // MARK: - Sidebar Navigation Flows

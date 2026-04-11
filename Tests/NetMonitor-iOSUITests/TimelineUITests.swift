@@ -1,5 +1,6 @@
 import XCTest
 
+@MainActor
 final class TimelineUITests: IOSUITestCase {
     func testTimelineTabShowsScreenAndStateContent() {
         openTimeline()

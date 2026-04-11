@@ -1,5 +1,6 @@
 import XCTest
 
+@MainActor
 final class MacPairingUITests: IOSUITestCase {
 
     // MARK: - Settings Connection Section

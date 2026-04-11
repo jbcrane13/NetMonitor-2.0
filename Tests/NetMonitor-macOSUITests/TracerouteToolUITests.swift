@@ -1,5 +1,6 @@
 import XCTest
 
+@MainActor
 final class TracerouteToolUITests: MacOSUITestCase {
 
     private func openTraceroute() {

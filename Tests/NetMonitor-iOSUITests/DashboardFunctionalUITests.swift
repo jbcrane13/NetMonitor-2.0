@@ -5,6 +5,7 @@ import XCTest
 /// Every test verifies an **outcome** — navigation, state change, or data display —
 /// rather than mere element existence. Existing tests in DashboardUITests are
 /// NOT modified; these are additive.
+@MainActor
 final class DashboardFunctionalUITests: IOSUITestCase {
 
     // MARK: - Helpers

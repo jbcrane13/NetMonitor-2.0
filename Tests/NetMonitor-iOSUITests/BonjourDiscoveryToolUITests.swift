@@ -1,5 +1,6 @@
 import XCTest
 
+@MainActor
 final class BonjourDiscoveryToolUITests: IOSUITestCase {
 
     private func navigateToBonjourTool() {

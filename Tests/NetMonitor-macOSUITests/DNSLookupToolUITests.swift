@@ -1,5 +1,6 @@
 import XCTest
 
+@MainActor
 final class DNSLookupToolUITests: MacOSUITestCase {
 
     private func openDNSLookup() {

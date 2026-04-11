@@ -1,5 +1,6 @@
 import XCTest
 
+@MainActor
 final class DevicesUITests: MacOSUITestCase {
 
     override func setUpWithError() throws {

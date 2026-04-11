@@ -8,7 +8,7 @@ import XCTest
 /// interaction-flow tests.
 @MainActor
 class MacOSUITestCase: XCTestCase {
-    nonisolated(unsafe) var app: XCUIApplication!
+    var app: XCUIApplication!
 
     override func setUpWithError() throws {
         continueAfterFailure = false

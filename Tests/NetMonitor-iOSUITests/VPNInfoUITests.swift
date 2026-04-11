@@ -1,5 +1,6 @@
 import XCTest
 
+@MainActor
 final class VPNInfoUITests: IOSUITestCase {
 
     func testVPNCardAppearsOnDashboard() {

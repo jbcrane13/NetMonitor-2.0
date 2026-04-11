@@ -1,5 +1,6 @@
 import XCTest
 
+@MainActor
 final class NewFeaturesUITests: IOSUITestCase {
 
     // MARK: - Onboarding Flow (#72)

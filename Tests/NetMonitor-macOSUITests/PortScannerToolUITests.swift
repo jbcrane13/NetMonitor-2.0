@@ -1,5 +1,6 @@
 import XCTest
 
+@MainActor
 final class PortScannerToolUITests: MacOSUITestCase {
 
     private func openPortScanner() {

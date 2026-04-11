@@ -1,5 +1,6 @@
 import XCTest
 
+@MainActor
 final class NetworkMapUITests: IOSUITestCase {
 
     override func setUpWithError() throws {

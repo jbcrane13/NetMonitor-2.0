@@ -1,5 +1,6 @@
 import XCTest
 
+@MainActor
 final class WebBrowserToolUITests: IOSUITestCase {
 
     override func setUp() async throws {

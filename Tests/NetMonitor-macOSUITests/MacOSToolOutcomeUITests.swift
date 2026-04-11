@@ -7,6 +7,7 @@ import XCTest
 /// verifies the outcome transitions.  Modelled after the iOS
 /// ``ToolOutcomeUITests`` but adapted for macOS controls (popUpButtons,
 /// modal sheets, etc.).
+@MainActor
 final class MacOSToolOutcomeUITests: MacOSUITestCase {
 
     // MARK: - Ping

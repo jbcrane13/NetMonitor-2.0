@@ -2,7 +2,7 @@ import XCTest
 
 @MainActor
 final class WHOISToolUITests: XCTestCase {
-    nonisolated(unsafe) var app: XCUIApplication!
+    var app: XCUIApplication!
 
     override func setUpWithError() throws {
         continueAfterFailure = false

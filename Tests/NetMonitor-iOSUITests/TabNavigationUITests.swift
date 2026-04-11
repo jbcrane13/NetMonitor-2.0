@@ -1,8 +1,7 @@
 import XCTest
 
-@MainActor
 final class TabNavigationUITests: XCTestCase {
-    nonisolated(unsafe) var app: XCUIApplication!
+    var app: XCUIApplication!
 
     override func setUpWithError() throws {
         continueAfterFailure = false

@@ -1,5 +1,6 @@
 import XCTest
 
+@MainActor
 final class ToolsViewUITests: MacOSUITestCase {
 
     override func setUpWithError() throws {
