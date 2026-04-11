@@ -56,7 +56,9 @@ final class ShortcutsWiFiProvider: @unchecked Sendable {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            self?.handleURLCallback()
+            Task { @MainActor in
+                self?.handleURLCallback()
+            }
         }
     }
 
