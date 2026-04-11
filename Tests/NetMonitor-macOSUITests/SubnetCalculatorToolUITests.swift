@@ -1,5 +1,6 @@
-@preconcurrency import XCTest
+import XCTest
 
+@MainActor
 final class SubnetCalculatorToolUITests: XCTestCase {
     let app = XCUIApplication()
 

@@ -1,4 +1,4 @@
-@preconcurrency import XCTest
+import XCTest
 
 /// Functional companion tests for TimelineUITests.
 ///

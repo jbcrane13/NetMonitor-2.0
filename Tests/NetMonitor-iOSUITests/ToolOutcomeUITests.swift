@@ -1,4 +1,4 @@
-@preconcurrency import XCTest
+import XCTest
 
 final class ToolOutcomeUITests: IOSUITestCase {
     func testSetTargetPrefillsTargetAwareToolInputs() {

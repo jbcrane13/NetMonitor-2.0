@@ -1,12 +1,13 @@
-@preconcurrency import XCTest
+import XCTest
 
 /// UI tests for the AR WiFi Signal view.
 ///
 /// ARKit requires a real device with a camera; these tests run on the simulator
 /// and verify that the fallback UI is shown gracefully. Full AR testing requires
 /// a physical device and cannot be driven by XCUITest.
+@MainActor
 final class ARWiFiSignalUITests: XCTestCase {
-    nonisolated(unsafe) var app: XCUIApplication!
+    nonisolated(unsafe) nonisolated(unsafe) var app: XCUIApplication!
 
     override func setUpWithError() throws {
         continueAfterFailure = false

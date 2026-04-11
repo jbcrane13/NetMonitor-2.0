@@ -1,4 +1,4 @@
-@preconcurrency import XCTest
+import XCTest
 
 /// Interaction-outcome tests for every macOS tool sheet.
 ///

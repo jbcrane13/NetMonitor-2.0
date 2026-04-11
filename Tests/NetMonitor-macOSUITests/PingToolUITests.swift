@@ -1,7 +1,8 @@
-@preconcurrency import XCTest
+import XCTest
 
+@MainActor
 final class PingToolUITests: XCTestCase {
-    nonisolated(unsafe) var app: XCUIApplication!
+    nonisolated(unsafe) nonisolated(unsafe) var app: XCUIApplication!
 
     override func setUpWithError() throws {
         continueAfterFailure = false

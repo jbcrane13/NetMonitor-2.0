@@ -1,4 +1,4 @@
-@preconcurrency import XCTest
+import XCTest
 
 final class SSLCertificateMonitorUITests: IOSUITestCase {
     func testSSLMonitorQueryValidationAndOutcome() {

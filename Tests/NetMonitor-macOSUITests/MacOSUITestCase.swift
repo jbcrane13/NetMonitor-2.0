@@ -1,13 +1,14 @@
-@preconcurrency import XCTest
+import XCTest
 
 /// Shared base class for deterministic macOS UI tests.
 ///
 /// Mirrors the iOS ``IOSUITestCase`` pattern: launches with `--uitesting`
 /// flags so the app enters a lightweight test mode (monitoring disabled,
 /// auto-start off), and provides common helpers used across outcome and
-/// interaction-flow tests.
+/// interaction-flow tests.@MainActor
+
 class MacOSUITestCase: XCTestCase {
-    nonisolated(unsafe) var app: XCUIApplication!
+    nonisolated(unsafe) nonisolated(unsafe) var app: XCUIApplication!
 
     override func setUpWithError() throws {
         continueAfterFailure = false

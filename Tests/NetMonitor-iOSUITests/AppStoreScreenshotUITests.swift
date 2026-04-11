@@ -1,4 +1,4 @@
-@preconcurrency import XCTest
+import XCTest
 
 final class AppStoreScreenshotUITests: IOSUITestCase {
     private lazy var outputDirectory: URL = {
