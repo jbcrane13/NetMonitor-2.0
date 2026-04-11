@@ -37,6 +37,15 @@ enum AppearanceMode: String, CaseIterable, Identifiable {
     }
 }
 
+// MARK: - Helper
+
+/// Returns an adaptive NSColor that resolves to dark or light based on the current appearance.
+private func macColor(dark: NSColor, light: NSColor) -> NSColor {
+    NSColor(name: nil) { appearance in
+        appearance.name == .darkAqua ? dark : light
+    }
+}
+
 // MARK: - MacTheme
 
 /// Namespace for macOS theme constants.
@@ -50,30 +59,26 @@ enum MacTheme {
 
         // MARK: — Background (adaptive)
 
-        static let backgroundBase = Color(NSColor { traits in
-            traits.userInterfaceStyle == .dark
-                ? NSColor(red: 20/255, green: 20/255, blue: 22/255, alpha: 1)    // #141416
-                : NSColor(red: 245/255, green: 245/255, blue: 245/255, alpha: 1)  // #F5F5F5 Silver
-        })
+        static let backgroundBase = Color(nsColor: macColor(
+            dark: NSColor(red: 20/255, green: 20/255, blue: 22/255, alpha: 1),
+            light: NSColor(red: 245/255, green: 245/255, blue: 245/255, alpha: 1)
+        ))
 
-        static let backgroundElevated = Color(NSColor { traits in
-            traits.userInterfaceStyle == .dark
-                ? NSColor(red: 28/255, green: 28/255, blue: 30/255, alpha: 1)    // #1C1C1E
-                : NSColor(red: 255/255, green: 255/255, blue: 255/255, alpha: 1)  // white
-        })
+        static let backgroundElevated = Color(nsColor: macColor(
+            dark: NSColor(red: 28/255, green: 28/255, blue: 30/255, alpha: 1),
+            light: NSColor(red: 255/255, green: 255/255, blue: 255/255, alpha: 1)
+        ))
 
-        static let shimmerBlue = Color(NSColor { traits in
-            traits.userInterfaceStyle == .dark
-                ? NSColor(red: 60/255, green: 80/255, blue: 140/255, alpha: 1)
-                : NSColor(red: 59/255, green: 130/255, blue: 246/255, alpha: 0.15) // subtle blue tint for light
-        })
+        static let shimmerBlue = Color(nsColor: macColor(
+            dark: NSColor(red: 60/255, green: 80/255, blue: 140/255, alpha: 1),
+            light: NSColor(red: 59/255, green: 130/255, blue: 246/255, alpha: 0.15)
+        ))
 
         // periphery:ignore
-        static let backgroundGradientStart = Color(NSColor { traits in
-            traits.userInterfaceStyle == .dark
-                ? NSColor(red: 15/255, green: 23/255, blue: 42/255, alpha: 1)
-                : NSColor(red: 232/255, green: 232/255, blue: 237/255, alpha: 1) // #E8E8ED
-        })
+        static let backgroundGradientStart = Color(nsColor: macColor(
+            dark: NSColor(red: 15/255, green: 23/255, blue: 42/255, alpha: 1),
+            light: NSColor(red: 232/255, green: 232/255, blue: 237/255, alpha: 1)
+        ))
 
         static let backgroundGradientEnd = backgroundBase
 
@@ -86,44 +91,38 @@ enum MacTheme {
 
         // MARK: — Text colors (adaptive)
 
-        static let textPrimary = Color(NSColor { traits in
-            traits.userInterfaceStyle == .dark
-                ? NSColor.white
-                : NSColor(red: 29/255, green: 29/255, blue: 31/255, alpha: 1) // #1D1D1F
-        })
+        static let textPrimary = Color(nsColor: macColor(
+            dark: .white,
+            light: NSColor(red: 29/255, green: 29/255, blue: 31/255, alpha: 1)
+        ))
 
-        static let textSecondary = Color(NSColor { traits in
-            traits.userInterfaceStyle == .dark
-                ? NSColor.white.withAlphaComponent(0.7)
-                : NSColor(red: 99/255, green: 99/255, blue: 102/255, alpha: 1) // #636366
-        })
+        static let textSecondary = Color(nsColor: macColor(
+            dark: .white.withAlphaComponent(0.7),
+            light: NSColor(red: 99/255, green: 99/255, blue: 102/255, alpha: 1)
+        ))
 
-        static let textTertiary = Color(NSColor { traits in
-            traits.userInterfaceStyle == .dark
-                ? NSColor.white.withAlphaComponent(0.5)
-                : NSColor(red: 142/255, green: 142/255, blue: 147/255, alpha: 1) // #8E8E93
-        })
+        static let textTertiary = Color(nsColor: macColor(
+            dark: .white.withAlphaComponent(0.5),
+            light: NSColor(red: 142/255, green: 142/255, blue: 147/255, alpha: 1)
+        ))
 
         // MARK: — Glass/Crystal tokens (adaptive)
 
-        static let crystalBase = Color(NSColor { traits in
-            traits.userInterfaceStyle == .dark
-                ? NSColor(red: 26/255, green: 31/255, blue: 38/255, alpha: 0.6)
-                : NSColor(white: 1.0, alpha: 0.8) // bright white glass on light
-        })
+        static let crystalBase = Color(nsColor: macColor(
+            dark: NSColor(red: 26/255, green: 31/255, blue: 38/255, alpha: 0.6),
+            light: NSColor(white: 1.0, alpha: 0.8)
+        ))
 
         // periphery:ignore
-        static let crystalHighlight = Color(NSColor { traits in
-            traits.userInterfaceStyle == .dark
-                ? NSColor.white.withAlphaComponent(0.12)
-                : NSColor.white.withAlphaComponent(0.35) // softer highlight on light
-        })
+        static let crystalHighlight = Color(nsColor: macColor(
+            dark: .white.withAlphaComponent(0.12),
+            light: .white.withAlphaComponent(0.35)
+        ))
 
-        static let crystalBorder = Color(NSColor { traits in
-            traits.userInterfaceStyle == .dark
-                ? NSColor.white.withAlphaComponent(0.15)
-                : NSColor(red: 0/255, green: 0/255, blue: 0/255, alpha: 0.06) // subtle dark border on light
-        })
+        static let crystalBorder = Color(nsColor: macColor(
+            dark: .white.withAlphaComponent(0.15),
+            light: .black.withAlphaComponent(0.06)
+        ))
 
         static let glassBackground = crystalBase
         static let glassBorder = crystalBorder
@@ -141,89 +140,77 @@ enum MacTheme {
 
         // MARK: — Background tints (adaptive)
 
-        static let subtleBackground = Color(NSColor { traits in
-            traits.userInterfaceStyle == .dark
-                ? NSColor.black.withAlphaComponent(0.2)
-                : NSColor.black.withAlphaComponent(0.04) // very subtle on light
-        })
+        static let subtleBackground = Color(nsColor: macColor(
+            dark: .black.withAlphaComponent(0.2),
+            light: .black.withAlphaComponent(0.04)
+        ))
 
         // periphery:ignore
-        static let subtleBackgroundLight = Color(NSColor { traits in
-            traits.userInterfaceStyle == .dark
-                ? NSColor.black.withAlphaComponent(0.1)
-                : NSColor.black.withAlphaComponent(0.02)
-        })
+        static let subtleBackgroundLight = Color(nsColor: macColor(
+            dark: .black.withAlphaComponent(0.1),
+            light: .black.withAlphaComponent(0.02)
+        ))
 
         // MARK: — Sidebar (adaptive)
 
-        static let sidebarActive = Color(NSColor { traits in
-            traits.userInterfaceStyle == .dark
-                ? NSColor(red: 30/255, green: 35/255, blue: 41/255, alpha: 1) // #1E2329
-                : NSColor(red: 235/255, green: 235/255, blue: 235/255, alpha: 1) // #EBEBEB
-        })
+        static let sidebarActive = Color(nsColor: macColor(
+            dark: NSColor(red: 30/255, green: 35/255, blue: 41/255, alpha: 1),
+            light: NSColor(red: 235/255, green: 235/255, blue: 235/255, alpha: 1)
+        ))
 
-        static let sidebarActiveBorder = Color(NSColor { traits in
-            traits.userInterfaceStyle == .dark
-                ? NSColor(red: 6/255, green: 182/255, blue: 212/255, alpha: 1) // cyan accent
-                : NSColor(red: 6/255, green: 182/255, blue: 212/255, alpha: 0.6) // muted accent on light
-        })
+        static let sidebarActiveBorder = Color(nsColor: macColor(
+            dark: NSColor(red: 6/255, green: 182/255, blue: 212/255, alpha: 1),
+            light: NSColor(red: 6/255, green: 182/255, blue: 212/255, alpha: 0.6)
+        ))
 
-        static let sidebarTextPrimary = Color(NSColor { traits in
-            traits.userInterfaceStyle == .dark
-                ? NSColor.white
-                : NSColor(red: 29/255, green: 29/255, blue: 31/255, alpha: 1) // #1D1D1F
-        })
+        static let sidebarTextPrimary = Color(nsColor: macColor(
+            dark: .white,
+            light: NSColor(red: 29/255, green: 29/255, blue: 31/255, alpha: 1)
+        ))
 
-        static let sidebarTextSecondary = Color(NSColor { traits in
-            traits.userInterfaceStyle == .dark
-                ? NSColor.white.withAlphaComponent(0.6)
-                : NSColor(red: 99/255, green: 99/255, blue: 102/255, alpha: 1) // #636366
-        })
+        static let sidebarTextSecondary = Color(nsColor: macColor(
+            dark: .white.withAlphaComponent(0.6),
+            light: NSColor(red: 99/255, green: 99/255, blue: 102/255, alpha: 1)
+        ))
 
         // MARK: — Deck tokens (adaptive)
 
         // periphery:ignore
-        static let deckBackground = Color(NSColor { traits in
-            traits.userInterfaceStyle == .dark
-                ? NSColor(red: 8/255, green: 9/255, blue: 11/255, alpha: 1) // #08090B
-                : NSColor(red: 232/255, green: 232/255, blue: 237/255, alpha: 1) // #E8E8ED
-        })
+        static let deckBackground = Color(nsColor: macColor(
+            dark: NSColor(red: 8/255, green: 9/255, blue: 11/255, alpha: 1),
+            light: NSColor(red: 232/255, green: 232/255, blue: 237/255, alpha: 1)
+        ))
 
         // periphery:ignore
-        static let deckConsole = Color(NSColor { traits in
-            traits.userInterfaceStyle == .dark
-                ? NSColor(red: 18/255, green: 21/255, blue: 26/255, alpha: 1) // #12151A
-                : NSColor(red: 255/255, green: 255/255, blue: 255/255, alpha: 1) // white
-        })
+        static let deckConsole = Color(nsColor: macColor(
+            dark: NSColor(red: 18/255, green: 21/255, blue: 26/255, alpha: 1),
+            light: .white
+        ))
 
         // periphery:ignore
-        static let deckRecessed = Color(NSColor { traits in
-            traits.userInterfaceStyle == .dark
-                ? NSColor(red: 5/255, green: 6/255, blue: 8/255, alpha: 1) // #050608
-                : NSColor(red: 245/255, green: 245/255, blue: 245/255, alpha: 1) // #F5F5F5
-        })
+        static let deckRecessed = Color(nsColor: macColor(
+            dark: NSColor(red: 5/255, green: 6/255, blue: 8/255, alpha: 1),
+            light: NSColor(red: 245/255, green: 245/255, blue: 245/255, alpha: 1)
+        ))
 
         // periphery:ignore
-        static let deckBorder = Color(NSColor { traits in
-            traits.userInterfaceStyle == .dark
-                ? NSColor.white.withAlphaComponent(0.12)
-                : NSColor.black.withAlphaComponent(0.06)
-        })
+        static let deckBorder = Color(nsColor: macColor(
+            dark: .white.withAlphaComponent(0.12),
+            light: .black.withAlphaComponent(0.06)
+        ))
 
         // periphery:ignore
-        static let deckHighlight = Color(NSColor { traits in
-            traits.userInterfaceStyle == .dark
-                ? NSColor.white.withAlphaComponent(0.06)
-                : NSColor.white.withAlphaComponent(0.5) // bright highlight on light
-        })
+        static let deckHighlight = Color(nsColor: macColor(
+            dark: .white.withAlphaComponent(0.06),
+            light: .white.withAlphaComponent(0.5)
+        ))
 
         // MARK: — Divider (adaptive)
 
-        static let divider = Color(NSColor { traits in
-            traits.userInterfaceStyle == .dark
-                ? NSColor.white.withAlphaComponent(0.06)
-                : NSColor.black.withAlphaComponent(0.08)
-        })
+        static let divider = Color(nsColor: macColor(
+            dark: .white.withAlphaComponent(0.06),
+            light: .black.withAlphaComponent(0.08)
+        ))
 
         // MARK: — Accent color (reads from ThemeManager / @AppStorage)
 
@@ -317,11 +304,10 @@ enum MacTheme {
     // MARK: - Shadows — adaptive
 
     enum Shadows {
-        static let card = Color(NSColor { traits in
-            traits.userInterfaceStyle == .dark
-                ? NSColor.black.withAlphaComponent(0.25)
-                : NSColor.black.withAlphaComponent(0.08) // subtle shadow on light
-        })
+        static let card = Color(nsColor: macColor(
+            dark: .black.withAlphaComponent(0.25),
+            light: .black.withAlphaComponent(0.08)
+        ))
         static let cardRadius: CGFloat = 15
         static let cardY: CGFloat = 5
 
