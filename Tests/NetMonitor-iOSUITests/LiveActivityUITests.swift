@@ -8,7 +8,7 @@ import XCTest
 /// from the UI without crashing.
 @MainActor
 final class LiveActivityUITests: XCTestCase {
-    nonisolated(unsafe) nonisolated(unsafe) var app: XCUIApplication!
+    nonisolated(unsafe) var app: XCUIApplication!
 
     override func setUpWithError() throws {
         continueAfterFailure = false

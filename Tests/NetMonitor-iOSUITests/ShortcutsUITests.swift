@@ -8,7 +8,7 @@ import XCTest
 /// driven by XCUITest directly.
 @MainActor
 final class ShortcutsUITests: XCTestCase {
-    nonisolated(unsafe) nonisolated(unsafe) var app: XCUIApplication!
+    nonisolated(unsafe) var app: XCUIApplication!
 
     override func setUpWithError() throws {
         continueAfterFailure = false

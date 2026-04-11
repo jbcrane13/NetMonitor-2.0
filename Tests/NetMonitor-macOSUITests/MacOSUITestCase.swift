@@ -5,10 +5,10 @@ import XCTest
 /// Mirrors the iOS ``IOSUITestCase`` pattern: launches with `--uitesting`
 /// flags so the app enters a lightweight test mode (monitoring disabled,
 /// auto-start off), and provides common helpers used across outcome and
-/// interaction-flow tests.@MainActor
-
+/// interaction-flow tests.
+@MainActor
 class MacOSUITestCase: XCTestCase {
-    nonisolated(unsafe) nonisolated(unsafe) var app: XCUIApplication!
+    nonisolated(unsafe) var app: XCUIApplication!
 
     override func setUpWithError() throws {
         continueAfterFailure = false

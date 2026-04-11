@@ -2,7 +2,7 @@ import XCTest
 
 @MainActor
 final class BonjourBrowserToolUITests: XCTestCase {
-    nonisolated(unsafe) nonisolated(unsafe) var app: XCUIApplication!
+    nonisolated(unsafe) var app: XCUIApplication!
 
     override func setUpWithError() throws {
         continueAfterFailure = false

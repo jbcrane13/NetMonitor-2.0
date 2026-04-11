@@ -7,7 +7,7 @@ import XCTest
 /// a physical device and cannot be driven by XCUITest.
 @MainActor
 final class ARWiFiSignalUITests: XCTestCase {
-    nonisolated(unsafe) nonisolated(unsafe) var app: XCUIApplication!
+    nonisolated(unsafe) var app: XCUIApplication!
 
     override func setUpWithError() throws {
         continueAfterFailure = false
