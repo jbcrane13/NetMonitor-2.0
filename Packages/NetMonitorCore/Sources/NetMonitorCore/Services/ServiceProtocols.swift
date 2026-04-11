@@ -96,7 +96,7 @@ public protocol WakeOnLANServiceProtocol {
 }
 
 /// Protocol for speed test operations.
-public protocol SpeedTestServiceProtocol {
+public protocol SpeedTestServiceProtocol: Sendable {
     @MainActor var downloadSpeed: Double { get }
     @MainActor var uploadSpeed: Double { get }
     @MainActor var peakDownloadSpeed: Double { get }
@@ -153,7 +153,7 @@ public protocol PublicIPServiceProtocol {
 }
 
 /// Protocol for WiFi info (implementation is platform-specific).
-public protocol WiFiInfoServiceProtocol {
+public protocol WiFiInfoServiceProtocol: Sendable {
     @MainActor var currentWiFi: WiFiInfo? { get }
     @MainActor var isLocationAuthorized: Bool { get }
     @MainActor var authorizationStatus: CLAuthorizationStatus { get }
