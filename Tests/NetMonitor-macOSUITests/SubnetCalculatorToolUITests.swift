@@ -1,7 +1,5 @@
 import XCTest
 
-@MainActor
-@MainActor
 final class SubnetCalculatorToolUITests: XCTestCase {
     let app = XCUIApplication()
 

@@ -1,6 +1,5 @@
 import XCTest
 
-@MainActor
 final class NetworkHealthScoreUITests: IOSUITestCase {
 
     func testHealthScoreCardAppearsOnDashboard() {

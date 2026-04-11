@@ -16,7 +16,6 @@ import XCTest
 ///   - Outcome assertions — verify result *content* (ms, Mbps, IP addresses)
 ///   - Screenshot capture — XCTAttachment at every verification point
 ///   - Network-tolerant — accepts results OR meaningful error states
-@MainActor
 final class FunctionalSmokeTests: IOSUITestCase {
 
     /// Shorthand for `app.descendants(matching: .any)[identifier]`.

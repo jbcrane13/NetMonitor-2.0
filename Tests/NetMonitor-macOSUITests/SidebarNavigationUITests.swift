@@ -1,9 +1,7 @@
 import XCTest
 
-@MainActor
-@MainActor
 final class SidebarNavigationUITests: XCTestCase {
-    var app: XCUIApplication!
+    nonisolated(unsafe) var app: XCUIApplication!
 
     override func setUpWithError() throws {
         continueAfterFailure = false

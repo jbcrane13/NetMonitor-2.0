@@ -6,9 +6,8 @@ import XCTest
 /// and that the UI correctly responds to shortcut-triggered deep links.
 /// Full Siri/Shortcuts automation requires the Shortcuts app and cannot be
 /// driven by XCUITest directly.
-@MainActor
 final class ShortcutsUITests: XCTestCase {
-    var app: XCUIApplication!
+    nonisolated(unsafe) var app: XCUIApplication!
 
     override func setUpWithError() throws {
         continueAfterFailure = false

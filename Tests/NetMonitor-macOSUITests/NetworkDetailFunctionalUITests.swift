@@ -5,7 +5,6 @@ import XCTest
 /// Tests verify **outcomes** of interactions with the network detail "war room":
 /// device selection, rescan triggers, and device action flows.
 /// Existing tests in NetworkDetailViewUITests are NOT modified.
-@MainActor
 final class NetworkDetailFunctionalUITests: MacOSUITestCase {
 
     // MARK: - Helpers

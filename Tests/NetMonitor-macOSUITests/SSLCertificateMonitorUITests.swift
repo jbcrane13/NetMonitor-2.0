@@ -1,6 +1,5 @@
 import XCTest
 
-@MainActor
 final class SSLCertificateMonitorUITests: MacOSUITestCase {
 
     func testSSLMonitorOpensFromToolsGrid() {

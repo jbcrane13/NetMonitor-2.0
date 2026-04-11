@@ -1,6 +1,5 @@
 import XCTest
 
-@MainActor
 final class GeoFenceSettingsUITests: IOSUITestCase {
     func testCanNavigateFromSettingsToGeoFenceScreen() {
         openSettings()

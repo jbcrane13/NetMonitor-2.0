@@ -1,6 +1,5 @@
 import XCTest
 
-@MainActor
 final class WiFiHeatmapToolUITests: IOSUITestCase {
 
     private func navigateToHeatmap() {

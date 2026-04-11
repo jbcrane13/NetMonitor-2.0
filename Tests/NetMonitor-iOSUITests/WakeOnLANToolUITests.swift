@@ -1,6 +1,5 @@
 import XCTest
 
-@MainActor
 final class WakeOnLANToolUITests: IOSUITestCase {
 
     private func navigateToWoLTool() {

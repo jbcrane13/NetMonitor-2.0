@@ -1,6 +1,5 @@
 import XCTest
 
-@MainActor
 final class ExportPDFUITests: IOSUITestCase {
 
     private func openSettings() {

@@ -6,9 +6,8 @@ import XCTest
 /// support and cannot be driven end-to-end by XCUITest. These tests verify that
 /// operations which trigger Live Activities (scans, speed tests) can be initiated
 /// from the UI without crashing.
-@MainActor
 final class LiveActivityUITests: XCTestCase {
-    var app: XCUIApplication!
+    nonisolated(unsafe) var app: XCUIApplication!
 
     override func setUpWithError() throws {
         continueAfterFailure = false

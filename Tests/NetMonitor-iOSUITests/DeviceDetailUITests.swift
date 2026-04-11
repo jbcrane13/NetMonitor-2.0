@@ -1,6 +1,5 @@
 import XCTest
 
-@MainActor
 final class DeviceDetailUITests: IOSUITestCase {
 
     // MARK: - Network Map Screen

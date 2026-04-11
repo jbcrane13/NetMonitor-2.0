@@ -1,6 +1,5 @@
 import XCTest
 
-@MainActor
 final class InteractionFlowUITests: IOSUITestCase {
     func testTabSwitchUpdatesSelectedStateAndVisibleScreen() {
         let dashboardTab = requireExists(

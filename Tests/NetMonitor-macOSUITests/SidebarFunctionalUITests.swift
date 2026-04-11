@@ -5,7 +5,6 @@ import XCTest
 /// Tests verify **outcomes** of sidebar interactions: content area updates,
 /// network detail loading, and keyboard shortcut navigation.
 /// Existing tests in SidebarNavigationUITests are NOT modified.
-@MainActor
 final class SidebarFunctionalUITests: MacOSUITestCase {
 
     // MARK: - 1. Click Each Sidebar Section -> Verify Content Area Updates

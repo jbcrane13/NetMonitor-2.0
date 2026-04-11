@@ -5,7 +5,6 @@ import XCTest
 /// Tests verify **outcomes** of network map interactions: scan triggers,
 /// device discovery state changes, and device detail navigation.
 /// Existing tests in NetworkMapUITests are NOT modified.
-@MainActor
 final class NetworkMapFunctionalUITests: IOSUITestCase {
 
     // MARK: - Helpers

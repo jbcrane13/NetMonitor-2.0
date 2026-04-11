@@ -28,7 +28,6 @@ import XCTest
 // These wrap the card's own identifier. Both are present in the hierarchy and
 // either can be used to verify presence.
 
-@MainActor
 final class NetworkDetailViewUITests: MacOSUITestCase {
 
     // MARK: - Setup

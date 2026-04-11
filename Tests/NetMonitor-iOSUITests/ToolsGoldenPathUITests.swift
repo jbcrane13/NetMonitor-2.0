@@ -11,7 +11,6 @@ import XCTest
 /// Network-dependent assertions accept any visible outcome (running indicator,
 /// loading state, error banner, or actual results) so the suite is not flaky
 /// in simulator environments without live internet access.
-@MainActor
 final class ToolsGoldenPathUITests: IOSUITestCase {
 
     // MARK: - 1. Ping

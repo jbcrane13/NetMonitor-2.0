@@ -1,6 +1,5 @@
 import XCTest
 
-@MainActor
 final class WorldPingToolUITests: IOSUITestCase {
 
     private func openWorldPing() {

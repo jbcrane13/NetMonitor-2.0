@@ -6,9 +6,8 @@ import XCTest
 /// flags so the app enters a lightweight test mode (monitoring disabled,
 /// auto-start off), and provides common helpers used across outcome and
 /// interaction-flow tests.
-@MainActor
 class MacOSUITestCase: XCTestCase {
-    var app: XCUIApplication!
+    nonisolated(unsafe) var app: XCUIApplication!
 
     override func setUpWithError() throws {
         continueAfterFailure = false

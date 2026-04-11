@@ -1,6 +1,5 @@
 import XCTest
 
-@MainActor
 final class WHOISToolUITests: IOSUITestCase {
 
     private func navigateToWHOISTool() {

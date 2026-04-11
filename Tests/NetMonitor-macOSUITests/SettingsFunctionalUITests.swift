@@ -5,7 +5,6 @@ import XCTest
 /// Tests verify **outcomes** of settings interactions: tab content loading,
 /// preference persistence, and control interactivity.
 /// Existing tests in SettingsUITests are NOT modified.
-@MainActor
 final class SettingsFunctionalUITests: MacOSUITestCase {
 
     override func setUpWithError() throws {
