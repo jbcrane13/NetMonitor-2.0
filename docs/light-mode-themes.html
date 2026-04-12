@@ -1,0 +1,997 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NetMonitor — Light Mode Theme Designs</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=SF+Pro+Display:wght@400;500;600;700&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+    background: #0F1117;
+    color: #E8E8ED;
+    padding: 40px 20px;
+    line-height: 1.5;
+  }
+
+  h1 {
+    text-align: center;
+    font-size: 32px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    background: linear-gradient(135deg, #06B6D4, #3B82F6);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .subtitle {
+    text-align: center;
+    font-size: 15px;
+    color: #9CA3AF;
+    margin-bottom: 48px;
+  }
+
+  .section-title {
+    font-size: 22px;
+    font-weight: 600;
+    margin: 48px 0 24px;
+    padding-left: 16px;
+    border-left: 3px solid #06B6D4;
+    color: #F3F4F6;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 32px;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+
+  @media (max-width: 900px) {
+    .grid { grid-template-columns: 1fr; }
+  }
+
+  .theme-card {
+    border-radius: 20px;
+    overflow: hidden;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+    transition: transform 0.2s ease;
+  }
+
+  .theme-card:hover { transform: translateY(-4px); }
+
+  .theme-header {
+    padding: 20px 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .theme-name {
+    font-size: 20px;
+    font-weight: 700;
+  }
+
+  .theme-badge {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    padding: 4px 12px;
+    border-radius: 100px;
+  }
+
+  /* ====== iOS THEMES ====== */
+
+  /* --- Slate (iOS) --- */
+  .ios-slate { background: #E8E8ED; color: #1C1C1E; }
+  .ios-slate .theme-header { background: #D1D1D6; }
+  .ios-slate .theme-badge { background: rgba(6,182,212,0.15); color: #0891B2; }
+
+  .ios-slate .app-frame {
+    display: flex;
+    height: 420px;
+  }
+
+  .ios-slate .sidebar {
+    width: 72px;
+    background: #F2F2F7;
+    padding: 16px 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+    border-right: 1px solid rgba(0,0,0,0.08);
+  }
+
+  .ios-slate .sidebar .icon {
+    width: 36px; height: 36px;
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; color: #8E8E93;
+    background: transparent;
+  }
+
+  .ios-slate .sidebar .icon.active {
+    background: #06B6D4;
+    color: white;
+    box-shadow: 0 2px 8px rgba(6,182,212,0.3);
+  }
+
+  .ios-slate .main-content {
+    flex: 1;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    overflow: hidden;
+  }
+
+  .ios-slate .greeting {
+    font-size: 13px; color: #8E8E93; font-weight: 500;
+  }
+
+  .ios-slate .headline {
+    font-size: 22px; font-weight: 700; color: #1C1C1E; margin-bottom: 4px;
+  }
+
+  .ios-slate .card {
+    background: rgba(255,255,255,0.72);
+    backdrop-filter: blur(20px);
+    border-radius: 16px;
+    padding: 16px;
+    border: 1px solid rgba(0,0,0,0.06);
+  }
+
+  .ios-slate .card-row {
+    display: flex; justify-content: space-between; align-items: center;
+  }
+
+  .ios-slate .stat-label { font-size: 12px; color: #8E8E93; font-weight: 500; }
+  .ios-slate .stat-value { font-size: 28px; font-weight: 700; color: #1C1C1E; }
+  .ios-slate .stat-unit { font-size: 13px; color: #8E8E93; font-weight: 500; }
+  .ios-slate .status-good { color: #10B981; font-weight: 600; font-size: 13px; }
+
+  .ios-slate .mini-bars {
+    display: flex; gap: 3px; align-items: flex-end; height: 28px; margin-top: 8px;
+  }
+  .ios-slate .mini-bar {
+    width: 6px; border-radius: 3px; background: #06B6D4;
+    opacity: 0.5;
+  }
+
+  .ios-slate .devices-card { margin-top: auto; }
+  .ios-slate .device-row {
+    display: flex; align-items: center; gap: 10px; padding: 8px 0;
+  }
+  .ios-slate .device-dot {
+    width: 8px; height: 8px; border-radius: 50%; background: #10B981;
+  }
+  .ios-slate .device-name { font-size: 13px; font-weight: 500; color: #1C1C1E; }
+  .ios-slate .device-ip { font-size: 11px; color: #8E8E93; margin-left: auto; }
+
+  /* --- Warm Sand (iOS) --- */
+  .ios-warm-sand { background: #F5F0E8; color: #3D3226; }
+  .ios-warm-sand .theme-header { background: #EDE5D8; }
+  .ios-warm-sand .theme-badge { background: rgba(217,119,6,0.15); color: #B45309; }
+  .ios-warm-sand .theme-name { color: #3D3226; }
+
+  .ios-warm-sand .app-frame { display: flex; height: 420px; }
+  .ios-warm-sand .sidebar {
+    width: 72px; background: #FAF6F0; padding: 16px 0;
+    display: flex; flex-direction: column; align-items: center; gap: 20px;
+    border-right: 1px solid rgba(139,109,63,0.1);
+  }
+  .ios-warm-sand .sidebar .icon {
+    width: 36px; height: 36px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; color: #A89272;
+  }
+  .ios-warm-sand .sidebar .icon.active {
+    background: #D97706; color: white;
+    box-shadow: 0 2px 8px rgba(217,119,6,0.3);
+  }
+  .ios-warm-sand .main-content {
+    flex: 1; padding: 16px; display: flex; flex-direction: column; gap: 12px; overflow: hidden;
+  }
+  .ios-warm-sand .greeting { font-size: 13px; color: #A89272; font-weight: 500; }
+  .ios-warm-sand .headline { font-size: 22px; font-weight: 700; color: #3D3226; margin-bottom: 4px; }
+  .ios-warm-sand .card {
+    background: rgba(255,255,255,0.6); backdrop-filter: blur(20px);
+    border-radius: 16px; padding: 16px; border: 1px solid rgba(139,109,63,0.1);
+  }
+  .ios-warm-sand .card-row { display: flex; justify-content: space-between; align-items: center; }
+  .ios-warm-sand .stat-label { font-size: 12px; color: #A89272; font-weight: 500; }
+  .ios-warm-sand .stat-value { font-size: 28px; font-weight: 700; color: #3D3226; }
+  .ios-warm-sand .stat-unit { font-size: 13px; color: #A89272; font-weight: 500; }
+  .ios-warm-sand .status-good { color: #10B981; font-weight: 600; font-size: 13px; }
+  .ios-warm-sand .mini-bars { display: flex; gap: 3px; align-items: flex-end; height: 28px; margin-top: 8px; }
+  .ios-warm-sand .mini-bar { width: 6px; border-radius: 3px; background: #D97706; opacity: 0.5; }
+  .ios-warm-sand .devices-card { margin-top: auto; }
+  .ios-warm-sand .device-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; }
+  .ios-warm-sand .device-dot { width: 8px; height: 8px; border-radius: 50%; background: #10B981; }
+  .ios-warm-sand .device-name { font-size: 13px; font-weight: 500; color: #3D3226; }
+  .ios-warm-sand .device-ip { font-size: 11px; color: #A89272; margin-left: auto; }
+
+  /* --- Arctic (iOS) --- */
+  .ios-arctic { background: #EEF2F7; color: #1E293B; }
+  .ios-arctic .theme-header { background: #E0E8F0; }
+  .ios-arctic .theme-badge { background: rgba(59,130,246,0.15); color: #2563EB; }
+  .ios-arctic .theme-name { color: #1E293B; }
+
+  .ios-arctic .app-frame { display: flex; height: 420px; }
+  .ios-arctic .sidebar {
+    width: 72px; background: #F5F8FB; padding: 16px 0;
+    display: flex; flex-direction: column; align-items: center; gap: 20px;
+    border-right: 1px solid rgba(59,130,246,0.08);
+  }
+  .ios-arctic .sidebar .icon {
+    width: 36px; height: 36px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; color: #94A3B8;
+  }
+  .ios-arctic .sidebar .icon.active {
+    background: #3B82F6; color: white;
+    box-shadow: 0 2px 8px rgba(59,130,246,0.3);
+  }
+  .ios-arctic .main-content {
+    flex: 1; padding: 16px; display: flex; flex-direction: column; gap: 12px; overflow: hidden;
+  }
+  .ios-arctic .greeting { font-size: 13px; color: #94A3B8; font-weight: 500; }
+  .ios-arctic .headline { font-size: 22px; font-weight: 700; color: #1E293B; margin-bottom: 4px; }
+  .ios-arctic .card {
+    background: rgba(255,255,255,0.72); backdrop-filter: blur(20px);
+    border-radius: 16px; padding: 16px; border: 1px solid rgba(59,130,246,0.08);
+  }
+  .ios-arctic .card-row { display: flex; justify-content: space-between; align-items: center; }
+  .ios-arctic .stat-label { font-size: 12px; color: #94A3B8; font-weight: 500; }
+  .ios-arctic .stat-value { font-size: 28px; font-weight: 700; color: #1E293B; }
+  .ios-arctic .stat-unit { font-size: 13px; color: #94A3B8; font-weight: 500; }
+  .ios-arctic .status-good { color: #10B981; font-weight: 600; font-size: 13px; }
+  .ios-arctic .mini-bars { display: flex; gap: 3px; align-items: flex-end; height: 28px; margin-top: 8px; }
+  .ios-arctic .mini-bar { width: 6px; border-radius: 3px; background: #3B82F6; opacity: 0.5; }
+  .ios-arctic .devices-card { margin-top: auto; }
+  .ios-arctic .device-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; }
+  .ios-arctic .device-dot { width: 8px; height: 8px; border-radius: 50%; background: #10B981; }
+  .ios-arctic .device-name { font-size: 13px; font-weight: 500; color: #1E293B; }
+  .ios-arctic .device-ip { font-size: 11px; color: #94A3B8; margin-left: auto; }
+
+  /* --- Forest (iOS) --- */
+  .ios-forest { background: #E8F0E8; color: #1A2E1A; }
+  .ios-forest .theme-header { background: #D4E4D4; }
+  .ios-forest .theme-badge { background: rgba(34,197,94,0.15); color: #16A34A; }
+  .ios-forest .theme-name { color: #1A2E1A; }
+
+  .ios-forest .app-frame { display: flex; height: 420px; }
+  .ios-forest .sidebar {
+    width: 72px; background: #F0F6F0; padding: 16px 0;
+    display: flex; flex-direction: column; align-items: center; gap: 20px;
+    border-right: 1px solid rgba(34,197,94,0.1);
+  }
+  .ios-forest .sidebar .icon {
+    width: 36px; height: 36px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; color: #6B8F6B;
+  }
+  .ios-forest .sidebar .icon.active {
+    background: #22C55E; color: white;
+    box-shadow: 0 2px 8px rgba(34,197,94,0.3);
+  }
+  .ios-forest .main-content {
+    flex: 1; padding: 16px; display: flex; flex-direction: column; gap: 12px; overflow: hidden;
+  }
+  .ios-forest .greeting { font-size: 13px; color: #6B8F6B; font-weight: 500; }
+  .ios-forest .headline { font-size: 22px; font-weight: 700; color: #1A2E1A; margin-bottom: 4px; }
+  .ios-forest .card {
+    background: rgba(255,255,255,0.6); backdrop-filter: blur(20px);
+    border-radius: 16px; padding: 16px; border: 1px solid rgba(34,197,94,0.1);
+  }
+  .ios-forest .card-row { display: flex; justify-content: space-between; align-items: center; }
+  .ios-forest .stat-label { font-size: 12px; color: #6B8F6B; font-weight: 500; }
+  .ios-forest .stat-value { font-size: 28px; font-weight: 700; color: #1A2E1A; }
+  .ios-forest .stat-unit { font-size: 13px; color: #6B8F6B; font-weight: 500; }
+  .ios-forest .status-good { color: #10B981; font-weight: 600; font-size: 13px; }
+  .ios-forest .mini-bars { display: flex; gap: 3px; align-items: flex-end; height: 28px; margin-top: 8px; }
+  .ios-forest .mini-bar { width: 6px; border-radius: 3px; background: #22C55E; opacity: 0.5; }
+  .ios-forest .devices-card { margin-top: auto; }
+  .ios-forest .device-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; }
+  .ios-forest .device-dot { width: 8px; height: 8px; border-radius: 50%; background: #10B981; }
+  .ios-forest .device-name { font-size: 13px; font-weight: 500; color: #1A2E1A; }
+  .ios-forest .device-ip { font-size: 11px; color: #6B8F6B; margin-left: auto; }
+
+  /* ====== MAC THEMES ====== */
+
+  .mac-frame {
+    display: flex;
+    height: 380px;
+    border-radius: 12px;
+    overflow: hidden;
+  }
+
+  .mac-sidebar {
+    width: 200px;
+    padding: 16px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 13px;
+  }
+
+  .mac-sidebar-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 10px; border-radius: 8px; cursor: pointer;
+  }
+
+  .mac-main {
+    flex: 1;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    overflow: hidden;
+  }
+
+  .mac-top-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+  }
+
+  .mac-top-title { font-size: 18px; font-weight: 700; }
+  .mac-top-subtitle { font-size: 12px; }
+
+  .mac-cards-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+  }
+
+  .mac-stat-card {
+    border-radius: 12px;
+    padding: 14px;
+  }
+
+  .mac-stat-label { font-size: 11px; font-weight: 500; margin-bottom: 4px; }
+  .mac-stat-value { font-size: 22px; font-weight: 700; }
+  .mac-stat-detail { font-size: 11px; margin-top: 2px; }
+
+  .mac-detail-card {
+    border-radius: 12px;
+    padding: 14px;
+    margin-top: auto;
+  }
+
+  .mac-detail-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 6px 0;
+  }
+
+  /* --- Silver (Mac) --- */
+  .mac-silver { background: #F5F5F5; color: #1D1D1F; }
+  .mac-silver .theme-header { background: #E8E8E8; }
+  .mac-silver .theme-badge { background: rgba(120,120,128,0.12); color: #636366; }
+  .mac-silver .theme-name { color: #1D1D1F; }
+  .mac-silver .mac-sidebar { background: #EBEBEB; border-right: 1px solid rgba(0,0,0,0.08); }
+  .mac-silver .mac-sidebar-item { color: #636366; }
+  .mac-silver .mac-sidebar-item.active { background: rgba(0,0,0,0.06); color: #1D1D1F; font-weight: 600; }
+  .mac-silver .mac-top-title { color: #1D1D1F; }
+  .mac-silver .mac-top-subtitle { color: #8E8E93; }
+  .mac-silver .mac-stat-card { background: rgba(255,255,255,0.8); border: 1px solid rgba(0,0,0,0.06); }
+  .mac-silver .mac-stat-label { color: #8E8E93; }
+  .mac-silver .mac-stat-value { color: #1D1D1F; }
+  .mac-silver .mac-stat-detail { color: #10B981; }
+  .mac-silver .mac-detail-card { background: rgba(255,255,255,0.8); border: 1px solid rgba(0,0,0,0.06); }
+  .mac-silver .mac-detail-row { color: #1D1D1F; border-bottom: 1px solid rgba(0,0,0,0.05); }
+  .mac-silver .detail-dim { color: #8E8E93; }
+
+  /* --- Parchment (Mac) --- */
+  .mac-parchment { background: #F8F3EB; color: #3D3226; }
+  .mac-parchment .theme-header { background: #EFE8DA; }
+  .mac-parchment .theme-badge { background: rgba(180,83,9,0.12); color: #B45309; }
+  .mac-parchment .theme-name { color: #3D3226; }
+  .mac-parchment .mac-sidebar { background: #F0E9DD; border-right: 1px solid rgba(139,109,63,0.1); }
+  .mac-parchment .mac-sidebar-item { color: #A89272; }
+  .mac-parchment .mac-sidebar-item.active { background: rgba(139,109,63,0.1); color: #3D3226; font-weight: 600; }
+  .mac-parchment .mac-top-title { color: #3D3226; }
+  .mac-parchment .mac-top-subtitle { color: #A89272; }
+  .mac-parchment .mac-stat-card { background: rgba(255,255,255,0.6); border: 1px solid rgba(139,109,63,0.08); }
+  .mac-parchment .mac-stat-label { color: #A89272; }
+  .mac-parchment .mac-stat-value { color: #3D3226; }
+  .mac-parchment .mac-stat-detail { color: #10B981; }
+  .mac-parchment .mac-detail-card { background: rgba(255,255,255,0.6); border: 1px solid rgba(139,109,63,0.08); }
+  .mac-parchment .mac-detail-row { color: #3D3226; border-bottom: 1px solid rgba(139,109,63,0.06); }
+  .mac-parchment .detail-dim { color: #A89272; }
+
+  /* --- Frost (Mac) --- */
+  .mac-frost { background: #EDF1F7; color: #1E293B; }
+  .mac-frost .theme-header { background: #DEE5F0; }
+  .mac-frost .theme-badge { background: rgba(59,130,246,0.12); color: #2563EB; }
+  .mac-frost .theme-name { color: #1E293B; }
+  .mac-frost .mac-sidebar { background: #E4EAF3; border-right: 1px solid rgba(59,130,246,0.06); }
+  .mac-frost .mac-sidebar-item { color: #94A3B8; }
+  .mac-frost .mac-sidebar-item.active { background: rgba(59,130,246,0.08); color: #1E293B; font-weight: 600; }
+  .mac-frost .mac-top-title { color: #1E293B; }
+  .mac-frost .mac-top-subtitle { color: #94A3B8; }
+  .mac-frost .mac-stat-card { background: rgba(255,255,255,0.72); border: 1px solid rgba(59,130,246,0.06); backdrop-filter: blur(12px); }
+  .mac-frost .mac-stat-label { color: #94A3B8; }
+  .mac-frost .mac-stat-value { color: #1E293B; }
+  .mac-frost .mac-stat-detail { color: #10B981; }
+  .mac-frost .mac-detail-card { background: rgba(255,255,255,0.72); border: 1px solid rgba(59,130,246,0.06); backdrop-filter: blur(12px); }
+  .mac-frost .mac-detail-row { color: #1E293B; border-bottom: 1px solid rgba(59,130,246,0.06); }
+  .mac-frost .detail-dim { color: #94A3B8; }
+
+  /* --- Sage (Mac) --- */
+  .mac-sage { background: #EDF2ED; color: #1A2E1A; }
+  .mac-sage .theme-header { background: #DCE6DC; }
+  .mac-sage .theme-badge { background: rgba(34,197,94,0.12); color: #16A34A; }
+  .mac-sage .theme-name { color: #1A2E1A; }
+  .mac-sage .mac-sidebar { background: #E4EDE4; border-right: 1px solid rgba(34,197,94,0.08); }
+  .mac-sage .mac-sidebar-item { color: #6B8F6B; }
+  .mac-sage .mac-sidebar-item.active { background: rgba(34,197,94,0.08); color: #1A2E1A; font-weight: 600; }
+  .mac-sage .mac-top-title { color: #1A2E1A; }
+  .mac-sage .mac-top-subtitle { color: #6B8F6B; }
+  .mac-sage .mac-stat-card { background: rgba(255,255,255,0.6); border: 1px solid rgba(34,197,94,0.08); }
+  .mac-sage .mac-stat-label { color: #6B8F6B; }
+  .mac-sage .mac-stat-value { color: #1A2E1A; }
+  .mac-sage .mac-stat-detail { color: #10B981; }
+  .mac-sage .mac-detail-card { background: rgba(255,255,255,0.6); border: 1px solid rgba(34,197,94,0.08); }
+  .mac-sage .mac-detail-row { color: #1A2E1A; border-bottom: 1px solid rgba(34,197,94,0.06); }
+  .mac-sage .detail-dim { color: #6B8F6B; }
+
+  /* shared icon styles */
+  .icon-glyph {
+    display: inline-block; width: 18px; text-align: center;
+  }
+
+  /* dark mode reference (current) */
+  .mac-dark { background: #141416; color: #FFFFFF; }
+  .mac-dark .theme-header { background: #1C1C1E; }
+  .mac-dark .theme-badge { background: rgba(6,182,212,0.15); color: #06B6D4; }
+  .mac-dark .theme-name { color: #FFFFFF; }
+  .mac-dark .mac-sidebar { background: #1C1C1E; border-right: 1px solid rgba(255,255,255,0.06); }
+  .mac-dark .mac-sidebar-item { color: rgba(255,255,255,0.6); }
+  .mac-dark .mac-sidebar-item.active { background: rgba(6,182,212,0.1); color: #FFFFFF; font-weight: 600; }
+  .mac-dark .mac-top-title { color: #FFFFFF; }
+  .mac-dark .mac-top-subtitle { color: rgba(255,255,255,0.5); }
+  .mac-dark .mac-stat-card { background: rgba(26,31,38,0.6); border: 1px solid rgba(255,255,255,0.15); }
+  .mac-dark .mac-stat-label { color: rgba(255,255,255,0.5); }
+  .mac-dark .mac-stat-value { color: #FFFFFF; }
+  .mac-dark .mac-stat-detail { color: #10B981; }
+  .mac-dark .mac-detail-card { background: rgba(26,31,38,0.6); border: 1px solid rgba(255,255,255,0.15); }
+  .mac-dark .mac-detail-row { color: #FFFFFF; border-bottom: 1px solid rgba(255,255,255,0.06); }
+  .mac-dark .detail-dim { color: rgba(255,255,255,0.5); }
+
+  .recommended {
+    display: inline-block;
+    background: #10B981;
+    color: white;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    margin-left: 8px;
+    vertical-align: middle;
+  }
+
+  .dark-note {
+    text-align: center;
+    font-size: 13px;
+    color: #6B7280;
+    margin-top: 48px;
+    padding: 16px;
+    background: rgba(255,255,255,0.04);
+    border-radius: 12px;
+    max-width: 700px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+</style>
+</head>
+<body>
+
+<h1>NetMonitor Light Mode Themes</h1>
+<p class="subtitle">4 iOS + 4 macOS theme proposals — pick the best for implementation</p>
+
+<!-- ====== iOS THEMES ====== -->
+
+<div class="section-title">📱 iOS Light Mode Themes</div>
+
+<div class="grid">
+
+  <!-- iOS: Slate (current iOS adaptive base) -->
+  <div class="theme-card ios-slate">
+    <div class="theme-header">
+      <span class="theme-name">Slate <span class="recommended">CURRENT</span></span>
+      <span class="theme-badge">iOS</span>
+    </div>
+    <div class="app-frame">
+      <div class="sidebar">
+        <div class="icon active">🏠</div>
+        <div class="icon">📊</div>
+        <div class="icon">🔧</div>
+        <div class="icon">⚙️</div>
+      </div>
+      <div class="main-content">
+        <div class="greeting">Good morning</div>
+        <div class="headline">Network Health</div>
+        <div class="card">
+          <div class="card-row">
+            <div>
+              <div class="stat-label">Download</div>
+              <div class="stat-value">247 <span class="stat-unit">Mbps</span></div>
+            </div>
+            <div>
+              <div class="stat-label">Latency</div>
+              <div class="stat-value">12 <span class="stat-unit">ms</span></div>
+            </div>
+          </div>
+          <div class="mini-bars">
+            <div class="mini-bar" style="height:40%;opacity:0.4"></div>
+            <div class="mini-bar" style="height:65%;opacity:0.5"></div>
+            <div class="mini-bar" style="height:80%;opacity:0.7"></div>
+            <div class="mini-bar" style="height:55%;opacity:0.6"></div>
+            <div class="mini-bar" style="height:90%;opacity:0.8"></div>
+            <div class="mini-bar" style="height:70%;opacity:0.6"></div>
+            <div class="mini-bar" style="height:85%;opacity:0.7"></div>
+            <div class="mini-bar" style="height:60%;opacity:0.5"></div>
+          </div>
+        </div>
+        <div class="card devices-card">
+          <div class="device-row"><div class="device-dot"></div><div class="device-name">MacBook Pro</div><div class="device-ip">192.168.1.42</div></div>
+          <div class="device-row"><div class="device-dot"></div><div class="device-name">iPhone 16 Pro</div><div class="device-ip">192.168.1.23</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- iOS: Warm Sand -->
+  <div class="theme-card ios-warm-sand">
+    <div class="theme-header">
+      <span class="theme-name">Warm Sand</span>
+      <span class="theme-badge">iOS</span>
+    </div>
+    <div class="app-frame">
+      <div class="sidebar">
+        <div class="icon active">🏠</div>
+        <div class="icon">📊</div>
+        <div class="icon">🔧</div>
+        <div class="icon">⚙️</div>
+      </div>
+      <div class="main-content">
+        <div class="greeting">Good morning</div>
+        <div class="headline">Network Health</div>
+        <div class="card">
+          <div class="card-row">
+            <div>
+              <div class="stat-label">Download</div>
+              <div class="stat-value">247 <span class="stat-unit">Mbps</span></div>
+            </div>
+            <div>
+              <div class="stat-label">Latency</div>
+              <div class="stat-value">12 <span class="stat-unit">ms</span></div>
+            </div>
+          </div>
+          <div class="mini-bars">
+            <div class="mini-bar" style="height:40%;opacity:0.4"></div>
+            <div class="mini-bar" style="height:65%;opacity:0.5"></div>
+            <div class="mini-bar" style="height:80%;opacity:0.7"></div>
+            <div class="mini-bar" style="height:55%;opacity:0.6"></div>
+            <div class="mini-bar" style="height:90%;opacity:0.8"></div>
+            <div class="mini-bar" style="height:70%;opacity:0.6"></div>
+            <div class="mini-bar" style="height:85%;opacity:0.7"></div>
+            <div class="mini-bar" style="height:60%;opacity:0.5"></div>
+          </div>
+        </div>
+        <div class="card devices-card">
+          <div class="device-row"><div class="device-dot"></div><div class="device-name">MacBook Pro</div><div class="device-ip">192.168.1.42</div></div>
+          <div class="device-row"><div class="device-dot"></div><div class="device-name">iPhone 16 Pro</div><div class="device-ip">192.168.1.23</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- iOS: Arctic -->
+  <div class="theme-card ios-arctic">
+    <div class="theme-header">
+      <span class="theme-name">Arctic</span>
+      <span class="theme-badge">iOS</span>
+    </div>
+    <div class="app-frame">
+      <div class="sidebar">
+        <div class="icon active">🏠</div>
+        <div class="icon">📊</div>
+        <div class="icon">🔧</div>
+        <div class="icon">⚙️</div>
+      </div>
+      <div class="main-content">
+        <div class="greeting">Good morning</div>
+        <div class="headline">Network Health</div>
+        <div class="card">
+          <div class="card-row">
+            <div>
+              <div class="stat-label">Download</div>
+              <div class="stat-value">247 <span class="stat-unit">Mbps</span></div>
+            </div>
+            <div>
+              <div class="stat-label">Latency</div>
+              <div class="stat-value">12 <span class="stat-unit">ms</span></div>
+            </div>
+          </div>
+          <div class="mini-bars">
+            <div class="mini-bar" style="height:40%;opacity:0.4"></div>
+            <div class="mini-bar" style="height:65%;opacity:0.5"></div>
+            <div class="mini-bar" style="height:80%;opacity:0.7"></div>
+            <div class="mini-bar" style="height:55%;opacity:0.6"></div>
+            <div class="mini-bar" style="height:90%;opacity:0.8"></div>
+            <div class="mini-bar" style="height:70%;opacity:0.6"></div>
+            <div class="mini-bar" style="height:85%;opacity:0.7"></div>
+            <div class="mini-bar" style="height:60%;opacity:0.5"></div>
+          </div>
+        </div>
+        <div class="card devices-card">
+          <div class="device-row"><div class="device-dot"></div><div class="device-name">MacBook Pro</div><div class="device-ip">192.168.1.42</div></div>
+          <div class="device-row"><div class="device-dot"></div><div class="device-name">iPhone 16 Pro</div><div class="device-ip">192.168.1.23</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- iOS: Forest -->
+  <div class="theme-card ios-forest">
+    <div class="theme-header">
+      <span class="theme-name">Forest</span>
+      <span class="theme-badge">iOS</span>
+    </div>
+    <div class="app-frame">
+      <div class="sidebar">
+        <div class="icon active">🏠</div>
+        <div class="icon">📊</div>
+        <div class="icon">🔧</div>
+        <div class="icon">⚙️</div>
+      </div>
+      <div class="main-content">
+        <div class="greeting">Good morning</div>
+        <div class="headline">Network Health</div>
+        <div class="card">
+          <div class="card-row">
+            <div>
+              <div class="stat-label">Download</div>
+              <div class="stat-value">247 <span class="stat-unit">Mbps</span></div>
+            </div>
+            <div>
+              <div class="stat-label">Latency</div>
+              <div class="stat-value">12 <span class="stat-unit">ms</span></div>
+            </div>
+          </div>
+          <div class="mini-bars">
+            <div class="mini-bar" style="height:40%;opacity:0.4"></div>
+            <div class="mini-bar" style="height:65%;opacity:0.5"></div>
+            <div class="mini-bar" style="height:80%;opacity:0.7"></div>
+            <div class="mini-bar" style="height:55%;opacity:0.6"></div>
+            <div class="mini-bar" style="height:90%;opacity:0.8"></div>
+            <div class="mini-bar" style="height:70%;opacity:0.6"></div>
+            <div class="mini-bar" style="height:85%;opacity:0.7"></div>
+            <div class="mini-bar" style="height:60%;opacity:0.5"></div>
+          </div>
+        </div>
+        <div class="card devices-card">
+          <div class="device-row"><div class="device-dot"></div><div class="device-name">MacBook Pro</div><div class="device-ip">192.168.1.42</div></div>
+          <div class="device-row"><div class="device-dot"></div><div class="device-name">iPhone 16 Pro</div><div class="device-ip">192.168.1.23</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ====== MAC THEMES ====== -->
+
+<div class="section-title">🖥️ macOS Light Mode Themes</div>
+
+<div class="grid">
+
+  <!-- Mac: Silver (recommended) -->
+  <div class="theme-card mac-silver">
+    <div class="theme-header">
+      <span class="theme-name">Silver <span class="recommended">RECOMMENDED</span></span>
+      <span class="theme-badge">macOS</span>
+    </div>
+    <div class="mac-frame">
+      <div class="mac-sidebar">
+        <div class="mac-sidebar-item active">🏠 Dashboard</div>
+        <div class="mac-sidebar-item">📊 Devices</div>
+        <div class="mac-sidebar-item">🌐 Speed Test</div>
+        <div class="mac-sidebar-item">📍 Heatmap</div>
+        <div class="mac-sidebar-item">🔧 Tools</div>
+      </div>
+      <div class="mac-main">
+        <div class="mac-top-bar">
+          <div>
+            <div class="mac-top-title">Network Overview</div>
+            <div class="mac-top-subtitle">Connected · Starlink Gateway</div>
+          </div>
+          <div class="mac-top-subtitle" style="text-align:right">🟢 Online</div>
+        </div>
+        <div class="mac-cards-row">
+          <div class="mac-stat-card">
+            <div class="mac-stat-label">Download</div>
+            <div class="mac-stat-value">247</div>
+            <div class="mac-stat-detail">Mbps · ↑ 12%</div>
+          </div>
+          <div class="mac-stat-card">
+            <div class="mac-stat-label">Upload</div>
+            <div class="mac-stat-value">42</div>
+            <div class="mac-stat-detail">Mbps · ↑ 3%</div>
+          </div>
+          <div class="mac-stat-card">
+            <div class="mac-stat-label">Latency</div>
+            <div class="mac-stat-value">12</div>
+            <div class="mac-stat-detail">ms · <span style="color:#10B981">Excellent</span></div>
+          </div>
+        </div>
+        <div class="mac-detail-card">
+          <div class="mac-detail-row">
+            <span>Gateway</span>
+            <span class="detail-dim">192.168.1.1</span>
+          </div>
+          <div class="mac-detail-row">
+            <span>DNS</span>
+            <span class="detail-dim">1.1.1.1</span>
+          </div>
+          <div class="mac-detail-row">
+            <span>Uptime</span>
+            <span class="detail-dim">14d 6h 23m</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mac: Parchment -->
+  <div class="theme-card mac-parchment">
+    <div class="theme-header">
+      <span class="theme-name">Parchment</span>
+      <span class="theme-badge">macOS</span>
+    </div>
+    <div class="mac-frame">
+      <div class="mac-sidebar">
+        <div class="mac-sidebar-item active">🏠 Dashboard</div>
+        <div class="mac-sidebar-item">📊 Devices</div>
+        <div class="mac-sidebar-item">🌐 Speed Test</div>
+        <div class="mac-sidebar-item">📍 Heatmap</div>
+        <div class="mac-sidebar-item">🔧 Tools</div>
+      </div>
+      <div class="mac-main">
+        <div class="mac-top-bar">
+          <div>
+            <div class="mac-top-title">Network Overview</div>
+            <div class="mac-top-subtitle">Connected · Starlink Gateway</div>
+          </div>
+          <div class="mac-top-subtitle" style="text-align:right">🟢 Online</div>
+        </div>
+        <div class="mac-cards-row">
+          <div class="mac-stat-card">
+            <div class="mac-stat-label">Download</div>
+            <div class="mac-stat-value">247</div>
+            <div class="mac-stat-detail">Mbps · ↑ 12%</div>
+          </div>
+          <div class="mac-stat-card">
+            <div class="mac-stat-label">Upload</div>
+            <div class="mac-stat-value">42</div>
+            <div class="mac-stat-detail">Mbps · ↑ 3%</div>
+          </div>
+          <div class="mac-stat-card">
+            <div class="mac-stat-label">Latency</div>
+            <div class="mac-stat-value">12</div>
+            <div class="mac-stat-detail">ms · <span style="color:#10B981">Excellent</span></div>
+          </div>
+        </div>
+        <div class="mac-detail-card">
+          <div class="mac-detail-row">
+            <span>Gateway</span>
+            <span class="detail-dim">192.168.1.1</span>
+          </div>
+          <div class="mac-detail-row">
+            <span>DNS</span>
+            <span class="detail-dim">1.1.1.1</span>
+          </div>
+          <div class="mac-detail-row">
+            <span>Uptime</span>
+            <span class="detail-dim">14d 6h 23m</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mac: Frost -->
+  <div class="theme-card mac-frost">
+    <div class="theme-header">
+      <span class="theme-name">Frost</span>
+      <span class="theme-badge">macOS</span>
+    </div>
+    <div class="mac-frame">
+      <div class="mac-sidebar">
+        <div class="mac-sidebar-item active">🏠 Dashboard</div>
+        <div class="mac-sidebar-item">📊 Devices</div>
+        <div class="mac-sidebar-item">🌐 Speed Test</div>
+        <div class="mac-sidebar-item">📍 Heatmap</div>
+        <div class="mac-sidebar-item">🔧 Tools</div>
+      </div>
+      <div class="mac-main">
+        <div class="mac-top-bar">
+          <div>
+            <div class="mac-top-title">Network Overview</div>
+            <div class="mac-top-subtitle">Connected · Starlink Gateway</div>
+          </div>
+          <div class="mac-top-subtitle" style="text-align:right">🟢 Online</div>
+        </div>
+        <div class="mac-cards-row">
+          <div class="mac-stat-card">
+            <div class="mac-stat-label">Download</div>
+            <div class="mac-stat-value">247</div>
+            <div class="mac-stat-detail">Mbps · ↑ 12%</div>
+          </div>
+          <div class="mac-stat-card">
+            <div class="mac-stat-label">Upload</div>
+            <div class="mac-stat-value">42</div>
+            <div class="mac-stat-detail">Mbps · ↑ 3%</div>
+          </div>
+          <div class="mac-stat-card">
+            <div class="mac-stat-label">Latency</div>
+            <div class="mac-stat-value">12</div>
+            <div class="mac-stat-detail">ms · <span style="color:#10B981">Excellent</span></div>
+          </div>
+        </div>
+        <div class="mac-detail-card">
+          <div class="mac-detail-row">
+            <span>Gateway</span>
+            <span class="detail-dim">192.168.1.1</span>
+          </div>
+          <div class="mac-detail-row">
+            <span>DNS</span>
+            <span class="detail-dim">1.1.1.1</span>
+          </div>
+          <div class="mac-detail-row">
+            <span>Uptime</span>
+            <span class="detail-dim">14d 6h 23m</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mac: Sage -->
+  <div class="theme-card mac-sage">
+    <div class="theme-header">
+      <span class="theme-name">Sage</span>
+      <span class="theme-badge">macOS</span>
+    </div>
+    <div class="mac-frame">
+      <div class="mac-sidebar">
+        <div class="mac-sidebar-item active">🏠 Dashboard</div>
+        <div class="mac-sidebar-item">📊 Devices</div>
+        <div class="mac-sidebar-item">🌐 Speed Test</div>
+        <div class="mac-sidebar-item">📍 Heatmap</div>
+        <div class="mac-sidebar-item">🔧 Tools</div>
+      </div>
+      <div class="mac-main">
+        <div class="mac-top-bar">
+          <div>
+            <div class="mac-top-title">Network Overview</div>
+            <div class="mac-top-subtitle">Connected · Starlink Gateway</div>
+          </div>
+          <div class="mac-top-subtitle" style="text-align:right">🟢 Online</div>
+        </div>
+        <div class="mac-cards-row">
+          <div class="mac-stat-card">
+            <div class="mac-stat-label">Download</div>
+            <div class="mac-stat-value">247</div>
+            <div class="mac-stat-detail">Mbps · ↑ 12%</div>
+          </div>
+          <div class="mac-stat-card">
+            <div class="mac-stat-label">Upload</div>
+            <div class="mac-stat-value">42</div>
+            <div class="mac-stat-detail">Mbps · ↑ 3%</div>
+          </div>
+          <div class="mac-stat-card">
+            <div class="mac-stat-label">Latency</div>
+            <div class="mac-stat-value">12</div>
+            <div class="mac-stat-detail">ms · <span style="color:#10B981">Excellent</span></div>
+          </div>
+        </div>
+        <div class="mac-detail-card">
+          <div class="mac-detail-row">
+            <span>Gateway</span>
+            <span class="detail-dim">192.168.1.1</span>
+          </div>
+          <div class="mac-detail-row">
+            <span>DNS</span>
+            <span class="detail-dim">1.1.1.1</span>
+          </div>
+          <div class="mac-detail-row">
+            <span>Uptime</span>
+            <span class="detail-dim">14d 6h 23m</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ====== DARK MODE REFERENCE ====== -->
+
+<div class="section-title">🌑 Current Dark Mode (unchanged — reference only)</div>
+
+<div class="grid" style="max-width: 680px;">
+  <div class="theme-card mac-dark">
+    <div class="theme-header">
+      <span class="theme-name">Dark Mode <span style="font-weight:400;font-size:13px;opacity:0.6">— existing, not modified</span></span>
+      <span class="theme-badge">macOS</span>
+    </div>
+    <div class="mac-frame">
+      <div class="mac-sidebar">
+        <div class="mac-sidebar-item active">🏠 Dashboard</div>
+        <div class="mac-sidebar-item">📊 Devices</div>
+        <div class="mac-sidebar-item">🌐 Speed Test</div>
+        <div class="mac-sidebar-item">📍 Heatmap</div>
+        <div class="mac-sidebar-item">🔧 Tools</div>
+      </div>
+      <div class="mac-main">
+        <div class="mac-top-bar">
+          <div>
+            <div class="mac-top-title">Network Overview</div>
+            <div class="mac-top-subtitle">Connected · Starlink Gateway</div>
+          </div>
+          <div class="mac-top-subtitle" style="text-align:right">🟢 Online</div>
+        </div>
+        <div class="mac-cards-row">
+          <div class="mac-stat-card">
+            <div class="mac-stat-label">Download</div>
+            <div class="mac-stat-value">247</div>
+            <div class="mac-stat-detail">Mbps · ↑ 12%</div>
+          </div>
+          <div class="mac-stat-card">
+            <div class="mac-stat-label">Upload</div>
+            <div class="mac-stat-value">42</div>
+            <div class="mac-stat-detail">Mbps · ↑ 3%</div>
+          </div>
+          <div class="mac-stat-card">
+            <div class="mac-stat-label">Latency</div>
+            <div class="mac-stat-value">12</div>
+            <div class="mac-stat-detail">ms · <span style="color:#10B981">Excellent</span></div>
+          </div>
+        </div>
+        <div class="mac-detail-card">
+          <div class="mac-detail-row">
+            <span>Gateway</span>
+            <span class="detail-dim">192.168.1.1</span>
+          </div>
+          <div class="mac-detail-row">
+            <span>DNS</span>
+            <span class="detail-dim">1.1.1.1</span>
+          </div>
+          <div class="mac-detail-row">
+            <span>Uptime</span>
+            <span class="detail-dim">14d 6h 23m</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="dark-note">
+  <strong>Dark mode remains completely untouched.</strong> All light themes are additive — they use <code>Color(NSColor { traits in ... })</code> adaptive wrappers that return dark colors when the system is in dark mode, preserving the existing look exactly.
+</div>
+
+</body>
+</html>

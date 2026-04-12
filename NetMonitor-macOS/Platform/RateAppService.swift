@@ -4,7 +4,7 @@ import AppKit
 /// Handles "Rate in App Store" functionality for macOS.
 /// - Uses SKStoreReviewController for the native in-app rating prompt.
 /// - Falls back to opening App Store review page for explicit "Write a Review" action.
-enum RateAppService {
+@MainActor enum RateAppService {
 
     // MARK: - App Store ID
 
@@ -17,7 +17,6 @@ enum RateAppService {
 
     /// Request in-app rating. Apple may or may not show the prompt
     /// (respects user settings and system limits). Safe to call every time.
-    @MainActor
     static func requestReview() {
         SKStoreReviewController.requestReview()
     }

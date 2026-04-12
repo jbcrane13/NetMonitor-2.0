@@ -6,6 +6,8 @@ import UniformTypeIdentifiers
 // MARK: - WiFiHeatmapView
 
 struct WiFiHeatmapView: View {
+    var pendingSurveyURL: URL? = nil
+
     @State private var viewModel = WiFiHeatmapViewModel()
     @State private var selectedPhotoItem: PhotosPickerItem?
     @State private var showImportOptions = false
@@ -71,6 +73,29 @@ struct WiFiHeatmapView: View {
                 }
             }
         }
+        .onChange(of: pendingSurveyURL) { _, newURL in
+            guard let newURL else { return }
+            let didAccess = newURL.startAccessingSecurityScopedResource()
+            defer { if didAccess { newURL.stopAccessingSecurityScopedResource() } }
+            do {
+                try viewModel.importBlueprint(from: newURL)
+            } catch {
+                viewModel.errorMessage = error.localizedDescription
+            }
+        }
+        .onAppear {
+            // Handle pendingSurveyURL passed from ContentView on first appear
+            if let url = pendingSurveyURL {
+                let didAccess = url.startAccessingSecurityScopedResource()
+                defer { if didAccess { url.stopAccessingSecurityScopedResource() } }
+                do {
+                    try viewModel.importBlueprint(from: url)
+                } catch {
+                    viewModel.errorMessage = error.localizedDescription
+                }
+            }
+            viewModel.onAppear()
+        }
         .alert("Error", isPresented: Binding(
             get: { viewModel.errorMessage != nil },
             set: { if !$0 { viewModel.errorMessage = nil } }
@@ -79,7 +104,6 @@ struct WiFiHeatmapView: View {
         } message: {
             Text(viewModel.errorMessage ?? "")
         }
-        .onAppear { viewModel.onAppear() }
         .onDisappear { viewModel.onDisappear() }
         .accessibilityIdentifier("screen_heatmap")
     }
@@ -312,7 +336,7 @@ struct WiFiHeatmapView: View {
     private func loadProject() {
         let panel = NSOpenPanel()
         panel.allowsMultipleSelection = false
-        panel.canChooseDirectories = true
+        panel.canChooseDirectories = false
         if panel.runModal() == .OK, let url = panel.url {
             do {
                 if url.pathExtension == "netmonblueprint" {
@@ -329,7 +353,7 @@ struct WiFiHeatmapView: View {
     private func importBlueprint() {
         let panel = NSOpenPanel()
         panel.allowsMultipleSelection = false
-        panel.canChooseDirectories = true
+        panel.canChooseDirectories = false
         panel.message = "Select a .netmonblueprint file exported from the iOS Room Scanner"
         if panel.runModal() == .OK, let url = panel.url {
             do {

@@ -76,7 +76,7 @@ final class DeviceDetailViewModel {
                 }
                 let result = await group.next()
                 group.cancelAll()
-                return result ?? nil
+                return result.flatMap { $0 }
             }
             if !Task.isCancelled { device.manufacturer = manufacturer }
         }
@@ -95,7 +95,7 @@ final class DeviceDetailViewModel {
                 }
                 let result = await group.next()
                 group.cancelAll()
-                return result ?? nil
+                return result.flatMap { $0 }
             }
             if !Task.isCancelled { device.resolvedHostname = hostname }
         }

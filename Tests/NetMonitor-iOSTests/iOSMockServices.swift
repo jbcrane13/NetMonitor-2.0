@@ -160,7 +160,7 @@ final class MockBonjourDiscoveryService: BonjourDiscoveryServiceProtocol, @unche
 // MARK: - Mock Speed Test Service
 
 @MainActor
-final class MockSpeedTestService: SpeedTestServiceProtocol {
+final class MockSpeedTestService: SpeedTestServiceProtocol, @unchecked Sendable {
     var downloadSpeed: Double = 0
     var uploadSpeed: Double = 0
     var peakDownloadSpeed: Double = 0
@@ -206,7 +206,7 @@ final class MockNetworkMonitorService: NetworkMonitorServiceProtocol {
 // MARK: - Mock WiFi Info Service
 
 @MainActor
-final class MockWiFiInfoService: WiFiInfoServiceProtocol {
+final class MockWiFiInfoService: WiFiInfoServiceProtocol, @unchecked Sendable {
     var currentWiFi: WiFiInfo? = nil
     var isLocationAuthorized: Bool = true
     var authorizationStatus: CLAuthorizationStatus = .authorizedWhenInUse

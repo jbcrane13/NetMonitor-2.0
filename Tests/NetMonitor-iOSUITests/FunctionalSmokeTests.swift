@@ -189,11 +189,7 @@ final class FunctionalSmokeTests: IOSUITestCase {
         app.buttons["dashboard_button_settings"].tap()
         requireExists(ui("screen_settings"), timeout: 5, message: "Settings should appear")
 
-        // Scroll to appearance section
-        let colorScheme = ui("settings_picker_colorScheme")
-        scrollToElement(colorScheme)
-        requireExists(colorScheme, timeout: 5, message: "Color scheme picker should exist")
-
+        // iOS only has accent color picker; color scheme picker is macOS-only
         let accentColor = ui("settings_picker_accentColor")
         scrollToElement(accentColor)
         requireExists(accentColor, timeout: 5, message: "Accent color picker should exist")

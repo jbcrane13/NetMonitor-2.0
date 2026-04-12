@@ -4,11 +4,11 @@ import SwiftUI
 /// Handles "Rate in App Store" functionality.
 /// - Uses SKStoreReviewController for the native in-app rating prompt (no UI needed).
 /// - Falls back to opening App Store review page for "Write a Review" action.
-enum RateAppService {
+@MainActor enum RateAppService {
 
     // MARK: - App Store ID
 
-    // TODO: Update with real App Store ID once live
+    /// Replace with the real App Store ID before shipping.
     static let appStoreID: String = "APP_STORE_ID_PLACEHOLDER"
     private static let reviewURL = "itms-apps://itunes.apple.com/app/id\(appStoreID)?action=write-review"
     private static let ratingsURL = "itms-apps://itunes.apple.com/app/id\(appStoreID)"

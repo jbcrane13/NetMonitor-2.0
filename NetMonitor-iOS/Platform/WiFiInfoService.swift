@@ -3,7 +3,7 @@ import NetMonitorCore
 import SystemConfiguration.CaptiveNetwork
 import CoreLocation
 import Network
-import NetworkExtension
+@preconcurrency import NetworkExtension
 
 @MainActor
 @Observable
@@ -129,8 +129,9 @@ final class WiFiInfoService: NSObject, WiFiInfoServiceProtocol {
 
         if strength > 0 {
             let clamped = max(0.0, min(1.0, strength))
-            signalStrengthPercent = Int(clamped * 100)
-            signalDBm = Self.percentToApproxDBm(signalStrengthPercent!)
+            let percent = Int(clamped * 100)
+            signalStrengthPercent = percent
+            signalDBm = Self.percentToApproxDBm(percent)
         } else {
             // signalStrength is 0.0 - could be very weak or iOS not reporting
             // Return nil to indicate unavailable, rather than -100 dBm
