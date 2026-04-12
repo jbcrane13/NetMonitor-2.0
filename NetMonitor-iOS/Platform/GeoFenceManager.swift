@@ -186,6 +186,7 @@ final class GeoFenceManager: NSObject {
     public func resetForTesting() {
         geofences = []
         UserDefaults.standard.removeObject(forKey: Self.storageKey)
+        restartActiveRegions()
     }
     #endif
 }
