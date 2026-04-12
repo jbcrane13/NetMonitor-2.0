@@ -38,9 +38,8 @@ struct ScanPipelineRealIntegrationTests {
         for v in values {
             #expect(v >= 0.0 && v <= 1.0, "Progress value \(v) out of [0,1] range")
         }
-        // No crash is what matters — results may or may not be empty depending on network config
-        // The key invariant: the pipeline completed and returned a results array
-        #expect(results.count >= 0, "Pipeline must complete and return results array")
+        // Results may be empty depending on network config, but the pipeline should report completion.
+        #expect(values.last == 1.0, "Pipeline must report 100% progress when the scan completes")
     }
 
     @Test("ScanPipeline.standard() on local subnet finds at least 1 device", .tags(.integration))

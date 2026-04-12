@@ -308,7 +308,8 @@ enum MacTheme {
             dark: .black.withAlphaComponent(0.25),
             light: .black.withAlphaComponent(0.08)
         ))
-        static let cardRadius: CGFloat = 15
+        static let cardRadius: CGFloat = 10        // dark mode — original value
+        static let cardRadiusLight: CGFloat = 15   // light mode — softer shadow
         static let cardY: CGFloat = 5
 
         // periphery:ignore

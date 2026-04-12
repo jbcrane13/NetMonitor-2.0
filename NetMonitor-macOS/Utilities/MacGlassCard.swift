@@ -82,7 +82,7 @@ struct MacGlassCardModifier: ViewModifier {
             )
             .shadow(
                 color: MacTheme.Shadows.card,
-                radius: MacTheme.Shadows.cardRadius,
+                radius: colorScheme == .dark ? MacTheme.Shadows.cardRadius : MacTheme.Shadows.cardRadiusLight,
                 x: 0,
                 y: MacTheme.Shadows.cardY
             )

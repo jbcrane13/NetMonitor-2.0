@@ -29,17 +29,19 @@ struct ICMPLatencyFallbackTests {
         let phase = ICMPLatencyPhase(collectTimeout: 0.1)
         let context = ScanContext(hosts: [], subnetFilter: { _ in true }, localIP: nil)
         let accumulator = ScanAccumulator()
-        final class ProgressCollector: @unchecked Sendable {
-            var values: [Double] = []
-            func append(_ v: Double) { values.append(v) }
+        actor ProgressCollector {
+            private var _values: [Double] = []
+            func append(_ v: Double) { _values.append(v) }
+            var values: [Double] { _values }
         }
         let progressValues = ProgressCollector()
 
         await phase.execute(context: context, accumulator: accumulator) { value in
-            progressValues.append(value)
+            await progressValues.append(value)
         }
 
-        #expect(progressValues.values.last == 1.0,
+        let collectedValues = await progressValues.values
+        #expect(collectedValues.last == 1.0,
                "Phase must report 100% completion even when no devices are present")
     }
 
