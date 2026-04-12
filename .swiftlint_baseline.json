@@ -5,7 +5,7 @@
       "reason": "`where` clauses are preferred over a single `if` inside a `for`",
       "location": {
         "character": 13,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/NetMonitor-iOS/ViewModels/ToolsViewModel.swift",
+        "file": "NetMonitor-iOS/ViewModels/ToolsViewModel.swift",
         "line": 79
       },
       "severity": "warning",
@@ -16,11 +16,26 @@
   },
   {
     "violation": {
+      "ruleName": "Prefer For-Where",
+      "reason": "`where` clauses are preferred over a single `if` inside a `for`",
+      "location": {
+        "character": 13,
+        "file": "NetMonitor-iOS/ViewModels/NetworkMapViewModel.swift",
+        "line": 244
+      },
+      "severity": "warning",
+      "ruleIdentifier": "for_where",
+      "ruleDescription": "`where` clauses are preferred over a single `if` inside a `for`"
+    },
+    "text": "            if !result.isTimeout {"
+  },
+  {
+    "violation": {
       "ruleName": "Force Unwrapping",
       "reason": "Force unwrapping should be avoided",
       "location": {
         "character": 76,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/NetMonitor-iOS/ViewModels/TimelineViewModel.swift",
+        "file": "NetMonitor-iOS/ViewModels/TimelineViewModel.swift",
         "line": 77
       },
       "severity": "warning",
@@ -35,7 +50,7 @@
       "reason": "Variable name 'a' should be between 2 and 50 characters long",
       "location": {
         "character": 47,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/NetMonitor-iOS/ViewModels/TimelineViewModel.swift",
+        "file": "NetMonitor-iOS/ViewModels/TimelineViewModel.swift",
         "line": 94
       },
       "severity": "warning",
@@ -50,7 +65,7 @@
       "reason": "Variable name 'b' should be between 2 and 50 characters long",
       "location": {
         "character": 50,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/NetMonitor-iOS/ViewModels/TimelineViewModel.swift",
+        "file": "NetMonitor-iOS/ViewModels/TimelineViewModel.swift",
         "line": 94
       },
       "severity": "warning",
@@ -64,98 +79,8 @@
       "ruleName": "Prefer For-Where",
       "reason": "`where` clauses are preferred over a single `if` inside a `for`",
       "location": {
-        "character": 13,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/NetMonitor-iOS/ViewModels/NetworkMapViewModel.swift",
-        "line": 244
-      },
-      "severity": "warning",
-      "ruleIdentifier": "for_where",
-      "ruleDescription": "`where` clauses are preferred over a single `if` inside a `for`"
-    },
-    "text": "            if !result.isTimeout {"
-  },
-  {
-    "violation": {
-      "ruleName": "Type Body Length",
-      "reason": "Class body should span 350 lines or less excluding comments and whitespace: currently spans 497 lines",
-      "location": {
-        "character": 7,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/NetMonitor-iOS/ViewModels/HeatmapSurveyViewModel.swift",
-        "line": 47
-      },
-      "severity": "warning",
-      "ruleIdentifier": "type_body_length",
-      "ruleDescription": "Class body should span 350 lines or less excluding comments and whitespace: currently spans 497 lines"
-    },
-    "text": "final class HeatmapSurveyViewModel {"
-  },
-  {
-    "violation": {
-      "ruleName": "Prefer For-Where",
-      "reason": "`where` clauses are preferred over a single `if` inside a `for`",
-      "location": {
-        "character": 13,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/NetMonitor-iOS/ViewModels/DeviceDetailViewModel.swift",
-        "line": 113
-      },
-      "severity": "warning",
-      "ruleIdentifier": "for_where",
-      "ruleDescription": "`where` clauses are preferred over a single `if` inside a `for`"
-    },
-    "text": "            if result.state == .open {"
-  },
-  {
-    "violation": {
-      "ruleName": "Optional Data -> String Conversion",
-      "reason": "Prefer failable `String(bytes:encoding:)` initializer when converting `Data` to `String`",
-      "location": {
-        "character": 26,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/NetMonitor-iOS/ViewModels/DeviceDetailViewModel.swift",
-        "line": 260
-      },
-      "severity": "warning",
-      "ruleIdentifier": "optional_data_string_conversion",
-      "ruleDescription": "Prefer failable `String(bytes:encoding:)` initializer when converting `Data` to `String`"
-    },
-    "text": "                let ip = String(decoding: bytes, as: UTF8.self)"
-  },
-  {
-    "violation": {
-      "ruleName": "Force Unwrapping",
-      "reason": "Force unwrapping should be avoided",
-      "location": {
-        "character": 87,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/NetMonitor-iOS/Widget/NetmonitorWidget.swift",
-        "line": 85
-      },
-      "severity": "warning",
-      "ruleIdentifier": "force_unwrapping",
-      "ruleDescription": "Force unwrapping should be avoided"
-    },
-    "text": "        let nextUpdate = Calendar.current.date(byAdding: .minute, value: 15, to: .now)!"
-  },
-  {
-    "violation": {
-      "ruleName": "Force Unwrapping",
-      "reason": "Force unwrapping should be avoided",
-      "location": {
-        "character": 87,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/NetMonitor-iOS/Widget/NetmonitorWidget.swift",
-        "line": 343
-      },
-      "severity": "warning",
-      "ruleIdentifier": "force_unwrapping",
-      "ruleDescription": "Force unwrapping should be avoided"
-    },
-    "text": "        let nextUpdate = Calendar.current.date(byAdding: .minute, value: 15, to: .now)!"
-  },
-  {
-    "violation": {
-      "ruleName": "Prefer For-Where",
-      "reason": "`where` clauses are preferred over a single `if` inside a `for`",
-      "location": {
         "character": 17,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/NetMonitor-iOS/ViewModels/DashboardViewModel.swift",
+        "file": "NetMonitor-iOS/ViewModels/DashboardViewModel.swift",
         "line": 278
       },
       "severity": "warning",
@@ -170,7 +95,7 @@
       "reason": "`where` clauses are preferred over a single `if` inside a `for`",
       "location": {
         "character": 13,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/NetMonitor-iOS/ViewModels/DashboardViewModel.swift",
+        "file": "NetMonitor-iOS/ViewModels/DashboardViewModel.swift",
         "line": 459
       },
       "severity": "warning",
@@ -185,7 +110,7 @@
       "reason": "Class body should span 350 lines or less excluding comments and whitespace: currently spans 372 lines",
       "location": {
         "character": 7,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/NetMonitor-iOS/ViewModels/DashboardViewModel.swift",
+        "file": "NetMonitor-iOS/ViewModels/DashboardViewModel.swift",
         "line": 9
       },
       "severity": "warning",
@@ -196,11 +121,86 @@
   },
   {
     "violation": {
+      "ruleName": "Type Body Length",
+      "reason": "Class body should span 350 lines or less excluding comments and whitespace: currently spans 497 lines",
+      "location": {
+        "character": 7,
+        "file": "NetMonitor-iOS/ViewModels/HeatmapSurveyViewModel.swift",
+        "line": 47
+      },
+      "severity": "warning",
+      "ruleIdentifier": "type_body_length",
+      "ruleDescription": "Class body should span 350 lines or less excluding comments and whitespace: currently spans 497 lines"
+    },
+    "text": "final class HeatmapSurveyViewModel {"
+  },
+  {
+    "violation": {
+      "ruleName": "Prefer For-Where",
+      "reason": "`where` clauses are preferred over a single `if` inside a `for`",
+      "location": {
+        "character": 13,
+        "file": "NetMonitor-iOS/ViewModels/DeviceDetailViewModel.swift",
+        "line": 113
+      },
+      "severity": "warning",
+      "ruleIdentifier": "for_where",
+      "ruleDescription": "`where` clauses are preferred over a single `if` inside a `for`"
+    },
+    "text": "            if result.state == .open {"
+  },
+  {
+    "violation": {
+      "ruleName": "Optional Data -> String Conversion",
+      "reason": "Prefer failable `String(bytes:encoding:)` initializer when converting `Data` to `String`",
+      "location": {
+        "character": 26,
+        "file": "NetMonitor-iOS/ViewModels/DeviceDetailViewModel.swift",
+        "line": 260
+      },
+      "severity": "warning",
+      "ruleIdentifier": "optional_data_string_conversion",
+      "ruleDescription": "Prefer failable `String(bytes:encoding:)` initializer when converting `Data` to `String`"
+    },
+    "text": "                let ip = String(decoding: bytes, as: UTF8.self)"
+  },
+  {
+    "violation": {
+      "ruleName": "Force Unwrapping",
+      "reason": "Force unwrapping should be avoided",
+      "location": {
+        "character": 87,
+        "file": "NetMonitor-iOS/Widget/NetmonitorWidget.swift",
+        "line": 85
+      },
+      "severity": "warning",
+      "ruleIdentifier": "force_unwrapping",
+      "ruleDescription": "Force unwrapping should be avoided"
+    },
+    "text": "        let nextUpdate = Calendar.current.date(byAdding: .minute, value: 15, to: .now)!"
+  },
+  {
+    "violation": {
+      "ruleName": "Force Unwrapping",
+      "reason": "Force unwrapping should be avoided",
+      "location": {
+        "character": 87,
+        "file": "NetMonitor-iOS/Widget/NetmonitorWidget.swift",
+        "line": 343
+      },
+      "severity": "warning",
+      "ruleIdentifier": "force_unwrapping",
+      "ruleDescription": "Force unwrapping should be avoided"
+    },
+    "text": "        let nextUpdate = Calendar.current.date(byAdding: .minute, value: 15, to: .now)!"
+  },
+  {
+    "violation": {
       "ruleName": "Force Unwrapping",
       "reason": "Force unwrapping should be avoided",
       "location": {
         "character": 90,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/NetMonitor-iOS/Platform/MacConnectionService.swift",
+        "file": "NetMonitor-iOS/Platform/MacConnectionService.swift",
         "line": 166
       },
       "severity": "warning",
@@ -212,40 +212,10 @@
   {
     "violation": {
       "ruleName": "Identifier Name",
-      "reason": "Variable name 'f' should be between 2 and 50 characters long",
-      "location": {
-        "character": 13,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/NetMonitor-iOS/Platform/PDFReportGenerator.swift",
-        "line": 252
-      },
-      "severity": "warning",
-      "ruleIdentifier": "identifier_name",
-      "ruleDescription": "Variable name 'f' should be between 2 and 50 characters long"
-    },
-    "text": "        let f = DateFormatter()"
-  },
-  {
-    "violation": {
-      "ruleName": "Type Body Length",
-      "reason": "Class body should span 350 lines or less excluding comments and whitespace: currently spans 390 lines",
-      "location": {
-        "character": 7,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/NetMonitor-iOS/Platform/BackgroundTaskService.swift",
-        "line": 12
-      },
-      "severity": "warning",
-      "ruleIdentifier": "type_body_length",
-      "ruleDescription": "Class body should span 350 lines or less excluding comments and whitespace: currently spans 390 lines"
-    },
-    "text": "final class BackgroundTaskService {"
-  },
-  {
-    "violation": {
-      "ruleName": "Identifier Name",
       "reason": "Variable name 'r' should be between 2 and 50 characters long",
       "location": {
         "character": 35,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/NetMonitor-iOS/Platform/DataExportService.swift",
+        "file": "NetMonitor-iOS/Platform/DataExportService.swift",
         "line": 57
       },
       "severity": "warning",
@@ -260,7 +230,7 @@
       "reason": "Variable name 'r' should be between 2 and 50 characters long",
       "location": {
         "character": 13,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/NetMonitor-iOS/Platform/DataExportService.swift",
+        "file": "NetMonitor-iOS/Platform/DataExportService.swift",
         "line": 76
       },
       "severity": "warning",
@@ -275,7 +245,7 @@
       "reason": "Variable name 'r' should be between 2 and 50 characters long",
       "location": {
         "character": 35,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/NetMonitor-iOS/Platform/DataExportService.swift",
+        "file": "NetMonitor-iOS/Platform/DataExportService.swift",
         "line": 98
       },
       "severity": "warning",
@@ -290,7 +260,7 @@
       "reason": "Variable name 'r' should be between 2 and 50 characters long",
       "location": {
         "character": 13,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/NetMonitor-iOS/Platform/DataExportService.swift",
+        "file": "NetMonitor-iOS/Platform/DataExportService.swift",
         "line": 117
       },
       "severity": "warning",
@@ -305,7 +275,7 @@
       "reason": "Variable name 'd' should be between 2 and 50 characters long",
       "location": {
         "character": 35,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/NetMonitor-iOS/Platform/DataExportService.swift",
+        "file": "NetMonitor-iOS/Platform/DataExportService.swift",
         "line": 140
       },
       "severity": "warning",
@@ -320,7 +290,7 @@
       "reason": "Variable name 'd' should be between 2 and 50 characters long",
       "location": {
         "character": 13,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/NetMonitor-iOS/Platform/DataExportService.swift",
+        "file": "NetMonitor-iOS/Platform/DataExportService.swift",
         "line": 162
       },
       "severity": "warning",
@@ -332,10 +302,40 @@
   {
     "violation": {
       "ruleName": "Identifier Name",
+      "reason": "Variable name 'f' should be between 2 and 50 characters long",
+      "location": {
+        "character": 13,
+        "file": "NetMonitor-iOS/Platform/PDFReportGenerator.swift",
+        "line": 252
+      },
+      "severity": "warning",
+      "ruleIdentifier": "identifier_name",
+      "ruleDescription": "Variable name 'f' should be between 2 and 50 characters long"
+    },
+    "text": "        let f = DateFormatter()"
+  },
+  {
+    "violation": {
+      "ruleName": "Type Body Length",
+      "reason": "Class body should span 350 lines or less excluding comments and whitespace: currently spans 390 lines",
+      "location": {
+        "character": 7,
+        "file": "NetMonitor-iOS/Platform/BackgroundTaskService.swift",
+        "line": 12
+      },
+      "severity": "warning",
+      "ruleIdentifier": "type_body_length",
+      "ruleDescription": "Class body should span 350 lines or less excluding comments and whitespace: currently spans 390 lines"
+    },
+    "text": "final class BackgroundTaskService {"
+  },
+  {
+    "violation": {
+      "ruleName": "Identifier Name",
       "reason": "Variable name 'r' should be between 2 and 50 characters long",
       "location": {
         "character": 36,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/NetMonitor-iOS/Views/Settings/GeoFenceSettingsView.swift",
+        "file": "NetMonitor-iOS/Views/Settings/GeoFenceSettingsView.swift",
         "line": 195
       },
       "severity": "warning",
@@ -350,7 +350,7 @@
       "reason": "Line should be 150 characters or less; currently it has 154 characters",
       "location": {
         "character": 1,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/NetMonitor-iOS/Views/Settings/GeoFenceSettingsView.swift",
+        "file": "NetMonitor-iOS/Views/Settings/GeoFenceSettingsView.swift",
         "line": 68
       },
       "severity": "warning",
@@ -365,7 +365,7 @@
       "reason": "Line should be 150 characters or less; currently it has 161 characters",
       "location": {
         "character": 1,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/NetMonitor-iOS/Views/Tools/BonjourDiscoveryToolView.swift",
+        "file": "NetMonitor-iOS/Views/Tools/BonjourDiscoveryToolView.swift",
         "line": 85
       },
       "severity": "warning",
@@ -380,7 +380,7 @@
       "reason": "Force unwrapping should be avoided",
       "location": {
         "character": 79,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/NetMonitor-iOS/Views/Settings/SettingsView.swift",
+        "file": "NetMonitor-iOS/Views/Settings/SettingsView.swift",
         "line": 310
       },
       "severity": "warning",
@@ -395,7 +395,7 @@
       "reason": "Line should be 150 characters or less; currently it has 176 characters",
       "location": {
         "character": 1,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/NetMonitor-iOS/Views/Settings/SettingsView.swift",
+        "file": "NetMonitor-iOS/Views/Settings/SettingsView.swift",
         "line": 359
       },
       "severity": "warning",
@@ -410,7 +410,7 @@
       "reason": "Struct body should span 350 lines or less excluding comments and whitespace: currently spans 371 lines",
       "location": {
         "character": 1,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/NetMonitor-iOS/Views/Settings/SettingsView.swift",
+        "file": "NetMonitor-iOS/Views/Settings/SettingsView.swift",
         "line": 5
       },
       "severity": "warning",
@@ -422,85 +422,10 @@
   {
     "violation": {
       "ruleName": "Line Length",
-      "reason": "Line should be 150 characters or less; currently it has 179 characters",
-      "location": {
-        "character": 1,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/NetMonitor-iOS/Views/Tools/WakeOnLANToolView.swift",
-        "line": 172
-      },
-      "severity": "warning",
-      "ruleIdentifier": "line_length",
-      "ruleDescription": "Line should be 150 characters or less; currently it has 179 characters"
-    },
-    "text": "                Text(\"Wake on LAN sends a \\\"magic packet\\\" containing the target device's MAC address. The device must support WOL and have it enabled in BIOS/firmware settings.\")"
-  },
-  {
-    "violation": {
-      "ruleName": "Force Unwrapping",
-      "reason": "Force unwrapping should be avoided",
-      "location": {
-        "character": 50,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/NetMonitor-iOS/Views/Tools/GeoTraceView.swift",
-        "line": 219
-      },
-      "severity": "warning",
-      "ruleIdentifier": "force_unwrapping",
-      "ruleDescription": "Force unwrapping should be avoided"
-    },
-    "text": "        let minLat = coords.map(\\.latitude).min()!"
-  },
-  {
-    "violation": {
-      "ruleName": "Force Unwrapping",
-      "reason": "Force unwrapping should be avoided",
-      "location": {
-        "character": 50,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/NetMonitor-iOS/Views/Tools/GeoTraceView.swift",
-        "line": 220
-      },
-      "severity": "warning",
-      "ruleIdentifier": "force_unwrapping",
-      "ruleDescription": "Force unwrapping should be avoided"
-    },
-    "text": "        let maxLat = coords.map(\\.latitude).max()!"
-  },
-  {
-    "violation": {
-      "ruleName": "Force Unwrapping",
-      "reason": "Force unwrapping should be avoided",
-      "location": {
-        "character": 51,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/NetMonitor-iOS/Views/Tools/GeoTraceView.swift",
-        "line": 221
-      },
-      "severity": "warning",
-      "ruleIdentifier": "force_unwrapping",
-      "ruleDescription": "Force unwrapping should be avoided"
-    },
-    "text": "        let minLon = coords.map(\\.longitude).min()!"
-  },
-  {
-    "violation": {
-      "ruleName": "Force Unwrapping",
-      "reason": "Force unwrapping should be avoided",
-      "location": {
-        "character": 51,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/NetMonitor-iOS/Views/Tools/GeoTraceView.swift",
-        "line": 222
-      },
-      "severity": "warning",
-      "ruleIdentifier": "force_unwrapping",
-      "ruleDescription": "Force unwrapping should be avoided"
-    },
-    "text": "        let maxLon = coords.map(\\.longitude).max()!"
-  },
-  {
-    "violation": {
-      "ruleName": "Line Length",
       "reason": "Line should be 150 characters or less; currently it has 151 characters",
       "location": {
         "character": 1,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/NetMonitor-iOS/Views/Tools/ToolsView.swift",
+        "file": "NetMonitor-iOS/Views/Tools/ToolsView.swift",
         "line": 377
       },
       "severity": "warning",
@@ -515,7 +440,7 @@
       "reason": "Line should be 150 characters or less; currently it has 170 characters",
       "location": {
         "character": 1,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/NetMonitor-iOS/Views/Tools/ToolsView.swift",
+        "file": "NetMonitor-iOS/Views/Tools/ToolsView.swift",
         "line": 378
       },
       "severity": "warning",
@@ -530,7 +455,7 @@
       "reason": "Line should be 150 characters or less; currently it has 160 characters",
       "location": {
         "character": 1,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/NetMonitor-iOS/Views/Tools/ToolsView.swift",
+        "file": "NetMonitor-iOS/Views/Tools/ToolsView.swift",
         "line": 383
       },
       "severity": "warning",
@@ -545,7 +470,7 @@
       "reason": "Line should be 150 characters or less; currently it has 171 characters",
       "location": {
         "character": 1,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/NetMonitor-iOS/Views/Tools/ToolsView.swift",
+        "file": "NetMonitor-iOS/Views/Tools/ToolsView.swift",
         "line": 385
       },
       "severity": "warning",
@@ -560,7 +485,7 @@
       "reason": "Line should be 150 characters or less; currently it has 153 characters",
       "location": {
         "character": 1,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/NetMonitor-iOS/Views/Tools/ToolsView.swift",
+        "file": "NetMonitor-iOS/Views/Tools/ToolsView.swift",
         "line": 392
       },
       "severity": "warning",
@@ -571,33 +496,33 @@
   },
   {
     "violation": {
-      "ruleName": "File Length",
-      "reason": "File should contain 600 lines or less excluding comments and whitespaces: currently contains 784",
+      "ruleName": "Line Length",
+      "reason": "Line should be 150 characters or less; currently it has 179 characters",
       "location": {
         "character": 1,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/NetMonitor-iOS/Views/Dashboard/DashboardView.swift",
-        "line": 907
+        "file": "NetMonitor-iOS/Views/Tools/WakeOnLANToolView.swift",
+        "line": 172
       },
       "severity": "warning",
-      "ruleIdentifier": "file_length",
-      "ruleDescription": "File should contain 600 lines or less excluding comments and whitespaces: currently contains 784"
+      "ruleIdentifier": "line_length",
+      "ruleDescription": "Line should be 150 characters or less; currently it has 179 characters"
     },
-    "text": "}"
+    "text": "                Text(\"Wake on LAN sends a \\\"magic packet\\\" containing the target device's MAC address. The device must support WOL and have it enabled in BIOS/firmware settings.\")"
   },
   {
     "violation": {
-      "ruleName": "Identifier Name",
-      "reason": "Variable name 'f' should be between 2 and 50 characters long",
+      "ruleName": "Line Length",
+      "reason": "Line should be 150 characters or less; currently it has 154 characters",
       "location": {
-        "character": 13,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/NetMonitor-iOS/Views/Dashboard/DashboardView.swift",
-        "line": 839
+        "character": 1,
+        "file": "NetMonitor-iOS/Views/Tools/WorldPingToolView.swift",
+        "line": 104
       },
       "severity": "warning",
-      "ruleIdentifier": "identifier_name",
-      "ruleDescription": "Variable name 'f' should be between 2 and 50 characters long"
+      "ruleIdentifier": "line_length",
+      "ruleDescription": "Line should be 150 characters or less; currently it has 154 characters"
     },
-    "text": "        let f = DateFormatter()"
+    "text": "                statItem(label: \"Best\", value: best < 10 ? String(format: \"%.1f ms\", best) : String(format: \"%.0f ms\", best), color: Theme.Colors.success)"
   },
   {
     "violation": {
@@ -605,7 +530,7 @@
       "reason": "Variable name 'v' should be between 2 and 50 characters long",
       "location": {
         "character": 40,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/NetMonitor-iOS/Views/Tools/PingToolView.swift",
+        "file": "NetMonitor-iOS/Views/Tools/PingToolView.swift",
         "line": 116
       },
       "severity": "warning",
@@ -620,7 +545,7 @@
       "reason": "Variable name 'v' should be between 2 and 50 characters long",
       "location": {
         "character": 40,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/NetMonitor-iOS/Views/Tools/PingToolView.swift",
+        "file": "NetMonitor-iOS/Views/Tools/PingToolView.swift",
         "line": 129
       },
       "severity": "warning",
@@ -631,63 +556,93 @@
   },
   {
     "violation": {
-      "ruleName": "Line Length",
-      "reason": "Line should be 150 characters or less; currently it has 154 characters",
+      "ruleName": "Force Unwrapping",
+      "reason": "Force unwrapping should be avoided",
+      "location": {
+        "character": 50,
+        "file": "NetMonitor-iOS/Views/Tools/GeoTraceView.swift",
+        "line": 219
+      },
+      "severity": "warning",
+      "ruleIdentifier": "force_unwrapping",
+      "ruleDescription": "Force unwrapping should be avoided"
+    },
+    "text": "        let minLat = coords.map(\\.latitude).min()!"
+  },
+  {
+    "violation": {
+      "ruleName": "Force Unwrapping",
+      "reason": "Force unwrapping should be avoided",
+      "location": {
+        "character": 50,
+        "file": "NetMonitor-iOS/Views/Tools/GeoTraceView.swift",
+        "line": 220
+      },
+      "severity": "warning",
+      "ruleIdentifier": "force_unwrapping",
+      "ruleDescription": "Force unwrapping should be avoided"
+    },
+    "text": "        let maxLat = coords.map(\\.latitude).max()!"
+  },
+  {
+    "violation": {
+      "ruleName": "Force Unwrapping",
+      "reason": "Force unwrapping should be avoided",
+      "location": {
+        "character": 51,
+        "file": "NetMonitor-iOS/Views/Tools/GeoTraceView.swift",
+        "line": 221
+      },
+      "severity": "warning",
+      "ruleIdentifier": "force_unwrapping",
+      "ruleDescription": "Force unwrapping should be avoided"
+    },
+    "text": "        let minLon = coords.map(\\.longitude).min()!"
+  },
+  {
+    "violation": {
+      "ruleName": "Force Unwrapping",
+      "reason": "Force unwrapping should be avoided",
+      "location": {
+        "character": 51,
+        "file": "NetMonitor-iOS/Views/Tools/GeoTraceView.swift",
+        "line": 222
+      },
+      "severity": "warning",
+      "ruleIdentifier": "force_unwrapping",
+      "ruleDescription": "Force unwrapping should be avoided"
+    },
+    "text": "        let maxLon = coords.map(\\.longitude).max()!"
+  },
+  {
+    "violation": {
+      "ruleName": "File Length",
+      "reason": "File should contain 600 lines or less excluding comments and whitespaces: currently contains 784",
       "location": {
         "character": 1,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/NetMonitor-iOS/Views/Tools/WorldPingToolView.swift",
-        "line": 104
+        "file": "NetMonitor-iOS/Views/Dashboard/DashboardView.swift",
+        "line": 907
       },
       "severity": "warning",
-      "ruleIdentifier": "line_length",
-      "ruleDescription": "Line should be 150 characters or less; currently it has 154 characters"
+      "ruleIdentifier": "file_length",
+      "ruleDescription": "File should contain 600 lines or less excluding comments and whitespaces: currently contains 784"
     },
-    "text": "                statItem(label: \"Best\", value: best < 10 ? String(format: \"%.1f ms\", best) : String(format: \"%.0f ms\", best), color: Theme.Colors.success)"
+    "text": "}"
   },
   {
     "violation": {
-      "ruleName": "Orphaned Doc Comment",
-      "reason": "A doc comment should be attached to a declaration",
+      "ruleName": "Identifier Name",
+      "reason": "Variable name 'f' should be between 2 and 50 characters long",
       "location": {
-        "character": 5,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/NetMonitor-iOS/Views/Components/EmptyStateView.swift",
-        "line": 87
+        "character": 13,
+        "file": "NetMonitor-iOS/Views/Dashboard/DashboardView.swift",
+        "line": 839
       },
       "severity": "warning",
-      "ruleIdentifier": "orphaned_doc_comment",
-      "ruleDescription": "A doc comment should be attached to a declaration"
+      "ruleIdentifier": "identifier_name",
+      "ruleDescription": "Variable name 'f' should be between 2 and 50 characters long"
     },
-    "text": "    /// No results empty state"
-  },
-  {
-    "violation": {
-      "ruleName": "Orphaned Doc Comment",
-      "reason": "A doc comment should be attached to a declaration",
-      "location": {
-        "character": 5,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/NetMonitor-iOS/Views/Components/EmptyStateView.swift",
-        "line": 116
-      },
-      "severity": "warning",
-      "ruleIdentifier": "orphaned_doc_comment",
-      "ruleDescription": "A doc comment should be attached to a declaration"
-    },
-    "text": "    /// Generic error empty state"
-  },
-  {
-    "violation": {
-      "ruleName": "Type Body Length",
-      "reason": "Struct body should span 350 lines or less excluding comments and whitespace: currently spans 387 lines",
-      "location": {
-        "character": 1,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/NetMonitor-iOS/Views/Heatmap/HeatmapSurveyView.swift",
-        "line": 8
-      },
-      "severity": "warning",
-      "ruleIdentifier": "type_body_length",
-      "ruleDescription": "Struct body should span 350 lines or less excluding comments and whitespace: currently spans 387 lines"
-    },
-    "text": "struct HeatmapSurveyView: View {"
+    "text": "        let f = DateFormatter()"
   },
   {
     "violation": {
@@ -695,7 +650,7 @@
       "reason": "Force unwrapping should be avoided",
       "location": {
         "character": 68,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/NetMonitor-iOS/Views/DeviceDetail/DeviceDetailView.swift",
+        "file": "NetMonitor-iOS/Views/DeviceDetail/DeviceDetailView.swift",
         "line": 219
       },
       "severity": "warning",
@@ -710,7 +665,7 @@
       "reason": "Force unwrapping should be avoided",
       "location": {
         "character": 64,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/NetMonitor-iOS/Views/DeviceDetail/DeviceDetailView.swift",
+        "file": "NetMonitor-iOS/Views/DeviceDetail/DeviceDetailView.swift",
         "line": 244
       },
       "severity": "warning",
@@ -725,7 +680,7 @@
       "reason": "Force unwrapping should be avoided",
       "location": {
         "character": 82,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/NetMonitor-iOS/Views/DeviceDetail/DeviceDetailView.swift",
+        "file": "NetMonitor-iOS/Views/DeviceDetail/DeviceDetailView.swift",
         "line": 245
       },
       "severity": "warning",
@@ -740,7 +695,7 @@
       "reason": "Function body should span 80 lines or less excluding comments and whitespace: currently spans 123 lines",
       "location": {
         "character": 13,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/NetMonitor-iOS/Views/DeviceDetail/DeviceDetailView.swift",
+        "file": "NetMonitor-iOS/Views/DeviceDetail/DeviceDetailView.swift",
         "line": 171
       },
       "severity": "warning",
@@ -755,7 +710,7 @@
       "reason": "Struct body should span 350 lines or less excluding comments and whitespace: currently spans 479 lines",
       "location": {
         "character": 1,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/NetMonitor-iOS/Views/DeviceDetail/DeviceDetailView.swift",
+        "file": "NetMonitor-iOS/Views/DeviceDetail/DeviceDetailView.swift",
         "line": 5
       },
       "severity": "warning",
@@ -766,33 +721,48 @@
   },
   {
     "violation": {
-      "ruleName": "Identifier Name",
-      "reason": "Variable name 'w' should be between 2 and 50 characters long",
+      "ruleName": "Type Body Length",
+      "reason": "Struct body should span 350 lines or less excluding comments and whitespace: currently spans 387 lines",
       "location": {
-        "character": 17,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/NetMonitor-iOS/Views/Heatmap/HeatmapCanvasView.swift",
-        "line": 239
+        "character": 1,
+        "file": "NetMonitor-iOS/Views/Heatmap/HeatmapSurveyView.swift",
+        "line": 8
       },
       "severity": "warning",
-      "ruleIdentifier": "identifier_name",
-      "ruleDescription": "Variable name 'w' should be between 2 and 50 characters long"
+      "ruleIdentifier": "type_body_length",
+      "ruleDescription": "Struct body should span 350 lines or less excluding comments and whitespace: currently spans 387 lines"
     },
-    "text": "            let w = containerSize.width"
+    "text": "struct HeatmapSurveyView: View {"
   },
   {
     "violation": {
-      "ruleName": "Identifier Name",
-      "reason": "Variable name 'h' should be between 2 and 50 characters long",
+      "ruleName": "Orphaned Doc Comment",
+      "reason": "A doc comment should be attached to a declaration",
       "location": {
-        "character": 17,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/NetMonitor-iOS/Views/Heatmap/HeatmapCanvasView.swift",
-        "line": 242
+        "character": 5,
+        "file": "NetMonitor-iOS/Views/Components/EmptyStateView.swift",
+        "line": 87
       },
       "severity": "warning",
-      "ruleIdentifier": "identifier_name",
-      "ruleDescription": "Variable name 'h' should be between 2 and 50 characters long"
+      "ruleIdentifier": "orphaned_doc_comment",
+      "ruleDescription": "A doc comment should be attached to a declaration"
     },
-    "text": "            let h = containerSize.height"
+    "text": "    /// No results empty state"
+  },
+  {
+    "violation": {
+      "ruleName": "Orphaned Doc Comment",
+      "reason": "A doc comment should be attached to a declaration",
+      "location": {
+        "character": 5,
+        "file": "NetMonitor-iOS/Views/Components/EmptyStateView.swift",
+        "line": 116
+      },
+      "severity": "warning",
+      "ruleIdentifier": "orphaned_doc_comment",
+      "ruleDescription": "A doc comment should be attached to a declaration"
+    },
+    "text": "    /// Generic error empty state"
   },
   {
     "violation": {
@@ -800,7 +770,7 @@
       "reason": "Line should be 150 characters or less; currently it has 162 characters",
       "location": {
         "character": 1,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/NetMonitor-iOS/Views/Onboarding/OnboardingView.swift",
+        "file": "NetMonitor-iOS/Views/Onboarding/OnboardingView.swift",
         "line": 91
       },
       "severity": "warning",
@@ -815,7 +785,7 @@
       "reason": "Line should be 150 characters or less; currently it has 160 characters",
       "location": {
         "character": 1,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/NetMonitor-iOS/Views/Onboarding/OnboardingView.swift",
+        "file": "NetMonitor-iOS/Views/Onboarding/OnboardingView.swift",
         "line": 107
       },
       "severity": "warning",
@@ -830,7 +800,7 @@
       "reason": "Line should be 150 characters or less; currently it has 154 characters",
       "location": {
         "character": 1,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/NetMonitor-iOS/Views/Onboarding/OnboardingView.swift",
+        "file": "NetMonitor-iOS/Views/Onboarding/OnboardingView.swift",
         "line": 131
       },
       "severity": "warning",
@@ -841,78 +811,33 @@
   },
   {
     "violation": {
-      "ruleName": "Force Unwrapping",
-      "reason": "Force unwrapping should be avoided",
+      "ruleName": "Identifier Name",
+      "reason": "Variable name 'w' should be between 2 and 50 characters long",
       "location": {
-        "character": 59,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetworkScanKit/Sources/NetworkScanKit/Phases/SSDPScanPhase.swift",
-        "line": 56
+        "character": 17,
+        "file": "NetMonitor-iOS/Views/Heatmap/HeatmapCanvasView.swift",
+        "line": 239
       },
       "severity": "warning",
-      "ruleIdentifier": "force_unwrapping",
-      "ruleDescription": "Force unwrapping should be avoided"
+      "ruleIdentifier": "identifier_name",
+      "ruleDescription": "Variable name 'w' should be between 2 and 50 characters long"
     },
-    "text": "            port: NWEndpoint.Port(rawValue: multicastPort)!"
+    "text": "            let w = containerSize.width"
   },
   {
     "violation": {
-      "ruleName": "Function Body Length",
-      "reason": "Function body should span 80 lines or less excluding comments and whitespace: currently spans 87 lines",
+      "ruleName": "Identifier Name",
+      "reason": "Variable name 'h' should be between 2 and 50 characters long",
       "location": {
-        "character": 20,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetworkScanKit/Sources/NetworkScanKit/Phases/SSDPScanPhase.swift",
-        "line": 40
+        "character": 17,
+        "file": "NetMonitor-iOS/Views/Heatmap/HeatmapCanvasView.swift",
+        "line": 242
       },
       "severity": "warning",
-      "ruleIdentifier": "function_body_length",
-      "ruleDescription": "Function body should span 80 lines or less excluding comments and whitespace: currently spans 87 lines"
+      "ruleIdentifier": "identifier_name",
+      "ruleDescription": "Variable name 'h' should be between 2 and 50 characters long"
     },
-    "text": "    private static func discoverSSDP() async -> [String] {"
-  },
-  {
-    "violation": {
-      "ruleName": "Optional Data -> String Conversion",
-      "reason": "Prefer failable `String(bytes:encoding:)` initializer when converting `Data` to `String`",
-      "location": {
-        "character": 26,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetworkScanKit/Sources/NetworkScanKit/Phases/BonjourScanPhase.swift",
-        "line": 250
-      },
-      "severity": "warning",
-      "ruleIdentifier": "optional_data_string_conversion",
-      "ruleDescription": "Prefer failable `String(bytes:encoding:)` initializer when converting `Data` to `String`"
-    },
-    "text": "                let ip = String(decoding: bytes, as: UTF8.self)"
-  },
-  {
-    "violation": {
-      "ruleName": "Optional Data -> String Conversion",
-      "reason": "Prefer failable `String(bytes:encoding:)` initializer when converting `Data` to `String`",
-      "location": {
-        "character": 32,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetworkScanKit/Sources/NetworkScanKit/DeviceNameResolver.swift",
-        "line": 66
-      },
-      "severity": "warning",
-      "ruleIdentifier": "optional_data_string_conversion",
-      "ruleDescription": "Prefer failable `String(bytes:encoding:)` initializer when converting `Data` to `String`"
-    },
-    "text": "                    let name = String(decoding: bytes, as: UTF8.self)"
-  },
-  {
-    "violation": {
-      "ruleName": "Redundant Nil Coalescing",
-      "reason": "nil coalescing operator is only evaluated if the lhs is nil, coalescing operator with nil as rhs is redundant",
-      "location": {
-        "character": 27,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetworkScanKit/Sources/NetworkScanKit/DeviceNameResolver.swift",
-        "line": 31
-      },
-      "severity": "warning",
-      "ruleIdentifier": "redundant_nil_coalescing",
-      "ruleDescription": "nil coalescing operator is only evaluated if the lhs is nil, coalescing operator with nil as rhs is redundant"
-    },
-    "text": "            return result ?? nil"
+    "text": "            let h = containerSize.height"
   },
   {
     "violation": {
@@ -920,7 +845,7 @@
       "reason": "Force unwrapping should be avoided",
       "location": {
         "character": 59,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetworkScanKit/Sources/NetworkScanKit/ARPCacheScanner.swift",
+        "file": "Packages/NetworkScanKit/Sources/NetworkScanKit/ARPCacheScanner.swift",
         "line": 171
       },
       "severity": "warning",
@@ -935,7 +860,7 @@
       "reason": "Force unwrapping should be avoided",
       "location": {
         "character": 56,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetworkScanKit/Sources/NetworkScanKit/ARPCacheScanner.swift",
+        "file": "Packages/NetworkScanKit/Sources/NetworkScanKit/ARPCacheScanner.swift",
         "line": 195
       },
       "severity": "warning",
@@ -950,7 +875,7 @@
       "reason": "Force unwrapping should be avoided",
       "location": {
         "character": 90,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetworkScanKit/Sources/NetworkScanKit/ARPCacheScanner.swift",
+        "file": "Packages/NetworkScanKit/Sources/NetworkScanKit/ARPCacheScanner.swift",
         "line": 237
       },
       "severity": "warning",
@@ -965,7 +890,7 @@
       "reason": "Prefer failable `String(bytes:encoding:)` initializer when converting `Data` to `String`",
       "location": {
         "character": 22,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetworkScanKit/Sources/NetworkScanKit/ARPCacheScanner.swift",
+        "file": "Packages/NetworkScanKit/Sources/NetworkScanKit/ARPCacheScanner.swift",
         "line": 218
       },
       "severity": "warning",
@@ -980,7 +905,7 @@
       "reason": "Force unwrapping should be avoided",
       "location": {
         "character": 93,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetworkScanKit/Sources/NetworkScanKit/Phases/TCPProbeScanPhase.swift",
+        "file": "Packages/NetworkScanKit/Sources/NetworkScanKit/Phases/TCPProbeScanPhase.swift",
         "line": 219
       },
       "severity": "warning",
@@ -995,7 +920,7 @@
       "reason": "Force unwrapping should be avoided",
       "location": {
         "character": 61,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetworkScanKit/Sources/NetworkScanKit/Phases/TCPProbeScanPhase.swift",
+        "file": "Packages/NetworkScanKit/Sources/NetworkScanKit/Phases/TCPProbeScanPhase.swift",
         "line": 332
       },
       "severity": "warning",
@@ -1010,7 +935,7 @@
       "reason": "Force unwrapping should be avoided",
       "location": {
         "character": 99,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetworkScanKit/Sources/NetworkScanKit/Phases/TCPProbeScanPhase.swift",
+        "file": "Packages/NetworkScanKit/Sources/NetworkScanKit/Phases/TCPProbeScanPhase.swift",
         "line": 332
       },
       "severity": "warning",
@@ -1021,18 +946,78 @@
   },
   {
     "violation": {
-      "ruleName": "Identifier Name",
-      "reason": "Variable name 'c' should be between 2 and 50 characters long",
+      "ruleName": "Force Unwrapping",
+      "reason": "Force unwrapping should be avoided",
       "location": {
-        "character": 16,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetMonitorCore/Sources/NetMonitorCore/Models/NetworkModels.swift",
-        "line": 197
+        "character": 59,
+        "file": "Packages/NetworkScanKit/Sources/NetworkScanKit/Phases/SSDPScanPhase.swift",
+        "line": 56
       },
       "severity": "warning",
-      "ruleIdentifier": "identifier_name",
-      "ruleDescription": "Variable name 'c' should be between 2 and 50 characters long"
+      "ruleIdentifier": "force_unwrapping",
+      "ruleDescription": "Force unwrapping should be avoided"
     },
-    "text": "        if let c = countryCode ?? country { parts.append(c) }"
+    "text": "            port: NWEndpoint.Port(rawValue: multicastPort)!"
+  },
+  {
+    "violation": {
+      "ruleName": "Function Body Length",
+      "reason": "Function body should span 80 lines or less excluding comments and whitespace: currently spans 87 lines",
+      "location": {
+        "character": 20,
+        "file": "Packages/NetworkScanKit/Sources/NetworkScanKit/Phases/SSDPScanPhase.swift",
+        "line": 40
+      },
+      "severity": "warning",
+      "ruleIdentifier": "function_body_length",
+      "ruleDescription": "Function body should span 80 lines or less excluding comments and whitespace: currently spans 87 lines"
+    },
+    "text": "    private static func discoverSSDP() async -> [String] {"
+  },
+  {
+    "violation": {
+      "ruleName": "Optional Data -> String Conversion",
+      "reason": "Prefer failable `String(bytes:encoding:)` initializer when converting `Data` to `String`",
+      "location": {
+        "character": 26,
+        "file": "Packages/NetworkScanKit/Sources/NetworkScanKit/Phases/BonjourScanPhase.swift",
+        "line": 250
+      },
+      "severity": "warning",
+      "ruleIdentifier": "optional_data_string_conversion",
+      "ruleDescription": "Prefer failable `String(bytes:encoding:)` initializer when converting `Data` to `String`"
+    },
+    "text": "                let ip = String(decoding: bytes, as: UTF8.self)"
+  },
+  {
+    "violation": {
+      "ruleName": "Optional Data -> String Conversion",
+      "reason": "Prefer failable `String(bytes:encoding:)` initializer when converting `Data` to `String`",
+      "location": {
+        "character": 32,
+        "file": "Packages/NetworkScanKit/Sources/NetworkScanKit/DeviceNameResolver.swift",
+        "line": 66
+      },
+      "severity": "warning",
+      "ruleIdentifier": "optional_data_string_conversion",
+      "ruleDescription": "Prefer failable `String(bytes:encoding:)` initializer when converting `Data` to `String`"
+    },
+    "text": "                    let name = String(decoding: bytes, as: UTF8.self)"
+  },
+  {
+    "violation": {
+      "ruleName": "Redundant Nil Coalescing",
+      "reason": "nil coalescing operator is only evaluated if the lhs is nil, coalescing operator with nil as rhs is redundant",
+      "location": {
+        "character": 27,
+        "file": "Packages/NetworkScanKit/Sources/NetworkScanKit/DeviceNameResolver.swift",
+        "line": 31
+      },
+      "severity": "warning",
+      "ruleIdentifier": "redundant_nil_coalescing",
+      "ruleDescription": "nil coalescing operator is only evaluated if the lhs is nil, coalescing operator with nil as rhs is redundant"
+    },
+    "text": "            return result ?? nil"
   },
   {
     "violation": {
@@ -1040,7 +1025,7 @@
       "reason": "Enum element name 'a' should be between 2 and 50 characters long",
       "location": {
         "character": 10,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetMonitorCore/Sources/NetMonitorCore/Models/Enums.swift",
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Models/Enums.swift",
         "line": 310
       },
       "severity": "warning",
@@ -1055,7 +1040,7 @@
       "reason": "String enum values can be omitted when they are equal to the enumcase name",
       "location": {
         "character": 21,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetMonitorCore/Sources/NetMonitorCore/Models/Enums.swift",
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Models/Enums.swift",
         "line": 122
       },
       "severity": "warning",
@@ -1070,7 +1055,7 @@
       "reason": "String enum values can be omitted when they are equal to the enumcase name",
       "location": {
         "character": 21,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetMonitorCore/Sources/NetMonitorCore/Models/Enums.swift",
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Models/Enums.swift",
         "line": 123
       },
       "severity": "warning",
@@ -1085,7 +1070,7 @@
       "reason": "String enum values can be omitted when they are equal to the enumcase name",
       "location": {
         "character": 21,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetMonitorCore/Sources/NetMonitorCore/Models/Enums.swift",
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Models/Enums.swift",
         "line": 124
       },
       "severity": "warning",
@@ -1100,7 +1085,7 @@
       "reason": "String enum values can be omitted when they are equal to the enumcase name",
       "location": {
         "character": 21,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetMonitorCore/Sources/NetMonitorCore/Models/Enums.swift",
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Models/Enums.swift",
         "line": 125
       },
       "severity": "warning",
@@ -1112,265 +1097,10 @@
   {
     "violation": {
       "ruleName": "Identifier Name",
-      "reason": "Variable name 'h' should be between 2 and 50 characters long",
-      "location": {
-        "character": 9,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetMonitorCore/Sources/NetMonitorCore/Extensions/FormattingExtensions.swift",
-        "line": 42
-      },
-      "severity": "warning",
-      "ruleIdentifier": "identifier_name",
-      "ruleDescription": "Variable name 'h' should be between 2 and 50 characters long"
-    },
-    "text": "    let h = total / 3600"
-  },
-  {
-    "violation": {
-      "ruleName": "Identifier Name",
-      "reason": "Variable name 'm' should be between 2 and 50 characters long",
-      "location": {
-        "character": 9,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetMonitorCore/Sources/NetMonitorCore/Extensions/FormattingExtensions.swift",
-        "line": 43
-      },
-      "severity": "warning",
-      "ruleIdentifier": "identifier_name",
-      "ruleDescription": "Variable name 'm' should be between 2 and 50 characters long"
-    },
-    "text": "    let m = (total % 3600) / 60"
-  },
-  {
-    "violation": {
-      "ruleName": "Identifier Name",
-      "reason": "Variable name 's' should be between 2 and 50 characters long",
-      "location": {
-        "character": 9,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetMonitorCore/Sources/NetMonitorCore/Extensions/FormattingExtensions.swift",
-        "line": 44
-      },
-      "severity": "warning",
-      "ruleIdentifier": "identifier_name",
-      "ruleDescription": "Variable name 's' should be between 2 and 50 characters long"
-    },
-    "text": "    let s = total % 60"
-  },
-  {
-    "violation": {
-      "ruleName": "Redundant String Enum Value",
-      "reason": "String enum values can be omitted when they are equal to the enumcase name",
-      "location": {
-        "character": 31,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetMonitorCore/Sources/NetMonitorCore/Models/NetworkEvent.swift",
-        "line": 7
-      },
-      "severity": "warning",
-      "ruleIdentifier": "redundant_string_enum_value",
-      "ruleDescription": "String enum values can be omitted when they are equal to the enumcase name"
-    },
-    "text": "    case deviceJoined       = \"deviceJoined\""
-  },
-  {
-    "violation": {
-      "ruleName": "Redundant String Enum Value",
-      "reason": "String enum values can be omitted when they are equal to the enumcase name",
-      "location": {
-        "character": 31,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetMonitorCore/Sources/NetMonitorCore/Models/NetworkEvent.swift",
-        "line": 8
-      },
-      "severity": "warning",
-      "ruleIdentifier": "redundant_string_enum_value",
-      "ruleDescription": "String enum values can be omitted when they are equal to the enumcase name"
-    },
-    "text": "    case deviceLeft         = \"deviceLeft\""
-  },
-  {
-    "violation": {
-      "ruleName": "Redundant String Enum Value",
-      "reason": "String enum values can be omitted when they are equal to the enumcase name",
-      "location": {
-        "character": 31,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetMonitorCore/Sources/NetMonitorCore/Models/NetworkEvent.swift",
-        "line": 9
-      },
-      "severity": "warning",
-      "ruleIdentifier": "redundant_string_enum_value",
-      "ruleDescription": "String enum values can be omitted when they are equal to the enumcase name"
-    },
-    "text": "    case connectivityChange = \"connectivityChange\""
-  },
-  {
-    "violation": {
-      "ruleName": "Redundant String Enum Value",
-      "reason": "String enum values can be omitted when they are equal to the enumcase name",
-      "location": {
-        "character": 31,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetMonitorCore/Sources/NetMonitorCore/Models/NetworkEvent.swift",
-        "line": 10
-      },
-      "severity": "warning",
-      "ruleIdentifier": "redundant_string_enum_value",
-      "ruleDescription": "String enum values can be omitted when they are equal to the enumcase name"
-    },
-    "text": "    case speedChange        = \"speedChange\""
-  },
-  {
-    "violation": {
-      "ruleName": "Redundant String Enum Value",
-      "reason": "String enum values can be omitted when they are equal to the enumcase name",
-      "location": {
-        "character": 31,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetMonitorCore/Sources/NetMonitorCore/Models/NetworkEvent.swift",
-        "line": 11
-      },
-      "severity": "warning",
-      "ruleIdentifier": "redundant_string_enum_value",
-      "ruleDescription": "String enum values can be omitted when they are equal to the enumcase name"
-    },
-    "text": "    case scanComplete       = \"scanComplete\""
-  },
-  {
-    "violation": {
-      "ruleName": "Redundant String Enum Value",
-      "reason": "String enum values can be omitted when they are equal to the enumcase name",
-      "location": {
-        "character": 31,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetMonitorCore/Sources/NetMonitorCore/Models/NetworkEvent.swift",
-        "line": 12
-      },
-      "severity": "warning",
-      "ruleIdentifier": "redundant_string_enum_value",
-      "ruleDescription": "String enum values can be omitted when they are equal to the enumcase name"
-    },
-    "text": "    case toolRun            = \"toolRun\""
-  },
-  {
-    "violation": {
-      "ruleName": "Redundant String Enum Value",
-      "reason": "String enum values can be omitted when they are equal to the enumcase name",
-      "location": {
-        "character": 31,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetMonitorCore/Sources/NetMonitorCore/Models/NetworkEvent.swift",
-        "line": 13
-      },
-      "severity": "warning",
-      "ruleIdentifier": "redundant_string_enum_value",
-      "ruleDescription": "String enum values can be omitted when they are equal to the enumcase name"
-    },
-    "text": "    case vpnConnected       = \"vpnConnected\""
-  },
-  {
-    "violation": {
-      "ruleName": "Redundant String Enum Value",
-      "reason": "String enum values can be omitted when they are equal to the enumcase name",
-      "location": {
-        "character": 31,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetMonitorCore/Sources/NetMonitorCore/Models/NetworkEvent.swift",
-        "line": 14
-      },
-      "severity": "warning",
-      "ruleIdentifier": "redundant_string_enum_value",
-      "ruleDescription": "String enum values can be omitted when they are equal to the enumcase name"
-    },
-    "text": "    case vpnDisconnected    = \"vpnDisconnected\""
-  },
-  {
-    "violation": {
-      "ruleName": "Redundant String Enum Value",
-      "reason": "String enum values can be omitted when they are equal to the enumcase name",
-      "location": {
-        "character": 31,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetMonitorCore/Sources/NetMonitorCore/Models/NetworkEvent.swift",
-        "line": 15
-      },
-      "severity": "warning",
-      "ruleIdentifier": "redundant_string_enum_value",
-      "ruleDescription": "String enum values can be omitted when they are equal to the enumcase name"
-    },
-    "text": "    case gatewayChange      = \"gatewayChange\""
-  },
-  {
-    "violation": {
-      "ruleName": "Redundant String Enum Value",
-      "reason": "String enum values can be omitted when they are equal to the enumcase name",
-      "location": {
-        "character": 20,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetMonitorCore/Sources/NetMonitorCore/Models/NetworkEvent.swift",
-        "line": 50
-      },
-      "severity": "warning",
-      "ruleIdentifier": "redundant_string_enum_value",
-      "ruleDescription": "String enum values can be omitted when they are equal to the enumcase name"
-    },
-    "text": "    case info    = \"info\""
-  },
-  {
-    "violation": {
-      "ruleName": "Redundant String Enum Value",
-      "reason": "String enum values can be omitted when they are equal to the enumcase name",
-      "location": {
-        "character": 20,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetMonitorCore/Sources/NetMonitorCore/Models/NetworkEvent.swift",
-        "line": 51
-      },
-      "severity": "warning",
-      "ruleIdentifier": "redundant_string_enum_value",
-      "ruleDescription": "String enum values can be omitted when they are equal to the enumcase name"
-    },
-    "text": "    case warning = \"warning\""
-  },
-  {
-    "violation": {
-      "ruleName": "Redundant String Enum Value",
-      "reason": "String enum values can be omitted when they are equal to the enumcase name",
-      "location": {
-        "character": 20,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetMonitorCore/Sources/NetMonitorCore/Models/NetworkEvent.swift",
-        "line": 52
-      },
-      "severity": "warning",
-      "ruleIdentifier": "redundant_string_enum_value",
-      "ruleDescription": "String enum values can be omitted when they are equal to the enumcase name"
-    },
-    "text": "    case error   = \"error\""
-  },
-  {
-    "violation": {
-      "ruleName": "Redundant String Enum Value",
-      "reason": "String enum values can be omitted when they are equal to the enumcase name",
-      "location": {
-        "character": 20,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetMonitorCore/Sources/NetMonitorCore/Models/NetworkEvent.swift",
-        "line": 53
-      },
-      "severity": "warning",
-      "ruleIdentifier": "redundant_string_enum_value",
-      "ruleDescription": "String enum values can be omitted when they are equal to the enumcase name"
-    },
-    "text": "    case success = \"success\""
-  },
-  {
-    "violation": {
-      "ruleName": "Optional Data -> String Conversion",
-      "reason": "Prefer failable `String(bytes:encoding:)` initializer when converting `Data` to `String`",
-      "location": {
-        "character": 16,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetMonitorCore/Sources/NetMonitorCore/Utilities/ServiceUtilities.swift",
-        "line": 71
-      },
-      "severity": "warning",
-      "ruleIdentifier": "optional_data_string_conversion",
-      "ruleDescription": "Prefer failable `String(bytes:encoding:)` initializer when converting `Data` to `String`"
-    },
-    "text": "        return String(decoding: bytes, as: UTF8.self)"
-  },
-  {
-    "violation": {
-      "ruleName": "Identifier Name",
       "reason": "Variable name 'a' should be between 2 and 50 characters long",
       "location": {
         "character": 13,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetMonitorCore/Sources/NetMonitorCore/Extensions/ColorExtensions.swift",
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Extensions/ColorExtensions.swift",
         "line": 19
       },
       "severity": "warning",
@@ -1385,7 +1115,7 @@
       "reason": "Variable name 'r' should be between 2 and 50 characters long",
       "location": {
         "character": 16,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetMonitorCore/Sources/NetMonitorCore/Extensions/ColorExtensions.swift",
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Extensions/ColorExtensions.swift",
         "line": 19
       },
       "severity": "warning",
@@ -1400,7 +1130,7 @@
       "reason": "Variable name 'g' should be between 2 and 50 characters long",
       "location": {
         "character": 19,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetMonitorCore/Sources/NetMonitorCore/Extensions/ColorExtensions.swift",
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Extensions/ColorExtensions.swift",
         "line": 19
       },
       "severity": "warning",
@@ -1415,7 +1145,7 @@
       "reason": "Variable name 'b' should be between 2 and 50 characters long",
       "location": {
         "character": 22,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetMonitorCore/Sources/NetMonitorCore/Extensions/ColorExtensions.swift",
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Extensions/ColorExtensions.swift",
         "line": 19
       },
       "severity": "warning",
@@ -1426,11 +1156,266 @@
   },
   {
     "violation": {
+      "ruleName": "Redundant String Enum Value",
+      "reason": "String enum values can be omitted when they are equal to the enumcase name",
+      "location": {
+        "character": 31,
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Models/NetworkEvent.swift",
+        "line": 7
+      },
+      "severity": "warning",
+      "ruleIdentifier": "redundant_string_enum_value",
+      "ruleDescription": "String enum values can be omitted when they are equal to the enumcase name"
+    },
+    "text": "    case deviceJoined       = \"deviceJoined\""
+  },
+  {
+    "violation": {
+      "ruleName": "Redundant String Enum Value",
+      "reason": "String enum values can be omitted when they are equal to the enumcase name",
+      "location": {
+        "character": 31,
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Models/NetworkEvent.swift",
+        "line": 8
+      },
+      "severity": "warning",
+      "ruleIdentifier": "redundant_string_enum_value",
+      "ruleDescription": "String enum values can be omitted when they are equal to the enumcase name"
+    },
+    "text": "    case deviceLeft         = \"deviceLeft\""
+  },
+  {
+    "violation": {
+      "ruleName": "Redundant String Enum Value",
+      "reason": "String enum values can be omitted when they are equal to the enumcase name",
+      "location": {
+        "character": 31,
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Models/NetworkEvent.swift",
+        "line": 9
+      },
+      "severity": "warning",
+      "ruleIdentifier": "redundant_string_enum_value",
+      "ruleDescription": "String enum values can be omitted when they are equal to the enumcase name"
+    },
+    "text": "    case connectivityChange = \"connectivityChange\""
+  },
+  {
+    "violation": {
+      "ruleName": "Redundant String Enum Value",
+      "reason": "String enum values can be omitted when they are equal to the enumcase name",
+      "location": {
+        "character": 31,
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Models/NetworkEvent.swift",
+        "line": 10
+      },
+      "severity": "warning",
+      "ruleIdentifier": "redundant_string_enum_value",
+      "ruleDescription": "String enum values can be omitted when they are equal to the enumcase name"
+    },
+    "text": "    case speedChange        = \"speedChange\""
+  },
+  {
+    "violation": {
+      "ruleName": "Redundant String Enum Value",
+      "reason": "String enum values can be omitted when they are equal to the enumcase name",
+      "location": {
+        "character": 31,
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Models/NetworkEvent.swift",
+        "line": 11
+      },
+      "severity": "warning",
+      "ruleIdentifier": "redundant_string_enum_value",
+      "ruleDescription": "String enum values can be omitted when they are equal to the enumcase name"
+    },
+    "text": "    case scanComplete       = \"scanComplete\""
+  },
+  {
+    "violation": {
+      "ruleName": "Redundant String Enum Value",
+      "reason": "String enum values can be omitted when they are equal to the enumcase name",
+      "location": {
+        "character": 31,
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Models/NetworkEvent.swift",
+        "line": 12
+      },
+      "severity": "warning",
+      "ruleIdentifier": "redundant_string_enum_value",
+      "ruleDescription": "String enum values can be omitted when they are equal to the enumcase name"
+    },
+    "text": "    case toolRun            = \"toolRun\""
+  },
+  {
+    "violation": {
+      "ruleName": "Redundant String Enum Value",
+      "reason": "String enum values can be omitted when they are equal to the enumcase name",
+      "location": {
+        "character": 31,
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Models/NetworkEvent.swift",
+        "line": 13
+      },
+      "severity": "warning",
+      "ruleIdentifier": "redundant_string_enum_value",
+      "ruleDescription": "String enum values can be omitted when they are equal to the enumcase name"
+    },
+    "text": "    case vpnConnected       = \"vpnConnected\""
+  },
+  {
+    "violation": {
+      "ruleName": "Redundant String Enum Value",
+      "reason": "String enum values can be omitted when they are equal to the enumcase name",
+      "location": {
+        "character": 31,
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Models/NetworkEvent.swift",
+        "line": 14
+      },
+      "severity": "warning",
+      "ruleIdentifier": "redundant_string_enum_value",
+      "ruleDescription": "String enum values can be omitted when they are equal to the enumcase name"
+    },
+    "text": "    case vpnDisconnected    = \"vpnDisconnected\""
+  },
+  {
+    "violation": {
+      "ruleName": "Redundant String Enum Value",
+      "reason": "String enum values can be omitted when they are equal to the enumcase name",
+      "location": {
+        "character": 31,
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Models/NetworkEvent.swift",
+        "line": 15
+      },
+      "severity": "warning",
+      "ruleIdentifier": "redundant_string_enum_value",
+      "ruleDescription": "String enum values can be omitted when they are equal to the enumcase name"
+    },
+    "text": "    case gatewayChange      = \"gatewayChange\""
+  },
+  {
+    "violation": {
+      "ruleName": "Redundant String Enum Value",
+      "reason": "String enum values can be omitted when they are equal to the enumcase name",
+      "location": {
+        "character": 20,
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Models/NetworkEvent.swift",
+        "line": 50
+      },
+      "severity": "warning",
+      "ruleIdentifier": "redundant_string_enum_value",
+      "ruleDescription": "String enum values can be omitted when they are equal to the enumcase name"
+    },
+    "text": "    case info    = \"info\""
+  },
+  {
+    "violation": {
+      "ruleName": "Redundant String Enum Value",
+      "reason": "String enum values can be omitted when they are equal to the enumcase name",
+      "location": {
+        "character": 20,
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Models/NetworkEvent.swift",
+        "line": 51
+      },
+      "severity": "warning",
+      "ruleIdentifier": "redundant_string_enum_value",
+      "ruleDescription": "String enum values can be omitted when they are equal to the enumcase name"
+    },
+    "text": "    case warning = \"warning\""
+  },
+  {
+    "violation": {
+      "ruleName": "Redundant String Enum Value",
+      "reason": "String enum values can be omitted when they are equal to the enumcase name",
+      "location": {
+        "character": 20,
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Models/NetworkEvent.swift",
+        "line": 52
+      },
+      "severity": "warning",
+      "ruleIdentifier": "redundant_string_enum_value",
+      "ruleDescription": "String enum values can be omitted when they are equal to the enumcase name"
+    },
+    "text": "    case error   = \"error\""
+  },
+  {
+    "violation": {
+      "ruleName": "Redundant String Enum Value",
+      "reason": "String enum values can be omitted when they are equal to the enumcase name",
+      "location": {
+        "character": 20,
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Models/NetworkEvent.swift",
+        "line": 53
+      },
+      "severity": "warning",
+      "ruleIdentifier": "redundant_string_enum_value",
+      "ruleDescription": "String enum values can be omitted when they are equal to the enumcase name"
+    },
+    "text": "    case success = \"success\""
+  },
+  {
+    "violation": {
+      "ruleName": "Identifier Name",
+      "reason": "Variable name 'h' should be between 2 and 50 characters long",
+      "location": {
+        "character": 9,
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Extensions/FormattingExtensions.swift",
+        "line": 42
+      },
+      "severity": "warning",
+      "ruleIdentifier": "identifier_name",
+      "ruleDescription": "Variable name 'h' should be between 2 and 50 characters long"
+    },
+    "text": "    let h = total / 3600"
+  },
+  {
+    "violation": {
+      "ruleName": "Identifier Name",
+      "reason": "Variable name 'm' should be between 2 and 50 characters long",
+      "location": {
+        "character": 9,
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Extensions/FormattingExtensions.swift",
+        "line": 43
+      },
+      "severity": "warning",
+      "ruleIdentifier": "identifier_name",
+      "ruleDescription": "Variable name 'm' should be between 2 and 50 characters long"
+    },
+    "text": "    let m = (total % 3600) / 60"
+  },
+  {
+    "violation": {
+      "ruleName": "Identifier Name",
+      "reason": "Variable name 's' should be between 2 and 50 characters long",
+      "location": {
+        "character": 9,
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Extensions/FormattingExtensions.swift",
+        "line": 44
+      },
+      "severity": "warning",
+      "ruleIdentifier": "identifier_name",
+      "ruleDescription": "Variable name 's' should be between 2 and 50 characters long"
+    },
+    "text": "    let s = total % 60"
+  },
+  {
+    "violation": {
+      "ruleName": "Identifier Name",
+      "reason": "Variable name 'c' should be between 2 and 50 characters long",
+      "location": {
+        "character": 16,
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Models/NetworkModels.swift",
+        "line": 197
+      },
+      "severity": "warning",
+      "ruleIdentifier": "identifier_name",
+      "ruleDescription": "Variable name 'c' should be between 2 and 50 characters long"
+    },
+    "text": "        if let c = countryCode ?? country { parts.append(c) }"
+  },
+  {
+    "violation": {
       "ruleName": "Force Unwrapping",
       "reason": "Force unwrapping should be avoided",
       "location": {
         "character": 45,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetMonitorCore/Sources/NetMonitorCore/Services/SpeedTestService.swift",
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Services/SpeedTestService.swift",
         "line": 110
       },
       "severity": "warning",
@@ -1445,7 +1430,7 @@
       "reason": "Force unwrapping should be avoided",
       "location": {
         "character": 49,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetMonitorCore/Sources/NetMonitorCore/Services/SpeedTestService.swift",
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Services/SpeedTestService.swift",
         "line": 152
       },
       "severity": "warning",
@@ -1460,7 +1445,7 @@
       "reason": "Force unwrapping should be avoided",
       "location": {
         "character": 47,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetMonitorCore/Sources/NetMonitorCore/Services/SpeedTestService.swift",
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Services/SpeedTestService.swift",
         "line": 229
       },
       "severity": "warning",
@@ -1471,11 +1456,26 @@
   },
   {
     "violation": {
+      "ruleName": "Optional Data -> String Conversion",
+      "reason": "Prefer failable `String(bytes:encoding:)` initializer when converting `Data` to `String`",
+      "location": {
+        "character": 16,
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Utilities/ServiceUtilities.swift",
+        "line": 71
+      },
+      "severity": "warning",
+      "ruleIdentifier": "optional_data_string_conversion",
+      "ruleDescription": "Prefer failable `String(bytes:encoding:)` initializer when converting `Data` to `String`"
+    },
+    "text": "        return String(decoding: bytes, as: UTF8.self)"
+  },
+  {
+    "violation": {
       "ruleName": "Identifier Name",
       "reason": "Variable name 'n' should be between 2 and 50 characters long",
       "location": {
         "character": 17,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetMonitorCore/Sources/NetMonitorCore/Services/ICMPSocket.swift",
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Services/ICMPSocket.swift",
         "line": 398
       },
       "severity": "warning",
@@ -1490,7 +1490,7 @@
       "reason": "Prefer failable `String(bytes:encoding:)` initializer when converting `Data` to `String`",
       "location": {
         "character": 16,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetMonitorCore/Sources/NetMonitorCore/Services/ICMPSocket.swift",
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Services/ICMPSocket.swift",
         "line": 415
       },
       "severity": "warning",
@@ -1501,116 +1501,11 @@
   },
   {
     "violation": {
-      "ruleName": "Orphaned Doc Comment",
-      "reason": "A doc comment should be attached to a declaration",
-      "location": {
-        "character": 5,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetMonitorCore/Sources/NetMonitorCore/Services/NetworkMonitorService.swift",
-        "line": 10
-      },
-      "severity": "warning",
-      "ruleIdentifier": "orphaned_doc_comment",
-      "ruleDescription": "A doc comment should be attached to a declaration"
-    },
-    "text": "    /// Single shared monitor so every consumer reads the same, up-to-date"
-  },
-  {
-    "violation": {
-      "ruleName": "Cyclomatic Complexity",
-      "reason": "Function should have complexity 12 or less; currently complexity is 15",
-      "location": {
-        "character": 13,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetMonitorCore/Sources/NetMonitorCore/Services/DeviceTypeInferenceService.swift",
-        "line": 134
-      },
-      "severity": "warning",
-      "ruleIdentifier": "cyclomatic_complexity",
-      "ruleDescription": "Function should have complexity 12 or less; currently complexity is 15"
-    },
-    "text": "    private func inferFromVendor(_ device: LocalDevice) -> DeviceType? {"
-  },
-  {
-    "violation": {
-      "ruleName": "Identifier Name",
-      "reason": "Variable name 'v' should be between 2 and 50 characters long",
-      "location": {
-        "character": 13,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetMonitorCore/Sources/NetMonitorCore/Services/DeviceTypeInferenceService.swift",
-        "line": 140
-      },
-      "severity": "warning",
-      "ruleIdentifier": "identifier_name",
-      "ruleDescription": "Variable name 'v' should be between 2 and 50 characters long"
-    },
-    "text": "        for v in vendors {"
-  },
-  {
-    "violation": {
-      "ruleName": "Identifier Name",
-      "reason": "Variable name 'l' should be between 2 and 50 characters long",
-      "location": {
-        "character": 16,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetMonitorCore/Sources/NetMonitorCore/Services/NetworkHealthScoreService.swift",
-        "line": 65
-      },
-      "severity": "warning",
-      "ruleIdentifier": "identifier_name",
-      "ruleDescription": "Variable name 'l' should be between 2 and 50 characters long"
-    },
-    "text": "        if let l = latency { details[\"latency\"] = String(format: \"%.0f ms\", l) }"
-  },
-  {
-    "violation": {
-      "ruleName": "Identifier Name",
-      "reason": "Variable name 'p' should be between 2 and 50 characters long",
-      "location": {
-        "character": 16,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetMonitorCore/Sources/NetMonitorCore/Services/NetworkHealthScoreService.swift",
-        "line": 66
-      },
-      "severity": "warning",
-      "ruleIdentifier": "identifier_name",
-      "ruleDescription": "Variable name 'p' should be between 2 and 50 characters long"
-    },
-    "text": "        if let p = loss    { details[\"packetLoss\"] = String(format: \"%.0f%%\", p * 100) }"
-  },
-  {
-    "violation": {
-      "ruleName": "Identifier Name",
-      "reason": "Variable name 'd' should be between 2 and 50 characters long",
-      "location": {
-        "character": 16,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetMonitorCore/Sources/NetMonitorCore/Services/NetworkHealthScoreService.swift",
-        "line": 67
-      },
-      "severity": "warning",
-      "ruleIdentifier": "identifier_name",
-      "ruleDescription": "Variable name 'd' should be between 2 and 50 characters long"
-    },
-    "text": "        if let d = dns     { details[\"dns\"] = String(format: \"%.0f ms\", d) }"
-  },
-  {
-    "violation": {
-      "ruleName": "Large Tuple",
-      "reason": "Tuples should have at most 4 members",
-      "location": {
-        "character": 68,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetMonitorCore/Sources/NetMonitorCore/Services/NetworkHealthScoreService.swift",
-        "line": 43
-      },
-      "severity": "warning",
-      "ruleIdentifier": "large_tuple",
-      "ruleDescription": "Tuples should have at most 4 members"
-    },
-    "text": "        let (latency, loss, dns, deviceCount, typical, connected): (Double?, Double?, Double?, Int?, Int?, Bool) = lock.withLock {"
-  },
-  {
-    "violation": {
       "ruleName": "Force Unwrapping",
       "reason": "Force unwrapping should be avoided",
       "location": {
         "character": 53,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetMonitorCore/Sources/NetMonitorCore/Utilities/NetworkUtilities.swift",
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Utilities/NetworkUtilities.swift",
         "line": 213
       },
       "severity": "warning",
@@ -1625,7 +1520,7 @@
       "reason": "Force unwrapping should be avoided",
       "location": {
         "character": 60,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetMonitorCore/Sources/NetMonitorCore/Utilities/NetworkUtilities.swift",
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Utilities/NetworkUtilities.swift",
         "line": 219
       },
       "severity": "warning",
@@ -1640,7 +1535,7 @@
       "reason": "Prefer failable `String(bytes:encoding:)` initializer when converting `Data` to `String`",
       "location": {
         "character": 20,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetMonitorCore/Sources/NetMonitorCore/Utilities/NetworkUtilities.swift",
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Utilities/NetworkUtilities.swift",
         "line": 140
       },
       "severity": "warning",
@@ -1655,7 +1550,7 @@
       "reason": "Prefer failable `String(bytes:encoding:)` initializer when converting `Data` to `String`",
       "location": {
         "character": 26,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetMonitorCore/Sources/NetMonitorCore/Utilities/NetworkUtilities.swift",
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Utilities/NetworkUtilities.swift",
         "line": 251
       },
       "severity": "warning",
@@ -1666,48 +1561,123 @@
   },
   {
     "violation": {
+      "ruleName": "Orphaned Doc Comment",
+      "reason": "A doc comment should be attached to a declaration",
+      "location": {
+        "character": 5,
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Services/NetworkMonitorService.swift",
+        "line": 10
+      },
+      "severity": "warning",
+      "ruleIdentifier": "orphaned_doc_comment",
+      "ruleDescription": "A doc comment should be attached to a declaration"
+    },
+    "text": "    /// Single shared monitor so every consumer reads the same, up-to-date"
+  },
+  {
+    "violation": {
       "ruleName": "Cyclomatic Complexity",
-      "reason": "Function should have complexity 12 or less; currently complexity is 13",
+      "reason": "Function should have complexity 12 or less; currently complexity is 15",
       "location": {
         "character": 13,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetMonitorCore/Sources/NetMonitorCore/Services/TracerouteService.swift",
-        "line": 259
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Services/DeviceTypeInferenceService.swift",
+        "line": 134
       },
       "severity": "warning",
       "ruleIdentifier": "cyclomatic_complexity",
-      "ruleDescription": "Function should have complexity 12 or less; currently complexity is 13"
+      "ruleDescription": "Function should have complexity 12 or less; currently complexity is 15"
     },
-    "text": "    private func performHTTPTracerouteFallback("
+    "text": "    private func inferFromVendor(_ device: LocalDevice) -> DeviceType? {"
   },
   {
     "violation": {
       "ruleName": "Identifier Name",
-      "reason": "Variable name 't' should be between 2 and 50 characters long",
+      "reason": "Variable name 'v' should be between 2 and 50 characters long",
       "location": {
-        "character": 17,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetMonitorCore/Sources/NetMonitorCore/Services/TracerouteService.swift",
-        "line": 434
+        "character": 13,
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Services/DeviceTypeInferenceService.swift",
+        "line": 140
       },
       "severity": "warning",
       "ruleIdentifier": "identifier_name",
-      "ruleDescription": "Variable name 't' should be between 2 and 50 characters long"
+      "ruleDescription": "Variable name 'v' should be between 2 and 50 characters long"
     },
-    "text": "            var t = ttlValue"
+    "text": "        for v in vendors {"
   },
   {
     "violation": {
-      "ruleName": "Optional Data -> String Conversion",
-      "reason": "Prefer failable `String(bytes:encoding:)` initializer when converting `Data` to `String`",
+      "ruleName": "Identifier Name",
+      "reason": "Variable name 'l' should be between 2 and 50 characters long",
       "location": {
-        "character": 32,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetMonitorCore/Sources/NetMonitorCore/Services/TracerouteService.swift",
-        "line": 526
+        "character": 16,
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Services/NetworkHealthScoreService.swift",
+        "line": 65
       },
       "severity": "warning",
-      "ruleIdentifier": "optional_data_string_conversion",
-      "ruleDescription": "Prefer failable `String(bytes:encoding:)` initializer when converting `Data` to `String`"
+      "ruleIdentifier": "identifier_name",
+      "ruleDescription": "Variable name 'l' should be between 2 and 50 characters long"
     },
-    "text": "                    let name = String(decoding: hostname.prefix(while: { $0 != 0 }).map { UInt8(bitPattern: $0) }, as: UTF8.self)"
+    "text": "        if let l = latency { details[\"latency\"] = String(format: \"%.0f ms\", l) }"
+  },
+  {
+    "violation": {
+      "ruleName": "Identifier Name",
+      "reason": "Variable name 'p' should be between 2 and 50 characters long",
+      "location": {
+        "character": 16,
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Services/NetworkHealthScoreService.swift",
+        "line": 66
+      },
+      "severity": "warning",
+      "ruleIdentifier": "identifier_name",
+      "ruleDescription": "Variable name 'p' should be between 2 and 50 characters long"
+    },
+    "text": "        if let p = loss    { details[\"packetLoss\"] = String(format: \"%.0f%%\", p * 100) }"
+  },
+  {
+    "violation": {
+      "ruleName": "Identifier Name",
+      "reason": "Variable name 'd' should be between 2 and 50 characters long",
+      "location": {
+        "character": 16,
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Services/NetworkHealthScoreService.swift",
+        "line": 67
+      },
+      "severity": "warning",
+      "ruleIdentifier": "identifier_name",
+      "ruleDescription": "Variable name 'd' should be between 2 and 50 characters long"
+    },
+    "text": "        if let d = dns     { details[\"dns\"] = String(format: \"%.0f ms\", d) }"
+  },
+  {
+    "violation": {
+      "ruleName": "Large Tuple",
+      "reason": "Tuples should have at most 4 members",
+      "location": {
+        "character": 68,
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Services/NetworkHealthScoreService.swift",
+        "line": 43
+      },
+      "severity": "warning",
+      "ruleIdentifier": "large_tuple",
+      "ruleDescription": "Tuples should have at most 4 members"
+    },
+    "text": "        let (latency, loss, dns, deviceCount, typical, connected): (Double?, Double?, Double?, Int?, Int?, Bool) = lock.withLock {"
+  },
+  {
+    "violation": {
+      "ruleName": "Force Unwrapping",
+      "reason": "Force unwrapping should be avoided",
+      "location": {
+        "character": 58,
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Services/PortScannerService.swift",
+        "line": 76
+      },
+      "severity": "warning",
+      "ruleIdentifier": "force_unwrapping",
+      "ruleDescription": "Force unwrapping should be avoided"
+    },
+    "text": "            port: NWEndpoint.Port(rawValue: UInt16(port))!"
   },
   {
     "violation": {
@@ -1715,7 +1685,7 @@
       "reason": "`where` clauses are preferred over a single `if` inside a `for`",
       "location": {
         "character": 13,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetMonitorCore/Sources/NetMonitorCore/Services/VPNDetectionService.swift",
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Services/VPNDetectionService.swift",
         "line": 174
       },
       "severity": "warning",
@@ -1730,7 +1700,7 @@
       "reason": "Variable name 'm' should be between 2 and 50 characters long",
       "location": {
         "character": 13,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetMonitorCore/Sources/NetMonitorCore/Services/VPNDetectionService.swift",
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Services/VPNDetectionService.swift",
         "line": 90
       },
       "severity": "warning",
@@ -1741,18 +1711,48 @@
   },
   {
     "violation": {
-      "ruleName": "Force Unwrapping",
-      "reason": "Force unwrapping should be avoided",
+      "ruleName": "Cyclomatic Complexity",
+      "reason": "Function should have complexity 12 or less; currently complexity is 13",
       "location": {
-        "character": 34,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetMonitorCore/Sources/NetMonitorCore/Services/NetworkProfileManager.swift",
-        "line": 115
+        "character": 13,
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Services/TracerouteService.swift",
+        "line": 259
       },
       "severity": "warning",
-      "ruleIdentifier": "force_unwrapping",
-      "ruleDescription": "Force unwrapping should be avoided"
+      "ruleIdentifier": "cyclomatic_complexity",
+      "ruleDescription": "Function should have complexity 12 or less; currently complexity is 13"
     },
-    "text": "            ? normalizedInterface!"
+    "text": "    private func performHTTPTracerouteFallback("
+  },
+  {
+    "violation": {
+      "ruleName": "Identifier Name",
+      "reason": "Variable name 't' should be between 2 and 50 characters long",
+      "location": {
+        "character": 17,
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Services/TracerouteService.swift",
+        "line": 434
+      },
+      "severity": "warning",
+      "ruleIdentifier": "identifier_name",
+      "ruleDescription": "Variable name 't' should be between 2 and 50 characters long"
+    },
+    "text": "            var t = ttlValue"
+  },
+  {
+    "violation": {
+      "ruleName": "Optional Data -> String Conversion",
+      "reason": "Prefer failable `String(bytes:encoding:)` initializer when converting `Data` to `String`",
+      "location": {
+        "character": 32,
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Services/TracerouteService.swift",
+        "line": 526
+      },
+      "severity": "warning",
+      "ruleIdentifier": "optional_data_string_conversion",
+      "ruleDescription": "Prefer failable `String(bytes:encoding:)` initializer when converting `Data` to `String`"
+    },
+    "text": "                    let name = String(decoding: hostname.prefix(while: { $0 != 0 }).map { UInt8(bitPattern: $0) }, as: UTF8.self)"
   },
   {
     "violation": {
@@ -1760,7 +1760,7 @@
       "reason": "Line should be 150 characters or less; currently it has 175 characters",
       "location": {
         "character": 1,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetMonitorCore/Sources/NetMonitorCore/Services/ServiceProtocols.swift",
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Services/ServiceProtocols.swift",
         "line": 204
       },
       "severity": "warning",
@@ -1775,7 +1775,7 @@
       "reason": "Line should be 150 characters or less; currently it has 154 characters",
       "location": {
         "character": 1,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetMonitorCore/Sources/NetMonitorCore/Services/ServiceProtocols.swift",
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Services/ServiceProtocols.swift",
         "line": 258
       },
       "severity": "warning",
@@ -1790,7 +1790,7 @@
       "reason": "Line should be 150 characters or less; currently it has 188 characters",
       "location": {
         "character": 1,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetMonitorCore/Sources/NetMonitorCore/Services/ServiceProtocols.swift",
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Services/ServiceProtocols.swift",
         "line": 301
       },
       "severity": "warning",
@@ -1804,345 +1804,15 @@
       "ruleName": "Force Unwrapping",
       "reason": "Force unwrapping should be avoided",
       "location": {
-        "character": 50,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetMonitorCore/Sources/NetMonitorCore/Services/WakeOnLANService.swift",
-        "line": 76
+        "character": 34,
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Services/NetworkProfileManager.swift",
+        "line": 115
       },
       "severity": "warning",
       "ruleIdentifier": "force_unwrapping",
       "ruleDescription": "Force unwrapping should be avoided"
     },
-    "text": "            port: NWEndpoint.Port(rawValue: port)!"
-  },
-  {
-    "violation": {
-      "ruleName": "Identifier Name",
-      "reason": "Variable name 'p' should be between 2 and 50 characters long",
-      "location": {
-        "character": 50,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetMonitorCore/Sources/NetMonitorCore/Services/Heatmap/HeatmapRenderer.swift",
-        "line": 124
-      },
-      "severity": "warning",
-      "ruleIdentifier": "identifier_name",
-      "ruleDescription": "Variable name 'p' should be between 2 and 50 characters long"
-    },
-    "text": "        let pointPositions = points.compactMap { p -> (x: Double, y: Double)? in"
-  },
-  {
-    "violation": {
-      "ruleName": "Identifier Name",
-      "reason": "Variable name 't' should be between 2 and 50 characters long",
-      "location": {
-        "character": 34,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetMonitorCore/Sources/NetMonitorCore/Services/Heatmap/HeatmapRenderer.swift",
-        "line": 184
-      },
-      "severity": "warning",
-      "ruleIdentifier": "identifier_name",
-      "ruleDescription": "Variable name 't' should be between 2 and 50 characters long"
-    },
-    "text": "    private func contrastCurve(_ t: Double) -> Double {"
-  },
-  {
-    "violation": {
-      "ruleName": "Identifier Name",
-      "reason": "Variable name 't' should be between 2 and 50 characters long",
-      "location": {
-        "character": 34,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetMonitorCore/Sources/NetMonitorCore/Services/Heatmap/HeatmapRenderer.swift",
-        "line": 228
-      },
-      "severity": "warning",
-      "ruleIdentifier": "identifier_name",
-      "ruleDescription": "Variable name 't' should be between 2 and 50 characters long"
-    },
-    "text": "    private func thermalGradient(t: Double, alpha: UInt8) -> (r: UInt8, g: UInt8, b: UInt8, a: UInt8) {"
-  },
-  {
-    "violation": {
-      "ruleName": "Identifier Name",
-      "reason": "Variable name 'c' should be between 2 and 50 characters long",
-      "location": {
-        "character": 13,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetMonitorCore/Sources/NetMonitorCore/Services/Heatmap/HeatmapRenderer.swift",
-        "line": 229
-      },
-      "severity": "warning",
-      "ruleIdentifier": "identifier_name",
-      "ruleDescription": "Variable name 'c' should be between 2 and 50 characters long"
-    },
-    "text": "        let c = min(max(t, 0), 1)"
-  },
-  {
-    "violation": {
-      "ruleName": "Identifier Name",
-      "reason": "Variable name 'r' should be between 2 and 50 characters long",
-      "location": {
-        "character": 13,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetMonitorCore/Sources/NetMonitorCore/Services/Heatmap/HeatmapRenderer.swift",
-        "line": 230
-      },
-      "severity": "warning",
-      "ruleIdentifier": "identifier_name",
-      "ruleDescription": "Variable name 'r' should be between 2 and 50 characters long"
-    },
-    "text": "        let r: Double"
-  },
-  {
-    "violation": {
-      "ruleName": "Identifier Name",
-      "reason": "Variable name 'g' should be between 2 and 50 characters long",
-      "location": {
-        "character": 13,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetMonitorCore/Sources/NetMonitorCore/Services/Heatmap/HeatmapRenderer.swift",
-        "line": 231
-      },
-      "severity": "warning",
-      "ruleIdentifier": "identifier_name",
-      "ruleDescription": "Variable name 'g' should be between 2 and 50 characters long"
-    },
-    "text": "        let g: Double"
-  },
-  {
-    "violation": {
-      "ruleName": "Identifier Name",
-      "reason": "Variable name 'b' should be between 2 and 50 characters long",
-      "location": {
-        "character": 13,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetMonitorCore/Sources/NetMonitorCore/Services/Heatmap/HeatmapRenderer.swift",
-        "line": 232
-      },
-      "severity": "warning",
-      "ruleIdentifier": "identifier_name",
-      "ruleDescription": "Variable name 'b' should be between 2 and 50 characters long"
-    },
-    "text": "        let b: Double"
-  },
-  {
-    "violation": {
-      "ruleName": "Identifier Name",
-      "reason": "Variable name 't' should be between 2 and 50 characters long",
-      "location": {
-        "character": 36,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetMonitorCore/Sources/NetMonitorCore/Services/Heatmap/HeatmapRenderer.swift",
-        "line": 265
-      },
-      "severity": "warning",
-      "ruleIdentifier": "identifier_name",
-      "ruleDescription": "Variable name 't' should be between 2 and 50 characters long"
-    },
-    "text": "    private func stoplightGradient(t: Double, alpha: UInt8) -> (r: UInt8, g: UInt8, b: UInt8, a: UInt8) {"
-  },
-  {
-    "violation": {
-      "ruleName": "Identifier Name",
-      "reason": "Variable name 'c' should be between 2 and 50 characters long",
-      "location": {
-        "character": 13,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetMonitorCore/Sources/NetMonitorCore/Services/Heatmap/HeatmapRenderer.swift",
-        "line": 266
-      },
-      "severity": "warning",
-      "ruleIdentifier": "identifier_name",
-      "ruleDescription": "Variable name 'c' should be between 2 and 50 characters long"
-    },
-    "text": "        let c = min(max(t, 0), 1)"
-  },
-  {
-    "violation": {
-      "ruleName": "Identifier Name",
-      "reason": "Variable name 'r' should be between 2 and 50 characters long",
-      "location": {
-        "character": 13,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetMonitorCore/Sources/NetMonitorCore/Services/Heatmap/HeatmapRenderer.swift",
-        "line": 267
-      },
-      "severity": "warning",
-      "ruleIdentifier": "identifier_name",
-      "ruleDescription": "Variable name 'r' should be between 2 and 50 characters long"
-    },
-    "text": "        let r: Double"
-  },
-  {
-    "violation": {
-      "ruleName": "Identifier Name",
-      "reason": "Variable name 'g' should be between 2 and 50 characters long",
-      "location": {
-        "character": 13,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetMonitorCore/Sources/NetMonitorCore/Services/Heatmap/HeatmapRenderer.swift",
-        "line": 268
-      },
-      "severity": "warning",
-      "ruleIdentifier": "identifier_name",
-      "ruleDescription": "Variable name 'g' should be between 2 and 50 characters long"
-    },
-    "text": "        let g: Double"
-  },
-  {
-    "violation": {
-      "ruleName": "Identifier Name",
-      "reason": "Variable name 'b' should be between 2 and 50 characters long",
-      "location": {
-        "character": 13,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetMonitorCore/Sources/NetMonitorCore/Services/Heatmap/HeatmapRenderer.swift",
-        "line": 269
-      },
-      "severity": "warning",
-      "ruleIdentifier": "identifier_name",
-      "ruleDescription": "Variable name 'b' should be between 2 and 50 characters long"
-    },
-    "text": "        let b: Double = 0"
-  },
-  {
-    "violation": {
-      "ruleName": "Identifier Name",
-      "reason": "Variable name 't' should be between 2 and 50 characters long",
-      "location": {
-        "character": 33,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetMonitorCore/Sources/NetMonitorCore/Services/Heatmap/HeatmapRenderer.swift",
-        "line": 293
-      },
-      "severity": "warning",
-      "ruleIdentifier": "identifier_name",
-      "ruleDescription": "Variable name 't' should be between 2 and 50 characters long"
-    },
-    "text": "    private func plasmaGradient(t: Double, alpha: UInt8) -> (r: UInt8, g: UInt8, b: UInt8, a: UInt8) {"
-  },
-  {
-    "violation": {
-      "ruleName": "Identifier Name",
-      "reason": "Variable name 'c' should be between 2 and 50 characters long",
-      "location": {
-        "character": 13,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetMonitorCore/Sources/NetMonitorCore/Services/Heatmap/HeatmapRenderer.swift",
-        "line": 294
-      },
-      "severity": "warning",
-      "ruleIdentifier": "identifier_name",
-      "ruleDescription": "Variable name 'c' should be between 2 and 50 characters long"
-    },
-    "text": "        let c = min(max(t, 0), 1)"
-  },
-  {
-    "violation": {
-      "ruleName": "Identifier Name",
-      "reason": "Variable name 'r' should be between 2 and 50 characters long",
-      "location": {
-        "character": 13,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetMonitorCore/Sources/NetMonitorCore/Services/Heatmap/HeatmapRenderer.swift",
-        "line": 295
-      },
-      "severity": "warning",
-      "ruleIdentifier": "identifier_name",
-      "ruleDescription": "Variable name 'r' should be between 2 and 50 characters long"
-    },
-    "text": "        let r: Double"
-  },
-  {
-    "violation": {
-      "ruleName": "Identifier Name",
-      "reason": "Variable name 'g' should be between 2 and 50 characters long",
-      "location": {
-        "character": 13,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetMonitorCore/Sources/NetMonitorCore/Services/Heatmap/HeatmapRenderer.swift",
-        "line": 296
-      },
-      "severity": "warning",
-      "ruleIdentifier": "identifier_name",
-      "ruleDescription": "Variable name 'g' should be between 2 and 50 characters long"
-    },
-    "text": "        let g: Double"
-  },
-  {
-    "violation": {
-      "ruleName": "Identifier Name",
-      "reason": "Variable name 'b' should be between 2 and 50 characters long",
-      "location": {
-        "character": 13,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetMonitorCore/Sources/NetMonitorCore/Services/Heatmap/HeatmapRenderer.swift",
-        "line": 297
-      },
-      "severity": "warning",
-      "ruleIdentifier": "identifier_name",
-      "ruleDescription": "Variable name 'b' should be between 2 and 50 characters long"
-    },
-    "text": "        let b: Double"
-  },
-  {
-    "violation": {
-      "ruleName": "Identifier Name",
-      "reason": "Variable name 't' should be between 2 and 50 characters long",
-      "location": {
-        "character": 34,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetMonitorCore/Sources/NetMonitorCore/Services/Heatmap/HeatmapRenderer.swift",
-        "line": 329
-      },
-      "severity": "warning",
-      "ruleIdentifier": "identifier_name",
-      "ruleDescription": "Variable name 't' should be between 2 and 50 characters long"
-    },
-    "text": "    private func wifimanGradient(t: Double, alpha: UInt8) -> (r: UInt8, g: UInt8, b: UInt8, a: UInt8) {"
-  },
-  {
-    "violation": {
-      "ruleName": "Identifier Name",
-      "reason": "Variable name 'c' should be between 2 and 50 characters long",
-      "location": {
-        "character": 13,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetMonitorCore/Sources/NetMonitorCore/Services/Heatmap/HeatmapRenderer.swift",
-        "line": 330
-      },
-      "severity": "warning",
-      "ruleIdentifier": "identifier_name",
-      "ruleDescription": "Variable name 'c' should be between 2 and 50 characters long"
-    },
-    "text": "        let c = min(max(t, 0), 1)"
-  },
-  {
-    "violation": {
-      "ruleName": "Identifier Name",
-      "reason": "Variable name 'r' should be between 2 and 50 characters long",
-      "location": {
-        "character": 13,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetMonitorCore/Sources/NetMonitorCore/Services/Heatmap/HeatmapRenderer.swift",
-        "line": 331
-      },
-      "severity": "warning",
-      "ruleIdentifier": "identifier_name",
-      "ruleDescription": "Variable name 'r' should be between 2 and 50 characters long"
-    },
-    "text": "        let r: Double"
-  },
-  {
-    "violation": {
-      "ruleName": "Identifier Name",
-      "reason": "Variable name 'g' should be between 2 and 50 characters long",
-      "location": {
-        "character": 13,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetMonitorCore/Sources/NetMonitorCore/Services/Heatmap/HeatmapRenderer.swift",
-        "line": 332
-      },
-      "severity": "warning",
-      "ruleIdentifier": "identifier_name",
-      "ruleDescription": "Variable name 'g' should be between 2 and 50 characters long"
-    },
-    "text": "        let g: Double"
-  },
-  {
-    "violation": {
-      "ruleName": "Optional Data -> String Conversion",
-      "reason": "Prefer failable `String(bytes:encoding:)` initializer when converting `Data` to `String`",
-      "location": {
-        "character": 35,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetMonitorCore/Sources/NetMonitorCore/Services/DNSLookupService.swift",
-        "line": 88
-      },
-      "severity": "warning",
-      "ruleIdentifier": "optional_data_string_conversion",
-      "ruleDescription": "Prefer failable `String(bytes:encoding:)` initializer when converting `Data` to `String`"
-    },
-    "text": "                    let address = String(decoding: bytes, as: UTF8.self)"
+    "text": "            ? normalizedInterface!"
   },
   {
     "violation": {
@@ -2150,7 +1820,7 @@
       "reason": "Force unwrapping should be avoided",
       "location": {
         "character": 85,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetMonitorCore/Sources/NetMonitorCore/Services/PingService.swift",
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Services/PingService.swift",
         "line": 217
       },
       "severity": "warning",
@@ -2165,7 +1835,7 @@
       "reason": "Function should have 6 parameters or less: it currently has 7",
       "location": {
         "character": 13,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetMonitorCore/Sources/NetMonitorCore/Services/PingService.swift",
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Services/PingService.swift",
         "line": 124
       },
       "severity": "warning",
@@ -2176,11 +1846,26 @@
   },
   {
     "violation": {
+      "ruleName": "Force Unwrapping",
+      "reason": "Force unwrapping should be avoided",
+      "location": {
+        "character": 50,
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Services/WakeOnLANService.swift",
+        "line": 76
+      },
+      "severity": "warning",
+      "ruleIdentifier": "force_unwrapping",
+      "ruleDescription": "Force unwrapping should be avoided"
+    },
+    "text": "            port: NWEndpoint.Port(rawValue: port)!"
+  },
+  {
+    "violation": {
       "ruleName": "Orphaned Doc Comment",
       "reason": "A doc comment should be attached to a declaration",
       "location": {
         "character": 5,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetMonitorCore/Sources/NetMonitorCore/Services/MACVendorLookupService.swift",
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Services/MACVendorLookupService.swift",
         "line": 20
       },
       "severity": "warning",
@@ -2191,17 +1876,332 @@
   },
   {
     "violation": {
-      "ruleName": "Force Unwrapping",
-      "reason": "Force unwrapping should be avoided",
+      "ruleName": "Optional Data -> String Conversion",
+      "reason": "Prefer failable `String(bytes:encoding:)` initializer when converting `Data` to `String`",
       "location": {
-        "character": 58,
-        "file": "/Users/blake/Projects/NetMonitor-2.0/Packages/NetMonitorCore/Sources/NetMonitorCore/Services/PortScannerService.swift",
-        "line": 76
+        "character": 35,
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Services/DNSLookupService.swift",
+        "line": 88
       },
       "severity": "warning",
-      "ruleIdentifier": "force_unwrapping",
-      "ruleDescription": "Force unwrapping should be avoided"
+      "ruleIdentifier": "optional_data_string_conversion",
+      "ruleDescription": "Prefer failable `String(bytes:encoding:)` initializer when converting `Data` to `String`"
     },
-    "text": "            port: NWEndpoint.Port(rawValue: UInt16(port))!"
+    "text": "                    let address = String(decoding: bytes, as: UTF8.self)"
+  },
+  {
+    "violation": {
+      "ruleName": "Identifier Name",
+      "reason": "Variable name 'p' should be between 2 and 50 characters long",
+      "location": {
+        "character": 50,
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Services/Heatmap/HeatmapRenderer.swift",
+        "line": 124
+      },
+      "severity": "warning",
+      "ruleIdentifier": "identifier_name",
+      "ruleDescription": "Variable name 'p' should be between 2 and 50 characters long"
+    },
+    "text": "        let pointPositions = points.compactMap { p -> (x: Double, y: Double)? in"
+  },
+  {
+    "violation": {
+      "ruleName": "Identifier Name",
+      "reason": "Variable name 't' should be between 2 and 50 characters long",
+      "location": {
+        "character": 34,
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Services/Heatmap/HeatmapRenderer.swift",
+        "line": 184
+      },
+      "severity": "warning",
+      "ruleIdentifier": "identifier_name",
+      "ruleDescription": "Variable name 't' should be between 2 and 50 characters long"
+    },
+    "text": "    private func contrastCurve(_ t: Double) -> Double {"
+  },
+  {
+    "violation": {
+      "ruleName": "Identifier Name",
+      "reason": "Variable name 't' should be between 2 and 50 characters long",
+      "location": {
+        "character": 34,
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Services/Heatmap/HeatmapRenderer.swift",
+        "line": 228
+      },
+      "severity": "warning",
+      "ruleIdentifier": "identifier_name",
+      "ruleDescription": "Variable name 't' should be between 2 and 50 characters long"
+    },
+    "text": "    private func thermalGradient(t: Double, alpha: UInt8) -> (r: UInt8, g: UInt8, b: UInt8, a: UInt8) {"
+  },
+  {
+    "violation": {
+      "ruleName": "Identifier Name",
+      "reason": "Variable name 'c' should be between 2 and 50 characters long",
+      "location": {
+        "character": 13,
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Services/Heatmap/HeatmapRenderer.swift",
+        "line": 229
+      },
+      "severity": "warning",
+      "ruleIdentifier": "identifier_name",
+      "ruleDescription": "Variable name 'c' should be between 2 and 50 characters long"
+    },
+    "text": "        let c = min(max(t, 0), 1)"
+  },
+  {
+    "violation": {
+      "ruleName": "Identifier Name",
+      "reason": "Variable name 'r' should be between 2 and 50 characters long",
+      "location": {
+        "character": 13,
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Services/Heatmap/HeatmapRenderer.swift",
+        "line": 230
+      },
+      "severity": "warning",
+      "ruleIdentifier": "identifier_name",
+      "ruleDescription": "Variable name 'r' should be between 2 and 50 characters long"
+    },
+    "text": "        let r: Double"
+  },
+  {
+    "violation": {
+      "ruleName": "Identifier Name",
+      "reason": "Variable name 'g' should be between 2 and 50 characters long",
+      "location": {
+        "character": 13,
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Services/Heatmap/HeatmapRenderer.swift",
+        "line": 231
+      },
+      "severity": "warning",
+      "ruleIdentifier": "identifier_name",
+      "ruleDescription": "Variable name 'g' should be between 2 and 50 characters long"
+    },
+    "text": "        let g: Double"
+  },
+  {
+    "violation": {
+      "ruleName": "Identifier Name",
+      "reason": "Variable name 'b' should be between 2 and 50 characters long",
+      "location": {
+        "character": 13,
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Services/Heatmap/HeatmapRenderer.swift",
+        "line": 232
+      },
+      "severity": "warning",
+      "ruleIdentifier": "identifier_name",
+      "ruleDescription": "Variable name 'b' should be between 2 and 50 characters long"
+    },
+    "text": "        let b: Double"
+  },
+  {
+    "violation": {
+      "ruleName": "Identifier Name",
+      "reason": "Variable name 't' should be between 2 and 50 characters long",
+      "location": {
+        "character": 36,
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Services/Heatmap/HeatmapRenderer.swift",
+        "line": 265
+      },
+      "severity": "warning",
+      "ruleIdentifier": "identifier_name",
+      "ruleDescription": "Variable name 't' should be between 2 and 50 characters long"
+    },
+    "text": "    private func stoplightGradient(t: Double, alpha: UInt8) -> (r: UInt8, g: UInt8, b: UInt8, a: UInt8) {"
+  },
+  {
+    "violation": {
+      "ruleName": "Identifier Name",
+      "reason": "Variable name 'c' should be between 2 and 50 characters long",
+      "location": {
+        "character": 13,
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Services/Heatmap/HeatmapRenderer.swift",
+        "line": 266
+      },
+      "severity": "warning",
+      "ruleIdentifier": "identifier_name",
+      "ruleDescription": "Variable name 'c' should be between 2 and 50 characters long"
+    },
+    "text": "        let c = min(max(t, 0), 1)"
+  },
+  {
+    "violation": {
+      "ruleName": "Identifier Name",
+      "reason": "Variable name 'r' should be between 2 and 50 characters long",
+      "location": {
+        "character": 13,
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Services/Heatmap/HeatmapRenderer.swift",
+        "line": 267
+      },
+      "severity": "warning",
+      "ruleIdentifier": "identifier_name",
+      "ruleDescription": "Variable name 'r' should be between 2 and 50 characters long"
+    },
+    "text": "        let r: Double"
+  },
+  {
+    "violation": {
+      "ruleName": "Identifier Name",
+      "reason": "Variable name 'g' should be between 2 and 50 characters long",
+      "location": {
+        "character": 13,
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Services/Heatmap/HeatmapRenderer.swift",
+        "line": 268
+      },
+      "severity": "warning",
+      "ruleIdentifier": "identifier_name",
+      "ruleDescription": "Variable name 'g' should be between 2 and 50 characters long"
+    },
+    "text": "        let g: Double"
+  },
+  {
+    "violation": {
+      "ruleName": "Identifier Name",
+      "reason": "Variable name 'b' should be between 2 and 50 characters long",
+      "location": {
+        "character": 13,
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Services/Heatmap/HeatmapRenderer.swift",
+        "line": 269
+      },
+      "severity": "warning",
+      "ruleIdentifier": "identifier_name",
+      "ruleDescription": "Variable name 'b' should be between 2 and 50 characters long"
+    },
+    "text": "        let b: Double = 0"
+  },
+  {
+    "violation": {
+      "ruleName": "Identifier Name",
+      "reason": "Variable name 't' should be between 2 and 50 characters long",
+      "location": {
+        "character": 33,
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Services/Heatmap/HeatmapRenderer.swift",
+        "line": 293
+      },
+      "severity": "warning",
+      "ruleIdentifier": "identifier_name",
+      "ruleDescription": "Variable name 't' should be between 2 and 50 characters long"
+    },
+    "text": "    private func plasmaGradient(t: Double, alpha: UInt8) -> (r: UInt8, g: UInt8, b: UInt8, a: UInt8) {"
+  },
+  {
+    "violation": {
+      "ruleName": "Identifier Name",
+      "reason": "Variable name 'c' should be between 2 and 50 characters long",
+      "location": {
+        "character": 13,
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Services/Heatmap/HeatmapRenderer.swift",
+        "line": 294
+      },
+      "severity": "warning",
+      "ruleIdentifier": "identifier_name",
+      "ruleDescription": "Variable name 'c' should be between 2 and 50 characters long"
+    },
+    "text": "        let c = min(max(t, 0), 1)"
+  },
+  {
+    "violation": {
+      "ruleName": "Identifier Name",
+      "reason": "Variable name 'r' should be between 2 and 50 characters long",
+      "location": {
+        "character": 13,
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Services/Heatmap/HeatmapRenderer.swift",
+        "line": 295
+      },
+      "severity": "warning",
+      "ruleIdentifier": "identifier_name",
+      "ruleDescription": "Variable name 'r' should be between 2 and 50 characters long"
+    },
+    "text": "        let r: Double"
+  },
+  {
+    "violation": {
+      "ruleName": "Identifier Name",
+      "reason": "Variable name 'g' should be between 2 and 50 characters long",
+      "location": {
+        "character": 13,
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Services/Heatmap/HeatmapRenderer.swift",
+        "line": 296
+      },
+      "severity": "warning",
+      "ruleIdentifier": "identifier_name",
+      "ruleDescription": "Variable name 'g' should be between 2 and 50 characters long"
+    },
+    "text": "        let g: Double"
+  },
+  {
+    "violation": {
+      "ruleName": "Identifier Name",
+      "reason": "Variable name 'b' should be between 2 and 50 characters long",
+      "location": {
+        "character": 13,
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Services/Heatmap/HeatmapRenderer.swift",
+        "line": 297
+      },
+      "severity": "warning",
+      "ruleIdentifier": "identifier_name",
+      "ruleDescription": "Variable name 'b' should be between 2 and 50 characters long"
+    },
+    "text": "        let b: Double"
+  },
+  {
+    "violation": {
+      "ruleName": "Identifier Name",
+      "reason": "Variable name 't' should be between 2 and 50 characters long",
+      "location": {
+        "character": 34,
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Services/Heatmap/HeatmapRenderer.swift",
+        "line": 329
+      },
+      "severity": "warning",
+      "ruleIdentifier": "identifier_name",
+      "ruleDescription": "Variable name 't' should be between 2 and 50 characters long"
+    },
+    "text": "    private func wifimanGradient(t: Double, alpha: UInt8) -> (r: UInt8, g: UInt8, b: UInt8, a: UInt8) {"
+  },
+  {
+    "violation": {
+      "ruleName": "Identifier Name",
+      "reason": "Variable name 'c' should be between 2 and 50 characters long",
+      "location": {
+        "character": 13,
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Services/Heatmap/HeatmapRenderer.swift",
+        "line": 330
+      },
+      "severity": "warning",
+      "ruleIdentifier": "identifier_name",
+      "ruleDescription": "Variable name 'c' should be between 2 and 50 characters long"
+    },
+    "text": "        let c = min(max(t, 0), 1)"
+  },
+  {
+    "violation": {
+      "ruleName": "Identifier Name",
+      "reason": "Variable name 'r' should be between 2 and 50 characters long",
+      "location": {
+        "character": 13,
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Services/Heatmap/HeatmapRenderer.swift",
+        "line": 331
+      },
+      "severity": "warning",
+      "ruleIdentifier": "identifier_name",
+      "ruleDescription": "Variable name 'r' should be between 2 and 50 characters long"
+    },
+    "text": "        let r: Double"
+  },
+  {
+    "violation": {
+      "ruleName": "Identifier Name",
+      "reason": "Variable name 'g' should be between 2 and 50 characters long",
+      "location": {
+        "character": 13,
+        "file": "Packages/NetMonitorCore/Sources/NetMonitorCore/Services/Heatmap/HeatmapRenderer.swift",
+        "line": 332
+      },
+      "severity": "warning",
+      "ruleIdentifier": "identifier_name",
+      "ruleDescription": "Variable name 'g' should be between 2 and 50 characters long"
+    },
+    "text": "        let g: Double"
   }
 ]
