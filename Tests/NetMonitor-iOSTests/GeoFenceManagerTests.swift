@@ -27,7 +27,6 @@ struct GeoFenceManagerTests {
         #if DEBUG
         GeoFenceManager.shared.resetForTesting()
         #endif
-        let manager = GeoFenceManager()
         let tooSmall = GeoFenceEntry(name: "A", latitude: 0, longitude: 0, radius: 10)
         #expect(tooSmall.radius == 100)
 
