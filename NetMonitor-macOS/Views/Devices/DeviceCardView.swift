@@ -7,6 +7,8 @@ struct DeviceCardView: View {
     let device: LocalDevice
     let isSelected: Bool
 
+    @Environment(\.colorScheme) private var colorScheme
+
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 12) {
@@ -119,7 +121,7 @@ struct DeviceCardView: View {
         )
         .shadow(
             color: MacTheme.Shadows.card,
-            radius: MacTheme.Shadows.cardRadius,
+            radius: colorScheme == .dark ? MacTheme.Shadows.cardRadius : MacTheme.Shadows.cardRadiusLight,
             x: 0,
             y: MacTheme.Shadows.cardY
         )
