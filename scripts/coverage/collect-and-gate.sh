@@ -36,20 +36,24 @@ run_xcode_tests() {
   # Override SWIFT_STRICT_CONCURRENCY to minimal for test builds.
   # Production builds use 'complete' but test code has Swift 6 actor-isolation
   # issues with XCUIApplication's @MainActor API that can't be fixed at source.
-  # 'minimal' disables strict Sendable/actor checking while still compiling.
+  # Create a temporary xcconfig to override build settings.
+  local TEMP_XCCONFIG="$BUILD_DIR/test-override.xcconfig"
+  mkdir -p "$BUILD_DIR"
+  echo 'SWIFT_STRICT_CONCURRENCY = minimal' > "$TEMP_XCCONFIG"
+
   xcodebuild test \
     -scheme "$IOS_SCHEME" \
     -destination "$IOS_DESTINATION" \
     -enableCodeCoverage YES \
     -resultBundlePath "$IOS_RESULT" \
-    SWIFT_STRICT_CONCURRENCY=minimal
+    -xcconfig "$TEMP_XCCONFIG"
 
   xcodebuild test \
     -scheme "$MACOS_SCHEME" \
     -destination "$MACOS_DESTINATION" \
     -enableCodeCoverage YES \
     -resultBundlePath "$MACOS_RESULT" \
-    SWIFT_STRICT_CONCURRENCY=minimal
+    -xcconfig "$TEMP_XCCONFIG"
 }
 
 collect_xccov_reports() {
