@@ -4,12 +4,12 @@ import XCTest
 class IOSUITestCase: XCTestCase {
     var app: XCUIApplication!
 
-    override func setUpWithError() throws {
+    override func setUp() async throws {
         continueAfterFailure = false
         app = XCUIApplication()
         addUIInterruptionMonitor(withDescription: "System Alerts") { alert in
             let preferredButtons = [
-                "Don’t Allow", "Don't Allow", "Not Now", "Cancel", "OK", "Allow While Using App", "Allow"
+                "Don't Allow", "Don't Allow", "Not Now", "Cancel", "OK", "Allow While Using App", "Allow"
             ]
 
             for title in preferredButtons {
@@ -34,7 +34,8 @@ class IOSUITestCase: XCTestCase {
         XCTAssertTrue(app.wait(for: .runningForeground, timeout: 10), "App should launch to foreground")
     }
 
-    override func tearDownWithError() throws {
+    override func tearDown() async throws {
+        try await super.tearDown()
         app = nil
     }
 

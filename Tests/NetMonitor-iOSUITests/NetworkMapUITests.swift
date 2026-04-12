@@ -3,8 +3,8 @@ import XCTest
 @MainActor
 final class NetworkMapUITests: IOSUITestCase {
 
-    override func setUpWithError() throws {
-        try super.setUpWithError()
+    override func setUp() async throws {
+        try await super.setUp()
         app.tabBars.buttons["Map"].tap()
     }
 
