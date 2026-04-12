@@ -1,4 +1,5 @@
 import Foundation
+import ZIPFoundation
 
 // MARK: - BlueprintFileError
 

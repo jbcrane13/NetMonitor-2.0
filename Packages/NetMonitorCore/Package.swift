@@ -15,14 +15,16 @@ let package = Package(
     ],
     dependencies: [
         .package(path: "../NetworkScanKit"),
-        .package(url: "https://github.com/getsentry/sentry-cocoa", from: "8.49.0")
+        .package(url: "https://github.com/getsentry/sentry-cocoa", from: "8.49.0"),
+        .package(url: "https://github.com/weichsel/ZIPFoundation", from: "0.9.0")
     ],
     targets: [
         .target(
             name: "NetMonitorCore",
             dependencies: [
                 "NetworkScanKit",
-                .product(name: "Sentry", package: "sentry-cocoa")
+                .product(name: "Sentry", package: "sentry-cocoa"),
+                .product(name: "ZIPFoundation", package: "ZIPFoundation")
             ],
             path: "Sources/NetMonitorCore",
             swiftSettings: [
