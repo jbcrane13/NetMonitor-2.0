@@ -13,10 +13,21 @@ import Foundation
 @MainActor
 struct GeoFenceManagerTests {
 
+    // Reset persisted state before each test to ensure clean slate
+    init() {
+        #if DEBUG
+        GeoFenceManager.shared.resetForTesting()
+        #endif
+    }
+
     // MARK: - GeoFenceEntry Model Tests
 
     @Test("GeoFenceEntry radius is clamped to 100...5000")
     func radiusClampedToValidRange() {
+        #if DEBUG
+        GeoFenceManager.shared.resetForTesting()
+        #endif
+        let manager = GeoFenceManager()
         let tooSmall = GeoFenceEntry(name: "A", latitude: 0, longitude: 0, radius: 10)
         #expect(tooSmall.radius == 100)
 
@@ -142,6 +153,9 @@ struct GeoFenceManagerTests {
 
     @Test("addGeofence appends entry to geofences array")
     func addGeofenceAppendsEntry() {
+        #if DEBUG
+        GeoFenceManager.shared.resetForTesting()
+        #endif
         let manager = GeoFenceManager()
         let entry = GeoFenceEntry(name: "Test", latitude: 0, longitude: 0)
 
@@ -153,6 +167,9 @@ struct GeoFenceManagerTests {
 
     @Test("addGeofence multiple entries accumulate")
     func addMultipleGeofences() {
+        #if DEBUG
+        GeoFenceManager.shared.resetForTesting()
+        #endif
         let manager = GeoFenceManager()
 
         manager.addGeofence(GeoFenceEntry(name: "A", latitude: 0, longitude: 0))
@@ -164,6 +181,9 @@ struct GeoFenceManagerTests {
 
     @Test("removeGeofence removes the correct entry by ID")
     func removeGeofenceByEntry() {
+        #if DEBUG
+        GeoFenceManager.shared.resetForTesting()
+        #endif
         let manager = GeoFenceManager()
         let entry1 = GeoFenceEntry(name: "Keep", latitude: 0, longitude: 0)
         let entry2 = GeoFenceEntry(name: "Remove", latitude: 1, longitude: 1)
@@ -178,6 +198,9 @@ struct GeoFenceManagerTests {
 
     @Test("removeGeofences at IndexSet removes correct entries")
     func removeGeofencesAtOffsets() {
+        #if DEBUG
+        GeoFenceManager.shared.resetForTesting()
+        #endif
         let manager = GeoFenceManager()
         manager.addGeofence(GeoFenceEntry(name: "A", latitude: 0, longitude: 0))
         manager.addGeofence(GeoFenceEntry(name: "B", latitude: 1, longitude: 1))
@@ -192,6 +215,9 @@ struct GeoFenceManagerTests {
 
     @Test("toggleEnabled flips the isEnabled flag")
     func toggleEnabledFlipsFlag() {
+        #if DEBUG
+        GeoFenceManager.shared.resetForTesting()
+        #endif
         let manager = GeoFenceManager()
         let entry = GeoFenceEntry(name: "Toggle", latitude: 0, longitude: 0, isEnabled: true)
         manager.addGeofence(entry)
@@ -208,6 +234,9 @@ struct GeoFenceManagerTests {
 
     @Test("toggleEnabled on nonexistent entry does nothing")
     func toggleEnabledNoopForUnknownEntry() {
+        #if DEBUG
+        GeoFenceManager.shared.resetForTesting()
+        #endif
         let manager = GeoFenceManager()
         let existing = GeoFenceEntry(name: "Exists", latitude: 0, longitude: 0)
         manager.addGeofence(existing)
