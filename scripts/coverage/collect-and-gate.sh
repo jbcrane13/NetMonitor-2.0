@@ -36,7 +36,6 @@ run_xcode_tests() {
   # Production builds use SWIFT_STRICT_CONCURRENCY=complete, but test code
   # has Swift 6 actor-isolation issues with XCUIApplication's @MainActor API
   # that can't be fixed at source level. Override to minimal for test builds.
-  # Pass directly as xcodebuild argument (takes precedence over project settings).
   xcodebuild test \
     -scheme "$IOS_SCHEME" \
     -destination "$IOS_DESTINATION" \
