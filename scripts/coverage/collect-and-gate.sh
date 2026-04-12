@@ -33,27 +33,23 @@ mkdir -p "$BUILD_DIR"
 run_xcode_tests() {
   rm -rf "$IOS_RESULT" "$MACOS_RESULT"
 
-  # Override SWIFT_STRICT_CONCURRENCY to minimal for test builds.
-  # Production builds use 'complete' but test code has Swift 6 actor-isolation
-  # issues with XCUIApplication's @MainActor API that can't be fixed at source.
-  # Create a temporary xcconfig to override build settings.
-  local TEMP_XCCONFIG="$BUILD_DIR/test-override.xcconfig"
-  mkdir -p "$BUILD_DIR"
-  echo 'SWIFT_STRICT_CONCURRENCY = minimal' > "$TEMP_XCCONFIG"
-
+  # Production builds use SWIFT_STRICT_CONCURRENCY=complete, but test code
+  # has Swift 6 actor-isolation issues with XCUIApplication's @MainActor API
+  # that can't be fixed at source level. Override to minimal for test builds.
+  # Pass directly as xcodebuild argument (takes precedence over project settings).
   xcodebuild test \
     -scheme "$IOS_SCHEME" \
     -destination "$IOS_DESTINATION" \
     -enableCodeCoverage YES \
     -resultBundlePath "$IOS_RESULT" \
-    -xcconfig "$TEMP_XCCONFIG"
+    SWIFT_STRICT_CONCURRENCY=minimal
 
   xcodebuild test \
     -scheme "$MACOS_SCHEME" \
     -destination "$MACOS_DESTINATION" \
     -enableCodeCoverage YES \
     -resultBundlePath "$MACOS_RESULT" \
-    -xcconfig "$TEMP_XCCONFIG"
+    SWIFT_STRICT_CONCURRENCY=minimal
 }
 
 collect_xccov_reports() {
