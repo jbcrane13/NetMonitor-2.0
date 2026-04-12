@@ -7,7 +7,6 @@ import Testing
 /// Tests for WakeOnLANService: magic packet construction, MAC address parsing,
 /// invalid MAC handling, broadcast address, and state management.
 /// Network-level send operations require real sockets and are marked as integration.
-@Suite("WakeOnLANService")
 @MainActor
 struct WakeOnLANServiceTests {
 

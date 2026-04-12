@@ -30,6 +30,7 @@ private actor SuccessMonitorService: NetMonitor_macOS.NetworkMonitorService {
         self.latency = latency
         self.isReachable = isReachable
     }
+
     func check(request: TargetCheckRequest) async throws -> MeasurementResult {
         MeasurementResult(
             targetID: request.id,
@@ -90,7 +91,7 @@ private func makeSession(
 
 // MARK: - MonitoringSession extended tests (state / lifecycle)
 
-@Suite("MonitoringSession – extended", .serialized)
+@Suite(.serialized)
 @MainActor
 struct MonitoringSessionExtendedTests {
 
@@ -296,7 +297,8 @@ struct MonitoringSessionExtendedTests {
             timestamp: Date().addingTimeInterval(-10 * 86400), latency: 20, isReachable: true)
         let fresh = TargetMeasurement(
             timestamp: Date().addingTimeInterval(-1 * 86400), latency: 15, isReachable: true)
-        context.insert(stale); context.insert(fresh)
+        context.insert(stale)
+        context.insert(fresh)
         try context.save()
 
         MonitoringSession(modelContext: context).pruneOldMeasurements()
@@ -316,7 +318,8 @@ struct MonitoringSessionExtendedTests {
             timestamp: Date().addingTimeInterval(-2 * 86400), latency: 30, isReachable: false)
         let fresh = TargetMeasurement(
             timestamp: Date().addingTimeInterval(-12 * 3600), latency: 8, isReachable: true)
-        context.insert(stale); context.insert(fresh)
+        context.insert(stale)
+        context.insert(fresh)
         try context.save()
 
         MonitoringSession(modelContext: context).pruneOldMeasurements()
@@ -336,7 +339,8 @@ struct MonitoringSessionExtendedTests {
             timestamp: Date().addingTimeInterval(-35 * 86400), latency: 50, isReachable: true)
         let kept  = TargetMeasurement(
             timestamp: Date().addingTimeInterval(-20 * 86400), latency: 25, isReachable: true)
-        context.insert(stale); context.insert(kept)
+        context.insert(stale)
+        context.insert(kept)
         try context.save()
 
         MonitoringSession(modelContext: context).pruneOldMeasurements()
@@ -372,7 +376,7 @@ struct MonitoringSessionExtendedTests {
 // Each test uses Task.sleep to allow the first loop iteration to complete before
 // asserting, since the loop runs on the cooperative thread pool.
 
-@Suite("MonitoringSession – loop", .serialized)
+@Suite(.serialized)
 @MainActor
 struct MonitoringSessionLoopTests {
 
@@ -384,7 +388,8 @@ struct MonitoringSessionLoopTests {
         let target = NetworkTarget(
             name: "Router", host: "192.168.1.1",
             targetProtocol: .icmp, checkInterval: 60, isEnabled: true)
-        context.insert(target); try context.save()
+        context.insert(target)
+        try context.save()
 
         let stub = SuccessMonitorService(latency: 42.0)
         let session = makeSession(context: context, stub: stub)
@@ -405,7 +410,8 @@ struct MonitoringSessionLoopTests {
         let target = NetworkTarget(
             name: "DNS", host: "8.8.8.8",
             targetProtocol: .icmp, checkInterval: 60, isEnabled: true)
-        context.insert(target); try context.save()
+        context.insert(target)
+        try context.save()
 
         let stub = SuccessMonitorService(latency: 15.0)
         let session = makeSession(context: context, stub: stub)
@@ -501,7 +507,8 @@ struct MonitoringSessionLoopTests {
         let target = NetworkTarget(
             name: "Flaky Host", host: "10.0.0.1",
             targetProtocol: .icmp, checkInterval: 60, isEnabled: true)
-        context.insert(target); try context.save()
+        context.insert(target)
+        try context.save()
 
         let session = makeSession(context: context, stub: ThrowingMonitorService(error: URLError(.timedOut)))
         session.startMonitoring()
@@ -523,7 +530,8 @@ struct MonitoringSessionLoopTests {
         let target = NetworkTarget(
             name: "Down Host", host: "10.10.10.10",
             targetProtocol: .icmp, checkInterval: 60, isEnabled: true)
-        context.insert(target); try context.save()
+        context.insert(target)
+        try context.save()
 
         let session = makeSession(context: context, stub: UnreachableMonitorService())
         session.startMonitoring()
@@ -545,7 +553,8 @@ struct MonitoringSessionLoopTests {
             targetProtocol: .icmp,
             checkInterval: 0, // no delay between iterations
             isEnabled: true)
-        context.insert(target); try context.save()
+        context.insert(target)
+        try context.save()
 
         let session = makeSession(context: context, stub: SuccessMonitorService(latency: 10.0))
         session.startMonitoring()
@@ -567,7 +576,8 @@ struct MonitoringSessionLoopTests {
             targetProtocol: .icmp,
             checkInterval: 0,
             isEnabled: true)
-        context.insert(target); try context.save()
+        context.insert(target)
+        try context.save()
 
         let session = makeSession(context: context, stub: SuccessMonitorService(latency: 5.0))
         session.startMonitoring()
@@ -627,7 +637,8 @@ struct MonitoringSessionLoopTests {
         let target = NetworkTarget(
             name: "Router", host: "192.168.1.1",
             targetProtocol: .icmp, checkInterval: 60, isEnabled: true)
-        context.insert(target); try context.save()
+        context.insert(target)
+        try context.save()
 
         let session = makeSession(context: context, stub: SuccessMonitorService(latency: 20.0))
         session.startMonitoring()
@@ -650,7 +661,8 @@ struct MonitoringSessionLoopTests {
         let enabled  = NetworkTarget(
             name: "Enabled", host: "192.168.1.1",
             targetProtocol: .icmp, checkInterval: 60, isEnabled: true)
-        context.insert(disabled); context.insert(enabled)
+        context.insert(disabled)
+        context.insert(enabled)
         try context.save()
 
         let session = makeSession(context: context, stub: SuccessMonitorService(latency: 30.0))

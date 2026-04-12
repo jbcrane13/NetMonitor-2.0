@@ -4,7 +4,6 @@ import Foundation
 @testable import NetMonitorCore
 
 /// Tests for the restoreSelectedNetwork helper function in SharedViewModelHelpers.
-@Suite("restoreSelectedNetwork")
 @MainActor
 struct RestoreSelectedNetworkTests {
 

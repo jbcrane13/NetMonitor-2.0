@@ -4,7 +4,6 @@ import Foundation
 import NetMonitorCore
 import NetworkScanKit
 
-@Suite("NetworkMapViewModel")
 @MainActor
 struct NetworkMapViewModelTests {
 

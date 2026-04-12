@@ -2,7 +2,6 @@ import Testing
 import NetMonitorCore
 @testable import NetMonitor_macOS
 
-@Suite("DefaultTargetsProvider")
 struct DefaultTargetsProviderTests {
 
     @Test func userDefaultsKeyValue() {

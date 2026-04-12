@@ -2,7 +2,6 @@ import Foundation
 import Testing
 @testable import NetMonitorCore
 
-@Suite("NetworkError.errorDescription")
 struct NetworkErrorDescriptionTests {
     @Test func timeout() {
         #expect(NetworkError.timeout.errorDescription == "Connection timed out")
@@ -49,7 +48,6 @@ struct NetworkErrorDescriptionTests {
     }
 }
 
-@Suite("NetworkError.userFacingMessage")
 struct NetworkErrorUserFacingMessageTests {
     @Test func timeout() {
         #expect(NetworkError.timeout.userFacingMessage == "The connection timed out. Please check the host and try again.")
@@ -96,7 +94,6 @@ struct NetworkErrorUserFacingMessageTests {
     }
 }
 
-@Suite("NetworkError.from")
 struct NetworkErrorFromTests {
     @Test func preservesNetworkErrorIdentity() {
         let cases: [NetworkError] = [

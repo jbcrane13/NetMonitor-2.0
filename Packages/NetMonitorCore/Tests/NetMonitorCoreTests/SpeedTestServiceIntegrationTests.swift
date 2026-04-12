@@ -10,7 +10,6 @@ import Testing
 /// This means the user sees "0 ms" latency instead of an error message when the server
 /// is unreachable. The download/upload phases will also return 0 in that scenario.
 /// Fix path: change measureLatency to throw when all iterations fail.
-@Suite("SpeedTestService Integration Tests")
 @MainActor
 struct SpeedTestServiceIntegrationTests {
 
@@ -73,7 +72,6 @@ struct SpeedTestServiceIntegrationTests {
 
 // MARK: - SpeedTestError Tests
 
-@Suite("SpeedTestError")
 struct SpeedTestErrorTests {
 
     @Test("serverError has descriptive error message")
@@ -113,7 +111,6 @@ struct SpeedTestErrorTests {
 
 // MARK: - AtomicInt64 Concurrent Safety
 
-@Suite("AtomicInt64 - Concurrent Safety")
 struct AtomicInt64ConcurrentTests {
 
     @Test("Concurrent increments produce correct total")

@@ -3,7 +3,7 @@ import Foundation
 @testable import NetMonitor_iOS
 import NetMonitorCore
 
-@Suite("PingToolViewModel", .serialized)
+@Suite(.serialized)
 @MainActor
 struct PingToolViewModelTests {
 
@@ -101,7 +101,6 @@ struct PingToolViewModelTests {
 
 // MARK: - Live Stats Computation
 
-@Suite("PingToolViewModel - Live Stats")
 @MainActor
 struct PingToolViewModelLiveStatsTests {
 
@@ -191,7 +190,6 @@ struct PingToolViewModelLiveStatsTests {
 
 // MARK: - chartYAxisMax Distribution Tests
 
-@Suite("PingToolViewModel - chartYAxisMax")
 @MainActor
 struct PingToolViewModelChartYAxisMaxTests {
 
@@ -269,7 +267,6 @@ struct PingToolViewModelChartYAxisMaxTests {
 
 // MARK: - successfulPings Filter Tests
 
-@Suite("PingToolViewModel - successfulPings")
 @MainActor
 struct PingToolViewModelSuccessfulPingsTests {
 
@@ -317,7 +314,7 @@ struct PingToolViewModelSuccessfulPingsTests {
 
 // MARK: - startPing/stopPing Lifecycle Tests
 
-@Suite("PingToolViewModel - Ping Lifecycle", .serialized)
+@Suite(.serialized)
 @MainActor
 struct PingToolViewModelLifecycleTests {
 
@@ -397,7 +394,6 @@ struct PingToolViewModelLifecycleTests {
 
 // MARK: - pingCount UserDefaults Persistence Tests
 
-@Suite("PingToolViewModel - pingCount Persistence")
 @MainActor
 struct PingToolViewModelPingCountTests {
 

@@ -4,7 +4,6 @@ import NetMonitorCore
 
 // MARK: - NetworkInfoError Tests
 
-@Suite("NetworkInfoError Descriptions")
 struct NetworkInfoErrorTests {
 
     @Test func permissionDeniedDescription() {
@@ -25,7 +24,6 @@ struct NetworkInfoErrorTests {
 
 // MARK: - ConnectionInfo Tests
 
-@Suite("ConnectionInfo")
 struct ConnectionInfoTests {
 
     @Test func wifiConnectionInitialization() {

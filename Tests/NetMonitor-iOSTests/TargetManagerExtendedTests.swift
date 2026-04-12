@@ -8,7 +8,6 @@ import Testing
 // This suite adds tests that focus on edge cases not covered there:
 // duplicate prevention, sequence ordering, and clearSelection semantics.
 
-@Suite("TargetManager Extended")
 @MainActor
 struct TargetManagerExtendedTests {
 

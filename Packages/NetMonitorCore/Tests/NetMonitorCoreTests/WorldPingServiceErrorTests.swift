@@ -8,7 +8,7 @@ import Testing
 /// The fix (Bead NetMonitor-2.0-50j): on error, the service now finishes the
 /// stream empty and sets `lastError`, allowing the ViewModel's existing
 /// `results.isEmpty` check to correctly trigger `errorMessage`.
-@Suite("WorldPingService — Error Surfacing", .serialized)
+@Suite(.serialized)
 struct WorldPingServiceErrorTests {
 
     init() { MockURLProtocol.requestHandler = nil }

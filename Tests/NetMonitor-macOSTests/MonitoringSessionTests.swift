@@ -4,7 +4,7 @@ import Testing
 import NetMonitorCore
 @testable import NetMonitor_macOS
 
-@Suite("MonitoringSession", .serialized)
+@Suite(.serialized)
 @MainActor
 struct MonitoringSessionTests {
 

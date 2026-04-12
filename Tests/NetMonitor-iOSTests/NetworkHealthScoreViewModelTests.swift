@@ -57,7 +57,6 @@ private final class MockNetworkMonitor: NetworkMonitorServiceProtocol, @unchecke
 
 // MARK: - Tests
 
-@Suite("NetworkHealthScoreViewModel")
 @MainActor
 struct NetworkHealthScoreViewModelTests {
 
@@ -112,7 +111,6 @@ struct NetworkHealthScoreViewModelTests {
 
 // MARK: - Async Refresh Tests
 
-@Suite("NetworkHealthScoreViewModel Refresh")
 @MainActor
 struct NetworkHealthScoreViewModelRefreshTests {
 

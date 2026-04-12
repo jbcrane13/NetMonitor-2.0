@@ -1,7 +1,6 @@
 import Testing
 @testable import NetworkScanKit
 
-@Suite("ScanContext")
 struct ScanContextTests {
 
     @Test("init stores hosts correctly")

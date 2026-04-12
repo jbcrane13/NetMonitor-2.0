@@ -4,7 +4,7 @@ import UserNotifications
 
 // MARK: - GeoFence Models
 
-struct GeoFenceEntry: Codable, Identifiable, Sendable {
+struct GeoFenceEntry: Codable, Identifiable {
     var id: UUID
     var name: String
     var latitude: Double
@@ -32,7 +32,7 @@ struct GeoFenceEntry: Codable, Identifiable, Sendable {
     }
 }
 
-enum GeoFenceTrigger: String, Codable, CaseIterable, Sendable {
+enum GeoFenceTrigger: String, Codable, CaseIterable {
     case enter
     case exit
     case both
@@ -46,7 +46,7 @@ enum GeoFenceTrigger: String, Codable, CaseIterable, Sendable {
     }
 }
 
-struct GeoFenceEvent: Sendable {
+struct GeoFenceEvent {
     let geofenceName: String
     let trigger: GeoFenceTrigger
     let timestamp: Date

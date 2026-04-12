@@ -5,7 +5,6 @@ import SwiftData
 
 // MARK: - NavigationSection Tests
 
-@Suite("NavigationSection")
 struct NavigationSectionTests {
 
     @Test("NavigationSection has all expected cases")
@@ -39,7 +38,6 @@ struct NavigationSectionTests {
 
 // MARK: - MeasurementStatistics Tests
 
-@Suite("MeasurementStatistics")
 struct MeasurementStatisticsTests {
 
     @Test("MeasurementStatistics with all nil values formats as dash")
@@ -92,7 +90,6 @@ struct MeasurementStatisticsTests {
 
 // MARK: - ToolActivityItem Tests
 
-@Suite("ToolActivityItem")
 struct ToolActivityItemTests {
 
     @Test("ToolActivityItem init stores properties")
@@ -136,7 +133,6 @@ struct ToolActivityItemTests {
 
 // MARK: - ToolActivityLog Tests
 
-@Suite("ToolActivityLog")
 struct ToolActivityLogTests {
 
     @Test("ToolActivityLog add inserts entry at front")
@@ -273,7 +269,6 @@ struct ToolActivityLogTests {
 
 // MARK: - MonitoringTarget Tests
 
-@Suite("MonitoringTarget")
 struct MonitoringTargetTests {
 
     private func makeContainer() throws -> ModelContainer {
@@ -495,7 +490,6 @@ struct MonitoringTargetTests {
 
 // MARK: - PairedMac Tests
 
-@Suite("PairedMac")
 struct PairedMacTests {
 
     private func makeContainer() throws -> ModelContainer {
@@ -576,7 +570,6 @@ struct PairedMacTests {
 
 // MARK: - SessionRecord Tests
 
-@Suite("SessionRecord")
 struct SessionRecordTests {
 
     private func makeContainer() throws -> ModelContainer {
@@ -613,7 +606,6 @@ struct SessionRecordTests {
 
 // MARK: - LocalDevice Tests
 
-@Suite("LocalDevice")
 struct LocalDeviceTests {
 
     private func makeContainer() throws -> ModelContainer {
@@ -813,7 +805,6 @@ struct LocalDeviceTests {
 
 // MARK: - NetworkTarget Tests
 
-@Suite("NetworkTarget")
 struct NetworkTargetTests {
 
     private func makeContainer() throws -> ModelContainer {
@@ -875,7 +866,6 @@ struct NetworkTargetTests {
 
 // MARK: - TargetMeasurement.calculateStatistics with data
 
-@Suite("TargetMeasurement.calculateStatistics")
 struct TargetMeasurementStatisticsTests {
 
     private func makeContainer() throws -> ModelContainer {
@@ -944,7 +934,6 @@ struct TargetMeasurementStatisticsTests {
 
 // MARK: - ToolResult Tests
 
-@Suite("ToolResult")
 struct ToolResultTests {
 
     private func makeContainer() throws -> ModelContainer {
@@ -998,7 +987,6 @@ struct ToolResultTests {
 
 // MARK: - SpeedTestResult Tests
 
-@Suite("SpeedTestResult")
 struct SpeedTestResultTests {
 
     private func makeContainer() throws -> ModelContainer {

@@ -4,7 +4,6 @@ import NetMonitorCore
 
 // MARK: - TargetProtocol Icon Names (EnumExtensions.swift)
 
-@Suite("TargetProtocol Icon Names")
 struct EnumExtensionsTests {
 
     @Test func httpIconName() {
@@ -26,7 +25,6 @@ struct EnumExtensionsTests {
 
 // MARK: - ToolError Descriptions (ShellCommandRunner.swift)
 
-@Suite("ToolError Descriptions")
 struct ToolErrorTests {
 
     @Test func commandNotFoundDescription() {

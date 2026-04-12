@@ -2,7 +2,6 @@ import Foundation
 import Testing
 @testable import NetMonitorCore
 
-@Suite("SSLCertificateService")
 struct SSLCertificateServiceTests {
 
     // SSLCertificateService.sanitizeDomain is private, so we test its observable

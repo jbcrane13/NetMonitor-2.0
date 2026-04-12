@@ -8,7 +8,6 @@ private let fixedDate = Date(timeIntervalSinceReferenceDate: 1_000_000.0)
 
 // MARK: - Codable Round-Trip
 
-@Suite("CompanionMessage Codable Round-Trip")
 struct CompanionMessageCodableTests {
     @Test func heartbeatRoundTrip() throws {
         let payload = HeartbeatPayload(timestamp: fixedDate, version: "2.0")
@@ -195,7 +194,6 @@ struct CompanionMessageCodableTests {
 
 // MARK: - Length-Prefixed Framing
 
-@Suite("CompanionMessage.encodeLengthPrefixed")
 struct CompanionMessageLengthPrefixedTests {
     @Test func prefixMatchesJSONPayloadLength() throws {
         let payload = HeartbeatPayload(timestamp: fixedDate, version: "1.0")
@@ -244,7 +242,6 @@ struct CompanionMessageLengthPrefixedTests {
 
 // MARK: - CommandAction Coverage
 
-@Suite("CommandAction")
 struct CommandActionTests {
     @Test func allCommandActionsEncodeAndDecodeRoundTrip() throws {
         let actions: [CommandAction] = [
@@ -268,7 +265,6 @@ struct CommandActionTests {
 
 // MARK: - CompanionMessage Additional Cases
 
-@Suite("CompanionMessage Additional Cases")
 struct CompanionMessageAdditionalCasesTests {
 
     private let fixedDate = Date(timeIntervalSinceReferenceDate: 1_000_000.0)

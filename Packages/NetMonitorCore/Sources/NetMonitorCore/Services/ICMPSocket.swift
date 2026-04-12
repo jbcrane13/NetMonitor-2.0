@@ -5,7 +5,7 @@ private let icmpLog = Logger(subsystem: "com.netmonitor", category: "ICMPSocket"
 
 // MARK: - ICMP Types & Constants
 
-enum ICMPError: Error, Sendable {
+enum ICMPError: Error {
     case socketCreationFailed
     // periphery:ignore
     case invalidAddress
@@ -13,15 +13,15 @@ enum ICMPError: Error, Sendable {
     case sendFailed
 }
 
-enum ICMPType: UInt8, Sendable {
+enum ICMPType: UInt8 {
     case echoReply = 0
     case echoRequest = 8
     case timeExceeded = 11
 }
 
 /// Parsed ICMP response from a ping or traceroute probe.
-struct ICMPResponse: Sendable {
-    enum Kind: Sendable {
+struct ICMPResponse {
+    enum Kind {
         case echoReply(sequence: UInt16)
         case timeExceeded(routerIP: String, originalSequence: UInt16)
         case timeout

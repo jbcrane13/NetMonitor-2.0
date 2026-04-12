@@ -22,7 +22,6 @@ private final class SucceedingISPService: ISPLookupServiceProtocol, @unchecked S
 
 // MARK: - ISPCardViewModel error surfacing tests
 
-@Suite("ISPCardViewModel – error surfacing")
 @MainActor
 struct ISPCardViewModelErrorTests {
 
@@ -51,7 +50,6 @@ struct ISPCardViewModelErrorTests {
 
 // MARK: - ConnectivityCardViewModel error surfacing tests
 
-@Suite("ConnectivityCardViewModel – error surfacing")
 @MainActor
 struct ConnectivityCardViewModelErrorTests {
 

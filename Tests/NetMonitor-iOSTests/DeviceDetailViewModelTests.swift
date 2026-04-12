@@ -4,7 +4,6 @@ import Testing
 @testable import NetMonitor_iOS
 import NetMonitorCore
 
-@Suite("DeviceDetailViewModel")
 @MainActor
 struct DeviceDetailViewModelTests {
     @Test func loadDeviceCreatesRecordWhenNoExistingDevice() throws {

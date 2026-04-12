@@ -1,7 +1,6 @@
 import Testing
 @testable import NetworkScanKit
 
-@Suite("IPv4Helpers")
 struct IPv4HelpersTests {
 
     // MARK: - isValidIPv4Address

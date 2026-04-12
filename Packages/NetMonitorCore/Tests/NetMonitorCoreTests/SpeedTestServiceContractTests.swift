@@ -13,7 +13,6 @@ import Testing
 /// to enable full contract testing with MockURLProtocol fixture responses.
 ///
 /// Tests here cover: initial state, cancellation correctness, and stopTest() semantics.
-@Suite("SpeedTestService - Cancellation & State")
 @MainActor
 struct SpeedTestServiceCancellationTests {
 

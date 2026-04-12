@@ -4,7 +4,6 @@ import SwiftData
 @testable import NetMonitor_iOS
 import NetMonitorCore
 
-@Suite("SettingsViewModel")
 @MainActor
 struct SettingsViewModelTests {
 
@@ -137,7 +136,6 @@ struct SettingsViewModelTests {
 
 // MARK: - Additional Edge Case Tests
 
-@Suite("SettingsViewModel Additional")
 @MainActor
 struct SettingsViewModelAdditionalTests {
 
@@ -203,7 +201,6 @@ struct SettingsViewModelAdditionalTests {
 
 // MARK: - Data Management Tests
 
-@Suite("SettingsViewModel Data Management")
 @MainActor
 struct SettingsViewModelDataManagementTests {
 

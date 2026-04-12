@@ -7,7 +7,6 @@ import Testing
 /// Tests for ShellCommandRunner: command execution, error handling, timeout, streaming,
 /// and cancellation. All tests use simple system commands (echo, cat, sleep) to avoid
 /// external dependencies.
-@Suite("ShellCommandRunner")
 struct ShellCommandRunnerTests {
 
     // MARK: - Run simple command

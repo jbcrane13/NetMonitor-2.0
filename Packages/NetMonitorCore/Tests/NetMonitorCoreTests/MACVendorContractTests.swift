@@ -11,7 +11,6 @@ import Testing
 ///
 /// Resolution path: add `init(session: URLSession)` to MACVendorLookupService
 /// to enable full contract testing with MockURLProtocol fixture responses.
-@Suite("MACVendorLookupService Contract Tests")
 struct MACVendorContractTests {
 
     // MARK: - Local OUI Database Lookup (the testable code path)

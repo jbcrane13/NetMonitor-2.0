@@ -5,7 +5,6 @@ import Testing
 /// The sysctl-based ARP cache reading and UDP probe sending require a live
 /// network interface and cannot be reliably tested in isolation.
 /// These tests verify the public API surface and type safety.
-@Suite("ARPCacheScanner")
 struct ARPCacheScannerTests {
 
     // MARK: - readARPCache returns a typed result

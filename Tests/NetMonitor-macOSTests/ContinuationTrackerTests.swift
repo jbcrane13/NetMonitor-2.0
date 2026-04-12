@@ -1,7 +1,6 @@
 import Testing
 @testable import NetMonitor_macOS
 
-@Suite("ContinuationTracker")
 struct ContinuationTrackerTests {
 
     @Test func initialStateIsNotResumed() {
@@ -82,7 +81,6 @@ struct ContinuationTrackerTests {
 
 // MARK: - ContinuationTracker Extended Tests
 
-@Suite("ContinuationTracker Extended")
 struct ContinuationTrackerExtendedTests {
 
     @Test func concurrentRegistrationSafetyUnderHighContention() async {

@@ -4,7 +4,6 @@ import Foundation
 
 /// Tests for TracerouteService state and TracerouteHop model logic.
 /// Network-dependent tracing (ICMPSocket, DNS resolution) is excluded.
-@Suite("TracerouteService")
 struct TracerouteServiceTests {
 
     // MARK: - Regression: "only 1 hop" (NetMonitor-2.0-7w6)

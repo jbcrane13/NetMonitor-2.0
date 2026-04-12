@@ -3,7 +3,6 @@ import Testing
 
 /// Additional ScanPipeline and ScanEngine integration tests.
 /// Does NOT duplicate tests already in ScanPipelineTests.swift or ScanEngineTests.swift.
-@Suite("ScanPipeline integration")
 struct ScanPipelineIntegrationTests {
 
     // MARK: - Phase weight computation

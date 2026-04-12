@@ -16,7 +16,6 @@ private final class StubWHOISService: WHOISServiceProtocol, @unchecked Sendable 
     }
 }
 
-@Suite("CertificateExpirationTracker")
 struct CertificateExpirationTrackerTests {
 
     private func makeDefaults() -> (UserDefaults, String) {

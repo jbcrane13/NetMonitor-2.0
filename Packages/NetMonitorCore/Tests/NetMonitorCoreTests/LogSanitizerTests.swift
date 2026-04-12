@@ -6,7 +6,6 @@ import Testing
 // Redaction behaviour (#if !DEBUG) is documented via comment and verified
 // by integration CI that builds in Release configuration.
 
-@Suite("LogSanitizer")
 struct LogSanitizerTests {
 
     // MARK: - redactIP (debug: passthrough)

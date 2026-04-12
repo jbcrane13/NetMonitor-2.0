@@ -17,7 +17,7 @@ import NetMonitorCore
 //   3. Fall back to any target with any recentLatencies data
 //   4. Return [] if session is nil or recentLatencies is empty
 
-@Suite("GatewayLatencyFallback — MonitoringSession.recentLatencies backing store", .serialized)
+@Suite(.serialized)
 @MainActor
 struct GatewayLatencyFallbackTests {
 

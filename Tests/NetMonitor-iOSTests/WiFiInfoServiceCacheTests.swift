@@ -4,7 +4,6 @@ import NetMonitorCore
 
 // MARK: - WiFiInfoService TTL Cache Tests (VAL-IOS-039)
 
-@Suite("WiFiInfoService TTL Cache")
 @MainActor
 struct WiFiInfoServiceCacheTests {
 

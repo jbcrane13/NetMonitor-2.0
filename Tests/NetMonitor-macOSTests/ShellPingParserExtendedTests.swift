@@ -3,7 +3,6 @@ import Testing
 
 // MARK: - ShellPingOutputParser Extended Tests
 
-@Suite("ShellPingOutputParser - Extended")
 struct ShellPingParserExtendedTests {
 
     // MARK: - IPv6 Output Parsing

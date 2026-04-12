@@ -28,7 +28,6 @@ private final class MockScanSchedulerService: ScanSchedulerServiceProtocol {
 
 // MARK: - Tests
 
-@Suite("ScheduledScanViewModel")
 @MainActor
 struct ScheduledScanViewModelTests {
 

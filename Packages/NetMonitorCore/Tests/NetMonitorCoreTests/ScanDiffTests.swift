@@ -5,7 +5,6 @@ import NetworkScanKit
 
 // MARK: - ScanDiff Computed Property Tests (6D)
 
-@Suite("ScanDiff")
 struct ScanDiffTests {
 
     private func makeDevice(ip: String, mac: String? = nil, hostname: String? = nil) -> DiscoveredDevice {

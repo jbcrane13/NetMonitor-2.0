@@ -1,7 +1,6 @@
 import Testing
 @testable import NetMonitorCore
 
-@Suite("NetworkHealthScoreService")
 struct NetworkHealthScoreServiceTests {
 
     // MARK: - computeScore (pure static function)

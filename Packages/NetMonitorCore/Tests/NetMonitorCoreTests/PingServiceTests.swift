@@ -3,7 +3,6 @@ import Foundation
 @testable import NetMonitorCore
 
 /// Tests for PingService.calculateStatistics — pure computation, no network I/O.
-@Suite("PingService.calculateStatistics")
 struct PingServiceTests {
 
     // MARK: - Helpers

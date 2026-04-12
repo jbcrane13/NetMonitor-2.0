@@ -214,7 +214,6 @@ private final class MockWorldPingServiceSwift: WorldPingServiceProtocol, @unchec
     }
 }
 
-@Suite("WorldPingToolViewModel Edge Cases")
 @MainActor
 struct WorldPingToolViewModelEdgeCaseTests {
 

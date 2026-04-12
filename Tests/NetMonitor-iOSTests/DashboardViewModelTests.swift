@@ -4,7 +4,6 @@ import Foundation
 import NetMonitorCore
 import NetworkScanKit
 
-@Suite("DashboardViewModel")
 @MainActor
 struct DashboardViewModelTests {
 
@@ -277,7 +276,7 @@ struct DashboardViewModelTests {
 
 // MARK: - Event Logging Dedup Tests
 
-@Suite("DashboardViewModel Event Logging", .serialized)
+@Suite(.serialized)
 @MainActor
 struct DashboardViewModelEventLoggingTests {
 

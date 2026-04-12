@@ -15,7 +15,6 @@ import NetMonitorCore
 // The NetworkHealthScoreService lives in NetMonitorCore package, so we test the
 // full observable behavior via update() + calculateScore().
 
-@Suite("NetworkHealthScoreService – computeScore (via update+calculateScore)")
 struct NetworkHealthScoreComputeScoreTests {
 
     // MARK: No data
@@ -299,7 +298,6 @@ struct NetworkHealthScoreComputeScoreTests {
 //   latency 30ms + dns 20ms → Int(50/55*100)=90 → A (boundary 90)
 //   latency 30ms + dns 50ms → Int(45/55*100)=81 → B
 
-@Suite("NetworkHealthScoreService – grade thresholds")
 struct NetworkHealthScoreGradeTests {
 
     // Parameterized: latency-only inputs that produce scores in each grade band.
@@ -386,7 +384,6 @@ struct NetworkHealthScoreGradeTests {
 
 // MARK: - NetworkHealthScoreService returned model fields
 
-@Suite("NetworkHealthScoreService – NetworkHealthScore model fields")
 struct NetworkHealthScoreModelFieldTests {
 
     @Test func latencyMsPropagatesToResult() async {

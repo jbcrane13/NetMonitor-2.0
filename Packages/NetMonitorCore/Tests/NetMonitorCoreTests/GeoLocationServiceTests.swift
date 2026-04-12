@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import NetMonitorCore
 
-@Suite("GeoLocationService", .serialized)
+@Suite(.serialized)
 struct GeoLocationServiceTests {
 
     // MARK: - GeoLocation model

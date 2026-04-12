@@ -4,7 +4,6 @@ import Foundation
 
 // MARK: - PingIntent Tests
 
-@Suite("PingIntent")
 @MainActor
 struct PingIntentTests {
 
@@ -42,7 +41,6 @@ struct PingIntentTests {
 
 // MARK: - ScanNetworkIntent Tests
 
-@Suite("ScanNetworkIntent")
 @MainActor
 struct ScanNetworkIntentTests {
 
@@ -61,7 +59,6 @@ struct ScanNetworkIntentTests {
 
 // MARK: - SpeedTestIntent Tests
 
-@Suite("SpeedTestIntent")
 @MainActor
 struct SpeedTestIntentTests {
 
@@ -80,7 +77,6 @@ struct SpeedTestIntentTests {
 
 // MARK: - NetworkStatusIntent Tests
 
-@Suite("NetworkStatusIntent")
 @MainActor
 struct NetworkStatusIntentTests {
 
@@ -99,7 +95,6 @@ struct NetworkStatusIntentTests {
 
 // MARK: - NetMonitorShortcuts Tests
 
-@Suite("NetMonitorShortcuts")
 @MainActor
 struct NetMonitorShortcutsTests {
 

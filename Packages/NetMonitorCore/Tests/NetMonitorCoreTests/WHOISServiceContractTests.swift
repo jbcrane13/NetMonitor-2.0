@@ -8,7 +8,6 @@ import Testing
 ///
 /// The parse helpers are internal (nonisolated) so they can be called synchronously
 /// without actor isolation.
-@Suite("WHOISService Contract Tests")
 struct WHOISServiceContractTests {
 
     // MARK: - Fixture loading
@@ -188,7 +187,6 @@ struct WHOISServiceContractTests {
 
 /// Integration tests — require real network access to a WHOIS server.
 /// Tagged .integration so they can be excluded in offline CI environments.
-@Suite("WHOISService Integration Tests")
 struct WHOISServiceIntegrationTests {
 
     @Test("Real WHOIS lookup for google.com returns non-empty response", .tags(.integration))

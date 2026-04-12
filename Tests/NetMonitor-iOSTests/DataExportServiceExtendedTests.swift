@@ -12,7 +12,6 @@ import NetMonitorCore
 //   - JSON valid output (parseable, correct field presence)
 //   - Empty data handling for all entity types
 
-@Suite("DataExportService Extended")
 struct DataExportServiceExtendedTests {
 
     // MARK: - Helpers

@@ -4,7 +4,6 @@ import Foundation
 
 // MARK: - WorldPingCheckResult Tests
 
-@Suite("WorldPingCheckResult")
 struct WorldPingCheckResultTests {
 
     // MARK: - Init and Properties

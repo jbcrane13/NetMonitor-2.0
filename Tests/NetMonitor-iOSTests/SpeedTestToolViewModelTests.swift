@@ -4,7 +4,6 @@ import SwiftData
 @testable import NetMonitor_iOS
 import NetMonitorCore
 
-@Suite("SpeedTestToolViewModel")
 @MainActor
 struct SpeedTestToolViewModelTests {
 
@@ -105,7 +104,6 @@ struct SpeedTestToolViewModelTests {
 
 // MARK: - Peak Speed & Jitter Tests
 
-@Suite("SpeedTestToolViewModel Peak Speeds & Jitter")
 @MainActor
 struct SpeedTestToolViewModelPeakJitterTests {
 
@@ -148,7 +146,6 @@ struct SpeedTestToolViewModelPeakJitterTests {
 
 // MARK: - Error & Edge Case Tests
 
-@Suite("SpeedTestToolViewModel Error & Edge Cases")
 @MainActor
 struct SpeedTestToolViewModelErrorTests {
 
@@ -214,7 +211,6 @@ struct SpeedTestToolViewModelErrorTests {
 
 // MARK: - Jitter, Persistence & startTest Tests
 
-@Suite("SpeedTestToolViewModel startTest")
 @MainActor
 struct SpeedTestToolViewModelStartTestTests {
 

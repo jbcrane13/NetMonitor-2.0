@@ -6,7 +6,7 @@ import NetworkScanKit
 // .serialized: prevents parallel test execution within this suite.
 // ScanSchedulerService persists baseline to UserDefaults.standard — parallel
 // tests race on that shared key, causing state bleed between tests.
-@Suite("ScanSchedulerService", .serialized)
+@Suite(.serialized)
 struct ScanSchedulerServiceTests {
 
     /// Runs before each test (Swift Testing creates a fresh struct per @Test).

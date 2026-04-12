@@ -3,7 +3,6 @@ import Foundation
 @testable import NetMonitor_iOS
 import NetMonitorCore
 
-@Suite("DNSLookupToolViewModel")
 @MainActor
 struct DNSLookupToolViewModelTests {
 
@@ -101,7 +100,6 @@ struct DNSLookupToolViewModelTests {
 
 // MARK: - Error & Edge Case Tests
 
-@Suite("DNSLookupToolViewModel Error & Edge Cases")
 @MainActor
 struct DNSLookupToolViewModelErrorTests {
 

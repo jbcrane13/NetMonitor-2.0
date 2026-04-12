@@ -1,7 +1,6 @@
 import Testing
 @testable import NetMonitor_macOS
 
-@Suite("WakeOnLanAction")
 @MainActor
 struct WakeOnLanActionTests {
 
