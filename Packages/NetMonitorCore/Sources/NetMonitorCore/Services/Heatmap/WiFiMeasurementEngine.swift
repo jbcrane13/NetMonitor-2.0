@@ -3,8 +3,8 @@ import Foundation
 // MARK: - WiFiMeasurementEngine
 
 public actor WiFiMeasurementEngine: HeatmapServiceProtocol {
-    nonisolated(unsafe) private let wifiService: any WiFiInfoServiceProtocol
-    nonisolated(unsafe) private let speedTestService: any SpeedTestServiceProtocol
+    private let wifiService: any WiFiInfoServiceProtocol
+    private let speedTestService: any SpeedTestServiceProtocol
     private let pingService: any PingServiceProtocol
 
     public var gatewayHost: String = "192.168.1.1"

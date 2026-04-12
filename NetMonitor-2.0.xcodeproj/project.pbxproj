@@ -2373,8 +2373,8 @@
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.NetMonitor-macOSTests";
 				SDKROOT = macosx;
-				SWIFT_STRICT_CONCURRENCY = complete;
-				SWIFT_VERSION = 6.0;
+				SWIFT_STRICT_CONCURRENCY = none;
+				SWIFT_VERSION = 5.0;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/NetMonitor-macOS.app/Contents/MacOS/NetMonitor-macOS";
 			};
 			name = Release;
@@ -2394,8 +2394,8 @@
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.NetMonitor-macOSTests";
 				SDKROOT = macosx;
-				SWIFT_STRICT_CONCURRENCY = complete;
-				SWIFT_VERSION = 6.0;
+				SWIFT_STRICT_CONCURRENCY = none;
+				SWIFT_VERSION = 5.0;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/NetMonitor-macOS.app/Contents/MacOS/NetMonitor-macOS";
 			};
 			name = Debug;
@@ -2415,8 +2415,8 @@
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.NetMonitor-macOSUITests";
 				SDKROOT = macosx;
-				SWIFT_STRICT_CONCURRENCY = complete;
-				SWIFT_VERSION = 6.0;
+				SWIFT_STRICT_CONCURRENCY = none;
+				SWIFT_VERSION = 5.0;
 				TEST_TARGET_NAME = "NetMonitor-macOS";
 			};
 			name = Release;
@@ -2435,8 +2435,8 @@
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = "com.NetMonitor-iOSTests";
 				SDKROOT = iphoneos;
-				SWIFT_STRICT_CONCURRENCY = complete;
-				SWIFT_VERSION = 6.0;
+				SWIFT_STRICT_CONCURRENCY = none;
+				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/NetMonitor-iOS.app/NetMonitor-iOS";
 			};
@@ -2456,8 +2456,8 @@
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = "com.NetMonitor-iOSTests";
 				SDKROOT = iphoneos;
-				SWIFT_STRICT_CONCURRENCY = complete;
-				SWIFT_VERSION = 6.0;
+				SWIFT_STRICT_CONCURRENCY = none;
+				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/NetMonitor-iOS.app/NetMonitor-iOS";
 			};
@@ -2584,8 +2584,8 @@
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = "com.NetMonitor-iOSUITests";
 				SDKROOT = iphoneos;
-				SWIFT_STRICT_CONCURRENCY = complete;
-				SWIFT_VERSION = 6.0;
+				SWIFT_STRICT_CONCURRENCY = none;
+				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_TARGET_NAME = "NetMonitor-iOS";
 			};
@@ -2605,8 +2605,8 @@
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = "com.NetMonitor-iOSUITests";
 				SDKROOT = iphoneos;
-				SWIFT_STRICT_CONCURRENCY = complete;
-				SWIFT_VERSION = 6.0;
+				SWIFT_STRICT_CONCURRENCY = none;
+				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_TARGET_NAME = "NetMonitor-iOS";
 			};
@@ -2627,8 +2627,8 @@
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.NetMonitor-macOSUITests";
 				SDKROOT = macosx;
-				SWIFT_STRICT_CONCURRENCY = complete;
-				SWIFT_VERSION = 6.0;
+				SWIFT_STRICT_CONCURRENCY = none;
+				SWIFT_VERSION = 5.0;
 				TEST_TARGET_NAME = "NetMonitor-macOS";
 			};
 			name = Debug;

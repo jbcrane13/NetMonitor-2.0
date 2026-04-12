@@ -3,7 +3,7 @@ import NetMonitorCore
 import SystemConfiguration.CaptiveNetwork
 import CoreLocation
 import Network
-import NetworkExtension
+@preconcurrency import NetworkExtension
 
 @MainActor
 @Observable
