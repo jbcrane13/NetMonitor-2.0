@@ -4,7 +4,7 @@ import SwiftUI
 /// Handles "Rate in App Store" functionality.
 /// - Uses SKStoreReviewController for the native in-app rating prompt (no UI needed).
 /// - Falls back to opening App Store review page for "Write a Review" action.
-enum RateAppService {
+@MainActor enum RateAppService {
 
     // MARK: - App Store ID
 

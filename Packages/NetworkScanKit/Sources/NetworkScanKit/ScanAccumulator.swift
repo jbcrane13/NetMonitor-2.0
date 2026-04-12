@@ -84,6 +84,8 @@ public actor ScanAccumulator {
         indexByIP = [:]
     }
 
+    public var isEmpty: Bool { devices.isEmpty }
+
     public var count: Int { devices.count }
 
     private static func merged(existing: DiscoveredDevice, incoming: DiscoveredDevice) -> DiscoveredDevice {

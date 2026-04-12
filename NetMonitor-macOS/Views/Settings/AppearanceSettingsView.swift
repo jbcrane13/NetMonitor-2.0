@@ -2,7 +2,7 @@
 //  AppearanceSettingsView.swift
 //  NetMonitor
 //
-//  Visual appearance settings.
+//  Visual appearance settings — accent color, compact mode, and theme.
 //
 
 import SwiftUI
@@ -10,6 +10,7 @@ import SwiftUI
 struct AppearanceSettingsView: View {
     @AppStorage("netmonitor.appearance.accentColor") private var accentColorHex = "#06B6D4"
     @AppStorage("netmonitor.appearance.compactMode") private var compactMode = false
+    @AppStorage("netmonitor.appearance.theme") private var appearanceRaw = AppearanceMode.system.rawValue
 
     @State private var selectedColor: Color = .cyan
 
@@ -22,8 +23,36 @@ struct AppearanceSettingsView: View {
         ("Orange", .orange, "#F97316"),
     ]
 
+    private var appearance: Binding<AppearanceMode> {
+        Binding(
+            get: { AppearanceMode(rawValue: appearanceRaw) ?? .system },
+            set: { appearanceRaw = $0.rawValue }
+        )
+    }
+
     var body: some View {
         Form {
+            SwiftUI.Section {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Theme")
+
+                    Picker("Appearance", selection: appearance) {
+                        ForEach(AppearanceMode.allCases) { mode in
+                            HStack(spacing: 6) {
+                                Image(systemName: mode.iconName)
+                                Text(mode.displayName)
+                            }
+                            .tag(mode)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                }
+            } header: {
+                Text("Appearance")
+            } footer: {
+                Text("System follows your macOS appearance setting. Dark and Light override it.")
+            }
+
             SwiftUI.Section {
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Accent Color")
@@ -77,4 +106,5 @@ struct AppearanceSettingsView: View {
 
 #Preview {
     AppearanceSettingsView()
+        .frame(width: 500, height: 400)
 }

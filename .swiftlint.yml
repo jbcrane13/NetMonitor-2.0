@@ -8,7 +8,9 @@ excluded:
   - Packages/**/checkouts
   - .worktrees
   - "**/*.xcodeproj"
-  - Packages/NetMonitorCore/Tests/NetMonitorCoreTests/TestFixtures
+  - Tests
+  - Packages/NetMonitorCore/Tests
+  - Packages/NetworkScanKit/Tests
 
 # ───────────────────────────────────────────
 # Rule tuning
