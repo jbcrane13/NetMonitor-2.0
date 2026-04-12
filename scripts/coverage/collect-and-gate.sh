@@ -33,22 +33,22 @@ mkdir -p "$BUILD_DIR"
 run_xcode_tests() {
   rm -rf "$IOS_RESULT" "$MACOS_RESULT"
 
-  # SWIFT_STRICT_CONCURRENCY=minimal disables Swift 6 actor-isolation errors
-  # in test code (XCUIApplication @MainActor issues) while production source
-  # files still get strict checking in regular builds.
+  # Pass -strict-concurrency=minimal to suppress Swift 6 actor-isolation
+  # errors in test code (XCUIApplication @MainActor issues) while production
+  # source files still get strict checking in regular builds.
   xcodebuild test \
     -scheme "$IOS_SCHEME" \
     -destination "$IOS_DESTINATION" \
     -enableCodeCoverage YES \
     -resultBundlePath "$IOS_RESULT" \
-    SWIFT_STRICT_CONCURRENCY=minimal
+    OTHER_SWIFT_FLAGS="-strict-concurrency=minimal"
 
   xcodebuild test \
     -scheme "$MACOS_SCHEME" \
     -destination "$MACOS_DESTINATION" \
     -enableCodeCoverage YES \
     -resultBundlePath "$MACOS_RESULT" \
-    SWIFT_STRICT_CONCURRENCY=minimal
+    OTHER_SWIFT_FLAGS="-strict-concurrency=minimal"
 }
 
 collect_xccov_reports() {
