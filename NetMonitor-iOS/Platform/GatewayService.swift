@@ -60,13 +60,11 @@ final class GatewayService: GatewayServiceProtocol {
         let stream = await pingService.ping(host: host, count: 3, timeout: 2)
 
         var best: Double?
-        for await result in stream {
-            if !result.isTimeout {
-                if let current = best {
-                    best = min(current, result.time)
-                } else {
-                    best = result.time
-                }
+        for await result in stream where !result.isTimeout {
+            if let current = best {
+                best = min(current, result.time)
+            } else {
+                best = result.time
             }
         }
         return best

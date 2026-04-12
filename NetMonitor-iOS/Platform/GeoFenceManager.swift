@@ -183,7 +183,7 @@ final class GeoFenceManager: NSObject {
     #if DEBUG
     /// Clear all geofences and reset persisted state.
     /// For testing purposes only.
-    public func resetForTesting() {
+    func resetForTesting() {
         geofences = []
         UserDefaults.standard.removeObject(forKey: Self.storageKey)
         restartActiveRegions()

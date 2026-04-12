@@ -68,7 +68,9 @@ struct CompanionMessageEdgeCaseTests {
             return
         }
         #expect(l.onlineTargets == 999_999)
-        guard let latency = l.averageLatency else { Issue.record("Expected non-nil averageLatency"); return }
+        guard let latency = l.averageLatency else { Issue.record("Expected non-nil averageLatency")
+        return
+        }
         #expect(abs(latency - 99999.99) < 0.01)
     }
 

@@ -111,8 +111,8 @@ final class SettingsViewModel {
 
     // MARK: - Data Management
 
-    /// Deletes ToolResult and SpeedTestResult records older than the configured retention period
     // periphery:ignore
+    /// Deletes ToolResult and SpeedTestResult records older than the configured retention period
     func pruneExpiredData(modelContext: ModelContext) {
         DataMaintenanceService.pruneExpiredData(modelContext: modelContext)
     }
