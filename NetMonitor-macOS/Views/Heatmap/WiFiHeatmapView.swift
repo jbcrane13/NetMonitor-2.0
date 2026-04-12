@@ -336,7 +336,7 @@ struct WiFiHeatmapView: View {
     private func loadProject() {
         let panel = NSOpenPanel()
         panel.allowsMultipleSelection = false
-        panel.canChooseDirectories = true
+        panel.canChooseDirectories = false
         if panel.runModal() == .OK, let url = panel.url {
             do {
                 if url.pathExtension == "netmonblueprint" {
@@ -353,7 +353,7 @@ struct WiFiHeatmapView: View {
     private func importBlueprint() {
         let panel = NSOpenPanel()
         panel.allowsMultipleSelection = false
-        panel.canChooseDirectories = true
+        panel.canChooseDirectories = false
         panel.message = "Select a .netmonblueprint file exported from the iOS Room Scanner"
         if panel.runModal() == .OK, let url = panel.url {
             do {

@@ -126,7 +126,7 @@ final class RoomPlanScannerViewModel {
 
         do {
             let manager = BlueprintSaveLoadManager()
-            try manager.save(project: blueprint, to: tempURL)
+            try manager.saveAsArchive(project: blueprint, to: tempURL)
             exportedFileURL = tempURL
             showShareSheet = true
         } catch {

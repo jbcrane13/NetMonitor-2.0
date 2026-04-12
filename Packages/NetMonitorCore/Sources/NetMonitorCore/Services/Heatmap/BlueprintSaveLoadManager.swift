@@ -8,6 +8,7 @@ public enum BlueprintFileError: Error, Sendable, Equatable {
     case svgMissing(String)
     case corruptedJSON(String)
     case writeFailed(String)
+    case archiveExtractionFailed(String)
 
     public var localizedDescription: String {
         switch self {
@@ -21,15 +22,21 @@ public enum BlueprintFileError: Error, Sendable, Equatable {
             "blueprint.json is corrupted: \(detail)"
         case .writeFailed(let detail):
             "Failed to write blueprint bundle: \(detail)"
+        case .archiveExtractionFailed(let detail):
+            "Failed to extract blueprint archive: \(detail)"
         }
     }
 }
 
 // MARK: - BlueprintSaveLoadManager
 
-/// Manages saving and loading BlueprintProject as .netmonblueprint directory bundles.
+/// Manages saving and loading BlueprintProject as .netmonblueprint files.
 ///
-/// Bundle structure:
+/// The format can be either:
+/// 1. A directory bundle (legacy format, `com.apple.package`)
+/// 2. A ZIP archive (cross-platform format, `public.zip-archive`)
+///
+/// Bundle structure (both formats contain the same files):
 /// ```
 /// project.netmonblueprint/
 ///   blueprint.json      — Serialized BlueprintProject (without SVG data inlined)
@@ -104,14 +111,63 @@ public struct BlueprintSaveLoadManager: Sendable {
         }
     }
 
+    // MARK: - Save as ZIP Archive
+
+    /// Saves the blueprint as a ZIP archive for cross-platform sharing via AirDrop.
+    /// The resulting .netmonblueprint file is a ZIP that can be imported on macOS.
+    public func saveAsArchive(project: BlueprintProject, to url: URL) throws {
+        let fileManager = FileManager.default
+        let tempDir = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+
+        do {
+            try fileManager.createDirectory(at: tempDir, withIntermediateDirectories: true)
+
+            // Save the bundle to temp directory first
+            let bundleDir = tempDir.appendingPathComponent(url.lastPathComponent)
+            try save(project: project, to: bundleDir)
+
+            // Zip the bundle directory
+            try zipDirectory(at: bundleDir, to: url)
+
+            // Clean up temp directory
+            try? fileManager.removeItem(at: tempDir)
+        } catch let error as BlueprintFileError {
+            throw error
+        } catch {
+            throw BlueprintFileError.writeFailed(
+                "Could not create blueprint archive: \(error.localizedDescription)"
+            )
+        }
+    }
+
     // MARK: - Load
 
+    /// Loads a blueprint from either a directory bundle or a ZIP archive.
+    /// Supports both legacy directory-based and new ZIP-based .netmonblueprint files.
     public func load(from url: URL) throws -> BlueprintProject {
         let fileManager = FileManager.default
 
         guard fileManager.fileExists(atPath: url.path) else {
             throw BlueprintFileError.bundleNotFound(url)
         }
+
+        // Check if this is a directory bundle or a ZIP archive
+        var isDirectory: ObjCBool = false
+        fileManager.fileExists(atPath: url.path, isDirectory: &isDirectory)
+
+        if isDirectory.boolValue {
+            // Legacy directory bundle format
+            return try loadFromDirectory(at: url)
+        } else {
+            // ZIP archive format (new cross-platform format)
+            return try loadFromArchive(at: url)
+        }
+    }
+
+    // MARK: - Load from Directory (Legacy)
+
+    private func loadFromDirectory(at url: URL) throws -> BlueprintProject {
+        let fileManager = FileManager.default
 
         let jsonURL = url.appendingPathComponent(Self.blueprintJSONFilename)
         guard fileManager.fileExists(atPath: jsonURL.path) else {
@@ -152,6 +208,45 @@ public struct BlueprintSaveLoadManager: Sendable {
         }
 
         return project
+    }
+
+    // MARK: - Load from ZIP Archive
+
+    /// Extracts a ZIP archive blueprint and loads it.
+    public func loadFromArchive(at url: URL) throws -> BlueprintProject {
+        let fileManager = FileManager.default
+        let tempDir = fileManager.temporaryDirectory
+            .appendingPathComponent("BlueprintExtract-\(UUID().uuidString)")
+
+        do {
+            try fileManager.createDirectory(at: tempDir, withIntermediateDirectories: true)
+
+            // Extract the ZIP archive
+            try unzipFile(at: url, to: tempDir)
+
+            // Find the extracted bundle (it should be a directory inside tempDir)
+            let contents = try fileManager.contentsOfDirectory(at: tempDir, includingPropertiesForKeys: [.isDirectoryKey])
+            guard let bundleDir = contents.first(where: { url in
+                var isDir: ObjCBool = false
+                return fileManager.fileExists(atPath: url.path, isDirectory: &isDir) && isDir.boolValue
+            }) else {
+                throw BlueprintFileError.archiveExtractionFailed("No blueprint bundle found in archive")
+            }
+
+            // Load from the extracted directory
+            let project = try loadFromDirectory(at: bundleDir)
+
+            // Clean up temp directory
+            try? fileManager.removeItem(at: tempDir)
+
+            return project
+        } catch let error as BlueprintFileError {
+            try? fileManager.removeItem(at: tempDir)
+            throw error
+        } catch {
+            try? fileManager.removeItem(at: tempDir)
+            throw BlueprintFileError.archiveExtractionFailed(error.localizedDescription)
+        }
     }
 
     // MARK: - Conversion to FloorPlan
@@ -196,5 +291,57 @@ public struct BlueprintSaveLoadManager: Sendable {
             copy.floors[index].svgData = Data()
         }
         return copy
+    }
+
+    // MARK: - ZIP Helpers
+
+    /// Creates a ZIP archive from a directory.
+    private func zipDirectory(at sourceDir: URL, to destinationZip: URL) throws {
+        let fileManager = FileManager.default
+        let coordinator = NSFileCoordinator(filePresenter: nil)
+
+        var coordinationError: NSError?
+        var zipError: Error?
+
+        coordinator.coordinate(writingItemAt: destinationZip, options: .forReplacing, error: &coordinationError) { zipURL in
+            do {
+                try fileManager.zipItem(at: sourceDir, to: zipURL, compressionMethod: .deflate)
+            } catch {
+                zipError = error
+            }
+        }
+
+        if let error = coordinationError {
+            throw BlueprintFileError.writeFailed("Coordination error: \(error.localizedDescription)")
+        }
+
+        if let error = zipError {
+            throw BlueprintFileError.writeFailed("ZIP creation failed: \(error.localizedDescription)")
+        }
+    }
+
+    /// Extracts a ZIP archive to a directory.
+    private func unzipFile(at sourceZip: URL, to destinationDir: URL) throws {
+        let fileManager = FileManager.default
+        let coordinator = NSFileCoordinator(filePresenter: nil)
+
+        var coordinationError: NSError?
+        var unzipError: Error?
+
+        coordinator.coordinate(readingItemAt: sourceZip, options: [], error: &coordinationError) { zipURL in
+            do {
+                try fileManager.unzipItem(at: zipURL, to: destinationDir)
+            } catch {
+                unzipError = error
+            }
+        }
+
+        if let error = coordinationError {
+            throw BlueprintFileError.archiveExtractionFailed("Coordination error: \(error.localizedDescription)")
+        }
+
+        if let error = unzipError {
+            throw BlueprintFileError.archiveExtractionFailed("ZIP extraction failed: \(error.localizedDescription)")
+        }
     }
 }
