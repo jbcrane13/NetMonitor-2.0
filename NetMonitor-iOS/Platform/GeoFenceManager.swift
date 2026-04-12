@@ -177,6 +177,18 @@ final class GeoFenceManager: NSObject {
         guard let data = try? JSONEncoder().encode(geofences) else { return }
         UserDefaults.standard.set(data, forKey: Self.storageKey)
     }
+
+    // MARK: - Testing
+
+    #if DEBUG
+    /// Clear all geofences and reset persisted state.
+    /// For testing purposes only.
+    public func resetForTesting() {
+        geofences = []
+        UserDefaults.standard.removeObject(forKey: Self.storageKey)
+        restartActiveRegions()
+    }
+    #endif
 }
 
 // MARK: - CLLocationManagerDelegate
