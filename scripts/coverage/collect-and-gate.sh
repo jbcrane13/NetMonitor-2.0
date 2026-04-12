@@ -33,22 +33,17 @@ mkdir -p "$BUILD_DIR"
 run_xcode_tests() {
   rm -rf "$IOS_RESULT" "$MACOS_RESULT"
 
-  # Production builds use SWIFT_STRICT_CONCURRENCY=complete, but test code
-  # has Swift 6 actor-isolation issues with XCUIApplication's @MainActor API
-  # that can't be fixed at source level. Override to minimal for test builds.
   xcodebuild test \
     -scheme "$IOS_SCHEME" \
     -destination "$IOS_DESTINATION" \
     -enableCodeCoverage YES \
-    -resultBundlePath "$IOS_RESULT" \
-    SWIFT_STRICT_CONCURRENCY=minimal
+    -resultBundlePath "$IOS_RESULT"
 
   xcodebuild test \
     -scheme "$MACOS_SCHEME" \
     -destination "$MACOS_DESTINATION" \
     -enableCodeCoverage YES \
-    -resultBundlePath "$MACOS_RESULT" \
-    SWIFT_STRICT_CONCURRENCY=minimal
+    -resultBundlePath "$MACOS_RESULT"
 }
 
 collect_xccov_reports() {
