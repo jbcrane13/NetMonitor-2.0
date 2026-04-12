@@ -33,22 +33,23 @@ mkdir -p "$BUILD_DIR"
 run_xcode_tests() {
   rm -rf "$IOS_RESULT" "$MACOS_RESULT"
 
-  # Pass -strict-concurrency=minimal to suppress Swift 6 actor-isolation
-  # errors in test code (XCUIApplication @MainActor issues) while production
-  # source files still get strict checking in regular builds.
+  # Override SWIFT_STRICT_CONCURRENCY to minimal for test builds.
+  # Production builds use 'complete' but test code has Swift 6 actor-isolation
+  # issues with XCUIApplication's @MainActor API that can't be fixed at source.
+  # 'minimal' disables strict Sendable/actor checking while still compiling.
   xcodebuild test \
     -scheme "$IOS_SCHEME" \
     -destination "$IOS_DESTINATION" \
     -enableCodeCoverage YES \
     -resultBundlePath "$IOS_RESULT" \
-    OTHER_SWIFT_FLAGS="-strict-concurrency=minimal"
+    SWIFT_STRICT_CONCURRENCY=minimal
 
   xcodebuild test \
     -scheme "$MACOS_SCHEME" \
     -destination "$MACOS_DESTINATION" \
     -enableCodeCoverage YES \
     -resultBundlePath "$MACOS_RESULT" \
-    OTHER_SWIFT_FLAGS="-strict-concurrency=minimal"
+    SWIFT_STRICT_CONCURRENCY=minimal
 }
 
 collect_xccov_reports() {
