@@ -75,7 +75,6 @@ struct ContentView: View {
                 }
             }
         }
-        .preferredColorScheme(.dark)
         .tint(themeManager.accent)
         .accessibilityIdentifier("screen_main")
     }
