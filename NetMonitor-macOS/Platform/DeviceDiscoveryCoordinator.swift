@@ -84,7 +84,7 @@ final class DeviceDiscoveryCoordinator {
                 scanProgress = 0.9
 
                 let allDiscovered = mergeDiscoveryResults(arp: arpDevices, bonjour: bonjourDevices)
-                mergeDiscoveredDevices(allDiscovered, profileID: profileID)
+                await mergeDiscoveredDevices(allDiscovered, profileID: profileID)
 
                 try Task.checkCancellation()
                 scanProgress = 0.92
@@ -146,48 +146,51 @@ final class DeviceDiscoveryCoordinator {
         isScanning = false
     }
 
-    func mergeDiscoveredDevices(_ devices: [LocalDiscoveredDevice], profileID: UUID?) {
-        for discovered in devices {
-            let predicate: Predicate<LocalDevice>
-            if !discovered.macAddress.isEmpty {
-                let mac = discovered.macAddress
-                if let profileID {
-                    predicate = #Predicate<LocalDevice> { $0.networkProfileID == profileID && $0.macAddress == mac }
+    func mergeDiscoveredDevices(_ devices: [LocalDiscoveredDevice], profileID: UUID?) async {
+        // Ensure we're on the main actor for SwiftData access
+        await MainActor.run {
+            for discovered in devices {
+                let predicate: Predicate<LocalDevice>
+                if !discovered.macAddress.isEmpty {
+                    let mac = discovered.macAddress
+                    if let profileID {
+                        predicate = #Predicate<LocalDevice> { $0.networkProfileID == profileID && $0.macAddress == mac }
+                    } else {
+                        predicate = #Predicate<LocalDevice> { $0.networkProfileID == nil && $0.macAddress == mac }
+                    }
                 } else {
-                    predicate = #Predicate<LocalDevice> { $0.networkProfileID == nil && $0.macAddress == mac }
+                    let ip = discovered.ipAddress
+                    if let profileID {
+                        predicate = #Predicate<LocalDevice> { $0.networkProfileID == profileID && $0.ipAddress == ip }
+                    } else {
+                        predicate = #Predicate<LocalDevice> { $0.networkProfileID == nil && $0.ipAddress == ip }
+                    }
                 }
-            } else {
-                let ip = discovered.ipAddress
-                if let profileID {
-                    predicate = #Predicate<LocalDevice> { $0.networkProfileID == profileID && $0.ipAddress == ip }
+
+                let descriptor = FetchDescriptor<LocalDevice>(predicate: predicate)
+                let existing = try? modelContext.fetch(descriptor).first
+
+                if let existing {
+                    existing.ipAddress = discovered.ipAddress
+                    if let hostname = discovered.hostname, !hostname.isEmpty {
+                        existing.hostname = hostname
+                    }
+                    existing.lastSeen = Date()
+                    existing.status = .online
                 } else {
-                    predicate = #Predicate<LocalDevice> { $0.networkProfileID == nil && $0.ipAddress == ip }
+                    let newDevice = LocalDevice(
+                        ipAddress: discovered.ipAddress,
+                        macAddress: discovered.macAddress,
+                        hostname: discovered.hostname,
+                        vendor: nil,
+                        deviceType: .unknown,
+                        networkProfileID: profileID
+                    )
+                    modelContext.insert(newDevice)
                 }
-            }
-
-            let descriptor = FetchDescriptor<LocalDevice>(predicate: predicate)
-            let existing = try? modelContext.fetch(descriptor).first
-
-            if let existing {
-                existing.ipAddress = discovered.ipAddress
-                if let hostname = discovered.hostname, !hostname.isEmpty {
-                    existing.hostname = hostname
-                }
-                existing.lastSeen = Date()
-                existing.status = .online
-            } else {
-                let newDevice = LocalDevice(
-                    ipAddress: discovered.ipAddress,
-                    macAddress: discovered.macAddress,
-                    hostname: discovered.hostname,
-                    vendor: nil,
-                    deviceType: .unknown,
-                    networkProfileID: profileID
-                )
-                modelContext.insert(newDevice)
             }
         }
-
+    }
         do { try modelContext.save() } catch {
             Logger.discovery.error("Failed to save discovered devices: \(error)")
         }
