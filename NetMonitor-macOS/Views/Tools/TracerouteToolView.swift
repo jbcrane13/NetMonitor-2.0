@@ -84,7 +84,7 @@ struct TracerouteToolView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding()
             }
-            .background(Color.black.opacity(0.2))
+            .background(MacTheme.Colors.subtleBackground)
             .onChange(of: hops.count) { _, _ in
                 if let lastHop = hops.last { proxy.scrollTo(lastHop.id, anchor: .bottom) }
             }

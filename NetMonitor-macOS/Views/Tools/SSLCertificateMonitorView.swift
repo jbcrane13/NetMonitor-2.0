@@ -110,7 +110,7 @@ struct SSLCertificateMonitorView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding()
         }
-        .background(Color.black.opacity(0.15))
+        .background(MacTheme.Colors.subtleBackground)
     }
 
     @ViewBuilder

@@ -215,7 +215,7 @@ struct DeviceDetailView: View {
                     .foregroundStyle(color)
                 Text(title)
                     .font(.system(size: 9, weight: .medium))
-                    .foregroundStyle(Color.white.opacity(0.7))
+                    .foregroundStyle(MacTheme.Colors.textSecondary)
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 8)

@@ -66,7 +66,7 @@ struct BonjourBrowserToolView: View {
             detailView
                 .frame(minWidth: 300)
         }
-        .background(Color.black.opacity(0.2))
+        .background(MacTheme.Colors.subtleBackground)
     }
 
     private var serviceList: some View {

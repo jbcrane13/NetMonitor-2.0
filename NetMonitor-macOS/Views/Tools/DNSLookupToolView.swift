@@ -95,7 +95,7 @@ struct DNSLookupToolView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding()
         }
-        .background(Color.black.opacity(0.2))
+        .background(MacTheme.Colors.subtleBackground)
     }
 
     private func resultRow(_ result: String) -> some View {

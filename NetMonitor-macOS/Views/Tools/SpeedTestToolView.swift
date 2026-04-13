@@ -113,7 +113,7 @@ struct SpeedTestToolView: View {
             Spacer()
         }
         .padding()
-        .background(Color.black.opacity(0.2))
+        .background(MacTheme.Colors.subtleBackground)
     }
 
     private var speedometerView: some View {
