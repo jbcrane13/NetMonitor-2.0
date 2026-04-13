@@ -120,7 +120,7 @@ struct ProfilePill: View {
                     Circle()
                         .fill(MacTheme.Colors.success)
                         .frame(width: 8, height: 8)
-                        .overlay(Circle().stroke(MacTheme.Colors.crystalBorder, lineWidth: 1.5))
+                        .overlay(Circle().stroke(Color.primary, lineWidth: 1.5))
                         .offset(x: 18, y: -18)
                 }
             }
