@@ -153,7 +153,7 @@ struct PortScannerToolView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding()
         }
-        .background(Color.black.opacity(0.2))
+        .background(MacTheme.Colors.subtleBackground)
     }
 
     private func portRow(_ result: PortResult) -> some View {

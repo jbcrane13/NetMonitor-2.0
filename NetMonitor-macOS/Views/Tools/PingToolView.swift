@@ -95,7 +95,7 @@ struct PingToolView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding()
                 }
-                .background(Color.black.opacity(0.2))
+                .background(MacTheme.Colors.subtleBackground)
                 .onChange(of: outputLines.count) { _, _ in
                     if let lastIndex = outputLines.indices.last {
                         proxy.scrollTo(lastIndex, anchor: .bottom)
@@ -209,7 +209,7 @@ struct PingToolView: View {
             .accessibilityIdentifier("ping_label_latencyChart")
         }
         .padding()
-        .background(Color.black.opacity(0.1))
+        .background(MacTheme.Colors.subtleBackgroundLight)
     }
 
     private func chartStat(_ label: String, _ value: Double, _ color: Color) -> some View {

@@ -82,7 +82,7 @@ struct SubnetCalculatorToolView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding()
             }
-            .background(Color.black.opacity(0.2))
+            .background(MacTheme.Colors.subtleBackground)
             .accessibilityIdentifier("subnetCalc_card_error")
         } else if let info = subnetInfo {
             resultsView(info)
@@ -93,7 +93,7 @@ struct SubnetCalculatorToolView: View {
                     .frame(maxWidth: .infinity, alignment: .center)
                     .padding(.top, 40)
             }
-            .background(Color.black.opacity(0.2))
+            .background(MacTheme.Colors.subtleBackground)
         }
     }
 
@@ -115,7 +115,7 @@ struct SubnetCalculatorToolView: View {
             }
             .padding()
         }
-        .background(Color.black.opacity(0.2))
+        .background(MacTheme.Colors.subtleBackground)
         .accessibilityIdentifier("subnetCalc_section_results")
     }
 
