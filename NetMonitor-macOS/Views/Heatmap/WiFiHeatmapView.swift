@@ -39,13 +39,12 @@ struct WiFiHeatmapView: View {
             Button("Cancel", role: .cancel) {}
                 .accessibilityIdentifier("heatmap_button_dialogCancel")
         }
-        .fileImporter(
-            isPresented: $viewModel.showImportSheet,
-            allowedContentTypes: [.png, .jpeg, .pdf, .heic],
-            allowsMultipleSelection: false
-        ) { result in
-            handleFileImport(result)
-        }
+        .fileImporters(
+            showImportSheet: $viewModel.showImportSheet,
+            showBlueprintImporter: $showBlueprintImporter,
+            onFileImport: handleFileImport,
+            onBlueprintImport: handleBlueprintImport
+        )
         .photosPicker(
             isPresented: $viewModel.showPhotoPicker,
             selection: $selectedPhotoItem,
@@ -183,7 +182,127 @@ struct WiFiHeatmapView: View {
     // MARK: - Toolbar
 
     @ToolbarContentBuilder
-    private var toolbarContent: some ToolbarContent {
+    // MARK: - File Handling
+
+    private func handleFileImport(_ result: Result<[URL], Error>) {
+        switch result {
+        case .success(let urls):
+            guard let url = urls.first else { return }
+            let didAccess = url.startAccessingSecurityScopedResource()
+            defer { if didAccess { url.stopAccessingSecurityScopedResource() } }
+            do {
+                try viewModel.importFloorPlan(from: url)
+            } catch {
+                print("Import failed: \(error)")
+            }
+        case .failure(let error):
+            print("Import error: \(error)")
+        }
+    }
+
+    private func handleBlueprintImport(_ result: Result<[URL], Error>) {
+        switch result {
+        case .success(let urls):
+            guard let url = urls.first else { return }
+            let didAccess = url.startAccessingSecurityScopedResource()
+            defer { if didAccess { url.stopAccessingSecurityScopedResource() } }
+            do {
+                try viewModel.importBlueprint(from: url)
+            } catch {
+                viewModel.errorMessage = error.localizedDescription
+            }
+        case .failure(let error):
+            viewModel.errorMessage = error.localizedDescription
+        }
+    }
+
+    private func handlePhotoImport(_ item: PhotosPickerItem) async {
+        guard let data = try? await item.loadTransferable(type: Data.self) else { return }
+        let name = "Photo Import"
+        do {
+            try viewModel.importFloorPlan(imageData: data, name: name)
+        } catch {
+            print("Photo import failed: \(error)")
+        }
+    }
+
+    private func saveProject() {
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [UTType(filenameExtension: "netmonsurvey")].compactMap { $0 }
+        panel.nameFieldStringValue = viewModel.surveyProject?.name ?? "Survey"
+        if panel.runModal() == .OK, let url = panel.url {
+            do {
+                try viewModel.saveProject(to: url)
+            } catch {
+                viewModel.errorMessage = error.localizedDescription
+            }
+        }
+    }
+
+    private func loadProject() {
+        let panel = NSOpenPanel()
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        if panel.runModal() == .OK, let url = panel.url {
+            do {
+                if url.pathExtension == "netmonblueprint" {
+                    try viewModel.importBlueprint(from: url)
+                } else {
+                    try viewModel.loadProject(from: url)
+                }
+            } catch {
+                viewModel.errorMessage = error.localizedDescription
+            }
+        }
+    }
+
+    private func importBlueprint() {
+        let panel = NSOpenPanel()
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        panel.message = "Select a .netmonblueprint file exported from the iOS Room Scanner"
+        if panel.runModal() == .OK, let url = panel.url {
+            do {
+                try viewModel.importBlueprint(from: url)
+            } catch {
+                viewModel.errorMessage = error.localizedDescription
+            }
+        }
+    }
+
+    private func exportImage(format: NSBitmapImageRep.FileType) {
+        guard let data = viewModel.exportPNG(canvasSize: CGSize(width: 800, height: 600)) else { return }
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.png]
+        panel.nameFieldStringValue = "\(viewModel.surveyProject?.name ?? "heatmap")-export"
+        if panel.runModal() == .OK, let url = panel.url {
+            do {
+                try data.write(to: url)
+            } catch {
+                viewModel.errorMessage = error.localizedDescription
+            }
+        }
+    }
+
+    private func exportPDF() {
+        guard let pdfData = viewModel.exportPDF() else { return }
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.pdf]
+        panel.nameFieldStringValue = "\(viewModel.surveyProject?.name ?? "heatmap")-report"
+        if panel.runModal() == .OK, let url = panel.url {
+            do {
+                try pdfData.write(to: url)
+            } catch {
+                viewModel.errorMessage = error.localizedDescription
+            }
+        }
+    }
+}
+
+// MARK: - WiFiHeatmapView Toolbar
+
+extension WiFiHeatmapView {
+    var toolbarContent: some ToolbarContent {
         ToolbarItemGroup(placement: .primaryAction) {
             // Project name
             if let name = viewModel.surveyProject?.name {
@@ -291,106 +410,6 @@ struct WiFiHeatmapView: View {
             .accessibilityIdentifier("heatmap_button_sidebar")
         }
     }
-
-    // MARK: - File Handling
-
-    private func handleFileImport(_ result: Result<[URL], Error>) {
-        switch result {
-        case .success(let urls):
-            guard let url = urls.first else { return }
-            let didAccess = url.startAccessingSecurityScopedResource()
-            defer { if didAccess { url.stopAccessingSecurityScopedResource() } }
-            do {
-                try viewModel.importFloorPlan(from: url)
-            } catch {
-                print("Import failed: \(error)")
-            }
-        case .failure(let error):
-            print("Import error: \(error)")
-        }
-    }
-
-    private func handlePhotoImport(_ item: PhotosPickerItem) async {
-        guard let data = try? await item.loadTransferable(type: Data.self) else { return }
-        let name = "Photo Import"
-        do {
-            try viewModel.importFloorPlan(imageData: data, name: name)
-        } catch {
-            print("Photo import failed: \(error)")
-        }
-    }
-
-    private func saveProject() {
-        let panel = NSSavePanel()
-        panel.allowedContentTypes = [UTType(filenameExtension: "netmonsurvey")].compactMap { $0 }
-        panel.nameFieldStringValue = viewModel.surveyProject?.name ?? "Survey"
-        if panel.runModal() == .OK, let url = panel.url {
-            do {
-                try viewModel.saveProject(to: url)
-            } catch {
-                viewModel.errorMessage = error.localizedDescription
-            }
-        }
-    }
-
-    private func loadProject() {
-        let panel = NSOpenPanel()
-        panel.allowsMultipleSelection = false
-        panel.canChooseDirectories = false
-        if panel.runModal() == .OK, let url = panel.url {
-            do {
-                if url.pathExtension == "netmonblueprint" {
-                    try viewModel.importBlueprint(from: url)
-                } else {
-                    try viewModel.loadProject(from: url)
-                }
-            } catch {
-                viewModel.errorMessage = error.localizedDescription
-            }
-        }
-    }
-
-    private func importBlueprint() {
-        let panel = NSOpenPanel()
-        panel.allowsMultipleSelection = false
-        panel.canChooseDirectories = false
-        panel.message = "Select a .netmonblueprint file exported from the iOS Room Scanner"
-        if panel.runModal() == .OK, let url = panel.url {
-            do {
-                try viewModel.importBlueprint(from: url)
-            } catch {
-                viewModel.errorMessage = error.localizedDescription
-            }
-        }
-    }
-
-    private func exportImage(format: NSBitmapImageRep.FileType) {
-        guard let data = viewModel.exportPNG(canvasSize: CGSize(width: 800, height: 600)) else { return }
-        let panel = NSSavePanel()
-        panel.allowedContentTypes = [.png]
-        panel.nameFieldStringValue = "\(viewModel.surveyProject?.name ?? "heatmap")-export"
-        if panel.runModal() == .OK, let url = panel.url {
-            do {
-                try data.write(to: url)
-            } catch {
-                viewModel.errorMessage = error.localizedDescription
-            }
-        }
-    }
-
-    private func exportPDF() {
-        guard let pdfData = viewModel.exportPDF() else { return }
-        let panel = NSSavePanel()
-        panel.allowedContentTypes = [.pdf]
-        panel.nameFieldStringValue = "\(viewModel.surveyProject?.name ?? "heatmap")-report"
-        if panel.runModal() == .OK, let url = panel.url {
-            do {
-                try pdfData.write(to: url)
-            } catch {
-                viewModel.errorMessage = error.localizedDescription
-            }
-        }
-    }
 }
 
 // MARK: - CalibrationSheet
@@ -479,5 +498,32 @@ struct CalibrationSheet: View {
         }
         .padding()
         .frame(width: 340, height: 320)
+    }
+}
+
+// MARK: - File Importers ViewModifier
+
+private extension View {
+    func fileImporters(
+        showImportSheet: Binding<Bool>,
+        showBlueprintImporter: Binding<Bool>,
+        onFileImport: @escaping (Result<[URL], Error>) -> Void,
+        onBlueprintImport: @escaping (Result<[URL], Error>) -> Void
+    ) -> some View {
+        self
+            .fileImporter(
+                isPresented: showImportSheet,
+                allowedContentTypes: [.png, .jpeg, .pdf, .heic],
+                allowsMultipleSelection: false
+            ) { result in
+                onFileImport(result)
+            }
+            .fileImporter(
+                isPresented: showBlueprintImporter,
+                allowedContentTypes: [UTType(filenameExtension: "netmonblueprint")].compactMap { $0 },
+                allowsMultipleSelection: false
+            ) { result in
+                onBlueprintImport(result)
+            }
     }
 }
