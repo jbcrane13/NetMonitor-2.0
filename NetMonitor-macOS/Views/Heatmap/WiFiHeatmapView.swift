@@ -181,7 +181,6 @@ struct WiFiHeatmapView: View {
 
     // MARK: - Toolbar
 
-    @ToolbarContentBuilder
     // MARK: - File Handling
 
     private func handleFileImport(_ result: Result<[URL], Error>) {
