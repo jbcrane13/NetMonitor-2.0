@@ -105,11 +105,11 @@ struct ProfilePill: View {
         VStack(spacing: 4) {
             ZStack {
                 RoundedRectangle(cornerRadius: 10)
-                    .fill(isSelected ? MacTheme.Colors.sidebarActive : MacTheme.Colors.subtleBackground)
+                    .fill(isSelected ? MacTheme.Colors.sidebarActive : MacTheme.Colors.sidebarPillBackground)
                     .frame(width: 44, height: 44)
                     .overlay(
                         RoundedRectangle(cornerRadius: 10)
-                            .stroke(isSelected ? accentColor : MacTheme.Colors.crystalBorder, lineWidth: 1)
+                            .stroke(isSelected ? accentColor : MacTheme.Colors.subtleBorder, lineWidth: 1)
                     )
 
                 Image(systemName: profile.connectionType.iconName)
@@ -174,7 +174,7 @@ struct SidebarRow: View {
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, 5)
                     .padding(.vertical, 2)
-                    .background(MacTheme.Colors.subtleBackground, in: RoundedRectangle(cornerRadius: 4))
+                    .background(MacTheme.Colors.sidebarBadgeBackground, in: RoundedRectangle(cornerRadius: 4))
             }
 
             // Main badge (ACTIVE, status counts, etc.)
