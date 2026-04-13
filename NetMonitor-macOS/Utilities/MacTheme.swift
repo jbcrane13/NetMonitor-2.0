@@ -151,6 +151,33 @@ enum MacTheme {
             light: .black.withAlphaComponent(0.02)
         ))
 
+        /// Dark-mode equivalent of `black.opacity(0.15)` — preserves the original dark styling
+        /// while providing an appropriate tint in light mode.
+        static let subtleBackgroundMedium = Color(nsColor: macColor(
+            dark: .black.withAlphaComponent(0.15),
+            light: .black.withAlphaComponent(0.03)
+        ))
+
+        // MARK: — Sidebar overlay tokens (adaptive)
+
+        /// Unselected profile-pill fill. Dark: `white.opacity(0.05)` — matches original sidebar look.
+        static let sidebarPillBackground = Color(nsColor: macColor(
+            dark: .white.withAlphaComponent(0.05),
+            light: .black.withAlphaComponent(0.04)
+        ))
+
+        /// Unselected profile-pill / row border. Dark: `white.opacity(0.10)` — matches original stroke weight.
+        static let subtleBorder = Color(nsColor: macColor(
+            dark: .white.withAlphaComponent(0.10),
+            light: .black.withAlphaComponent(0.05)
+        ))
+
+        /// Device-count badge fill in sidebar rows. Dark: `white.opacity(0.07)` — matches original look.
+        static let sidebarBadgeBackground = Color(nsColor: macColor(
+            dark: .white.withAlphaComponent(0.07),
+            light: .black.withAlphaComponent(0.04)
+        ))
+
         // MARK: — Sidebar (adaptive)
 
         static let sidebarActive = Color(nsColor: macColor(
