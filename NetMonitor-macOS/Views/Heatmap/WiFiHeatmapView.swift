@@ -519,7 +519,7 @@ private extension View {
             }
             .fileImporter(
                 isPresented: showBlueprintImporter,
-                allowedContentTypes: [UTType(filenameExtension: "netmonblueprint")].compactMap { $0 },
+                allowedContentTypes: [UTType("com.netmonitor.blueprint") ?? .data],
                 allowsMultipleSelection: false
             ) { result in
                 onBlueprintImport(result)
