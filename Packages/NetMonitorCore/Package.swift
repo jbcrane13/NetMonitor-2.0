@@ -15,7 +15,7 @@ let package = Package(
     ],
     dependencies: [
         .package(path: "../NetworkScanKit"),
-        .package(url: "https://github.com/getsentry/sentry-cocoa", from: "8.49.0"),
+        .package(url: "https://github.com/getsentry/sentry-cocoa", from: "9.10.0"),
         .package(url: "https://github.com/weichsel/ZIPFoundation", from: "0.9.0")
     ],
     targets: [
