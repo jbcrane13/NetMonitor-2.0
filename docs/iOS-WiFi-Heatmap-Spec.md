@@ -137,17 +137,20 @@ Fallback: NEHotspotNetwork via WiFiInfoService
 NetMonitor-iOS/
   Platform/
     IOSHeatmapService.swift        # HeatmapServiceProtocol impl (exists)
-    ShortcutsWiFiProvider.swift     # NEW — Shortcuts bridge
+    ShortcutsWiFiProvider.swift     # Shortcuts bridge (triggers shortcut, awaits reading)
+    WiFiReadingBridge.swift         # @MainActor bridge — connects AppIntent invocations
+                                    #   to awaiting provider continuations
     WiFiInfoService.swift           # Existing NEHotspotNetwork wrapper
-  Resources/
-    WiFiToNetMonitor.shortcut       # NEW — Companion shortcut file
+  AppIntents/
+    SaveWiFiReadingIntent.swift     # AppIntent — called directly by user's Shortcut
+    AppShortcutsProvider.swift      # Registers shortcut names with the system
 ```
 
 ### 5.2 ShortcutsWiFiProvider Design
 
 ```swift
 /// Bridges the Apple Shortcuts "Get Network Details" action to the app
-/// via URL scheme invocation and App Group shared container.
+/// via URL scheme invocation and AppIntent callback.
 @MainActor
 @Observable
 final class ShortcutsWiFiProvider: Sendable {
@@ -155,9 +158,10 @@ final class ShortcutsWiFiProvider: Sendable {
     /// Whether the companion Shortcut is installed and working
     private(set) var isAvailable: Bool = false
 
-    /// Triggers the companion Shortcut and waits for Wi-Fi data
-    /// Returns nil if shortcut is not installed or times out
-    func fetchWiFiSignal() async throws -> ShortcutsWiFiReading?
+    /// Triggers the companion Shortcut and waits for Wi-Fi data via
+    /// SaveWiFiReadingIntent (delivered through WiFiReadingBridge).
+    /// Returns nil if shortcut is not installed or times out.
+    func fetchWiFiSignal(timeout: TimeInterval) async throws -> ShortcutsWiFiReading?
 
     /// Converts a Shortcuts reading to the shared WiFiInfo model
     static func wifiInfo(from reading: ShortcutsWiFiReading) -> WiFiInfo
@@ -187,15 +191,13 @@ User taps floor plan
     ↓
 IOSHeatmapService.takeMeasurement(at:)
     ↓
-ShortcutsWiFiProvider.fetchWiFiSignal()
+ShortcutsWiFiProvider.fetchWiFiSignal(timeout:)
     ↓
 Opens shortcuts://x-callback-url/run-shortcut?name=Wi-Fi%20to%20NetMonitor
-    ↓ (Shortcuts app runs "Get Network Details")
-Shortcut writes JSON → App Group container (group.com.netmonitor.shared)
+    ↓ (Shortcuts app runs "Get Network Details" → "Save Wi-Fi Reading to NetMonitor")
+SaveWiFiReadingIntent.perform() called by Shortcuts runtime
     ↓
-Shortcut opens netmonitor://wifi-result
-    ↓
-ShortcutsWiFiProvider reads JSON from App Group
+WiFiReadingBridge.deliver(reading:) — resumes awaiting continuation
     ↓
 Returns ShortcutsWiFiReading → WiFiInfo → MeasurementPoint
     ↓
@@ -204,26 +206,41 @@ HeatmapSurveyViewModel renders point on canvas
 
 ### 5.4 App Group Configuration
 
-The App Group `group.com.netmonitor.shared` must be:
+The App Group `group.com.netmonitor.shared` is retained as a cold-launch fallback edge case. For normal operation, the `SaveWiFiReadingIntent` delivers data directly to `WiFiReadingBridge` without any file I/O.
+
+The App Group must be:
 1. Added to the app's entitlements (NetMonitor-iOS.entitlements)
 2. Registered in the Apple Developer portal
-3. Referenced in the companion Shortcut's "Save File" action
 
-The shared container path for Wi-Fi data:
-```
-{AppGroupContainer}/wifi-reading.json
-```
+### 5.5 User-authored Shortcut
 
-### 5.5 Companion Shortcut Design
+> *Superseded (April 2026): The previous 5-action approach using "Save File" + `netmonitor://wifi-result` URL callback is no longer the recommended setup.*
 
-The shortcut "Wi-Fi to NetMonitor" performs:
-1. **Get Network Details** (system action) — returns Wi-Fi data dictionary
-2. **Get Dictionary Value** — extract RSSI, Noise, SSID, BSSID, Channel, TX Rate, RX Rate
-3. **Set Dictionary** — build JSON payload with all fields + timestamp
-4. **Save File** — write to App Group container: `wifi-reading.json`
-5. **Open URL** — `netmonitor://wifi-result` to return to the app
+The shortcut "Wi-Fi to NetMonitor" now requires only **2 actions**:
 
-The shortcut file will be bundled in the app and presented during guided setup, or can be distributed via iCloud link.
+| Step | Action | Configuration |
+|------|--------|---------------|
+| 1 | **Get Network Details** (system action) | Set to "Wi-Fi Details" |
+| 2 | **Save Wi-Fi Reading to NetMonitor** (NetMonitor AppIntent) | Map fields as below |
+
+**Field mapping for action 2:**
+
+| AppIntent Parameter | Maps to (from step 1 output) |
+|--------------------|------------------------------|
+| Network Name (SSID) | Network Name |
+| BSSID | BSSID |
+| Signal Strength (RSSI, dBm) | Signal Strength |
+| Noise (dBm) | Noise |
+| Channel | Channel |
+| TX Rate (Mbps) | TX Rate |
+| RX Rate (Mbps) | RX Rate |
+| Wi-Fi Standard | Wi-Fi Standard |
+
+Noise, TX Rate, RX Rate, and Wi-Fi Standard are optional — the app handles missing values gracefully.
+
+The shortcut must be named exactly **"Wi-Fi to NetMonitor"** (case-sensitive, one space on each side of "to") so that `ShortcutsWiFiProvider` can trigger it via `shortcuts://x-callback-url/run-shortcut?name=Wi-Fi%20to%20NetMonitor`.
+
+Because `SaveWiFiReadingIntent` is shipped inside the app and registered via `AppShortcutsProvider`, no iCloud link or external download is required — the action appears automatically in Shortcuts.app after the user opens the app at least once on iOS 18+.
 
 ### 5.6 URL Scheme Registration
 
@@ -234,7 +251,7 @@ CFBundleURLTypes:
     CFBundleURLName: com.netmonitor.ios
 ```
 
-Handle `netmonitor://wifi-result` in the app's URL handler to signal `ShortcutsWiFiProvider` that new data is available.
+The URL scheme is used only to trigger the shortcut launch (`shortcuts://x-callback-url/run-shortcut?name=...&x-success=netmonitor://`). The data return path now goes through `SaveWiFiReadingIntent` → `WiFiReadingBridge`, not through a `netmonitor://wifi-result` callback URL.
 
 ---
 

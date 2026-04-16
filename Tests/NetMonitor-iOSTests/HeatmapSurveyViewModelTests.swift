@@ -879,17 +879,12 @@ struct HeatmapRendererTests {
 }
 
 // MARK: - DeepLinkRouter Tests
+//
+// NOTE: wifi-result URL handler removed — Wi-Fi readings are now delivered
+// in-process via SaveWiFiReadingIntent + WiFiReadingBridge.
 
 @MainActor
 struct DeepLinkRouterTests {
-
-    @Test("handle wifi-result URL sets wifiCallbackReceived")
-    func handleWiFiResultURL() {
-        let router = DeepLinkRouter()
-        let url = URL(string: "netmonitor://wifi-result")!
-        router.handle(url: url)
-        #expect(router.wifiCallbackReceived == true)
-    }
 
     @Test("handle .netmonsurvey file URL sets pendingSurveyFileURL")
     func handleNetmonSurveyFile() {
@@ -917,12 +912,19 @@ struct DeepLinkRouterTests {
         #expect(router.pendingSurveyFileURL == nil)
     }
 
-    @Test("handle ignores unrelated URLs")
-    func handleIgnoresUnrelatedURL() {
+    @Test("handle ignores non-file URLs")
+    func handleIgnoresNonFileURLs() {
         let router = DeepLinkRouter()
         let url = URL(string: "https://example.com")!
         router.handle(url: url)
         #expect(router.pendingSurveyFileURL == nil)
-        #expect(router.wifiCallbackReceived == false)
+    }
+
+    @Test("handle ignores netmonitor scheme URLs (now handled by AppIntents)")
+    func handleIgnoresNetmonitorSchemeURLs() {
+        let router = DeepLinkRouter()
+        let url = URL(string: "netmonitor://wifi-result")!
+        router.handle(url: url)
+        #expect(router.pendingSurveyFileURL == nil)
     }
 }

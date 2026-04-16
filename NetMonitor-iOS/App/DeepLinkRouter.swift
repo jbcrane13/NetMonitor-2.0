@@ -2,9 +2,10 @@ import Foundation
 
 /// Routes incoming URLs to the appropriate feature.
 ///
-/// Handles two URL types:
-/// - `netmonitor://wifi-result` — Shortcuts Wi-Fi callback (ShortcutsWiFiProvider)
-/// - File URLs (.netmonsurvey / .netmonblueprint) — opens in heatmap survey view
+/// Handles file URLs (.netmonsurvey / .netmonblueprint) opened from the Files
+/// app or share sheet. The old `netmonitor://wifi-result` URL scheme callback
+/// has been removed — Wi-Fi readings are now delivered in-process via
+/// ``SaveWiFiReadingIntent`` and ``WiFiReadingBridge``.
 @MainActor
 @Observable
 final class DeepLinkRouter {
@@ -12,19 +13,7 @@ final class DeepLinkRouter {
     /// URL of a .netmonsurvey or .netmonblueprint file to open.
     var pendingSurveyFileURL: URL?
 
-    /// Whether a Shortcuts Wi-Fi callback was received.
-    var wifiCallbackReceived: Bool = false
-
     func handle(url: URL) {
-        // URL scheme callback from Shortcuts
-        if url.scheme == "netmonitor", url.host == "wifi-result" {
-            wifiCallbackReceived = true
-            // The ShortcutsWiFiProvider handles the actual data read via handleURLCallback()
-            // Notify it through a notification so any active provider instance picks it up.
-            NotificationCenter.default.post(name: .shortcutsWiFiCallbackReceived, object: nil)
-            return
-        }
-
         // File URL opened from Files app or share sheet
         if url.isFileURL {
             let ext = url.pathExtension
@@ -40,10 +29,4 @@ final class DeepLinkRouter {
         pendingSurveyFileURL = nil
         return url
     }
-}
-
-// MARK: - Notification Name
-
-extension Notification.Name {
-    static let shortcutsWiFiCallbackReceived = Notification.Name("shortcutsWiFiCallbackReceived")
 }

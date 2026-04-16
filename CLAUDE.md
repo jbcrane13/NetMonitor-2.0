@@ -73,7 +73,7 @@ Key types: `ScanEngine`, `ScanPipeline`, `ScanContext`, `ScanAccumulator`, `Conn
 | UI theme | Standard system appearance | Liquid glass (`Theme`, `GlassCard`, `GlassButton`) |
 | Background | — | `BGTaskScheduler` |
 | Mac link | Advertises `_netmon._tcp` on port 8849 | Discovers and connects via `MacConnectionService` |
-| Wi-Fi signal | CoreWLAN (`CWInterface`) — direct RSSI, noise, channel | Shortcuts "Get Network Details" via `ShortcutsWiFiProvider` (~2s round-trip); `NEHotspotNetwork` fallback (SSID/BSSID only) |
+| Wi-Fi signal | CoreWLAN (`CWInterface`) — direct RSSI, noise, channel | Shortcuts "Get Network Details" → `SaveWiFiReadingIntent` (App Intents bridge, ~2s round-trip); `NEHotspotNetwork` fallback (SSID/BSSID only) |
 | Heatmap service | `WiFiHeatmapService` (CoreWLAN wrapper) | `IOSHeatmapService` (Shortcuts + NEHotspotNetwork) |
 
 ## Mac–iOS Companion Protocol
