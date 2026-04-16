@@ -12,6 +12,7 @@ struct DevicesView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(DeviceDiscoveryCoordinator.self) private var coordinator: DeviceDiscoveryCoordinator?
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.colorScheme) private var colorScheme
     @Query(sort: \LocalDevice.lastSeen, order: .reverse) private var devices: [LocalDevice]
 
     @State private var selectedDevice: LocalDevice?
@@ -265,12 +266,12 @@ struct DevicesView: View {
                         }
                         .accessibilityIdentifier("devices_row_pro\(device.ipAddress)")
                     Rectangle()
-                        .fill(Color.white.opacity(0.08))
+                        .fill(MacTheme.Colors.divider)
                         .frame(height: 1)
                 }
             }
         }
-        .background(Color.black.opacity(0.3))
+        .background(colorScheme == .dark ? Color.black.opacity(0.3) : MacTheme.Colors.subtleBackground)
     }
 
     private var proModeHeaderRow: some View {
@@ -290,13 +291,13 @@ struct DevicesView: View {
         }
         .font(.caption)
         .fontWeight(.semibold)
-        .foregroundStyle(Color.white.opacity(0.6))
+        .foregroundStyle(MacTheme.Colors.textTertiary)
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
-        .background(Color.white.opacity(0.05))
+        .background(colorScheme == .dark ? Color.white.opacity(0.05) : MacTheme.Colors.subtleBackground)
         .overlay(alignment: .bottom) {
             Rectangle()
-                .fill(Color.white.opacity(0.15))
+                .fill(colorScheme == .dark ? Color.white.opacity(0.15) : MacTheme.Colors.divider)
                 .frame(height: 1)
         }
     }
