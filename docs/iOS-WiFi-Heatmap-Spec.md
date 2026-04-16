@@ -194,7 +194,7 @@ IOSHeatmapService.takeMeasurement(at:)
 ShortcutsWiFiProvider.fetchWiFiSignal(timeout:)
     ↓
 Opens shortcuts://x-callback-url/run-shortcut?name=Wi-Fi%20to%20NetMonitor
-    ↓ (Shortcuts app runs "Get Network Details" → "Save Wi-Fi Reading to NetMonitor")
+    ↓ (Shortcuts app runs N× "Get Network Details" → "Save Wi-Fi Reading to NetMonitor")
 SaveWiFiReadingIntent.perform() called by Shortcuts runtime
     ↓
 WiFiReadingBridge.deliver(reading:) — resumes awaiting continuation
@@ -214,29 +214,36 @@ The App Group must be:
 
 ### 5.5 User-authored Shortcut
 
-> *Superseded (April 2026): The previous 5-action approach using "Save File" + `netmonitor://wifi-result` URL callback is no longer the recommended setup.*
+> *Superseded (April 2026): The previous approach using "Save File" + `netmonitor://wifi-result` URL callback is no longer the recommended setup.*
 
-The shortcut "Wi-Fi to NetMonitor" now requires only **2 actions**:
+The shortcut "Wi-Fi to NetMonitor" chains one **Get Network Details** action per field (Apple's action returns a single selected value per invocation) into a final **Save Wi-Fi Reading to NetMonitor** action (our AppIntent). A full-data shortcut is 9 actions; a minimum viable shortcut is 4 (SSID + RSSI + Channel + Save).
 
 | Step | Action | Configuration |
 |------|--------|---------------|
-| 1 | **Get Network Details** (system action) | Set to "Wi-Fi Details" |
-| 2 | **Save Wi-Fi Reading to NetMonitor** (NetMonitor AppIntent) | Map fields as below |
+| 1 | Get Network Details | Wi-Fi → Network Name (rename variable `SSID`) |
+| 2 | Get Network Details | Wi-Fi → RSSI (rename variable `RSSI`) |
+| 3 | Get Network Details | Wi-Fi → Channel Number (rename variable `Channel`) |
+| 4 | Get Network Details (optional) | Wi-Fi → BSSID (rename variable `BSSID`) |
+| 5 | Get Network Details (optional) | Wi-Fi → Noise (rename variable `Noise`) |
+| 6 | Get Network Details (optional) | Wi-Fi → TX Rate (rename variable `TXRate`) |
+| 7 | Get Network Details (optional) | Wi-Fi → RX Rate (rename variable `RXRate`) |
+| 8 | Get Network Details (optional) | Wi-Fi → Wi-Fi Standard (rename variable `WiFiStandard`) |
+| 9 | Save Wi-Fi Reading to NetMonitor (AppIntent) | Map parameters to variables above |
 
-**Field mapping for action 2:**
+**Field mapping for the Save action:**
 
-| AppIntent Parameter | Maps to (from step 1 output) |
-|--------------------|------------------------------|
-| Network Name (SSID) | Network Name |
-| BSSID | BSSID |
-| Signal Strength (RSSI, dBm) | Signal Strength |
-| Noise (dBm) | Noise |
-| Channel | Channel |
-| TX Rate (Mbps) | TX Rate |
-| RX Rate (Mbps) | RX Rate |
-| Wi-Fi Standard | Wi-Fi Standard |
+| AppIntent Parameter | Maps to variable |
+|--------------------|------------------|
+| Network Name (SSID) | `SSID` |
+| Signal Strength (RSSI, dBm) | `RSSI` |
+| Channel | `Channel` |
+| BSSID | `BSSID` |
+| Noise (dBm) | `Noise` |
+| TX Rate (Mbps) | `TXRate` |
+| RX Rate (Mbps) | `RXRate` |
+| Wi-Fi Standard | `WiFiStandard` |
 
-Noise, TX Rate, RX Rate, and Wi-Fi Standard are optional — the app handles missing values gracefully.
+Only SSID, RSSI, and Channel are required by the intent. The remaining fields are optional — the app handles missing values gracefully. Including Noise is recommended so SNR can be computed for heatmap quality.
 
 The shortcut must be named exactly **"Wi-Fi to NetMonitor"** (case-sensitive, one space on each side of "to") so that `ShortcutsWiFiProvider` can trigger it via `shortcuts://x-callback-url/run-shortcut?name=Wi-Fi%20to%20NetMonitor`.
 

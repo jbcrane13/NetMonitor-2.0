@@ -188,18 +188,22 @@ struct WiFiShortcutSetupView: View {
                 VStack(alignment: .leading, spacing: Theme.Layout.itemSpacing) {
                     manualStep(
                         number: 1,
-                        text: "Open Shortcuts, tap +, add \"Get Network Details\" and set it to \"Wi-Fi Details\""
+                        text: "Open Shortcuts, tap +. Add \"Get Network Details\" set to \"Wi-Fi → Network Name\""
                     )
                     manualStep(
                         number: 2,
-                        text: "Add \"Save Wi-Fi Reading to NetMonitor\" (listed under the NetMonitor section in action search)"
+                        text: "Add another \"Get Network Details\" for each field you want: RSSI, Channel Number, BSSID, Noise, TX Rate, RX Rate, Wi-Fi Standard (only SSID, RSSI, and Channel are required)"
                     )
                     manualStep(
                         number: 3,
-                        text: "Map the 8 parameters to values from step 1 (Network Name → Network Name, RSSI → Signal Strength, etc.)"
+                        text: "Add \"Save Wi-Fi Reading to NetMonitor\" (in the NetMonitor section of action search)"
                     )
                     manualStep(
                         number: 4,
+                        text: "Map each parameter to the matching variable from the Get Network Details actions above"
+                    )
+                    manualStep(
+                        number: 5,
                         text: "Name the shortcut exactly: \"Wi-Fi to NetMonitor\" (case-sensitive)"
                     )
                 }
