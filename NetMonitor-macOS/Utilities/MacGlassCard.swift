@@ -21,7 +21,7 @@ struct MacGlassCardModifier: ViewModifier {
                     // Base material
                     RoundedRectangle(cornerRadius: cornerRadius)
                         .fill(.ultraThinMaterial)
-                        .opacity(colorScheme == .dark ? 0.8 : 0.6)
+                        .opacity(colorScheme == .dark ? 0.8 : 0.7)
 
                     // Crystal base tint
                     RoundedRectangle(cornerRadius: cornerRadius)
@@ -31,7 +31,7 @@ struct MacGlassCardModifier: ViewModifier {
                     LinearGradient(
                         colors: colorScheme == .dark
                             ? [.white.opacity(0.08), .clear, .white.opacity(0.02)]
-                            : [.white.opacity(0.25), .clear, .white.opacity(0.1)],
+                            : [.white.opacity(0.6), .white.opacity(0.15), .white.opacity(0.35)],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     )
@@ -42,7 +42,7 @@ struct MacGlassCardModifier: ViewModifier {
             .overlay(alignment: .top) {
                 if let glow = statusGlow {
                     Rectangle()
-                        .fill(glow.opacity(colorScheme == .dark ? 0.08 : 0.06))
+                        .fill(glow.opacity(colorScheme == .dark ? 0.08 : 0.08))
                         .frame(height: 40)
                         .blur(radius: 20)
                         .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
@@ -69,13 +69,30 @@ struct MacGlassCardModifier: ViewModifier {
                         LinearGradient(
                             colors: colorScheme == .dark
                                 ? [.white.opacity(0.2), .white.opacity(0.05), .clear]
-                                : [.white.opacity(0.4), .white.opacity(0.1), .clear],
+                                : [.white.opacity(0.7), .white.opacity(0.2), .clear],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         ),
                         lineWidth: 1
                     )
             )
+            // Top-edge luminance highlight (light mode only)
+            .overlay(alignment: .top) {
+                if colorScheme == .light {
+                    RoundedRectangle(cornerRadius: cornerRadius)
+                        .stroke(
+                            LinearGradient(
+                                colors: [.clear, .white.opacity(0.9), .clear],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            ),
+                            lineWidth: 1
+                        )
+                        .frame(height: 1)
+                        .offset(y: 0.5)
+                        .clipped()
+                }
+            }
             .overlay(
                 RoundedRectangle(cornerRadius: cornerRadius)
                     .stroke(MacTheme.Colors.glassBorder, lineWidth: showBorder ? 0.5 : 0)
@@ -161,25 +178,34 @@ struct MacThemedBackground: ViewModifier {
                         )
                         .ignoresSafeArea()
                     } else {
-                        // === Light mode: Silver theme — clean, bright ===
-                        Color(NSColor(red: 245/255, green: 245/255, blue: 245/255, alpha: 1)) // #F5F5F5
+                        // === Light mode: Brushed Steel — grey base with steady atmospheric washes ===
+                        Color(red: 216/255, green: 218/255, blue: 224/255) // #D8DAE0
                             .ignoresSafeArea()
 
-                        // Subtle warm radial glow in top-left
+                        // Steady cyan wash — top-left
                         RadialGradient(
-                            colors: [Color.white.opacity(0.7), .clear],
-                            center: UnitPoint(x: 0.2, y: 0.1),
+                            colors: [Color(red: 8/255, green: 145/255, blue: 178/255).opacity(0.06), .clear],
+                            center: UnitPoint(x: 0.15, y: 0.2),
                             startRadius: 0,
                             endRadius: 500
                         )
                         .ignoresSafeArea()
 
-                        // Very faint blue accent in bottom-right
+                        // Soft violet wash — bottom-right
                         RadialGradient(
-                            colors: [Color(red: 0.85, green: 0.88, blue: 0.95).opacity(0.5), .clear],
-                            center: UnitPoint(x: 0.8, y: 0.85),
+                            colors: [Color(red: 124/255, green: 58/255, blue: 237/255).opacity(0.04), .clear],
+                            center: UnitPoint(x: 0.85, y: 0.8),
                             startRadius: 0,
-                            endRadius: 400
+                            endRadius: 450
+                        )
+                        .ignoresSafeArea()
+
+                        // Gentle emerald wash — center
+                        RadialGradient(
+                            colors: [Color(red: 5/255, green: 150/255, blue: 105/255).opacity(0.03), .clear],
+                            center: UnitPoint(x: 0.5, y: 0.5),
+                            startRadius: 0,
+                            endRadius: 500
                         )
                         .ignoresSafeArea()
                     }
