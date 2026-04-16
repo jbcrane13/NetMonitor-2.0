@@ -347,7 +347,11 @@ final class HeatmapSurveyViewModel {
         isSurveying = true
         isHeatmapGenerated = false
         heatmapImage = nil
-        startSignalPolling()
+        // Note: live RSSI polling via service.takeMeasurement is intentionally
+        // disabled on iOS — each call opens the Shortcuts companion, which
+        // steals focus every poll interval and makes the app unusable. The
+        // current-signal indicator updates after each explicit user-initiated
+        // measurement instead.
         if isContinuousScan {
             startContinuousScanTimer()
         }
@@ -355,7 +359,7 @@ final class HeatmapSurveyViewModel {
 
     func stopSurvey() {
         isSurveying = false
-        stopSignalPolling()
+        stopSignalPolling()  // idempotent no-op; kept for safety if ever re-enabled
         stopContinuousScanTimer()
         updateHeatmap()
     }
