@@ -44,7 +44,7 @@ final class ShortcutsWiFiProvider: @unchecked Sendable {
     private static let readingFilename = "wifi-reading.json"
 
     /// Maximum time to wait for the Shortcut round-trip.
-    static let defaultTimeout: TimeInterval = 3.0
+    static let defaultTimeout: TimeInterval = 10.0
 
     // MARK: - Init
 
@@ -55,7 +55,9 @@ final class ShortcutsWiFiProvider: @unchecked Sendable {
     /// Triggers the companion Shortcut and waits for Wi-Fi data.
     ///
     /// Returns `nil` if the shortcut is not installed, times out, or fails.
-    /// Timeout defaults to 3 seconds.
+    /// Timeout defaults to 10 seconds — the 9-action shortcut plus app-switch
+    /// overhead can take 2–5 s on a fresh run, so 10 s gives a safety margin.
+    /// Success path resolves immediately when the bridge publishes.
     func fetchWiFiSignal(timeout: TimeInterval = ShortcutsWiFiProvider.defaultTimeout) async throws -> ShortcutsWiFiReading? {
         // Clear any stale reading from the shared container
         clearSharedReading()
