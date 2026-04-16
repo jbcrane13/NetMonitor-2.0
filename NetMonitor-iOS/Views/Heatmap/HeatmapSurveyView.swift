@@ -103,6 +103,17 @@ struct HeatmapSurveyView: View {
         }
         .accessibilityIdentifier("screen_heatmapSurvey")
         .onAppear {
+            // Inject the heatmap service. Without this, HeatmapSurveyViewModel
+            // falls back to the nil-service path and every measurement's RSSI
+            // defaults to the -100 sentinel.
+            let service = IOSHeatmapService(
+                wifiInfoService: WiFiInfoService(),
+                shortcutsProvider: shortcutsProvider,
+                speedTestService: SpeedTestService(),
+                pingService: PingService()
+            )
+            viewModel.configure(service: service)
+
             // Check if a .netmonsurvey file was opened via deep link
             if let url = deepLinkRouter?.consumePendingFile() {
                 openFileFromDeepLink(url)
