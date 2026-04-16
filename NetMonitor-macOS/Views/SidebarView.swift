@@ -75,7 +75,7 @@ struct SidebarView: View {
         .scrollContentBackground(.hidden)
         .background(
             ZStack {
-                MacTheme.Colors.backgroundElevated
+                MacTheme.Colors.backgroundGradientStart
                     .ignoresSafeArea()
 
                 // Subtle blue shimmer at top of sidebar

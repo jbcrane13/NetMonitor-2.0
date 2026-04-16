@@ -3,6 +3,7 @@ import NetMonitorCore
 
 /// Row B (right): Rolling latency waveform + stats from MonitoringSession.
 struct LatencyAnalysisCard: View {
+    @Environment(\.colorScheme) private var colorScheme
     let session: MonitoringSession?
     var gatewayLatencyHistory: [Double] = []
 
@@ -81,7 +82,7 @@ struct LatencyAnalysisCard: View {
     private var waveformView: some View {
         ZStack {
             RoundedRectangle(cornerRadius: 6)
-                .fill(Color.black.opacity(0.28))
+                .fill(Color.black.opacity(colorScheme == .dark ? 0.28 : 0.06))
 
 // swiftlint:disable:next identifier_name
             GeometryReader { g in
