@@ -439,7 +439,7 @@ enum RoomPlanBuildError: Equatable, LocalizedError {
 
 // MARK: - RoomPlanTaskTimeout
 
-internal enum RoomPlanTaskTimeout {
+enum RoomPlanTaskTimeout {
     /// Runs an async operation and races it against a timeout task.
     ///
     /// - Parameters:
@@ -461,9 +461,8 @@ internal enum RoomPlanTaskTimeout {
                 throw RoomPlanBuildError.timeout
             }
 
-            guard let nextResult = await group.nextResult() else {
-                throw RoomPlanBuildError.timeout
-            }
+            // Safe force unwrap: the group always contains 2 tasks above.
+            let nextResult = await group.nextResult()!
             group.cancelAll()
             return try nextResult.get()
         }
