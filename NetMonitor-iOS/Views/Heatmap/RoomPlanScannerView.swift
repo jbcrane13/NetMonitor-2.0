@@ -689,16 +689,12 @@ final class RoomPlanScanViewController: UIViewController, RoomCaptureSessionDele
             return
         }
 
-        Task {
+        Task { @MainActor in
             do {
                 let capturedRoom = try await self.buildCapturedRoom(from: data)
-                await MainActor.run {
-                    vm?.processCapturedRoom(capturedRoom)
-                }
+                vm?.processCapturedRoom(capturedRoom)
             } catch {
-                await MainActor.run {
-                    vm?.handleScanError(error)
-                }
+                vm?.handleScanError(error)
             }
         }
     }
