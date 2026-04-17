@@ -439,6 +439,77 @@ enum RoomPlanBuildError: Equatable, LocalizedError {
 
 // MARK: - RoomPlanTaskTimeout
 
+private actor RoomPlanTaskTimeoutRace<T: Sendable> {
+    private var continuation: CheckedContinuation<T, Error>?
+    private var didResume = false
+    private var operationTask: Task<Void, Never>?
+    private var timeoutTask: Task<Void, Never>?
+
+    init(continuation: CheckedContinuation<T, Error>) {
+        self.continuation = continuation
+    }
+
+    func setTasks(operationTask: Task<Void, Never>, timeoutTask: Task<Void, Never>) {
+        self.operationTask = operationTask
+        self.timeoutTask = timeoutTask
+
+        if didResume {
+            operationTask.cancel()
+            timeoutTask.cancel()
+        }
+    }
+
+    func resume(returning value: T) {
+        guard !didResume, let continuation else { return }
+        didResume = true
+        self.continuation = nil
+        operationTask?.cancel()
+        timeoutTask?.cancel()
+        continuation.resume(returning: value)
+    }
+
+    func resume(throwing error: Error) {
+        guard !didResume, let continuation else { return }
+        didResume = true
+        self.continuation = nil
+        operationTask?.cancel()
+        timeoutTask?.cancel()
+        continuation.resume(throwing: error)
+    }
+
+    func cancel() {
+        guard !didResume, let continuation else {
+            operationTask?.cancel()
+            timeoutTask?.cancel()
+            return
+        }
+
+        didResume = true
+        self.continuation = nil
+        operationTask?.cancel()
+        timeoutTask?.cancel()
+        continuation.resume(throwing: CancellationError())
+    }
+}
+
+private actor RoomPlanTaskTimeoutCancellationRelay<T: Sendable> {
+    private var race: RoomPlanTaskTimeoutRace<T>?
+    private var didCancel = false
+
+    func setRace(_ race: RoomPlanTaskTimeoutRace<T>) async {
+        self.race = race
+
+        if didCancel {
+            await race.cancel()
+        }
+    }
+
+    func cancel() async {
+        didCancel = true
+        await race?.cancel()
+    }
+}
+
 enum RoomPlanTaskTimeout {
     /// Runs an async operation and races it against a timeout task.
     ///
@@ -452,19 +523,43 @@ enum RoomPlanTaskTimeout {
         timeout: Duration,
         operation: @escaping @Sendable () async throws -> T
     ) async throws -> T {
-        try await withThrowingTaskGroup(of: T.self) { group in
-            group.addTask {
-                try await operation()
-            }
-            group.addTask {
-                try await Task.sleep(for: timeout)
-                throw RoomPlanBuildError.timeout
-            }
+        let cancellationRelay = RoomPlanTaskTimeoutCancellationRelay<T>()
 
-            // Safe force unwrap: the group always contains 2 tasks above.
-            let nextResult = await group.nextResult()!
-            group.cancelAll()
-            return try nextResult.get()
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                let race = RoomPlanTaskTimeoutRace<T>(continuation: continuation)
+
+                Task {
+                    await cancellationRelay.setRace(race)
+                }
+
+                let operationTask = Task {
+                    do {
+                        let value = try await operation()
+                        await race.resume(returning: value)
+                    } catch {
+                        await race.resume(throwing: error)
+                    }
+                }
+
+                let timeoutTask = Task {
+                    do {
+                        try await Task.sleep(for: timeout)
+                        await race.resume(throwing: RoomPlanBuildError.timeout)
+                    } catch {
+                        // Timeout task was cancelled because the operation completed first
+                        // or the parent task was cancelled.
+                    }
+                }
+
+                Task {
+                    await race.setTasks(operationTask: operationTask, timeoutTask: timeoutTask)
+                }
+            }
+        } onCancel: {
+            Task {
+                await cancellationRelay.cancel()
+            }
         }
     }
 }
