@@ -425,15 +425,21 @@ struct RoomPlanScanContainer: UIViewControllerRepresentable {
 
 enum RoomPlanBuildError: Equatable, LocalizedError {
     case timeout
+    case fallbackTimeout
 
     var errorDescription: String? {
-        "Room conversion timed out. Please scan a smaller area or try again."
+        switch self {
+        case .timeout:
+            "Room conversion timed out. Please scan a smaller area or try again."
+        case .fallbackTimeout:
+            "Room conversion timed out after two attempts. Please rescan a smaller area."
+        }
     }
 }
 
 // MARK: - RoomPlanTaskTimeout
 
-enum RoomPlanTaskTimeout {
+internal enum RoomPlanTaskTimeout {
     static func run<T: Sendable>(
         timeout: Duration,
         operation: @escaping @Sendable () async throws -> T
@@ -447,11 +453,11 @@ enum RoomPlanTaskTimeout {
                 throw RoomPlanBuildError.timeout
             }
 
-            if let result = try await group.next() {
+            while let result = try await group.next() {
                 group.cancelAll()
                 return result
             }
-            throw CancellationError()
+            throw RoomPlanBuildError.timeout
         }
     }
 }
@@ -607,8 +613,12 @@ final class RoomPlanScanViewController: UIViewController, RoomCaptureSessionDele
             }
         } catch RoomPlanBuildError.timeout {
             let fallbackBuilder = RoomBuilder(options: [])
-            return try await RoomPlanTaskTimeout.run(timeout: Self.fallbackBuildTimeout) {
-                try await fallbackBuilder.capturedRoom(from: data)
+            do {
+                return try await RoomPlanTaskTimeout.run(timeout: Self.fallbackBuildTimeout) {
+                    try await fallbackBuilder.capturedRoom(from: data)
+                }
+            } catch RoomPlanBuildError.timeout {
+                throw RoomPlanBuildError.fallbackTimeout
             }
         }
     }

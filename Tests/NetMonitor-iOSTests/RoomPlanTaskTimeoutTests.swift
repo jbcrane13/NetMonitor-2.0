@@ -2,7 +2,6 @@ import Foundation
 import Testing
 @testable import NetMonitor_iOS
 
-@MainActor
 struct RoomPlanTaskTimeoutTests {
     @Test func timeoutRunReturnsValueWhenOperationCompletesInTime() async throws {
         let result = try await RoomPlanTaskTimeout.run(timeout: .seconds(1)) {
