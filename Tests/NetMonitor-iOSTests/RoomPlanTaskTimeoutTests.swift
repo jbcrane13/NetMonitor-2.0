@@ -4,7 +4,7 @@ import Testing
 
 @MainActor
 struct RoomPlanTaskTimeoutTests {
-    @Test func runReturnsValueWhenOperationCompletesInTime() async throws {
+    @Test func timeoutRunReturnsValueWhenOperationCompletesInTime() async throws {
         let result = try await RoomPlanTaskTimeout.run(timeout: .seconds(1)) {
             "done"
         }
@@ -12,7 +12,7 @@ struct RoomPlanTaskTimeoutTests {
         #expect(result == "done")
     }
 
-    @Test func runThrowsTimeoutWhenOperationTakesTooLong() async {
+    @Test func timeoutRunThrowsWhenOperationTakesTooLong() async {
         do {
             _ = try await RoomPlanTaskTimeout.run(timeout: .milliseconds(50)) {
                 try await Task.sleep(for: .seconds(1))

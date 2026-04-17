@@ -447,9 +447,11 @@ enum RoomPlanTaskTimeout {
                 throw RoomPlanBuildError.timeout
             }
 
-            let result = try await group.next()!
-            group.cancelAll()
-            return result
+            if let result = try await group.next() {
+                group.cancelAll()
+                return result
+            }
+            throw CancellationError()
         }
     }
 }
@@ -591,6 +593,10 @@ final class RoomPlanScanViewController: UIViewController, RoomCaptureSessionDele
         }
     }
 
+    /// Builds a `CapturedRoom` with two conversion attempts:
+    /// - First, a beautified conversion with a 45-second timeout.
+    /// - On timeout, a fallback conversion without beautification with a 30-second timeout.
+    /// Any non-timeout conversion error is propagated immediately.
     nonisolated private func buildCapturedRoom(from data: CapturedRoomData) async throws -> CapturedRoom {
         // First attempt with object beautification for cleaner geometry.
         // If it stalls on very large captures, retry with no options.
