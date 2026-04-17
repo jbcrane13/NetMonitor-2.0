@@ -479,6 +479,8 @@ final class RoomPlanScanViewController: UIViewController, RoomCaptureSessionDele
     private var captureSession: RoomCaptureSession!
     private var doneButton: UIButton!
     private var cancelButton: UIButton!
+    // Large captures can take a long time when beautification is enabled.
+    // Keep primary generous, then use a shorter fallback for non-beautified conversion.
     private static let primaryBuildTimeout: Duration = .seconds(45)
     private static let fallbackBuildTimeout: Duration = .seconds(30)
 
@@ -632,8 +634,6 @@ final class RoomPlanScanViewController: UIViewController, RoomCaptureSessionDele
                 }
             } catch RoomPlanBuildError.timeout {
                 throw RoomPlanBuildError.fallbackTimeout
-            } catch {
-                throw error
             }
         }
     }

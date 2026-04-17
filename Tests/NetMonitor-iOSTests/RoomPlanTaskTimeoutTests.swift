@@ -11,7 +11,7 @@ struct RoomPlanTaskTimeoutTests {
         #expect(result == "done")
     }
 
-    @Test func timeoutRunThrowsWhenOperationTakesTooLong() async {
+    @Test func timeoutRunThrowsTimeoutErrorWhenOperationTakesTooLong() async {
         do {
             _ = try await RoomPlanTaskTimeout.run(timeout: .milliseconds(50)) {
                 try await Task.sleep(for: .seconds(1))
