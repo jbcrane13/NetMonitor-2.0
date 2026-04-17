@@ -427,10 +427,7 @@ enum RoomPlanBuildError: Equatable, LocalizedError {
     case timeout
 
     var errorDescription: String? {
-        switch self {
-        case .timeout:
-            "Room conversion timed out. Please scan a smaller area or try again."
-        }
+        "Room conversion timed out. Please scan a smaller area or try again."
     }
 }
 
@@ -450,9 +447,7 @@ enum RoomPlanTaskTimeout {
                 throw RoomPlanBuildError.timeout
             }
 
-            guard let result = try await group.next() else {
-                throw RoomPlanBuildError.timeout
-            }
+            let result = try await group.next()!
             group.cancelAll()
             return result
         }
