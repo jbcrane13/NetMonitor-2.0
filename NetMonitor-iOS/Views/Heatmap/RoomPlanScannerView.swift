@@ -440,6 +440,14 @@ enum RoomPlanBuildError: Equatable, LocalizedError {
 // MARK: - RoomPlanTaskTimeout
 
 internal enum RoomPlanTaskTimeout {
+    /// Runs an async operation and races it against a timeout task.
+    ///
+    /// - Parameters:
+    ///   - timeout: Maximum duration to wait before timing out.
+    ///   - operation: Async operation to execute.
+    /// - Returns: The operation's successful result if it finishes before the timeout.
+    /// - Throws: `RoomPlanBuildError.timeout` when timeout elapses first, or rethrows
+    ///   any error produced by `operation`.
     static func run<T: Sendable>(
         timeout: Duration,
         operation: @escaping @Sendable () async throws -> T
@@ -605,6 +613,9 @@ final class RoomPlanScanViewController: UIViewController, RoomCaptureSessionDele
     /// - First, a beautified conversion with a 45-second timeout.
     /// - On timeout, a fallback conversion without beautification with a 30-second timeout.
     /// Any non-timeout conversion error is propagated immediately.
+    ///
+    /// - Throws: `RoomPlanBuildError.fallbackTimeout` if both attempts time out, or
+    ///   rethrows any non-timeout `RoomBuilder` conversion error.
     nonisolated private func buildCapturedRoom(from data: CapturedRoomData) async throws -> CapturedRoom {
         // First attempt with object beautification for cleaner geometry.
         // If it stalls on very large captures, retry with no options.
@@ -621,6 +632,8 @@ final class RoomPlanScanViewController: UIViewController, RoomCaptureSessionDele
                 }
             } catch RoomPlanBuildError.timeout {
                 throw RoomPlanBuildError.fallbackTimeout
+            } catch {
+                throw error
             }
         }
     }
