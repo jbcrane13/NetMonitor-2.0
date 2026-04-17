@@ -453,11 +453,11 @@ internal enum RoomPlanTaskTimeout {
                 throw RoomPlanBuildError.timeout
             }
 
-            while let result = try await group.next() {
-                group.cancelAll()
-                return result
+            guard let nextResult = await group.nextResult() else {
+                throw RoomPlanBuildError.timeout
             }
-            throw RoomPlanBuildError.timeout
+            group.cancelAll()
+            return try nextResult.get()
         }
     }
 }
@@ -599,6 +599,8 @@ final class RoomPlanScanViewController: UIViewController, RoomCaptureSessionDele
         }
     }
 
+    /// Nonisolated to keep RoomBuilder work off the main actor while this view controller
+    /// remains main-thread-owned for UIKit state updates.
     /// Builds a `CapturedRoom` with two conversion attempts:
     /// - First, a beautified conversion with a 45-second timeout.
     /// - On timeout, a fallback conversion without beautification with a 30-second timeout.
