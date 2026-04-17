@@ -421,6 +421,44 @@ struct RoomPlanScanContainer: UIViewControllerRepresentable {
     func updateUIViewController(_ uiViewController: RoomPlanScanViewController, context: Context) {}
 }
 
+// MARK: - RoomPlanBuildError
+
+enum RoomPlanBuildError: Equatable, LocalizedError {
+    case timeout
+
+    var errorDescription: String? {
+        switch self {
+        case .timeout:
+            "Room conversion timed out. Please scan a smaller area or try again."
+        }
+    }
+}
+
+// MARK: - RoomPlanTaskTimeout
+
+enum RoomPlanTaskTimeout {
+    static func run<T: Sendable>(
+        timeout: Duration,
+        operation: @escaping @Sendable () async throws -> T
+    ) async throws -> T {
+        try await withThrowingTaskGroup(of: T.self) { group in
+            group.addTask {
+                try await operation()
+            }
+            group.addTask {
+                try await Task.sleep(for: timeout)
+                throw RoomPlanBuildError.timeout
+            }
+
+            guard let result = try await group.next() else {
+                throw RoomPlanBuildError.timeout
+            }
+            group.cancelAll()
+            return result
+        }
+    }
+}
+
 // MARK: - RoomPlanScanViewController
 
 final class RoomPlanScanViewController: UIViewController, RoomCaptureSessionDelegate, @preconcurrency RoomCaptureViewDelegate {
@@ -430,6 +468,8 @@ final class RoomPlanScanViewController: UIViewController, RoomCaptureSessionDele
     private var captureSession: RoomCaptureSession!
     private var doneButton: UIButton!
     private var cancelButton: UIButton!
+    private static let primaryBuildTimeout: Duration = .seconds(45)
+    private static let fallbackBuildTimeout: Duration = .seconds(30)
 
     // Strong reference kept across async boundary so the Task in captureSession(_:didEndWith:)
     // can complete even after SwiftUI removes this UIViewController from the hierarchy.
@@ -542,13 +582,9 @@ final class RoomPlanScanViewController: UIViewController, RoomCaptureSessionDele
             return
         }
 
-        // Use RoomBuilder directly instead of the built-in RoomCaptureView review UI.
-        // This bypasses the post-capture editing screen whose "Done" button can pop the
-        // SwiftUI NavigationStack before our state machine reaches .complete.
-        let roomBuilder = RoomBuilder(options: .beautifyObjects)
         Task {
             do {
-                let capturedRoom = try await roomBuilder.capturedRoom(from: data)
+                let capturedRoom = try await self.buildCapturedRoom(from: data)
                 await MainActor.run {
                     vm?.processCapturedRoom(capturedRoom)
                 }
@@ -556,6 +592,22 @@ final class RoomPlanScanViewController: UIViewController, RoomCaptureSessionDele
                 await MainActor.run {
                     vm?.handleScanError(error)
                 }
+            }
+        }
+    }
+
+    nonisolated private func buildCapturedRoom(from data: CapturedRoomData) async throws -> CapturedRoom {
+        // First attempt with object beautification for cleaner geometry.
+        // If it stalls on very large captures, retry with no options.
+        let beautifiedBuilder = RoomBuilder(options: .beautifyObjects)
+        do {
+            return try await RoomPlanTaskTimeout.run(timeout: Self.primaryBuildTimeout) {
+                try await beautifiedBuilder.capturedRoom(from: data)
+            }
+        } catch RoomPlanBuildError.timeout {
+            let fallbackBuilder = RoomBuilder(options: [])
+            return try await RoomPlanTaskTimeout.run(timeout: Self.fallbackBuildTimeout) {
+                try await fallbackBuilder.capturedRoom(from: data)
             }
         }
     }
