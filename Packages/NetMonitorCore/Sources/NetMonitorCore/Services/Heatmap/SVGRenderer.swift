@@ -25,7 +25,7 @@ public enum SVGRenderer: Sendable {
         }
 
         let aspectRatio = heightMeters / widthMeters
-        let height = Int(Double(width) * aspectRatio)
+        let height = max(1, Int(Double(width) * aspectRatio))
 
         #if canImport(AppKit)
         return renderWithAppKit(svgData: svgData, width: width, height: height)
@@ -81,6 +81,78 @@ public enum SVGRenderer: Sendable {
             // Try to render SVG via UIImage
             if let svgImage = UIImage(data: svgData) {
                 svgImage.draw(in: CGRect(origin: .zero, size: targetSize))
+            }
+        }
+    }
+
+    /// Renders wall segments directly using Core Graphics (no SVG dependency).
+    /// Used on iOS where UIImage cannot render SVG data.
+    public static func renderWallsToPNG(
+        walls: [WallSegment],
+        roomLabels: [RoomLabel],
+        widthMeters: Double,
+        heightMeters: Double,
+        renderWidth: Int = 2048
+    ) -> Data {
+        guard widthMeters > 0,
+              heightMeters > 0,
+              !(walls.isEmpty && roomLabels.isEmpty) else { return Data() }
+
+        let aspectRatio = heightMeters / widthMeters
+        let renderHeight = max(1, Int(Double(renderWidth) * aspectRatio))
+        let targetSize = CGSize(width: renderWidth, height: renderHeight)
+
+        // Scale factor: pixels per meter
+        let scaleX = Double(renderWidth) / widthMeters
+        let scaleY = Double(renderHeight) / heightMeters
+
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        format.opaque = true
+        let renderer = UIGraphicsImageRenderer(size: targetSize, format: format)
+        return renderer.pngData { context in
+            // White background
+            UIColor.white.setFill()
+            context.fill(CGRect(origin: .zero, size: targetSize))
+
+            // Draw walls
+            let cgContext = context.cgContext
+            cgContext.setStrokeColor(UIColor(red: 0.2, green: 0.2, blue: 0.2, alpha: 1).cgColor)
+            cgContext.setLineCap(.round)
+
+            for wall in walls {
+                let x1 = wall.startX * scaleX
+                let y1 = wall.startY * scaleY
+                let x2 = wall.endX * scaleX
+                let y2 = wall.endY * scaleY
+                let strokeWidth = max(wall.thickness * min(scaleX, scaleY), 2.0)
+
+                cgContext.setLineWidth(strokeWidth)
+                cgContext.move(to: CGPoint(x: x1, y: y1))
+                cgContext.addLine(to: CGPoint(x: x2, y: y2))
+                cgContext.strokePath()
+            }
+
+            // Draw room labels
+            let fontSize = CGFloat(renderWidth) / 25.0
+            let font = UIFont.systemFont(ofSize: max(fontSize, 12))
+            let attrs: [NSAttributedString.Key: Any] = [
+                .font: font,
+                .foregroundColor: UIColor(red: 0.4, green: 0.4, blue: 0.4, alpha: 1)
+            ]
+
+            let svgW = Double(renderWidth)
+            let svgH = Double(renderHeight)
+
+            for label in roomLabels {
+                let x = label.normalizedX * svgW
+                let y = label.normalizedY * svgH
+                let textSize = (label.text as NSString).size(withAttributes: attrs)
+                let drawPoint = CGPoint(
+                    x: x - textSize.width / 2,
+                    y: y - textSize.height / 2
+                )
+                (label.text as NSString).draw(at: drawPoint, withAttributes: attrs)
             }
         }
     }

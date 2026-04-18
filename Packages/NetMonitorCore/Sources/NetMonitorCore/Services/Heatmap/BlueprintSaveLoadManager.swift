@@ -258,13 +258,24 @@ public struct BlueprintSaveLoadManager: Sendable {
         _ floor: BlueprintFloor,
         renderWidth: Int = 2048
     ) -> FloorPlan {
-        // Render SVG to PNG for the heatmap canvas
+        // On iOS, UIImage can't render SVG — use direct Core Graphics renderer with wall data.
+        // On macOS, NSImage handles SVG natively.
+        #if canImport(UIKit)
+        let pngData = SVGRenderer.renderWallsToPNG(
+            walls: floor.wallSegments,
+            roomLabels: floor.roomLabels,
+            widthMeters: floor.widthMeters,
+            heightMeters: floor.heightMeters,
+            renderWidth: renderWidth
+        )
+        #else
         let pngData = SVGRenderer.renderToPNG(
             svgData: floor.svgData,
             width: renderWidth,
             heightMeters: floor.heightMeters,
             widthMeters: floor.widthMeters
         )
+        #endif
 
         let aspectRatio = floor.heightMeters / max(floor.widthMeters, 0.001)
         let renderHeight = Int(Double(renderWidth) * aspectRatio)
