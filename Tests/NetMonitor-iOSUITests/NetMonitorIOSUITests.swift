@@ -1,5 +1,6 @@
 import XCTest
 
+@MainActor
 class NetMonitorIOSUITests: XCTestCase {
     var app: XCUIApplication!
 
