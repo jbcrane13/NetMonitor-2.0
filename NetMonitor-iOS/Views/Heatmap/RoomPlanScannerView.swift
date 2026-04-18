@@ -709,18 +709,17 @@ final class RoomPlanScanViewController: UIViewController, RoomCaptureSessionDele
     /// - Throws: `RoomPlanBuildError.fallbackTimeout` if both attempts time out, or
     ///   rethrows any non-timeout `RoomBuilder` conversion error.
     nonisolated private func buildCapturedRoom(from data: CapturedRoomData) async throws -> CapturedRoom {
-        // First attempt with object beautification for cleaner geometry.
-        // If it stalls on very large captures, retry with no options.
-        let beautifiedBuilder = RoomBuilder(options: .beautifyObjects)
+        // RoomBuilder is not Sendable — create inside each closure to avoid capture.
         do {
             return try await RoomPlanTaskTimeout.run(timeout: Self.primaryBuildTimeout) {
-                try await beautifiedBuilder.capturedRoom(from: data)
+                let builder = RoomBuilder(options: .beautifyObjects)
+                return try await builder.capturedRoom(from: data)
             }
         } catch RoomPlanBuildError.timeout {
-            let fallbackBuilder = RoomBuilder(options: [])
             do {
                 return try await RoomPlanTaskTimeout.run(timeout: Self.fallbackBuildTimeout) {
-                    try await fallbackBuilder.capturedRoom(from: data)
+                    let builder = RoomBuilder(options: [])
+                    return try await builder.capturedRoom(from: data)
                 }
             } catch RoomPlanBuildError.timeout {
                 throw RoomPlanBuildError.fallbackTimeout

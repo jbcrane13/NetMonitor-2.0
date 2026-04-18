@@ -29,7 +29,7 @@ struct WiFiReadingBridgeTests {
     func publishBeforeWaitReturnsMissedReading() async {
         // Simulate the cold-launch edge case: publish fires before wait is registered.
         // The bridge itself will return nil (no listener); the provider falls back to file.
-        let bridge = WiFiReadingBridge()
+        let bridge = WiFiReadingBridge.makeForTesting()
         let reading = makeReading()
         bridge.publish(reading) // no continuations registered — no-op
 
@@ -42,7 +42,7 @@ struct WiFiReadingBridgeTests {
 
     @Test("publish during waitForReading resolves continuation with reading")
     func publishDuringWaitResolvesReading() async {
-        let bridge = WiFiReadingBridge()
+        let bridge = WiFiReadingBridge.makeForTesting()
         let reading = makeReading(rssi: -55, channel: 36)
 
         // Start waiting, then publish after a small delay.
@@ -63,7 +63,7 @@ struct WiFiReadingBridgeTests {
 
     @Test("waitForReading returns nil after timeout when no publish arrives")
     func waitForReadingTimesOut() async {
-        let bridge = WiFiReadingBridge()
+        let bridge = WiFiReadingBridge.makeForTesting()
         let result = await bridge.waitForReading(timeout: 0.05)
         #expect(result == nil)
     }
@@ -72,7 +72,7 @@ struct WiFiReadingBridgeTests {
 
     @Test("publish resolves all pending continuations")
     func publishResolvesMultipleWaiters() async {
-        let bridge = WiFiReadingBridge()
+        let bridge = WiFiReadingBridge.makeForTesting()
         let reading = makeReading(rssi: -70)
 
         async let r1 = bridge.waitForReading(timeout: 2.0)
@@ -92,7 +92,7 @@ struct WiFiReadingBridgeTests {
 
     @Test("publish after timeout does not double-resume (no crash)")
     func publishAfterTimeoutDoesNotCrash() async {
-        let bridge = WiFiReadingBridge()
+        let bridge = WiFiReadingBridge.makeForTesting()
         let reading = makeReading()
 
         // Wait with a very short timeout so it expires first.
