@@ -2,6 +2,7 @@ import Foundation
 import Testing
 @testable import NetMonitor_iOS
 
+@MainActor
 struct ShortcutsWiFiProviderTests {
 
     /// Regression guard for the 3s → 10s timeout bump.
