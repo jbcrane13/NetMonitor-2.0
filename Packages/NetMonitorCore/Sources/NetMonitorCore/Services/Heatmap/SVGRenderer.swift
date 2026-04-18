@@ -94,7 +94,9 @@ public enum SVGRenderer: Sendable {
         heightMeters: Double,
         renderWidth: Int = 2048
     ) -> Data {
-        guard widthMeters > 0, heightMeters > 0 else { return Data() }
+        guard widthMeters > 0,
+              heightMeters > 0,
+              !(walls.isEmpty && roomLabels.isEmpty) else { return Data() }
 
         let aspectRatio = heightMeters / widthMeters
         let renderHeight = max(1, Int(Double(renderWidth) * aspectRatio))
