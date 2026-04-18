@@ -106,7 +106,10 @@ public enum SVGRenderer: Sendable {
         let scaleX = Double(renderWidth) / widthMeters
         let scaleY = Double(renderHeight) / heightMeters
 
-        let renderer = UIGraphicsImageRenderer(size: targetSize)
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        format.opaque = true
+        let renderer = UIGraphicsImageRenderer(size: targetSize, format: format)
         return renderer.pngData { context in
             // White background
             UIColor.white.setFill()
