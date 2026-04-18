@@ -129,7 +129,7 @@ public enum SVGRenderer: Sendable {
             }
 
             // Draw room labels
-            let fontSize = CGFloat(widthMeters / 10.0 * scaleX) * 0.4
+            let fontSize = CGFloat(renderWidth) / 25.0
             let font = UIFont.systemFont(ofSize: max(fontSize, 12))
             let attrs: [NSAttributedString.Key: Any] = [
                 .font: font,
