@@ -25,7 +25,7 @@ public enum SVGRenderer: Sendable {
         }
 
         let aspectRatio = heightMeters / widthMeters
-        let height = Int(Double(width) * aspectRatio)
+        let height = max(1, Int(Double(width) * aspectRatio))
 
         #if canImport(AppKit)
         return renderWithAppKit(svgData: svgData, width: width, height: height)
@@ -97,7 +97,7 @@ public enum SVGRenderer: Sendable {
         guard widthMeters > 0, heightMeters > 0 else { return Data() }
 
         let aspectRatio = heightMeters / widthMeters
-        let renderHeight = Int(Double(renderWidth) * aspectRatio)
+        let renderHeight = max(1, Int(Double(renderWidth) * aspectRatio))
         let targetSize = CGSize(width: renderWidth, height: renderHeight)
 
         // Scale factor: pixels per meter
