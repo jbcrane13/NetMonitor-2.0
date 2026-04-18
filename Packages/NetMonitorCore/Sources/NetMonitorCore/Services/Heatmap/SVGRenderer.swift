@@ -25,7 +25,7 @@ public enum SVGRenderer: Sendable {
         }
 
         let aspectRatio = heightMeters / widthMeters
-        let height = max(1, Int(Double(width) * aspectRatio))
+        let height = Int(Double(width) * aspectRatio)
 
         #if canImport(AppKit)
         return renderWithAppKit(svgData: svgData, width: width, height: height)
@@ -99,62 +99,71 @@ public enum SVGRenderer: Sendable {
               !(walls.isEmpty && roomLabels.isEmpty) else { return Data() }
 
         let aspectRatio = heightMeters / widthMeters
-        let renderHeight = max(1, Int(Double(renderWidth) * aspectRatio))
-        let targetSize = CGSize(width: renderWidth, height: renderHeight)
+        let renderHeight = Int(Double(renderWidth) * aspectRatio)
+        guard renderHeight > 0 else { return Data() }
 
         // Scale factor: pixels per meter
         let scaleX = Double(renderWidth) / widthMeters
         let scaleY = Double(renderHeight) / heightMeters
 
-        let format = UIGraphicsImageRendererFormat()
-        format.scale = 1
-        format.opaque = true
-        let renderer = UIGraphicsImageRenderer(size: targetSize, format: format)
-        return renderer.pngData { context in
-            // White background
-            UIColor.white.setFill()
-            context.fill(CGRect(origin: .zero, size: targetSize))
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        guard let context = CGContext(
+            data: nil,
+            width: renderWidth,
+            height: renderHeight,
+            bitsPerComponent: 8,
+            bytesPerRow: 0,
+            space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return Data() }
 
-            // Draw walls
-            let cgContext = context.cgContext
-            cgContext.setStrokeColor(UIColor(red: 0.2, green: 0.2, blue: 0.2, alpha: 1).cgColor)
-            cgContext.setLineCap(.round)
+        // White background
+        context.setFillColor(CGColor(red: 1, green: 1, blue: 1, alpha: 1))
+        context.fill(CGRect(x: 0, y: 0, width: renderWidth, height: renderHeight))
 
-            for wall in walls {
-                let x1 = wall.startX * scaleX
-                let y1 = wall.startY * scaleY
-                let x2 = wall.endX * scaleX
-                let y2 = wall.endY * scaleY
-                let strokeWidth = max(wall.thickness * min(scaleX, scaleY), 2.0)
+        // Draw walls — flip Y axis to match screen coordinates (origin at top-left)
+        context.setStrokeColor(CGColor(red: 0.2, green: 0.2, blue: 0.2, alpha: 1))
+        context.setLineCap(.round)
 
-                cgContext.setLineWidth(strokeWidth)
-                cgContext.move(to: CGPoint(x: x1, y: y1))
-                cgContext.addLine(to: CGPoint(x: x2, y: y2))
-                cgContext.strokePath()
-            }
+        let cgHeight = Double(renderHeight)
 
-            // Draw room labels
-            let fontSize = CGFloat(renderWidth) / 25.0
-            let font = UIFont.systemFont(ofSize: max(fontSize, 12))
-            let attrs: [NSAttributedString.Key: Any] = [
-                .font: font,
-                .foregroundColor: UIColor(red: 0.4, green: 0.4, blue: 0.4, alpha: 1)
-            ]
+        for wall in walls {
+            let x1 = wall.startX * scaleX
+            let y1 = cgHeight - wall.startY * scaleY  // Flip Y
+            let x2 = wall.endX * scaleX
+            let y2 = cgHeight - wall.endY * scaleY  // Flip Y
+            let strokeWidth = max(wall.thickness * min(scaleX, scaleY), 2.0)
 
-            let svgW = Double(renderWidth)
-            let svgH = Double(renderHeight)
+            context.setLineWidth(strokeWidth)
+            context.move(to: CGPoint(x: x1, y: y1))
+            context.addLine(to: CGPoint(x: x2, y: y2))
+            context.strokePath()
+        }
+
+        // Draw room labels
+        if !roomLabels.isEmpty {
+            context.setFillColor(CGColor(red: 0.4, green: 0.4, blue: 0.4, alpha: 1))
+            let fontSize = CGFloat(widthMeters / 10.0 * scaleX) * 0.4
 
             for label in roomLabels {
-                let x = label.normalizedX * svgW
-                let y = label.normalizedY * svgH
+                let x = label.normalizedX * Double(renderWidth)
+                let y = cgHeight - label.normalizedY * cgHeight  // Flip Y
+
+                let attrs: [NSAttributedString.Key: Any] = [
+                    .font: UIFont.systemFont(ofSize: max(fontSize, 12)),
+                    .foregroundColor: UIColor(red: 0.4, green: 0.4, blue: 0.4, alpha: 1)
+                ]
                 let textSize = (label.text as NSString).size(withAttributes: attrs)
-                let drawPoint = CGPoint(
-                    x: x - textSize.width / 2,
-                    y: y - textSize.height / 2
+                (label.text as NSString).draw(
+                    at: CGPoint(x: x - textSize.width / 2, y: y - textSize.height / 2),
+                    withAttributes: attrs
                 )
-                (label.text as NSString).draw(at: drawPoint, withAttributes: attrs)
             }
         }
+
+        guard let cgImage = context.makeImage() else { return Data() }
+        let uiImage = UIImage(cgImage: cgImage)
+        return uiImage.pngData() ?? Data()
     }
     #endif
 }
