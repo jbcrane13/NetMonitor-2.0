@@ -4,8 +4,7 @@ import NetMonitorCore
 
 // MARK: - ShortcutsWiFiReading
 
-/// Raw data returned by the "Wi-Fi to NetMonitor" companion Shortcut
-/// via the App Group shared container.
+/// Raw data returned by the "Save Wi-Fi Reading to NetMonitor" AppIntent.
 struct ShortcutsWiFiReading: Codable {
     let ssid: String
     let bssid: String
@@ -20,14 +19,17 @@ struct ShortcutsWiFiReading: Codable {
 
 // MARK: - ShortcutsWiFiProvider
 
-/// Bridges Apple Shortcuts "Get Network Details" action to the app via
-/// URL scheme invocation and App Group shared container.
+/// Bridges the "Save Wi-Fi Reading to NetMonitor" AppIntent to in-app callers.
 ///
-/// The companion Shortcut writes Wi-Fi data as JSON to the shared container,
-/// then returns to the app via the `netmonitor://wifi-result` URL scheme.
-/// This class orchestrates the round-trip and reads the result.
+/// The companion Shortcut now runs two actions:
+///   1. "Get Network Details" (built-in)
+///   2. "Save Wi-Fi Reading to NetMonitor" (our AppIntent)
 ///
-/// See `docs/iOS-WiFi-Heatmap-Spec.md` section 5 for design details.
+/// The AppIntent calls ``WiFiReadingBridge.shared.publish(_:)`` in-process,
+/// which resolves the continuation immediately. A fallback App Group file read
+/// handles the cold-launch edge case.
+///
+/// See `docs/iOS-WiFi-Heatmap-Spec.md` for design details.
 @MainActor
 @Observable
 final class ShortcutsWiFiProvider: @unchecked Sendable {
@@ -38,42 +40,31 @@ final class ShortcutsWiFiProvider: @unchecked Sendable {
     /// App Group identifier for the shared container.
     private static let appGroupID = "group.com.blakemiller.netmonitor"
 
-    /// Filename written by the companion Shortcut.
+    /// Filename written as a backup by ``WiFiReadingBridge.writeBackup(_:)``.
     private static let readingFilename = "wifi-reading.json"
 
     /// Maximum time to wait for the Shortcut round-trip.
-    static let defaultTimeout: TimeInterval = 3.0
-
-    /// Continuation used to bridge the URL callback to the async caller.
-    private var pendingContinuation: CheckedContinuation<ShortcutsWiFiReading?, Never>?
+    static let defaultTimeout: TimeInterval = 10.0
 
     // MARK: - Init
 
-    init() {
-        // Listen for deep link callback from DeepLinkRouter
-        NotificationCenter.default.addObserver(
-            forName: .shortcutsWiFiCallbackReceived,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor in
-                self?.handleURLCallback()
-            }
-        }
-    }
+    init() {}
 
     // MARK: - Public API
 
     /// Triggers the companion Shortcut and waits for Wi-Fi data.
     ///
     /// Returns `nil` if the shortcut is not installed, times out, or fails.
-    /// Timeout defaults to 3 seconds (Shortcuts round-trip is typically ~1.5-2.5s).
+    /// Timeout defaults to 10 seconds — the 9-action shortcut plus app-switch
+    /// overhead can take 2–5 s on a fresh run, so 10 s gives a safety margin.
+    /// Success path resolves immediately when the bridge publishes.
     func fetchWiFiSignal(timeout: TimeInterval = ShortcutsWiFiProvider.defaultTimeout) async throws -> ShortcutsWiFiReading? {
         // Clear any stale reading from the shared container
         clearSharedReading()
 
-        // Build the Shortcuts URL
-        guard let shortcutURL = URL(string: "shortcuts://x-callback-url/run-shortcut?name=Wi-Fi%20to%20NetMonitor&x-success=netmonitor://wifi-result") else {
+        // Build the Shortcuts URL — no x-success callback needed; the AppIntent
+        // handles the return trip via openAppWhenRun = true.
+        guard let shortcutURL = URL(string: "shortcuts://x-callback-url/run-shortcut?name=Wi-Fi%20to%20NetMonitor") else {
             return nil
         }
 
@@ -90,38 +81,23 @@ final class ShortcutsWiFiProvider: @unchecked Sendable {
             return nil
         }
 
-        // Wait for the result with timeout
-        let reading = await withTaskCancellationHandler {
-            await withCheckedContinuation { continuation in
-                self.pendingContinuation = continuation
+        // Await the in-process bridge. The AppIntent's perform() will call
+        // WiFiReadingBridge.shared.publish(_:) which resolves this immediately.
+        let reading = await WiFiReadingBridge.shared.waitForReading(timeout: timeout)
 
-                // Set up timeout
-                Task<Void, Never> {
-                    try? await Task.sleep(for: .seconds(timeout))
-                    // If still pending after timeout, resolve with nil
-                    self.pendingContinuation?.resume(returning: nil)
-                    self.pendingContinuation = nil
-                }
-            }
-        } onCancel: {
-            Task { @MainActor in
-                self.pendingContinuation?.resume(returning: nil)
-                self.pendingContinuation = nil
-            }
+        if let reading {
+            isAvailable = true
+            return reading
         }
 
-        if reading != nil {
+        // Cold-launch fallback: if the app was launched by the intent before
+        // waitForReading was called, the in-memory bridge had no listener.
+        // The intent still wrote to the App Group file, so try that.
+        let fallback = readSharedReading()
+        if fallback != nil {
             isAvailable = true
         }
-        return reading
-    }
-
-    /// Called when the app receives the `netmonitor://wifi-result` URL callback.
-    /// Reads the Wi-Fi data from the shared container and resolves the pending continuation.
-    func handleURLCallback() {
-        let reading = readSharedReading()
-        pendingContinuation?.resume(returning: reading)
-        pendingContinuation = nil
+        return fallback
     }
 
     /// Checks if the companion Shortcut appears to be installed by testing

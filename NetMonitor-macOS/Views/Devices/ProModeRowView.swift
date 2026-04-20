@@ -31,10 +31,10 @@ struct ProModeRowView: View {
             HStack(spacing: 4) {
                 Image(systemName: device.deviceType.iconName)
                     .font(.system(size: 11))
-                    .foregroundStyle(Color.white.opacity(0.6))
+                    .foregroundStyle(MacTheme.Colors.textSecondary)
                 Text(device.deviceType.displayName)
                     .font(.system(size: 11))
-                    .foregroundStyle(Color.white.opacity(0.5))
+                    .foregroundStyle(MacTheme.Colors.textTertiary)
                     .lineLimit(1)
             }
             .frame(width: Self.typeWidth, alignment: .leading)
@@ -53,14 +53,14 @@ struct ProModeRowView: View {
 
             // Vendor
             Text(device.vendor ?? "")
-                .foregroundStyle(Color.white.opacity(0.7))
+                .foregroundStyle(MacTheme.Colors.textSecondary)
                 .lineLimit(1)
                 .frame(width: Self.vendorWidth, alignment: .leading)
 
             // MAC Address (last 8 chars)
             Text(device.macAddress.isEmpty ? "" : String(device.macAddress.suffix(8)))
                 .fontDesign(.monospaced)
-                .foregroundStyle(Color.white.opacity(0.5))
+                .foregroundStyle(MacTheme.Colors.textTertiary)
                 .frame(width: Self.macWidth, alignment: .leading)
 
             // Open Ports
@@ -73,11 +73,11 @@ struct ProModeRowView: View {
 
             // Last Seen
             Text(lastSeenText)
-                .foregroundStyle(Color.white.opacity(0.5))
+                .foregroundStyle(MacTheme.Colors.textTertiary)
                 .frame(width: Self.seenWidth, alignment: .leading)
         }
         .font(.system(.body, design: .default))
-        .foregroundStyle(Color.white)
+        .foregroundStyle(MacTheme.Colors.textPrimary)
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
         .contentShape(Rectangle())

@@ -5,6 +5,7 @@ import NetMonitorCore
 
 /// macOS GeoTrace — visual traceroute on a world map.
 struct GeoTraceView: View {
+    @Environment(\.colorScheme) private var colorScheme
     @State private var host = ""
     @State private var isRunning = false
     @State private var hops: [GeoTraceHop] = []
@@ -84,6 +85,10 @@ struct GeoTraceView: View {
                     .foregroundStyle(.tertiary)
             }
         }
+    }
+
+    private var hopAnnotationOutlineColor: Color {
+        colorScheme == .dark ? .white : .black.opacity(0.75)
     }
 
     private func macHopAnnotation(_ hop: GeoTraceHop) -> some View {

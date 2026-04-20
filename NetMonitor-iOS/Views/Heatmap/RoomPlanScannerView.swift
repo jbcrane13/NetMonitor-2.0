@@ -421,6 +421,149 @@ struct RoomPlanScanContainer: UIViewControllerRepresentable {
     func updateUIViewController(_ uiViewController: RoomPlanScanViewController, context: Context) {}
 }
 
+// MARK: - RoomPlanBuildError
+
+enum RoomPlanBuildError: Equatable, LocalizedError {
+    case timeout
+    case fallbackTimeout
+
+    var errorDescription: String? {
+        switch self {
+        case .timeout:
+            "Room conversion timed out. Please scan a smaller area or try again."
+        case .fallbackTimeout:
+            "Room conversion timed out after two attempts. Please rescan a smaller area."
+        }
+    }
+}
+
+// MARK: - RoomPlanTaskTimeout
+
+private actor RoomPlanTaskTimeoutRace<T: Sendable> {
+    private var continuation: CheckedContinuation<T, Error>?
+    private var didResume = false
+    private var operationTask: Task<Void, Never>?
+    private var timeoutTask: Task<Void, Never>?
+
+    init(continuation: CheckedContinuation<T, Error>) {
+        self.continuation = continuation
+    }
+
+    func setTasks(operationTask: Task<Void, Never>, timeoutTask: Task<Void, Never>) {
+        self.operationTask = operationTask
+        self.timeoutTask = timeoutTask
+
+        if didResume {
+            operationTask.cancel()
+            timeoutTask.cancel()
+        }
+    }
+
+    func resume(returning value: T) {
+        guard !didResume, let continuation else { return }
+        didResume = true
+        self.continuation = nil
+        operationTask?.cancel()
+        timeoutTask?.cancel()
+        continuation.resume(returning: value)
+    }
+
+    func resume(throwing error: Error) {
+        guard !didResume, let continuation else { return }
+        didResume = true
+        self.continuation = nil
+        operationTask?.cancel()
+        timeoutTask?.cancel()
+        continuation.resume(throwing: error)
+    }
+
+    func cancel() {
+        guard !didResume, let continuation else {
+            operationTask?.cancel()
+            timeoutTask?.cancel()
+            return
+        }
+
+        didResume = true
+        self.continuation = nil
+        operationTask?.cancel()
+        timeoutTask?.cancel()
+        continuation.resume(throwing: CancellationError())
+    }
+}
+
+private actor RoomPlanTaskTimeoutCancellationRelay<T: Sendable> {
+    private var race: RoomPlanTaskTimeoutRace<T>?
+    private var didCancel = false
+
+    func setRace(_ race: RoomPlanTaskTimeoutRace<T>) async {
+        self.race = race
+
+        if didCancel {
+            await race.cancel()
+        }
+    }
+
+    func cancel() async {
+        didCancel = true
+        await race?.cancel()
+    }
+}
+
+enum RoomPlanTaskTimeout {
+    /// Runs an async operation and races it against a timeout task.
+    ///
+    /// - Parameters:
+    ///   - timeout: Maximum duration to wait before timing out.
+    ///   - operation: Async operation to execute.
+    /// - Returns: The operation's successful result if it finishes before the timeout.
+    /// - Throws: `RoomPlanBuildError.timeout` when timeout elapses first, or rethrows
+    ///   any error produced by `operation`.
+    static func run<T: Sendable>(
+        timeout: Duration,
+        operation: @escaping @Sendable () async throws -> T
+    ) async throws -> T {
+        let cancellationRelay = RoomPlanTaskTimeoutCancellationRelay<T>()
+
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                let race = RoomPlanTaskTimeoutRace<T>(continuation: continuation)
+
+                Task {
+                    await cancellationRelay.setRace(race)
+                }
+
+                let operationTask = Task {
+                    do {
+                        let value = try await operation()
+                        await race.resume(returning: value)
+                    } catch {
+                        await race.resume(throwing: error)
+                    }
+                }
+
+                let timeoutTask = Task {
+                    do {
+                        try await Task.sleep(for: timeout)
+                        await race.resume(throwing: RoomPlanBuildError.timeout)
+                    } catch {
+                        // Timeout task was cancelled because the operation completed first
+                        // or the parent task was cancelled.
+                    }
+                }
+
+                Task {
+                    await race.setTasks(operationTask: operationTask, timeoutTask: timeoutTask)
+                }
+            }
+        } onCancel: {
+            Task {
+                await cancellationRelay.cancel()
+            }
+        }
+    }
+}
+
 // MARK: - RoomPlanScanViewController
 
 final class RoomPlanScanViewController: UIViewController, RoomCaptureSessionDelegate, @preconcurrency RoomCaptureViewDelegate {
@@ -430,6 +573,10 @@ final class RoomPlanScanViewController: UIViewController, RoomCaptureSessionDele
     private var captureSession: RoomCaptureSession!
     private var doneButton: UIButton!
     private var cancelButton: UIButton!
+    // Large captures can take a long time when beautification is enabled.
+    // Keep primary generous, then use a shorter fallback for non-beautified conversion.
+    private static let primaryBuildTimeout: Duration = .seconds(45)
+    private static let fallbackBuildTimeout: Duration = .seconds(30)
 
     // Strong reference kept across async boundary so the Task in captureSession(_:didEndWith:)
     // can complete even after SwiftUI removes this UIViewController from the hierarchy.
@@ -542,20 +689,40 @@ final class RoomPlanScanViewController: UIViewController, RoomCaptureSessionDele
             return
         }
 
-        // Use RoomBuilder directly instead of the built-in RoomCaptureView review UI.
-        // This bypasses the post-capture editing screen whose "Done" button can pop the
-        // SwiftUI NavigationStack before our state machine reaches .complete.
-        let roomBuilder = RoomBuilder(options: .beautifyObjects)
-        Task {
+        Task { @MainActor in
             do {
-                let capturedRoom = try await roomBuilder.capturedRoom(from: data)
-                await MainActor.run {
-                    vm?.processCapturedRoom(capturedRoom)
-                }
+                let capturedRoom = try await self.buildCapturedRoom(from: data)
+                vm?.processCapturedRoom(capturedRoom)
             } catch {
-                await MainActor.run {
-                    vm?.handleScanError(error)
+                vm?.handleScanError(error)
+            }
+        }
+    }
+
+    /// Nonisolated to keep RoomBuilder work off the main actor while this view controller
+    /// remains main-thread-owned for UIKit state updates.
+    /// Builds a `CapturedRoom` with two conversion attempts:
+    /// - First, a beautified conversion with a 45-second timeout.
+    /// - On timeout, a fallback conversion without beautification with a 30-second timeout.
+    /// Any non-timeout conversion error is propagated immediately.
+    ///
+    /// - Throws: `RoomPlanBuildError.fallbackTimeout` if both attempts time out, or
+    ///   rethrows any non-timeout `RoomBuilder` conversion error.
+    nonisolated private func buildCapturedRoom(from data: CapturedRoomData) async throws -> CapturedRoom {
+        // RoomBuilder is not Sendable — create inside each closure to avoid capture.
+        do {
+            return try await RoomPlanTaskTimeout.run(timeout: Self.primaryBuildTimeout) {
+                let builder = RoomBuilder(options: .beautifyObjects)
+                return try await builder.capturedRoom(from: data)
+            }
+        } catch RoomPlanBuildError.timeout {
+            do {
+                return try await RoomPlanTaskTimeout.run(timeout: Self.fallbackBuildTimeout) {
+                    let builder = RoomBuilder(options: [])
+                    return try await builder.capturedRoom(from: data)
                 }
+            } catch RoomPlanBuildError.timeout {
+                throw RoomPlanBuildError.fallbackTimeout
             }
         }
     }

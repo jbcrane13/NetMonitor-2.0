@@ -103,19 +103,29 @@ struct HeatmapSurveyView: View {
         }
         .accessibilityIdentifier("screen_heatmapSurvey")
         .onAppear {
+            // Inject the heatmap service. Without this, HeatmapSurveyViewModel
+            // falls back to the nil-service path and every measurement's RSSI
+            // defaults to the -100 sentinel.
+            let service = IOSHeatmapService(
+                wifiInfoService: WiFiInfoService(),
+                shortcutsProvider: shortcutsProvider,
+                speedTestService: SpeedTestService(),
+                pingService: PingService()
+            )
+            viewModel.configure(service: service)
+
             // Check if a .netmonsurvey file was opened via deep link
             if let url = deepLinkRouter?.consumePendingFile() {
                 openFileFromDeepLink(url)
             }
-            // Check if shortcut setup should be shown
-            Task<Void, Never> {
-                let hasSeen = UserDefaults.standard.bool(forAppKey: AppSettings.Keys.hasSeenShortcutSetup)
-                if !hasSeen {
-                    let available = await shortcutsProvider.checkAvailability()
-                    if !available {
-                        showShortcutSetup = true
-                    }
-                }
+            // First-run: surface the Wi-Fi shortcut setup so the user can
+            // author the companion Shortcut before their first measurement.
+            // We don't gate on Shortcuts.app availability — it's always
+            // installed on iOS, and the setup sheet's Test Connection flow
+            // will surface any unavailability with a clearer message.
+            let hasSeen = UserDefaults.standard.bool(forAppKey: AppSettings.Keys.hasSeenShortcutSetup)
+            if !hasSeen {
+                showShortcutSetup = true
             }
         }
         .onChange(of: deepLinkRouter?.pendingSurveyFileURL) { _, newURL in
@@ -185,6 +195,18 @@ struct HeatmapSurveyView: View {
                 }
                 .glassCard(cornerRadius: Theme.Layout.buttonCornerRadius, padding: 0)
                 .accessibilityIdentifier("heatmap_button_opensurvey")
+
+                Button {
+                    showShortcutSetup = true
+                } label: {
+                    Label("Wi-Fi Shortcut Setup", systemImage: "antenna.radiowaves.left.and.right")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Theme.Colors.accent)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                }
+                .glassCard(cornerRadius: Theme.Layout.buttonCornerRadius, padding: 0)
+                .accessibilityIdentifier("heatmap_button_shortcutSetupStart")
             }
             .padding(.horizontal, Theme.Layout.screenPadding)
 
@@ -347,6 +369,15 @@ struct HeatmapSurveyView: View {
                     }
                     .disabled(viewModel.surveyProject == nil)
                     .accessibilityIdentifier("heatmap_button_save")
+
+                    Divider()
+
+                    Button {
+                        showShortcutSetup = true
+                    } label: {
+                        Label("Wi-Fi Shortcut Setup", systemImage: "antenna.radiowaves.left.and.right")
+                    }
+                    .accessibilityIdentifier("heatmap_button_shortcutSetup")
                 } label: {
                     Image(systemName: "ellipsis.circle")
                 }

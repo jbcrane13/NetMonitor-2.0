@@ -44,5 +44,14 @@ struct NetMonitorShortcuts: AppShortcutsProvider {
             shortTitle: "Network Status",
             systemImageName: "wifi"
         )
+        AppShortcut(
+            intent: SaveWiFiReadingIntent(),
+            phrases: [
+                "Save Wi-Fi Reading to \(.applicationName)",
+                "Record Wi-Fi signal in \(.applicationName)"
+            ],
+            shortTitle: "Save Wi-Fi Reading",
+            systemImageName: "antenna.radiowaves.left.and.right"
+        )
     }
 }

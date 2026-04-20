@@ -10,6 +10,7 @@ import NetMonitorCore
 
 /// Compact network intelligence card — active connections, listeners, DNS health, events.
 struct NetworkIntelCard: View {
+    @Environment(\.colorScheme) private var colorScheme
     @State private var activeConnections: Int = 0
     @State private var listeningPorts: Int = 0
     @State private var establishedCount: Int = 0
@@ -62,7 +63,7 @@ struct NetworkIntelCard: View {
                     statTile(value: "\(timeWaitCount)", label: "TIME_WAIT", color: .secondary)
                 }
                 .padding(.vertical, 4)
-                .background(Color.black.opacity(0.18), in: RoundedRectangle(cornerRadius: 6))
+                .background(Color.black.opacity(colorScheme == .dark ? 0.18 : 0.04), in: RoundedRectangle(cornerRadius: 6))
 
                 // DNS resolver health
                 HStack(spacing: 8) {

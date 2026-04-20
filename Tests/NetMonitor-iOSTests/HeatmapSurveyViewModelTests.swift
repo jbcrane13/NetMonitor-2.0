@@ -879,17 +879,12 @@ struct HeatmapRendererTests {
 }
 
 // MARK: - DeepLinkRouter Tests
+//
+// NOTE: wifi-result URL handler removed — Wi-Fi readings are now delivered
+// in-process via SaveWiFiReadingIntent + WiFiReadingBridge.
 
 @MainActor
 struct DeepLinkRouterTests {
-
-    @Test("handle wifi-result URL sets wifiCallbackReceived")
-    func handleWiFiResultURL() {
-        let router = DeepLinkRouter()
-        let url = URL(string: "netmonitor://wifi-result")!
-        router.handle(url: url)
-        #expect(router.wifiCallbackReceived == true)
-    }
 
     @Test("handle .netmonsurvey file URL sets pendingSurveyFileURL")
     func handleNetmonSurveyFile() {
@@ -917,12 +912,101 @@ struct DeepLinkRouterTests {
         #expect(router.pendingSurveyFileURL == nil)
     }
 
-    @Test("handle ignores unrelated URLs")
-    func handleIgnoresUnrelatedURL() {
+    @Test("handle ignores non-file URLs")
+    func handleIgnoresNonFileURLs() {
         let router = DeepLinkRouter()
         let url = URL(string: "https://example.com")!
         router.handle(url: url)
         #expect(router.pendingSurveyFileURL == nil)
-        #expect(router.wifiCallbackReceived == false)
+    }
+
+    @Test("handle ignores netmonitor scheme URLs (now handled by AppIntents)")
+    func handleIgnoresNetmonitorSchemeURLs() {
+        let router = DeepLinkRouter()
+        let url = URL(string: "netmonitor://wifi-result")!
+        router.handle(url: url)
+        #expect(router.pendingSurveyFileURL == nil)
+    }
+}
+
+// MARK: - v2.1 Regression Guards
+
+@MainActor
+struct HeatmapSurveyViewModelRegressionTests {
+
+    private func makeStubbedService(signalDBm: Int) -> IOSHeatmapService {
+        let wifi = MockWiFiInfoService()
+        wifi.currentWiFi = WiFiInfo(
+            ssid: "RegressionNet",
+            bssid: "11:22:33:44:55:66",
+            signalStrength: 80,
+            signalDBm: signalDBm,
+            channel: 6,
+            frequency: "2437 MHz",
+            band: .band2_4GHz,
+            noiseLevel: -90,
+            linkSpeed: 144.0
+        )
+        let speed = MockSpeedTestService()
+        speed.mockResult = SpeedTestData(downloadSpeed: 100, uploadSpeed: 50, latency: 15)
+        let ping = MockPingService()
+        return IOSHeatmapService(
+            wifiInfoService: wifi,
+            speedTestService: speed,
+            pingService: ping
+        )
+    }
+
+    private func makeCalibratedVM() -> HeatmapSurveyViewModel {
+        let vm = HeatmapSurveyViewModel()
+        vm.importFloorPlan(imageData: Data([1]), width: 1000, height: 500)
+        vm.addCalibrationPoint(at: CGPoint.zero)
+        vm.addCalibrationPoint(at: CGPoint(x: 100, y: 0))
+        vm.completeCalibration(withDistance: 10.0)
+        return vm
+    }
+
+    /// Regression guard for commit 6de9308 (heatmap IOSHeatmapService DI fix).
+    /// Before the fix, `heatmapService` was never injected and every measurement
+    /// silently returned the fallback -100 dBm sentinel. This test proves that
+    /// `configure(service:)` actually routes subsequent `takeMeasurement` calls
+    /// through the injected service.
+    @Test("configure(service:) routes takeMeasurement through the injected service")
+    func configureWiresServiceIntoTakeMeasurement() async {
+        let vm = makeCalibratedVM()
+
+        // Without service: fallback uses currentRSSI default (-100)
+        await vm.takeMeasurement(at: CGPoint(x: 0.1, y: 0.1))
+        let fallbackPoint = vm.measurementPoints.last
+        #expect(fallbackPoint?.rssi == -100)
+
+        // After configure: measurement uses the injected service's WiFiInfo
+        vm.configure(service: makeStubbedService(signalDBm: -45))
+        await vm.takeMeasurement(at: CGPoint(x: 0.2, y: 0.2))
+        let servicedPoint = vm.measurementPoints.last
+        #expect(servicedPoint?.rssi == -45)
+    }
+
+    /// Regression guard for commit 5266185 (shortcuts focus-thrash fix).
+    /// Before the fix, `startSurvey()` called `startSignalPolling()`, which
+    /// invoked the Shortcuts companion every 2s and stole focus back to the
+    /// Shortcuts app, making the survey tool unusable. The fix removed that
+    /// call. This test proves no background task auto-updates `currentRSSI`
+    /// after `startSurvey()` returns.
+    @Test("startSurvey does not start background signal polling")
+    func startSurveyDoesNotStartSignalPolling() async {
+        let vm = makeCalibratedVM()
+        vm.configure(service: makeStubbedService(signalDBm: -45))
+
+        // Seed a sentinel the live-poll loop would overwrite on its first tick.
+        vm.currentRSSI = -77
+
+        vm.startSurvey()
+        #expect(vm.isSurveying == true)
+
+        // If polling were (re-)enabled, the task would fire immediately and
+        // overwrite currentRSSI with the service's -45 well within 300ms.
+        try? await Task.sleep(for: .milliseconds(300))
+        #expect(vm.currentRSSI == -77)
     }
 }

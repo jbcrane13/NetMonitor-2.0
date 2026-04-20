@@ -90,7 +90,7 @@ struct WiFiShortcutSetupView: View {
                 .font(.title2.bold())
                 .foregroundStyle(Theme.Colors.textPrimary)
 
-            Text("Install a companion Apple Shortcut to enable real-time RSSI measurements for accurate heatmap surveys.")
+            Text("Add a 2-action Apple Shortcut to enable RSSI measurements. The NetMonitor action is built into the app — no download needed.")
                 .font(.subheadline)
                 .foregroundStyle(Theme.Colors.textSecondary)
                 .multilineTextAlignment(.center)
@@ -170,7 +170,7 @@ struct WiFiShortcutSetupView: View {
         Button {
             openShortcutInstallLink()
         } label: {
-            Label("Add Shortcut", systemImage: "plus.square.fill")
+            Label("Open Shortcuts App", systemImage: "plus.square.fill")
                 .font(.headline)
                 .frame(maxWidth: .infinity)
                 .padding()
@@ -186,14 +186,26 @@ struct WiFiShortcutSetupView: View {
             isExpanded: $state.showManualInstructions,
             content: {
                 VStack(alignment: .leading, spacing: Theme.Layout.itemSpacing) {
-                    manualStep(number: 1, text: "Open the Shortcuts app on your iPhone")
-                    manualStep(number: 2, text: "Tap the \"+\" button to create a new Shortcut")
-                    manualStep(number: 3, text: "Add the action \"Get Network Details\"")
-                    manualStep(number: 4, text: "Set it to get \"Wi-Fi Details\"")
-                    manualStep(number: 5, text: "Add a \"Dictionary\" action mapping SSID, BSSID, RSSI, Noise, Channel, TX/RX Rate, Wi-Fi Standard")
-                    manualStep(number: 6, text: "Add a \"Save File\" action targeting the app group container")
-                    manualStep(number: 7, text: "Add an \"Open URL\" action with \"netmonitor://wifi-result\"")
-                    manualStep(number: 8, text: "Name the Shortcut exactly: \"Wi-Fi to NetMonitor\"")
+                    manualStep(
+                        number: 1,
+                        text: "Open Shortcuts, tap +. Add \"Get Network Details\" set to \"Wi-Fi → Network Name\""
+                    )
+                    manualStep(
+                        number: 2,
+                        text: "Add another \"Get Network Details\" for each field you want: RSSI, Channel Number, BSSID, Noise, TX Rate, RX Rate, Wi-Fi Standard (only SSID, RSSI, and Channel are required)"
+                    )
+                    manualStep(
+                        number: 3,
+                        text: "Add \"Save Wi-Fi Reading to NetMonitor\" (in the NetMonitor section of action search)"
+                    )
+                    manualStep(
+                        number: 4,
+                        text: "Map each parameter to the matching variable from the Get Network Details actions above"
+                    )
+                    manualStep(
+                        number: 5,
+                        text: "Name the shortcut exactly: \"Wi-Fi to NetMonitor\" (case-sensitive)"
+                    )
                 }
                 .padding(.top, Theme.Layout.itemSpacing)
             },
@@ -385,7 +397,11 @@ struct WiFiShortcutSetupView: View {
     private func openShortcutInstallLink() {
         let urlString = UserDefaults.standard.string(forAppKey: AppSettings.Keys.shortcutInstallURL)
             ?? AppSettings.defaultShortcutInstallURL
-        guard let url = URL(string: urlString) else { return }
+        // Only use iCloud shortcut link if it's a real published link (not a placeholder)
+        let isValidICloudLink = urlString.hasPrefix("https://www.icloud.com/shortcuts/")
+            && !urlString.contains("PLACEHOLDER")
+        let resolvedURLString = isValidICloudLink ? urlString : "shortcuts://"
+        guard let url = URL(string: resolvedURLString) else { return }
         UIApplication.shared.open(url)
     }
 }

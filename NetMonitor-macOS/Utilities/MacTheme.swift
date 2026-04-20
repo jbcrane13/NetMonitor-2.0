@@ -5,7 +5,7 @@
 //  Centralized theme constants for the macOS app.
 //  Supports both dark and light mode with adaptive colors.
 //  Dark mode uses the original lifted-charcoal aesthetic (unchanged).
-//  Light mode uses the Silver theme — classic macOS light appearance.
+//  Light mode uses the Brushed Steel theme — frosted glass with slate tones.
 
 import SwiftUI
 import NetMonitorCore
@@ -50,7 +50,7 @@ private func macColor(dark: NSColor, light: NSColor) -> NSColor {
 
 /// Namespace for macOS theme constants.
 /// Dark mode: original lifted-charcoal aesthetic (unchanged).
-/// Light mode: Silver theme — classic macOS light appearance.
+/// Light mode: Brushed Steel theme — frosted glass with slate tones.
 enum MacTheme {
 
     // MARK: - Colors
@@ -61,23 +61,23 @@ enum MacTheme {
 
         static let backgroundBase = Color(nsColor: macColor(
             dark: NSColor(red: 20/255, green: 20/255, blue: 22/255, alpha: 1),
-            light: NSColor(red: 245/255, green: 245/255, blue: 245/255, alpha: 1)
+            light: NSColor(red: 216/255, green: 218/255, blue: 224/255, alpha: 1)
         ))
 
         static let backgroundElevated = Color(nsColor: macColor(
             dark: NSColor(red: 28/255, green: 28/255, blue: 30/255, alpha: 1),
-            light: NSColor(red: 255/255, green: 255/255, blue: 255/255, alpha: 1)
+            light: NSColor(red: 253/255, green: 253/255, blue: 254/255, alpha: 1)
         ))
 
         static let shimmerBlue = Color(nsColor: macColor(
             dark: NSColor(red: 60/255, green: 80/255, blue: 140/255, alpha: 1),
-            light: NSColor(red: 59/255, green: 130/255, blue: 246/255, alpha: 0.15)
+            light: NSColor(red: 8/255, green: 145/255, blue: 178/255, alpha: 0.12)
         ))
 
         // periphery:ignore
         static let backgroundGradientStart = Color(nsColor: macColor(
             dark: NSColor(red: 15/255, green: 23/255, blue: 42/255, alpha: 1),
-            light: NSColor(red: 232/255, green: 232/255, blue: 237/255, alpha: 1)
+            light: NSColor(red: 205/255, green: 208/255, blue: 215/255, alpha: 1)
         ))
 
         static let backgroundGradientEnd = backgroundBase
@@ -93,35 +93,35 @@ enum MacTheme {
 
         static let textPrimary = Color(nsColor: macColor(
             dark: .white,
-            light: NSColor(red: 29/255, green: 29/255, blue: 31/255, alpha: 1)
+            light: NSColor(red: 15/255, green: 23/255, blue: 42/255, alpha: 1)
         ))
 
         static let textSecondary = Color(nsColor: macColor(
             dark: .white.withAlphaComponent(0.7),
-            light: NSColor(red: 99/255, green: 99/255, blue: 102/255, alpha: 1)
+            light: NSColor(red: 71/255, green: 85/255, blue: 105/255, alpha: 1)
         ))
 
         static let textTertiary = Color(nsColor: macColor(
             dark: .white.withAlphaComponent(0.5),
-            light: NSColor(red: 142/255, green: 142/255, blue: 147/255, alpha: 1)
+            light: NSColor(red: 100/255, green: 116/255, blue: 139/255, alpha: 1)
         ))
 
         // MARK: — Glass/Crystal tokens (adaptive)
 
         static let crystalBase = Color(nsColor: macColor(
             dark: NSColor(red: 26/255, green: 31/255, blue: 38/255, alpha: 0.6),
-            light: NSColor(white: 1.0, alpha: 0.8)
+            light: NSColor(white: 1.0, alpha: 0.55)
         ))
 
         // periphery:ignore
         static let crystalHighlight = Color(nsColor: macColor(
             dark: .white.withAlphaComponent(0.12),
-            light: .white.withAlphaComponent(0.35)
+            light: .white.withAlphaComponent(0.85)
         ))
 
         static let crystalBorder = Color(nsColor: macColor(
             dark: .white.withAlphaComponent(0.15),
-            light: .black.withAlphaComponent(0.06)
+            light: .white.withAlphaComponent(0.60)
         ))
 
         static let glassBackground = crystalBase
@@ -142,35 +142,62 @@ enum MacTheme {
 
         static let subtleBackground = Color(nsColor: macColor(
             dark: .black.withAlphaComponent(0.2),
-            light: .black.withAlphaComponent(0.04)
+            light: NSColor(calibratedRed: 15/255, green: 23/255, blue: 42/255, alpha: 0.04)
         ))
 
         // periphery:ignore
         static let subtleBackgroundLight = Color(nsColor: macColor(
             dark: .black.withAlphaComponent(0.1),
-            light: .black.withAlphaComponent(0.02)
+            light: NSColor(calibratedRed: 15/255, green: 23/255, blue: 42/255, alpha: 0.02)
+        ))
+
+        /// Dark-mode equivalent of `black.opacity(0.15)` — preserves the original dark styling
+        /// while providing an appropriate tint in light mode.
+        static let subtleBackgroundMedium = Color(nsColor: macColor(
+            dark: .black.withAlphaComponent(0.15),
+            light: NSColor(calibratedRed: 15/255, green: 23/255, blue: 42/255, alpha: 0.03)
+        ))
+
+        // MARK: — Sidebar overlay tokens (adaptive)
+
+        /// Unselected profile-pill fill. Dark: `white.opacity(0.05)` — matches original sidebar look.
+        static let sidebarPillBackground = Color(nsColor: macColor(
+            dark: .white.withAlphaComponent(0.05),
+            light: NSColor(calibratedRed: 15/255, green: 23/255, blue: 42/255, alpha: 0.05)
+        ))
+
+        /// Unselected profile-pill / row border. Dark: `white.opacity(0.10)` — matches original stroke weight.
+        static let subtleBorder = Color(nsColor: macColor(
+            dark: .white.withAlphaComponent(0.10),
+            light: NSColor(calibratedRed: 15/255, green: 23/255, blue: 42/255, alpha: 0.10)
+        ))
+
+        /// Device-count badge fill in sidebar rows. Dark: `white.opacity(0.07)` — matches original look.
+        static let sidebarBadgeBackground = Color(nsColor: macColor(
+            dark: .white.withAlphaComponent(0.07),
+            light: NSColor(calibratedRed: 15/255, green: 23/255, blue: 42/255, alpha: 0.05)
         ))
 
         // MARK: — Sidebar (adaptive)
 
         static let sidebarActive = Color(nsColor: macColor(
             dark: NSColor(red: 30/255, green: 35/255, blue: 41/255, alpha: 1),
-            light: NSColor(red: 235/255, green: 235/255, blue: 235/255, alpha: 1)
+            light: NSColor(red: 215/255, green: 217/255, blue: 222/255, alpha: 1)
         ))
 
         static let sidebarActiveBorder = Color(nsColor: macColor(
             dark: NSColor(red: 6/255, green: 182/255, blue: 212/255, alpha: 1),
-            light: NSColor(red: 6/255, green: 182/255, blue: 212/255, alpha: 0.6)
+            light: NSColor(red: 6/255, green: 182/255, blue: 212/255, alpha: 0.8)
         ))
 
         static let sidebarTextPrimary = Color(nsColor: macColor(
             dark: .white,
-            light: NSColor(red: 29/255, green: 29/255, blue: 31/255, alpha: 1)
+            light: NSColor(red: 15/255, green: 23/255, blue: 42/255, alpha: 1)
         ))
 
         static let sidebarTextSecondary = Color(nsColor: macColor(
             dark: .white.withAlphaComponent(0.6),
-            light: NSColor(red: 99/255, green: 99/255, blue: 102/255, alpha: 1)
+            light: NSColor(red: 71/255, green: 85/255, blue: 105/255, alpha: 1)
         ))
 
         // MARK: — Deck tokens (adaptive)
@@ -178,38 +205,38 @@ enum MacTheme {
         // periphery:ignore
         static let deckBackground = Color(nsColor: macColor(
             dark: NSColor(red: 8/255, green: 9/255, blue: 11/255, alpha: 1),
-            light: NSColor(red: 232/255, green: 232/255, blue: 237/255, alpha: 1)
+            light: NSColor(red: 216/255, green: 218/255, blue: 224/255, alpha: 1)
         ))
 
         // periphery:ignore
         static let deckConsole = Color(nsColor: macColor(
             dark: NSColor(red: 18/255, green: 21/255, blue: 26/255, alpha: 1),
-            light: .white
+            light: NSColor(red: 253/255, green: 253/255, blue: 254/255, alpha: 1)
         ))
 
         // periphery:ignore
         static let deckRecessed = Color(nsColor: macColor(
             dark: NSColor(red: 5/255, green: 6/255, blue: 8/255, alpha: 1),
-            light: NSColor(red: 245/255, green: 245/255, blue: 245/255, alpha: 1)
+            light: NSColor(red: 232/255, green: 234/255, blue: 238/255, alpha: 1)
         ))
 
         // periphery:ignore
         static let deckBorder = Color(nsColor: macColor(
             dark: .white.withAlphaComponent(0.12),
-            light: .black.withAlphaComponent(0.06)
+            light: NSColor(calibratedRed: 15/255, green: 23/255, blue: 42/255, alpha: 0.08)
         ))
 
         // periphery:ignore
         static let deckHighlight = Color(nsColor: macColor(
             dark: .white.withAlphaComponent(0.06),
-            light: .white.withAlphaComponent(0.5)
+            light: .white.withAlphaComponent(0.70)
         ))
 
         // MARK: — Divider (adaptive)
 
         static let divider = Color(nsColor: macColor(
             dark: .white.withAlphaComponent(0.06),
-            light: .black.withAlphaComponent(0.08)
+            light: NSColor(calibratedRed: 15/255, green: 23/255, blue: 42/255, alpha: 0.08)
         ))
 
         // MARK: — Accent color (reads from ThemeManager / @AppStorage)
@@ -306,10 +333,10 @@ enum MacTheme {
     enum Shadows {
         static let card = Color(nsColor: macColor(
             dark: .black.withAlphaComponent(0.25),
-            light: .black.withAlphaComponent(0.08)
+            light: NSColor(calibratedRed: 15/255, green: 23/255, blue: 42/255, alpha: 0.06)
         ))
         static let cardRadius: CGFloat = 10        // dark mode — original value
-        static let cardRadiusLight: CGFloat = 15   // light mode — softer shadow
+        static let cardRadiusLight: CGFloat = 20   // light mode — softer shadow
         static let cardY: CGFloat = 5
 
         // periphery:ignore

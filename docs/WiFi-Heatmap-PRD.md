@@ -281,13 +281,13 @@ macOS has rich Wi-Fi APIs via CoreWLAN framework. The existing WiFiInfoService o
 
 ### iOS Wi-Fi Data Collection
 
-**Primary: Shortcuts "Get Network Details" (iOS 17+)** — See `docs/iOS-WiFi-Heatmap-Spec.md` for full specification.
+**Primary: Shortcuts "Get Network Details" + App Intents bridge (iOS 17+)** — See `docs/iOS-WiFi-Heatmap-Spec.md` for full specification.
 
-The app invokes a companion Shortcut ("Wi-Fi to NetMonitor") via `shortcuts://x-callback-url/run-shortcut`. The Shortcut runs the system "Get Network Details" action and writes the result to an App Group shared container. The app reads the data when the Shortcut returns control via URL scheme callback. This approach is proven by nOversight (Numerous Networks) on the App Store.
+The app invokes a companion Shortcut ("Wi-Fi to NetMonitor") via `shortcuts://x-callback-url/run-shortcut`. Because Apple's "Get Network Details" action returns only one field per invocation, the user-authored Shortcut chains one Get Network Details action per field (3 required: SSID, RSSI, Channel; up to 5 optional: BSSID, Noise, TX/RX Rate, Wi-Fi Standard) into a final "Save Wi-Fi Reading to NetMonitor" action — a `SaveWiFiReadingIntent` AppIntent shipped inside the app. The AppIntent delivers the reading directly to the app via `WiFiReadingBridge`, eliminating the previous App Group file write and `netmonitor://wifi-result` URL callback. Because the intent is registered via `AppShortcutsProvider`, it appears automatically in Shortcuts.app — no iCloud download link required. This approach is proven by nOversight (Numerous Networks) on the App Store.
 
 - Returns: SSID, BSSID, RSSI (dBm), Noise (dBm), Channel, TX Rate, RX Rate, Wi-Fi Standard
-- Latency: ~1.5-2.5 seconds per measurement (URL scheme round-trip)
-- Requires: iOS 17+, one-time companion Shortcut installation (guided setup)
+- Latency: ~2–3 seconds per measurement (URL scheme round-trip + N Get Network Details invocations)
+- Requires: iOS 18+, one-time companion Shortcut with 4–9 actions (guided in-app setup, no download)
 - UX: Brief Shortcuts app flash during each measurement (~0.5s)
 
 **Fallback: NEHotspotNetwork.fetchCurrent()** — Used when Shortcut is not installed.

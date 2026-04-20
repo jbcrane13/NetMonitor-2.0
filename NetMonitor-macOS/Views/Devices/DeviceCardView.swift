@@ -99,11 +99,13 @@ struct DeviceCardView: View {
             ZStack {
                 RoundedRectangle(cornerRadius: 12)
                     .fill(.ultraThinMaterial)
-                    .opacity(0.8)
+                    .opacity(colorScheme == .dark ? 0.8 : 0.7)
                 RoundedRectangle(cornerRadius: 12)
                     .fill(MacTheme.Colors.glassBackground)
                 LinearGradient(
-                    colors: [.white.opacity(0.08), .clear, .white.opacity(0.02)],
+                    colors: colorScheme == .dark
+                        ? [.white.opacity(0.08), .clear, .white.opacity(0.02)]
+                        : [.white.opacity(0.6), .white.opacity(0.15), .white.opacity(0.35)],
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
                 )
