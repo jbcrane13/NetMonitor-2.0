@@ -56,14 +56,25 @@ final class RoomPlanScannerViewModel {
         let blueprint = buildBlueprint(from: room)
         completedBlueprint = blueprint
 
-        // Generate a preview image from the SVG
+        // Generate a preview image from the floor plan
+        // On iOS, UIImage can't render SVG — use direct Core Graphics renderer
         if let floor = blueprint.floors.first {
+            #if canImport(UIKit)
+            let pngData = SVGRenderer.renderWallsToPNG(
+                walls: floor.wallSegments,
+                roomLabels: floor.roomLabels,
+                widthMeters: floor.widthMeters,
+                heightMeters: floor.heightMeters,
+                renderWidth: 800
+            )
+            #else
             let pngData = SVGRenderer.renderToPNG(
                 svgData: floor.svgData,
                 width: 800,
                 heightMeters: floor.heightMeters,
                 widthMeters: floor.widthMeters
             )
+            #endif
             previewImage = UIImage(data: pngData)
         }
 

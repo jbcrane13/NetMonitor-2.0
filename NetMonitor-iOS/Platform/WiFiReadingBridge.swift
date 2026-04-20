@@ -16,6 +16,12 @@ final class WiFiReadingBridge {
 
     private init() {}
 
+    #if DEBUG
+    /// Test-only initializer. Unit tests need isolated instances; production
+    /// code must continue to use ``shared``.
+    static func makeForTesting() -> WiFiReadingBridge { WiFiReadingBridge() }
+    #endif
+
     // MARK: - Storage
 
     private var pendingContinuations: [UUID: CheckedContinuation<ShortcutsWiFiReading?, Never>] = [:]

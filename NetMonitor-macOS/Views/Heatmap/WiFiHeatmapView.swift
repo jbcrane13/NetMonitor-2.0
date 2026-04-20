@@ -519,7 +519,10 @@ private extension View {
             }
             .fileImporter(
                 isPresented: showBlueprintImporter,
-                allowedContentTypes: [UTType("com.netmonitor.blueprint") ?? .data],
+                allowedContentTypes: [
+                    UTType("com.netmonitor.blueprint") ?? .data,
+                    .zip  // iOS exports blueprints as ZIP archives via saveAsArchive()
+                ],
                 allowsMultipleSelection: false
             ) { result in
                 onBlueprintImport(result)
