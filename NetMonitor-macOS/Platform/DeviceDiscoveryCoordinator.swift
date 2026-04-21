@@ -189,12 +189,12 @@ final class DeviceDiscoveryCoordinator {
                     modelContext.insert(newDevice)
                 }
             }
+
+            do { try modelContext.save() } catch {
+                Logger.discovery.error("Failed to save discovered devices: \(error)")
+            }
+            loadPersistedDevices(for: profileID)
         }
-    }
-        do { try modelContext.save() } catch {
-            Logger.discovery.error("Failed to save discovered devices: \(error)")
-        }
-        loadPersistedDevices(for: profileID)
     }
 
     func markOfflineDevices(currentIPs: Set<String>, profileID: UUID?) {
