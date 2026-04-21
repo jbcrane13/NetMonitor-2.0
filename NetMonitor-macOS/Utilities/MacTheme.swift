@@ -196,8 +196,8 @@ enum MacTheme {
         ))
 
         static let sidebarTextSecondary = Color(nsColor: macColor(
-            dark: .white.withAlphaComponent(0.6),
-            light: NSColor(red: 71/255, green: 85/255, blue: 105/255, alpha: 1)
+            dark: .white.withAlphaComponent(0.85),
+            light: NSColor(red: 51/255, green: 65/255, blue: 85/255, alpha: 1)
         ))
 
         // MARK: — Deck tokens (adaptive)

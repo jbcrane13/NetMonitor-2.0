@@ -34,7 +34,7 @@ public final class WakeOnLANService: WakeOnLANServiceProtocol {
         return success
     }
 
-    private func createMagicPacket(macAddress: String) -> Data? {
+    func createMagicPacket(macAddress: String) -> Data? {
         let cleanedMAC = macAddress
             .replacingOccurrences(of: ":", with: "")
             .replacingOccurrences(of: "-", with: "")
@@ -54,7 +54,8 @@ public final class WakeOnLANService: WakeOnLANServiceProtocol {
         return packet
     }
 
-    private func hexStringToBytes(_ hex: String) -> [UInt8]? {
+    func hexStringToBytes(_ hex: String) -> [UInt8]? {
+        guard hex.count.isMultiple(of: 2) else { return nil }
         var bytes: [UInt8] = []
         var index = hex.startIndex
 
