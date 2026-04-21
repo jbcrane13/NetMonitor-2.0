@@ -99,7 +99,7 @@ struct GeoTraceView: View {
             Circle()
                 .fill(hop.latencyColor)
                 .frame(width: selectedHop?.id == hop.id ? 14 : 10)
-                .overlay(Circle().stroke(hopAnnotationOutlineColor, lineWidth: 1.5))
+                .overlay(Circle().stroke(MacTheme.Colors.crystalBorder, lineWidth: 1.5))
         }
         .animation(.easeInOut(duration: 0.15), value: selectedHop?.id == hop.id)
     }

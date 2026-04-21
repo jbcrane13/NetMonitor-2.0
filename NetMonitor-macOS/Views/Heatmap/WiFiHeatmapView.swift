@@ -192,10 +192,10 @@ struct WiFiHeatmapView: View {
             do {
                 try viewModel.importFloorPlan(from: url)
             } catch {
-                print("Import failed: \(error)")
+                viewModel.errorMessage = error.localizedDescription
             }
         case .failure(let error):
-            print("Import error: \(error)")
+            viewModel.errorMessage = error.localizedDescription
         }
     }
 
@@ -221,7 +221,7 @@ struct WiFiHeatmapView: View {
         do {
             try viewModel.importFloorPlan(imageData: data, name: name)
         } catch {
-            print("Photo import failed: \(error)")
+            viewModel.errorMessage = error.localizedDescription
         }
     }
 
@@ -269,7 +269,7 @@ struct WiFiHeatmapView: View {
         }
     }
 
-    private func exportImage(format: NSBitmapImageRep.FileType) {
+    private func exportImage() {
         guard let data = viewModel.exportPNG(canvasSize: CGSize(width: 800, height: 600)) else { return }
         let panel = NSSavePanel()
         panel.allowedContentTypes = [.png]
@@ -382,7 +382,7 @@ extension WiFiHeatmapView {
 
             // Export
             Menu {
-                Button("Export PNG") { exportImage(format: .png) }
+                Button("Export PNG") { exportImage() }
                 Button("Export PDF") { exportPDF() }
             } label: {
                 Label("Export", systemImage: "doc.richtext")
@@ -502,6 +502,21 @@ struct CalibrationSheet: View {
 
 // MARK: - File Importers ViewModifier
 
+private enum HeatmapImportContentTypes {
+    static let blueprint: [UTType] = {
+        let appSpecificType = UTType("com.netmonitor.blueprint")
+        let extensionType = UTType(filenameExtension: "netmonblueprint")
+
+#if DEBUG
+        if appSpecificType == nil, extensionType == nil {
+            assertionFailure("Unable to resolve blueprint UTType. Falling back to ZIP-only import support.")
+        }
+#endif
+
+        return [appSpecificType, extensionType, .zip].compactMap { $0 }
+    }()
+}
+
 private extension View {
     func fileImporters(
         showImportSheet: Binding<Bool>,
@@ -519,10 +534,7 @@ private extension View {
             }
             .fileImporter(
                 isPresented: showBlueprintImporter,
-                allowedContentTypes: [
-                    UTType("com.netmonitor.blueprint") ?? .data,
-                    .zip  // iOS exports blueprints as ZIP archives via saveAsArchive()
-                ],
+                allowedContentTypes: HeatmapImportContentTypes.blueprint,
                 allowsMultipleSelection: false
             ) { result in
                 onBlueprintImport(result)
