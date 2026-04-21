@@ -502,6 +502,21 @@ struct CalibrationSheet: View {
 
 // MARK: - File Importers ViewModifier
 
+private enum HeatmapImportContentTypes {
+    static let blueprint: [UTType] = {
+        let appSpecificType = UTType("com.netmonitor.blueprint")
+        let extensionType = UTType(filenameExtension: "netmonblueprint")
+
+#if DEBUG
+        if appSpecificType == nil, extensionType == nil {
+            assertionFailure("Unable to resolve blueprint UTType. Falling back to ZIP-only import support.")
+        }
+#endif
+
+        return [appSpecificType, extensionType, .zip].compactMap { $0 }
+    }()
+}
+
 private extension View {
     func fileImporters(
         showImportSheet: Binding<Bool>,
@@ -509,12 +524,6 @@ private extension View {
         onFileImport: @escaping (Result<[URL], Error>) -> Void,
         onBlueprintImport: @escaping (Result<[URL], Error>) -> Void
     ) -> some View {
-        let blueprintContentTypes = [
-            UTType("com.netmonitor.blueprint"),
-            UTType(filenameExtension: "netmonblueprint"),
-            .zip  // Blueprint exports can also be ZIP archives
-        ].compactMap { $0 }
-
         self
             .fileImporter(
                 isPresented: showImportSheet,
@@ -525,7 +534,7 @@ private extension View {
             }
             .fileImporter(
                 isPresented: showBlueprintImporter,
-                allowedContentTypes: blueprintContentTypes,
+                allowedContentTypes: HeatmapImportContentTypes.blueprint,
                 allowsMultipleSelection: false
             ) { result in
                 onBlueprintImport(result)
