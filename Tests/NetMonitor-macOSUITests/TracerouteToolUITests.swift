@@ -63,12 +63,13 @@ final class TracerouteToolUITests: MacOSUITestCase {
         clearAndTypeText("1.1.1.1", into: app.textFields["traceroute_textfield_host"])
         app.buttons["traceroute_button_run"].tap()
 
-        // Should enter running state — button remains or results appear
-        let results = ui("traceroute_results")
-        let runButton = app.buttons["traceroute_button_run"]
+        // Verify real hop rows appear — every `TracerouteHop` renders with
+        // identifier `traceroute_row_<hopNumber>`. Hop #1 (first upstream gateway)
+        // should arrive first.
+        let firstHop = ui("traceroute_row_1")
         XCTAssertTrue(
-            waitForEither([results, runButton], timeout: 10),
-            "Traceroute should enter running state or show results"
+            firstHop.waitForExistence(timeout: 20),
+            "Traceroute should render hop #1 when tracing 1.1.1.1"
         )
         captureScreenshot(named: "Traceroute_Running")
     }
@@ -78,9 +79,20 @@ final class TracerouteToolUITests: MacOSUITestCase {
         clearAndTypeText("8.8.8.8", into: app.textFields["traceroute_textfield_host"])
         app.buttons["traceroute_button_run"].tap()
 
-        let results = ui("traceroute_results")
-        if results.waitForExistence(timeout: 30) {
-            captureScreenshot(named: "Traceroute_Results")
-        }
+        // After the trace completes, the Clear button appears only when
+        // `!hops.isEmpty && !isRunning` — proving hops were recorded.
+        let clearButton = app.buttons["traceroute_button_clear"]
+        XCTAssertTrue(
+            clearButton.waitForExistence(timeout: 60),
+            "Clear button should appear after traceroute produces hop data"
+        )
+
+        let anyHop = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier BEGINSWITH 'traceroute_row_'"))
+        XCTAssertGreaterThan(
+            anyHop.count, 0,
+            "Traceroute should render at least one traceroute_row_* hop result"
+        )
+        captureScreenshot(named: "Traceroute_Results")
     }
 }

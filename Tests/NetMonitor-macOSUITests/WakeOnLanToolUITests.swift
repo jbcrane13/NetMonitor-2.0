@@ -72,4 +72,32 @@ final class WakeOnLanToolUITests: XCTestCase {
         // Default broadcast address should be 255.255.255.255
         XCTAssertEqual(broadcastField.value as? String, "255.255.255.255")
     }
+
+    // MARK: - Outcome: Send Produces Result Label
+
+    /// Tapping Send with a valid MAC should render either the success label
+    /// (`wol_label_result`) or the error label (`wol_label_error`). Either
+    /// proves the send action fed a result back into the view.
+    func testSendPacketProducesResultLabel() {
+        let macField = app.textFields["wol_textfield_mac"]
+        XCTAssertTrue(macField.waitForExistence(timeout: 3))
+        macField.tap()
+        macField.typeText("AA:BB:CC:DD:EE:FF")
+
+        app.buttons["wol_button_send"].tap()
+
+        let success = app.descendants(matching: .any)["wol_label_result"]
+        let failure = app.descendants(matching: .any)["wol_label_error"]
+
+        let deadline = Date().addingTimeInterval(10)
+        while Date() < deadline {
+            if success.exists || failure.exists { break }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+        }
+
+        XCTAssertTrue(
+            success.exists || failure.exists,
+            "Wake on LAN should render a result or error label after sending packet"
+        )
+    }
 }

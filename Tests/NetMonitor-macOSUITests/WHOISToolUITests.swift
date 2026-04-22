@@ -64,9 +64,16 @@ final class WHOISToolUITests: XCTestCase {
 
         app.buttons["whois_button_lookup"].tap()
 
-        // Wait for results - view mode picker appears when parsed info is available
+        // Verify parsed result DATA renders — `whois_picker_viewmode` is gated
+        // on `result != nil`, and `whois_section_parsed` is the parsed view
+        // container. Either appearing proves the WHOIS service returned data.
         let viewModePicker = app.segmentedControls["whois_picker_viewmode"]
-        XCTAssertTrue(viewModePicker.waitForExistence(timeout: 35))
+        let parsedSection = app.descendants(matching: .any)["whois_section_parsed"]
+        XCTAssertTrue(
+            viewModePicker.waitForExistence(timeout: 35)
+                || parsedSection.waitForExistence(timeout: 5),
+            "WHOIS should render parsed result data for example.com"
+        )
     }
 
     func testClearButtonAfterLookup() {
@@ -78,9 +85,24 @@ final class WHOISToolUITests: XCTestCase {
         app.buttons["whois_button_lookup"].tap()
 
         let clearButton = app.buttons["whois_button_clear"]
-        XCTAssertTrue(clearButton.waitForExistence(timeout: 35))
+        XCTAssertTrue(
+            clearButton.waitForExistence(timeout: 35),
+            "Clear button should only appear once WHOIS returned a result"
+        )
+
+        // Verify that result-only elements go with it
+        let viewModePicker = app.segmentedControls["whois_picker_viewmode"]
+        XCTAssertTrue(
+            viewModePicker.exists,
+            "View mode picker should be present alongside results"
+        )
+
         clearButton.tap()
 
         XCTAssertFalse(clearButton.waitForExistence(timeout: 2))
+        XCTAssertFalse(
+            viewModePicker.waitForExistence(timeout: 2),
+            "View mode picker should disappear when WHOIS result is cleared"
+        )
     }
 }

@@ -131,6 +131,7 @@ struct WakeOnLanToolView: View {
                     Spacer()
                 }
                 .padding(.top, 8)
+                .accessibilityIdentifier(isError ? "wol_label_error" : "wol_label_result")
             }
         }
         .padding()

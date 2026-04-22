@@ -82,17 +82,38 @@ final class SpeedTestToolUITests: MacOSUITestCase {
         openSpeedTest()
         app.buttons["speedTest_button_start"].tap()
 
-        // Wait for results or stop button
-        let results = ui("speedTest_section_results")
+        // Wait for running state first
         let stopButton = app.buttons["speedTest_button_stop"]
-
         XCTAssertTrue(
-            waitForEither([results, stopButton], timeout: 10),
-            "Speed test should enter running state or show results"
+            stopButton.waitForExistence(timeout: 10),
+            "Speed test should enter running state"
         )
 
-        if results.waitForExistence(timeout: 45) {
-            captureScreenshot(named: "SpeedTest_Results")
-        }
+        // Verify result DATA slots render during / after the test
+        requireExists(
+            ui("speedTest_section_results"),
+            timeout: 5,
+            message: "Speed test results section should render"
+        )
+        requireExists(
+            ui("speedTest_label_latency"),
+            message: "Latency label should appear in speed test results"
+        )
+        requireExists(
+            ui("speedTest_label_download"),
+            message: "Download label should appear in speed test results"
+        )
+        requireExists(
+            ui("speedTest_label_upload"),
+            message: "Upload label should appear in speed test results"
+        )
+        requireExists(
+            ui("speedTest_label_server"),
+            message: "Server label should appear in speed test results"
+        )
+
+        // If allowed to complete, the Reset button only renders when phase == .complete.
+        _ = app.buttons["speedTest_button_reset"].waitForExistence(timeout: 60)
+        captureScreenshot(named: "SpeedTest_Results")
     }
 }

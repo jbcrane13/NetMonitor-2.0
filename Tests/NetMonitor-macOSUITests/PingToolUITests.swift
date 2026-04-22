@@ -89,7 +89,7 @@ final class PingToolUITests: XCTestCase {
         app.buttons["ping_button_run"].tap()
 
         // Chart needs at least 2 successful pings to render
-        let chart = app.otherElements["ping_chart_latency"]
+        let chart = app.descendants(matching: .any)["ping_label_latencyChart"]
         XCTAssertTrue(chart.waitForExistence(timeout: 20),
                       "Latency chart should appear after successful pings")
     }
@@ -105,22 +105,49 @@ final class PingToolUITests: XCTestCase {
         app.buttons["ping_button_run"].tap()
 
         // Wait for chart to appear (stats are rendered alongside the chart)
-        let chart = app.otherElements["ping_chart_latency"]
+        let chart = app.descendants(matching: .any)["ping_label_latencyChart"]
         XCTAssertTrue(chart.waitForExistence(timeout: 20),
                       "Chart should appear so stat elements are visible")
 
-        // Verify stat elements
-        let minStat = app.staticTexts["ping_stat_min"].waitForExistence(timeout: 5)
-            || app.otherElements["ping_stat_min"].waitForExistence(timeout: 3)
-        XCTAssertTrue(minStat, "Min stat should be visible")
+        // Verify stat elements are populated (not placeholder) — real IDs from PingToolView
+        let min = app.descendants(matching: .any)["ping_label_min"]
+        let avg = app.descendants(matching: .any)["ping_label_avg"]
+        let max = app.descendants(matching: .any)["ping_label_max"]
+        XCTAssertTrue(min.waitForExistence(timeout: 5), "Min stat should be visible")
+        XCTAssertTrue(avg.waitForExistence(timeout: 5), "Avg stat should be visible")
+        XCTAssertTrue(max.waitForExistence(timeout: 5), "Max stat should be visible")
+    }
 
-        let avgStat = app.staticTexts["ping_stat_avg"].waitForExistence(timeout: 5)
-            || app.otherElements["ping_stat_avg"].waitForExistence(timeout: 3)
-        XCTAssertTrue(avgStat, "Avg stat should be visible")
+    // MARK: - Outcome: Results Clear Button Reflects Data
 
-        let maxStat = app.staticTexts["ping_stat_max"].waitForExistence(timeout: 5)
-            || app.otherElements["ping_stat_max"].waitForExistence(timeout: 3)
-        XCTAssertTrue(maxStat, "Max stat should be visible")
+    /// After a successful ping, the Clear button appears because results
+    /// exist. After Clear is tapped, outputs + stats disappear — this
+    /// verifies the ping output list actually populated.
+    func testClearButtonAppearsOnlyWhenResultsExist() {
+        let clearButton = app.buttons["ping_button_clear"]
+        XCTAssertFalse(clearButton.exists,
+                       "Clear button must not be visible before a ping has produced output")
+
+        let hostField = app.textFields["ping_textfield_host"]
+        XCTAssertTrue(hostField.waitForExistence(timeout: 3))
+        hostField.tap()
+        hostField.typeText("127.0.0.1")
+
+        app.buttons["ping_button_run"].tap()
+
+        // Clear button renders only once isRunning == false AND outputLines is non-empty,
+        // so its appearance proves ping data populated the output area.
+        XCTAssertTrue(clearButton.waitForExistence(timeout: 30),
+                      "Clear button should appear after ping produces result data")
+
+        clearButton.tap()
+        let predicate = NSPredicate(format: "exists == false")
+        let expectation = XCTNSPredicateExpectation(predicate: predicate, object: clearButton)
+        XCTAssertEqual(
+            XCTWaiter().wait(for: [expectation], timeout: 5),
+            .completed,
+            "Clear button should disappear after results are cleared"
+        )
     }
 
     // MARK: - Enhanced Ping: Count Picker

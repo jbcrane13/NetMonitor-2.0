@@ -26,13 +26,15 @@ final class MacOSToolOutcomeUITests: MacOSUITestCase {
 
         runButton.tap()
 
-        // The button remains visible; its label changes to "Stop" while running.
+        // Verify RESULT DATA appears. The chart only renders once ≥2 successful
+        // pings arrive, and the Clear button only renders when results exist,
+        // so either appearing proves the ping service populated output.
         XCTAssertTrue(
             waitForEither(
-                [app.buttons["ping_button_run"], ui("ping_results")],
-                timeout: 10
+                [ui("ping_label_latencyChart"), app.buttons["ping_button_clear"]],
+                timeout: 20
             ),
-            "Ping should transition to running state or show results"
+            "Ping should produce chart or clearable result output against 127.0.0.1"
         )
 
         // Tap again to stop if still running.
@@ -70,12 +72,13 @@ final class MacOSToolOutcomeUITests: MacOSUITestCase {
         XCTAssertTrue(runButton.isEnabled, "Run should be enabled after entering host")
 
         runButton.tap()
+
+        // Verify at least one hop row is rendered — the service streams hops as
+        // they arrive, so `traceroute_row_1` appearing proves real data landed
+        // in the results area (not just a state flip).
         XCTAssertTrue(
-            waitForEither(
-                [app.buttons["traceroute_button_run"], ui("traceroute_results")],
-                timeout: 15
-            ),
-            "Traceroute should transition to running state"
+            ui("traceroute_row_1").waitForExistence(timeout: 25),
+            "Traceroute should render at least hop #1 against 1.1.1.1"
         )
 
         if runButton.exists && runButton.isEnabled {
@@ -112,17 +115,15 @@ final class MacOSToolOutcomeUITests: MacOSUITestCase {
         XCTAssertTrue(scanButton.isEnabled, "Scan should be enabled after entering host")
 
         scanButton.tap()
-        XCTAssertTrue(
-            waitForEither(
-                [app.buttons["portScan_button_scan"], ui("portScan_results")],
-                timeout: 10
-            ),
-            "Port scanner should enter running state"
-        )
 
-        if scanButton.exists && scanButton.isEnabled {
-            scanButton.tap()
-        }
+        // After the scan completes, the Clear button appears only when `results`
+        // is non-empty — verifying the scan actually populated rows. The default
+        // preset scans 15 common ports, so every port produces a `portScan_row_*`
+        // (open or closed) entry.
+        XCTAssertTrue(
+            app.buttons["portScan_button_clear"].waitForExistence(timeout: 30),
+            "Port scanner should produce result rows against 127.0.0.1"
+        )
 
         closeTool(closeButtonID: "portScan_button_close", cardID: "tools_card_port_scanner")
     }
@@ -155,22 +156,25 @@ final class MacOSToolOutcomeUITests: MacOSUITestCase {
 
         lookupButton.tap()
 
-        let clearButton = app.buttons["dns_button_clear"]
+        // The results ForEach carries `dns_section_results` and is wrapped in
+        // `if !results.isEmpty`. Its appearance proves real records rendered.
+        let resultsSection = ui("dns_section_results")
         XCTAssertTrue(
-            waitForEither(
-                [clearButton, ui("dns_results"), ui("dns_error")],
-                timeout: 20
-            ),
-            "DNS lookup should produce results, clear button, or error"
+            resultsSection.waitForExistence(timeout: 20),
+            "DNS lookup should render the results section with live data for example.com"
         )
 
-        if clearButton.exists {
-            clearButton.tap()
-            XCTAssertTrue(
-                waitForDisappearance(clearButton, timeout: 5),
-                "Clear button should disappear after clearing DNS results"
-            )
-        }
+        let clearButton = app.buttons["dns_button_clear"]
+        XCTAssertTrue(clearButton.exists, "Clear button should be visible once DNS results exist")
+        clearButton.tap()
+        XCTAssertTrue(
+            waitForDisappearance(clearButton, timeout: 5),
+            "Clear button should disappear after clearing DNS results"
+        )
+        XCTAssertTrue(
+            waitForDisappearance(resultsSection, timeout: 5),
+            "DNS results section should disappear after Clear"
+        )
 
         closeTool(closeButtonID: "dns_button_close", cardID: "tools_card_dns_lookup")
     }
@@ -203,14 +207,15 @@ final class MacOSToolOutcomeUITests: MacOSUITestCase {
 
         lookupButton.tap()
 
-        let clearButton = app.buttons["whois_button_clear"]
+        // `whois_picker_viewmode` is gated on `result != nil`, and
+        // `whois_section_parsed` only renders when the parsed result view is
+        // visible — so either proves real WHOIS data returned.
         let viewModePicker = app.segmentedControls["whois_picker_viewmode"]
+        let parsedSection = ui("whois_section_parsed")
+        let clearButton = app.buttons["whois_button_clear"]
         XCTAssertTrue(
-            waitForEither(
-                [clearButton, viewModePicker, ui("whois_results"), ui("whois_error")],
-                timeout: 35
-            ),
-            "WHOIS lookup should produce results or show error"
+            waitForEither([viewModePicker, parsedSection, clearButton], timeout: 35),
+            "WHOIS lookup should produce parsed result data for example.com"
         )
 
         if clearButton.exists {
@@ -218,6 +223,10 @@ final class MacOSToolOutcomeUITests: MacOSUITestCase {
             XCTAssertTrue(
                 waitForDisappearance(clearButton, timeout: 5),
                 "Clear button should disappear after clearing WHOIS results"
+            )
+            XCTAssertTrue(
+                waitForDisappearance(viewModePicker, timeout: 5),
+                "View mode picker should disappear when WHOIS result is cleared"
             )
         }
 
@@ -240,12 +249,38 @@ final class MacOSToolOutcomeUITests: MacOSUITestCase {
             message: "Duration picker should exist"
         )
 
+        // The result container `speedTest_section_results` renders the
+        // latency/download/upload/server labels. They remain present across
+        // idle/running/complete states; here we just verify they render at all
+        // after the test enters the running phase.
         startButton.tap()
 
         let stopButton = app.buttons["speedTest_button_stop"]
         XCTAssertTrue(
             stopButton.waitForExistence(timeout: 8),
             "Stop button should appear after starting speed test"
+        )
+
+        requireExists(
+            ui("speedTest_section_results"),
+            timeout: 5,
+            message: "Speed test results section should render with live data fields"
+        )
+        requireExists(
+            ui("speedTest_label_latency"),
+            message: "Latency label should be rendered in speed test results"
+        )
+        requireExists(
+            ui("speedTest_label_download"),
+            message: "Download label should be rendered in speed test results"
+        )
+        requireExists(
+            ui("speedTest_label_upload"),
+            message: "Upload label should be rendered in speed test results"
+        )
+        requireExists(
+            ui("speedTest_label_server"),
+            message: "Server label should be rendered in speed test results"
         )
 
         stopButton.tap()

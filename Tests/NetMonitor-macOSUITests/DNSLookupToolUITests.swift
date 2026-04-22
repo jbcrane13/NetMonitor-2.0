@@ -63,10 +63,19 @@ final class DNSLookupToolUITests: MacOSUITestCase {
         clearAndTypeText("example.com", into: app.textFields["dns_textfield_hostname"])
         app.buttons["dns_button_lookup"].tap()
 
+        // Verify real result DATA appears — `dns_section_results` is attached
+        // to the ForEach that iterates records, so it only exists when the
+        // results array is non-empty.
+        let resultsSection = ui("dns_section_results")
+        XCTAssertTrue(
+            resultsSection.waitForExistence(timeout: 15),
+            "DNS lookup should render dns_section_results with live records for example.com"
+        )
+
         let clearButton = app.buttons["dns_button_clear"]
         XCTAssertTrue(
-            clearButton.waitForExistence(timeout: 15),
-            "Clear button should appear after lookup completes (results present)"
+            clearButton.waitForExistence(timeout: 5),
+            "Clear button should be available after DNS records are rendered"
         )
         captureScreenshot(named: "DNSLookup_Results")
     }
@@ -76,13 +85,23 @@ final class DNSLookupToolUITests: MacOSUITestCase {
         clearAndTypeText("example.com", into: app.textFields["dns_textfield_hostname"])
         app.buttons["dns_button_lookup"].tap()
 
+        let resultsSection = ui("dns_section_results")
+        XCTAssertTrue(
+            resultsSection.waitForExistence(timeout: 15),
+            "DNS results section should appear before testing clear"
+        )
+
         let clearButton = app.buttons["dns_button_clear"]
-        guard clearButton.waitForExistence(timeout: 15) else { return }
+        XCTAssertTrue(clearButton.exists, "Clear button should be present alongside results")
         clearButton.tap()
 
         XCTAssertTrue(
             waitForDisappearance(clearButton, timeout: 3),
             "Clear button should disappear after clearing results"
+        )
+        XCTAssertTrue(
+            waitForDisappearance(resultsSection, timeout: 3),
+            "Results section should disappear after clearing — verifies results were wiped"
         )
     }
 

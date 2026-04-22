@@ -69,6 +69,31 @@ final class PortScannerToolUITests: MacOSUITestCase {
         captureScreenshot(named: "PortScanner_Scanning")
     }
 
+    /// After scanning a live host, individual port rows should render
+    /// (every port in the preset produces a `portScan_row_<port>` entry,
+    /// open or closed), and the Clear button only appears once the results
+    /// array is non-empty.
+    func testScanProducesResultRows() {
+        openPortScanner()
+        clearAndTypeText("127.0.0.1", into: app.textFields["portScan_textfield_host"])
+        app.buttons["portScan_button_scan"].tap()
+
+        let clearButton = app.buttons["portScan_button_clear"]
+        XCTAssertTrue(
+            clearButton.waitForExistence(timeout: 30),
+            "Clear button appears only when results are populated — verifies scan produced data"
+        )
+
+        // At least one port row must render — regardless of port state.
+        let anyRow = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier BEGINSWITH 'portScan_row_'"))
+        XCTAssertGreaterThan(
+            anyRow.count, 0,
+            "Port scanner should render at least one portScan_row_* result"
+        )
+        captureScreenshot(named: "PortScanner_Results")
+    }
+
     func testCustomPresetShowsCustomField() {
         openPortScanner()
         let presetPicker = requireExists(app.popUpButtons["portScan_picker_preset"], message: "Preset picker should exist")
