@@ -110,8 +110,8 @@
 | `privacy_compliance` | SKIP | Internal network monitoring tool |
 | `secrets_management` | 1/1 | .env gitignored; no hardcoded secrets ✓ |
 | `issue_templates` | 0/1 | No GitHub issue templates |
-| `issue_labeling_system` | 0/1 | No labels (using beads) |
-| `backlog_health` | SKIP | Zero open GitHub issues (using beads) |
+| `issue_labeling_system` | 1/1 | GitHub Issues with label schema (type, priority, status) |
+| `backlog_health` | OK | GitHub Issues used for all tracking |
 | `pr_templates` | 0/1 | No PR template |
 
 ### Observability

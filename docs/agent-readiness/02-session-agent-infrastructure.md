@@ -43,13 +43,13 @@ Coverage gate reference. Covers:
 
 #### `create-release`
 End-to-end release procedure. Covers:
-- Gate: checking the release prep checklist (`bd show NetMonitor-2.0-c0p`)
+- Gate: checking the release prep checklist (GitHub Issue with `status:ready` label)
 - Verifying clean state (git status, lint, format)
 - Bumping version in `project.yml` (CFBundleShortVersionString + CFBundleVersion for both targets)
 - Creating and pushing a semver tag
 - Monitoring the `release.yml` workflow via gh CLI
 - Reviewing and publishing the draft GitHub Release
-- Closing the release prep beads issue
+- Closing the release prep GitHub issue
 - Version convention (semver + build number)
 
 #### `fix-lint`
@@ -122,7 +122,7 @@ Rewritten to reflect the current state of `.github/`. Now includes:
 
 ```bash
 # 1. Verify checklist complete
-bd show NetMonitor-2.0-c0p
+gh issue list --repo jbcrane13/NetMonitor-2.0 --label "status:ready" --state open
 
 # 2. Bump version in project.yml, then:
 xcodegen generate
@@ -140,6 +140,6 @@ gh run list --workflow=release.yml --limit 5
 # 5. Publish draft release when ready
 gh release edit v2.0.1 --draft=false
 
-# 6. Close beads issue
-bd close NetMonitor-2.0-c0p && bd sync && git push
+# 6. Close GitHub issue
+gh issue close <number> --repo jbcrane13/NetMonitor-2.0 --comment "Released" && git push
 ```

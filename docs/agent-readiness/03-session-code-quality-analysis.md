@@ -32,7 +32,7 @@ Key settings:
 // periphery:ignore
 func protocolRequirementCalledAtRuntime() { ... }
 ```
-File a beads issue before removing real dead code.
+File a GitHub issue before removing real dead code.
 
 **Local run:**
 ```bash

@@ -28,7 +28,7 @@ A running log of significant architecture and design decisions. Both Daneel (Ope
 - All types crossing isolation boundaries must be `Sendable`
 - UI-bound services/VMs are `@MainActor @Observable`
 - Network-heavy services that need true parallelism use `actor`
-- Some `nonisolated(unsafe)` and `@unchecked Sendable` workarounds exist — these should be documented (see ADR beads)
+- Some `nonisolated(unsafe)` and `@unchecked Sendable` workarounds exist — these should be documented (see ADR-010)
 
 ---
 
@@ -108,12 +108,12 @@ A running log of significant architecture and design decisions. Both Daneel (Ope
 ## ADR-009: Beads for task tracking
 **Date:** 2026-02-14  
 **Status:** Active  
-**Decision:** All work tracked via `beads` (`bd` CLI) — every fix/feature gets a bead, status updates required, IDs in commit messages.  
-**Context:** Multiple agents working on the codebase need a shared task tracking system that lives in the repo.  
+**Decision:** All work tracked via **GitHub Issues** (`gh` CLI, repo: `jbcrane13/NetMonitor-2.0`) — every fix/feature gets an issue, status updates via labels, issue numbers in commit messages.  
+**Context:** Multiple agents working on the codebase need a shared task tracking system. Previously used beads (`bd` CLI) — migrated to GitHub Issues April 2026.  
 **Consequences:**
-- `.beads/` directory in repo root
-- `bd list`, `bd create`, `bd close` workflow
-- Dependency chains between beads (blocked-by/blocks)
+- GitHub Issues with label schema (type, priority, status, agent)
+- `gh issue create`, `gh issue edit`, `gh issue close` workflow
+- Milestones for phases, assignees for ownership
 
 ---
 
@@ -128,9 +128,9 @@ A running log of significant architecture and design decisions. Both Daneel (Ope
 
 **Context:** Full services architecture review (324-line `ARCHITECTURE-REVIEW.md`) identified ~3,000 NWConnection churn as primary heat source, threading model issues, and consolidation opportunities.  
 **Consequences:**
-- 22 beads created with dependency chains
+- 22 GitHub issues created with dependency relationships
 - Phase 1 blocks Phase 2 blocks Phase 3 blocks Phase 4
-- Epic beads track phase completion
+- Epic issues track phase completion
 
 ---
 
@@ -163,7 +163,7 @@ A running log of significant architecture and design decisions. Both Daneel (Ope
 **Date:** 2026-02-15
 **Status:** Active
 **Decision:** Keep GatewayService and PublicIPService as fresh instances created via DI defaults in ViewModel `init()`. Do not introduce singletons.
-**Context:** Architecture review bead `NetMonitor-iOS-rnx` flagged that GatewayService (5 instantiation sites) and PublicIPService (2 sites) create independent instances that don't share cached results. Evaluation found this is the correct pattern:
+**Context:** Architecture review issue `NetMonitor-iOS-rnx` flagged that GatewayService (5 instantiation sites) and PublicIPService (2 sites) create independent instances that don't share cached results. Evaluation found this is the correct pattern:
 
 - **GatewayService** performs a single LAN TCP connection (<10ms). No caching, no long-lived state. The three ViewModels (Dashboard, Map, Tools) live on separate tabs — only the active tab calls `detectGateway()`. SwiftUI `@State` preserves VM instances across tab switches, so services aren't constantly recreated.
 - **PublicIPService** is only used in DashboardViewModel (one ViewModel). Its 5-minute per-instance cache prevents excessive API calls during auto-refresh. BackgroundTaskService correctly uses fresh instances since background tasks have separate lifecycles.
@@ -395,4 +395,4 @@ The `.prefix(while:)` trims the null terminator; `.map { UInt8(bitPattern:) }` r
 
 ---
 
-*To add a new ADR: append with the next number, include date, status, decision, context, and consequences. Reference the bead ID if applicable.*
+*To add a new ADR: append with the next number, include date, status, decision, context, and consequences. Reference the GitHub issue if applicable.*

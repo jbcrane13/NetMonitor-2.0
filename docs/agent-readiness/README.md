@@ -33,7 +33,7 @@ The following project conventions were introduced during readiness sessions. Res
 | Log scrubbing | `LogSanitizer.swift` | Wrap IPs, MACs, SSIDs, hostnames in `LogSanitizer.*` before logging |
 | Logger categories | `Platform/Logging.swift` (macOS + iOS) | Use named `Logger.*` instances; do not create ad-hoc loggers |
 | Dead code baseline | `.periphery.yml` | 117 baseline warnings exist; new warnings should be resolved or suppressed with justification |
-| PR template | `.github/pull_request_template.md` | Auto-fills on PR open; include beads issue link |
+| PR template | `.github/pull_request_template.md` | Auto-fills on PR open; include GitHub issue link |
 | CODEOWNERS | `.github/CODEOWNERS` | Path-based ownership — respect when reviewing cross-boundary changes |
 | Test isolation | All test commands | `-parallel-testing-enabled NO` (Xcode) and `--no-parallel` (SPM) on all targets |
 | Issue labels | GitHub labels | Use `platform:`, `P0-P3:`, `agent-ready`, domain labels when filing GitHub issues |

@@ -20,9 +20,9 @@ Created `.github/ISSUE_TEMPLATE/` with three files:
 
 - `bug_report.yml` — structured form with platform dropdown, version, OS version, reproduction steps, severity, and optional log attachment
 - `feature_request.yml` — structured form with platform, motivation, proposed solution, alternatives, priority suggestion
-- `config.yml` — enables blank issues and links to the beads issue tracker
+- `config.yml` — enables blank issues and links to the GitHub issue tracker
 
-Both templates note that the project uses beads for agent-friendly issue tracking.
+Both templates note that the project uses GitHub Issues for agent-friendly issue tracking.
 
 ### GitHub Labels
 

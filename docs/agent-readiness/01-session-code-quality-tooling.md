@@ -21,10 +21,10 @@
 
 ## What Was Implemented
 
-### SwiftLint — beads ticket enforcement
+### SwiftLint — GitHub issue enforcement
 
 - Re-enabled the `todo` rule (was in `disabled_rules`)
-- Added `custom_rules.todo_needs_ticket`: warns on any `// TODO:` or `// FIXME:` not prefixed with a beads ticket reference
+- Added `custom_rules.todo_needs_ticket`: warns on any `// TODO:` or `// FIXME:` not prefixed with a GitHub issue reference (e.g., `// TODO: (#123)`)
 
 **Convention agents must follow:**
 ```swift
@@ -46,13 +46,13 @@ Three parallel jobs on every PR and push to `main`:
 |-----|--------|-----------|
 | `swiftlint` | macos-15 | `swiftlint lint --strict` — **blocks** PR on errors |
 | `swiftformat` | macos-15 | `swiftformat --lint .` — **blocks** PR if files need reformatting |
-| `bare-todos` | ubuntu-latest | Warns (non-blocking) on TODO/FIXME without beads ticket ID |
+| `bare-todos` | ubuntu-latest | Warns (non-blocking) on TODO/FIXME without GitHub issue reference |
 | `agents-md-validation` | macos-15 | Verifies scripts exist + are executable; tools available; build command is valid; skill frontmatter complete |
 
 ### PR Template — `.github/pull_request_template.md`
 
 Auto-populates new PRs with:
-- Summary and beads issue link (`Closes: NetMonitor-2.0-xyz`)
+- Summary and GitHub issue link (`Closes: #123`)
 - Test checklist: unit tests, UI tests, SwiftLint clean, SwiftFormat clean, manual verification
 - Notes for reviewer section
 

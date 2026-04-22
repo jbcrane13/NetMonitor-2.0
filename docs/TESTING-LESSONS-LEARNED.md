@@ -207,7 +207,7 @@ A dedicated audit agent now searches for:
 | Network API services | Contract test with recorded response fixture |
 | Hardware-dependent services | Contract test for data format + documented gap |
 | Services producing user-visible output | Integration test proving real service produces output |
-| Any service with `catch {}` | Bug bead + error surfacing fix first |
+| Any service with `catch {}` | Bug issue + error surfacing fix first |
 
 #### 4. Revised Priority System
 
