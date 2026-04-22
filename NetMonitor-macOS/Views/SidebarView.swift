@@ -171,7 +171,7 @@ struct SidebarRow: View {
             if let count = deviceCount {
                 Text("\(count)")
                     .font(.system(size: 10, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(MacTheme.Colors.sidebarTextSecondary)
                     .padding(.horizontal, 5)
                     .padding(.vertical, 2)
                     .background(MacTheme.Colors.subtleBackground, in: RoundedRectangle(cornerRadius: 4))
