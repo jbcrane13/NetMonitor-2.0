@@ -31,7 +31,7 @@ NetMonitor publishes the companion Shortcut to iCloud. From inside the app:
 
 You can also open the install link directly on your device:
 
-<https://www.icloud.com/shortcuts/ae1acdf1630e4d1daf998402d5ddc4c0>
+<https://www.icloud.com/shortcuts/642db80674ad4cb88d1e8d39b1c1e5dd>
 
 If the install link is blocked on your network or the Shortcut ever needs troubleshooting, follow the manual steps below.
 

@@ -12,7 +12,7 @@ enum AppSettings {
     /// wired to the in-app `SaveWiFiReadingIntent` — one-tap install, no manual
     /// build required. Override via UserDefaults key `shortcutInstallURL` if you
     /// need to point at a different revision.
-    static let defaultShortcutInstallURL = "https://www.icloud.com/shortcuts/ae1acdf1630e4d1daf998402d5ddc4c0"
+    static let defaultShortcutInstallURL = "https://www.icloud.com/shortcuts/642db80674ad4cb88d1e8d39b1c1e5dd"
 
     // MARK: - Keys
 

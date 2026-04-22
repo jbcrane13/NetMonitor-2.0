@@ -120,7 +120,7 @@ After the `appGroupSuiteName` constant (line 8), add:
 ```swift
     /// iCloud link for the companion "Wi-Fi to NetMonitor" Shortcut.
     /// Replace with actual iCloud sharing link once created.
-    static let defaultShortcutInstallURL = "https://www.icloud.com/shortcuts/PLACEHOLDER"
+    static let defaultShortcutInstallURL = "https://www.icloud.com/shortcuts/642db80674ad4cb88d1e8d39b1c1e5dd"
 ```
 
 - [ ] **Step 3: Commit**
