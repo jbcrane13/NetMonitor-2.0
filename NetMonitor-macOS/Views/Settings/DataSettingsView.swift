@@ -78,9 +78,11 @@ struct DataSettingsView: View {
         }
         .alert("Clear All Data?", isPresented: $showClearConfirmation) {
             Button("Cancel", role: .cancel) {}
+                .accessibilityIdentifier("settings_button_cancelClearData")
             Button("Clear", role: .destructive) {
                 clearAllData()
             }
+            .accessibilityIdentifier("settings_button_confirmClearData")
         } message: {
             Text("This will delete all targets, measurements, and discovered devices. This action cannot be undone.")
         }

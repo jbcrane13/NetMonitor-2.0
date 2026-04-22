@@ -171,6 +171,7 @@ struct CardErrorState: View {
                     .font(.system(size: 10, weight: .medium))
                     .buttonStyle(.plain)
                     .foregroundStyle(MacTheme.Colors.info)
+                    .accessibilityIdentifier("cardError_button_retry")
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

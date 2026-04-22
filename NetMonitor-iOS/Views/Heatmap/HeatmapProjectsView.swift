@@ -38,7 +38,9 @@ struct HeatmapProjectsView: View {
                         deleteProject(project)
                     }
                 }
+                .accessibilityIdentifier("heatmapProjects_button_confirmDelete")
                 Button("Cancel", role: .cancel) {}
+                    .accessibilityIdentifier("heatmapProjects_button_cancelDelete")
             } message: {
                 if let project = projectToDelete {
                     Text("This will permanently delete \"\(project.name)\".")

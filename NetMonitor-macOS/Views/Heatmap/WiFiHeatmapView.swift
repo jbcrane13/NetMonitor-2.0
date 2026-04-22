@@ -100,6 +100,7 @@ struct WiFiHeatmapView: View {
             set: { if !$0 { viewModel.errorMessage = nil } }
         )) {
             Button("OK") { viewModel.errorMessage = nil }
+                .accessibilityIdentifier("heatmap_button_dismissError")
         } message: {
             Text(viewModel.errorMessage ?? "")
         }
@@ -356,6 +357,7 @@ extension WiFiHeatmapView {
                 } label: {
                     Label("Cancel Calibration", systemImage: "xmark")
                 }
+                .accessibilityIdentifier("heatmap_button_cancelCalibrationToolbar")
             } else {
                 Button {
                     viewModel.startCalibration()
@@ -383,7 +385,9 @@ extension WiFiHeatmapView {
             // Export
             Menu {
                 Button("Export PNG") { exportImage() }
+                    .accessibilityIdentifier("heatmap_button_exportPNG")
                 Button("Export PDF") { exportPDF() }
+                    .accessibilityIdentifier("heatmap_button_exportPDF")
             } label: {
                 Label("Export", systemImage: "doc.richtext")
             }

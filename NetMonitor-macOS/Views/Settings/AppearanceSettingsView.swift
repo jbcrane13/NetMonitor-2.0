@@ -46,6 +46,7 @@ struct AppearanceSettingsView: View {
                         }
                     }
                     .pickerStyle(.segmented)
+                    .accessibilityIdentifier("appearance_picker_mode")
                 }
             } header: {
                 Text("Appearance")

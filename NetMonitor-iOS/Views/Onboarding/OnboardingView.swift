@@ -13,6 +13,7 @@ struct OnboardingView: View {
         ZStack(alignment: .top) {
             Theme.Colors.backgroundBase
                 .ignoresSafeArea()
+                .accessibilityIdentifier("screen_onboarding")
 
             VStack(spacing: 0) {
                 // Skip button
@@ -47,6 +48,7 @@ struct OnboardingView: View {
                 .tabViewStyle(.page(indexDisplayMode: .always))
                 .indexViewStyle(.page(backgroundDisplayMode: .always))
                 .animation(Theme.Animation.standard, value: currentPage)
+                .accessibilityIdentifier("onboarding_tab_pages")
 
                 // Continue / Get Started button
                 VStack(spacing: 16) {
