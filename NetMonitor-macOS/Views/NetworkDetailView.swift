@@ -64,14 +64,14 @@ struct NetworkDetailView: View {
     }
 
     /// Responsive layout breakpoints:
-    /// - Compact  (< 1200pt): single-column stacked layout
-    /// - Standard (1200–1599pt): 2-column (44% diagnostics / 56% devices)
+    /// - Compact  (< 900pt): single-column stacked layout
+    /// - Standard (900–1599pt): 2-column (44% diagnostics / 56% devices)
     /// - Wide     (≥ 1600pt): 3-column (ISP+gauge left, diagnostics center, devices right)
     private enum DashboardLayout {
         case compact, standard, wide
 
         init(width: CGFloat) {
-            if width >= 1600 { self = .wide } else if width >= 1200 { self = .standard } else { self = .compact }
+            if width >= 1600 { self = .wide } else if width >= 900 { self = .standard } else { self = .compact }
         }
     }
 
