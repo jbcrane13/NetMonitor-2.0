@@ -40,9 +40,12 @@ enum AppearanceMode: String, CaseIterable, Identifiable {
 // MARK: - Helper
 
 /// Returns an adaptive NSColor that resolves to dark or light based on the current appearance.
+/// Uses `bestMatch(from:)` so all dark variants resolve correctly — including `.vibrantDark`,
+/// which SwiftUI applies to sidebar content inside `NavigationSplitView`.
 private func macColor(dark: NSColor, light: NSColor) -> NSColor {
     NSColor(name: nil) { appearance in
-        appearance.name == .darkAqua ? dark : light
+        let match = appearance.bestMatch(from: [.aqua, .darkAqua])
+        return match == .darkAqua ? dark : light
     }
 }
 
