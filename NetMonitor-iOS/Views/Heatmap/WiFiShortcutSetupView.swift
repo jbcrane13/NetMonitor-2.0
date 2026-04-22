@@ -90,7 +90,7 @@ struct WiFiShortcutSetupView: View {
                 .font(.title2.bold())
                 .foregroundStyle(Theme.Colors.textPrimary)
 
-            Text("Add a 2-action Apple Shortcut to enable RSSI measurements. The NetMonitor action is built into the app — no download needed.")
+            Text("NetMonitor measures Wi-Fi signal through a companion Shortcut. Tap below to install the preconfigured Shortcut — takes one tap.")
                 .font(.subheadline)
                 .foregroundStyle(Theme.Colors.textSecondary)
                 .multilineTextAlignment(.center)
@@ -170,7 +170,7 @@ struct WiFiShortcutSetupView: View {
         Button {
             openShortcutInstallLink()
         } label: {
-            Label("Open Shortcuts App", systemImage: "plus.square.fill")
+            Label("Install Wi-Fi Shortcut", systemImage: "square.and.arrow.down.fill")
                 .font(.headline)
                 .frame(maxWidth: .infinity)
                 .padding()
@@ -210,7 +210,7 @@ struct WiFiShortcutSetupView: View {
                 .padding(.top, Theme.Layout.itemSpacing)
             },
             label: {
-                Text("Build It Yourself")
+                Text("Install didn't work? Build it manually")
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(Theme.Colors.textSecondary)
             }

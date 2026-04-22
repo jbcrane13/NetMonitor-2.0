@@ -7,12 +7,12 @@ enum AppSettings {
 
     static let appGroupSuiteName = "group.com.blakemiller.netmonitor"
 
-    /// Optional iCloud link for a published "Wi-Fi to NetMonitor" Shortcut template.
-    /// Defaults to `shortcuts://` which opens the user's Shortcuts app so they
-    /// can build the 2-action shortcut using the in-app `SaveWiFiReadingIntent`.
-    /// Override via UserDefaults key `shortcutInstallURL` to point at a real
-    /// iCloud sharing link if one is published later.
-    static let defaultShortcutInstallURL = "shortcuts://"
+    /// Published iCloud link for the "Wi-Fi to NetMonitor" companion Shortcut.
+    /// Tapping this URL opens the Shortcuts app with a preconfigured template
+    /// wired to the in-app `SaveWiFiReadingIntent` — one-tap install, no manual
+    /// build required. Override via UserDefaults key `shortcutInstallURL` if you
+    /// need to point at a different revision.
+    static let defaultShortcutInstallURL = "https://www.icloud.com/shortcuts/ae1acdf1630e4d1daf998402d5ddc4c0"
 
     // MARK: - Keys
 

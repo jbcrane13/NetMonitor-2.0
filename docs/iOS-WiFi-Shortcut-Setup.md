@@ -20,7 +20,24 @@ The companion Shortcut acts as a thin bridge: NetMonitor asks Shortcuts to run, 
 
 ---
 
-## Build the Shortcut
+## Quickest path: one-tap install
+
+NetMonitor publishes the companion Shortcut to iCloud. From inside the app:
+
+1. Open NetMonitor → **Heatmap** → **Wi-Fi Setup**.
+2. Tap **Install Wi-Fi Shortcut**.
+3. The Shortcuts app opens with "Wi-Fi to NetMonitor" preconfigured. Review the 9 actions and tap **Add Shortcut**.
+4. Return to NetMonitor and tap **Test Connection** to confirm.
+
+You can also open the install link directly on your device:
+
+<https://www.icloud.com/shortcuts/ae1acdf1630e4d1daf998402d5ddc4c0>
+
+If the install link is blocked on your network or the Shortcut ever needs troubleshooting, follow the manual steps below.
+
+---
+
+## Build the Shortcut (manual fallback)
 
 The companion shortcut needs **one "Get Network Details" action per field you want to capture**, followed by a single "Save Wi-Fi Reading to NetMonitor" action that collects them all. A full-data shortcut has 9 actions; a minimum shortcut (SSID + RSSI + Channel only) has 4.
 
@@ -126,7 +143,7 @@ This action requires **iOS 17 or later**. Update your device if the action does 
 No. iOS requires Shortcuts automations with timers to prompt the user each time. The shortcut runs in the foreground — you will see Shortcuts briefly open and close during each heatmap measurement. This is expected and typically takes under a second.
 
 **Do I need an iCloud account to install the shortcut?**
-No. You build the shortcut manually in the Shortcuts app using actions that are already on your device. No download or iCloud link is required.
+No. The one-tap install fetches the template from Apple's public iCloud share URL — you can tap **Add Shortcut** without being signed in to iCloud. If you prefer zero network traffic you can always follow the manual build steps above.
 
 **Will this work on iPad?**
 Yes, on any iPad running iPadOS 18 or later with a Wi-Fi connection.
