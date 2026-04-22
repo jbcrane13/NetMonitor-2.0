@@ -15,7 +15,12 @@ struct SidebarView: View {
     @Environment(NetworkProfileManager.self) private var profileManager
     // periphery:ignore
     @Environment(MonitoringSession.self) private var monitoringSession: MonitoringSession?
+    @Environment(\.colorScheme) private var colorScheme
     @Query(sort: \LocalDevice.lastSeen, order: .reverse) private var devices: [LocalDevice]
+
+    private var headerText: Color {
+        colorScheme == .dark ? .white : Color(red: 51/255, green: 65/255, blue: 85/255)
+    }
 
     var body: some View {
         List(selection: $selection) {
@@ -38,13 +43,13 @@ struct SidebarView: View {
                     HStack {
                         Text("NETWORKS")
                             .font(.system(size: 10, weight: .black))
-                            .foregroundStyle(MacTheme.Colors.sidebarTextSecondary)
+                            .foregroundColor(headerText)
                             .tracking(1.5)
                         Spacer()
                         Button(action: onAddNetwork) {
                             Image(systemName: "plus.square.fill")
                                 .font(.system(size: 14))
-                                .foregroundStyle(MacTheme.Colors.sidebarTextSecondary)
+                                .foregroundColor(headerText)
                         }
                         .buttonStyle(.plain)
                         .accessibilityIdentifier("sidebar_button_addNetwork")
@@ -67,7 +72,7 @@ struct SidebarView: View {
                 } header: {
                     Text("COMMAND")
                         .font(.system(size: 10, weight: .black))
-                        .foregroundStyle(MacTheme.Colors.sidebarTextSecondary)
+                        .foregroundColor(headerText)
                         .tracking(1.5)
                         .padding(.top, 12)
                 }
@@ -143,6 +148,17 @@ struct SidebarRow: View {
     var deviceCount: Int? = nil
 
     @Environment(\.appAccentColor) private var accentColor
+    @Environment(\.colorScheme) private var colorScheme
+
+    // Picked in SwiftUI space so we bypass NSAppearance vibrancy and List's
+    // sidebar-row foreground override — both of which were dimming the text.
+    private var primaryText: Color {
+        colorScheme == .dark ? .white : Color(red: 15/255, green: 23/255, blue: 42/255)
+    }
+
+    private var secondaryText: Color {
+        colorScheme == .dark ? .white : Color(red: 51/255, green: 65/255, blue: 85/255)
+    }
 
     var body: some View {
         HStack(spacing: 10) {
@@ -158,12 +174,12 @@ struct SidebarRow: View {
 
             Image(systemName: icon)
                 .font(.system(size: 14, weight: isSelected ? .bold : .medium))
-                .foregroundStyle(isSelected ? accentColor : MacTheme.Colors.sidebarTextSecondary)
+                .foregroundColor(isSelected ? accentColor : secondaryText)
                 .frame(width: 20)
 
             Text(title)
                 .font(.system(size: 13, weight: isSelected ? .bold : .semibold))
-                .foregroundStyle(isSelected ? MacTheme.Colors.sidebarTextPrimary : MacTheme.Colors.sidebarTextSecondary)
+                .foregroundColor(isSelected ? primaryText : secondaryText)
 
             Spacer()
 
@@ -171,7 +187,7 @@ struct SidebarRow: View {
             if let count = deviceCount {
                 Text("\(count)")
                     .font(.system(size: 10, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(MacTheme.Colors.sidebarTextSecondary)
+                    .foregroundColor(secondaryText)
                     .padding(.horizontal, 5)
                     .padding(.vertical, 2)
                     .background(MacTheme.Colors.subtleBackground, in: RoundedRectangle(cornerRadius: 4))
