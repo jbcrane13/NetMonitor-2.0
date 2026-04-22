@@ -224,6 +224,7 @@ struct DevicesView: View {
                             selectedDevice = device
                         }
                         .accessibilityIdentifier("devices_card_\(device.ipAddress)")
+                        .contextMenu { deviceContextMenu(for: device) }
                 }
             }
             .padding()
@@ -265,6 +266,7 @@ struct DevicesView: View {
                             selectedProDevice = device
                         }
                         .accessibilityIdentifier("devices_row_pro\(device.ipAddress)")
+                        .contextMenu { deviceContextMenu(for: device) }
                     Rectangle()
                         .fill(MacTheme.Colors.divider)
                         .frame(height: 1)

@@ -166,6 +166,9 @@ struct NetMonitorApp: App {
                 bonjourScanner: BonjourDiscoveryService(),
                 networkProfileManager: profileManager
             )
+            if ProcessInfo.processInfo.arguments.contains("--seed-test-device") {
+                seedUITestDevice(into: context, profileManager: profileManager)
+            }
             return
         }
 
@@ -241,6 +244,29 @@ struct NetMonitorApp: App {
            let session = monitoringSession, !session.isMonitoring {
             session.startMonitoring()
         }
+    }
+
+    /// Seeds a deterministic `LocalDevice` for UI tests that need a
+    /// non-empty devices list (e.g. context-menu verification). Idempotent.
+    /// Tags the device with the manager's active profile so the list view's
+    /// per-profile filter includes it.
+    @MainActor
+    private func seedUITestDevice(into context: ModelContext, profileManager: NetworkProfileManager) {
+        let fetch = FetchDescriptor<LocalDevice>()
+        if let existing = try? context.fetch(fetch), !existing.isEmpty {
+            return
+        }
+        let device = LocalDevice(
+            ipAddress: "192.168.77.77",
+            macAddress: "AA:BB:CC:DD:EE:FF",
+            hostname: "uitest-device",
+            deviceType: .computer,
+            status: .online,
+            lastLatency: 5.0,
+            networkProfileID: profileManager.activeProfile?.id
+        )
+        context.insert(device)
+        try? context.save()
     }
 }
 
