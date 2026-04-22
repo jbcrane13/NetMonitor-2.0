@@ -2,10 +2,9 @@ import ARKit
 import Foundation
 import NetMonitorCore
 import RoomPlan
-import simd
 import UIKit
 
-// MARK: - ScanState
+// MARK: - RoomPlanScanState
 
 enum RoomPlanScanState: Equatable {
     case idle
@@ -24,91 +23,132 @@ final class RoomPlanScannerViewModel {
     // MARK: - State
 
     var scanState: RoomPlanScanState = .idle
+
+    /// Current phase inside `.processing` — drives the progress subtitle in the UI.
+    var processingPhase: BlueprintBuilder.Phase = .mergingRooms
+
+    /// Number of rooms whose `CapturedRoomData` has been collected so far. Drives the
+    /// "N rooms captured" counters during scanning, between rooms, and during processing.
+    private(set) var roomsCapturedCount: Int = 0
+
+    // MARK: - User-editable metadata (preserved API for existing tests)
+
     var projectName: String = "Room Scan"
     var buildingName: String = ""
     var floorLabel: String = "Floor 1"
     var floorNumber: Int = 1
 
-    private(set) var completedBlueprint: BlueprintProject?
-    private(set) var previewImage: UIImage?
-
     var showShareSheet = false
     var showNameEditor = false
     var exportedFileURL: URL?
+
+    // MARK: - Scan output
+
+    private(set) var completedBlueprint: BlueprintProject?
+    private(set) var previewImage: UIImage?
+    /// Local URL where the blueprint was auto-saved when the scan completed.
+    private(set) var localSaveURL: URL?
+
+    // MARK: - LiDAR
 
     var isLiDARAvailable: Bool {
         ARWorldTrackingConfiguration.supportsSceneReconstruction(.mesh)
     }
 
-    // MARK: - RoomPlan Session
+    // MARK: - Capture accumulation
 
-    private var capturedRoom: CapturedRoom?
+    /// Per-room captures collected while the user walks from room to room.
+    /// Emptied on `resetScan`.
+    private var capturedRoomData: [CapturedRoomData] = []
 
-    /// Local URL where the blueprint was auto-saved on scan completion.
-    private(set) var localSaveURL: URL?
+    // MARK: - Pipeline actor
 
-    // MARK: - Scan Control
+    private let builder = BlueprintBuilder()
+    private var buildTask: Task<Void, Never>?
 
-    func processCapturedRoom(_ room: CapturedRoom) {
-        scanState = .processing
-        capturedRoom = room
+    // MARK: - Scan flow
 
-        let blueprint = buildBlueprint(from: room)
-        completedBlueprint = blueprint
+    /// Called when the user taps Start. Initializes accumulation and enters the scanning state.
+    func startScanning() {
+        capturedRoomData = []
+        roomsCapturedCount = 0
+        scanState = .scanning
+    }
 
-        // Generate a preview image from the floor plan
-        // On iOS, UIImage can't render SVG — use direct Core Graphics renderer
-        if let floor = blueprint.floors.first {
-            #if canImport(UIKit)
-            let pngData = SVGRenderer.renderWallsToPNG(
-                walls: floor.wallSegments,
-                roomLabels: floor.roomLabels,
-                widthMeters: floor.widthMeters,
-                heightMeters: floor.heightMeters,
-                renderWidth: 800
-            )
-            #else
-            let pngData = SVGRenderer.renderToPNG(
-                svgData: floor.svgData,
-                width: 800,
-                heightMeters: floor.heightMeters,
-                widthMeters: floor.widthMeters
-            )
-            #endif
-            previewImage = UIImage(data: pngData)
+    /// Appends the data from one completed room. Called by the view controller after each
+    /// `RoomCaptureSession` finishes (either because the user tapped "Next Room" or "Finish").
+    func didCompleteRoom(_ data: CapturedRoomData) {
+        capturedRoomData.append(data)
+        roomsCapturedCount = capturedRoomData.count
+    }
+
+    /// Runs the full merge → floor plan → render → save pipeline off the main actor.
+    /// Must be called after at least one `didCompleteRoom(_:)`.
+    func finalizeScan() {
+        guard !capturedRoomData.isEmpty else {
+            scanState = .error(BlueprintBuilder.BuildError.noRooms.errorDescription ?? "No rooms captured.")
+            return
         }
 
-        // Auto-save locally so the blueprint exists without requiring an export tap
-        autoSaveBlueprint(blueprint)
+        processingPhase = .mergingRooms
+        scanState = .processing
 
+        let input = BlueprintBuilder.Input(
+            capturedRooms: capturedRoomData,
+            projectName: projectName.isEmpty ? "Room Scan" : projectName,
+            buildingName: buildingName.isEmpty ? nil : buildingName,
+            floorLabel: floorLabel,
+            floorNumber: floorNumber,
+            hasLiDAR: isLiDARAvailable,
+            deviceModel: UIDevice.current.model
+        )
+
+        buildTask?.cancel()
+        buildTask = Task<Void, Never> { [builder, weak self] in
+            do {
+                let output = try await builder.build(input: input) { [weak self] phase in
+                    await self?.applyPhase(phase)
+                }
+                await self?.applyBuildResult(output)
+            } catch let error as BlueprintBuilder.BuildError {
+                await self?.applyError(error.errorDescription ?? "Processing failed.")
+            } catch is CancellationError {
+                // Intentionally cancelled (user reset or view torn down).
+            } catch {
+                await self?.applyError(error.localizedDescription)
+            }
+        }
+    }
+
+    private func applyPhase(_ phase: BlueprintBuilder.Phase) {
+        processingPhase = phase
+    }
+
+    private func applyError(_ message: String) {
+        scanState = .error(message)
+    }
+
+    private func applyBuildResult(_ output: BlueprintBuilder.Output) {
+        completedBlueprint = output.blueprint
+        localSaveURL = output.localSaveURL
+        previewImage = UIImage(data: output.previewPNGData)
         scanState = .complete
     }
 
-    private func autoSaveBlueprint(_ blueprint: BlueprintProject) {
-        let fileName = blueprint.name
-            .replacingOccurrences(of: " ", with: "-")
-            .lowercased()
-        let blueprintsDir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("Blueprints", isDirectory: true)
-        do {
-            try FileManager.default.createDirectory(at: blueprintsDir, withIntermediateDirectories: true)
-            let url = blueprintsDir.appendingPathComponent("\(fileName).netmonblueprint")
-            let manager = BlueprintSaveLoadManager()
-            try manager.save(project: blueprint, to: url)
-            localSaveURL = url
-        } catch {
-            // Non-fatal — user can still export manually
-            localSaveURL = nil
-        }
-    }
+    // MARK: - Scan error
 
     func handleScanError(_ error: Error) {
         scanState = .error(error.localizedDescription)
     }
 
+    // MARK: - Reset
+
     func resetScan() {
+        buildTask?.cancel()
+        buildTask = nil
+        capturedRoomData = []
+        roomsCapturedCount = 0
         scanState = .idle
-        capturedRoom = nil
         completedBlueprint = nil
         previewImage = nil
         exportedFileURL = nil
@@ -120,10 +160,9 @@ final class RoomPlanScannerViewModel {
     func exportBlueprint() {
         guard var blueprint = completedBlueprint else { return }
 
-        // Update metadata from user input
         blueprint.name = projectName.isEmpty ? "Room Scan" : projectName
         blueprint.metadata.buildingName = buildingName.isEmpty ? nil : buildingName
-        if !blueprint.floors.isEmpty {
+        if blueprint.floors.count == 1 {
             blueprint.floors[0].label = floorLabel
             blueprint.floors[0].floorNumber = floorNumber
         }
@@ -135,179 +174,21 @@ final class RoomPlanScannerViewModel {
         let tempURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("\(fileName).netmonblueprint")
 
-        do {
-            let manager = BlueprintSaveLoadManager()
-            try manager.saveAsArchive(project: blueprint, to: tempURL)
-            exportedFileURL = tempURL
-            showShareSheet = true
-        } catch {
-            scanState = .error("Export failed: \(error.localizedDescription)")
+        let snapshot = blueprint
+        Task<Void, Never> { [weak self] in
+            do {
+                try await Task.detached(priority: .userInitiated) {
+                    try BlueprintSaveLoadManager().saveAsArchive(project: snapshot, to: tempURL)
+                }.value
+                await self?.applyExportSuccess(url: tempURL)
+            } catch {
+                await self?.applyError("Export failed: \(error.localizedDescription)")
+            }
         }
     }
 
-    // MARK: - Build Blueprint from CapturedRoom
-
-    private func buildBlueprint(from room: CapturedRoom) -> BlueprintProject {
-        let walls = extractWallSegments(from: room)
-        let (widthMeters, heightMeters, offsetX, offsetZ) = calculateBounds(walls: walls)
-
-        let normalizedWalls = walls.map { wall in
-            WallSegment(
-                id: wall.id,
-                startX: wall.startX - offsetX,
-                startY: wall.startY - offsetZ,
-                endX: wall.endX - offsetX,
-                endY: wall.endY - offsetZ,
-                thickness: wall.thickness
-            )
-        }
-
-        let roomLabels = extractRoomLabels(
-            from: room,
-            widthMeters: widthMeters,
-            heightMeters: heightMeters,
-            offsetX: offsetX,
-            offsetZ: offsetZ
-        )
-
-        let svgData = SVGFloorPlanGenerator.generateSVG(
-            walls: normalizedWalls,
-            roomLabels: roomLabels,
-            widthMeters: widthMeters,
-            heightMeters: heightMeters
-        )
-
-        let floor = BlueprintFloor(
-            label: floorLabel,
-            floorNumber: floorNumber,
-            svgData: svgData,
-            widthMeters: widthMeters,
-            heightMeters: heightMeters,
-            roomLabels: roomLabels,
-            wallSegments: normalizedWalls
-        )
-
-        let deviceModel = UIDevice.current.model
-        let metadata = BlueprintMetadata(
-            buildingName: buildingName.isEmpty ? nil : buildingName,
-            scanDeviceModel: deviceModel,
-            hasLiDAR: isLiDARAvailable
-        )
-
-        return BlueprintProject(
-            name: projectName.isEmpty ? "Room Scan" : projectName,
-            floors: [floor],
-            metadata: metadata
-        )
-    }
-
-    // MARK: - Wall Extraction
-
-    private func extractWallSegments(from room: CapturedRoom) -> [WallSegment] {
-        var segments: [WallSegment] = []
-
-        for wall in room.walls {
-            let transform = wall.transform
-            let halfWidth = wall.dimensions.x / 2
-            let thickness = wall.dimensions.z
-
-            // Compute wall endpoints in world coordinates by transforming local-space endpoints
-            let localStart = simd_float4(-halfWidth, 0, 0, 1)
-            let localEnd = simd_float4(halfWidth, 0, 0, 1)
-
-            let worldStart = simd_mul(transform, localStart)
-            let worldEnd = simd_mul(transform, localEnd)
-
-            segments.append(WallSegment(
-                startX: Double(worldStart.x),
-                startY: Double(worldStart.z),
-                endX: Double(worldEnd.x),
-                endY: Double(worldEnd.z),
-                thickness: max(Double(thickness), 0.1)
-            ))
-        }
-
-        for door in room.doors {
-            let transform = door.transform
-            let halfWidth = door.dimensions.x / 2
-
-            let localStart = simd_float4(-halfWidth, 0, 0, 1)
-            let localEnd = simd_float4(halfWidth, 0, 0, 1)
-
-            let worldStart = simd_mul(transform, localStart)
-            let worldEnd = simd_mul(transform, localEnd)
-
-            segments.append(WallSegment(
-                startX: Double(worldStart.x),
-                startY: Double(worldStart.z),
-                endX: Double(worldEnd.x),
-                endY: Double(worldEnd.z),
-                thickness: 0.03
-            ))
-        }
-
-        return segments
-    }
-
-    // MARK: - Room Labels
-
-    private func extractRoomLabels(
-        from room: CapturedRoom,
-        widthMeters: Double,
-        heightMeters: Double,
-        offsetX: Double,
-        offsetZ: Double
-    ) -> [RoomLabel] {
-        guard widthMeters > 0, heightMeters > 0 else { return [] }
-
-        var labels: [RoomLabel] = []
-
-        // Use wall positions to infer room centers — group walls by proximity
-        // For CapturedRoom, walls belong to the overall room structure
-        // We create a single label at the centroid of all walls if no sections available
-        if !room.walls.isEmpty {
-            let centerX = room.walls.reduce(0.0) { sum, wall in
-                sum + Double(wall.transform.columns.3.x)
-            } / Double(room.walls.count)
-
-            let centerZ = room.walls.reduce(0.0) { sum, wall in
-                sum + Double(wall.transform.columns.3.z)
-            } / Double(room.walls.count)
-
-            let normalizedX = (centerX - offsetX) / widthMeters
-            let normalizedY = (centerZ - offsetZ) / heightMeters
-
-            labels.append(RoomLabel(
-                text: "Room",
-                normalizedX: max(0, min(1, normalizedX)),
-                normalizedY: max(0, min(1, normalizedY))
-            ))
-        }
-
-        return labels
-    }
-
-    // MARK: - Bounds
-
-    private func calculateBounds(walls: [WallSegment]) -> (width: Double, height: Double, offsetX: Double, offsetZ: Double) {
-        guard !walls.isEmpty else { return (10, 10, 0, 0) }
-
-        var minX = Double.infinity
-        var maxX = -Double.infinity
-        var minZ = Double.infinity
-        var maxZ = -Double.infinity
-
-        for wall in walls {
-            minX = min(minX, wall.startX, wall.endX)
-            maxX = max(maxX, wall.startX, wall.endX)
-            minZ = min(minZ, wall.startY, wall.endY)
-            maxZ = max(maxZ, wall.startY, wall.endY)
-        }
-
-        let margin = 0.5
-        let width = max(maxX - minX + margin * 2, 1.0)
-        let height = max(maxZ - minZ + margin * 2, 1.0)
-
-        return (width, height, minX - margin, minZ - margin)
+    private func applyExportSuccess(url: URL) {
+        exportedFileURL = url
+        showShareSheet = true
     }
 }

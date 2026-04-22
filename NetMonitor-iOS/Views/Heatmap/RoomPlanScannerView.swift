@@ -59,7 +59,6 @@ struct RoomPlanScannerView: View {
     private var scanSetupView: some View {
         ScrollView {
             VStack(spacing: Theme.Layout.sectionSpacing) {
-                // Header illustration
                 VStack(spacing: 16) {
                     Image(systemName: "cube.transparent")
                         .font(.system(size: 60))
@@ -70,7 +69,7 @@ struct RoomPlanScannerView: View {
                         .font(.title2.bold())
                         .foregroundStyle(Theme.Colors.textPrimary)
 
-                    Text("Scan your room to create a floor plan blueprint that can be used as a base map for Wi-Fi heatmap surveys on Mac.")
+                    Text("Scan every room in your home to build a multi-room floor plan that Mac can import as a base map for Wi-Fi heatmap surveys.")
                         .font(.subheadline)
                         .foregroundStyle(Theme.Colors.textSecondary)
                         .multilineTextAlignment(.center)
@@ -78,7 +77,6 @@ struct RoomPlanScannerView: View {
                 }
                 .padding(.top, 20)
 
-                // LiDAR status
                 GlassCard {
                     HStack(spacing: 12) {
                         Image(systemName: viewModel.isLiDARAvailable ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
@@ -102,7 +100,6 @@ struct RoomPlanScannerView: View {
                 }
                 .accessibilityIdentifier("roomScanner_card_lidar")
 
-                // Project details
                 GlassCard {
                     VStack(alignment: .leading, spacing: 12) {
                         Text("Scan Details")
@@ -128,23 +125,21 @@ struct RoomPlanScannerView: View {
                     }
                 }
 
-                // Instructions
                 GlassCard {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("How to Scan")
                             .font(.subheadline.bold())
                             .foregroundStyle(Theme.Colors.textPrimary)
 
-                        instructionRow(number: 1, text: "Point your camera at the room's walls and floor")
-                        instructionRow(number: 2, text: "Walk slowly around the perimeter of the room")
-                        instructionRow(number: 3, text: "Tap Done when all walls are detected")
-                        instructionRow(number: 4, text: "Export the blueprint to your Mac via AirDrop or Files")
+                        instructionRow(number: 1, text: "Walk the perimeter of the first room until walls are detected")
+                        instructionRow(number: 2, text: "Tap Next Room to pause, then walk through the doorway")
+                        instructionRow(number: 3, text: "Scan each adjacent room the same way — keep the camera pointing at walls while moving")
+                        instructionRow(number: 4, text: "Tap Finish when every room is captured — the app builds the floor plan")
                     }
                 }
 
-                // Start button
                 Button {
-                    viewModel.scanState = .scanning
+                    viewModel.startScanning()
                 } label: {
                     HStack {
                         Image(systemName: "camera.viewfinder")
@@ -194,16 +189,33 @@ struct RoomPlanScannerView: View {
                 .scaleEffect(1.5)
                 .tint(Theme.Colors.accent)
 
-            Text("Processing Room Scan...")
+            Text(processingTitle)
                 .font(.headline)
                 .foregroundStyle(Theme.Colors.textPrimary)
 
-            Text("Generating floor plan from 3D scan data")
+            Text(processingSubtitle)
                 .font(.subheadline)
                 .foregroundStyle(Theme.Colors.textSecondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .accessibilityIdentifier("roomScanner_label_processing")
+    }
+
+    private var processingTitle: String {
+        switch viewModel.processingPhase {
+        case .mergingRooms: "Merging rooms…"
+        case .generatingBlueprint: "Generating floor plan…"
+        case .renderingPreview: "Rendering preview…"
+        case .saving: "Saving blueprint…"
+        }
+    }
+
+    private var processingSubtitle: String {
+        let count = viewModel.roomsCapturedCount
+        let suffix = count == 1 ? "room" : "rooms"
+        return "\(count) \(suffix) captured"
     }
 
     // MARK: - Complete View
@@ -211,7 +223,6 @@ struct RoomPlanScannerView: View {
     private var scanCompleteView: some View {
         ScrollView {
             VStack(spacing: Theme.Layout.sectionSpacing) {
-                // Preview image
                 if let image = viewModel.previewImage {
                     GlassCard {
                         VStack(spacing: 12) {
@@ -239,19 +250,24 @@ struct RoomPlanScannerView: View {
                     }
                 }
 
-                // Scan details
-                if let blueprint = viewModel.completedBlueprint,
-                   let floor = blueprint.floors.first {
+                if let blueprint = viewModel.completedBlueprint {
                     GlassCard {
                         VStack(alignment: .leading, spacing: 8) {
                             Text("Scan Results")
                                 .font(.subheadline.bold())
                                 .foregroundStyle(Theme.Colors.textPrimary)
 
-                            detailRow(label: "Dimensions", value: String(format: "%.1f x %.1f m", floor.widthMeters, floor.heightMeters))
-                            detailRow(label: "Walls Detected", value: "\(floor.wallSegments.count)")
-                            detailRow(label: "Rooms Labeled", value: "\(floor.roomLabels.count)")
+                            let totalWalls = blueprint.floors.reduce(0) { $0 + $1.wallSegments.count }
+                            let totalRooms = blueprint.floors.reduce(0) { $0 + $1.roomLabels.count }
+
+                            detailRow(label: "Floors", value: "\(blueprint.floors.count)")
+                            detailRow(label: "Rooms Detected", value: "\(max(totalRooms, viewModel.roomsCapturedCount))")
+                            detailRow(label: "Walls", value: "\(totalWalls)")
+                            if let firstFloor = blueprint.floors.first {
+                                detailRow(label: "Primary Floor", value: String(format: "%.1f x %.1f m", firstFloor.widthMeters, firstFloor.heightMeters))
+                            }
                             detailRow(label: "LiDAR Used", value: blueprint.metadata.hasLiDAR ? "Yes" : "No")
+
                             if viewModel.localSaveURL != nil {
                                 Divider().background(Theme.Colors.divider)
                                 HStack(spacing: 6) {
@@ -268,7 +284,6 @@ struct RoomPlanScannerView: View {
                     .accessibilityIdentifier("roomScanner_card_results")
                 }
 
-                // Action buttons
                 VStack(spacing: 12) {
                     Button {
                         viewModel.exportBlueprint()
@@ -358,7 +373,6 @@ struct RoomPlanScannerView: View {
             .replacingOccurrences(of: " ", with: "-")
             .lowercased()
 
-        // Save to temp first, then present document picker to move to iCloud Drive / Files
         let tempURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("\(fileName).netmonblueprint")
 
@@ -421,166 +435,60 @@ struct RoomPlanScanContainer: UIViewControllerRepresentable {
     func updateUIViewController(_ uiViewController: RoomPlanScanViewController, context: Context) {}
 }
 
-// MARK: - RoomPlanBuildError
-
-enum RoomPlanBuildError: Equatable, LocalizedError {
-    case timeout
-    case fallbackTimeout
-
-    var errorDescription: String? {
-        switch self {
-        case .timeout:
-            "Room conversion timed out. Please scan a smaller area or try again."
-        case .fallbackTimeout:
-            "Room conversion timed out after two attempts. Please rescan a smaller area."
-        }
-    }
-}
-
-// MARK: - RoomPlanTaskTimeout
-
-private actor RoomPlanTaskTimeoutRace<T: Sendable> {
-    private var continuation: CheckedContinuation<T, Error>?
-    private var didResume = false
-    private var operationTask: Task<Void, Never>?
-    private var timeoutTask: Task<Void, Never>?
-
-    init(continuation: CheckedContinuation<T, Error>) {
-        self.continuation = continuation
-    }
-
-    func setTasks(operationTask: Task<Void, Never>, timeoutTask: Task<Void, Never>) {
-        self.operationTask = operationTask
-        self.timeoutTask = timeoutTask
-
-        if didResume {
-            operationTask.cancel()
-            timeoutTask.cancel()
-        }
-    }
-
-    func resume(returning value: T) {
-        guard !didResume, let continuation else { return }
-        didResume = true
-        self.continuation = nil
-        operationTask?.cancel()
-        timeoutTask?.cancel()
-        continuation.resume(returning: value)
-    }
-
-    func resume(throwing error: Error) {
-        guard !didResume, let continuation else { return }
-        didResume = true
-        self.continuation = nil
-        operationTask?.cancel()
-        timeoutTask?.cancel()
-        continuation.resume(throwing: error)
-    }
-
-    func cancel() {
-        guard !didResume, let continuation else {
-            operationTask?.cancel()
-            timeoutTask?.cancel()
-            return
-        }
-
-        didResume = true
-        self.continuation = nil
-        operationTask?.cancel()
-        timeoutTask?.cancel()
-        continuation.resume(throwing: CancellationError())
-    }
-}
-
-private actor RoomPlanTaskTimeoutCancellationRelay<T: Sendable> {
-    private var race: RoomPlanTaskTimeoutRace<T>?
-    private var didCancel = false
-
-    func setRace(_ race: RoomPlanTaskTimeoutRace<T>) async {
-        self.race = race
-
-        if didCancel {
-            await race.cancel()
-        }
-    }
-
-    func cancel() async {
-        didCancel = true
-        await race?.cancel()
-    }
-}
-
-enum RoomPlanTaskTimeout {
-    /// Runs an async operation and races it against a timeout task.
-    ///
-    /// - Parameters:
-    ///   - timeout: Maximum duration to wait before timing out.
-    ///   - operation: Async operation to execute.
-    /// - Returns: The operation's successful result if it finishes before the timeout.
-    /// - Throws: `RoomPlanBuildError.timeout` when timeout elapses first, or rethrows
-    ///   any error produced by `operation`.
-    static func run<T: Sendable>(
-        timeout: Duration,
-        operation: @escaping @Sendable () async throws -> T
-    ) async throws -> T {
-        let cancellationRelay = RoomPlanTaskTimeoutCancellationRelay<T>()
-
-        return try await withTaskCancellationHandler {
-            try await withCheckedThrowingContinuation { continuation in
-                let race = RoomPlanTaskTimeoutRace<T>(continuation: continuation)
-
-                Task {
-                    await cancellationRelay.setRace(race)
-                }
-
-                let operationTask = Task {
-                    do {
-                        let value = try await operation()
-                        await race.resume(returning: value)
-                    } catch {
-                        await race.resume(throwing: error)
-                    }
-                }
-
-                let timeoutTask = Task {
-                    do {
-                        try await Task.sleep(for: timeout)
-                        await race.resume(throwing: RoomPlanBuildError.timeout)
-                    } catch {
-                        // Timeout task was cancelled because the operation completed first
-                        // or the parent task was cancelled.
-                    }
-                }
-
-                Task {
-                    await race.setTasks(operationTask: operationTask, timeoutTask: timeoutTask)
-                }
-            }
-        } onCancel: {
-            Task {
-                await cancellationRelay.cancel()
-            }
-        }
-    }
-}
-
 // MARK: - RoomPlanScanViewController
 
-final class RoomPlanScanViewController: UIViewController, RoomCaptureSessionDelegate, @preconcurrency RoomCaptureViewDelegate {
+/// Manages the multi-room capture loop: scan a room → pause → scan next → ... → finish.
+///
+/// This controller owns its own internal phase (`.capturing` vs `.betweenRooms`) so it
+/// can swap button sets without unmounting/remounting the `RoomCaptureView`. Keeping
+/// the view controller alive between rooms is what lets RoomPlan preserve ARSession
+/// world-tracking across doorways (`pauseARSession: false`), which is in turn what lets
+/// `StructureBuilder` stitch rooms into a single coordinate space.
+final class RoomPlanScanViewController: UIViewController, RoomCaptureSessionDelegate, RoomCaptureViewDelegate {
+
+    // MARK: - Internal phase
+
+    private enum Phase {
+        /// Actively capturing a room (RoomCaptureSession is running).
+        case capturing
+        /// Session stopped between rooms; user chooses Next Room or Finish.
+        case betweenRooms
+        /// User chose Finish — session stopped and waiting for `didEndWith` to deliver
+        /// the last CapturedRoomData, after which we hand off to the ViewModel to merge.
+        case finishing
+    }
+
+    // MARK: - Properties
 
     var viewModel: RoomPlanScannerViewModel?
+
     private var roomCaptureView: RoomCaptureView!
     private var captureSession: RoomCaptureSession!
-    private var doneButton: UIButton!
-    private var cancelButton: UIButton!
-    // Large captures can take a long time when beautification is enabled.
-    // Keep primary generous, then use a shorter fallback for non-beautified conversion.
-    private static let primaryBuildTimeout: Duration = .seconds(45)
-    private static let fallbackBuildTimeout: Duration = .seconds(30)
 
-    // Strong reference kept across async boundary so the Task in captureSession(_:didEndWith:)
-    // can complete even after SwiftUI removes this UIViewController from the hierarchy.
+    // In-capture buttons
+    private var nextRoomButton: UIButton!
+    private var finishNowButton: UIButton!
+
+    // Between-room buttons
+    private var scanNextButton: UIButton!
+    private var buildBlueprintButton: UIButton!
+
+    // Always visible during scan flow
+    private var cancelButton: UIButton!
+
+    // Overlay panels
+    private var statusContainer: UIView!
+    private var statusLabel: UILabel!
+    private var statusSubtitleLabel: UILabel!
+
+    private var phase: Phase = .capturing
+
+    /// Strong reference preserved across the async `didEndWith` boundary — SwiftUI may
+    /// unmount this view controller while the session is still draining the last
+    /// CapturedRoomData, and we need the VM reference to survive that.
     nonisolated(unsafe) private var processingViewModel: RoomPlanScannerViewModel?
+
+    // MARK: - Lifecycle
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -592,87 +500,65 @@ final class RoomPlanScanViewController: UIViewController, RoomCaptureSessionDele
         captureSession = roomCaptureView.captureSession
         view.addSubview(roomCaptureView)
 
-        setupOverlayButtons()
+        buildOverlay()
+        applyPhase(.capturing)
     }
 
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
-        startSession()
+        processingViewModel = viewModel
+        startCapturingRoom()
     }
 
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
-        // Stop the session and clear the delegate to release all retained ARFrames
-        // when SwiftUI transitions away from this view controller.
+        // Idempotent — if we're already stopped from a button tap, this is a no-op.
         captureSession.stop()
         roomCaptureView.captureSession.delegate = nil
     }
 
-    private func setupOverlayButtons() {
-        // Done button
-        doneButton = UIButton(type: .system)
-        doneButton.setTitle("Done", for: .normal)
-        doneButton.titleLabel?.font = .boldSystemFont(ofSize: 17)
-        doneButton.setTitleColor(.white, for: .normal)
-        doneButton.backgroundColor = UIColor.systemBlue
-        doneButton.layer.cornerRadius = 12
-        doneButton.translatesAutoresizingMaskIntoConstraints = false
-        doneButton.addTarget(self, action: #selector(doneTapped), for: .touchUpInside)
-        doneButton.accessibilityIdentifier = "roomScanner_button_done"
-        view.addSubview(doneButton)
+    // MARK: - Session control
 
-        // Cancel button
-        cancelButton = UIButton(type: .system)
-        cancelButton.setTitle("Cancel", for: .normal)
-        cancelButton.titleLabel?.font = .systemFont(ofSize: 15)
-        cancelButton.setTitleColor(.white, for: .normal)
-        cancelButton.backgroundColor = UIColor.darkGray.withAlphaComponent(0.7)
-        cancelButton.layer.cornerRadius = 12
-        cancelButton.translatesAutoresizingMaskIntoConstraints = false
-        cancelButton.addTarget(self, action: #selector(cancelTapped), for: .touchUpInside)
-        cancelButton.accessibilityIdentifier = "roomScanner_button_cancelScan"
-        view.addSubview(cancelButton)
-
-        NSLayoutConstraint.activate([
-            doneButton.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -20),
-            doneButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
-            doneButton.widthAnchor.constraint(equalToConstant: 100),
-            doneButton.heightAnchor.constraint(equalToConstant: 44),
-
-            cancelButton.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -20),
-            cancelButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
-            cancelButton.widthAnchor.constraint(equalToConstant: 100),
-            cancelButton.heightAnchor.constraint(equalToConstant: 44),
-        ])
-    }
-
-    private func startSession() {
+    private func startCapturingRoom() {
+        phase = .capturing
         let config = RoomCaptureSession.Configuration()
         captureSession.run(configuration: config)
+        applyPhase(phase)
     }
 
-    @objc private func doneTapped() {
-        guard let viewModel else { return }
-        doneButton.isEnabled = false
-        cancelButton.isEnabled = false
+    // MARK: - Button actions
 
-        // Capture strong ref BEFORE stop() — SwiftUI may remove this UIViewController
-        // from the hierarchy (by transitioning from .scanning to .processing) before the
-        // RoomBuilder async processing completes.
-        processingViewModel = viewModel
+    @objc private func nextRoomTapped() {
+        guard phase == .capturing else { return }
+        setButtonsEnabled(false)
+        // Stop the session but keep ARSession alive so the next run() stitches into the
+        // same world-tracking frame.
+        captureSession.stop(pauseARSession: false)
+    }
 
-        // Stop the session first, then transition state. This ensures captureSession(_:didEndWith:)
-        // fires while processingViewModel is already set. The viewWillDisappear stop (triggered by
-        // the state transition) is idempotent and harmless.
-        captureSession.stop()
+    @objc private func finishNowTapped() {
+        guard phase == .capturing else { return }
+        setButtonsEnabled(false)
+        phase = .finishing
+        captureSession.stop(pauseARSession: true)
+    }
 
-        // Transition after stop so the delegate nil-out in viewWillDisappear doesn't race with
-        // the session ending — by this point didEndWith has been dispatched.
-        viewModel.scanState = .processing
+    @objc private func scanNextTapped() {
+        guard phase == .betweenRooms else { return }
+        startCapturingRoom()
+    }
+
+    @objc private func buildBlueprintTapped() {
+        guard phase == .betweenRooms else { return }
+        // No active session — just go straight to finalize. The VM already has all
+        // captured rooms from the stream of didEndWith callbacks.
+        phase = .finishing
+        applyPhase(.finishing)
+        viewModel?.finalizeScan()
     }
 
     @objc private func cancelTapped() {
-        captureSession.stop()
+        captureSession.stop(pauseARSession: true)
         Task { @MainActor in
             viewModel?.resetScan()
         }
@@ -689,54 +575,211 @@ final class RoomPlanScanViewController: UIViewController, RoomCaptureSessionDele
             return
         }
 
-        Task { @MainActor in
-            do {
-                let capturedRoom = try await self.buildCapturedRoom(from: data)
-                vm?.processCapturedRoom(capturedRoom)
-            } catch {
-                vm?.handleScanError(error)
-            }
-        }
-    }
-
-    /// Nonisolated to keep RoomBuilder work off the main actor while this view controller
-    /// remains main-thread-owned for UIKit state updates.
-    /// Builds a `CapturedRoom` with two conversion attempts:
-    /// - First, a beautified conversion with a 45-second timeout.
-    /// - On timeout, a fallback conversion without beautification with a 30-second timeout.
-    /// Any non-timeout conversion error is propagated immediately.
-    ///
-    /// - Throws: `RoomPlanBuildError.fallbackTimeout` if both attempts time out, or
-    ///   rethrows any non-timeout `RoomBuilder` conversion error.
-    nonisolated private func buildCapturedRoom(from data: CapturedRoomData) async throws -> CapturedRoom {
-        // First attempt with object beautification for cleaner geometry.
-        // RoomBuilder is not Sendable — create inside each closure to avoid capture.
-        do {
-            return try await RoomPlanTaskTimeout.run(timeout: Self.primaryBuildTimeout) {
-                let builder = RoomBuilder(options: .beautifyObjects)
-                return try await builder.capturedRoom(from: data)
-            }
-        } catch RoomPlanBuildError.timeout {
-            do {
-                return try await RoomPlanTaskTimeout.run(timeout: Self.fallbackBuildTimeout) {
-                    let builder = RoomBuilder(options: [])
-                    return try await builder.capturedRoom(from: data)
-                }
-            } catch RoomPlanBuildError.timeout {
-                throw RoomPlanBuildError.fallbackTimeout
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            vm?.didCompleteRoom(data)
+            switch self.phase {
+            case .finishing:
+                vm?.finalizeScan()
+            case .capturing, .betweenRooms:
+                // `captureSession.stop(pauseARSession: false)` → delegate fires; we're
+                // now between rooms waiting for the next action.
+                self.phase = .betweenRooms
+                self.applyPhase(.betweenRooms)
+                self.setButtonsEnabled(true)
             }
         }
     }
 
     nonisolated func captureSession(_ session: RoomCaptureSession, didUpdate room: CapturedRoom) {
-        // Real-time updates during scan — RoomCaptureView handles visualization
+        // Real-time updates during scan — RoomCaptureView handles visualization.
     }
 
     // MARK: - RoomCaptureViewDelegate
 
     nonisolated func captureView(_ view: RoomCaptureView, didPresent processedResult: CapturedRoom, error: (any Error)?) {
-        // No-op: processing is now handled entirely in captureSession(_:didEndWith:) via
-        // RoomBuilder, which bypasses this built-in review step.
+        // No-op: custom post-processing runs in captureSession(_:didEndWith:).
+    }
+
+    // MARK: - Overlay
+
+    private func buildOverlay() {
+        // Status container (top center)
+        statusContainer = UIView()
+        statusContainer.translatesAutoresizingMaskIntoConstraints = false
+        statusContainer.backgroundColor = UIColor.black.withAlphaComponent(0.55)
+        statusContainer.layer.cornerRadius = 14
+        statusContainer.layer.masksToBounds = true
+        view.addSubview(statusContainer)
+
+        statusLabel = UILabel()
+        statusLabel.translatesAutoresizingMaskIntoConstraints = false
+        statusLabel.textColor = .white
+        statusLabel.font = .systemFont(ofSize: 15, weight: .semibold)
+        statusLabel.textAlignment = .center
+        statusLabel.accessibilityIdentifier = "roomScanner_label_status"
+        statusContainer.addSubview(statusLabel)
+
+        statusSubtitleLabel = UILabel()
+        statusSubtitleLabel.translatesAutoresizingMaskIntoConstraints = false
+        statusSubtitleLabel.textColor = UIColor.white.withAlphaComponent(0.85)
+        statusSubtitleLabel.font = .systemFont(ofSize: 12, weight: .regular)
+        statusSubtitleLabel.textAlignment = .center
+        statusSubtitleLabel.numberOfLines = 0
+        statusContainer.addSubview(statusSubtitleLabel)
+
+        // Buttons
+        nextRoomButton = makePrimaryButton(
+            title: "Next Room",
+            image: UIImage(systemName: "arrow.forward.circle.fill"),
+            identifier: "roomScanner_button_nextRoom",
+            action: #selector(nextRoomTapped)
+        )
+        finishNowButton = makeSecondaryButton(
+            title: "Finish",
+            image: UIImage(systemName: "checkmark.circle"),
+            identifier: "roomScanner_button_done",
+            action: #selector(finishNowTapped)
+        )
+        scanNextButton = makePrimaryButton(
+            title: "Scan Next Room",
+            image: UIImage(systemName: "camera.viewfinder"),
+            identifier: "roomScanner_button_scanNext",
+            action: #selector(scanNextTapped)
+        )
+        buildBlueprintButton = makeSecondaryButton(
+            title: "Finish & Build",
+            image: UIImage(systemName: "checkmark.circle.fill"),
+            identifier: "roomScanner_button_buildBlueprint",
+            action: #selector(buildBlueprintTapped)
+        )
+        cancelButton = makeSecondaryButton(
+            title: "Cancel",
+            image: nil,
+            identifier: "roomScanner_button_cancelScan",
+            action: #selector(cancelTapped)
+        )
+
+        for button in [nextRoomButton, finishNowButton, scanNextButton, buildBlueprintButton, cancelButton] {
+            guard let button else { continue }
+            view.addSubview(button)
+        }
+
+        NSLayoutConstraint.activate([
+            // Status container — top
+            statusContainer.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 12),
+            statusContainer.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            statusContainer.widthAnchor.constraint(lessThanOrEqualTo: view.widthAnchor, constant: -32),
+            statusLabel.topAnchor.constraint(equalTo: statusContainer.topAnchor, constant: 10),
+            statusLabel.leadingAnchor.constraint(equalTo: statusContainer.leadingAnchor, constant: 16),
+            statusLabel.trailingAnchor.constraint(equalTo: statusContainer.trailingAnchor, constant: -16),
+            statusSubtitleLabel.topAnchor.constraint(equalTo: statusLabel.bottomAnchor, constant: 2),
+            statusSubtitleLabel.leadingAnchor.constraint(equalTo: statusContainer.leadingAnchor, constant: 16),
+            statusSubtitleLabel.trailingAnchor.constraint(equalTo: statusContainer.trailingAnchor, constant: -16),
+            statusSubtitleLabel.bottomAnchor.constraint(equalTo: statusContainer.bottomAnchor, constant: -10),
+
+            // Primary bottom-right
+            nextRoomButton.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -20),
+            nextRoomButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
+            nextRoomButton.heightAnchor.constraint(equalToConstant: 48),
+            nextRoomButton.widthAnchor.constraint(equalToConstant: 150),
+
+            scanNextButton.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -20),
+            scanNextButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
+            scanNextButton.heightAnchor.constraint(equalToConstant: 48),
+            scanNextButton.widthAnchor.constraint(equalToConstant: 180),
+
+            // Secondary bottom-center
+            finishNowButton.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -20),
+            finishNowButton.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            finishNowButton.heightAnchor.constraint(equalToConstant: 48),
+            finishNowButton.widthAnchor.constraint(equalToConstant: 110),
+
+            buildBlueprintButton.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -20),
+            buildBlueprintButton.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            buildBlueprintButton.heightAnchor.constraint(equalToConstant: 48),
+            buildBlueprintButton.widthAnchor.constraint(equalToConstant: 170),
+
+            // Cancel bottom-left
+            cancelButton.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -20),
+            cancelButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
+            cancelButton.heightAnchor.constraint(equalToConstant: 48),
+            cancelButton.widthAnchor.constraint(equalToConstant: 100),
+        ])
+    }
+
+    private func makePrimaryButton(title: String, image: UIImage?, identifier: String, action: Selector) -> UIButton {
+        var config = UIButton.Configuration.filled()
+        config.title = title
+        config.image = image
+        config.imagePadding = 6
+        config.baseBackgroundColor = .systemBlue
+        config.baseForegroundColor = .white
+        config.cornerStyle = .large
+        let button = UIButton(configuration: config)
+        button.translatesAutoresizingMaskIntoConstraints = false
+        button.addTarget(self, action: action, for: .touchUpInside)
+        button.accessibilityIdentifier = identifier
+        return button
+    }
+
+    private func makeSecondaryButton(title: String, image: UIImage?, identifier: String, action: Selector) -> UIButton {
+        var config = UIButton.Configuration.gray()
+        config.title = title
+        config.image = image
+        config.imagePadding = 6
+        config.baseBackgroundColor = UIColor.darkGray.withAlphaComponent(0.7)
+        config.baseForegroundColor = .white
+        config.cornerStyle = .large
+        let button = UIButton(configuration: config)
+        button.translatesAutoresizingMaskIntoConstraints = false
+        button.addTarget(self, action: action, for: .touchUpInside)
+        button.accessibilityIdentifier = identifier
+        return button
+    }
+
+    // MARK: - Phase application
+
+    private func applyPhase(_ newPhase: Phase) {
+        let count = viewModel?.roomsCapturedCount ?? 0
+        let suffix = count == 1 ? "room" : "rooms"
+
+        switch newPhase {
+        case .capturing:
+            nextRoomButton.isHidden = false
+            finishNowButton.isHidden = false
+            scanNextButton.isHidden = true
+            buildBlueprintButton.isHidden = true
+            cancelButton.isHidden = false
+            statusLabel.text = count == 0 ? "Scanning Room 1" : "Scanning Room \(count + 1)"
+            statusSubtitleLabel.text = count == 0
+                ? "Walk the walls to map the room. Tap Next Room at a doorway."
+                : "\(count) \(suffix) captured so far"
+        case .betweenRooms:
+            nextRoomButton.isHidden = true
+            finishNowButton.isHidden = true
+            scanNextButton.isHidden = false
+            buildBlueprintButton.isHidden = false
+            cancelButton.isHidden = false
+            statusLabel.text = "\(count) \(suffix) captured"
+            statusSubtitleLabel.text = "Walk to the next room and tap Scan Next Room, or tap Finish & Build."
+        case .finishing:
+            nextRoomButton.isHidden = true
+            finishNowButton.isHidden = true
+            scanNextButton.isHidden = true
+            buildBlueprintButton.isHidden = true
+            cancelButton.isHidden = true
+            statusLabel.text = "Finishing scan…"
+            statusSubtitleLabel.text = "Building your floor plan"
+        }
+    }
+
+    private func setButtonsEnabled(_ enabled: Bool) {
+        nextRoomButton.isEnabled = enabled
+        finishNowButton.isEnabled = enabled
+        scanNextButton.isEnabled = enabled
+        buildBlueprintButton.isEnabled = enabled
+        cancelButton.isEnabled = enabled
     }
 }
 
