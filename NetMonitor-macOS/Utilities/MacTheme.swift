@@ -196,7 +196,7 @@ enum MacTheme {
         ))
 
         static let sidebarTextSecondary = Color(nsColor: macColor(
-            dark: NSColor(red: 224/255, green: 229/255, blue: 235/255, alpha: 1),
+            dark: .white,
             light: NSColor(red: 51/255, green: 65/255, blue: 85/255, alpha: 1)
         ))
 
