@@ -90,6 +90,12 @@ final class TimelineFunctionalUITests: IOSUITestCase {
         requireExists(ui("screen_networkTimeline"), timeout: 5,
                       message: "Timeline screen should remain visible after filter change")
 
+        // FUNCTIONAL: verify timeline content is still meaningful after filter
+        XCTAssertTrue(
+            waitForEither([ui("timeline_list_events"), ui("timeline_label_emptyState")], timeout: 8),
+            "Timeline should show filtered events or empty state after filter change"
+        )
+
         captureScreenshot(named: "Timeline_FilterApplied")
     }
 
@@ -173,7 +179,7 @@ final class TimelineFunctionalUITests: IOSUITestCase {
         app.swipeDown()
         app.swipeDown()
 
-        // Should still show either list or empty state
+        // FUNCTIONAL: should still show either list or empty state (not just blank)
         let hasContent = waitForEither([
             ui("timeline_list_events"),
             ui("timeline_label_emptyState")
@@ -199,11 +205,11 @@ final class TimelineFunctionalUITests: IOSUITestCase {
                      "Timeline should show event list or empty state")
 
         if ui("timeline_list_events").exists {
-            // If events exist, verify they have content
+            // FUNCTIONAL: if events exist, verify they have actual content rows
             XCTAssertFalse(app.cells.allElementsBoundByIndex.isEmpty,
                           "Timeline list should contain at least one event row")
         } else if ui("timeline_label_emptyState").exists {
-            // Empty state should have descriptive text
+            // FUNCTIONAL: empty state should have descriptive text
             let hasDescription = app.staticTexts.count > 0
             XCTAssertTrue(hasDescription,
                          "Empty state should display descriptive text")
@@ -244,5 +250,58 @@ final class TimelineFunctionalUITests: IOSUITestCase {
         }
 
         captureScreenshot(named: "Timeline_ReopenFilter")
+    }
+
+    // MARK: - 8. Filter toggle state persists within session
+
+    func testFilterToggleStatePersistsWithinSession() {
+        openTimeline()
+
+        let filterButton = app.buttons["timeline_button_filters"]
+        guard filterButton.waitForExistence(timeout: 8) else { return }
+
+        // Open filter and toggle a switch
+        filterButton.tap()
+        guard ui("screen_timelineFilter").waitForExistence(timeout: 5) else { return }
+
+        let firstToggle = app.switches.firstMatch
+        guard firstToggle.waitForExistence(timeout: 3) else {
+            // Dismiss if no toggles
+            if app.buttons["timelineFilter_button_done"].waitForExistence(timeout: 3) {
+                app.buttons["timelineFilter_button_done"].tap()
+            }
+            return
+        }
+
+        let beforeToggle = firstToggle.value as? String ?? ""
+        firstToggle.tap()
+        let afterToggle = firstToggle.value as? String ?? ""
+        XCTAssertNotEqual(beforeToggle, afterToggle,
+                         "Filter toggle should change state")
+
+        // Dismiss
+        let doneButton = app.buttons["timelineFilter_button_done"]
+        if doneButton.waitForExistence(timeout: 3) {
+            doneButton.tap()
+            _ = waitForDisappearance(ui("screen_timelineFilter"), timeout: 5)
+        }
+
+        // FUNCTIONAL: re-open filter and verify toggle state persisted
+        filterButton.tap()
+        guard ui("screen_timelineFilter").waitForExistence(timeout: 5) else { return }
+
+        let sameToggleAfterReopen = app.switches.firstMatch
+        if sameToggleAfterReopen.waitForExistence(timeout: 3) {
+            let currentValue = sameToggleAfterReopen.value as? String ?? ""
+            XCTAssertEqual(currentValue, afterToggle,
+                         "Filter toggle state should persist when filter sheet is reopened")
+            // Restore original state
+            sameToggleAfterReopen.tap()
+        }
+
+        // Dismiss
+        if app.buttons["timelineFilter_button_done"].waitForExistence(timeout: 3) {
+            app.buttons["timelineFilter_button_done"].tap()
+        }
     }
 }

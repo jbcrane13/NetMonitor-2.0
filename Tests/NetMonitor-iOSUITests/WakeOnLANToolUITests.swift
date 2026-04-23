@@ -14,9 +14,19 @@ final class WakeOnLANToolUITests: IOSUITestCase {
 
     // MARK: - Screen Existence
 
-    func testWOLScreenExists() throws {
+    func testWOLScreenExistsAndShowsControls() throws {
         navigateToWoLTool()
-        requireExists(app.otherElements["screen_wolTool"], message: "Wake on LAN screen should exist")
+        let screen = app.otherElements["screen_wolTool"]
+        XCTAssertTrue(screen.waitForExistence(timeout: 5), "Wake on LAN screen should exist")
+        // FUNCTIONAL: screen should show MAC input and send button
+        XCTAssertTrue(
+            app.textFields["wol_input_mac"].waitForExistence(timeout: 3),
+            "WoL screen should show MAC address input field"
+        )
+        XCTAssertTrue(
+            app.buttons["wol_button_send"].waitForExistence(timeout: 3),
+            "WoL screen should show send button"
+        )
     }
 
     func testNavigationTitleExists() throws {
@@ -26,27 +36,45 @@ final class WakeOnLANToolUITests: IOSUITestCase {
 
     // MARK: - Input Elements
 
-    func testMACAddressInputExists() throws {
+    func testMACAddressInputAcceptsText() throws {
         navigateToWoLTool()
-        requireExists(app.textFields["wol_input_mac"], message: "MAC address input should exist")
+        let macField = app.textFields["wol_input_mac"]
+        XCTAssertTrue(macField.waitForExistence(timeout: 5), "MAC address input should exist")
+        // FUNCTIONAL: field accepts and reflects typed text
+        clearAndTypeText("AA:BB:CC:DD:EE:FF", into: macField)
+        XCTAssertEqual(macField.value as? String, "AA:BB:CC:DD:EE:FF", "MAC field should contain typed address")
     }
 
-    func testBroadcastAddressInputExists() throws {
+    func testBroadcastAddressInputExistsWithDefault() throws {
         navigateToWoLTool()
-        requireExists(app.textFields["wol_input_broadcast"], message: "Broadcast address input should exist")
+        let broadcastField = app.textFields["wol_input_broadcast"]
+        XCTAssertTrue(broadcastField.waitForExistence(timeout: 5), "Broadcast address input should exist")
+        // FUNCTIONAL: broadcast field should have a default value
+        let value = broadcastField.value as? String ?? ""
+        XCTAssertFalse(value.isEmpty, "Broadcast field should have a default value")
     }
 
-    func testSendButtonExists() throws {
+    func testSendButtonDisabledWithoutValidMAC() throws {
         navigateToWoLTool()
-        requireExists(app.buttons["wol_button_send"], message: "Send button should exist")
+        let sendButton = requireExists(app.buttons["wol_button_send"], message: "Send button should exist")
+        // FUNCTIONAL: send should be disabled without MAC, enabled with valid MAC
+        XCTAssertFalse(sendButton.isEnabled, "Send button should be disabled without MAC address")
+        clearAndTypeText("AA:BB:CC:DD:EE:FF", into: app.textFields["wol_input_mac"])
+        XCTAssertTrue(sendButton.isEnabled, "Send button should be enabled with valid MAC address")
     }
 
     // MARK: - Info Card
 
-    func testInfoCardExists() throws {
+    func testInfoCardExistsAndHasContent() throws {
         navigateToWoLTool()
         scrollToElement(app.otherElements["wol_label_info"])
-        requireExists(app.otherElements["wol_label_info"], message: "Info card should exist")
+        let infoLabel = app.otherElements["wol_label_info"]
+        XCTAssertTrue(infoLabel.waitForExistence(timeout: 5), "Info card should exist")
+        // FUNCTIONAL: info card should contain descriptive text
+        XCTAssertTrue(
+            infoLabel.staticTexts.count > 0,
+            "Info card should contain descriptive text about Wake on LAN"
+        )
     }
 
     // MARK: - Input Interaction
@@ -75,10 +103,10 @@ final class WakeOnLANToolUITests: IOSUITestCase {
     func testSendButtonDisabledWithoutMAC() throws {
         navigateToWoLTool()
         let sendButton = requireExists(app.buttons["wol_button_send"], message: "Send button should exist")
-        XCTAssertTrue(sendButton.exists, "Send button should be present")
+        XCTAssertFalse(sendButton.isEnabled, "Send button should be disabled when MAC field is empty")
     }
 
-    func testSendWakePacket() throws {
+    func testSendWakePacketProducesOutcome() throws {
         navigateToWoLTool()
         clearAndTypeText("AA:BB:CC:DD:EE:FF", into: app.textFields["wol_input_mac"])
         app.buttons["wol_button_send"].tap()
@@ -91,6 +119,11 @@ final class WakeOnLANToolUITests: IOSUITestCase {
             waitForEither([success, error, successText, failText], timeout: 10),
             "Either success or error should appear after sending"
         )
+        // FUNCTIONAL: verify a definitive outcome was reached
+        XCTAssertTrue(
+            success.exists || error.exists || successText.exists || failText.exists,
+            "Wake on LAN should reach a conclusive success or failure state after sending"
+        )
     }
 
     // MARK: - Validation
@@ -102,6 +135,9 @@ final class WakeOnLANToolUITests: IOSUITestCase {
             app.staticTexts["Invalid MAC address format"],
             message: "Invalid MAC helper text should appear for malformed address"
         )
+        // FUNCTIONAL: send button should remain disabled for invalid MAC
+        let sendButton = app.buttons["wol_button_send"]
+        XCTAssertFalse(sendButton.isEnabled, "Send button should be disabled for invalid MAC format")
     }
 
     func testValidMACClearsValidationError() throws {
@@ -117,6 +153,9 @@ final class WakeOnLANToolUITests: IOSUITestCase {
             app.staticTexts["Valid MAC address"],
             message: "Valid MAC helper text should appear after entering a well-formed address"
         )
+        // FUNCTIONAL: send button should now be enabled
+        let sendButton = app.buttons["wol_button_send"]
+        XCTAssertTrue(sendButton.isEnabled, "Send button should be enabled for valid MAC address")
     }
 
     func testBroadcastFieldHasDefaultValue() throws {

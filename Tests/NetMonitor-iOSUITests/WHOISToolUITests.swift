@@ -14,9 +14,19 @@ final class WHOISToolUITests: IOSUITestCase {
 
     // MARK: - Screen Existence
 
-    func testWHOISScreenExists() throws {
+    func testWHOISScreenExistsAndShowsControls() throws {
         navigateToWHOISTool()
-        requireExists(app.otherElements["screen_whoisTool"], message: "WHOIS screen should exist")
+        let screen = app.otherElements["screen_whoisTool"]
+        XCTAssertTrue(screen.waitForExistence(timeout: 5), "WHOIS screen should exist")
+        // FUNCTIONAL: screen should contain input and run button
+        XCTAssertTrue(
+            app.textFields["whois_input_domain"].waitForExistence(timeout: 3),
+            "WHOIS screen should show domain input field"
+        )
+        XCTAssertTrue(
+            app.buttons["whois_button_run"].waitForExistence(timeout: 3),
+            "WHOIS screen should show run button"
+        )
     }
 
     func testNavigationTitleExists() throws {
@@ -26,33 +36,44 @@ final class WHOISToolUITests: IOSUITestCase {
 
     // MARK: - Input Elements
 
-    func testDomainInputFieldExists() throws {
-        navigateToWHOISTool()
-        requireExists(app.textFields["whois_input_domain"], message: "Domain input field should exist")
-    }
-
-    func testRunButtonExists() throws {
-        navigateToWHOISTool()
-        requireExists(app.buttons["whois_button_run"], message: "Run button should exist")
-    }
-
-    // MARK: - Input Interaction
-
-    func testTypeDomainName() throws {
+    func testDomainInputFieldAcceptsText() throws {
         navigateToWHOISTool()
         let domainField = app.textFields["whois_input_domain"]
+        XCTAssertTrue(domainField.waitForExistence(timeout: 5), "Domain input field should exist")
+        // FUNCTIONAL: field accepts and reflects typed text
         clearAndTypeText("example.com", into: domainField)
-        XCTAssertEqual(domainField.value as? String, "example.com")
+        XCTAssertEqual(domainField.value as? String, "example.com", "Domain field should contain typed text")
+    }
+
+    func testRunButtonDisabledUntilDomainEntered() throws {
+        navigateToWHOISTool()
+        let runButton = app.buttons["whois_button_run"]
+        XCTAssertTrue(runButton.waitForExistence(timeout: 5), "Run button should exist")
+        // FUNCTIONAL: run should be disabled without input
+        XCTAssertFalse(runButton.isEnabled, "Run button should be disabled when domain is empty")
+        clearAndTypeText("example.com", into: app.textFields["whois_input_domain"])
+        XCTAssertTrue(runButton.isEnabled, "Run button should be enabled after entering a domain")
     }
 
     // MARK: - Lookup Execution
 
-    func testStartLookup() throws {
+    func testStartLookupProducesDomainInfo() throws {
         navigateToWHOISTool()
         clearAndTypeText("example.com", into: app.textFields["whois_input_domain"])
         app.buttons["whois_button_run"].tap()
         let domainInfo = app.otherElements["whois_section_domainInfo"]
-        XCTAssertTrue(domainInfo.waitForExistence(timeout: 15), "Domain info should appear after lookup")
+        let errorLabel = app.otherElements["whois_label_error"]
+        XCTAssertTrue(
+            waitForEither([domainInfo, errorLabel], timeout: 15),
+            "Domain info or error should appear after lookup"
+        )
+        // FUNCTIONAL: verify lookup produced meaningful output
+        if domainInfo.exists {
+            XCTAssertTrue(
+                domainInfo.staticTexts.count > 0,
+                "Domain info section should contain WHOIS data"
+            )
+        }
     }
 
     func testDomainDatesAppear() throws {
@@ -79,7 +100,7 @@ final class WHOISToolUITests: IOSUITestCase {
         )
     }
 
-    func testClearResultsButton() throws {
+    func testClearResultsButtonRemovesResults() throws {
         navigateToWHOISTool()
         clearAndTypeText("example.com", into: app.textFields["whois_input_domain"])
         app.buttons["whois_button_run"].tap()
@@ -89,6 +110,10 @@ final class WHOISToolUITests: IOSUITestCase {
             if clearButton.waitForExistence(timeout: 3) {
                 clearButton.tap()
                 XCTAssertTrue(waitForDisappearance(domainInfo, timeout: 5), "Domain info should disappear after clear")
+                // FUNCTIONAL: run button should be available after clearing
+                let runButton = app.buttons["whois_button_run"]
+                XCTAssertTrue(runButton.exists, "Run button should be visible after clearing")
+                XCTAssertTrue(runButton.isEnabled, "Run button should be enabled after clearing")
             }
         }
     }

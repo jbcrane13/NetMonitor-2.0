@@ -1,0 +1,35 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(bd ready:*)",
+      "Bash(bd update:*)",
+      "Bash(xcodebuild:*)",
+      "Bash(bd show:*)",
+      "Bash(swift build:*)",
+      "Bash(git:*)",
+      "Bash(xcodegen generate:*)",
+      "Bash(sed:*)",
+      "Bash(rm:*)",
+      "Bash(bd create:*)",
+      "Bash(bd close:*)",
+      "Bash(bd list:*)",
+      "Bash(bd backup:*)",
+      "Bash(bd init:*)",
+      "Bash(bash:*)",
+      "Bash(echo:*)",
+      "Bash(/bin/bash:*)",
+      "WebFetch(domain:help.fing.com)",
+      "WebSearch",
+      "Bash(swiftlint version:*)",
+      "Bash(GIT_HOOKS_PLUGINS=\"\" git diff:*)",
+      "Bash(GIT_HOOKS_PLUGINS=\"\" git status:*)",
+      "Bash(ls:*)",
+      "Bash(git add:*)"
+    ]
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "context7",
+    "github"
+  ]
+}

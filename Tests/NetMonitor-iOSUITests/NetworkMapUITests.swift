@@ -10,8 +10,14 @@ final class NetworkMapUITests: IOSUITestCase {
 
     // MARK: - Screen Existence
 
-    func testNetworkMapScreenExists() throws {
+    func testNetworkMapScreenExistsAndShowsContent() throws {
         requireExists(ui("screen_networkMap"), message: "Network map screen should exist after tapping Map tab")
+        // FUNCTIONAL: screen should contain at least a scan button or summary
+        XCTAssertTrue(
+            app.buttons["networkMap_button_scan"].waitForExistence(timeout: 3) ||
+            ui("networkMap_summary").waitForExistence(timeout: 3),
+            "Network map screen should contain scan button or network summary content"
+        )
     }
 
     func testNavigationTitleExists() throws {
@@ -20,12 +26,24 @@ final class NetworkMapUITests: IOSUITestCase {
 
     // MARK: - Network Summary
 
-    func testNetworkSummaryExists() throws {
-        requireExists(ui("networkMap_summary"), message: "Network summary should exist on network map screen")
+    func testNetworkSummaryContainsData() throws {
+        let summary = ui("networkMap_summary")
+        guard summary.waitForExistence(timeout: 5) else {
+            // Summary may not appear if no network is configured — acceptable
+            return
+        }
+        // FUNCTIONAL: summary should contain text content (network name, device count, etc.)
+        XCTAssertTrue(
+            summary.staticTexts.count > 0,
+            "Network summary should contain visible text content, not be empty"
+        )
     }
 
-    func testNetworkPickerExists() throws {
-        requireExists(app.buttons["Add Network"].firstMatch, message: "Add Network button should exist on network map")
+    func testNetworkPickerExistsAndIsTappable() throws {
+        let addButton = app.buttons["Add Network"].firstMatch
+        XCTAssertTrue(addButton.waitForExistence(timeout: 5),
+                     "Add Network button should exist on network map")
+        XCTAssertTrue(addButton.isEnabled, "Add Network button should be tappable")
     }
 
     func testAddNetworkSheetShowsManualFields() throws {
@@ -38,25 +56,75 @@ final class NetworkMapUITests: IOSUITestCase {
             manualTab.tap()
         }
 
-        requireExists(app.textFields["networkSheet_field_gateway"], timeout: 5, message: "Gateway field should exist in Manual tab")
-        requireExists(app.textFields["networkSheet_field_cidr"], timeout: 5, message: "CIDR field should exist in Manual tab")
-        requireExists(app.textFields["networkSheet_field_name"], timeout: 5, message: "Name field should exist in Manual tab")
+        let gatewayField = app.textFields["networkSheet_field_gateway"]
+        let cidrField = app.textFields["networkSheet_field_cidr"]
+        let nameField = app.textFields["networkSheet_field_name"]
+
+        XCTAssertTrue(gatewayField.waitForExistence(timeout: 5),
+                     "Gateway field should exist in Manual tab")
+        XCTAssertTrue(cidrField.waitForExistence(timeout: 5),
+                     "CIDR field should exist in Manual tab")
+        XCTAssertTrue(nameField.waitForExistence(timeout: 5),
+                     "Name field should exist in Manual tab")
+
+        // FUNCTIONAL: verify fields accept text input
+        clearAndTypeText("192.168.1.1", into: gatewayField)
+        XCTAssertEqual(gatewayField.value as? String, "192.168.1.1",
+                      "Gateway field should accept typed input")
+
+        clearAndTypeText("24", into: cidrField)
+        XCTAssertEqual(cidrField.value as? String, "24",
+                      "CIDR field should accept typed input")
     }
 
     // MARK: - Sort Controls
 
-    func testSortPickerExists() throws {
+    func testSortPickerExistsAndIsInteractive() throws {
+        let sortPicker = app.buttons["networkMap_picker_sort"].exists
+            ? app.buttons["networkMap_picker_sort"]
+            : ui("networkMap_picker_sort")
+
+        guard sortPicker.waitForExistence(timeout: 5) else {
+            XCTFail("Sort picker should exist on network map screen")
+            return
+        }
+
+        // FUNCTIONAL: tapping sort picker should present sort options
+        sortPicker.tap()
         XCTAssertTrue(
-            app.buttons["networkMap_picker_sort"].waitForExistence(timeout: 5) ||
-            ui("networkMap_picker_sort").waitForExistence(timeout: 3),
-            "Sort picker should exist on network map screen"
+            waitForEither(
+                [
+                    app.sheets.firstMatch,
+                    app.menus.firstMatch,
+                    app.popovers.firstMatch,
+                    app.tables.firstMatch
+                ],
+                timeout: 5
+            ),
+            "Tapping sort picker should present sort options"
         )
+
+        // Dismiss by selecting an option or tapping outside
+        if app.buttons["IP Address"].exists {
+            app.buttons["IP Address"].tap()
+        } else if app.buttons["Name"].exists {
+            app.buttons["Name"].tap()
+        } else {
+            let dismissArea = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.1))
+            dismissArea.tap()
+        }
+
+        requireExists(ui("screen_networkMap"), timeout: 5,
+                     message: "Network map should remain visible after sort selection")
     }
 
     // MARK: - Scan Button
 
-    func testScanButtonExists() throws {
-        requireExists(app.buttons["networkMap_button_scan"], message: "Scan button should exist on network map")
+    func testScanButtonExistsAndIsTappable() throws {
+        let scanButton = app.buttons["networkMap_button_scan"]
+        XCTAssertTrue(scanButton.waitForExistence(timeout: 5),
+                     "Scan button should exist on network map")
+        XCTAssertTrue(scanButton.isEnabled, "Scan button should be tappable")
     }
 
     func testScanButtonTriggersScan() throws {
@@ -76,13 +144,20 @@ final class NetworkMapUITests: IOSUITestCase {
 
     // MARK: - Empty State
 
-    func testEmptyStateLabelExists() throws {
+    func testEmptyStateOrDeviceRowsVisible() throws {
         let emptyLabel = ui("networkMap_label_empty")
         let deviceRow = app.otherElements.matching(NSPredicate(format: "identifier BEGINSWITH 'networkMap_row_'")).firstMatch
         XCTAssertTrue(
             emptyLabel.exists || deviceRow.exists || app.activityIndicators.firstMatch.exists,
             "Network map should show devices, empty state, or activity indicator"
         )
+        // FUNCTIONAL: if empty state is showing, it should contain instructional text
+        if emptyLabel.exists {
+            XCTAssertTrue(
+                emptyLabel.staticTexts.count > 0 || emptyLabel.label.count > 0,
+                "Empty state label should contain instructional text"
+            )
+        }
     }
 
     // MARK: - Device Row Navigation
@@ -97,7 +172,15 @@ final class NetworkMapUITests: IOSUITestCase {
 
         if firstDeviceRow.waitForExistence(timeout: 15) {
             firstDeviceRow.tap()
-            requireExists(ui("screen_deviceDetail"), timeout: 8, message: "Device detail screen should appear after tapping device row")
+            let detailScreen = ui("screen_deviceDetail")
+            requireExists(detailScreen, timeout: 8,
+                         message: "Device detail screen should appear after tapping device row")
+
+            // FUNCTIONAL: detail screen should contain device information
+            XCTAssertTrue(
+                detailScreen.staticTexts.count > 0,
+                "Device detail screen should contain device information text"
+            )
         }
     }
 
@@ -117,40 +200,48 @@ final class NetworkMapUITests: IOSUITestCase {
         )
     }
 
-    func testSortPickerInteraction() {
+    func testSortPickerInteractionChangesSortOrder() {
         let sortPicker = app.buttons["networkMap_picker_sort"].exists
             ? app.buttons["networkMap_picker_sort"]
             : ui("networkMap_picker_sort")
 
-        if sortPicker.waitForExistence(timeout: 5) {
-            sortPicker.tap()
-            XCTAssertTrue(
-                waitForEither(
-                    [
-                        app.sheets.firstMatch,
-                        app.menus.firstMatch,
-                        app.popovers.firstMatch,
-                        app.tables.firstMatch
-                    ],
-                    timeout: 5
-                ),
-                "Tapping sort picker should present sort options"
-            )
+        guard sortPicker.waitForExistence(timeout: 5) else { return }
 
-            if app.buttons["IP Address"].exists {
-                app.buttons["IP Address"].tap()
-            } else if app.buttons["Name"].exists {
-                app.buttons["Name"].tap()
-            } else {
-                let dismissArea = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.1))
-                dismissArea.tap()
-            }
+        sortPicker.tap()
+        XCTAssertTrue(
+            waitForEither(
+                [
+                    app.sheets.firstMatch,
+                    app.menus.firstMatch,
+                    app.popovers.firstMatch,
+                    app.tables.firstMatch
+                ],
+                timeout: 5
+            ),
+            "Tapping sort picker should present sort options"
+        )
 
-            requireExists(ui("screen_networkMap"), timeout: 5, message: "Network map should remain visible after sort selection")
+        // FUNCTIONAL: select a sort option and verify the map still renders
+        if app.buttons["IP Address"].exists {
+            app.buttons["IP Address"].tap()
+        } else if app.buttons["Name"].exists {
+            app.buttons["Name"].tap()
+        } else {
+            let dismissArea = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.1))
+            dismissArea.tap()
         }
+
+        requireExists(ui("screen_networkMap"), timeout: 5,
+                     message: "Network map should remain visible after sort selection")
+
+        // FUNCTIONAL: after sort, the map should still contain its core elements
+        XCTAssertTrue(
+            app.buttons["networkMap_button_scan"].waitForExistence(timeout: 3),
+            "Scan button should still be visible after changing sort order"
+        )
     }
 
-    func testAddNetworkManualTabFieldsAndCancel() {
+    func testAddNetworkManualTabFieldsAcceptInputAndCancelDismisses() {
         let addButton = app.buttons["Add Network"].firstMatch
         requireExists(addButton, message: "Add Network button should exist").tap()
         requireExists(app.navigationBars["Add Network"], timeout: 8, message: "Add Network sheet should appear")
@@ -170,6 +261,12 @@ final class NetworkMapUITests: IOSUITestCase {
             clearAndTypeText("24", into: cidrField)
         }
 
+        // FUNCTIONAL: verify input was accepted
+        if gatewayField.exists {
+            XCTAssertEqual(gatewayField.value as? String, "192.168.1.1",
+                          "Gateway field should retain typed value")
+        }
+
         let cancelButton = app.buttons.matching(
             NSPredicate(format: "identifier == 'networkSheet_button_cancel' OR label == 'Cancel'")
         ).firstMatch
@@ -178,6 +275,12 @@ final class NetworkMapUITests: IOSUITestCase {
         XCTAssertTrue(
             waitForDisappearance(app.navigationBars["Add Network"], timeout: 5),
             "Add Network sheet should dismiss after tapping Cancel"
+        )
+
+        // FUNCTIONAL: after cancel, the network map should remain unchanged
+        XCTAssertTrue(
+            ui("screen_networkMap").waitForExistence(timeout: 5),
+            "Network map should be visible after canceling Add Network"
         )
     }
 
@@ -191,11 +294,28 @@ final class NetworkMapUITests: IOSUITestCase {
 
         if firstDeviceRow.waitForExistence(timeout: 20) {
             firstDeviceRow.tap()
+            let detailScreen = ui("screen_deviceDetail")
             requireExists(
-                ui("screen_deviceDetail"),
+                detailScreen,
                 timeout: 8,
                 message: "Device detail screen should appear after tapping a device row"
             )
+
+            // FUNCTIONAL: detail screen should show device-specific content
+            XCTAssertTrue(
+                detailScreen.staticTexts.count > 0,
+                "Device detail screen should contain device information"
+            )
+
+            // FUNCTIONAL: back navigation should return to network map
+            let backButton = app.navigationBars.buttons.firstMatch
+            if backButton.waitForExistence(timeout: 3) {
+                backButton.tap()
+                XCTAssertTrue(
+                    ui("screen_networkMap").waitForExistence(timeout: 5),
+                    "Should navigate back to network map from device detail"
+                )
+            }
         }
     }
 

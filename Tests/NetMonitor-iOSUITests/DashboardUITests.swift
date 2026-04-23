@@ -5,8 +5,14 @@ final class DashboardUITests: IOSUITestCase {
 
     // MARK: - Screen Existence
 
-    func testDashboardScreenExists() throws {
-        requireExists(ui("screen_dashboard"), message: "Dashboard screen should exist on launch")
+    func testDashboardScreenExistsAndShowsContent() throws {
+        let dashboard = ui("screen_dashboard")
+        requireExists(dashboard, message: "Dashboard screen should exist on launch")
+        // FUNCTIONAL: dashboard should contain visible content beyond just existing
+        XCTAssertTrue(
+            dashboard.staticTexts.count > 0,
+            "Dashboard screen should contain visible text content"
+        )
     }
 
     func testNavigationTitleExists() throws {
@@ -15,42 +21,65 @@ final class DashboardUITests: IOSUITestCase {
 
     // MARK: - Settings Navigation
 
-    func testSettingsButtonExists() throws {
-        requireExists(app.buttons["dashboard_button_settings"], message: "Settings button should exist on dashboard")
-    }
-
     func testSettingsButtonNavigatesToSettings() throws {
-        requireExists(app.buttons["dashboard_button_settings"], message: "Settings button should exist").tap()
-        requireExists(ui("screen_settings"), timeout: 8, message: "Settings screen should appear after tapping settings button")
+        let settingsButton = app.buttons["dashboard_button_settings"]
+        requireExists(settingsButton, message: "Settings button should exist on dashboard")
+        XCTAssertTrue(settingsButton.isEnabled, "Settings button should be tappable")
+        settingsButton.tap()
+        requireExists(ui("screen_settings"), timeout: 8,
+                     message: "Settings screen should appear after tapping settings button")
     }
 
     // MARK: - Connection Status Header
 
-    func testConnectionStatusHeaderExists() throws {
-        requireExists(ui("dashboard_label_connectionStatus"), message: "Connection status header should exist on dashboard")
+    func testConnectionStatusHeaderDisplaysState() throws {
+        let statusHeader = ui("dashboard_label_connectionStatus")
+        requireExists(statusHeader, message: "Connection status header should exist on dashboard")
+        // FUNCTIONAL: status header should display a state value (not just exist)
+        XCTAssertTrue(
+            statusHeader.staticTexts.count > 0 || statusHeader.label.count > 0,
+            "Connection status header should display a status value (e.g., Connected, Offline)"
+        )
     }
 
     // MARK: - Dashboard Cards
 
-    func testNetworkHUDHeaderExists() throws {
-        requireExists(ui("dashboard_label_network"), message: "Network HUD header should exist on dashboard")
+    func testNetworkHUDHeaderDisplaysNetworkName() throws {
+        let networkLabel = ui("dashboard_label_network")
+        requireExists(networkLabel, message: "Network HUD header should exist on dashboard")
+        // FUNCTIONAL: network label should display some text content
+        XCTAssertTrue(
+            networkLabel.staticTexts.count > 0 || networkLabel.label.count > 0,
+            "Network HUD header should display a network name or identifier"
+        )
     }
 
-    func testHealthScoreCardExists() throws {
-        requireExists(ui("dashboard_card_healthScore"), message: "Health score card should exist on dashboard")
+    func testHealthScoreCardDisplaysValue() throws {
+        let healthCard = ui("dashboard_card_healthScore")
+        requireExists(healthCard, message: "Health score card should exist on dashboard")
+        // FUNCTIONAL: health score card should display a score value
+        XCTAssertTrue(
+            healthCard.staticTexts.count > 0,
+            "Health score card should display a health score value"
+        )
     }
 
     func testNetworkHealthLabelExists() throws {
         requireExists(app.staticTexts["NETWORK HEALTH"], message: "NETWORK HEALTH label should exist on dashboard")
     }
 
-    func testConnectivityPanelExists() throws {
+    func testConnectivityPanelContainsData() throws {
         let panel = ui("dashboard_card_connectivity")
         scrollToElement(panel)
         requireExists(panel, message: "Connectivity panel should exist on dashboard")
+        // FUNCTIONAL: connectivity panel should contain at least ISP label
+        XCTAssertTrue(
+            panel.staticTexts.count > 0,
+            "Connectivity panel should contain connectivity information text"
+        )
     }
 
-    func testMonitoringStatusTextExists() throws {
+    func testMonitoringStatusTextShowsState() throws {
         // ConnectionStatusHeader shows "MONITORING" or "OFFLINE"
         XCTAssertTrue(
             waitForEither([
@@ -69,10 +98,15 @@ final class DashboardUITests: IOSUITestCase {
         requireExists(app.staticTexts["ISP"], message: "ISP label should be visible in connectivity panel")
     }
 
-    func testLocalDevicesCardExists() throws {
+    func testLocalDevicesCardDisplaysDeviceCount() throws {
         let devicesCard = ui("dashboard_card_localDevices")
         scrollToElement(devicesCard)
         requireExists(devicesCard, message: "Local devices card should exist on dashboard")
+        // FUNCTIONAL: card should contain text content (device count, etc.)
+        XCTAssertTrue(
+            devicesCard.staticTexts.count > 0,
+            "Local devices card should display device count or device information"
+        )
     }
 
     // MARK: - Local Devices Navigation
@@ -81,33 +115,47 @@ final class DashboardUITests: IOSUITestCase {
         let devicesCard = ui("dashboard_card_localDevices")
         scrollToElement(devicesCard)
         requireExists(devicesCard, message: "Local devices card should exist").tap()
-        requireExists(ui("screen_deviceList"), timeout: 8, message: "Device list screen should appear after tapping local devices card")
+        requireExists(ui("screen_deviceList"), timeout: 8,
+                     message: "Device list screen should appear after tapping local devices card")
     }
 
     func testDeviceListShowsNetworkBadge() throws {
         let devicesCard = ui("dashboard_card_localDevices")
         scrollToElement(devicesCard)
         requireExists(devicesCard, message: "Local devices card should exist").tap()
-        requireExists(ui("screen_deviceList"), timeout: 8, message: "Device list screen should appear")
-        requireExists(ui("deviceList_label_network"), timeout: 8, message: "Network badge should appear on device list screen")
+        requireExists(ui("screen_deviceList"), timeout: 8,
+                     message: "Device list screen should appear")
+        requireExists(ui("deviceList_label_network"), timeout: 8,
+                     message: "Network badge should appear on device list screen")
     }
 
-    func testAddNetworkButtonPresentsSheet() throws {
+    func testAddNetworkButtonPresentsSheetWithSegments() throws {
         let addButton = app.buttons["Add Network"].firstMatch
         requireExists(addButton, message: "Add Network button should exist on dashboard")
+        XCTAssertTrue(addButton.isEnabled, "Add Network button should be tappable")
         addButton.tap()
-        requireExists(app.navigationBars["Add Network"], timeout: 8, message: "Add Network sheet should appear after tapping Add Network")
-        XCTAssertTrue(app.segmentedControls.firstMatch.exists, "Segmented control should exist in Add Network sheet")
+        requireExists(app.navigationBars["Add Network"], timeout: 8,
+                     message: "Add Network sheet should appear after tapping Add Network")
+        XCTAssertTrue(app.segmentedControls.firstMatch.exists,
+                     "Segmented control should exist in Add Network sheet")
+        // FUNCTIONAL: segmented control should have at least 2 options
+        XCTAssertGreaterThan(
+            app.segmentedControls.firstMatch.buttons.count, 1,
+            "Add Network segmented control should have at least 2 options (e.g., Auto/Manual)"
+        )
     }
 
     // MARK: - Pull to Refresh
 
-    func testPullToRefreshExists() throws {
+    func testPullToRefreshDoesNotCrash() throws {
         let dashboard = ui("screen_dashboard")
         requireExists(dashboard, message: "Dashboard screen should exist before pull-to-refresh")
         let start = dashboard.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3))
         let end = dashboard.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.8))
         start.press(forDuration: 0.1, thenDragTo: end)
+        // FUNCTIONAL: dashboard should still be intact after pull-to-refresh
+        requireExists(ui("screen_dashboard"), timeout: 8,
+                     message: "Dashboard should still exist after pull-to-refresh gesture")
     }
 
     // MARK: - Functional Tests
@@ -116,7 +164,8 @@ final class DashboardUITests: IOSUITestCase {
         let devicesCard = ui("dashboard_card_localDevices")
         scrollToElement(devicesCard)
         requireExists(devicesCard, message: "Local devices card should exist").tap()
-        requireExists(ui("screen_deviceList"), timeout: 8, message: "Device list screen should appear")
+        requireExists(ui("screen_deviceList"), timeout: 8,
+                     message: "Device list screen should appear")
 
         let scanButton = app.buttons["deviceList_button_scan"]
         if scanButton.waitForExistence(timeout: 5) {
@@ -141,7 +190,8 @@ final class DashboardUITests: IOSUITestCase {
     func testAddNetworkSheetRequiresGatewayBeforeEnabling() {
         let addButton = app.buttons["Add Network"].firstMatch
         requireExists(addButton, message: "Add Network button should exist").tap()
-        requireExists(app.navigationBars["Add Network"], timeout: 8, message: "Add Network sheet should appear")
+        requireExists(app.navigationBars["Add Network"], timeout: 8,
+                     message: "Add Network sheet should appear")
 
         // Switch to Manual tab if available
         let manualTab = app.segmentedControls.buttons["Manual"]
@@ -154,13 +204,15 @@ final class DashboardUITests: IOSUITestCase {
             NSPredicate(format: "identifier == 'networkSheet_button_save' OR label == 'Save' OR label == 'Add'")
         ).firstMatch
         if saveButton.waitForExistence(timeout: 3) {
-            XCTAssertFalse(saveButton.isEnabled, "Save/Add button should be disabled with empty gateway field")
+            XCTAssertFalse(saveButton.isEnabled,
+                          "Save/Add button should be disabled with empty gateway field")
 
             // Fill in gateway field
             let gatewayField = app.textFields["networkSheet_field_gateway"]
             if gatewayField.waitForExistence(timeout: 3) {
                 clearAndTypeText("192.168.1.1", into: gatewayField)
-                XCTAssertTrue(saveButton.isEnabled, "Save/Add button should be enabled after filling gateway field")
+                XCTAssertTrue(saveButton.isEnabled,
+                             "Save/Add button should be enabled after filling gateway field")
             }
         }
 
@@ -177,32 +229,24 @@ final class DashboardUITests: IOSUITestCase {
         let devicesCard = ui("dashboard_card_localDevices")
         scrollToElement(devicesCard)
         requireExists(devicesCard, message: "Local devices card should exist").tap()
-        requireExists(ui("screen_deviceList"), timeout: 8, message: "Device list screen should appear after tapping devices card")
-        requireExists(ui("deviceList_label_network"), timeout: 8, message: "Network badge should be visible on device list screen")
+        requireExists(ui("screen_deviceList"), timeout: 8,
+                     message: "Device list screen should appear after tapping devices card")
+        requireExists(ui("deviceList_label_network"), timeout: 8,
+                     message: "Network badge should be visible on device list screen")
     }
 
     func testSettingsNavigationRoundTrip() {
-        requireExists(app.buttons["dashboard_button_settings"], message: "Settings button should exist").tap()
-        requireExists(ui("screen_settings"), timeout: 8, message: "Settings screen should appear after tapping settings")
+        requireExists(app.buttons["dashboard_button_settings"],
+                     message: "Settings button should exist").tap()
+        requireExists(ui("screen_settings"), timeout: 8,
+                     message: "Settings screen should appear after tapping settings")
 
         let backButton = app.navigationBars.buttons.firstMatch
         requireExists(backButton, message: "Back button should be visible from settings").tap()
 
-        requireExists(ui("screen_dashboard"), timeout: 8, message: "Dashboard should reappear after navigating back from settings")
+        requireExists(ui("screen_dashboard"), timeout: 8,
+                     message: "Dashboard should reappear after navigating back from settings")
     }
-
-    func testPullToRefreshDoesNotCrash() {
-        let dashboard = ui("screen_dashboard")
-        requireExists(dashboard, message: "Dashboard screen should exist before pull-to-refresh")
-
-        let start = dashboard.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3))
-        let end = dashboard.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.8))
-        start.press(forDuration: 0.1, thenDragTo: end)
-
-        requireExists(ui("screen_dashboard"), timeout: 8, message: "Dashboard should still exist after pull-to-refresh")
-    }
-
-    // MARK: - Functional Verification Tests (behavioral outcomes, not just existence)
 
     func testSettingsButtonNavigatesAndReturnsCorrectly() throws {
         // FUNCTIONAL: tap settings, verify settings screen appears, then go back

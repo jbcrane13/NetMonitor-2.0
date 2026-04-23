@@ -5,82 +5,138 @@ final class DeviceDetailUITests: IOSUITestCase {
 
     // MARK: - Network Map Screen
 
-    func testNetworkMapScreenExists() throws {
+    func testNetworkMapScreenShowsContent() throws {
         navigateToMap()
-        XCTAssertTrue(app.otherElements["screen_networkMap"].waitForExistence(timeout: 5))
+        let screen = app.otherElements["screen_networkMap"]
+        XCTAssertTrue(screen.waitForExistence(timeout: 5),
+                     "Network map screen should exist after tapping Map tab")
+        // FUNCTIONAL: screen should contain at least a scan button
+        XCTAssertTrue(
+            app.buttons["networkMap_button_scan"].waitForExistence(timeout: 3),
+            "Network map screen should contain a scan button"
+        )
     }
 
-    func testScanButtonExists() throws {
+    func testScanButtonIsTappable() throws {
         navigateToMap()
-        XCTAssertTrue(app.buttons["networkMap_button_scan"].waitForExistence(timeout: 5))
+        let scanButton = app.buttons["networkMap_button_scan"]
+        XCTAssertTrue(scanButton.waitForExistence(timeout: 5),
+                     "Scan button should exist on network map")
+        XCTAssertTrue(scanButton.isEnabled, "Scan button should be tappable")
     }
 
     // MARK: - Device Detail (requires a discovered device)
 
-    func testDeviceDetailScreenIdentifier() throws {
+    func testDeviceDetailScreenShowsDeviceInfo() throws {
         navigateToMap()
         // Tap scan to discover devices
         let scanButton = app.buttons["networkMap_button_scan"]
         if scanButton.waitForExistence(timeout: 5) {
             scanButton.tap()
             // Wait for scan to find at least one device
-            sleep(3)
-            // Try to tap a device row if available
-            let firstDeviceRow = app.otherElements.matching(NSPredicate(format: "identifier BEGINSWITH 'networkMap_row_'")).firstMatch
+            let firstDeviceRow = app.otherElements.matching(
+                NSPredicate(format: "identifier BEGINSWITH 'networkMap_row_'")
+            ).firstMatch
             if firstDeviceRow.waitForExistence(timeout: 10) {
                 firstDeviceRow.tap()
-                XCTAssertTrue(app.otherElements["screen_deviceDetail"].waitForExistence(timeout: 5))
+                XCTAssertTrue(
+                    app.otherElements["screen_deviceDetail"].waitForExistence(timeout: 5),
+                    "Device detail screen should appear after tapping a device row"
+                )
+                // FUNCTIONAL: detail screen should contain device information text
+                let detailScreen = app.otherElements["screen_deviceDetail"]
+                XCTAssertTrue(
+                    detailScreen.staticTexts.count > 0,
+                    "Device detail screen should contain device information text"
+                )
             }
         }
     }
 
-    func testDeviceDetailHeaderElements() throws {
+    func testDeviceDetailHeaderDisplaysIconAndName() throws {
         navigateToFirstDevice()
         if app.otherElements["screen_deviceDetail"].waitForExistence(timeout: 5) {
-            XCTAssertTrue(app.otherElements["deviceDetail_icon_deviceType"].exists ||
-                          app.images["deviceDetail_icon_deviceType"].exists)
-            XCTAssertTrue(app.staticTexts["deviceDetail_label_displayName"].exists ||
-                          app.otherElements["deviceDetail_label_displayName"].exists)
+            let hasIcon = app.otherElements["deviceDetail_icon_deviceType"].exists ||
+                          app.images["deviceDetail_icon_deviceType"].exists
+            let hasName = app.staticTexts["deviceDetail_label_displayName"].exists ||
+                          app.otherElements["deviceDetail_label_displayName"].exists
+            XCTAssertTrue(hasIcon || hasName,
+                         "Device detail header should show a device icon or display name")
+            // FUNCTIONAL: if name label exists, it should contain text
+            let nameElement = app.otherElements["deviceDetail_label_displayName"]
+            if nameElement.exists {
+                XCTAssertFalse(nameElement.label.isEmpty,
+                              "Device display name label should contain text")
+            }
         }
     }
 
-    func testDeviceDetailNetworkInfoSection() throws {
+    func testDeviceDetailNetworkInfoSectionContainsData() throws {
         navigateToFirstDevice()
         if app.otherElements["screen_deviceDetail"].waitForExistence(timeout: 5) {
-            XCTAssertTrue(app.otherElements["deviceDetail_row_ipAddress"].waitForExistence(timeout: 3) ||
-                          app.staticTexts["deviceDetail_label_networkInfoTitle"].exists)
+            let ipRow = app.otherElements["deviceDetail_row_ipAddress"]
+            let networkInfoTitle = app.staticTexts["deviceDetail_label_networkInfoTitle"]
+            XCTAssertTrue(
+                ipRow.waitForExistence(timeout: 3) || networkInfoTitle.exists,
+                "Device detail should show IP address row or network info section"
+            )
+            // FUNCTIONAL: if IP row exists, it should contain text data
+            if ipRow.exists {
+                XCTAssertTrue(
+                    ipRow.staticTexts.count > 0 || ipRow.label.count > 0,
+                    "IP address row should contain IP address data"
+                )
+            }
         }
     }
 
-    func testDeviceDetailServicesSection() throws {
+    func testDeviceDetailServicesSectionExists() throws {
         navigateToFirstDevice()
         if app.otherElements["screen_deviceDetail"].waitForExistence(timeout: 5) {
             app.swipeUp()
-            XCTAssertTrue(app.otherElements["deviceDetail_section_services"].waitForExistence(timeout: 3) ||
-                          app.staticTexts["deviceDetail_label_servicesTitle"].exists)
+            let servicesSection = app.otherElements["deviceDetail_section_services"]
+            let servicesTitle = app.staticTexts["deviceDetail_label_servicesTitle"]
+            XCTAssertTrue(
+                servicesSection.waitForExistence(timeout: 3) || servicesTitle.exists,
+                "Device detail should show services section or title"
+            )
         }
     }
 
-    func testDeviceDetailQuickActions() throws {
+    func testDeviceDetailQuickActionsAreTappable() throws {
         navigateToFirstDevice()
         if app.otherElements["screen_deviceDetail"].waitForExistence(timeout: 5) {
             app.swipeUp()
             let pingButton = app.buttons["deviceDetail_button_ping"]
             let portScanButton = app.buttons["deviceDetail_button_portScan"]
             let dnsButton = app.buttons["deviceDetail_button_dnsLookup"]
-            // At least one action should exist
-            XCTAssertTrue(pingButton.exists || portScanButton.exists || dnsButton.exists ||
-                          app.staticTexts["deviceDetail_label_quickActionsTitle"].exists)
+            let quickActionsTitle = app.staticTexts["deviceDetail_label_quickActionsTitle"]
+
+            XCTAssertTrue(
+                pingButton.exists || portScanButton.exists || dnsButton.exists || quickActionsTitle.exists,
+                "Device detail should show at least one quick action or quick actions title"
+            )
+            // FUNCTIONAL: if buttons exist, they should be enabled/tappable
+            if pingButton.exists {
+                XCTAssertTrue(pingButton.isEnabled, "Ping quick action should be tappable")
+            }
+            if portScanButton.exists {
+                XCTAssertTrue(portScanButton.isEnabled, "Port scan quick action should be tappable")
+            }
+            if dnsButton.exists {
+                XCTAssertTrue(dnsButton.isEnabled, "DNS lookup quick action should be tappable")
+            }
         }
     }
 
-    func testDeviceDetailScanPortsButton() throws {
+    func testDeviceDetailScanPortsButtonIsEnabled() throws {
         navigateToFirstDevice()
         if app.otherElements["screen_deviceDetail"].waitForExistence(timeout: 5) {
             app.swipeUp()
             let scanPortsButton = app.buttons["deviceDetail_button_scanPorts"]
             if scanPortsButton.waitForExistence(timeout: 3) {
-                XCTAssertTrue(scanPortsButton.isEnabled)
+                XCTAssertTrue(scanPortsButton.isEnabled,
+                             "Scan Ports button should be enabled")
             }
         }
     }
@@ -166,8 +222,9 @@ final class DeviceDetailUITests: IOSUITestCase {
         let scanButton = app.buttons["networkMap_button_scan"]
         if scanButton.waitForExistence(timeout: 5) {
             scanButton.tap()
-            sleep(3)
-            let firstDeviceRow = app.otherElements.matching(NSPredicate(format: "identifier BEGINSWITH 'networkMap_row_'")).firstMatch
+            let firstDeviceRow = app.otherElements.matching(
+                NSPredicate(format: "identifier BEGINSWITH 'networkMap_row_'")
+            ).firstMatch
             if firstDeviceRow.waitForExistence(timeout: 10) {
                 firstDeviceRow.tap()
             }

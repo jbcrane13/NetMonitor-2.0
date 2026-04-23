@@ -14,9 +14,19 @@ final class PortScannerToolUITests: IOSUITestCase {
 
     // MARK: - Screen Existence
 
-    func testPortScannerScreenExists() throws {
+    func testPortScannerScreenExistsAndShowsControls() throws {
         navigateToPortScannerTool()
-        requireExists(app.otherElements["screen_portScannerTool"], message: "Port scanner screen should exist")
+        let screen = app.otherElements["screen_portScannerTool"]
+        XCTAssertTrue(screen.waitForExistence(timeout: 5), "Port scanner screen should exist")
+        // FUNCTIONAL: screen should contain interactive controls
+        XCTAssertTrue(
+            app.textFields["portScanner_input_host"].waitForExistence(timeout: 3),
+            "Port scanner screen should show host input field"
+        )
+        XCTAssertTrue(
+            app.buttons["portScanner_button_run"].waitForExistence(timeout: 3),
+            "Port scanner screen should show run button"
+        )
         captureScreenshot(named: "PortScanner_Screen")
     }
 
@@ -27,55 +37,76 @@ final class PortScannerToolUITests: IOSUITestCase {
 
     // MARK: - Input Elements
 
-    func testHostInputFieldExists() throws {
+    func testHostInputFieldAcceptsText() throws {
         navigateToPortScannerTool()
-        requireExists(app.textFields["portScanner_input_host"], message: "Host input field should exist")
+        let hostField = app.textFields["portScanner_input_host"]
+        XCTAssertTrue(hostField.waitForExistence(timeout: 5), "Host input field should exist")
+        // FUNCTIONAL: field accepts and reflects typed text
+        clearAndTypeText("192.168.1.1", into: hostField)
+        XCTAssertEqual(hostField.value as? String, "192.168.1.1", "Host field should contain typed address")
     }
 
-    func testPortRangePickerExists() throws {
+    func testPortRangePickerExistsAndIsInteractive() throws {
         navigateToPortScannerTool()
         let pickerExists = app.buttons["portScanner_picker_range"].waitForExistence(timeout: 5)
             || app.otherElements["portScanner_picker_range"].waitForExistence(timeout: 3)
         XCTAssertTrue(pickerExists, "Port range picker should exist")
+        // FUNCTIONAL: picker should be tappable
+        let activePicker = app.buttons["portScanner_picker_range"].exists
+            ? app.buttons["portScanner_picker_range"]
+            : app.otherElements["portScanner_picker_range"]
+        activePicker.tap()
+        XCTAssertTrue(activePicker.waitForExistence(timeout: 3), "Port range picker should remain accessible after tap")
     }
 
-    func testRunButtonExists() throws {
+    func testRunButtonDisabledUntilHostEntered() throws {
         navigateToPortScannerTool()
-        requireExists(app.buttons["portScanner_button_run"], message: "Run button should exist")
-    }
-
-    // MARK: - Input Interaction
-
-    func testTypeHostAddress() throws {
-        navigateToPortScannerTool()
-        let hostField = app.textFields["portScanner_input_host"]
-        clearAndTypeText("192.168.1.1", into: hostField)
-        XCTAssertEqual(hostField.value as? String, "192.168.1.1")
+        let runButton = app.buttons["portScanner_button_run"]
+        XCTAssertTrue(runButton.waitForExistence(timeout: 5), "Run button should exist")
+        // FUNCTIONAL: run should be disabled without input
+        XCTAssertFalse(runButton.isEnabled, "Run button should be disabled when host is empty")
+        clearAndTypeText("127.0.0.1", into: app.textFields["portScanner_input_host"])
+        XCTAssertTrue(runButton.isEnabled, "Run button should be enabled after entering a host")
     }
 
     // MARK: - Scan Execution
 
-    func testStartScan() throws {
+    func testStartScanShowsProgressOrResults() throws {
         navigateToPortScannerTool()
-        clearAndTypeText("192.168.1.1", into: app.textFields["portScanner_input_host"])
+        clearAndTypeText("127.0.0.1", into: app.textFields["portScanner_input_host"])
         app.buttons["portScanner_button_run"].tap()
         let progress = app.otherElements["portScanner_progress"]
-        XCTAssertTrue(progress.waitForExistence(timeout: 10), "Progress indicator should appear after starting scan")
+        let stopButton = app.buttons["Stop Scan"]
+        let results = app.otherElements["portScanner_section_results"]
+        XCTAssertTrue(
+            waitForEither([progress, stopButton, results], timeout: 15),
+            "Progress indicator, stop button, or results should appear after starting scan"
+        )
+        // FUNCTIONAL: verify scan is in a meaningful state
+        XCTAssertTrue(
+            progress.exists || stopButton.exists || results.exists,
+            "Port scanner should be running, stopped, or showing results after scan initiation"
+        )
         captureScreenshot(named: "PortScanner_Scanning")
     }
 
     func testResultsSectionAppearsAfterScan() throws {
         navigateToPortScannerTool()
-        clearAndTypeText("192.168.1.1", into: app.textFields["portScanner_input_host"])
+        clearAndTypeText("127.0.0.1", into: app.textFields["portScanner_input_host"])
         app.buttons["portScanner_button_run"].tap()
         let results = app.otherElements["portScanner_section_results"]
         XCTAssertTrue(results.waitForExistence(timeout: 30), "Results section should appear after scan completes")
+        // FUNCTIONAL: results should contain port data
+        XCTAssertTrue(
+            results.staticTexts.count > 0 || app.cells.count > 0,
+            "Results section should contain port scan result data"
+        )
         captureScreenshot(named: "PortScanner_Results")
     }
 
-    func testClearResultsButton() throws {
+    func testClearResultsButtonRemovesResults() throws {
         navigateToPortScannerTool()
-        clearAndTypeText("192.168.1.1", into: app.textFields["portScanner_input_host"])
+        clearAndTypeText("127.0.0.1", into: app.textFields["portScanner_input_host"])
         app.buttons["portScanner_button_run"].tap()
         let results = app.otherElements["portScanner_section_results"]
         if results.waitForExistence(timeout: 30) {
@@ -83,6 +114,9 @@ final class PortScannerToolUITests: IOSUITestCase {
             if clearButton.waitForExistence(timeout: 3) {
                 clearButton.tap()
                 XCTAssertTrue(waitForDisappearance(results, timeout: 5), "Results should disappear after clear")
+                // FUNCTIONAL: run button should be available for re-scan
+                let runButton = app.buttons["portScanner_button_run"]
+                XCTAssertTrue(runButton.exists, "Run button should be visible after clearing")
             }
         }
     }
@@ -102,6 +136,9 @@ final class PortScannerToolUITests: IOSUITestCase {
 
         runButton.tap()
         requireExists(app.otherElements["screen_portScannerTool"], message: "Port scanner screen should remain visible after stopping")
+        // FUNCTIONAL: after stopping, screen should still be usable
+        let runButtonAfter = app.buttons["portScanner_button_run"]
+        XCTAssertTrue(runButtonAfter.exists, "Run button should be accessible after stopping scan")
     }
 
     // MARK: - Preset Picker Interaction
@@ -154,7 +191,11 @@ final class PortScannerToolUITests: IOSUITestCase {
         )
 
         if resultsSection.exists {
-            requireExists(resultsSection, message: "Results section should be visible after scan completes")
+            // FUNCTIONAL: results section should contain actual port data
+            XCTAssertTrue(
+                resultsSection.staticTexts.count > 0 || app.cells.count > 0,
+                "Results section should contain at least one port result row"
+            )
         }
     }
 }

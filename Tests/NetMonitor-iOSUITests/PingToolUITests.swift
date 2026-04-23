@@ -14,9 +14,19 @@ final class PingToolUITests: IOSUITestCase {
 
     // MARK: - Screen Existence
 
-    func testPingToolScreenExists() throws {
+    func testPingToolScreenExistsAndShowsContent() throws {
         navigateToPingTool()
-        requireExists(app.otherElements["screen_pingTool"], message: "Ping tool screen should exist")
+        let screen = app.otherElements["screen_pingTool"]
+        XCTAssertTrue(screen.waitForExistence(timeout: 5), "Ping tool screen should exist")
+        // FUNCTIONAL: screen should contain at least input field and run button
+        XCTAssertTrue(
+            app.textFields["pingTool_input_host"].waitForExistence(timeout: 3),
+            "Ping screen should show host input field"
+        )
+        XCTAssertTrue(
+            app.buttons["pingTool_button_run"].waitForExistence(timeout: 3),
+            "Ping screen should show run button"
+        )
     }
 
     func testNavigationTitleExists() throws {
@@ -26,21 +36,36 @@ final class PingToolUITests: IOSUITestCase {
 
     // MARK: - Input Elements
 
-    func testHostInputFieldExists() throws {
+    func testHostInputFieldAcceptsText() throws {
         navigateToPingTool()
-        requireExists(app.textFields["pingTool_input_host"], message: "Host input field should exist")
+        let hostField = app.textFields["pingTool_input_host"]
+        XCTAssertTrue(hostField.waitForExistence(timeout: 5), "Host input field should exist")
+        // FUNCTIONAL: verify field accepts and reflects typed text
+        clearAndTypeText("8.8.8.8", into: hostField)
+        XCTAssertEqual(hostField.value as? String, "8.8.8.8", "Host field should contain the typed IP address")
     }
 
-    func testPingCountPickerExists() throws {
+    func testPingCountPickerExistsAndIsInteractive() throws {
         navigateToPingTool()
         let pickerExists = app.buttons["pingTool_picker_count"].waitForExistence(timeout: 5)
             || app.otherElements["pingTool_picker_count"].waitForExistence(timeout: 3)
         XCTAssertTrue(pickerExists, "Ping count picker should exist")
+        // FUNCTIONAL: verify picker can be tapped
+        let activePicker = app.buttons["pingTool_picker_count"].exists
+            ? app.buttons["pingTool_picker_count"]
+            : app.otherElements["pingTool_picker_count"]
+        activePicker.tap()
+        // Picker options or the picker itself should still be visible
+        XCTAssertTrue(activePicker.waitForExistence(timeout: 3), "Ping count picker should remain accessible after tap")
     }
 
-    func testRunButtonExists() throws {
+    func testRunButtonDisabledUntilHostEntered() throws {
         navigateToPingTool()
-        requireExists(app.buttons["pingTool_button_run"], message: "Run button should exist")
+        let runButton = requireExists(app.buttons["pingTool_button_run"], message: "Run button should exist")
+        // FUNCTIONAL: run button should be disabled without input, enabled with input
+        XCTAssertFalse(runButton.isEnabled, "Run button should be disabled when host is empty")
+        clearAndTypeText("8.8.8.8", into: app.textFields["pingTool_input_host"])
+        XCTAssertTrue(runButton.isEnabled, "Run button should be enabled after entering a host")
     }
 
     // MARK: - Input Interaction
@@ -65,25 +90,37 @@ final class PingToolUITests: IOSUITestCase {
 
     // MARK: - Ping Execution
 
-    func testStartPing() throws {
+    func testStartPingProducesResults() throws {
         navigateToPingTool()
-        clearAndTypeText("8.8.8.8", into: app.textFields["pingTool_input_host"])
+        clearAndTypeText("127.0.0.1", into: app.textFields["pingTool_input_host"])
         app.buttons["pingTool_button_run"].tap()
         let resultsSection = app.otherElements["pingTool_section_results"]
         XCTAssertTrue(resultsSection.waitForExistence(timeout: 10), "Results section should appear after starting ping")
+        // FUNCTIONAL: results section should contain actual result content
+        XCTAssertTrue(
+            resultsSection.staticTexts.count > 0 || app.otherElements.matching(
+                NSPredicate(format: "identifier BEGINSWITH 'pingTool_row_'")
+            ).count > 0,
+            "Results section should contain ping result data"
+        )
     }
 
     func testPingStatisticsAppearAfterCompletion() throws {
         navigateToPingTool()
-        clearAndTypeText("8.8.8.8", into: app.textFields["pingTool_input_host"])
+        clearAndTypeText("127.0.0.1", into: app.textFields["pingTool_input_host"])
         app.buttons["pingTool_button_run"].tap()
         let statsCard = app.otherElements["pingTool_card_statistics"]
         XCTAssertTrue(statsCard.waitForExistence(timeout: 30), "Statistics card should appear after ping completes")
+        // FUNCTIONAL: stats card should contain statistical data
+        XCTAssertTrue(
+            statsCard.staticTexts.count > 0,
+            "Statistics card should contain min/avg/max statistics"
+        )
     }
 
-    func testClearResultsButton() throws {
+    func testClearResultsButtonRemovesResults() throws {
         navigateToPingTool()
-        clearAndTypeText("8.8.8.8", into: app.textFields["pingTool_input_host"])
+        clearAndTypeText("127.0.0.1", into: app.textFields["pingTool_input_host"])
         app.buttons["pingTool_button_run"].tap()
         let resultsSection = app.otherElements["pingTool_section_results"]
         if resultsSection.waitForExistence(timeout: 15) {
@@ -91,6 +128,10 @@ final class PingToolUITests: IOSUITestCase {
             if clearButton.waitForExistence(timeout: 30) {
                 clearButton.tap()
                 XCTAssertTrue(waitForDisappearance(resultsSection, timeout: 5), "Results section should disappear after clear")
+                // FUNCTIONAL: after clearing, run button should be available again
+                let runButton = app.buttons["pingTool_button_run"]
+                XCTAssertTrue(runButton.exists, "Run button should still be visible after clearing results")
+                XCTAssertTrue(runButton.isEnabled, "Run button should be enabled after clearing results")
             }
         }
     }
@@ -99,21 +140,24 @@ final class PingToolUITests: IOSUITestCase {
 
     func testChartAppearsAfterPings() throws {
         navigateToPingTool()
-        clearAndTypeText("8.8.8.8", into: app.textFields["pingTool_input_host"])
+        clearAndTypeText("127.0.0.1", into: app.textFields["pingTool_input_host"])
         app.buttons["pingTool_button_run"].tap()
         let chart = app.otherElements["pingTool_chart_latency"]
         XCTAssertTrue(chart.waitForExistence(timeout: 20), "Latency chart should appear after successful pings")
+        // FUNCTIONAL: chart should contain visual data
+        XCTAssertTrue(chart.exists, "Latency chart should be visible with ping data")
     }
 
     // MARK: - Enhanced Ping: Live Stats
 
     func testLiveStatsVisibleDuringPing() throws {
         navigateToPingTool()
-        clearAndTypeText("8.8.8.8", into: app.textFields["pingTool_input_host"])
+        clearAndTypeText("127.0.0.1", into: app.textFields["pingTool_input_host"])
         app.buttons["pingTool_button_run"].tap()
         let chart = app.otherElements["pingTool_chart_latency"]
         XCTAssertTrue(chart.waitForExistence(timeout: 20), "Chart should appear so stats are visible")
 
+        // FUNCTIONAL: at least one stat label should be visible
         let minStat = app.otherElements["pingTool_stat_min"].waitForExistence(timeout: 5)
             || app.staticTexts["pingTool_stat_min"].waitForExistence(timeout: 3)
         XCTAssertTrue(minStat, "Min stat should be visible during ping")
@@ -152,7 +196,7 @@ final class PingToolUITests: IOSUITestCase {
 
     func testStatsCardShowsSummaryAfterCompletion() throws {
         navigateToPingTool()
-        clearAndTypeText("8.8.8.8", into: app.textFields["pingTool_input_host"])
+        clearAndTypeText("127.0.0.1", into: app.textFields["pingTool_input_host"])
 
         let picker = app.buttons["pingTool_picker_count"]
         let pickerAlt = app.otherElements["pingTool_picker_count"]
@@ -169,13 +213,18 @@ final class PingToolUITests: IOSUITestCase {
         app.buttons["pingTool_button_run"].tap()
         let statsCard = app.otherElements["pingTool_card_statistics"]
         XCTAssertTrue(statsCard.waitForExistence(timeout: 30), "Statistics card should appear after ping completes")
+        // FUNCTIONAL: stats card should contain actual numeric values
+        XCTAssertTrue(
+            statsCard.staticTexts.count > 0,
+            "Stats card should display min/avg/max values"
+        )
     }
 
     // MARK: - Enhanced Ping: Clear Removes Chart
 
-    func testClearRemovesChart() throws {
+    func testClearRemovesChartAndResults() throws {
         navigateToPingTool()
-        clearAndTypeText("8.8.8.8", into: app.textFields["pingTool_input_host"])
+        clearAndTypeText("127.0.0.1", into: app.textFields["pingTool_input_host"])
         app.buttons["pingTool_button_run"].tap()
 
         let chart = app.otherElements["pingTool_chart_latency"]
@@ -186,6 +235,11 @@ final class PingToolUITests: IOSUITestCase {
         clearButton.tap()
 
         XCTAssertTrue(waitForDisappearance(chart, timeout: 5), "Chart should disappear after clearing results")
+        // FUNCTIONAL: results section should also be gone
+        XCTAssertTrue(
+            waitForDisappearance(app.otherElements["pingTool_section_results"], timeout: 5),
+            "Results section should also disappear after clearing"
+        )
     }
 
     // MARK: - Picker Interaction

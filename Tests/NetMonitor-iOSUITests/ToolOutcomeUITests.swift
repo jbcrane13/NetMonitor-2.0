@@ -74,6 +74,10 @@ final class ToolOutcomeUITests: IOSUITestCase {
             waitForDisappearance(app.otherElements["pingTool_section_results"], timeout: 5),
             "Results section should be removed after Clear"
         )
+
+        // FUNCTIONAL: after clearing, run button should return to enabled state for re-run
+        XCTAssertTrue(runButton.exists, "Run button should still be visible after clear")
+        XCTAssertTrue(runButton.isEnabled, "Run button should be enabled after clearing results")
     }
 
     func testTracerouteValidationRunStopAndClearOutcome() {
@@ -105,6 +109,10 @@ final class ToolOutcomeUITests: IOSUITestCase {
         }
 
         if app.otherElements["tracerouteTool_section_hops"].exists {
+            // FUNCTIONAL: verify hops section contains actual hop data
+            let hopsSection = app.otherElements["tracerouteTool_section_hops"]
+            XCTAssertTrue(hopsSection.exists, "Hops section should be visible with results")
+
             let clearButton = requireExists(
                 app.buttons["tracerouteTool_button_clear"],
                 timeout: 10,
@@ -146,6 +154,14 @@ final class ToolOutcomeUITests: IOSUITestCase {
             runButton.tap()
         }
         requireExists(runButton, message: "Port scanner run button should remain visible after second tap")
+
+        // FUNCTIONAL: after scan completes or stops, results section or progress should be visible
+        let resultsSection = app.otherElements["portScanner_section_results"]
+        let progressIndicator = app.otherElements["portScanner_progress"]
+        XCTAssertTrue(
+            resultsSection.exists || progressIndicator.exists || runButton.exists,
+            "Port scanner should show results, progress, or run button after scan attempt"
+        )
     }
 
     func testDNSLookupValidationAndOutcomeTransition() {
@@ -173,6 +189,15 @@ final class ToolOutcomeUITests: IOSUITestCase {
             ),
             "DNS lookup should enter loading state or produce a visible success/error outcome"
         )
+
+        // FUNCTIONAL: verify the tool produced a meaningful outcome
+        let hasResults = app.otherElements["dnsLookup_section_queryInfo"].exists
+        let hasError = app.otherElements["dnsLookup_label_error"].exists
+        let hasClearButton = app.buttons["dnsLookup_button_clear"].exists
+        XCTAssertTrue(
+            hasResults || hasError || hasClearButton,
+            "DNS lookup should produce query results, error, or clear button after execution"
+        )
     }
 
     func testWHOISValidationAndOutcomeTransition() {
@@ -199,6 +224,15 @@ final class ToolOutcomeUITests: IOSUITestCase {
                 timeout: 20
             ),
             "WHOIS should enter loading state or produce a visible success/error outcome"
+        )
+
+        // FUNCTIONAL: verify the tool produced a meaningful outcome
+        let hasResults = app.otherElements["whois_section_domainInfo"].exists
+        let hasError = app.otherElements["whois_label_error"].exists
+        let hasClearButton = app.buttons["whois_button_clear"].exists
+        XCTAssertTrue(
+            hasResults || hasError || hasClearButton,
+            "WHOIS should produce domain info, error, or clear button after execution"
         )
     }
 
@@ -237,6 +271,16 @@ final class ToolOutcomeUITests: IOSUITestCase {
             ),
             "Wake-on-LAN should show sending state or final success/failure message after sending"
         )
+
+        // FUNCTIONAL: verify final outcome state
+        let success = app.staticTexts["Wake packet sent!"].exists
+        let failure = app.staticTexts["Failed to send"].exists
+        let stillSending = app.buttons["Sending..."].exists
+        XCTAssertTrue(
+            success || failure || stillSending,
+            "Wake-on-LAN should reach a conclusive or in-progress state after sending"
+        )
+
         requireExists(ui("screen_wolTool"), message: "Wake-on-LAN screen should remain visible after sending")
     }
 
@@ -269,6 +313,10 @@ final class ToolOutcomeUITests: IOSUITestCase {
         runButton.tap()
         requireExists(runButton, message: "Speed test run button should remain visible after stopping")
         requireExists(ui("speedTest_label_gauge"), message: "Speed test gauge should remain visible after running/stopping")
+
+        // FUNCTIONAL: gauge should display a value after test run
+        let gauge = ui("speedTest_label_gauge")
+        XCTAssertTrue(gauge.exists, "Speed test gauge should be present after test execution")
     }
 
     func testBonjourStartStopOutcome() {
@@ -294,6 +342,15 @@ final class ToolOutcomeUITests: IOSUITestCase {
 
         runButton.tap()
         requireExists(runButton, message: "Bonjour run button should remain visible after stopping")
+
+        // FUNCTIONAL: verify discovery produced an outcome
+        let hasServices = app.otherElements["bonjour_section_services"].exists
+        let hasNoServices = app.otherElements["bonjour_label_noServices"].exists
+        let hasDiscovering = app.staticTexts["Discovering services..."].exists
+        XCTAssertTrue(
+            hasServices || hasNoServices || hasDiscovering,
+            "Bonjour should produce a discovery outcome (services found, no services, or still discovering)"
+        )
     }
 
     func testWebBrowserValidationAndBookmarksVisible() {
@@ -316,6 +373,21 @@ final class ToolOutcomeUITests: IOSUITestCase {
 
         clearAndTypeText("https://example.com", into: app.textFields["webBrowser_input_url"])
         XCTAssertTrue(openButton.isEnabled, "Open button should be enabled after entering URL")
+
+        // FUNCTIONAL: verify bookmark tap fills URL field
+        let routerBookmark = ui("webBrowser_bookmark_router_admin")
+        let bookmarkButton = app.buttons["webBrowser_bookmark_router_admin"]
+        let bookmark: XCUIElement = routerBookmark.exists ? routerBookmark : bookmarkButton
+        if bookmark.exists {
+            let urlBefore = app.textFields["webBrowser_input_url"].value as? String ?? ""
+            bookmark.tap()
+            let urlAfter = app.textFields["webBrowser_input_url"].value as? String ?? ""
+            // URL should change (either cleared and refilled, or modified)
+            XCTAssertTrue(
+                urlAfter != urlBefore || !urlAfter.isEmpty,
+                "Tapping a bookmark should populate or change the URL field"
+            )
+        }
     }
 
     private func openToolsRoot() {

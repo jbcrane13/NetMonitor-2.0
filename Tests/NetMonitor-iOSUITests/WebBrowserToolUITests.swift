@@ -10,8 +10,18 @@ final class WebBrowserToolUITests: IOSUITestCase {
 
     // MARK: - Screen Existence
 
-    func testWebBrowserScreenExists() throws {
-        requireExists(ui("screen_webBrowser"), message: "Web browser screen should exist")
+    func testWebBrowserScreenExistsAndShowsControls() throws {
+        let screen = ui("screen_webBrowser")
+        XCTAssertTrue(screen.waitForExistence(timeout: 5), "Web browser screen should exist")
+        // FUNCTIONAL: screen should contain URL input and open button
+        XCTAssertTrue(
+            app.textFields["webBrowser_input_url"].waitForExistence(timeout: 3),
+            "Web browser screen should show URL input field"
+        )
+        XCTAssertTrue(
+            app.buttons["webBrowser_button_open"].waitForExistence(timeout: 3),
+            "Web browser screen should show open button"
+        )
     }
 
     func testNavigationTitleExists() throws {
@@ -20,34 +30,58 @@ final class WebBrowserToolUITests: IOSUITestCase {
 
     // MARK: - Input Elements
 
-    func testURLInputFieldExists() throws {
-        requireExists(app.textFields["webBrowser_input_url"], message: "URL input field should exist")
+    func testURLInputFieldAcceptsText() throws {
+        let urlField = requireExists(app.textFields["webBrowser_input_url"], message: "URL field should exist")
+        clearAndTypeText("https://example.com", into: urlField)
+        XCTAssertEqual(urlField.value as? String, "https://example.com", "URL field should contain typed URL")
     }
 
-    func testOpenButtonExists() throws {
-        requireExists(app.buttons["webBrowser_button_open"], message: "Open button should exist")
+    func testOpenButtonDisabledWithEmptyURL() throws {
+        let urlField = requireExists(app.textFields["webBrowser_input_url"], message: "URL field should exist")
+        let openButton = requireExists(app.buttons["webBrowser_button_open"], message: "Open button should exist")
+        // FUNCTIONAL: open button should be disabled with empty URL, enabled with URL
+        clearAndTypeText("", into: urlField)
+        XCTAssertFalse(openButton.isEnabled, "Open button should be disabled when URL field is empty")
+
+        clearAndTypeText("https://example.com", into: urlField)
+        XCTAssertTrue(openButton.isEnabled, "Open button should be enabled after entering URL")
     }
 
     // MARK: - Bookmarks Section
 
-    func testBookmarksSectionExists() throws {
+    func testBookmarksSectionExistsAndHasContent() throws {
         requireExists(ui("webBrowser_section_bookmarks"), message: "Bookmarks section should exist")
+        // FUNCTIONAL: bookmarks section should contain at least one bookmark
+        let bookmarkRows = app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier BEGINSWITH 'webBrowser_bookmark_'")
+        )
+        XCTAssertGreaterThan(bookmarkRows.count, 0, "Bookmarks section should contain at least one bookmark row")
     }
 
-    func testRouterAdminBookmarkExists() throws {
+    func testRouterAdminBookmarkExistsAndIsTappable() throws {
+        let routerBookmark = ui("webBrowser_bookmark_router_admin")
+        let bookmarkButton = app.buttons["webBrowser_bookmark_router_admin"]
         XCTAssertTrue(
-            ui("webBrowser_bookmark_router_admin").waitForExistence(timeout: 5) ||
-            app.buttons["webBrowser_bookmark_router_admin"].waitForExistence(timeout: 3),
+            routerBookmark.waitForExistence(timeout: 5) ||
+            bookmarkButton.waitForExistence(timeout: 3),
             "Router Admin bookmark should exist"
         )
+        // FUNCTIONAL: bookmark should be tappable
+        let bookmark = routerBookmark.exists ? routerBookmark : bookmarkButton
+        XCTAssertTrue(bookmark.isEnabled, "Router Admin bookmark should be tappable")
     }
 
-    func testSpeedTestBookmarkExists() throws {
+    func testSpeedTestBookmarkExistsAndIsTappable() throws {
+        let speedBookmark = ui("webBrowser_bookmark_speed_test")
+        let bookmarkButton = app.buttons["webBrowser_bookmark_speed_test"]
         XCTAssertTrue(
-            ui("webBrowser_bookmark_speed_test").waitForExistence(timeout: 5) ||
-            app.buttons["webBrowser_bookmark_speed_test"].waitForExistence(timeout: 3),
+            speedBookmark.waitForExistence(timeout: 5) ||
+            bookmarkButton.waitForExistence(timeout: 3),
             "Speed Test bookmark should exist"
         )
+        // FUNCTIONAL: bookmark should be tappable
+        let bookmark = speedBookmark.exists ? speedBookmark : bookmarkButton
+        XCTAssertTrue(bookmark.isEnabled, "Speed Test bookmark should be tappable")
     }
 
     // MARK: - Input Interaction
@@ -113,6 +147,8 @@ final class WebBrowserToolUITests: IOSUITestCase {
             bookmark = firstBookmarkRow
         }
 
+        // FUNCTIONAL: capture URL before and after tapping bookmark
+        let urlFieldBefore = app.textFields["webBrowser_input_url"].value as? String ?? ""
         bookmark.tap()
 
         let urlField = requireExists(
@@ -125,6 +161,9 @@ final class WebBrowserToolUITests: IOSUITestCase {
             fieldValue.isEmpty || fieldValue == urlField.placeholderValue,
             "URL field should be populated after tapping a bookmark"
         )
+        // FUNCTIONAL: URL should have changed from before
+        XCTAssertNotEqual(fieldValue, urlFieldBefore,
+                         "URL field value should change after tapping a bookmark")
     }
 
     func testOpenButtonEnabledAfterURLEntry() {

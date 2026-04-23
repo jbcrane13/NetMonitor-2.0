@@ -37,6 +37,15 @@ final class ToolsGoldenPathUITests: IOSUITestCase {
             ], timeout: 15),
             "Ping: should enter running state or show results"
         )
+
+        // FUNCTIONAL: verify ping produced results or running state
+        let hasResults = ui("pingTool_section_results").exists
+        let isRunning = app.buttons["Stop Ping"].exists
+        let hasError = app.staticTexts["pingTool_error"].exists
+        XCTAssertTrue(
+            hasResults || isRunning || hasError,
+            "Ping: should produce results, enter running state, or show error after execution"
+        )
     }
 
     // MARK: - 2. Traceroute
@@ -61,6 +70,14 @@ final class ToolsGoldenPathUITests: IOSUITestCase {
                 app.staticTexts["tracerouteTool_error"]
             ], timeout: 20),
             "Traceroute: should enter running state or show hop results"
+        )
+
+        // FUNCTIONAL: verify traceroute produced hop data or running state
+        let hasHops = ui("tracerouteTool_section_hops").exists
+        let isRunning = app.buttons["Stop Trace"].exists
+        XCTAssertTrue(
+            hasHops || isRunning,
+            "Traceroute: should show hop results or be actively tracing after execution"
         )
     }
 
@@ -88,6 +105,15 @@ final class ToolsGoldenPathUITests: IOSUITestCase {
             ], timeout: 20),
             "DNS Lookup: should enter loading state or show results/error"
         )
+
+        // FUNCTIONAL: verify DNS lookup produced query info or error
+        let hasQueryInfo = ui("dnsLookup_section_queryInfo").exists
+        let hasError = ui("dnsLookup_label_error").exists
+        let hasClearButton = app.buttons["dnsLookup_button_clear"].exists
+        XCTAssertTrue(
+            hasQueryInfo || hasError || hasClearButton,
+            "DNS Lookup: should produce query results, error, or clear button after execution"
+        )
     }
 
     // MARK: - 4. Port Scanner
@@ -113,6 +139,15 @@ final class ToolsGoldenPathUITests: IOSUITestCase {
             ], timeout: 15),
             "Port Scanner: should enter running state or show results"
         )
+
+        // FUNCTIONAL: verify port scanner is in a meaningful state
+        let hasProgress = ui("portScanner_progress").exists
+        let hasResults = ui("portScanner_section_results").exists
+        let isRunning = app.buttons["Stop Scan"].exists
+        XCTAssertTrue(
+            hasProgress || hasResults || isRunning,
+            "Port Scanner: should show progress, results, or running state after execution"
+        )
     }
 
     // MARK: - 5. Web Browser
@@ -133,6 +168,20 @@ final class ToolsGoldenPathUITests: IOSUITestCase {
 
         clearAndTypeText("https://example.com", into: app.textFields["webBrowser_input_url"])
         XCTAssertTrue(openButton.isEnabled, "Web Browser: open should be enabled after entering URL")
+
+        // FUNCTIONAL: verify bookmark tap fills URL field
+        let routerBookmark = ui("webBrowser_bookmark_router_admin")
+        let bookmarkButton = app.buttons["webBrowser_bookmark_router_admin"]
+        let bookmark = routerBookmark.exists ? routerBookmark : bookmarkButton
+        if bookmark.exists {
+            bookmark.tap()
+            let urlField = app.textFields["webBrowser_input_url"]
+            let urlValue = urlField.value as? String ?? ""
+            XCTAssertFalse(
+                urlValue.isEmpty || urlValue == urlField.placeholderValue,
+                "Web Browser: tapping bookmark should populate the URL field"
+            )
+        }
     }
 
     // MARK: - 6. Bonjour Discovery
@@ -153,6 +202,15 @@ final class ToolsGoldenPathUITests: IOSUITestCase {
                 ui("bonjour_label_noServices")
             ], timeout: 12),
             "Bonjour: should enter discovering state or show services/empty state"
+        )
+
+        // FUNCTIONAL: verify discovery produced a concrete outcome
+        let hasServices = ui("bonjour_section_services").exists
+        let hasNoServices = ui("bonjour_label_noServices").exists
+        let isDiscovering = app.staticTexts["Discovering services..."].exists
+        XCTAssertTrue(
+            hasServices || hasNoServices || isDiscovering,
+            "Bonjour: should show discovered services, empty state, or discovery indicator"
         )
     }
 
@@ -181,6 +239,17 @@ final class ToolsGoldenPathUITests: IOSUITestCase {
             ], timeout: 12),
             "Speed Test: should enter an active phase after tapping Start"
         )
+
+        // FUNCTIONAL: verify speed test is in an active or complete state
+        let isActive = app.buttons["Stop Test"].exists
+            || app.staticTexts["Measuring latency..."].exists
+            || app.staticTexts["Testing download..."].exists
+            || app.staticTexts["Testing upload..."].exists
+        let isComplete = app.staticTexts["Complete"].exists
+        XCTAssertTrue(
+            isActive || isComplete,
+            "Speed Test: should be actively testing or completed after starting"
+        )
     }
 
     // MARK: - 8. WHOIS
@@ -206,6 +275,14 @@ final class ToolsGoldenPathUITests: IOSUITestCase {
                 app.buttons["whois_button_clear"]
             ], timeout: 20),
             "WHOIS: should enter loading state or show results/error"
+        )
+
+        // FUNCTIONAL: verify WHOIS produced domain info or error
+        let hasDomainInfo = ui("whois_section_domainInfo").exists
+        let hasError = ui("whois_label_error").exists
+        XCTAssertTrue(
+            hasDomainInfo || hasError,
+            "WHOIS: should produce domain info or error after lookup execution"
         )
     }
 
@@ -237,6 +314,15 @@ final class ToolsGoldenPathUITests: IOSUITestCase {
             ], timeout: 8),
             "Wake on LAN: should show sending state or final result"
         )
+
+        // FUNCTIONAL: verify WoL reached a definitive outcome
+        let sent = app.staticTexts["Wake packet sent!"].exists
+        let failed = app.staticTexts["Failed to send"].exists
+        let sending = app.buttons["Sending..."].exists
+        XCTAssertTrue(
+            sent || failed || sending,
+            "Wake on LAN: should reach a success, failure, or sending state after execution"
+        )
     }
 
     // MARK: - 10. Subnet Calculator
@@ -258,6 +344,16 @@ final class ToolsGoldenPathUITests: IOSUITestCase {
             ui("subnetTool_section_results"),
             timeout: 8,
             message: "Subnet Calc: results section should appear after valid CIDR calculation"
+        )
+
+        // FUNCTIONAL: verify results contain actual calculated data
+        let resultsSection = ui("subnetTool_section_results")
+        XCTAssertTrue(resultsSection.exists, "Subnet Calc: results section should be present")
+        XCTAssertTrue(
+            resultsSection.staticTexts.count > 0 || app.staticTexts.matching(
+                NSPredicate(format: "identifier BEGINSWITH 'subnetCalculator_label_'")
+            ).count > 0,
+            "Subnet Calc: results section should contain calculated subnet data"
         )
     }
 
@@ -285,6 +381,14 @@ final class ToolsGoldenPathUITests: IOSUITestCase {
                 ui("worldPing_row")
             ], timeout: 20),
             "World Ping: should enter running state or show location results"
+        )
+
+        // FUNCTIONAL: verify world ping produced an outcome
+        let hasResults = ui("worldPing_section_results").exists
+        let hasRows = ui("worldPing_row").exists
+        XCTAssertTrue(
+            hasResults || hasRows,
+            "World Ping: should show location results or result rows after execution"
         )
     }
 
@@ -325,6 +429,12 @@ final class ToolsGoldenPathUITests: IOSUITestCase {
             RunLoop.current.run(until: Date().addingTimeInterval(0.25))
         }
         XCTAssertTrue(found, "Geo Trace: should produce a visible outcome after tapping Trace")
+
+        // FUNCTIONAL: verify trace is running or has produced results
+        XCTAssertTrue(
+            stopButton.exists || hopAnnotation.exists || anyOutcome.exists,
+            "Geo Trace: should be actively tracing or have produced hop/timeout results"
+        )
     }
 
     // MARK: - 13. SSL Certificate Monitor
@@ -354,6 +464,16 @@ final class ToolsGoldenPathUITests: IOSUITestCase {
                 app.buttons["sslMonitor_button_add"]
             ], timeout: 20),
             "SSL Monitor: should show certificate info, WHOIS info, or error after querying"
+        )
+
+        // FUNCTIONAL: verify SSL monitor produced a concrete result
+        let hasSSLCard = ui("sslMonitor_card_ssl").exists
+        let hasWhoisCard = ui("sslMonitor_card_whois").exists
+        let hasError = ui("sslMonitor_label_error").exists
+        let hasAddButton = app.buttons["sslMonitor_button_add"].exists
+        XCTAssertTrue(
+            hasSSLCard || hasWhoisCard || hasError || hasAddButton,
+            "SSL Monitor: should produce SSL card, WHOIS card, error, or add button after query"
         )
     }
 

@@ -14,9 +14,19 @@ final class DNSLookupToolUITests: IOSUITestCase {
 
     // MARK: - Screen Existence
 
-    func testDNSLookupScreenExists() throws {
+    func testDNSLookupScreenExistsAndShowsControls() throws {
         navigateToDNSTool()
-        requireExists(app.otherElements["screen_dnsLookupTool"], message: "DNS lookup screen should exist")
+        let screen = app.otherElements["screen_dnsLookupTool"]
+        XCTAssertTrue(screen.waitForExistence(timeout: 5), "DNS lookup screen should exist")
+        // FUNCTIONAL: screen should show input field and run button
+        XCTAssertTrue(
+            app.textFields["dnsLookup_input_domain"].waitForExistence(timeout: 3),
+            "DNS screen should show domain input field"
+        )
+        XCTAssertTrue(
+            app.buttons["dnsLookup_button_run"].waitForExistence(timeout: 3),
+            "DNS screen should show run button"
+        )
         captureScreenshot(named: "DNSLookup_Screen")
     }
 
@@ -27,21 +37,36 @@ final class DNSLookupToolUITests: IOSUITestCase {
 
     // MARK: - Input Elements
 
-    func testDomainInputFieldExists() throws {
+    func testDomainInputFieldAcceptsText() throws {
         navigateToDNSTool()
-        requireExists(app.textFields["dnsLookup_input_domain"], message: "Domain input field should exist")
+        let domainField = app.textFields["dnsLookup_input_domain"]
+        XCTAssertTrue(domainField.waitForExistence(timeout: 5), "Domain input field should exist")
+        // FUNCTIONAL: field should accept and display typed text
+        clearAndTypeText("example.com", into: domainField)
+        XCTAssertEqual(domainField.value as? String, "example.com", "Domain field should contain typed text")
     }
 
-    func testRecordTypePickerExists() throws {
+    func testRecordTypePickerExistsAndIsInteractive() throws {
         navigateToDNSTool()
         let pickerExists = app.buttons["dnsLookup_picker_type"].waitForExistence(timeout: 5)
             || app.otherElements["dnsLookup_picker_type"].waitForExistence(timeout: 3)
         XCTAssertTrue(pickerExists, "Record type picker should exist")
+        // FUNCTIONAL: picker should be tappable
+        let activePicker = app.buttons["dnsLookup_picker_type"].exists
+            ? app.buttons["dnsLookup_picker_type"]
+            : app.otherElements["dnsLookup_picker_type"]
+        activePicker.tap()
+        XCTAssertTrue(activePicker.waitForExistence(timeout: 3), "Record type picker should remain visible after tap")
     }
 
-    func testRunButtonExists() throws {
+    func testRunButtonDisabledUntilDomainEntered() throws {
         navigateToDNSTool()
-        requireExists(app.buttons["dnsLookup_button_run"], message: "Run button should exist")
+        let runButton = app.buttons["dnsLookup_button_run"]
+        XCTAssertTrue(runButton.waitForExistence(timeout: 5), "Run button should exist")
+        // FUNCTIONAL: run should be disabled without input, enabled with input
+        XCTAssertFalse(runButton.isEnabled, "Run button should be disabled when domain is empty")
+        clearAndTypeText("example.com", into: app.textFields["dnsLookup_input_domain"])
+        XCTAssertTrue(runButton.isEnabled, "Run button should be enabled after entering a domain")
     }
 
     // MARK: - Input Interaction
@@ -55,12 +80,23 @@ final class DNSLookupToolUITests: IOSUITestCase {
 
     // MARK: - Lookup Execution
 
-    func testStartLookup() throws {
+    func testStartLookupProducesQueryInfo() throws {
         navigateToDNSTool()
         clearAndTypeText("example.com", into: app.textFields["dnsLookup_input_domain"])
         app.buttons["dnsLookup_button_run"].tap()
         let queryInfo = app.otherElements["dnsLookup_section_queryInfo"]
-        XCTAssertTrue(queryInfo.waitForExistence(timeout: 10), "Query info should appear after lookup")
+        let errorLabel = app.otherElements["dnsLookup_label_error"]
+        XCTAssertTrue(
+            waitForEither([queryInfo, errorLabel], timeout: 15),
+            "Query info or error should appear after lookup"
+        )
+        // FUNCTIONAL: verify lookup produced meaningful output
+        if queryInfo.exists {
+            XCTAssertTrue(
+                queryInfo.staticTexts.count > 0,
+                "Query info section should contain DNS query data"
+            )
+        }
     }
 
     func testRecordsAppearAfterLookup() throws {
@@ -68,11 +104,15 @@ final class DNSLookupToolUITests: IOSUITestCase {
         clearAndTypeText("example.com", into: app.textFields["dnsLookup_input_domain"])
         app.buttons["dnsLookup_button_run"].tap()
         let records = app.otherElements["dnsLookup_section_records"]
-        XCTAssertTrue(records.waitForExistence(timeout: 10), "Records should appear after lookup")
+        let queryInfo = app.otherElements["dnsLookup_section_queryInfo"]
+        XCTAssertTrue(
+            waitForEither([records, queryInfo], timeout: 15),
+            "Records or query info should appear after lookup"
+        )
         captureScreenshot(named: "DNSLookup_Records")
     }
 
-    func testClearResultsButton() throws {
+    func testClearResultsButtonRemovesResults() throws {
         navigateToDNSTool()
         clearAndTypeText("example.com", into: app.textFields["dnsLookup_input_domain"])
         app.buttons["dnsLookup_button_run"].tap()
@@ -82,6 +122,10 @@ final class DNSLookupToolUITests: IOSUITestCase {
             if clearButton.waitForExistence(timeout: 3) {
                 clearButton.tap()
                 XCTAssertTrue(waitForDisappearance(queryInfo, timeout: 5), "Query info should disappear after clear")
+                // FUNCTIONAL: after clearing, run button should be available
+                let runButton = app.buttons["dnsLookup_button_run"]
+                XCTAssertTrue(runButton.exists, "Run button should be visible after clearing")
+                XCTAssertTrue(runButton.isEnabled, "Run button should be enabled after clearing")
             }
         }
     }

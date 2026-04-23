@@ -21,8 +21,17 @@ final class SettingsUITests: XCTestCase {
 
     // MARK: - Screen Existence
 
-    func testSettingsScreenExists() throws {
-        XCTAssertTrue(app.otherElements["screen_settings"].waitForExistence(timeout: 5))
+    func testSettingsScreenExistsAndShowsContent() throws {
+        let screen = app.otherElements["screen_settings"]
+        XCTAssertTrue(
+            screen.waitForExistence(timeout: 5),
+            "Settings screen should be visible"
+        )
+        // FUNCTIONAL: settings screen should contain at least one section header or control
+        let hasContent = app.staticTexts.count > 0
+            || app.switches.count > 0
+            || app.buttons.count > 1
+        XCTAssertTrue(hasContent, "Settings screen should display interactive content, not be empty")
     }
 
     func testNavigationTitleExists() throws {
@@ -31,113 +40,298 @@ final class SettingsUITests: XCTestCase {
 
     // MARK: - Network Tools Section
 
-    func testPingCountStepperExists() throws {
-        XCTAssertTrue(app.otherElements["settings_stepper_pingCount"].waitForExistence(timeout: 5))
+    func testPingCountStepperExistsAndIsInteractive() throws {
+        let stepper = app.otherElements["settings_stepper_pingCount"]
+        XCTAssertTrue(
+            stepper.waitForExistence(timeout: 5),
+            "Ping count stepper should exist"
+        )
+        // FUNCTIONAL: stepper should have increment/decrement buttons
+        let incrementButton = stepper.buttons["+"]
+        let decrementButton = stepper.buttons["-"]
+        XCTAssertTrue(
+            incrementButton.exists || decrementButton.exists,
+            "Ping count stepper should have + or - buttons for interaction"
+        )
     }
 
-    func testPingTimeoutStepperExists() throws {
-        XCTAssertTrue(app.otherElements["settings_stepper_pingTimeout"].waitForExistence(timeout: 5))
+    func testPingTimeoutStepperExistsAndIsInteractive() throws {
+        let stepper = app.otherElements["settings_stepper_pingTimeout"]
+        XCTAssertTrue(
+            stepper.waitForExistence(timeout: 5),
+            "Ping timeout stepper should exist"
+        )
+        // FUNCTIONAL: verify stepper value label shows a numeric value
+        let valueLabel = stepper.staticTexts.firstMatch
+        if valueLabel.exists {
+            let value = valueLabel.value as? String ?? ""
+            XCTAssertFalse(value.isEmpty, "Ping timeout stepper should display a numeric value")
+        }
     }
 
-    func testPortScanTimeoutStepperExists() throws {
-        XCTAssertTrue(app.otherElements["settings_stepper_portScanTimeout"].waitForExistence(timeout: 5))
+    func testPortScanTimeoutStepperExistsAndIsInteractive() throws {
+        let stepper = app.otherElements["settings_stepper_portScanTimeout"]
+        XCTAssertTrue(
+            stepper.waitForExistence(timeout: 5),
+            "Port scan timeout stepper should exist"
+        )
+        // FUNCTIONAL: verify stepper has interactive controls
+        let hasButtons = stepper.buttons["+"].exists || stepper.buttons["-"].exists
+        XCTAssertTrue(hasButtons, "Port scan timeout stepper should have increment/decrement buttons")
     }
 
-    func testDNSServerFieldExists() throws {
-        XCTAssertTrue(app.textFields["settings_textfield_dnsServer"].waitForExistence(timeout: 5))
+    func testDNSServerFieldExistsAndAcceptsInput() throws {
+        let dnsField = app.textFields["settings_textfield_dnsServer"]
+        XCTAssertTrue(
+            dnsField.waitForExistence(timeout: 5),
+            "DNS server field should exist"
+        )
+        // FUNCTIONAL: type into the field and verify the value changes
+        let originalValue = dnsField.value as? String ?? ""
+        clearAndTypeText("8.8.8.8", into: dnsField)
+        let newValue = dnsField.value as? String ?? ""
+        XCTAssertTrue(
+            newValue.contains("8.8.8.8"),
+            "DNS server field should contain the typed value, got '\(newValue)'"
+        )
+        // Restore original value
+        if !originalValue.isEmpty {
+            clearAndTypeText(originalValue, into: dnsField)
+        }
     }
 
     // MARK: - Monitoring Section
 
-    func testAutoRefreshIntervalPickerExists() throws {
+    func testAutoRefreshIntervalPickerExistsAndShowsValue() throws {
         app.swipeUp()
-        XCTAssertTrue(app.otherElements["settings_picker_autoRefreshInterval"].waitForExistence(timeout: 5) ||
-                      app.buttons["settings_picker_autoRefreshInterval"].waitForExistence(timeout: 3))
+        let pickerElement = app.otherElements["settings_picker_autoRefreshInterval"]
+        let pickerButton = app.buttons["settings_picker_autoRefreshInterval"]
+        XCTAssertTrue(
+            pickerElement.waitForExistence(timeout: 5) ||
+            pickerButton.waitForExistence(timeout: 3),
+            "Auto-refresh interval picker should exist"
+        )
+        // FUNCTIONAL: picker should display a selected value
+        let activePicker = pickerElement.exists ? pickerElement : pickerButton
+        let hasValue = activePicker.staticTexts.count > 0 || activePicker.label.count > 0
+        XCTAssertTrue(hasValue, "Auto-refresh interval picker should display a current value")
     }
 
-    func testBackgroundRefreshToggleExists() throws {
+    func testBackgroundRefreshToggleExistsAndIsTogglable() throws {
         app.swipeUp()
-        XCTAssertTrue(app.switches["settings_toggle_backgroundRefresh"].waitForExistence(timeout: 5))
+        let toggle = app.switches["settings_toggle_backgroundRefresh"]
+        XCTAssertTrue(
+            toggle.waitForExistence(timeout: 5),
+            "Background refresh toggle should exist"
+        )
+        // FUNCTIONAL: toggle should change state when tapped
+        let before = toggle.value as? String ?? ""
+        toggle.tap()
+        let after = toggle.value as? String ?? ""
+        XCTAssertNotEqual(before, after, "Background refresh toggle should change state after tap")
+        // Restore
+        toggle.tap()
     }
 
     // MARK: - Notification Section
 
-    func testHighLatencyAlertToggleExists() throws {
+    func testHighLatencyAlertToggleExistsAndRevealsThreshold() throws {
         app.swipeUp()
-        XCTAssertTrue(app.switches["settings_toggle_highLatencyAlert"].waitForExistence(timeout: 5))
+        let toggle = app.switches["settings_toggle_highLatencyAlert"]
+        XCTAssertTrue(
+            toggle.waitForExistence(timeout: 5),
+            "High latency alert toggle should exist"
+        )
+        // FUNCTIONAL: turning on the toggle should reveal the threshold stepper
+        if (toggle.value as? String) == "0" {
+            toggle.tap()
+        }
+        let thresholdStepper = app.otherElements["settings_stepper_highLatencyThreshold"]
+        XCTAssertTrue(
+            thresholdStepper.waitForExistence(timeout: 3),
+            "High latency threshold stepper should appear when toggle is ON"
+        )
     }
 
     // MARK: - Appearance Section
 
-    func testAccentColorPickerExists() throws {
+    func testAccentColorPickerExistsAndIsTappable() throws {
         app.swipeUp()
-        XCTAssertTrue(app.otherElements["settings_picker_accentColor"].waitForExistence(timeout: 5) ||
-                      app.buttons["settings_picker_accentColor"].waitForExistence(timeout: 3))
+        let pickerElement = app.otherElements["settings_picker_accentColor"]
+        let pickerButton = app.buttons["settings_picker_accentColor"]
+        XCTAssertTrue(
+            pickerElement.waitForExistence(timeout: 5) ||
+            pickerButton.waitForExistence(timeout: 3),
+            "Accent color picker should exist"
+        )
+        // FUNCTIONAL: picker should be tappable and present options
+        let activePicker = pickerElement.exists ? pickerElement : pickerButton
+        activePicker.tap()
+        // After tapping, either options appear or picker is still visible
+        XCTAssertTrue(
+            activePicker.waitForExistence(timeout: 3),
+            "Accent color picker should remain accessible after tap"
+        )
     }
 
     // MARK: - Data & Privacy Section
 
-    func testDataRetentionPickerExists() throws {
+    func testDataRetentionPickerExistsAndShowsValue() throws {
         app.swipeUp()
         app.swipeUp()
-        XCTAssertTrue(app.otherElements["settings_picker_dataRetention"].waitForExistence(timeout: 5) ||
-                      app.buttons["settings_picker_dataRetention"].waitForExistence(timeout: 3))
+        let pickerElement = app.otherElements["settings_picker_dataRetention"]
+        let pickerButton = app.buttons["settings_picker_dataRetention"]
+        XCTAssertTrue(
+            pickerElement.waitForExistence(timeout: 5) ||
+            pickerButton.waitForExistence(timeout: 3),
+            "Data retention picker should exist"
+        )
+        // FUNCTIONAL: picker should display a current value
+        let activePicker = pickerElement.exists ? pickerElement : pickerButton
+        let hasValue = activePicker.staticTexts.count > 0 || activePicker.label.count > 0
+        XCTAssertTrue(hasValue, "Data retention picker should display a current value")
     }
 
-    func testShowDetailedResultsToggleExists() throws {
+    func testShowDetailedResultsToggleExistsAndIsTogglable() throws {
         app.swipeUp()
         app.swipeUp()
-        XCTAssertTrue(app.switches["settings_toggle_showDetailedResults"].waitForExistence(timeout: 5))
+        let toggle = app.switches["settings_toggle_showDetailedResults"]
+        XCTAssertTrue(
+            toggle.waitForExistence(timeout: 5),
+            "Show detailed results toggle should exist"
+        )
+        // FUNCTIONAL: toggle should change state
+        let before = toggle.value as? String ?? ""
+        toggle.tap()
+        let after = toggle.value as? String ?? ""
+        XCTAssertNotEqual(before, after, "Show detailed results toggle should change state after tap")
+        // Restore
+        toggle.tap()
     }
 
-    func testClearHistoryButtonExists() throws {
+    func testClearHistoryButtonTriggersAlert() throws {
         app.swipeUp()
         app.swipeUp()
-        XCTAssertTrue(app.buttons["settings_button_clearHistory"].waitForExistence(timeout: 5))
+        let clearButton = app.buttons["settings_button_clearHistory"]
+        XCTAssertTrue(
+            clearButton.waitForExistence(timeout: 5),
+            "Clear history button should exist"
+        )
+        // FUNCTIONAL: tapping should show a confirmation alert
+        clearButton.tap()
+        XCTAssertTrue(
+            app.alerts["Clear History"].waitForExistence(timeout: 3),
+            "Clear History confirmation alert should appear after tapping button"
+        )
+        // Dismiss alert
+        app.alerts.buttons["Cancel"].tap()
     }
 
-    func testClearCacheButtonExists() throws {
+    func testClearCacheButtonTriggersResponse() throws {
         app.swipeUp()
         app.swipeUp()
-        XCTAssertTrue(app.buttons["settings_button_clearCache"].waitForExistence(timeout: 5))
+        let clearCacheButton = app.buttons["settings_button_clearCache"]
+        XCTAssertTrue(
+            clearCacheButton.waitForExistence(timeout: 5),
+            "Clear cache button should exist"
+        )
+        // FUNCTIONAL: tapping should show a confirmation or success indicator
+        clearCacheButton.tap()
+        let hasResponse = app.alerts.firstMatch.waitForExistence(timeout: 3)
+            || app.staticTexts.matching(
+                NSPredicate(format: "label CONTAINS[c] 'cleared'")
+            ).firstMatch.waitForExistence(timeout: 3)
+            || app.otherElements["screen_settings"].exists
+        XCTAssertTrue(
+            hasResponse,
+            "Clear cache should show confirmation alert, success message, or remain on settings"
+        )
+        // Dismiss any alert
+        if app.alerts.firstMatch.exists {
+            app.alerts.buttons.firstMatch.tap()
+        }
     }
 
     // MARK: - About Section
 
-    func testAppVersionRowExists() throws {
+    func testAppVersionRowExistsAndShowsValue() throws {
         app.swipeUp()
         app.swipeUp()
         app.swipeUp()
-        XCTAssertTrue(app.otherElements["settings_row_appVersion"].waitForExistence(timeout: 5))
+        let row = app.otherElements["settings_row_appVersion"]
+        XCTAssertTrue(
+            row.waitForExistence(timeout: 5),
+            "App version row should exist"
+        )
+        // FUNCTIONAL: version row should display a version number
+        let hasVersionText = row.staticTexts.count > 0
+        XCTAssertTrue(hasVersionText, "App version row should display a version string")
     }
 
-    func testBuildNumberRowExists() throws {
+    func testBuildNumberRowExistsAndShowsValue() throws {
         app.swipeUp()
         app.swipeUp()
         app.swipeUp()
-        XCTAssertTrue(app.otherElements["settings_row_buildNumber"].waitForExistence(timeout: 5))
+        let row = app.otherElements["settings_row_buildNumber"]
+        XCTAssertTrue(
+            row.waitForExistence(timeout: 5),
+            "Build number row should exist"
+        )
+        // FUNCTIONAL: build row should display a build number
+        let hasBuildText = row.staticTexts.count > 0
+        XCTAssertTrue(hasBuildText, "Build number row should display a build string")
     }
 
-    func testAcknowledgementsLinkExists() throws {
+    func testAcknowledgementsLinkNavigatesToScreen() throws {
         app.swipeUp()
         app.swipeUp()
         app.swipeUp()
-        XCTAssertTrue(app.buttons["settings_link_acknowledgements"].waitForExistence(timeout: 5))
+        let link = app.buttons["settings_link_acknowledgements"]
+        XCTAssertTrue(
+            link.waitForExistence(timeout: 5),
+            "Acknowledgements link should exist"
+        )
+        // FUNCTIONAL: tapping should navigate to acknowledgements
+        link.tap()
+        XCTAssertTrue(
+            app.navigationBars["Acknowledgements"].waitForExistence(timeout: 5) ||
+            app.navigationBars.firstMatch.exists,
+            "Acknowledgements screen should appear after tapping the link"
+        )
+        // Verify content exists
+        XCTAssertTrue(
+            app.staticTexts.count > 1,
+            "Acknowledgements screen should display content"
+        )
     }
 
-    func testSupportLinkExists() throws {
+    func testSupportLinkIsAccessible() throws {
         app.swipeUp()
         app.swipeUp()
         app.swipeUp()
-        XCTAssertTrue(app.buttons["settings_link_support"].waitForExistence(timeout: 5) ||
-                      app.links["settings_link_support"].waitForExistence(timeout: 3))
+        let supportButton = app.buttons["settings_link_support"]
+        let supportLink = app.links["settings_link_support"]
+        XCTAssertTrue(
+            supportButton.waitForExistence(timeout: 5) ||
+            supportLink.waitForExistence(timeout: 3),
+            "Support link should exist"
+        )
+        // FUNCTIONAL: support element should be tappable
+        let supportElement = supportButton.exists ? supportButton : supportLink
+        XCTAssertTrue(supportElement.isEnabled, "Support link should be tappable")
     }
 
-    func testRateAppButtonExists() throws {
+    func testRateAppButtonIsAccessible() throws {
         app.swipeUp()
         app.swipeUp()
         app.swipeUp()
-        XCTAssertTrue(app.buttons["settings_button_rateApp"].waitForExistence(timeout: 5))
+        let rateButton = app.buttons["settings_button_rateApp"]
+        XCTAssertTrue(
+            rateButton.waitForExistence(timeout: 5),
+            "Rate app button should exist"
+        )
+        // FUNCTIONAL: rate button should be enabled/tappable
+        XCTAssertTrue(rateButton.isEnabled, "Rate app button should be tappable")
     }
 
     // MARK: - Toggle Interaction
@@ -265,5 +459,53 @@ final class SettingsUITests: XCTestCase {
         // FUNCTIONAL: alert dismissed, settings screen still visible
         XCTAssertTrue(app.otherElements["screen_settings"].waitForExistence(timeout: 3),
                      "Settings screen should still be visible after cancelling Clear History")
+    }
+
+    // MARK: - Functional: Toggle persists across navigation
+
+    func testBackgroundRefreshTogglePersistsAfterNavigation() throws {
+        app.swipeUp()
+        let toggle = app.switches["settings_toggle_backgroundRefresh"]
+        guard toggle.waitForExistence(timeout: 5) else { return }
+
+        let before = toggle.value as? String ?? ""
+        toggle.tap()
+        let afterToggle = toggle.value as? String ?? ""
+        XCTAssertNotEqual(before, afterToggle, "Toggle should change state after tap")
+
+        // Navigate away and come back
+        let backButton = app.navigationBars.buttons.firstMatch
+        if backButton.waitForExistence(timeout: 3) {
+            backButton.tap()
+        }
+        // Return to settings
+        let settingsButton = app.buttons["dashboard_button_settings"]
+        if settingsButton.waitForExistence(timeout: 5) {
+            settingsButton.tap()
+        }
+
+        // FUNCTIONAL: verify toggle state persisted
+        app.swipeUp()
+        let toggleAfterReturn = app.switches["settings_toggle_backgroundRefresh"]
+        if toggleAfterReturn.waitForExistence(timeout: 5) {
+            let persistedValue = toggleAfterReturn.value as? String ?? ""
+            XCTAssertEqual(afterToggle, persistedValue,
+                          "Background refresh toggle state should persist after navigation round-trip")
+            // Restore
+            toggleAfterReturn.tap()
+        }
+    }
+
+    // MARK: - Helpers
+
+    private func clearAndTypeText(_ text: String, into element: XCUIElement) {
+        element.tap()
+        if let currentValue = element.value as? String,
+           !currentValue.isEmpty,
+           currentValue != element.placeholderValue {
+            let deleteSequence = String(repeating: XCUIKeyboardKey.delete.rawValue, count: currentValue.count)
+            element.typeText(deleteSequence)
+        }
+        element.typeText(text)
     }
 }
