@@ -1,5 +1,18 @@
 # Agent Instructions
 
+## ⚠️ Environment Note (All Agents)
+
+Hermes agent profiles set `$HOME` to an isolated directory (e.g. `/Users/blake/.hermes/profiles/<name>/home`). Tools that derive config paths from `$HOME` — especially **Claude Code** and **`gh` CLI** — will fail to find auth credentials.
+
+**Fix:** Prefix commands with `HOME=/Users/blake`:
+```bash
+HOME=/Users/blake claude auth status
+HOME=/Users/blake gh issue list --repo jbcrane13/NetMonitor-2.0
+HOME=/Users/blake claude --acp --stdio
+```
+
+---
+
 This project uses **GitHub Issues** (`gh` CLI) for issue tracking. Repo: `jbcrane13/NetMonitor-2.0`.
 
 ## Quick Reference
