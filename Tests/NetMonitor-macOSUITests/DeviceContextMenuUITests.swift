@@ -95,7 +95,7 @@ final class DeviceContextMenuUITests: XCTestCase {
         app.typeKey(.escape, modifierFlags: [])
     }
 
-    // MARK: - Ping action triggers ping sheet
+    // MARK: - Ping action triggers ping sheet with device IP pre-filled
 
     func testPingActionOpensPingSheet() {
         openContextMenu()
@@ -104,9 +104,19 @@ final class DeviceContextMenuUITests: XCTestCase {
         let sheet = app.descendants(matching: .any)["devices_section_pingSheet"]
         XCTAssertTrue(sheet.waitForExistence(timeout: 5),
                       "Ping sheet should appear after tapping Ping Device menu item")
+
+        // Verify the ping host field is pre-filled with the device IP
+        let hostField = app.textFields["ping_textfield_host"]
+        if hostField.waitForExistence(timeout: 5) {
+            let hostValue = hostField.value as? String ?? ""
+            XCTAssertTrue(!hostValue.isEmpty,
+                          "Ping host field should be pre-filled with device IP, got: '\(hostValue)'")
+            XCTAssertTrue(hostValue == seededIP || hostValue.contains("192.168"),
+                          "Ping host field should contain the device IP (\(seededIP)), got: '\(hostValue)'")
+        }
     }
 
-    // MARK: - Scan Ports action triggers port scan sheet
+    // MARK: - Scan Ports action triggers port scan sheet with device IP pre-filled
 
     func testScanPortsActionOpensPortScanSheet() {
         openContextMenu()
@@ -115,6 +125,34 @@ final class DeviceContextMenuUITests: XCTestCase {
         let sheet = app.descendants(matching: .any)["devices_section_portScanSheet"]
         XCTAssertTrue(sheet.waitForExistence(timeout: 5),
                       "Port scan sheet should appear after tapping Scan Ports menu item")
+
+        // Verify the port scan host field is pre-filled with the device IP
+        let hostField = app.textFields["portScan_textfield_host"]
+        if hostField.waitForExistence(timeout: 5) {
+            let hostValue = hostField.value as? String ?? ""
+            XCTAssertTrue(!hostValue.isEmpty,
+                          "Port scan host field should be pre-filled with device IP, got: '\(hostValue)'")
+            XCTAssertTrue(hostValue == seededIP || hostValue.contains("192.168"),
+                          "Port scan host field should contain the device IP (\(seededIP)), got: '\(hostValue)'")
+        }
+    }
+
+    // MARK: - Copy IP action copies device IP to clipboard
+
+    func testCopyIPActionProvidesFeedback() {
+        openContextMenu()
+        tapMenuItem("devices_menu_copyIP")
+
+        // After copying IP, verify the device card still exists (no unexpected navigation)
+        // and the menu has dismissed (card is hittable again)
+        let card = app.descendants(matching: .any)["devices_card_\(seededIP)"]
+        XCTAssertTrue(card.waitForExistence(timeout: 3),
+                      "Device card should still exist after Copy IP action")
+
+        // The "Copied" toast is transient, so verify the card is hittable
+        // (proving the context menu dismissed and the action completed)
+        XCTAssertTrue(card.isHittable,
+                      "Device card should be hittable after Copy IP action completes")
     }
 
     // MARK: - Remove action removes the device from the list

@@ -297,6 +297,34 @@ final class NetworkDetailFunctionalUITests: MacOSUITestCase {
         XCTAssertTrue(missingCards.isEmpty,
                      "Missing dashboard cards: \(missingCards.joined(separator: ", "))")
 
+        // Verify at least one card has real data (not just an empty container)
+        // Check ISP card for non-empty label content
+        let ispCard = app.otherElements["networkDetail_card_isp"]
+        if ispCard.exists {
+            let ispLabels = ispCard.staticTexts
+            let hasNonEmptyLabel = ispLabels.allElementsBoundByIndex.contains { !$0.label.isEmpty }
+            XCTAssertTrue(hasNonEmptyLabel,
+                          "ISP card should display non-empty text content")
+        }
+
+        // Check latency card for non-empty label content
+        let latencyCard = app.otherElements["networkDetail_card_latency"]
+        if latencyCard.exists {
+            let latencyLabels = latencyCard.staticTexts
+            let hasNonEmptyLabel = latencyLabels.allElementsBoundByIndex.contains { !$0.label.isEmpty }
+            XCTAssertTrue(hasNonEmptyLabel,
+                          "Latency card should display non-empty text content")
+        }
+
+        // Check connectivity card for non-empty label content
+        let connectivityCard = app.otherElements["networkDetail_card_connectivity"]
+        if connectivityCard.exists {
+            let connLabels = connectivityCard.staticTexts
+            let hasNonEmptyLabel = connLabels.allElementsBoundByIndex.contains { !$0.label.isEmpty }
+            XCTAssertTrue(hasNonEmptyLabel,
+                          "Connectivity card should display non-empty text content")
+        }
+
         captureScreenshot(named: "NetworkDetail_AllCards")
     }
 }

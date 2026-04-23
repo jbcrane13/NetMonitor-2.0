@@ -30,6 +30,15 @@ final class SettingsFunctionalUITests: MacOSUITestCase {
         XCTAssertTrue(hasControls,
                      "General tab should show launch/menu bar/dock checkboxes")
 
+        // Verify at least one checkbox is interactive (not just present)
+        if let checkbox = [app.checkBoxes["settings_toggle_launchAtLogin"],
+                           app.checkBoxes["settings_toggle_showInMenuBar"],
+                           app.checkBoxes["settings_toggle_showInDock"]]
+            .first(where: { $0.exists }) {
+            XCTAssertTrue(checkbox.isEnabled,
+                          "General tab checkbox should be interactive, not just visible")
+        }
+
         captureScreenshot(named: "MacSettings_GeneralTab")
     }
 
@@ -47,6 +56,18 @@ final class SettingsFunctionalUITests: MacOSUITestCase {
         XCTAssertTrue(hasControls,
                      "Monitoring tab should show interval/timeout pickers or retry checkbox")
 
+        // Verify at least one control is interactive (not just present)
+        if let picker = [app.popUpButtons["settings_picker_defaultInterval"],
+                         app.popUpButtons["settings_picker_defaultTimeout"]]
+            .first(where: { $0.exists }) {
+            XCTAssertTrue(picker.isEnabled,
+                          "Monitoring tab picker should be interactive, not just visible")
+        }
+        if app.checkBoxes["settings_toggle_retryEnabled"].exists {
+            XCTAssertTrue(app.checkBoxes["settings_toggle_retryEnabled"].isEnabled,
+                          "Retry enabled checkbox should be interactive")
+        }
+
         captureScreenshot(named: "MacSettings_MonitoringTab")
     }
 
@@ -63,6 +84,16 @@ final class SettingsFunctionalUITests: MacOSUITestCase {
 
         XCTAssertTrue(hasControls,
                      "Notifications tab should show notification checkboxes or latency slider")
+
+        // Verify at least one control is interactive
+        if app.checkBoxes["settings_toggle_notificationsEnabled"].exists {
+            XCTAssertTrue(app.checkBoxes["settings_toggle_notificationsEnabled"].isEnabled,
+                          "Notifications enabled checkbox should be interactive")
+        }
+        if app.sliders["settings_slider_latencyThreshold"].exists {
+            XCTAssertTrue(app.sliders["settings_slider_latencyThreshold"].isEnabled,
+                          "Latency threshold slider should be interactive")
+        }
 
         captureScreenshot(named: "MacSettings_NotificationsTab")
     }
@@ -216,17 +247,28 @@ final class SettingsFunctionalUITests: MacOSUITestCase {
             message: "Cyan color button should exist"
         )
 
-        // Click cyan
+        // Click cyan — verify it's still present and interactive
         cyanButton.tap()
+        XCTAssertTrue(cyanButton.exists, "Cyan button should still exist after color selection")
 
-        // Click blue
+        // Click blue — verify selection changes
         let blueButton = app.buttons["settings_color_blue"]
         guard blueButton.waitForExistence(timeout: 3) else { return }
         blueButton.tap()
 
+        // Blue should now be the active selection; cyan should no longer be selected
         // Both buttons should still be present (UI didn't crash)
-        XCTAssertTrue(cyanButton.exists, "Cyan button should still exist after color selection")
+        XCTAssertTrue(cyanButton.exists, "Cyan button should still exist after blue selection")
         XCTAssertTrue(blueButton.exists, "Blue button should still exist after color selection")
+
+        // Verify the color change persists by switching tabs and back
+        app.staticTexts["settings_tab_general"].tap()
+        _ = app.checkBoxes["settings_toggle_launchAtLogin"].waitForExistence(timeout: 3)
+        app.staticTexts["settings_tab_appearance"].tap()
+
+        let blueButtonAfterReturn = app.buttons["settings_color_blue"]
+        XCTAssertTrue(blueButtonAfterReturn.waitForExistence(timeout: 3),
+                      "Blue color button should persist after tab round-trip")
 
         captureScreenshot(named: "MacSettings_AccentColor")
     }

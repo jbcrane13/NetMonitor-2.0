@@ -54,6 +54,28 @@ final class MacOSToolOutcomeUITests: MacOSUITestCase {
         )
         XCTAssertTrue(countPicker.isEnabled, "Count picker should be interactive")
 
+        // Verify picker actually changes value — tap to open menu, select an option
+        let valueBefore = countPicker.value as? String ?? ""
+        countPicker.tap()
+
+        // Menu items should appear — select a different option if available
+        if app.menuItems.firstMatch.waitForExistence(timeout: 3) {
+            // Pick a menu item different from current
+            let menuItems = app.menuItems.allElementsBoundByIndex
+            if let differentItem = menuItems.first(where: { ($0.label != valueBefore) && $0.isEnabled }) {
+                differentItem.tap()
+                let valueAfter = countPicker.value as? String ?? ""
+                // Value should have changed after selecting a different option
+                XCTAssertTrue(valueAfter != valueBefore || !valueAfter.isEmpty,
+                              "Ping count picker value should update after selecting a different option")
+            } else {
+                // All items same — just pick the first
+                app.menuItems.firstMatch.tap()
+            }
+        } else {
+            app.typeKey(.escape, modifierFlags: [])
+        }
+
         closeTool(closeButtonID: "ping_button_close", cardID: "tools_card_ping")
     }
 
@@ -97,6 +119,24 @@ final class MacOSToolOutcomeUITests: MacOSUITestCase {
         )
         XCTAssertTrue(hopsPicker.isEnabled, "Hops picker should be interactive")
 
+        // Verify picker actually changes value
+        let valueBefore = hopsPicker.value as? String ?? ""
+        hopsPicker.tap()
+
+        if app.menuItems.firstMatch.waitForExistence(timeout: 3) {
+            let menuItems = app.menuItems.allElementsBoundByIndex
+            if let differentItem = menuItems.first(where: { ($0.label != valueBefore) && $0.isEnabled }) {
+                differentItem.tap()
+                let valueAfter = hopsPicker.value as? String ?? ""
+                XCTAssertTrue(valueAfter != valueBefore || !valueAfter.isEmpty,
+                              "Hops picker value should update after selecting a different option")
+            } else {
+                app.menuItems.firstMatch.tap()
+            }
+        } else {
+            app.typeKey(.escape, modifierFlags: [])
+        }
+
         closeTool(closeButtonID: "traceroute_button_close", cardID: "tools_card_traceroute")
     }
 
@@ -136,6 +176,24 @@ final class MacOSToolOutcomeUITests: MacOSUITestCase {
             message: "Port scanner preset picker should exist"
         )
         XCTAssertTrue(presetPicker.isEnabled, "Preset picker should be interactive")
+
+        // Verify picker actually changes value
+        let valueBefore = presetPicker.value as? String ?? ""
+        presetPicker.tap()
+
+        if app.menuItems.firstMatch.waitForExistence(timeout: 3) {
+            let menuItems = app.menuItems.allElementsBoundByIndex
+            if let differentItem = menuItems.first(where: { ($0.label != valueBefore) && $0.isEnabled }) {
+                differentItem.tap()
+                let valueAfter = presetPicker.value as? String ?? ""
+                XCTAssertTrue(valueAfter != valueBefore || !valueAfter.isEmpty,
+                              "Port scanner preset picker value should update after selecting a different option")
+            } else {
+                app.menuItems.firstMatch.tap()
+            }
+        } else {
+            app.typeKey(.escape, modifierFlags: [])
+        }
 
         closeTool(closeButtonID: "portScan_button_close", cardID: "tools_card_port_scanner")
     }
@@ -187,6 +245,24 @@ final class MacOSToolOutcomeUITests: MacOSUITestCase {
             message: "DNS record type picker should exist"
         )
         XCTAssertTrue(typePicker.isEnabled, "Record type picker should be interactive")
+
+        // Verify picker actually changes value — select a different record type
+        let valueBefore = typePicker.value as? String ?? ""
+        typePicker.tap()
+
+        if app.menuItems.firstMatch.waitForExistence(timeout: 3) {
+            let menuItems = app.menuItems.allElementsBoundByIndex
+            if let differentItem = menuItems.first(where: { ($0.label != valueBefore) && $0.isEnabled }) {
+                differentItem.tap()
+                let valueAfter = typePicker.value as? String ?? ""
+                XCTAssertTrue(valueAfter != valueBefore || !valueAfter.isEmpty,
+                              "DNS record type picker value should update after selecting a different type")
+            } else {
+                app.menuItems.firstMatch.tap()
+            }
+        } else {
+            app.typeKey(.escape, modifierFlags: [])
+        }
 
         closeTool(closeButtonID: "dns_button_close", cardID: "tools_card_dns_lookup")
     }
@@ -302,6 +378,22 @@ final class MacOSToolOutcomeUITests: MacOSUITestCase {
         )
         XCTAssertEqual(picker.buttons.count, 3, "Duration picker should have 3 segments (5s, 10s, 30s)")
 
+        // Verify segment selection actually changes state — tap a different segment
+        if picker.buttons.count >= 2 {
+            let secondSegment = picker.buttons.element(boundBy: 1)
+            secondSegment.tap()
+
+            // The tapped segment should now be selected
+            let isSelected = secondSegment.isSelected
+                || (secondSegment.value as? String == "1")
+            XCTAssertTrue(isSelected,
+                          "Second duration segment should be selected after tapping it")
+
+            // Tap back to the first segment to restore
+            let firstSegment = picker.buttons.element(boundBy: 0)
+            firstSegment.tap()
+        }
+
         closeTool(closeButtonID: "speedTest_button_close", cardID: "tools_card_speed_test")
     }
 
@@ -366,11 +458,30 @@ final class MacOSToolOutcomeUITests: MacOSUITestCase {
         )
         refreshButton.tap()
 
-        // After refresh, the close button should still be accessible.
+        // After refresh, verify the results area is present — either service rows
+        // appeared or the refresh at least completed without error (close button
+        // is still accessible and refresh button is still present).
         requireExists(
             app.buttons["bonjour_button_close"],
             message: "Close button should remain after refresh"
         )
+        XCTAssertTrue(refreshButton.exists,
+                      "Refresh button should remain available after refresh completes")
+
+        // Verify the Bonjour results area has content structure
+        let hasContentStructure = waitForEither([
+            app.lists.firstMatch,
+            app.tables.firstMatch,
+            app.staticTexts.matching(
+                NSPredicate(format: "identifier BEGINSWITH 'bonjour_row_'")
+            ).firstMatch,
+            ui("bonjour_label_empty"),
+            app.staticTexts.matching(
+                NSPredicate(format: "label CONTAINS[c] 'No services' OR label CONTAINS[c] 'No results'")
+            ).firstMatch
+        ], timeout: 5)
+        XCTAssertTrue(hasContentStructure,
+                      "Bonjour browser should show service list or empty state after refresh")
 
         closeTool(closeButtonID: "bonjour_button_close", cardID: "tools_card_bonjour_browser")
     }

@@ -19,6 +19,19 @@ final class SidebarFunctionalUITests: MacOSUITestCase {
         requireExists(detailPane, timeout: 5,
                       message: "Dashboard detail pane should appear after clicking sidebar")
 
+        // Verify dashboard has actual content — not just an empty container
+        let hasContent = waitForEither([
+            app.staticTexts.matching(
+                NSPredicate(format: "identifier BEGINSWITH 'dashboard_'")
+            ).firstMatch,
+            app.otherElements.matching(
+                NSPredicate(format: "identifier BEGINSWITH 'networkDetail_'")
+            ).firstMatch,
+            app.staticTexts["dashboard_healthGauge_score"]
+        ], timeout: 5)
+        XCTAssertTrue(hasContent,
+                      "Dashboard detail pane should have visible content, not just a container")
+
         captureScreenshot(named: "Sidebar_Dashboard")
     }
 
@@ -54,6 +67,19 @@ final class SidebarFunctionalUITests: MacOSUITestCase {
         let detailPane = app.otherElements["detail_devices"]
         requireExists(detailPane, timeout: 5,
                       message: "Devices detail pane should appear after clicking sidebar")
+
+        // Verify devices has functional content — scan button, device list, or empty state
+        let hasContent = waitForEither([
+            app.buttons.matching(
+                NSPredicate(format: "identifier CONTAINS 'scan' AND identifier CONTAINS 'devices'")
+            ).firstMatch,
+            app.staticTexts.matching(
+                NSPredicate(format: "identifier BEGINSWITH 'devices_'")
+            ).firstMatch,
+            app.buttons["devices_button_scan"]
+        ], timeout: 5)
+        XCTAssertTrue(hasContent,
+                      "Devices detail pane should have functional content, not just a container")
 
         captureScreenshot(named: "Sidebar_Devices")
     }
