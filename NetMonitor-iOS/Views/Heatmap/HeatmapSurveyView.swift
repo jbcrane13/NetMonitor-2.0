@@ -264,6 +264,11 @@ struct HeatmapSurveyView: View {
             )
         }
     }
+}
+
+// MARK: - Signal HUD + Toolbar Helpers
+
+extension HeatmapSurveyView {
 
     // MARK: - Signal HUD
 

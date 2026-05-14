@@ -122,15 +122,15 @@
   {
     "violation": {
       "ruleName": "Type Body Length",
-      "reason": "Class body should span 350 lines or less excluding comments and whitespace: currently spans 497 lines",
+      "reason": "Class body should span 350 lines or less excluding comments and whitespace: currently spans 383 lines",
       "location": {
         "character": 7,
         "file": "NetMonitor-iOS/ViewModels/HeatmapSurveyViewModel.swift",
-        "line": 47
+        "line": 30
       },
       "severity": "warning",
       "ruleIdentifier": "type_body_length",
-      "ruleDescription": "Class body should span 350 lines or less excluding comments and whitespace: currently spans 497 lines"
+      "ruleDescription": "Class body should span 350 lines or less excluding comments and whitespace: currently spans 383 lines"
     },
     "text": "final class HeatmapSurveyViewModel {"
   },
@@ -718,21 +718,6 @@
       "ruleDescription": "Struct body should span 350 lines or less excluding comments and whitespace: currently spans 479 lines"
     },
     "text": "struct DeviceDetailView: View {"
-  },
-  {
-    "violation": {
-      "ruleName": "Type Body Length",
-      "reason": "Struct body should span 350 lines or less excluding comments and whitespace: currently spans 387 lines",
-      "location": {
-        "character": 1,
-        "file": "NetMonitor-iOS/Views/Heatmap/HeatmapSurveyView.swift",
-        "line": 8
-      },
-      "severity": "warning",
-      "ruleIdentifier": "type_body_length",
-      "ruleDescription": "Struct body should span 350 lines or less excluding comments and whitespace: currently spans 387 lines"
-    },
-    "text": "struct HeatmapSurveyView: View {"
   },
   {
     "violation": {

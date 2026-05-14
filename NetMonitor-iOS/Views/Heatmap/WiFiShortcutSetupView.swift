@@ -192,7 +192,9 @@ struct WiFiShortcutSetupView: View {
                     )
                     manualStep(
                         number: 2,
-                        text: "Add another \"Get Network Details\" for each field you want: RSSI, Channel Number, BSSID, Noise, TX Rate, RX Rate, Wi-Fi Standard (only SSID, RSSI, and Channel are required)"
+                        text: "Add another \"Get Network Details\" for each field you want: RSSI, " +
+                              "Channel Number, BSSID, Noise, TX Rate, RX Rate, Wi-Fi Standard " +
+                              "(only SSID, RSSI, and Channel are required)"
                     )
                     manualStep(
                         number: 3,
