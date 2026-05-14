@@ -282,3 +282,55 @@ final class MockMacConnectionService: MacConnectionServiceProtocol {
 
     func send(command: CommandPayload) async {}
 }
+
+// MARK: - Mock Heatmap Service
+
+/// Deterministic ``HeatmapServiceProtocol`` stub for ViewModel tests. Returns a
+/// `MeasurementPoint` echoing the requested coordinates with configurable
+/// `rssi` / `ssid` / `bssid` so tests can assert that the VM appended a point
+/// whose values came from the service rather than a fallback path.
+final class MockHeatmapService: HeatmapServiceProtocol, @unchecked Sendable {
+    var rssi: Int = -50
+    var ssid: String? = "MockNet"
+    var bssid: String? = nil
+    var downloadSpeed: Double?
+    var uploadSpeed: Double?
+    var latency: Double?
+
+    private(set) var measureCallCount = 0
+    private(set) var activeMeasureCallCount = 0
+    private(set) var lastCoordinates: (x: Double, y: Double)?
+
+    func takeMeasurement(at floorPlanX: Double, floorPlanY: Double) async -> MeasurementPoint {
+        measureCallCount += 1
+        lastCoordinates = (floorPlanX, floorPlanY)
+        return MeasurementPoint(
+            floorPlanX: floorPlanX,
+            floorPlanY: floorPlanY,
+            rssi: rssi,
+            ssid: ssid,
+            bssid: bssid
+        )
+    }
+
+    func takeActiveMeasurement(at floorPlanX: Double, floorPlanY: Double) async -> MeasurementPoint {
+        activeMeasureCallCount += 1
+        lastCoordinates = (floorPlanX, floorPlanY)
+        return MeasurementPoint(
+            floorPlanX: floorPlanX,
+            floorPlanY: floorPlanY,
+            rssi: rssi,
+            ssid: ssid,
+            bssid: bssid,
+            downloadSpeed: downloadSpeed,
+            uploadSpeed: uploadSpeed,
+            latency: latency
+        )
+    }
+
+    func startContinuousMeasurement(interval: TimeInterval) async -> AsyncStream<MeasurementPoint> {
+        AsyncStream { continuation in continuation.finish() }
+    }
+
+    func stopContinuousMeasurement() async {}
+}

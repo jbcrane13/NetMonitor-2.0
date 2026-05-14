@@ -125,28 +125,18 @@ final class HeatmapSurveyViewModel {
     var lastSaveDate: Date?
     private var measurementsSinceLastSave: Int = 0
 
-    // MARK: - Live RSSI Polling
-
-    private var signalPollTask: Task<Void, Never>?
-    /// Adaptive polling interval — increases when Shortcuts round-trip exceeds 1.5s.
-    private var pollInterval: TimeInterval = 2.0
-
     // MARK: - Dependencies
 
     private let renderer: HeatmapRenderer
     private let projectManager: ProjectSaveLoadManager
-    private var heatmapService: IOSHeatmapService?
+    private let heatmapService: any HeatmapServiceProtocol
 
     // MARK: - Init
 
-    init() {
+    init(service: any HeatmapServiceProtocol) {
+        self.heatmapService = service
         renderer = HeatmapRenderer()
         projectManager = ProjectSaveLoadManager()
-    }
-
-    /// Inject the heatmap service after construction (services require DI from the app).
-    func configure(service: IOSHeatmapService) {
-        self.heatmapService = service
     }
 
     // MARK: - Computed
@@ -359,7 +349,6 @@ final class HeatmapSurveyViewModel {
 
     func stopSurvey() {
         isSurveying = false
-        stopSignalPolling()  // idempotent no-op; kept for safety if ever re-enabled
         stopContinuousScanTimer()
         updateHeatmap()
     }
@@ -382,44 +371,6 @@ final class HeatmapSurveyViewModel {
         continuousScanTask = nil
     }
 
-    // MARK: - Live RSSI Polling
-
-    private func startSignalPolling() {
-        signalPollTask?.cancel()
-        signalPollTask = Task<Void, Never> { [weak self] in
-            while !Task.isCancelled {
-                guard let self, let service = self.heatmapService else {
-                    try? await Task.sleep(for: .seconds(2))
-                    continue
-                }
-                let start = ContinuousClock.now
-                let point = await service.takeMeasurement(at: 0, floorPlanY: 0)
-                let elapsed = ContinuousClock.now - start
-
-                if Task.isCancelled { return }
-
-                self.currentRSSI = point.rssi
-                self.currentSSID = point.ssid
-
-                // Adaptive backoff: if round-trip exceeds 1.5s, slow down polling
-                let roundTripSeconds = Double(elapsed.components.seconds)
-                    + Double(elapsed.components.attoseconds) / 1e18
-                if roundTripSeconds > 1.5 {
-                    self.pollInterval = min(self.pollInterval + 0.5, 5.0)
-                } else {
-                    self.pollInterval = max(2.0, self.pollInterval - 0.2)
-                }
-
-                try? await Task.sleep(for: .seconds(self.pollInterval))
-            }
-        }
-    }
-
-    private func stopSignalPolling() {
-        signalPollTask?.cancel()
-        signalPollTask = nil
-    }
-
     // MARK: - Measurement
 
     func takeMeasurement(at normalizedPoint: CGPoint) async {
@@ -434,25 +385,15 @@ final class HeatmapSurveyViewModel {
         saveUndoState()
 
         let point: MeasurementPoint
-        if let service = heatmapService {
-            if measurementMode == .active {
-                point = await service.takeActiveMeasurement(
-                    at: Double(normalizedPoint.x),
-                    floorPlanY: Double(normalizedPoint.y)
-                )
-            } else {
-                point = await service.takeMeasurement(
-                    at: Double(normalizedPoint.x),
-                    floorPlanY: Double(normalizedPoint.y)
-                )
-            }
+        if measurementMode == .active {
+            point = await heatmapService.takeActiveMeasurement(
+                at: Double(normalizedPoint.x),
+                floorPlanY: Double(normalizedPoint.y)
+            )
         } else {
-            // Fallback without service — use current polled values
-            point = MeasurementPoint(
-                floorPlanX: normalizedPoint.x,
-                floorPlanY: normalizedPoint.y,
-                rssi: currentRSSI,
-                ssid: currentSSID
+            point = await heatmapService.takeMeasurement(
+                at: Double(normalizedPoint.x),
+                floorPlanY: Double(normalizedPoint.y)
             )
         }
 

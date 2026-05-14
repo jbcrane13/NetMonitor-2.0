@@ -3,6 +3,13 @@ import Testing
 @testable import NetMonitor_iOS
 import NetMonitorCore
 
+// MARK: - Test Helpers
+
+@MainActor
+private func makeHeatmapVM(service: any HeatmapServiceProtocol = MockHeatmapService()) -> HeatmapSurveyViewModel {
+    HeatmapSurveyViewModel(service: service)
+}
+
 // MARK: - HeatmapSurveyViewModel Init Tests
 
 @MainActor
@@ -10,67 +17,67 @@ struct HeatmapSurveyViewModelInitTests {
 
     @Test("initial surveyProject is nil")
     func initialSurveyProjectIsNil() {
-        let vm = HeatmapSurveyViewModel()
+        let vm = makeHeatmapVM()
         #expect(vm.surveyProject == nil)
     }
 
     @Test("initial measurementPoints is empty")
     func initialMeasurementPointsEmpty() {
-        let vm = HeatmapSurveyViewModel()
+        let vm = makeHeatmapVM()
         #expect(vm.measurementPoints.isEmpty)
     }
 
     @Test("initial selectedVisualization is signalStrength")
     func initialVisualizationIsSignalStrength() {
-        let vm = HeatmapSurveyViewModel()
+        let vm = makeHeatmapVM()
         #expect(vm.selectedVisualization == .signalStrength)
     }
 
     @Test("initial measurementMode is passive")
     func initialMeasurementModeIsPassive() {
-        let vm = HeatmapSurveyViewModel()
+        let vm = makeHeatmapVM()
         #expect(vm.measurementMode == .passive)
     }
 
     @Test("initial isMeasuring is false")
     func initialIsMeasuringIsFalse() {
-        let vm = HeatmapSurveyViewModel()
+        let vm = makeHeatmapVM()
         #expect(vm.isMeasuring == false)
     }
 
     @Test("initial showImportSheet is false")
     func initialShowImportSheetIsFalse() {
-        let vm = HeatmapSurveyViewModel()
+        let vm = makeHeatmapVM()
         #expect(vm.showImportSheet == false)
     }
 
     @Test("initial currentRSSI is -100")
     func initialCurrentRSSIIsDefault() {
-        let vm = HeatmapSurveyViewModel()
+        let vm = makeHeatmapVM()
         #expect(vm.currentRSSI == -100)
     }
 
     @Test("initial currentSSID is nil")
     func initialCurrentSSIDIsNil() {
-        let vm = HeatmapSurveyViewModel()
+        let vm = makeHeatmapVM()
         #expect(vm.currentSSID == nil)
     }
 
     @Test("initial isCalibrating is false")
     func initialIsCalibratingIsFalse() {
-        let vm = HeatmapSurveyViewModel()
+        let vm = makeHeatmapVM()
         #expect(vm.isCalibrating == false)
     }
 
     @Test("initial calibrationPoints is empty")
     func initialCalibrationPointsEmpty() {
-        let vm = HeatmapSurveyViewModel()
+        let vm = makeHeatmapVM()
         #expect(vm.calibrationPoints.isEmpty)
     }
 
     @Test("initial calibrationDistance is 5.0 meters")
     func initialCalibrationDistance() {
-        let vm = HeatmapSurveyViewModel()
+        let vm = makeHeatmapVM()
         #expect(vm.calibrationDistance == 5.0)
     }
 }
@@ -82,14 +89,14 @@ struct HeatmapSurveyViewModelImportTests {
 
     @Test("importFloorPlan creates a surveyProject")
     func importFloorPlanCreatesSurveyProject() {
-        let vm = HeatmapSurveyViewModel()
+        let vm = makeHeatmapVM()
         vm.importFloorPlan(imageData: Data([0x89, 0x50, 0x4E, 0x47]), width: 800, height: 600)
         #expect(vm.surveyProject != nil)
     }
 
     @Test("importFloorPlan sets correct pixel dimensions on floorPlan")
     func importFloorPlanSetsPixelDimensions() {
-        let vm = HeatmapSurveyViewModel()
+        let vm = makeHeatmapVM()
         vm.importFloorPlan(imageData: Data([1, 2, 3]), width: 1920, height: 1080)
         #expect(vm.surveyProject?.floorPlan.pixelWidth == 1920)
         #expect(vm.surveyProject?.floorPlan.pixelHeight == 1080)
@@ -97,14 +104,14 @@ struct HeatmapSurveyViewModelImportTests {
 
     @Test("importFloorPlan sets floorPlan origin to imported")
     func importFloorPlanSetsOriginToImported() {
-        let vm = HeatmapSurveyViewModel()
+        let vm = makeHeatmapVM()
         vm.importFloorPlan(imageData: Data([1]), width: 100, height: 100)
         #expect(vm.surveyProject?.floorPlan.origin == .imported)
     }
 
     @Test("importFloorPlan clears existing measurementPoints")
     func importFloorPlanClearsMeasurementPoints() {
-        let vm = HeatmapSurveyViewModel()
+        let vm = makeHeatmapVM()
         vm.measurementPoints = [MeasurementPoint(rssi: -50)]
         vm.importFloorPlan(imageData: Data([1]), width: 200, height: 200)
         #expect(vm.measurementPoints.isEmpty)
@@ -112,7 +119,7 @@ struct HeatmapSurveyViewModelImportTests {
 
     @Test("importFloorPlan clears existing calibrationPoints")
     func importFloorPlanClearsCalibrationPoints() {
-        let vm = HeatmapSurveyViewModel()
+        let vm = makeHeatmapVM()
         vm.calibrationPoints = [CalibrationPoint(pixelX: 10, pixelY: 20)]
         vm.importFloorPlan(imageData: Data([1]), width: 200, height: 200)
         #expect(vm.calibrationPoints.isEmpty)
@@ -120,7 +127,7 @@ struct HeatmapSurveyViewModelImportTests {
 
     @Test("importFloorPlan stores imageData on floorPlan")
     func importFloorPlanStoresImageData() {
-        let vm = HeatmapSurveyViewModel()
+        let vm = makeHeatmapVM()
         let data = Data([0x01, 0x02, 0x03, 0x04])
         vm.importFloorPlan(imageData: data, width: 50, height: 50)
         #expect(vm.surveyProject?.floorPlan.imageData == data)
@@ -134,14 +141,14 @@ struct HeatmapSurveyViewModelCalibrationTests {
 
     @Test("startCalibration sets isCalibrating to true")
     func startCalibrationSetsIsCalibrating() {
-        let vm = HeatmapSurveyViewModel()
+        let vm = makeHeatmapVM()
         vm.startCalibration()
         #expect(vm.isCalibrating == true)
     }
 
     @Test("startCalibration clears calibrationPoints")
     func startCalibrationClearsPoints() {
-        let vm = HeatmapSurveyViewModel()
+        let vm = makeHeatmapVM()
         vm.calibrationPoints = [CalibrationPoint(pixelX: 10, pixelY: 20)]
         vm.startCalibration()
         #expect(vm.calibrationPoints.isEmpty)
@@ -149,7 +156,7 @@ struct HeatmapSurveyViewModelCalibrationTests {
 
     @Test("cancelCalibration sets isCalibrating to false")
     func cancelCalibrationResetsFlag() {
-        let vm = HeatmapSurveyViewModel()
+        let vm = makeHeatmapVM()
         vm.startCalibration()
         vm.cancelCalibration()
         #expect(vm.isCalibrating == false)
@@ -157,7 +164,7 @@ struct HeatmapSurveyViewModelCalibrationTests {
 
     @Test("cancelCalibration clears calibrationPoints")
     func cancelCalibrationClearsPoints() {
-        let vm = HeatmapSurveyViewModel()
+        let vm = makeHeatmapVM()
         vm.startCalibration()
         vm.addCalibrationPoint(at: CGPoint(x: 0.2, y: 0.3))
         vm.cancelCalibration()
@@ -166,7 +173,7 @@ struct HeatmapSurveyViewModelCalibrationTests {
 
     @Test("addCalibrationPoint appends a point")
     func addCalibrationPointAppends() {
-        let vm = HeatmapSurveyViewModel()
+        let vm = makeHeatmapVM()
         vm.addCalibrationPoint(at: CGPoint(x: 0.1, y: 0.4))
         #expect(vm.calibrationPoints.count == 1)
         #expect(vm.calibrationPoints[0].pixelX == 0.1)
@@ -175,7 +182,7 @@ struct HeatmapSurveyViewModelCalibrationTests {
 
     @Test("addCalibrationPoint does not exceed 2 points")
     func addCalibrationPointCapsAtTwo() {
-        let vm = HeatmapSurveyViewModel()
+        let vm = makeHeatmapVM()
         vm.addCalibrationPoint(at: CGPoint(x: 0.1, y: 0.2))
         vm.addCalibrationPoint(at: CGPoint(x: 0.5, y: 0.6))
         vm.addCalibrationPoint(at: CGPoint(x: 0.9, y: 0.8))  // should be ignored
@@ -184,7 +191,7 @@ struct HeatmapSurveyViewModelCalibrationTests {
 
     @Test("addCalibrationPoint sets showCalibrationSheet when second point added")
     func addSecondCalibrationPointOpensSheet() {
-        let vm = HeatmapSurveyViewModel()
+        let vm = makeHeatmapVM()
         vm.addCalibrationPoint(at: CGPoint(x: 0.1, y: 0.2))
         #expect(vm.showCalibrationSheet == false)
         vm.addCalibrationPoint(at: CGPoint(x: 0.5, y: 0.6))
@@ -193,7 +200,7 @@ struct HeatmapSurveyViewModelCalibrationTests {
 
     @Test("completeCalibration updates floorPlan widthMeters and heightMeters")
     func completeCalibrationUpdatesFloorPlanScale() {
-        let vm = HeatmapSurveyViewModel()
+        let vm = makeHeatmapVM()
         vm.importFloorPlan(imageData: Data([1]), width: 1000, height: 500)
 
         vm.addCalibrationPoint(at: CGPoint.zero)
@@ -206,7 +213,7 @@ struct HeatmapSurveyViewModelCalibrationTests {
 
     @Test("completeCalibration sets isCalibrating to false")
     func completeCalibrationResetsFlag() {
-        let vm = HeatmapSurveyViewModel()
+        let vm = makeHeatmapVM()
         vm.importFloorPlan(imageData: Data([1]), width: 800, height: 600)
         vm.addCalibrationPoint(at: CGPoint.zero)
         vm.addCalibrationPoint(at: CGPoint(x: 100, y: 0))
@@ -217,7 +224,7 @@ struct HeatmapSurveyViewModelCalibrationTests {
 
     @Test("completeCalibration stores calibrationPoints on floorPlan")
     func completeCalibrationStoresPointsOnFloorPlan() {
-        let vm = HeatmapSurveyViewModel()
+        let vm = makeHeatmapVM()
         vm.importFloorPlan(imageData: Data([1]), width: 800, height: 600)
         vm.addCalibrationPoint(at: CGPoint(x: 10, y: 20))
         vm.addCalibrationPoint(at: CGPoint(x: 50, y: 20))
@@ -227,7 +234,7 @@ struct HeatmapSurveyViewModelCalibrationTests {
 
     @Test("completeCalibration clears calibrationPoints array")
     func completeCalibrationClearsArray() {
-        let vm = HeatmapSurveyViewModel()
+        let vm = makeHeatmapVM()
         vm.importFloorPlan(imageData: Data([1]), width: 800, height: 600)
         vm.addCalibrationPoint(at: CGPoint.zero)
         vm.addCalibrationPoint(at: CGPoint(x: 100, y: 0))
@@ -237,7 +244,7 @@ struct HeatmapSurveyViewModelCalibrationTests {
 
     @Test("completeCalibration does nothing without a survey project")
     func completeCalibrationNoOpWithoutProject() {
-        let vm = HeatmapSurveyViewModel()
+        let vm = makeHeatmapVM()
         vm.addCalibrationPoint(at: CGPoint.zero)
         vm.addCalibrationPoint(at: CGPoint(x: 100, y: 0))
         vm.completeCalibration(withDistance: 5.0)
@@ -246,7 +253,7 @@ struct HeatmapSurveyViewModelCalibrationTests {
 
     @Test("skipCalibration sets isCalibrated to true")
     func skipCalibrationSetsCalibrated() {
-        let vm = HeatmapSurveyViewModel()
+        let vm = makeHeatmapVM()
         vm.skipCalibration()
         #expect(vm.isCalibrated == true)
         #expect(vm.isCalibrating == false)
@@ -254,7 +261,7 @@ struct HeatmapSurveyViewModelCalibrationTests {
 
     @Test("completeCalibration with feet converts to meters")
     func completeCalibrationWithFeetConverts() {
-        let vm = HeatmapSurveyViewModel()
+        let vm = makeHeatmapVM()
         vm.importFloorPlan(imageData: Data([1]), width: 1000, height: 500)
         vm.addCalibrationPoint(at: CGPoint.zero)
         vm.addCalibrationPoint(at: CGPoint(x: 100.0, y: 0.0))
@@ -272,7 +279,7 @@ struct HeatmapSurveyViewModelClearTests {
 
     @Test("clearMeasurements empties measurementPoints")
     func clearMeasurementsEmptiesPoints() {
-        let vm = HeatmapSurveyViewModel()
+        let vm = makeHeatmapVM()
         vm.measurementPoints = [
             MeasurementPoint(rssi: -50),
             MeasurementPoint(rssi: -60),
@@ -283,7 +290,7 @@ struct HeatmapSurveyViewModelClearTests {
 
     @Test("clearMeasurements preserves surveyProject")
     func clearMeasurementsPreservesProject() {
-        let vm = HeatmapSurveyViewModel()
+        let vm = makeHeatmapVM()
         vm.importFloorPlan(imageData: Data([1]), width: 100, height: 100)
         vm.measurementPoints = [MeasurementPoint(rssi: -55)]
         vm.clearMeasurements()
@@ -298,14 +305,14 @@ struct HeatmapSurveyViewModelVisualizationTests {
 
     @Test("selectedVisualization can be changed")
     func changeVisualization() {
-        let vm = HeatmapSurveyViewModel()
+        let vm = makeHeatmapVM()
         vm.selectedVisualization = .downloadSpeed
         #expect(vm.selectedVisualization == .downloadSpeed)
     }
 
     @Test("measurementMode can be switched to active")
     func changeMeasurementModeToActive() {
-        let vm = HeatmapSurveyViewModel()
+        let vm = makeHeatmapVM()
         vm.measurementMode = .active
         #expect(vm.measurementMode == .active)
     }
@@ -320,7 +327,7 @@ struct HeatmapSurveyViewModelVisualizationTests {
 
     @Test("switching visualization updates selectedVisualization correctly for all modes")
     func switchAllVisualizationModes() {
-        let vm = HeatmapSurveyViewModel()
+        let vm = makeHeatmapVM()
         for viz in HeatmapVisualization.allCases {
             vm.selectedVisualization = viz
             #expect(vm.selectedVisualization == viz)
@@ -329,7 +336,7 @@ struct HeatmapSurveyViewModelVisualizationTests {
 
     @Test("switching color scheme updates selectedColorScheme correctly for all schemes")
     func switchAllColorSchemes() {
-        let vm = HeatmapSurveyViewModel()
+        let vm = makeHeatmapVM()
         for scheme in HeatmapColorScheme.allCases {
             vm.selectedColorScheme = scheme
             #expect(vm.selectedColorScheme == scheme)
@@ -353,7 +360,7 @@ struct HeatmapSurveyViewModelUndoTests {
 
     @Test("undo restores previous measurement state")
     func undoRestoresPreviousState() {
-        let vm = HeatmapSurveyViewModel()
+        let vm = makeHeatmapVM()
         vm.importFloorPlan(imageData: Data([1]), width: 100, height: 100)
         vm.skipCalibration()
 
@@ -381,13 +388,13 @@ struct HeatmapSurveyViewModelUndoTests {
 
     @Test("canUndo is false when no undo history exists")
     func canUndoFalseInitially() {
-        let vm = HeatmapSurveyViewModel()
+        let vm = makeHeatmapVM()
         #expect(vm.canUndo == false)
     }
 
     @Test("canUndo is true after a measurement operation")
     func canUndoTrueAfterDelete() {
-        let vm = HeatmapSurveyViewModel()
+        let vm = makeHeatmapVM()
         let point = MeasurementPoint(rssi: -50)
         vm.measurementPoints = [point]
         vm.deleteMeasurement(id: point.id)
@@ -396,7 +403,7 @@ struct HeatmapSurveyViewModelUndoTests {
 
     @Test("undo after clearMeasurements restores all points")
     func undoAfterClearRestoresPoints() {
-        let vm = HeatmapSurveyViewModel()
+        let vm = makeHeatmapVM()
         let points = [
             MeasurementPoint(rssi: -40),
             MeasurementPoint(rssi: -50),
@@ -417,7 +424,7 @@ struct HeatmapSurveyViewModelPointManagementTests {
 
     @Test("deleteMeasurement removes the correct point by ID")
     func deleteMeasurementRemovesCorrectPoint() {
-        let vm = HeatmapSurveyViewModel()
+        let vm = makeHeatmapVM()
         let point1 = MeasurementPoint(rssi: -40, ssid: "Net1")
         let point2 = MeasurementPoint(rssi: -50, ssid: "Net2")
         let point3 = MeasurementPoint(rssi: -60, ssid: "Net3")
@@ -431,7 +438,7 @@ struct HeatmapSurveyViewModelPointManagementTests {
 
     @Test("filteredPoints returns all when no AP filter set")
     func filteredPointsReturnsAllWithoutFilter() {
-        let vm = HeatmapSurveyViewModel()
+        let vm = makeHeatmapVM()
         vm.measurementPoints = [
             MeasurementPoint(rssi: -40, bssid: "AA:BB:CC:DD:EE:01"),
             MeasurementPoint(rssi: -50, bssid: "AA:BB:CC:DD:EE:02"),
@@ -441,7 +448,7 @@ struct HeatmapSurveyViewModelPointManagementTests {
 
     @Test("filteredPoints filters by BSSID when AP filter is set")
     func filteredPointsFiltersByBSSID() {
-        let vm = HeatmapSurveyViewModel()
+        let vm = makeHeatmapVM()
         vm.measurementPoints = [
             MeasurementPoint(rssi: -40, bssid: "AA:BB:CC:DD:EE:01"),
             MeasurementPoint(rssi: -50, bssid: "AA:BB:CC:DD:EE:02"),
@@ -454,7 +461,7 @@ struct HeatmapSurveyViewModelPointManagementTests {
 
     @Test("averageRSSI computes correct average")
     func averageRSSIComputesCorrectly() {
-        let vm = HeatmapSurveyViewModel()
+        let vm = makeHeatmapVM()
         vm.measurementPoints = [
             MeasurementPoint(rssi: -40),
             MeasurementPoint(rssi: -60),
@@ -465,13 +472,13 @@ struct HeatmapSurveyViewModelPointManagementTests {
 
     @Test("averageRSSI returns nil when no points")
     func averageRSSINilWhenEmpty() {
-        let vm = HeatmapSurveyViewModel()
+        let vm = makeHeatmapVM()
         #expect(vm.averageRSSI == nil)
     }
 
     @Test("minRSSI and maxRSSI return correct extremes")
     func minMaxRSSICorrect() {
-        let vm = HeatmapSurveyViewModel()
+        let vm = makeHeatmapVM()
         vm.measurementPoints = [
             MeasurementPoint(rssi: -30),
             MeasurementPoint(rssi: -80),
@@ -483,7 +490,7 @@ struct HeatmapSurveyViewModelPointManagementTests {
 
     @Test("qualityLabel returns correct label for RSSI ranges")
     func qualityLabelReturnsCorrectLabels() {
-        let vm = HeatmapSurveyViewModel()
+        let vm = makeHeatmapVM()
         #expect(vm.qualityLabel(-30) == "Excellent")
         #expect(vm.qualityLabel(-55) == "Good")
         #expect(vm.qualityLabel(-65) == "Fair")
@@ -492,7 +499,7 @@ struct HeatmapSurveyViewModelPointManagementTests {
 
     @Test("uniqueBSSIDs groups measurement points by BSSID")
     func uniqueBSSIDsGroupsCorrectly() {
-        let vm = HeatmapSurveyViewModel()
+        let vm = makeHeatmapVM()
         vm.measurementPoints = [
             MeasurementPoint(rssi: -40, ssid: "Net1", bssid: "AA:BB:01"),
             MeasurementPoint(rssi: -50, ssid: "Net2", bssid: "AA:BB:02"),
@@ -510,7 +517,7 @@ struct HeatmapSurveyViewModelSaveLoadTests {
 
     @Test("saveProject does not throw when surveyProject is nil")
     func saveProjectNoOpWithoutProject() throws {
-        let vm = HeatmapSurveyViewModel()
+        let vm = makeHeatmapVM()
         let url = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("test-\(UUID().uuidString).json")
         try vm.saveProject(to: url)
         #expect(vm.surveyProject == nil)
@@ -518,7 +525,7 @@ struct HeatmapSurveyViewModelSaveLoadTests {
 
     @Test("save and load round-trip preserves project data")
     func saveLoadRoundTripPreservesData() throws {
-        let vm = HeatmapSurveyViewModel()
+        let vm = makeHeatmapVM()
         vm.importFloorPlan(imageData: Data([0x89, 0x50, 0x4E, 0x47]), width: 400, height: 300)
         vm.measurementPoints = [
             MeasurementPoint(rssi: -45, ssid: "Office", bssid: "AA:BB:CC:DD:EE:01"),
@@ -531,7 +538,7 @@ struct HeatmapSurveyViewModelSaveLoadTests {
 
         try vm.saveProject(to: url)
 
-        let vm2 = HeatmapSurveyViewModel()
+        let vm2 = makeHeatmapVM()
         try vm2.loadProject(from: url)
 
         #expect(vm2.surveyProject != nil)
@@ -544,7 +551,7 @@ struct HeatmapSurveyViewModelSaveLoadTests {
 
     @Test("save and load round-trip as .netmonsurvey preserves floor plan image")
     func netmonSurveyRoundTripPreservesImage() throws {
-        let vm = HeatmapSurveyViewModel()
+        let vm = makeHeatmapVM()
         let imageData = Data([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])
         vm.importFloorPlan(imageData: imageData, width: 200, height: 150)
 
@@ -554,7 +561,7 @@ struct HeatmapSurveyViewModelSaveLoadTests {
 
         try vm.saveProject(to: url)
 
-        let vm2 = HeatmapSurveyViewModel()
+        let vm2 = makeHeatmapVM()
         try vm2.loadProject(from: url)
 
         #expect(vm2.surveyProject?.floorPlan.imageData == imageData)
@@ -564,7 +571,7 @@ struct HeatmapSurveyViewModelSaveLoadTests {
 
     @Test("save updates lastSaveDate and resets measurementsSinceLastSave")
     func saveUpdatesLastSaveDate() throws {
-        let vm = HeatmapSurveyViewModel()
+        let vm = makeHeatmapVM()
         vm.importFloorPlan(imageData: Data([1]), width: 100, height: 100)
 
         #expect(vm.lastSaveDate == nil)
@@ -579,7 +586,7 @@ struct HeatmapSurveyViewModelSaveLoadTests {
 
     @Test("loadProject restores calibration state")
     func loadProjectRestoresCalibrationState() throws {
-        let vm = HeatmapSurveyViewModel()
+        let vm = makeHeatmapVM()
         vm.importFloorPlan(imageData: Data([1]), width: 800, height: 600)
         vm.addCalibrationPoint(at: CGPoint.zero)
         vm.addCalibrationPoint(at: CGPoint(x: 100, y: 0))
@@ -591,7 +598,7 @@ struct HeatmapSurveyViewModelSaveLoadTests {
 
         try vm.saveProject(to: url)
 
-        let vm2 = HeatmapSurveyViewModel()
+        let vm2 = makeHeatmapVM()
         try vm2.loadProject(from: url)
 
         #expect(vm2.isCalibrated == true)
@@ -600,7 +607,7 @@ struct HeatmapSurveyViewModelSaveLoadTests {
 
     @Test("exportProjectFile returns a valid URL")
     func exportProjectFileReturnsURL() {
-        let vm = HeatmapSurveyViewModel()
+        let vm = makeHeatmapVM()
         vm.importFloorPlan(imageData: Data([1, 2, 3]), width: 100, height: 100)
         vm.measurementPoints = [MeasurementPoint(rssi: -50)]
 
@@ -620,7 +627,7 @@ struct HeatmapSurveyViewModelSurveyControlTests {
 
     @Test("startSurvey requires calibration")
     func startSurveyRequiresCalibration() {
-        let vm = HeatmapSurveyViewModel()
+        let vm = makeHeatmapVM()
         vm.importFloorPlan(imageData: Data([1]), width: 100, height: 100)
         // Not calibrated
         vm.startSurvey()
@@ -629,7 +636,7 @@ struct HeatmapSurveyViewModelSurveyControlTests {
 
     @Test("startSurvey succeeds when calibrated")
     func startSurveySetsIsSurveying() {
-        let vm = HeatmapSurveyViewModel()
+        let vm = makeHeatmapVM()
         vm.importFloorPlan(imageData: Data([1]), width: 100, height: 100)
         vm.skipCalibration()
         vm.startSurvey()
@@ -638,7 +645,7 @@ struct HeatmapSurveyViewModelSurveyControlTests {
 
     @Test("stopSurvey sets isSurveying to false")
     func stopSurveyResetsFlag() {
-        let vm = HeatmapSurveyViewModel()
+        let vm = makeHeatmapVM()
         vm.importFloorPlan(imageData: Data([1]), width: 100, height: 100)
         vm.skipCalibration()
         vm.startSurvey()
@@ -648,19 +655,20 @@ struct HeatmapSurveyViewModelSurveyControlTests {
 
     @Test("takeMeasurement requires project and not already measuring")
     func takeMeasurementGuards() async {
-        let vm = HeatmapSurveyViewModel()
+        let vm = makeHeatmapVM()
         // No project, should be no-op
         await vm.takeMeasurement(at: CGPoint(x: 0.5, y: 0.5))
         #expect(vm.measurementPoints.isEmpty)
     }
 
-    @Test("takeMeasurement without service uses fallback with currentRSSI")
-    func takeMeasurementFallback() async {
-        let vm = HeatmapSurveyViewModel()
+    @Test("takeMeasurement appends point with values from the injected service")
+    func takeMeasurementUsesService() async {
+        let service = MockHeatmapService()
+        service.rssi = -55
+        service.ssid = "TestNet"
+        let vm = makeHeatmapVM(service: service)
         vm.importFloorPlan(imageData: Data([1]), width: 100, height: 100)
         vm.skipCalibration()
-        vm.currentRSSI = -55
-        vm.currentSSID = "TestNet"
 
         await vm.takeMeasurement(at: CGPoint(x: 0.3, y: 0.7))
 
@@ -669,6 +677,7 @@ struct HeatmapSurveyViewModelSurveyControlTests {
         #expect(vm.measurementPoints[0].ssid == "TestNet")
         #expect(abs(vm.measurementPoints[0].floorPlanX - 0.3) < 0.001)
         #expect(abs(vm.measurementPoints[0].floorPlanY - 0.7) < 0.001)
+        #expect(service.measureCallCount == 1)
     }
 }
 
@@ -680,7 +689,7 @@ struct HeatmapSurveyViewModelSavedProjectsTests {
     @Test("listSavedProjects returns saved projects sorted by date")
     func listSavedProjectsReturnsSorted() throws {
         let dir = URL(fileURLWithPath: NSTemporaryDirectory())
-        let vm = HeatmapSurveyViewModel()
+        let vm = makeHeatmapVM()
         vm.importFloorPlan(imageData: Data([1]), width: 100, height: 100)
 
         // Save two projects to the actual Documents dir (same as autoSave uses)
@@ -717,7 +726,7 @@ struct HeatmapSurveyViewModelBlueprintImportTests {
 
     @Test("importBlueprintProject sets isCalibrated to true")
     func importBlueprintSetsCalibrated() {
-        let vm = HeatmapSurveyViewModel()
+        let vm = makeHeatmapVM()
 
         let floor = BlueprintFloor(
             label: "Floor 1",
@@ -743,7 +752,7 @@ struct HeatmapSurveyViewModelBlueprintImportTests {
 
     @Test("importBlueprintProject with no floors sets error")
     func importBlueprintNoFloorsError() {
-        let vm = HeatmapSurveyViewModel()
+        let vm = makeHeatmapVM()
         let blueprint = BlueprintProject(
             name: "Empty",
             floors: [],
@@ -934,31 +943,16 @@ struct DeepLinkRouterTests {
 @MainActor
 struct HeatmapSurveyViewModelRegressionTests {
 
-    private func makeStubbedService(signalDBm: Int) -> IOSHeatmapService {
-        let wifi = MockWiFiInfoService()
-        wifi.currentWiFi = WiFiInfo(
-            ssid: "RegressionNet",
-            bssid: "11:22:33:44:55:66",
-            signalStrength: 80,
-            signalDBm: signalDBm,
-            channel: 6,
-            frequency: "2437 MHz",
-            band: .band2_4GHz,
-            noiseLevel: -90,
-            linkSpeed: 144.0
-        )
-        let speed = MockSpeedTestService()
-        speed.mockResult = SpeedTestData(downloadSpeed: 100, uploadSpeed: 50, latency: 15)
-        let ping = MockPingService()
-        return IOSHeatmapService(
-            wifiInfoService: wifi,
-            speedTestService: speed,
-            pingService: ping
-        )
+    private func makeStubService(signalDBm: Int) -> MockHeatmapService {
+        let service = MockHeatmapService()
+        service.rssi = signalDBm
+        service.ssid = "RegressionNet"
+        service.bssid = "11:22:33:44:55:66"
+        return service
     }
 
-    private func makeCalibratedVM() -> HeatmapSurveyViewModel {
-        let vm = HeatmapSurveyViewModel()
+    private func makeCalibratedVM(service: any HeatmapServiceProtocol) -> HeatmapSurveyViewModel {
+        let vm = makeHeatmapVM(service: service)
         vm.importFloorPlan(imageData: Data([1]), width: 1000, height: 500)
         vm.addCalibrationPoint(at: CGPoint.zero)
         vm.addCalibrationPoint(at: CGPoint(x: 100, y: 0))
@@ -966,39 +960,30 @@ struct HeatmapSurveyViewModelRegressionTests {
         return vm
     }
 
-    /// Regression guard for commit 6de9308 (heatmap IOSHeatmapService DI fix).
-    /// Before the fix, `heatmapService` was never injected and every measurement
-    /// silently returned the fallback -100 dBm sentinel. This test proves that
-    /// `configure(service:)` actually routes subsequent `takeMeasurement` calls
-    /// through the injected service.
-    @Test("configure(service:) routes takeMeasurement through the injected service")
-    func configureWiresServiceIntoTakeMeasurement() async {
-        let vm = makeCalibratedVM()
-
-        // Without service: fallback uses currentRSSI default (-100)
-        await vm.takeMeasurement(at: CGPoint(x: 0.1, y: 0.1))
-        let fallbackPoint = vm.measurementPoints.last
-        #expect(fallbackPoint?.rssi == -100)
-
-        // After configure: measurement uses the injected service's WiFiInfo
-        vm.configure(service: makeStubbedService(signalDBm: -45))
+    /// Regression guard for commits 6de9308 (DI fix) and #197 (god-class split).
+    /// Before 6de9308, `heatmapService` was never injected and every measurement
+    /// silently returned the fallback -100 dBm sentinel. P1.4 (#197) made the
+    /// service mandatory at init and deleted the fallback, so this test now
+    /// only verifies the happy path: a measurement reflects the service value.
+    @Test("takeMeasurement routes through the init-injected service")
+    func takeMeasurementUsesInjectedService() async {
+        let vm = makeCalibratedVM(service: makeStubService(signalDBm: -45))
         await vm.takeMeasurement(at: CGPoint(x: 0.2, y: 0.2))
-        let servicedPoint = vm.measurementPoints.last
-        #expect(servicedPoint?.rssi == -45)
+        #expect(vm.measurementPoints.last?.rssi == -45)
     }
 
-    /// Regression guard for commit 5266185 (shortcuts focus-thrash fix).
-    /// Before the fix, `startSurvey()` called `startSignalPolling()`, which
-    /// invoked the Shortcuts companion every 2s and stole focus back to the
-    /// Shortcuts app, making the survey tool unusable. The fix removed that
-    /// call. This test proves no background task auto-updates `currentRSSI`
-    /// after `startSurvey()` returns.
+    /// Regression guard for commit 5266185 (shortcuts focus-thrash fix) and
+    /// the P1.4 refactor that deleted `startSignalPolling()`/`pollInterval`
+    /// outright. Before 5266185, `startSurvey()` called `startSignalPolling()`,
+    /// which invoked the Shortcuts companion every 2s and stole focus back to
+    /// the Shortcuts app. P1.4 removed the polling code entirely. This test
+    /// proves no background task auto-updates `currentRSSI` after
+    /// `startSurvey()` returns.
     @Test("startSurvey does not start background signal polling")
     func startSurveyDoesNotStartSignalPolling() async {
-        let vm = makeCalibratedVM()
-        vm.configure(service: makeStubbedService(signalDBm: -45))
+        let vm = makeCalibratedVM(service: makeStubService(signalDBm: -45))
 
-        // Seed a sentinel the live-poll loop would overwrite on its first tick.
+        // Seed a sentinel an old live-poll loop would overwrite on its first tick.
         vm.currentRSSI = -77
 
         vm.startSurvey()
