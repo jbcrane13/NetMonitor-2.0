@@ -117,7 +117,7 @@ final class DashboardViewModel {
 
     /// Rolling latency history from GatewayService (for jitter visualization).
     var latencyHistory: [Double] {
-        (gatewayService as? GatewayService)?.latencyHistory ?? []
+        gatewayService.latencyHistory
     }
 
     /// Real-time anchor latencies (measured on refresh).

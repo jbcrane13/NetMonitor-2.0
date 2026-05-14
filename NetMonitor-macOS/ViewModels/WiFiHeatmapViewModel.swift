@@ -23,7 +23,7 @@ final class WiFiHeatmapViewModel {
 
     // MARK: - Live Signal
 
-    private(set) var currentSignal: WiFiHeatmapService.SignalSnapshot?
+    private(set) var currentSignal: SignalSnapshot?
     private(set) var nearbyAPs: [NearbyAP] = []
     private(set) var isScanning: Bool = false
 
@@ -90,7 +90,7 @@ final class WiFiHeatmapViewModel {
 
     // MARK: - Services
 
-    private let heatmapService = WiFiHeatmapService()
+    private let heatmapService: any MacWiFiSignalProviding
     private var wifiEngine: WiFiMeasurementEngine?
     private var signalPollTask: Task<Void, Never>?
     private let renderer: HeatmapRenderer
@@ -101,7 +101,8 @@ final class WiFiHeatmapViewModel {
 
     // MARK: - Init
 
-    init() {
+    init(heatmapService: any MacWiFiSignalProviding = WiFiHeatmapService()) {
+        self.heatmapService = heatmapService
         renderer = HeatmapRenderer()
         setupEngine()
     }

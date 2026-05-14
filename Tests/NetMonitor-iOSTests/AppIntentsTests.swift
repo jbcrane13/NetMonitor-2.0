@@ -98,9 +98,14 @@ struct NetworkStatusIntentTests {
 @MainActor
 struct NetMonitorShortcutsTests {
 
-    @Test("shortcuts provider has 4 shortcuts")
-    func shortcutCount() {
+    @Test("shortcuts provider includes all expected entries")
+    func shortcutMembership() {
         let shortcuts = NetMonitorShortcuts.appShortcuts
-        #expect(shortcuts.count == 4)
+        let titles = shortcuts.map { String(localized: $0.shortTitle) }
+        #expect(titles.contains("Ping Host"))
+        #expect(titles.contains("Scan Network"))
+        #expect(titles.contains("Speed Test"))
+        #expect(titles.contains("Network Status"))
+        #expect(titles.contains("Save Wi-Fi Reading"))
     }
 }
