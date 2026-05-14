@@ -2,6 +2,7 @@
 import Foundation
 import SwiftData
 import NetMonitorCore
+import NetworkScanKit
 import Darwin
 import os
 
@@ -212,12 +213,21 @@ final class DeviceDiscoveryCoordinator {
     /// Ping each online device (3 probes, 2s timeout) and store best latency.
     /// Uses ShellPingService (/sbin/ping) which works within the sandbox via shell,
     /// unlike ICMPSocket which requires a raw socket entitlement we don't have.
+    ///
+    /// Sliding-window cap (matches `resolveDeviceNames` below) — without this we
+    /// fork one `/sbin/ping` subprocess per online device, which spikes CPU and
+    /// trips thermal throttling on 200+ device networks. See #195.
     private func measureDeviceLatencies(profileID: UUID?) async {
         let devices = fetchDevices(for: profileID).filter { $0.status == .online }
         guard !devices.isEmpty else { return }
 
+        let concurrencyLimit = ThermalThrottleMonitor.shared.effectiveLimit(from: 10)
+
         await withTaskGroup(of: (String, Double?).self) { group in
-            for device in devices {
+            var activeCount = 0
+            var iter = devices.makeIterator()
+
+            while activeCount < concurrencyLimit, let device = iter.next() {
                 let ip = device.ipAddress
                 group.addTask {
                     let pingService = ShellPingService()
@@ -225,11 +235,21 @@ final class DeviceDiscoveryCoordinator {
                     let latency = result?.isReachable == true ? result?.minLatency : nil
                     return (ip, latency)
                 }
+                activeCount += 1
             }
 
             for await (ip, latency) in group {
                 if let latency, let device = devices.first(where: { $0.ipAddress == ip }) {
                     device.updateLatency(latency)
+                }
+                if let next = iter.next() {
+                    let nextIP = next.ipAddress
+                    group.addTask {
+                        let pingService = ShellPingService()
+                        let result = try? await pingService.ping(host: nextIP, count: 3, timeout: 2)
+                        let latency = result?.isReachable == true ? result?.minLatency : nil
+                        return (nextIP, latency)
+                    }
                 }
             }
         }
