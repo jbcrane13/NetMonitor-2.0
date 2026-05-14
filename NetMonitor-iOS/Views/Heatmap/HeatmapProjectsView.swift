@@ -145,11 +145,11 @@ struct HeatmapProjectsView: View {
     // MARK: - Actions
 
     private func refreshProjects() {
-        projects = HeatmapSurveyViewModel.listSavedProjects()
+        projects = HeatmapFileManager.listSavedProjects()
     }
 
     private func deleteProject(_ project: SavedSurveyInfo) {
-        try? HeatmapSurveyViewModel.deleteSavedProject(at: project.url)
+        try? HeatmapFileManager.deleteSavedProject(at: project.url)
         refreshProjects()
     }
 }

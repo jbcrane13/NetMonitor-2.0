@@ -702,7 +702,7 @@ struct HeatmapSurveyViewModelSavedProjectsTests {
 
         // Note: listSavedProjects reads from Documents, not temp.
         // This test verifies the function runs without crashing and returns an array.
-        let projects = HeatmapSurveyViewModel.listSavedProjects()
+        let projects = HeatmapFileManager.listSavedProjects()
         #expect(projects is [SavedSurveyInfo])
     }
 

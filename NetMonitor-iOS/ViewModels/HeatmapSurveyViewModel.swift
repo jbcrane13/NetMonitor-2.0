@@ -19,23 +19,6 @@ enum HeatmapError: Error, LocalizedError {
     }
 }
 
-// MARK: - SavedSurveyInfo
-
-struct SavedSurveyInfo: Identifiable {
-    let name: String
-    let url: URL
-    let modifiedDate: Date
-    let fileSize: Int
-
-    var id: URL { url }
-
-    var formattedSize: String {
-        let formatter = ByteCountFormatter()
-        formatter.countStyle = .file
-        return formatter.string(fromByteCount: Int64(fileSize))
-    }
-}
-
 // MARK: - HeatmapSurveyViewModel
 
 /// iOS heatmap survey state management.
@@ -128,15 +111,21 @@ final class HeatmapSurveyViewModel {
     // MARK: - Dependencies
 
     private let renderer: HeatmapRenderer
-    private let projectManager: ProjectSaveLoadManager
+    private let fileManager: HeatmapFileManager
+    private let exporter: HeatmapExporter
     private let heatmapService: any HeatmapServiceProtocol
 
     // MARK: - Init
 
-    init(service: any HeatmapServiceProtocol) {
+    init(
+        service: any HeatmapServiceProtocol,
+        fileManager: HeatmapFileManager = HeatmapFileManager(),
+        exporter: HeatmapExporter = HeatmapExporter()
+    ) {
         self.heatmapService = service
+        self.fileManager = fileManager
+        self.exporter = exporter
         renderer = HeatmapRenderer()
-        projectManager = ProjectSaveLoadManager()
     }
 
     // MARK: - Computed
@@ -483,25 +472,13 @@ final class HeatmapSurveyViewModel {
         defer { isSaving = false }
 
         project.measurementPoints = measurementPoints
-
-        if url.pathExtension == "netmonsurvey" {
-            try projectManager.save(project: project, to: url)
-        } else {
-            let data = try JSONEncoder().encode(project)
-            try data.write(to: url, options: .atomic)
-        }
+        try fileManager.save(project: project, to: url)
         lastSaveDate = Date()
         measurementsSinceLastSave = 0
     }
 
     func loadProject(from url: URL) throws {
-        let project: SurveyProject
-        if url.pathExtension == "netmonsurvey" {
-            project = try projectManager.load(from: url)
-        } else {
-            let data = try Data(contentsOf: url)
-            project = try JSONDecoder().decode(SurveyProject.self, from: data)
-        }
+        let project = try fileManager.load(from: url)
 
         surveyProject = project
         measurementPoints = project.measurementPoints
@@ -514,9 +491,9 @@ final class HeatmapSurveyViewModel {
     }
 
     func autoSave() {
-        guard let project = surveyProject else { return }
-        let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
-        guard let saveURL = documentsURL?.appendingPathComponent("\(project.name).netmonsurvey") else { return }
+        guard let project = surveyProject,
+              let saveURL = fileManager.autoSaveURL(for: project.name)
+        else { return }
         do {
             try saveProject(to: saveURL)
         } catch {
@@ -524,113 +501,24 @@ final class HeatmapSurveyViewModel {
         }
     }
 
-    // MARK: - Saved Projects
-
-    /// Lists all .netmonsurvey files in the Documents directory.
-    static func listSavedProjects() -> [SavedSurveyInfo] {
-        let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
-        guard let documentsURL else { return [] }
-
-        let fileManager = FileManager.default
-        guard let contents = try? fileManager.contentsOfDirectory(
-            at: documentsURL,
-            includingPropertiesForKeys: [.contentModificationDateKey, .fileSizeKey],
-            options: .skipsHiddenFiles
-        ) else { return [] }
-
-        return contents
-            .filter { $0.pathExtension == "netmonsurvey" }
-            .compactMap { url -> SavedSurveyInfo? in
-                let attrs = try? url.resourceValues(forKeys: [.contentModificationDateKey, .fileSizeKey])
-                let name = url.deletingPathExtension().lastPathComponent
-                return SavedSurveyInfo(
-                    name: name,
-                    url: url,
-                    modifiedDate: attrs?.contentModificationDate ?? Date.distantPast,
-                    fileSize: attrs?.fileSize ?? 0
-                )
-            }
-            .sorted { $0.modifiedDate > $1.modifiedDate }
-    }
-
-    /// Deletes a saved project file.
-    static func deleteSavedProject(at url: URL) throws {
-        try FileManager.default.removeItem(at: url)
-    }
-
     // MARK: - Export
 
     func exportImage(canvasSize: CGSize) -> UIImage? {
-        guard let project = surveyProject,
-              let floorImage = floorPlanImage else { return nil }
-
-        let imageRenderer = UIGraphicsImageRenderer(size: canvasSize)
-        return imageRenderer.image { ctx in
-            // Draw floor plan
-            floorImage.draw(in: CGRect(origin: .zero, size: canvasSize))
-
-            // Draw heatmap overlay
-            if let heatmapCG = heatmapImage {
-                let heatmapUI = UIImage(cgImage: heatmapCG)
-                ctx.cgContext.setAlpha(heatmapOpacity)
-                heatmapUI.draw(in: CGRect(origin: .zero, size: canvasSize))
-                ctx.cgContext.setAlpha(1.0)
-            }
-
-            // Draw measurement dots with glow
-            for point in filteredPoints {
-                let x = point.floorPlanX * canvasSize.width
-                let y = point.floorPlanY * canvasSize.height
-                let color = rssiColor(point.rssi)
-                let dotRadius: CGFloat = 6
-
-                // Outer glow
-                let glowRect = CGRect(
-                    x: x - dotRadius * 1.5,
-                    y: y - dotRadius * 1.5,
-                    width: dotRadius * 3,
-                    height: dotRadius * 3
-                )
-                ctx.cgContext.setFillColor(color.withAlphaComponent(0.3).cgColor)
-                ctx.cgContext.fillEllipse(in: glowRect)
-
-                // Inner dot
-                let dotRect = CGRect(
-                    x: x - dotRadius,
-                    y: y - dotRadius,
-                    width: dotRadius * 2,
-                    height: dotRadius * 2
-                )
-                ctx.cgContext.setFillColor(color.withAlphaComponent(0.8).cgColor)
-                ctx.cgContext.fillEllipse(in: dotRect)
-
-                // Center highlight
-                let highlightRect = CGRect(x: x - 2, y: y - 2, width: 4, height: 4)
-                ctx.cgContext.setFillColor(UIColor.white.withAlphaComponent(0.6).cgColor)
-                ctx.cgContext.fillEllipse(in: highlightRect)
-            }
-
-            _ = project
-        }
+        guard surveyProject != nil else { return nil }
+        return exporter.renderImage(
+            floorPlanImage: floorPlanImage,
+            heatmapImage: heatmapImage,
+            points: filteredPoints,
+            heatmapOpacity: heatmapOpacity,
+            canvasSize: canvasSize
+        )
     }
 
     /// Exports the project as a .netmonsurvey file URL for sharing.
     func exportProjectFile() -> URL? {
         guard var project = surveyProject else { return nil }
         project.measurementPoints = measurementPoints
-
-        let fileName = project.name
-            .replacingOccurrences(of: " ", with: "-")
-            .lowercased()
-        let tempURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("\(fileName).netmonsurvey")
-
-        do {
-            try projectManager.save(project: project, to: tempURL)
-            return tempURL
-        } catch {
-            return nil
-        }
+        return exporter.exportProjectFile(project: project, fileManager: fileManager)
     }
 
     // MARK: - Helpers
