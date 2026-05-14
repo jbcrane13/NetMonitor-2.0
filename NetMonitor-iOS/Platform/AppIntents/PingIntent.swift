@@ -21,7 +21,7 @@ struct PingIntent: AppIntent {
     )
     var count: Int
 
-    func perform() async throws -> some IntentResult {
+    func perform() async throws -> some IntentResult & ReturnsValue<Double> & ProvidesDialog {
         let trimmed = host.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else {
             throw $host.needsValueError("Enter a hostname or IP address.")
@@ -35,7 +35,24 @@ struct PingIntent: AppIntent {
             results.append(result)
         }
 
-        _ = await service.calculateStatistics(results, requestedCount: count)
-        return .result()
+        guard let stats = await service.calculateStatistics(results, requestedCount: count),
+              stats.received > 0 else {
+            throw PingIntentError.noResponses(host: trimmed)
+        }
+
+        let avg = stats.avgTime
+        let dialog: IntentDialog = "Average latency to \(trimmed) was \(Int(avg.rounded())) ms across \(stats.received) of \(stats.transmitted) pings."
+        return .result(value: avg, dialog: dialog)
+    }
+}
+
+private enum PingIntentError: Error, LocalizedError {
+    case noResponses(host: String)
+
+    var errorDescription: String? {
+        switch self {
+        case .noResponses(let host):
+            return "No ping responses received from \(host)."
+        }
     }
 }

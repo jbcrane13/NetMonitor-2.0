@@ -7,7 +7,7 @@ struct SaveWiFiReadingIntent: AppIntent {
     static let description = IntentDescription(
         "Passes Wi-Fi Get Network Details values to NetMonitor for heatmap surveys. Chain this action after 'Get Network Details' in a Shortcut."
     )
-    nonisolated(unsafe) static var openAppWhenRun: Bool = true
+    static var openAppWhenRun: Bool { true }
 
     @Parameter(title: "Network Name (SSID)") var ssid: String
     @Parameter(title: "BSSID") var bssid: String?
