@@ -9,20 +9,30 @@ import os.log
 ///
 /// Free tier: 100 measurements/hour, no API key required.
 /// ~600 probes across 6 continents.
+///
+/// SAFETY: @unchecked Sendable is safe here because all mutable state (`_lastError`)
+/// is protected by `lock` (NSLock). `session` and `baseURL` are immutable. `logger`
+/// is a Sendable value. All public reads of `lastError` and all writes go through
+/// the lock.
 public final class WorldPingService: WorldPingServiceProtocol, @unchecked Sendable {
     private let session: URLSession
     private let baseURL = "https://api.globalping.io/v1"
     private let logger = Logger(subsystem: "com.netmonitor", category: "WorldPingService")
 
+    private let lock = NSLock()
+    private var _lastError: String?
+
     /// Set after a ping attempt fails. Cleared at the start of each new ping.
-    public private(set) var lastError: String?
+    public var lastError: String? {
+        lock.withLock { _lastError }
+    }
 
     public init(session: URLSession = .shared) {
         self.session = session
     }
 
     public func ping(host: String, maxNodes: Int) async -> AsyncStream<WorldPingLocationResult> {
-        lastError = nil
+        setLastError(nil)
         logger.info("World ping starting for host: \(host), maxNodes: \(maxNodes)")
         return AsyncStream { continuation in
             Task {
@@ -35,11 +45,15 @@ public final class WorldPingService: WorldPingServiceProtocol, @unchecked Sendab
                     }
                 } catch {
                     self.logger.error("World ping failed: \(error.localizedDescription)")
-                    self.lastError = error.localizedDescription
+                    self.setLastError(error.localizedDescription)
                 }
                 continuation.finish()
             }
         }
+    }
+
+    private func setLastError(_ value: String?) {
+        lock.withLock { _lastError = value }
     }
 
     // MARK: - API Calls
