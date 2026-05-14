@@ -223,6 +223,7 @@ final class MockWiFiInfoService: WiFiInfoServiceProtocol, @unchecked Sendable {
 final class MockGatewayService: GatewayServiceProtocol {
     var gateway: GatewayInfo? = nil
     var isLoading: Bool = false
+    var latencyHistory: [Double] = []
     var detectCallCount = 0
 
     func detectGateway() async { detectCallCount += 1 }

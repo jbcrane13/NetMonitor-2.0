@@ -14,6 +14,29 @@ struct NearbyAP: Identifiable {
     let noise: Int?
 }
 
+// MARK: - SignalSnapshot
+
+struct SignalSnapshot {
+    let rssi: Int
+    let noiseFloor: Int?
+    let snr: Int?
+    let ssid: String?
+    let bssid: String?
+    let channel: Int?
+    let band: WiFiBand?
+    let linkSpeed: Int?
+    let frequency: Double?
+}
+
+// MARK: - MacWiFiSignalProviding
+
+/// Abstracts live macOS Wi-Fi signal capture so heatmap-style ViewModels
+/// can be exercised with stubs in tests.
+protocol MacWiFiSignalProviding: Sendable {
+    @MainActor func currentSignal() -> SignalSnapshot?
+    func scanForNearbyAPs() -> [NearbyAP]
+}
+
 // MARK: - WiFiHeatmapService
 
 /// CoreWLAN wrapper providing live signal data and nearby AP scanning for the heatmap tool.
@@ -21,7 +44,7 @@ struct NearbyAP: Identifiable {
 /// `scanForNearbyAPs()` is blocking (3-10s) and nonisolated — callers must dispatch it
 /// off the main thread via Task.detached.
 @MainActor
-final class WiFiHeatmapService: @unchecked Sendable {
+final class WiFiHeatmapService: MacWiFiSignalProviding, @unchecked Sendable {
 
     nonisolated let interfaceName: String?
 
@@ -36,18 +59,6 @@ final class WiFiHeatmapService: @unchecked Sendable {
     }
 
     // MARK: - Live Signal
-
-    struct SignalSnapshot {
-        let rssi: Int
-        let noiseFloor: Int?
-        let snr: Int?
-        let ssid: String?
-        let bssid: String?
-        let channel: Int?
-        let band: WiFiBand?
-        let linkSpeed: Int?
-        let frequency: Double?
-    }
 
     func currentSignal() -> SignalSnapshot? {
         guard let iface, iface.powerOn() else { return nil }
