@@ -15,14 +15,12 @@ struct DevicesView: View {
     @Environment(\.colorScheme) private var colorScheme
     @Query(Self.devicesDescriptor()) private var devices: [LocalDevice]
 
-    /// Protective cap on growing `LocalDevice` table; 500 most-recent devices is
-    /// well above any realistic active-network size.
+    /// Returns the descriptor for the full devices table, sorted by most-recent
+    /// activity first.
     private static func devicesDescriptor() -> FetchDescriptor<LocalDevice> {
-        var descriptor = FetchDescriptor<LocalDevice>(
+        FetchDescriptor<LocalDevice>(
             sortBy: [SortDescriptor(\LocalDevice.lastSeen, order: .reverse)]
         )
-        descriptor.fetchLimit = 500
-        return descriptor
     }
 
     @State private var selectedDevice: LocalDevice?
