@@ -113,7 +113,7 @@ struct TracerouteServiceIntegrationTests {
         #expect(count >= 1, "Stream must have yielded at least one hop before stop()")
 
         // Verify the service is no longer running
-        let isRunning = await service.running
+        let isRunning = await service.isRunning
         #expect(isRunning == false, "Service must not be in running state after stop()")
     }
 
@@ -123,7 +123,7 @@ struct TracerouteServiceIntegrationTests {
         for await _ in await service.trace(host: "127.0.0.1", maxHops: 1, timeout: 3.0) {
             // consume all hops
         }
-        let isRunning = await service.running
+        let isRunning = await service.isRunning
         #expect(isRunning == false, "running must be false after the stream finishes naturally")
     }
 

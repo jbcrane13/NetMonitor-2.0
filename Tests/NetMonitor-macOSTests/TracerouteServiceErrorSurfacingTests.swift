@@ -59,7 +59,7 @@ struct TracerouteServiceErrorSurfacingTests {
         // Consume the stream
         for await _ in stream {}
 
-        let running = await service.running
+        let running = await service.isRunning
         #expect(running == false, "running should be false after trace completes")
     }
 
@@ -74,7 +74,7 @@ struct TracerouteServiceErrorSurfacingTests {
         // Drain remaining items
         for await _ in stream {}
 
-        let running = await service.running
+        let running = await service.isRunning
         #expect(running == false, "Service should not be stuck in running state after stop()")
     }
 
@@ -105,7 +105,7 @@ struct TracerouteServiceErrorSurfacingTests {
 
         // localhost trace should complete (either with hops or timeout) — not hang forever.
         // The key assertion is that we reach this point (stream finishes).
-        let running = await service.running
+        let running = await service.isRunning
         #expect(running == false, "Trace to localhost should complete and set running to false")
     }
 }
