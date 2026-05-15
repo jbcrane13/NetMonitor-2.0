@@ -13,13 +13,13 @@ import NetMonitorCore
 /// See `docs/iOS-WiFi-Heatmap-Spec.md` sections 2, 4, 7 for design rationale.
 @MainActor
 @Observable
-final class IOSHeatmapService: HeatmapServiceProtocol, @unchecked Sendable {
+final class IOSHeatmapService: HeatmapServiceProtocol {
 
     // MARK: - Dependencies
 
     private let wifiInfoService: any WiFiInfoServiceProtocol
     private let shortcutsProvider: ShortcutsWiFiProvider
-    nonisolated(unsafe) private let speedTestService: any SpeedTestServiceProtocol
+    private let speedTestService: any SpeedTestServiceProtocol
     private let pingService: any PingServiceProtocol
 
     /// Gateway host for latency probes during active measurements.
@@ -118,7 +118,7 @@ final class IOSHeatmapService: HeatmapServiceProtocol, @unchecked Sendable {
 
     // MARK: - Speed Test Bridge
 
-    nonisolated private func runSpeedTest() async throws -> SpeedTestData {
+    private func runSpeedTest() async throws -> SpeedTestData {
         try await speedTestService.startTest()
     }
 

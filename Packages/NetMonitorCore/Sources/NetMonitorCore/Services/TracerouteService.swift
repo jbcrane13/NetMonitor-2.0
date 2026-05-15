@@ -19,7 +19,7 @@ public actor TracerouteService: TracerouteServiceProtocol {
 
     // MARK: - State
 
-    private var isRunning = false
+    public private(set) var isRunning = false
 
     // MARK: - Initialization
 
@@ -56,11 +56,6 @@ public actor TracerouteService: TracerouteServiceProtocol {
     /// Stops the current traceroute operation.
     public func stop() async {
         isRunning = false
-    }
-
-    /// Returns whether a traceroute is currently running.
-    public var running: Bool {
-        isRunning
     }
 
     // MARK: - Private Implementation

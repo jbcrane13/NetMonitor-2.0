@@ -397,10 +397,20 @@ final class DeviceDiscoveryCoordinator {
         loadPersistedDevices(for: profileID)
     }
 
+    /// Shared concurrent queue for `checkPort` so each TCP probe doesn't allocate a
+    /// fresh `DispatchQueue`. Concurrent attribute preserves parallel fan-out across
+    /// ports/devices (15 ports x N devices were previously running on N*15 disposable
+    /// queues per scan). See #203.
+    nonisolated private static let portScanQueue = DispatchQueue(
+        label: "com.netmonitor.quickportscan",
+        qos: .userInitiated,
+        attributes: .concurrent
+    )
+
     /// Non-blocking TCP connect check with configurable timeout.
-    private static func checkPort(host: String, port: Int, timeoutMs: Int32) async -> Bool {
+    nonisolated private static func checkPort(host: String, port: Int, timeoutMs: Int32) async -> Bool {
         await withCheckedContinuation { continuation in
-            DispatchQueue(label: "com.netmonitor.quickportscan").async {
+            portScanQueue.async {
                 var hints = addrinfo()
                 hints.ai_family = AF_INET
                 hints.ai_socktype = SOCK_STREAM

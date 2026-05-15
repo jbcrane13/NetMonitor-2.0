@@ -87,9 +87,9 @@ struct HeatmapSidebarView: View {
             if let signal = viewModel.currentSignal {
                 Text("\(signal.rssi)")
                     .font(.system(size: 36, weight: .heavy, design: .rounded))
-                    .foregroundStyle(colorForRSSI(signal.rssi))
+                    .foregroundStyle(RSSIQuality(rssi: signal.rssi).color)
 
-                Text("dBm · \(qualityLabel(signal.rssi))")
+                Text("dBm · \(RSSIQuality(rssi: signal.rssi).label)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
@@ -220,7 +220,7 @@ struct HeatmapSidebarView: View {
                         Spacer()
                         Text("\(ap.rssi) dBm")
                             .font(.caption.monospacedDigit())
-                            .foregroundStyle(colorForRSSI(ap.rssi))
+                            .foregroundStyle(RSSIQuality(rssi: ap.rssi).color)
                     }
                     .contentShape(Rectangle())
                     .onTapGesture {
@@ -362,27 +362,10 @@ struct HeatmapSidebarView: View {
         HStack(spacing: 2) {
             ForEach(0..<5) { i in
                 RoundedRectangle(cornerRadius: 1)
-                    .fill(rssi >= -90 + i * 12 ? colorForRSSI(rssi) : Color.gray.opacity(0.3))
+                    .fill(rssi >= -90 + i * 12 ? RSSIQuality(rssi: rssi).color : Color.gray.opacity(0.3))
                     .frame(width: 6, height: CGFloat(6 + i * 3))
             }
         }
     }
 
-    private func colorForRSSI(_ rssi: Int) -> Color {
-        switch rssi {
-        case -50...0: .green
-        case -60 ..< -50: .yellow
-        case -70 ..< -60: .orange
-        default: .red
-        }
-    }
-
-    private func qualityLabel(_ rssi: Int) -> String {
-        switch rssi {
-        case -50...0: "Excellent"
-        case -60 ..< -50: "Good"
-        case -70 ..< -60: "Fair"
-        default: "Weak"
-        }
-    }
 }

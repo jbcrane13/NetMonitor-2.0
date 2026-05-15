@@ -17,6 +17,7 @@ struct DashboardView: View {
                         .padding(.top, Theme.Layout.smallCornerRadius)
                         .padding(.bottom, Theme.Layout.sectionSpacing)
                 }
+                .appDestinations()
                 .themedBackground()
                 .navigationTitle("Dashboard")
                 .navigationBarTitleDisplayMode(.inline)
@@ -730,7 +731,7 @@ struct SpeedTestQuickCard: View {
     private var lastResult: SpeedTestResult? { history.first }
 
     var body: some View {
-        NavigationLink(destination: SpeedTestToolView()) {
+        NavigationLink(value: AppDestination.speedTest) {
             GlassCard(padding: 14, statusGlow: Theme.Colors.info) {
                 HStack(spacing: 14) {
                     ZStack {
@@ -784,7 +785,7 @@ struct SpeedTestQuickCard: View {
 
 struct WiFiHeatmapQuickCard: View {
     var body: some View {
-        NavigationLink(destination: HeatmapSurveyView()) {
+        NavigationLink(value: AppDestination.heatmapSurvey) {
             GlassCard(padding: 14) {
                 HStack(spacing: 14) {
                     ZStack {

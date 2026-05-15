@@ -104,10 +104,10 @@ struct TracerouteServiceTests {
 
     // MARK: - Initial state
 
-    @Test("running is false before any trace")
+    @Test("isRunning is false before any trace")
     func runningIsFalseBeforeAnyTrace() async {
         let service = TracerouteService()
-        let running = await service.running
+        let running = await service.isRunning
         #expect(running == false)
     }
 
@@ -118,7 +118,7 @@ struct TracerouteServiceTests {
         let service = TracerouteService()
         await service.stop()
         await service.stop()
-        let running = await service.running
+        let running = await service.isRunning
         #expect(running == false)
     }
 

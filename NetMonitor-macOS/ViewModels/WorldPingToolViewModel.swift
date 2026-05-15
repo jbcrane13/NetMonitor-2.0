@@ -17,11 +17,11 @@ final class MacWorldPingToolViewModel {
 
     // MARK: - Dependencies
 
-    private let service: any WorldPingServiceProtocol
+    private let runner: WorldPingRunner
     private var runTask: Task<Void, Never>?
 
     init(service: any WorldPingServiceProtocol = WorldPingService()) {
-        self.service = service
+        self.runner = WorldPingRunner(service: service)
     }
 
     // MARK: - Computed
@@ -46,18 +46,13 @@ final class MacWorldPingToolViewModel {
         errorMessage = nil
         isRunning = true
 
-        runTask = Task {
-            let stream = await service.ping(host: host, maxNodes: 20)
-            for await result in stream {
-                guard !Task.isCancelled else { break }
-                results.append(result)
-                results.sort { ($0.latencyMs ?? .infinity) < ($1.latencyMs ?? .infinity) }
+        runTask = Task { [runner] in
+            _ = await runner.run(host: host, maxNodes: 20) { sorted in
+                results = sorted
             }
-
             guard !Task.isCancelled else { return }
-
             if results.isEmpty {
-                errorMessage = service.lastError ?? "No results returned. Check the host and your network connection."
+                errorMessage = runner.emptyResultsMessage()
             }
             isRunning = false
         }

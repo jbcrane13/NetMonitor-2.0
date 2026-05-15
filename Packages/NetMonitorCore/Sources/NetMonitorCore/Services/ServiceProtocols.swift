@@ -76,7 +76,7 @@ public protocol PortScannerServiceProtocol: AnyObject, Sendable {
 }
 
 /// Protocol for DNS lookup operations.
-public protocol DNSLookupServiceProtocol: AnyObject {
+public protocol DNSLookupServiceProtocol: AnyObject, Sendable {
     @MainActor var isLoading: Bool { get }
     @MainActor var lastError: String? { get }
     @MainActor func lookup(domain: String, recordType: DNSRecordType, server: String?) async -> DNSQueryResult?
@@ -88,7 +88,7 @@ public protocol WHOISServiceProtocol: AnyObject, Sendable {
 }
 
 /// Protocol for Wake on LAN operations.
-public protocol WakeOnLANServiceProtocol {
+public protocol WakeOnLANServiceProtocol: AnyObject, Sendable {
     @MainActor var isSending: Bool { get }
     @MainActor var lastResult: WakeOnLANResult? { get }
     @MainActor var lastError: String? { get }
@@ -115,7 +115,7 @@ public protocol SpeedTestServiceProtocol: Sendable {
 }
 
 /// Protocol for network path monitoring.
-public protocol NetworkMonitorServiceProtocol {
+public protocol NetworkMonitorServiceProtocol: AnyObject, Sendable {
     @MainActor var isConnected: Bool { get }
     @MainActor var connectionType: ConnectionType { get }
     @MainActor var isExpensive: Bool { get }
@@ -139,7 +139,7 @@ public protocol DeviceDiscoveryServiceProtocol: AnyObject, Sendable {
 }
 
 /// Protocol for default gateway detection.
-public protocol GatewayServiceProtocol {
+public protocol GatewayServiceProtocol: AnyObject, Sendable {
     @MainActor var gateway: GatewayInfo? { get }
     @MainActor var isLoading: Bool { get }
     /// Rolling history of recent gateway latency measurements (newest first).
@@ -328,11 +328,6 @@ public struct ScanDiff: Sendable {
 }
 
 // MARK: - New Feature Service Protocols
-
-/// Protocol for subnet calculation.
-public protocol SubnetCalculatorServiceProtocol: AnyObject, Sendable {
-    func calculate(cidr: String) -> SubnetInfo?
-}
 
 /// Protocol for world ping (global latency checks via external API).
 public protocol WorldPingServiceProtocol: AnyObject, Sendable {

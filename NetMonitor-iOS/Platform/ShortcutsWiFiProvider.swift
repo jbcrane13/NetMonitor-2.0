@@ -32,7 +32,7 @@ struct ShortcutsWiFiReading: Codable {
 /// See `docs/iOS-WiFi-Heatmap-Spec.md` for design details.
 @MainActor
 @Observable
-final class ShortcutsWiFiProvider: @unchecked Sendable {
+final class ShortcutsWiFiProvider {
 
     /// Whether the companion Shortcut appears to be installed and working.
     private(set) var isAvailable: Bool = false
