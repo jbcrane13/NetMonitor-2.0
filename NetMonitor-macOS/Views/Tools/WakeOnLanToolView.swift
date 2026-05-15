@@ -10,7 +10,17 @@ import NetMonitorCore
 import SwiftData
 
 struct WakeOnLanToolView: View {
-    @Query private var devices: [LocalDevice]
+    @Query(Self.devicesDescriptor()) private var devices: [LocalDevice]
+
+    /// Protective cap on growing `LocalDevice` table. View further filters to
+    /// devices with MAC addresses; 500 most-recent is well above realistic size.
+    private static func devicesDescriptor() -> FetchDescriptor<LocalDevice> {
+        var descriptor = FetchDescriptor<LocalDevice>(
+            sortBy: [SortDescriptor(\LocalDevice.lastSeen, order: .reverse)]
+        )
+        descriptor.fetchLimit = 500
+        return descriptor
+    }
 
     @State private var selectedDeviceID: UUID?
     @State private var macAddress = ""

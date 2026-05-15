@@ -8,7 +8,17 @@ struct NetworkDevicesPanel: View {
     let networkProfileID: UUID?
 
     @Environment(DeviceDiscoveryCoordinator.self) private var coordinator: DeviceDiscoveryCoordinator?
-    @Query(sort: \LocalDevice.lastSeen, order: .reverse) private var allDevices: [LocalDevice]
+    @Query(Self.devicesDescriptor()) private var allDevices: [LocalDevice]
+
+    /// Protective cap on growing `LocalDevice` table. View further filters by
+    /// `networkProfileID`; 500 most-recent devices is well above active-network size.
+    private static func devicesDescriptor() -> FetchDescriptor<LocalDevice> {
+        var descriptor = FetchDescriptor<LocalDevice>(
+            sortBy: [SortDescriptor(\LocalDevice.lastSeen, order: .reverse)]
+        )
+        descriptor.fetchLimit = 500
+        return descriptor
+    }
 
     @State private var searchText: String = ""
     @AppStorage("netmonitor.devicesPanel.sortOrder") private var sortOrder: PanelSortOrder = .ipAddress

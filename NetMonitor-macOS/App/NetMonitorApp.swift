@@ -59,12 +59,20 @@ struct NetMonitorApp: App {
 
         do {
             // launch-time "Duplicate version checksums detected" exception.
-            return try ModelContainer(for: schema, configurations: [modelConfiguration])
+            return try ModelContainer(
+                for: schema,
+                migrationPlan: NetMonitorMigrationPlan.self,
+                configurations: [modelConfiguration]
+            )
         } catch {
             Logger.app.warning("Could not create persistent ModelContainer: \(error)")
             do {
                 let inMemoryConfig = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
-                return try ModelContainer(for: schema, configurations: [inMemoryConfig])
+                return try ModelContainer(
+                    for: schema,
+                    migrationPlan: NetMonitorMigrationPlan.self,
+                    configurations: [inMemoryConfig]
+                )
             } catch {
                 fatalError("Could not create in-memory ModelContainer: \(error)")
             }

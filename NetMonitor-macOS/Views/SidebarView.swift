@@ -16,7 +16,17 @@ struct SidebarView: View {
     // periphery:ignore
     @Environment(MonitoringSession.self) private var monitoringSession: MonitoringSession?
     @Environment(\.colorScheme) private var colorScheme
-    @Query(sort: \LocalDevice.lastSeen, order: .reverse) private var devices: [LocalDevice]
+    @Query(Self.devicesDescriptor()) private var devices: [LocalDevice]
+
+    /// Protective cap on growing `LocalDevice` table — sidebar only needs counts
+    /// per profile, and 500 most-recent devices comfortably covers active networks.
+    private static func devicesDescriptor() -> FetchDescriptor<LocalDevice> {
+        var descriptor = FetchDescriptor<LocalDevice>(
+            sortBy: [SortDescriptor(\LocalDevice.lastSeen, order: .reverse)]
+        )
+        descriptor.fetchLimit = 500
+        return descriptor
+    }
 
     private var headerText: Color {
         colorScheme == .dark ? .white : Color(red: 51/255, green: 65/255, blue: 85/255)

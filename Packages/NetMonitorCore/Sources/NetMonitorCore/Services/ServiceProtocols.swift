@@ -329,11 +329,6 @@ public struct ScanDiff: Sendable {
 
 // MARK: - New Feature Service Protocols
 
-/// Protocol for subnet calculation.
-public protocol SubnetCalculatorServiceProtocol: AnyObject, Sendable {
-    func calculate(cidr: String) -> SubnetInfo?
-}
-
 /// Protocol for world ping (global latency checks via external API).
 public protocol WorldPingServiceProtocol: AnyObject, Sendable {
     var lastError: String? { get }

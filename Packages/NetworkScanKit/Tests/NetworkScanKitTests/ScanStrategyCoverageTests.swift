@@ -134,25 +134,22 @@ struct ScanStrategyCoverageTests {
         #expect(closure().id == "s")
     }
 
-    // MARK: - ScanContext with NetworkScanProfile and ScanStrategy
+    // MARK: - ScanContext with ScanStrategy
 
-    @Test("ScanContext with .remote strategy and profile")
-    func contextWithRemoteStrategyAndProfile() {
-        let profile = NetworkScanProfile(id: "remote-office", name: "Remote Office", subnetCIDR: "10.10.0.0/16")
+    @Test("ScanContext with .remote strategy")
+    func contextWithRemoteStrategy() {
         let ctx = ScanContext(
             hosts: ["10.10.0.1"],
             subnetFilter: { _ in true },
             localIP: nil,
-            networkProfile: profile,
             scanStrategy: .remote
         )
         #expect(ctx.scanStrategy == .remote)
-        #expect(ctx.networkProfile?.id == "remote-office")
-        #expect(ctx.networkProfile?.subnetCIDR == "10.10.0.0/16")
+        #expect(ctx.hosts == ["10.10.0.1"])
     }
 
-    @Test("ScanContext with .full strategy and nil profile")
-    func contextWithFullStrategyNilProfile() {
+    @Test("ScanContext with .full strategy")
+    func contextWithFullStrategy() {
         let ctx = ScanContext(
             hosts: [],
             subnetFilter: { _ in true },
@@ -160,7 +157,6 @@ struct ScanStrategyCoverageTests {
             scanStrategy: .full
         )
         #expect(ctx.scanStrategy == .full)
-        #expect(ctx.networkProfile == nil)
         #expect(ctx.localIP == "192.168.1.100")
     }
 
