@@ -3,6 +3,7 @@ import NetMonitorCore
 import SwiftData
 
 struct ContentView: View {
+    @Environment(AppEnvironment.self) private var env
     @State private var selectedTab: Tab = .dashboard
     @State private var selectedSidebarTab: Tab? = .dashboard
     // Observe ThemeManager so the entire view tree re-renders on accent color change
@@ -66,7 +67,7 @@ struct ContentView: View {
                         .tag(Tab.tools)
                         .accessibilityIdentifier("contentView_tab_tools")
 
-                    TimelineView()
+                    TimelineView(env: env)
                         .tabItem {
                             Label(Tab.timeline.title, systemImage: Tab.timeline.icon)
                         }
@@ -207,7 +208,7 @@ struct ContentView: View {
         case .dashboard: DashboardView()
         case .map: NetworkMapView()
         case .tools: ToolsView()
-        case .timeline: TimelineView()
+        case .timeline: TimelineView(env: env)
         }
     }
 }

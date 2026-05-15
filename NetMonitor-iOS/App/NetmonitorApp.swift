@@ -10,6 +10,7 @@ struct NetmonitorApp: App {
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
     @State private var showOnboarding = false
     @State private var deepLinkRouter = DeepLinkRouter()
+    @State private var environment: AppEnvironment = .live()
 
     private static var isUITesting: Bool {
         let args = ProcessInfo.processInfo.arguments
@@ -62,6 +63,7 @@ struct NetmonitorApp: App {
             ContentView()
                 .preferredColorScheme(resolvedColorScheme)
                 .accessibilityIdentifier("screen_main")
+                .environment(environment)
                 .environment(deepLinkRouter)
                 .onOpenURL { url in
                     deepLinkRouter.handle(url: url)
