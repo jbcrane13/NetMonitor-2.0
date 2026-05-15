@@ -174,7 +174,7 @@ actor BlueprintBuilder {
         return results
     }
 
-    private nonisolated func runStructureBuilder(
+    nonisolated private func runStructureBuilder(
         rooms: [CapturedRoom],
         beautify: Bool,
         timeout: Duration
@@ -188,7 +188,7 @@ actor BlueprintBuilder {
         }
     }
 
-    private nonisolated func runRoomBuilder(
+    nonisolated private func runRoomBuilder(
         data: CapturedRoomData,
         beautify: Bool,
         timeout: Duration

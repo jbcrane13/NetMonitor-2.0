@@ -10,12 +10,14 @@ struct ScanNetworkIntent: AppIntent {
         categoryName: "Network Tools"
     )
 
-    func perform() async throws -> some IntentResult {
+    func perform() async throws -> some IntentResult & ReturnsValue<Int> & ProvidesDialog {
         let service = await MainActor.run { DeviceDiscoveryService.shared }
-
-        // scanNetwork(subnet:) is nonisolated async — call from any context
         await service.scanNetwork(subnet: nil)
+        let count = await MainActor.run { service.discoveredDevices.count }
 
-        return .result()
+        let dialog: IntentDialog = count == 1
+            ? "Found 1 device on your network."
+            : "Found \(count) devices on your network."
+        return .result(value: count, dialog: dialog)
     }
 }

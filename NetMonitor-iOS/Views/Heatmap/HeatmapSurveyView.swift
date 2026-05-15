@@ -7,7 +7,7 @@ import UniformTypeIdentifiers
 
 struct HeatmapSurveyView: View {
     @Environment(DeepLinkRouter.self) private var deepLinkRouter: DeepLinkRouter?
-    @State private var viewModel = HeatmapSurveyViewModel()
+    @State private var viewModel: HeatmapSurveyViewModel
     @State private var selectedPhotoItem: PhotosPickerItem?
     @State private var showImportOptions = false
     @State private var showRoomScanner = false
@@ -15,7 +15,19 @@ struct HeatmapSurveyView: View {
     @State private var showProjectsList = false
     @State private var shareItems: [Any] = []
     @State private var showShortcutSetup = false
-    @State private var shortcutsProvider = ShortcutsWiFiProvider()
+    @State private var shortcutsProvider: ShortcutsWiFiProvider
+
+    init() {
+        let provider = ShortcutsWiFiProvider()
+        let service = IOSHeatmapService(
+            wifiInfoService: WiFiInfoService(),
+            shortcutsProvider: provider,
+            speedTestService: SpeedTestService(),
+            pingService: PingService()
+        )
+        _shortcutsProvider = State(initialValue: provider)
+        _viewModel = State(initialValue: HeatmapSurveyViewModel(service: service))
+    }
 
     var body: some View {
         ZStack {
@@ -103,17 +115,6 @@ struct HeatmapSurveyView: View {
         }
         .accessibilityIdentifier("screen_heatmapSurvey")
         .onAppear {
-            // Inject the heatmap service. Without this, HeatmapSurveyViewModel
-            // falls back to the nil-service path and every measurement's RSSI
-            // defaults to the -100 sentinel.
-            let service = IOSHeatmapService(
-                wifiInfoService: WiFiInfoService(),
-                shortcutsProvider: shortcutsProvider,
-                speedTestService: SpeedTestService(),
-                pingService: PingService()
-            )
-            viewModel.configure(service: service)
-
             // Check if a .netmonsurvey file was opened via deep link
             if let url = deepLinkRouter?.consumePendingFile() {
                 openFileFromDeepLink(url)
@@ -263,6 +264,11 @@ struct HeatmapSurveyView: View {
             )
         }
     }
+}
+
+// MARK: - Signal HUD + Toolbar Helpers
+
+extension HeatmapSurveyView {
 
     // MARK: - Signal HUD
 

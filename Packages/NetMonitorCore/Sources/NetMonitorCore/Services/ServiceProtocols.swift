@@ -142,6 +142,9 @@ public protocol DeviceDiscoveryServiceProtocol: AnyObject, Sendable {
 public protocol GatewayServiceProtocol {
     @MainActor var gateway: GatewayInfo? { get }
     @MainActor var isLoading: Bool { get }
+    /// Rolling history of recent gateway latency measurements (newest first).
+    /// Conformers may return an empty array if no history is tracked.
+    @MainActor var latencyHistory: [Double] { get }
     @MainActor func detectGateway() async
 }
 
@@ -349,6 +352,15 @@ public protocol SSLCertificateServiceProtocol: AnyObject, Sendable {
 
 /// Protocol for computing an overall network health score.
 public protocol NetworkHealthScoreServiceProtocol: AnyObject, Sendable {
+    /// Update cached measurements used by `calculateScore()`.
+    func update(
+        latencyMs: Double?,
+        packetLoss: Double?,
+        dnsResponseMs: Double?,
+        deviceCount: Int?,
+        typicalDeviceCount: Int?,
+        isConnected: Bool
+    )
     func calculateScore() async -> NetworkHealthScore
 }
 

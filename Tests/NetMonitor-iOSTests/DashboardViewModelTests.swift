@@ -253,10 +253,13 @@ struct DashboardViewModelTests {
         #expect(!vm.anchorLatencies.isEmpty)
     }
 
-    @Test func latencyHistoryEmptyWhenGatewayServiceIsMock() {
-        // MockGatewayService is not a GatewayService instance, so the cast fails → returns []
-        let vm = makeVM(gatewayService: MockGatewayService())
+    @Test func latencyHistoryFromGatewayService() {
+        let gateway = MockGatewayService()
+        let vm = makeVM(gatewayService: gateway)
         #expect(vm.latencyHistory.isEmpty)
+
+        gateway.latencyHistory = [12.0, 14.5, 11.2]
+        #expect(vm.latencyHistory == [12.0, 14.5, 11.2])
     }
 
     @Test func recentEventsReflectsToolActivityLog() {

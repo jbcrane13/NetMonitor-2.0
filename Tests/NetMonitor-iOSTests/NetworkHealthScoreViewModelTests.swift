@@ -9,6 +9,20 @@ import NetMonitorCore
 private final class MockNetworkHealthScoreService: NetworkHealthScoreServiceProtocol, @unchecked Sendable {
     var mockScore = NetworkHealthScore(score: 85, grade: "B", latencyMs: 25, packetLoss: 0.02, details: ["latency": "25 ms"])
     var calculateCallCount = 0
+    var updateCallCount = 0
+    var lastUpdate: (latencyMs: Double?, packetLoss: Double?, isConnected: Bool)?
+
+    func update(
+        latencyMs: Double?,
+        packetLoss: Double?,
+        dnsResponseMs: Double?,
+        deviceCount: Int?,
+        typicalDeviceCount: Int?,
+        isConnected: Bool
+    ) {
+        updateCallCount += 1
+        lastUpdate = (latencyMs, packetLoss, isConnected)
+    }
 
     func calculateScore() async -> NetworkHealthScore {
         calculateCallCount += 1
@@ -20,6 +34,15 @@ private final class MockNetworkHealthScoreService: NetworkHealthScoreServiceProt
 private final class SlowNetworkHealthScoreService: NetworkHealthScoreServiceProtocol, @unchecked Sendable {
     var mockScore = NetworkHealthScore(score: 85, grade: "B", latencyMs: 25, packetLoss: 0.02, details: [:])
     var calculateCallCount = 0
+
+    func update(
+        latencyMs: Double?,
+        packetLoss: Double?,
+        dnsResponseMs: Double?,
+        deviceCount: Int?,
+        typicalDeviceCount: Int?,
+        isConnected: Bool
+    ) {}
 
     func calculateScore() async -> NetworkHealthScore {
         calculateCallCount += 1

@@ -213,7 +213,6 @@ public struct TCPProbeScanPhase: ScanPhase, Sendable {
 
     private static func probePort(ip: String, port: UInt16, timeout: Duration) async -> PortProbeOutcome {
         await ConnectionBudget.shared.acquire()
-        defer { Task { await ConnectionBudget.shared.release() } }
 
         let host = NWEndpoint.Host(ip)
         let endpoint = NWEndpoint.hostPort(host: host, port: NWEndpoint.Port(rawValue: port)!)
@@ -272,6 +271,11 @@ public struct TCPProbeScanPhase: ScanPhase, Sendable {
         }
 
         connection.cancel()
+        // Release synchronously *before* return so the next acquire() sees the
+        // released slot. Wrapping in `Task { ... }` (the old `defer { Task { ... } }`
+        // pattern) detaches release into a later async context, so callers can pile
+        // up past the budget. See #194.
+        await ConnectionBudget.shared.release()
         return result
     }
 
@@ -336,11 +340,10 @@ public struct TCPProbeScanPhase: ScanPhase, Sendable {
     /// returns as soon as any responds.
     private static func quickLatencyProbe(ip: String, timeout: Duration) async -> Double? {
         await ConnectionBudget.shared.acquire()
-        defer { Task { await ConnectionBudget.shared.release() } }
 
         let host = NWEndpoint.Host(ip)
 
-        return await withTaskGroup(of: Double?.self, returning: Double?.self) { group in
+        let result = await withTaskGroup(of: Double?.self, returning: Double?.self) { group in
             for port in latencyProbePorts {
                 group.addTask {
                     await singlePortLatencyProbe(host: host, port: port, timeout: timeout)
@@ -356,6 +359,10 @@ public struct TCPProbeScanPhase: ScanPhase, Sendable {
             }
             return nil
         }
+
+        // Release synchronously before return — see comment in probePort. See #194.
+        await ConnectionBudget.shared.release()
+        return result
     }
 
     /// Single-port TCP connect for latency measurement.

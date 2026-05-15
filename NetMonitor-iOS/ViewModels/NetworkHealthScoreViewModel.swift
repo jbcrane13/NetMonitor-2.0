@@ -93,16 +93,14 @@ final class NetworkHealthScoreViewModel {
             packetLoss = Double(results.count - successful.count) / Double(results.count)
         }
 
-        if let svc = service as? NetworkHealthScoreService {
-            svc.update(
-                latencyMs: latencyMs,
-                packetLoss: packetLoss,
-                dnsResponseMs: nil,
-                deviceCount: nil,
-                typicalDeviceCount: nil,
-                isConnected: networkMonitor.isConnected
-            )
-        }
+        service.update(
+            latencyMs: latencyMs,
+            packetLoss: packetLoss,
+            dnsResponseMs: nil,
+            deviceCount: nil,
+            typicalDeviceCount: nil,
+            isConnected: networkMonitor.isConnected
+        )
 
         let score = await service.calculateScore()
         currentScore = score

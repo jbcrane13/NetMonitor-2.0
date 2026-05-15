@@ -10,18 +10,15 @@ struct SpeedTestIntent: AppIntent {
         categoryName: "Network Tools"
     )
 
-    func perform() async throws -> some IntentResult {
-        // Create service and call startTest() on the main actor
-        let data: SpeedTestData = try await MainActor.run {
-            SpeedTestService()
-        }.startTest()
+    func perform() async throws -> some IntentResult & ReturnsValue<Double> & ProvidesDialog {
+        let service = await MainActor.run { SpeedTestService() }
+        let data = try await service.startTest()
 
         let dl = formatSpeed(data.downloadSpeed)
         let ul = formatSpeed(data.uploadSpeed)
         let latency = String(format: "%.0f ms", data.latency)
+        let dialog: IntentDialog = "Speed test — \(dl) down, \(ul) up, \(latency) latency."
 
-        _ = "Download: \(dl), Upload: \(ul), Latency: \(latency)"
-        return .result()
+        return .result(value: data.downloadSpeed, dialog: dialog)
     }
-
 }

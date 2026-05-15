@@ -46,8 +46,8 @@ final class WiFiReadingBridge {
             Task<Void, Never> {
                 try? await Task.sleep(for: .seconds(timeout))
                 // Only resume if it hasn't been claimed by publish().
-                if let c = pendingContinuations.removeValue(forKey: id) {
-                    c.resume(returning: nil)
+                if let continuation = pendingContinuations.removeValue(forKey: id) {
+                    continuation.resume(returning: nil)
                 }
             }
         }
