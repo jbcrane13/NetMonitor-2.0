@@ -215,5 +215,6 @@ struct ContentView: View {
 
 #Preview {
     ContentView()
+        .environment(AppEnvironment.live())
         .modelContainer(for: [], inMemory: true)
 }
