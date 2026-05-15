@@ -521,4 +521,9 @@ final class HeatmapSurveyViewModel {
         return exporter.exportProjectFile(project: project, fileManager: fileManager)
     }
 
+    /// Compatibility wrapper for existing call sites and tests.
+    func qualityLabel(_ rssi: Int) -> String {
+        RSSIQuality(rssi: rssi).label
+    }
+
 }
