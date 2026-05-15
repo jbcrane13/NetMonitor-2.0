@@ -481,7 +481,7 @@
 		0203A45AF57DA6D9B5EDF5F5 /* ISPLookupServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ISPLookupServiceTests.swift; sourceTree = "<group>"; };
 		02D429D7F12642A26F1D2045 /* WHOISToolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WHOISToolView.swift; sourceTree = "<group>"; };
 		03EFF7191F7CE4A05EB616BE /* NewFeaturesUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewFeaturesUITests.swift; sourceTree = "<group>"; };
-		040158ED31B51401B56621DB /* NetMonitor-iOS.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = "NetMonitor-iOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		040158ED31B51401B56621DB /* NetMonitor-iOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "NetMonitor-iOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		04BDC838230764B6AA69A835 /* VPNInfoUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VPNInfoUITests.swift; sourceTree = "<group>"; };
 		04C7FA2561E26185AE834BE0 /* NetworkHealthScoreViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkHealthScoreViewModel.swift; sourceTree = "<group>"; };
 		04EA4B2B980CA11E3A52CE1C /* VPNInfoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VPNInfoView.swift; sourceTree = "<group>"; };
@@ -2474,6 +2474,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				MARKETING_VERSION = 2.2.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.netmonitor.NetMonitor;
 				SDKROOT = macosx;
 				SWIFT_STRICT_CONCURRENCY = complete;
@@ -2551,6 +2552,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				MARKETING_VERSION = 2.2.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.netmonitor.NetMonitor;
 				SDKROOT = macosx;
 				SWIFT_STRICT_CONCURRENCY = complete;
@@ -2735,11 +2737,14 @@
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = 32XZRDTGK3;
 				INFOPLIST_FILE = "NetMonitor-iOS/Resources/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "NetMonitor Mobile";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.food-and-drink";
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				MARKETING_VERSION = 2.2.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.blakemiller.netmonitor;
 				SDKROOT = iphoneos;
 				SWIFT_STRICT_CONCURRENCY = complete;
@@ -2757,11 +2762,14 @@
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = 32XZRDTGK3;
 				INFOPLIST_FILE = "NetMonitor-iOS/Resources/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "NetMonitor Mobile";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.food-and-drink";
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				MARKETING_VERSION = 2.2.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.blakemiller.netmonitor;
 				SDKROOT = iphoneos;
 				SWIFT_STRICT_CONCURRENCY = complete;
