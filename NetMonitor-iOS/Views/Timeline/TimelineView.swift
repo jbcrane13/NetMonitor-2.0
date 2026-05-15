@@ -2,8 +2,12 @@ import SwiftUI
 import NetMonitorCore
 
 struct TimelineView: View {
-    @State private var viewModel = TimelineViewModel()
+    @State private var viewModel: TimelineViewModel
     @State private var showingFilterSheet = false
+
+    init(env: AppEnvironment) {
+        _viewModel = State(initialValue: TimelineViewModel(service: env.eventService))
+    }
 
     var body: some View {
         NavigationStack {
@@ -237,5 +241,5 @@ struct TimelineFilterSheet: View {
 }
 
 #Preview {
-    TimelineView()
+    TimelineView(env: .live())
 }

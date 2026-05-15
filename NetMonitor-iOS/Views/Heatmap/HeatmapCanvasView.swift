@@ -84,7 +84,7 @@ struct HeatmapCanvasView: View {
     private func measurementDot(for point: MeasurementPoint, in imageSize: CGSize) -> some View {
         let x = point.floorPlanX * imageSize.width
         let y = point.floorPlanY * imageSize.height
-        let color = Color(uiColor: viewModel.rssiColor(point.rssi))
+        let color = RSSIQuality(rssi: point.rssi).color
 
         return ZStack {
             // Outer glow

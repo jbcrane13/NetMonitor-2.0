@@ -404,7 +404,7 @@ struct DeviceDetailView: View {
 
             VStack(spacing: Theme.Layout.itemSpacing) {
                 // Ping button
-                NavigationLink(destination: PingToolView(initialHost: device.ipAddress)) {
+                NavigationLink(value: AppDestination.ping(host: device.ipAddress)) {
                     HStack {
                         Image(systemName: "antenna.radiowaves.left.and.right")
                             .foregroundStyle(Theme.Colors.accent)
@@ -426,7 +426,7 @@ struct DeviceDetailView: View {
                 Divider().background(Theme.Colors.glassBorder)
 
                 // Port Scan button
-                NavigationLink(destination: PortScannerToolView(initialHost: device.ipAddress)) {
+                NavigationLink(value: AppDestination.portScanner(host: device.ipAddress)) {
                     HStack {
                         Image(systemName: "server.rack")
                             .foregroundStyle(Theme.Colors.accent)
@@ -448,7 +448,7 @@ struct DeviceDetailView: View {
                 Divider().background(Theme.Colors.glassBorder)
 
                 // DNS Lookup button
-                NavigationLink(destination: DNSLookupToolView(initialDomain: device.ipAddress)) {
+                NavigationLink(value: AppDestination.dnsLookup(domain: device.ipAddress)) {
                     HStack {
                         Image(systemName: "globe")
                             .foregroundStyle(Theme.Colors.accent)
@@ -471,7 +471,7 @@ struct DeviceDetailView: View {
                 if device.supportsWakeOnLan {
                     Divider().background(Theme.Colors.glassBorder)
 
-                    NavigationLink(destination: WakeOnLANToolView(initialMacAddress: device.macAddress)) {
+                    NavigationLink(value: AppDestination.wakeOnLAN(mac: device.macAddress)) {
                         HStack {
                             Image(systemName: "power")
                                 .foregroundStyle(Theme.Colors.success)

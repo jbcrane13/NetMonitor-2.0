@@ -240,23 +240,23 @@ struct SettingsViewModelDataManagementTests {
         #expect(remaining.isEmpty)
     }
 
-    @Test func clearAllCachedDataSetsClearCacheSuccessTrue() throws {
+    @Test func clearAllCachedDataSetsClearCacheSuccessTrue() async throws {
         let (_, context) = try makeInMemoryStore()
         let vm = SettingsViewModel()
 
-        vm.clearAllCachedData(modelContext: context)
+        await vm.clearAllCachedData(modelContext: context)
 
         #expect(vm.clearCacheSuccess == true)
         #expect(vm.isClearingCache == false)
     }
 
-    @Test func clearAllCachedDataDeletesAllModelTypes() throws {
+    @Test func clearAllCachedDataDeletesAllModelTypes() async throws {
         let (_, context) = try makeInMemoryStore()
         context.insert(ToolResult(toolType: .ping, target: "8.8.8.8", success: true, summary: "OK"))
         context.insert(LocalDevice(ipAddress: "192.168.1.1", macAddress: "AA:BB"))
         try context.save()
 
-        SettingsViewModel().clearAllCachedData(modelContext: context)
+        await SettingsViewModel().clearAllCachedData(modelContext: context)
 
         #expect(try context.fetch(FetchDescriptor<ToolResult>()).isEmpty)
         #expect(try context.fetch(FetchDescriptor<LocalDevice>()).isEmpty)

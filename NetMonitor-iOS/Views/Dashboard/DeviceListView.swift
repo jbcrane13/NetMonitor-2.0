@@ -97,7 +97,7 @@ struct DeviceListView: View {
                     .padding(.horizontal, Theme.Layout.screenPadding)
 
                     ForEach(sortedDevices) { device in
-                        NavigationLink(destination: DeviceDetailView(ipAddress: device.ipAddress)) {
+                        NavigationLink(value: AppDestination.deviceDetail(ipAddress: device.ipAddress)) {
                             if isProMode {
                                 proModeRow(device: device)
                             } else {

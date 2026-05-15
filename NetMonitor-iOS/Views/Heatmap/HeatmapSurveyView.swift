@@ -279,7 +279,7 @@ extension HeatmapSurveyView {
                 if shortcutsProvider.isAvailable {
                     Image(systemName: rssiWiFiIcon(viewModel.currentRSSI))
                         .font(.caption.bold())
-                        .foregroundStyle(rssiColor(viewModel.currentRSSI))
+                        .foregroundStyle(RSSIQuality(rssi: viewModel.currentRSSI).color)
                     Text("\(viewModel.currentRSSI) dBm")
                         .font(.caption.monospacedDigit().bold())
                         .foregroundStyle(Theme.Colors.textPrimary)
@@ -476,15 +476,6 @@ extension HeatmapSurveyView {
     }
 
     // MARK: - Helpers
-
-    private func rssiColor(_ rssi: Int) -> Color {
-        switch rssi {
-        case -50...0: .green
-        case -60 ..< -50: .yellow
-        case -70 ..< -60: .orange
-        default: .red
-        }
-    }
 
     private func rssiWiFiIcon(_ rssi: Int) -> String {
         switch rssi {

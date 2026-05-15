@@ -12,17 +12,6 @@ import UIKit
 /// no longer mixes survey state with Core Graphics rendering.
 struct HeatmapExporter {
 
-    /// RGBA color for a measurement dot at the given RSSI. Mirrors the
-    /// in-canvas color thresholds shown in the live heatmap.
-    static func rssiColor(_ rssi: Int) -> UIColor {
-        switch rssi {
-        case -50...0: .systemGreen
-        case -60 ..< -50: .systemYellow
-        case -70 ..< -60: .systemOrange
-        default: .systemRed
-        }
-    }
-
     /// Renders the composite export image. Returns `nil` if either the floor
     /// plan or its image data is missing.
     func renderImage(
@@ -51,7 +40,7 @@ struct HeatmapExporter {
             for point in points {
                 let x = point.floorPlanX * canvasSize.width
                 let y = point.floorPlanY * canvasSize.height
-                let color = Self.rssiColor(point.rssi)
+                let color = RSSIQuality(rssi: point.rssi).uiColor
                 let dotRadius: CGFloat = 6
 
                 let glowRect = CGRect(

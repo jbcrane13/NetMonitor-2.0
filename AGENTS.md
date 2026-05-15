@@ -260,3 +260,23 @@ gh issue close <number> --repo jbcrane13/NetMonitor-2.0 --comment "Done: <summar
 - ❌ Do NOT use `bd` / beads
 - ❌ Do NOT create markdown TODO lists
 
+## Activity — 2026-05-13
+- (no commits)
+
+
+## Activity — 2026-05-14
+- 52d744c refactor: centralize RSSI/quality color helpers in NetMonitorCore (#205)
+- 5489f36 chore(concurrency): drop redundant @unchecked Sendable / nonisolated(unsafe) (#210)
+- 7692945 chore: add Sendable to remaining service protocols (#206)
+- bea2191 fix(settings): convert SettingsViewModel computed get/set to stored properties (#201, #225)
+- 30c1017 feat(swiftdata): scaffold SchemaMigrationPlan (#208)
+- ec0ad19 perf(swiftdata): cap unbounded @Query reads with fetchLimit (#207)
+- ee61baf perf(scan): reuse shared queue in quickPortScan (#203)
+- 7a6ea0d chore: delete 3 dead protocols/types (#204)
+- 8ddd1e7 fix: resolve 10 SwiftLint violations from PR #226 arch-review/p1-batch
+- b42f44a Initial plan
+- 9d91ec4 refactor(heatmap): extract HeatmapFileManager + HeatmapExporter (#197 Phase 2-3)
+- 388c981 refactor(heatmap): init-inject service + delete dead polling (#197 Phase 1)
+- 30fd109 perf(scan): cap probe fanout and stop ConnectionBudget overrun (#194, #195)
+- 4b26ad7 refactor: fix three DIP/LSP violations in ViewModels (#196)
+- 1e79ec1 feat(intents): return values + dialog from iOS App Intents (#199)
