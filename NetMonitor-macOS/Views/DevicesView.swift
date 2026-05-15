@@ -13,15 +13,7 @@ struct DevicesView: View {
     @Environment(DeviceDiscoveryCoordinator.self) private var coordinator: DeviceDiscoveryCoordinator?
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
-    @Query(Self.devicesDescriptor()) private var devices: [LocalDevice]
-
-    /// Returns the descriptor for the full devices table, sorted by most-recent
-    /// activity first.
-    private static func devicesDescriptor() -> FetchDescriptor<LocalDevice> {
-        FetchDescriptor<LocalDevice>(
-            sortBy: [SortDescriptor(\LocalDevice.lastSeen, order: .reverse)]
-        )
-    }
+    @Query(LocalDeviceQueries.all()) private var devices: [LocalDevice]
 
     @State private var selectedDevice: LocalDevice?
     @State private var searchText: String = ""
