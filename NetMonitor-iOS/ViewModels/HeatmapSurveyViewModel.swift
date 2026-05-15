@@ -521,23 +521,4 @@ final class HeatmapSurveyViewModel {
         return exporter.exportProjectFile(project: project, fileManager: fileManager)
     }
 
-    // MARK: - Helpers
-
-    func rssiColor(_ rssi: Int) -> UIColor {
-        switch rssi {
-        case -50...0: .systemGreen
-        case -60 ..< -50: .systemYellow
-        case -70 ..< -60: .systemOrange
-        default: .systemRed
-        }
-    }
-
-    func qualityLabel(_ rssi: Int) -> String {
-        switch rssi {
-        case -50...0: "Excellent"
-        case -60 ..< -50: "Good"
-        case -70 ..< -60: "Fair"
-        default: "Weak"
-        }
-    }
 }

@@ -261,9 +261,9 @@ class HeatmapCanvasNS: NSView {
                 let haloRadius: CGFloat = isHovered ? 14 : 10
                 let haloRect = CGRect(x: x - haloRadius, y: y - haloRadius,
                                       width: haloRadius * 2, height: haloRadius * 2)
-                context.setFillColor(rssiColor(point.rssi).withAlphaComponent(0.3).cgColor)
+                context.setFillColor(RSSIQuality(rssi: point.rssi).nsColor.withAlphaComponent(0.3).cgColor)
                 context.fillEllipse(in: haloRect)
-                context.setStrokeColor(rssiColor(point.rssi).cgColor)
+                context.setStrokeColor(RSSIQuality(rssi: point.rssi).nsColor.cgColor)
                 context.setLineWidth(2)
                 context.strokeEllipse(in: haloRect)
             }
@@ -440,7 +440,7 @@ class HeatmapCanvasNS: NSView {
         ]
         let boldAttrs: [NSAttributedString.Key: Any] = [
             .font: NSFont.boldSystemFont(ofSize: 11),
-            .foregroundColor: rssiColor(point.rssi)
+            .foregroundColor: RSSIQuality(rssi: point.rssi).nsColor
         ]
 
         let lineHeight: CGFloat = 14
@@ -466,7 +466,7 @@ class HeatmapCanvasNS: NSView {
         context.strokePath()
 
         // Header line: RSSI + quality
-        let header = "\(point.rssi) dBm · \(qualityLabel(point.rssi))" as NSString
+        let header = "\(point.rssi) dBm · \(RSSIQuality(rssi: point.rssi).label)" as NSString
         header.draw(at: CGPoint(x: tooltipX + padding, y: tooltipY + padding), withAttributes: boldAttrs)
 
         // Detail lines
@@ -546,24 +546,6 @@ class HeatmapCanvasNS: NSView {
             let dy = mouseLocation.y - y
             return (dx * dx + dy * dy).squareRoot() < hitRadius
         }?.id
-    }
-
-    private func rssiColor(_ rssi: Int) -> NSColor {
-        switch rssi {
-        case -50...0: .systemGreen
-        case -60 ..< -50: .systemYellow
-        case -70 ..< -60: .systemOrange
-        default: .systemRed
-        }
-    }
-
-    private func qualityLabel(_ rssi: Int) -> String {
-        switch rssi {
-        case -50...0: "Excellent"
-        case -60 ..< -50: "Good"
-        case -70 ..< -60: "Fair"
-        default: "Weak"
-        }
     }
 
     private func drawEmptyState(_ context: CGContext) {
