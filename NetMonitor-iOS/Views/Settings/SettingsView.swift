@@ -353,7 +353,7 @@ struct SettingsView: View {
         .alert("Clear All Cached Data", isPresented: $showingClearCacheAlert) {
             Button("Cancel", role: .cancel) {}
             Button("Clear All", role: .destructive) {
-                viewModel.clearAllCachedData(modelContext: modelContext)
+                Task { await viewModel.clearAllCachedData(modelContext: modelContext) }
             }
         } message: {
             Text("This will delete all stored data including tool results, speed tests, discovered devices, monitoring targets, and file caches. This action cannot be undone.")
