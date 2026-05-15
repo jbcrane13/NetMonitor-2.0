@@ -77,7 +77,7 @@ struct NetworkMapView: View {
                     } else {
                         VStack(spacing: 8) {
                             ForEach(sortedDevices) { device in
-                                NavigationLink(destination: DeviceDetailView(ipAddress: device.ipAddress)) {
+                                NavigationLink(value: AppDestination.deviceDetail(ipAddress: device.ipAddress)) {
                                     ProDeviceRow(device: device, isScanning: viewModel.isScanning)
                                 }
                                 .buttonStyle(PlainButtonStyle())
@@ -90,6 +90,7 @@ struct NetworkMapView: View {
                 .padding(.top, Theme.Layout.smallCornerRadius)
                 .padding(.bottom, Theme.Layout.sectionSpacing)
             }
+            .appDestinations()
             .themedBackground()
             .navigationTitle("Network Map")
             .accessibilityIdentifier("screen_networkMap")
