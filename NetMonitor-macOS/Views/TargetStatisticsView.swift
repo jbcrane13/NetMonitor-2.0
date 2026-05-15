@@ -12,17 +12,16 @@ struct TargetStatisticsView: View {
     init(target: NetworkTarget) {
         self.target = target
 
-        // Query last 50 measurements for this target
         let targetID = target.id
-        let predicate = #Predicate<TargetMeasurement> { measurement in
-            measurement.target?.id == targetID
-        }
-
-        _measurements = Query(
-            filter: predicate,
-            sort: [SortDescriptor(\TargetMeasurement.timestamp, order: .reverse)],
-            animation: .default
+        var descriptor = FetchDescriptor<TargetMeasurement>(
+            predicate: #Predicate<TargetMeasurement> { measurement in
+                measurement.target?.id == targetID
+            },
+            sortBy: [SortDescriptor(\TargetMeasurement.timestamp, order: .reverse)]
         )
+        // Protective cap — TargetMeasurement is the largest growing table.
+        descriptor.fetchLimit = 5000
+        _measurements = Query(descriptor, animation: .default)
     }
 
     var body: some View {
