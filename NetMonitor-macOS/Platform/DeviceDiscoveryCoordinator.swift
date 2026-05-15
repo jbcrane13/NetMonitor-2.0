@@ -403,6 +403,7 @@ final class DeviceDiscoveryCoordinator {
     /// queues per scan). See #203.
     nonisolated private static let portScanQueue = DispatchQueue(
         label: "com.netmonitor.quickportscan",
+        qos: .userInitiated,
         attributes: .concurrent
     )
 
