@@ -12,6 +12,7 @@
 		00A471E0543C3A54E70BE0D1 /* WiFiReadingBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E608F81DA0D4B9CBDB79D37 /* WiFiReadingBridge.swift */; };
 		01308EAE3BB5C9D6174F9FC5 /* HeatmapCanvasNSView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A5AAD4C5D0522533E686088 /* HeatmapCanvasNSView.swift */; };
 		01FB5C6201BA805E45FE9B0A /* ConnectivityCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F6D2120C3C1F97E4FB231D8 /* ConnectivityCard.swift */; };
+		0281A67F42E6230CC68B9CDF /* SchemaMigrationPlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6392CA5B0C8107207EFCED6 /* SchemaMigrationPlan.swift */; };
 		02E54AEEFC82F6E9746AA53B /* FlowLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F7663D6B71E58A8F1302100 /* FlowLayout.swift */; };
 		02F1D11D8040B5ABE82A311B /* GatewayService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11ECEB0143FB17F5EE8C4EB4 /* GatewayService.swift */; };
 		0339F8A0415336098C06AF55 /* ConnectionSettingsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DA713685A5D01F84A2D34A6 /* ConnectionSettingsSection.swift */; };
@@ -287,7 +288,9 @@
 		A0DD64005F822FD5D162A826 /* NetworkDetailViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B50ECF7BAE5CF934F596DE1 /* NetworkDetailViewTests.swift */; };
 		A12A2FCB6ED9AAE4E43A361C /* AddNetworkSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0F5FE876022BF83E2244721 /* AddNetworkSheet.swift */; };
 		A19017FAD45462168EAB7157 /* TimelineUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47384CC91538ECC29ED7E22C /* TimelineUITests.swift */; };
+		A28955B327782AFDC8BEE99F /* RoomPlanScanViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A93FCD8E5A7FA84E3E062053 /* RoomPlanScanViewController.swift */; };
 		A3C28A07E64331FB2BA6BEE7 /* ScheduledScanSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E9B7FBD1F07CF6425DC114A /* ScheduledScanSettingsView.swift */; };
+		A4A7A4B2DE9D49BFB584198B /* HeatmapFileManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66FCAD51E87A57B8106A76CD /* HeatmapFileManager.swift */; };
 		A5722676B309E4D7FDB7BF60 /* WHOISServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDC3E1DEFE0846C19ABCF548 /* WHOISServiceTests.swift */; };
 		A8D65DDFD2B7DE5CBD3E95D8 /* MacConnectionServiceReceiveBufferTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FD6C6F1D69669E8BECE28CF /* MacConnectionServiceReceiveBufferTests.swift */; };
 		A92A696C11AA80562AE217A1 /* SettingsFunctionalUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1428BB9BB443F390D8405C03 /* SettingsFunctionalUITests.swift */; };
@@ -378,6 +381,7 @@
 		DD9702E4A201DEC52A645FE6 /* UptimeViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 926AB2C0DCBFD54EFD5480B8 /* UptimeViewModel.swift */; };
 		DDB9CB792F522B464C563C42 /* BackgroundTaskService.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF59316A7FACA0F164BBDD46 /* BackgroundTaskService.swift */; };
 		DE52B8ABF0A9D8D6390D3456 /* WiFiHeatmapViewModelExportTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66EEF66329B8A2875D465BDB /* WiFiHeatmapViewModelExportTests.swift */; };
+		DE695BF79550E7EAC39FF8A7 /* HeatmapExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 697FD6AA545E38F7DFD1F806 /* HeatmapExporter.swift */; };
 		DE74F6B78A2FAC90C87FB084 /* SettingsPersistenceUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B5B8FA3615567C2D430F676 /* SettingsPersistenceUITests.swift */; };
 		DF6BC00231E6C72864EAEB70 /* TracerouteToolUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94B066F0CD9CFC336ED86D3E /* TracerouteToolUITests.swift */; };
 		DFBBF93D85E9038D8B07E5EE /* EventListenerServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F566B193A0894428EF6E3382 /* EventListenerServiceTests.swift */; };
@@ -641,9 +645,11 @@
 		6321E1A30E4AEF89B9C9F4BE /* SpeedTestToolUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeedTestToolUITests.swift; sourceTree = "<group>"; };
 		65DD482FB958FC0A76B656CE /* PingToolViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PingToolViewModel.swift; sourceTree = "<group>"; };
 		66EEF66329B8A2875D465BDB /* WiFiHeatmapViewModelExportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WiFiHeatmapViewModelExportTests.swift; sourceTree = "<group>"; };
+		66FCAD51E87A57B8106A76CD /* HeatmapFileManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeatmapFileManager.swift; sourceTree = "<group>"; };
 		673FFB780C1777738E437731 /* RoomPlanScannerViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoomPlanScannerViewModel.swift; sourceTree = "<group>"; };
 		674DF2A6E73DEA21A751E2A6 /* SettingsUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsUITests.swift; sourceTree = "<group>"; };
 		6791657706821C08F331AB13 /* HeatmapSurveyViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeatmapSurveyViewModel.swift; sourceTree = "<group>"; };
+		697FD6AA545E38F7DFD1F806 /* HeatmapExporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeatmapExporter.swift; sourceTree = "<group>"; };
 		6A3C5A26C422CE3455CD55A3 /* TimelineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineView.swift; sourceTree = "<group>"; };
 		6AC7F633EA592CA1A5D2F95C /* CompanionMessageHandlerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionMessageHandlerTests.swift; sourceTree = "<group>"; };
 		6B192A3420B4F00F8DFB10D8 /* DNSLookupToolUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DNSLookupToolUITests.swift; sourceTree = "<group>"; };
@@ -751,6 +757,7 @@
 		A7191F3156FFC451BBDAA904 /* DefaultTargetsProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefaultTargetsProvider.swift; sourceTree = "<group>"; };
 		A76DD42C0ACB3B6EC149A66C /* WiFiHeatmapViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WiFiHeatmapViewModel.swift; sourceTree = "<group>"; };
 		A8B4635DD799E78E2C32767D /* WiFiHeatmapViewModelSaveLoadTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WiFiHeatmapViewModelSaveLoadTests.swift; sourceTree = "<group>"; };
+		A93FCD8E5A7FA84E3E062053 /* RoomPlanScanViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoomPlanScanViewController.swift; sourceTree = "<group>"; };
 		A980FAAF1EB5E1BBEF24816A /* ICMPMonitorServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ICMPMonitorServiceTests.swift; sourceTree = "<group>"; };
 		AAE65435D045DE3913F261E2 /* MacConnectionServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacConnectionServiceTests.swift; sourceTree = "<group>"; };
 		ABFB99B16D29E2338B306CA9 /* LiveActivityManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveActivityManager.swift; sourceTree = "<group>"; };
@@ -795,6 +802,7 @@
 		C48B63C3B6047CA905960844 /* TargetsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TargetsView.swift; sourceTree = "<group>"; };
 		C4E17B0FBE23722518BB7D7B /* TargetStatisticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TargetStatisticsView.swift; sourceTree = "<group>"; };
 		C5BC316F3DB96C6B180E0814 /* BonjourDiscoveryToolViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BonjourDiscoveryToolViewModel.swift; sourceTree = "<group>"; };
+		C6392CA5B0C8107207EFCED6 /* SchemaMigrationPlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchemaMigrationPlan.swift; sourceTree = "<group>"; };
 		C6CBE58C2938DC79DF670A35 /* ThemeManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeManager.swift; sourceTree = "<group>"; };
 		C6FE541A23CE7784745B9EBA /* ProModeRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProModeRowView.swift; sourceTree = "<group>"; };
 		C78A2017DEA3D9CD49AFEC03 /* SidebarFunctionalUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarFunctionalUITests.swift; sourceTree = "<group>"; };
@@ -991,6 +999,14 @@
 			path = Views;
 			sourceTree = "<group>";
 		};
+		10AA99B050E34F49E41D2A79 /* Persistence */ = {
+			isa = PBXGroup;
+			children = (
+				C6392CA5B0C8107207EFCED6 /* SchemaMigrationPlan.swift */,
+			);
+			path = Persistence;
+			sourceTree = "<group>";
+		};
 		10E4CCBCC6C445B127309731 /* ViewModels */ = {
 			isa = PBXGroup;
 			children = (
@@ -1037,6 +1053,8 @@
 				11ECEB0143FB17F5EE8C4EB4 /* GatewayService.swift */,
 				DDEDB32CF47D675F61CF5563 /* GeoFenceManager.swift */,
 				431FA615915AAEDF20F196DC /* GlassCard.swift */,
+				697FD6AA545E38F7DFD1F806 /* HeatmapExporter.swift */,
+				66FCAD51E87A57B8106A76CD /* HeatmapFileManager.swift */,
 				B4C66593DA429DA1FB792D1B /* IOSHeatmapService.swift */,
 				ABFB99B16D29E2338B306CA9 /* LiveActivityManager.swift */,
 				51478B9F5A8A7517976C7AFA /* Logging.swift */,
@@ -1207,6 +1225,7 @@
 				207F5A4C57A503A97B48F7D9 /* HeatmapSidebarSheet.swift */,
 				8EE6DAA8D618B3A85832866F /* HeatmapSurveyView.swift */,
 				0B11D2E300E8D181366B7D24 /* RoomPlanScannerView.swift */,
+				A93FCD8E5A7FA84E3E062053 /* RoomPlanScanViewController.swift */,
 				3BAC12710A5E5E5F99A1F12D /* WiFiShortcutSetupView.swift */,
 			);
 			path = Heatmap;
@@ -1500,6 +1519,7 @@
 			children = (
 				D1264DF84316245CAF09F833 /* App */,
 				87DBFB32E1330098799857E3 /* MenuBar */,
+				10AA99B050E34F49E41D2A79 /* Persistence */,
 				911A63FF886A2DF3CD7FD6B3 /* Platform */,
 				A2DE8DFED425243FF30F8905 /* Preview */,
 				15D3E6CBB4D81C39C3076E2A /* Resources */,
@@ -2024,6 +2044,7 @@
 				7C15E30650A9210433ED8208 /* QuickJumpSheet.swift in Sources */,
 				70926F040D08693ACF1B16B9 /* RateAppService.swift in Sources */,
 				7D9483D8831B8A58460A4154 /* SSLCertificateMonitorView.swift in Sources */,
+				0281A67F42E6230CC68B9CDF /* SchemaMigrationPlan.swift in Sources */,
 				3DCD3D682BC9AEF8B4C0AA09 /* SchemaV1.swift in Sources */,
 				E21F3C1C933FB5E391921523 /* SettingsView.swift in Sources */,
 				5B741E94E2272DCF651DA501 /* ShellCommandRunner.swift in Sources */,
@@ -2170,6 +2191,8 @@
 				07AC9FAE35CF72270CED8F2B /* GlassCard.swift in Sources */,
 				6AECEC66F4DA85EC8EDDB36D /* HeatmapCalibrationSheet.swift in Sources */,
 				5818D0D98146932BBE66DB10 /* HeatmapCanvasView.swift in Sources */,
+				DE695BF79550E7EAC39FF8A7 /* HeatmapExporter.swift in Sources */,
+				A4A7A4B2DE9D49BFB584198B /* HeatmapFileManager.swift in Sources */,
 				6F3BB4AE74315FC6A865640B /* HeatmapProjectsView.swift in Sources */,
 				4604FF1A5966EFBD1C2F7190 /* HeatmapSidebarSheet.swift in Sources */,
 				CEFD08671D1E06FEBD714AD1 /* HeatmapSurveyView.swift in Sources */,
@@ -2197,6 +2220,7 @@
 				39530BBB571E24F123543EC2 /* PublicIPService.swift in Sources */,
 				C22CD2C4F138EBB88F30000B /* RateAppService.swift in Sources */,
 				F4574FC8446A592B70216304 /* RoomPlanGeometryAdapter.swift in Sources */,
+				A28955B327782AFDC8BEE99F /* RoomPlanScanViewController.swift in Sources */,
 				9FF67532537334ABC04E0870 /* RoomPlanScannerView.swift in Sources */,
 				793535846969E935A13718D6 /* RoomPlanScannerViewModel.swift in Sources */,
 				C93350DC36F292072A92CAB8 /* RoomPlanTaskTimeout.swift in Sources */,
