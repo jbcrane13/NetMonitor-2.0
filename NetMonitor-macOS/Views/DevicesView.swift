@@ -13,7 +13,17 @@ struct DevicesView: View {
     @Environment(DeviceDiscoveryCoordinator.self) private var coordinator: DeviceDiscoveryCoordinator?
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
-    @Query(sort: \LocalDevice.lastSeen, order: .reverse) private var devices: [LocalDevice]
+    @Query(Self.devicesDescriptor()) private var devices: [LocalDevice]
+
+    /// Protective cap on growing `LocalDevice` table; 500 most-recent devices is
+    /// well above any realistic active-network size.
+    private static func devicesDescriptor() -> FetchDescriptor<LocalDevice> {
+        var descriptor = FetchDescriptor<LocalDevice>(
+            sortBy: [SortDescriptor(\LocalDevice.lastSeen, order: .reverse)]
+        )
+        descriptor.fetchLimit = 500
+        return descriptor
+    }
 
     @State private var selectedDevice: LocalDevice?
     @State private var searchText: String = ""

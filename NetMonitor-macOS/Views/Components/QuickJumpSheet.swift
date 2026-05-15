@@ -15,7 +15,17 @@ struct QuickJumpSheet: View {
     @Binding var isPresented: Bool
 
     @Environment(\.modelContext) private var modelContext
-    @Query(sort: \LocalDevice.lastSeen, order: .reverse) private var devices: [LocalDevice]
+    @Query(Self.devicesDescriptor()) private var devices: [LocalDevice]
+
+    /// Protective cap on growing `LocalDevice` table. Search displays `prefix(8)`,
+    /// so 500 most-recent rows is more than enough working set.
+    private static func devicesDescriptor() -> FetchDescriptor<LocalDevice> {
+        var descriptor = FetchDescriptor<LocalDevice>(
+            sortBy: [SortDescriptor(\LocalDevice.lastSeen, order: .reverse)]
+        )
+        descriptor.fetchLimit = 500
+        return descriptor
+    }
 
     @State private var searchText: String = ""
     @FocusState private var isFocused: Bool
