@@ -10,17 +10,7 @@ import NetMonitorCore
 import SwiftData
 
 struct WakeOnLanToolView: View {
-    @Query(Self.devicesDescriptor()) private var devices: [LocalDevice]
-
-    /// Protective cap on growing `LocalDevice` table. View further filters to
-    /// devices with MAC addresses; 500 most-recent is well above realistic size.
-    private static func devicesDescriptor() -> FetchDescriptor<LocalDevice> {
-        var descriptor = FetchDescriptor<LocalDevice>(
-            sortBy: [SortDescriptor(\LocalDevice.lastSeen, order: .reverse)]
-        )
-        descriptor.fetchLimit = 500
-        return descriptor
-    }
+    @Query(LocalDeviceQueries.withMACAddress()) private var devices: [LocalDevice]
 
     @State private var selectedDeviceID: UUID?
     @State private var macAddress = ""
@@ -32,14 +22,9 @@ struct WakeOnLanToolView: View {
 
     private let wakeService = WakeOnLANService()
 
-    // Filter devices that have MAC addresses
-    private var devicesWithMAC: [LocalDevice] {
-        devices.filter { !$0.macAddress.isEmpty }
-    }
-
     // periphery:ignore
     private var selectedDevice: LocalDevice? {
-        devicesWithMAC.first { $0.id == selectedDeviceID }
+        devices.first { $0.id == selectedDeviceID }
     }
 
     var body: some View {
@@ -72,7 +57,7 @@ struct WakeOnLanToolView: View {
 
                     Divider()
 
-                    ForEach(devicesWithMAC) { device in
+                    ForEach(devices) { device in
                         Text(device.displayName)
                             .tag(device.id as UUID?)
                     }
@@ -82,7 +67,7 @@ struct WakeOnLanToolView: View {
                 .accessibilityIdentifier("wol_picker_device")
                 .onChange(of: selectedDeviceID) { _, newValue in
                     if let deviceID = newValue,
-                       let device = devicesWithMAC.first(where: { $0.id == deviceID }) {
+                       let device = devices.first(where: { $0.id == deviceID }) {
                         macAddress = device.macAddress
                     }
                 }
