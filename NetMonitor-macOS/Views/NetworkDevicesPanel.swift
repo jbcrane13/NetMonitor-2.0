@@ -8,16 +8,13 @@ struct NetworkDevicesPanel: View {
     let networkProfileID: UUID?
 
     @Environment(DeviceDiscoveryCoordinator.self) private var coordinator: DeviceDiscoveryCoordinator?
-    @Query(Self.devicesDescriptor()) private var allDevices: [LocalDevice]
+    @Query private var devices: [LocalDevice]
 
-    /// Protective cap on growing `LocalDevice` table. View further filters by
-    /// `networkProfileID`; 500 most-recent devices is well above active-network size.
-    private static func devicesDescriptor() -> FetchDescriptor<LocalDevice> {
-        var descriptor = FetchDescriptor<LocalDevice>(
-            sortBy: [SortDescriptor(\LocalDevice.lastSeen, order: .reverse)]
-        )
-        descriptor.fetchLimit = 500
-        return descriptor
+    init(networkProfileID: UUID?) {
+        self.networkProfileID = networkProfileID
+        // Push the profile predicate into the store so the 500-row cap applies to
+        // this profile's devices rather than the global LocalDevice table.
+        _devices = Query(LocalDeviceQueries.forProfile(networkProfileID), animation: .default)
     }
 
     @State private var searchText: String = ""
@@ -42,7 +39,7 @@ struct NetworkDevicesPanel: View {
     }
 
     private var filteredDevices: [LocalDevice] {
-        var result = allDevices.filter { $0.networkProfileID == networkProfileID }
+        var result = devices
 
         if !searchText.isEmpty {
             result = result.filter { device in

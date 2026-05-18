@@ -401,13 +401,14 @@ final class DeviceDiscoveryCoordinator {
     /// fresh `DispatchQueue`. Concurrent attribute preserves parallel fan-out across
     /// ports/devices (15 ports x N devices were previously running on N*15 disposable
     /// queues per scan). See #203.
-    private static let portScanQueue = DispatchQueue(
+    nonisolated private static let portScanQueue = DispatchQueue(
         label: "com.netmonitor.quickportscan",
+        qos: .userInitiated,
         attributes: .concurrent
     )
 
     /// Non-blocking TCP connect check with configurable timeout.
-    private static func checkPort(host: String, port: Int, timeoutMs: Int32) async -> Bool {
+    nonisolated private static func checkPort(host: String, port: Int, timeoutMs: Int32) async -> Bool {
         await withCheckedContinuation { continuation in
             portScanQueue.async {
                 var hints = addrinfo()

@@ -13,21 +13,35 @@ struct TargetStatisticsView: View {
         self.target = target
 
         let targetID = target.id
-        var descriptor = FetchDescriptor<TargetMeasurement>(
-            predicate: #Predicate<TargetMeasurement> { measurement in
-                measurement.target?.id == targetID
-            },
-            sortBy: [SortDescriptor(\TargetMeasurement.timestamp, order: .reverse)]
+        // Bound by a 30-day time window rather than an opaque sample count so that
+        // Avg/Min/Max latency and Uptime % reflect a clear, user-understandable period.
+        // At a typical 1-minute check interval this caps at ~43,200 rows per target —
+        // well within reason for a desktop app while keeping the contract unambiguous.
+        // cutoff is computed at init time; SwiftUI re-creates the view struct (and
+        // therefore re-evaluates the descriptor) each time the parent re-renders,
+        // so the window stays fresh for normal interactive usage.
+        let cutoff = Calendar.current.date(byAdding: .day, value: -30, to: .now) ?? Date.now.addingTimeInterval(-30 * 24 * 3_600)
+        _measurements = Query(
+            FetchDescriptor<TargetMeasurement>(
+                predicate: #Predicate<TargetMeasurement> { measurement in
+                    measurement.target?.id == targetID &&
+                    measurement.timestamp >= cutoff
+                },
+                sortBy: [SortDescriptor(\TargetMeasurement.timestamp, order: .reverse)]
+            ),
+            animation: .default
         )
-        // Protective cap — TargetMeasurement is the largest growing table.
-        descriptor.fetchLimit = 5000
-        _measurements = Query(descriptor, animation: .default)
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Recent Measurements")
-                .font(.headline)
+            HStack(alignment: .firstTextBaseline) {
+                Text("Recent Measurements")
+                    .font(.headline)
+                Text("· Last 30 days")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
 
             if measurements.isEmpty {
                 Text("No measurements yet")
