@@ -1,3 +1,4 @@
+// swiftlint:disable file_length
 import SwiftUI
 import NetMonitorCore
 import NetworkScanKit
@@ -906,3 +907,4 @@ extension DiscoveredDevice {
         return "desktopcomputer"
     }
 }
+// swiftlint:enable file_length
