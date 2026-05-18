@@ -137,7 +137,7 @@ public enum NetworkUtilities {
                         &hostname, socklen_t(hostname.count), nil, 0, NI_NUMERICHOST)
             let length = strnlen(hostname, hostname.count)
             let bytes = hostname.prefix(length).map { UInt8(bitPattern: $0) }
-            return String(decoding: bytes, as: UTF8.self)
+            return String(bytes: bytes, encoding: .utf8)
         }
         return nil
     }
@@ -209,57 +209,62 @@ public enum NetworkUtilities {
         var offset = 0
 
         while offset + hdrSize <= bufLen {
-            let msgLen: Int = buf.withUnsafeBufferPointer { ptr in
-                Int(UnsafeRawPointer(ptr.baseAddress! + offset).load(as: RouteMsgHdr.self).rtm_msglen)
+            guard let msgLen = buf.withUnsafeBufferPointer({ ptr -> Int? in
+                guard let baseAddress = ptr.baseAddress else { return nil }
+                return Int(UnsafeRawPointer(baseAddress + offset).load(as: RouteMsgHdr.self).rtm_msglen)
+            }) else {
+                return nil
             }
             guard msgLen > hdrSize, offset + msgLen <= bufLen else { break }
             defer { offset += msgLen }
 
             let result: String? = buf.withUnsafeBufferPointer { ptr in
-                let base = UnsafeRawPointer(ptr.baseAddress! + offset)
-                let hdr = base.load(as: RouteMsgHdr.self)
-
-                // Must be up, gateway, and expose both dst + gateway addresses
-                guard hdr.rtm_flags & kRTF_UP != 0,
-                      hdr.rtm_flags & kRTF_GATEWAY != 0,
-                      hdr.rtm_addrs & kRTA_DST != 0,
-                      hdr.rtm_addrs & kRTA_GATEWAY != 0 else { return nil }
-
-                var saOff = hdrSize
-
-                // --- DST address (sockaddr_in) ---
-                guard saOff + MemoryLayout<sockaddr_in>.size <= msgLen else { return nil }
-                let dst = (base + saOff).load(as: sockaddr_in.self)
-                guard dst.sin_family == sa_family_t(AF_INET) else { return nil }
-                // Default route only: destination must be 0.0.0.0
-                guard dst.sin_addr.s_addr == 0 else { return nil }
-
-                // Advance past dst (4-byte aligned)
-                let dstLen = max(Int(dst.sin_len), MemoryLayout<sockaddr_in>.size)
-                saOff += (dstLen + 3) & ~3
-
-                // --- GATEWAY address (sockaddr_in) ---
-                guard saOff + MemoryLayout<sockaddr_in>.size <= msgLen else { return nil }
-                let gw = (base + saOff).load(as: sockaddr_in.self)
-                guard gw.sin_family == sa_family_t(AF_INET) else { return nil }
-
-                var addr = gw.sin_addr
-                var str = [CChar](repeating: 0, count: Int(INET_ADDRSTRLEN))
-                guard inet_ntop(AF_INET, &addr, &str, socklen_t(INET_ADDRSTRLEN)) != nil else {
-                    return nil
-                }
-                let ip = String(decoding: str.prefix(while: { $0 != 0 }).map { UInt8(bitPattern: $0) }, as: UTF8.self)
-                return ip.isEmpty || ip == "0.0.0.0" ? nil : ip
+                guard let baseAddress = ptr.baseAddress else { return nil }
+                return defaultGateway(fromRouteMessage: UnsafeRawPointer(baseAddress + offset), messageLength: msgLen, headerSize: hdrSize)
             }
             if let ip = result { return ip }
         }
         return nil
     }
 
+    private static func defaultGateway(fromRouteMessage base: UnsafeRawPointer, messageLength: Int, headerSize: Int) -> String? {
+        let hdr = base.load(as: RouteMsgHdr.self)
+
+        guard hdr.rtm_flags & kRTF_UP != 0,
+              hdr.rtm_flags & kRTF_GATEWAY != 0,
+              hdr.rtm_addrs & kRTA_DST != 0,
+              hdr.rtm_addrs & kRTA_GATEWAY != 0 else { return nil }
+
+        var saOff = headerSize
+        guard saOff + MemoryLayout<sockaddr_in>.size <= messageLength else { return nil }
+        let dst = (base + saOff).load(as: sockaddr_in.self)
+        guard dst.sin_family == sa_family_t(AF_INET), dst.sin_addr.s_addr == 0 else { return nil }
+
+        let dstLen = max(Int(dst.sin_len), MemoryLayout<sockaddr_in>.size)
+        saOff += (dstLen + 3) & ~3
+
+        guard saOff + MemoryLayout<sockaddr_in>.size <= messageLength else { return nil }
+        let gateway = (base + saOff).load(as: sockaddr_in.self)
+        guard gateway.sin_family == sa_family_t(AF_INET) else { return nil }
+
+        return ipv4String(from: gateway.sin_addr)
+    }
+
+    private static func ipv4String(from address: in_addr) -> String? {
+        var addr = address
+        var str = [CChar](repeating: 0, count: Int(INET_ADDRSTRLEN))
+        guard inet_ntop(AF_INET, &addr, &str, socklen_t(INET_ADDRSTRLEN)) != nil else {
+            return nil
+        }
+        let bytes = str.prefix(while: { $0 != 0 }).map { UInt8(bitPattern: $0) }
+        guard let ip = String(bytes: bytes, encoding: .utf8) else { return nil }
+        return ip.isEmpty || ip == "0.0.0.0" ? nil : ip
+    }
+
     // MARK: - Helpers
 
     public static func ipv4ToUInt32(_ address: String) -> UInt32? {
-        let parts = address.split(separator: ".")
+        let parts = address.split(separator: ".", omittingEmptySubsequences: false)
         guard parts.count == 4 else { return nil }
         var value: UInt32 = 0
         for part in parts {

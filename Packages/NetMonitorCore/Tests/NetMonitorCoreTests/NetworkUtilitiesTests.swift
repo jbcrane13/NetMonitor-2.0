@@ -22,6 +22,7 @@ struct NetworkUtilitiesTests {
         #expect(NetworkUtilities.ipv4ToUInt32("abc.def.ghi.jkl") == nil)    // non-numeric
         #expect(NetworkUtilities.ipv4ToUInt32("256.0.0.1") == nil)          // octet overflow (>255)
         #expect(NetworkUtilities.ipv4ToUInt32("192.168.1.-1") == nil)       // negative octet
+        #expect(NetworkUtilities.ipv4ToUInt32(".192.168.1.1") == nil)       // leading dot
         #expect(NetworkUtilities.ipv4ToUInt32("192.168.1.") == nil)         // trailing dot
     }
 
