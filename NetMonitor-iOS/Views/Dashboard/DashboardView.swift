@@ -785,13 +785,28 @@ struct SpeedTestQuickCard: View {
 // MARK: - Wi-Fi Heatmap Quick Card
 
 struct WiFiHeatmapQuickCard: View {
+    private static let iconMesh = MeshGradient(
+        width: 3,
+        height: 3,
+        points: [
+            .init(0, 0), .init(0.5, 0), .init(1, 0),
+            .init(0, 0.5), .init(0.5, 0.5), .init(1, 0.5),
+            .init(0, 1), .init(0.5, 1), .init(1, 1)
+        ],
+        colors: [
+            .cyan.opacity(0.35), .teal.opacity(0.25), .cyan.opacity(0.20),
+            .teal.opacity(0.20), .cyan.opacity(0.30), .blue.opacity(0.20),
+            .cyan.opacity(0.18), .teal.opacity(0.22), .blue.opacity(0.15)
+        ]
+    )
+
     var body: some View {
         NavigationLink(value: AppDestination.heatmapSurvey) {
             GlassCard(padding: 14) {
                 HStack(spacing: 14) {
                     ZStack {
                         RoundedRectangle(cornerRadius: 10)
-                            .fill(Color.cyan.opacity(0.15))
+                            .fill(Self.iconMesh)
                             .frame(width: 40, height: 40)
                         Image(systemName: "wifi.circle")
                             .font(.system(size: 18, weight: .semibold))
@@ -907,4 +922,5 @@ extension DiscoveredDevice {
         return "desktopcomputer"
     }
 }
+
 // swiftlint:enable file_length
