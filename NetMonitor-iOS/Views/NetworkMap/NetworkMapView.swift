@@ -3,9 +3,16 @@ import NetMonitorCore
 import NetworkScanKit
 
 struct NetworkMapView: View {
-    @State private var viewModel = NetworkMapViewModel()
+    @State private var viewModel: NetworkMapViewModel
     @State private var sortOrder: DeviceSortOrder = .ip
     @State private var isAddNetworkSheetPresented = false
+
+    init(env: AppEnvironment) {
+        _viewModel = State(initialValue: NetworkMapViewModel(
+            deviceDiscoveryService: env.deviceDiscovery,
+            macConnectionService: env.macConnection
+        ))
+    }
 
     private var sortedDevices: [DiscoveredDevice] {
         let devices = viewModel.discoveredDevices
@@ -280,5 +287,7 @@ struct ProDeviceRow: View {
 }
 
 #Preview {
-    NetworkMapView()
+    let env = AppEnvironment.live()
+    NetworkMapView(env: env)
+        .environment(env)
 }

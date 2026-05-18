@@ -2,9 +2,16 @@ import SwiftUI
 import NetMonitorCore
 
 struct ScheduledScanSettingsView: View {
-    @State private var viewModel = ScheduledScanViewModel()
+    @State private var viewModel: ScheduledScanViewModel
     // periphery:ignore
     @State private var showingDiffDetail = false
+
+    init(env: AppEnvironment) {
+        _viewModel = State(initialValue: ScheduledScanViewModel(
+            scheduler: env.scanScheduler,
+            discovery: env.deviceDiscovery
+        ))
+    }
 
     var body: some View {
         List {
@@ -154,7 +161,9 @@ struct ScheduledScanSettingsView: View {
 }
 
 #Preview {
+    let env = AppEnvironment.live()
     NavigationStack {
-        ScheduledScanSettingsView()
+        ScheduledScanSettingsView(env: env)
     }
+    .environment(env)
 }

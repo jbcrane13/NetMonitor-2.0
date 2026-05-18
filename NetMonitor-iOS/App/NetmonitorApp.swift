@@ -60,7 +60,7 @@ struct NetmonitorApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            ContentView(env: environment)
                 .preferredColorScheme(resolvedColorScheme)
                 .accessibilityIdentifier("screen_main")
                 .environment(environment)
