@@ -105,20 +105,20 @@ final class SettingsViewModel {
     // MARK: - Init
 
     init() {
-        let d = UserDefaults.standard
-        defaultPingCount = d.object(forKey: AppSettings.Keys.defaultPingCount) as? Int ?? 4
-        pingTimeout = d.object(forKey: AppSettings.Keys.pingTimeout) as? Double ?? 5.0
-        portScanTimeout = d.object(forKey: AppSettings.Keys.portScanTimeout) as? Double ?? 2.0
-        dnsServer = d.string(forKey: AppSettings.Keys.dnsServer) ?? ""
-        dataRetentionDays = d.object(forKey: AppSettings.Keys.dataRetentionDays) as? Int ?? 30
-        showDetailedResults = d.object(forKey: AppSettings.Keys.showDetailedResults) as? Bool ?? true
-        autoRefreshInterval = d.object(forKey: AppSettings.Keys.autoRefreshInterval) as? Int ?? 60
-        backgroundRefreshEnabled = d.object(forKey: AppSettings.Keys.backgroundRefreshEnabled) as? Bool ?? true
-        targetDownAlertEnabled = d.object(forKey: AppSettings.Keys.targetDownAlertEnabled) as? Bool ?? true
-        highLatencyAlertEnabled = d.object(forKey: AppSettings.Keys.highLatencyAlertEnabled) as? Bool ?? false
-        highLatencyThreshold = d.object(forKey: AppSettings.Keys.highLatencyThreshold) as? Int ?? 100
-        newDeviceAlertEnabled = d.object(forKey: AppSettings.Keys.newDeviceAlertEnabled) as? Bool ?? true
-        selectedTheme = d.string(forKey: AppSettings.Keys.selectedTheme) ?? "system"
+        let defaults = UserDefaults.standard
+        defaultPingCount = defaults.object(forKey: AppSettings.Keys.defaultPingCount) as? Int ?? 4
+        pingTimeout = defaults.object(forKey: AppSettings.Keys.pingTimeout) as? Double ?? 5.0
+        portScanTimeout = defaults.object(forKey: AppSettings.Keys.portScanTimeout) as? Double ?? 2.0
+        dnsServer = defaults.string(forKey: AppSettings.Keys.dnsServer) ?? ""
+        dataRetentionDays = defaults.object(forKey: AppSettings.Keys.dataRetentionDays) as? Int ?? 30
+        showDetailedResults = defaults.object(forKey: AppSettings.Keys.showDetailedResults) as? Bool ?? true
+        autoRefreshInterval = defaults.object(forKey: AppSettings.Keys.autoRefreshInterval) as? Int ?? 60
+        backgroundRefreshEnabled = defaults.object(forKey: AppSettings.Keys.backgroundRefreshEnabled) as? Bool ?? true
+        targetDownAlertEnabled = defaults.object(forKey: AppSettings.Keys.targetDownAlertEnabled) as? Bool ?? true
+        highLatencyAlertEnabled = defaults.object(forKey: AppSettings.Keys.highLatencyAlertEnabled) as? Bool ?? false
+        highLatencyThreshold = defaults.object(forKey: AppSettings.Keys.highLatencyThreshold) as? Int ?? 100
+        newDeviceAlertEnabled = defaults.object(forKey: AppSettings.Keys.newDeviceAlertEnabled) as? Bool ?? true
+        selectedTheme = defaults.string(forKey: AppSettings.Keys.selectedTheme) ?? "system"
     }
 
     // MARK: - Data Management
@@ -190,7 +190,7 @@ final class SettingsViewModel {
         isClearingCache = false
     }
 
-    private nonisolated static func clearDirectory(at url: URL) {
+    nonisolated private static func clearDirectory(at url: URL) {
         let fm = FileManager.default
         guard let contents = try? fm.contentsOfDirectory(at: url, includingPropertiesForKeys: nil) else { return }
         for file in contents {
@@ -208,7 +208,7 @@ final class SettingsViewModel {
         return total
     }
 
-    private nonisolated static func directorySize(at url: URL) -> Int64 {
+    nonisolated private static func directorySize(at url: URL) -> Int64 {
         let fm = FileManager.default
         guard let enumerator = fm.enumerator(at: url, includingPropertiesForKeys: [.fileSizeKey]) else { return 0 }
         var total: Int64 = 0

@@ -49,7 +49,7 @@ enum LocalDeviceQueries {
     static func withMACAddress(limit: Int = defaultLimit) -> FetchDescriptor<LocalDevice> {
         var descriptor = FetchDescriptor<LocalDevice>(
             predicate: #Predicate<LocalDevice> { device in
-                device.macAddress != ""
+                !device.macAddress.isEmpty
             },
             sortBy: [SortDescriptor(\LocalDevice.lastSeen, order: .reverse)]
         )
