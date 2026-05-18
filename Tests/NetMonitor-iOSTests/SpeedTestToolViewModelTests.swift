@@ -292,6 +292,26 @@ struct SpeedTestToolViewModelStartTestTests {
         #expect(vm.errorMessage == nil)
     }
 
+    @Test func completionFeedbackTokenOnlyExistsForCompletedRuns() {
+        let vm = SpeedTestToolViewModel(service: MockSpeedTestService())
+
+        vm.phase = .download
+        vm.downloadSpeed = 150
+        #expect(vm.completionFeedbackToken == nil)
+
+        vm.phase = .complete
+        #expect(vm.completionFeedbackToken == "complete-150.0-0.0-0.0")
+    }
+
+    @Test func errorFeedbackTokenTracksCurrentErrorMessage() {
+        let vm = SpeedTestToolViewModel(service: MockSpeedTestService())
+
+        #expect(vm.errorFeedbackToken == nil)
+
+        vm.errorMessage = "Network unavailable"
+        #expect(vm.errorFeedbackToken == "Network unavailable")
+    }
+
     @Test func startTestErrorSetsErrorMessage() async throws {
         let (_, context) = try makeInMemoryStore()
         let mock = MockSpeedTestService()
