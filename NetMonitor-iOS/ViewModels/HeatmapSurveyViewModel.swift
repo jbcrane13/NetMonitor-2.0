@@ -23,8 +23,18 @@ enum HeatmapError: Error, LocalizedError {
 
 /// iOS heatmap survey state management.
 ///
-/// Uses ``IOSHeatmapService`` for Shortcuts-based Wi-Fi measurement and
-/// ``HeatmapRenderer`` for IDW interpolation + color mapping.
+/// Wraps the cross-platform ``HeatmapSurveyState`` (NetMonitorCore) and adds
+/// the iOS-specific pieces: ``IOSHeatmapService`` for Shortcuts-based Wi-Fi
+/// measurement, ``HeatmapRenderer`` for IDW interpolation + color mapping,
+/// ``HeatmapFileManager`` / ``HeatmapExporter`` for persistence + export,
+/// continuous-scan timer, UIImage floor-plan rendering, and the
+/// `measurementMode` (passive vs active) gating that's specific to the iOS
+/// Shortcuts companion latency.
+///
+/// State that was previously declared and mutated here is now forwarded to
+/// `state` — see #202 step 1 (commit 8e0d443) for the shared contract.
+/// Forwarding (rather than substitution) keeps the existing view + test
+/// surface intact during the migration.
 @MainActor
 @Observable
 final class HeatmapSurveyViewModel {
@@ -36,71 +46,39 @@ final class HeatmapSurveyViewModel {
         case active     // Signal + speed test + ping (~8-10s)
     }
 
-    // MARK: - Survey State
+    // MARK: - Shared State
 
-    var surveyProject: SurveyProject?
-    var measurementPoints: [MeasurementPoint] = []
-    var isSurveying: Bool = false
-    var errorMessage: String?
+    let state: HeatmapSurveyState
 
-    // MARK: - Measurement
+    // MARK: - iOS-Specific State
 
     var measurementMode: MeasurementMode = .passive
-    var isMeasuring: Bool = false
-    var pendingMeasurementLocation: CGPoint?
+    /// Updated after each user-initiated measurement so the live signal
+    /// indicator reflects the most recently sampled value.
     var currentRSSI: Int = -100
     var currentSSID: String?
 
-    // MARK: - Visualization
-
-    var selectedVisualization: HeatmapVisualization = .signalStrength
-    var selectedColorScheme: HeatmapColorScheme = .thermal
-    var heatmapOpacity: Double = 0.7
-    var heatmapImage: CGImage?
-    var isHeatmapGenerated: Bool = false
-
-    // MARK: - Calibration
-
-    var isCalibrating: Bool = false
-    var isCalibrated: Bool = false
-    var calibrationPoints: [CalibrationPoint] = []
-    var calibrationDistance: Double = 5.0
-    var showCalibrationSheet: Bool = false
-
-    // MARK: - Floor Plan
+    // MARK: - Floor Plan (UIKit-typed)
 
     var showImportSheet: Bool = false
     var showPhotoPicker: Bool = false
     var floorPlanImage: UIImage?
+
+    // MARK: - Visualization Output
+
+    var heatmapImage: CGImage?
+    var isHeatmapGenerated: Bool = false
 
     // MARK: - Canvas
 
     var canvasScale: CGFloat = 1.0
     var canvasOffset: CGSize = .zero
 
-    // MARK: - AP Filter
-
-    var selectedAPFilter: String?
-
-    var uniqueBSSIDs: [(bssid: String, ssid: String)] {
-        let seen = Dictionary(grouping: measurementPoints, by: { $0.bssid ?? "unknown" })
-        return seen.compactMap { bssid, points in
-            guard bssid != "unknown" else { return nil }
-            let ssid = points.first?.ssid ?? bssid
-            return (bssid: bssid, ssid: ssid)
-        }.sorted { $0.ssid < $1.ssid }
-    }
-
     // MARK: - Continuous Scan
 
     var isContinuousScan: Bool = false
     var continuousScanInterval: Double = 3.0
     private var continuousScanTask: Task<Void, Never>?
-
-    // MARK: - Undo
-
-    private var undoStack: [[MeasurementPoint]] = []
-    var canUndo: Bool { !undoStack.isEmpty }
 
     // MARK: - Persistence
 
@@ -122,31 +100,103 @@ final class HeatmapSurveyViewModel {
         fileManager: HeatmapFileManager = HeatmapFileManager(),
         exporter: HeatmapExporter = HeatmapExporter()
     ) {
+        self.state = HeatmapSurveyState()
         self.heatmapService = service
         self.fileManager = fileManager
         self.exporter = exporter
         renderer = HeatmapRenderer()
     }
 
-    // MARK: - Computed
+    // MARK: - Forwarded State
 
-    var filteredPoints: [MeasurementPoint] {
-        if let bssid = selectedAPFilter {
-            return measurementPoints.filter { $0.bssid == bssid }
-        }
-        return measurementPoints
+    var surveyProject: SurveyProject? {
+        get { state.surveyProject }
+        set { state.surveyProject = newValue }
     }
 
-    var averageRSSI: Double? {
-        let pts = filteredPoints
-        guard !pts.isEmpty else { return nil }
-        return Double(pts.reduce(0) { $0 + $1.rssi }) / Double(pts.count)
+    var measurementPoints: [MeasurementPoint] {
+        get { state.measurementPoints }
+        set { state.setMeasurements(newValue) }
     }
 
-    var minRSSI: Int? { filteredPoints.map(\.rssi).min() }
-    var maxRSSI: Int? { filteredPoints.map(\.rssi).max() }
+    var isSurveying: Bool {
+        get { state.isSurveying }
+        set { state.isSurveying = newValue }
+    }
 
-    var hasFloorPlan: Bool { surveyProject != nil }
+    var errorMessage: String? {
+        get { state.errorMessage }
+        set { state.errorMessage = newValue }
+    }
+
+    var isMeasuring: Bool {
+        get { state.isMeasuring }
+        set { state.isMeasuring = newValue }
+    }
+
+    var pendingMeasurementLocation: CGPoint? {
+        get { state.pendingMeasurementLocation }
+        set { state.pendingMeasurementLocation = newValue }
+    }
+
+    var selectedVisualization: HeatmapVisualization {
+        get { state.selectedVisualization }
+        set { state.selectedVisualization = newValue }
+    }
+
+    var selectedColorScheme: HeatmapColorScheme {
+        get { state.selectedColorScheme }
+        set { state.selectedColorScheme = newValue }
+    }
+
+    var heatmapOpacity: Double {
+        get { state.heatmapOpacity }
+        set { state.heatmapOpacity = newValue }
+    }
+
+    var isCalibrating: Bool {
+        get { state.isCalibrating }
+        set { state.isCalibrating = newValue }
+    }
+
+    var isCalibrated: Bool {
+        get { state.isCalibrated }
+        set { state.isCalibrated = newValue }
+    }
+
+    var calibrationPoints: [CalibrationPoint] {
+        get { state.calibrationPoints }
+        set { state.calibrationPoints = newValue }
+    }
+
+    var calibrationDistance: Double {
+        get { state.calibrationDistance }
+        set { state.calibrationDistance = newValue }
+    }
+
+    var showCalibrationSheet: Bool {
+        get { state.showCalibrationSheet }
+        set { state.showCalibrationSheet = newValue }
+    }
+
+    var selectedAPFilter: String? {
+        get { state.selectedAPFilter }
+        set { state.selectedAPFilter = newValue }
+    }
+
+    var canUndo: Bool { state.canUndo }
+
+    var uniqueBSSIDs: [(bssid: String, ssid: String)] { state.uniqueBSSIDs }
+
+    var filteredPoints: [MeasurementPoint] { state.filteredPoints }
+
+    var averageRSSI: Double? { state.averageRSSI }
+
+    var minRSSI: Int? { state.minRSSI }
+
+    var maxRSSI: Int? { state.maxRSSI }
+
+    var hasFloorPlan: Bool { state.hasFloorPlan }
 
     // MARK: - Floor Plan Import
 
@@ -165,27 +215,14 @@ final class HeatmapSurveyViewModel {
             origin: .imported
         )
 
-        surveyProject = SurveyProject(
-            name: name,
-            floorPlan: floorPlan
-        )
+        let project = SurveyProject(name: name, floorPlan: floorPlan)
+        state.setProject(project)
         floorPlanImage = uiImage
-        measurementPoints = []
-        calibrationPoints = []
         heatmapImage = nil
         isHeatmapGenerated = false
-        undoStack = []
-
-        startCalibration()
     }
 
     func importFloorPlan(imageData: Data, width: Int, height: Int) {
-        measurementPoints = []
-        calibrationPoints = []
-        heatmapImage = nil
-        isHeatmapGenerated = false
-        undoStack = []
-
         let floorPlan = FloorPlan(
             imageData: imageData,
             widthMeters: Double(width) * 0.01,
@@ -194,11 +231,10 @@ final class HeatmapSurveyViewModel {
             pixelHeight: height,
             origin: .imported
         )
-
-        surveyProject = SurveyProject(
-            name: "Untitled Survey",
-            floorPlan: floorPlan
-        )
+        let project = SurveyProject(name: "Untitled Survey", floorPlan: floorPlan)
+        state.setProject(project)
+        heatmapImage = nil
+        isHeatmapGenerated = false
     }
 
     func importFloorPlan(from url: URL) throws {
@@ -218,13 +254,13 @@ final class HeatmapSurveyViewModel {
     /// Import a RoomPlan-scanned blueprint directly as a pre-calibrated floor plan.
     func importBlueprintProject(_ blueprint: BlueprintProject) {
         guard let floor = blueprint.floors.first else {
-            errorMessage = HeatmapError.noFloorPlan.localizedDescription
+            state.errorMessage = HeatmapError.noFloorPlan.localizedDescription
             return
         }
 
         let floorPlan = BlueprintSaveLoadManager.floorPlanFromBlueprint(floor)
 
-        surveyProject = SurveyProject(
+        let project = SurveyProject(
             name: blueprint.name,
             floorPlan: floorPlan,
             metadata: SurveyMetadata(
@@ -233,97 +269,51 @@ final class HeatmapSurveyViewModel {
                 notes: blueprint.metadata.notes
             )
         )
+
+        // BlueprintSaveLoadManager.floorPlanFromBlueprint doesn't stamp
+        // calibrationPoints onto the FloorPlan even though the blueprint is
+        // calibrated from RoomPlan dimensions. Force the calibrated path
+        // explicitly so the state-machine sees a pre-calibrated project.
+        state.setProject(project)
+        state.isCalibrated = true
+        state.isCalibrating = false
+
         floorPlanImage = UIImage(data: floorPlan.imageData)
-        measurementPoints = []
         heatmapImage = nil
         isHeatmapGenerated = false
-        undoStack = []
-
-        // Blueprint is pre-calibrated from RoomPlan dimensions
-        isCalibrating = false
-        isCalibrated = true
-        calibrationPoints = []
     }
 
     // MARK: - Calibration
 
     func startCalibration() {
-        isCalibrating = true
-        isCalibrated = false
-        calibrationPoints = []
+        state.startCalibration()
     }
 
     func cancelCalibration() {
-        isCalibrating = false
-        calibrationPoints = []
+        state.cancelCalibration()
     }
 
     func skipCalibration() {
-        isCalibrating = false
-        isCalibrated = true
-        calibrationPoints = []
+        state.skipCalibration()
     }
 
     func addCalibrationPoint(at normalizedPoint: CGPoint) {
-        guard calibrationPoints.count < 2 else { return }
-        let point = CalibrationPoint(
-            pixelX: Double(normalizedPoint.x),
-            pixelY: Double(normalizedPoint.y)
-        )
-        calibrationPoints.append(point)
-        if calibrationPoints.count == 2 {
-            showCalibrationSheet = true
-        }
+        state.addCalibrationPoint(at: normalizedPoint)
     }
 
     func completeCalibration(distance: Double, isFeet: Bool) {
-        let realDistance = isFeet ? distance * 0.3048 : distance
-        completeCalibration(withDistance: realDistance)
+        state.completeCalibration(distance: distance, isFeet: isFeet)
     }
 
     func completeCalibration(withDistance distanceMeters: Double) {
-        guard calibrationPoints.count == 2 else {
-            calibrationPoints = []
-            isCalibrating = false
-            return
-        }
-
-        guard var project = surveyProject else {
-            calibrationPoints = []
-            isCalibrating = false
-            return
-        }
-
-        let metersPerPixel = CalibrationPoint.metersPerPixel(
-            pointA: calibrationPoints[0],
-            pointB: calibrationPoints[1],
-            knownDistanceMeters: distanceMeters
-        )
-
-        project.floorPlan = FloorPlan(
-            id: project.floorPlan.id,
-            imageData: project.floorPlan.imageData,
-            widthMeters: Double(project.floorPlan.pixelWidth) * metersPerPixel,
-            heightMeters: Double(project.floorPlan.pixelHeight) * metersPerPixel,
-            pixelWidth: project.floorPlan.pixelWidth,
-            pixelHeight: project.floorPlan.pixelHeight,
-            origin: project.floorPlan.origin,
-            calibrationPoints: calibrationPoints,
-            walls: project.floorPlan.walls
-        )
-
-        surveyProject = project
-        isCalibrating = false
-        isCalibrated = true
-        calibrationPoints = []
-        showCalibrationSheet = false
+        state.completeCalibration(withDistance: distanceMeters)
     }
 
     // MARK: - Survey Control
 
     func startSurvey() {
-        guard surveyProject != nil, isCalibrated else { return }
-        isSurveying = true
+        guard state.surveyProject != nil, state.isCalibrated else { return }
+        state.isSurveying = true
         isHeatmapGenerated = false
         heatmapImage = nil
         // Note: live RSSI polling via service.takeMeasurement is intentionally
@@ -337,7 +327,7 @@ final class HeatmapSurveyViewModel {
     }
 
     func stopSurvey() {
-        isSurveying = false
+        state.isSurveying = false
         stopContinuousScanTimer()
         updateHeatmap()
     }
@@ -363,15 +353,13 @@ final class HeatmapSurveyViewModel {
     // MARK: - Measurement
 
     func takeMeasurement(at normalizedPoint: CGPoint) async {
-        guard surveyProject != nil, !isMeasuring else { return }
-        isMeasuring = true
-        pendingMeasurementLocation = normalizedPoint
+        guard state.surveyProject != nil, !state.isMeasuring else { return }
+        state.isMeasuring = true
+        state.pendingMeasurementLocation = normalizedPoint
         defer {
-            isMeasuring = false
-            pendingMeasurementLocation = nil
+            state.isMeasuring = false
+            state.pendingMeasurementLocation = nil
         }
-
-        saveUndoState()
 
         let point: MeasurementPoint
         if measurementMode == .active {
@@ -386,7 +374,7 @@ final class HeatmapSurveyViewModel {
             )
         }
 
-        measurementPoints.append(point)
+        state.recordMeasurement(point)
         measurementsSinceLastSave += 1
 
         // Update live display
@@ -394,7 +382,7 @@ final class HeatmapSurveyViewModel {
         currentSSID = point.ssid
 
         // Auto-update heatmap after 3+ points
-        if measurementPoints.count >= 3 {
+        if state.measurementPoints.count >= 3 {
             updateHeatmap()
         }
 
@@ -407,14 +395,12 @@ final class HeatmapSurveyViewModel {
     // MARK: - Point Management
 
     func deleteMeasurement(id: UUID) {
-        saveUndoState()
-        measurementPoints.removeAll { $0.id == id }
+        state.deleteMeasurement(id: id)
         if isHeatmapGenerated { updateHeatmap() }
     }
 
     func clearMeasurements() {
-        saveUndoState()
-        measurementPoints = []
+        state.clearMeasurements()
         heatmapImage = nil
         isHeatmapGenerated = false
     }
@@ -422,40 +408,30 @@ final class HeatmapSurveyViewModel {
     // MARK: - Undo
 
     func undo() {
-        guard let previous = undoStack.popLast() else { return }
-        measurementPoints = previous
+        state.undo()
         if isHeatmapGenerated { updateHeatmap() }
-    }
-
-    private func saveUndoState() {
-        undoStack.append(measurementPoints)
-        if undoStack.count > 50 { undoStack.removeFirst() }
     }
 
     // MARK: - Heatmap Generation
 
     func updateHeatmap() {
-        let pointsToRender: [MeasurementPoint]
-        if let bssid = selectedAPFilter {
-            pointsToRender = measurementPoints.filter { $0.bssid == bssid }
-        } else {
-            pointsToRender = measurementPoints
-        }
-
+        let pointsToRender = state.filteredPoints
         guard !pointsToRender.isEmpty else {
             heatmapImage = nil
             isHeatmapGenerated = false
             return
         }
 
-        let config = HeatmapRenderer.Configuration(opacity: heatmapOpacity)
+        let config = HeatmapRenderer.Configuration(opacity: state.heatmapOpacity)
         let localRenderer = HeatmapRenderer(configuration: config)
+        let visualization = state.selectedVisualization
+        let colorScheme = state.selectedColorScheme
 
-        Task.detached { [selectedVisualization, selectedColorScheme] in
+        Task.detached {
             let image = localRenderer.render(
                 points: pointsToRender,
-                visualization: selectedVisualization,
-                colorScheme: selectedColorScheme
+                visualization: visualization,
+                colorScheme: colorScheme
             )
             await MainActor.run { [weak self] in
                 self?.heatmapImage = image
@@ -467,11 +443,11 @@ final class HeatmapSurveyViewModel {
     // MARK: - Project Save/Load
 
     func saveProject(to url: URL) throws {
-        guard var project = surveyProject else { return }
+        guard var project = state.surveyProject else { return }
         isSaving = true
         defer { isSaving = false }
 
-        project.measurementPoints = measurementPoints
+        project.measurementPoints = state.measurementPoints
         try fileManager.save(project: project, to: url)
         lastSaveDate = Date()
         measurementsSinceLastSave = 0
@@ -479,46 +455,41 @@ final class HeatmapSurveyViewModel {
 
     func loadProject(from url: URL) throws {
         let project = try fileManager.load(from: url)
-
-        surveyProject = project
-        measurementPoints = project.measurementPoints
-        isCalibrated = project.floorPlan.calibrationPoints?.isEmpty == false
+        state.setProject(project)
         floorPlanImage = UIImage(data: project.floorPlan.imageData)
-        undoStack = []
-        if !measurementPoints.isEmpty {
+        if !state.measurementPoints.isEmpty {
             updateHeatmap()
         }
     }
 
     func autoSave() {
-        guard let project = surveyProject,
+        guard let project = state.surveyProject,
               let saveURL = fileManager.autoSaveURL(for: project.name)
         else { return }
         do {
             try saveProject(to: saveURL)
         } catch {
-            errorMessage = "Auto-save failed: \(error.localizedDescription)"
+            state.errorMessage = "Auto-save failed: \(error.localizedDescription)"
         }
     }
 
     // MARK: - Export
 
     func exportImage(canvasSize: CGSize) -> UIImage? {
-        guard surveyProject != nil else { return nil }
+        guard state.surveyProject != nil else { return nil }
         return exporter.renderImage(
             floorPlanImage: floorPlanImage,
             heatmapImage: heatmapImage,
-            points: filteredPoints,
-            heatmapOpacity: heatmapOpacity,
+            points: state.filteredPoints,
+            heatmapOpacity: state.heatmapOpacity,
             canvasSize: canvasSize
         )
     }
 
     /// Exports the project as a .netmonsurvey file URL for sharing.
     func exportProjectFile() -> URL? {
-        guard var project = surveyProject else { return nil }
-        project.measurementPoints = measurementPoints
+        guard var project = state.surveyProject else { return nil }
+        project.measurementPoints = state.measurementPoints
         return exporter.exportProjectFile(project: project, fileManager: fileManager)
     }
-
 }

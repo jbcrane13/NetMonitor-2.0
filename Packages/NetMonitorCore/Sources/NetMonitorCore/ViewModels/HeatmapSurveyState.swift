@@ -24,7 +24,11 @@ public final class HeatmapSurveyState {
     // MARK: - Survey
 
     public var surveyProject: SurveyProject?
-    public private(set) var measurementPoints: [MeasurementPoint] = []
+    /// Direct mutation is allowed (tests + views may need to seed/replace).
+    /// Prefer ``recordMeasurement(_:)`` / ``deleteMeasurement(id:)`` /
+    /// ``clearMeasurements()`` / ``setMeasurements(_:)`` for the standard flow
+    /// so the undo stack stays consistent.
+    public var measurementPoints: [MeasurementPoint] = []
     public var isSurveying: Bool = false
     public var errorMessage: String?
 
@@ -37,7 +41,10 @@ public final class HeatmapSurveyState {
 
     public var isCalibrating: Bool = false
     public var isCalibrated: Bool = false
-    public private(set) var calibrationPoints: [CalibrationPoint] = []
+    /// Direct mutation is allowed (tests + views may need to reset/seed).
+    /// Prefer ``addCalibrationPoint(at:)`` / ``cancelCalibration()`` /
+    /// ``skipCalibration()`` for the standard flow.
+    public var calibrationPoints: [CalibrationPoint] = []
     public var calibrationDistance: Double = 5.0
     public var showCalibrationSheet: Bool = false
 
