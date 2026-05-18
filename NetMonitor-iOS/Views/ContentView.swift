@@ -107,7 +107,7 @@ struct ContentView: View {
             }
         }
         .scrollContentBackground(.hidden)
-        .background(.ultraThinMaterial)
+        .liquidGlassBackground()
         .navigationTitle("NetMonitor")
     }
 

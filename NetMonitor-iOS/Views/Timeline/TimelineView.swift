@@ -88,7 +88,7 @@ struct TimelineView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.horizontal, Theme.Layout.screenPadding)
                             .padding(.vertical, 6)
-                            .background(.ultraThinMaterial)
+                            .liquidGlassBackground()
                     }
                 }
             }

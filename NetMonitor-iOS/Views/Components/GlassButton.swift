@@ -16,8 +16,7 @@ struct GlassButtonStyle: ButtonStyle {
             .frame(maxWidth: isFullWidth ? .infinity : nil)
             .background(
                 ZStack {
-                    RoundedRectangle(cornerRadius: Theme.Layout.buttonCornerRadius)
-                        .fill(.ultraThinMaterial)
+                    LiquidGlassFill(RoundedRectangle(cornerRadius: Theme.Layout.buttonCornerRadius))
 
                     RoundedRectangle(cornerRadius: Theme.Layout.buttonCornerRadius)
                         .fill(style.backgroundColor)
@@ -162,8 +161,7 @@ struct GlassIconButton: View {
                 .frame(width: size, height: size)
                 .background(
                     ZStack {
-                        Circle()
-                            .fill(.ultraThinMaterial)
+                        LiquidGlassFill(Circle())
                         Circle()
                             .fill(style.backgroundColor)
                     }
