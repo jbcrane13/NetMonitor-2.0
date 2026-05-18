@@ -3,7 +3,11 @@ import NetMonitorCore
 
 /// Dashboard card showing the composite network health score.
 struct NetworkHealthScoreView: View {
-    @State private var viewModel = NetworkHealthScoreViewModel()
+    @State private var viewModel: NetworkHealthScoreViewModel
+
+    init(env: AppEnvironment) {
+        _viewModel = State(initialValue: NetworkHealthScoreViewModel(networkMonitor: env.networkMonitor))
+    }
 
     var body: some View {
         GlassCard {
@@ -160,7 +164,9 @@ private struct ScoreRow: View {
 }
 
 #Preview {
-    NetworkHealthScoreView()
+    let env = AppEnvironment.live()
+    NetworkHealthScoreView(env: env)
+        .environment(env)
         .padding()
         .themedBackground()
 }

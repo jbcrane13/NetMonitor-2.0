@@ -2,7 +2,13 @@ import SwiftUI
 import NetMonitorCore
 
 struct ToolsView: View {
-    @State private var viewModel = ToolsViewModel()
+    private let env: AppEnvironment
+    @State private var viewModel: ToolsViewModel
+
+    init(env: AppEnvironment) {
+        self.env = env
+        _viewModel = State(initialValue: ToolsViewModel(deviceDiscoveryService: env.deviceDiscovery))
+    }
 
     var body: some View {
         NavigationStack {
@@ -22,7 +28,7 @@ struct ToolsView: View {
             .navigationBarTitleDisplayMode(.large)
             .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
             .navigationDestination(for: ToolDestination.self) { destination in
-                destination.view
+                destination.view(env: env)
             }
             .accessibilityIdentifier("screen_tools")
         }
@@ -49,7 +55,7 @@ enum ToolDestination: Hashable {
     case wifiHeatmap
     @ViewBuilder
     @MainActor
-    var view: some View {
+    func view(env: AppEnvironment) -> some View {
         let target = TargetManager.shared.currentTarget
         switch self {
         case .ping:
@@ -71,7 +77,7 @@ enum ToolDestination: Hashable {
         case .webBrowser:
             WebBrowserToolView()
         case .networkMonitor:
-            NetworkMapView()
+            NetworkMapView(env: env)
         case .subnetCalculator:
             SubnetCalculatorToolView()
         case .worldPing:
@@ -579,5 +585,7 @@ struct ActivityRow: View {
 }
 
 #Preview {
-    ToolsView()
+    let env = AppEnvironment.live()
+    ToolsView(env: env)
+        .environment(env)
 }

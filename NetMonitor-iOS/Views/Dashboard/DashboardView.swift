@@ -5,9 +5,19 @@ import NetworkScanKit
 import SwiftData
 
 struct DashboardView: View {
-    @State private var viewModel = DashboardViewModel()
+    @State private var viewModel: DashboardViewModel
     // periphery:ignore
     @State private var isAddNetworkSheetPresented = false
+
+    init(env: AppEnvironment) {
+        _viewModel = State(initialValue: DashboardViewModel(
+            networkMonitor: env.networkMonitor,
+            wifiService: env.wifiInfo,
+            publicIPService: env.publicIP,
+            deviceDiscoveryService: env.deviceDiscovery,
+            macConnectionService: env.macConnection
+        ))
+    }
 
     var body: some View {
         NavigationStack {

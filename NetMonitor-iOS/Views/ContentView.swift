@@ -3,13 +3,24 @@ import NetMonitorCore
 import SwiftData
 
 struct ContentView: View {
-    @Environment(AppEnvironment.self) private var env
+    private let env: AppEnvironment
     @State private var selectedTab: Tab = .dashboard
     @State private var selectedSidebarTab: Tab? = .dashboard
     // Observe ThemeManager so the entire view tree re-renders on accent color change
     @State private var themeManager = ThemeManager.shared
-    @State private var dashboardVM = DashboardViewModel()
+    @State private var dashboardVM: DashboardViewModel
     @Environment(\.horizontalSizeClass) var sizeClass
+
+    init(env: AppEnvironment) {
+        self.env = env
+        _dashboardVM = State(initialValue: DashboardViewModel(
+            networkMonitor: env.networkMonitor,
+            wifiService: env.wifiInfo,
+            publicIPService: env.publicIP,
+            deviceDiscoveryService: env.deviceDiscovery,
+            macConnectionService: env.macConnection
+        ))
+    }
 
     enum Tab: String, CaseIterable {
         case dashboard
@@ -46,21 +57,21 @@ struct ContentView: View {
                 }
             } else {
                 TabView(selection: $selectedTab) {
-                    DashboardView()
+                    DashboardView(env: env)
                         .tabItem {
                             Label(Tab.dashboard.title, systemImage: Tab.dashboard.icon)
                         }
                         .tag(Tab.dashboard)
                         .accessibilityIdentifier("contentView_tab_dashboard")
 
-                    NetworkMapView()
+                    NetworkMapView(env: env)
                         .tabItem {
                             Label(Tab.map.title, systemImage: Tab.map.icon)
                         }
                         .tag(Tab.map)
                         .accessibilityIdentifier("contentView_tab_map")
 
-                    ToolsView()
+                    ToolsView(env: env)
                         .tabItem {
                             Label(Tab.tools.title, systemImage: Tab.tools.icon)
                         }
@@ -205,16 +216,17 @@ struct ContentView: View {
     @ViewBuilder
     private var detailView: some View {
         switch selectedSidebarTab ?? .dashboard {
-        case .dashboard: DashboardView()
-        case .map: NetworkMapView()
-        case .tools: ToolsView()
+        case .dashboard: DashboardView(env: env)
+        case .map: NetworkMapView(env: env)
+        case .tools: ToolsView(env: env)
         case .timeline: TimelineView(env: env)
         }
     }
 }
 
 #Preview {
-    ContentView()
-        .environment(AppEnvironment.live())
+    let env = AppEnvironment.live()
+    ContentView(env: env)
+        .environment(env)
         .modelContainer(for: [], inMemory: true)
 }
