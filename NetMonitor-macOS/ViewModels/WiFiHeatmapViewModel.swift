@@ -9,25 +9,17 @@ import SwiftUI
 @Observable
 final class WiFiHeatmapViewModel {
 
-    // MARK: - State
+    // MARK: - Shared State
 
-    var errorMessage: String?
+    let state: HeatmapSurveyState
 
-    // MARK: - Survey State
-
-    var surveyProject: SurveyProject?
-    var measurementPoints: [MeasurementPoint] = []
-    var isSurveying: Bool = false
-    var isMeasuring: Bool = false
-    var pendingMeasurementLocation: CGPoint?
-
-    // MARK: - Live Signal
+    // MARK: - Live Signal (macOS-only)
 
     private(set) var currentSignal: SignalSnapshot?
     private(set) var nearbyAPs: [NearbyAP] = []
     private(set) var isScanning: Bool = false
 
-    // MARK: - Sidebar State
+    // MARK: - Sidebar State (macOS-only)
 
     enum SidebarMode: String, CaseIterable {
         case survey
@@ -37,26 +29,10 @@ final class WiFiHeatmapViewModel {
     var sidebarMode: SidebarMode = .survey
     var isSidebarCollapsed: Bool = false
 
-    // MARK: - Visualization
+    // MARK: - Coverage Threshold (macOS-only)
 
-    var selectedVisualization: HeatmapVisualization = .signalStrength
-    var colorScheme: HeatmapColorScheme = .thermal
-    var overlayOpacity: Double = 0.7
     var coverageThreshold: Double = -70 // dBm
     var isCoverageThresholdEnabled: Bool = false
-
-    // MARK: - AP Filter
-
-    var selectedAPFilter: String? // BSSID to filter by, nil = all
-
-    var uniqueBSSIDs: [(bssid: String, ssid: String)] {
-        let seen = Dictionary(grouping: measurementPoints, by: { $0.bssid ?? "unknown" })
-        return seen.compactMap { bssid, points in
-            guard bssid != "unknown" else { return nil }
-            let ssid = points.first?.ssid ?? bssid
-            return (bssid: bssid, ssid: ssid)
-        }.sorted { $0.ssid < $1.ssid }
-    }
 
     // MARK: - Measurement Mode
 
@@ -71,21 +47,11 @@ final class WiFiHeatmapViewModel {
     private(set) var liveCursorLocation: CGPoint?
     private var continuousScanTask: Task<Void, Never>?
 
-    // MARK: - Calibration
-
-    var isCalibrating: Bool = false
-    var isCalibrated: Bool = false
-    var calibrationPoints: [CalibrationPoint] = []
-    var showCalibrationSheet: Bool = false
-
-    // MARK: - Canvas
+    // MARK: - Canvas (macOS-only)
 
     var heatmapCGImage: CGImage?
     var showImportSheet: Bool = false
     var showPhotoPicker: Bool = false
-
-    // MARK: - Heatmap State
-
     var isHeatmapGenerated: Bool = false
 
     // MARK: - Services
@@ -95,13 +61,10 @@ final class WiFiHeatmapViewModel {
     private var signalPollTask: Task<Void, Never>?
     private let renderer: HeatmapRenderer
 
-    // MARK: - Undo
-
-    private var undoStack: [[MeasurementPoint]] = []
-
     // MARK: - Init
 
     init(heatmapService: any MacWiFiSignalProviding = WiFiHeatmapService()) {
+        self.state = HeatmapSurveyState()
         self.heatmapService = heatmapService
         renderer = HeatmapRenderer()
         setupEngine()
@@ -117,6 +80,92 @@ final class WiFiHeatmapViewModel {
             pingService: pingService
         )
     }
+
+    // MARK: - Forwarded State
+
+    var errorMessage: String? {
+        get { state.errorMessage }
+        set { state.errorMessage = newValue }
+    }
+
+    var surveyProject: SurveyProject? {
+        get { state.surveyProject }
+        set { state.surveyProject = newValue }
+    }
+
+    var measurementPoints: [MeasurementPoint] {
+        get { state.measurementPoints }
+        set { state.setMeasurements(newValue) }
+    }
+
+    var isSurveying: Bool {
+        get { state.isSurveying }
+        set { state.isSurveying = newValue }
+    }
+
+    var isMeasuring: Bool {
+        get { state.isMeasuring }
+        set { state.isMeasuring = newValue }
+    }
+
+    var pendingMeasurementLocation: CGPoint? {
+        get { state.pendingMeasurementLocation }
+        set { state.pendingMeasurementLocation = newValue }
+    }
+
+    var isCalibrating: Bool {
+        get { state.isCalibrating }
+        set { state.isCalibrating = newValue }
+    }
+
+    var isCalibrated: Bool {
+        get { state.isCalibrated }
+        set { state.isCalibrated = newValue }
+    }
+
+    var calibrationPoints: [CalibrationPoint] {
+        get { state.calibrationPoints }
+        set { state.calibrationPoints = newValue }
+    }
+
+    var showCalibrationSheet: Bool {
+        get { state.showCalibrationSheet }
+        set { state.showCalibrationSheet = newValue }
+    }
+
+    var selectedVisualization: HeatmapVisualization {
+        get { state.selectedVisualization }
+        set { state.selectedVisualization = newValue }
+    }
+
+    /// macOS legacy name for the shared `selectedColorScheme`.
+    var colorScheme: HeatmapColorScheme {
+        get { state.selectedColorScheme }
+        set { state.selectedColorScheme = newValue }
+    }
+
+    /// macOS legacy name for the shared `heatmapOpacity`.
+    var overlayOpacity: Double {
+        get { state.heatmapOpacity }
+        set { state.heatmapOpacity = newValue }
+    }
+
+    var selectedAPFilter: String? {
+        get { state.selectedAPFilter }
+        set { state.selectedAPFilter = newValue }
+    }
+
+    var canUndo: Bool { state.canUndo }
+
+    var uniqueBSSIDs: [(bssid: String, ssid: String)] { state.uniqueBSSIDs }
+
+    var filteredPoints: [MeasurementPoint] { state.filteredPoints }
+
+    var averageRSSI: Double? { state.averageRSSI }
+
+    var minRSSI: Int? { state.minRSSI }
+
+    var maxRSSI: Int? { state.maxRSSI }
 
     // MARK: - Lifecycle
 
@@ -165,8 +214,8 @@ final class WiFiHeatmapViewModel {
     // MARK: - Survey Control
 
     func startSurvey() {
-        guard surveyProject != nil, isCalibrated else { return }
-        isSurveying = true
+        guard state.surveyProject != nil, state.isCalibrated else { return }
+        state.isSurveying = true
         sidebarMode = .survey
         isHeatmapGenerated = false
         heatmapCGImage = nil
@@ -176,7 +225,7 @@ final class WiFiHeatmapViewModel {
     }
 
     func stopSurvey() {
-        isSurveying = false
+        state.isSurveying = false
         stopContinuousScanTimer()
         generateHeatmap()
     }
@@ -206,15 +255,13 @@ final class WiFiHeatmapViewModel {
     // MARK: - Measurement
 
     func takeMeasurement(at normalizedPoint: CGPoint) async {
-        guard surveyProject != nil, !isMeasuring else { return }
-        isMeasuring = true
-        pendingMeasurementLocation = normalizedPoint
+        guard state.surveyProject != nil, !state.isMeasuring else { return }
+        state.isMeasuring = true
+        state.pendingMeasurementLocation = normalizedPoint
         defer {
-            isMeasuring = false
-            pendingMeasurementLocation = nil
+            state.isMeasuring = false
+            state.pendingMeasurementLocation = nil
         }
-
-        saveUndoState()
 
         let point: MeasurementPoint
         if measurementMode == .active {
@@ -229,35 +276,29 @@ final class WiFiHeatmapViewModel {
             ) ?? MeasurementPoint(floorPlanX: normalizedPoint.x, floorPlanY: normalizedPoint.y)
         }
 
-        measurementPoints.append(point)
+        state.recordMeasurement(point)
     }
 
     // MARK: - Heatmap Generation
 
     func generateHeatmap() {
-        let filteredPoints: [MeasurementPoint]
-        if let bssid = selectedAPFilter {
-            filteredPoints = measurementPoints.filter { $0.bssid == bssid }
-        } else {
-            filteredPoints = measurementPoints
-        }
-
-        guard !filteredPoints.isEmpty else {
+        let pointsToRender = state.filteredPoints
+        guard !pointsToRender.isEmpty else {
             heatmapCGImage = nil
             isHeatmapGenerated = false
             return
         }
 
-        let config = HeatmapRenderer.Configuration(
-            opacity: overlayOpacity
-        )
+        let config = HeatmapRenderer.Configuration(opacity: state.heatmapOpacity)
         let localRenderer = HeatmapRenderer(configuration: config)
+        let visualization = state.selectedVisualization
+        let scheme = state.selectedColorScheme
 
-        Task.detached { [selectedVisualization, colorScheme] in
+        Task.detached {
             let image = localRenderer.render(
-                points: filteredPoints,
-                visualization: selectedVisualization,
-                colorScheme: colorScheme
+                points: pointsToRender,
+                visualization: visualization,
+                colorScheme: scheme
             )
             await MainActor.run { [weak self] in
                 self?.heatmapCGImage = image
@@ -284,16 +325,13 @@ final class WiFiHeatmapViewModel {
             origin: .imported
         )
 
-        surveyProject = SurveyProject(
+        let project = SurveyProject(
             name: url.deletingPathExtension().lastPathComponent,
             floorPlan: floorPlan
         )
-        measurementPoints = []
+        state.setProject(project)
         heatmapCGImage = nil
         isHeatmapGenerated = false
-
-        // Mandatory calibration after import
-        startCalibration()
     }
 
     func importFloorPlan(imageData: Data, name: String) throws {
@@ -311,15 +349,10 @@ final class WiFiHeatmapViewModel {
             origin: .imported
         )
 
-        surveyProject = SurveyProject(
-            name: name,
-            floorPlan: floorPlan
-        )
-        measurementPoints = []
+        let project = SurveyProject(name: name, floorPlan: floorPlan)
+        state.setProject(project)
         heatmapCGImage = nil
         isHeatmapGenerated = false
-
-        startCalibration()
     }
 
     // MARK: - Blueprint Import
@@ -335,7 +368,7 @@ final class WiFiHeatmapViewModel {
         // Convert blueprint floor to a FloorPlan (pre-calibrated, no manual calibration needed)
         let floorPlan = BlueprintSaveLoadManager.floorPlanFromBlueprint(floor)
 
-        surveyProject = SurveyProject(
+        let project = SurveyProject(
             name: blueprint.name,
             floorPlan: floorPlan,
             metadata: SurveyMetadata(
@@ -344,96 +377,50 @@ final class WiFiHeatmapViewModel {
                 notes: blueprint.metadata.notes
             )
         )
-        measurementPoints = []
+
+        // floorPlanFromBlueprint doesn't stamp calibrationPoints onto the
+        // FloorPlan, so state.setProject would treat this as needing
+        // calibration. Force the calibrated path explicitly.
+        state.setProject(project)
+        state.isCalibrated = true
+        state.isCalibrating = false
+
         heatmapCGImage = nil
         isHeatmapGenerated = false
-
-        // Blueprint is pre-calibrated — skip manual calibration
-        isCalibrating = false
-        isCalibrated = true
-        calibrationPoints = []
     }
 
     // MARK: - Calibration
 
     func startCalibration() {
-        isCalibrating = true
-        isCalibrated = false
-        calibrationPoints = []
+        state.startCalibration()
     }
 
     func cancelCalibration() {
-        isCalibrating = false
-        calibrationPoints = []
+        state.cancelCalibration()
     }
 
     func addCalibrationPoint(at normalizedPoint: CGPoint) {
-        guard calibrationPoints.count < 2 else { return }
-        let point = CalibrationPoint(
-            pixelX: Double(normalizedPoint.x),
-            pixelY: Double(normalizedPoint.y)
-        )
-        calibrationPoints.append(point)
-        if calibrationPoints.count == 2 {
-            showCalibrationSheet = true
-        }
+        state.addCalibrationPoint(at: normalizedPoint)
     }
 
     func completeCalibration(withDistance distance: Double) {
-        guard calibrationPoints.count == 2,
-              var project = surveyProject else { return }
-
-        let metersPerPixel = CalibrationPoint.metersPerPixel(
-            pointA: calibrationPoints[0],
-            pointB: calibrationPoints[1],
-            knownDistanceMeters: distance
-        )
-
-        project.floorPlan = FloorPlan(
-            id: project.floorPlan.id,
-            imageData: project.floorPlan.imageData,
-            widthMeters: Double(project.floorPlan.pixelWidth) * metersPerPixel,
-            heightMeters: Double(project.floorPlan.pixelHeight) * metersPerPixel,
-            pixelWidth: project.floorPlan.pixelWidth,
-            pixelHeight: project.floorPlan.pixelHeight,
-            origin: project.floorPlan.origin,
-            calibrationPoints: calibrationPoints,
-            walls: project.floorPlan.walls
-        )
-
-        surveyProject = project
-        isCalibrating = false
-        isCalibrated = true
-        calibrationPoints = []
-        showCalibrationSheet = false
+        state.completeCalibration(withDistance: distance)
     }
 
-    // MARK: - Undo
+    // MARK: - Undo / Point Management
 
     func undo() {
-        guard let previous = undoStack.popLast() else { return }
-        measurementPoints = previous
+        state.undo()
         if isHeatmapGenerated { generateHeatmap() }
     }
 
-    var canUndo: Bool { !undoStack.isEmpty }
-
-    private func saveUndoState() {
-        undoStack.append(measurementPoints)
-        if undoStack.count > 50 { undoStack.removeFirst() }
-    }
-
-    // MARK: - Point Management
-
     func deletePoint(id: UUID) {
-        saveUndoState()
-        measurementPoints.removeAll { $0.id == id }
+        state.deleteMeasurement(id: id)
         if isHeatmapGenerated { generateHeatmap() }
     }
 
     func clearMeasurements() {
-        saveUndoState()
-        measurementPoints = []
+        state.clearMeasurements()
         heatmapCGImage = nil
         isHeatmapGenerated = false
     }
@@ -441,39 +428,20 @@ final class WiFiHeatmapViewModel {
     // MARK: - Project Save/Load
 
     func saveProject(to url: URL) throws {
-        guard var project = surveyProject else { return }
-        project.measurementPoints = measurementPoints
+        guard var project = state.surveyProject else { return }
+        project.measurementPoints = state.measurementPoints
         let manager = ProjectSaveLoadManager()
         try manager.save(project: project, to: url)
     }
 
     func loadProject(from url: URL) throws {
         let manager = ProjectSaveLoadManager()
-        surveyProject = try manager.load(from: url)
-        measurementPoints = surveyProject?.measurementPoints ?? []
-        isCalibrated = surveyProject?.floorPlan.calibrationPoints?.isEmpty == false
-        if !measurementPoints.isEmpty {
+        let project = try manager.load(from: url)
+        state.setProject(project)
+        if !state.measurementPoints.isEmpty {
             generateHeatmap()
         }
     }
-
-    // MARK: - Computed
-
-    var filteredPoints: [MeasurementPoint] {
-        if let bssid = selectedAPFilter {
-            return measurementPoints.filter { $0.bssid == bssid }
-        }
-        return measurementPoints
-    }
-
-    var averageRSSI: Double? {
-        let pts = filteredPoints
-        guard !pts.isEmpty else { return nil }
-        return Double(pts.reduce(0) { $0 + $1.rssi }) / Double(pts.count)
-    }
-
-    var minRSSI: Int? { filteredPoints.map(\.rssi).min() }
-    var maxRSSI: Int? { filteredPoints.map(\.rssi).max() }
 }
 
 // MARK: - HeatmapError
