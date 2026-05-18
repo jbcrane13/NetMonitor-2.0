@@ -11,10 +11,7 @@ struct ToolClearButton: View {
                 .font(.body.weight(.semibold))
                 .foregroundStyle(Theme.Colors.textSecondary)
                 .frame(width: 44, height: 44)
-                .background(
-                    RoundedRectangle(cornerRadius: Theme.Layout.buttonCornerRadius)
-                        .fill(.ultraThinMaterial)
-                )
+                .liquidGlassBackground(in: RoundedRectangle(cornerRadius: Theme.Layout.buttonCornerRadius))
                 .overlay(
                     RoundedRectangle(cornerRadius: Theme.Layout.buttonCornerRadius)
                         .stroke(Theme.Colors.glassBorder, lineWidth: 1)
