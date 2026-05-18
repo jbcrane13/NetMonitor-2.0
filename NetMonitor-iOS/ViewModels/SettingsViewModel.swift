@@ -190,7 +190,7 @@ final class SettingsViewModel {
         isClearingCache = false
     }
 
-    private static func clearDirectory(at url: URL) {
+    private nonisolated static func clearDirectory(at url: URL) {
         let fm = FileManager.default
         guard let contents = try? fm.contentsOfDirectory(at: url, includingPropertiesForKeys: nil) else { return }
         for file in contents {
@@ -208,7 +208,7 @@ final class SettingsViewModel {
         return total
     }
 
-    private static func directorySize(at url: URL) -> Int64 {
+    private nonisolated static func directorySize(at url: URL) -> Int64 {
         let fm = FileManager.default
         guard let enumerator = fm.enumerator(at: url, includingPropertiesForKeys: [.fileSizeKey]) else { return 0 }
         var total: Int64 = 0

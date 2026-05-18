@@ -7,6 +7,7 @@ excluded:
   - Packages/**/.build
   - Packages/**/checkouts
   - .worktrees
+  - .claude/worktrees
   - "**/*.xcodeproj"
   - Tests
   - Packages/NetMonitorCore/Tests
