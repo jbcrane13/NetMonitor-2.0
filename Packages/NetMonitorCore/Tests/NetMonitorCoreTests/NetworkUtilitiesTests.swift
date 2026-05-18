@@ -24,6 +24,11 @@ struct NetworkUtilitiesTests {
         #expect(NetworkUtilities.ipv4ToUInt32("192.168.1.-1") == nil)       // negative octet
         #expect(NetworkUtilities.ipv4ToUInt32(".192.168.1.1") == nil)       // leading dot
         #expect(NetworkUtilities.ipv4ToUInt32("192.168.1.") == nil)         // trailing dot
+        #expect(NetworkUtilities.ipv4ToUInt32("192..168.1") == nil)         // adjacent dots
+        #expect(NetworkUtilities.ipv4ToUInt32(" 192.168.1.1") == nil)       // leading whitespace
+        #expect(NetworkUtilities.ipv4ToUInt32("192.168.1.1 ") == nil)       // trailing whitespace
+        #expect(NetworkUtilities.ipv4ToUInt32("192.168.1.1\n") == nil)      // trailing newline
+        #expect(NetworkUtilities.ipv4ToUInt32("...") == nil)                // dots only
     }
 
     // MARK: - uint32ToIPv4
