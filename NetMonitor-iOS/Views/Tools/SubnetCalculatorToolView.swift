@@ -27,6 +27,8 @@ struct SubnetCalculatorToolView: View {
         .navigationTitle("Subnet Calculator")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
+        .sensoryFeedback(.success, trigger: viewModel.subnetInfo?.networkAddress)
+        .sensoryFeedback(.error, trigger: viewModel.errorMessage)
         .accessibilityIdentifier("screen_subnetCalculatorTool")
     }
 
@@ -53,7 +55,9 @@ struct SubnetCalculatorToolView: View {
                     }
                 }
                 .padding(.horizontal, 1)
+                .scrollTargetLayout()
             }
+            .scrollTargetBehavior(.viewAligned)
         }
     }
 

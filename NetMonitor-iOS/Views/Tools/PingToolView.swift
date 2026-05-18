@@ -28,6 +28,9 @@ struct PingToolView: View {
         .navigationTitle("Ping")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
+        .sensoryFeedback(trigger: viewModel.isRunning) { _, isRunning in
+            isRunning ? .start : .stop
+        }
         .accessibilityIdentifier("screen_pingTool")
     }
 
