@@ -5,7 +5,6 @@ import NetMonitorCore
 
 // MARK: - Mock Service
 
-@MainActor
 private final class MockNetworkHealthScoreService: NetworkHealthScoreServiceProtocol, @unchecked Sendable {
     var mockScore = NetworkHealthScore(score: 85, grade: "B", latencyMs: 25, packetLoss: 0.02, details: ["latency": "25 ms"])
     var calculateCallCount = 0
@@ -30,7 +29,6 @@ private final class MockNetworkHealthScoreService: NetworkHealthScoreServiceProt
     }
 }
 
-@MainActor
 private final class SlowNetworkHealthScoreService: NetworkHealthScoreServiceProtocol, @unchecked Sendable {
     var mockScore = NetworkHealthScore(score: 85, grade: "B", latencyMs: 25, packetLoss: 0.02, details: [:])
     var calculateCallCount = 0
