@@ -91,3 +91,7 @@ beads/
 # Dolt database files (added by bd init)
 .dolt/
 *.db
+.claude/worktrees/agent-a07636db3a4f0b736/
+.claude/worktrees/agent-a130437fcdb3d364b/
+.claude/worktrees/agent-a9ae86f286d61784a/
+.claude/worktrees/agent-ae84a5a61ecbfa764/
