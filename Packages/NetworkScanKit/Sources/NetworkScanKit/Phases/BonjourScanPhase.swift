@@ -170,50 +170,20 @@ public struct BonjourScanPhase: ScanPhase, Sendable {
         let params = NWParameters.tcp
         let connection = NWConnection(to: endpoint, using: params)
 
-        let result: String? = await withCheckedContinuation { continuation in
-            let resumed = ResumeState()
-
-            let timeoutTask = Task {
-                try? await Task.sleep(for: .seconds(2))
-                guard await resumed.tryResume() else { return }
-                connection.cancel()
-                continuation.resume(returning: nil)
-            }
-
-            connection.stateUpdateHandler = { state in
-                switch state {
-                case .ready:
-                    let resolvedHost: String?
-                    if let innerEndpoint = connection.currentPath?.remoteEndpoint,
-                       case let .hostPort(host, _) = innerEndpoint {
-                        resolvedHost = "\(host)"
-                    } else {
-                        resolvedHost = nil
-                    }
-
-                    Task {
-                        guard await resumed.tryResume() else { return }
-                        timeoutTask.cancel()
-                        connection.cancel()
-                        continuation.resume(returning: resolvedHost)
-                    }
-                case .failed, .cancelled:
-                    Task {
-                        guard await resumed.tryResume() else { return }
-                        timeoutTask.cancel()
-                        connection.cancel()
-                        continuation.resume(returning: nil)
-                    }
-                default:
-                    break
+        return await withNWConnection(connection, timeout: .seconds(2), timeoutValue: nil) { state in
+            switch state {
+            case .ready:
+                if let innerEndpoint = connection.currentPath?.remoteEndpoint,
+                   case let .hostPort(host, _) = innerEndpoint {
+                    return .complete("\(host)")
                 }
+                return .complete(nil)
+            case .failed, .cancelled:
+                return .complete(nil)
+            default:
+                return nil
             }
-
-            connection.start(queue: scanQueue)
         }
-
-        connection.cancel()
-        return result
     }
 
     private static func resolveIPv4Addresses(for host: String) async -> [String] {
