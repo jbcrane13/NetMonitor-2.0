@@ -1,0 +1,9 @@
+{
+  "tasks": {
+    "markdown:docs/PRD-issue-212.md:9": {
+      "count": 1,
+      "last": "2026-05-18T18:24:18.367Z",
+      "title": "Add accessibilityIdentifier to every interactive element"
+    }
+  }
+}

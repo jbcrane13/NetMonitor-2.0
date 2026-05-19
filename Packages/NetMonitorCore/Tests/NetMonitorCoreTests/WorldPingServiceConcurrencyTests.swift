@@ -13,8 +13,6 @@ import Testing
 @Suite(.serialized)
 struct WorldPingServiceConcurrencyTests {
 
-    init() { MockURLProtocol.requestHandler = nil }
-
     /// Hammers `lastError` reads from many concurrent tasks while `ping(...)`
     /// is in flight writing via `setLastError`. Under TSAN this would fail if
     /// the NSLock were removed.
