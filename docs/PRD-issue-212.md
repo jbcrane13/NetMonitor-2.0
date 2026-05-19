@@ -7,7 +7,7 @@
 - [x] Run full test suite
 - [x] Review code quality and suggest improvements
 - [ ] Add accessibilityIdentifier to every interactive element
-- [ ] Build verify: xcodebuild -scheme AgentBoard -destination 'platform=macOS' build
+- [ ] Build verify: xcodebuild -scheme NetMonitor -destination 'platform=macOS' build
 ## Constraints
 - Swift 6 strict concurrency
 - @Observable not ObservableObject
