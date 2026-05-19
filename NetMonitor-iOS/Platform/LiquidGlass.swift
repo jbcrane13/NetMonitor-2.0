@@ -24,7 +24,7 @@ struct LiquidGlassFill<S: Shape>: View {
     @ViewBuilder
     var body: some View {
         if #available(iOS 26.0, *) {
-            Rectangle()
+            shape
                 .fill(.clear)
                 .glassEffect(.regular.tint(tint), in: shape)
         } else {
