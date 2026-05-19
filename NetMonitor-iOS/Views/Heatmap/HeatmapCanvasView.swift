@@ -137,8 +137,7 @@ struct HeatmapCanvasView: View {
 
         return ZStack {
             // Glass background circle
-            Circle()
-                .fill(.ultraThinMaterial)
+            LiquidGlassFill(Circle())
                 .frame(width: 28, height: 28)
 
             Circle()

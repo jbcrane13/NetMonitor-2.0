@@ -33,8 +33,7 @@ struct ToolRunButton: View {
             .padding(.vertical, 14)
             .background(
                 ZStack {
-                    RoundedRectangle(cornerRadius: Theme.Layout.buttonCornerRadius)
-                        .fill(.ultraThinMaterial)
+                    LiquidGlassFill(RoundedRectangle(cornerRadius: Theme.Layout.buttonCornerRadius))
 
                     RoundedRectangle(cornerRadius: Theme.Layout.buttonCornerRadius)
                         .fill(isRunning ? Theme.Colors.error.opacity(0.3) : Theme.Colors.accent.opacity(0.3))

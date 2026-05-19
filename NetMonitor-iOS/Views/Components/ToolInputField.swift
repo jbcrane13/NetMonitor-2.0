@@ -41,10 +41,7 @@ struct ToolInputField: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
-        .background(
-            RoundedRectangle(cornerRadius: Theme.Layout.buttonCornerRadius)
-                .fill(.ultraThinMaterial)
-        )
+        .liquidGlassBackground(in: RoundedRectangle(cornerRadius: Theme.Layout.buttonCornerRadius))
         .overlay(
             RoundedRectangle(cornerRadius: Theme.Layout.buttonCornerRadius)
                 .stroke(Theme.Colors.glassBorder, lineWidth: 1)
