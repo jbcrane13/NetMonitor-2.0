@@ -269,20 +269,31 @@ final class DashboardViewModel {
     }
 
     /// Ping well-known anchors to show real external latency.
+    /// Pings run concurrently via `withTaskGroup` so worst-case latency is bounded by
+    /// the slowest single anchor instead of the sum across all anchors.
     private func measureAnchors() async {
         let anchors = ["Google": "8.8.8.8", "Cloudflare": "1.1.1.1", "Apple": "17.253.144.10"]
-        for (name, host) in anchors {
-            let stream = await pingService.ping(host: host, count: 1, timeout: 2)
-            var measured = false
-            for await result in stream {
-                if !result.isTimeout {
-                    anchorLatencies[name] = result.time
-                    measured = true
+
+        let results = await withTaskGroup(of: (String, Double?).self) { [pingService] group in
+            for (name, host) in anchors {
+                group.addTask {
+                    let stream = await pingService.ping(host: host, count: 1, timeout: 2)
+                    var latency: Double?
+                    for await result in stream where !result.isTimeout {
+                        latency = result.time
+                    }
+                    return (name, latency)
                 }
             }
-            if !measured {
-                anchorLatencies[name] = nil
+            var collected: [(String, Double?)] = []
+            for await result in group {
+                collected.append(result)
             }
+            return collected
+        }
+
+        for (name, latency) in results {
+            anchorLatencies[name] = latency
         }
 
         // Log a summary event for anchors

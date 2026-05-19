@@ -443,4 +443,78 @@ struct DashboardViewModelEventLoggingTests {
         }
         #expect(!anchorEvents.isEmpty)
     }
+
+    @Test func measureAnchorsPingsConcurrently() async {
+        // Tracks in-flight ping calls so the test can verify parallel execution.
+        // Three anchors pinged sequentially would peak at 1 in-flight; parallel via
+        // TaskGroup peaks at 3.
+        let ping = ConcurrencyTrackingPingService(delay: .milliseconds(100))
+        let vm = makeVM(pingService: ping)
+
+        await vm.refresh()
+        await waitUntil { vm.anchorLatencies.count == 3 }
+
+        #expect(vm.anchorLatencies.count == 3)
+        #expect(ping.maxInFlight >= 2, "expected concurrent ping calls, got max=\(ping.maxInFlight)")
+    }
+
+    @Test func measureAnchorsRecordsAllSuccessfulAnchors() async {
+        let ping = ConcurrencyTrackingPingService(delay: .milliseconds(10))
+        let vm = makeVM(pingService: ping)
+
+        await vm.refresh()
+        await waitUntil { vm.anchorLatencies.count == 3 }
+
+        #expect(Set(vm.anchorLatencies.keys) == ["Google", "Cloudflare", "Apple"])
+        for value in vm.anchorLatencies.values {
+            #expect(value == 10.0)
+        }
+    }
+}
+
+// MARK: - Concurrency Tracking Mock
+
+/// Mock ping service that records the peak number of in-flight ping calls.
+/// Used to assert that `DashboardViewModel.measureAnchors` runs anchors in parallel
+/// rather than sequentially.
+final class ConcurrencyTrackingPingService: PingServiceProtocol, @unchecked Sendable {
+    private let lock = NSLock()
+    private var _inFlight = 0
+    private var _maxInFlight = 0
+    private let delay: Duration
+
+    init(delay: Duration = .milliseconds(50)) {
+        self.delay = delay
+    }
+
+    var maxInFlight: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return _maxInFlight
+    }
+
+    func ping(host: String, count: Int, timeout: TimeInterval) async -> AsyncStream<PingResult> {
+        lock.lock()
+        _inFlight += 1
+        _maxInFlight = max(_maxInFlight, _inFlight)
+        lock.unlock()
+
+        try? await Task.sleep(for: delay)
+
+        lock.lock()
+        _inFlight -= 1
+        lock.unlock()
+
+        let result = PingResult(sequence: 1, host: host, ttl: 64, time: 10.0, isTimeout: false)
+        return AsyncStream { continuation in
+            continuation.yield(result)
+            continuation.finish()
+        }
+    }
+
+    func stop() async {}
+
+    func calculateStatistics(_ results: [PingResult], requestedCount: Int?) async -> PingStatistics? {
+        nil
+    }
 }
