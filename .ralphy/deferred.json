@@ -4,16 +4,6 @@
       "count": 1,
       "last": "2026-05-18T18:24:18.367Z",
       "title": "Add accessibilityIdentifier to every interactive element"
-    },
-    "markdown:docs/PRD-issue-213.md:13": {
-      "count": 1,
-      "last": "2026-05-18T18:24:18.387Z",
-      "title": "Add missing tests if coverage gaps found"
-    },
-    "markdown:docs/PRD-issue-198.md:8": {
-      "count": 1,
-      "last": "2026-05-18T18:24:29.520Z",
-      "title": "Add accessibilityIdentifier to every interactive element"
     }
   }
 }
