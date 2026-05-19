@@ -233,6 +233,30 @@ struct CompanionServiceValueTypeTests {
     }
 }
 
+// MARK: - CompanionService Listener Queue Tests
+
+// Issue #221 — NWListener must run on a named, named-QoS dispatch queue,
+// not the shared .global() concurrent queue. A named queue gives thread
+// dumps clear attribution and prevents callbacks from competing with
+// arbitrary other .global() work at undefined QoS.
+
+struct CompanionServiceListenerQueueTests {
+
+    @Test("listener queue has the expected reverse-DNS label")
+    func listenerQueueLabel() async {
+        let service = CompanionService()
+        let queue = await service.listenerQueue
+        #expect(queue.label == "com.netmonitor.companion.listener")
+    }
+
+    @Test("listener queue QoS class is userInitiated")
+    func listenerQueueQoSIsUserInitiated() async {
+        let service = CompanionService()
+        let queue = await service.listenerQueue
+        #expect(queue.qos.qosClass == .userInitiated)
+    }
+}
+
 // MARK: - DefaultMonitorServiceProvider Tests
 
 struct DefaultMonitorServiceProviderTests {
