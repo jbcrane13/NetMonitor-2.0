@@ -22,6 +22,7 @@ private func makeDevice(
         vendor: vendor,
         deviceType: deviceType,
         customName: customName,
+        isGateway: isGateway,
         resolvedHostname: resolvedHostname,
         manufacturer: manufacturer,
         openPorts: openPorts,

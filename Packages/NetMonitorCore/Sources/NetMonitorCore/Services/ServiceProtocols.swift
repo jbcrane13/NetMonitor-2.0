@@ -95,8 +95,17 @@ public protocol WakeOnLANServiceProtocol: AnyObject, Sendable {
     @MainActor func wake(macAddress: String, broadcastAddress: String, port: UInt16) async -> Bool
 }
 
-/// Protocol for speed test operations.
-public protocol SpeedTestServiceProtocol: Sendable {
+/// Commands required to run and stop speed tests.
+public protocol SpeedTestRunnerProtocol: Sendable {
+    @MainActor var duration: TimeInterval { get set }
+    /// The server to use for the next test run. `nil` means auto-select (Cloudflare default).
+    @MainActor var selectedServer: SpeedTestServer? { get set }
+    @MainActor func startTest() async throws -> SpeedTestData
+    @MainActor func stopTest()
+}
+
+/// Read-only state exposed by a speed test run.
+public protocol SpeedTestStateProtocol: Sendable {
     @MainActor var downloadSpeed: Double { get }
     @MainActor var uploadSpeed: Double { get }
     @MainActor var peakDownloadSpeed: Double { get }
@@ -107,12 +116,10 @@ public protocol SpeedTestServiceProtocol: Sendable {
     @MainActor var phase: SpeedTestPhase { get }
     @MainActor var isRunning: Bool { get }
     @MainActor var errorMessage: String? { get }
-    @MainActor var duration: TimeInterval { get set }
-    /// The server to use for the next test run. `nil` means auto-select (Cloudflare default).
-    @MainActor var selectedServer: SpeedTestServer? { get set }
-    @MainActor func startTest() async throws -> SpeedTestData
-    @MainActor func stopTest()
 }
+
+/// Protocol for speed test operations.
+public protocol SpeedTestServiceProtocol: SpeedTestRunnerProtocol, SpeedTestStateProtocol {}
 
 /// Protocol for network path monitoring.
 public protocol NetworkMonitorServiceProtocol: AnyObject, Sendable {

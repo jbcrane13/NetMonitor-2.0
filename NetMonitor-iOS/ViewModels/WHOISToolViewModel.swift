@@ -25,9 +25,15 @@ final class WHOISToolViewModel {
     // MARK: - Dependencies
 
     private let whoisService: any WHOISServiceProtocol
+    private let activityLog: ToolActivityLog
 
-    init(whoisService: any WHOISServiceProtocol = WHOISService(), initialDomain: String? = nil) {
+    init(
+        whoisService: any WHOISServiceProtocol = WHOISService(),
+        initialDomain: String? = nil,
+        activityLog: ToolActivityLog = .shared
+    ) {
         self.whoisService = whoisService
+        self.activityLog = activityLog
         if let initialDomain = initialDomain {
             self.domain = initialDomain
         }
@@ -55,7 +61,7 @@ final class WHOISToolViewModel {
         let trimmedDomain = domain.trimmingCharacters(in: .whitespaces)
         do {
             result = try await whoisService.lookup(query: trimmedDomain)
-            ToolActivityLog.shared.add(
+            activityLog.add(
                 tool: "WHOIS",
                 target: trimmedDomain,
                 result: "Lookup complete",
@@ -63,7 +69,7 @@ final class WHOISToolViewModel {
             )
         } catch {
             errorMessage = NetworkError.from(error).userFacingMessage
-            ToolActivityLog.shared.add(
+            activityLog.add(
                 tool: "WHOIS",
                 target: trimmedDomain,
                 result: "Failed",

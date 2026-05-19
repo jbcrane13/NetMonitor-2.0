@@ -64,42 +64,16 @@ public struct SSDPScanPhase: ScanPhase, Sendable {
         let connection = NWConnection(to: endpoint, using: params)
 
         // Wait for connection ready (with timeout to prevent hang).
-        let ready: Bool = await withCheckedContinuation { continuation in
-            let resumed = ResumeState()
-
-            let timeoutTask = Task {
-                try? await Task.sleep(for: .seconds(2))
-                guard await resumed.tryResume() else { return }
-                connection.cancel()
-                continuation.resume(returning: false)
+        // Keep the connection alive on .ready so the send/receive loop below can use it.
+        let ready = await withNWConnection(connection, timeout: .seconds(2), timeoutValue: false) { state in
+            switch state {
+            case .ready: return .completeKeepAlive(true)
+            case .failed, .cancelled: return .complete(false)
+            default: return nil
             }
-
-            connection.stateUpdateHandler = { state in
-                switch state {
-                case .ready:
-                    Task {
-                        guard await resumed.tryResume() else { return }
-                        timeoutTask.cancel()
-                        continuation.resume(returning: true)
-                    }
-                case .failed, .cancelled:
-                    Task {
-                        guard await resumed.tryResume() else { return }
-                        timeoutTask.cancel()
-                        connection.cancel()
-                        continuation.resume(returning: false)
-                    }
-                default:
-                    break
-                }
-            }
-            connection.start(queue: scanQueue)
         }
 
-        guard ready else {
-            connection.cancel()
-            return []
-        }
+        guard ready else { return [] }
 
         // Send M-SEARCH
         connection.send(content: messageData, completion: .contentProcessed { _ in })

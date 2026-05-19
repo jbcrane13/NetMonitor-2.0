@@ -224,14 +224,14 @@ struct HeatmapRendererColorTests {
     @Test("strong signal maps to green range")
     func strongSignalIsGreen() {
         let renderer = makeRenderer()
-        let color = renderer.colorForValue(-30, visualization: .signalStrength)
+        let color = renderer.colorForValue(-30, visualization: .signalStrength, colorScheme: .wifiman)
         #expect(color.g > color.r, "Strong signal should have more green than red")
     }
 
     @Test("weak signal maps to red range")
     func weakSignalIsRed() {
         let renderer = makeRenderer()
-        let color = renderer.colorForValue(-95, visualization: .signalStrength)
+        let color = renderer.colorForValue(-95, visualization: .signalStrength, colorScheme: .wifiman)
         #expect(color.r > color.g, "Weak signal should have more red than green")
     }
 
@@ -265,8 +265,8 @@ struct HeatmapRendererColorTests {
     @Test("latency color inverts direction (lower is better)")
     func latencyColorInversion() {
         let renderer = makeRenderer()
-        let lowLatency = renderer.colorForValue(5, visualization: .latency)
-        let highLatency = renderer.colorForValue(150, visualization: .latency)
+        let lowLatency = renderer.colorForValue(5, visualization: .latency, colorScheme: .wifiman)
+        let highLatency = renderer.colorForValue(150, visualization: .latency, colorScheme: .wifiman)
         #expect(lowLatency.g > lowLatency.r, "Low latency (good) should be more green")
         #expect(highLatency.r > highLatency.g, "High latency (bad) should be more red")
     }

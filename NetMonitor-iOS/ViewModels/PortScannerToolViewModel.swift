@@ -29,10 +29,16 @@ final class PortScannerToolViewModel {
     // MARK: - Dependencies
 
     private let portScannerService: any PortScannerServiceProtocol
+    private let activityLog: ToolActivityLog
     private var scanTask: Task<Void, Never>?
 
-    init(portScannerService: any PortScannerServiceProtocol = PortScannerService(), initialHost: String? = nil) {
+    init(
+        portScannerService: any PortScannerServiceProtocol = PortScannerService(),
+        initialHost: String? = nil,
+        activityLog: ToolActivityLog = .shared
+    ) {
         self.portScannerService = portScannerService
+        self.activityLog = activityLog
         if let initialHost = initialHost {
             self.host = initialHost
         }
@@ -100,7 +106,7 @@ final class PortScannerToolViewModel {
             results.sort { $0.port < $1.port }
             isRunning = false
 
-            ToolActivityLog.shared.add(
+            activityLog.add(
                 tool: "Port Scan",
                 target: host,
                 result: "\(openPorts.count) open / \(totalPorts) scanned",

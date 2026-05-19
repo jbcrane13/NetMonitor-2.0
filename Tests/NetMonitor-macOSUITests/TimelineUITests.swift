@@ -15,7 +15,7 @@ final class TimelineUITests: MacOSUITestCase {
         // Verify timeline has event content or empty state — not just a blank container
         let hasContent = waitForEither([
             app.tables["timeline_table_events"],
-            app.lists["timeline_list_events"],
+            app.descendants(matching: .any)["timeline_list_events"],
             app.staticTexts.matching(
                 NSPredicate(format: "identifier BEGINSWITH 'timeline_event_'")
             ).firstMatch,

@@ -7,16 +7,6 @@ import Network
 /// Uses adaptive RTT-based timeouts that converge from conservative base values
 /// to network-appropriate timeouts as successful connections are observed.
 public struct TCPProbeScanPhase: ScanPhase, Sendable {
-    /// Reference-type timestamp for Sendable closure capture.
-    ///
-    /// SAFETY: @unchecked Sendable is safe here because each DateRef instance is created
-    /// and read within a single NWConnection callback scope on scanQueue. The value is
-    /// written once at construction and read once when the connection state fires —
-    /// no concurrent access occurs.
-    private final class DateRef: @unchecked Sendable {
-        var value = Date()
-    }
-
     public let id = "tcpProbe"
     public let displayName = "Probing ports…"
     public let weight: Double = 0.55
@@ -220,57 +210,25 @@ public struct TCPProbeScanPhase: ScanPhase, Sendable {
         params.requiredInterfaceType = .wifi
 
         let connection = NWConnection(to: endpoint, using: params)
+        let startTime = Date()
 
-        let result = await withCheckedContinuation { (continuation: CheckedContinuation<PortProbeOutcome, Never>) in
-            let resumed = ResumeState()
-            let startTime = DateRef()
-
-            let timeoutTask = Task {
-                try? await Task.sleep(for: timeout)
-                guard await resumed.tryResume() else { return }
-                connection.cancel()
-                continuation.resume(returning: .timeout)
-            }
-
-            connection.stateUpdateHandler = { state in
-                let elapsed = Date().timeIntervalSince(startTime.value) * 1000
-                switch state {
-                case .ready:
-                    Task {
-                        guard await resumed.tryResume() else { return }
-                        timeoutTask.cancel()
-                        connection.cancel()
-                        continuation.resume(returning: .reachable(latency: elapsed))
-                    }
-                case .failed(let error):
-                    Task {
-                        guard await resumed.tryResume() else { return }
-                        timeoutTask.cancel()
-                        connection.cancel()
-
-                        if case NWError.posix(let code) = error, code == .ECONNREFUSED {
-                            continuation.resume(returning: .refused(latency: elapsed))
-                        } else {
-                            continuation.resume(returning: .failed)
-                        }
-                    }
-                case .cancelled:
-                    Task {
-                        guard await resumed.tryResume() else { return }
-                        timeoutTask.cancel()
-                        connection.cancel()
-                        continuation.resume(returning: .failed)
-                    }
-                default:
-                    break
+        let result: PortProbeOutcome = await withNWConnection(connection, timeout: timeout, timeoutValue: .timeout) { state in
+            let elapsed = Date().timeIntervalSince(startTime) * 1000
+            switch state {
+            case .ready:
+                return .complete(.reachable(latency: elapsed))
+            case .failed(let error):
+                if case NWError.posix(let code) = error, code == .ECONNREFUSED {
+                    return .complete(.refused(latency: elapsed))
                 }
+                return .complete(.failed)
+            case .cancelled:
+                return .complete(.failed)
+            default:
+                return nil
             }
-
-            startTime.value = Date()
-            connection.start(queue: scanQueue)
         }
 
-        connection.cancel()
         // Release synchronously *before* return so the next acquire() sees the
         // released slot. Wrapping in `Task { ... }` (the old `defer { Task { ... } }`
         // pattern) detaches release into a later async context, so callers can pile
@@ -372,67 +330,30 @@ public struct TCPProbeScanPhase: ScanPhase, Sendable {
         params.requiredInterfaceType = .wifi
 
         let connection = NWConnection(to: endpoint, using: params)
+        let startTime = Date()
 
-        let result: Double? = await withCheckedContinuation { (continuation: CheckedContinuation<Double?, Never>) in
-            let resumed = ResumeState()
-            let startTime = DateRef()
-
-            let timeoutTask = Task {
-                try? await Task.sleep(for: timeout)
-                guard await resumed.tryResume() else { return }
-                connection.cancel()
-                continuation.resume(returning: nil)
-            }
-
-            connection.stateUpdateHandler = { state in
-                let elapsed = Date().timeIntervalSince(startTime.value) * 1000
-                switch state {
-                case .ready:
-                    Task {
-                        guard await resumed.tryResume() else { return }
-                        timeoutTask.cancel()
-                        connection.cancel()
-                        continuation.resume(returning: elapsed)
-                    }
-                case .failed(let error):
-                    Task {
-                        guard await resumed.tryResume() else { return }
-                        timeoutTask.cancel()
-                        connection.cancel()
-                        if case NWError.posix(let code) = error, code == .ECONNREFUSED {
-                            continuation.resume(returning: elapsed)
-                        } else {
-                            continuation.resume(returning: nil)
-                        }
-                    }
-                case .cancelled:
-                    Task {
-                        guard await resumed.tryResume() else { return }
-                        timeoutTask.cancel()
-                        connection.cancel()
-                        continuation.resume(returning: nil)
-                    }
-                case .waiting(let error):
-                    // Some devices report ECONNREFUSED in .waiting rather than .failed.
-                    // The RST still proves reachability, so capture the latency.
-                    if case NWError.posix(let code) = error, code == .ECONNREFUSED {
-                        Task {
-                            guard await resumed.tryResume() else { return }
-                            timeoutTask.cancel()
-                            connection.cancel()
-                            continuation.resume(returning: elapsed)
-                        }
-                    }
-                default:
-                    break
+        return await withNWConnection(connection, timeout: timeout, timeoutValue: nil) { state in
+            let elapsed = Date().timeIntervalSince(startTime) * 1000
+            switch state {
+            case .ready:
+                return .complete(elapsed)
+            case .failed(let error):
+                if case NWError.posix(let code) = error, code == .ECONNREFUSED {
+                    return .complete(elapsed)
                 }
+                return .complete(nil)
+            case .cancelled:
+                return .complete(nil)
+            case .waiting(let error):
+                // Some devices report ECONNREFUSED in .waiting rather than .failed.
+                // The RST still proves reachability, so capture the latency.
+                if case NWError.posix(let code) = error, code == .ECONNREFUSED {
+                    return .complete(elapsed)
+                }
+                return nil
+            default:
+                return nil
             }
-
-            startTime.value = Date()
-            connection.start(queue: scanQueue)
         }
-
-        connection.cancel()
-        return result
     }
 }

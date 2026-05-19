@@ -421,39 +421,16 @@ private extension ProDeviceDetailView {
     }
 
     func detailRow(_ label: String, _ value: String, mono: Bool = false, copyable: Bool = false, valueColor: Color? = nil) -> some View {
-        HStack(spacing: 8) {
-            Text(label)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .frame(width: 100, alignment: .leading)
-
-            Group {
-                if mono {
-                    Text(value)
-                        .fontDesign(.monospaced)
-                } else {
-                    Text(value)
-                }
-            }
-            .font(.subheadline)
-            .foregroundStyle(valueColor ?? .primary)
-            .textSelection(.enabled)
-
-            if copyable {
-                Button {
-                    NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(value, forType: .string)
-                } label: {
-                    Image(systemName: "doc.on.doc")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.tertiary)
-                }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("deviceDetail_button_copy_\(label.lowercased().replacingOccurrences(of: " ", with: "_"))")
-            }
-
-            Spacer()
-        }
+        LabelValueRow(
+            label: label,
+            value: value,
+            labelWidth: 100,
+            labelFont: .subheadline,
+            valueFont: .subheadline,
+            isMonospaced: mono,
+            isCopyable: copyable,
+            valueColor: valueColor ?? .primary
+        )
     }
 
     // MARK: - Helpers

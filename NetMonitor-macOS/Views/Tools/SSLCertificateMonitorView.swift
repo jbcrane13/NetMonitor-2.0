@@ -298,10 +298,16 @@ struct SSLCertificateMonitorView: View {
     }
 
     private func infoRow(_ label: String, _ value: String) -> some View {
-        HStack(alignment: .top) {
-            Text(label).font(.caption).foregroundStyle(.secondary).frame(width: 90, alignment: .leading)
-            Text(value).font(.caption).fontDesign(.monospaced)
-        }
+        LabelValueRow(
+            label: label,
+            value: value,
+            labelWidth: 90,
+            rowAlignment: .top,
+            labelFont: .caption,
+            valueFont: .caption,
+            isMonospaced: true,
+            valueSelectionEnabled: false
+        )
     }
 
     private func expiryColor(days: Int) -> Color {

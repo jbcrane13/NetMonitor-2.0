@@ -423,6 +423,9 @@ struct NetmonitorWidgetBundle: WidgetBundle {
     var body: some Widget {
         NetmonitorWidget()
         DeviceGlanceWidget()
+        NetmonitorNetworkScanActivity()
+        NetmonitorSpeedTestActivity()
+        NetmonitorMonitoringActivity()
     }
 }
 

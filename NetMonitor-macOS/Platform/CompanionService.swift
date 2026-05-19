@@ -24,6 +24,24 @@ actor CompanionService {
     let serviceType = "_netmon._tcp"
     let serviceName = "NetMonitor"
 
+    /// Dedicated callback queue for NWListener.
+    /// `NWListener.start(queue:)` requires a `DispatchQueue` (Apple API);
+    /// using a named queue instead of `.global()` keeps thread dumps
+    /// attributable and pins callbacks to a known QoS.
+    let listenerQueue = DispatchQueue(
+        label: "com.netmonitor.companion.listener",
+        qos: .userInitiated
+    )
+
+    /// Shared callback queue for accepted `NWConnection`s.
+    /// Concurrent so per-client receive/send callbacks don't serialize behind
+    /// each other; named so thread attribution survives into client work.
+    let connectionQueue = DispatchQueue(
+        label: "com.netmonitor.companion.connection",
+        qos: .userInitiated,
+        attributes: .concurrent
+    )
+
     private(set) var isRunning = false
     private(set) var connectedClients: [UUID: NWConnection] = [:]
     private var clientInfos: [UUID: ConnectedClientInfo] = [:]
@@ -43,14 +61,17 @@ actor CompanionService {
     func start(messageHandler: @escaping (CompanionMessage, UUID) async -> CompanionMessage?) throws {
         guard !isRunning else { return }
 
-        self.messageHandler = messageHandler
-
-        // Create listener — plain TCP, no custom framer
+        // Create listener — plain TCP, no custom framer.
+        // Construct *before* storing `messageHandler` so a thrown error doesn't
+        // leak the captured closure into the actor.
         let parameters = NWParameters.tcp
         parameters.includePeerToPeer = true
 
         // swiftlint:disable:next force_unwrapping
-        listener = try NWListener(using: parameters, on: NWEndpoint.Port(rawValue: port)!)
+        let newListener = try NWListener(using: parameters, on: NWEndpoint.Port(rawValue: port)!)
+
+        self.messageHandler = messageHandler
+        listener = newListener
 
         // Advertise via Bonjour
         let txtRecord = NWTXTRecord()
@@ -73,7 +94,7 @@ actor CompanionService {
             }
         }
 
-        listener?.start(queue: .global())
+        listener?.start(queue: listenerQueue)
         isRunning = true
     }
 
@@ -145,7 +166,7 @@ actor CompanionService {
             }
         }
 
-        connection.start(queue: .global())
+        connection.start(queue: connectionQueue)
         receiveMessage(from: connection, clientID: clientID)
     }
 

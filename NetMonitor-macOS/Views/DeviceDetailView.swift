@@ -421,17 +421,7 @@ struct DeviceDetailView: View {
     // MARK: - Helper Views
 
     private func infoRow(label: String, value: String, monospace: Bool = false) -> some View {
-        HStack {
-            Text(label)
-                .foregroundStyle(.secondary)
-                .layoutPriority(1)
-            Spacer(minLength: 8)
-            Text(value)
-                .fontDesign(monospace ? .monospaced : .default)
-                .textSelection(.enabled)
-                .lineLimit(1)
-                .truncationMode(.middle)
-        }
+        LabelValueRow(label: label, value: value, isMonospaced: monospace, valueLineLimit: 1)
     }
 
     private func actionButton(

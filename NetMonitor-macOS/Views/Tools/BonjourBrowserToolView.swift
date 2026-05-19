@@ -221,17 +221,15 @@ struct BonjourBrowserToolView: View {
     }
 
     private func detailRow(label: String, value: String) -> some View {
-        HStack(alignment: .top) {
-            Text(label)
-                .foregroundStyle(.secondary)
-                .frame(width: 100, alignment: .trailing)
-
-            Text(value)
-                .font(.system(.body, design: .monospaced))
-                .textSelection(.enabled)
-
-            Spacer()
-        }
+        LabelValueRow(
+            label: label,
+            value: value,
+            labelWidth: 100,
+            labelAlignment: .trailing,
+            rowAlignment: .top,
+            valueFont: .body,
+            isMonospaced: true
+        )
     }
 
     // MARK: - Footer

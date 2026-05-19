@@ -211,6 +211,7 @@ struct SpeedTestToolViewModelErrorTests {
 
 // MARK: - Jitter, Persistence & startTest Tests
 
+@Suite(.serialized)
 @MainActor
 struct SpeedTestToolViewModelStartTestTests {
 
@@ -222,7 +223,11 @@ struct SpeedTestToolViewModelStartTestTests {
             SpeedTestResult.self,
             PairedMac.self
         ])
-        let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+        let config = ModelConfiguration(
+            "SpeedTestToolViewModelTests-\(UUID().uuidString)",
+            schema: schema,
+            isStoredInMemoryOnly: true
+        )
         let container = try ModelContainer(for: schema, configurations: [config])
         return (container, container.mainContext)
     }
@@ -255,7 +260,8 @@ struct SpeedTestToolViewModelStartTestTests {
     }
 
     @Test func startTestReentrantGuardPreventsDoubleStart() async throws {
-        let (_, context) = try makeInMemoryStore()
+        let store = try makeInMemoryStore()
+        let context = store.1
         let mock = MockSpeedTestService()
         let vm = SpeedTestToolViewModel(service: mock)
 
@@ -268,10 +274,12 @@ struct SpeedTestToolViewModelStartTestTests {
         // Guard returned before `errorMessage = nil` — message unchanged
         #expect(vm.errorMessage == "keep this")
         #expect(vm.isRunning == true)
+        withExtendedLifetime(store.0) {}
     }
 
     @Test func startTestSuccessSyncsServiceState() async throws {
-        let (_, context) = try makeInMemoryStore()
+        let store = try makeInMemoryStore()
+        let context = store.1
         let mock = MockSpeedTestService()
         mock.downloadSpeed = 150
         mock.uploadSpeed = 60
@@ -290,6 +298,7 @@ struct SpeedTestToolViewModelStartTestTests {
         #expect(vm.latency == 18)
         #expect(vm.jitter == 3.5)
         #expect(vm.errorMessage == nil)
+        withExtendedLifetime(store.0) {}
     }
 
     @Test func completionFeedbackTokenOnlyExistsForCompletedRuns() {
@@ -313,7 +322,8 @@ struct SpeedTestToolViewModelStartTestTests {
     }
 
     @Test func startTestErrorSetsErrorMessage() async throws {
-        let (_, context) = try makeInMemoryStore()
+        let store = try makeInMemoryStore()
+        let context = store.1
         let mock = MockSpeedTestService()
         mock.shouldThrow = true
 
@@ -325,10 +335,12 @@ struct SpeedTestToolViewModelStartTestTests {
         #expect(vm.errorMessage != nil)
         #expect(vm.phase == .idle)
         #expect(vm.isRunning == false)
+        withExtendedLifetime(store.0) {}
     }
 
     @Test func startTestPersistsResultToModelContext() async throws {
-        let (_, context) = try makeInMemoryStore()
+        let store = try makeInMemoryStore()
+        let context = store.1
         let mock = MockSpeedTestService()
         mock.downloadSpeed = 200
         mock.uploadSpeed = 100
@@ -346,5 +358,6 @@ struct SpeedTestToolViewModelStartTestTests {
         #expect(results.count == 1)
         #expect(results.first?.downloadSpeed == 200)
         #expect(results.first?.uploadSpeed == 100)
+        withExtendedLifetime(store.0) {}
     }
 }

@@ -470,7 +470,6 @@ final class MacOSToolOutcomeUITests: MacOSUITestCase {
 
         // Verify the Bonjour results area has content structure
         let hasContentStructure = waitForEither([
-            app.lists.firstMatch,
             app.tables.firstMatch,
             app.staticTexts.matching(
                 NSPredicate(format: "identifier BEGINSWITH 'bonjour_row_'")

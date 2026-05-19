@@ -247,13 +247,6 @@ struct MonitoringCompactTrailingView: View {
 }
 
 // MARK: - Live Activity Widget Configurations
-// NOTE: To enable Live Activities, add these to NetmonitorWidgetBundle.body in NetmonitorWidget.swift:
-//   NetmonitorNetworkScanActivity()
-//   NetmonitorSpeedTestActivity()
-//   NetmonitorMonitoringActivity()
-//
-// Also set NSSupportsLiveActivities = YES in the widget extension Info.plist
-// and add the ActivityKit capability to the widget extension target in project.yml.
 
 struct NetmonitorNetworkScanActivity: Widget {
     var body: some WidgetConfiguration {

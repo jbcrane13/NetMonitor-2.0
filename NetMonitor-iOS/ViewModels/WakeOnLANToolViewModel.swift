@@ -19,9 +19,15 @@ final class WakeOnLANToolViewModel {
     // MARK: - Dependencies
 
     private let wolService: any WakeOnLANServiceProtocol
+    private let activityLog: ToolActivityLog
 
-    init(wolService: any WakeOnLANServiceProtocol = WakeOnLANService(), initialMacAddress: String? = nil) {
+    init(
+        wolService: any WakeOnLANServiceProtocol = WakeOnLANService(),
+        initialMacAddress: String? = nil,
+        activityLog: ToolActivityLog = .shared
+    ) {
         self.wolService = wolService
+        self.activityLog = activityLog
         if let initialMacAddress = initialMacAddress {
             self.macAddress = initialMacAddress
         }
@@ -78,7 +84,7 @@ final class WakeOnLANToolViewModel {
             errorMessage = wolService.lastError ?? "Failed to send wake packet"
         }
 
-        ToolActivityLog.shared.add(
+        activityLog.add(
             tool: "Wake on LAN",
             target: macAddress.trimmingCharacters(in: .whitespaces),
             result: success ? "Packet sent" : "Failed",

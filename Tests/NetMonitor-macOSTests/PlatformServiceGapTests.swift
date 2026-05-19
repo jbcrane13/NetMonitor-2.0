@@ -233,6 +233,45 @@ struct CompanionServiceValueTypeTests {
     }
 }
 
+// MARK: - CompanionService Callback Queue Tests
+
+// Issue #221 — NWListener (and the accepted NWConnections it spawns) must
+// run on named, named-QoS dispatch queues, not the shared .global() concurrent
+// queue. A named queue gives thread dumps clear attribution and prevents
+// callbacks from competing with arbitrary other .global() work at undefined
+// QoS.
+
+struct CompanionServiceListenerQueueTests {
+
+    @Test("listener queue has the expected reverse-DNS label")
+    func listenerQueueLabel() async {
+        let service = CompanionService()
+        let queue = await service.listenerQueue
+        #expect(queue.label == "com.netmonitor.companion.listener")
+    }
+
+    @Test("listener queue QoS class is userInitiated")
+    func listenerQueueQoSIsUserInitiated() async {
+        let service = CompanionService()
+        let queue = await service.listenerQueue
+        #expect(queue.qos.qosClass == .userInitiated)
+    }
+
+    @Test("connection queue has the expected reverse-DNS label")
+    func connectionQueueLabel() async {
+        let service = CompanionService()
+        let queue = await service.connectionQueue
+        #expect(queue.label == "com.netmonitor.companion.connection")
+    }
+
+    @Test("connection queue QoS class is userInitiated")
+    func connectionQueueQoSIsUserInitiated() async {
+        let service = CompanionService()
+        let queue = await service.connectionQueue
+        #expect(queue.qos.qosClass == .userInitiated)
+    }
+}
+
 // MARK: - DefaultMonitorServiceProvider Tests
 
 struct DefaultMonitorServiceProviderTests {

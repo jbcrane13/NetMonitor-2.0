@@ -12,6 +12,7 @@ final class DashboardViewModel {
     private var autoRefreshTask: Task<Void, Never>?
     private let networkProfileManager: NetworkProfileManager
     private let pingService: any PingServiceProtocol
+    private let activityLog: ToolActivityLog
     private let userDefaults: UserDefaults
     private var lastLoggedGatewayLatency: Double?
     private var lastLoggedWiFiSSID: String?
@@ -52,6 +53,7 @@ final class DashboardViewModel {
         macConnectionService: any MacConnectionServiceProtocol = MacConnectionService.shared,
         networkProfileManager: NetworkProfileManager = NetworkProfileManager(),
         pingService: any PingServiceProtocol = PingService(),
+        activityLog: ToolActivityLog = .shared,
         userDefaults: UserDefaults = .standard
     ) {
         self.networkMonitor = networkMonitor
@@ -62,6 +64,7 @@ final class DashboardViewModel {
         self.macConnectionService = macConnectionService
         self.networkProfileManager = networkProfileManager
         self.pingService = pingService
+        self.activityLog = activityLog
         self.userDefaults = userDefaults
         self.sessionStartTime = Date()
 
@@ -128,7 +131,7 @@ final class DashboardViewModel {
 
     /// Recent real events from ToolActivityLog.
     var recentEvents: [ToolActivityItem] {
-        Array(ToolActivityLog.shared.entries.prefix(3))
+        Array(activityLog.entries.prefix(3))
     }
 
     var ispInfo: ISPInfo? {
@@ -147,33 +150,12 @@ final class DashboardViewModel {
         discoveredDevices.count
     }
 
-    // periphery:ignore
     var lastScanDate: Date? {
         deviceDiscoveryService.lastScanDate
     }
 
     var isScanning: Bool {
         deviceDiscoveryService.isScanning
-    }
-
-    // periphery:ignore
-    var activeNetworkLastScanned: Date? {
-        activeNetwork?.lastScanned
-    }
-
-    // periphery:ignore
-    var activeNetworkDeviceCount: Int? {
-        activeNetwork?.deviceCount
-    }
-
-    // periphery:ignore
-    var activeNetworkGatewayReachable: Bool? {
-        activeNetwork?.gatewayReachable
-    }
-
-    // periphery:ignore
-    var isShowingStaleActiveNetworkData: Bool {
-        (activeNetwork?.gatewayReachable == false) && (activeNetwork?.lastScanned != nil)
     }
 
     var sessionDuration: String {
@@ -185,13 +167,6 @@ final class DashboardViewModel {
             return "\(hours)h \(minutes)m"
         }
         return "\(minutes)m"
-    }
-
-    // periphery:ignore
-    var sessionStartTimeFormatted: String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "h:mm a"
-        return "Today, \(formatter.string(from: sessionStartTime))"
     }
 
     func refresh(forceIP: Bool = false) async {
@@ -208,7 +183,7 @@ final class DashboardViewModel {
             var parts: [String] = []
             if let signal = wifi.signalStrength { parts.append("\(signal)% signal") }
             if let sec = wifi.securityType { parts.append(sec) }
-            ToolActivityLog.shared.add(
+            activityLog.add(
                 tool: "WiFi",
                 target: wifi.ssid,
                 result: parts.isEmpty ? "Connected" : parts.joined(separator: " • "),
@@ -233,7 +208,7 @@ final class DashboardViewModel {
             if shouldLog {
                 lastLoggedGatewayLatency = gw.latency
                 let latencyText = gw.latency.map { String(format: "%.0fms", $0) } ?? "timeout"
-                ToolActivityLog.shared.add(
+                activityLog.add(
                     tool: "Gateway",
                     target: gw.ipAddress,
                     result: latencyText,
@@ -269,27 +244,38 @@ final class DashboardViewModel {
     }
 
     /// Ping well-known anchors to show real external latency.
+    /// Pings run concurrently via `withTaskGroup` so worst-case latency is bounded by
+    /// the slowest single anchor instead of the sum across all anchors.
     private func measureAnchors() async {
         let anchors = ["Google": "8.8.8.8", "Cloudflare": "1.1.1.1", "Apple": "17.253.144.10"]
-        for (name, host) in anchors {
-            let stream = await pingService.ping(host: host, count: 1, timeout: 2)
-            var measured = false
-            for await result in stream {
-                if !result.isTimeout {
-                    anchorLatencies[name] = result.time
-                    measured = true
+
+        let results = await withTaskGroup(of: (String, Double?).self) { [pingService] group in
+            for (name, host) in anchors {
+                group.addTask {
+                    let stream = await pingService.ping(host: host, count: 1, timeout: 2)
+                    var latency: Double?
+                    for await result in stream where !result.isTimeout {
+                        latency = result.time
+                    }
+                    return (name, latency)
                 }
             }
-            if !measured {
-                anchorLatencies[name] = nil
+            var collected: [(String, Double?)] = []
+            for await result in group {
+                collected.append(result)
             }
+            return collected
+        }
+
+        for (name, latency) in results {
+            anchorLatencies[name] = latency
         }
 
         // Log a summary event for anchors
         let reachable = anchorLatencies.compactMap { $0.value }
         if !reachable.isEmpty {
             let avg = reachable.reduce(0, +) / Double(reachable.count)
-            ToolActivityLog.shared.add(
+            activityLog.add(
                 tool: "Internet",
                 target: "Anchors",
                 result: String(format: "%.0fms avg (%d/%d)", avg, reachable.count, anchorLatencies.count),
@@ -313,7 +299,7 @@ final class DashboardViewModel {
 
         let scoped = scopedDevices(from: deviceDiscoveryService.discoveredDevices)
         let count = scoped.count
-        ToolActivityLog.shared.add(
+        activityLog.add(
             tool: "Scan",
             target: profile?.displayName ?? "Local Network",
             result: "\(count) devices found",
@@ -330,21 +316,6 @@ final class DashboardViewModel {
         }
         defaults.set(count, forKey: AppSettings.Keys.widgetDeviceCount)
         WidgetCenter.shared.reloadTimelines(ofKind: "DeviceGlanceWidget")
-    }
-
-    // periphery:ignore
-    func stopDeviceScan() {
-        deviceDiscoveryService.stopScan()
-    }
-
-    // periphery:ignore
-    func refreshPublicIP() async {
-        await publicIPService.fetchPublicIP(forceRefresh: true)
-    }
-
-    // periphery:ignore
-    func requestLocationPermission() {
-        wifiService.requestLocationPermission()
     }
 
     var needsLocationPermission: Bool {

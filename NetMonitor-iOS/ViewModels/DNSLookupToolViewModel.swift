@@ -27,9 +27,15 @@ final class DNSLookupToolViewModel {
     // MARK: - Dependencies
 
     private let dnsService: any DNSLookupServiceProtocol
+    private let activityLog: ToolActivityLog
 
-    init(dnsService: any DNSLookupServiceProtocol = DNSLookupService(), initialDomain: String? = nil) {
+    init(
+        dnsService: any DNSLookupServiceProtocol = DNSLookupService(),
+        initialDomain: String? = nil,
+        activityLog: ToolActivityLog = .shared
+    ) {
         self.dnsService = dnsService
+        self.activityLog = activityLog
         if let initialDomain = initialDomain {
             self.domain = initialDomain
         }
@@ -68,7 +74,7 @@ final class DNSLookupToolViewModel {
 
         let trimmedDomain = domain.trimmingCharacters(in: .whitespaces)
         if let result {
-            ToolActivityLog.shared.add(
+            activityLog.add(
                 tool: "DNS Lookup",
                 target: trimmedDomain,
                 result: "\(result.records.count) records",
@@ -76,7 +82,7 @@ final class DNSLookupToolViewModel {
             )
         } else {
             errorMessage = dnsService.lastError ?? "Lookup failed"
-            ToolActivityLog.shared.add(
+            activityLog.add(
                 tool: "DNS Lookup",
                 target: trimmedDomain,
                 result: "Failed",

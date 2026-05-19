@@ -54,14 +54,17 @@ final class GeoTraceViewModel {
 
     private let tracerouteService: any TracerouteServiceProtocol
     private let geoLocationService: any GeoLocationServiceProtocol
+    private let activityLog: ToolActivityLog
     private var traceTask: Task<Void, Never>?
 
     init(
         tracerouteService: any TracerouteServiceProtocol = TracerouteService(),
-        geoLocationService: any GeoLocationServiceProtocol = GeoLocationService()
+        geoLocationService: any GeoLocationServiceProtocol = GeoLocationService(),
+        activityLog: ToolActivityLog = .shared
     ) {
         self.tracerouteService = tracerouteService
         self.geoLocationService = geoLocationService
+        self.activityLog = activityLog
     }
 
     // MARK: - Computed
@@ -108,7 +111,7 @@ final class GeoTraceViewModel {
             }
 
             isRunning = false
-            ToolActivityLog.shared.add(
+            activityLog.add(
                 tool: "Geo Trace",
                 target: trimmedHost,
                 result: "\(hops.count) hops",

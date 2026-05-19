@@ -536,16 +536,7 @@ struct DeviceDetailView: View {
 
     @ViewBuilder
     private func infoRow(label: String, value: String) -> some View {
-        HStack {
-            Text(label)
-                .foregroundStyle(Theme.Colors.textSecondary)
-
-            Spacer()
-
-            Text(value)
-                .foregroundStyle(Theme.Colors.textPrimary)
-                .textSelection(.enabled)
-        }
+        LabelValueRow(label: label, value: value)
     }
 
     // MARK: - Helper Functions

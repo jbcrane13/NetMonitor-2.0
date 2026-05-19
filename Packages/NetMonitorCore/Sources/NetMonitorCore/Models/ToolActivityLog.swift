@@ -41,7 +41,7 @@ public final class ToolActivityLog {
     public private(set) var entries: [ToolActivityItem] = []
     private let maxEntries = 20
 
-    private init() {}
+    public init() {}
 
     public func add(tool: String, target: String, result: String, success: Bool) {
         let item = ToolActivityItem(

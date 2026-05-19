@@ -417,9 +417,9 @@ struct HeatmapVisualizationTests {
 
     // MARK: - valueRange
 
-    @Test("signalStrength valueRange is -100...0")
+    @Test("signalStrength valueRange is -85...-25")
     func signalStrengthValueRange() {
-        #expect(HeatmapVisualization.signalStrength.valueRange == -100.0...0.0)
+        #expect(HeatmapVisualization.signalStrength.valueRange == -85.0 ... -25.0)
     }
 
     @Test("latency valueRange is 0...200")

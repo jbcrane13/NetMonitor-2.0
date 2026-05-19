@@ -201,13 +201,10 @@ final class WiFiHeatmapViewModel {
         guard !isScanning else { return }
         isScanning = true
         let service = heatmapService
-        Task.detached {
-            // CWInterface.scanForNetworks is a blocking call (3-10s) — run off main thread
-            let aps = service.scanForNearbyAPs()
-            await MainActor.run { [weak self] in
-                self?.nearbyAPs = aps
-                self?.isScanning = false
-            }
+        Task { [weak self] in
+            let aps = await service.scanForNearbyAPs()
+            self?.nearbyAPs = aps
+            self?.isScanning = false
         }
     }
 

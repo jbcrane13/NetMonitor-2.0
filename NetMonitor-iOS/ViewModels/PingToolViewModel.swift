@@ -34,10 +34,16 @@ final class PingToolViewModel {
     // MARK: - Dependencies
 
     private let pingService: any PingServiceProtocol
+    private let activityLog: ToolActivityLog
     private var pingTask: Task<Void, Never>?
 
-    init(pingService: any PingServiceProtocol = PingService(), initialHost: String? = nil) {
+    init(
+        pingService: any PingServiceProtocol = PingService(),
+        initialHost: String? = nil,
+        activityLog: ToolActivityLog = .shared
+    ) {
         self.pingService = pingService
+        self.activityLog = activityLog
         if let initialHost = initialHost {
             self.host = initialHost
         }
@@ -82,7 +88,7 @@ final class PingToolViewModel {
             isRunning = false
 
             if let stats = statistics {
-                ToolActivityLog.shared.add(
+                activityLog.add(
                     tool: "Ping",
                     target: host,
                     result: stats.received > 0 ? "\(String(format: "%.0f", stats.avgTime)) ms avg" : "No response",

@@ -374,6 +374,33 @@ struct CompanionMessageAdditionalCasesTests {
         #expect(p.devices[0].ipAddress == "10.0.0.5")
     }
 
+    // MARK: - Protocol Version
+
+    @Test func encodedMessageIncludesProtocolVersion() throws {
+        let msg = CompanionMessage.heartbeat(HeartbeatPayload(version: "2.0"))
+        let data = try CompanionMessage.jsonEncoder.encode(msg)
+        let object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        #expect(object["protocolVersion"] as? Int == CompanionMessage.currentProtocolVersion)
+    }
+
+    @Test func decodeThrowsVersionMismatchForUnsupportedProtocolVersion() {
+        let unsupportedVersion = CompanionMessage.currentProtocolVersion + 1
+        let json = """
+        {
+          "protocolVersion": \(unsupportedVersion),
+          "type": "heartbeat",
+          "payload": {
+            "timestamp": "2026-05-18T00:00:00Z",
+            "version": "2.0"
+          }
+        }
+        """
+
+        #expect(throws: CompanionMessageDecodeError.versionMismatch(got: unsupportedVersion, expected: CompanionMessage.currentProtocolVersion)) {
+            _ = try CompanionMessage.decode(from: Data(json.utf8))
+        }
+    }
+
     // MARK: - Malformed JSON
 
     @Test func malformedJsonThrowsDecodingError() {

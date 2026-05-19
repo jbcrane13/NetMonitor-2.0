@@ -51,7 +51,7 @@ struct BonjourScanPhaseTests {
     func initWithStopProvider() {
         let phase = BonjourScanPhase(
             serviceProvider: { [] },
-            stopProvider: { }
+            stopProvider: {}
         )
         #expect(phase.id == "bonjour")
     }
