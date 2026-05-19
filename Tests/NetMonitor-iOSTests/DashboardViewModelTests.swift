@@ -1,5 +1,6 @@
 import Testing
 import Foundation
+import os
 @testable import NetMonitor_iOS
 import NetMonitorCore
 import NetworkScanKit
@@ -477,10 +478,13 @@ struct DashboardViewModelEventLoggingTests {
 /// Mock ping service that records the peak number of in-flight ping calls.
 /// Used to assert that `DashboardViewModel.measureAnchors` runs anchors in parallel
 /// rather than sequentially.
-final class ConcurrencyTrackingPingService: PingServiceProtocol, @unchecked Sendable {
-    private let lock = NSLock()
-    private var _inFlight = 0
-    private var _maxInFlight = 0
+final class ConcurrencyTrackingPingService: PingServiceProtocol, Sendable {
+    private struct State {
+        var inFlight = 0
+        var maxInFlight = 0
+    }
+
+    private let state = OSAllocatedUnfairLock(initialState: State())
     private let delay: Duration
 
     init(delay: Duration = .milliseconds(50)) {
@@ -488,22 +492,18 @@ final class ConcurrencyTrackingPingService: PingServiceProtocol, @unchecked Send
     }
 
     var maxInFlight: Int {
-        lock.lock()
-        defer { lock.unlock() }
-        return _maxInFlight
+        state.withLock { $0.maxInFlight }
     }
 
     func ping(host: String, count: Int, timeout: TimeInterval) async -> AsyncStream<PingResult> {
-        lock.lock()
-        _inFlight += 1
-        _maxInFlight = max(_maxInFlight, _inFlight)
-        lock.unlock()
+        state.withLock {
+            $0.inFlight += 1
+            $0.maxInFlight = max($0.maxInFlight, $0.inFlight)
+        }
 
         try? await Task.sleep(for: delay)
 
-        lock.lock()
-        _inFlight -= 1
-        lock.unlock()
+        state.withLock { $0.inFlight -= 1 }
 
         let result = PingResult(sequence: 1, host: host, ttl: 64, time: 10.0, isTimeout: false)
         return AsyncStream { continuation in
