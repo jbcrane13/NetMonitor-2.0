@@ -16,9 +16,8 @@ struct GlassCardModifier: ViewModifier {
             .padding(padding)
             .background(
                 ZStack {
-                    // Base material
-                    RoundedRectangle(cornerRadius: cornerRadius)
-                        .fill(.ultraThinMaterial)
+                    // Base material — Liquid Glass on iOS 26+, ultraThinMaterial on iOS 18–25
+                    LiquidGlassFill(RoundedRectangle(cornerRadius: cornerRadius))
                         .opacity(colorScheme == .dark ? 0.8 : 0.95)
 
                     RoundedRectangle(cornerRadius: cornerRadius)

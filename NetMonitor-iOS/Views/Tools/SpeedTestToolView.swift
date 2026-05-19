@@ -23,6 +23,12 @@ struct SpeedTestToolView: View {
         .navigationTitle("Speed Test")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
+        .sensoryFeedback(.success, trigger: viewModel.completionFeedbackToken) { _, newValue in
+            newValue != nil
+        }
+        .sensoryFeedback(.error, trigger: viewModel.errorFeedbackToken) { _, newValue in
+            newValue != nil
+        }
         .accessibilityIdentifier("screen_speedTestTool")
     }
 
