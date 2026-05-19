@@ -183,6 +183,42 @@ final class SubnetCalculatorToolViewModelTests: XCTestCase {
         let vm = SubnetCalculatorToolViewModel()
         XCTAssertFalse(vm.examples.isEmpty)
     }
+
+    func testSubnetCalculatorView_successSensoryFeedbackOnlyTriggersOnNonNilNewValue() throws {
+        let source = try subnetCalculatorToolViewSource()
+        XCTAssertTrue(
+            source.containsPattern(
+                #"\.sensoryFeedback\(\.success, trigger: viewModel\.subnetInfo\?\.networkAddress\)\s*\{\s*_, newValue in\s*newValue != nil\s*\}"#
+            )
+        )
+    }
+
+    func testSubnetCalculatorView_errorSensoryFeedbackOnlyTriggersOnNonNilNewValue() throws {
+        let source = try subnetCalculatorToolViewSource()
+        XCTAssertTrue(
+            source.containsPattern(
+                #"\.sensoryFeedback\(\.error, trigger: viewModel\.errorMessage\)\s*\{\s*_, newValue in\s*newValue != nil\s*\}"#
+            )
+        )
+    }
+
+    private func subnetCalculatorToolViewSource() throws -> String {
+        let testFileURL = URL(fileURLWithPath: #filePath)
+        let repositoryRootURL = testFileURL
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let viewFileURL = repositoryRootURL.appendingPathComponent("NetMonitor-iOS/Views/Tools/SubnetCalculatorToolView.swift")
+        return try String(contentsOf: viewFileURL, encoding: .utf8)
+    }
+}
+
+private extension String {
+    func containsPattern(_ pattern: String) -> Bool {
+        guard let expression = try? NSRegularExpression(pattern: pattern) else { return false }
+        let fullRange = NSRange(startIndex..<endIndex, in: self)
+        return expression.firstMatch(in: self, range: fullRange) != nil
+    }
 }
 
 // MARK: - Swift Testing Suite
