@@ -1,3 +1,4 @@
+import Foundation
 import XCTest
 import Testing
 @testable import NetMonitor_iOS
@@ -187,7 +188,7 @@ final class SubnetCalculatorToolViewModelTests: XCTestCase {
     func testSubnetCalculatorView_successSensoryFeedbackOnlyTriggersOnNonNilNewValue() throws {
         let source = try subnetCalculatorToolViewSource()
         XCTAssertTrue(
-            source.containsPattern(
+            try source.containsPattern(
                 #"\.sensoryFeedback\(\.success, trigger: viewModel\.subnetInfo\?\.networkAddress\)\s*\{\s*_, newValue in\s*newValue != nil\s*\}"#
             )
         )
@@ -196,26 +197,35 @@ final class SubnetCalculatorToolViewModelTests: XCTestCase {
     func testSubnetCalculatorView_errorSensoryFeedbackOnlyTriggersOnNonNilNewValue() throws {
         let source = try subnetCalculatorToolViewSource()
         XCTAssertTrue(
-            source.containsPattern(
+            try source.containsPattern(
                 #"\.sensoryFeedback\(\.error, trigger: viewModel\.errorMessage\)\s*\{\s*_, newValue in\s*newValue != nil\s*\}"#
             )
         )
     }
 
     private func subnetCalculatorToolViewSource() throws -> String {
-        let testFileURL = URL(fileURLWithPath: #filePath)
-        let repositoryRootURL = testFileURL
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
+        let repositoryRootURL = try findRepositoryRoot(startingAt: URL(fileURLWithPath: #filePath))
         let viewFileURL = repositoryRootURL.appendingPathComponent("NetMonitor-iOS/Views/Tools/SubnetCalculatorToolView.swift")
         return try String(contentsOf: viewFileURL, encoding: .utf8)
+    }
+
+    private func findRepositoryRoot(startingAt url: URL) throws -> URL {
+        var current = url.deletingLastPathComponent()
+
+        while current.path != "/" {
+            if FileManager.default.fileExists(atPath: current.appendingPathComponent("project.yml").path) {
+                return current
+            }
+            current.deleteLastPathComponent()
+        }
+
+        throw XCTSkip("Unable to locate repository root from \(url.path)")
     }
 }
 
 private extension String {
-    func containsPattern(_ pattern: String) -> Bool {
-        guard let expression = try? NSRegularExpression(pattern: pattern) else { return false }
+    func containsPattern(_ pattern: String) throws -> Bool {
+        let expression = try NSRegularExpression(pattern: pattern)
         let fullRange = NSRange(startIndex..<endIndex, in: self)
         return expression.firstMatch(in: self, range: fullRange) != nil
     }
