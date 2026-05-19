@@ -255,6 +255,41 @@ targets:
     dependencies:
       - package: NetMonitorCore
       - package: NetworkScanKit
+      - target: NetMonitorWidgetExtension
+        embed: true
+
+  NetMonitorWidgetExtension:
+    type: app-extension
+    platform: iOS
+    deploymentTarget: "18.0"
+    sources:
+      - path: NetMonitor-iOS/Widget
+      - path: NetMonitor-iOS/Platform/AppSettings.swift
+    entitlements:
+      path: NetMonitor-iOS/Widget/NetMonitorWidgetExtension.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.blakemiller.netmonitor
+    info:
+      path: NetMonitor-iOS/Widget/Info.plist
+      properties:
+        CFBundleDisplayName: Netmonitor Widget
+        CFBundleShortVersionString: "2.2.1"
+        CFBundleVersion: "10"
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+        NSSupportsLiveActivities: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.blakemiller.netmonitor.widget
+        DEVELOPMENT_TEAM: 32XZRDTGK3
+        SWIFT_VERSION: 6.0
+        SWIFT_STRICT_CONCURRENCY: complete
+        CODE_SIGN_STYLE: Automatic
+        IPHONEOS_DEPLOYMENT_TARGET: "18.0"
+        CODE_SIGN_ENTITLEMENTS: NetMonitor-iOS/Widget/NetMonitorWidgetExtension.entitlements
+    dependencies:
+      - package: NetMonitorCore
 
   NetMonitor-macOSTests:
     type: bundle.unit-test

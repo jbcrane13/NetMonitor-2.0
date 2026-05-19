@@ -359,15 +359,7 @@ struct RoomPlanScannerView: View {
     }
 
     private func detailRow(label: String, value: String) -> some View {
-        HStack {
-            Text(label)
-                .font(.caption)
-                .foregroundStyle(Theme.Colors.textSecondary)
-            Spacer()
-            Text(value)
-                .font(.caption.monospacedDigit())
-                .foregroundStyle(Theme.Colors.textPrimary)
-        }
+        LabelValueRow(label: label, value: value, font: .caption, isMonospaced: true, valueSelectionEnabled: false)
     }
 
     private func saveToFiles() {
@@ -448,7 +440,6 @@ struct RoomPlanScanContainer: UIViewControllerRepresentable {
 
     func updateUIViewController(_ uiViewController: RoomPlanScanViewController, context: Context) {}
 }
-
 
 // MARK: - DocumentExporterView
 

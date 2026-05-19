@@ -31,10 +31,16 @@ final class TracerouteToolViewModel {
     // MARK: - Dependencies
 
     private let tracerouteService: any TracerouteServiceProtocol
+    private let activityLog: ToolActivityLog
     private var traceTask: Task<Void, Never>?
 
-    init(tracerouteService: any TracerouteServiceProtocol = TracerouteService(), initialHost: String? = nil) {
+    init(
+        tracerouteService: any TracerouteServiceProtocol = TracerouteService(),
+        initialHost: String? = nil,
+        activityLog: ToolActivityLog = .shared
+    ) {
         self.tracerouteService = tracerouteService
+        self.activityLog = activityLog
         if let initialHost = initialHost {
             self.host = initialHost
         }
@@ -79,7 +85,7 @@ final class TracerouteToolViewModel {
 
             isRunning = false
 
-            ToolActivityLog.shared.add(
+            activityLog.add(
                 tool: "Traceroute",
                 target: host,
                 result: "\(hops.count) hops",

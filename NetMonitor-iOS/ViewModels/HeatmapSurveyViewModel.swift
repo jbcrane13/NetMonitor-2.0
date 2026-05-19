@@ -492,6 +492,7 @@ final class HeatmapSurveyViewModel {
         project.measurementPoints = state.measurementPoints
         return exporter.exportProjectFile(project: project, fileManager: fileManager)
     }
+
     /// Compatibility wrapper for existing call sites and tests.
     func qualityLabel(_ rssi: Int) -> String {
         RSSIQuality(rssi: rssi).label

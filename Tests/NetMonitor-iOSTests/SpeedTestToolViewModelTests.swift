@@ -211,6 +211,7 @@ struct SpeedTestToolViewModelErrorTests {
 
 // MARK: - Jitter, Persistence & startTest Tests
 
+@Suite(.serialized)
 @MainActor
 struct SpeedTestToolViewModelStartTestTests {
 
@@ -222,7 +223,11 @@ struct SpeedTestToolViewModelStartTestTests {
             SpeedTestResult.self,
             PairedMac.self
         ])
-        let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+        let config = ModelConfiguration(
+            "SpeedTestToolViewModelTests-\(UUID().uuidString)",
+            schema: schema,
+            isStoredInMemoryOnly: true
+        )
         let container = try ModelContainer(for: schema, configurations: [config])
         return (container, container.mainContext)
     }

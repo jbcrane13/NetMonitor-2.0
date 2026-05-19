@@ -41,10 +41,12 @@ final class SpeedTestToolViewModel {
     // MARK: - Dependencies
 
     private var service: any SpeedTestServiceProtocol
+    private let activityLog: ToolActivityLog
     private var testTask: Task<Void, Never>?
 
-    init(service: any SpeedTestServiceProtocol = SpeedTestService()) {
+    init(service: any SpeedTestServiceProtocol = SpeedTestService(), activityLog: ToolActivityLog = .shared) {
         self.service = service
+        self.activityLog = activityLog
     }
 
     // MARK: - Computed Properties
@@ -112,7 +114,7 @@ final class SpeedTestToolViewModel {
                 modelContext.insert(result)
                 try? modelContext.save()
 
-                ToolActivityLog.shared.add(
+                activityLog.add(
                     tool: "Speed Test",
                     target: data.serverName ?? selectedServer.name,
                     result: "↓\(String(format: "%.0f", data.downloadSpeed)) ↑\(String(format: "%.0f", data.uploadSpeed)) Mbps",
@@ -124,7 +126,7 @@ final class SpeedTestToolViewModel {
             } catch {
                 errorMessage = NetworkError.from(error).userFacingMessage
                 phase = .idle
-                ToolActivityLog.shared.add(
+                activityLog.add(
                     tool: "Speed Test",
                     target: "Server",
                     result: "Failed",

@@ -34,19 +34,19 @@ struct SignalSnapshot {
 /// can be exercised with stubs in tests.
 protocol MacWiFiSignalProviding: Sendable {
     @MainActor func currentSignal() -> SignalSnapshot?
-    func scanForNearbyAPs() -> [NearbyAP]
+    func scanForNearbyAPs() async -> [NearbyAP]
 }
 
 // MARK: - WiFiHeatmapService
 
 /// CoreWLAN wrapper providing live signal data and nearby AP scanning for the heatmap tool.
 /// `currentSignal()` is fast and called on @MainActor from the poll loop.
-/// `scanForNearbyAPs()` is blocking (3-10s) and nonisolated — callers must dispatch it
-/// off the main thread via Task.detached.
+/// `scanForNearbyAPs()` is async because CoreWLAN's scan call can block for several seconds.
 @MainActor
 final class WiFiHeatmapService: MacWiFiSignalProviding, @unchecked Sendable {
 
     nonisolated let interfaceName: String?
+    nonisolated private let scanQueue = DispatchQueue(label: "com.netmonitor.wifi-heatmap.scan", qos: .userInitiated)
 
     init() {
         interfaceName = CWWiFiClient.shared().interface()?.interfaceName
@@ -87,7 +87,15 @@ final class WiFiHeatmapService: MacWiFiSignalProviding, @unchecked Sendable {
 
     // MARK: - Nearby AP Scan
 
-    nonisolated func scanForNearbyAPs() -> [NearbyAP] {
+    nonisolated func scanForNearbyAPs() async -> [NearbyAP] {
+        await withCheckedContinuation { continuation in
+            scanQueue.async {
+                continuation.resume(returning: self.performNearbyAPScan())
+            }
+        }
+    }
+
+    nonisolated private func performNearbyAPScan() -> [NearbyAP] {
         guard let iface else { return [] }
         do {
             let networks = try iface.scanForNetworks(withName: nil)

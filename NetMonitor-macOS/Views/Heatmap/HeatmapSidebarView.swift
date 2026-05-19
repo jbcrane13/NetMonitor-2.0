@@ -347,15 +347,7 @@ struct HeatmapSidebarView: View {
     }
 
     private func infoRow(_ label: String, value: String) -> some View {
-        HStack {
-            Text(label)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            Spacer()
-            Text(value)
-                .font(.caption)
-                .foregroundStyle(.primary)
-        }
+        LabelValueRow(label: label, value: value, labelFont: .caption, valueFont: .caption, valueSelectionEnabled: false)
     }
 
     private func signalBars(rssi: Int) -> some View {

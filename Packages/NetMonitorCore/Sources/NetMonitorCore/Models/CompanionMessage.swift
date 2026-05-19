@@ -3,9 +3,11 @@ import Foundation
 // MARK: - CompanionMessage
 /// Root message type for macOS ↔ iOS companion communication.
 /// Uses length-prefixed JSON framing: 4-byte big-endian length prefix + JSON payload.
-/// JSON format: { "type": "<messageType>", "payload": { ... } }
+/// JSON format: { "protocolVersion": 1, "type": "<messageType>", "payload": { ... } }
 
 public enum CompanionMessage: Codable, Sendable {
+    public static let currentProtocolVersion = 1
+
     case statusUpdate(StatusUpdatePayload)
     case targetList(TargetListPayload)
     case deviceList(DeviceListPayload)
@@ -18,6 +20,7 @@ public enum CompanionMessage: Codable, Sendable {
     // MARK: Coding Keys
 
     private enum CodingKeys: String, CodingKey {
+        case protocolVersion
         case type
         case payload
     }
@@ -37,6 +40,13 @@ public enum CompanionMessage: Codable, Sendable {
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        let protocolVersion = try container.decodeIfPresent(Int.self, forKey: .protocolVersion) ?? Self.currentProtocolVersion
+        guard protocolVersion == Self.currentProtocolVersion else {
+            throw CompanionMessageDecodeError.versionMismatch(
+                got: protocolVersion,
+                expected: Self.currentProtocolVersion
+            )
+        }
         let type = try container.decode(MessageType.self, forKey: .type)
 
         switch type {
@@ -63,6 +73,7 @@ public enum CompanionMessage: Codable, Sendable {
 
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(Self.currentProtocolVersion, forKey: .protocolVersion)
 
         switch self {
         case .statusUpdate(let payload):
@@ -89,6 +100,17 @@ public enum CompanionMessage: Codable, Sendable {
         case .heartbeat(let payload):
             try container.encode(MessageType.heartbeat, forKey: .type)
             try container.encode(payload, forKey: .payload)
+        }
+    }
+}
+
+public enum CompanionMessageDecodeError: Error, Equatable, LocalizedError, Sendable {
+    case versionMismatch(got: Int, expected: Int)
+
+    public var errorDescription: String? {
+        switch self {
+        case .versionMismatch(let got, let expected):
+            return "Companion protocol version mismatch: got \(got), expected \(expected)"
         }
     }
 }

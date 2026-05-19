@@ -5,7 +5,7 @@ import SwiftData
 @MainActor
 @Observable
 final class ToolsViewModel {
-    var recentResults: [ToolActivityItem] { ToolActivityLog.shared.entries }
+    var recentResults: [ToolActivityItem] { activityLog.entries }
     private(set) var isPingRunning = false
     private(set) var isPortScanRunning = false
     private(set) var currentPingResults: [PingResult] = []
@@ -18,6 +18,7 @@ final class ToolsViewModel {
     let wakeOnLANService: any WakeOnLANServiceProtocol
     let deviceDiscoveryService: any DeviceDiscoveryServiceProtocol
     let gatewayService: any GatewayServiceProtocol
+    private let activityLog: ToolActivityLog
 
     init(
         pingService: any PingServiceProtocol = PingService(),
@@ -25,7 +26,8 @@ final class ToolsViewModel {
         dnsLookupService: any DNSLookupServiceProtocol = DNSLookupService(),
         wakeOnLANService: any WakeOnLANServiceProtocol = WakeOnLANService(),
         deviceDiscoveryService: any DeviceDiscoveryServiceProtocol = DeviceDiscoveryService.shared,
-        gatewayService: any GatewayServiceProtocol = GatewayService()
+        gatewayService: any GatewayServiceProtocol = GatewayService(),
+        activityLog: ToolActivityLog = .shared
     ) {
         self.pingService = pingService
         self.portScannerService = portScannerService
@@ -33,6 +35,7 @@ final class ToolsViewModel {
         self.wakeOnLANService = wakeOnLANService
         self.deviceDiscoveryService = deviceDiscoveryService
         self.gatewayService = gatewayService
+        self.activityLog = activityLog
     }
 
     var isScanning: Bool {
@@ -171,11 +174,11 @@ final class ToolsViewModel {
     }
 
     func clearActivity() {
-        ToolActivityLog.shared.clear()
+        activityLog.clear()
     }
 
     private func addActivity(tool: String, target: String, result: String, success: Bool) {
-        ToolActivityLog.shared.add(tool: tool, target: target, result: result, success: success)
+        activityLog.add(tool: tool, target: target, result: result, success: success)
     }
 }
 

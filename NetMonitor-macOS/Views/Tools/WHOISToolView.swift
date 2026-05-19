@@ -194,14 +194,7 @@ struct WHOISToolView: View {
     }
 
     private func infoRow(_ label: String, _ value: String) -> some View {
-        HStack(alignment: .top) {
-            Text(label)
-                .foregroundStyle(.secondary)
-                .frame(width: 120, alignment: .leading)
-            Text(value)
-                .textSelection(.enabled)
-                .font(.system(.body, design: .monospaced))
-        }
+        LabelValueRow(label: label, value: value, labelWidth: 120, rowAlignment: .top, valueFont: .body, isMonospaced: true)
     }
 
     // MARK: - Footer

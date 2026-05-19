@@ -20,10 +20,15 @@ final class BonjourDiscoveryToolViewModel {
     // MARK: - Dependencies
 
     private let bonjourService: any BonjourDiscoveryServiceProtocol
+    private let activityLog: ToolActivityLog
     private var pollingTask: Task<Void, Never>?
 
-    init(bonjourService: any BonjourDiscoveryServiceProtocol = BonjourDiscoveryService()) {
+    init(
+        bonjourService: any BonjourDiscoveryServiceProtocol = BonjourDiscoveryService(),
+        activityLog: ToolActivityLog = .shared
+    ) {
         self.bonjourService = bonjourService
+        self.activityLog = activityLog
     }
 
     // MARK: - Computed Properties
@@ -77,7 +82,7 @@ final class BonjourDiscoveryToolViewModel {
             guard let self, !Task.isCancelled else { return }
             self.bonjourService.stopDiscovery()
             self.isDiscovering = false
-            ToolActivityLog.shared.add(
+            activityLog.add(
                 tool: "Bonjour",
                 target: "Local Network",
                 result: "\(self.services.count) services",

@@ -135,14 +135,7 @@ struct SubnetCalculatorToolView: View {
     }
 
     private func infoRow(_ label: String, _ value: String) -> some View {
-        HStack(alignment: .top) {
-            Text(label)
-                .foregroundStyle(.secondary)
-                .frame(width: 140, alignment: .leading)
-            Text(value)
-                .textSelection(.enabled)
-                .font(.system(.body, design: .monospaced))
-        }
+        LabelValueRow(label: label, value: value, labelWidth: 140, rowAlignment: .top, valueFont: .body, isMonospaced: true)
     }
 
     // MARK: - Footer
