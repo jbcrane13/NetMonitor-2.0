@@ -32,7 +32,7 @@ targets:
         CFBundleName: NetMonitor Pro
         CFBundleDisplayName: NetMonitor Pro
         CFBundleShortVersionString: "2.2.1"
-        CFBundleVersion: "1776881719"
+        CFBundleVersion: "1779160181"
         LSMinimumSystemVersion: "15.0"
         NSPrincipalClass: NSApplication
         NSHighResolutionCapable: true
@@ -148,7 +148,7 @@ targets:
         CFBundleName: Netmonitor
         CFBundleDisplayName: Netmonitor
         CFBundleShortVersionString: "2.2.1"
-        CFBundleVersion: "9"
+        CFBundleVersion: "10"
         CFBundleIconName: AppIcon
         NSCameraUsageDescription: "NetMonitor uses the camera for AR-assisted room scanning to create floor plans for Wi-Fi coverage surveys."
         NSLocationWhenInUseUsageDescription: "NetMonitor uses your location to display WiFi network information and monitor GeoFence zones."

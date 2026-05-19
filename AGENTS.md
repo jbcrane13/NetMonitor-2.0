@@ -282,6 +282,14 @@ gh issue close <number> --repo jbcrane13/NetMonitor-2.0 --comment "Done: <summar
 - 1e79ec1 feat(intents): return values + dialog from iOS App Intents (#199)
 
 ## Activity — 2026-05-18
+- 85f5dbc Potential fix for pull request finding
+- 90b023b test(iOS): harden sensoryFeedback guard regression assertions
+- 53229c9 test(iOS): assert SubnetCalculator sensoryFeedback nil-guard clauses
+- 67e1ff8 Potential fix for pull request finding
+- c657b01 Potential fix for pull request finding
+- a13c8ef Potential fix for pull request finding
+- aeb86d8 Potential fix for pull request finding
+- 2504046 Potential fix for pull request finding
 - d0f30dc test(core): update NavigationSection expectations
 - 7a8eddf test(ios): avoid removed AppShortcut title accessor
 - 1b5f85d feat(ios): finish SwiftUI 6 recovery work
@@ -293,8 +301,16 @@ gh issue close <number> --repo jbcrane13/NetMonitor-2.0 --comment "Done: <summar
 - c1e8202 fix(#213): gate SubnetCalculator sensoryFeedback on non-nil transitions
 - c5deecf feat: adopt SwiftUI 6 APIs (scrollTargetBehavior, sensoryFeedback, MeshGradient)
 - c06f865 feat(ios): adopt iOS 26 Liquid Glass APIs over .ultraThinMaterial (#212)
+- c158b00 Add PRD docs for issues 198, 212, 213
+- 19ab913 test(core): expand ipv4ToUInt32 edge case coverage
+- 5c25986 refactor(core): harden NetworkUtilities string decoding and route parsing
+- 5a3d089 fix(#213): gate SubnetCalculator sensoryFeedback on non-nil transitions
+- df02d50 feat(ios): adopt iOS 26 Liquid Glass APIs over .ultraThinMaterial (#212)
+- e2d0e60 Add WorldPingService concurrency tests
+- 39a5cbd feat: adopt SwiftUI 6 APIs (scrollTargetBehavior, sensoryFeedback, MeshGradient)
 - 6e5e0fe refactor(ios): inject AppEnvironment into remaining root views
 - 0e4292f Initial plan
+- c2d14bb Update .gitignore
 - db7a612 chore(deps): bump github.com/getsentry/sentry-cocoa
 - 4533871 refactor(heatmap): migrate macOS WiFiHeatmapViewModel onto HeatmapSurveyState (#202 heatmap, step 3)
 - 9cbb45b fix(lint): resolve swiftlint failures and remove stray claude worktrees
