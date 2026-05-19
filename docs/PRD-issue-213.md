@@ -6,7 +6,7 @@
 - [x] Implement feat: adopt SwiftUI 6 APIs (scrollTargetBehavior, sensoryFeedback, MeshGradient)
 - [x] Handle edge cases and error states
 - [x] Add accessibilityIdentifier to every interactive element
-- [x] Build verify: xcodebuild -scheme AgentBoard -destination 'platform=macOS' build
+- [x] Build verify: xcodebuild -scheme NetMonitor-macOS -destination 'platform=macOS' build
 ## Constraints
 - Swift 6 strict concurrency
 - @Observable not ObservableObject
