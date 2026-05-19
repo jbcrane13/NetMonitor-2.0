@@ -101,10 +101,13 @@ struct NetMonitorShortcutsTests {
     @Test("shortcuts provider includes all expected entries")
     func shortcutMembership() {
         let shortcuts = NetMonitorShortcuts.appShortcuts
-        #expect(shortcuts.contains { $0.intent is PingIntent })
-        #expect(shortcuts.contains { $0.intent is ScanNetworkIntent })
-        #expect(shortcuts.contains { $0.intent is SpeedTestIntent })
-        #expect(shortcuts.contains { $0.intent is NetworkStatusIntent })
-        #expect(shortcuts.contains { $0.intent is SaveWiFiReadingIntent })
+        let shortcutIDs = NetMonitorShortcuts.shortcutIDs
+
+        #expect(shortcuts.count == shortcutIDs.count)
+        #expect(shortcutIDs.contains(.ping))
+        #expect(shortcutIDs.contains(.scanNetwork))
+        #expect(shortcutIDs.contains(.speedTest))
+        #expect(shortcutIDs.contains(.networkStatus))
+        #expect(shortcutIDs.contains(.saveWiFiReading))
     }
 }

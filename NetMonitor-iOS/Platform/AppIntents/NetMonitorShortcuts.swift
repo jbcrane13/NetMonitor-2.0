@@ -2,6 +2,16 @@ import AppIntents
 
 /// Registers suggested Siri phrases and Shortcuts for NetMonitor's key actions.
 struct NetMonitorShortcuts: AppShortcutsProvider {
+    enum ShortcutID: CaseIterable {
+        case ping
+        case scanNetwork
+        case speedTest
+        case networkStatus
+        case saveWiFiReading
+    }
+
+    static let shortcutIDs: [ShortcutID] = ShortcutID.allCases
+
     @AppShortcutsBuilder
     static var appShortcuts: [AppShortcut] {
         AppShortcut(
