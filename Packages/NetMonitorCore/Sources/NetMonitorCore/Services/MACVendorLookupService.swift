@@ -16,10 +16,6 @@ public actor MACVendorLookupService: MACVendorLookupServiceProtocol {
         self.session = session
     }
 
-    // MARK: - Protocol conformance
-    /// MACVendorLookupServiceProtocol: async lookup (delegates to enhanced lookup)
-    // Implemented as lookupVendorEnhanced below
-
     // MARK: - Properties
 
     /// URLSession used for online OUI API lookups.
@@ -208,19 +204,20 @@ public actor MACVendorLookupService: MACVendorLookupServiceProtocol {
 
     // MARK: - Public Methods
 
-    /// Look up vendor using online API first, then local database as fallback
+    /// Look up vendor using the local database first, then online API as fallback.
     /// - Parameter macAddress: MAC address in any format (colons, dashes, or none)
     /// - Returns: Vendor name if found
     public func lookupVendorEnhanced(macAddress: String) async -> String? {
-        // Try online API first
+        if let localVendor = lookup(macAddress: macAddress) {
+            return localVendor
+        }
+
         if let vendor = await lookupVendorOnline(macAddress: macAddress) {
-            // Cache the result
             cacheResult(macAddress: macAddress, vendor: vendor)
             return vendor
         }
 
-        // Fall back to local OUI database
-        return lookup(macAddress: macAddress)
+        return nil
     }
 
     /// Look up the vendor for a MAC address (local database only)
