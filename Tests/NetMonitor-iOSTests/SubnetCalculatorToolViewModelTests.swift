@@ -242,4 +242,46 @@ struct SubnetCalculatorToolViewModelEdgeCaseTests {
         #expect(vm.subnetInfo == nil)
         #expect(vm.errorMessage == nil)
     }
+
+    // MARK: - Sensory Feedback Transition Guards (#213)
+    //
+    // The view chains `.sensoryFeedback(.success, trigger: subnetInfo?.networkAddress)` and
+    // `.sensoryFeedback(.error, trigger: errorMessage)` with a `newValue != nil` condition.
+    // Without that condition the trigger fires on any change — including transitions to nil —
+    // which would play a success haptic when the user clears the form and an error haptic when
+    // the error is resolved. These tests pin the state transitions the condition relies on.
+
+    @Test func clearAfterSuccess_transitionsNetworkAddressToNil() {
+        let vm = SubnetCalculatorToolViewModel()
+        vm.cidrInput = "192.168.1.0/24"
+        vm.calculate()
+        #expect(vm.subnetInfo?.networkAddress != nil)
+
+        vm.clear()
+        #expect(vm.subnetInfo?.networkAddress == nil)
+    }
+
+    @Test func successFollowingError_transitionsErrorMessageToNil() {
+        let vm = SubnetCalculatorToolViewModel()
+        vm.cidrInput = "bad/input"
+        vm.calculate()
+        #expect(vm.errorMessage != nil)
+
+        vm.cidrInput = "192.168.1.0/24"
+        vm.calculate()
+        #expect(vm.errorMessage == nil)
+        #expect(vm.subnetInfo != nil)
+    }
+
+    @Test func errorFollowingSuccess_transitionsNetworkAddressToNil() {
+        let vm = SubnetCalculatorToolViewModel()
+        vm.cidrInput = "192.168.1.0/24"
+        vm.calculate()
+        #expect(vm.subnetInfo?.networkAddress != nil)
+
+        vm.cidrInput = "bad/input"
+        vm.calculate()
+        #expect(vm.subnetInfo?.networkAddress == nil)
+        #expect(vm.errorMessage != nil)
+    }
 }

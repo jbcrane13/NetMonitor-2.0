@@ -32,13 +32,13 @@ struct LiquidGlassBackgroundModifierTests {
     /// The `.liquidGlassBackground(in:tint:)` modifier returns a view.
     @Test func shapeModifierReturnsView() {
         let modified = Text("hi").liquidGlassBackground(in: RoundedRectangle(cornerRadius: 8))
-        _ = modified.body
+        let _: AnyView = AnyView(modified)
     }
 
     /// The `.liquidGlassBackground(tint:)` modifier (default shape) returns a view.
     @Test func defaultShapeModifierReturnsView() {
         let modified = Text("hi").liquidGlassBackground()
-        _ = modified.body
+        let _: AnyView = AnyView(modified)
     }
 
     /// Tint parameter compiles for both overloads.

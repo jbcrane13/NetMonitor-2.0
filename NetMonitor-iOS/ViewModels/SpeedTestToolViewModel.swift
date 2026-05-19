@@ -71,6 +71,15 @@ final class SpeedTestToolViewModel {
         String(format: "%.0f ms", latency)
     }
 
+    var completionFeedbackToken: String? {
+        guard phase == .complete else { return nil }
+        return "complete-\(downloadSpeed)-\(uploadSpeed)-\(latency)"
+    }
+
+    var errorFeedbackToken: String? {
+        errorMessage
+    }
+
     // MARK: - Actions
 
     func startTest(modelContext: ModelContext) {

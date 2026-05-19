@@ -22,7 +22,9 @@ struct ToolsView: View {
                 }
                 .padding(.horizontal, Theme.Layout.screenPadding)
                 .padding(.bottom, Theme.Layout.sectionSpacing)
+                .scrollTargetLayout()
             }
+            .scrollTargetBehavior(.viewAligned)
             .themedBackground()
             .navigationTitle("Tools")
             .navigationBarTitleDisplayMode(.large)
@@ -429,6 +431,7 @@ struct ToolsGridSection: View {
                     LazyVGrid(columns: columns, spacing: Theme.Layout.itemSpacing) {
                         ForEach(section.tools) { tool in
                             ToolCard(tool: tool)
+                                .containerRelativeFrame(.horizontal, count: 2, span: 1, spacing: Theme.Layout.itemSpacing)
                         }
                     }
                 }

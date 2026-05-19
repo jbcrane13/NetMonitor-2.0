@@ -185,7 +185,10 @@ struct HeatmapSidebarSheet: View {
                         .accessibilityIdentifier("heatmap_button_viz_\(viz.rawValue)")
                     }
                 }
+                .scrollTargetLayout()
             }
+            .scrollTargetBehavior(.viewAligned)
+            .sensoryFeedback(.selection, trigger: viewModel.selectedVisualization)
         }
         .accessibilityIdentifier("heatmap_picker_visualization")
     }
