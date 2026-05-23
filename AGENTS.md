@@ -315,3 +315,9 @@ gh issue close <number> --repo jbcrane13/NetMonitor-2.0 --comment "Done: <summar
 - 4533871 refactor(heatmap): migrate macOS WiFiHeatmapViewModel onto HeatmapSurveyState (#202 heatmap, step 3)
 - 9cbb45b fix(lint): resolve swiftlint failures and remove stray claude worktrees
 - c3a076c Initial plan
+
+## Activity — 2026-05-21
+- (no commits)
+
+## Activity — 2026-05-22
+- (no commits)
