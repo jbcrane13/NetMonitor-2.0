@@ -11,14 +11,6 @@ enum LocalDeviceQueries {
     /// Default row cap applied to summary and picker views.
     static let defaultLimit = 500
 
-    /// All devices sorted by most-recently-seen first, with no row cap.
-    /// Use for full-table views where users expect to see every device.
-    static func all() -> FetchDescriptor<LocalDevice> {
-        FetchDescriptor<LocalDevice>(
-            sortBy: [SortDescriptor(\LocalDevice.lastSeen, order: .reverse)]
-        )
-    }
-
     /// Most-recently-seen devices sorted by `lastSeen` descending, capped at `limit`.
     /// Use for summary views that don't need the full table.
     static func recents(limit: Int = defaultLimit) -> FetchDescriptor<LocalDevice> {

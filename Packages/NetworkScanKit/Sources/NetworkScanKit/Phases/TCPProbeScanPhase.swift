@@ -36,6 +36,7 @@ public struct TCPProbeScanPhase: ScanPhase, Sendable {
         accumulator: ScanAccumulator,
         onProgress: @Sendable (Double) async -> Void
     ) async {
+        guard !Task.isCancelled else { return }
         await onProgress(0.0)
 
         // Skip IPs already found by earlier phases
@@ -59,6 +60,7 @@ public struct TCPProbeScanPhase: ScanPhase, Sendable {
             var hostIterator = hostsToProbe.makeIterator()
 
             while pending < concurrencyLimit, let ip = hostIterator.next() {
+                guard !Task.isCancelled else { break }
                 pending += 1
                 group.addTask {
                     await Self.probeHost(ip, tracker: tracker)
@@ -66,6 +68,10 @@ public struct TCPProbeScanPhase: ScanPhase, Sendable {
             }
 
             while let result = await group.next() {
+                guard !Task.isCancelled else {
+                    group.cancelAll()
+                    break
+                }
                 pending -= 1
                 scannedCount += 1
 
@@ -86,6 +92,7 @@ public struct TCPProbeScanPhase: ScanPhase, Sendable {
         }
 
         // Enrich already-known devices with latency via lightweight single-port probe
+        guard !Task.isCancelled else { return }
         let ipsNeedingLatency = await accumulator.ipsWithoutLatency()
         if !ipsNeedingLatency.isEmpty {
             await enrichLatency(
@@ -117,6 +124,7 @@ public struct TCPProbeScanPhase: ScanPhase, Sendable {
 
     /// Probe a host with staged port groups, using adaptive timeouts from the RTT tracker.
     private static func probeHost(_ ip: String, tracker: RTTTracker) async -> DiscoveredDevice? {
+        guard !Task.isCancelled else { return nil }
         let primaryTimeoutMs = await tracker.adaptiveTimeout(base: basePrimaryTimeout)
         let primaryResult = await probePortGroup(
             ip: ip,
@@ -132,6 +140,8 @@ public struct TCPProbeScanPhase: ScanPhase, Sendable {
         case .allTimedOut, .allFailed:
             break
         }
+
+        guard !Task.isCancelled else { return nil }
 
         let secondaryTimeoutMs = await tracker.adaptiveTimeout(base: baseSecondaryTimeout)
         let secondaryResult = await probePortGroup(
@@ -156,7 +166,7 @@ public struct TCPProbeScanPhase: ScanPhase, Sendable {
         maxConcurrentPorts: Int,
         tracker: RTTTracker
     ) async -> ProbeGroupResult {
-        guard !ports.isEmpty else { return .allFailed }
+        guard !ports.isEmpty, !Task.isCancelled else { return .allFailed }
 
         return await withTaskGroup(of: PortProbeOutcome.self, returning: ProbeGroupResult.self) { group in
             var pending = 0
@@ -171,6 +181,10 @@ public struct TCPProbeScanPhase: ScanPhase, Sendable {
             }
 
             while pending > 0 {
+                guard !Task.isCancelled else {
+                    group.cancelAll()
+                    return .allFailed
+                }
                 guard let result = await group.next() else { break }
                 pending -= 1
 
@@ -202,7 +216,8 @@ public struct TCPProbeScanPhase: ScanPhase, Sendable {
     }
 
     private static func probePort(ip: String, port: UInt16, timeout: Duration) async -> PortProbeOutcome {
-        await ConnectionBudget.shared.acquire()
+        guard !Task.isCancelled else { return .failed }
+        guard await ConnectionBudget.shared.acquire() else { return .failed }
 
         let host = NWEndpoint.Host(ip)
         let endpoint = NWEndpoint.hostPort(host: host, port: NWEndpoint.Port(rawValue: port)!)
@@ -253,6 +268,7 @@ public struct TCPProbeScanPhase: ScanPhase, Sendable {
             var iterator = ips.makeIterator()
 
             while pending < concurrencyLimit, let ip = iterator.next() {
+                guard !Task.isCancelled else { break }
                 pending += 1
                 group.addTask {
                     let timeoutMs = await tracker.adaptiveTimeout(base: 500)
@@ -265,6 +281,10 @@ public struct TCPProbeScanPhase: ScanPhase, Sendable {
             }
 
             while let (ip, latency) = await group.next() {
+                guard !Task.isCancelled else {
+                    group.cancelAll()
+                    break
+                }
                 pending -= 1
                 if let latency {
                     await accumulator.updateLatency(ip: ip, latency: latency)
@@ -297,7 +317,8 @@ public struct TCPProbeScanPhase: ScanPhase, Sendable {
     /// Multi-port TCP connect for latency measurement — tries common ports concurrently,
     /// returns as soon as any responds.
     private static func quickLatencyProbe(ip: String, timeout: Duration) async -> Double? {
-        await ConnectionBudget.shared.acquire()
+        guard !Task.isCancelled else { return nil }
+        guard await ConnectionBudget.shared.acquire() else { return nil }
 
         let host = NWEndpoint.Host(ip)
 

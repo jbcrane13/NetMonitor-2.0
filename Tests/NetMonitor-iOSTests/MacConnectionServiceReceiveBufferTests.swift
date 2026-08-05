@@ -7,7 +7,7 @@ import NetMonitorCore
 struct MacConnectionServiceReceiveBufferTests {
 
     @Test("processReceiveBuffer handles back-to-back frames after buffer advances")
-    func processReceiveBufferHandlesBackToBackFrames() throws {
+    func processReceiveBufferHandlesBackToBackFrames() async throws {
         let service = MacConnectionService.shared
         service.disconnect()
 
@@ -29,7 +29,7 @@ struct MacConnectionServiceReceiveBufferTests {
         var combined = firstFrame
         combined.append(secondFrame)
 
-        service.processIncomingDataForTesting(combined)
+        await service.processIncomingDataForTesting(combined)
 
         #expect(service.lastStatusUpdate?.onlineTargets == 2)
         #expect(service.lastStatusUpdate?.offlineTargets == 1)

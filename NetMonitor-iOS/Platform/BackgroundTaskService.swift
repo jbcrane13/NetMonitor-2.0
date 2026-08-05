@@ -10,6 +10,8 @@ import os
 /// Manages background task scheduling for periodic network checks
 @MainActor
 final class BackgroundTaskService {
+    typealias TaskRegistration = (String, DispatchQueue?, @escaping (BGTask) -> Void) -> Bool
+
     static let shared = BackgroundTaskService()
     private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "com.blakemiller.netmonitor", category: "BackgroundTaskService")
 
@@ -17,14 +19,31 @@ final class BackgroundTaskService {
     static let syncTaskIdentifier = "com.blakemiller.netmonitor.sync"
     static let scheduledNetworkScanTaskIdentifier = "com.blakemiller.netmonitor.scheduledNetworkScan"
 
-    private init() {}
+    private let registerTask: TaskRegistration
+    private var hasRegisteredTasks = false
+
+    init(registerTask: @escaping TaskRegistration = { identifier, queue, launchHandler in
+        BGTaskScheduler.shared.register(
+            forTaskWithIdentifier: identifier,
+            using: queue,
+            launchHandler: launchHandler
+        )
+    }) {
+        self.registerTask = registerTask
+    }
 
     // MARK: - Registration
 
     func registerTasks() {
+        guard !hasRegisteredTasks else {
+            Self.logger.debug("Background tasks already registered; skipping duplicate request")
+            return
+        }
+        hasRegisteredTasks = true
+
         Self.logger.info("Registering background tasks...")
 
-        BGTaskScheduler.shared.register(forTaskWithIdentifier: Self.refreshTaskIdentifier, using: .main) { task in
+        _ = registerTask(Self.refreshTaskIdentifier, .main) { task in
             guard let refreshTask = task as? BGAppRefreshTask else {
                 task.setTaskCompleted(success: false)
                 return
@@ -35,7 +54,7 @@ final class BackgroundTaskService {
         }
         Self.logger.debug("✅ Registered: \(Self.refreshTaskIdentifier)")
 
-        BGTaskScheduler.shared.register(forTaskWithIdentifier: Self.syncTaskIdentifier, using: .main) { task in
+        _ = registerTask(Self.syncTaskIdentifier, .main) { task in
             guard let syncTask = task as? BGProcessingTask else {
                 task.setTaskCompleted(success: false)
                 return
@@ -46,7 +65,7 @@ final class BackgroundTaskService {
         }
         Self.logger.debug("✅ Registered: \(Self.syncTaskIdentifier)")
 
-        BGTaskScheduler.shared.register(forTaskWithIdentifier: Self.scheduledNetworkScanTaskIdentifier, using: .main) { task in
+        _ = registerTask(Self.scheduledNetworkScanTaskIdentifier, .main) { task in
             guard let scanTask = task as? BGProcessingTask else {
                 task.setTaskCompleted(success: false)
                 return
@@ -448,6 +467,7 @@ final class BackgroundTaskService {
             Self.logger.warning("⏰ Network scan task expiration handler called")
             Task { @MainActor in
                 taskCancelled = true
+                DeviceDiscoveryService.shared.stopScan()
                 complete(false)
             }
         }

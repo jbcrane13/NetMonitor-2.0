@@ -1,5 +1,53 @@
 import Foundation
 import NetMonitorCore
+import os
+
+// MARK: - ObservationChangeWaiter
+
+/// Bridges Observation's callback API into async code without leaving a
+/// continuation suspended when its task is cancelled.
+final class ObservationChangeWaiter: @unchecked Sendable {
+    private struct State {
+        var continuation: CheckedContinuation<Void, Never>?
+        var isResolved = false
+    }
+
+    private let state = OSAllocatedUnfairLock(initialState: State())
+
+    @MainActor
+    func wait(_ registerObservation: (@escaping @Sendable () -> Void) -> Void) async {
+        await withTaskCancellationHandler {
+            await withCheckedContinuation { continuation in
+                let shouldResumeImmediately = state.withLock { state in
+                    guard !state.isResolved else { return true }
+                    state.continuation = continuation
+                    return false
+                }
+
+                guard !shouldResumeImmediately else {
+                    continuation.resume()
+                    return
+                }
+
+                registerObservation { [weak self] in
+                    self?.resume()
+                }
+            }
+        } onCancel: {
+            resume()
+        }
+    }
+
+    private func resume() {
+        let continuation = state.withLock { state -> CheckedContinuation<Void, Never>? in
+            guard !state.isResolved else { return nil }
+            state.isResolved = true
+            defer { state.continuation = nil }
+            return state.continuation
+        }
+        continuation?.resume()
+    }
+}
 
 // MARK: - EventListenerService
 
@@ -44,17 +92,18 @@ final class EventListenerService {
         monitorTask = Task { [weak self] in
             while !Task.isCancelled {
                 guard let self else { return }
-                // Suspend until any tracked @Observable property changes
-                await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                let waiter = ObservationChangeWaiter()
+                await waiter.wait { onChange in
                     withObservationTracking {
                         _ = self.networkMonitor.isConnected
                         _ = self.networkMonitor.connectionType
                         _ = self.discoveryService.isScanning
                         _ = self.discoveryService.discoveredDevices
                     } onChange: {
-                        continuation.resume()
+                        onChange()
                     }
                 }
+                guard !Task.isCancelled else { return }
                 self.handleConnectivityChange()
                 self.handleScanChange()
             }

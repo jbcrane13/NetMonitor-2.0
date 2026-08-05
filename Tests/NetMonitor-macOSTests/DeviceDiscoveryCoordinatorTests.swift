@@ -48,6 +48,36 @@ struct DeviceDiscoveryCoordinatorTests {
         #expect(inserted?.hostname == "camera.local")
     }
 
+    @Test func mergeDiscoveredDevicesToleratesDuplicateHistoricalIdentifiers() throws {
+        let (container, context) = try makeInMemoryStore()
+        _ = container
+
+        context.insert(LocalDevice(
+            ipAddress: "192.168.1.10",
+            macAddress: "AA:BB:CC:DD:EE:FF",
+            hostname: "old-one.local"
+        ))
+        context.insert(LocalDevice(
+            ipAddress: "192.168.1.11",
+            macAddress: "AA:BB:CC:DD:EE:FF",
+            hostname: "old-two.local"
+        ))
+        try context.save()
+
+        let coordinator = makeCoordinator(context: context)
+        coordinator.mergeDiscoveredDevices([
+            LocalDiscoveredDevice(
+                ipAddress: "192.168.1.12",
+                macAddress: "aa:bb:cc:dd:ee:ff",
+                hostname: "current.local"
+            )
+        ], profileID: nil)
+
+        let devices = try context.fetch(FetchDescriptor<LocalDevice>())
+        #expect(devices.count == 2)
+        #expect(devices.contains { $0.hostname == "current.local" && $0.ipAddress == "192.168.1.12" })
+    }
+
     @Test func markOfflineDevicesMarksOnlyMissingIPsOffline() throws {
         let (container, context) = try makeInMemoryStore()
         _ = container

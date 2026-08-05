@@ -101,6 +101,20 @@ struct EventListenerServiceTests {
         // No crash or double-fire
     }
 
+    @Test("cancellation resumes a suspended observation wait")
+    func cancellationResumesObservationWait() async {
+        let waiter = ObservationChangeWaiter()
+        let task = Task {
+            await waiter.wait { _ in }
+        }
+
+        await Task.yield()
+        task.cancel()
+        await task.value
+
+        #expect(task.isCancelled)
+    }
+
     // MARK: - SpyNetworkEventService validation
 
     @Test("SpyNetworkEventService captures logged events correctly")

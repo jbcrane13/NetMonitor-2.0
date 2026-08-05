@@ -221,7 +221,9 @@ public actor PingService: PingServiceProtocol {
         return await withTaskGroup(of: (Bool, TimeInterval).self, returning: (Bool, TimeInterval).self) { group in
             for port in ports {
                 group.addTask {
-                    await ConnectionBudget.shared.acquire()
+                    guard await ConnectionBudget.shared.acquire() else {
+                        return (false, timeout)
+                    }
                     let connection = NWConnection(to: .hostPort(host: hostEndpoint, port: port), using: .tcp)
                     defer {
                         connection.cancel()

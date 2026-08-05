@@ -47,19 +47,20 @@ final class MacConnectionService: MacConnectionServiceProtocol {
     private let queue = DispatchQueue(label: "com.netmonitor.macconnection", qos: .userInitiated)
     private var heartbeatTask: Task<Void, Never>?
     private var reconnectTask: Task<Void, Never>?
-    private var receiveBuffer = Data()
+    private var frameDecoder = CompanionFrameDecoder()
+    private var connectionGeneration = UUID()
     private var pendingEndpoint: NWEndpoint?
     private var pendingMacName: String?
     private var lastConnectedEndpoint: NWEndpoint?
     private var lastConnectedMacName: String?
     private var shouldAutoReconnect = false
+    private var reconnectAttempt = 0
     private let networkProfileManager: NetworkProfileManager
 
     // MARK: - Constants
 
     private static let serviceType = "_netmon._tcp"
     private static let heartbeatInterval: TimeInterval = 15
-    private static let reconnectDelay: TimeInterval = 5
     private static let heartbeatVersion = "1.0"
 
     private init(networkProfileManager: NetworkProfileManager = NetworkProfileManager()) {
@@ -173,7 +174,9 @@ final class MacConnectionService: MacConnectionServiceProtocol {
     }
 
     func disconnect() {
+        connectionGeneration = UUID()
         shouldAutoReconnect = false
+        reconnectAttempt = 0
         heartbeatTask?.cancel()
         heartbeatTask = nil
         reconnectTask?.cancel()
@@ -182,53 +185,64 @@ final class MacConnectionService: MacConnectionServiceProtocol {
         connection = nil
         connectionState = .disconnected
         connectedMacName = nil
-        receiveBuffer = Data()
+        frameDecoder = CompanionFrameDecoder()
         lastStatusUpdate = nil
         lastTargetList = nil
         lastDeviceList = nil
     }
 
     private func setupConnection(_ conn: NWConnection, macName: String) {
+        let generation = UUID()
+        connectionGeneration = generation
         connection = conn
 
         conn.stateUpdateHandler = { [weak self] state in
             Task { @MainActor [weak self] in
-                guard let self else { return }
-                self.handleConnectionState(state, macName: macName)
+                guard let self, self.connectionGeneration == generation else { return }
+                self.handleConnectionState(state, connection: conn, macName: macName, generation: generation)
             }
         }
 
         conn.start(queue: queue)
     }
 
-    private func handleConnectionState(_ state: NWConnection.State, macName: String) {
+    private func handleConnectionState(
+        _ state: NWConnection.State,
+        connection: NWConnection,
+        macName: String,
+        generation: UUID
+    ) {
         switch state {
         case .ready:
+            reconnectAttempt = 0
             connectionState = .connected
             connectedMacName = macName
             lastConnectedEndpoint = pendingEndpoint
             lastConnectedMacName = pendingMacName
-            receiveBuffer = Data()
+            frameDecoder = CompanionFrameDecoder()
             // Delay slightly to let UI settle before starting I/O
             Task { @MainActor [weak self] in
-                guard let self else { return }
+                guard let self, self.connectionGeneration == generation else { return }
                 try? await Task.sleep(for: .milliseconds(100))
+                guard self.connectionGeneration == generation else { return }
                 self.startHeartbeat()
-                self.scheduleReceive()
+                self.scheduleReceive(connection: connection, generation: generation)
                 await self.sendLocalNetworkProfile()
             }
 
         case .failed(let error):
+            self.connection = nil
             connectionState = .error(error.localizedDescription)
             connectedMacName = nil
             heartbeatTask?.cancel()
             heartbeatTask = nil
-            scheduleReconnect()
+            scheduleReconnect(generation: generation)
 
         case .cancelled:
             if shouldAutoReconnect {
+                self.connection = nil
                 connectionState = .disconnected
-                scheduleReconnect()
+                scheduleReconnect(generation: generation)
             }
 
         case .waiting(let error):
@@ -268,68 +282,54 @@ final class MacConnectionService: MacConnectionServiceProtocol {
 
     // MARK: - Receive
 
-    private func scheduleReceive() {
-        guard let conn = connection else { return }
-
-        conn.receive(minimumIncompleteLength: 1, maximumLength: 65536) { [weak self] content, _, isComplete, error in
-            Task { @MainActor [weak self] in
-                guard let self else { return }
-
-                if let data = content, !data.isEmpty {
-                    self.receiveBuffer.append(data)
-                    self.processReceiveBuffer()
+    private func scheduleReceive(connection: NWConnection, generation: UUID) {
+        let decoder = frameDecoder
+        connection.receive(minimumIncompleteLength: 1, maximumLength: 65536) { [weak self] content, _, isComplete, error in
+            Task { [weak self] in
+                let batch: CompanionFrameBatch
+                if let content, !content.isEmpty {
+                    batch = await decoder.append(content)
+                } else {
+                    batch = CompanionFrameBatch(messages: [], errors: [])
                 }
 
-                if isComplete || error != nil {
-                    // Connection ended
-                    return
-                }
+                await MainActor.run {
+                    guard let self, self.connectionGeneration == generation else { return }
+                    for message in batch.messages {
+                        self.handleMessage(message)
+                    }
+                    if !batch.errors.isEmpty {
+                        Self.logger.error("Rejected \(batch.errors.count) companion frame(s)")
+                    }
 
-                self.scheduleReceive()
+                    if isComplete || error != nil {
+                        self.handleReceiveTermination(error: error, generation: generation)
+                    } else {
+                        self.scheduleReceive(connection: connection, generation: generation)
+                    }
+                }
             }
         }
     }
 
-    private func processReceiveBuffer() {
-        // Process all complete frames in the buffer
-        while receiveBuffer.count >= 4 {
-            // Read 4 bytes explicitly to avoid UnsafeRawBufferPointer slice issues
-            let b0 = receiveBuffer[receiveBuffer.startIndex]
-            let b1 = receiveBuffer[receiveBuffer.startIndex + 1]
-            let b2 = receiveBuffer[receiveBuffer.startIndex + 2]
-            let b3 = receiveBuffer[receiveBuffer.startIndex + 3]
-            let length = UInt32(b0) << 24 | UInt32(b1) << 16 | UInt32(b2) << 8 | UInt32(b3)
-
-            // Sanity check — reject absurdly large frames (max 10 MB)
-            guard length > 0, length <= 10_000_000 else {
-                Self.logger.error("Invalid frame length \(length), clearing buffer")
-                receiveBuffer.removeAll()
-                break
-            }
-
-            let totalFrameSize = 4 + Int(length)
-            guard receiveBuffer.count >= totalFrameSize else {
-                // Need more data
-                break
-            }
-
-            let startIndex = receiveBuffer.startIndex
-            let payloadStartIndex = startIndex + 4
-            let payloadEndIndex = startIndex + totalFrameSize
-            let jsonData = receiveBuffer.subdata(in: payloadStartIndex..<payloadEndIndex)
-            receiveBuffer.removeSubrange(startIndex..<payloadEndIndex)
-
-            do {
-                let message = try CompanionMessage.decode(from: jsonData)
-                handleMessage(message)
-            } catch {
-                Self.logger.error("Decode error: \(error)")
-            }
+    private func handleReceiveTermination(error: NWError?, generation: UUID) {
+        guard connectionGeneration == generation else { return }
+        heartbeatTask?.cancel()
+        heartbeatTask = nil
+        connection = nil
+        connectedMacName = nil
+        if let error {
+            connectionState = .error(error.localizedDescription)
+        } else {
+            connectionState = .disconnected
+        }
+        if shouldAutoReconnect {
+            scheduleReconnect(generation: generation)
         }
     }
 
     private func handleMessage(_ message: CompanionMessage) {
-        Self.logger.info("handleMessage: received \(String(describing: message))")
+        Self.logger.debug("Received companion message: \(message.logName, privacy: .public)")
         switch message {
         case .statusUpdate(let payload):
             lastStatusUpdate = payload
@@ -338,7 +338,7 @@ final class MacConnectionService: MacConnectionServiceProtocol {
         case .deviceList(let payload):
             lastDeviceList = payload
         case .networkProfile(let payload):
-            Self.logger.info("Received network profile from Mac: \(payload.name)")
+            Self.logger.info("Received network profile from Mac")
             let companionName = payload.sourceDeviceName.map { "\($0) Network" } ?? payload.name
             if networkProfileManager.upsertCompanionProfile(
                 gateway: payload.gatewayIP,
@@ -352,7 +352,7 @@ final class MacConnectionService: MacConnectionServiceProtocol {
         case .toolResult(let payload):
             Self.logger.info("Tool result: \(payload.tool) - \(payload.success)")
         case .error(let payload):
-            Self.logger.error("Error from Mac: \(payload.message)")
+            Self.logger.error("Error from Mac: code=\(payload.code, privacy: .public)")
         case .heartbeat:
             Self.logger.debug("Heartbeat received")
         case .command:
@@ -363,9 +363,11 @@ final class MacConnectionService: MacConnectionServiceProtocol {
 
     // MARK: - Testing Support
 
-    func processIncomingDataForTesting(_ data: Data) {
-        receiveBuffer.append(data)
-        processReceiveBuffer()
+    func processIncomingDataForTesting(_ data: Data) async {
+        let batch = await frameDecoder.append(data)
+        for message in batch.messages {
+            handleMessage(message)
+        }
     }
 
     private func sendLocalNetworkProfile() async {
@@ -408,23 +410,51 @@ final class MacConnectionService: MacConnectionServiceProtocol {
 
     // MARK: - Reconnect
 
-    private func scheduleReconnect() {
-        guard shouldAutoReconnect, let endpoint = lastConnectedEndpoint else { return }
+    static func reconnectDelay(attempt: Int, jitterFraction: Double) -> TimeInterval {
+        let exponent = Double(max(attempt - 1, 0))
+        let base = min(60, pow(2, exponent))
+        let jitter = base * 0.25 * min(max(jitterFraction, 0), 1)
+        return min(60, base + jitter)
+    }
 
-        reconnectTask?.cancel()
+    private func scheduleReconnect(generation: UUID) {
+        guard shouldAutoReconnect,
+              connectionGeneration == generation,
+              reconnectTask == nil,
+              let endpoint = lastConnectedEndpoint ?? pendingEndpoint else { return }
+
+        reconnectAttempt += 1
+        let delay = Self.reconnectDelay(attempt: reconnectAttempt, jitterFraction: Double.random(in: 0...1))
         reconnectTask = Task { [weak self] in
-            try? await Task.sleep(for: .seconds(Self.reconnectDelay))
+            try? await Task.sleep(for: .seconds(delay))
             guard !Task.isCancelled else { return }
             guard let self else { return }
 
             await MainActor.run {
-                guard self.shouldAutoReconnect else { return }
+                self.reconnectTask = nil
+                guard self.shouldAutoReconnect,
+                      self.connectionGeneration == generation else { return }
                 self.connectionState = .connecting
 
                 let parameters = NWParameters.tcp
                 let conn = NWConnection(to: endpoint, using: parameters)
                 self.setupConnection(conn, macName: self.lastConnectedMacName ?? "Mac")
             }
+        }
+    }
+}
+
+private extension CompanionMessage {
+    var logName: String {
+        switch self {
+        case .statusUpdate: "statusUpdate"
+        case .targetList: "targetList"
+        case .deviceList: "deviceList"
+        case .networkProfile: "networkProfile"
+        case .command: "command"
+        case .toolResult: "toolResult"
+        case .error: "error"
+        case .heartbeat: "heartbeat"
         }
     }
 }
