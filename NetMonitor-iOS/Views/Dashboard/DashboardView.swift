@@ -262,16 +262,26 @@ struct TacticalHUDHeader: View {
     }
 
     func signalColor(_ strength: Int) -> Color {
-        if strength > 70 { return Theme.Colors.success }
-        if strength > 40 { return Theme.Colors.warning }
+        if strength > 70 {
+            return Theme.Colors.success
+        }
+        if strength > 40 {
+            return Theme.Colors.warning
+        }
         return Theme.Colors.error
     }
 
     var wifiIconName: String {
         guard let dbm = viewModel.currentWiFi?.signalDBm else { return "wifi" }
-        if dbm > -50 { return "wifi" }
-        if dbm > -60 { return "wifi" }
-        if dbm > -70 { return "wifi" }
+        if dbm > -50 {
+            return "wifi"
+        }
+        if dbm > -60 {
+            return "wifi"
+        }
+        if dbm > -70 {
+            return "wifi"
+        }
         return "wifi"
     }
 }
@@ -282,20 +292,34 @@ struct RefinedNetworkHealthCard: View {
     let viewModel: DashboardViewModel
 
     var healthScore: Int {
-        if !viewModel.isConnected { return 0 }
+        if !viewModel.isConnected {
+            return 0
+        }
 
         var score = 100
 
         // Factor 1: Gateway latency (0-50 points)
         if let latency = viewModel.gateway?.latency {
-            if latency > 100 { score -= 50 } else if latency > 50 { score -= 30 } else if latency > 20 { score -= 10 }
+            if latency > 100 {
+                score -= 50
+            } else if latency > 50 {
+                score -= 30
+            } else if latency > 20 {
+                score -= 10
+            }
         } else {
             score -= 30 // No gateway response
         }
 
         // Factor 2: WiFi signal (0-30 points)
         if let signal = viewModel.currentWiFi?.signalStrength {
-            if signal < 30 { score -= 30 } else if signal < 50 { score -= 20 } else if signal < 70 { score -= 10 }
+            if signal < 30 {
+                score -= 30
+            } else if signal < 50 {
+                score -= 20
+            } else if signal < 70 {
+                score -= 10
+            }
         }
 
         // Factor 3: Jitter (0-20 points) — variance in recent latency
@@ -304,7 +328,11 @@ struct RefinedNetworkHealthCard: View {
             let avg = history.reduce(0, +) / Double(history.count)
             let variance = history.map { ($0 - avg) * ($0 - avg) }.reduce(0, +) / Double(history.count)
             let stddev = variance.squareRoot()
-            if stddev > 20 { score -= 20 } else if stddev > 10 { score -= 10 }
+            if stddev > 20 {
+                score -= 20
+            } else if stddev > 10 {
+                score -= 10
+            }
         }
 
         return max(0, min(100, score))
@@ -380,12 +408,16 @@ struct RefinedNetworkHealthCard: View {
     }
 
     private var healthStatusTitle: String {
-        if !viewModel.isConnected { return "Network Offline" }
+        if !viewModel.isConnected {
+            return "Network Offline"
+        }
         return healthScore > 80 ? "Optimal Performance" : "Degraded Signal"
     }
 
     private var healthDetailText: String {
-        if !viewModel.isConnected { return "Check your local connection" }
+        if !viewModel.isConnected {
+            return "Check your local connection"
+        }
         var parts: [String] = []
         parts.append("\(viewModel.deviceCount) devices active")
         if let latency = viewModel.gateway?.latency {
@@ -562,8 +594,12 @@ struct AnchorMetricColumn: View {
 
     private var dotColor: Color {
         guard let ms = latency else { return Theme.Colors.textTertiary }
-        if ms < 50 { return Theme.Colors.success }
-        if ms < 120 { return Theme.Colors.warning }
+        if ms < 50 {
+            return Theme.Colors.success
+        }
+        if ms < 120 {
+            return Theme.Colors.warning
+        }
         return .red
     }
 
@@ -675,18 +711,37 @@ struct LocalDevicesCard: View {
                     }
 
                     if viewModel.discoveredDevices.isEmpty {
-                        Text("SEARCHING FOR HARDWARE...")
-                            .font(.system(size: 10, weight: .black, design: .monospaced))
-                            .foregroundStyle(Theme.Colors.textTertiary)
-                            .frame(maxWidth: .infinity, alignment: .center)
-                            .padding(.vertical, 10)
+                        HStack(spacing: 8) {
+                            if viewModel.isScanning {
+                                ProgressView(value: viewModel.scanProgress)
+                                    .progressViewStyle(.circular)
+                                    .controlSize(.small)
+                                Text("SCANNING • \(viewModel.scanPhase.rawValue.uppercased())")
+                            } else if !viewModel.isConnected {
+                                Image(systemName: "wifi.slash")
+                                Text("CONNECT TO WI-FI TO SCAN")
+                            } else if viewModel.lastScanDate != nil {
+                                Image(systemName: "arrow.clockwise")
+                                Text("NO DEVICES FOUND • SCAN AGAIN")
+                            } else {
+                                Image(systemName: "dot.radiowaves.left.and.right")
+                                Text("NO SCAN YET • RUN A DEVICE SCAN")
+                            }
+                        }
+                        .font(.system(size: 10, weight: .black, design: .monospaced))
+                        .foregroundStyle(Theme.Colors.textTertiary)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .padding(.vertical, 10)
+                        .accessibilityIdentifier("dashboard_devices_emptyState")
                     }
                 }
             }
+            .accessibilityIdentifier("dashboard_card_localDevices")
         }
         .buttonStyle(PlainButtonStyle())
         .frame(maxHeight: sizeClass == .regular ? .infinity : nil)
-        .accessibilityIdentifier("dashboard_card_localDevices")
+        .accessibilityIdentifier("dashboard_link_devices")
+        .accessibilityValue("\(viewModel.deviceCount) devices")
     }
 }
 
@@ -737,7 +792,15 @@ struct DeviceRow: View {
 // MARK: - Speed Test Quick Card
 
 struct SpeedTestQuickCard: View {
-    @Query(sort: \SpeedTestResult.timestamp, order: .reverse) private var history: [SpeedTestResult]
+    private static var latestResultDescriptor: FetchDescriptor<SpeedTestResult> {
+        var descriptor = FetchDescriptor<SpeedTestResult>(
+            sortBy: [SortDescriptor(\SpeedTestResult.timestamp, order: .reverse)]
+        )
+        descriptor.fetchLimit = 1
+        return descriptor
+    }
+
+    @Query(Self.latestResultDescriptor) private var history: [SpeedTestResult]
 
     private var lastResult: SpeedTestResult? { history.first }
 
@@ -786,9 +849,10 @@ struct SpeedTestQuickCard: View {
                     .clipShape(Capsule())
                 }
             }
+            .accessibilityIdentifier("dashboard_card_speedTest")
         }
         .buttonStyle(PlainButtonStyle())
-        .accessibilityIdentifier("dashboard_card_speedTest")
+        .accessibilityIdentifier("dashboard_link_speedTest")
     }
 }
 
@@ -849,9 +913,10 @@ struct WiFiHeatmapQuickCard: View {
                     .clipShape(Capsule())
                 }
             }
+            .accessibilityIdentifier("dashboard_card_wifiHeatmap")
         }
         .buttonStyle(PlainButtonStyle())
-        .accessibilityIdentifier("dashboard_card_wifiHeatmap")
+        .accessibilityIdentifier("dashboard_link_heatmap")
     }
 }
 
@@ -923,12 +988,24 @@ struct EventRow: View {
 extension DiscoveredDevice {
     var iconName: String {
         let name = self.displayName.lowercased()
-        if name.contains("iphone") { return "iphone" }
-        if name.contains("macbook") || name.contains("mac") { return "laptopcomputer" }
-        if name.contains("ipad") { return "ipad" }
-        if name.contains("tv") { return "appletv" }
-        if name.contains("homepod") { return "homepod.fill" }
-        if name.contains("printer") || name.contains("jet") { return "printer" }
+        if name.contains("iphone") {
+            return "iphone"
+        }
+        if name.contains("macbook") || name.contains("mac") {
+            return "laptopcomputer"
+        }
+        if name.contains("ipad") {
+            return "ipad"
+        }
+        if name.contains("tv") {
+            return "appletv"
+        }
+        if name.contains("homepod") {
+            return "homepod.fill"
+        }
+        if name.contains("printer") || name.contains("jet") {
+            return "printer"
+        }
         return "desktopcomputer"
     }
 }

@@ -45,6 +45,7 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
 
     private var scanTask: Task<Void, Never>?
     private var cachedDevicesByProfileID: [String: [DiscoveredDevice]] = [:]
+    private var progressCoalescer = ScanProgressCoalescer()
 
     private static let deviceCacheStorageKey = "netmonitor.deviceCacheByProfileID"
 
@@ -100,8 +101,12 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
     ) async {
         let devices = await engine.accumulator.snapshot().map { withProfile($0, profileID: profileID) }
         self.discoveredDevices = devices
-        if let progress { self.scanProgress = progress }
-        if let phase { self.scanPhase = phase }
+        if let progress {
+            self.scanProgress = progress
+        }
+        if let phase {
+            self.scanPhase = phase
+        }
     }
 
     // MARK: - Public API
@@ -134,6 +139,7 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
         scanProgress = 0
         scanPhase = .arpScan
         discoveredDevices = staleDevices
+        progressCoalescer = ScanProgressCoalescer()
 
         defer {
             isScanning = false
@@ -157,6 +163,7 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
         // Start Bonjour discovery early — runs during ARP + TCP phases
         let bonjourService = BonjourDiscoveryService()
         bonjourService.startDiscovery()
+        defer { bonjourService.stopDiscovery() }
 
         // Build ScanContext — use the profile's interface for local IP detection
         let filter = scanTarget.filter
@@ -188,6 +195,16 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
         // Run the scan engine
         let engineRef = engine
         _ = await engineRef.scan(pipeline: pipeline, context: context) { [weak self] progress, phaseName in
+            let shouldPublish = await MainActor.run {
+                guard let self else { return false }
+                return self.progressCoalescer.shouldPublish(
+                    progress: progress,
+                    phase: phaseName,
+                    timestamp: ProcessInfo.processInfo.systemUptime
+                )
+            }
+            guard shouldPublish else { return }
+
             let snapshot = await engineRef.accumulator.snapshot()
             await MainActor.run {
                 guard let self else { return }
@@ -199,6 +216,8 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
             }
         }
 
+        guard !Task.isCancelled else { return }
+
         // Phase: Mac companion merge
         scanPhase = .companion
         scanProgress = 0.90
@@ -208,6 +227,7 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
             await macConnectionService?.send(command: CommandPayload(action: .refreshDevices))
             try? await Task.sleep(for: .seconds(1))
         }
+        guard !Task.isCancelled else { return }
         await mergeCompanionDevices(filter: scanTarget.filter, profileID: profileID)
         await flushToMainActor(progress: 0.95, profileID: profileID)
 

@@ -128,7 +128,7 @@ struct MacConnectionServiceTests {
     // MARK: - processIncomingDataForTesting
 
     @Test("processIncomingDataForTesting handles single statusUpdate frame")
-    func processIncomingSingleFrame() throws {
+    func processIncomingSingleFrame() async throws {
         let service = MacConnectionService.shared
         service.disconnect()
 
@@ -139,7 +139,7 @@ struct MacConnectionServiceTests {
             averageLatency: 25.0
         ))
         let data = try message.encodeLengthPrefixed()
-        service.processIncomingDataForTesting(data)
+        await service.processIncomingDataForTesting(data)
 
         #expect(service.lastStatusUpdate?.onlineTargets == 10)
         #expect(service.lastStatusUpdate?.offlineTargets == 3)
@@ -147,30 +147,30 @@ struct MacConnectionServiceTests {
     }
 
     @Test("processIncomingDataForTesting ignores incomplete frames")
-    func processIncomingIncompleteFrame() {
+    func processIncomingIncompleteFrame() async {
         let service = MacConnectionService.shared
         service.disconnect()
 
         // Send only 2 bytes (less than the 4-byte length prefix)
-        service.processIncomingDataForTesting(Data([0x00, 0x00]))
+        await service.processIncomingDataForTesting(Data([0x00, 0x00]))
         #expect(service.lastStatusUpdate == nil)
     }
 
     @Test("processIncomingDataForTesting rejects absurdly large frame length")
-    func processIncomingAbsurdFrameLength() {
+    func processIncomingAbsurdFrameLength() async {
         let service = MacConnectionService.shared
         service.disconnect()
 
         // Frame length of 0xFF_FF_FF_FF (>10MB limit)
         var data = Data([0xFF, 0xFF, 0xFF, 0xFF])
         data.append(Data(repeating: 0x00, count: 100))
-        service.processIncomingDataForTesting(data)
+        await service.processIncomingDataForTesting(data)
 
         #expect(service.lastStatusUpdate == nil)
     }
 
     @Test("processIncomingDataForTesting handles deviceList message")
-    func processIncomingDeviceList() throws {
+    func processIncomingDeviceList() async throws {
         let service = MacConnectionService.shared
         service.disconnect()
 
@@ -186,10 +186,23 @@ struct MacConnectionServiceTests {
         let message = CompanionMessage.deviceList(payload)
         let data = try message.encodeLengthPrefixed()
 
-        service.processIncomingDataForTesting(data)
+        await service.processIncomingDataForTesting(data)
 
         #expect(service.lastDeviceList?.devices.count == 1)
         #expect(service.lastDeviceList?.devices.first?.ipAddress == "192.168.1.100")
         #expect(service.lastDeviceList?.devices.first?.hostname == "test-host")
+    }
+
+    @Test("reconnect policy uses capped exponential backoff")
+    func reconnectBackoffPolicy() {
+        let first = MacConnectionService.reconnectDelay(attempt: 1, jitterFraction: 0)
+        let second = MacConnectionService.reconnectDelay(attempt: 2, jitterFraction: 0)
+        let jittered = MacConnectionService.reconnectDelay(attempt: 3, jitterFraction: 1)
+        let capped = MacConnectionService.reconnectDelay(attempt: 20, jitterFraction: 1)
+
+        #expect(first == 1)
+        #expect(second == 2)
+        #expect(jittered == 5)
+        #expect(capped == 60)
     }
 }

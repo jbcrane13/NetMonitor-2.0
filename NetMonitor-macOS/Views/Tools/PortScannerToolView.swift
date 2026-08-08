@@ -321,6 +321,7 @@ struct PortScannerToolView: View {
     }
 
     private func checkPort(host: String, port: UInt16) async -> PortResult? {
+        guard !Task.isCancelled else { return nil }
         let startTime = Date()
 
         guard let nwPort = NWEndpoint.Port(rawValue: port) else {
@@ -334,25 +335,49 @@ struct PortScannerToolView: View {
 
         let connection = NWConnection(to: endpoint, using: .tcp)
 
-        return await withCheckedContinuation { continuation in
-            let tracker = ContinuationTracker()
+        return await withTaskCancellationHandler {
+            await withCheckedContinuation { continuation in
+                let tracker = ContinuationTracker()
 
-            connection.stateUpdateHandler = { state in
-                switch state {
-                case .ready:
-                    connection.cancel()
-                    if tracker.tryResume() {
-                        let latency = Date().timeIntervalSince(startTime)
-                        continuation.resume(returning: PortResult(
-                            port: port,
-                            isOpen: true,
-                            latency: latency,
-                            serviceName: Self.serviceName(for: port)
-                        ))
+                connection.stateUpdateHandler = { state in
+                    switch state {
+                    case .ready:
+                        connection.cancel()
+                        if tracker.tryResume() {
+                            let latency = Date().timeIntervalSince(startTime)
+                            continuation.resume(returning: PortResult(
+                                port: port,
+                                isOpen: true,
+                                latency: latency,
+                                serviceName: Self.serviceName(for: port)
+                            ))
+                        }
+
+                    case .failed, .cancelled:
+                        if tracker.tryResume() {
+                            continuation.resume(returning: PortResult(
+                                port: port,
+                                isOpen: false,
+                                latency: 0,
+                                serviceName: Self.serviceName(for: port)
+                            ))
+                        }
+
+                    default:
+                        break
                     }
+                }
 
-                case .failed, .cancelled:
+                connection.start(queue: DispatchQueue(label: "com.netmonitor.port-scanner"))
+
+                Task {
+                    do {
+                        try await Task.sleep(for: .seconds(2))
+                    } catch {
+                        return
+                    }
                     if tracker.tryResume() {
+                        connection.cancel()
                         continuation.resume(returning: PortResult(
                             port: port,
                             isOpen: false,
@@ -360,26 +385,10 @@ struct PortScannerToolView: View {
                             serviceName: Self.serviceName(for: port)
                         ))
                     }
-
-                default:
-                    break
                 }
             }
-
-            connection.start(queue: .global())
-
-            // Timeout after 2 seconds
-            DispatchQueue.global().asyncAfter(deadline: .now() + 2) {
-                if tracker.tryResume() {
-                    connection.cancel()
-                    continuation.resume(returning: PortResult(
-                        port: port,
-                        isOpen: false,
-                        latency: 0,
-                        serviceName: Self.serviceName(for: port)
-                    ))
-                }
-            }
+        } onCancel: {
+            connection.cancel()
         }
     }
 

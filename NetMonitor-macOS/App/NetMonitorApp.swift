@@ -44,11 +44,13 @@ struct NetMonitorApp: App {
            env["CI"] == "true" {
             return true
         }
-        if NSClassFromString("XCTest") != nil { return true }
+        if NSClassFromString("XCTest") != nil {
+            return true
+        }
         return false
     }
 
-    private static let sharedModelContainer: ModelContainer = {
+    private static let persistenceOutcome: PersistenceBootstrapOutcome<ModelContainer> = {
         let schema = Schema(versionedSchema: SchemaV1.self)
         let isTestEnv = NSClassFromString("XCTest") != nil
         let modelConfiguration = ModelConfiguration(
@@ -58,31 +60,36 @@ struct NetMonitorApp: App {
         )
 
         do {
-            // launch-time "Duplicate version checksums detected" exception.
-            return try ModelContainer(
-                for: schema,
-                migrationPlan: NetMonitorMigrationPlan.self,
-                configurations: [modelConfiguration]
+            return try PersistenceBootstrap.load(
+                persistentStore: {
+                    try ModelContainer(
+                        for: schema,
+                        migrationPlan: NetMonitorMigrationPlan.self,
+                        configurations: [modelConfiguration]
+                    )
+                },
+                fallbackStore: {
+                    let fallback = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+                    return try ModelContainer(
+                        for: schema,
+                        migrationPlan: NetMonitorMigrationPlan.self,
+                        configurations: [fallback]
+                    )
+                }
             )
         } catch {
-            Logger.app.warning("Could not create persistent ModelContainer: \(error)")
-            do {
-                let inMemoryConfig = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
-                return try ModelContainer(
-                    for: schema,
-                    migrationPlan: NetMonitorMigrationPlan.self,
-                    configurations: [inMemoryConfig]
-                )
-            } catch {
-                fatalError("Could not create in-memory ModelContainer: \(error)")
-            }
+            fatalError("Could not create recovery ModelContainer: \(error)")
         }
     }()
+
+    private static var sharedModelContainer: ModelContainer { persistenceOutcome.store }
 
     var body: some Scene {
         WindowGroup(id: "main") {
             Group {
-                if let monitoringSession, let deviceDiscovery {
+                if let recovery = Self.persistenceOutcome.recovery {
+                    PersistenceRecoveryView(recovery: recovery)
+                } else if let monitoringSession, let deviceDiscovery {
                     ContentView()
                         .environment(monitoringSession)
                         .environment(deviceDiscovery)
@@ -97,7 +104,8 @@ struct NetMonitorApp: App {
                 // doesn't need real services, and seeding NetworkTargets
                 // into the shared container causes SwiftData crashes
                 // when test containers reset.
-                guard NSClassFromString("XCTest") == nil else { return }
+                guard NSClassFromString("XCTest") == nil,
+                      !Self.persistenceOutcome.isDegraded else { return }
                 await setupServices()
             }
             // Apply appearance based on user preference (.system = follow macOS,

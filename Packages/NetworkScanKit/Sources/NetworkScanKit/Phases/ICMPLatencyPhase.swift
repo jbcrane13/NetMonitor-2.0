@@ -32,6 +32,7 @@ public struct ICMPLatencyPhase: ScanPhase, Sendable {
         accumulator: ScanAccumulator,
         onProgress: @Sendable (Double) async -> Void
     ) async {
+        guard !Task.isCancelled else { return }
         await onProgress(0.0)
 
         let ipsNeedingLatency = await accumulator.allDeviceIPs()
@@ -72,8 +73,11 @@ public struct ICMPLatencyPhase: ScanPhase, Sendable {
             }
         }
 
+        guard !Task.isCancelled else { return }
+
         // Batch-update accumulator — ICMP replaces any TCP-based latency
         for (ip, rtt) in results {
+            guard !Task.isCancelled else { return }
             await accumulator.replaceLatency(ip: ip, latency: rtt)
         }
 
@@ -133,7 +137,9 @@ public struct ICMPLatencyPhase: ScanPhase, Sendable {
             let pollResult = poll(&pollFd, 1, min(remainingMs, 200))
 
             guard pollResult > 0 else {
-                if remainingMs <= 1 { break }
+                if remainingMs <= 1 {
+                    break
+                }
                 continue
             }
 

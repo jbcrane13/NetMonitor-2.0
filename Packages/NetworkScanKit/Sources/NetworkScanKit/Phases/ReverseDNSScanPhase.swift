@@ -19,6 +19,7 @@ public struct ReverseDNSScanPhase: ScanPhase, Sendable {
         accumulator: ScanAccumulator,
         onProgress: @Sendable (Double) async -> Void
     ) async {
+        guard !Task.isCancelled else { return }
         await onProgress(0.0)
 
         let devices = await accumulator.snapshot()
@@ -37,6 +38,7 @@ public struct ReverseDNSScanPhase: ScanPhase, Sendable {
             var iterator = devicesNeedingNames.makeIterator()
 
             while pending < maxConcurrentResolves, let device = iterator.next() {
+                guard !Task.isCancelled else { break }
                 pending += 1
                 group.addTask {
                     let name = await nameResolver.resolve(ipAddress: device.ipAddress)
@@ -45,6 +47,10 @@ public struct ReverseDNSScanPhase: ScanPhase, Sendable {
             }
 
             for await (ip, hostname) in group {
+                guard !Task.isCancelled else {
+                    group.cancelAll()
+                    break
+                }
                 pending -= 1
                 resolved += 1
 

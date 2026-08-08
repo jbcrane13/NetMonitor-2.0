@@ -148,26 +148,24 @@ final class DeviceDiscoveryCoordinator {
     }
 
     func mergeDiscoveredDevices(_ devices: [LocalDiscoveredDevice], profileID: UUID?) {
-        for discovered in devices {
-            let predicate: Predicate<LocalDevice>
-            if !discovered.macAddress.isEmpty {
-                let mac = discovered.macAddress
-                if let profileID {
-                    predicate = #Predicate<LocalDevice> { $0.networkProfileID == profileID && $0.macAddress == mac }
-                } else {
-                    predicate = #Predicate<LocalDevice> { $0.networkProfileID == nil && $0.macAddress == mac }
-                }
-            } else {
-                let ip = discovered.ipAddress
-                if let profileID {
-                    predicate = #Predicate<LocalDevice> { $0.networkProfileID == profileID && $0.ipAddress == ip }
-                } else {
-                    predicate = #Predicate<LocalDevice> { $0.networkProfileID == nil && $0.ipAddress == ip }
-                }
+        let existingDevices = fetchDevices(for: profileID)
+        var devicesByMAC: [String: LocalDevice] = [:]
+        var devicesByIP: [String: LocalDevice] = [:]
+        for device in existingDevices {
+            let mac = device.macAddress.uppercased()
+            if !mac.isEmpty, devicesByMAC[mac] == nil {
+                devicesByMAC[mac] = device
             }
+            if devicesByIP[device.ipAddress] == nil {
+                devicesByIP[device.ipAddress] = device
+            }
+        }
 
-            let descriptor = FetchDescriptor<LocalDevice>(predicate: predicate)
-            let existing = try? modelContext.fetch(descriptor).first
+        for discovered in devices {
+            let normalizedMAC = discovered.macAddress.uppercased()
+            let existing = normalizedMAC.isEmpty
+                ? devicesByIP[discovered.ipAddress]
+                : devicesByMAC[normalizedMAC]
 
             if let existing {
                 existing.ipAddress = discovered.ipAddress
@@ -186,6 +184,10 @@ final class DeviceDiscoveryCoordinator {
                     networkProfileID: profileID
                 )
                 modelContext.insert(newDevice)
+                devicesByIP[newDevice.ipAddress] = newDevice
+                if !normalizedMAC.isEmpty {
+                    devicesByMAC[normalizedMAC] = newDevice
+                }
             }
         }
 

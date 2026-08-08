@@ -1,5 +1,6 @@
-import Testing
+import BackgroundTasks
 import Foundation
+import Testing
 @testable import NetMonitor_iOS
 
 // MARK: - BackgroundTaskService Extended Tests
@@ -21,8 +22,12 @@ struct BackgroundTaskServiceExtendedTests {
         let key = AppSettings.Keys.backgroundRefreshEnabled
         let original = defaults.object(forKey: key)
         defer {
-            if let original { defaults.set(original, forKey: key) }
-            else { defaults.removeObject(forKey: key) }
+            if let original {
+                defaults.set(original, forKey: key)
+            }
+            else {
+                defaults.removeObject(forKey: key)
+            }
         }
         defaults.set(false, forKey: key)
         let service = BackgroundTaskService.shared
@@ -36,8 +41,12 @@ struct BackgroundTaskServiceExtendedTests {
         let key = AppSettings.Keys.backgroundRefreshEnabled
         let original = defaults.object(forKey: key)
         defer {
-            if let original { defaults.set(original, forKey: key) }
-            else { defaults.removeObject(forKey: key) }
+            if let original {
+                defaults.set(original, forKey: key)
+            }
+            else {
+                defaults.removeObject(forKey: key)
+            }
         }
         defaults.set(true, forKey: key)
         let service = BackgroundTaskService.shared
@@ -51,8 +60,12 @@ struct BackgroundTaskServiceExtendedTests {
         let key = AppSettings.Keys.backgroundRefreshEnabled
         let original = defaults.object(forKey: key)
         defer {
-            if let original { defaults.set(original, forKey: key) }
-            else { defaults.removeObject(forKey: key) }
+            if let original {
+                defaults.set(original, forKey: key)
+            }
+            else {
+                defaults.removeObject(forKey: key)
+            }
         }
         defaults.removeObject(forKey: key)
         let service = BackgroundTaskService.shared
@@ -88,10 +101,21 @@ struct BackgroundTaskServiceExtendedTests {
         }
     }
 
-    @Test("registerTasks does not crash in test sandbox")
-    func registerTasksDoesNotCrash() {
-        // BGTaskScheduler.shared.register() in test sandbox may warn but must not crash
-        let service = BackgroundTaskService.shared
+    @Test("registerTasks registers every identifier exactly once")
+    func registerTasksIsIdempotent() {
+        var registeredIdentifiers: [String] = []
+        let service = BackgroundTaskService { identifier, _, _ in
+            registeredIdentifiers.append(identifier)
+            return true
+        }
+
         service.registerTasks()
+        service.registerTasks()
+
+        #expect(registeredIdentifiers == [
+            BackgroundTaskService.refreshTaskIdentifier,
+            BackgroundTaskService.syncTaskIdentifier,
+            BackgroundTaskService.scheduledNetworkScanTaskIdentifier
+        ])
     }
 }

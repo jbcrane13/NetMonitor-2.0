@@ -58,15 +58,37 @@ struct ConnectionBudgetTests {
             await budget.acquire()
         }
 
-        // Give the pending task time to enqueue as a waiter
-        try await Task.sleep(nanoseconds: 20_000_000)  // 20ms
+        while await budget.waitingCount == 0 {
+            await Task.yield()
+        }
 
         await budget.reset()
-        // After reset, the waiter should be resumed and the task completes
-        await pending.value
+        let acquired = await pending.value
 
-        // After reset sets active=0, waiter does active+=1 → 1
+        #expect(!acquired)
+        #expect(await budget.activeCount == 0)
+    }
+
+    @Test("cancelling a waiter does not consume a connection slot")
+    func cancellationRemovesWaiter() async {
+        let budget = ConnectionBudget(limit: 1)
+        #expect(await budget.acquire())
+
+        let pending = Task {
+            await budget.acquire()
+        }
+        while await budget.waitingCount == 0 {
+            await Task.yield()
+        }
+
+        pending.cancel()
+
+        #expect(await pending.value == false)
+        #expect(await budget.waitingCount == 0)
         #expect(await budget.activeCount == 1)
+
+        await budget.release()
+        #expect(await budget.activeCount == 0)
     }
 
     @Test("acquire and release at limit boundary")
@@ -81,7 +103,7 @@ struct ConnectionBudgetTests {
         let task = Task {
             await budget.acquire()
         }
-        await task.value
+        #expect(await task.value)
         #expect(await budget.activeCount == 3)
     }
 

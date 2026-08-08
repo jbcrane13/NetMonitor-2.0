@@ -4,9 +4,6 @@ import NetMonitorCore
 
 struct SettingsView: View {
     @Environment(\.modelContext) private var modelContext
-    @Query private var toolResults: [ToolResult]
-    @Query private var speedTestResults: [SpeedTestResult]
-    @Query private var devices: [LocalDevice]
     @State private var viewModel = SettingsViewModel()
     // Observe ThemeManager so accent color changes re-render this view
     private var themeManager = ThemeManager.shared
@@ -381,10 +378,13 @@ struct SettingsView: View {
     }
 
     private func exportFullReportAsPDF() {
+        let devices = (try? modelContext.fetch(FetchDescriptor<LocalDevice>())) ?? []
+        let toolResults = (try? modelContext.fetch(FetchDescriptor<ToolResult>())) ?? []
+        let speedTestResults = (try? modelContext.fetch(FetchDescriptor<SpeedTestResult>())) ?? []
         guard let data = DataExportService.exportFullReportAsPDF(
-            devices: Array(devices),
-            toolResults: Array(toolResults),
-            speedTests: Array(speedTestResults)
+            devices: devices,
+            toolResults: toolResults,
+            speedTests: speedTestResults
         ),
         let url = DataExportService.writeToTempFile(data: data, name: "netmonitor-report", ext: "pdf") else { return }
         exportFileURL = url
@@ -397,12 +397,15 @@ struct SettingsView: View {
 
         switch option {
         case .toolResults:
+            let toolResults = (try? modelContext.fetch(FetchDescriptor<ToolResult>())) ?? []
             data = DataExportService.exportToolResults(toolResults, format: format)
             name = "netmonitor-tool-results"
         case .speedTests:
+            let speedTestResults = (try? modelContext.fetch(FetchDescriptor<SpeedTestResult>())) ?? []
             data = DataExportService.exportSpeedTests(speedTestResults, format: format)
             name = "netmonitor-speed-tests"
         case .devices:
+            let devices = (try? modelContext.fetch(FetchDescriptor<LocalDevice>())) ?? []
             data = DataExportService.exportDevices(devices, format: format)
             name = "netmonitor-devices"
         }

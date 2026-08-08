@@ -13,7 +13,7 @@ struct DevicesView: View {
     @Environment(DeviceDiscoveryCoordinator.self) private var coordinator: DeviceDiscoveryCoordinator?
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
-    @Query(LocalDeviceQueries.all()) private var devices: [LocalDevice]
+    @State private var devices: [LocalDevice] = []
 
     @State private var selectedDevice: LocalDevice?
     @State private var searchText: String = ""
@@ -168,23 +168,45 @@ struct DevicesView: View {
         .sheet(item: $deviceToPing) { device in
             DevicePingSheet(device: device, isPresented: Binding(
                 get: { deviceToPing != nil },
-                set: { if !$0 { deviceToPing = nil } }
+                set: {
+                    if !$0 {
+                        deviceToPing = nil
+                    }
+                }
             ))
         }
         .sheet(item: $deviceToScan) { device in
             DevicePortScanSheet(device: device, isPresented: Binding(
                 get: { deviceToScan != nil },
-                set: { if !$0 { deviceToScan = nil } }
+                set: {
+                    if !$0 {
+                        deviceToScan = nil
+                    }
+                }
             ))
         }
         .onReceive(NotificationCenter.default.publisher(for: .networkProfilesDidChange)) { _ in
             availableNetworks = coordinator?.networkProfileManager.profiles
                 ?? NetworkProfileManager.detectActiveProfiles()
+            reloadDevices()
         }
         .onAppear {
             availableNetworks = coordinator?.networkProfileManager.profiles
                 ?? NetworkProfileManager.detectActiveProfiles()
+            reloadDevices()
         }
+        .onChange(of: selectedNetworkID) {
+            reloadDevices()
+        }
+        .onChange(of: coordinator?.isScanning) { _, isScanning in
+            if isScanning == false {
+                reloadDevices()
+            }
+        }
+    }
+
+    private func reloadDevices() {
+        devices = (try? modelContext.fetch(LocalDeviceQueries.forProfile(activeProfileID))) ?? []
     }
 
     // MARK: - Device List
@@ -402,6 +424,7 @@ struct DevicesView: View {
                 TextField("Search...", text: $searchText)
                     .textFieldStyle(.plain)
                     .font(.system(size: 12))
+                    .accessibilityIdentifier("devices_textfield_search")
                 if !searchText.isEmpty {
                     Button {
                         searchText = ""

@@ -11,6 +11,49 @@ enum NWConnectionResolution<T: Sendable> {
     case completeKeepAlive(T)
 }
 
+private actor NWConnectionOperationState<Value: Sendable> {
+    private struct StoredValue: Sendable {
+        let value: Value
+    }
+
+    private var continuation: CheckedContinuation<Value, Never>?
+    private var pendingValue: StoredValue?
+    private var isResolved = false
+    private var timeoutTask: Task<Void, Never>?
+
+    func install(_ continuation: CheckedContinuation<Value, Never>) {
+        if isResolved, let pendingValue {
+            continuation.resume(returning: pendingValue.value)
+            self.pendingValue = nil
+        } else {
+            self.continuation = continuation
+        }
+    }
+
+    func setTimeoutTask(_ task: Task<Void, Never>) {
+        if isResolved {
+            task.cancel()
+        } else {
+            timeoutTask = task
+        }
+    }
+
+    @discardableResult
+    func resolve(_ value: Value) -> Bool {
+        guard !isResolved else { return false }
+        isResolved = true
+        timeoutTask?.cancel()
+        timeoutTask = nil
+        if let continuation {
+            continuation.resume(returning: value)
+            self.continuation = nil
+        } else {
+            pendingValue = StoredValue(value: value)
+        }
+        return true
+    }
+}
+
 /// Awaits the first relevant state transition on `connection` and returns the value
 /// produced by `classify`, or `timeoutValue` after `timeout` elapses.
 ///
@@ -30,31 +73,44 @@ func withNWConnection<T: Sendable>(
     timeoutValue: T,
     classify: @escaping @Sendable (NWConnection.State) -> NWConnectionResolution<T>?
 ) async -> T {
-    await withCheckedContinuation { (continuation: CheckedContinuation<T, Never>) in
-        let resumed = ResumeState()
+    let operationState = NWConnectionOperationState<T>()
 
-        let timeoutTask = Task {
-            try? await Task.sleep(for: timeout)
-            guard await resumed.tryResume() else { return }
-            connection.cancel()
-            continuation.resume(returning: timeoutValue)
-        }
-
-        connection.stateUpdateHandler = { state in
-            guard let resolution = classify(state) else { return }
+    return await withTaskCancellationHandler {
+        await withCheckedContinuation { (continuation: CheckedContinuation<T, Never>) in
             Task {
-                guard await resumed.tryResume() else { return }
-                timeoutTask.cancel()
-                switch resolution {
-                case .complete(let value):
-                    connection.cancel()
-                    continuation.resume(returning: value)
-                case .completeKeepAlive(let value):
-                    continuation.resume(returning: value)
+                await operationState.install(continuation)
+                let timeoutTask = Task {
+                    do {
+                        try await Task.sleep(for: timeout)
+                    } catch {
+                        return
+                    }
+                    if await operationState.resolve(timeoutValue) {
+                        connection.cancel()
+                    }
+                }
+                await operationState.setTimeoutTask(timeoutTask)
+            }
+
+            connection.stateUpdateHandler = { state in
+                guard let resolution = classify(state) else { return }
+                Task {
+                    switch resolution {
+                    case .complete(let value):
+                        guard await operationState.resolve(value) else { return }
+                        connection.cancel()
+                    case .completeKeepAlive(let value):
+                        _ = await operationState.resolve(value)
+                    }
                 }
             }
-        }
 
-        connection.start(queue: queue)
+            connection.start(queue: queue)
+        }
+    } onCancel: {
+        connection.cancel()
+        Task {
+            _ = await operationState.resolve(timeoutValue)
+        }
     }
 }
