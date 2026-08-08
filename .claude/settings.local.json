@@ -27,7 +27,8 @@
       "Bash(git add:*)",
       "Bash(find /Users/blake/Projects -maxdepth 2 -type d \\\\\\( -name \"*agent*\" -o -name \"*interview*\" -o -name \"*p2p*\" \\\\\\) 2>/dev/null)",
       "Bash(find /Users/blake/.claude -type f \\\\\\( -name \"*agent*\" -o -name \"*interview*\" -o -name \"*p2p*\" -o -name \"*adversarial*\" \\\\\\) 2>/dev/null)",
-      "Bash(find /Users/blake/.hermes/profiles/quentin -type f \\\\\\( -name \"*.json\" -o -name \"*.yaml\" -o -name \"*.yml\" \\\\\\) 2>/dev/null | head -20)"
+      "Bash(find /Users/blake/.hermes/profiles/quentin -type f \\\\\\( -name \"*.json\" -o -name \"*.yaml\" -o -name \"*.yml\" \\\\\\) 2>/dev/null | head -20)",
+      "Bash(gh issue *)"
     ]
   },
   "enableAllProjectMcpServers": true,

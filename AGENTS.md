@@ -321,3 +321,16 @@ gh issue close <number> --repo jbcrane13/NetMonitor-2.0 --comment "Done: <summar
 
 ## Activity — 2026-05-22
 - (no commits)
+
+## Activity — 2026-05-23
+- 5aa36c0 Add PRD docs; update local settings & deferred
+
+## Activity — 2026-05-24
+- (no commits)
+
+## Activity — 2026-05-26
+- (no commits)
+
+## Imported Claude Cowork project instructions
+
+tweaking the UI  theme for contrast
