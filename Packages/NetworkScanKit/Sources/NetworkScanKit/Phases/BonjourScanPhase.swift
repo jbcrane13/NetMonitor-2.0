@@ -45,6 +45,7 @@ public struct BonjourScanPhase: ScanPhase, Sendable {
         accumulator: ScanAccumulator,
         onProgress: @Sendable (Double) async -> Void
     ) async {
+        guard !Task.isCancelled else { return }
         await onProgress(0.0)
 
         // Adaptive Bonjour collection: poll for services and exit early
@@ -57,9 +58,15 @@ public struct BonjourScanPhase: ScanPhase, Sendable {
 
         while true {
             try? await Task.sleep(for: pollInterval)
+            guard !Task.isCancelled else {
+                await stopProvider?()
+                return
+            }
 
             let elapsed = clock.now - startInstant
-            if elapsed >= discoveryWaitDuration { break }
+            if elapsed >= discoveryWaitDuration {
+                break
+            }
 
             let services = await serviceProvider()
             let currentCount = services.count
@@ -94,6 +101,7 @@ public struct BonjourScanPhase: ScanPhase, Sendable {
             var iterator = capped.makeIterator()
 
             while pending < maxResolveConcurrency, let service = iterator.next() {
+                guard !Task.isCancelled else { break }
                 pending += 1
                 group.addTask {
                     await Self.makeBonjourDevice(from: service, subnetFilter: context.subnetFilter)
@@ -101,6 +109,10 @@ public struct BonjourScanPhase: ScanPhase, Sendable {
             }
 
             while pending > 0 {
+                guard !Task.isCancelled else {
+                    group.cancelAll()
+                    break
+                }
                 guard let result = await group.next() else { break }
                 pending -= 1
                 resolved += 1
@@ -131,6 +143,7 @@ public struct BonjourScanPhase: ScanPhase, Sendable {
         from service: BonjourServiceInfo,
         subnetFilter: @Sendable (String) -> Bool
     ) async -> DiscoveredDevice? {
+        guard !Task.isCancelled else { return nil }
         guard let host = await resolveBonjourHost(for: service) else { return nil }
 
         let normalizedHost = host.split(separator: "%", maxSplits: 1).first.map(String.init) ?? host
@@ -157,7 +170,8 @@ public struct BonjourScanPhase: ScanPhase, Sendable {
     }
 
     private static func resolveBonjourHost(for service: BonjourServiceInfo) async -> String? {
-        await ConnectionBudget.shared.acquire()
+        guard !Task.isCancelled else { return nil }
+        guard await ConnectionBudget.shared.acquire() else { return nil }
         defer { Task { await ConnectionBudget.shared.release() } }
 
         let endpoint = NWEndpoint.service(

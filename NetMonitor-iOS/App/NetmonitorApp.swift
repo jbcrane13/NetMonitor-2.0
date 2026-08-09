@@ -28,7 +28,7 @@ struct NetmonitorApp: App {
         return false
     }
 
-    var sharedModelContainer: ModelContainer = {
+    private static let persistenceOutcome: PersistenceBootstrapOutcome<ModelContainer> = {
         let schema = Schema([
             PairedMac.self,
             LocalDevice.self,
@@ -43,11 +43,26 @@ struct NetmonitorApp: App {
         )
 
         do {
-            return try ModelContainer(for: schema, configurations: [modelConfiguration])
+            return try PersistenceBootstrap.load(
+                persistentStore: {
+                    try ModelContainer(for: schema, configurations: [modelConfiguration])
+                },
+                fallbackStore: {
+                    let fallback = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+                    return try ModelContainer(for: schema, configurations: [fallback])
+                }
+            )
         } catch {
-            fatalError("Could not create ModelContainer: \(error)")
+            fatalError("Could not create recovery ModelContainer: \(error)")
         }
     }()
+
+    private var sharedModelContainer: ModelContainer { Self.persistenceOutcome.store }
+
+    init() {
+        guard !Self.isUITesting else { return }
+        BackgroundTaskService.shared.registerTasks()
+    }
 
     // Respect user's appearance preference (light/dark/system)
     private var resolvedColorScheme: ColorScheme? {
@@ -60,7 +75,13 @@ struct NetmonitorApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView(env: environment)
+            Group {
+                if let recovery = Self.persistenceOutcome.recovery {
+                    PersistenceRecoveryView(recovery: recovery)
+                } else {
+                    ContentView(env: environment)
+                }
+            }
                 .preferredColorScheme(resolvedColorScheme)
                 .accessibilityIdentifier("screen_main")
                 .environment(environment)
@@ -74,7 +95,7 @@ struct NetmonitorApp: App {
                 .onAppear {
                     UITestBootstrap.configureIfNeeded()
 
-                    if Self.isUITesting {
+                    if Self.isUITesting || Self.persistenceOutcome.isDegraded {
                         return
                     }
 
@@ -93,7 +114,6 @@ struct NetmonitorApp: App {
                     // Start event listener to log connectivity/device changes for Timeline.
                     EventListenerService.shared.start()
 
-                    BackgroundTaskService.shared.registerTasks()
                     BackgroundTaskService.shared.scheduleRefreshTask()
                     BackgroundTaskService.shared.scheduleSyncTask()
 

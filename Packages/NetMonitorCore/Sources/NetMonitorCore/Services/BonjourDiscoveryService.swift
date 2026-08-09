@@ -213,7 +213,7 @@ public final class BonjourDiscoveryService: BonjourDiscoveryServiceProtocol {
     // MARK: - Service resolution
 
     nonisolated public func resolveService(_ service: BonjourService) async -> BonjourService? {
-        await ConnectionBudget.shared.acquire()
+        guard await ConnectionBudget.shared.acquire() else { return nil }
         defer { Task { await ConnectionBudget.shared.release() } }
 
         let endpoint = NWEndpoint.service(

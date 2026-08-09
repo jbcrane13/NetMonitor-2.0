@@ -158,6 +158,14 @@ final class DashboardViewModel {
         deviceDiscoveryService.isScanning
     }
 
+    var scanProgress: Double {
+        deviceDiscoveryService.scanProgress
+    }
+
+    var scanPhase: ScanDisplayPhase {
+        deviceDiscoveryService.scanPhase
+    }
+
     var sessionDuration: String {
         let interval = Date().timeIntervalSince(sessionStartTime)
         let hours = Int(interval) / 3600
@@ -181,8 +189,12 @@ final class DashboardViewModel {
         if let wifi = wifiService.currentWiFi, wifi.ssid != lastLoggedWiFiSSID {
             lastLoggedWiFiSSID = wifi.ssid
             var parts: [String] = []
-            if let signal = wifi.signalStrength { parts.append("\(signal)% signal") }
-            if let sec = wifi.securityType { parts.append(sec) }
+            if let signal = wifi.signalStrength {
+                parts.append("\(signal)% signal")
+            }
+            if let sec = wifi.securityType {
+                parts.append(sec)
+            }
             activityLog.add(
                 tool: "WiFi",
                 target: wifi.ssid,

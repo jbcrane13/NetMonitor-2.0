@@ -1,4 +1,6 @@
 import Foundation
+import NetMonitorCore
+import SwiftData
 import Testing
 @testable import NetMonitor_macOS
 
@@ -35,5 +37,44 @@ struct AppearanceModeTests {
     @Test func iconNamesAreDistinct() {
         let icons = Set(AppearanceMode.allCases.map(\.iconName))
         #expect(icons.count == AppearanceMode.allCases.count)
+    }
+
+    @Test("v2.2.0 macOS SchemaV1 store reopens through the migration plan")
+    @MainActor
+    func lastShippedStoreReopens() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: "netmonitor-mac-v220-\(UUID().uuidString)", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let storeURL = directory.appending(path: "v2.2.0.store")
+        let schema = Schema(versionedSchema: SchemaV1.self)
+        let fixtureID = UUID()
+
+        do {
+            let configuration = ModelConfiguration(schema: schema, url: storeURL, cloudKitDatabase: .none)
+            let container = try ModelContainer(
+                for: schema,
+                migrationPlan: NetMonitorMigrationPlan.self,
+                configurations: [configuration]
+            )
+            container.mainContext.insert(NetworkTarget(
+                id: fixtureID,
+                name: "v2.2.0 fixture",
+                host: "fixture.invalid",
+                targetProtocol: .icmp
+            ))
+            try container.mainContext.save()
+        }
+
+        let configuration = ModelConfiguration(schema: schema, url: storeURL, cloudKitDatabase: .none)
+        let reopened = try ModelContainer(
+            for: schema,
+            migrationPlan: NetMonitorMigrationPlan.self,
+            configurations: [configuration]
+        )
+        let targets = try reopened.mainContext.fetch(FetchDescriptor<NetworkTarget>())
+
+        #expect(targets.map(\.id).contains(fixtureID))
     }
 }

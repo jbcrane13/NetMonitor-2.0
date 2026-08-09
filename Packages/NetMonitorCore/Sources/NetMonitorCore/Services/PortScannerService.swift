@@ -66,7 +66,15 @@ public actor PortScannerService: PortScannerServiceProtocol {
     }
 
     private func scanPort(host: String, port: Int, timeout: TimeInterval) async -> PortScanResult {
-        await ConnectionBudget.shared.acquire()
+        guard await ConnectionBudget.shared.acquire() else {
+            return PortScanResult(
+                port: port,
+                state: .filtered,
+                serviceName: PortScanResult.commonServiceName(for: port),
+                banner: nil,
+                responseTime: nil
+            )
+        }
         defer { Task { await ConnectionBudget.shared.release() } }
 
         let start = Date()

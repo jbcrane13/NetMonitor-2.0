@@ -14,12 +14,15 @@ public struct SSDPScanPhase: ScanPhase, Sendable {
         accumulator: ScanAccumulator,
         onProgress: @Sendable (Double) async -> Void
     ) async {
+        guard !Task.isCancelled else { return }
         await onProgress(0.0)
 
         let discoveredIPs = await Self.discoverSSDP()
+        guard !Task.isCancelled else { return }
         await onProgress(0.7)
 
         for ip in discoveredIPs where context.subnetFilter(ip) {
+            guard !Task.isCancelled else { return }
             await accumulator.upsert(DiscoveredDevice(
                 ipAddress: ip,
                 hostname: nil,
@@ -38,6 +41,7 @@ public struct SSDPScanPhase: ScanPhase, Sendable {
 
     /// Send SSDP M-SEARCH multicast and collect responding device IPs.
     private static func discoverSSDP() async -> [String] {
+        guard !Task.isCancelled else { return [] }
         let multicastGroup = "239.255.255.250"
         let multicastPort: UInt16 = 1900
         let searchMessage = [
@@ -58,7 +62,7 @@ public struct SSDPScanPhase: ScanPhase, Sendable {
         let params = NWParameters.udp
         params.requiredInterfaceType = .wifi
 
-        await ConnectionBudget.shared.acquire()
+        guard await ConnectionBudget.shared.acquire() else { return [] }
         defer { Task { await ConnectionBudget.shared.release() } }
 
         let connection = NWConnection(to: endpoint, using: params)
@@ -74,6 +78,7 @@ public struct SSDPScanPhase: ScanPhase, Sendable {
         }
 
         guard ready else { return [] }
+        guard !Task.isCancelled else { return [] }
 
         // Send M-SEARCH
         connection.send(content: messageData, completion: .contentProcessed { _ in })

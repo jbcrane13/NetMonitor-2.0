@@ -1,5 +1,28 @@
 import Foundation
 
+private actor ScanTimeoutRace {
+    private var continuation: CheckedContinuation<Void, Never>?
+    private var isResolved = false
+
+    func wait() async {
+        guard !isResolved else { return }
+        await withCheckedContinuation { continuation in
+            guard !isResolved else {
+                continuation.resume()
+                return
+            }
+            self.continuation = continuation
+        }
+    }
+
+    func resolve() {
+        guard !isResolved else { return }
+        isResolved = true
+        continuation?.resume()
+        continuation = nil
+    }
+}
+
 /// Orchestrates scan phases according to a ``ScanPipeline``, tracking overall
 /// progress and accumulating discovered devices.
 public actor ScanEngine {
@@ -7,13 +30,12 @@ public actor ScanEngine {
     /// Declared `nonisolated` so callers can reference it without awaiting the actor.
     nonisolated public let accumulator: ScanAccumulator
 
-    public init() {
-        self.accumulator = ScanAccumulator()
-    }
+    private let phaseTimeout: Duration
 
-    /// Maximum time any single phase is allowed to run before being cancelled.
-    /// Prevents a broken NWConnection / NECP state from hanging the entire pipeline.
-    private static let phaseTimeout: Duration = .seconds(30)
+    public init(phaseTimeout: Duration = .seconds(30)) {
+        self.accumulator = ScanAccumulator()
+        self.phaseTimeout = phaseTimeout
+    }
 
     /// Run a complete scan using the given pipeline and context.
     ///
@@ -27,24 +49,28 @@ public actor ScanEngine {
         context: ScanContext,
         onProgress: @escaping @Sendable (Double, String) async -> Void
     ) async -> [DiscoveredDevice] {
+        guard !Task.isCancelled else { return await accumulator.sortedSnapshot() }
         let totalWeight = pipeline.steps.flatMap(\.phases).reduce(0.0) { $0 + $1.weight }
         guard totalWeight > 0 else { return await accumulator.sortedSnapshot() }
 
         var completedWeight: Double = 0
 
         for step in pipeline.steps {
+            guard !Task.isCancelled else { break }
             let baseWeight = completedWeight
 
             if step.concurrent && step.phases.count > 1 {
                 let accum = accumulator
-                let timeout = Self.phaseTimeout
+                let timeout = phaseTimeout
                 await withTaskGroup(of: Void.self) { group in
                     for phase in step.phases {
+                        guard !Task.isCancelled else { break }
                         let tw = totalWeight
                         let bw = baseWeight
                         group.addTask {
                             await Self.withTimeout(timeout) {
                                 await phase.execute(context: context, accumulator: accum) { phaseProgress in
+                                    guard !Task.isCancelled else { return }
                                     let overall = (bw + phase.weight * phaseProgress) / tw
                                     await onProgress(overall, phase.displayName)
                                 }
@@ -52,19 +78,23 @@ public actor ScanEngine {
                         }
                     }
                 }
+                guard !Task.isCancelled else { break }
                 completedWeight = baseWeight + step.phases.reduce(0.0) { $0 + $1.weight }
             } else {
                 for phase in step.phases {
+                    guard !Task.isCancelled else { break }
                     let phaseBase = completedWeight
                     let tw = totalWeight
-                    let timeout = Self.phaseTimeout
+                    let timeout = phaseTimeout
                     let accum = self.accumulator
                     await Self.withTimeout(timeout) {
                         await phase.execute(context: context, accumulator: accum) { phaseProgress in
+                            guard !Task.isCancelled else { return }
                             let overall = (phaseBase + phase.weight * phaseProgress) / tw
                             await onProgress(overall, phase.displayName)
                         }
                     }
+                    guard !Task.isCancelled else { break }
                     completedWeight += phase.weight
                 }
             }
@@ -101,18 +131,30 @@ public actor ScanEngine {
     /// Run an async operation with a timeout. If the operation exceeds the
     /// timeout, its task is cancelled and we move on.
     private static func withTimeout(_ duration: Duration, operation: @escaping @Sendable () async -> Void) async {
-        await withTaskGroup(of: Void.self) { group in
-            group.addTask {
-                await operation()
-            }
-            group.addTask {
-                try? await Task.sleep(for: duration)
-            }
-            // When the first task completes (either operation finishes or timeout fires),
-            // cancel the remaining one and return.
-            await group.next()
-            group.cancelAll()
+        let race = ScanTimeoutRace()
+        let operationTask = Task {
+            await operation()
+            await race.resolve()
         }
+        let timeoutTask = Task {
+            do {
+                try await Task.sleep(for: duration)
+                await race.resolve()
+            } catch {
+                return
+            }
+        }
+
+        await withTaskCancellationHandler {
+            await race.wait()
+        } onCancel: {
+            operationTask.cancel()
+            timeoutTask.cancel()
+            Task { await race.resolve() }
+        }
+
+        operationTask.cancel()
+        timeoutTask.cancel()
     }
 
     /// Reset the accumulator for a fresh scan.

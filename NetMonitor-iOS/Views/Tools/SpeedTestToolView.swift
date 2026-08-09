@@ -4,9 +4,17 @@ import SwiftData
 
 /// Speed Test tool view for measuring download/upload speed and latency
 struct SpeedTestToolView: View {
+    private static var historyDescriptor: FetchDescriptor<SpeedTestResult> {
+        var descriptor = FetchDescriptor<SpeedTestResult>(
+            sortBy: [SortDescriptor(\SpeedTestResult.timestamp, order: .reverse)]
+        )
+        descriptor.fetchLimit = 10
+        return descriptor
+    }
+
     @State private var viewModel = SpeedTestToolViewModel()
     @Environment(\.modelContext) private var modelContext
-    @Query(sort: \SpeedTestResult.timestamp, order: .reverse) private var history: [SpeedTestResult]
+    @Query(Self.historyDescriptor) private var history: [SpeedTestResult]
 
     var body: some View {
         ScrollView {

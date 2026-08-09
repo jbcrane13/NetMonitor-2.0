@@ -128,6 +128,44 @@ struct ScanEngineTests {
         #expect(await engine.accumulator.isEmpty)
     }
 
+    @Test("cancelling a scan prevents subsequent phases from starting")
+    func cancellationStopsPipeline() async {
+        let engine = ScanEngine()
+        let recorder = PhaseExecutionRecorder()
+        let pipeline = ScanPipeline(steps: [
+            ScanPipeline.Step(phases: [CancellableFixturePhase(id: "blocking", recorder: recorder, waitsForCancellation: true)], concurrent: false),
+            ScanPipeline.Step(phases: [CancellableFixturePhase(id: "should-not-run", recorder: recorder, waitsForCancellation: false)], concurrent: false)
+        ])
+
+        let scanTask = Task {
+            await engine.scan(pipeline: pipeline, context: makeContext(hosts: [])) { _, _ in }
+        }
+
+        while await !(recorder.hasExecuted("blocking")) {
+            await Task.yield()
+        }
+        scanTask.cancel()
+        _ = await scanTask.value
+
+        #expect(await recorder.hasExecuted("blocking"))
+        #expect(await !(recorder.hasExecuted("should-not-run")))
+    }
+
+    @Test("non-cooperative phase cannot hold the public scan past its deadline")
+    func nonCooperativePhaseTimesOut() async {
+        let engine = ScanEngine(phaseTimeout: .milliseconds(10))
+        let phase = NonCooperativeFixturePhase()
+        let pipeline = ScanPipeline(steps: [
+            ScanPipeline.Step(phases: [phase], concurrent: false)
+        ])
+        let clock = ContinuousClock()
+        let start = clock.now
+
+        _ = await engine.scan(pipeline: pipeline, context: makeContext(hosts: [])) { _, _ in }
+
+        #expect(clock.now - start < .milliseconds(100))
+    }
+
     private func makeContext(hosts: [String]) -> ScanContext {
         ScanContext(
             hosts: hosts,
@@ -146,6 +184,55 @@ struct ScanEngineTests {
             discoveredAt: Date(),
             source: .local
         )
+    }
+}
+
+private struct CancellableFixturePhase: ScanPhase {
+    let id: String
+    let recorder: PhaseExecutionRecorder
+    let waitsForCancellation: Bool
+    let displayName = "Cancellation Fixture"
+    let weight = 1.0
+
+    func execute(
+        context _: ScanContext,
+        accumulator _: ScanAccumulator,
+        onProgress _: @Sendable (Double) async -> Void
+    ) async {
+        await recorder.record(id)
+        guard waitsForCancellation else { return }
+        while !Task.isCancelled {
+            await Task.yield()
+        }
+    }
+}
+
+private actor PhaseExecutionRecorder {
+    private var executed: Set<String> = []
+
+    func record(_ id: String) {
+        executed.insert(id)
+    }
+
+    func hasExecuted(_ id: String) -> Bool {
+        executed.contains(id)
+    }
+}
+
+private struct NonCooperativeFixturePhase: ScanPhase {
+    let id = "non-cooperative"
+    let displayName = "Non-cooperative"
+    let weight = 1.0
+
+    func execute(
+        context _: ScanContext,
+        accumulator _: ScanAccumulator,
+        onProgress _: @Sendable (Double) async -> Void
+    ) async {
+        let deadline = ContinuousClock.now + .milliseconds(200)
+        while ContinuousClock.now < deadline {
+            await Task.yield()
+        }
     }
 }
 
