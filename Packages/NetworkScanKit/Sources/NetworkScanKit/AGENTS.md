@@ -46,7 +46,7 @@ Core implementation of the composable network scan engine. Provides the fundamen
 
 - **Adding a New Phase:** Create a type conforming to `ScanPhase` in `Phases/`, implement `execute()`, call `accumulator.merge()` for each device.
 - **Modifying RTT Logic:** Update `RTTTracker.swift`. Ensure stats are calculated per-subnet for accuracy.
-- **Connection Budget:** `ConnectionBudget.acquire()` / `release()` must be balanced. Use `defer` or `withThrowingTaskGroup`.
+- **Connection Budget:** Wrap connection work in `withConnectionSlot { ... }`; it acquires and releases the slot for you, including on cancellation. `ConnectionBudget`'s own acquire/release pair is internal and not called directly outside `ConnectionBudget.swift`.
 - **Resume State:** `ResumeState` allows pausing/resuming scans by tracking completed IPs. Update on each successful probe.
 
 ### Testing

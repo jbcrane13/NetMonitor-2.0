@@ -1,6 +1,9 @@
 import Foundation
 import Network
 
+/// Shared concurrent queue for NWConnection operations within the scan package.
+public let scanQueue = DispatchQueue(label: "com.netmonitor.scan", qos: .userInitiated, attributes: .concurrent)
+
 /// Outcome the classifier in ``withNWConnection(_:on:timeout:timeoutValue:classify:)``
 /// returns for a given state transition.
 enum NWConnectionResolution<T: Sendable> {

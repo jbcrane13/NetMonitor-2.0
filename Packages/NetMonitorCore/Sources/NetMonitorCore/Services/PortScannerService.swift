@@ -66,82 +66,83 @@ public actor PortScannerService: PortScannerServiceProtocol {
     }
 
     private func scanPort(host: String, port: Int, timeout: TimeInterval) async -> PortScanResult {
-        guard await ConnectionBudget.shared.acquire() else {
-            return PortScanResult(
-                port: port,
-                state: .filtered,
-                serviceName: PortScanResult.commonServiceName(for: port),
-                banner: nil,
-                responseTime: nil
-            )
-        }
-        defer { Task { await ConnectionBudget.shared.release() } }
-
-        let start = Date()
-
-        let endpoint = NWEndpoint.hostPort(
-            host: NWEndpoint.Host(host),
-            port: NWEndpoint.Port(rawValue: UInt16(port))!
-        )
-
-        let parameters = NWParameters.tcp
-        parameters.allowLocalEndpointReuse = true
-
-        let connection = NWConnection(to: endpoint, using: parameters)
-        defer { connection.cancel() }
-
-        let portState = await withCheckedContinuation { (continuation: CheckedContinuation<PortState, Never>) in
-            let resumed = ResumeState()
-
-            let timeoutTask = Task {
-                try? await Task.sleep(for: .seconds(timeout))
-                guard await resumed.tryResume() else { return }
-                connection.cancel()
-                continuation.resume(returning: .filtered)
-            }
-
-            connection.stateUpdateHandler = { state in
-                switch state {
-                case .ready:
-                    Task {
-                        guard await resumed.tryResume() else { return }
-                        timeoutTask.cancel()
-                        connection.cancel()
-                        continuation.resume(returning: .open)
-                    }
-                case .failed(let error):
-                    Task {
-                        guard await resumed.tryResume() else { return }
-                        timeoutTask.cancel()
-                        connection.cancel()
-                        if case NWError.posix(let code) = error, code == .ECONNREFUSED {
-                            continuation.resume(returning: .closed)
-                        } else {
-                            continuation.resume(returning: .filtered)
-                        }
-                    }
-                case .cancelled:
-                    Task {
-                        guard await resumed.tryResume() else { return }
-                        timeoutTask.cancel()
-                        continuation.resume(returning: .filtered)
-                    }
-                default:
-                    break
-                }
-            }
-
-            connection.start(queue: .global())
-        }
-
-        let elapsed = Date().timeIntervalSince(start) * 1000
-
-        return PortScanResult(
+        let filteredSentinel = PortScanResult(
             port: port,
-            state: portState,
+            state: .filtered,
             serviceName: PortScanResult.commonServiceName(for: port),
             banner: nil,
-            responseTime: portState == .open ? elapsed : nil
+            responseTime: nil
         )
+
+        let result = await withConnectionSlot { () async -> PortScanResult in
+            let start = Date()
+
+            let endpoint = NWEndpoint.hostPort(
+                host: NWEndpoint.Host(host),
+                port: NWEndpoint.Port(rawValue: UInt16(port))!
+            )
+
+            let parameters = NWParameters.tcp
+            parameters.allowLocalEndpointReuse = true
+
+            let connection = NWConnection(to: endpoint, using: parameters)
+            defer { connection.cancel() }
+
+            let portState = await withCheckedContinuation { (continuation: CheckedContinuation<PortState, Never>) in
+                let resumed = ResumeState()
+
+                let timeoutTask = Task {
+                    try? await Task.sleep(for: .seconds(timeout))
+                    guard await resumed.tryResume() else { return }
+                    connection.cancel()
+                    continuation.resume(returning: .filtered)
+                }
+
+                connection.stateUpdateHandler = { state in
+                    switch state {
+                    case .ready:
+                        Task {
+                            guard await resumed.tryResume() else { return }
+                            timeoutTask.cancel()
+                            connection.cancel()
+                            continuation.resume(returning: .open)
+                        }
+                    case .failed(let error):
+                        Task {
+                            guard await resumed.tryResume() else { return }
+                            timeoutTask.cancel()
+                            connection.cancel()
+                            if case NWError.posix(let code) = error, code == .ECONNREFUSED {
+                                continuation.resume(returning: .closed)
+                            } else {
+                                continuation.resume(returning: .filtered)
+                            }
+                        }
+                    case .cancelled:
+                        Task {
+                            guard await resumed.tryResume() else { return }
+                            timeoutTask.cancel()
+                            continuation.resume(returning: .filtered)
+                        }
+                    default:
+                        break
+                    }
+                }
+
+                connection.start(queue: .global())
+            }
+
+            let elapsed = Date().timeIntervalSince(start) * 1000
+
+            return PortScanResult(
+                port: port,
+                state: portState,
+                serviceName: PortScanResult.commonServiceName(for: port),
+                banner: nil,
+                responseTime: portState == .open ? elapsed : nil
+            )
+        }
+
+        return result ?? filteredSentinel
     }
 }

@@ -62,63 +62,64 @@ public struct SSDPScanPhase: ScanPhase, Sendable {
         let params = NWParameters.udp
         params.requiredInterfaceType = .wifi
 
-        guard await ConnectionBudget.shared.acquire() else { return [] }
-        defer { Task { await ConnectionBudget.shared.release() } }
+        let discoveredIPs = await withConnectionSlot { () async -> [String] in
+            let connection = NWConnection(to: endpoint, using: params)
 
-        let connection = NWConnection(to: endpoint, using: params)
-
-        // Wait for connection ready (with timeout to prevent hang).
-        // Keep the connection alive on .ready so the send/receive loop below can use it.
-        let ready = await withNWConnection(connection, timeout: .seconds(2), timeoutValue: false) { state in
-            switch state {
-            case .ready: return .completeKeepAlive(true)
-            case .failed, .cancelled: return .complete(false)
-            default: return nil
-            }
-        }
-
-        guard ready else { return [] }
-        guard !Task.isCancelled else { return [] }
-
-        // Send M-SEARCH
-        connection.send(content: messageData, completion: .contentProcessed { _ in })
-
-        // Receive loop using AsyncStream
-        let responses = AsyncStream<Data> { continuation in
-            @Sendable func receiveNext() {
-                connection.receive(minimumIncompleteLength: 1, maximumLength: 4096) { data, _, isComplete, _ in
-                    if let data {
-                        continuation.yield(data)
-                    }
-                    if isComplete {
-                        continuation.finish()
-                    } else {
-                        receiveNext()
-                    }
+            // Wait for connection ready (with timeout to prevent hang).
+            // Keep the connection alive on .ready so the send/receive loop below can use it.
+            let ready = await withNWConnection(connection, timeout: .seconds(2), timeoutValue: false) { state in
+                switch state {
+                case .ready: return .completeKeepAlive(true)
+                case .failed, .cancelled: return .complete(false)
+                default: return nil
                 }
             }
-            continuation.onTermination = { @Sendable _ in
-                connection.cancel()
-            }
-            receiveNext()
-        }
 
-        // Collect responses for 3 seconds
-        let collectTask = Task<Set<String>, Never> {
-            var ips: Set<String> = []
-            for await data in responses {
-                if let text = String(data: data, encoding: .utf8),
-                   let ip = extractIPFromSSDPResponse(text) {
-                    ips.insert(ip)
+            guard ready else { return [] }
+            guard !Task.isCancelled else { return [] }
+
+            // Send M-SEARCH
+            connection.send(content: messageData, completion: .contentProcessed { _ in })
+
+            // Receive loop using AsyncStream
+            let responses = AsyncStream<Data> { continuation in
+                @Sendable func receiveNext() {
+                    connection.receive(minimumIncompleteLength: 1, maximumLength: 4096) { data, _, isComplete, _ in
+                        if let data {
+                            continuation.yield(data)
+                        }
+                        if isComplete {
+                            continuation.finish()
+                        } else {
+                            receiveNext()
+                        }
+                    }
                 }
+                continuation.onTermination = { @Sendable _ in
+                    connection.cancel()
+                }
+                receiveNext()
             }
-            return ips
+
+            // Collect responses for 3 seconds
+            let collectTask = Task<Set<String>, Never> {
+                var ips: Set<String> = []
+                for await data in responses {
+                    if let text = String(data: data, encoding: .utf8),
+                       let ip = extractIPFromSSDPResponse(text) {
+                        ips.insert(ip)
+                    }
+                }
+                return ips
+            }
+
+            try? await Task.sleep(for: .seconds(3))
+            collectTask.cancel()
+            connection.cancel()
+            let discoveredIPs = await collectTask.value
+            return Array(discoveredIPs)
         }
 
-        try? await Task.sleep(for: .seconds(3))
-        collectTask.cancel()
-        connection.cancel()
-        let discoveredIPs = await collectTask.value
-        return Array(discoveredIPs)
+        return discoveredIPs ?? []
     }
 }

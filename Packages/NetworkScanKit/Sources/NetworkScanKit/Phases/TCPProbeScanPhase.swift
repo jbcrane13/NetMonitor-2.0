@@ -217,39 +217,35 @@ public struct TCPProbeScanPhase: ScanPhase, Sendable {
 
     private static func probePort(ip: String, port: UInt16, timeout: Duration) async -> PortProbeOutcome {
         guard !Task.isCancelled else { return .failed }
-        guard await ConnectionBudget.shared.acquire() else { return .failed }
 
-        let host = NWEndpoint.Host(ip)
-        let endpoint = NWEndpoint.hostPort(host: host, port: NWEndpoint.Port(rawValue: port)!)
-        let params = NWParameters.tcp
-        params.requiredInterfaceType = .wifi
+        let result = await withConnectionSlot { () async -> PortProbeOutcome in
+            let host = NWEndpoint.Host(ip)
+            let endpoint = NWEndpoint.hostPort(host: host, port: NWEndpoint.Port(rawValue: port)!)
+            let params = NWParameters.tcp
+            params.requiredInterfaceType = .wifi
 
-        let connection = NWConnection(to: endpoint, using: params)
-        let startTime = Date()
+            let connection = NWConnection(to: endpoint, using: params)
+            let startTime = Date()
 
-        let result: PortProbeOutcome = await withNWConnection(connection, timeout: timeout, timeoutValue: .timeout) { state in
-            let elapsed = Date().timeIntervalSince(startTime) * 1000
-            switch state {
-            case .ready:
-                return .complete(.reachable(latency: elapsed))
-            case .failed(let error):
-                if case NWError.posix(let code) = error, code == .ECONNREFUSED {
-                    return .complete(.refused(latency: elapsed))
+            return await withNWConnection(connection, timeout: timeout, timeoutValue: .timeout) { state in
+                let elapsed = Date().timeIntervalSince(startTime) * 1000
+                switch state {
+                case .ready:
+                    return .complete(.reachable(latency: elapsed))
+                case .failed(let error):
+                    if case NWError.posix(let code) = error, code == .ECONNREFUSED {
+                        return .complete(.refused(latency: elapsed))
+                    }
+                    return .complete(.failed)
+                case .cancelled:
+                    return .complete(.failed)
+                default:
+                    return nil
                 }
-                return .complete(.failed)
-            case .cancelled:
-                return .complete(.failed)
-            default:
-                return nil
             }
         }
 
-        // Release synchronously *before* return so the next acquire() sees the
-        // released slot. Wrapping in `Task { ... }` (the old `defer { Task { ... } }`
-        // pattern) detaches release into a later async context, so callers can pile
-        // up past the budget. See #194.
-        await ConnectionBudget.shared.release()
-        return result
+        return result ?? .failed
     }
 
     // MARK: - Latency enrichment
@@ -318,30 +314,28 @@ public struct TCPProbeScanPhase: ScanPhase, Sendable {
     /// returns as soon as any responds.
     private static func quickLatencyProbe(ip: String, timeout: Duration) async -> Double? {
         guard !Task.isCancelled else { return nil }
-        guard await ConnectionBudget.shared.acquire() else { return nil }
 
-        let host = NWEndpoint.Host(ip)
+        guard let latency = await withConnectionSlot({ () async -> Double? in
+            let host = NWEndpoint.Host(ip)
 
-        let result = await withTaskGroup(of: Double?.self, returning: Double?.self) { group in
-            for port in latencyProbePorts {
-                group.addTask {
-                    await singlePortLatencyProbe(host: host, port: port, timeout: timeout)
+            return await withTaskGroup(of: Double?.self, returning: Double?.self) { group in
+                for port in latencyProbePorts {
+                    group.addTask {
+                        await singlePortLatencyProbe(host: host, port: port, timeout: timeout)
+                    }
                 }
-            }
 
-            // Return the first successful measurement
-            for await result in group {
-                if let latency = result {
-                    group.cancelAll()
-                    return latency
+                // Return the first successful measurement
+                for await result in group {
+                    if let latency = result {
+                        group.cancelAll()
+                        return latency
+                    }
                 }
+                return nil
             }
-            return nil
-        }
-
-        // Release synchronously before return — see comment in probePort. See #194.
-        await ConnectionBudget.shared.release()
-        return result
+        }) else { return nil }
+        return latency
     }
 
     /// Single-port TCP connect for latency measurement.
