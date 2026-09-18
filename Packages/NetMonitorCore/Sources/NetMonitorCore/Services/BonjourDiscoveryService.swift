@@ -223,63 +223,40 @@ public final class BonjourDiscoveryService: BonjourDiscoveryServiceProtocol {
 
             let connection = NWConnection(to: endpoint, using: .tcp)
 
-            let result: BonjourService? = await withCheckedContinuation { continuation in
-                let resumed = ResumeState()
-
-                let timeoutTask = Task {
-                    try? await Task.sleep(for: .seconds(2))
-                    guard await resumed.tryResume() else { return }
-                    connection.cancel()
-                    continuation.resume(returning: nil)
-                }
-
-                connection.stateUpdateHandler = { state in
-                    switch state {
-                    case .ready:
-                        Task {
-                            guard await resumed.tryResume() else { return }
-                            timeoutTask.cancel()
-
-                            if let innerEndpoint = connection.currentPath?.remoteEndpoint,
-                               case let .hostPort(host, port) = innerEndpoint {
-                                let hostText = "\(host)"
-                                let normalizedHost = Self.normalizeHostName(hostText)
-                                let addresses = Self.isIPv4Address(normalizedHost) ? [normalizedHost] : []
-                                let resolved = BonjourService(
-                                    name: service.name,
-                                    type: service.type,
-                                    domain: service.domain,
-                                    hostName: hostText,
-                                    port: Int(port.rawValue),
-                                    addresses: addresses
-                                )
-                                connection.cancel()
-                                continuation.resume(returning: resolved)
-                            } else {
-                                connection.cancel()
-                                continuation.resume(returning: nil)
-                            }
-                        }
-                    case .failed, .cancelled:
-                        Task {
-                            guard await resumed.tryResume() else { return }
-                            timeoutTask.cancel()
-                            connection.cancel()
-                            continuation.resume(returning: nil)
-                        }
-                    case .waiting:
-                        // Waiting means the network path isn't available yet.
-                        // Don't give up immediately — let the timeout handle it.
-                        break
-                    default:
-                        break
+            let result: BonjourService? = await withNWConnection(
+                connection,
+                timeout: .seconds(2),
+                timeoutValue: nil
+            ) { state in
+                switch state {
+                case .ready:
+                    guard let innerEndpoint = connection.currentPath?.remoteEndpoint,
+                          case let .hostPort(host, port) = innerEndpoint else {
+                        return .complete(nil)
                     }
+                    let hostText = "\(host)"
+                    let normalizedHost = Self.normalizeHostName(hostText)
+                    let addresses = Self.isIPv4Address(normalizedHost) ? [normalizedHost] : []
+                    let resolved = BonjourService(
+                        name: service.name,
+                        type: service.type,
+                        domain: service.domain,
+                        hostName: hostText,
+                        port: Int(port.rawValue),
+                        addresses: addresses
+                    )
+                    return .complete(resolved)
+                case .failed, .cancelled:
+                    return .complete(nil)
+                case .waiting:
+                    // Waiting means the network path isn't available yet.
+                    // Don't give up immediately — let the timeout handle it.
+                    return nil
+                default:
+                    return nil
                 }
-
-                connection.start(queue: .global())
             }
 
-            connection.cancel()
             return result
         }) else { return nil }
         return resolvedService

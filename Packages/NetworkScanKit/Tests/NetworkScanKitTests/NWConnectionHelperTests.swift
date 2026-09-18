@@ -117,4 +117,38 @@ struct NWConnectionHelperTests {
 
         #expect(result != "timeout", "should resolve via .ready or .failed, not timeout")
     }
+
+    @Test("classify is invoked synchronously on the queue passed via on:")
+    func classifyRunsOnPassedQueue() async {
+        // Public API contract (D4): callers such as PingService rely on classify
+        // running synchronously on the queue they pass via `on:` so they can
+        // capture elapsed time without an actor hop. Tag the custom queue with
+        // DispatchQueue.setSpecific and read it back from inside classify.
+        let key = DispatchSpecificKey<Bool>()
+        let customQueue = DispatchQueue(label: "com.netmonitor.test.custom")
+        customQueue.setSpecific(key: key, value: true)
+
+        let endpoint = NWEndpoint.hostPort(
+            host: NWEndpoint.Host("127.0.0.1"),
+            port: NWEndpoint.Port(rawValue: 9)!
+        )
+        let connection = NWConnection(to: endpoint, using: .udp)
+
+        let result = await withNWConnection(
+            connection,
+            on: customQueue,
+            timeout: .seconds(2),
+            timeoutValue: "timeout"
+        ) { state in
+            switch state {
+            case .ready, .failed, .cancelled:
+                let onCustomQueue = DispatchQueue.getSpecific(key: key) == true
+                return .complete(onCustomQueue ? "on-queue" : "off-queue")
+            default:
+                return nil
+            }
+        }
+
+        #expect(result == "on-queue")
+    }
 }
