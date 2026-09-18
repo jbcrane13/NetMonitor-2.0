@@ -3,7 +3,7 @@ import Network
 
 /// Discovers devices via SSDP/UPnP M-SEARCH multicast.
 public struct SSDPScanPhase: ScanPhase, Sendable {
-    public let id = "ssdp"
+    public let id: ScanPhaseID = .ssdp
     public let displayName = "UPnP discovery…"
     public let weight: Double = 0.06
 

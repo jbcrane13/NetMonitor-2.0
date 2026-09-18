@@ -15,9 +15,10 @@ Unit tests for the NetworkScanKit Swift package. Validates the multi-phase scan 
 | `ResumeStateTests.swift` | Actor-based `ResumeState` (NetworkScanKit copy): initial state, `setResumed`, `tryResume` first-call/subsequent-call behavior |
 | `RTTTrackerTests.swift` | Actor-based `RTTTracker`: initial sample count, returns base timeout before `minSamples` reached, ignores zero/negative RTT, returns adaptive timeout after sufficient samples, clamping to `minTimeout`/`maxTimeout`, custom `minSamples` threshold |
 | `ScanAccumulatorTests.swift` | Actor-based `ScanAccumulator`: starts empty, upsert adds new device, multiple unique devices, merge semantics (existing fields win, nil fields filled from incoming), `contains`, `knownIPs`, `ipsWithoutLatency`, `allDeviceIPs`, `updateLatency` (sets when nil, no-op if already set), `replaceLatency` (always overwrites), `sortedSnapshot` numeric IP order, `reset` |
-| `ScanContextTests.swift` | `ScanContext` init: stores `hosts`, callable `subnetFilter`, `localIP`, `networkProfile` (nil default and stored), `scanStrategy` (defaults to `.full`, can be `.remote`), full parameter combination |
-| `ScanEngineTests.swift` | `ScanEngine` integration: sequential pipeline phases report progress and return IP-sorted results, concurrent step executes all phases, zero-weight pipeline skips phase execution and returns existing accumulator snapshot, `reset` clears accumulator; uses `FixturePhase` and `ProgressRecorder` actor fixtures |
-| `ScanPipelineTests.swift` | `ScanPipeline` and `ScanPipeline.Step` init, `ScanPipeline.standard()` structure (4 steps, step 0–1 concurrent with 2 phases each, step 2–3 sequential with 1 phase each), `ScanPipeline.forStrategy(.full)` matches standard, `forStrategy(.remote)` has 2 steps (tcpProbe sequential; icmpLatency + reverseDNS concurrent), strategy phase inclusion/exclusion assertions |
+| `ScanContextTests.swift` | `ScanContext` init: stores `hosts`, callable `subnetFilter`, `localIP`, full parameter combination |
+| `ScanEngineTests.swift` | `ScanEngine` integration: sequential pipeline phases report progress (as `ScanPhaseID`) and return IP-sorted results, concurrent step executes all phases, zero-weight pipeline skips phase execution and returns existing accumulator snapshot, `reset` clears accumulator; uses `FixturePhase` and `ProgressRecorder` actor fixtures |
+| `ScanPhaseIDTests.swift` | `ScanPhaseID`: built-in static member raw values, `RawRepresentable` round-trip, `ExpressibleByStringLiteral` equality with static members, `Hashable`/`Equatable` distinctness, custom (non-built-in) phase IDs coexisting with built-ins in a `Set` |
+| `ScanPipelineTests.swift` | `ScanPipeline` and `ScanPipeline.Step` init, `ScanPipeline.standard()` structure (4 steps, step 0–1 concurrent with 2 phases each, step 2–3 sequential with 1 phase each) |
 | `ThermalThrottleMonitorTests.swift` | `ThermalThrottleMonitor.shared`: multiplier is one of `[0.25, 0.5, 1.0]`, `effectiveLimit` is always ≥ 1 (including zero base), consistency with multiplier, does not exceed base |
 
 ## For AI Agents
@@ -29,7 +30,7 @@ Unit tests for the NetworkScanKit Swift package. Validates the multi-phase scan 
 - `ScanEngineTests.swift` tests real `ScanEngine` + `ScanPipeline` behavior using stub `FixturePhase` implementations. When adding engine tests, implement `ScanPhase` in a local `private struct` rather than creating real network phases.
 - `ThermalThrottleMonitor.shared` reads the system thermal state, so `multiplier` is non-deterministic in tests. Tests assert only that the value is within the valid set and that `effectiveLimit` is ≥ 1.
 - `ResumeStateTests.swift` here is a parallel of the same-named file in `NetMonitorCoreTests` — `NetworkScanKit` has its own copy of `ResumeState`.
-- `ScanContextTests.swift` uses `NetworkScanProfile` (the `NetworkScanKit`-scoped type, renamed from `NetworkProfile` to resolve ambiguity with `NetMonitorCore.NetworkProfile`).
+- `NetworkScanProfile` (in `ScanStrategy.swift`) has no test coverage and no production callers as of the `ScanStrategy` deletion (its only tests lived in the now-deleted `ScanStrategyCoverageTests.swift`, alongside `ScanStrategy`). Left in place under surgical-changes — flag for cleanup if still unused.
 
 ### Testing Requirements
 ```bash
@@ -52,7 +53,7 @@ Tests run on macOS only (no iOS simulator target for this package).
 ## Dependencies
 
 ### Internal
-- `NetworkScanKit` (package under test) — all public and `@testable` types including `ScanEngine`, `ScanPipeline`, `ScanPhase`, `ScanContext`, `ScanAccumulator`, `ConnectionBudget`, `RTTTracker`, `ThermalThrottleMonitor`, `ResumeState`, `DiscoveredDevice`, `IPv4Helpers`, `IPv4CIDR`, `NetworkScanProfile`
+- `NetworkScanKit` (package under test) — all public and `@testable` types including `ScanEngine`, `ScanPipeline`, `ScanPhase`, `ScanPhaseID`, `ScanContext`, `ScanAccumulator`, `ConnectionBudget`, `RTTTracker`, `ThermalThrottleMonitor`, `ResumeState`, `DiscoveredDevice`, `IPv4Helpers`, `IPv4CIDR`, `NetworkScanProfile`
 - `Foundation` — `Date`, `UUID`
 
 <!-- MANUAL: -->

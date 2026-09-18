@@ -3,7 +3,7 @@ import Foundation
 /// Discovers devices by firing UDP probes to trigger ARP resolution,
 /// then reading the system ARP cache for IP/MAC pairs.
 public struct ARPScanPhase: ScanPhase, Sendable {
-    public let id = "arp"
+    public let id: ScanPhaseID = .arp
     public let displayName = "Scanning network…"
     public let weight: Double = 0.10
 

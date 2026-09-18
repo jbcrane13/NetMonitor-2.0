@@ -3,7 +3,7 @@ import Foundation
 /// Resolves hostnames for discovered devices that are missing one,
 /// using reverse DNS (PTR) lookups.
 public struct ReverseDNSScanPhase: ScanPhase, Sendable {
-    public let id = "reverseDNS"
+    public let id: ScanPhaseID = .reverseDNS
     public let displayName = "Resolving names…"
     public let weight: Double = 0.08
 

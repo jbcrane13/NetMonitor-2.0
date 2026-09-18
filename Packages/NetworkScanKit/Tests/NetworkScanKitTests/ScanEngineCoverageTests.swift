@@ -7,109 +7,6 @@ import Testing
 @Suite("ScanEngine coverage")
 struct ScanEngineCoverageTests {
 
-    // MARK: - Convenience scan(context:) method
-
-    @Test("convenience scan with .full strategy creates standard pipeline and returns devices")
-    func convenienceScanFullStrategy() async {
-        let engine = ScanEngine()
-        let context = ScanContext(
-            hosts: ["192.168.1.1"],
-            subnetFilter: { _ in true },
-            localIP: nil,
-            scanStrategy: .full
-        )
-        let progress = ProgressRecorder()
-
-        let results = await engine.scan(context: context) { value, name in
-            await progress.record(value, phaseName: name)
-        }
-
-        // The real pipeline phases will run against 192.168.1.1.
-        // We can't guarantee what's found, but the pipeline must complete.
-        let updates = await progress.snapshot()
-        #expect(!updates.isEmpty, "Progress should be reported during a .full scan")
-        // Final progress should be 1.0 (or very close)
-        if let last = updates.last {
-            #expect(last.value > 0.99, "Final progress should approach 1.0, got \(last.value)")
-        }
-        // Results should be a sorted snapshot (may be empty if host is unreachable)
-        _ = results
-    }
-
-    @Test("convenience scan with .remote strategy creates remote pipeline")
-    func convenienceScanRemoteStrategy() async {
-        let engine = ScanEngine()
-        let context = ScanContext(
-            hosts: ["10.0.0.1"],
-            subnetFilter: { _ in true },
-            localIP: nil,
-            scanStrategy: .remote
-        )
-        let progress = ProgressRecorder()
-
-        let results = await engine.scan(context: context) { value, name in
-            await progress.record(value, phaseName: name)
-        }
-
-        let updates = await progress.snapshot()
-        #expect(!updates.isEmpty, "Progress should be reported during a .remote scan")
-        // The remote pipeline has 2 steps: TCP probe, then ICMP+DNS concurrent
-        // Phase names should include tcpProbe at minimum
-        #expect(updates.contains { $0.phaseName == "Probing ports…" })
-        _ = results
-    }
-
-    @Test("convenience scan with bonjour service provider passes services through")
-    func convenienceScanWithBonjourProvider() async {
-        let engine = ScanEngine()
-        let context = ScanContext(
-            hosts: ["192.168.1.1"],
-            subnetFilter: { _ in true },
-            localIP: nil,
-            scanStrategy: .full
-        )
-        let progress = ProgressRecorder()
-
-        // Provide a bonjour service that returns a known device
-        let bonjourServices: @Sendable () async -> [BonjourServiceInfo] = {
-            [
-                BonjourServiceInfo(name: "TestDevice", type: "_http._tcp", domain: "local."),
-            ]
-        }
-        let bonjourStop: @Sendable () async -> Void = {
-            // no-op stop
-        }
-
-        let results = await engine.scan(
-            context: context,
-            bonjourServiceProvider: bonjourServices,
-            bonjourStopProvider: bonjourStop
-        ) { value, name in
-            await progress.record(value, phaseName: name)
-        }
-
-        // Pipeline should complete without errors
-        let updates = await progress.snapshot()
-        #expect(!updates.isEmpty)
-        _ = results
-    }
-
-    @Test("convenience scan with default bonjour provider returns empty services")
-    func convenienceScanDefaultBonjourProvider() async {
-        let engine = ScanEngine()
-        let context = ScanContext(
-            hosts: [],
-            subnetFilter: { _ in true },
-            localIP: nil,
-            scanStrategy: .full
-        )
-
-        // Don't pass bonjourServiceProvider — should use default empty provider
-        let results = await engine.scan(context: context) { _, _ in }
-        // Empty hosts means phases discover nothing; pipeline should complete
-        _ = results
-    }
-
     // MARK: - Single-phase concurrent step (concurrent: true with count == 1)
 
     @Test("concurrent step with single phase runs as sequential")
@@ -130,7 +27,7 @@ struct ScanEngineCoverageTests {
         #expect(results[0].ipAddress == "10.0.0.5")
 
         let updates = await progress.snapshot()
-        #expect(updates.contains { $0.phaseName == "Solo Phase" })
+        #expect(updates.contains { $0.phaseName == "solo" })
     }
 
     // MARK: - Mixed pipeline (concurrent + sequential steps)
@@ -158,9 +55,9 @@ struct ScanEngineCoverageTests {
         #expect(ips == Set(["192.168.1.10", "192.168.1.20", "192.168.1.30"]))
 
         let updates = await progress.snapshot()
-        #expect(updates.contains { $0.phaseName == "Phase A" })
-        #expect(updates.contains { $0.phaseName == "Phase B" })
-        #expect(updates.contains { $0.phaseName == "Phase C" })
+        #expect(updates.contains { $0.phaseName == "a" })
+        #expect(updates.contains { $0.phaseName == "b" })
+        #expect(updates.contains { $0.phaseName == "c" })
     }
 
     @Test("mixed pipeline with sequential then concurrent steps")
@@ -406,7 +303,7 @@ struct ScanEngineCoverageTests {
 // MARK: - Stub Phase for coverage tests
 
 private struct StubPhase: ScanPhase {
-    let id: String
+    let id: ScanPhaseID
     let displayName: String
     let weight: Double
     let ips: [String]
@@ -437,12 +334,12 @@ private struct StubPhase: ScanPhase {
 private actor ProgressRecorder {
     struct Update {
         let value: Double
-        let phaseName: String
+        let phaseName: ScanPhaseID
     }
 
     private var updates: [Update] = []
 
-    func record(_ value: Double, phaseName: String) {
+    func record(_ value: Double, phaseName: ScanPhaseID) {
         updates.append(Update(value: value, phaseName: phaseName))
     }
 

@@ -58,6 +58,20 @@ public enum ScanDisplayPhase: String, Sendable {
     case companion  = "Mac companion…"
     case resolving  = "Resolving names…"
     case done       = "Complete"
+
+    /// Maps a NetworkScanKit phase identity to its display phase.
+    /// Returns `nil` for phase IDs not among the built-in six (e.g. platform-specific phases).
+    public init?(phaseID: ScanPhaseID) {
+        switch phaseID {
+        case .arp: self = .arpScan
+        case .tcpProbe: self = .tcpProbe
+        case .bonjour: self = .bonjour
+        case .ssdp: self = .ssdp
+        case .icmpLatency: self = .icmpLatency
+        case .reverseDNS: self = .resolving
+        default: return nil
+        }
+    }
 }
 
 // MARK: - Service Protocols
@@ -456,7 +470,9 @@ public enum MacConnectionState: Sendable, Equatable {
     case error(String)
 
     public var isConnected: Bool {
-        if case .connected = self { return true }
+        if case .connected = self {
+            return true
+        }
         return false
     }
 }

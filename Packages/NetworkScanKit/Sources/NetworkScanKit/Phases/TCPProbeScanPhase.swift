@@ -7,7 +7,7 @@ import Network
 /// Uses adaptive RTT-based timeouts that converge from conservative base values
 /// to network-appropriate timeouts as successful connections are observed.
 public struct TCPProbeScanPhase: ScanPhase, Sendable {
-    public let id = "tcpProbe"
+    public let id: ScanPhaseID = .tcpProbe
     public let displayName = "Probing ports…"
     public let weight: Double = 0.55
 
