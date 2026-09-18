@@ -275,13 +275,10 @@ enum MacTheme {
 
         // MARK: — Status color
 
-        // periphery:ignore
         static func statusColor(_ status: StatusType) -> Color {
             switch status {
-            case .online:  return success
-            case .offline: return error
-            case .idle:    return warning
-            case .unknown: return Color.gray
+            case .online: return success
+            default:      return Color.gray
             }
         }
 

@@ -18,50 +18,21 @@ struct NetworkDevicesPanel: View {
     }
 
     @State private var searchText: String = ""
-    @AppStorage("netmonitor.devicesPanel.sortOrder") private var sortOrder: PanelSortOrder = .ipAddress
+    @AppStorage("netmonitor.devicesPanel.sortOrder") private var sortOrder: DeviceSortOrder = .ipAddress
     @State private var selectedDevice: LocalDevice?
     @State private var showFullDevicesView = false
 
-    enum PanelSortOrder: String, CaseIterable {
-        case status   = "Status"
-        case name     = "Name"
-        case ipAddress = "IP"
-        case lastSeen = "Last Seen"
-
-        var icon: String {
-            switch self {
-            case .status:    return "circle.fill"
-            case .name:      return "textformat"
-            case .ipAddress: return "number"
-            case .lastSeen:  return "clock"
-            }
-        }
-    }
+    /// Sort orders shown in this panel's picker — a subset of the six Core cases.
+    static let sortOptions: [DeviceSortOrder] = [.status, .name, .ipAddress, .lastSeen]
 
     private var filteredDevices: [LocalDevice] {
-        var result = devices
-
-        if !searchText.isEmpty {
-            result = result.filter { device in
-                device.displayName.localizedCaseInsensitiveContains(searchText) ||
-                device.ipAddress.contains(searchText) ||
-                device.macAddress.localizedCaseInsensitiveContains(searchText) ||
-                (device.vendor?.localizedCaseInsensitiveContains(searchText) ?? false)
-            }
-        }
-
-        switch sortOrder {
-        case .status:
-            result.sort { ($0.status == .online ? 0 : 1) < ($1.status == .online ? 0 : 1) }
-        case .name:
-            result.sort { $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending }
-        case .ipAddress:
-            result.sort { compareIPAddresses($0.ipAddress, $1.ipAddress) }
-        case .lastSeen:
-            result.sort { $0.lastSeen > $1.lastSeen }
-        }
-
-        return result
+        DeviceList.rows(
+            devices,
+            search: searchText,
+            onlineOnly: false,
+            sort: sortOrder,
+            ascending: sortOrder == .lastSeen ? false : true
+        )
     }
 
     var body: some View {
@@ -118,18 +89,18 @@ struct NetworkDevicesPanel: View {
 
                 // Sort menu
                 Menu {
-                    ForEach(PanelSortOrder.allCases, id: \.self) { order in
+                    ForEach(Self.sortOptions, id: \.self) { order in
                         Button {
                             sortOrder = order
                         } label: {
                             HStack {
-                                Label(order.rawValue, systemImage: order.icon)
+                                Label(order.panelLabel, systemImage: order.icon)
                                 if sortOrder == order {
                                     Image(systemName: "checkmark")
                                 }
                             }
                         }
-                        .accessibilityIdentifier("networkDevicesPanel_menu_sort\(order.rawValue.lowercased())")
+                        .accessibilityIdentifier("networkDevicesPanel_menu_sort\(order.panelLabel.lowercased())")
                     }
                 } label: {
                     Image(systemName: "arrow.up.arrow.down")
@@ -235,13 +206,19 @@ struct NetworkDevicesPanel: View {
         }
     }
 
-    private func compareIPAddresses(_ lhs: String, _ rhs: String) -> Bool {
-        let lhsParts = lhs.split(separator: ".").compactMap { Int($0) }
-        let rhsParts = rhs.split(separator: ".").compactMap { Int($0) }
-        for index in 0..<min(lhsParts.count, rhsParts.count) where lhsParts[index] != rhsParts[index] {
-            return lhsParts[index] < rhsParts[index]
+}
+
+extension DeviceSortOrder {
+    /// Label text for this panel's sort menu (distinct from `DevicesView`'s
+    /// `.label`, which spells `.ipAddress` as "IP Address" rather than "IP").
+    var panelLabel: String {
+        switch self {
+        case .status: return "Status"
+        case .name: return "Name"
+        case .ipAddress: return "IP"
+        case .lastSeen: return "Last Seen"
+        default: return rawValue
         }
-        return lhsParts.count < rhsParts.count
     }
 }
 
@@ -257,7 +234,7 @@ private struct DevicePanelRow: View {
         HStack(spacing: 8) {
             // Status dot
             Circle()
-                .fill(device.status == .online ? MacTheme.Colors.success : Color.gray.opacity(0.5))
+                .fill(MacTheme.Colors.statusColor(device.status.statusType).opacity(device.status == .online ? 1 : 0.5))
                 .frame(width: 7, height: 7)
                 .shadow(color: device.status == .online ? MacTheme.Colors.success.opacity(0.6) : .clear, radius: 3)
 

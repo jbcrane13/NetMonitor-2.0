@@ -23,7 +23,7 @@ struct ProModeRowView: View {
         HStack(spacing: Self.columnSpacing) {
             // Status
             Circle()
-                .fill(device.status == .online ? MacTheme.Colors.success : Color.gray.opacity(0.4))
+                .fill(MacTheme.Colors.statusColor(device.status.statusType).opacity(device.status == .online ? 1 : 0.4))
                 .frame(width: 8, height: 8)
                 .frame(width: Self.statusWidth, alignment: .leading)
 
@@ -115,11 +115,7 @@ struct ProModeRowView: View {
     // MARK: - Last Seen
 
     private var lastSeenText: String {
-        let interval = Date().timeIntervalSince(device.lastSeen)
-        if interval < 60 { return "Now" }
-        if interval < 3600 { return "\(Int(interval / 60))m" }
-        if interval < 86400 { return "\(Int(interval / 3600))h" }
-        return "\(Int(interval / 86400))d"
+        DeviceList.recencyLabel(since: device.lastSeen, style: .compact)
     }
 }
 

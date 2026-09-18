@@ -151,12 +151,12 @@ private extension ProDeviceDetailView {
         HStack(spacing: 16) {
             ZStack {
                 RoundedRectangle(cornerRadius: 16)
-                    .fill(device.status == .online ? MacTheme.Colors.success.opacity(0.12) : Color.gray.opacity(0.12))
+                    .fill(MacTheme.Colors.statusColor(device.status.statusType).opacity(0.12))
                     .frame(width: 64, height: 64)
 
                 Image(systemName: device.deviceType.iconName)
                     .font(.system(size: 28))
-                    .foregroundStyle(device.status == .online ? MacTheme.Colors.success : .gray)
+                    .foregroundStyle(MacTheme.Colors.statusColor(device.status.statusType))
             }
 
             VStack(alignment: .leading, spacing: 4) {
@@ -185,7 +185,7 @@ private extension ProDeviceDetailView {
 
                 HStack(spacing: 8) {
                     Circle()
-                        .fill(device.status == .online ? MacTheme.Colors.success : Color.gray)
+                        .fill(MacTheme.Colors.statusColor(device.status.statusType))
                         .frame(width: 8, height: 8)
 
                     Text(device.status == .online ? "Online" : "Offline")
@@ -436,22 +436,34 @@ private extension ProDeviceDetailView {
     // MARK: - Helpers
 
     func latencyText(_ latency: Double) -> String {
-        if latency < 1 { return "<1 ms" }
+        if latency < 1 {
+            return "<1 ms"
+        }
         return String(format: "%.0f ms", latency)
     }
 
     var timeSinceLastSeen: String {
         let interval = Date().timeIntervalSince(device.lastSeen)
-        if interval < 60 { return "Just now" }
-        if interval < 3600 { return "\(Int(interval / 60)) min" }
-        if interval < 86400 { return "\(Int(interval / 3600)) hours" }
+        if interval < 60 {
+            return "Just now"
+        }
+        if interval < 3600 {
+            return "\(Int(interval / 60)) min"
+        }
+        if interval < 86400 {
+            return "\(Int(interval / 3600)) hours"
+        }
         return "\(Int(interval / 86400)) days"
     }
 
     var totalTimeTracked: String {
         let interval = Date().timeIntervalSince(device.firstSeen)
-        if interval < 3600 { return "\(Int(interval / 60)) min" }
-        if interval < 86400 { return "\(Int(interval / 3600)) hours" }
+        if interval < 3600 {
+            return "\(Int(interval / 60)) min"
+        }
+        if interval < 86400 {
+            return "\(Int(interval / 3600)) hours"
+        }
         return "\(Int(interval / 86400)) days"
     }
 

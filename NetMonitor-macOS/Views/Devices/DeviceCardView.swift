@@ -15,12 +15,12 @@ struct DeviceCardView: View {
                 // Status indicator and icon
                 ZStack {
                     Circle()
-                        .fill(device.status == .online ? MacTheme.Colors.success.opacity(0.2) : Color.gray.opacity(0.2))
+                        .fill(MacTheme.Colors.statusColor(device.status.statusType).opacity(0.2))
                         .frame(width: 48, height: 48)
 
                     Image(systemName: device.deviceType.iconName)
                         .font(.title3)
-                        .foregroundStyle(device.status == .online ? MacTheme.Colors.success : .gray)
+                        .foregroundStyle(MacTheme.Colors.statusColor(device.status.statusType))
                 }
 
                 // Device info
@@ -64,7 +64,7 @@ struct DeviceCardView: View {
                 VStack(alignment: .trailing, spacing: 4) {
                     HStack(spacing: 4) {
                         Circle()
-                            .fill(device.status == .online ? MacTheme.Colors.success : Color.gray)
+                            .fill(MacTheme.Colors.statusColor(device.status.statusType))
                             .frame(width: 8, height: 8)
 
                         Text(device.status == .online ? "Online" : "Offline")
@@ -130,7 +130,9 @@ struct DeviceCardView: View {
     }
 
     private func latencyText(_ latency: Double) -> String {
-        if latency < 1 { return "<1 ms" }
+        if latency < 1 {
+            return "<1 ms"
+        }
         return String(format: "%.0f ms", latency)
     }
 }
