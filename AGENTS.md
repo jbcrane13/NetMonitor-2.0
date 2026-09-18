@@ -70,6 +70,16 @@ NetMonitor-iOS  ──┘
 | `NetMonitor-macOS/` | macOS app (SwiftData, menu bar, shell services) |
 | `NetMonitor-iOS/` | iOS app (companion, widget, liquid glass UI) |
 
+## Worktree Setup
+
+Run `bash scripts/setup-worktree.sh` in every new NM 2.0 worktree before starting work. Configure the worktree manager's setup command to run it automatically and wait for successful completion before starting the agent. The script locates its own checkout, so it also works when invoked by absolute path.
+
+Setup checks Xcode, XcodeGen, SwiftLint, SwiftFormat, and `gh`; configures `.githooks` per worktree; regenerates the Xcode project; and resolves pinned Swift packages. It stops on missing tools, incomplete Xcode setup, existing edits to generated files, or new generated-file/lockfile drift. Review any failure before proceeding. Detached HEAD produces a reminder to create a `codex/<issue-or-task>` branch before committing.
+
+Setup does not copy secrets or `.env` files, install tools, build, test, switch branches, pull, or push. Use this script instead of the Heatmap-specific `.factory/init.sh` for new worktrees. Tests remain subject to the remote execution policy below.
+
+For each active project you work on, ensure it has a checked-in, executable worktree setup script and document its command in both `AGENTS.md` and `CLAUDE.md`. Reuse an existing equivalent; otherwise create one based on that project's actual tools, dependencies, hooks, and test policy. Keep setup noninteractive and safe to rerun, preserve existing work, and configure it to complete before an agent starts. Apply this as projects are worked on; do not copy NM 2.0's Xcode commands into unrelated stacks.
+
 ## Build Commands
 
 ```bash

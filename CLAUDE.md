@@ -2,6 +2,16 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Worktree Setup
+
+Run `bash scripts/setup-worktree.sh` in every new NM 2.0 worktree before starting work. Configure the worktree manager to run this command automatically and wait for success before starting the agent. Absolute-path invocation also works because the script locates its own checkout.
+
+The script checks required tools and Xcode readiness, sets `.githooks` per worktree, regenerates the Xcode project, and resolves pinned Swift packages. It stops if generated files already have edits or setup introduces generated-file/lockfile drift. Review failures before proceeding, and create a `codex/<issue-or-task>` branch before committing from a detached worktree.
+
+Use this entry point instead of `.factory/init.sh`, which is Heatmap-specific and builds both apps. Worktree setup does not copy secrets, install tools, build, test, switch branches, pull, or push. Follow the test execution policy below for verification.
+
+For each active project you work on, ensure it has a checked-in, executable worktree setup script and document its command in both `AGENTS.md` and `CLAUDE.md`. Reuse an existing equivalent; otherwise create one based on that project's actual tools, dependencies, hooks, and test policy. Keep setup noninteractive and safe to rerun, preserve existing work, and configure it to complete before an agent starts. Apply this as projects are worked on; do not copy NM 2.0's Xcode commands into unrelated stacks.
+
 ## Build System
 
 The project uses **XcodeGen** to generate the `.xcodeproj` from `project.yml`. Always regenerate after modifying `project.yml`.
@@ -95,6 +105,16 @@ Message types: `statusUpdate`, `deviceListRequest/Response`, `scanRequest/Respon
 ## AGENTS.md Files
 
 Each major view directory contains an `AGENTS.md` with purpose, sub-directory layout, ViewModel structure, AsyncStream usage patterns, dependencies, and accessibility identifier conventions. Check these before modifying views.
+
+## Agent skills
+
+### Issue tracker
+
+Use GitHub Issues for jbcrane13/NetMonitor-2.0. See `docs/agents/issue-tracker.md`.
+
+### Domain docs
+
+Use a single shared context and the existing architecture records. See `docs/agents/domain.md`.
 
 ## Key Enums (Enums.swift)
 

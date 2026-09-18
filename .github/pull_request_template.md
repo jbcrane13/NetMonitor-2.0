@@ -1,8 +1,8 @@
 ## Summary
 
-<!-- What does this PR do? Why? Link the beads issue: bd show <id> -->
+<!-- What does this PR do? Why? Link the GitHub issue. -->
 
-Closes: <!-- NetMonitor-2.0-xyz -->
+Closes #<!-- issue number -->
 
 ## Changes
 
@@ -20,4 +20,4 @@ Closes: <!-- NetMonitor-2.0-xyz -->
 
 ## Notes for Reviewer
 
-<!-- Anything non-obvious, trade-offs made, follow-up beads issues filed -->
+<!-- Anything non-obvious, trade-offs made, or follow-up GitHub issues filed -->

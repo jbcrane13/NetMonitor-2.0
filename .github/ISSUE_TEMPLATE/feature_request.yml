@@ -5,7 +5,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        **Note:** This project uses [beads (bd)](https://github.com/beads-org/beads) for issue tracking. If you have access, please also create a `bd` issue so agents can discover and claim the work.
+        **Note:** GitHub Issues is the project’s source of truth. Add enough context and acceptance criteria for an agent to claim the work.
 
   - type: dropdown
     id: platform

@@ -104,11 +104,11 @@ disabled_rules:
 
 custom_rules:
   todo_needs_ticket:
-    name: "TODO/FIXME requires beads ticket"
-    regex: '//\s*(TODO|FIXME):\s+(?!\(NetMonitor-2\.0-[a-z0-9]+\))'
+    name: "TODO/FIXME requires GitHub issue"
+    regex: '//\s*(TODO|FIXME):\s+(?!\(#[0-9]+\))'
     match_kinds:
       - comment
-    message: "TODO/FIXME must reference a beads ticket — // TODO: (NetMonitor-2.0-xyz) description"
+    message: "TODO/FIXME must reference a GitHub issue — // TODO: (#123) description"
     severity: warning
 
 # ───────────────────────────────────────────

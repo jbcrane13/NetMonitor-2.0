@@ -1,6 +1,6 @@
 ---
 name: create-release
-description: Cut a versioned NetMonitor-2.0 release. Creates a git tag, pushes it, which triggers the release.yml workflow to build both targets and publish a GitHub Release with auto-generated notes. Use when all P0/P1 bugs are fixed, tests pass, and the release prep checklist (NetMonitor-2.0-c0p) is complete.
+description: Cut a versioned NetMonitor-2.0 release. Creates a git tag, pushes it, which triggers the release.yml workflow to build both targets and publish a GitHub Release with auto-generated notes. Use when all P0/P1 bugs are fixed, tests pass, and the GitHub release-prep issue is complete.
 ---
 
 # Create a Release — NetMonitor-2.0
@@ -8,7 +8,7 @@ description: Cut a versioned NetMonitor-2.0 release. Creates a git tag, pushes i
 ## Prerequisites — complete the release prep checklist first
 
 ```bash
-bd show NetMonitor-2.0-c0p    # View the release prep checklist
+gh issue view <release-issue-number> --comments  # View the release prep checklist
 ```
 
 All items must be checked before tagging:
@@ -86,8 +86,7 @@ gh release edit v2.0.0 --draft=false
 ## Step 6 — Close the release prep issue
 
 ```bash
-bd close NetMonitor-2.0-c0p
-bd sync
+gh issue close <release-issue-number> --comment "Released and verified: v2.x.y"
 git push
 ```
 

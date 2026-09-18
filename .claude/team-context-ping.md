@@ -5,7 +5,8 @@ NetMonitor 2.0 monorepo — xcodebuild project: `NetMonitor-2.0.xcodeproj`
 - iOS scheme: `NetMonitor-iOS` (destination: `platform=iOS Simulator,name=iPhone 17 Pro`)
 - macOS scheme: `NetMonitor-macOS`
 
-## Beads (issue tracker)
+## Legacy issue references
+The `NM2-3pd` identifiers below came from the retired tracker and are retained only as historical context:
 - NM2-3pd: Enhanced ping with 20-count default and latency graph (parent feature)
 - NM2-3pd.1: ✅ Initial implementation (done)
 - NM2-3pd.2: Review and harden ping implementation
@@ -52,10 +53,5 @@ xcodebuild -project NetMonitor-2.0.xcodeproj -scheme NetMonitor-iOS -destination
 - `ping_textfield_host`, `ping_picker_count`, `ping_button_run`, `ping_button_close`
 - Chart: `ping_chart_latency` (add if missing)
 
-## Close beads when done
-```
-bd close NM2-3pd.2 -m "Implementation reviewed and hardened"
-bd close NM2-3pd.3 -m "Unit tests added"  
-bd close NM2-3pd.4 -m "UI tests added"
-bd close NM2-3pd -m "Enhanced ping feature complete with tests"
-```
+## Completion tracking
+Use the current GitHub issue and linked delivery PR for status and closure; do not act on the legacy identifiers above.

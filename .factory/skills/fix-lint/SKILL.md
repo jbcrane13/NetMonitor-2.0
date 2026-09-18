@@ -29,15 +29,15 @@ swiftformat --lint .                                # Must show 0 files
 
 ## Common errors and how to fix them
 
-### `todo_needs_ticket` — TODO without beads ID
+### `todo_needs_ticket` — TODO without GitHub issue number
 ```swift
 // Bad:
 // TODO: fix this later
 
 // Good:
-// TODO: (NetMonitor-2.0-xyz) fix this later
+// TODO: (#123) fix this later
 ```
-File the beads issue first (`bd create`), then reference it.
+File the GitHub issue first (`gh issue create`), then reference its number.
 
 ### `force_unwrapping` — force unwrap (`!`)
 ```swift
