@@ -48,10 +48,12 @@ jobs:
 
       - name: Check for TODOs/FIXMEs without GitHub issue references
         run: |
-          # Match TODO:/FIXME: not followed by a GitHub issue number.
+          # Match TODO:/FIXME: comments, then drop the ones that cite a GitHub
+          # issue. GNU grep's ERE has no lookahead, so this needs two passes.
           bare=$(grep -rn --include="*.swift" \
-            -E '//\s*(TODO|FIXME):\s+(?!\(#[0-9]+\))' \
-            --exclude-dir=build --exclude-dir=.build || true)
+            -E '//[[:space:]]*(TODO|FIXME):[[:space:]]+' \
+            --exclude-dir=build --exclude-dir=.build . \
+            | grep -vE '//[[:space:]]*(TODO|FIXME):[[:space:]]+\(#[0-9]+\)' || true)
 
           if [[ -n "$bare" ]]; then
             echo "::warning::Found TODO/FIXME comments without GitHub issue references."

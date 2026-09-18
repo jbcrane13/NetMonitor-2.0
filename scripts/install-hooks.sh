@@ -6,9 +6,19 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-HOOKS_DIR="$PROJECT_ROOT/.git/hooks"
 
-echo "Installing quality git hooks..."
+configured_hooks_path="$(git -C "$PROJECT_ROOT" config --get core.hooksPath || true)"
+if [ -n "$configured_hooks_path" ]; then
+    echo "error: core.hooksPath is set to '$configured_hooks_path', so hooks installed here would be ignored." >&2
+    echo "Use scripts/hooks/install-hooks.sh (or scripts/setup-worktree.sh) for the .githooks/ setup." >&2
+    exit 1
+fi
+
+# Resolve the real hooks directory: worktrees keep it outside a checkout that has a `.git` file.
+hooks_path="$(git -C "$PROJECT_ROOT" rev-parse --git-path hooks)"
+HOOKS_DIR="$(cd "$PROJECT_ROOT" && mkdir -p "$hooks_path" && cd "$hooks_path" && pwd)"
+
+echo "Installing quality git hooks into $HOOKS_DIR..."
 
 cp "$SCRIPT_DIR/pre-commit-quality" "$HOOKS_DIR/pre-commit-quality"
 chmod +x "$HOOKS_DIR/pre-commit-quality"
