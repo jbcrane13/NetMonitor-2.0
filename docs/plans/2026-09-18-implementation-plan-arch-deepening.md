@@ -154,7 +154,7 @@ iOS unit tests use `-scheme NetMonitor-iOS -destination 'platform=iOS Simulator,
 
 ## Acceptance and release tasks
 
-- **Epic acceptance** (orchestrator, after all seven merge): `main` builds both apps; NSK + Core package suites pass locally; macOS and iOS unit-test targets pass on the node; the node's live-scan test (`NETMONITOR_LIVE_SCAN=1`) finds the gateway; the review report's `grep` claims for cards 1–7 now return empty. Recorded as a comment on the epic. No App Store release is part of this plan. The orchestrator host has no GUI session (CLAUDE.md test policy), so no acceptance step runs the app interactively there; anything interactive is the user's to do and is not a gate.
+- **Epic acceptance** (orchestrator, after all seven merge): `main` builds both apps; NSK + Core package suites pass locally; macOS and iOS unit-test targets pass on the node; the node's live-scan test (run with `TEST_RUNNER_NETMONITOR_LIVE_SCAN=1`) prints `gateway=found`; the review report's `grep` claims for cards 1–7 now return empty. Recorded as a comment on the epic. No App Store release is part of this plan. The orchestrator host has no GUI session (CLAUDE.md test policy), so no acceptance step runs the app interactively there; anything interactive is the user's to do and is not a gate.
 - **Docs**: ADR entry for D5/D6 (deleting `ScanStrategy`; typed phase identity) is offered to the user at close, not written unilaterally (pocock-domain-modeling rule: hard to reverse + surprising + real trade-off; D5 meets it).
 
 ## Risks and unresolved decisions
@@ -170,7 +170,11 @@ iOS unit tests use `-scheme NetMonitor-iOS -destination 'platform=iOS Simulator,
 
 ## Plan review
 
-Plan revision/hash: _(filled after review)_
-Reviewer model and session: _(filled after review)_
-Verdict and evidence: _(filled after review)_
-Findings and disposition: _(filled after review)_
+Plan revision/hash: revision 3, commit 7f5ac2d on `docs/arch-plan-rev2`, SHA-256 `ea3ea93accda27369d5f37ae5537dc52694b85e1bdd6fcff9b86d7ed38e2e907` (this section was appended afterwards; the reviewed body is otherwise unchanged except the `TEST_RUNNER_` prefix on the epic acceptance line, which the reviewer requested).
+Reviewer model and session: Claude Fable 5.1 (`claude-fable-5-1`), fresh general-purpose subagent named `plan-reviewer` spawned from orchestrator session https://claude.ai/code/session_01KZuytmkCqCmqssQmqYWCvA on 2026-09-18 (no shared context with the planner).
+Verdict and evidence: round 1 (rev 1, hash `012b2aed…e7d5a`, commit ca4ce1b): **changes required**, 6 blocking + 11 non-blocking. Round 2 (rev 2, hash `ffbb7286…0a0e4d`, commit 99f1387): **changes required**, 1 blocking + 4 non-blocking. Round 3 (rev 3, hash `ea3ea93a…2e907`, commit 7f5ac2d): **pass**, confirmed by diff against rev 2, 1 residual wording item.
+Findings and disposition:
+- Blocking, rev 1 → fixed in rev 2: `scanQueue` internal blocks public `withNWConnection` (D4: S1 moves it public into `NWConnectionHelper.swift`); S1 grep could never be empty (anchored pattern); S6 init change would break nine construction sites (signature unchanged, factory/checker defaulted); deleting shell ping regresses latency in the sandbox (D14 retains `measureDeviceLatencies`; ICMP gate removed); equivalence test ran live sockets (D16 asserts below `startScan()` + no-op port checker); manual-scan gate not executable on a GUI-less host (node-run live-scan test).
+- Blocking, rev 2 → fixed in rev 3: `xcodebuild test` forwards only `TEST_RUNNER_`-prefixed env; live-scan gate now uses the prefix and treats a skipped test as failure.
+- Non-blocking, all applied: S5 `Severity` in a new file (no `ServiceProtocols.swift` edit); S6 owns the NSK test directory; latency-precedence relocation excluded; `BonjourDiscoveryService.resolveService` added to S3; D9 scoped to `success`/`gray` colour ternaries; D12 keeps `Theme.Thresholds`; D11 cadence throttled to ≥ 60 s; S3 → S6 marked rebase-only; `ScanPhaseID: ExpressibleByStringLiteral`; S2 references `CompanionWireProtocolTests`; Frontier 2 and shared-file list updated; stale manual-scan text removed; unsandboxed-parity clause added; epic line prefixed.
+- Reviewer confirmed: scope maps cards 1–7; D1/D2 site count (7 acquire/release sites, `@testable` tests); D3 SSDP keep-alive; D5 zero external references; D6/D7 single external `scan(pipeline:` caller; D8 `LocalDevice` surface; D15 compiles under strict concurrency; frontier ownership disjoint; no local `xcodebuild test`; ADR-016/014/007/008/013 consistent; #262 deferral and dissent recorded; D17 model choice defensible.
