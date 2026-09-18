@@ -47,7 +47,8 @@ struct ARPScanPhaseTests {
         let context = ScanContext(
             hosts: ["192.168.1.1", "192.168.1.2"],
             subnetFilter: { _ in false },
-            localIP: nil
+            localIP: nil,
+            requiredInterfaceType: .wifi
         )
         let accumulator = ScanAccumulator()
         let collector = ProgressCollector()
@@ -71,7 +72,8 @@ struct ARPScanPhaseTests {
         let context = ScanContext(
             hosts: ["192.168.1.1"],
             subnetFilter: { _ in true },
-            localIP: nil
+            localIP: nil,
+            requiredInterfaceType: .wifi
         )
         let accumulator = ScanAccumulator()
         let collector = ProgressCollector()
@@ -97,7 +99,8 @@ struct ARPScanPhaseTests {
         let context = ScanContext(
             hosts: [],
             subnetFilter: { _ in true },
-            localIP: nil
+            localIP: nil,
+            requiredInterfaceType: .wifi
         )
         let accumulator = ScanAccumulator()
         let collector = ProgressCollector()
@@ -120,7 +123,8 @@ struct ARPScanPhaseTests {
         let context = ScanContext(
             hosts: ["10.0.0.1"],
             subnetFilter: { _ in false },
-            localIP: nil
+            localIP: nil,
+            requiredInterfaceType: .wifi
         )
         let accumulator = ScanAccumulator()
         let collector = ProgressCollector()
@@ -143,7 +147,8 @@ struct ARPScanPhaseTests {
         let context = ScanContext(
             hosts: ["192.168.1.1", "192.168.1.2", "10.0.0.1"],
             subnetFilter: { $0 == targetIP },
-            localIP: nil
+            localIP: nil,
+            requiredInterfaceType: .wifi
         )
         let accumulator = ScanAccumulator()
 
@@ -164,7 +169,8 @@ struct ARPScanPhaseTests {
         let context = ScanContext(
             hosts: ["192.168.1.1"],
             subnetFilter: { _ in true },
-            localIP: nil
+            localIP: nil,
+            requiredInterfaceType: .wifi
         )
         let accumulator = ScanAccumulator()
 
@@ -182,7 +188,8 @@ struct ARPScanPhaseTests {
         let context = ScanContext(
             hosts: ["192.168.1.1"],
             subnetFilter: { _ in true },
-            localIP: nil
+            localIP: nil,
+            requiredInterfaceType: .wifi
         )
         let accumulator = ScanAccumulator()
 

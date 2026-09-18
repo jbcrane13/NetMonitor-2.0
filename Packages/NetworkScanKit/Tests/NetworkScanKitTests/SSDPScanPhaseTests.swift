@@ -112,7 +112,8 @@ struct SSDPScanPhaseTests {
         let context = ScanContext(
             hosts: [],
             subnetFilter: { _ in false },
-            localIP: nil
+            localIP: nil,
+            requiredInterfaceType: .wifi
         )
         let accumulator = ScanAccumulator()
         let collector = SSDPProgressCollector()
@@ -136,7 +137,8 @@ struct SSDPScanPhaseTests {
         let context = ScanContext(
             hosts: [],
             subnetFilter: { _ in true },
-            localIP: nil
+            localIP: nil,
+            requiredInterfaceType: .wifi
         )
         let accumulator = ScanAccumulator()
         let collector = SSDPProgressCollector()
@@ -156,7 +158,8 @@ struct SSDPScanPhaseTests {
         let context = ScanContext(
             hosts: [],
             subnetFilter: { _ in false },
-            localIP: nil
+            localIP: nil,
+            requiredInterfaceType: .wifi
         )
         let accumulator = ScanAccumulator()
         let collector = SSDPProgressCollector()
@@ -176,7 +179,8 @@ struct SSDPScanPhaseTests {
         let context = ScanContext(
             hosts: [],
             subnetFilter: { _ in true },
-            localIP: nil
+            localIP: nil,
+            requiredInterfaceType: .wifi
         )
         let accumulator = ScanAccumulator()
 
@@ -195,7 +199,8 @@ struct SSDPScanPhaseTests {
         let context = ScanContext(
             hosts: [],
             subnetFilter: { _ in true },
-            localIP: nil
+            localIP: nil,
+            requiredInterfaceType: .wifi
         )
         let accumulator = ScanAccumulator()
 

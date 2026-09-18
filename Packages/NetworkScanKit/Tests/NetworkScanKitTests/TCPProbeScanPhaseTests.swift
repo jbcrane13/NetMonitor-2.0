@@ -94,7 +94,8 @@ struct TCPProbeScanPhaseTests {
         let context = ScanContext(
             hosts: [],
             subnetFilter: { _ in true },
-            localIP: nil
+            localIP: nil,
+            requiredInterfaceType: .wifi
         )
         let accumulator = ScanAccumulator()
         let collector = TCPProgressCollector()
@@ -130,7 +131,8 @@ struct TCPProbeScanPhaseTests {
         let context = ScanContext(
             hosts: ["192.168.1.1", "192.168.1.2"],
             subnetFilter: { _ in true },
-            localIP: nil
+            localIP: nil,
+            requiredInterfaceType: .wifi
         )
         let collector = TCPProgressCollector()
 
@@ -164,7 +166,8 @@ struct TCPProbeScanPhaseTests {
         let context = ScanContext(
             hosts: ["192.168.1.1"],
             subnetFilter: { _ in true },
-            localIP: nil
+            localIP: nil,
+            requiredInterfaceType: .wifi
         )
         let collector = TCPProgressCollector()
 
@@ -187,7 +190,8 @@ struct TCPProbeScanPhaseTests {
         let context = ScanContext(
             hosts: ["192.0.2.1"],
             subnetFilter: { _ in true },
-            localIP: nil
+            localIP: nil,
+            requiredInterfaceType: .wifi
         )
         let accumulator = ScanAccumulator()
         let collector = TCPProgressCollector()
@@ -225,7 +229,8 @@ struct TCPProbeScanPhaseTests {
         let context = ScanContext(
             hosts: ["192.168.1.1"],
             subnetFilter: { _ in true },
-            localIP: nil
+            localIP: nil,
+            requiredInterfaceType: .wifi
         )
         let collector = TCPProgressCollector()
 
@@ -247,7 +252,8 @@ struct TCPProbeScanPhaseTests {
         let context = ScanContext(
             hosts: [],
             subnetFilter: { _ in true },
-            localIP: nil
+            localIP: nil,
+            requiredInterfaceType: .wifi
         )
         let accumulator = ScanAccumulator()
         let collector = TCPProgressCollector()

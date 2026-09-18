@@ -296,7 +296,7 @@ struct ScanEngineCoverageTests {
     // MARK: - Helpers
 
     private func makeContext(hosts: [String]) -> ScanContext {
-        ScanContext(hosts: hosts, subnetFilter: { _ in true }, localIP: nil)
+        ScanContext(hosts: hosts, subnetFilter: { _ in true }, localIP: nil, requiredInterfaceType: .wifi)
     }
 }
 

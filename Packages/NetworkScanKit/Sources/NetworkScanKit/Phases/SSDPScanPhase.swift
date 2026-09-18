@@ -17,7 +17,7 @@ public struct SSDPScanPhase: ScanPhase, Sendable {
         guard !Task.isCancelled else { return }
         await onProgress(0.0)
 
-        let discoveredIPs = await Self.discoverSSDP()
+        let discoveredIPs = await Self.discoverSSDP(requiredInterfaceType: context.requiredInterfaceType)
         guard !Task.isCancelled else { return }
         await onProgress(0.7)
 
@@ -40,7 +40,7 @@ public struct SSDPScanPhase: ScanPhase, Sendable {
     // MARK: - SSDP M-SEARCH
 
     /// Send SSDP M-SEARCH multicast and collect responding device IPs.
-    private static func discoverSSDP() async -> [String] {
+    private static func discoverSSDP(requiredInterfaceType: NWInterface.InterfaceType?) async -> [String] {
         guard !Task.isCancelled else { return [] }
         let multicastGroup = "239.255.255.250"
         let multicastPort: UInt16 = 1900
@@ -60,7 +60,9 @@ public struct SSDPScanPhase: ScanPhase, Sendable {
             port: NWEndpoint.Port(rawValue: multicastPort)!
         )
         let params = NWParameters.udp
-        params.requiredInterfaceType = .wifi
+        if let requiredInterfaceType {
+            params.requiredInterfaceType = requiredInterfaceType
+        }
 
         let discoveredIPs = await withConnectionSlot { () async -> [String] in
             let connection = NWConnection(to: endpoint, using: params)

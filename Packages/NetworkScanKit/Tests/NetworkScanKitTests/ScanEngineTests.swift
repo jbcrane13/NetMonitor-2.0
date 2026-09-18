@@ -170,7 +170,8 @@ struct ScanEngineTests {
         ScanContext(
             hosts: hosts,
             subnetFilter: { _ in true },
-            localIP: nil
+            localIP: nil,
+            requiredInterfaceType: .wifi
         )
     }
 

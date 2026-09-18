@@ -67,7 +67,8 @@ struct ReverseDNSScanPhaseTests {
         let context = ScanContext(
             hosts: [],
             subnetFilter: { _ in true },
-            localIP: nil
+            localIP: nil,
+            requiredInterfaceType: .wifi
         )
         let accumulator = ScanAccumulator()
         let collector = RDNSProgressCollector()
@@ -104,7 +105,8 @@ struct ReverseDNSScanPhaseTests {
         let context = ScanContext(
             hosts: ["192.168.1.1"],
             subnetFilter: { _ in true },
-            localIP: nil
+            localIP: nil,
+            requiredInterfaceType: .wifi
         )
         let collector = RDNSProgressCollector()
 
@@ -144,7 +146,8 @@ struct ReverseDNSScanPhaseTests {
         let context = ScanContext(
             hosts: ["192.168.1.1"],
             subnetFilter: { _ in true },
-            localIP: nil
+            localIP: nil,
+            requiredInterfaceType: .wifi
         )
         let collector = RDNSProgressCollector()
 
@@ -183,7 +186,8 @@ struct ReverseDNSScanPhaseTests {
         let context = ScanContext(
             hosts: (1...3).map { "192.168.1.\($0)" },
             subnetFilter: { _ in true },
-            localIP: nil
+            localIP: nil,
+            requiredInterfaceType: .wifi
         )
         let collector = RDNSProgressCollector()
 
@@ -231,7 +235,8 @@ struct ReverseDNSScanPhaseTests {
         let context = ScanContext(
             hosts: ["192.168.1.1", "192.168.1.2"],
             subnetFilter: { _ in true },
-            localIP: nil
+            localIP: nil,
+            requiredInterfaceType: .wifi
         )
         let collector = RDNSProgressCollector()
 
@@ -269,7 +274,8 @@ struct ReverseDNSScanPhaseTests {
         let context = ScanContext(
             hosts: ["192.168.1.1"],
             subnetFilter: { _ in true },
-            localIP: nil
+            localIP: nil,
+            requiredInterfaceType: .wifi
         )
         let collector = RDNSProgressCollector()
 
@@ -303,7 +309,8 @@ struct ReverseDNSScanPhaseTests {
         let context = ScanContext(
             hosts: ["192.168.1.1"],
             subnetFilter: { _ in true },
-            localIP: nil
+            localIP: nil,
+            requiredInterfaceType: .wifi
         )
 
         await phase.execute(context: context, accumulator: accumulator) { _ in }
