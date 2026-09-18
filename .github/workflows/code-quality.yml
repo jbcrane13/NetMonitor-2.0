@@ -30,7 +30,7 @@ jobs:
           echo ""
           echo "Periphery found ${count} unused declaration(s)."
           echo "These are warnings only and do not block this PR."
-          echo "Address them via bd create issues and reference the ticket in a // periphery:ignore comment."
+          echo "Create GitHub issues for intentional follow-up and reference the issue in a // periphery:ignore comment."
         continue-on-error: true
 
       - name: Upload Periphery report

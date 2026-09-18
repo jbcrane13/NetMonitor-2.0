@@ -11,7 +11,7 @@ GitHub configuration directory. Contains CI/CD workflow definitions, project aut
 |------|---------|
 | `CODEOWNERS` | Path-based ownership — auto-requests reviews when branch protection is active |
 | `dependabot.yml` | Weekly automated PRs for GitHub Actions version updates and Swift packages |
-| `pull_request_template.md` | Auto-populates new PRs with summary, beads issue link, and test checklist |
+| `pull_request_template.md` | Auto-populates new PRs with summary, GitHub issue link, and test checklist |
 
 ## Subdirectories
 
