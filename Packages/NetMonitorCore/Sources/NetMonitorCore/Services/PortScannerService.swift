@@ -86,50 +86,25 @@ public actor PortScannerService: PortScannerServiceProtocol {
             parameters.allowLocalEndpointReuse = true
 
             let connection = NWConnection(to: endpoint, using: parameters)
-            defer { connection.cancel() }
 
-            let portState = await withCheckedContinuation { (continuation: CheckedContinuation<PortState, Never>) in
-                let resumed = ResumeState()
-
-                let timeoutTask = Task {
-                    try? await Task.sleep(for: .seconds(timeout))
-                    guard await resumed.tryResume() else { return }
-                    connection.cancel()
-                    continuation.resume(returning: .filtered)
-                }
-
-                connection.stateUpdateHandler = { state in
-                    switch state {
-                    case .ready:
-                        Task {
-                            guard await resumed.tryResume() else { return }
-                            timeoutTask.cancel()
-                            connection.cancel()
-                            continuation.resume(returning: .open)
-                        }
-                    case .failed(let error):
-                        Task {
-                            guard await resumed.tryResume() else { return }
-                            timeoutTask.cancel()
-                            connection.cancel()
-                            if case NWError.posix(let code) = error, code == .ECONNREFUSED {
-                                continuation.resume(returning: .closed)
-                            } else {
-                                continuation.resume(returning: .filtered)
-                            }
-                        }
-                    case .cancelled:
-                        Task {
-                            guard await resumed.tryResume() else { return }
-                            timeoutTask.cancel()
-                            continuation.resume(returning: .filtered)
-                        }
-                    default:
-                        break
+            let portState: PortState = await withNWConnection(
+                connection,
+                timeout: .seconds(timeout),
+                timeoutValue: .filtered
+            ) { state in
+                switch state {
+                case .ready:
+                    return .complete(.open)
+                case .failed(let error):
+                    if case NWError.posix(let code) = error, code == .ECONNREFUSED {
+                        return .complete(.closed)
                     }
+                    return .complete(.filtered)
+                case .cancelled:
+                    return .complete(.filtered)
+                default:
+                    return nil
                 }
-
-                connection.start(queue: .global())
             }
 
             let elapsed = Date().timeIntervalSince(start) * 1000

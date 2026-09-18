@@ -6,7 +6,7 @@ public let scanQueue = DispatchQueue(label: "com.netmonitor.scan", qos: .userIni
 
 /// Outcome the classifier in ``withNWConnection(_:on:timeout:timeoutValue:classify:)``
 /// returns for a given state transition.
-enum NWConnectionResolution<T: Sendable> {
+public enum NWConnectionResolution<T: Sendable>: Sendable {
     /// Resolve and cancel the connection.
     case complete(T)
     /// Resolve and leave the connection running so the caller can keep using it
@@ -69,7 +69,12 @@ private actor NWConnectionOperationState<Value: Sendable> {
 /// returns. `.completeKeepAlive(_)` skips cancellation so the caller can continue
 /// using the live connection. The caller passes a freshly-constructed `NWConnection`
 /// that has not yet been started.
-func withNWConnection<T: Sendable>(
+///
+/// `classify` is invoked synchronously on `queue` for every state transition
+/// (the same queue `connection` is started on), so callers that need to measure
+/// elapsed time can capture a start timestamp before calling this function and
+/// read it inside `classify` without an actor hop.
+public func withNWConnection<T: Sendable>(
     _ connection: NWConnection,
     on queue: DispatchQueue = scanQueue,
     timeout: Duration,

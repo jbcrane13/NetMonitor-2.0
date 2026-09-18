@@ -165,16 +165,6 @@ public actor PingService: PingServiceProtocol {
 
     // MARK: - TCP Ping (fallback when ICMP socket creation fails)
 
-    /// Reference-type timestamp for Sendable closure capture.
-    ///
-    /// SAFETY: @unchecked Sendable is safe here because DateRef is only ever created
-    /// inside a single NWConnection stateUpdateHandler closure on pingQueue and read
-    /// synchronously on that same queue. No concurrent writes occur — the value is set
-    /// once at construction and read once when the connection state fires.
-    private final class DateRef: @unchecked Sendable {
-        var value = Date()
-    }
-
     private func pingTCP(
         host: String,
         ip: String?,
@@ -223,57 +213,30 @@ public actor PingService: PingServiceProtocol {
                 group.addTask {
                     let result = await withConnectionSlot { () async -> (Bool, TimeInterval) in
                         let connection = NWConnection(to: .hostPort(host: hostEndpoint, port: port), using: .tcp)
-                        defer { connection.cancel() }
+                        let start = Date()
 
-                        return await withCheckedContinuation { (continuation: CheckedContinuation<(Bool, TimeInterval), Never>) in
-                            let resumed = ResumeState()
-                            let startTime = DateRef()
-
-                            let timeoutTask = Task {
-                                try? await Task.sleep(for: .seconds(timeout))
-                                guard await resumed.tryResume() else { return }
-                                connection.cancel()
-                                continuation.resume(returning: (false, timeout))
-                            }
-
-                            connection.stateUpdateHandler = { state in
-                                // Capture elapsed SYNCHRONOUSLY on pingQueue — true handshake time.
-                                let elapsed = Date().timeIntervalSince(startTime.value)
-                                switch state {
-                                case .ready:
-                                    Task {
-                                        guard await resumed.tryResume() else { return }
-                                        timeoutTask.cancel()
-                                        connection.cancel()
-                                        continuation.resume(returning: (true, elapsed))
-                                    }
-                                case .failed(let error):
-                                    Task {
-                                        guard await resumed.tryResume() else { return }
-                                        timeoutTask.cancel()
-                                        connection.cancel()
-
-                                        // A refused TCP handshake still proves the host is reachable.
-                                        if case NWError.posix(let code) = error, code == .ECONNREFUSED {
-                                            continuation.resume(returning: (true, elapsed))
-                                        } else {
-                                            continuation.resume(returning: (false, elapsed))
-                                        }
-                                    }
-                                case .cancelled:
-                                    Task {
-                                        guard await resumed.tryResume() else { return }
-                                        timeoutTask.cancel()
-                                        connection.cancel()
-                                        continuation.resume(returning: (false, elapsed))
-                                    }
-                                default:
-                                    break
+                        return await withNWConnection(
+                            connection,
+                            on: queue,
+                            timeout: .seconds(timeout),
+                            timeoutValue: (false, timeout)
+                        ) { state in
+                            // Capture elapsed SYNCHRONOUSLY on pingQueue — true handshake time.
+                            let elapsed = Date().timeIntervalSince(start)
+                            switch state {
+                            case .ready:
+                                return .complete((true, elapsed))
+                            case .failed(let error):
+                                // A refused TCP handshake still proves the host is reachable.
+                                if case NWError.posix(let code) = error, code == .ECONNREFUSED {
+                                    return .complete((true, elapsed))
                                 }
+                                return .complete((false, elapsed))
+                            case .cancelled:
+                                return .complete((false, elapsed))
+                            default:
+                                return nil
                             }
-
-                            startTime.value = Date()
-                            connection.start(queue: queue)
                         }
                     }
 
