@@ -10,7 +10,7 @@ import Network
 /// Uses adaptive early exit: instead of waiting a fixed duration, polls for new
 /// services and exits when no new services arrive for `stableExitThreshold`.
 public struct BonjourScanPhase: ScanPhase, Sendable {
-    public let id = "bonjour"
+    public let id: ScanPhaseID = .bonjour
     public let displayName = "Bonjour discovery…"
     public let weight: Double = 0.13
 

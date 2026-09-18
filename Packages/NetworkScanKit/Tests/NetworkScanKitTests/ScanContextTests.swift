@@ -45,48 +45,16 @@ struct ScanContextTests {
         #expect(ctx.subnetFilter("192.168.1.1") == false)
     }
 
-    // MARK: - ScanStrategy
-
-    @Test("scanStrategy defaults to .full")
-    func scanStrategyDefaultsToFull() {
-        let ctx = ScanContext(hosts: [], subnetFilter: { _ in true }, localIP: nil)
-        #expect(ctx.scanStrategy == .full)
-    }
-
-    @Test("scanStrategy can be set to .remote")
-    func scanStrategyCanBeRemote() {
-        let ctx = ScanContext(
-            hosts: [],
-            subnetFilter: { _ in true },
-            localIP: nil,
-            scanStrategy: .remote
-        )
-        #expect(ctx.scanStrategy == .remote)
-    }
-
-    @Test("scanStrategy can be set to .full explicitly")
-    func scanStrategyCanBeFullExplicit() {
-        let ctx = ScanContext(
-            hosts: [],
-            subnetFilter: { _ in true },
-            localIP: nil,
-            scanStrategy: .full
-        )
-        #expect(ctx.scanStrategy == .full)
-    }
-
     @Test("full context with all parameters")
     func fullContext() {
         let ctx = ScanContext(
             hosts: ["10.0.0.1"],
             subnetFilter: { ip in ip.hasPrefix("10.0.") },
-            localIP: "10.0.0.50",
-            scanStrategy: .remote
+            localIP: "10.0.0.50"
         )
 
         #expect(ctx.hosts == ["10.0.0.1"])
         #expect(ctx.subnetFilter("10.0.0.1") == true)
         #expect(ctx.localIP == "10.0.0.50")
-        #expect(ctx.scanStrategy == .remote)
     }
 }

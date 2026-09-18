@@ -3,7 +3,7 @@ import Testing
 @testable import NetworkScanKit
 
 /// Coverage-focused tests for ScanPipeline, targeting the bonjour provider
-/// parameters and factory method branches not exercised by existing tests.
+/// parameters not exercised by existing tests.
 @Suite("ScanPipeline coverage")
 struct ScanPipelineCoverageTests {
 
@@ -58,70 +58,6 @@ struct ScanPipelineCoverageTests {
         #expect(allPhaseIds.contains("bonjour"))
     }
 
-    // MARK: - forStrategy() with bonjour providers
-
-    @Test("forStrategy .full with bonjourServiceProvider has 4 steps")
-    func forStrategyFullWithProvider() {
-        let services: @Sendable () async -> [BonjourServiceInfo] = { [] }
-        let pipeline = ScanPipeline.forStrategy(.full, bonjourServiceProvider: services)
-
-        #expect(pipeline.steps.count == 4)
-    }
-
-    @Test("forStrategy .full with bonjourStopProvider has 4 steps")
-    func forStrategyFullWithStopProvider() {
-        let stop: @Sendable () async -> Void = {}
-        let pipeline = ScanPipeline.forStrategy(.full, bonjourStopProvider: stop)
-
-        #expect(pipeline.steps.count == 4)
-    }
-
-    @Test("forStrategy .full with both providers matches standard with providers")
-    func forStrategyFullWithBothProviders() {
-        let services: @Sendable () async -> [BonjourServiceInfo] = {
-            [BonjourServiceInfo(name: "X", type: "_x._tcp", domain: "local.")]
-        }
-        let stop: @Sendable () async -> Void = {}
-        let strategyPipeline = ScanPipeline.forStrategy(
-            .full,
-            bonjourServiceProvider: services,
-            bonjourStopProvider: stop
-        )
-        let standardPipeline = ScanPipeline.standard(
-            bonjourServiceProvider: services,
-            bonjourStopProvider: stop
-        )
-
-        #expect(strategyPipeline.steps.count == standardPipeline.steps.count)
-        for (i, (sStep, stdStep)) in zip(strategyPipeline.steps, standardPipeline.steps).enumerated() {
-            #expect(sStep.concurrent == stdStep.concurrent, "Step \(i) concurrent mismatch")
-            #expect(sStep.phases.count == stdStep.phases.count, "Step \(i) phase count mismatch")
-        }
-    }
-
-    @Test("forStrategy .remote ignores bonjourServiceProvider")
-    func forStrategyRemoteIgnoresBonjourProvider() {
-        let services: @Sendable () async -> [BonjourServiceInfo] = {
-            [BonjourServiceInfo(name: "Ignored", type: "_http._tcp", domain: "local.")]
-        }
-        let pipeline = ScanPipeline.forStrategy(.remote, bonjourServiceProvider: services)
-
-        // Remote pipeline should still have 2 steps, no bonjour phase
-        #expect(pipeline.steps.count == 2)
-        let allPhaseIds = pipeline.steps.flatMap { $0.phases.map(\.id) }
-        #expect(!allPhaseIds.contains("bonjour"))
-    }
-
-    @Test("forStrategy .remote ignores bonjourStopProvider")
-    func forStrategyRemoteIgnoresStopProvider() {
-        let stop: @Sendable () async -> Void = {}
-        let pipeline = ScanPipeline.forStrategy(.remote, bonjourStopProvider: stop)
-
-        #expect(pipeline.steps.count == 2)
-        let allPhaseIds = pipeline.steps.flatMap { $0.phases.map(\.id) }
-        #expect(!allPhaseIds.contains("bonjour"))
-    }
-
     // MARK: - Step properties
 
     @Test("Step with multiple phases stores all phases")
@@ -173,21 +109,11 @@ struct ScanPipelineCoverageTests {
         #expect(totalWeight == 15.0)
     }
 
-    // MARK: - Phase IDs in standard and remote pipelines
+    // MARK: - Phase IDs in standard pipeline
 
     @Test("standard pipeline phase display names are all non-empty")
     func standardPhaseDisplayNamesNonEmpty() {
         let pipeline = ScanPipeline.standard()
-        for step in pipeline.steps {
-            for phase in step.phases {
-                #expect(!phase.displayName.isEmpty, "Phase \(phase.id) has empty displayName")
-            }
-        }
-    }
-
-    @Test("remote pipeline phase display names are all non-empty")
-    func remotePhaseDisplayNamesNonEmpty() {
-        let pipeline = ScanPipeline.forStrategy(.remote)
         for step in pipeline.steps {
             for phase in step.phases {
                 #expect(!phase.displayName.isEmpty, "Phase \(phase.id) has empty displayName")
@@ -210,14 +136,6 @@ struct ScanPipelineCoverageTests {
         #expect(weightsById["reverseDNS"] == 0.08)
     }
 
-    @Test("remote pipeline total weight is sum of tcpProbe + icmpLatency + reverseDNS")
-    func remotePipelineTotalWeight() {
-        let pipeline = ScanPipeline.forStrategy(.remote)
-        let total = pipeline.steps.flatMap(\.phases).reduce(0.0) { $0 + $1.weight }
-        // TCP probe (0.55) + ICMP latency (0.10) + Reverse DNS (0.08) = 0.73
-        #expect(total == 0.73)
-    }
-
     // MARK: - Pipeline mutability
 
     @Test("pipeline steps are mutable (var property)")
@@ -235,7 +153,7 @@ struct ScanPipelineCoverageTests {
 // MARK: - Simple test phase
 
 private struct SimpleTestPhase: ScanPhase {
-    let id: String
+    let id: ScanPhaseID
     let displayName: String
     let weight: Double
 

@@ -11,18 +11,13 @@ public struct ScanContext: Sendable {
     /// The local device's IP address (excluded from probing).
     public let localIP: String?
 
-    /// The scan strategy determining which phases are included.
-    public let scanStrategy: ScanStrategy
-
     public init(
         hosts: [String],
         subnetFilter: @escaping @Sendable (String) -> Bool,
-        localIP: String?,
-        scanStrategy: ScanStrategy = .full
+        localIP: String?
     ) {
         self.hosts = hosts
         self.subnetFilter = subnetFilter
         self.localIP = localIP
-        self.scanStrategy = scanStrategy
     }
 }

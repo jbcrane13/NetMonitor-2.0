@@ -175,31 +175,27 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
         )
 
         // Build pipeline with Bonjour service provider
-        let bonjourPhase = BonjourScanPhase(serviceProvider: {
-            await MainActor.run {
-                bonjourService.discoveredServices.map {
-                    BonjourServiceInfo(name: $0.name, type: $0.type, domain: $0.domain)
+        let pipeline = ScanPipeline.standard(
+            bonjourServiceProvider: {
+                await MainActor.run {
+                    bonjourService.discoveredServices.map {
+                        BonjourServiceInfo(name: $0.name, type: $0.type, domain: $0.domain)
+                    }
                 }
+            },
+            bonjourStopProvider: {
+                await MainActor.run { bonjourService.stopDiscovery() }
             }
-        }, stopProvider: {
-            await MainActor.run { bonjourService.stopDiscovery() }
-        })
-
-        let pipeline = ScanPipeline(steps: [
-            ScanPipeline.Step(phases: [ARPScanPhase(), bonjourPhase], concurrent: true),
-            ScanPipeline.Step(phases: [TCPProbeScanPhase(), SSDPScanPhase()], concurrent: true),
-            ScanPipeline.Step(phases: [ICMPLatencyPhase()], concurrent: false),
-            ScanPipeline.Step(phases: [ReverseDNSScanPhase()], concurrent: false),
-        ])
+        )
 
         // Run the scan engine
         let engineRef = engine
-        _ = await engineRef.scan(pipeline: pipeline, context: context) { [weak self] progress, phaseName in
+        _ = await engineRef.scan(pipeline: pipeline, context: context) { [weak self] progress, phaseID in
             let shouldPublish = await MainActor.run {
                 guard let self else { return false }
                 return self.progressCoalescer.shouldPublish(
                     progress: progress,
-                    phase: phaseName,
+                    phase: phaseID.rawValue,
                     timestamp: ProcessInfo.processInfo.systemUptime
                 )
             }
@@ -210,7 +206,7 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
                 guard let self else { return }
                 self.scanProgress = progress
                 self.discoveredDevices = snapshot.map { self.withProfile($0, profileID: profileID) }
-                if let phase = ScanDisplayPhase(rawValue: phaseName) {
+                if let phase = ScanDisplayPhase(phaseID: phaseID) {
                     self.scanPhase = phase
                 }
             }

@@ -41,13 +41,13 @@ public actor ScanEngine {
     ///
     /// - Parameters:
     ///   - pipeline: Defines phase ordering and concurrency.
-    ///   - context: Shared scan context (hosts, subnet filter, local IP, strategy).
-    ///   - onProgress: Called with `(overallProgress, phaseDisplayName)` as scanning proceeds.
+    ///   - context: Shared scan context (hosts, subnet filter, local IP).
+    ///   - onProgress: Called with `(overallProgress, phaseID)` as scanning proceeds.
     /// - Returns: Sorted array of all discovered devices.
     public func scan(
         pipeline: ScanPipeline,
         context: ScanContext,
-        onProgress: @escaping @Sendable (Double, String) async -> Void
+        onProgress: @escaping @Sendable (Double, ScanPhaseID) async -> Void
     ) async -> [DiscoveredDevice] {
         guard !Task.isCancelled else { return await accumulator.sortedSnapshot() }
         let totalWeight = pipeline.steps.flatMap(\.phases).reduce(0.0) { $0 + $1.weight }
@@ -72,7 +72,7 @@ public actor ScanEngine {
                                 await phase.execute(context: context, accumulator: accum) { phaseProgress in
                                     guard !Task.isCancelled else { return }
                                     let overall = (bw + phase.weight * phaseProgress) / tw
-                                    await onProgress(overall, phase.displayName)
+                                    await onProgress(overall, phase.id)
                                 }
                             }
                         }
@@ -91,7 +91,7 @@ public actor ScanEngine {
                         await phase.execute(context: context, accumulator: accum) { phaseProgress in
                             guard !Task.isCancelled else { return }
                             let overall = (phaseBase + phase.weight * phaseProgress) / tw
-                            await onProgress(overall, phase.displayName)
+                            await onProgress(overall, phase.id)
                         }
                     }
                     guard !Task.isCancelled else { break }
@@ -101,31 +101,6 @@ public actor ScanEngine {
         }
 
         return await accumulator.sortedSnapshot()
-    }
-
-    /// Run a complete scan using the strategy from context, automatically building the appropriate pipeline.
-    ///
-    /// This is a convenience method that creates the pipeline based on `context.scanStrategy`.
-    /// For `.full` strategy, you can optionally provide Bonjour service callbacks.
-    ///
-    /// - Parameters:
-    ///   - context: Shared scan context (hosts, subnet filter, local IP, strategy).
-    ///   - bonjourServiceProvider: Optional provider for Bonjour services (used only for `.full` strategy).
-    ///   - bonjourStopProvider: Optional callback to stop Bonjour browser (used only for `.full` strategy).
-    ///   - onProgress: Called with `(overallProgress, phaseDisplayName)` as scanning proceeds.
-    /// - Returns: Sorted array of all discovered devices.
-    public func scan(
-        context: ScanContext,
-        bonjourServiceProvider: @escaping @Sendable () async -> [BonjourServiceInfo] = { [] },
-        bonjourStopProvider: (@Sendable () async -> Void)? = nil,
-        onProgress: @escaping @Sendable (Double, String) async -> Void
-    ) async -> [DiscoveredDevice] {
-        let pipeline = ScanPipeline.forStrategy(
-            context.scanStrategy,
-            bonjourServiceProvider: bonjourServiceProvider,
-            bonjourStopProvider: bonjourStopProvider
-        )
-        return await scan(pipeline: pipeline, context: context, onProgress: onProgress)
     }
 
     /// Run an async operation with a timeout. If the operation exceeds the

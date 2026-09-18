@@ -6,7 +6,7 @@ import Foundation
 /// Phases are orchestrated by ``ScanEngine`` according to a ``ScanPipeline``.
 public protocol ScanPhase: Sendable {
     /// Unique identifier for this phase.
-    var id: String { get }
+    var id: ScanPhaseID { get }
 
     /// Human-readable name shown during scanning.
     var displayName: String { get }

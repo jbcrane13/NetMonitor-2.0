@@ -16,7 +16,7 @@ private let icmpQueue = DispatchQueue(label: "com.netmonitor.scankit.icmp", qos:
 /// The dedicated queue prevents cooperative thread pool scheduling from inflating
 /// RTT measurements between recvfrom calls.
 public struct ICMPLatencyPhase: ScanPhase, Sendable {
-    public let id = "icmpLatency"
+    public let id: ScanPhaseID = .icmpLatency
     public let displayName = "Measuring latency…"
     public let weight: Double = 0.10
 

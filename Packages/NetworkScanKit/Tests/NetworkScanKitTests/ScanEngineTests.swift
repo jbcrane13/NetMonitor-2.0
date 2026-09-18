@@ -38,8 +38,8 @@ struct ScanEngineTests {
 
         let updates = await progress.snapshot()
         #expect(!updates.isEmpty)
-        #expect(updates.contains { $0.phaseName == "Phase A" })
-        #expect(updates.contains { $0.phaseName == "Phase B" })
+        #expect(updates.contains { $0.phaseName == "phase-a" })
+        #expect(updates.contains { $0.phaseName == "phase-b" })
         #expect((updates.last?.value ?? 0) > 0.99)
     }
 
@@ -76,8 +76,8 @@ struct ScanEngineTests {
         #expect(Set(results.map(\.ipAddress)) == Set(["192.168.1.40", "192.168.1.50"]))
 
         let updates = await progress.snapshot()
-        #expect(updates.contains { $0.phaseName == "Concurrent A" })
-        #expect(updates.contains { $0.phaseName == "Concurrent B" })
+        #expect(updates.contains { $0.phaseName == "concurrent-a" })
+        #expect(updates.contains { $0.phaseName == "concurrent-b" })
     }
 
     @Test("zero-weight pipeline returns existing accumulator snapshot and skips phase execution")
@@ -188,7 +188,7 @@ struct ScanEngineTests {
 }
 
 private struct CancellableFixturePhase: ScanPhase {
-    let id: String
+    let id: ScanPhaseID
     let recorder: PhaseExecutionRecorder
     let waitsForCancellation: Bool
     let displayName = "Cancellation Fixture"
@@ -208,19 +208,19 @@ private struct CancellableFixturePhase: ScanPhase {
 }
 
 private actor PhaseExecutionRecorder {
-    private var executed: Set<String> = []
+    private var executed: Set<ScanPhaseID> = []
 
-    func record(_ id: String) {
+    func record(_ id: ScanPhaseID) {
         executed.insert(id)
     }
 
-    func hasExecuted(_ id: String) -> Bool {
+    func hasExecuted(_ id: ScanPhaseID) -> Bool {
         executed.contains(id)
     }
 }
 
 private struct NonCooperativeFixturePhase: ScanPhase {
-    let id = "non-cooperative"
+    let id: ScanPhaseID = "non-cooperative"
     let displayName = "Non-cooperative"
     let weight = 1.0
 
@@ -237,7 +237,7 @@ private struct NonCooperativeFixturePhase: ScanPhase {
 }
 
 private struct FixturePhase: ScanPhase {
-    let id: String
+    let id: ScanPhaseID
     let displayName: String
     let weight: Double
     let progressValues: [Double]
@@ -269,12 +269,12 @@ private struct FixturePhase: ScanPhase {
 private actor ProgressRecorder {
     struct Update {
         let value: Double
-        let phaseName: String
+        let phaseName: ScanPhaseID
     }
 
     private var updates: [Update] = []
 
-    func record(_ value: Double, phaseName: String) {
+    func record(_ value: Double, phaseName: ScanPhaseID) {
         updates.append(Update(value: value, phaseName: phaseName))
     }
 

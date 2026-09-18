@@ -24,13 +24,6 @@ struct ScanPipelineIntegrationTests {
         }
     }
 
-    @Test("remote pipeline total weight is positive")
-    func remotePipelineTotalWeight() {
-        let pipeline = ScanPipeline.forStrategy(.remote)
-        let total = pipeline.steps.flatMap(\.phases).reduce(0.0) { $0 + $1.weight }
-        #expect(total > 0)
-    }
-
     // MARK: - Phase IDs in standard pipeline
 
     @Test("standard pipeline step 0 contains arp and bonjour phases")
@@ -179,8 +172,8 @@ private actor ProgressCollector {
 // MARK: - Stub phase for integration tests
 
 private struct StubPhase: ScanPhase {
-    let id: String
-    var displayName: String { id }
+    let id: ScanPhaseID
+    var displayName: String { id.rawValue }
     let weight: Double
     let ips: [String]
 
