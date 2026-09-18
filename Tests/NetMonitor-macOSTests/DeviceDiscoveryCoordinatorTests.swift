@@ -264,6 +264,12 @@ struct DeviceDiscoveryCoordinatorTests {
             portChecker: { _, _, _ in false }
         )
 
+        // `ConnectionBudget.shared` is process-global: earlier suites in the same test
+        // host (e.g. live-Bonjour tests killed by their time limit) can leave slots
+        // active, so assert relative to the count observed before this scan rather
+        // than against zero (#287).
+        let activeBefore = await ConnectionBudget.shared.activeCount
+
         coordinator.startScan()
         // Give the fixture phase a moment to start sleeping and acquire its connection slot.
         try? await Task.sleep(for: .milliseconds(100))
@@ -276,8 +282,9 @@ struct DeviceDiscoveryCoordinatorTests {
         // as soon as its cancellation handler fires, which can be before the phase's own
         // `operationTask` — and therefore its `withConnectionSlot` release — has actually
         // unwound. Poll instead of asserting once to avoid racing that unwind.
-        await Self.waitUntil(timeout: .seconds(10)) { await ConnectionBudget.shared.activeCount == 0 }
-        #expect(await ConnectionBudget.shared.activeCount == 0)
+        await Self.waitUntil(timeout: .seconds(10)) { await ConnectionBudget.shared.activeCount <= activeBefore }
+        let activeAfter = await ConnectionBudget.shared.activeCount
+        #expect(activeAfter <= activeBefore, "fixture phase's slot must be released: before=\(activeBefore) after=\(activeAfter)")
     }
 
     /// Polls `condition` until it's true or `timeout` elapses — used instead of a fixed
