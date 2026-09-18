@@ -3,9 +3,10 @@ import Testing
 import NetMonitorCore
 @testable import NetMonitor_iOS
 
-// MARK: - Theme.Colors.latencyColor(ms:)
+struct ThemeSeverityTests {
 
-struct ThemeLatencyColorTests {
+    // MARK: - Theme.Colors.latencyColor(ms:)
+
     @Test func belowGoodBoundaryIsSuccess() {
         #expect(Theme.Colors.latencyColor(ms: 49) == Theme.Colors.success)
     }
@@ -21,11 +22,9 @@ struct ThemeLatencyColorTests {
     @Test func atPoorBoundaryIsError() {
         #expect(Theme.Colors.latencyColor(ms: 150) == Theme.Colors.error)
     }
-}
 
-// MARK: - Theme.Colors.color(for:) Severity mapping
+    // MARK: - Theme.Colors.color(for:) Severity mapping
 
-struct ThemeSeverityColorTests {
     @Test func goodMapsToSuccess() {
         #expect(Theme.Colors.color(for: .good) == Theme.Colors.success)
     }

@@ -1,7 +1,7 @@
 import Testing
 @testable import NetMonitorCore
 
-struct NetworkHealthSeverityTests {
+struct NetworkHealthScoreSeverityTests {
 
     // MARK: - latencySeverity(ms:)
 
