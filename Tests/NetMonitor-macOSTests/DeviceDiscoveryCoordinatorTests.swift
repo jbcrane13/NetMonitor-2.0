@@ -216,6 +216,35 @@ struct DeviceDiscoveryCoordinatorTests {
         #expect(rows == DeviceDiscoveryCoordinatorFixtures.expectedRowsAfterEndToEndScans.sorted { $0.ipAddress < $1.ipAddress })
     }
 
+    // MARK: - #279 fallback interface selection (no active NetworkProfile)
+    //
+    // Not every Mac's primary LAN interface is en0 (observed on the automation node:
+    // en0 down, LAN reachable only via en1). `selectFallbackInterface` takes an injectable
+    // `networkProvider` specifically so this selection logic is testable without real
+    // interface syscalls.
+
+    @Test func selectFallbackInterfacePicksFirstCandidateWithALiveNetwork() {
+        let liveNetwork = NetworkUtilities.IPv4Network(
+            networkAddress: 0,
+            broadcastAddress: 0,
+            interfaceAddress: 0,
+            netmask: 0
+        )
+        let selected = DeviceDiscoveryCoordinator.selectFallbackInterface(
+            candidates: ["en0", "en1", "en2"],
+            networkProvider: { $0 == "en1" ? liveNetwork : nil }
+        )
+        #expect(selected == "en1")
+    }
+
+    @Test func selectFallbackInterfaceReturnsNilWhenNoCandidateHasALiveNetwork() {
+        let selected = DeviceDiscoveryCoordinator.selectFallbackInterface(
+            candidates: ["en0", "en1"],
+            networkProvider: { _ in nil }
+        )
+        #expect(selected == nil)
+    }
+
     // MARK: - #279 cancellation
 
     @Test func stopScanDuringFixturePhaseReleasesConnectionBudgetAndStopsScanning() async throws {

@@ -565,21 +565,27 @@ final class DeviceDiscoveryCoordinator {
         }
 
         // No active profile yet (e.g. first launch before profile detection completes) —
-        // fall back the same way iOS `makeScanTarget(subnet: nil)` does.
-        if let network = NetworkUtilities.detectLocalIPv4Network() {
+        // fall back the same way iOS `makeScanTarget(subnet: nil)` does, but pick the
+        // interface the same way `ARPScannerService.getLocalNetworkInfo` does rather than
+        // assuming `NetworkUtilities`'s "en0" default: not every Mac's primary LAN
+        // interface is en0 (e.g. en1 when en0 is inactive/unplugged — see #279).
+        let interface = Self.selectFallbackInterface()
+
+        if let interface, let network = NetworkUtilities.detectLocalIPv4Network(interface: interface) {
             let hosts = network.hostAddresses(limit: Self.maxHostsPerScan)
             if !hosts.isEmpty {
                 return ScanContext(
                     hosts: hosts,
                     subnetFilter: { network.contains(ipAddress: $0) },
-                    localIP: NetworkUtilities.detectLocalIPAddress(),
+                    localIP: NetworkUtilities.detectLocalIPAddress(interface: interface),
                     requiredInterfaceType: nil
                 )
             }
         }
 
-        let subnet = NetworkUtilities.detectSubnet() ?? "192.168.1"
-        let localIP = NetworkUtilities.detectLocalIPAddress()
+        let subnet = interface.flatMap { NetworkUtilities.detectSubnet(interface: $0) } ?? "192.168.1"
+        let localIP = interface.flatMap { NetworkUtilities.detectLocalIPAddress(interface: $0) }
+            ?? NetworkUtilities.detectLocalIPAddress()
         var hosts: [String] = []
         hosts.reserveCapacity(254)
         for host in 1...254 {
@@ -594,6 +600,22 @@ final class DeviceDiscoveryCoordinator {
             localIP: localIP,
             requiredInterfaceType: nil
         )
+    }
+
+    /// BSD interface names probed, in order, when no `NetworkProfile` is active yet.
+    /// Widened from `ARPScannerService.getLocalNetworkInfo`'s `["en0", "en1"]` to
+    /// `en0...en9` for the same reason: the primary LAN interface isn't always en0.
+    nonisolated private static let fallbackInterfaceCandidates: [String] = (0...9).map { "en\($0)" }
+
+    /// Picks the first candidate interface that currently has a live IPv4 network.
+    /// `networkProvider` defaults to the real `NetworkUtilities.detectLocalIPv4Network(interface:)`
+    /// but is injectable so this selection logic is unit-testable without real interface
+    /// syscalls (see `DeviceDiscoveryCoordinatorTests`).
+    nonisolated static func selectFallbackInterface(
+        candidates: [String] = DeviceDiscoveryCoordinator.fallbackInterfaceCandidates,
+        networkProvider: (String) -> NetworkUtilities.IPv4Network? = { NetworkUtilities.detectLocalIPv4Network(interface: $0) }
+    ) -> String? {
+        candidates.first { networkProvider($0) != nil }
     }
 
     private func effectiveProfileID() -> UUID? {

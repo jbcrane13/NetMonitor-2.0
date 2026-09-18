@@ -48,15 +48,24 @@ struct DeviceDiscoveryCoordinatorLiveScanTests {
             coordinator.stopScan()
         }
 
-        // Accept either candidate — the profile's own gatewayIP or the sysctl-routing-table
-        // detection — rather than preferring one and only falling back to the other when
-        // it's nil, so a mismatch between the two doesn't spuriously read as "missing".
+        // Accept every gateway candidate we can derive rather than preferring one and only
+        // falling back to another when it's nil, so a mismatch between them doesn't
+        // spuriously read as "missing":
+        //   - the active NetworkProfile's own gatewayIP, if one was detected;
+        //   - the sysctl routing-table gateway for the SAME interface the coordinator
+        //     would fall back to when no profile is active (not always en0 — #279);
+        //   - the plain en0-default detection, as a last resort.
         var gatewayCandidates: Set<String> = []
         if let profileGateway = coordinator.networkProfile?.gatewayIP {
             gatewayCandidates.insert(profileGateway)
         }
-        if let detectedGateway = NetworkUtilities.detectDefaultGateway() {
+        let fallbackInterface = coordinator.networkProfile?.interfaceName
+            ?? DeviceDiscoveryCoordinator.selectFallbackInterface()
+        if let fallbackInterface, let detectedGateway = NetworkUtilities.detectDefaultGateway(interface: fallbackInterface) {
             gatewayCandidates.insert(detectedGateway)
+        }
+        if let detectedGatewayDefault = NetworkUtilities.detectDefaultGateway() {
+            gatewayCandidates.insert(detectedGatewayDefault)
         }
         let gatewayFound = coordinator.discoveredDevices.contains { gatewayCandidates.contains($0.ipAddress) }
 
