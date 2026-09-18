@@ -130,9 +130,9 @@
     "semantic_hash": "da171bb88dbfd7ce11e7de1c79d44fd7"
   },
   "NetMonitorCore/Sources/NetMonitorCore/Services/BonjourDiscoveryService.swift": {
-    "mtime": 1775467135.3760989,
-    "ast_hash": "b992847fdbbc95015a54c14a18a5f669",
-    "semantic_hash": "b992847fdbbc95015a54c14a18a5f669"
+    "mtime": 1786242796.7753513,
+    "ast_hash": "ef3ce4d47b86e2655be0502b5680fee7",
+    "semantic_hash": "ef3ce4d47b86e2655be0502b5680fee7"
   },
   "NetMonitorCore/Sources/NetMonitorCore/Services/CertificateExpirationTracker.swift": {
     "mtime": 1772527606.1097393,
@@ -145,9 +145,9 @@
     "semantic_hash": "b7845f0d1fafc4c3522c2cafb14eda9a"
   },
   "NetMonitorCore/Sources/NetMonitorCore/Services/DeviceDiscoveryService.swift": {
-    "mtime": 1775982962.5490727,
-    "ast_hash": "0eb2ea50e2f984250821c108b80f684d",
-    "semantic_hash": "0eb2ea50e2f984250821c108b80f684d"
+    "mtime": 1786242796.7759933,
+    "ast_hash": "1d978972b625b869fd704e38779d4bf9",
+    "semantic_hash": "1d978972b625b869fd704e38779d4bf9"
   },
   "NetMonitorCore/Sources/NetMonitorCore/Services/DeviceTypeInferenceService.swift": {
     "mtime": 1772903507.0776176,
@@ -235,14 +235,14 @@
     "semantic_hash": "6f889f434406178aa80565a70005ac20"
   },
   "NetMonitorCore/Sources/NetMonitorCore/Services/PingService.swift": {
-    "mtime": 1775467135.3779237,
-    "ast_hash": "a6872d5a63e68326e6f6858aa4e861ac",
-    "semantic_hash": "a6872d5a63e68326e6f6858aa4e861ac"
+    "mtime": 1786242796.7763228,
+    "ast_hash": "89a3d17af8d71fa86f146e95670cd7dd",
+    "semantic_hash": "89a3d17af8d71fa86f146e95670cd7dd"
   },
   "NetMonitorCore/Sources/NetMonitorCore/Services/PortScannerService.swift": {
-    "mtime": 1775467135.3780959,
-    "ast_hash": "2a9b86cc40557b7857b2001af42f9585",
-    "semantic_hash": "2a9b86cc40557b7857b2001af42f9585"
+    "mtime": 1786242796.7767487,
+    "ast_hash": "c300cf0e8986947f98dc3594451eda99",
+    "semantic_hash": "c300cf0e8986947f98dc3594451eda99"
   },
   "NetMonitorCore/Sources/NetMonitorCore/Services/SSLCertificateService.swift": {
     "mtime": 1772127574.210966,
@@ -780,9 +780,9 @@
     "semantic_hash": "54c10ae465effd949415d85203d0c586"
   },
   "NetworkScanKit/Sources/NetworkScanKit/ConnectionBudget.swift": {
-    "mtime": 1773787080.5936615,
-    "ast_hash": "9963d560ac1b2f5aabfb9aff5ef2820f",
-    "semantic_hash": "9963d560ac1b2f5aabfb9aff5ef2820f"
+    "mtime": 1786242796.7785847,
+    "ast_hash": "0b40e38c094e01e7ed7739dff4fdb635",
+    "semantic_hash": "0b40e38c094e01e7ed7739dff4fdb635"
   },
   "NetworkScanKit/Sources/NetworkScanKit/DeviceNameResolver.swift": {
     "mtime": 1775463042.6397262,
@@ -800,39 +800,39 @@
     "semantic_hash": "9b8114ae014cd92bbbcb79b758d6bddd"
   },
   "NetworkScanKit/Sources/NetworkScanKit/NWConnectionHelper.swift": {
-    "mtime": 1779161121.9924066,
-    "ast_hash": "4cee267faf8d42b626ab445cfb3ae583",
-    "semantic_hash": "4cee267faf8d42b626ab445cfb3ae583"
+    "mtime": 1786242796.779015,
+    "ast_hash": "fbe5ae8df3b852fe05420b5928c88d5a",
+    "semantic_hash": "fbe5ae8df3b852fe05420b5928c88d5a"
   },
   "NetworkScanKit/Sources/NetworkScanKit/Phases/ARPScanPhase.swift": {
-    "mtime": 1771292972.0,
-    "ast_hash": "eb3d5350c976ba2e2a8979c65c9c0dce",
-    "semantic_hash": "eb3d5350c976ba2e2a8979c65c9c0dce"
+    "mtime": 1786242796.7794468,
+    "ast_hash": "1678012cf5cbf10a3c19f89d873ba6ff",
+    "semantic_hash": "1678012cf5cbf10a3c19f89d873ba6ff"
   },
   "NetworkScanKit/Sources/NetworkScanKit/Phases/BonjourScanPhase.swift": {
-    "mtime": 1779161162.9890776,
-    "ast_hash": "f9c82242e1ee1a91539d48d47cff5674",
-    "semantic_hash": "f9c82242e1ee1a91539d48d47cff5674"
+    "mtime": 1786242796.780062,
+    "ast_hash": "d9e840ce3a7190565b00b057708fc5b0",
+    "semantic_hash": "d9e840ce3a7190565b00b057708fc5b0"
   },
   "NetworkScanKit/Sources/NetworkScanKit/Phases/ICMPLatencyPhase.swift": {
-    "mtime": 1773961295.6249738,
-    "ast_hash": "af6541bd17163f1e3815f98c36bc44b1",
-    "semantic_hash": "af6541bd17163f1e3815f98c36bc44b1"
+    "mtime": 1786242796.7805073,
+    "ast_hash": "4ff7d085cdbe520142352a498770d567",
+    "semantic_hash": "4ff7d085cdbe520142352a498770d567"
   },
   "NetworkScanKit/Sources/NetworkScanKit/Phases/ReverseDNSScanPhase.swift": {
-    "mtime": 1774562018.184995,
-    "ast_hash": "282e8e803821a6cf008ed8d629783f61",
-    "semantic_hash": "282e8e803821a6cf008ed8d629783f61"
+    "mtime": 1786242796.7810752,
+    "ast_hash": "ef964bb895f5e86c5bd00151e6d45f2d",
+    "semantic_hash": "ef964bb895f5e86c5bd00151e6d45f2d"
   },
   "NetworkScanKit/Sources/NetworkScanKit/Phases/SSDPScanPhase.swift": {
-    "mtime": 1779161146.7332354,
-    "ast_hash": "71b702d1f7d70f2e2c90bf6dafc7fad3",
-    "semantic_hash": "71b702d1f7d70f2e2c90bf6dafc7fad3"
+    "mtime": 1786242796.781422,
+    "ast_hash": "f99db9099e96e07a2677abf387b5504b",
+    "semantic_hash": "f99db9099e96e07a2677abf387b5504b"
   },
   "NetworkScanKit/Sources/NetworkScanKit/Phases/TCPProbeScanPhase.swift": {
-    "mtime": 1779161235.1296577,
-    "ast_hash": "b3a733476f3acbcf5af06db1c1f96368",
-    "semantic_hash": "b3a733476f3acbcf5af06db1c1f96368"
+    "mtime": 1786242796.7817874,
+    "ast_hash": "8495567ead853c55b088c7e72c383d0d",
+    "semantic_hash": "8495567ead853c55b088c7e72c383d0d"
   },
   "NetworkScanKit/Sources/NetworkScanKit/RTTTracker.swift": {
     "mtime": 1775467135.3805742,
@@ -855,9 +855,9 @@
     "semantic_hash": "00a623f26a8beb95976bfcfe2dc7566e"
   },
   "NetworkScanKit/Sources/NetworkScanKit/ScanEngine.swift": {
-    "mtime": 1775467135.3813486,
-    "ast_hash": "3797dc97f4efae3c379e3c423666cb2f",
-    "semantic_hash": "3797dc97f4efae3c379e3c423666cb2f"
+    "mtime": 1786242796.782035,
+    "ast_hash": "e4afc20f9324c2b0b5ddd3275d60a7ab",
+    "semantic_hash": "e4afc20f9324c2b0b5ddd3275d60a7ab"
   },
   "NetworkScanKit/Sources/NetworkScanKit/ScanPhase.swift": {
     "mtime": 1771132041.0,
@@ -895,9 +895,9 @@
     "semantic_hash": "feaa440261fa8f0eaeebf3b28513868f"
   },
   "NetworkScanKit/Tests/NetworkScanKitTests/ConnectionBudgetTests.swift": {
-    "mtime": 1775982962.5884755,
-    "ast_hash": "795731b34a1476441e4693c58f7334aa",
-    "semantic_hash": "795731b34a1476441e4693c58f7334aa"
+    "mtime": 1786242796.7825112,
+    "ast_hash": "3f899f8187bd1c76ddfda11e8f513c61",
+    "semantic_hash": "3f899f8187bd1c76ddfda11e8f513c61"
   },
   "NetworkScanKit/Tests/NetworkScanKitTests/DeviceNameResolverTests.swift": {
     "mtime": 1774673312.9076023,
@@ -970,9 +970,9 @@
     "semantic_hash": "837cf24c1867fbada913e9f20b051e0f"
   },
   "NetworkScanKit/Tests/NetworkScanKitTests/ScanEngineTests.swift": {
-    "mtime": 1775982962.5923257,
-    "ast_hash": "3d1497bea0af76fe2993082103964225",
-    "semantic_hash": "3d1497bea0af76fe2993082103964225"
+    "mtime": 1786242796.782883,
+    "ast_hash": "eedf39e49a35fa558ff2330f8b2d505f",
+    "semantic_hash": "eedf39e49a35fa558ff2330f8b2d505f"
   },
   "NetworkScanKit/Tests/NetworkScanKitTests/ScanPipelineCoverageTests.swift": {
     "mtime": 1776896346.1651013,
@@ -1078,5 +1078,40 @@
     "mtime": 1772127574.2254083,
     "ast_hash": "fa37995adf59af2c99521e56dcf5f969",
     "semantic_hash": "fa37995adf59af2c99521e56dcf5f969"
+  },
+  "NetMonitorCore/Sources/NetMonitorCore/CompanionFrameDecoder.swift": {
+    "mtime": 1786242796.774335,
+    "ast_hash": "b35587e356dd5f25b7f3910db6352fa8",
+    "semantic_hash": "b35587e356dd5f25b7f3910db6352fa8"
+  },
+  "NetMonitorCore/Sources/NetMonitorCore/PersistenceBootstrap.swift": {
+    "mtime": 1786242796.7745066,
+    "ast_hash": "dd0f785058d03c50b84cd05c14bdfe4c",
+    "semantic_hash": "dd0f785058d03c50b84cd05c14bdfe4c"
+  },
+  "NetMonitorCore/Sources/NetMonitorCore/ScanProgressCoalescer.swift": {
+    "mtime": 1786242796.7747507,
+    "ast_hash": "f5d367826c04f60cb287d9aaeefef562",
+    "semantic_hash": "f5d367826c04f60cb287d9aaeefef562"
+  },
+  "NetMonitorCore/Tests/NetMonitorCoreTests/CompanionFrameDecoderTests.swift": {
+    "mtime": 1786242796.7770793,
+    "ast_hash": "9795b853e55209dfed481706238b7543",
+    "semantic_hash": "9795b853e55209dfed481706238b7543"
+  },
+  "NetMonitorCore/Tests/NetMonitorCoreTests/LastShippedStoreCompatibilityTests.swift": {
+    "mtime": 1786242796.777316,
+    "ast_hash": "56a6f6b51cd7c5a1f73486e012d15ef3",
+    "semantic_hash": "56a6f6b51cd7c5a1f73486e012d15ef3"
+  },
+  "NetMonitorCore/Tests/NetMonitorCoreTests/PersistenceBootstrapTests.swift": {
+    "mtime": 1786242796.7775145,
+    "ast_hash": "0e76e75b83f73ce970c6d9281b277032",
+    "semantic_hash": "0e76e75b83f73ce970c6d9281b277032"
+  },
+  "NetMonitorCore/Tests/NetMonitorCoreTests/ScanProgressCoalescerTests.swift": {
+    "mtime": 1786242796.7779021,
+    "ast_hash": "f3df84221f11b8e3c33cba9df50f34b0",
+    "semantic_hash": "f3df84221f11b8e3c33cba9df50f34b0"
   }
 }
