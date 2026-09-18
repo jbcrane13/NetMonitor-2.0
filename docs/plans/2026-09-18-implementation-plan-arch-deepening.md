@@ -1,0 +1,174 @@
+# Implementation plan: architecture deepening (Strong + Worth exploring cards)
+
+Source: architecture review report `~/.claude/workflow-artifacts/reports/netmonitor-2.0-architecture-review-2026-09-18.html` (2026-09-18, main @ f71b209). This plan implements cards 1–7. Card 8 (Speculative) is excluded.
+
+Vocabulary: module, interface, implementation, depth, seam, adapter, leverage, locality (pocock-codebase-design).
+
+## Requirements and exclusions
+
+**Outcome.** Seven deepening refactors land on `main`, each behaviour-preserving unless a product-visible change is listed under "Decisions", each verified through its module's interface, each delivered by a PR that closes its GitHub sub-issue.
+
+**Request.** "Create a plan to implement the strong and worth exploring items from the report, then implement each. Use sonnet workers orchestrated by Fable."
+
+**In scope.**
+- S1 Connection budget scoped entry point (card 1)
+- S2 Companion wire framing owned by Core on both platforms (card 2)
+- S3 One NWConnection-with-timeout primitive (card 3)
+- S4 macOS device list derivation module (card 4)
+- S5 iOS dashboard reads health and severity from Core (card 5)
+- S6 macOS discovery becomes an adapter over `ScanEngine` (card 6)
+- S7 NetworkScanKit public interface: remove dead surface, type the phase identity (card 7)
+
+**Excluded.**
+- Card 8 (hypothetical seams / protocol collapse).
+- Companion heartbeat/reconnect session module (noted adjacent to card 2).
+- `DeviceTypeInferenceService` input-type change (card 6 "bonus"); inference stays post-persistence on macOS.
+- Any change to persisted SwiftData schema.
+- Fixing pre-existing lint/format failures outside a slice's owned files (#264 tracks the broken SwiftFormat baseline).
+- Cleaning stale `.claude/worktrees/agent-*` worktrees (4, on `arch-review/p2-*` branches) or the 26 stashes. Not this project's.
+
+## Repository evidence and decisions
+
+- Swift 6, strict concurrency complete. Deployment macOS 15 / iOS 18. XcodeGen project; never edit `.xcodeproj`.
+- Dependency chain: apps → NetMonitorCore → NetworkScanKit.
+- Test policy (CLAUDE.md): **never** run `xcodebuild test` on this host. Package tests run locally with `swift test --no-parallel` in each package directory (this is CI's path in `scripts/coverage/collect-and-gate.sh`). App-target tests run on `blakes-mac-mini-2` over SSH (the CLAUDE.md alias `mac-mini` timed out on 2026-09-18; `blakes-mac-mini-2` answered, checkout at `~/Projects/NetMonitor-2.0`, main @ 1995a32, clean). One checkout on that node: app-test runs are serialized by the orchestrator.
+- Lint gates (release.yml): `swiftlint lint --strict --baseline .swiftlint_baseline.json` and `swiftformat --lint .`. Workers lint only their changed files.
+- Setup: `bash scripts/setup-worktree.sh` (landed on `main` in PR #270 on 2026-09-18, before this plan; requires xcodebuild/xcodegen/swiftlint/swiftformat/gh, refuses to run over uncommitted generated files, sets `core.hooksPath .githooks` per worktree, runs `xcodegen generate` and resolves pinned packages; no build/test). Documented in AGENTS.md and CLAUDE.md. Verified on `main` @ c9d3705 by the orchestrator.
+- Workers branch from `origin/main`, not the orchestrator's local `main`, which carries one unpushed pre-existing user commit (2b5a395, a screenshot deletion) and a stashed `.claude/settings.local.json` edit. Neither belongs to this project.
+- ADR-016 "2.0 fix" prescribes `withConnectionSlot` with structured release and cancellation-aware acquire. Not yet done; #194 fixed one of six sites.
+- ADR-014: ICMP overwrites TCP latency. Preserved.
+- ADR-macOS-003: macOS uses real ICMP (`ICMPSocket`) with shell ping as fallback. `ICMPLatencyPhase` is real ICMP over `SOCK_DGRAM`; running it on macOS honours the ADR. Shell ping remains for the monitoring tools, untouched.
+- ADR-008 / ADR-013: ViewModels create services via DI defaults. Not changed by this plan.
+- #262 (v2.2.1 epic) defers "migrate the complete macOS discovery coordinator onto NetworkScanKit" to 2.3 pending equivalence tests, with a recorded dissent favouring doing it now. The user's request includes card 6; this plan proceeds with equivalence tests as an acceptance criterion. #262 also lists feature-file splitting as post-blockers; S4 and S5 are the behaviour-preserving first slices of that.
+- `gh` 2.97.0 supports `--parent`, `--add-blocked-by`.
+- Workers: Claude Code native subagents (`Agent` tool, `model: sonnet`, `isolation: worktree`). Orchestrator: this session (Fable 5.1). Six-worker ceiling; frontier never exceeds four concurrent.
+
+### Decisions (product-visible or interface-shaping)
+
+| # | Decision | Rationale |
+| --- | --- | --- |
+| D1 | `withConnectionSlot` returns `T?`; `nil` means no slot (cancelled, reset, or budget denied). Callers write `?? sentinel`. Not throwing. | Every current caller already returns a sentinel; Optional keeps the interface to one call with no fallback parameter. ADR-016 allowed "throwing or tokenized"; Optional is the tokenized form without a token type. |
+| D2 | After S1, `ConnectionBudget.acquire()` / `release()` become `internal` to NetworkScanKit. `reset()`, `activeCount`, `waitingCount` stay public. | No caller may name the pair independently. Cross-package callers use the public free function. |
+| D3 | The budget slot is **not** folded into `withNWConnection`. | SSDP uses `.completeKeepAlive` and holds the slot across send/receive after the helper returns. |
+| D4 | `withNWConnection` and `NWConnectionResolution` become `public`. Queue stays a parameter defaulting to `scanQueue`; `PingService` passes its serial `pingQueue` so elapsed capture stays on one queue. | Core services live in another package. Ping's timing precision depends on a dedicated serial queue (ADR-014 spirit). |
+| D5 | `ScanStrategy`, `ScanContext.scanStrategy`, `ScanPipeline.forStrategy`, and `ScanEngine.scan(context:…)` are **deleted**, not deprecated. Tests that exist only to cover them are deleted. | Zero production callers; YAGNI. `ScanContext.init` drops the parameter; only NSK tests pass it. |
+| D6 | Phase identity crosses the seam as `public struct ScanPhaseID: RawRepresentable, Hashable, Sendable` with static members for the six built-in phases. `ScanPhase.id` becomes `ScanPhaseID`. `ScanEngine.scan(...)`'s `onProgress` becomes `(Double, ScanPhaseID)`. Core's `ScanDisplayPhase` gains `init(phaseID:)` (explicit switch; unknown → `nil`). `displayName` stays on the protocol for logging only. | A struct, not an enum, so platform phases (S6, test fixtures) can define their own IDs. Rename of a display string can no longer freeze the UI label. |
+| D7 | `ScanPipeline.standard(...)` becomes the only production way to build the full pipeline; `DeviceDiscoveryService` calls it. | Card 7; ADR-014's original bug was this exact drift. |
+| D8 | S4 module lives in NetMonitorCore (`Utilities/DeviceList.swift`) as pure functions over `[LocalDevice]`, tested with `swift test` by constructing `LocalDevice` directly (already done in `DeviceTypeInferenceServiceTests`). One `DeviceSortOrder` enum (six cases); `NetworkDevicesPanel` shows a four-case subset in its picker. | Fast test loop, no SwiftUI. |
+| D9 | `MacTheme.Colors.statusColor` is redefined to what the ~15 inline sites actually do (`.online → success`, everything else → gray) and becomes their single call; its `periphery:ignore` is removed. | It currently has no callers, so changing its mapping changes no rendered pixel; the sites keep their colours. |
+| D10 | Recency label: one function with a style (`compact` → "Now/5m/3h/2d", `long` → "Just now/5 minutes ago/…"). Same thresholds. | Two byte-identical threshold sets today. |
+| D11 | **Product-visible.** iOS already has `NetworkHealthScoreViewModel` (`NetMonitor-iOS/ViewModels/NetworkHealthScoreViewModel.swift`, wraps Core `NetworkHealthScoreService`, pings for latency/packet loss, tested in `NetworkHealthScoreViewModelTests`) with its own `NetworkHealthScoreView`, and `DashboardView` uses neither. `RefinedNetworkHealthCard` consumes that existing ViewModel's `scoreValue`/`gradeText` (owned by `DashboardView` as `@State`, refreshed on appear and on the dashboard's existing refresh cadence). The view-local gateway/signal/jitter formula is deleted. `DashboardViewModel` does **not** gain a second health service. The displayed score will change. | One health module, one number, one iOS ViewModel for it. Recorded here so the reviewer and the user see it. |
+| D12 | **Product-visible, minor.** Severity buckets are added to Core (`NetworkHealthScore.latencySeverity(ms:)`: good < 50, fair < 150, poor; `signalSeverity(percent:)`: good > 70, fair > 40, poor). `AnchorMetricColumn`'s 120 ms boundary becomes 150 ms. `Theme.latencyColor` maps severity → colour and stops owning numbers. | Three latency scales on one screen today; `Theme` (50/150) is the documented one. |
+| D13 | `wifiIconName` is replaced by `Image(systemName: "wifi", variableValue: fraction)` where fraction derives from `signalStrength` percent. | Four branches returning one string is clearly an unfinished tiering; variableValue is the platform idiom. |
+| D14 | S6 shape: the coordinator runs `ScanEngine` with `ScanPipeline.standard(...)` (ARP ‖ Bonjour → TCP ‖ SSDP → ICMP → reverse DNS) for discovery + latency, then keeps its persistence-side steps (merge into SwiftData, macOS shell name resolution, vendors, 15-port `quickPortScan`, type inference, offline marking) as post-scan MainActor work. Hand-rolled ARP/Bonjour/`/sbin/ping` latency loops are deleted. `checkPort` is routed through `withConnectionSlot`. | Persistence and offline marking need a `ModelContext`; they are not phases. Real ICMP on macOS honours ADR-macOS-003. |
+| D15 | S6 adds `ScanContext.requiredInterfaceType: NWInterface.InterfaceType?` (nil = any). TCP probe and SSDP phases honour it. iOS passes `.wifi` (current behaviour); macOS passes nil. Existing NSK phase tests that construct `ScanContext` pass `.wifi` explicitly so their "no network in CI" behaviour is unchanged. | Both phases hard-code `.wifi`; a wired Mac would discover nothing. |
+| D16 | S6 accepts an injectable pipeline factory for tests; equivalence tests feed identical fixture devices through the old merge path (recorded as fixtures before the rewrite) and the new engine path and assert identical `LocalDevice` rows. | #262's stated precondition for this migration. |
+| D17 | Model: Sonnet for every slice per the request. Escalation rule (pocock-project §4): after two failed focused attempts, or earlier if clearly warranted, the orchestrator may reassign S6 to Opus with the user informed. | S6 is cross-module and concurrency-heavy. |
+
+## Architecture and interfaces
+
+### S1 — `withConnectionSlot` (NetworkScanKit)
+
+```swift
+/// Runs `body` while holding one connection slot. Returns nil when no slot could be
+/// acquired (task cancelled, budget reset, or denied). The slot is released on every
+/// exit path, including cancellation, without spawning an unstructured Task.
+public func withConnectionSlot<T: Sendable>(
+    budget: ConnectionBudget = .shared,
+    _ body: @Sendable () async -> T
+) async -> T?
+```
+Implementation: `guard await budget.acquire() else { return nil }`; `let value = await body()`; `await budget.release()`; return. If `body` is cancelled it returns cooperatively and release still runs. No `defer { Task }`. `acquire()`/`release()` become `internal`.
+
+Call sites migrated: `TCPProbeScanPhase.probePort` (:218-251) and the second acquire at :321, `BonjourScanPhase.resolveBonjourHost` (:174-175), `SSDPScanPhase` (:65-66), `BonjourDiscoveryService.resolveService` (:216-217), `PortScannerService.scanPort` (:69-78), `PingService.connectTest` (:224-231). AGENTS.md lines in NetworkScanKit and Phases that describe acquire/release are updated to describe `withConnectionSlot`.
+
+### S2 — macOS companion consumes Core framing
+
+`CompanionService` holds `private var decoders: [UUID: CompanionFrameDecoder]` (one per client; created on accept, removed on disconnect). `appendAndProcess` becomes: `let batch = await decoder.append(data)`; each message → `messageHandler`; `.malformedPayload` → log + send `DECODE_ERROR`; `.invalidLength` → log (decoder already cleared its buffer). `send(data:to:clientID:)` takes a `CompanionMessage` and uses `encodeLengthPrefixed()`; the hand-built 4-byte prefix is deleted. `internal func processIncomingDataForTesting(_ data: Data, clientID: UUID) async -> [CompanionMessage]` mirrors iOS so a macOS test can feed bytes. `docs/Companion-Protocol-API.md` "Message Format" and CLAUDE.md "Mac–iOS Companion Protocol" describe 4-byte big-endian length-prefixed JSON and the 1 MiB cap; the doc's encoder snippet matches `CompanionMessage.jsonEncoder`.
+
+### S3 — one NWConnection primitive
+
+`withNWConnection` and `NWConnectionResolution` gain `public`. `PortScannerService.scanPort` body (the 40-line `withCheckedContinuation` race) is replaced by one `withNWConnection(connection, timeout: .seconds(timeout), timeoutValue: .filtered) { state in … }` classifier returning `.open`/`.closed`/`.filtered`. `PingService.connectTest` likewise with `on: queue` and the classifier computing `elapsed` synchronously (same handler, same queue as today). `ResumeState` usages in those two functions disappear; `ResumeState` itself stays (WHOIS, DNS, WoL, BackgroundTaskService still use it).
+
+### S4 — `DeviceList` (NetMonitorCore)
+
+```swift
+public enum DeviceSortOrder: String, CaseIterable, Sendable { case lastSeen, name, ipAddress, status, vendor, latency }
+public enum RecencyStyle: Sendable { case compact, long }
+public enum DeviceList {
+    public static func rows(_ devices: [LocalDevice], search: String, onlineOnly: Bool,
+                            sort: DeviceSortOrder, ascending: Bool) -> [LocalDevice]
+    public static func compareIPAddresses(_ lhs: String, _ rhs: String) -> Bool
+    public static func recencyLabel(since: Date, now: Date = .now, style: RecencyStyle) -> String
+}
+```
+Direction semantics copy `DevicesView` exactly (`lastSeen` defaults descending). `DevicesView.filteredDevices` and `NetworkDevicesPanel.filteredDevices` call `rows`; `DevicesView` drops its in-memory `networkProfileID` re-filter (the fetch at :209 is already profile-scoped via `LocalDeviceQueries.forProfile`). `ProModeRowView.lastSeenText` and `DeviceDetailView.timeSinceLastSeen` call `recencyLabel`. The ~15 `status == .online ? … : …` colour sites call `MacTheme.Colors.statusColor` (D9).
+
+### S5 — Core owns health and severity
+
+`NetworkHealthScore` (Core) gains `public enum Severity { good, fair, poor }` plus `static func latencySeverity(ms:)` and `static func signalSeverity(percent:)` (D12). `DashboardView` holds `@State private var healthViewModel = NetworkHealthScoreViewModel()` (existing iOS type), calls `refresh()` on appear and whenever the dashboard's own refresh runs, and `RefinedNetworkHealthCard` takes that ViewModel and renders `scoreValue` / `gradeText`. The view-local `healthScore` computation is deleted. `signalColor`, `AnchorMetricColumn.dotColor`, and `Theme.latencyColor` map `Severity` → colour. `wifiIconName` → variableValue (D13). `DashboardViewModel` is touched only if wiring the refresh cadence requires it.
+
+### S6 — macOS adapter over `ScanEngine`
+
+`DeviceDiscoveryCoordinator.startScan()` builds `ScanContext(hosts:subnetFilter:localIP:requiredInterfaceType: nil)` (hosts derived the same way iOS `DeviceDiscoveryService.makeScanTarget(profile:)` does; reuse `NetworkUtilities`), runs `ScanEngine().scan(pipeline: ScanPipeline.standard(bonjourServiceProvider: …), context:) { progress, phaseID in … }` mapping engine progress into `scanProgress` (0–0.8) and then runs the retained post-scan steps (0.8–1.0). `mergeDiscoveryResults(arp:bonjour:)`, the 5-second Bonjour sleep, and `measureDeviceLatencies` (shell ping ×3 per device) are deleted; latency comes from the accumulator. `checkPort` runs under `withConnectionSlot`. A `pipelineFactory` init parameter allows tests to inject a fixture pipeline (D16).
+
+### S7 — NetworkScanKit interface
+
+`ScanPhaseID` (D6); `ScanPhase.id: ScanPhaseID`; `ScanEngine.scan(pipeline:context:onProgress: (Double, ScanPhaseID) async -> Void)`; `DeviceDiscoveryService:188` → `ScanPipeline.standard(bonjourServiceProvider:bonjourStopProvider:)`; `:213` → `ScanDisplayPhase(phaseID:)`. `ScanProgressCoalescer.shouldPublish(progress:phase:timestamp:)` keeps its `String` parameter; the caller passes `phaseID.rawValue` (the coalescer file is not owned by S7). Deletions per D5. `ScanPipeline.standard` gains no new parameters in S7; S6 does not need one because ICMP runs on macOS. `ScanEngineTests.FixturePhase` and every other test phase adopt `ScanPhaseID`.
+
+## Deliverable slices
+
+| Slice | Acceptance criteria | Owned files/modules | Blockers | Verification | Worker model |
+| --- | --- | --- | --- | --- | --- |
+| **S1** Connection budget scoped entry point | `withConnectionSlot` exists and is the only way any caller outside `ConnectionBudget` touches the budget; `grep -rn 'acquire()\|\.release()'` outside `ConnectionBudget.swift` and its tests returns nothing in `Packages/*/Sources`; `acquire`/`release` are `internal`; new tests: (a) body runs and `activeCount` returns to 0 after return, (b) cancelling the task mid-body returns `activeCount` to 0 with no unstructured Task, (c) `reset()` during a wait yields `nil`, (d) 100 concurrent `withConnectionSlot` calls against `ConnectionBudget(limit: 5)` never observe `activeCount > 5`; all existing NSK and Core package tests pass; both apps build. AGENTS.md mentions updated. | `Packages/NetworkScanKit/Sources/NetworkScanKit/ConnectionBudget.swift`, `Phases/TCPProbeScanPhase.swift`, `Phases/BonjourScanPhase.swift`, `Phases/SSDPScanPhase.swift`, `Packages/NetworkScanKit/Sources/NetworkScanKit/AGENTS.md`, `Phases/AGENTS.md`, `Packages/NetworkScanKit/Tests/NetworkScanKitTests/ConnectionBudgetTests.swift`; `Packages/NetMonitorCore/Sources/NetMonitorCore/Services/BonjourDiscoveryService.swift` (:216-217 only), `PortScannerService.swift` (:69-78 only), `PingService.swift` (:224-231 only). **Not** `DeviceDiscoveryCoordinator.swift`. | none | `cd Packages/NetworkScanKit && swift test --no-parallel`; `cd Packages/NetMonitorCore && swift test --no-parallel`; `xcodebuild -scheme NetMonitor-macOS -configuration Debug build -quiet`; `xcodebuild -scheme NetMonitor-iOS -configuration Debug build -quiet`; lint changed files. | sonnet |
+| **S2** Companion framing owned by Core | macOS `CompanionService` contains no length arithmetic and no `10_000_000`; `grep -n 'CompanionFrameDecoder\|encodeLengthPrefixed' NetMonitor-macOS/Platform/CompanionService.swift` shows both; new macOS test feeds (a) one frame, (b) two frames in one chunk, (c) one frame split across three chunks, (d) an oversize length, (e) malformed JSON, and asserts decoded messages / `DECODE_ERROR` responses; `docs/Companion-Protocol-API.md` and CLAUDE.md describe length-prefixed framing and the 1 MiB cap and no longer say newline-delimited; existing `CompanionFrameDecoderTests` unchanged and passing; macOS builds. | `NetMonitor-macOS/Platform/CompanionService.swift`, new `Tests/NetMonitor-macOSTests/CompanionServiceFramingTests.swift`, `docs/Companion-Protocol-API.md` ("Message Format" section), `CLAUDE.md` ("Mac–iOS Companion Protocol" paragraph only). | none | `cd Packages/NetMonitorCore && swift test --no-parallel --filter CompanionFrameDecoder`; `xcodebuild -scheme NetMonitor-macOS -configuration Debug build -quiet`; lint changed files. App test on node (orchestrator): see below, `-only-testing:NetMonitor-macOSTests/CompanionServiceFramingTests`. | sonnet |
+| **S3** One NWConnection primitive | `PortScannerService.swift` and `PingService.swift` contain no `withCheckedContinuation` and no `ResumeState` in the connection paths; both call `withNWConnection`; `withNWConnection`/`NWConnectionResolution` are `public`; ping elapsed is computed inside the classifier (assert via a test that the classifier is invoked on the passed queue, or via code review note); existing `PortScannerService`/`PingService`/`NWConnectionHelper` tests pass; both apps build. | `Packages/NetworkScanKit/Sources/NetworkScanKit/NWConnectionHelper.swift`, `Packages/NetMonitorCore/Sources/NetMonitorCore/Services/PortScannerService.swift` (`scanPort`), `PingService.swift` (`connectTest`), their tests, `Packages/NetworkScanKit/Tests/NetworkScanKitTests/NWConnectionHelperTests.swift`. | S1 (same functions; rebase on S1's merged result) | NSK + Core `swift test --no-parallel`; both app builds; lint changed files. | sonnet |
+| **S4** macOS device list derivation | `DeviceList` in Core with tests covering: search over name/IP/MAC/vendor, online-only, all six sort orders both directions with the `lastSeen` default-descending rule, `compareIPAddresses` octet ordering (`192.168.2.3 < 192.168.2.10`), `recencyLabel` at 30 s / 5 m / 3 h / 2 d in both styles; `DevicesView.swift` and `NetworkDevicesPanel.swift` contain no sort/filter closures and no `compareIPAddresses`; `DevicesView` has no `networkProfileID ==` filter; `grep -rn 'status == .online ?' NetMonitor-macOS` returns nothing; `MacTheme.statusColor` has no `periphery:ignore`; macOS builds; existing macOS unit tests pass on the node. | New `Packages/NetMonitorCore/Sources/NetMonitorCore/Utilities/DeviceList.swift` + `Packages/NetMonitorCore/Tests/NetMonitorCoreTests/DeviceListTests.swift`; `NetMonitor-macOS/Views/DevicesView.swift`, `NetworkDevicesPanel.swift`, `Devices/ProModeRowView.swift`, `DeviceDetailView.swift`, `Devices/ProDeviceDetailView.swift`, `DeviceRowView.swift`, `Components/QuickJumpSheet.swift`, `DeviceCardView.swift`, `Utilities/MacTheme.swift` (statusColor only). | none | Core `swift test --no-parallel --filter DeviceList`; `xcodebuild -scheme NetMonitor-macOS -configuration Debug build -quiet`; lint changed files. Node: `-only-testing:NetMonitor-macOSTests`. | sonnet |
+| **S5** iOS dashboard health from Core | `DashboardView.swift` contains no numeric latency/signal thresholds and no `healthScore` computation; `RefinedNetworkHealthCard` renders `NetworkHealthScoreViewModel.scoreValue`; `wifiIconName` gone, `variableValue` used; Core has `Severity` + two severity functions with tests at the boundaries (49/50/149/150 ms; 40/41/70/71 %); `NetworkHealthScoreViewModelTests` still pass; a new iOS test asserts the severity → colour mapping in `Theme` for each `Severity`; iOS builds; iOS unit tests pass on the node. | `NetMonitor-iOS/Views/Dashboard/DashboardView.swift`, `NetMonitor-iOS/Platform/Theme.swift` (`latencyColor` only), `NetMonitor-iOS/ViewModels/DashboardViewModel.swift` (only if refresh wiring needs it), `Packages/NetMonitorCore/Sources/NetMonitorCore/Services/NetworkHealthScoreService.swift` (+ the `NetworkHealthScore` model file), Core `NetworkHealthScoreServiceTests.swift`, `Tests/NetMonitor-iOSTests/` (new `ThemeSeverityTests.swift`; `NetworkHealthScoreViewModelTests.swift` read-only). **Not** `NetworkHealthScoreViewModel.swift`. | none | Core `swift test --no-parallel --filter NetworkHealthScore`; `xcodebuild -scheme NetMonitor-iOS -configuration Debug build -quiet`; lint changed files. Node: `-only-testing:NetMonitor-iOSTests/NetworkHealthScoreViewModelTests -only-testing:NetMonitor-iOSTests/ThemeSeverityTests -only-testing:NetMonitor-iOSTests/DashboardViewModelTests`. | sonnet |
+| **S7** NetworkScanKit interface | `ScanStrategy`, `forStrategy`, `scan(context:`, `scanStrategy` absent from `Packages/NetworkScanKit/Sources`; `ScanPhaseID` public; `ScanPhase.id: ScanPhaseID`; engine `onProgress` typed; `DeviceDiscoveryService` calls `ScanPipeline.standard` and `ScanDisplayPhase(phaseID:)`; a Core test asserts every built-in `ScanPhaseID` maps to a non-nil `ScanDisplayPhase`; `ScanStrategyCoverageTests` deleted, `ScanContextTests`/`ScanEngineCoverageTests`/`ScanPipelineTests` updated; NSK + Core tests pass; both apps build; `Packages/NetworkScanKit/Tests/NetworkScanKitTests/AGENTS.md` updated. | `Packages/NetworkScanKit/Sources/NetworkScanKit/{ScanPipeline,ScanEngine,ScanContext,ScanPhase}.swift`, new `ScanPhaseID.swift`, all six `Phases/*.swift` (`id` lines only), NSK tests listed; `Packages/NetMonitorCore/Sources/NetMonitorCore/Services/DeviceDiscoveryService.swift` (:180-215), `ServiceProtocols.swift` (`ScanDisplayPhase` only), Core `DeviceDiscoveryServiceTests.swift`. | S1 (shared phase files) | NSK + Core `swift test --no-parallel`; both app builds; lint changed files. | sonnet |
+| **S6** macOS discovery over `ScanEngine` | `DeviceDiscoveryCoordinator.swift` contains no `arpScanner.scanNetwork`, no Bonjour sleep, no `ShellPingService`, and no raw `poll`/`getaddrinfo` outside a `withConnectionSlot` body; `ScanContext.requiredInterfaceType` exists, iOS passes `.wifi`, macOS passes nil, phases honour it (NSK test); equivalence test: a fixture pipeline producing a known device set yields byte-identical `LocalDevice` rows (ip, mac, hostname, vendor, status, latency) to a recorded pre-rewrite fixture; cancellation test: `stopScan()` during a fixture phase returns `ConnectionBudget.shared.activeCount == 0` and `isScanning == false`; `DeviceDiscoveryCoordinatorTests` pass on the node; macOS builds; **discovery baseline**: before S6 merges, the orchestrator records the device count from a `main`-build scan on the wired orchestrator host; the S6 build scanning the same network finds at least that many devices; **latency source**: the S6 scan log shows `ICMPLatencyPhase` enriched ≥ 1 device (no "ICMP socket unavailable" line) so ADR-macOS-003's ICMP rationale holds inside the sandbox. Note: today's macOS `ARPScannerService.scanNetwork` is an active TCP sweep of the whole range (50 concurrent), not a cache read; NSK's `ARPScanPhase` (cache) + `TCPProbeScanPhase` (active) must together match it, which the baseline check enforces. | `NetMonitor-macOS/Platform/DeviceDiscoveryCoordinator.swift`, `Tests/NetMonitor-macOSTests/DeviceDiscoveryCoordinatorTests.swift` (+ fixture file), `Packages/NetworkScanKit/Sources/NetworkScanKit/ScanContext.swift` (add field), `Phases/TCPProbeScanPhase.swift` + `Phases/SSDPScanPhase.swift` (interface-type lines only), `Packages/NetMonitorCore/Sources/NetMonitorCore/Services/DeviceDiscoveryService.swift` (pass `.wifi`, ≤ 3 lines), NSK `ScanContextTests.swift`. **Not** `DevicesView.swift`, not `DeviceTypeInferenceService.swift`. | S1, S3, S7 | NSK + Core `swift test --no-parallel`; `xcodebuild -scheme NetMonitor-macOS -configuration Debug build -quiet`; lint changed files. Node: `-only-testing:NetMonitor-macOSTests/DeviceDiscoveryCoordinatorTests`. Orchestrator: manual scan check. | sonnet (D17 escalation) |
+
+## Integration order and shared-file ownership
+
+Frontier 1 (parallel, disjoint): **S1, S2, S4, S5**.
+Frontier 2 (after S1 merges): **S3, S7** in parallel. S3 owns `NWConnectionHelper`, `PortScannerService.scanPort`, `PingService.connectTest`. S7 owns pipeline/engine/context/phase `id` lines and `DeviceDiscoveryService:180-215`. In `Packages/NetworkScanKit/Tests/NetworkScanKitTests/`, S3 owns only `NWConnectionHelperTests.swift`; S7 owns every other file in that directory. No overlap.
+Frontier 3 (after S3 and S7 merge): **S6**.
+
+Shared files and who edits them:
+- `Packages/NetMonitorCore/.../PortScannerService.swift`, `PingService.swift`: S1 (acquire lines) then S3 (race body). Serialized by the blocker.
+- `Phases/BonjourScanPhase.swift`, `Phases/SSDPScanPhase.swift`, `Phases/TCPProbeScanPhase.swift`: S1 (budget lines) then S7 (`id` lines) then S6 (interface-type lines). Serialized by blockers.
+- `ScanContext.swift`: S7 (remove strategy) then S6 (add interface type).
+- `DeviceDiscoveryService.swift`: S7 then S6 (≤ 3 lines).
+- `CLAUDE.md`: S2 edits one paragraph ("Mac–iOS Companion Protocol"). No worker touches AGENTS.md at the root or `docs/agents/`.
+- `project.yml` / `.xcodeproj`: no slice edits them. New Swift files inside existing target source globs need no project change; `xcodegen generate` is run by the setup script.
+
+Each worker: branch `arch/s<N>-<slug>` from current `main`, own worktree (Agent `isolation: worktree`), runs `bash scripts/setup-worktree.sh` first, TDD per slice, commits with the session attribution trailer, pushes, opens a PR to `main` with `Closes #<sub-issue>`, and reports. The orchestrator reviews each PR (pocock-code-review: Standards + Spec), runs the node app-tests serially, merges, and instructs the next frontier to rebase.
+
+Node app-test command (orchestrator only, one branch at a time):
+```bash
+ssh blakes-mac-mini-2 "cd ~/Projects/NetMonitor-2.0 && git fetch origin && git checkout <branch> && git reset --hard origin/<branch> && xcodegen generate && xcodebuild test -scheme NetMonitor-macOS -configuration Debug -destination 'platform=macOS' CODE_SIGN_IDENTITY='-' CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO -parallel-testing-enabled NO -only-testing:<target>"
+```
+iOS unit tests use `-scheme NetMonitor-iOS -destination 'platform=iOS Simulator,OS=latest,name=iPhone 17 Pro'` (AGENTS.md "Test Commands"); the orchestrator confirms that simulator exists on the node (`xcrun simctl list devices available`) before S5's run and leaves `main` checked out on the node afterwards.
+
+## Acceptance and release tasks
+
+- **Epic acceptance** (orchestrator, after all seven merge): `main` builds both apps; NSK + Core package suites pass locally; macOS and iOS unit-test targets pass on the node; a manual macOS scan on the wired orchestrator host lists the gateway; the review report's `grep` claims for cards 1–7 now return empty. Recorded as a comment on the epic. No App Store release is part of this plan.
+- **Docs**: ADR entry for D5/D6 (deleting `ScanStrategy`; typed phase identity) is offered to the user at close, not written unilaterally (pocock-domain-modeling rule: hard to reverse + surprising + real trade-off; D5 meets it).
+
+## Risks and unresolved decisions
+
+- **S6 contradicts #262's 2.3 deferral.** Proceeding on the user's explicit request; equivalence tests are an acceptance gate; the dissent in #262 favoured this order.
+- **S6 on Sonnet.** Cross-module + concurrency. D17 escalation rule applies; the user is informed before any model change.
+- **D11 changes the iOS health number users see.** Flagged; reversible by feeding different inputs, not by reintroducing a second formula.
+- **`requiredInterfaceType` (D15)** is a behaviour change for NSK phases on macOS only; iOS keeps `.wifi`.
+- **Node availability.** If `blakes-mac-mini-2` becomes unreachable, app-target tests block merges for S2, S4, S5, S6 until it returns; package-only slices (S1, S3, S7) can still merge on package tests + builds. Fallback per global CLAUDE.md: local `xcodebuild test` only when the node fails, and only by the user's explicit go-ahead since a hook blocks it.
+- **SwiftFormat baseline (#264)** may fail `swiftformat --lint .` on untouched files; workers lint changed files only.
+- **`.claude/settings.local.json`** was modified in the orchestrator's checkout before this project started; stashed as `pre-arch-deepening: settings.local.json (not orchestrator's)` so branches could be switched. Not ours; to be popped by the user.
+- **Upstream moved during planning.** PR #270 (Codex) landed the worktree setup script, `docs/agents/{domain,issue-tracker}.md`, and the GitHub-Issues-only tracker migration while this plan was being written. The plan was rebased onto c9d3705; the orchestrator's own setup script was discarded in favour of upstream's.
+
+## Plan review
+
+Plan revision/hash: _(filled after review)_
+Reviewer model and session: _(filled after review)_
+Verdict and evidence: _(filled after review)_
+Findings and disposition: _(filled after review)_
