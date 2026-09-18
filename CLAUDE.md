@@ -106,6 +106,16 @@ Message types: `statusUpdate`, `deviceListRequest/Response`, `scanRequest/Respon
 
 Each major view directory contains an `AGENTS.md` with purpose, sub-directory layout, ViewModel structure, AsyncStream usage patterns, dependencies, and accessibility identifier conventions. Check these before modifying views.
 
+## Agent skills
+
+### Issue tracker
+
+Use GitHub Issues for jbcrane13/NetMonitor-2.0. See `docs/agents/issue-tracker.md`.
+
+### Domain docs
+
+Use a single shared context and the existing architecture records. See `docs/agents/domain.md`.
+
 ## Key Enums (Enums.swift)
 
 `DeviceType`, `StatusType`, `ConnectionType`, `ToolType`, `TargetProtocol`, `DNSRecordType`, `PortScanPreset`, `ScanDisplayPhase`, `SpeedTestPhase`.
