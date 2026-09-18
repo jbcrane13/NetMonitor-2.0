@@ -140,43 +140,41 @@ struct GatewayLatencyFallbackTests {
                 "Sparkline requires at least 2 data points")
     }
 
-    // MARK: - PanelSortOrder enum coverage
+    // MARK: - NetworkDevicesPanel sort-option coverage
     //
-    // NetworkDevicesPanel.PanelSortOrder is a nested enum inside the View.
-    // Its sort logic (switch sortOrder { ... }) lives in the view's computed
-    // filteredDevices property and cannot be extracted from the view body.
+    // Search/filter/sort now live in Core's `DeviceList` (see
+    // DeviceListTests in NetMonitorCoreTests), which is exhaustively tested
+    // there. `NetworkDevicesPanel.sortOptions` is the app-side detail: which
+    // four of Core's six `DeviceSortOrder` cases this panel's picker shows,
+    // and what it labels them (`panelLabel`, distinct from `DevicesView`'s
+    // `.label` since `.ipAddress` reads "IP" here rather than "IP Address").
     //
-    // GAP: The sort comparators (.status, .name, .ipAddress, .lastSeen) are
-    // private to the view body and not independently testable without
-    // refactoring to a ViewModel. The IP comparison function compareIPAddresses
-    // is also private to the view struct.
-    //
-    // What we CAN verify: the enum's raw values and case count are stable
-    // (a regression guard against accidental enum changes that would break
-    // UI state restoration / sort-menu rendering).
+    // What we verify here: that subset and its labels/icons are stable (a
+    // regression guard against accidental changes that would break UI state
+    // restoration / sort-menu rendering).
 
     @Test func panelSortOrderHasFourCases() {
-        // PanelSortOrder.allCases is used to build the sort Menu in the view.
+        // sortOptions is used to build the sort Menu in the view.
         // If the count changes, the menu rendering changes too.
-        #expect(NetworkDevicesPanel.PanelSortOrder.allCases.count == 4,
-                "PanelSortOrder should have exactly 4 cases: status, name, ipAddress, lastSeen")
+        #expect(NetworkDevicesPanel.sortOptions.count == 4,
+                "sortOptions should have exactly 4 cases: status, name, ipAddress, lastSeen")
     }
 
     @Test func panelSortOrderRawValuesAreStable() {
-        // Raw values are displayed in the sort Menu label text.
+        // panelLabel values are displayed in the sort Menu label text.
         // Changing them is a user-visible change that should be intentional.
         let expected: [String] = ["Status", "Name", "IP", "Last Seen"]
-        let actual = NetworkDevicesPanel.PanelSortOrder.allCases.map { $0.rawValue }
+        let actual = NetworkDevicesPanel.sortOptions.map { $0.panelLabel }
         #expect(actual == expected,
-                "PanelSortOrder raw values must match the expected display strings")
+                "sortOptions labels must match the expected display strings")
     }
 
     @Test func panelSortOrderIconNamesAreNonEmpty() {
         // Each sort order provides a system image name for the Menu icon.
         // An empty string would cause a silent missing-image rendering bug.
-        for order in NetworkDevicesPanel.PanelSortOrder.allCases {
+        for order in NetworkDevicesPanel.sortOptions {
             #expect(!order.icon.isEmpty,
-                    "PanelSortOrder.\(order) should have a non-empty icon name")
+                    "sortOptions order \(order) should have a non-empty icon name")
         }
     }
 

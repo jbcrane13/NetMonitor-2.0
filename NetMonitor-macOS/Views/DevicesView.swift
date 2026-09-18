@@ -32,26 +32,6 @@ struct DevicesView: View {
     @State private var deviceToPing: LocalDevice?
     @State private var deviceToScan: LocalDevice?
 
-    enum DeviceSortOrder: String, CaseIterable {
-        case lastSeen = "Last Seen"
-        case name = "Name"
-        case ipAddress = "IP Address"
-        case status = "Status"
-        case vendor = "Vendor"
-        case latency = "Latency"
-
-        var icon: String {
-            switch self {
-            case .lastSeen: return "clock"
-            case .name: return "textformat"
-            case .ipAddress: return "number"
-            case .status: return "circle.fill"
-            case .vendor: return "building.2"
-            case .latency: return "waveform.path"
-            }
-        }
-    }
-
     // MARK: - View Mode
 
     enum DeviceViewMode: String, CaseIterable {
@@ -67,43 +47,13 @@ struct DevicesView: View {
     }
 
     var filteredDevices: [LocalDevice] {
-        var result = devices.filter { $0.networkProfileID == activeProfileID }
-
-        if filterOnlineOnly {
-            result = result.filter { $0.status == .online }
-        }
-
-        if !searchText.isEmpty {
-            result = result.filter { device in
-                device.displayName.localizedCaseInsensitiveContains(searchText) ||
-                device.ipAddress.contains(searchText) ||
-                device.macAddress.localizedCaseInsensitiveContains(searchText) ||
-                (device.vendor?.localizedCaseInsensitiveContains(searchText) ?? false)
-            }
-        }
-
-        // Apply sort order
-        switch sortOrder {
-        case .lastSeen:
-            result.sort { $0.lastSeen > $1.lastSeen }
-        case .name:
-            result.sort { $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending }
-        case .ipAddress:
-            result.sort { compareIPAddresses($0.ipAddress, $1.ipAddress) }
-        case .status:
-            result.sort { ($0.status == .online ? 0 : 1) < ($1.status == .online ? 0 : 1) }
-        case .vendor:
-            result.sort { ($0.vendor ?? "zzz").localizedCaseInsensitiveCompare($1.vendor ?? "zzz") == .orderedAscending }
-        case .latency:
-            result.sort { ($0.lastLatency ?? .infinity) < ($1.lastLatency ?? .infinity) }
-        }
-
-        // Reverse for descending (lastSeen defaults descending, so invert logic)
-        if sortOrder == .lastSeen ? sortAscending : !sortAscending {
-            result.reverse()
-        }
-
-        return result
+        DeviceList.rows(
+            devices,
+            search: searchText,
+            onlineOnly: filterOnlineOnly,
+            sort: sortOrder,
+            ascending: sortAscending
+        )
     }
 
     private var selectedNetwork: NetworkProfile? {
@@ -115,16 +65,6 @@ struct DevicesView: View {
         selectedNetworkID
             ?? coordinator?.networkProfile?.id
             ?? coordinator?.networkProfileManager.activeProfile?.id
-    }
-
-    // Compare IP addresses numerically (192.168.2.3 < 192.168.2.10)
-    private func compareIPAddresses(_ lhs: String, _ rhs: String) -> Bool {
-        let lhsParts = lhs.split(separator: ".").compactMap { Int($0) }
-        let rhsParts = rhs.split(separator: ".").compactMap { Int($0) }
-        for index in 0..<min(lhsParts.count, rhsParts.count) where lhsParts[index] != rhsParts[index] {
-            return lhsParts[index] < rhsParts[index]
-        }
-        return lhsParts.count < rhsParts.count
     }
 
     var body: some View {
@@ -348,7 +288,7 @@ struct DevicesView: View {
         }
         .buttonStyle(.plain)
         .foregroundStyle(sortOrder == order ? Color.white : Color.white.opacity(0.6))
-        .accessibilityIdentifier("devices_proHeader_\(order.rawValue.lowercased().replacingOccurrences(of: " ", with: "_"))")
+        .accessibilityIdentifier("devices_proHeader_\(order.label.lowercased().replacingOccurrences(of: " ", with: "_"))")
     }
 
     // MARK: - Scanning Overlay
@@ -467,13 +407,13 @@ struct DevicesView: View {
                         sortOrder = order
                     } label: {
                         HStack {
-                            Label(order.rawValue, systemImage: order.icon)
+                            Label(order.label, systemImage: order.icon)
                             if sortOrder == order {
                                 Image(systemName: "checkmark")
                             }
                         }
                     }
-                    .accessibilityIdentifier("devices_menu_sort\(order.rawValue.lowercased())")
+                    .accessibilityIdentifier("devices_menu_sort\(order.label.lowercased())")
                 }
             } label: {
                 Label("Sort", systemImage: "arrow.up.arrow.down")
@@ -999,6 +939,30 @@ struct DevicePortScanSheet: View {
         scanTask?.cancel()
         scanTask = nil
         isScanning = false
+    }
+}
+
+extension DeviceSortOrder {
+    var label: String {
+        switch self {
+        case .lastSeen: return "Last Seen"
+        case .name: return "Name"
+        case .ipAddress: return "IP Address"
+        case .status: return "Status"
+        case .vendor: return "Vendor"
+        case .latency: return "Latency"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .lastSeen: return "clock"
+        case .name: return "textformat"
+        case .ipAddress: return "number"
+        case .status: return "circle.fill"
+        case .vendor: return "building.2"
+        case .latency: return "waveform.path"
+        }
     }
 }
 

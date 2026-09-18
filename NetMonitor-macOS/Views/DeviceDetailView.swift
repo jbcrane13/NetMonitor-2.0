@@ -96,12 +96,12 @@ struct DeviceDetailView: View {
         HStack(spacing: 16) {
             ZStack {
                 Circle()
-                    .fill(device.status == .online ? MacTheme.Colors.success.opacity(0.2) : Color.gray.opacity(0.2))
+                    .fill(MacTheme.Colors.statusColor(device.status.statusType).opacity(0.2))
                     .frame(width: 64, height: 64)
 
                 Image(systemName: device.deviceType.iconName)
                     .font(.title)
-                    .foregroundStyle(device.status == .online ? MacTheme.Colors.success : .gray)
+                    .foregroundStyle(MacTheme.Colors.statusColor(device.status.statusType))
             }
 
             VStack(alignment: .leading, spacing: 4) {
@@ -117,7 +117,7 @@ struct DeviceDetailView: View {
 
                 HStack(spacing: 8) {
                     Circle()
-                        .fill(device.status == .online ? MacTheme.Colors.success : Color.gray)
+                        .fill(MacTheme.Colors.statusColor(device.status.statusType))
                         .frame(width: 8, height: 8)
 
                     Text(device.status == .online ? "Online" : "Offline")
@@ -445,17 +445,17 @@ struct DeviceDetailView: View {
     // MARK: - Computed Properties
 
     private var timeSinceLastSeen: String {
-        let interval = Date().timeIntervalSince(device.lastSeen)
-        if interval < 60 { return "Just now" }
-        if interval < 3600 { return "\(Int(interval / 60)) minutes ago" }
-        if interval < 86400 { return "\(Int(interval / 3600)) hours ago" }
-        return "\(Int(interval / 86400)) days ago"
+        DeviceList.recencyLabel(since: device.lastSeen, style: .long)
     }
 
     private var totalTimeTracked: String {
         let interval = Date().timeIntervalSince(device.firstSeen)
-        if interval < 3600 { return "\(Int(interval / 60)) minutes" }
-        if interval < 86400 { return "\(Int(interval / 3600)) hours" }
+        if interval < 3600 {
+            return "\(Int(interval / 60)) minutes"
+        }
+        if interval < 86400 {
+            return "\(Int(interval / 3600)) hours"
+        }
         return "\(Int(interval / 86400)) days"
     }
 

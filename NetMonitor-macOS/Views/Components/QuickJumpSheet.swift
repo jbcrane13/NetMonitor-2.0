@@ -121,12 +121,12 @@ struct QuickJumpSheet: View {
             HStack(spacing: 10) {
                 ZStack {
                     Circle()
-                        .fill(device.status == .online ? MacTheme.Colors.success.opacity(0.2) : Color.gray.opacity(0.2))
+                        .fill(MacTheme.Colors.statusColor(device.status.statusType).opacity(0.2))
                         .frame(width: 28, height: 28)
 
                     Image(systemName: device.deviceType.iconName)
                         .font(.system(size: 12))
-                        .foregroundStyle(device.status == .online ? MacTheme.Colors.success : .gray)
+                        .foregroundStyle(MacTheme.Colors.statusColor(device.status.statusType))
                 }
 
                 VStack(alignment: .leading, spacing: 1) {
@@ -154,7 +154,7 @@ struct QuickJumpSheet: View {
                 Spacer()
 
                 Circle()
-                    .fill(device.status == .online ? MacTheme.Colors.success : Color.gray)
+                    .fill(MacTheme.Colors.statusColor(device.status.statusType))
                     .frame(width: 6, height: 6)
             }
             .padding(.horizontal, 10)
