@@ -150,6 +150,7 @@
 		4E72AFBFDD244A2C0A433ECD /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5AE1D8C5F900E64248573737 /* AppSettings.swift */; };
 		4F0B754BE3498779A22DDB1A /* WebBrowserToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98B68963D40A139DE9EF2272 /* WebBrowserToolView.swift */; };
 		4F957102AF0E1F220EE11861 /* SettingsUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 674DF2A6E73DEA21A751E2A6 /* SettingsUITests.swift */; };
+		5095FEFFA1501CF8B77D416B /* DeviceDiscoveryCoordinatorLiveScanTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82587ACE5E6C4E18385B83D9 /* DeviceDiscoveryCoordinatorLiveScanTests.swift */; };
 		516EF4009098D3018F255138 /* EnumExtensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E552E75FCB9CC89B03283A8 /* EnumExtensions.swift */; };
 		538F4B8343CAE59B2359F496 /* DNSLookupToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F3EF884CA115169781F6BB5 /* DNSLookupToolView.swift */; };
 		54286149DED9B16C7EE3EF0B /* DashboardUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 101EF594B6858D3F18BCD641 /* DashboardUITests.swift */; };
@@ -342,6 +343,7 @@
 		BFE249ACB3E6B37627E1E493 /* ConnectivityMonitorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B492B6D206C4A83BE984640B /* ConnectivityMonitorTests.swift */; };
 		C1FE2E51EF14F1CF5DDB86A8 /* LabelValueRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4242598E5085508175C23443 /* LabelValueRow.swift */; };
 		C22CD2C4F138EBB88F30000B /* RateAppService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08548A1C1E2724BA55054DBB /* RateAppService.swift */; };
+		C25F716B54CA12D16EFE75C8 /* DeviceDiscoveryCoordinatorFixtures.swift in Sources */ = {isa = PBXBuildFile; fileRef = A242FEF3FDE1E77C8561270B /* DeviceDiscoveryCoordinatorFixtures.swift */; };
 		C27D1C5E68E88D4354AA53DC /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F3D104B92118BB96E87C4E1 /* OnboardingView.swift */; };
 		C323E9367B0F864A8517172D /* ISPLookupServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0203A45AF57DA6D9B5EDF5F5 /* ISPLookupServiceTests.swift */; };
 		C3F5637F4D132571F8DB087D /* WorldPingToolUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00129DE4AC923EE5FBB09BFE /* WorldPingToolUITests.swift */; };
@@ -744,6 +746,7 @@
 		81576F18D180FACEF6FCB355 /* GeoTraceUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeoTraceUITests.swift; sourceTree = "<group>"; };
 		81B1CB82BF919DFFC1B8045B /* NetworkMapFunctionalUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkMapFunctionalUITests.swift; sourceTree = "<group>"; };
 		824214C53D0723B326A18CEF /* SpeedTestToolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeedTestToolView.swift; sourceTree = "<group>"; };
+		82587ACE5E6C4E18385B83D9 /* DeviceDiscoveryCoordinatorLiveScanTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceDiscoveryCoordinatorLiveScanTests.swift; sourceTree = "<group>"; };
 		826B9ED849E6264EAE6F6B7D /* SubnetCalculatorToolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubnetCalculatorToolView.swift; sourceTree = "<group>"; };
 		82E47534965027EAD583448A /* SubnetCalculatorToolViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubnetCalculatorToolViewModel.swift; sourceTree = "<group>"; };
 		8393BFDDAF199B582E13D567 /* RoomPlanScannerViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoomPlanScannerViewModelTests.swift; sourceTree = "<group>"; };
@@ -804,6 +807,7 @@
 		9F3EF884CA115169781F6BB5 /* DNSLookupToolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DNSLookupToolView.swift; sourceTree = "<group>"; };
 		9FCDC97BB9134866F737D36C /* MenuBarCommands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarCommands.swift; sourceTree = "<group>"; };
 		A02DB6EA4594C1AC7060BBB0 /* HealthGaugeCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthGaugeCard.swift; sourceTree = "<group>"; };
+		A242FEF3FDE1E77C8561270B /* DeviceDiscoveryCoordinatorFixtures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceDiscoveryCoordinatorFixtures.swift; sourceTree = "<group>"; };
 		A250E7592344D3DD67910685 /* DataSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataSettingsView.swift; sourceTree = "<group>"; };
 		A3A26AEE62C6261706D57D1A /* GeoFenceSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeoFenceSettingsView.swift; sourceTree = "<group>"; };
 		A5380F904D8A46DD9A585ACA /* CardStateViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardStateViews.swift; sourceTree = "<group>"; };
@@ -1737,6 +1741,8 @@
 				18594F466B7F7B0935132FD2 /* DefaultTargetsProviderTests.swift */,
 				01149AB97A44B19B28D5A95C /* DeviceDiscoveryCoordinatorErrorTests.swift */,
 				15F8F1960BEB3D161E3A289A /* DeviceDiscoveryCoordinatorExtendedTests.swift */,
+				A242FEF3FDE1E77C8561270B /* DeviceDiscoveryCoordinatorFixtures.swift */,
+				82587ACE5E6C4E18385B83D9 /* DeviceDiscoveryCoordinatorLiveScanTests.swift */,
 				2A385E58594F43F7929CB055 /* DeviceDiscoveryCoordinatorSaveErrorTests.swift */,
 				C9ABDDE5D7F62221ED44B711 /* DeviceDiscoveryCoordinatorTests.swift */,
 				DAAB8EFA459C03B0EA468DF9 /* DeviceDiscoveryServiceTests.swift */,
@@ -2460,6 +2466,8 @@
 				B215F1978E6F4EF994AB9B13 /* DefaultTargetsProviderTests.swift in Sources */,
 				0628D7C64272D6E64FDE9378 /* DeviceDiscoveryCoordinatorErrorTests.swift in Sources */,
 				D69ACF03BC7EB5856A6BD012 /* DeviceDiscoveryCoordinatorExtendedTests.swift in Sources */,
+				C25F716B54CA12D16EFE75C8 /* DeviceDiscoveryCoordinatorFixtures.swift in Sources */,
+				5095FEFFA1501CF8B77D416B /* DeviceDiscoveryCoordinatorLiveScanTests.swift in Sources */,
 				2D13D963FF2F70618466B87F /* DeviceDiscoveryCoordinatorSaveErrorTests.swift in Sources */,
 				1307F4C4980ACC2D81AEBC60 /* DeviceDiscoveryCoordinatorTests.swift in Sources */,
 				DA25C9C79FE570D65102837E /* DeviceDiscoveryServiceTests.swift in Sources */,

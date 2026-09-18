@@ -171,7 +171,8 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
         let context = ScanContext(
             hosts: scanTarget.hosts,
             subnetFilter: { filter.contains(ipAddress: $0) },
-            localIP: NetworkUtilities.detectLocalIPAddress(interface: interfaceName)
+            localIP: NetworkUtilities.detectLocalIPAddress(interface: interfaceName),
+            requiredInterfaceType: .wifi
         )
 
         // Build pipeline with Bonjour service provider

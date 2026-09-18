@@ -23,7 +23,8 @@ struct ScanPipelineRealIntegrationTests {
         let context = ScanContext(
             hosts: ["127.0.0.1"],
             subnetFilter: { _ in true },
-            localIP: "127.0.0.1"
+            localIP: "127.0.0.1",
+            requiredInterfaceType: .wifi
         )
 
         let progressValues = ProgressCollector()
@@ -56,7 +57,7 @@ struct ScanPipelineRealIntegrationTests {
 
         // Scan just a small range around the local machine: .1 through .5
         let hosts = (1...5).map { "\(subnetPrefix).\($0)" }
-        let context = ScanContext(hosts: hosts, subnetFilter: { _ in true }, localIP: localIP)
+        let context = ScanContext(hosts: hosts, subnetFilter: { _ in true }, localIP: localIP, requiredInterfaceType: .wifi)
 
         let results = await engine.scan(pipeline: pipeline, context: context) { _, _ in }
 

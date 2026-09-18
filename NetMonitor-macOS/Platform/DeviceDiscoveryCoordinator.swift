@@ -3,6 +3,7 @@ import Foundation
 import SwiftData
 import NetMonitorCore
 import NetworkScanKit
+import Network
 import Darwin
 import os
 
@@ -23,7 +24,23 @@ final class DeviceDiscoveryCoordinator {
     private let macVendorService: MACVendorLookupService
     let networkProfileManager: NetworkProfileManager
 
+    /// Builds the `ScanEngine` pipeline for a scan. Defaulted to the production
+    /// `ScanPipeline.standard` so the nine existing construction sites compile
+    /// untouched; tests inject a fixture pipeline for deterministic runs (D16).
+    private let pipelineFactory: @Sendable (
+        _ bonjourServiceProvider: @escaping @Sendable () async -> [BonjourServiceInfo],
+        _ bonjourStopProvider: @escaping @Sendable () async -> Void
+    ) -> ScanPipeline
+
+    /// Checks whether `host:port` is reachable. Defaulted to the real raw-socket
+    /// `checkPort`; tests inject a no-op checker for deterministic runs (D16).
+    private let portChecker: @Sendable (_ host: String, _ port: Int, _ timeoutMs: Int32) async -> Bool
+
     private var scanTask: Task<Void, Never>?
+
+    /// Matches iOS `DeviceDiscoveryService.maxHostsPerScan` — a bound on how many
+    /// addresses `hostAddresses(limit:)` enumerates for very large subnets.
+    private static let maxHostsPerScan = 1024
 
     init(
         modelContext: ModelContext,
@@ -31,7 +48,12 @@ final class DeviceDiscoveryCoordinator {
         bonjourScanner: BonjourDiscoveryService,
         nameResolver: DeviceNameResolver = DeviceNameResolver(),
         macVendorService: MACVendorLookupService = MACVendorLookupService(),
-        networkProfileManager: NetworkProfileManager
+        networkProfileManager: NetworkProfileManager,
+        pipelineFactory: @escaping @Sendable (
+            _ bonjourServiceProvider: @escaping @Sendable () async -> [BonjourServiceInfo],
+            _ bonjourStopProvider: @escaping @Sendable () async -> Void
+        ) -> ScanPipeline = { ScanPipeline.standard(bonjourServiceProvider: $0, bonjourStopProvider: $1) },
+        portChecker: @escaping @Sendable (_ host: String, _ port: Int, _ timeoutMs: Int32) async -> Bool = DeviceDiscoveryCoordinator.checkPort
     ) {
         self.modelContext = modelContext
         self.arpScanner = arpScanner
@@ -39,6 +61,8 @@ final class DeviceDiscoveryCoordinator {
         self.nameResolver = nameResolver
         self.macVendorService = macVendorService
         self.networkProfileManager = networkProfileManager
+        self.pipelineFactory = pipelineFactory
+        self.portChecker = portChecker
         self.networkProfile = networkProfileManager.activeProfile
         loadPersistedDevices(for: effectiveProfileID())
     }
@@ -55,54 +79,60 @@ final class DeviceDiscoveryCoordinator {
         let profileID = effectiveProfileID()
         loadPersistedDevices(for: profileID)
 
+        let context = makeScanContext()
+        let bonjourScannerRef = bonjourScanner
+        let bonjourProvider: @Sendable () async -> [BonjourServiceInfo] = {
+            await MainActor.run {
+                bonjourScannerRef.discoveredServices.map {
+                    BonjourServiceInfo(name: $0.name, type: $0.type, domain: $0.domain)
+                }
+            }
+        }
+        let bonjourStop: @Sendable () async -> Void = {
+            await MainActor.run { bonjourScannerRef.stopDiscovery() }
+        }
+        let pipeline = pipelineFactory(bonjourProvider, bonjourStop)
+        let portChecker = self.portChecker
+
         scanTask = Task {
+            defer { isScanning = false }
             do {
                 try Task.checkCancellation()
 
-                scanProgress = 0.1
-                let arpDevices = try await arpScanner.scanNetwork(interface: selectedInterface)
-                try Task.checkCancellation()
-                scanProgress = 0.6
+                bonjourScannerRef.startDiscovery()
+                defer { bonjourScannerRef.stopDiscovery() }
 
-                var bonjourDevices: [LocalDiscoveredDevice] = []
-                let bonjourStream = await bonjourScanner.discoveryStream(serviceType: nil)
-                let bonjourTask = Task {
-                    for await service in bonjourStream {
-                        if let host = service.hostName {
-                            bonjourDevices.append(LocalDiscoveredDevice(
-                                ipAddress: service.addresses.first ?? host,
-                                macAddress: "",
-                                hostname: host
-                            ))
-                        }
+                let engine = ScanEngine()
+                let engineDevices = await engine.scan(pipeline: pipeline, context: context) { [weak self] progress, _ in
+                    await MainActor.run {
+                        guard let self else { return }
+                        self.scanProgress = min(progress, 1.0) * 0.8
                     }
                 }
-                try? await Task.sleep(for: .seconds(5))
-                bonjourTask.cancel()
-                await bonjourScanner.stopDiscovery()
 
                 try Task.checkCancellation()
-                scanProgress = 0.9
 
-                let allDiscovered = mergeDiscoveryResults(arp: arpDevices, bonjour: bonjourDevices)
+                let allDiscovered = Self.mapDiscoveredDevices(engineDevices)
+
+                scanProgress = 0.8
                 mergeDiscoveredDevices(allDiscovered, profileID: profileID)
 
                 try Task.checkCancellation()
-                scanProgress = 0.92
+                scanProgress = 0.84
                 await resolveDeviceNames(profileID: profileID)
 
                 try Task.checkCancellation()
-                scanProgress = 0.94
+                scanProgress = 0.88
                 await resolveDeviceVendors(profileID: profileID)
 
                 try Task.checkCancellation()
-                scanProgress = 0.96
-                await quickPortScan(profileID: profileID)
+                scanProgress = 0.92
+                await quickPortScan(profileID: profileID, portChecker: portChecker)
 
                 inferDeviceTypes(profileID: profileID)
 
                 try Task.checkCancellation()
-                scanProgress = 0.98
+                scanProgress = 0.96
                 await measureDeviceLatencies(profileID: profileID)
 
                 markOfflineDevices(currentIPs: Set(allDiscovered.map(\.ipAddress)), profileID: profileID)
@@ -126,7 +156,6 @@ final class DeviceDiscoveryCoordinator {
             } catch {
                 Logger.discovery.error("Scan error: \(error, privacy: .public)")
             }
-            isScanning = false
         }
     }
 
@@ -140,10 +169,7 @@ final class DeviceDiscoveryCoordinator {
     func stopScan() {
         scanTask?.cancel()
         scanTask = nil
-        Task {
-            await arpScanner.stopScan()
-            await bonjourScanner.stopDiscovery()
-        }
+        bonjourScanner.stopDiscovery()
         isScanning = false
     }
 
@@ -219,6 +245,11 @@ final class DeviceDiscoveryCoordinator {
     /// Sliding-window cap (matches `resolveDeviceNames` below) — without this we
     /// fork one `/sbin/ping` subprocess per online device, which spikes CPU and
     /// trips thermal throttling on 200+ device networks. See #195.
+    ///
+    /// Retained per D14: the `ScanEngine`'s `ICMPLatencyPhase` needs a raw-socket
+    /// entitlement the sandboxed macOS app does not have and may skip silently, so
+    /// shell ping remains the macOS latency source of record (ADR-macOS-003) and
+    /// overwrites whatever latency the accumulator supplied.
     private func measureDeviceLatencies(profileID: UUID?) async {
         let devices = fetchDevices(for: profileID).filter { $0.status == .online }
         guard !devices.isEmpty else { return }
@@ -330,7 +361,10 @@ final class DeviceDiscoveryCoordinator {
 
     /// Performs a quick scan of common ports on online devices for the given profile.
     /// Uses a 1-second timeout per port and scans 10 concurrent devices at a time.
-    private func quickPortScan(profileID: UUID?) async {
+    private func quickPortScan(
+        profileID: UUID?,
+        portChecker: @escaping @Sendable (_ host: String, _ port: Int, _ timeoutMs: Int32) async -> Bool
+    ) async {
         let devices = fetchDevices(for: profileID).filter { $0.status == .online }
         guard !devices.isEmpty else { return }
 
@@ -350,7 +384,7 @@ final class DeviceDiscoveryCoordinator {
                     await withTaskGroup(of: (Int, Bool).self) { portGroup in
                         for port in commonPorts {
                             portGroup.addTask {
-                                let isOpen = await Self.checkPort(host: ip, port: port, timeoutMs: 1000)
+                                let isOpen = await portChecker(ip, port, 1000)
                                 return (port, isOpen)
                             }
                         }
@@ -379,7 +413,7 @@ final class DeviceDiscoveryCoordinator {
                         await withTaskGroup(of: (Int, Bool).self) { portGroup in
                             for port in commonPorts {
                                 portGroup.addTask {
-                                    let isOpen = await Self.checkPort(host: ip, port: port, timeoutMs: 1000)
+                                    let isOpen = await portChecker(ip, port, 1000)
                                     return (port, isOpen)
                                 }
                             }
@@ -409,55 +443,58 @@ final class DeviceDiscoveryCoordinator {
         attributes: .concurrent
     )
 
-    /// Non-blocking TCP connect check with configurable timeout.
+    /// Non-blocking TCP connect check with configurable timeout, counted against the
+    /// shared `ConnectionBudget` like every other raw-socket / `NWConnection` probe.
     nonisolated private static func checkPort(host: String, port: Int, timeoutMs: Int32) async -> Bool {
-        await withCheckedContinuation { continuation in
-            portScanQueue.async {
-                var hints = addrinfo()
-                hints.ai_family = AF_INET
-                hints.ai_socktype = SOCK_STREAM
-                hints.ai_protocol = IPPROTO_TCP
+        await withConnectionSlot {
+            await withCheckedContinuation { continuation in
+                portScanQueue.async {
+                    var hints = addrinfo()
+                    hints.ai_family = AF_INET
+                    hints.ai_socktype = SOCK_STREAM
+                    hints.ai_protocol = IPPROTO_TCP
 
-                var result: UnsafeMutablePointer<addrinfo>?
-                let portString = String(port)
-                let resolveStatus = getaddrinfo(host, portString, &hints, &result)
+                    var result: UnsafeMutablePointer<addrinfo>?
+                    let portString = String(port)
+                    let resolveStatus = getaddrinfo(host, portString, &hints, &result)
 
-                guard resolveStatus == 0, let addrInfo = result else {
-                    continuation.resume(returning: false)
-                    return
-                }
-                defer { freeaddrinfo(result) }
-
-                let sock = socket(addrInfo.pointee.ai_family, addrInfo.pointee.ai_socktype, addrInfo.pointee.ai_protocol)
-                guard sock >= 0 else {
-                    continuation.resume(returning: false)
-                    return
-                }
-                defer { close(sock) }
-
-                // Non-blocking
-                var flags = fcntl(sock, F_GETFL, 0)
-                flags |= O_NONBLOCK
-                _ = fcntl(sock, F_SETFL, flags)
-
-                _ = connect(sock, addrInfo.pointee.ai_addr, addrInfo.pointee.ai_addrlen)
-
-                if errno == EINPROGRESS {
-                    var pfd = pollfd(fd: sock, events: Int16(POLLOUT), revents: 0)
-                    let pollResult = poll(&pfd, 1, timeoutMs)
-                    if pollResult > 0 {
-                        var socketError: Int32 = 0
-                        var errorLen = socklen_t(MemoryLayout<Int32>.size)
-                        getsockopt(sock, SOL_SOCKET, SO_ERROR, &socketError, &errorLen)
-                        continuation.resume(returning: socketError == 0)
-                    } else {
+                    guard resolveStatus == 0, let addrInfo = result else {
                         continuation.resume(returning: false)
+                        return
                     }
-                } else {
-                    continuation.resume(returning: errno == 0)
+                    defer { freeaddrinfo(result) }
+
+                    let sock = socket(addrInfo.pointee.ai_family, addrInfo.pointee.ai_socktype, addrInfo.pointee.ai_protocol)
+                    guard sock >= 0 else {
+                        continuation.resume(returning: false)
+                        return
+                    }
+                    defer { close(sock) }
+
+                    // Non-blocking
+                    var flags = fcntl(sock, F_GETFL, 0)
+                    flags |= O_NONBLOCK
+                    _ = fcntl(sock, F_SETFL, flags)
+
+                    _ = connect(sock, addrInfo.pointee.ai_addr, addrInfo.pointee.ai_addrlen)
+
+                    if errno == EINPROGRESS {
+                        var pfd = pollfd(fd: sock, events: Int16(POLLOUT), revents: 0)
+                        let pollResult = poll(&pfd, 1, timeoutMs)
+                        if pollResult > 0 {
+                            var socketError: Int32 = 0
+                            var errorLen = socklen_t(MemoryLayout<Int32>.size)
+                            getsockopt(sock, SOL_SOCKET, SO_ERROR, &socketError, &errorLen)
+                            continuation.resume(returning: socketError == 0)
+                        } else {
+                            continuation.resume(returning: false)
+                        }
+                    } else {
+                        continuation.resume(returning: errno == 0)
+                    }
                 }
             }
-        }
+        } ?? false
     }
 
     private func inferDeviceTypes(profileID: UUID?) {
@@ -497,26 +534,66 @@ final class DeviceDiscoveryCoordinator {
         return (try? modelContext.fetch(descriptor)) ?? []
     }
 
-    private func mergeDiscoveryResults(
-        arp: [LocalDiscoveredDevice],
-        bonjour: [LocalDiscoveredDevice]
-    ) -> [LocalDiscoveredDevice] {
-        var merged: [String: LocalDiscoveredDevice] = [:]
-        for device in arp { merged[device.ipAddress] = device }
-        for device in bonjour {
-            if let existing = merged[device.ipAddress] {
-                if existing.hostname == nil, device.hostname != nil {
-                    merged[device.ipAddress] = LocalDiscoveredDevice(
-                        ipAddress: existing.ipAddress,
-                        macAddress: existing.macAddress,
-                        hostname: device.hostname
-                    )
-                }
-            } else {
-                merged[device.ipAddress] = device
+    /// Maps `ScanEngine` accumulator results to the macOS-local discovery type consumed
+    /// by `mergeDiscoveredDevices`. `nonisolated` and `static` so tests (and the D16
+    /// equivalence test in particular) can call it without any coordinator instance.
+    nonisolated static func mapDiscoveredDevices(_ devices: [DiscoveredDevice]) -> [LocalDiscoveredDevice] {
+        devices.map { device in
+            LocalDiscoveredDevice(
+                ipAddress: device.ipAddress,
+                macAddress: device.macAddress ?? "",
+                hostname: device.hostname
+            )
+        }
+    }
+
+    /// Builds the `ScanContext` for a scan, deriving `hosts` and the subnet filter the
+    /// way iOS `DeviceDiscoveryService.makeScanTarget(profile:)` / `makeScanTarget(subnet:)`
+    /// do — both platforms share `NetworkProfile` and `NetworkUtilities` in NetMonitorCore.
+    /// `requiredInterfaceType` is `nil` (any interface): unlike iOS, a wired Mac must still
+    /// be able to discover devices (D15).
+    private func makeScanContext() -> ScanContext {
+        if let profile = networkProfile {
+            let hosts = profile.network.hostAddresses(limit: Self.maxHostsPerScan)
+            let localIP = NetworkUtilities.detectLocalIPAddress(interface: profile.interfaceName)
+            return ScanContext(
+                hosts: hosts,
+                subnetFilter: { profile.network.contains(ipAddress: $0) },
+                localIP: localIP,
+                requiredInterfaceType: nil
+            )
+        }
+
+        // No active profile yet (e.g. first launch before profile detection completes) —
+        // fall back the same way iOS `makeScanTarget(subnet: nil)` does.
+        if let network = NetworkUtilities.detectLocalIPv4Network() {
+            let hosts = network.hostAddresses(limit: Self.maxHostsPerScan)
+            if !hosts.isEmpty {
+                return ScanContext(
+                    hosts: hosts,
+                    subnetFilter: { network.contains(ipAddress: $0) },
+                    localIP: NetworkUtilities.detectLocalIPAddress(),
+                    requiredInterfaceType: nil
+                )
             }
         }
-        return Array(merged.values)
+
+        let subnet = NetworkUtilities.detectSubnet() ?? "192.168.1"
+        let localIP = NetworkUtilities.detectLocalIPAddress()
+        var hosts: [String] = []
+        hosts.reserveCapacity(254)
+        for host in 1...254 {
+            let ip = "\(subnet).\(host)"
+            if ip != localIP {
+                hosts.append(ip)
+            }
+        }
+        return ScanContext(
+            hosts: hosts,
+            subnetFilter: { $0.hasPrefix(subnet + ".") },
+            localIP: localIP,
+            requiredInterfaceType: nil
+        )
     }
 
     private func effectiveProfileID() -> UUID? {

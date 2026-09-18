@@ -63,7 +63,7 @@ public struct TCPProbeScanPhase: ScanPhase, Sendable {
                 guard !Task.isCancelled else { break }
                 pending += 1
                 group.addTask {
-                    await Self.probeHost(ip, tracker: tracker)
+                    await Self.probeHost(ip, tracker: tracker, requiredInterfaceType: context.requiredInterfaceType)
                 }
             }
 
@@ -85,7 +85,7 @@ public struct TCPProbeScanPhase: ScanPhase, Sendable {
                 if let ip = hostIterator.next() {
                     pending += 1
                     group.addTask {
-                        await Self.probeHost(ip, tracker: tracker)
+                        await Self.probeHost(ip, tracker: tracker, requiredInterfaceType: context.requiredInterfaceType)
                     }
                 }
             }
@@ -98,7 +98,8 @@ public struct TCPProbeScanPhase: ScanPhase, Sendable {
             await enrichLatency(
                 ips: ipsNeedingLatency,
                 tracker: tracker,
-                accumulator: accumulator
+                accumulator: accumulator,
+                requiredInterfaceType: context.requiredInterfaceType
             )
         }
 
@@ -123,7 +124,11 @@ public struct TCPProbeScanPhase: ScanPhase, Sendable {
     }
 
     /// Probe a host with staged port groups, using adaptive timeouts from the RTT tracker.
-    private static func probeHost(_ ip: String, tracker: RTTTracker) async -> DiscoveredDevice? {
+    private static func probeHost(
+        _ ip: String,
+        tracker: RTTTracker,
+        requiredInterfaceType: NWInterface.InterfaceType?
+    ) async -> DiscoveredDevice? {
         guard !Task.isCancelled else { return nil }
         let primaryTimeoutMs = await tracker.adaptiveTimeout(base: basePrimaryTimeout)
         let primaryResult = await probePortGroup(
@@ -131,7 +136,8 @@ public struct TCPProbeScanPhase: ScanPhase, Sendable {
             ports: primaryProbePorts,
             timeout: .milliseconds(primaryTimeoutMs),
             maxConcurrentPorts: maxConcurrentPortProbes,
-            tracker: tracker
+            tracker: tracker,
+            requiredInterfaceType: requiredInterfaceType
         )
 
         switch primaryResult {
@@ -149,7 +155,8 @@ public struct TCPProbeScanPhase: ScanPhase, Sendable {
             ports: secondaryProbePorts,
             timeout: .milliseconds(secondaryTimeoutMs),
             maxConcurrentPorts: maxConcurrentPortProbes,
-            tracker: tracker
+            tracker: tracker,
+            requiredInterfaceType: requiredInterfaceType
         )
 
         if case .reachable(let latency) = secondaryResult {
@@ -164,7 +171,8 @@ public struct TCPProbeScanPhase: ScanPhase, Sendable {
         ports: [UInt16],
         timeout: Duration,
         maxConcurrentPorts: Int,
-        tracker: RTTTracker
+        tracker: RTTTracker,
+        requiredInterfaceType: NWInterface.InterfaceType?
     ) async -> ProbeGroupResult {
         guard !ports.isEmpty, !Task.isCancelled else { return .allFailed }
 
@@ -176,7 +184,7 @@ public struct TCPProbeScanPhase: ScanPhase, Sendable {
             while pending < maxConcurrentPorts, let port = iterator.next() {
                 pending += 1
                 group.addTask {
-                    await probePort(ip: ip, port: port, timeout: timeout)
+                    await probePort(ip: ip, port: port, timeout: timeout, requiredInterfaceType: requiredInterfaceType)
                 }
             }
 
@@ -206,7 +214,7 @@ public struct TCPProbeScanPhase: ScanPhase, Sendable {
                 if let port = iterator.next() {
                     pending += 1
                     group.addTask {
-                        await probePort(ip: ip, port: port, timeout: timeout)
+                        await probePort(ip: ip, port: port, timeout: timeout, requiredInterfaceType: requiredInterfaceType)
                     }
                 }
             }
@@ -215,14 +223,21 @@ public struct TCPProbeScanPhase: ScanPhase, Sendable {
         }
     }
 
-    private static func probePort(ip: String, port: UInt16, timeout: Duration) async -> PortProbeOutcome {
+    private static func probePort(
+        ip: String,
+        port: UInt16,
+        timeout: Duration,
+        requiredInterfaceType: NWInterface.InterfaceType?
+    ) async -> PortProbeOutcome {
         guard !Task.isCancelled else { return .failed }
 
         let result = await withConnectionSlot { () async -> PortProbeOutcome in
             let host = NWEndpoint.Host(ip)
             let endpoint = NWEndpoint.hostPort(host: host, port: NWEndpoint.Port(rawValue: port)!)
             let params = NWParameters.tcp
-            params.requiredInterfaceType = .wifi
+            if let requiredInterfaceType {
+                params.requiredInterfaceType = requiredInterfaceType
+            }
 
             let connection = NWConnection(to: endpoint, using: params)
             let startTime = Date()
@@ -255,7 +270,8 @@ public struct TCPProbeScanPhase: ScanPhase, Sendable {
     private func enrichLatency(
         ips: [String],
         tracker: RTTTracker,
-        accumulator: ScanAccumulator
+        accumulator: ScanAccumulator,
+        requiredInterfaceType: NWInterface.InterfaceType?
     ) async {
         let concurrencyLimit = ThermalThrottleMonitor.shared.effectiveLimit(from: maxConcurrentHosts)
 
@@ -270,7 +286,8 @@ public struct TCPProbeScanPhase: ScanPhase, Sendable {
                     let timeoutMs = await tracker.adaptiveTimeout(base: 500)
                     let latency = await Self.quickLatencyProbe(
                         ip: ip,
-                        timeout: .milliseconds(timeoutMs)
+                        timeout: .milliseconds(timeoutMs),
+                        requiredInterfaceType: requiredInterfaceType
                     )
                     return (ip, latency)
                 }
@@ -293,7 +310,8 @@ public struct TCPProbeScanPhase: ScanPhase, Sendable {
                         let timeoutMs = await tracker.adaptiveTimeout(base: 500)
                         let latency = await Self.quickLatencyProbe(
                             ip: nextIP,
-                            timeout: .milliseconds(timeoutMs)
+                            timeout: .milliseconds(timeoutMs),
+                            requiredInterfaceType: requiredInterfaceType
                         )
                         return (nextIP, latency)
                     }
@@ -312,7 +330,11 @@ public struct TCPProbeScanPhase: ScanPhase, Sendable {
 
     /// Multi-port TCP connect for latency measurement — tries common ports concurrently,
     /// returns as soon as any responds.
-    private static func quickLatencyProbe(ip: String, timeout: Duration) async -> Double? {
+    private static func quickLatencyProbe(
+        ip: String,
+        timeout: Duration,
+        requiredInterfaceType: NWInterface.InterfaceType?
+    ) async -> Double? {
         guard !Task.isCancelled else { return nil }
 
         guard let latency = await withConnectionSlot({ () async -> Double? in
@@ -321,7 +343,12 @@ public struct TCPProbeScanPhase: ScanPhase, Sendable {
             return await withTaskGroup(of: Double?.self, returning: Double?.self) { group in
                 for port in latencyProbePorts {
                     group.addTask {
-                        await singlePortLatencyProbe(host: host, port: port, timeout: timeout)
+                        await singlePortLatencyProbe(
+                            host: host,
+                            port: port,
+                            timeout: timeout,
+                            requiredInterfaceType: requiredInterfaceType
+                        )
                     }
                 }
 
@@ -339,10 +366,17 @@ public struct TCPProbeScanPhase: ScanPhase, Sendable {
     }
 
     /// Single-port TCP connect for latency measurement.
-    private static func singlePortLatencyProbe(host: NWEndpoint.Host, port: NWEndpoint.Port, timeout: Duration) async -> Double? {
+    private static func singlePortLatencyProbe(
+        host: NWEndpoint.Host,
+        port: NWEndpoint.Port,
+        timeout: Duration,
+        requiredInterfaceType: NWInterface.InterfaceType?
+    ) async -> Double? {
         let endpoint = NWEndpoint.hostPort(host: host, port: port)
         let params = NWParameters.tcp
-        params.requiredInterfaceType = .wifi
+        if let requiredInterfaceType {
+            params.requiredInterfaceType = requiredInterfaceType
+        }
 
         let connection = NWConnection(to: endpoint, using: params)
         let startTime = Date()

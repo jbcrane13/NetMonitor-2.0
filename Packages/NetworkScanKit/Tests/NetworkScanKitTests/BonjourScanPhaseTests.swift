@@ -64,7 +64,8 @@ struct BonjourScanPhaseTests {
         let context = ScanContext(
             hosts: [],
             subnetFilter: { _ in true },
-            localIP: nil
+            localIP: nil,
+            requiredInterfaceType: .wifi
         )
         let accumulator = ScanAccumulator()
         let collector = BonjourProgressCollector()
@@ -89,7 +90,8 @@ struct BonjourScanPhaseTests {
         let context = ScanContext(
             hosts: [],
             subnetFilter: { _ in true },
-            localIP: nil
+            localIP: nil,
+            requiredInterfaceType: .wifi
         )
         let accumulator = ScanAccumulator()
 
@@ -110,7 +112,8 @@ struct BonjourScanPhaseTests {
         let context = ScanContext(
             hosts: [],
             subnetFilter: { _ in false },  // reject all IPs
-            localIP: nil
+            localIP: nil,
+            requiredInterfaceType: .wifi
         )
         let accumulator = ScanAccumulator()
         let collector = BonjourProgressCollector()
@@ -138,7 +141,8 @@ struct BonjourScanPhaseTests {
         let context = ScanContext(
             hosts: [],
             subnetFilter: { _ in false },
-            localIP: nil
+            localIP: nil,
+            requiredInterfaceType: .wifi
         )
         let accumulator = ScanAccumulator()
 
@@ -160,7 +164,8 @@ struct BonjourScanPhaseTests {
         let context = ScanContext(
             hosts: [],
             subnetFilter: { _ in false },
-            localIP: nil
+            localIP: nil,
+            requiredInterfaceType: .wifi
         )
         let accumulator = ScanAccumulator()
         let collector = BonjourProgressCollector()
@@ -186,7 +191,8 @@ struct BonjourScanPhaseTests {
         let context = ScanContext(
             hosts: [],
             subnetFilter: { _ in false },
-            localIP: nil
+            localIP: nil,
+            requiredInterfaceType: .wifi
         )
         let accumulator = ScanAccumulator()
 
@@ -208,7 +214,8 @@ struct BonjourScanPhaseTests {
         let context = ScanContext(
             hosts: [],
             subnetFilter: { _ in false },
-            localIP: nil
+            localIP: nil,
+            requiredInterfaceType: .wifi
         )
         let accumulator = ScanAccumulator()
         let collector = BonjourProgressCollector()
@@ -235,7 +242,8 @@ struct BonjourScanPhaseTests {
         let context = ScanContext(
             hosts: [],
             subnetFilter: { _ in true },
-            localIP: nil
+            localIP: nil,
+            requiredInterfaceType: .wifi
         )
         let accumulator = ScanAccumulator()
 
@@ -250,7 +258,8 @@ struct BonjourScanPhaseTests {
         let context = ScanContext(
             hosts: [],
             subnetFilter: { _ in true },
-            localIP: nil
+            localIP: nil,
+            requiredInterfaceType: .wifi
         )
         let accumulator = ScanAccumulator()
 
@@ -272,7 +281,8 @@ struct BonjourScanPhaseTests {
         let context = ScanContext(
             hosts: [],
             subnetFilter: { _ in false },
-            localIP: nil
+            localIP: nil,
+            requiredInterfaceType: .wifi
         )
         let accumulator = ScanAccumulator()
 
