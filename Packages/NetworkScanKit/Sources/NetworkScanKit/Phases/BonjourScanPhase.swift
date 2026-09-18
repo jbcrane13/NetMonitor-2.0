@@ -1,9 +1,6 @@
 import Foundation
 import Network
 
-/// Shared concurrent queue for NWConnection operations within the scan package.
-let scanQueue = DispatchQueue(label: "com.netmonitor.scan", qos: .userInitiated, attributes: .concurrent)
-
 /// Discovers devices via Bonjour/mDNS service browsing.
 ///
 /// Because `BonjourDiscoveryService` lives in the main app, this phase accepts
@@ -171,33 +168,34 @@ public struct BonjourScanPhase: ScanPhase, Sendable {
 
     private static func resolveBonjourHost(for service: BonjourServiceInfo) async -> String? {
         guard !Task.isCancelled else { return nil }
-        guard await ConnectionBudget.shared.acquire() else { return nil }
-        defer { Task { await ConnectionBudget.shared.release() } }
 
-        let endpoint = NWEndpoint.service(
-            name: service.name,
-            type: service.type,
-            domain: service.domain,
-            interface: nil
-        )
+        guard let host = await withConnectionSlot({ () async -> String? in
+            let endpoint = NWEndpoint.service(
+                name: service.name,
+                type: service.type,
+                domain: service.domain,
+                interface: nil
+            )
 
-        let params = NWParameters.tcp
-        let connection = NWConnection(to: endpoint, using: params)
+            let params = NWParameters.tcp
+            let connection = NWConnection(to: endpoint, using: params)
 
-        return await withNWConnection(connection, timeout: .seconds(2), timeoutValue: nil) { state in
-            switch state {
-            case .ready:
-                if let innerEndpoint = connection.currentPath?.remoteEndpoint,
-                   case let .hostPort(host, _) = innerEndpoint {
-                    return .complete("\(host)")
+            return await withNWConnection(connection, timeout: .seconds(2), timeoutValue: nil) { state in
+                switch state {
+                case .ready:
+                    if let innerEndpoint = connection.currentPath?.remoteEndpoint,
+                       case let .hostPort(host, _) = innerEndpoint {
+                        return .complete("\(host)")
+                    }
+                    return .complete(nil)
+                case .failed, .cancelled:
+                    return .complete(nil)
+                default:
+                    return nil
                 }
-                return .complete(nil)
-            case .failed, .cancelled:
-                return .complete(nil)
-            default:
-                return nil
             }
-        }
+        }) else { return nil }
+        return host
     }
 
     private static func resolveIPv4Addresses(for host: String) async -> [String] {

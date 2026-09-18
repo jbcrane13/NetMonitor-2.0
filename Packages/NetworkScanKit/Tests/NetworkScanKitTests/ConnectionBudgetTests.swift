@@ -115,4 +115,96 @@ struct ConnectionBudgetTests {
         }
         #expect(await budget.activeCount == 100)
     }
+
+    // MARK: - withConnectionSlot
+
+    @Test("withConnectionSlot runs the body and returns the active count to zero")
+    func withConnectionSlotRunsBodyAndReleases() async {
+        let budget = ConnectionBudget(limit: 5)
+
+        let result = await withConnectionSlot(budget: budget) { () async -> Int in
+            await budget.activeCount
+        }
+
+        #expect(result == 1)
+        #expect(await budget.activeCount == 0)
+    }
+
+    @Test("cancelling the task mid-body still releases the slot with no unstructured task")
+    func withConnectionSlotCancellationReleases() async {
+        let budget = ConnectionBudget(limit: 1)
+
+        let task = Task {
+            await withConnectionSlot(budget: budget) { () async -> Int in
+                while !Task.isCancelled {
+                    await Task.yield()
+                }
+                return 42
+            }
+        }
+
+        while await budget.activeCount == 0 {
+            await Task.yield()
+        }
+
+        task.cancel()
+        let result = await task.value
+
+        // The body returned cooperatively after observing cancellation, and by the
+        // time the task's value is available the slot has already been released —
+        // no detached/unstructured Task delays the release past this await.
+        #expect(result == 42)
+        #expect(await budget.activeCount == 0)
+    }
+
+    @Test("reset during a wait yields nil from withConnectionSlot")
+    func withConnectionSlotResetDuringWaitYieldsNil() async {
+        let budget = ConnectionBudget(limit: 1)
+        #expect(await budget.acquire()) // fill the only slot
+
+        let waitingTask = Task {
+            await withConnectionSlot(budget: budget) { 99 }
+        }
+
+        while await budget.waitingCount == 0 {
+            await Task.yield()
+        }
+
+        await budget.reset()
+
+        let result = await waitingTask.value
+        #expect(result == nil)
+        #expect(await budget.activeCount == 0)
+    }
+
+    @Test("100 concurrent withConnectionSlot calls never observe activeCount above the limit")
+    func withConnectionSlotRespectsLimitUnderConcurrency() async {
+        let budget = ConnectionBudget(limit: 5)
+
+        actor OverflowObserver {
+            private(set) var sawOverflow = false
+            func record(_ active: Int, limit: Int) {
+                if active > limit {
+                    sawOverflow = true
+                }
+            }
+        }
+        let observer = OverflowObserver()
+
+        await withTaskGroup(of: Void.self) { group in
+            for _ in 0..<100 {
+                group.addTask {
+                    _ = await withConnectionSlot(budget: budget) { () async -> Int in
+                        let active = await budget.activeCount
+                        await observer.record(active, limit: 5)
+                        await Task.yield()
+                        return active
+                    }
+                }
+            }
+        }
+
+        #expect(await observer.sawOverflow == false)
+        #expect(await budget.activeCount == 0)
+    }
 }

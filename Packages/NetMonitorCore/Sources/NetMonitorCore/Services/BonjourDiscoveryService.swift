@@ -213,76 +213,76 @@ public final class BonjourDiscoveryService: BonjourDiscoveryServiceProtocol {
     // MARK: - Service resolution
 
     nonisolated public func resolveService(_ service: BonjourService) async -> BonjourService? {
-        guard await ConnectionBudget.shared.acquire() else { return nil }
-        defer { Task { await ConnectionBudget.shared.release() } }
+        guard let resolvedService = await withConnectionSlot({ () async -> BonjourService? in
+            let endpoint = NWEndpoint.service(
+                name: service.name,
+                type: service.type,
+                domain: service.domain,
+                interface: nil
+            )
 
-        let endpoint = NWEndpoint.service(
-            name: service.name,
-            type: service.type,
-            domain: service.domain,
-            interface: nil
-        )
+            let connection = NWConnection(to: endpoint, using: .tcp)
 
-        let connection = NWConnection(to: endpoint, using: .tcp)
+            let result: BonjourService? = await withCheckedContinuation { continuation in
+                let resumed = ResumeState()
 
-        let result: BonjourService? = await withCheckedContinuation { continuation in
-            let resumed = ResumeState()
+                let timeoutTask = Task {
+                    try? await Task.sleep(for: .seconds(2))
+                    guard await resumed.tryResume() else { return }
+                    connection.cancel()
+                    continuation.resume(returning: nil)
+                }
 
-            let timeoutTask = Task {
-                try? await Task.sleep(for: .seconds(2))
-                guard await resumed.tryResume() else { return }
-                connection.cancel()
-                continuation.resume(returning: nil)
-            }
+                connection.stateUpdateHandler = { state in
+                    switch state {
+                    case .ready:
+                        Task {
+                            guard await resumed.tryResume() else { return }
+                            timeoutTask.cancel()
 
-            connection.stateUpdateHandler = { state in
-                switch state {
-                case .ready:
-                    Task {
-                        guard await resumed.tryResume() else { return }
-                        timeoutTask.cancel()
-
-                        if let innerEndpoint = connection.currentPath?.remoteEndpoint,
-                           case let .hostPort(host, port) = innerEndpoint {
-                            let hostText = "\(host)"
-                            let normalizedHost = Self.normalizeHostName(hostText)
-                            let addresses = Self.isIPv4Address(normalizedHost) ? [normalizedHost] : []
-                            let resolved = BonjourService(
-                                name: service.name,
-                                type: service.type,
-                                domain: service.domain,
-                                hostName: hostText,
-                                port: Int(port.rawValue),
-                                addresses: addresses
-                            )
-                            connection.cancel()
-                            continuation.resume(returning: resolved)
-                        } else {
+                            if let innerEndpoint = connection.currentPath?.remoteEndpoint,
+                               case let .hostPort(host, port) = innerEndpoint {
+                                let hostText = "\(host)"
+                                let normalizedHost = Self.normalizeHostName(hostText)
+                                let addresses = Self.isIPv4Address(normalizedHost) ? [normalizedHost] : []
+                                let resolved = BonjourService(
+                                    name: service.name,
+                                    type: service.type,
+                                    domain: service.domain,
+                                    hostName: hostText,
+                                    port: Int(port.rawValue),
+                                    addresses: addresses
+                                )
+                                connection.cancel()
+                                continuation.resume(returning: resolved)
+                            } else {
+                                connection.cancel()
+                                continuation.resume(returning: nil)
+                            }
+                        }
+                    case .failed, .cancelled:
+                        Task {
+                            guard await resumed.tryResume() else { return }
+                            timeoutTask.cancel()
                             connection.cancel()
                             continuation.resume(returning: nil)
                         }
+                    case .waiting:
+                        // Waiting means the network path isn't available yet.
+                        // Don't give up immediately — let the timeout handle it.
+                        break
+                    default:
+                        break
                     }
-                case .failed, .cancelled:
-                    Task {
-                        guard await resumed.tryResume() else { return }
-                        timeoutTask.cancel()
-                        connection.cancel()
-                        continuation.resume(returning: nil)
-                    }
-                case .waiting:
-                    // Waiting means the network path isn't available yet.
-                    // Don't give up immediately — let the timeout handle it.
-                    break
-                default:
-                    break
                 }
+
+                connection.start(queue: .global())
             }
 
-            connection.start(queue: .global())
-        }
-
-        connection.cancel()
-        return result
+            connection.cancel()
+            return result
+        }) else { return nil }
+        return resolvedService
     }
 
     nonisolated private static func normalizeHostName(_ host: String) -> String {

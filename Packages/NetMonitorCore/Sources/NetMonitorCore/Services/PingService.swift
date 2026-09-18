@@ -221,65 +221,63 @@ public actor PingService: PingServiceProtocol {
         return await withTaskGroup(of: (Bool, TimeInterval).self, returning: (Bool, TimeInterval).self) { group in
             for port in ports {
                 group.addTask {
-                    guard await ConnectionBudget.shared.acquire() else {
-                        return (false, timeout)
-                    }
-                    let connection = NWConnection(to: .hostPort(host: hostEndpoint, port: port), using: .tcp)
-                    defer {
-                        connection.cancel()
-                        Task { await ConnectionBudget.shared.release() }
-                    }
+                    let result = await withConnectionSlot { () async -> (Bool, TimeInterval) in
+                        let connection = NWConnection(to: .hostPort(host: hostEndpoint, port: port), using: .tcp)
+                        defer { connection.cancel() }
 
-                    return await withCheckedContinuation { (continuation: CheckedContinuation<(Bool, TimeInterval), Never>) in
-                        let resumed = ResumeState()
-                        let startTime = DateRef()
+                        return await withCheckedContinuation { (continuation: CheckedContinuation<(Bool, TimeInterval), Never>) in
+                            let resumed = ResumeState()
+                            let startTime = DateRef()
 
-                        let timeoutTask = Task {
-                            try? await Task.sleep(for: .seconds(timeout))
-                            guard await resumed.tryResume() else { return }
-                            connection.cancel()
-                            continuation.resume(returning: (false, timeout))
-                        }
+                            let timeoutTask = Task {
+                                try? await Task.sleep(for: .seconds(timeout))
+                                guard await resumed.tryResume() else { return }
+                                connection.cancel()
+                                continuation.resume(returning: (false, timeout))
+                            }
 
-                        connection.stateUpdateHandler = { state in
-                            // Capture elapsed SYNCHRONOUSLY on pingQueue — true handshake time.
-                            let elapsed = Date().timeIntervalSince(startTime.value)
-                            switch state {
-                            case .ready:
-                                Task {
-                                    guard await resumed.tryResume() else { return }
-                                    timeoutTask.cancel()
-                                    connection.cancel()
-                                    continuation.resume(returning: (true, elapsed))
-                                }
-                            case .failed(let error):
-                                Task {
-                                    guard await resumed.tryResume() else { return }
-                                    timeoutTask.cancel()
-                                    connection.cancel()
-
-                                    // A refused TCP handshake still proves the host is reachable.
-                                    if case NWError.posix(let code) = error, code == .ECONNREFUSED {
+                            connection.stateUpdateHandler = { state in
+                                // Capture elapsed SYNCHRONOUSLY on pingQueue — true handshake time.
+                                let elapsed = Date().timeIntervalSince(startTime.value)
+                                switch state {
+                                case .ready:
+                                    Task {
+                                        guard await resumed.tryResume() else { return }
+                                        timeoutTask.cancel()
+                                        connection.cancel()
                                         continuation.resume(returning: (true, elapsed))
-                                    } else {
+                                    }
+                                case .failed(let error):
+                                    Task {
+                                        guard await resumed.tryResume() else { return }
+                                        timeoutTask.cancel()
+                                        connection.cancel()
+
+                                        // A refused TCP handshake still proves the host is reachable.
+                                        if case NWError.posix(let code) = error, code == .ECONNREFUSED {
+                                            continuation.resume(returning: (true, elapsed))
+                                        } else {
+                                            continuation.resume(returning: (false, elapsed))
+                                        }
+                                    }
+                                case .cancelled:
+                                    Task {
+                                        guard await resumed.tryResume() else { return }
+                                        timeoutTask.cancel()
+                                        connection.cancel()
                                         continuation.resume(returning: (false, elapsed))
                                     }
+                                default:
+                                    break
                                 }
-                            case .cancelled:
-                                Task {
-                                    guard await resumed.tryResume() else { return }
-                                    timeoutTask.cancel()
-                                    connection.cancel()
-                                    continuation.resume(returning: (false, elapsed))
-                                }
-                            default:
-                                break
                             }
-                        }
 
-                        startTime.value = Date()
-                        connection.start(queue: queue)
+                            startTime.value = Date()
+                            connection.start(queue: queue)
+                        }
                     }
+
+                    return result ?? (false, timeout)
                 }
             }
 

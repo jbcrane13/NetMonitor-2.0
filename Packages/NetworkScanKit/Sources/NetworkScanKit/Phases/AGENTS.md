@@ -57,7 +57,7 @@ Concrete implementations of network discovery techniques. Each phase conforms to
 2. **RTT-Based Timeouts:** Use `await context.rttTracker?.calculateTimeout()` for adaptive timeouts. Fallback to static timeout if tracker unavailable.
 3. **Progress Reporting:** Call `onProgress()` callback with 0.0–1.0 as work completes. ScanEngine aggregates this with phase weights.
 4. **Cancellation:** Check `context.isCancelled()` in loops to support early termination.
-5. **Thermal Awareness:** Use `ConnectionBudget.acquire()` before creating connections, `release()` when done. Budget auto-adjusts based on thermal state.
+5. **Thermal Awareness:** Wrap connection creation in `withConnectionSlot { ... }` — it holds a budget slot for the body and releases it on every exit path. Budget auto-adjusts based on thermal state.
 
 ### Testing
 

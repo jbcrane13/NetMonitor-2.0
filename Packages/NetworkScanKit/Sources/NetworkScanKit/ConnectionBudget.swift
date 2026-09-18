@@ -17,8 +17,9 @@ private final class ConnectionWaiterState: @unchecked Sendable {
 /// across all services to prevent kernel socket exhaustion, reduce CPU heat,
 /// and avoid GCD thread pool starvation.
 ///
-/// Services must call ``acquire()`` before creating an NWConnection and
-/// ``release()`` when the connection is cancelled or completes.
+/// Services acquire a slot through ``withConnectionSlot(budget:_:)``, which runs
+/// a body while holding the slot and releases it on every exit path. Nothing
+/// outside this file should call ``acquire()`` / ``release()`` directly.
 public actor ConnectionBudget {
     public static let shared = ConnectionBudget(limit: 60)
 
@@ -43,7 +44,7 @@ public actor ConnectionBudget {
 
     /// Wait until a connection slot is available, then claim it.
     @discardableResult
-    public func acquire() async -> Bool {
+    func acquire() async -> Bool {
         guard !Task.isCancelled else { return false }
 
         if active < effectiveLimit {
@@ -80,7 +81,7 @@ public actor ConnectionBudget {
     /// Always resumes a waiter when slots are available, even if thermal
     /// throttling reduced `effectiveLimit` since the waiter was enqueued.
     /// This prevents deadlock when the thermal state changes mid-scan.
-    public func release() {
+    func release() {
         while !waiters.isEmpty {
             let next = waiters.removeFirst()
             guard !next.state.isCancelled else {
@@ -115,4 +116,22 @@ public actor ConnectionBudget {
 
     /// Current number of tasks waiting for a connection slot (for diagnostics).
     public var waitingCount: Int { waiters.count }
+}
+
+/// Runs `body` while holding one connection slot from `budget`. Returns `nil` when
+/// no slot could be acquired — the enclosing task was cancelled, ``ConnectionBudget/reset()``
+/// drained the wait, or the budget denied the request. The slot is released
+/// synchronously right after `body` returns, on every exit path including
+/// cancellation, without spawning an unstructured `Task` (piling past the budget
+/// was the bug in #194).
+///
+/// This is the only supported way to touch a ``ConnectionBudget`` from outside this file.
+public func withConnectionSlot<T: Sendable>(
+    budget: ConnectionBudget = .shared,
+    _ body: @Sendable () async -> T
+) async -> T? {
+    guard await budget.acquire() else { return nil }
+    let value = await body()
+    await budget.release()
+    return value
 }
