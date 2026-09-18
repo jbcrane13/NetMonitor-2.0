@@ -6,6 +6,8 @@ import SwiftData
 
 struct DashboardView: View {
     @State private var viewModel: DashboardViewModel
+    @State private var healthViewModel = NetworkHealthScoreViewModel()
+    @State private var lastHealthRefresh: Date?
     // periphery:ignore
     @State private var isAddNetworkSheetPresented = false
 
@@ -54,9 +56,15 @@ struct DashboardView: View {
                     viewModel.refreshAvailableNetworks()
                     await viewModel.refresh(forceIP: true)
                     viewModel.startAutoRefresh()
+                    refreshHealthIfNeeded()
                 }
                 .onReceive(NotificationCenter.default.publisher(for: .networkProfilesDidChange)) { _ in
                     viewModel.refreshAvailableNetworks()
+                }
+                .onChange(of: viewModel.isRefreshing) { _, isRefreshing in
+                    if !isRefreshing {
+                        refreshHealthIfNeeded()
+                    }
                 }
                 .onDisappear {
                     viewModel.stopAutoRefresh()
@@ -64,6 +72,17 @@ struct DashboardView: View {
                 .accessibilityIdentifier("screen_dashboard")
             }
         }
+    }
+
+    /// Refreshes the health score at most once every 60 seconds, since each
+    /// refresh pings 8.8.8.8 five times (`NetworkHealthScoreViewModel.refresh()`).
+    private func refreshHealthIfNeeded() {
+        let now = Date()
+        if let last = lastHealthRefresh, now.timeIntervalSince(last) < 60 {
+            return
+        }
+        lastHealthRefresh = now
+        healthViewModel.refresh()
     }
 
     @ViewBuilder
@@ -82,7 +101,7 @@ struct DashboardView: View {
                     GridItem(.flexible()),
                     GridItem(.flexible())
                 ], spacing: Theme.Layout.itemSpacing) {
-                    RefinedNetworkHealthCard(viewModel: viewModel)
+                    RefinedNetworkHealthCard(viewModel: viewModel, healthViewModel: healthViewModel)
                     SignalEQView(viewModel: viewModel)
                     WANInfoCard(viewModel: viewModel)
                 }
@@ -90,7 +109,7 @@ struct DashboardView: View {
             } else if width > 600 {
                 // Regular: 2-column pairs
                 HStack(spacing: Theme.Layout.itemSpacing) {
-                    RefinedNetworkHealthCard(viewModel: viewModel)
+                    RefinedNetworkHealthCard(viewModel: viewModel, healthViewModel: healthViewModel)
                         .frame(maxWidth: .infinity)
                     SignalEQView(viewModel: viewModel)
                         .frame(maxWidth: .infinity)
@@ -103,7 +122,7 @@ struct DashboardView: View {
                 }
             } else {
                 // Compact: single column (iPhone default)
-                RefinedNetworkHealthCard(viewModel: viewModel)
+                RefinedNetworkHealthCard(viewModel: viewModel, healthViewModel: healthViewModel)
                 SignalEQView(viewModel: viewModel)
                 WANInfoCard(viewModel: viewModel)
                 AnchorLatencyCard(viewModel: viewModel)
@@ -184,7 +203,7 @@ struct TacticalHUDHeader: View {
                     HStack(alignment: .top) {
                         VStack(alignment: .leading, spacing: 4) {
                             HStack(spacing: 8) {
-                                Image(systemName: wifiIconName)
+                                Image(systemName: "wifi", variableValue: wifiSignalFraction)
                                     .foregroundStyle(Theme.Colors.accent)
                                     .symbolEffect(.variableColor.reversing, isActive: viewModel.isScanning)
                                 Text(viewModel.gateway?.ipAddress ?? "Scanning…")
@@ -262,27 +281,12 @@ struct TacticalHUDHeader: View {
     }
 
     func signalColor(_ strength: Int) -> Color {
-        if strength > 70 {
-            return Theme.Colors.success
-        }
-        if strength > 40 {
-            return Theme.Colors.warning
-        }
-        return Theme.Colors.error
+        Theme.Colors.color(for: NetworkHealthScore.signalSeverity(percent: strength))
     }
 
-    var wifiIconName: String {
-        guard let dbm = viewModel.currentWiFi?.signalDBm else { return "wifi" }
-        if dbm > -50 {
-            return "wifi"
-        }
-        if dbm > -60 {
-            return "wifi"
-        }
-        if dbm > -70 {
-            return "wifi"
-        }
-        return "wifi"
+    var wifiSignalFraction: Double {
+        guard let signal = viewModel.currentWiFi?.signalStrength else { return 1.0 }
+        return min(max(Double(signal) / 100.0, 0.0), 1.0)
     }
 }
 
@@ -290,53 +294,7 @@ struct TacticalHUDHeader: View {
 
 struct RefinedNetworkHealthCard: View {
     let viewModel: DashboardViewModel
-
-    var healthScore: Int {
-        if !viewModel.isConnected {
-            return 0
-        }
-
-        var score = 100
-
-        // Factor 1: Gateway latency (0-50 points)
-        if let latency = viewModel.gateway?.latency {
-            if latency > 100 {
-                score -= 50
-            } else if latency > 50 {
-                score -= 30
-            } else if latency > 20 {
-                score -= 10
-            }
-        } else {
-            score -= 30 // No gateway response
-        }
-
-        // Factor 2: WiFi signal (0-30 points)
-        if let signal = viewModel.currentWiFi?.signalStrength {
-            if signal < 30 {
-                score -= 30
-            } else if signal < 50 {
-                score -= 20
-            } else if signal < 70 {
-                score -= 10
-            }
-        }
-
-        // Factor 3: Jitter (0-20 points) — variance in recent latency
-        let history = viewModel.latencyHistory
-        if history.count >= 3 {
-            let avg = history.reduce(0, +) / Double(history.count)
-            let variance = history.map { ($0 - avg) * ($0 - avg) }.reduce(0, +) / Double(history.count)
-            let stddev = variance.squareRoot()
-            if stddev > 20 {
-                score -= 20
-            } else if stddev > 10 {
-                score -= 10
-            }
-        }
-
-        return max(0, min(100, score))
-    }
+    let healthViewModel: NetworkHealthScoreViewModel
 
     var body: some View {
         GlassCard(padding: 12, statusGlow: Theme.Colors.info) {
@@ -361,7 +319,7 @@ struct RefinedNetworkHealthCard: View {
                         Circle()
                             .stroke(Theme.Colors.divider, lineWidth: 5)
                         Circle()
-                            .trim(from: 0, to: CGFloat(healthScore) / 100.0)
+                            .trim(from: 0, to: CGFloat(healthViewModel.scoreValue) / 100.0)
                             .stroke(
                                 LinearGradient(
                                     colors: [Theme.Colors.success, .cyan, Theme.Colors.accent],
@@ -374,10 +332,10 @@ struct RefinedNetworkHealthCard: View {
                             .shadow(color: .cyan.opacity(0.3), radius: 4)
 
                         VStack(spacing: -2) {
-                            Text("\(healthScore)")
+                            Text("\(healthViewModel.scoreValue)")
                                 .font(.system(size: 24, weight: .semibold, design: .rounded))
                                 .foregroundStyle(Theme.Colors.textStrong)
-                            Text("SCORE")
+                            Text(healthViewModel.gradeText)
                                 .font(.system(size: 7, weight: .black))
                                 .foregroundStyle(Theme.Colors.textTertiary)
                                 .tracking(1)
@@ -388,7 +346,7 @@ struct RefinedNetworkHealthCard: View {
                     VStack(alignment: .leading, spacing: 4) {
                         HStack(spacing: 6) {
                             Circle()
-                                .fill(healthScore > 70 ? Theme.Colors.success : Theme.Colors.warning)
+                                .fill(healthViewModel.scoreValue > 70 ? Theme.Colors.success : Theme.Colors.warning)
                                 .frame(width: 6, height: 6)
 
                             Text(healthStatusTitle)
@@ -411,7 +369,7 @@ struct RefinedNetworkHealthCard: View {
         if !viewModel.isConnected {
             return "Network Offline"
         }
-        return healthScore > 80 ? "Optimal Performance" : "Degraded Signal"
+        return healthViewModel.scoreValue > 80 ? "Optimal Performance" : "Degraded Signal"
     }
 
     private var healthDetailText: String {
@@ -594,13 +552,7 @@ struct AnchorMetricColumn: View {
 
     private var dotColor: Color {
         guard let ms = latency else { return Theme.Colors.textTertiary }
-        if ms < 50 {
-            return Theme.Colors.success
-        }
-        if ms < 120 {
-            return Theme.Colors.warning
-        }
-        return .red
+        return Theme.Colors.color(for: NetworkHealthScore.latencySeverity(ms: ms))
     }
 
     var body: some View {
