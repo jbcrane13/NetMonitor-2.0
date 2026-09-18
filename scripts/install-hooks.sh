@@ -7,8 +7,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
-configured_hooks_path="$(git -C "$PROJECT_ROOT" config --get core.hooksPath || true)"
-if [ -n "$configured_hooks_path" ]; then
+if configured_hooks_path="$(git -C "$PROJECT_ROOT" config --get core.hooksPath)"; then
     echo "error: core.hooksPath is set to '$configured_hooks_path', so hooks installed here would be ignored." >&2
     echo "Use scripts/hooks/install-hooks.sh (or scripts/setup-worktree.sh) for the .githooks/ setup." >&2
     exit 1
