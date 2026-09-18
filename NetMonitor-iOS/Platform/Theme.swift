@@ -102,16 +102,22 @@ enum Theme {
         static let offline = error
         static let idle = Color.gray
 
+        // MARK: - Severity Color Helper
+        /// Maps a Core `NetworkHealthScore.Severity` to its display color.
+        static func color(for severity: NetworkHealthScore.Severity) -> Color {
+            switch severity {
+            case .good: return success
+            case .fair: return warning
+            case .poor: return error
+            }
+        }
+
         // MARK: - Latency Color Helper
-        /// Returns appropriate color based on latency value
+        /// Returns appropriate color based on latency value, via Core's severity buckets.
         /// - Parameter ms: Latency in milliseconds
         /// - Returns: Green (<50ms), Warning (50-150ms), Error (>150ms)
         static func latencyColor(ms: Double) -> Color {
-            switch ms {
-            case ..<50: return success
-            case 50..<150: return warning
-            default: return error
-            }
+            color(for: NetworkHealthScore.latencySeverity(ms: ms))
         }
     }
 
