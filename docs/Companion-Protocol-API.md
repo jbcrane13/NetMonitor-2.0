@@ -49,7 +49,7 @@ connection.start(queue: .main)
 
 ## Message Format
 
-All messages are JSON-encoded with a consistent structure:
+Each message is JSON-encoded with a consistent structure:
 
 ```json
 {
@@ -58,21 +58,27 @@ All messages are JSON-encoded with a consistent structure:
 }
 ```
 
-Messages are sent as newline-delimited JSON (each message ends with `\n`).
+Messages are sent as **4-byte big-endian length-prefixed JSON**: a `UInt32` byte count in
+network (big-endian) order, followed by exactly that many bytes of JSON payload. There is no
+delimiter between frames — the length prefix is what marks where one frame ends and the next
+begins. A frame whose declared length exceeds `CompanionFrameDecoder.defaultMaximumFrameSize`
+(1 MiB / 1,048,576 bytes) is rejected and the receiver's buffer is reset. Both sides implement
+this framing via `CompanionFrameDecoder` (incoming) and `CompanionMessage.encodeLengthPrefixed()`
+(outgoing), both defined in NetMonitorCore, so macOS and iOS share one implementation.
 
 ### Encoding/Decoding (Swift)
 
 ```swift
-// Encode
-let encoder = JSONEncoder()
-encoder.dateEncodingStrategy = .iso8601
-let data = try encoder.encode(message)
+// Encode (adds the 4-byte length prefix)
+let framedData = try message.encodeLengthPrefixed()
 
-// Decode
-let decoder = JSONDecoder()
-decoder.dateDecodingStrategy = .iso8601
-let message = try decoder.decode(CompanionMessage.self, from: data)
+// Decode (from a reassembled, unprefixed JSON payload)
+let message = try CompanionMessage.decode(from: jsonData)
 ```
+
+Both `encodeLengthPrefixed()` and `decode(from:)` use a plain `JSONEncoder()`/`JSONDecoder()`
+(`CompanionMessage.jsonEncoder` / `.jsonDecoder`) — no custom date strategy is set, so `Date`
+fields use Foundation's default (seconds since the reference date, as a JSON number).
 
 ---
 

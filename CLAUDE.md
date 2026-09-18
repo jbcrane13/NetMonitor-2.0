@@ -88,7 +88,7 @@ Key types: `ScanEngine`, `ScanPipeline`, `ScanContext`, `ScanAccumulator`, `Conn
 
 ## Mac–iOS Companion Protocol
 
-Bonjour service type `_netmon._tcp`, port 8849, newline-delimited JSON over `NWConnection`. Spec: `docs/Companion-Protocol-API.md`.
+Bonjour service type `_netmon._tcp`, port 8849, 4-byte big-endian length-prefixed JSON (1 MiB cap, `CompanionFrameDecoder.defaultMaximumFrameSize`) over `NWConnection`. Spec: `docs/Companion-Protocol-API.md`.
 
 Message types: `statusUpdate`, `deviceListRequest/Response`, `scanRequest/Response`, `commandRequest/Response`.
 

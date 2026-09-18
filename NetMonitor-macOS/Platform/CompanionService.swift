@@ -54,8 +54,10 @@ actor CompanionService {
     private var listener: NWListener?
     private var messageHandler: ((CompanionMessage, UUID) async -> CompanionMessage?)?
 
-    /// Per-client receive buffers for length-prefixed frame reassembly
-    private var receiveBuffers: [UUID: Data] = [:]
+    /// Per-client frame decoders for length-prefixed reassembly.
+    /// Framing itself (4-byte big-endian length prefix + JSON payload, 1 MiB cap)
+    /// is owned by `CompanionFrameDecoder` in NetMonitorCore.
+    private var decoders: [UUID: CompanionFrameDecoder] = [:]
 
     /// Start the Bonjour service
     func start(messageHandler: @escaping (CompanionMessage, UUID) async -> CompanionMessage?) throws {
@@ -108,7 +110,7 @@ actor CompanionService {
             connection.cancel()
         }
         connectedClients.removeAll()
-        receiveBuffers.removeAll()
+        decoders.removeAll()
         clientInfos.removeAll()
 
         isRunning = false
@@ -117,19 +119,19 @@ actor CompanionService {
     // periphery:ignore
     /// Send a message to all connected clients
     func broadcast(_ message: CompanionMessage) async {
-        guard let data = try? JSONEncoder().encode(message) else { return }
+        guard let framedData = try? message.encodeLengthPrefixed() else { return }
 
         for (id, connection) in connectedClients {
-            await send(data: data, to: connection, clientID: id)
+            await send(data: framedData, to: connection, clientID: id)
         }
     }
 
     /// Send a message to a specific client
     func send(_ message: CompanionMessage, to clientID: UUID) async {
         guard let connection = connectedClients[clientID],
-              let data = try? JSONEncoder().encode(message) else { return }
+              let framedData = try? message.encodeLengthPrefixed() else { return }
 
-        await send(data: data, to: connection, clientID: clientID)
+        await send(data: framedData, to: connection, clientID: clientID)
     }
 
     // MARK: - Private Methods
@@ -151,7 +153,7 @@ actor CompanionService {
     private func handleNewConnection(_ connection: NWConnection) {
         let clientID = UUID()
         connectedClients[clientID] = connection
-        receiveBuffers[clientID] = Data()
+        decoders[clientID] = CompanionFrameDecoder()
         clientInfos[clientID] = ConnectedClientInfo(
             id: clientID,
             endpoint: "\(connection.endpoint)",
@@ -184,12 +186,12 @@ actor CompanionService {
         case .failed(let error):
             Logger.companion.error("Client \(clientID) failed: \(error, privacy: .public)")
             connectedClients.removeValue(forKey: clientID)
-            receiveBuffers.removeValue(forKey: clientID)
+            decoders.removeValue(forKey: clientID)
             clientInfos.removeValue(forKey: clientID)
         case .cancelled:
             Logger.companion.info("Client \(clientID) disconnected")
             connectedClients.removeValue(forKey: clientID)
-            receiveBuffers.removeValue(forKey: clientID)
+            decoders.removeValue(forKey: clientID)
             clientInfos.removeValue(forKey: clientID)
         default:
             break
@@ -220,69 +222,74 @@ actor CompanionService {
         }
     }
 
-    /// Append received data to the client's buffer and process complete frames.
-    /// Wire format: 4-byte big-endian length prefix + JSON payload.
+    /// Returns the client's frame decoder, creating one if it doesn't exist yet
+    /// (normally it's created on accept, in `handleNewConnection`).
+    private func decoder(for clientID: UUID) -> CompanionFrameDecoder {
+        if let existing = decoders[clientID] {
+            return existing
+        }
+        let created = CompanionFrameDecoder()
+        decoders[clientID] = created
+        return created
+    }
+
+    private static func decodeErrorMessage() -> CompanionMessage {
+        .error(ErrorPayload(code: "DECODE_ERROR", message: "Failed to decode message: malformed payload"))
+    }
+
+    /// Feed received bytes to the client's `CompanionFrameDecoder` and dispatch
+    /// any complete messages it yields. Framing (4-byte big-endian length prefix
+    /// + JSON payload, capped at `CompanionFrameDecoder.defaultMaximumFrameSize`)
+    /// is owned by NetMonitorCore; this actor performs no length arithmetic.
     private func appendAndProcess(_ data: Data, clientID: UUID) async {
-        receiveBuffers[clientID, default: Data()].append(data)
+        let batch = await decoder(for: clientID).append(data)
 
-        while var buffer = receiveBuffers[clientID], buffer.count >= 4 {
-            // Read 4 bytes explicitly to avoid UnsafeRawBufferPointer slice issues
-            let b0 = buffer[buffer.startIndex]
-            let b1 = buffer[buffer.startIndex + 1]
-            let b2 = buffer[buffer.startIndex + 2]
-            let b3 = buffer[buffer.startIndex + 3]
-            let length = UInt32(b0) << 24 | UInt32(b1) << 16 | UInt32(b2) << 8 | UInt32(b3)
+        for message in batch.messages {
+            Logger.companion.debug("Received \(String(describing: message)) from \(clientID)")
 
-            // Sanity check — reject absurdly large frames (max 10 MB)
-            guard length > 0, length <= 10_000_000 else {
-                Logger.companion.error("Invalid frame length \(length), clearing buffer for \(clientID)")
-                receiveBuffers[clientID] = Data()
-                break
+            if let response = await messageHandler?(message, clientID) {
+                await send(response, to: clientID)
             }
+        }
 
-            let totalFrameSize = 4 + Int(length)
-
-            guard buffer.count >= totalFrameSize else {
-                break  // Need more data
-            }
-
-            let start = buffer.startIndex
-            let jsonData = buffer.subdata(in: (start + 4)..<(start + totalFrameSize))
-            buffer.removeFirst(totalFrameSize)
-            receiveBuffers[clientID] = buffer
-
-            do {
-                let message = try CompanionMessage.decode(from: jsonData)
-                Logger.companion.debug("Received \(String(describing: message)) from \(clientID)")
-
-                if let response = await messageHandler?(message, clientID) {
-                    await send(response, to: clientID)
-                }
-            } catch {
-                Logger.companion.error("Failed to decode message: \(error, privacy: .public)")
-                await send(
-                    .error(ErrorPayload(
-                        code: "DECODE_ERROR",
-                        message: "Failed to decode message: \(error.localizedDescription)"
-                    )),
-                    to: clientID
-                )
+        for error in batch.errors {
+            switch error {
+            case .malformedPayload:
+                Logger.companion.error("Failed to decode message from \(clientID): malformed payload")
+                await send(Self.decodeErrorMessage(), to: clientID)
+            case .invalidLength(let length):
+                Logger.companion.error("Invalid frame length \(length) from \(clientID), buffer cleared")
             }
         }
     }
 
-    /// Send length-prefixed JSON data to a client.
+    /// Send already length-prefixed data to a client's connection.
     nonisolated private func send(data: Data, to connection: NWConnection, clientID: UUID) async {
         let capturedClientID = clientID
 
-        var length = UInt32(data.count).bigEndian
-        var framedData = Data(bytes: &length, count: 4)
-        framedData.append(data)
-
-        connection.send(content: framedData, completion: .contentProcessed { error in
+        connection.send(content: data, completion: .contentProcessed { error in
             if let error = error {
                 Logger.companion.error("Send error to \(capturedClientID): \(error, privacy: .public)")
             }
         })
+    }
+
+    // MARK: - Testing Support
+
+    /// Feed raw bytes into a client's frame decoder for testing, mirroring the
+    /// iOS companion service's testing seam. Returns decoded messages in the
+    /// order the decoder produced them, with a synthesized `DECODE_ERROR`
+    /// message appended for each malformed payload — matching what
+    /// `appendAndProcess` sends over the wire. `.invalidLength` frames yield no
+    /// message, matching production behaviour (the decoder has already cleared
+    /// its buffer).
+    func processIncomingDataForTesting(_ data: Data, clientID: UUID) async -> [CompanionMessage] {
+        let batch = await decoder(for: clientID).append(data)
+
+        var results = batch.messages
+        for error in batch.errors where error == .malformedPayload {
+            results.append(Self.decodeErrorMessage())
+        }
+        return results
     }
 }
