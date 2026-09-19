@@ -514,7 +514,9 @@ struct MenuBarPopoverView: View {
     /// Number of online devices discovered by the scanner
     private var deviceCountString: String {
         let total = deviceDiscovery.discoveredDevices.count
-        if total == 0 { return "—" }
+        if total == 0 {
+            return "—"
+        }
         let online = deviceDiscovery.discoveredDevices.filter { $0.status == .online }.count
         return "\(online)/\(total)"
     }
@@ -552,8 +554,12 @@ struct MenuBarPopoverView: View {
         guard let str = Double(gatewayLatencyString.replacingOccurrences(of: "ms", with: "")) else {
             return .secondary
         }
-        if str < 10 { return .green }
-        if str < 50 { return .yellow }
+        if str < 10 {
+            return .green
+        }
+        if str < 50 {
+            return .yellow
+        }
         return .red
     }
 }
@@ -579,7 +585,6 @@ struct MenuBarPopoverView: View {
     let profileManager = NetworkProfileManager()
     let discovery = DeviceDiscoveryCoordinator(
         modelContext: context,
-        arpScanner: ARPScannerService(),
         bonjourScanner: BonjourDiscoveryService(),
         networkProfileManager: profileManager
     )

@@ -529,7 +529,7 @@ private extension ProDeviceDetailView {
         isLoadingHostname = true
         defer { isLoadingHostname = false }
 
-        let resolver = DeviceNameResolver()
+        let resolver = ShellDeviceNameResolver()
         if let name = await resolver.resolveName(for: device.ipAddress) {
             device.hostname = name
             try? modelContext.save()

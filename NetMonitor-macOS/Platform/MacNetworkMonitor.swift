@@ -58,16 +58,33 @@ struct MeasurementResult {
 
 // MARK: - Local Device Discovery Support Types
 
-/// Represents a device discovered on the local network (macOS ARP scanner output).
+/// Represents a device discovered on the local network — the macOS-local mirror of
+/// `NetworkScanKit.DiscoveredDevice` that `DeviceDiscoveryCoordinator.mapDiscoveredDevices(_:)`
+/// produces from the `ScanEngine` accumulator. `vendor`/`openPorts`/`latency` are filled by
+/// the macOS enrichment phases (P2); `mergeDiscoveredDevices` writes each only when non-nil
+/// so a sparse (pre-enrichment) merge cannot clear a value a later merge would supply.
 struct LocalDiscoveredDevice: Equatable {
     let ipAddress: String
     let macAddress: String
     let hostname: String?
+    let vendor: String?
+    let openPorts: [Int]?
+    let latency: Double?
 
-    init(ipAddress: String, macAddress: String, hostname: String?) {
+    init(
+        ipAddress: String,
+        macAddress: String,
+        hostname: String?,
+        vendor: String? = nil,
+        openPorts: [Int]? = nil,
+        latency: Double? = nil
+    ) {
         self.ipAddress = ipAddress
         self.macAddress = macAddress.uppercased()
         self.hostname = hostname
+        self.vendor = vendor
+        self.openPorts = openPorts
+        self.latency = latency
     }
 }
 
@@ -79,14 +96,4 @@ enum LocalDeviceDiscoveryError: Error {
     // periphery:ignore
     case scanTimeout
     case invalidSubnet
-}
-
-/// Protocol for local ARP-based device discovery services.
-protocol LocalDeviceScanner: Actor {
-    // periphery:ignore
-    func scanNetwork(interface: String?) async throws -> [LocalDiscoveredDevice]
-    // periphery:ignore
-    func stopScan()
-    // periphery:ignore
-    var isScanning: Bool { get }
 }

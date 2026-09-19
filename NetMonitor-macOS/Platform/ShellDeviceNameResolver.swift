@@ -1,5 +1,5 @@
 //
-//  DeviceNameResolver.swift
+//  ShellDeviceNameResolver.swift
 //  NetMonitor
 //
 //  Enhanced device name resolution using multiple strategies:
@@ -12,7 +12,7 @@ import Foundation
 import Network
 
 /// Actor for resolving device names using multiple DNS and network strategies
-actor DeviceNameResolver {
+actor ShellDeviceNameResolver {
     private let runner = ShellCommandRunner()
 
     /// Try all available name resolution strategies for an IP address

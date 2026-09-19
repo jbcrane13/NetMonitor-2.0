@@ -123,7 +123,8 @@ struct DeviceDiscoveryCoordinatorTests {
                     hostname: $0.hostname,
                     vendor: $0.vendor,
                     status: $0.status,
-                    lastLatency: $0.lastLatency
+                    lastLatency: $0.lastLatency,
+                    openPorts: $0.openPorts
                 )
             }
             .sorted { $0.ipAddress < $1.ipAddress }
@@ -154,7 +155,8 @@ struct DeviceDiscoveryCoordinatorTests {
                     hostname: $0.hostname,
                     vendor: $0.vendor,
                     status: $0.status,
-                    lastLatency: $0.lastLatency
+                    lastLatency: $0.lastLatency,
+                    openPorts: $0.openPorts
                 )
             }
             .sorted { $0.ipAddress < $1.ipAddress }
@@ -175,10 +177,12 @@ struct DeviceDiscoveryCoordinatorTests {
 
         let coordinator = DeviceDiscoveryCoordinator(
             modelContext: context,
-            arpScanner: ARPScannerService(timeout: 0.05),
             bonjourScanner: BonjourDiscoveryService(),
             networkProfileManager: NetworkProfileManager(),
-            pipelineFactory: { _, _ in
+            // Opts out of enrichment explicitly (E9): a fixture pipeline that ignores
+            // `ScanPipelineInputs.standardEnrichmentStep` never invokes `portChecker` or
+            // `pingRunner`, so this scan is fully hermetic — no shell-out, no real network.
+            pipelineFactory: { _ in
                 ScanPipeline(steps: [
                     ScanPipeline.Step(phases: [FixtureUpsertScanPhase(box: upsertDevices)], concurrent: false)
                 ])
@@ -186,11 +190,6 @@ struct DeviceDiscoveryCoordinatorTests {
             portChecker: { _, _, _ in false }
         )
 
-        // Each scan's post-engine steps include the retained, non-injectable shell-ping
-        // `measureDeviceLatencies` (D14): `/sbin/ping -c 3 -W 2000 <ip>`, whose runner
-        // timeout is `2 * 3 + 5` = 11s per device, run concurrently across this fixture's
-        // devices but still real wall-clock time against unroutable TEST-NET-1 addresses.
-        // Give each scan a generous bound rather than racing that.
         coordinator.startScan()
         await Self.waitUntil(timeout: .seconds(30)) { coordinator.isScanning == false }
         #expect(coordinator.isScanning == false)
@@ -208,12 +207,143 @@ struct DeviceDiscoveryCoordinatorTests {
                     hostname: $0.hostname,
                     vendor: $0.vendor,
                     status: $0.status,
-                    lastLatency: $0.lastLatency
+                    lastLatency: $0.lastLatency,
+                    openPorts: $0.openPorts
                 )
             }
             .sorted { $0.ipAddress < $1.ipAddress }
 
         #expect(rows == DeviceDiscoveryCoordinatorFixtures.expectedRowsAfterEndToEndScans.sorted { $0.ipAddress < $1.ipAddress })
+    }
+
+    // MARK: - P2 (#297) E1: enrichment applies only to devices seen this scan
+
+    /// A "seen last scan, absent this scan" device must not be re-resolved or re-pinged by
+    /// the macOS enrichment phases (E1). Before P2, `resolveDeviceNames`/`measureDeviceLatencies`
+    /// queried persisted `LocalDevice` rows filtered only by status/emptiness — reaching
+    /// stale rows `markOfflineDevices` hadn't flipped yet. The phases now read only the
+    /// `ScanAccumulator`, which by construction holds just this scan's devices, so this test
+    /// proves that structurally rather than just asserting on the resulting rows.
+    @Test func enrichmentPhasesSkipStaleDevicesNotSeenThisScan() async throws {
+        let (container, context) = try makeInMemoryStore()
+        _ = container
+
+        // Persisted from an earlier scan; absent from this scan's fixture discovery below.
+        let stale = LocalDevice(
+            ipAddress: "192.0.2.77",
+            macAddress: "AA:BB:CC:DD:EE:77",
+            hostname: nil
+        )
+        stale.status = .online
+        context.insert(stale)
+        try context.save()
+
+        let resolverCalls = CallRecorder()
+        let pingerCalls = CallRecorder()
+        let vendorService = Self.makeOfflineVendorService()
+
+        let seedDevices = FixtureUpsertBox(devices: [
+            DiscoveredDevice(
+                ipAddress: "192.0.2.78",
+                hostname: nil,
+                vendor: nil,
+                macAddress: "AA:BB:CC:DD:EE:78",
+                latency: nil,
+                discoveredAt: Date(),
+                source: .local
+            )
+        ])
+
+        let coordinator = DeviceDiscoveryCoordinator(
+            modelContext: context,
+            bonjourScanner: BonjourDiscoveryService(),
+            networkProfileManager: NetworkProfileManager(),
+            pipelineFactory: { _ in
+                ScanPipeline(steps: [
+                    ScanPipeline.Step(phases: [FixtureUpsertScanPhase(box: seedDevices)], concurrent: false),
+                    ScanPipeline.Step(phases: [
+                        ShellNameResolutionPhase(resolver: { ip in
+                            await resolverCalls.record(ip)
+                            return nil
+                        }),
+                        VendorLookupPhase(service: vendorService),
+                        QuickPortScanPhase(checker: { _, _, _ in false }),
+                        ShellPingLatencyPhase(pinger: { ip in
+                            await pingerCalls.record(ip)
+                            return nil
+                        }),
+                    ], concurrent: true),
+                ])
+            },
+            portChecker: { _, _, _ in false }
+        )
+
+        coordinator.startScan()
+        await Self.waitUntil(timeout: .seconds(15)) { coordinator.isScanning == false }
+        #expect(coordinator.isScanning == false)
+
+        let resolvedIPs = await resolverCalls.calledIPs
+        let pingedIPs = await pingerCalls.calledIPs
+        #expect(!resolvedIPs.contains("192.0.2.77"), "a stale device must not be re-resolved (E1)")
+        #expect(!pingedIPs.contains("192.0.2.77"), "a stale device must not be re-pinged (E1)")
+        #expect(resolvedIPs.contains("192.0.2.78"), "this scan's own device should still be resolved")
+        #expect(pingedIPs.contains("192.0.2.78"), "this scan's own device should still be pinged")
+
+        let devices = try context.fetch(FetchDescriptor<LocalDevice>())
+        let staleAfter = devices.first { $0.ipAddress == "192.0.2.77" }
+        #expect(staleAfter?.status == .offline, "a device absent from this scan must be marked offline")
+        #expect(staleAfter?.hostname == nil, "a stale device's hostname must remain untouched")
+    }
+
+    // MARK: - P2 (#297) E2: latencyHistory grows by exactly one point per scan
+
+    /// `ICMPLatencyPhase` (discovery step 3) already populates latency by the time the
+    /// sparse merge fires at the discovery→enrichment transition. If that merge called
+    /// `LocalDevice.updateLatency` (which appends to the sparkline buffer), every device
+    /// would get two points per scan instead of one. A test that only compares rows would
+    /// pass while this regressed — this asserts on `latencyHistory.count` directly.
+    @Test func latencyHistoryGrowsByExactlyOnePerScan() async throws {
+        let (container, context) = try makeInMemoryStore()
+        _ = container
+
+        let vendorService = Self.makeOfflineVendorService()
+        let seedDevices = FixtureUpsertBox(devices: [
+            DiscoveredDevice(
+                ipAddress: "192.0.2.10",
+                hostname: "device.local",
+                vendor: nil,
+                macAddress: "AA:BB:CC:DD:EE:10",
+                latency: 12.5,
+                discoveredAt: Date(),
+                source: .local
+            )
+        ])
+
+        let coordinator = DeviceDiscoveryCoordinator(
+            modelContext: context,
+            bonjourScanner: BonjourDiscoveryService(),
+            networkProfileManager: NetworkProfileManager(),
+            pipelineFactory: { _ in
+                ScanPipeline(steps: [
+                    ScanPipeline.Step(phases: [FixtureUpsertScanPhase(box: seedDevices)], concurrent: false),
+                    ScanPipeline.Step(phases: [
+                        ShellNameResolutionPhase(resolver: { _ in nil }),
+                        VendorLookupPhase(service: vendorService),
+                        QuickPortScanPhase(checker: { _, _, _ in false }),
+                        ShellPingLatencyPhase(pinger: { _ in nil }),
+                    ], concurrent: true),
+                ])
+            },
+            portChecker: { _, _, _ in false }
+        )
+
+        coordinator.startScan()
+        await Self.waitUntil(timeout: .seconds(15)) { coordinator.isScanning == false }
+        #expect(coordinator.isScanning == false)
+
+        let device = try context.fetch(FetchDescriptor<LocalDevice>()).first { $0.ipAddress == "192.0.2.10" }
+        #expect(device?.lastLatency == 12.5)
+        #expect(device?.latencyHistory.count == 1, "latencyHistory must grow by exactly one point per scan (E2)")
     }
 
     // MARK: - #279 fallback interface selection (no active NetworkProfile)
@@ -253,10 +383,9 @@ struct DeviceDiscoveryCoordinatorTests {
 
         let coordinator = DeviceDiscoveryCoordinator(
             modelContext: context,
-            arpScanner: ARPScannerService(timeout: 0.05),
             bonjourScanner: BonjourDiscoveryService(),
             networkProfileManager: NetworkProfileManager(),
-            pipelineFactory: { _, _ in
+            pipelineFactory: { _ in
                 ScanPipeline(steps: [
                     ScanPipeline.Step(phases: [FixtureSleepingScanPhase()], concurrent: false)
                 ])
@@ -303,7 +432,6 @@ struct DeviceDiscoveryCoordinatorTests {
     private func makeCoordinator(context: ModelContext) -> DeviceDiscoveryCoordinator {
         DeviceDiscoveryCoordinator(
             modelContext: context,
-            arpScanner: ARPScannerService(timeout: 0.05),
             bonjourScanner: BonjourDiscoveryService(),
             networkProfileManager: NetworkProfileManager()
         )
@@ -314,6 +442,31 @@ struct DeviceDiscoveryCoordinatorTests {
         let config = ModelConfiguration(UUID().uuidString, schema: schema, isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         let container = try ModelContainer(for: schema, configurations: [config])
         return (container, container.mainContext)
+    }
+
+    /// A `MACVendorLookupService` whose online lookup is intercepted by `MockURLProtocol`
+    /// and always answers "Not Found" — deterministic, and never reaches macvendors.com,
+    /// for tests that need `VendorLookupPhase` to run (rather than being omitted from the
+    /// fixture pipeline entirely) without depending on the network.
+    private static func makeOfflineVendorService() -> MACVendorLookupService {
+        MACVendorLookupService(session: MockURLProtocol.makeSession { request in
+            guard let url = request.url,
+                  let response = HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil) else {
+                throw URLError(.badURL)
+            }
+            return (response, Data("Not Found".utf8))
+        })
+    }
+}
+
+/// Records IPs a fixture `resolver`/`pinger` closure was called with, for tests proving a
+/// stale device (E1) is never touched. An actor because the four enrichment phases in
+/// `ScanPipeline.Step(concurrent: true)` may call these closures concurrently.
+private actor CallRecorder {
+    private(set) var calledIPs: [String] = []
+
+    func record(_ ip: String) {
+        calledIPs.append(ip)
     }
 }
 

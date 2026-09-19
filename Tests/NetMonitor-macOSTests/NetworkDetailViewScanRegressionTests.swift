@@ -29,7 +29,6 @@ struct NetworkDetailViewScanRegressionTests {
     private func makeCoordinator(context: ModelContext) -> DeviceDiscoveryCoordinator {
         DeviceDiscoveryCoordinator(
             modelContext: context,
-            arpScanner: ARPScannerService(timeout: 0.05),
             bonjourScanner: BonjourDiscoveryService(),
             networkProfileManager: NetworkProfileManager()
         )

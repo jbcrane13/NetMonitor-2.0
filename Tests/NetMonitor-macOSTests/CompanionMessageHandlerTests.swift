@@ -162,7 +162,6 @@ struct CompanionMessageHandlerTests {
         let monitoringSession = MonitoringSession(modelContext: context)
         let deviceDiscovery = DeviceDiscoveryCoordinator(
             modelContext: context,
-            arpScanner: ARPScannerService(timeout: 0.05),
             bonjourScanner: BonjourDiscoveryService(),
             networkProfileManager: networkProfileManager
         )

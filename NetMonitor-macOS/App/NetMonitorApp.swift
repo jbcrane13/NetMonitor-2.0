@@ -178,7 +178,6 @@ struct NetMonitorApp: App {
             )
             deviceDiscovery = DeviceDiscoveryCoordinator(
                 modelContext: context,
-                arpScanner: ARPScannerService(),
                 bonjourScanner: BonjourDiscoveryService(),
                 networkProfileManager: profileManager
             )
@@ -193,7 +192,6 @@ struct NetMonitorApp: App {
         let httpService = HTTPMonitorService()
         let icmpService = ICMPMonitorService()
         let tcpService = TCPMonitorService()
-        let arpScanner = ARPScannerService()
         let bonjourScanner = BonjourDiscoveryService()
         let wakeOnLanService = WakeOnLANService()
         let profileManager = NetworkProfileManager()
@@ -211,7 +209,6 @@ struct NetMonitorApp: App {
         if deviceDiscovery == nil {
             deviceDiscovery = DeviceDiscoveryCoordinator(
                 modelContext: context,
-                arpScanner: arpScanner,
                 bonjourScanner: bonjourScanner,
                 networkProfileManager: profileManager
             )

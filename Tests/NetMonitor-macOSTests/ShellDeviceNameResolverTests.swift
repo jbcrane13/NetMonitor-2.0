@@ -2,18 +2,18 @@ import Foundation
 import Testing
 @testable import NetMonitor_macOS
 
-// MARK: - DeviceNameResolver Tests
+// MARK: - ShellDeviceNameResolver Tests
 
-struct DeviceNameResolverTests {
+struct ShellDeviceNameResolverTests {
 
-    // DeviceNameResolver is an actor that shells out to /usr/bin/host, /usr/bin/dig,
+    // ShellDeviceNameResolver is an actor that shells out to /usr/bin/host, /usr/bin/dig,
     // and /usr/bin/smbutil. The ShellCommandRunner dependency is not injectable,
     // so we test the public API with real system commands where safe, and document
     // integration gaps for network-dependent resolution.
 
     @Test("resolveName returns nil for RFC 5737 documentation IP (no PTR record)")
     func resolveNameReturnsNilForDocumentationIP() async {
-        let resolver = DeviceNameResolver()
+        let resolver = ShellDeviceNameResolver()
         // 192.0.2.1 is TEST-NET-1 (RFC 5737) — no real PTR record exists
         let name = await resolver.resolveName(for: "192.0.2.1")
         // May return nil or a name depending on local DNS config;
@@ -24,21 +24,21 @@ struct DeviceNameResolverTests {
 
     @Test("resolveName returns nil for empty string input")
     func resolveNameReturnsNilForEmptyInput() async {
-        let resolver = DeviceNameResolver()
+        let resolver = ShellDeviceNameResolver()
         let name = await resolver.resolveName(for: "")
         #expect(name == nil, "Empty IP should resolve to nil")
     }
 
     @Test("resolveName returns nil for non-IP garbage input")
     func resolveNameReturnsNilForGarbageInput() async {
-        let resolver = DeviceNameResolver()
+        let resolver = ShellDeviceNameResolver()
         let name = await resolver.resolveName(for: "not-an-ip-address")
         #expect(name == nil, "Non-IP input should resolve to nil")
     }
 
     @Test("resolveName resolves localhost (127.0.0.1) to a name")
     func resolveNameResolvesLocalhost() async {
-        let resolver = DeviceNameResolver()
+        let resolver = ShellDeviceNameResolver()
         let name = await resolver.resolveName(for: "127.0.0.1")
         // On macOS, 127.0.0.1 usually resolves to "localhost" via /usr/bin/host
         if let name {
@@ -50,7 +50,7 @@ struct DeviceNameResolverTests {
 
     @Test("resolveName does not return the IP itself as hostname")
     func resolveNameDoesNotReturnIPAsHostname() async {
-        let resolver = DeviceNameResolver()
+        let resolver = ShellDeviceNameResolver()
         // Use an IP that definitely won't resolve to itself
         let ip = "192.0.2.99"
         let name = await resolver.resolveName(for: ip)
@@ -61,7 +61,7 @@ struct DeviceNameResolverTests {
 
     @Test("resolveName completes within reasonable time for unreachable IP")
     func resolveNameCompletesWithinReasonableTime() async {
-        let resolver = DeviceNameResolver()
+        let resolver = ShellDeviceNameResolver()
         let start = Date()
         // 198.51.100.1 is TEST-NET-2 — unreachable, all strategies should timeout
         _ = await resolver.resolveName(for: "198.51.100.1")
@@ -72,9 +72,9 @@ struct DeviceNameResolverTests {
     }
 }
 
-// MARK: - DeviceNameResolver Output Parsing Contract Tests
+// MARK: - ShellDeviceNameResolver Output Parsing Contract Tests
 
-struct DeviceNameResolverParsingTests {
+struct ShellDeviceNameResolverParsingTests {
 
     // These tests verify the parsing logic by testing the contract:
     // the resolver strips trailing dots and rejects empty/IP-equal results.
