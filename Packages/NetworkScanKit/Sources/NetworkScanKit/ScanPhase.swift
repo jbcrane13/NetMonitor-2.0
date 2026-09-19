@@ -14,6 +14,12 @@ public protocol ScanPhase: Sendable {
     /// Relative weight for progress calculation across the pipeline.
     var weight: Double { get }
 
+    /// Per-phase timeout override. `nil` (the default) falls back to the
+    /// engine's own `phaseTimeout`. Enrichment phases that legitimately run
+    /// longer than discovery phases (e.g. a port scan over many devices) set
+    /// this explicitly rather than risk the engine cancelling them mid-flight.
+    var timeout: Duration? { get }
+
     /// Execute the scan phase.
     ///
     /// - Parameters:
@@ -25,4 +31,8 @@ public protocol ScanPhase: Sendable {
         accumulator: ScanAccumulator,
         onProgress: @Sendable (Double) async -> Void
     ) async
+}
+
+extension ScanPhase {
+    public var timeout: Duration? { nil }
 }

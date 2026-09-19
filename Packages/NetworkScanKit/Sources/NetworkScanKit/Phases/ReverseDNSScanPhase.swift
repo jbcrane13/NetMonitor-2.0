@@ -33,51 +33,27 @@ public struct ReverseDNSScanPhase: ScanPhase, Sendable {
         let total = devicesNeedingNames.count
         var resolved = 0
 
-        await withTaskGroup(of: (String, String?).self) { group in
-            var pending = 0
-            var iterator = devicesNeedingNames.makeIterator()
+        await forEachBounded(devicesNeedingNames, limit: maxConcurrentResolves, operation: { device -> (String, String?) in
+            let name = await nameResolver.resolve(ipAddress: device.ipAddress)
+            return (device.ipAddress, name)
+        }, onResult: { ip, hostname in
+            resolved += 1
 
-            while pending < maxConcurrentResolves, let device = iterator.next() {
-                guard !Task.isCancelled else { break }
-                pending += 1
-                group.addTask {
-                    let name = await nameResolver.resolve(ipAddress: device.ipAddress)
-                    return (device.ipAddress, name)
-                }
+            if let hostname {
+                await accumulator.upsert(DiscoveredDevice(
+                    ipAddress: ip,
+                    hostname: hostname,
+                    vendor: nil,
+                    macAddress: nil,
+                    latency: nil,
+                    discoveredAt: Date(),
+                    source: .local
+                ))
             }
 
-            for await (ip, hostname) in group {
-                guard !Task.isCancelled else {
-                    group.cancelAll()
-                    break
-                }
-                pending -= 1
-                resolved += 1
-
-                if let hostname {
-                    await accumulator.upsert(DiscoveredDevice(
-                        ipAddress: ip,
-                        hostname: hostname,
-                        vendor: nil,
-                        macAddress: nil,
-                        latency: nil,
-                        discoveredAt: Date(),
-                        source: .local
-                    ))
-                }
-
-                let progress = Double(resolved) / Double(max(total, 1))
-                await onProgress(progress)
-
-                if let nextDevice = iterator.next() {
-                    pending += 1
-                    group.addTask {
-                        let name = await nameResolver.resolve(ipAddress: nextDevice.ipAddress)
-                        return (nextDevice.ipAddress, name)
-                    }
-                }
-            }
-        }
+            let progress = Double(resolved) / Double(max(total, 1))
+            await onProgress(progress)
+        })
 
         await onProgress(1.0)
     }

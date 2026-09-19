@@ -1,9 +1,28 @@
 import Foundation
 
+/// The technique that produced a device's latency measurement, ranked by
+/// accuracy. Higher-ranked sources may overwrite lower-ranked ones; equal or
+/// lower ranks never overwrite.
+public enum LatencySource: Int, Comparable, Sendable {
+    case tcpHandshake
+    case icmp
+    case shellPing
+
+    public static func < (lhs: LatencySource, rhs: LatencySource) -> Bool {
+        lhs.rawValue < rhs.rawValue
+    }
+}
+
 /// Thread-safe accumulator for discovered devices during network scanning.
 public actor ScanAccumulator {
     private var devices: [DiscoveredDevice] = []
     private var indexByIP: [String: Int] = [:]
+
+    /// Tracks which ``LatencySource`` produced each device's current latency.
+    /// An IP with a latency but no entry here got that value through `upsert`
+    /// (i.e. the TCP probe phase's own discovery, not latency enrichment) and
+    /// is treated as ``LatencySource/tcpHandshake`` for ranking purposes.
+    private var latencySourceByIP: [String: LatencySource] = [:]
 
     public init() {}
 
@@ -17,22 +36,33 @@ public actor ScanAccumulator {
         }
     }
 
-    /// Update latency for an already-known device without overwriting other fields.
-    public func updateLatency(ip: String, latency: Double) {
+    /// Set latency for an already-known device, ranked by ``LatencySource``.
+    ///
+    /// Writes when the device has no latency yet, or when `source` ranks
+    /// strictly higher than the source that produced the current value.
+    /// Equal rank never overwrites. A device with a latency but no tracked
+    /// source (set via `upsert`, e.g. the TCP probe's own discovery pass) is
+    /// treated as ``LatencySource/tcpHandshake``.
+    public func setLatency(ip: String, value: Double, source: LatencySource) {
         guard let idx = indexByIP[ip] else { return }
         let existing = devices[idx]
-        guard existing.latency == nil else { return }
+        if existing.latency != nil {
+            let currentSource = latencySourceByIP[ip] ?? .tcpHandshake
+            guard source > currentSource else { return }
+        }
         devices[idx] = DiscoveredDevice(
             id: existing.id,
             ipAddress: existing.ipAddress,
             hostname: existing.hostname,
             vendor: existing.vendor,
             macAddress: existing.macAddress,
-            latency: latency,
+            latency: value,
             discoveredAt: existing.discoveredAt,
             source: existing.source,
-            networkProfileID: existing.networkProfileID
+            networkProfileID: existing.networkProfileID,
+            openPorts: existing.openPorts
         )
+        latencySourceByIP[ip] = source
     }
 
     public func contains(ip: String) -> Bool {
@@ -48,27 +78,19 @@ public actor ScanAccumulator {
         devices.filter { $0.latency == nil }.map(\.ipAddress)
     }
 
+    /// IPs whose latency is missing, or whose source ranks below `threshold`.
+    /// A latency with no tracked source is treated as ``LatencySource/tcpHandshake``.
+    public func ipsNeedingLatency(below threshold: LatencySource) -> [String] {
+        devices.compactMap { device in
+            guard device.latency != nil else { return device.ipAddress }
+            let source = latencySourceByIP[device.ipAddress] ?? .tcpHandshake
+            return source < threshold ? device.ipAddress : nil
+        }
+    }
+
     /// All device IPs (for ICMP latency enrichment that overwrites TCP-based measurements).
     public func allDeviceIPs() -> [String] {
         devices.map(\.ipAddress)
-    }
-
-    /// Replace latency for an already-known device, even if it already has a measurement.
-    /// Used by ICMP enrichment to replace less-accurate TCP-based latency.
-    public func replaceLatency(ip: String, latency: Double) {
-        guard let idx = indexByIP[ip] else { return }
-        let existing = devices[idx]
-        devices[idx] = DiscoveredDevice(
-            id: existing.id,
-            ipAddress: existing.ipAddress,
-            hostname: existing.hostname,
-            vendor: existing.vendor,
-            macAddress: existing.macAddress,
-            latency: latency,
-            discoveredAt: existing.discoveredAt,
-            source: existing.source,
-            networkProfileID: existing.networkProfileID
-        )
     }
 
     public func snapshot() -> [DiscoveredDevice] {
@@ -82,6 +104,7 @@ public actor ScanAccumulator {
     public func reset() {
         devices = []
         indexByIP = [:]
+        latencySourceByIP = [:]
     }
 
     public var isEmpty: Bool { devices.isEmpty }
@@ -98,7 +121,8 @@ public actor ScanAccumulator {
             latency: existing.latency ?? incoming.latency,
             discoveredAt: existing.discoveredAt,
             source: existing.source,
-            networkProfileID: existing.networkProfileID ?? incoming.networkProfileID
+            networkProfileID: existing.networkProfileID ?? incoming.networkProfileID,
+            openPorts: existing.openPorts ?? incoming.openPorts
         )
     }
 }

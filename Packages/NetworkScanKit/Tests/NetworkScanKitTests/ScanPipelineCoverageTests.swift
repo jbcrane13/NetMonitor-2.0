@@ -136,6 +136,50 @@ struct ScanPipelineCoverageTests {
         #expect(weightsById["reverseDNS"] == 0.08)
     }
 
+    // MARK: - latencyPhase / trailingSteps (E5)
+
+    @Test("standard() with default params keeps 4 steps and no trailing steps (iOS byte-identical)")
+    func standardDefaultsHaveNoTrailingSteps() {
+        let pipeline = ScanPipeline.standard()
+        #expect(pipeline.steps.count == 4)
+    }
+
+    @Test("standard() substitutes a custom latencyPhase into step 2")
+    func standardSubstitutesLatencyPhase() {
+        let custom = SimpleTestPhase(id: "customLatency", displayName: "Custom", weight: 0.10)
+        let pipeline = ScanPipeline.standard(latencyPhase: custom)
+        #expect(pipeline.steps[2].phases.count == 1)
+        #expect(pipeline.steps[2].phases[0].id == "customLatency")
+    }
+
+    @Test("standard() defaults latencyPhase to ICMPLatencyPhase")
+    func standardDefaultsToICMPLatencyPhase() {
+        let pipeline = ScanPipeline.standard()
+        #expect(pipeline.steps[2].phases[0].id == "icmpLatency")
+    }
+
+    @Test("standard() appends trailingSteps after reverse DNS")
+    func standardAppendsTrailingSteps() {
+        let trailingPhase = SimpleTestPhase(id: "trailing", displayName: "Trailing", weight: 0.05)
+        let trailing = ScanPipeline.Step(phases: [trailingPhase], concurrent: true)
+        let pipeline = ScanPipeline.standard(trailingSteps: [trailing])
+
+        #expect(pipeline.steps.count == 5)
+        #expect(pipeline.steps[4].phases[0].id == "trailing")
+        #expect(pipeline.steps[4].concurrent == true)
+    }
+
+    @Test("standard() supports multiple trailingSteps in order")
+    func standardMultipleTrailingSteps() {
+        let stepA = ScanPipeline.Step(phases: [SimpleTestPhase(id: "a", displayName: "A", weight: 1.0)], concurrent: false)
+        let stepB = ScanPipeline.Step(phases: [SimpleTestPhase(id: "b", displayName: "B", weight: 1.0)], concurrent: false)
+        let pipeline = ScanPipeline.standard(trailingSteps: [stepA, stepB])
+
+        #expect(pipeline.steps.count == 6)
+        #expect(pipeline.steps[4].phases[0].id == "a")
+        #expect(pipeline.steps[5].phases[0].id == "b")
+    }
+
     // MARK: - Pipeline mutability
 
     @Test("pipeline steps are mutable (var property)")

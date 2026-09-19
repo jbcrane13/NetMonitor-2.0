@@ -93,42 +93,18 @@ public struct BonjourScanPhase: ScanPhase, Sendable {
         let total = capped.count
         var resolved = 0
 
-        await withTaskGroup(of: DiscoveredDevice?.self) { group in
-            var pending = 0
-            var iterator = capped.makeIterator()
+        await forEachBounded(capped, limit: maxResolveConcurrency, operation: { service in
+            await Self.makeBonjourDevice(from: service, subnetFilter: context.subnetFilter)
+        }, onResult: { device in
+            resolved += 1
 
-            while pending < maxResolveConcurrency, let service = iterator.next() {
-                guard !Task.isCancelled else { break }
-                pending += 1
-                group.addTask {
-                    await Self.makeBonjourDevice(from: service, subnetFilter: context.subnetFilter)
-                }
+            if let device {
+                await accumulator.upsert(device)
             }
 
-            while pending > 0 {
-                guard !Task.isCancelled else {
-                    group.cancelAll()
-                    break
-                }
-                guard let result = await group.next() else { break }
-                pending -= 1
-                resolved += 1
-
-                if let device = result {
-                    await accumulator.upsert(device)
-                }
-
-                let progress = 0.3 + 0.7 * Double(resolved) / Double(max(total, 1))
-                await onProgress(progress)
-
-                if let next = iterator.next() {
-                    pending += 1
-                    group.addTask {
-                        await Self.makeBonjourDevice(from: next, subnetFilter: context.subnetFilter)
-                    }
-                }
-            }
-        }
+            let progress = 0.3 + 0.7 * Double(resolved) / Double(max(total, 1))
+            await onProgress(progress)
+        })
 
         await stopProvider?()
         await onProgress(1.0)

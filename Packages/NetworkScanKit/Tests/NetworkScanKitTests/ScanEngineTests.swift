@@ -166,6 +166,74 @@ struct ScanEngineTests {
         #expect(clock.now - start < .milliseconds(100))
     }
 
+    @Test("ScanPhase default timeout is nil")
+    func scanPhaseDefaultTimeoutIsNil() {
+        let phase = FixturePhase(id: "x", displayName: "X", weight: 1.0, progressValues: [], discoveredIPs: [])
+        #expect(phase.timeout == nil)
+    }
+
+    @Test("phase.timeout shorter than the engine default cuts the phase off early")
+    func phaseTimeoutOverridesEngineDefaultWhenShorter() async {
+        let engine = ScanEngine(phaseTimeout: .seconds(5))
+        let flag = TimeoutOverrideCompletionFlag()
+        let phase = TimeoutOverrideFixturePhase(
+            id: "short-override",
+            timeout: .milliseconds(10),
+            workDuration: .milliseconds(200),
+            completionFlag: flag
+        )
+        let pipeline = ScanPipeline(steps: [ScanPipeline.Step(phases: [phase], concurrent: false)])
+        let clock = ContinuousClock()
+        let start = clock.now
+
+        _ = await engine.scan(pipeline: pipeline, context: makeContext(hosts: [])) { _, _ in }
+
+        #expect(clock.now - start < .milliseconds(100))
+        #expect(await flag.isCompleted == false)
+    }
+
+    @Test("phase.timeout longer than the engine default lets the phase finish")
+    func phaseTimeoutOverridesEngineDefaultWhenLonger() async {
+        let engine = ScanEngine(phaseTimeout: .milliseconds(10))
+        let flag = TimeoutOverrideCompletionFlag()
+        let phase = TimeoutOverrideFixturePhase(
+            id: "long-override",
+            timeout: .milliseconds(500),
+            workDuration: .milliseconds(100),
+            completionFlag: flag
+        )
+        let pipeline = ScanPipeline(steps: [ScanPipeline.Step(phases: [phase], concurrent: false)])
+
+        _ = await engine.scan(pipeline: pipeline, context: makeContext(hosts: [])) { _, _ in }
+
+        #expect(await flag.isCompleted == true)
+    }
+
+    @Test("phase.timeout override applies per-phase inside a concurrent step")
+    func phaseTimeoutOverrideAppliesPerPhaseConcurrently() async {
+        let engine = ScanEngine(phaseTimeout: .seconds(5))
+        let shortFlag = TimeoutOverrideCompletionFlag()
+        let longFlag = TimeoutOverrideCompletionFlag()
+        let shortPhase = TimeoutOverrideFixturePhase(
+            id: "short",
+            timeout: .milliseconds(10),
+            workDuration: .milliseconds(200),
+            completionFlag: shortFlag
+        )
+        let longPhase = TimeoutOverrideFixturePhase(
+            id: "long",
+            timeout: nil,
+            workDuration: .milliseconds(20),
+            completionFlag: longFlag
+        )
+        let pipeline = ScanPipeline(steps: [ScanPipeline.Step(phases: [shortPhase, longPhase], concurrent: true)])
+
+        _ = await engine.scan(pipeline: pipeline, context: makeContext(hosts: [])) { _, _ in }
+
+        #expect(await shortFlag.isCompleted == false)
+        #expect(await longFlag.isCompleted == true)
+    }
+
     private func makeContext(hosts: [String]) -> ScanContext {
         ScanContext(
             hosts: hosts,
@@ -234,6 +302,36 @@ private struct NonCooperativeFixturePhase: ScanPhase {
         while ContinuousClock.now < deadline {
             await Task.yield()
         }
+    }
+}
+
+private actor TimeoutOverrideCompletionFlag {
+    private var completed = false
+    func markCompleted() { completed = true }
+    var isCompleted: Bool { completed }
+}
+
+/// A phase that busy-waits for `workDuration` then marks `completionFlag`,
+/// used to prove `ScanEngine` honours a per-phase `timeout` override rather
+/// than always falling back to its own `phaseTimeout`.
+private struct TimeoutOverrideFixturePhase: ScanPhase {
+    let id: ScanPhaseID
+    let displayName = "Timeout override fixture"
+    let weight = 1.0
+    let timeout: Duration?
+    let workDuration: Duration
+    let completionFlag: TimeoutOverrideCompletionFlag
+
+    func execute(
+        context _: ScanContext,
+        accumulator _: ScanAccumulator,
+        onProgress _: @Sendable (Double) async -> Void
+    ) async {
+        let deadline = ContinuousClock.now + workDuration
+        while ContinuousClock.now < deadline {
+            await Task.yield()
+        }
+        await completionFlag.markCompleted()
     }
 }
 

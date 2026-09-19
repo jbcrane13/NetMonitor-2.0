@@ -19,6 +19,9 @@ public struct DiscoveredDevice: Identifiable, Codable, Sendable {
     public let discoveredAt: Date
     public let source: DeviceSource
     public let networkProfileID: UUID?
+    /// Ports found open by a quick TCP port scan. Additive/optional so older
+    /// JSON caches (`UserDefaults`) that predate this field decode as `nil`.
+    public let openPorts: [Int]?
 
     /// Convenience init for local TCP probe (backward compatible).
     public init(ipAddress: String, latency: Double, discoveredAt: Date, networkProfileID: UUID? = nil) {
@@ -31,6 +34,7 @@ public struct DiscoveredDevice: Identifiable, Codable, Sendable {
         self.discoveredAt = discoveredAt
         self.source = .local
         self.networkProfileID = networkProfileID
+        self.openPorts = nil
     }
 
     /// Full init with all fields.
@@ -43,7 +47,8 @@ public struct DiscoveredDevice: Identifiable, Codable, Sendable {
         latency: Double?,
         discoveredAt: Date,
         source: DeviceSource,
-        networkProfileID: UUID? = nil
+        networkProfileID: UUID? = nil,
+        openPorts: [Int]? = nil
     ) {
         self.id = id
         self.ipAddress = ipAddress
@@ -54,6 +59,7 @@ public struct DiscoveredDevice: Identifiable, Codable, Sendable {
         self.discoveredAt = discoveredAt
         self.source = source
         self.networkProfileID = networkProfileID
+        self.openPorts = openPorts
     }
 
     public var displayName: String {

@@ -121,45 +121,92 @@ struct ScanAccumulatorTests {
         #expect(all.contains("10.0.0.2"))
     }
 
-    @Test("updateLatency sets latency when nil")
-    func updateLatencySetsWhenNil() async {
+    @Test("setLatency sets latency when nil")
+    func setLatencySetsWhenNil() async {
         let acc = ScanAccumulator()
         await acc.upsert(makeDevice(ip: "192.168.1.1", latency: nil))
-        await acc.updateLatency(ip: "192.168.1.1", latency: 42.0)
+        await acc.setLatency(ip: "192.168.1.1", value: 42.0, source: .tcpHandshake)
         let devices = await acc.snapshot()
         #expect(devices[0].latency == 42.0)
     }
 
-    @Test("updateLatency does not overwrite existing latency")
-    func updateLatencyDoesNotOverwrite() async {
+    @Test("setLatency is no-op for unknown IP")
+    func setLatencyUnknownIP() async {
         let acc = ScanAccumulator()
-        await acc.upsert(makeDevice(ip: "192.168.1.1", latency: 10.0))
-        await acc.updateLatency(ip: "192.168.1.1", latency: 99.0)
-        let devices = await acc.snapshot()
-        #expect(devices[0].latency == 10.0)
-    }
-
-    @Test("updateLatency is no-op for unknown IP")
-    func updateLatencyUnknownIP() async {
-        let acc = ScanAccumulator()
-        await acc.updateLatency(ip: "10.0.0.99", latency: 5.0)  // should not crash
+        await acc.setLatency(ip: "10.0.0.99", value: 5.0, source: .icmp)  // should not crash
         #expect(await acc.isEmpty)
     }
 
-    @Test("replaceLatency overwrites existing latency")
-    func replaceLatencyOverwrites() async {
+    @Test("setLatency: higher-ranked source overwrites lower-ranked")
+    func setLatencyHigherRankOverwrites() async {
         let acc = ScanAccumulator()
-        await acc.upsert(makeDevice(ip: "192.168.1.1", latency: 10.0))
-        await acc.replaceLatency(ip: "192.168.1.1", latency: 2.0)
+        await acc.upsert(makeDevice(ip: "192.168.1.1", latency: nil))
+        await acc.setLatency(ip: "192.168.1.1", value: 10.0, source: .tcpHandshake)
+        await acc.setLatency(ip: "192.168.1.1", value: 2.0, source: .icmp)
         let devices = await acc.snapshot()
         #expect(devices[0].latency == 2.0)
     }
 
-    @Test("replaceLatency is no-op for unknown IP")
-    func replaceLatencyUnknownIP() async {
+    @Test("setLatency: equal-ranked source does not overwrite")
+    func setLatencyEqualRankDoesNotOverwrite() async {
         let acc = ScanAccumulator()
-        await acc.replaceLatency(ip: "10.0.0.99", latency: 5.0)  // should not crash
-        #expect(await acc.isEmpty)
+        await acc.upsert(makeDevice(ip: "192.168.1.1", latency: nil))
+        await acc.setLatency(ip: "192.168.1.1", value: 10.0, source: .tcpHandshake)
+        await acc.setLatency(ip: "192.168.1.1", value: 99.0, source: .tcpHandshake)
+        let devices = await acc.snapshot()
+        #expect(devices[0].latency == 10.0)
+    }
+
+    @Test("setLatency: lower-ranked source does not overwrite higher-ranked")
+    func setLatencyLowerRankDoesNotOverwrite() async {
+        let acc = ScanAccumulator()
+        await acc.upsert(makeDevice(ip: "192.168.1.1", latency: nil))
+        await acc.setLatency(ip: "192.168.1.1", value: 2.0, source: .icmp)
+        await acc.setLatency(ip: "192.168.1.1", value: 999.0, source: .tcpHandshake)
+        let devices = await acc.snapshot()
+        #expect(devices[0].latency == 2.0)
+    }
+
+    @Test("setLatency: a latency set via upsert (untracked source) is treated as tcpHandshake")
+    func setLatencyUntrackedSourceTreatedAsTCPHandshake() async {
+        let acc = ScanAccumulator()
+        // upsert carries a latency directly (as TCPProbeScanPhase.probeHost does);
+        // no setLatency call has recorded a source for it yet.
+        await acc.upsert(makeDevice(ip: "192.168.1.1", latency: 50.0))
+
+        // A further tcpHandshake write must not overwrite (equal rank).
+        await acc.setLatency(ip: "192.168.1.1", value: 999.0, source: .tcpHandshake)
+        #expect(await acc.snapshot()[0].latency == 50.0)
+
+        // icmp outranks the implicit tcpHandshake and must overwrite.
+        await acc.setLatency(ip: "192.168.1.1", value: 3.0, source: .icmp)
+        #expect(await acc.snapshot()[0].latency == 3.0)
+    }
+
+    @Test("ipsNeedingLatency(below:) includes entries with no latency")
+    func ipsNeedingLatencyIncludesNoLatency() async {
+        let acc = ScanAccumulator()
+        await acc.upsert(makeDevice(ip: "192.168.1.1", latency: nil))
+        let ips = await acc.ipsNeedingLatency(below: .icmp)
+        #expect(ips.contains("192.168.1.1"))
+    }
+
+    @Test("ipsNeedingLatency(below:) excludes entries at or above the threshold")
+    func ipsNeedingLatencyExcludesAtOrAboveThreshold() async {
+        let acc = ScanAccumulator()
+        await acc.upsert(makeDevice(ip: "192.168.1.1", latency: nil))
+        await acc.setLatency(ip: "192.168.1.1", value: 3.0, source: .icmp)
+        let ips = await acc.ipsNeedingLatency(below: .icmp)
+        #expect(!ips.contains("192.168.1.1"))
+    }
+
+    @Test("ipsNeedingLatency(below:) includes entries below the threshold")
+    func ipsNeedingLatencyIncludesBelowThreshold() async {
+        let acc = ScanAccumulator()
+        await acc.upsert(makeDevice(ip: "192.168.1.1", latency: nil))
+        await acc.setLatency(ip: "192.168.1.1", value: 30.0, source: .tcpHandshake)
+        let ips = await acc.ipsNeedingLatency(below: .icmp)
+        #expect(ips.contains("192.168.1.1"))
     }
 
     @Test("sortedSnapshot returns devices in numeric IP order")
