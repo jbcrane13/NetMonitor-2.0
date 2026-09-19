@@ -209,6 +209,22 @@ struct ScanAccumulatorTests {
         #expect(ips.contains("192.168.1.1"))
     }
 
+    @Test("ipsNeedingLatency(below:) treats an untracked-source latency (set via upsert) as tcpHandshake")
+    func ipsNeedingLatencyUntrackedSourceTreatedAsTCPHandshake() async {
+        let acc = ScanAccumulator()
+        // No setLatency call has run for this IP; the latency came straight
+        // from upsert (as TCPProbeScanPhase.probeHost's discovery does).
+        await acc.upsert(makeDevice(ip: "192.168.1.1", latency: 50.0))
+
+        // Below icmp: the implicit tcpHandshake rank is below icmp, so it qualifies.
+        let belowICMP = await acc.ipsNeedingLatency(below: .icmp)
+        #expect(belowICMP.contains("192.168.1.1"))
+
+        // Below tcpHandshake: nothing ranks below the floor, so it does not qualify.
+        let belowTCPHandshake = await acc.ipsNeedingLatency(below: .tcpHandshake)
+        #expect(!belowTCPHandshake.contains("192.168.1.1"))
+    }
+
     @Test("sortedSnapshot returns devices in numeric IP order")
     func sortedSnapshotNumericOrder() async {
         let acc = ScanAccumulator()
