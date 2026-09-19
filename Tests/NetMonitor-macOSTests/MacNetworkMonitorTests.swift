@@ -209,6 +209,38 @@ struct LocalDiscoveredDeviceTests {
         let b = LocalDiscoveredDevice(ipAddress: "10.0.0.2", macAddress: "AA:BB:CC:DD:EE:FF", hostname: nil)
         #expect(a != b)
     }
+
+    // MARK: - P2 (#297): vendor/openPorts/latency
+
+    @Test("vendor, openPorts, and latency default to nil")
+    func enrichmentFieldsDefaultToNil() {
+        let device = LocalDiscoveredDevice(ipAddress: "10.0.0.1", macAddress: "AA:BB:CC:DD:EE:FF", hostname: nil)
+        #expect(device.vendor == nil)
+        #expect(device.openPorts == nil)
+        #expect(device.latency == nil)
+    }
+
+    @Test("vendor, openPorts, and latency are stored when provided")
+    func enrichmentFieldsAreStored() {
+        let device = LocalDiscoveredDevice(
+            ipAddress: "10.0.0.1",
+            macAddress: "AA:BB:CC:DD:EE:FF",
+            hostname: "host",
+            vendor: "Apple",
+            openPorts: [22, 443],
+            latency: 4.5
+        )
+        #expect(device.vendor == "Apple")
+        #expect(device.openPorts == [22, 443])
+        #expect(device.latency == 4.5)
+    }
+
+    @Test("inequality when only openPorts differs")
+    func inequalityWhenOpenPortsDiffers() {
+        let withPort80 = LocalDiscoveredDevice(ipAddress: "10.0.0.1", macAddress: "AA:BB:CC:DD:EE:FF", hostname: nil, openPorts: [80])
+        let withPort443 = LocalDiscoveredDevice(ipAddress: "10.0.0.1", macAddress: "AA:BB:CC:DD:EE:FF", hostname: nil, openPorts: [443])
+        #expect(withPort80 != withPort443)
+    }
 }
 
 // MARK: - LocalDeviceDiscoveryError Tests

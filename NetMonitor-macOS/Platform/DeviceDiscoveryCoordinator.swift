@@ -18,51 +18,72 @@ final class DeviceDiscoveryCoordinator {
     private(set) var networkProfile: NetworkProfile?
 
     private let modelContext: ModelContext
-    private let arpScanner: ARPScannerService
     let bonjourScanner: BonjourDiscoveryService
-    private let nameResolver: DeviceNameResolver
+    private let nameResolver: ShellDeviceNameResolver
     private let macVendorService: MACVendorLookupService
     let networkProfileManager: NetworkProfileManager
 
-    /// Builds the `ScanEngine` pipeline for a scan. Defaulted to the production
-    /// `ScanPipeline.standard` so the nine existing construction sites compile
-    /// untouched; tests inject a fixture pipeline for deterministic runs (D16).
-    private let pipelineFactory: @Sendable (
-        _ bonjourServiceProvider: @escaping @Sendable () async -> [BonjourServiceInfo],
-        _ bonjourStopProvider: @escaping @Sendable () async -> Void
-    ) -> ScanPipeline
+    /// Builds the `ScanEngine` pipeline for a scan from every dependency a phase might need
+    /// (E9). Defaulted to the production `ScanPipeline.standard` (real ARP/Bonjour discovery
+    /// plus the macOS enrichment step) so existing construction sites compile untouched;
+    /// tests inject a fixture pipeline for deterministic runs.
+    private let pipelineFactory: @Sendable (ScanPipelineInputs) -> ScanPipeline
 
     /// Checks whether `host:port` is reachable. Defaulted to the real raw-socket
-    /// `checkPort`; tests inject a no-op checker for deterministic runs (D16).
+    /// `checkPort`; tests inject a no-op checker for deterministic runs. Also the
+    /// `QuickPortScanPhase`'s dependency.
     private let portChecker: @Sendable (_ host: String, _ port: Int, _ timeoutMs: Int32) async -> Bool
 
+    /// Pings a host and returns the measured latency, or `nil` if unreachable. Defaulted to
+    /// the real shell `/sbin/ping` (3 probes, min latency); tests inject a stub. The
+    /// `ShellPingLatencyPhase`'s dependency (ADR-003 fallback, E3).
+    private let pingRunner: @Sendable (_ host: String) async -> Double?
+
     private var scanTask: Task<Void, Never>?
+
+    /// Set once per scan the first time the engine reports progress from one of the four
+    /// enrichment phases — gates the single sparse merge at the discovery→enrichment
+    /// transition (E2) so progressive display fires exactly once per scan.
+    private var didMergeAtEnrichmentTransition = false
 
     /// Matches iOS `DeviceDiscoveryService.maxHostsPerScan` — a bound on how many
     /// addresses `hostAddresses(limit:)` enumerates for very large subnets.
     private static let maxHostsPerScan = 1024
 
+    /// The phase IDs of the four macOS enrichment phases (E9's `standardEnrichmentStep`).
+    /// The engine reports progress from these once they start, which is the
+    /// discovery→enrichment transition the sparse merge (E2) fires on.
+    private static let enrichmentPhaseIDs: Set<ScanPhaseID> = [
+        .shellNameResolution, .vendorLookup, .portScan, .shellPingLatency,
+    ]
+
     init(
         modelContext: ModelContext,
-        arpScanner: ARPScannerService,
         bonjourScanner: BonjourDiscoveryService,
-        nameResolver: DeviceNameResolver = DeviceNameResolver(),
+        nameResolver: ShellDeviceNameResolver = ShellDeviceNameResolver(),
         macVendorService: MACVendorLookupService = MACVendorLookupService(),
         networkProfileManager: NetworkProfileManager,
-        pipelineFactory: @escaping @Sendable (
-            _ bonjourServiceProvider: @escaping @Sendable () async -> [BonjourServiceInfo],
-            _ bonjourStopProvider: @escaping @Sendable () async -> Void
-        ) -> ScanPipeline = { ScanPipeline.standard(bonjourServiceProvider: $0, bonjourStopProvider: $1) },
-        portChecker: @escaping @Sendable (_ host: String, _ port: Int, _ timeoutMs: Int32) async -> Bool = DeviceDiscoveryCoordinator.checkPort
+        pipelineFactory: @escaping @Sendable (ScanPipelineInputs) -> ScanPipeline = { inputs in
+            ScanPipeline.standard(
+                bonjourServiceProvider: inputs.bonjourServiceProvider,
+                bonjourStopProvider: inputs.bonjourStopProvider,
+                // macOS keeps the shell ping's min-of-3 semantics (E3): 3 ICMP echoes per
+                // host instead of iOS's default 1.
+                latencyPhase: ICMPLatencyPhase(probeCount: 3),
+                trailingSteps: [inputs.standardEnrichmentStep]
+            )
+        },
+        portChecker: @escaping @Sendable (_ host: String, _ port: Int, _ timeoutMs: Int32) async -> Bool = DeviceDiscoveryCoordinator.checkPort,
+        pingRunner: @escaping @Sendable (_ host: String) async -> Double? = DeviceDiscoveryCoordinator.shellPing
     ) {
         self.modelContext = modelContext
-        self.arpScanner = arpScanner
         self.bonjourScanner = bonjourScanner
         self.nameResolver = nameResolver
         self.macVendorService = macVendorService
         self.networkProfileManager = networkProfileManager
         self.pipelineFactory = pipelineFactory
         self.portChecker = portChecker
+        self.pingRunner = pingRunner
         self.networkProfile = networkProfileManager.activeProfile
         loadPersistedDevices(for: effectiveProfileID())
     }
@@ -75,6 +96,7 @@ final class DeviceDiscoveryCoordinator {
         guard !isScanning else { return }
         isScanning = true
         scanProgress = 0.0
+        didMergeAtEnrichmentTransition = false
 
         let profileID = effectiveProfileID()
         loadPersistedDevices(for: profileID)
@@ -91,8 +113,16 @@ final class DeviceDiscoveryCoordinator {
         let bonjourStop: @Sendable () async -> Void = {
             await MainActor.run { bonjourScannerRef.stopDiscovery() }
         }
-        let pipeline = pipelineFactory(bonjourProvider, bonjourStop)
-        let portChecker = self.portChecker
+        let nameResolverRef = nameResolver
+        let inputs = ScanPipelineInputs(
+            bonjourServiceProvider: bonjourProvider,
+            bonjourStopProvider: bonjourStop,
+            nameResolver: { ip in await nameResolverRef.resolveName(for: ip) },
+            macVendorService: macVendorService,
+            portChecker: portChecker,
+            pingRunner: pingRunner
+        )
+        let pipeline = pipelineFactory(inputs)
 
         scanTask = Task {
             defer { isScanning = false }
@@ -103,37 +133,27 @@ final class DeviceDiscoveryCoordinator {
                 defer { bonjourScannerRef.stopDiscovery() }
 
                 let engine = ScanEngine()
-                let engineDevices = await engine.scan(pipeline: pipeline, context: context) { [weak self] progress, _ in
-                    await MainActor.run {
-                        guard let self else { return }
-                        self.scanProgress = min(progress, 1.0) * 0.8
-                    }
+                let accumulatorRef = engine.accumulator
+                let enrichmentPhaseIDs = Self.enrichmentPhaseIDs
+                let engineDevices = await engine.scan(pipeline: pipeline, context: context) { [weak self] progress, phaseID in
+                    guard let self else { return }
+                    await self.handleScanProgress(
+                        progress,
+                        phaseID: phaseID,
+                        profileID: profileID,
+                        accumulator: accumulatorRef,
+                        enrichmentPhaseIDs: enrichmentPhaseIDs
+                    )
                 }
 
+                // Partial results on cancellation must not drive a final merge / offline
+                // pass — that would flip devices this scan simply didn't get to yet.
                 try Task.checkCancellation()
 
                 let allDiscovered = Self.mapDiscoveredDevices(engineDevices)
-
-                scanProgress = 0.8
-                mergeDiscoveredDevices(allDiscovered, profileID: profileID)
-
-                try Task.checkCancellation()
-                scanProgress = 0.84
-                await resolveDeviceNames(profileID: profileID)
-
-                try Task.checkCancellation()
-                scanProgress = 0.88
-                await resolveDeviceVendors(profileID: profileID)
-
-                try Task.checkCancellation()
-                scanProgress = 0.92
-                await quickPortScan(profileID: profileID, portChecker: portChecker)
+                mergeDiscoveredDevices(allDiscovered, profileID: profileID, recordLatencyHistory: true)
 
                 inferDeviceTypes(profileID: profileID)
-
-                try Task.checkCancellation()
-                scanProgress = 0.96
-                await measureDeviceLatencies(profileID: profileID)
 
                 markOfflineDevices(currentIPs: Set(allDiscovered.map(\.ipAddress)), profileID: profileID)
                 scanProgress = 1.0
@@ -159,6 +179,34 @@ final class DeviceDiscoveryCoordinator {
         }
     }
 
+    /// Handles one `ScanEngine` progress callback: updates `scanProgress` (E10 — the engine
+    /// now drives the whole 0...1 bar, no `* 0.8` scaling) and, the first time a phase from
+    /// the enrichment step reports progress, performs the sparse merge (E2) that keeps
+    /// progressive display working now that macOS enrichment runs inside the engine instead
+    /// of as post-scan `@MainActor` passes.
+    ///
+    /// The guard-and-set on `didMergeAtEnrichmentTransition` happens before any `await`, so
+    /// concurrent calls from the four enrichment phases (which all start together) cannot
+    /// race past it: this method is `@MainActor`-isolated, so calls are serialized, and the
+    /// synchronous prefix of the first call to arrive completes before any other call's
+    /// synchronous prefix can run.
+    private func handleScanProgress(
+        _ progress: Double,
+        phaseID: ScanPhaseID,
+        profileID: UUID?,
+        accumulator: ScanAccumulator,
+        enrichmentPhaseIDs: Set<ScanPhaseID>
+    ) async {
+        scanProgress = min(progress, 1.0)
+
+        guard !didMergeAtEnrichmentTransition, enrichmentPhaseIDs.contains(phaseID) else { return }
+        didMergeAtEnrichmentTransition = true
+
+        let snapshot = await accumulator.sortedSnapshot()
+        let sparse = Self.mapDiscoveredDevices(snapshot)
+        mergeDiscoveredDevices(sparse, profileID: profileID, recordLatencyHistory: false)
+    }
+
     func scanNetwork(_ profile: NetworkProfile) {
         networkProfile = profile
         _ = networkProfileManager.switchProfile(id: profile.id)
@@ -173,7 +221,21 @@ final class DeviceDiscoveryCoordinator {
         isScanning = false
     }
 
-    func mergeDiscoveredDevices(_ devices: [LocalDiscoveredDevice], profileID: UUID?) {
+    /// Merges freshly-discovered devices into persisted `LocalDevice` rows.
+    ///
+    /// `vendor`/`openPorts`/`latency` are written only when non-nil (E7), so a sparse
+    /// pre-enrichment merge can never clear a value a later merge would supply.
+    /// `openPorts` unions with whatever was already persisted rather than replacing it —
+    /// each scan's quick port check only samples 15 ports, so a port seen open in an earlier
+    /// scan but not probed (or momentarily closed) this time shouldn't disappear.
+    ///
+    /// `recordLatencyHistory` controls whether a non-nil `latency` is written via
+    /// `LocalDevice.updateLatency` (which appends to the in-memory sparkline buffer) or set
+    /// directly on `lastLatency`. `startScan()` passes `false` for the sparse merge at the
+    /// discovery→enrichment transition (E2) — `ICMPLatencyPhase` already populated latency
+    /// by then — and `true` for the final merge, so `latencyHistory` grows by exactly one
+    /// point per scan rather than two.
+    func mergeDiscoveredDevices(_ devices: [LocalDiscoveredDevice], profileID: UUID?, recordLatencyHistory: Bool = true) {
         let existingDevices = fetchDevices(for: profileID)
         var devicesByMAC: [String: LocalDevice] = [:]
         var devicesByIP: [String: LocalDevice] = [:]
@@ -198,6 +260,20 @@ final class DeviceDiscoveryCoordinator {
                 if let hostname = discovered.hostname, !hostname.isEmpty {
                     existing.hostname = hostname
                 }
+                if let vendor = discovered.vendor, !vendor.isEmpty {
+                    existing.vendor = vendor
+                }
+                if let openPorts = discovered.openPorts, !openPorts.isEmpty {
+                    let combined = Set(existing.openPorts ?? []).union(openPorts).sorted()
+                    existing.openPorts = combined
+                }
+                if let latency = discovered.latency {
+                    if recordLatencyHistory {
+                        existing.updateLatency(latency)
+                    } else {
+                        existing.lastLatency = latency
+                    }
+                }
                 existing.lastSeen = Date()
                 existing.status = .online
             } else {
@@ -205,8 +281,10 @@ final class DeviceDiscoveryCoordinator {
                     ipAddress: discovered.ipAddress,
                     macAddress: discovered.macAddress,
                     hostname: discovered.hostname,
-                    vendor: nil,
+                    vendor: discovered.vendor,
                     deviceType: .unknown,
+                    lastLatency: discovered.latency,
+                    openPorts: discovered.openPorts,
                     networkProfileID: profileID
                 )
                 modelContext.insert(newDevice)
@@ -238,204 +316,6 @@ final class DeviceDiscoveryCoordinator {
         loadPersistedDevices(for: profileID)
     }
 
-    /// Ping each online device (3 probes, 2s timeout) and store best latency.
-    /// Uses ShellPingService (/sbin/ping) which works within the sandbox via shell,
-    /// unlike ICMPSocket which requires a raw socket entitlement we don't have.
-    ///
-    /// Sliding-window cap (matches `resolveDeviceNames` below) — without this we
-    /// fork one `/sbin/ping` subprocess per online device, which spikes CPU and
-    /// trips thermal throttling on 200+ device networks. See #195.
-    ///
-    /// Retained per D14, but note the stated reason was wrong: `ICMPLatencyPhase`
-    /// opens an *unprivileged* `SOCK_DGRAM` ICMP socket, not the raw `ICMPSocket`
-    /// that needs an entitlement, and it works in the sandboxed app (measured
-    /// 2026-09-19 on mini-pro-2: socket fd ok, gateway 3.96 ms). docs/ADR-macOS.md ADR-003 makes
-    /// real ICMP primary and shell ping the fallback, so this pass currently
-    /// overwrites a working ICMP measurement. Scheduled to become a fallback-only
-    /// phase — see `docs/plans/2026-09-19-implementation-plan-scan-seam-completion.md` (E3).
-    private func measureDeviceLatencies(profileID: UUID?) async {
-        let devices = fetchDevices(for: profileID).filter { $0.status == .online }
-        guard !devices.isEmpty else { return }
-
-        let concurrencyLimit = ThermalThrottleMonitor.shared.effectiveLimit(from: 10)
-
-        await withTaskGroup(of: (String, Double?).self) { group in
-            var activeCount = 0
-            var iter = devices.makeIterator()
-
-            while activeCount < concurrencyLimit, let device = iter.next() {
-                let ip = device.ipAddress
-                group.addTask {
-                    let pingService = ShellPingService()
-                    let result = try? await pingService.ping(host: ip, count: 3, timeout: 2)
-                    let latency = result?.isReachable == true ? result?.minLatency : nil
-                    return (ip, latency)
-                }
-                activeCount += 1
-            }
-
-            for await (ip, latency) in group {
-                if let latency, let device = devices.first(where: { $0.ipAddress == ip }) {
-                    device.updateLatency(latency)
-                }
-                if let next = iter.next() {
-                    let nextIP = next.ipAddress
-                    group.addTask {
-                        let pingService = ShellPingService()
-                        let result = try? await pingService.ping(host: nextIP, count: 3, timeout: 2)
-                        let latency = result?.isReachable == true ? result?.minLatency : nil
-                        return (nextIP, latency)
-                    }
-                }
-            }
-        }
-
-        do { try modelContext.save() } catch {
-            Logger.discovery.error("Failed to save device latencies: \(error)")
-        }
-        loadPersistedDevices(for: profileID)
-    }
-
-    private func resolveDeviceNames(profileID: UUID?) async {
-        let devices = fetchDevices(for: profileID).filter { $0.hostname == nil || $0.hostname?.isEmpty == true }
-        guard !devices.isEmpty else { return }
-
-        await withTaskGroup(of: (UUID, String?).self) { group in
-            var activeCount = 0
-            var iter = devices.makeIterator()
-
-            while activeCount < 10, let device = iter.next() {
-                let id = device.id
-                let ip = device.ipAddress
-                group.addTask { await (id, self.nameResolver.resolveName(for: ip)) }
-                activeCount += 1
-            }
-
-            for await (id, name) in group {
-                if let name, let device = devices.first(where: { $0.id == id }) {
-                    device.hostname = name
-                }
-                if let next = iter.next() {
-                    let id = next.id
-                    let ip = next.ipAddress
-                    group.addTask { await (id, self.nameResolver.resolveName(for: ip)) }
-                }
-            }
-        }
-
-        do { try modelContext.save() } catch {
-            Logger.discovery.error("Failed to save device names: \(error)")
-        }
-    }
-
-    private func resolveDeviceVendors(profileID: UUID?) async {
-        let devices = fetchDevices(for: profileID).filter {
-            !$0.macAddress.isEmpty && ($0.vendor == nil || $0.vendor?.isEmpty == true)
-        }
-        guard !devices.isEmpty else { return }
-
-        await withTaskGroup(of: (UUID, String?).self) { group in
-            var activeCount = 0
-            var iter = devices.makeIterator()
-
-            while activeCount < 5, let device = iter.next() {
-                let id = device.id
-                let mac = device.macAddress
-                group.addTask { await (id, self.macVendorService.lookupVendorEnhanced(macAddress: mac)) }
-                activeCount += 1
-            }
-
-            for await (id, vendor) in group {
-                if let vendor, let device = devices.first(where: { $0.id == id }) {
-                    device.vendor = vendor
-                }
-                if let next = iter.next() {
-                    let id = next.id
-                    let mac = next.macAddress
-                    group.addTask { await (id, self.macVendorService.lookupVendorEnhanced(macAddress: mac)) }
-                }
-            }
-        }
-
-        do { try modelContext.save() } catch {
-            Logger.discovery.error("Failed to save device vendors: \(error)")
-        }
-    }
-
-    /// Performs a quick scan of common ports on online devices for the given profile.
-    /// Uses a 1-second timeout per port and scans 10 concurrent devices at a time.
-    private func quickPortScan(
-        profileID: UUID?,
-        portChecker: @escaping @Sendable (_ host: String, _ port: Int, _ timeoutMs: Int32) async -> Bool
-    ) async {
-        let devices = fetchDevices(for: profileID).filter { $0.status == .online }
-        guard !devices.isEmpty else { return }
-
-        // Top common ports — fast fingerprinting set
-        let commonPorts = [22, 53, 80, 443, 445, 548, 631, 3389, 5900, 8080, 8443, 8008, 9100, 32400, 62078]
-
-        await withTaskGroup(of: (UUID, [Int]).self) { group in
-            var activeCount = 0
-            var iter = devices.makeIterator()
-
-            // Limit concurrency to 10 devices at a time
-            while activeCount < 10, let device = iter.next() {
-                let id = device.id
-                let ip = device.ipAddress
-                group.addTask {
-                    var openPorts: [Int] = []
-                    await withTaskGroup(of: (Int, Bool).self) { portGroup in
-                        for port in commonPorts {
-                            portGroup.addTask {
-                                let isOpen = await portChecker(ip, port, 1000)
-                                return (port, isOpen)
-                            }
-                        }
-                        for await (port, isOpen) in portGroup where isOpen {
-                            openPorts.append(port)
-                        }
-                    }
-                    return (id, openPorts.sorted())
-                }
-                activeCount += 1
-            }
-
-            for await (id, openPorts) in group {
-                if let device = devices.first(where: { $0.id == id }) {
-                    let existing = Set(device.openPorts ?? [])
-                    let combined = existing.union(openPorts).sorted()
-                    if !combined.isEmpty {
-                        device.openPorts = combined
-                    }
-                }
-                if let next = iter.next() {
-                    let id = next.id
-                    let ip = next.ipAddress
-                    group.addTask {
-                        var openPorts: [Int] = []
-                        await withTaskGroup(of: (Int, Bool).self) { portGroup in
-                            for port in commonPorts {
-                                portGroup.addTask {
-                                    let isOpen = await portChecker(ip, port, 1000)
-                                    return (port, isOpen)
-                                }
-                            }
-                            for await (port, isOpen) in portGroup where isOpen {
-                                openPorts.append(port)
-                            }
-                        }
-                        return (id, openPorts.sorted())
-                    }
-                }
-            }
-        }
-
-        do { try modelContext.save() } catch {
-            Logger.discovery.error("Failed to save port scan results: \(error)")
-        }
-        loadPersistedDevices(for: profileID)
-    }
-
     /// Shared concurrent queue for `checkPort` so each TCP probe doesn't allocate a
     /// fresh `DispatchQueue`. Concurrent attribute preserves parallel fan-out across
     /// ports/devices (15 ports x N devices were previously running on N*15 disposable
@@ -448,6 +328,7 @@ final class DeviceDiscoveryCoordinator {
 
     /// Non-blocking TCP connect check with configurable timeout, counted against the
     /// shared `ConnectionBudget` like every other raw-socket / `NWConnection` probe.
+    /// `QuickPortScanPhase`'s default `checker`.
     nonisolated private static func checkPort(host: String, port: Int, timeoutMs: Int32) async -> Bool {
         await withConnectionSlot {
             await withCheckedContinuation { continuation in
@@ -500,6 +381,15 @@ final class DeviceDiscoveryCoordinator {
         } ?? false
     }
 
+    /// Pings `host` (3 probes, 2s timeout each) via `/sbin/ping` and returns the minimum
+    /// observed latency, or `nil` if unreachable. `ShellPingLatencyPhase`'s default
+    /// `pinger` — the ADR-003 fallback for devices `ICMPLatencyPhase` didn't cover (E3).
+    nonisolated static func shellPing(host: String) async -> Double? {
+        let pingService = ShellPingService()
+        let result = try? await pingService.ping(host: host, count: 3, timeout: 2)
+        return result?.isReachable == true ? result?.minLatency : nil
+    }
+
     private func inferDeviceTypes(profileID: UUID?) {
         let inference = DeviceTypeInferenceService()
         let devices = fetchDevices(for: profileID).filter { $0.deviceType == .unknown }
@@ -538,14 +428,17 @@ final class DeviceDiscoveryCoordinator {
     }
 
     /// Maps `ScanEngine` accumulator results to the macOS-local discovery type consumed
-    /// by `mergeDiscoveredDevices`. `nonisolated` and `static` so tests (and the D16
-    /// equivalence test in particular) can call it without any coordinator instance.
+    /// by `mergeDiscoveredDevices`. `nonisolated` and `static` so tests (and the golden-row
+    /// equivalence tests in particular) can call it without any coordinator instance.
     nonisolated static func mapDiscoveredDevices(_ devices: [DiscoveredDevice]) -> [LocalDiscoveredDevice] {
         devices.map { device in
             LocalDiscoveredDevice(
                 ipAddress: device.ipAddress,
                 macAddress: device.macAddress ?? "",
-                hostname: device.hostname
+                hostname: device.hostname,
+                vendor: device.vendor,
+                openPorts: device.openPorts,
+                latency: device.latency
             )
         }
     }
@@ -569,7 +462,7 @@ final class DeviceDiscoveryCoordinator {
 
         // No active profile yet (e.g. first launch before profile detection completes) —
         // fall back the same way iOS `makeScanTarget(subnet: nil)` does, but pick the
-        // interface the same way `ARPScannerService.getLocalNetworkInfo` does rather than
+        // interface the same way `ARPScannerService.getLocalNetworkInfo` did rather than
         // assuming `NetworkUtilities`'s "en0" default: not every Mac's primary LAN
         // interface is en0 (e.g. en1 when en0 is inactive/unplugged — see #279).
         let interface = Self.selectFallbackInterface()

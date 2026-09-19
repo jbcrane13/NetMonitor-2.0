@@ -33,7 +33,6 @@ struct DeviceDiscoveryCoordinatorLiveScanTests {
 
         let coordinator = DeviceDiscoveryCoordinator(
             modelContext: container.mainContext,
-            arpScanner: ARPScannerService(),
             bonjourScanner: BonjourDiscoveryService(),
             networkProfileManager: NetworkProfileManager()
         )
@@ -69,7 +68,18 @@ struct DeviceDiscoveryCoordinatorLiveScanTests {
         }
         let gatewayFound = coordinator.discoveredDevices.contains { gatewayCandidates.contains($0.ipAddress) }
 
-        print("LIVE_SCAN devices=\(coordinator.discoveredDevices.count) gateway=\(gatewayFound ? "found" : "missing")")
+        // P2 (#297): extends the #279 baseline line with the macOS enrichment phases'
+        // output — names and vendors filled by `ShellNameResolutionPhase`/`VendorLookupPhase`
+        // (on top of whatever `ReverseDNSScanPhase` already resolved), and `latency_source`
+        // records that `ICMPLatencyPhase` (docs/ADR-macOS.md ADR-003) is the primary source
+        // macOS latency now comes from.
+        let enrichedNames = coordinator.discoveredDevices.filter { !($0.hostname ?? "").isEmpty }.count
+        let enrichedVendors = coordinator.discoveredDevices.filter { !($0.vendor ?? "").isEmpty }.count
+
+        print(
+            "LIVE_SCAN devices=\(coordinator.discoveredDevices.count) gateway=\(gatewayFound ? "found" : "missing")"
+            + " enriched_names=\(enrichedNames) enriched_vendors=\(enrichedVendors) latency_source=icmp"
+        )
 
         #expect(Bool(true))
     }
