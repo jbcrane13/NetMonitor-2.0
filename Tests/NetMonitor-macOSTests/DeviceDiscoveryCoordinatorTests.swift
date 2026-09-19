@@ -229,6 +229,13 @@ struct DeviceDiscoveryCoordinatorTests {
         _ = container
 
         // Persisted from an earlier scan; absent from this scan's fixture discovery below.
+        // `networkProfileID` defaults to nil (LocalDevice's init default), so the coordinator
+        // below is given a profile manager with no ambient host state (E1's "seen last scan"
+        // device must match on `networkProfileID == nil` deterministically) rather than the
+        // default `NetworkProfileManager()`, which reads the real host's detected network and
+        // would give `effectiveProfileID()` a non-nil UUID this stale row never gets — on such
+        // a host `fetchDevices(for:)` would silently exclude the stale row from every query
+        // below, including `markOfflineDevices`, independent of anything this phase does.
         let stale = LocalDevice(
             ipAddress: "192.0.2.77",
             macAddress: "AA:BB:CC:DD:EE:77",
@@ -241,6 +248,11 @@ struct DeviceDiscoveryCoordinatorTests {
         let resolverCalls = CallRecorder()
         let pingerCalls = CallRecorder()
         let vendorService = Self.makeOfflineVendorService()
+        let noAmbientDefaults = try #require(UserDefaults(suiteName: UUID().uuidString))
+        let noAmbientProfileManager = NetworkProfileManager(
+            userDefaults: noAmbientDefaults,
+            activeProfilesProvider: { [] }
+        )
 
         let seedDevices = FixtureUpsertBox(devices: [
             DiscoveredDevice(
@@ -257,7 +269,7 @@ struct DeviceDiscoveryCoordinatorTests {
         let coordinator = DeviceDiscoveryCoordinator(
             modelContext: context,
             bonjourScanner: BonjourDiscoveryService(),
-            networkProfileManager: NetworkProfileManager(),
+            networkProfileManager: noAmbientProfileManager,
             pipelineFactory: { _ in
                 ScanPipeline(steps: [
                     ScanPipeline.Step(phases: [FixtureUpsertScanPhase(box: seedDevices)], concurrent: false),
