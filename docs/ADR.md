@@ -395,4 +395,22 @@ The `.prefix(while:)` trims the null terminator; `.map { UInt8(bitPattern:) }` r
 
 ---
 
+## ADR-021: Typed `ScanPhaseID` and deletion of the `ScanStrategy` surface
+**Date:** 2026-09-18
+**Status:** Active
+**Decision:** Delete the `ScanStrategy` enum and the API built on it, and replace NetworkScanKit's stringly-typed phase identity with a `ScanPhaseID` struct (`RawRepresentable`, `Hashable`, `Sendable`, `ExpressibleByStringLiteral`) exposing static members for the six built-in phases (`.arp`, `.bonjour`, `.tcpProbe`, `.ssdp`, `.icmpLatency`, `.reverseDNS`).
+
+**Context:** The 2026-09-18 architecture review (card 7, epic #273, issue #280, PR #286) found `ScanStrategy` had no production callers: `DeviceDiscoveryService` built its own pipeline inline with `ScanPipeline(steps:)`, and the `.remote` strategy was never constructed anywhere. Its only coverage was `ScanStrategyCoverageTests.swift`, which tested dead code and made the surface look load-bearing. Separately, `ScanPhase.id` was a bare `String` that `ScanEngine` handed to a progress callback and Core matched with `ScanDisplayPhase(rawValue:)` — a stringly-typed coupling across a package boundary where a typo produced no compiler error and silently stopped updating the scan-phase UI. A struct was chosen over an enum so platform targets and test fixtures can define their own phase identifiers without extending a closed set; `ExpressibleByStringLiteral` keeps existing string-literal fixture phases compiling unchanged.
+
+**Consequences:**
+- Removed public API (breaking for any out-of-tree consumer; acceptable because the package is local to this monorepo — see ADR-004, ADR-017): `ScanStrategy`, `ScanContext.scanStrategy` and its init parameter, `ScanPipeline.forStrategy(_:bonjourServiceProvider:bonjourStopProvider:)`, and `ScanEngine.scan(context:bonjourServiceProvider:bonjourStopProvider:onProgress:)`
+- `ScanPhase.id` is now `ScanPhaseID`; `ScanEngine.scan(pipeline:context:onProgress:)` reports `(Double, ScanPhaseID)` instead of `(Double, String)` — it passes `phase.id`, not `phase.displayName`, so `displayName` is now logging-only
+- `ScanDisplayPhase.init?(phaseID:)` (NetMonitorCore) maps the six built-ins; an unrecognized ID returns `nil` and leaves the displayed phase unchanged rather than falling back to a wrong one
+- `ScanProgressCoalescer` deliberately keeps its `String` parameter; callers pass `phaseID.rawValue`
+- `DeviceDiscoveryService` now calls `ScanPipeline.standard(bonjourServiceProvider:bonjourStopProvider:)` instead of duplicating the pipeline inline, so both platforms share one definition (macOS joined this in #279)
+- `ScanStrategyCoverageTests.swift` deleted; `ScanContextTests`, `ScanEngineCoverageTests`, `ScanEngineTests`, `ScanPipelineTests`, and `ScanPipelineCoverageTests` updated. Net −436 lines
+- **Leftover:** `NetworkScanProfile` still lives in `Packages/NetworkScanKit/Sources/NetworkScanKit/ScanStrategy.swift`, which is now its only occupant — the filename no longer describes its contents. It has no production callers and no test coverage (its tests died with `ScanStrategyCoverageTests`). Flagged in `Packages/NetworkScanKit/Tests/NetworkScanKitTests/AGENTS.md`; delete or relocate it when something needs that area
+
+---
+
 *To add a new ADR: append with the next number, include date, status, decision, context, and consequences. Reference the GitHub issue if applicable.*

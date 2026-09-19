@@ -178,14 +178,15 @@ Feature worktrees frequently land on `main` between sessions. Always `git pull -
 
 ## CRITICAL: Test Execution Policy
 
-**NEVER run `xcodebuild test` on this machine (Mac mini Pro / gateway host).**
-Tests MUST run on the Mac mini (secondary node) via SSH:
+**Run `xcodebuild test` on mini-pro-2.**
+Tests are preferred to run on mini-pro-2 (the automation node, also reachable as `blakes-mac-mini-2`) via SSH.
+
+If mini-pro-2 is unreachable, tests may be run on mini-pro-1 (this gateway host) after consulting Blake when he is actively using that machine. If he is not present, you may run there without consulting.
 ```bash
 # Unit tests (no signing needed):
-ssh mac-mini "cd ~/Projects/NetMonitor-2.0 && xcodebuild test -scheme NetMonitor-macOS -configuration Debug -destination 'platform=macOS' CODE_SIGN_IDENTITY='-' CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO -parallel-testing-enabled NO -only-testing:NetMonitor-macOSTests"
+ssh mini-pro-2 "cd ~/Projects/NetMonitor-2.0 && xcodebuild test -scheme NetMonitor-macOS -configuration Debug -destination 'platform=macOS' CODE_SIGN_IDENTITY='-' CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO -parallel-testing-enabled NO -only-testing:NetMonitor-macOSTests"
 
 # UI tests (need signed build + GUI session):
-ssh mac-mini "cd ~/Projects/NetMonitor-2.0 && xcodebuild test -scheme NetMonitor-macOS -configuration Debug -destination 'platform=macOS' -only-testing:NetMonitor-macOSUITests"
+ssh mini-pro-2 "cd ~/Projects/NetMonitor-2.0 && xcodebuild test -scheme NetMonitor-macOS -configuration Debug -destination 'platform=macOS' -only-testing:NetMonitor-macOSUITests"
 ```
-This machine has no display/accessibility session. XCUITests will hang or phantom-launch.
-A PreToolUse hook will block `xcodebuild test` locally as a safety net.
+
