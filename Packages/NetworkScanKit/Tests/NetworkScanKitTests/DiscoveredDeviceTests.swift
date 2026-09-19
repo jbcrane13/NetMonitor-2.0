@@ -155,6 +155,101 @@ struct DiscoveredDeviceTests {
         #expect("".ipSortKey == 0)
     }
 
+    // MARK: - openPorts / Codable back-compat
+
+    @Test("full init defaults openPorts to nil")
+    func fullInitDefaultsOpenPortsToNil() {
+        let device = DiscoveredDevice(
+            ipAddress: "10.0.0.3",
+            hostname: nil,
+            vendor: nil,
+            macAddress: nil,
+            latency: nil,
+            discoveredAt: Date(),
+            source: .local
+        )
+        #expect(device.openPorts == nil)
+    }
+
+    @Test("openPorts round-trips through JSON encode/decode")
+    func openPortsRoundTripsThroughJSON() throws {
+        let device = DiscoveredDevice(
+            ipAddress: "10.0.0.4",
+            hostname: nil,
+            vendor: nil,
+            macAddress: nil,
+            latency: nil,
+            discoveredAt: Date(),
+            source: .local,
+            openPorts: [22, 80, 443]
+        )
+        let data = try JSONEncoder().encode(device)
+        let decoded = try JSONDecoder().decode(DiscoveredDevice.self, from: data)
+        #expect(decoded.openPorts == [22, 80, 443])
+    }
+
+    @Test("JSON cached before openPorts existed still decodes, with openPorts nil")
+    func jsonWithoutOpenPortsKeyStillDecodes() throws {
+        // Simulates a UserDefaults cache written by a version of the app that
+        // predates the `openPorts` field (DeviceDiscoveryService.swift:83,92).
+        let id = UUID()
+        let profileID = UUID()
+        let discoveredAt = Date(timeIntervalSince1970: 1_700_000_000)
+        let json = """
+        {
+            "id": "\(id.uuidString)",
+            "ipAddress": "192.168.1.1",
+            "hostname": "router.local",
+            "vendor": null,
+            "macAddress": null,
+            "latency": 5.0,
+            "discoveredAt": \(discoveredAt.timeIntervalSinceReferenceDate),
+            "source": "local",
+            "networkProfileID": "\(profileID.uuidString)"
+        }
+        """
+        let data = Data(json.utf8)
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .deferredToDate
+        let decoded = try decoder.decode(DiscoveredDevice.self, from: data)
+
+        #expect(decoded.ipAddress == "192.168.1.1")
+        #expect(decoded.hostname == "router.local")
+        #expect(decoded.latency == 5.0)
+        #expect(decoded.openPorts == nil)
+    }
+
+    @Test("dictionary-keyed JSON cache (UserDefaults shape) without openPorts still decodes")
+    func dictionaryCachedJSONWithoutOpenPortsStillDecodes() throws {
+        // Mirrors DeviceDiscoveryService's [String: [DiscoveredDevice]] cache shape.
+        let discoveredAt = Date(timeIntervalSince1970: 1_700_000_000)
+        let json = """
+        {
+            "auto": [
+                {
+                    "id": "\(UUID().uuidString)",
+                    "ipAddress": "10.0.0.9",
+                    "hostname": null,
+                    "vendor": null,
+                    "macAddress": null,
+                    "latency": null,
+                    "discoveredAt": \(discoveredAt.timeIntervalSinceReferenceDate),
+                    "source": "bonjour"
+                }
+            ]
+        }
+        """
+        let data = Data(json.utf8)
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .deferredToDate
+        let decoded = try decoder.decode([String: [DiscoveredDevice]].self, from: data)
+
+        let devices = try #require(decoded["auto"])
+        #expect(devices.count == 1)
+        #expect(devices[0].ipAddress == "10.0.0.9")
+        #expect(devices[0].openPorts == nil)
+    }
+
     // MARK: - BonjourServiceInfo
 
     @Test("BonjourServiceInfo init")

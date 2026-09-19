@@ -21,6 +21,46 @@ struct ICMPLatencyFallbackTests {
         #expect(phase.id == "icmpLatency")
     }
 
+    @Test("ICMPLatencyPhase defaults probeCount to 1 (keeps iOS unchanged)")
+    func defaultProbeCount() {
+        let phase = ICMPLatencyPhase()
+        #expect(phase.probeCount == 1)
+    }
+
+    @Test("ICMPLatencyPhase accepts a custom probeCount")
+    func customProbeCount() {
+        let phase = ICMPLatencyPhase(probeCount: 3)
+        #expect(phase.probeCount == 3)
+    }
+
+    // MARK: - minimumRTTPerIP (pure function; the real ICMP socket path can't
+    // run in the sandboxed test environment, so probeCount's min-of-N
+    // reduction is tested in isolation here).
+
+    @Test("minimumRTTPerIP keeps the minimum RTT across probeCount echoes per host")
+    func minimumRTTAcrossProbes() {
+        let raw: [(ip: String, rtt: Double)] = [
+            ("10.0.0.1", 12.0), ("10.0.0.1", 4.0), ("10.0.0.1", 9.0),
+            ("10.0.0.2", 30.0),
+        ]
+        let result = Dictionary(uniqueKeysWithValues: ICMPLatencyPhase.minimumRTTPerIP(raw))
+        #expect(result["10.0.0.1"] == 4.0)
+        #expect(result["10.0.0.2"] == 30.0)
+    }
+
+    @Test("minimumRTTPerIP with a single sample per host returns that sample")
+    func minimumRTTSingleSample() {
+        let raw: [(ip: String, rtt: Double)] = [("10.0.0.5", 7.5)]
+        let result = Dictionary(uniqueKeysWithValues: ICMPLatencyPhase.minimumRTTPerIP(raw))
+        #expect(result["10.0.0.5"] == 7.5)
+    }
+
+    @Test("minimumRTTPerIP with no samples returns empty")
+    func minimumRTTEmpty() {
+        let result = ICMPLatencyPhase.minimumRTTPerIP([])
+        #expect(result.isEmpty)
+    }
+
     @Test("ICMPLatencyPhase executes without crash on empty accumulator",
           .tags(.integration))
     func executeWithNoDevicesDoesNotCrash() async {
@@ -31,7 +71,7 @@ struct ICMPLatencyFallbackTests {
         let accumulator = ScanAccumulator()
         actor ProgressCollector {
             private var _values: [Double] = []
-            func append(_ v: Double) { _values.append(v) }
+            func append(_ value: Double) { _values.append(value) }
             var values: [Double] { _values }
         }
         let progressValues = ProgressCollector()

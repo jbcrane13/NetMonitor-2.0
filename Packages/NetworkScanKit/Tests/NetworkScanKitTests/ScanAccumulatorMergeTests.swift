@@ -17,7 +17,8 @@ struct ScanAccumulatorMergeTests {
         hostname: String? = nil,
         vendor: String? = nil,
         latency: Double? = nil,
-        source: DeviceSource = .local
+        source: DeviceSource = .local,
+        openPorts: [Int]? = nil
     ) -> DiscoveredDevice {
         DiscoveredDevice(
             ipAddress: ip,
@@ -26,8 +27,50 @@ struct ScanAccumulatorMergeTests {
             macAddress: mac,
             latency: latency,
             discoveredAt: Date(),
-            source: source
+            source: source,
+            openPorts: openPorts
         )
+    }
+
+    // MARK: - openPorts Merge
+
+    @Test("openPorts backfilled from incoming when existing had nil")
+    func openPortsBackfilledFromIncoming() async {
+        let acc = ScanAccumulator()
+        let first = makeDevice(ip: "192.168.1.50", openPorts: nil)
+        let second = makeDevice(ip: "192.168.1.50", openPorts: [22, 80])
+        await acc.upsert(first)
+        await acc.upsert(second)
+
+        let devices = await acc.snapshot()
+        #expect(devices[0].openPorts == [22, 80],
+                "openPorts should be backfilled from incoming when existing had nil")
+    }
+
+    @Test("openPorts survives an upsert that does not carry ports (existing wins)")
+    func openPortsSurvivesUpsertWithoutPorts() async {
+        let acc = ScanAccumulator()
+        let withPorts = makeDevice(ip: "192.168.1.50", openPorts: [443, 8080])
+        let laterUpsertWithoutPorts = makeDevice(ip: "192.168.1.50", hostname: "later.local", openPorts: nil)
+        await acc.upsert(withPorts)
+        await acc.upsert(laterUpsertWithoutPorts)
+
+        let devices = await acc.snapshot()
+        #expect(devices[0].openPorts == [443, 8080],
+                "A later upsert with no openPorts must not silently nil out previously-discovered ports")
+        #expect(devices[0].hostname == "later.local", "Other fields still fill in from the incoming upsert")
+    }
+
+    @Test("openPorts: existing wins over incoming on conflict")
+    func openPortsExistingWinsOnConflict() async {
+        let acc = ScanAccumulator()
+        let first = makeDevice(ip: "192.168.1.50", openPorts: [22])
+        let second = makeDevice(ip: "192.168.1.50", openPorts: [80, 443])
+        await acc.upsert(first)
+        await acc.upsert(second)
+
+        let devices = await acc.snapshot()
+        #expect(devices[0].openPorts == [22], "Existing openPorts should be preserved on merge conflict")
     }
 
     // MARK: - Same IP, Different Sources → Merge

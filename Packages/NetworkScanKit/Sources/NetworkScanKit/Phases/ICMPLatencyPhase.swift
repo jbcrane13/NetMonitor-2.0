@@ -23,8 +23,14 @@ public struct ICMPLatencyPhase: ScanPhase, Sendable {
     /// How long to wait for responses after sending all probes.
     private let collectTimeout: TimeInterval
 
-    public init(collectTimeout: TimeInterval = 2.0) {
+    /// Number of echo requests sent per host; the minimum RTT is kept.
+    /// Defaults to 1 so iOS behaviour is unchanged. macOS passes 3 to match
+    /// the min-of-3 semantics of the shell ping it replaces.
+    public let probeCount: Int
+
+    public init(collectTimeout: TimeInterval = 2.0, probeCount: Int = 1) {
         self.collectTimeout = collectTimeout
+        self.probeCount = probeCount
     }
 
     public func execute(
@@ -59,13 +65,15 @@ public struct ICMPLatencyPhase: ScanPhase, Sendable {
         logger.info("ICMP ping sweep: \(ipsNeedingLatency.count) devices")
 
         let timeout = collectTimeout
+        let probeCount = self.probeCount
 
         // Run all I/O on a dedicated queue — no async suspension between reads
-        let results: [(ip: String, rtt: Double)] = await withCheckedContinuation { continuation in
+        let rawResults: [(ip: String, rtt: Double)] = await withCheckedContinuation { continuation in
             icmpQueue.async {
                 let results = Self.pingSweep(
                     fd: fd,
                     ips: ipsNeedingLatency,
+                    probeCount: probeCount,
                     timeout: timeout
                 )
                 close(fd)
@@ -75,10 +83,14 @@ public struct ICMPLatencyPhase: ScanPhase, Sendable {
 
         guard !Task.isCancelled else { return }
 
-        // Batch-update accumulator — ICMP replaces any TCP-based latency
+        // probeCount echoes per host may each report; keep the minimum RTT,
+        // matching the shell ping min-of-N semantics this phase replaces.
+        let results = Self.minimumRTTPerIP(rawResults)
+
+        // Batch-update accumulator — ICMP outranks TCP-handshake latency.
         for (ip, rtt) in results {
             guard !Task.isCancelled else { return }
-            await accumulator.replaceLatency(ip: ip, latency: rtt)
+            await accumulator.setLatency(ip: ip, value: rtt, source: .icmp)
         }
 
         logger.info("ICMP ping sweep complete: \(results.count)/\(ipsNeedingLatency.count) enriched")
@@ -87,37 +99,58 @@ public struct ICMPLatencyPhase: ScanPhase, Sendable {
 
     // MARK: - Synchronous Ping Sweep (runs entirely on icmpQueue)
 
-    /// Sends all echo requests and collects responses in a tight loop.
-    /// No async suspension points — timing is accurate.
+    /// Sends `probeCount` echo requests per host, round-robin across hosts so
+    /// back-to-back echoes to the same host are spaced by a full sweep.
+    /// Returns the sent sequence numbers mapped to the host and send time,
+    /// for `pingSweep` to match against replies.
+    private static func sendEchoRequests(
+        fd: Int32,
+        ips: [String],
+        probeCount: Int
+    ) -> [UInt16: (ip: String, sendTime: ContinuousClock.Instant)] {
+        var pending: [UInt16: (ip: String, sendTime: ContinuousClock.Instant)] = [:]
+        let rounds = max(1, probeCount)
+        var index = 0
+
+        for _ in 0..<rounds {
+            for ip in ips {
+                let seq = UInt16((index % Int(UInt16.max)) + 1)
+                index += 1
+
+                var addr = sockaddr_in()
+                addr.sin_family = sa_family_t(AF_INET)
+                guard inet_pton(AF_INET, ip, &addr.sin_addr) == 1 else { continue }
+
+                let packet = buildEchoRequest(identifier: 0, sequence: seq)
+                let sendTime = ContinuousClock.now
+
+                let sent = withUnsafePointer(to: &addr) { ptr in
+                    ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) { sockaddrPtr in
+                        sendto(fd, packet, packet.count, 0, sockaddrPtr, socklen_t(MemoryLayout<sockaddr_in>.size))
+                    }
+                }
+
+                if sent == packet.count {
+                    pending[seq] = (ip: ip, sendTime: sendTime)
+                }
+            }
+        }
+
+        return pending
+    }
+
+    /// Sends `probeCount` echo requests per host and collects responses in a
+    /// tight loop. No async suspension points — timing is accurate.
     private static func pingSweep(
         fd: Int32,
         ips: [String],
+        probeCount: Int,
         timeout: TimeInterval
     ) -> [(ip: String, rtt: Double)] {
 
-        // Map sequence → (ip, sendTime)
-        var pending: [UInt16: (ip: String, sendTime: ContinuousClock.Instant)] = [:]
-
-        // Phase 1: Blast all echo requests
-        for (index, ip) in ips.enumerated() {
-            let seq = UInt16((index % Int(UInt16.max)) + 1)
-            var addr = sockaddr_in()
-            addr.sin_family = sa_family_t(AF_INET)
-            guard inet_pton(AF_INET, ip, &addr.sin_addr) == 1 else { continue }
-
-            let packet = buildEchoRequest(identifier: 0, sequence: seq)
-            let sendTime = ContinuousClock.now
-
-            let sent = withUnsafePointer(to: &addr) { ptr in
-                ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) { sockaddrPtr in
-                    sendto(fd, packet, packet.count, 0, sockaddrPtr, socklen_t(MemoryLayout<sockaddr_in>.size))
-                }
-            }
-
-            if sent == packet.count {
-                pending[seq] = (ip: ip, sendTime: sendTime)
-            }
-        }
+        // Phase 1: Blast all echo requests, round-robin across hosts so
+        // back-to-back echoes to the same host are spaced by a full sweep.
+        var pending = Self.sendEchoRequests(fd: fd, ips: ips, probeCount: probeCount)
 
         logger.debug("Sent \(pending.count) echo requests, collecting responses…")
 
@@ -182,6 +215,25 @@ public struct ICMPLatencyPhase: ScanPhase, Sendable {
         }
 
         return results
+    }
+
+    // MARK: - Min-RTT reduction
+
+    /// Reduces possibly-multiple `(ip, rtt)` samples (one per echo, when
+    /// `probeCount > 1`) to the minimum RTT per IP — matching the shell
+    /// ping `minLatency` semantics this phase replaces. Kept as a pure
+    /// function, independent of `pingSweep`'s real ICMP socket, so it is
+    /// unit-testable in the sandboxed test environment.
+    static func minimumRTTPerIP(_ results: [(ip: String, rtt: Double)]) -> [(ip: String, rtt: Double)] {
+        var minByIP: [String: Double] = [:]
+        for (ip, rtt) in results {
+            if let existing = minByIP[ip] {
+                minByIP[ip] = Swift.min(existing, rtt)
+            } else {
+                minByIP[ip] = rtt
+            }
+        }
+        return minByIP.map { (ip: $0.key, rtt: $0.value) }
     }
 
     // MARK: - Packet Building

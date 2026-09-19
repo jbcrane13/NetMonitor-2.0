@@ -55,41 +55,18 @@ public struct TCPProbeScanPhase: ScanPhase, Sendable {
         let tracker = RTTTracker()
         var scannedCount = 0
 
-        await withTaskGroup(of: DiscoveredDevice?.self) { group in
-            var pending = 0
-            var hostIterator = hostsToProbe.makeIterator()
+        await forEachBounded(hostsToProbe, limit: concurrencyLimit, operation: { ip in
+            await Self.probeHost(ip, tracker: tracker, requiredInterfaceType: context.requiredInterfaceType)
+        }, onResult: { device in
+            scannedCount += 1
 
-            while pending < concurrencyLimit, let ip = hostIterator.next() {
-                guard !Task.isCancelled else { break }
-                pending += 1
-                group.addTask {
-                    await Self.probeHost(ip, tracker: tracker, requiredInterfaceType: context.requiredInterfaceType)
-                }
+            if let device {
+                await accumulator.upsert(device)
             }
 
-            while let result = await group.next() {
-                guard !Task.isCancelled else {
-                    group.cancelAll()
-                    break
-                }
-                pending -= 1
-                scannedCount += 1
-
-                if let device = result {
-                    await accumulator.upsert(device)
-                }
-
-                let progress = Double(scannedCount) / Double(max(total, 1))
-                await onProgress(progress)
-
-                if let ip = hostIterator.next() {
-                    pending += 1
-                    group.addTask {
-                        await Self.probeHost(ip, tracker: tracker, requiredInterfaceType: context.requiredInterfaceType)
-                    }
-                }
-            }
-        }
+            let progress = Double(scannedCount) / Double(max(total, 1))
+            await onProgress(progress)
+        })
 
         // Enrich already-known devices with latency via lightweight single-port probe
         guard !Task.isCancelled else { return }
@@ -275,49 +252,20 @@ public struct TCPProbeScanPhase: ScanPhase, Sendable {
     ) async {
         let concurrencyLimit = ThermalThrottleMonitor.shared.effectiveLimit(from: maxConcurrentHosts)
 
-        await withTaskGroup(of: (String, Double?).self) { group in
-            var pending = 0
-            var iterator = ips.makeIterator()
-
-            while pending < concurrencyLimit, let ip = iterator.next() {
-                guard !Task.isCancelled else { break }
-                pending += 1
-                group.addTask {
-                    let timeoutMs = await tracker.adaptiveTimeout(base: 500)
-                    let latency = await Self.quickLatencyProbe(
-                        ip: ip,
-                        timeout: .milliseconds(timeoutMs),
-                        requiredInterfaceType: requiredInterfaceType
-                    )
-                    return (ip, latency)
-                }
+        await forEachBounded(ips, limit: concurrencyLimit, operation: { ip -> (String, Double?) in
+            let timeoutMs = await tracker.adaptiveTimeout(base: 500)
+            let latency = await Self.quickLatencyProbe(
+                ip: ip,
+                timeout: .milliseconds(timeoutMs),
+                requiredInterfaceType: requiredInterfaceType
+            )
+            return (ip, latency)
+        }, onResult: { ip, latency in
+            if let latency {
+                await accumulator.setLatency(ip: ip, value: latency, source: .tcpHandshake)
+                await tracker.recordRTT(latency)
             }
-
-            while let (ip, latency) = await group.next() {
-                guard !Task.isCancelled else {
-                    group.cancelAll()
-                    break
-                }
-                pending -= 1
-                if let latency {
-                    await accumulator.updateLatency(ip: ip, latency: latency)
-                    await tracker.recordRTT(latency)
-                }
-
-                if let nextIP = iterator.next() {
-                    pending += 1
-                    group.addTask {
-                        let timeoutMs = await tracker.adaptiveTimeout(base: 500)
-                        let latency = await Self.quickLatencyProbe(
-                            ip: nextIP,
-                            timeout: .milliseconds(timeoutMs),
-                            requiredInterfaceType: requiredInterfaceType
-                        )
-                        return (nextIP, latency)
-                    }
-                }
-            }
-        }
+        })
     }
 
     /// Ports to try for latency enrichment — ordered by likelihood of being open on LAN devices.

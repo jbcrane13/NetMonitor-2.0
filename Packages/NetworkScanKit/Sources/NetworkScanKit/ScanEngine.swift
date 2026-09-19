@@ -61,12 +61,13 @@ public actor ScanEngine {
 
             if step.concurrent && step.phases.count > 1 {
                 let accum = accumulator
-                let timeout = phaseTimeout
+                let defaultTimeout = phaseTimeout
                 await withTaskGroup(of: Void.self) { group in
                     for phase in step.phases {
                         guard !Task.isCancelled else { break }
                         let tw = totalWeight
                         let bw = baseWeight
+                        let timeout = phase.timeout ?? defaultTimeout
                         group.addTask {
                             await Self.withTimeout(timeout) {
                                 await phase.execute(context: context, accumulator: accum) { phaseProgress in
@@ -85,7 +86,7 @@ public actor ScanEngine {
                     guard !Task.isCancelled else { break }
                     let phaseBase = completedWeight
                     let tw = totalWeight
-                    let timeout = phaseTimeout
+                    let timeout = phase.timeout ?? phaseTimeout
                     let accum = self.accumulator
                     await Self.withTimeout(timeout) {
                         await phase.execute(context: context, accumulator: accum) { phaseProgress in
