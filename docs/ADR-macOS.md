@@ -40,6 +40,7 @@ A running log of significant architecture and design decisions. Both Daneel (Ope
 - `ICMPSocket.swift` wraps low-level ICMP
 - `ProcessPingService.swift` uses `/sbin/ping` via shell as fallback
 - Cross-platform ping data uses common format but different underlying measurement
+- **2026-09-19:** "real ICMP" on macOS does not require the raw-socket entitlement. `NetworkScanKit`'s `ICMPLatencyPhase` uses an unprivileged `SOCK_DGRAM` ICMP socket and works inside the sandboxed app (measured on mini-pro-2: `socket(AF_INET, SOCK_DGRAM, IPPROTO_ICMP)` → fd 6, errno 0; gateway 3.96 ms). Scan-path latency should therefore come from that phase, with shell ping as the fallback this ADR always intended — not as an unconditional pass over every device
 
 ---
 

@@ -246,10 +246,13 @@ final class DeviceDiscoveryCoordinator {
     /// fork one `/sbin/ping` subprocess per online device, which spikes CPU and
     /// trips thermal throttling on 200+ device networks. See #195.
     ///
-    /// Retained per D14: the `ScanEngine`'s `ICMPLatencyPhase` needs a raw-socket
-    /// entitlement the sandboxed macOS app does not have and may skip silently, so
-    /// shell ping remains the macOS latency source of record (ADR-macOS-003) and
-    /// overwrites whatever latency the accumulator supplied.
+    /// Retained per D14, but note the stated reason was wrong: `ICMPLatencyPhase`
+    /// opens an *unprivileged* `SOCK_DGRAM` ICMP socket, not the raw `ICMPSocket`
+    /// that needs an entitlement, and it works in the sandboxed app (measured
+    /// 2026-09-19 on mini-pro-2: socket fd ok, gateway 3.96 ms). ADR-macOS-003 makes
+    /// real ICMP primary and shell ping the fallback, so this pass currently
+    /// overwrites a working ICMP measurement. Scheduled to become a fallback-only
+    /// phase — see `docs/plans/2026-09-19-implementation-plan-scan-seam-completion.md` (E3).
     private func measureDeviceLatencies(profileID: UUID?) async {
         let devices = fetchDevices(for: profileID).filter { $0.status == .online }
         guard !devices.isEmpty else { return }
