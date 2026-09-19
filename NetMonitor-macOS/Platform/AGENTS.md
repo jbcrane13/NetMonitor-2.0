@@ -11,7 +11,7 @@ macOS-specific service implementations. Implements protocols from `NetMonitorCor
 | File | Description |
 |------|-------------|
 | `ShellCommandRunner.swift` | Executes shell commands via `Foundation.Process`; used by ping and ARP services |
-| `ShellPingService.swift` | Implements `PingServiceProtocol` by shelling to `/sbin/ping` |
+| `ShellPingService.swift` | Bare actor shelling to `/sbin/ping` for latency measurement (does not conform to `PingServiceProtocol`) |
 | `ARPScannerService.swift` | Implements device discovery by parsing `arp -a` output |
 | `ICMPMonitorService.swift` | Continuous ICMP monitoring using `ICMPSocket` (raw socket) |
 | `HTTPMonitorService.swift` | HTTP/HTTPS target monitoring via `URLSession` |

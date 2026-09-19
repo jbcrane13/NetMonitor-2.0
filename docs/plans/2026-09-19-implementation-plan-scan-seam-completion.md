@@ -88,7 +88,7 @@ Verified entirely with `swift test` in both packages — no app build required.
 
 ### P3 — corrections (reduced)
 
-The ICMP corrections and the ADR consequence line **landed in 761c807 (#293)**. What remains: normalise the ADR label — `docs/ADR-macOS.md` numbers its entries `ADR-001…ADR-009`, but `lessons-learned.md`, the coordinator doc comment and both plans cite a non-existent `ADR-macOS-003`; pick one form and use it everywhere. And fix the two conformance claims card 8 identified — `NetMonitor-macOS/Platform/AGENTS.md:14` says `ShellPingService` conforms to `PingServiceProtocol` (it is a bare `actor` at `ShellPingService.swift:30`), and the doc comment at `ServiceProtocols.swift:480-483` says `CompanionService` conforms to `MacConnectionServiceProtocol` (only iOS's `MacConnectionService.swift:24` does). 
+The ICMP corrections and the ADR consequence line **landed in 761c807 (#293)**. What remains: normalise the ADR label — `docs/ADR-macOS.md` numbers its entries `ADR-001…ADR-009`, but `lessons-learned.md`, the coordinator doc comment and both plans cite a non-existent compound `ADR-macOS-NNN` label; pick one form and use it everywhere. And fix the two conformance claims card 8 identified — `NetMonitor-macOS/Platform/AGENTS.md:14` says `ShellPingService` conforms to `PingServiceProtocol` (it is a bare `actor` at `ShellPingService.swift:30`), and the doc comment at `ServiceProtocols.swift:480-483` says `CompanionService` conforms to `MacConnectionServiceProtocol` (only iOS's `MacConnectionService.swift:24` does). 
 
 ## Deliverable slices
 

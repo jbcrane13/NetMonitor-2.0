@@ -478,8 +478,9 @@ public enum MacConnectionState: Sendable, Equatable {
 }
 
 /// Minimal protocol for the Mac companion connection service.
-/// Full implementation lives in platform targets (MacConnectionService on iOS,
-/// CompanionService on macOS). Only the subset used by DeviceDiscoveryService
+/// Implemented by `MacConnectionService` on iOS. macOS's `CompanionService` is the
+/// listener at the other end of that connection (Bonjour advertisement + `NWListener`)
+/// and does not conform to this protocol. Only the subset used by DeviceDiscoveryService
 /// is required here.
 @MainActor
 public protocol MacConnectionServiceProtocol: AnyObject {
