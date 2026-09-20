@@ -54,7 +54,7 @@ final class MacConnectionService: MacConnectionServiceProtocol {
     private var lastConnectedEndpoint: NWEndpoint?
     private var lastConnectedMacName: String?
     private var shouldAutoReconnect = false
-    private var reconnectAttempt = 0
+    private var linkSession = CompanionLinkSession(heartbeatInterval: MacConnectionService.heartbeatInterval)
     private let networkProfileManager: NetworkProfileManager
 
     // MARK: - Constants
@@ -176,7 +176,7 @@ final class MacConnectionService: MacConnectionServiceProtocol {
     func disconnect() {
         connectionGeneration = UUID()
         shouldAutoReconnect = false
-        reconnectAttempt = 0
+        linkSession.reset()
         heartbeatTask?.cancel()
         heartbeatTask = nil
         reconnectTask?.cancel()
@@ -214,7 +214,7 @@ final class MacConnectionService: MacConnectionServiceProtocol {
     ) {
         switch state {
         case .ready:
-            reconnectAttempt = 0
+            linkSession.recordConnected(at: Date())
             connectionState = .connected
             connectedMacName = macName
             lastConnectedEndpoint = pendingEndpoint
@@ -225,7 +225,7 @@ final class MacConnectionService: MacConnectionServiceProtocol {
                 guard let self, self.connectionGeneration == generation else { return }
                 try? await Task.sleep(for: .milliseconds(100))
                 guard self.connectionGeneration == generation else { return }
-                self.startHeartbeat()
+                self.startHeartbeat(generation: generation)
                 self.scheduleReceive(connection: connection, generation: generation)
                 await self.sendLocalNetworkProfile()
             }
@@ -329,6 +329,8 @@ final class MacConnectionService: MacConnectionServiceProtocol {
     }
 
     private func handleMessage(_ message: CompanionMessage) {
+        // Any inbound message proves the link is alive, not just heartbeats.
+        linkSession.recordReceived(at: Date())
         Self.logger.debug("Received companion message: \(message.logName, privacy: .public)")
         switch message {
         case .statusUpdate(let payload):
@@ -363,6 +365,10 @@ final class MacConnectionService: MacConnectionServiceProtocol {
 
     // MARK: - Testing Support
 
+    /// Exposes the delegated link session state for tests, proving MacConnectionService keeps
+    /// no parallel copy of liveness/reconnect state.
+    var linkSessionForTesting: CompanionLinkSession { linkSession }
+
     func processIncomingDataForTesting(_ data: Data) async {
         let batch = await frameDecoder.append(data)
         for message in batch.messages {
@@ -389,13 +395,18 @@ final class MacConnectionService: MacConnectionServiceProtocol {
 
     // MARK: - Heartbeat
 
-    private func startHeartbeat() {
+    private func startHeartbeat(generation: UUID) {
         heartbeatTask?.cancel()
         heartbeatTask = Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(Self.heartbeatInterval))
                 guard !Task.isCancelled else { break }
-                await self?.sendHeartbeat()
+                guard let self else { break }
+                await self.sendHeartbeat()
+                let stillAlive = self.checkLinkLiveness(generation: generation)
+                if !stillAlive {
+                    break
+                }
             }
         }
     }
@@ -408,14 +419,21 @@ final class MacConnectionService: MacConnectionServiceProtocol {
         await sendMessage(message)
     }
 
-    // MARK: - Reconnect
-
-    static func reconnectDelay(attempt: Int, jitterFraction: Double) -> TimeInterval {
-        let exponent = Double(max(attempt - 1, 0))
-        let base = min(60, pow(2, exponent))
-        let jitter = base * 0.25 * min(max(jitterFraction, 0), 1)
-        return min(60, base + jitter)
+    /// Checks whether the companion link is still alive after a heartbeat send. If it has gone
+    /// stale (no inbound message within `heartbeatInterval * missedBeatsBeforeStale`), tears down
+    /// the connection so the existing `scheduleReconnect` path takes over. Returns whether the
+    /// heartbeat loop should keep running.
+    private func checkLinkLiveness(generation: UUID) -> Bool {
+        guard connectionGeneration == generation else { return false }
+        guard linkSession.isAlive(now: Date()) else {
+            Self.logger.warning("Companion link stale — no messages received recently, reconnecting")
+            connection?.cancel()
+            return false
+        }
+        return true
     }
+
+    // MARK: - Reconnect
 
     private func scheduleReconnect(generation: UUID) {
         guard shouldAutoReconnect,
@@ -423,8 +441,7 @@ final class MacConnectionService: MacConnectionServiceProtocol {
               reconnectTask == nil,
               let endpoint = lastConnectedEndpoint ?? pendingEndpoint else { return }
 
-        reconnectAttempt += 1
-        let delay = Self.reconnectDelay(attempt: reconnectAttempt, jitterFraction: Double.random(in: 0...1))
+        let delay = linkSession.nextReconnectDelay(jitterFraction: Double.random(in: 0...1))
         reconnectTask = Task { [weak self] in
             try? await Task.sleep(for: .seconds(delay))
             guard !Task.isCancelled else { return }
