@@ -363,19 +363,6 @@ final class MacConnectionService: MacConnectionServiceProtocol {
         }
     }
 
-    // MARK: - Testing Support
-
-    /// Exposes the delegated link session state for tests, proving MacConnectionService keeps
-    /// no parallel copy of liveness/reconnect state.
-    var linkSessionForTesting: CompanionLinkSession { linkSession }
-
-    func processIncomingDataForTesting(_ data: Data) async {
-        let batch = await frameDecoder.append(data)
-        for message in batch.messages {
-            handleMessage(message)
-        }
-    }
-
     private func sendLocalNetworkProfile() async {
         networkProfileManager.detectLocalNetwork()
         guard let profile = networkProfileManager.profiles.first(where: { $0.isLocal })
@@ -457,6 +444,21 @@ final class MacConnectionService: MacConnectionServiceProtocol {
                 let conn = NWConnection(to: endpoint, using: parameters)
                 self.setupConnection(conn, macName: self.lastConnectedMacName ?? "Mac")
             }
+        }
+    }
+}
+
+// MARK: - Testing Support
+
+extension MacConnectionService {
+    /// Exposes the delegated link session state for tests, proving MacConnectionService keeps
+    /// no parallel copy of liveness/reconnect state.
+    var linkSessionForTesting: CompanionLinkSession { linkSession }
+
+    func processIncomingDataForTesting(_ data: Data) async {
+        let batch = await frameDecoder.append(data)
+        for message in batch.messages {
+            handleMessage(message)
         }
     }
 }
