@@ -18,9 +18,15 @@ public actor PortScannerService: PortScannerServiceProtocol {
             Task {
                 let runID = self.beginRun()
 
+                // Reject out-of-range ports before probing: port 0 is not a scannable
+                // destination, and anything above 65535 cannot be represented as a
+                // `UInt16` port number (see `Self.isValidPort`). Filtering here means
+                // an invalid entry is skipped entirely rather than reported as a result.
+                let scannablePorts = ports.filter(Self.isValidPort)
+
                 await withTaskGroup(of: PortScanResult.self) { group in
                     var pending = 0
-                    var portIterator = ports.makeIterator()
+                    var portIterator = scannablePorts.makeIterator()
 
                     while self.shouldContinue(runID: runID) {
                         while pending < maxConcurrent, let port = portIterator.next() {
@@ -65,6 +71,11 @@ public actor PortScannerService: PortScannerServiceProtocol {
         isRunning = false
     }
 
+    /// A port this service can actually probe: representable as a `UInt16` and not port 0.
+    static func isValidPort(_ port: Int) -> Bool {
+        port > 0 && port <= 65535
+    }
+
     private func scanPort(host: String, port: Int, timeout: TimeInterval) async -> PortScanResult {
         let filteredSentinel = PortScanResult(
             port: port,
@@ -74,12 +85,21 @@ public actor PortScannerService: PortScannerServiceProtocol {
             responseTime: nil
         )
 
+        // Defence in depth: `scan(host:ports:timeout:)` filters invalid ports, but this
+        // guard keeps the conversion total. `UInt16(port)` traps above 65535, so a future
+        // caller reaching here directly would crash the process rather than fail the probe.
+        guard let portNumber = UInt16(exactly: port),
+              let endpointPort = NWEndpoint.Port(rawValue: portNumber),
+              Self.isValidPort(port) else {
+            return filteredSentinel
+        }
+
         let result = await withConnectionSlot { () async -> PortScanResult in
             let start = Date()
 
             let endpoint = NWEndpoint.hostPort(
                 host: NWEndpoint.Host(host),
-                port: NWEndpoint.Port(rawValue: UInt16(port))!
+                port: endpointPort
             )
 
             let parameters = NWParameters.tcp
