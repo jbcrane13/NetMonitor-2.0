@@ -195,14 +195,42 @@ struct MacConnectionServiceTests {
 
     @Test("reconnect policy uses capped exponential backoff")
     func reconnectBackoffPolicy() {
-        let first = MacConnectionService.reconnectDelay(attempt: 1, jitterFraction: 0)
-        let second = MacConnectionService.reconnectDelay(attempt: 2, jitterFraction: 0)
-        let jittered = MacConnectionService.reconnectDelay(attempt: 3, jitterFraction: 1)
-        let capped = MacConnectionService.reconnectDelay(attempt: 20, jitterFraction: 1)
+        // Backoff now lives on CompanionLinkSession (Packages/NetMonitorCore); this test
+        // keeps its original expectations while calling through the new location.
+        let first = CompanionLinkSession.reconnectDelay(attempt: 1, jitterFraction: 0)
+        let second = CompanionLinkSession.reconnectDelay(attempt: 2, jitterFraction: 0)
+        let jittered = CompanionLinkSession.reconnectDelay(attempt: 3, jitterFraction: 1)
+        let capped = CompanionLinkSession.reconnectDelay(attempt: 20, jitterFraction: 1)
 
         #expect(first == 1)
         #expect(second == 2)
         #expect(jittered == 5)
         #expect(capped == 60)
+    }
+
+    // MARK: - CompanionLinkSession delegation
+
+    @Test("MacConnectionService delegates liveness tracking to CompanionLinkSession rather than keeping its own copy")
+    func delegatesLivenessToLinkSession() async throws {
+        let service = MacConnectionService.shared
+        service.disconnect()
+
+        // After disconnect/reset, nothing has been received.
+        #expect(service.linkSessionForTesting.lastReceived == nil)
+        #expect(service.linkSessionForTesting.reconnectAttempt == 0)
+
+        // Any inbound message — not just heartbeats — should update the session's liveness,
+        // proving MacConnectionService routes through CompanionLinkSession instead of tracking
+        // its own last-received timestamp.
+        let message = CompanionMessage.statusUpdate(StatusUpdatePayload(
+            isMonitoring: true,
+            onlineTargets: 1,
+            offlineTargets: 0,
+            averageLatency: 5.0
+        ))
+        let data = try message.encodeLengthPrefixed()
+        await service.processIncomingDataForTesting(data)
+
+        #expect(service.linkSessionForTesting.lastReceived != nil)
     }
 }
