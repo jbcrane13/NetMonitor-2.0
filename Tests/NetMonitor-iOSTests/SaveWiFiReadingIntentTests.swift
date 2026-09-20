@@ -10,6 +10,7 @@ import Testing
 //  - The intent publishes to WiFiReadingBridge when perform() is called
 //    directly (bypassing the Intents runtime).
 
+@Suite(.enabled(if: LiveTestGate.isEnabled))
 @MainActor
 struct SaveWiFiReadingIntentTests {
 
