@@ -307,6 +307,19 @@ struct PortScannerInvalidPortTests {
         #expect(!invalidPortFound, "port 0 should not be scanned")
     }
 
+    @Test("a mixed list yields results only for the valid ports (#305)")
+    func mixedValidAndInvalidPorts() async {
+        let service = PortScannerService()
+        let stream = await service.scan(host: "127.0.0.1", ports: [0, 22, 99999, 443], timeout: 0.3)
+
+        var scannedPorts: Set<Int> = []
+        for await result in stream {
+            scannedPorts.insert(result.port)
+        }
+
+        #expect(scannedPorts == [22, 443], "only in-range ports should be probed; got \(scannedPorts.sorted())")
+    }
+
     @Test("port >65535 is rejected (out of range)")
     func portAbove65535Rejected() async {
         let service = PortScannerService()
