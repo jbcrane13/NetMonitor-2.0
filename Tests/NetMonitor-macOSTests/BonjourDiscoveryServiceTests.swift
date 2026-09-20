@@ -16,6 +16,7 @@ import Testing
 // Implementation note: NWBrowser callbacks are async and system-level, so tests
 // focus on the observable state, stream behavior, and timeout handling.
 
+@Suite(.enabled(if: LiveTestGate.isEnabled))
 @MainActor
 struct BonjourDiscoveryStreamTests {
 
@@ -99,6 +100,7 @@ struct BonjourDiscoveryStreamTests {
 
 // MARK: - BonjourDiscoveryService Cancellation Tests
 
+@Suite(.enabled(if: LiveTestGate.isEnabled))
 @MainActor
 struct BonjourDiscoveryCancellationTests {
 
@@ -246,6 +248,7 @@ struct BonjourServiceResolutionTests {
 
 // MARK: - BonjourDiscoveryService Type Filtering Tests
 
+@Suite(.enabled(if: LiveTestGate.isEnabled))
 @MainActor
 struct BonjourServiceTypeFilteringTests {
 
@@ -335,6 +338,7 @@ struct BonjourServiceTypeFilteringTests {
 
 // MARK: - BonjourDiscoveryService Deduplication Tests
 
+@Suite(.enabled(if: LiveTestGate.isEnabled))
 @MainActor
 struct BonjourServiceDeduplicationTests {
 
@@ -393,6 +397,7 @@ struct BonjourServiceDeduplicationTests {
 
 // MARK: - BonjourDiscoveryService Observable Tests
 
+@Suite(.enabled(if: LiveTestGate.isEnabled))
 @MainActor
 struct BonjourDiscoveryObservableTests {
 
@@ -506,6 +511,7 @@ struct BonjourServiceModelTests {
 
 // MARK: - BonjourDiscoveryService Sendability Tests
 
+@Suite(.enabled(if: LiveTestGate.isEnabled))
 @MainActor
 struct BonjourServiceSendabilityTests {
 

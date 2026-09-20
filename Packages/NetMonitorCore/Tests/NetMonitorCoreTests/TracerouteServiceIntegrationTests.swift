@@ -11,6 +11,11 @@ import Foundation
 /// Note: ICMP socket availability on macOS test runners depends on sandbox entitlements.
 /// The service falls back gracefully to TCP probing when ICMP sockets are unavailable,
 /// so these tests are valid in both environments.
+///
+/// Gated behind `NETMONITOR_LIVE_TESTS` (see `LiveTestGate`) — even the loopback trace
+/// is environment-dependent enough (ICMP sandbox entitlements, host scheduling) that it
+/// fails under plain `swift test`, and the suite alone runs ~8 minutes.
+@Suite(.enabled(if: LiveTestGate.isEnabled))
 struct TracerouteServiceIntegrationTests {
 
     // MARK: - Loopback trace
