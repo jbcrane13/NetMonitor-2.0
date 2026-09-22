@@ -20,8 +20,11 @@ import XCTest
 final class FunctionalSmokeTests: IOSUITestCase {
 
     /// Shorthand for `app.descendants(matching: .any)[identifier]`.
+    /// Resolves an identifier to one element. `firstMatch` is deliberate: on iOS 26 a Liquid Glass
+    /// card exposes its identifier on both the container and a child, and the single-element
+    /// subscript then fails every tap and property read with "Multiple matching elements found".
     private func ui(_ identifier: String) -> XCUIElement {
-        app.descendants(matching: .any)[identifier]
+        app.descendants(matching: .any).matching(identifier: identifier).firstMatch
     }
 
     /// Returns true if any staticText on screen contains the given substring.
@@ -122,7 +125,7 @@ final class FunctionalSmokeTests: IOSUITestCase {
         requireExists(mapScreen, timeout: 8, message: "Network Map screen should appear")
 
         // Verify network summary renders
-        let summary = ui("networkMap_summary")
+        let summary = ui("networkMap_label_summary")
         requireExists(summary, timeout: 8, message: "Network summary header should exist")
 
         captureScreenshot(named: "04_NetworkMap_Overview")
@@ -170,15 +173,20 @@ final class FunctionalSmokeTests: IOSUITestCase {
         let bgRefresh = ui("settings_toggle_backgroundRefresh")
         scrollToElement(bgRefresh)
         if bgRefresh.exists {
-            let initialValue = bgRefresh.value as? String
-            bgRefresh.tap()
-            let newValue = bgRefresh.value as? String
+            // The identifier lands on the row container as well as the switch on iOS 26; read and
+            // tap the switch itself so `value` reflects the toggle state.
+            let toggle = app.switches.matching(identifier: "settings_toggle_backgroundRefresh").firstMatch
+            let control = toggle.exists ? toggle : bgRefresh
+            let initialValue = control.value as? String
+            control.tap()
+            RunLoop.current.run(until: Date().addingTimeInterval(0.5))
+            let newValue = control.value as? String
             // Toggle should change value (or at least be tappable)
             if let initial = initialValue, let new = newValue {
                 XCTAssertNotEqual(initial, new, "Background refresh toggle should change state")
             }
             // Restore original state
-            bgRefresh.tap()
+            control.tap()
         }
 
         captureScreenshot(named: "06_Settings_Toggles")
