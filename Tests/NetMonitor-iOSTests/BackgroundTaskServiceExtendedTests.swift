@@ -11,28 +11,24 @@ import Testing
 @MainActor
 struct BackgroundTaskServiceExtendedTests {
 
-    // MARK: - Error handling paths
+    // MARK: - Scheduling behaviour (through the injected seams — never the real BGTaskScheduler, #309)
 
     @Test("scheduleRefreshTask respects backgroundRefreshEnabled = false")
     func scheduleRefreshTaskRespectsDisabledFlag() {
-        // When backgroundRefreshEnabled is explicitly false, scheduleRefreshTask
-        // should cancel the task rather than submit. In the test sandbox,
-        // BGTaskScheduler operations are no-ops, but the code path must not crash.
         let defaults = UserDefaults.standard
         let key = AppSettings.Keys.backgroundRefreshEnabled
         let original = defaults.object(forKey: key)
-        defer {
-            if let original {
-                defaults.set(original, forKey: key)
-            }
-            else {
-                defaults.removeObject(forKey: key)
-            }
-        }
+        defer { restoreDefault(defaults, key: key, to: original) }
         defaults.set(false, forKey: key)
-        let service = BackgroundTaskService.shared
-        // Must not crash when background refresh is disabled
+
+        let recorder = ScheduledRequestRecorder()
+        let service = recorder.makeService()
+        service.registerTasks()
         service.scheduleRefreshTask()
+
+        // Disabled → cancel the pending request, never submit a new one.
+        #expect(recorder.cancelled == [BackgroundTaskService.refreshTaskIdentifier])
+        #expect(recorder.submitted.isEmpty)
     }
 
     @Test("scheduleRefreshTask allows scheduling when backgroundRefreshEnabled is true")
@@ -40,18 +36,16 @@ struct BackgroundTaskServiceExtendedTests {
         let defaults = UserDefaults.standard
         let key = AppSettings.Keys.backgroundRefreshEnabled
         let original = defaults.object(forKey: key)
-        defer {
-            if let original {
-                defaults.set(original, forKey: key)
-            }
-            else {
-                defaults.removeObject(forKey: key)
-            }
-        }
+        defer { restoreDefault(defaults, key: key, to: original) }
         defaults.set(true, forKey: key)
-        let service = BackgroundTaskService.shared
-        // In test sandbox, submit() throws notPermitted which is caught internally
+
+        let recorder = ScheduledRequestRecorder()
+        let service = recorder.makeService()
+        service.registerTasks()
         service.scheduleRefreshTask()
+
+        #expect(recorder.submitted.map(\.identifier) == [BackgroundTaskService.refreshTaskIdentifier])
+        #expect(recorder.cancelled.isEmpty)
     }
 
     @Test("scheduleRefreshTask defaults to enabled when key is absent")
@@ -59,18 +53,16 @@ struct BackgroundTaskServiceExtendedTests {
         let defaults = UserDefaults.standard
         let key = AppSettings.Keys.backgroundRefreshEnabled
         let original = defaults.object(forKey: key)
-        defer {
-            if let original {
-                defaults.set(original, forKey: key)
-            }
-            else {
-                defaults.removeObject(forKey: key)
-            }
-        }
+        defer { restoreDefault(defaults, key: key, to: original) }
         defaults.removeObject(forKey: key)
-        let service = BackgroundTaskService.shared
-        // With key absent, the guard defaults to true and attempts to schedule
+
+        let recorder = ScheduledRequestRecorder()
+        let service = recorder.makeService()
+        service.registerTasks()
         service.scheduleRefreshTask()
+
+        // Key absent → treated as enabled → a refresh request is submitted.
+        #expect(recorder.submitted.map(\.identifier) == [BackgroundTaskService.refreshTaskIdentifier])
     }
 
     // MARK: - Refresh interval configuration

@@ -3,6 +3,7 @@ import SwiftData
 import Testing
 import NetMonitorCore
 @testable import NetMonitor_macOS
+import NetworkScanKit
 
 @Suite(.serialized)
 @MainActor
@@ -32,7 +33,9 @@ struct CompanionMessageHandlerExtendedTests {
         let deviceDiscovery = DeviceDiscoveryCoordinator(
             modelContext: context,
             bonjourScanner: BonjourDiscoveryService(),
-            networkProfileManager: networkProfileManager
+            networkProfileManager: networkProfileManager,
+            // Empty pipeline: `.scanDevices` must not start a real LAN scan from a unit test (#309).
+            pipelineFactory: { _ in ScanPipeline(steps: []) }
         )
 
         let handler = CompanionMessageHandler(
@@ -114,8 +117,9 @@ struct CompanionMessageHandlerExtendedTests {
     // MARK: - scanRequest Handling
 
     @Test func scanDevicesCommandReturnsToolResultSuccess() async throws {
-        let (container, _, handler, _, _) = try makeFixture()
-        _ = container
+        let (container, _, handler, deviceDiscovery, _) = try makeFixture()
+        defer { withExtendedLifetime(container) {} }
+        defer { deviceDiscovery.stopScan() }
 
         let response = await handler.handle(.command(CommandPayload(action: .scanDevices)), from: UUID())
         guard case .toolResult(let payload)? = response else {

@@ -3,6 +3,7 @@ import SwiftData
 import Testing
 import NetMonitorCore
 @testable import NetMonitor_macOS
+import NetworkScanKit
 
 // Regression tests for commit 510c0c8:
 // "Scan This Network" button was silently no-op because the scanAction closure
@@ -30,7 +31,13 @@ struct NetworkDetailViewScanRegressionTests {
         DeviceDiscoveryCoordinator(
             modelContext: context,
             bonjourScanner: BonjourDiscoveryService(),
-            networkProfileManager: NetworkProfileManager()
+            networkProfileManager: NetworkProfileManager(),
+            // A holding fixture, never the production pipeline: these tests assert the
+            // coordinator's scan lifecycle, not discovery. A real LAN scan started here used to
+            // outlive the test and trap on its released ModelContainer (#309).
+            pipelineFactory: { _ in
+                ScanPipeline(steps: [ScanPipeline.Step(phases: [HoldingScanPhase()], concurrent: false)])
+            }
         )
     }
 
@@ -64,8 +71,9 @@ struct NetworkDetailViewScanRegressionTests {
     @Test("scanNetwork sets networkProfile to the passed profile")
     func scanNetworkSetsNetworkProfile() throws {
         let (container, context) = try makeInMemoryStore()
-        _ = container
+        defer { withExtendedLifetime(container) {} }
         let coordinator = makeCoordinator(context: context)
+        defer { coordinator.stopScan() }
         let profile = makeProfile(name: "HomeNet")
 
         coordinator.scanNetwork(profile)
@@ -77,8 +85,9 @@ struct NetworkDetailViewScanRegressionTests {
     @Test("scanNetwork triggers isScanning=true")
     func scanNetworkTriggersIsScanning() throws {
         let (container, context) = try makeInMemoryStore()
-        _ = container
+        defer { withExtendedLifetime(container) {} }
         let coordinator = makeCoordinator(context: context)
+        defer { coordinator.stopScan() }
 
         #expect(coordinator.isScanning == false)
         coordinator.scanNetwork(makeProfile())
@@ -89,8 +98,9 @@ struct NetworkDetailViewScanRegressionTests {
     @Test("scanNetwork while already scanning is idempotent")
     func scanNetworkWhileAlreadyScanningIsIdempotent() throws {
         let (container, context) = try makeInMemoryStore()
-        _ = container
+        defer { withExtendedLifetime(container) {} }
         let coordinator = makeCoordinator(context: context)
+        defer { coordinator.stopScan() }
 
         coordinator.scanNetwork(makeProfile(name: "Net1"))
         #expect(coordinator.isScanning == true)
@@ -106,8 +116,9 @@ struct NetworkDetailViewScanRegressionTests {
     @Test("stopScan clears isScanning so button re-enables")
     func stopScanClearsIsScanning() throws {
         let (container, context) = try makeInMemoryStore()
-        _ = container
+        defer { withExtendedLifetime(container) {} }
         let coordinator = makeCoordinator(context: context)
+        defer { coordinator.stopScan() }
 
         coordinator.scanNetwork(makeProfile())
         #expect(coordinator.isScanning == true)
@@ -120,8 +131,9 @@ struct NetworkDetailViewScanRegressionTests {
     @Test("scanProgress advances once scan task begins")
     func scanProgressAdvancesWhenScanBegins() async throws {
         let (container, context) = try makeInMemoryStore()
-        _ = container
+        defer { withExtendedLifetime(container) {} }
         let coordinator = makeCoordinator(context: context)
+        defer { coordinator.stopScan() }
 
         #expect(coordinator.scanProgress == 0.0)
         coordinator.scanNetwork(makeProfile())
@@ -133,5 +145,24 @@ struct NetworkDetailViewScanRegressionTests {
                 "scanProgress must advance — the UI ProgressView depends on this value")
 
         coordinator.stopScan()
+    }
+}
+
+// MARK: - Fixture
+
+/// Reports a little progress, then holds the scan open until cancelled, so `isScanning`
+/// and `scanProgress` can be asserted without any network activity.
+private struct HoldingScanPhase: ScanPhase, Sendable {
+    let id: ScanPhaseID = "fixtureHold"
+    let displayName = "Fixture hold"
+    let weight: Double = 1.0
+
+    func execute(
+        context: ScanContext,
+        accumulator: ScanAccumulator,
+        onProgress: @Sendable (Double) async -> Void
+    ) async {
+        await onProgress(0.1)
+        try? await Task.sleep(for: .seconds(30))  // returns immediately on cancellation
     }
 }

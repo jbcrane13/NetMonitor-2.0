@@ -11,6 +11,8 @@ import os
 @MainActor
 final class BackgroundTaskService {
     typealias TaskRegistration = (String, DispatchQueue?, @escaping (BGTask) -> Void) -> Bool
+    typealias TaskSubmission = (BGTaskRequest) throws -> Void
+    typealias TaskCancellation = (String) -> Void
 
     static let shared = BackgroundTaskService()
     private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "com.blakemiller.netmonitor", category: "BackgroundTaskService")
@@ -20,16 +22,40 @@ final class BackgroundTaskService {
     static let scheduledNetworkScanTaskIdentifier = "com.blakemiller.netmonitor.scheduledNetworkScan"
 
     private let registerTask: TaskRegistration
+    private let submitTask: TaskSubmission
+    private let cancelTask: TaskCancellation
     private var hasRegisteredTasks = false
 
-    init(registerTask: @escaping TaskRegistration = { identifier, queue, launchHandler in
-        BGTaskScheduler.shared.register(
-            forTaskWithIdentifier: identifier,
-            using: queue,
-            launchHandler: launchHandler
-        )
-    }) {
+    init(
+        registerTask: @escaping TaskRegistration = { identifier, queue, launchHandler in
+            BGTaskScheduler.shared.register(
+                forTaskWithIdentifier: identifier,
+                using: queue,
+                launchHandler: launchHandler
+            )
+        },
+        submitTask: @escaping TaskSubmission = { try BGTaskScheduler.shared.submit($0) },
+        cancelTask: @escaping TaskCancellation = { BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: $0) }
+    ) {
         self.registerTask = registerTask
+        self.submitTask = submitTask
+        self.cancelTask = cancelTask
+    }
+
+    /// Submits a request only once `registerTasks()` has run in this process.
+    ///
+    /// `BGTaskScheduler.submit` for an identifier that has no registered launch handler does not
+    /// return an error — it raises an Objective-C exception
+    /// (`-[BGTaskScheduler _handleSubmissionWithoutRegistrationForTaskRequest:error:]`), which Swift
+    /// `try`/`catch` cannot intercept, so the process aborts. The `do`/`catch` around every submit
+    /// site only ever covered the *error* path. Refusing to submit before registration closes the
+    /// exception path entirely; the log line is the signal that launch ordering is wrong (#309).
+    private func submitScheduledRequest(_ request: BGTaskRequest) throws {
+        guard hasRegisteredTasks else {
+            Self.logger.error("Refusing to submit \(request.identifier, privacy: .public) before registerTasks(): it would raise an uncatchable exception")
+            return
+        }
+        try submitTask(request)
     }
 
     // MARK: - Registration
@@ -84,7 +110,7 @@ final class BackgroundTaskService {
     func scheduleRefreshTask() {
         guard UserDefaults.standard.object(forKey: AppSettings.Keys.backgroundRefreshEnabled) as? Bool ?? true else {
             Self.logger.info("Background refresh disabled, cancelling scheduled task")
-            BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: Self.refreshTaskIdentifier)
+            cancelTask(Self.refreshTaskIdentifier)
             return
         }
         let request = BGAppRefreshTaskRequest(identifier: Self.refreshTaskIdentifier)
@@ -96,7 +122,7 @@ final class BackgroundTaskService {
 
         request.earliestBeginDate = Date(timeIntervalSinceNow: effectiveInterval)
         do {
-            try BGTaskScheduler.shared.submit(request)
+            try submitScheduledRequest(request)
             Self.logger.info("Scheduled refresh task for \(effectiveInterval / 60, format: .fixed(precision: 1)) minutes from now")
         } catch {
             Self.logger.error("Failed to schedule refresh task: \(error)")
@@ -109,7 +135,7 @@ final class BackgroundTaskService {
         request.requiresNetworkConnectivity = true
         request.requiresExternalPower = false
         do {
-            try BGTaskScheduler.shared.submit(request)
+            try submitScheduledRequest(request)
             Self.logger.info("Scheduled sync task for 1 hour from now")
         } catch {
             Self.logger.error("Failed to schedule sync task: \(error)")
@@ -418,7 +444,7 @@ final class BackgroundTaskService {
     func scheduleNetworkScanTask() {
         guard (UserDefaults.standard.object(forKey: "scheduledScan_enabled") as? Bool) == true else {
             Self.logger.info("Scheduled network scan disabled, cancelling task")
-            BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: Self.scheduledNetworkScanTaskIdentifier)
+            cancelTask(Self.scheduledNetworkScanTaskIdentifier)
             return
         }
         let intervalRaw = UserDefaults.standard.integer(forKey: "scheduledScan_interval")
@@ -428,7 +454,7 @@ final class BackgroundTaskService {
         request.requiresNetworkConnectivity = true
         request.requiresExternalPower = false
         do {
-            try BGTaskScheduler.shared.submit(request)
+            try submitScheduledRequest(request)
             Self.logger.info("Scheduled network scan task for \(max(15 * 60, interval) / 60, format: .fixed(precision: 1)) minutes from now")
         } catch {
             Self.logger.error("Failed to schedule network scan task: \(error)")

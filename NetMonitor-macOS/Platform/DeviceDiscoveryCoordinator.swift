@@ -197,12 +197,17 @@ final class DeviceDiscoveryCoordinator {
         accumulator: ScanAccumulator,
         enrichmentPhaseIDs: Set<ScanPhaseID>
     ) async {
+        // `stopScan()` cancels `scanTask`, but the engine may already be inside this callback.
+        // Never touch SwiftData after cancellation: the owner may be tearing down, and a
+        // fetch against a released container traps inside SwiftData (#309).
+        guard !Task.isCancelled else { return }
         scanProgress = min(progress, 1.0)
 
         guard !didMergeAtEnrichmentTransition, enrichmentPhaseIDs.contains(phaseID) else { return }
         didMergeAtEnrichmentTransition = true
 
         let snapshot = await accumulator.sortedSnapshot()
+        guard !Task.isCancelled else { return }
         let sparse = Self.mapDiscoveredDevices(snapshot)
         mergeDiscoveredDevices(sparse, profileID: profileID, recordLatencyHistory: false)
     }
