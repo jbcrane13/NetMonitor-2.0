@@ -1,10 +1,11 @@
-import Testing
+import BackgroundTasks
 import Foundation
+import Testing
 @testable import NetMonitor_iOS
 
-// Note: BGTaskScheduler registration can only be tested in a simulator/device context
-// with a running app process. These tests verify service configuration and identifier
-// format without actually scheduling tasks.
+// BGTaskScheduler itself is never exercised here: `submit` for an identifier with no registered
+// launch handler raises an Objective-C exception that Swift cannot catch, which crashed the test
+// runner for months (#309). Scheduling behaviour is asserted through the injected seams instead.
 
 @MainActor
 struct BackgroundTaskServiceTests {
@@ -45,13 +46,75 @@ struct BackgroundTaskServiceTests {
         _ = service
     }
 
-    @Test("scheduleRefreshTask does not crash when called outside app context")
-    func scheduleRefreshTaskDoesNotCrash() {
-        // INTEGRATION GAP: In the test sandbox, BGTaskScheduler.shared.submit() will
-        // throw BGTaskScheduler.Error.notPermitted because tasks are not registered.
-        // BackgroundTaskService.scheduleRefreshTask() already catches and logs this error,
-        // so calling it here must not propagate an exception.
-        let service = BackgroundTaskService.shared
+    @Test("scheduleRefreshTask submits a refresh request once tasks are registered")
+    func scheduleRefreshTaskSubmitsAfterRegistration() {
+        let recorder = ScheduledRequestRecorder()
+        let service = recorder.makeService()
+        let defaults = UserDefaults.standard
+        let key = AppSettings.Keys.backgroundRefreshEnabled
+        let original = defaults.object(forKey: key)
+        defer { restoreDefault(defaults, key: key, to: original) }
+        defaults.set(true, forKey: key)
+
+        service.registerTasks()
+        let before = Date()
         service.scheduleRefreshTask()
+
+        #expect(recorder.submitted.count == 1)
+        let request = recorder.submitted.first
+        #expect(request is BGAppRefreshTaskRequest)
+        #expect(request?.identifier == BackgroundTaskService.refreshTaskIdentifier)
+        // BGTaskScheduler enforces a 15-minute minimum; the service must never ask for less.
+        #expect((request?.earliestBeginDate ?? .distantPast) >= before.addingTimeInterval(15 * 60 - 1))
+        #expect(recorder.cancelled.isEmpty)
+    }
+
+    @Test("submitting before registerTasks() is refused without raising (#309)")
+    func submitBeforeRegistrationIsRefused() {
+        // Real BGTaskScheduler.submit raises an uncatchable ObjC exception for an unregistered
+        // identifier — the previous version of this test crashed the whole test runner on it.
+        let recorder = ScheduledRequestRecorder()
+        let service = recorder.makeService()
+        let defaults = UserDefaults.standard
+        let key = AppSettings.Keys.backgroundRefreshEnabled
+        let original = defaults.object(forKey: key)
+        defer { restoreDefault(defaults, key: key, to: original) }
+        defaults.set(true, forKey: key)
+
+        service.scheduleRefreshTask()  // no registerTasks() first
+
+        #expect(recorder.submitted.isEmpty, "submit must be refused until tasks are registered")
+        #expect(recorder.cancelled.isEmpty)
+    }
+}
+
+// MARK: - Shared test seam
+
+/// Records what `BackgroundTaskService` asks the scheduler to do, so tests never touch the real
+/// `BGTaskScheduler` — whose `submit` raises an uncatchable ObjC exception in a test host that has
+/// not registered the identifier (#309). Also used by `BackgroundTaskServiceExtendedTests`.
+@MainActor
+final class ScheduledRequestRecorder {
+    private(set) var registered: [String] = []
+    private(set) var submitted: [BGTaskRequest] = []
+    private(set) var cancelled: [String] = []
+
+    func makeService() -> BackgroundTaskService {
+        BackgroundTaskService(
+            registerTask: { [self] identifier, _, _ in registered.append(identifier)
+            return true
+            },
+            submitTask: { [self] request in submitted.append(request) },
+            cancelTask: { [self] identifier in cancelled.append(identifier) }
+        )
+    }
+}
+
+@MainActor
+func restoreDefault(_ defaults: UserDefaults, key: String, to original: Any?) {
+    if let original {
+        defaults.set(original, forKey: key)
+    } else {
+        defaults.removeObject(forKey: key)
     }
 }

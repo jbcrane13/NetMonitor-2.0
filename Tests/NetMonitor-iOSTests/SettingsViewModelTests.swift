@@ -218,7 +218,10 @@ struct SettingsViewModelDataManagementTests {
     }
 
     @Test func clearAllHistoryDeletesToolResults() throws {
-        let (_, context) = try makeInMemoryStore()
+        let (container, context) = try makeInMemoryStore()
+        // Keep the container alive for the whole test: `mainContext` does not retain it,
+        // and a freed container makes the next SwiftData call a use-after-free trap (#309).
+        defer { withExtendedLifetime(container) {} }
         let result = ToolResult(toolType: .ping, target: "8.8.8.8", success: true, summary: "OK")
         context.insert(result)
         try context.save()
@@ -230,7 +233,10 @@ struct SettingsViewModelDataManagementTests {
     }
 
     @Test func clearAllHistoryDeletesSpeedTestResults() throws {
-        let (_, context) = try makeInMemoryStore()
+        let (container, context) = try makeInMemoryStore()
+        // Keep the container alive for the whole test: `mainContext` does not retain it,
+        // and a freed container makes the next SwiftData call a use-after-free trap (#309).
+        defer { withExtendedLifetime(container) {} }
         context.insert(SpeedTestResult(downloadSpeed: 100, uploadSpeed: 50, latency: 20))
         try context.save()
 
@@ -241,7 +247,10 @@ struct SettingsViewModelDataManagementTests {
     }
 
     @Test func clearAllCachedDataSetsClearCacheSuccessTrue() async throws {
-        let (_, context) = try makeInMemoryStore()
+        let (container, context) = try makeInMemoryStore()
+        // Keep the container alive for the whole test: `mainContext` does not retain it,
+        // and a freed container makes the next SwiftData call a use-after-free trap (#309).
+        defer { withExtendedLifetime(container) {} }
         let vm = SettingsViewModel()
 
         await vm.clearAllCachedData(modelContext: context)
@@ -251,7 +260,10 @@ struct SettingsViewModelDataManagementTests {
     }
 
     @Test func clearAllCachedDataDeletesAllModelTypes() async throws {
-        let (_, context) = try makeInMemoryStore()
+        let (container, context) = try makeInMemoryStore()
+        // Keep the container alive for the whole test: `mainContext` does not retain it,
+        // and a freed container makes the next SwiftData call a use-after-free trap (#309).
+        defer { withExtendedLifetime(container) {} }
         context.insert(ToolResult(toolType: .ping, target: "8.8.8.8", success: true, summary: "OK"))
         context.insert(LocalDevice(ipAddress: "192.168.1.1", macAddress: "AA:BB"))
         try context.save()
@@ -263,7 +275,10 @@ struct SettingsViewModelDataManagementTests {
     }
 
     @Test func pruneExpiredDataDoesNotCrash() throws {
-        let (_, context) = try makeInMemoryStore()
+        let (container, context) = try makeInMemoryStore()
+        // Keep the container alive for the whole test: `mainContext` does not retain it,
+        // and a freed container makes the next SwiftData call a use-after-free trap (#309).
+        defer { withExtendedLifetime(container) {} }
         let vm = SettingsViewModel()
         vm.pruneExpiredData(modelContext: context)
         #expect(vm.isClearingCache == false)

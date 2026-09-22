@@ -59,12 +59,16 @@ struct NDVGatewayLatencyFallbackTests {
             $0.name.localizedCaseInsensitiveContains("gateway")
         }) {
             let history = recentLatencies[gateway.id] ?? []
-            if !history.isEmpty { return history }
+            if !history.isEmpty {
+                return history
+            }
         }
         // Step 2: first ICMP target with data
         for target in targets where target.targetProtocol == .icmp {
             let history = recentLatencies[target.id] ?? []
-            if !history.isEmpty { return history }
+            if !history.isEmpty {
+                return history
+            }
         }
         // Step 3: any target with data
         for (_, history) in recentLatencies where !history.isEmpty {
@@ -461,7 +465,10 @@ struct NetworkDetailViewLifecycleTests {
 
     @Test("onAppear initialises UptimeViewModel and calls load() — isLoading transitions to false")
     func onAppearInitialisesUptimeViewModel() throws {
-        let (_, uptimeContext) = try makeUptimeStore()
+        let (uptimeContainer, uptimeContext) = try makeUptimeStore()
+        // Keep the container alive for the whole test: `mainContext` does not retain it,
+        // and a freed container makes the next SwiftData fetch a use-after-free trap (#309).
+        defer { withExtendedLifetime(uptimeContainer) {} }
 
         let profileID = UUID()
         var uptimeViewModel: UptimeViewModel? = nil
