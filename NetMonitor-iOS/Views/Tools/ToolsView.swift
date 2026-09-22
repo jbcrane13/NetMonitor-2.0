@@ -22,9 +22,7 @@ struct ToolsView: View {
                 }
                 .padding(.horizontal, Theme.Layout.screenPadding)
                 .padding(.bottom, Theme.Layout.sectionSpacing)
-                .scrollTargetLayout()
             }
-            .scrollTargetBehavior(.viewAligned)
             .themedBackground()
             .navigationTitle("Tools")
             .navigationBarTitleDisplayMode(.large)
