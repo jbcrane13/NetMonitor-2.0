@@ -55,20 +55,12 @@ final class FunctionalSmokeTests: IOSUITestCase {
         ).firstMatch
     }
 
-    /// Scrolls the Tools grid with a slow drag. `swipeUp()` moves a SwiftUI scroll view by ~50pt
-    /// at most on iOS 26, which never reaches the Monitoring and Actions sections.
-    private func dragToolsGridUp() {
-        let grid = app.scrollViews.matching(identifier: "screen_tools").firstMatch
-        let start = grid.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.7))
-        let end = grid.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3))
-        start.press(forDuration: 0.1, thenDragTo: end, withVelocity: .slow, thenHoldForDuration: 0.2)
-    }
-
-    /// True when the card is on screen and clear of the tab bar, so a tap reaches it.
-    private func isTappable(_ card: XCUIElement) -> Bool {
+    /// True when the card's upper part is on screen and clear of the floating tab bar, so a tap
+    /// there reaches the card. iOS 26 reports partially covered cards as hittable.
+    private func canTap(_ card: XCUIElement) -> Bool {
         guard card.exists, card.isHittable else { return false }
-        let tabBarTop = app.tabBars.firstMatch.frame.minY
-        return card.frame.minY > 0 && card.frame.maxY < tabBarTop
+        let tapY = card.frame.minY + card.frame.height * 0.3
+        return card.frame.minY >= 0 && tapY < app.tabBars.firstMatch.frame.minY - 8
     }
 
     /// Opens a tool from the Tools tab grid and verifies the screen appears.
@@ -76,11 +68,14 @@ final class FunctionalSmokeTests: IOSUITestCase {
         app.tabBars.buttons["Tools"].tap()
         requireExists(ui("screen_tools"), timeout: 5, message: "Tools screen should appear")
         let card = toolCard(cardID)
-        for _ in 0..<6 where !isTappable(card) {
-            dragToolsGridUp()
+        // On iOS 26 a slow flick moves this SwiftUI grid by ~50pt and a fast one jumps to the end,
+        // so creep down until the card is tappable rather than swiping past it.
+        let grid = app.scrollViews.matching(identifier: "screen_tools").firstMatch
+        for _ in 0..<16 where !canTap(card) {
+            grid.swipeUp(velocity: .slow)
         }
-        XCTAssertTrue(isTappable(card), "\(cardID) should be visible")
-        card.tap()
+        XCTAssertTrue(canTap(card), "\(cardID) should be visible")
+        card.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3)).tap()
         requireExists(ui(screenID), timeout: 8, message: "\(screenID) should appear")
     }
 
