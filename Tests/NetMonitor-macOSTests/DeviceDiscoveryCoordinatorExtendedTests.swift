@@ -3,6 +3,7 @@ import SwiftData
 import Testing
 import NetMonitorCore
 @testable import NetMonitor_macOS
+import NetworkScanKit
 
 @Suite(.serialized)
 @MainActor
@@ -21,7 +22,9 @@ struct DeviceDiscoveryCoordinatorExtendedTests {
         DeviceDiscoveryCoordinator(
             modelContext: context,
             bonjourScanner: BonjourDiscoveryService(),
-            networkProfileManager: NetworkProfileManager()
+            networkProfileManager: NetworkProfileManager(),
+            // Empty pipeline: lifecycle assertions only, no real LAN scan (#309).
+            pipelineFactory: { _ in ScanPipeline(steps: []) }
         )
     }
 
