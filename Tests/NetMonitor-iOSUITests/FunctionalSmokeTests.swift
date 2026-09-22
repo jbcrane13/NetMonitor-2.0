@@ -612,11 +612,14 @@ final class FunctionalSmokeTests: IOSUITestCase {
         goBackToTools()
     }
 
+    private var geoTraceMap: XCUIElement { app.maps.firstMatch }
+
     func test21_GeoTraceShowsMap() {
         openTool(card: "tools_card_geo_trace", screen: "screen_geoTrace")
 
-        // Verify map renders
-        requireExists(ui("geoTrace_label_map"), timeout: 8, message: "Map should be visible")
+        // Verify map renders. iOS 26 stamps the screen identifier over the map's own, so also
+        // accept the map element itself.
+        XCTAssertTrue(waitForEither([geoTraceMap, ui("geoTrace_label_map")], timeout: 8), "Map should be visible")
 
         clearAndTypeText("8.8.8.8", into: app.textFields["geoTrace_input_host"])
         app.buttons["geoTrace_button_trace"].tap()
@@ -634,7 +637,7 @@ final class FunctionalSmokeTests: IOSUITestCase {
         }
 
         // Map should still be present during/after trace
-        XCTAssertTrue(ui("geoTrace_label_map").exists, "Map should remain visible during trace")
+        XCTAssertTrue(geoTraceMap.exists || ui("geoTrace_label_map").exists, "Map should remain visible during trace")
 
         captureScreenshot(named: "21_GeoTrace_Map")
         goBackToTools()
