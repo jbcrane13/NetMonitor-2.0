@@ -34,13 +34,53 @@ final class FunctionalSmokeTests: IOSUITestCase {
         ).firstMatch.waitForExistence(timeout: 3)
     }
 
+    /// Polls until the element's `value` differs from `previous`.
+    private func waitForValueChange(of element: XCUIElement, from previous: String?, timeout: TimeInterval) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if (element.value as? String) != previous {
+                return true
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+        }
+        return false
+    }
+
+    /// The tappable card button. On iOS 26 the `NavigationLink` button carries a synthesized
+    /// identifier made of its children's (`tools_card_ping-tools_card_ping-…`), while the plain
+    /// identifier lands on non-hittable images and texts inside it.
+    private func toolCard(_ cardID: String) -> XCUIElement {
+        app.buttons.matching(
+            NSPredicate(format: "identifier == %@ OR identifier BEGINSWITH %@", cardID, cardID + "-")
+        ).firstMatch
+    }
+
+    /// Scrolls the Tools grid with a slow drag. `swipeUp()` moves a SwiftUI scroll view by ~50pt
+    /// at most on iOS 26, which never reaches the Monitoring and Actions sections.
+    private func dragToolsGridUp() {
+        let grid = app.scrollViews.matching(identifier: "screen_tools").firstMatch
+        let start = grid.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.7))
+        let end = grid.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3))
+        start.press(forDuration: 0.1, thenDragTo: end, withVelocity: .slow, thenHoldForDuration: 0.2)
+    }
+
+    /// True when the card is on screen and clear of the tab bar, so a tap reaches it.
+    private func isTappable(_ card: XCUIElement) -> Bool {
+        guard card.exists, card.isHittable else { return false }
+        let tabBarTop = app.tabBars.firstMatch.frame.minY
+        return card.frame.minY > 0 && card.frame.maxY < tabBarTop
+    }
+
     /// Opens a tool from the Tools tab grid and verifies the screen appears.
     private func openTool(card cardID: String, screen screenID: String) {
         app.tabBars.buttons["Tools"].tap()
         requireExists(ui("screen_tools"), timeout: 5, message: "Tools screen should appear")
-        let card = ui(cardID)
-        scrollToElement(card)
-        requireExists(card, timeout: 5, message: "\(cardID) should be visible").tap()
+        let card = toolCard(cardID)
+        for _ in 0..<6 where !isTappable(card) {
+            dragToolsGridUp()
+        }
+        XCTAssertTrue(isTappable(card), "\(cardID) should be visible")
+        card.tap()
         requireExists(ui(screenID), timeout: 8, message: "\(screenID) should appear")
     }
 
@@ -173,20 +213,19 @@ final class FunctionalSmokeTests: IOSUITestCase {
         let bgRefresh = ui("settings_toggle_backgroundRefresh")
         scrollToElement(bgRefresh)
         if bgRefresh.exists {
-            // The identifier lands on the row container as well as the switch on iOS 26; read and
-            // tap the switch itself so `value` reflects the toggle state.
+            // On iOS 26 the whole settings row is exposed as the switch, so a centre tap lands on
+            // the label and changes nothing; the control itself sits at the trailing edge.
             let toggle = app.switches.matching(identifier: "settings_toggle_backgroundRefresh").firstMatch
             let control = toggle.exists ? toggle : bgRefresh
             let initialValue = control.value as? String
-            control.tap()
-            RunLoop.current.run(until: Date().addingTimeInterval(0.5))
-            let newValue = control.value as? String
-            // Toggle should change value (or at least be tappable)
-            if let initial = initialValue, let new = newValue {
-                XCTAssertNotEqual(initial, new, "Background refresh toggle should change state")
-            }
+            tapTrailingEdge(of: control)
+            XCTAssertTrue(
+                waitForValueChange(of: control, from: initialValue, timeout: 3),
+                "Background refresh toggle should change state"
+            )
             // Restore original state
-            control.tap()
+            tapTrailingEdge(of: control)
+            _ = waitForValueChange(of: control, from: control.value as? String, timeout: 3)
         }
 
         captureScreenshot(named: "06_Settings_Toggles")
@@ -227,7 +266,12 @@ final class FunctionalSmokeTests: IOSUITestCase {
     func test09_TimelineRendersOrEmpty() {
         app.tabBars.buttons["Timeline"].tap()
 
+        requireExists(ui("screen_networkTimeline"), timeout: 8, message: "Timeline screen should appear")
+        // iOS 26 stamps the screen identifier over the list and empty-state containers, so read
+        // the outcome from what the screen shows: the Clear button only exists with events.
         let hasTimeline = waitForEither([
+            ui("timeline_button_clearAll"),
+            app.staticTexts.matching(NSPredicate(format: "label == 'No Events'")).firstMatch,
             ui("timeline_list_events"),
             ui("timeline_label_emptyState")
         ], timeout: 8)
@@ -271,11 +315,10 @@ final class FunctionalSmokeTests: IOSUITestCase {
             let statsCard = ui("pingTool_card_statistics")
             scrollToElement(statsCard)
             if statsCard.exists {
-                let statAvg = ui("pingTool_stat_avg")
-                let statMin = ui("pingTool_stat_min")
-                let statMax = ui("pingTool_stat_max")
+                // The card's identifier is stamped over its items on iOS 26; the summary labels
+                // are still rendered as text.
                 XCTAssertTrue(
-                    statAvg.exists || statMin.exists || statMax.exists,
+                    screenContainsText("Avg") && screenContainsText("Min") && screenContainsText("Max"),
                     "Statistics should show min/avg/max values"
                 )
             }
@@ -493,7 +536,7 @@ final class FunctionalSmokeTests: IOSUITestCase {
     func test18_WorldPingShowsLocations() {
         openTool(card: "tools_card_world_ping", screen: "screen_worldPingTool")
 
-        clearAndTypeText("google.com", into: app.textFields["worldPing_textfield_host"])
+        clearAndTypeText("google.com", into: app.textFields["worldPing_input_host"])
         app.buttons["worldPing_button_run"].tap()
 
         let gotResults = waitForEither([
@@ -517,7 +560,7 @@ final class FunctionalSmokeTests: IOSUITestCase {
     func test19_SSLMonitorShowsCertificate() {
         openTool(card: "tools_card_ssl_monitor", screen: "screen_sslCertificateMonitor")
 
-        clearAndTypeText("example.com", into: app.textFields["sslMonitor_textfield_domain"])
+        clearAndTypeText("example.com", into: app.textFields["ssl_monitor_input_domain"])
         app.buttons["sslMonitor_button_query"].tap()
 
         let gotResults = waitForEither([
@@ -578,13 +621,13 @@ final class FunctionalSmokeTests: IOSUITestCase {
         openTool(card: "tools_card_geo_trace", screen: "screen_geoTrace")
 
         // Verify map renders
-        requireExists(ui("geoTrace_map"), timeout: 8, message: "Map should be visible")
+        requireExists(ui("geoTrace_label_map"), timeout: 8, message: "Map should be visible")
 
-        clearAndTypeText("8.8.8.8", into: app.textFields["geoTrace_textfield_host"])
+        clearAndTypeText("8.8.8.8", into: app.textFields["geoTrace_input_host"])
         app.buttons["geoTrace_button_trace"].tap()
 
         let gotActivity = waitForEither([
-            app.buttons["geoTrace_button_stop"],
+            app.buttons.matching(NSPredicate(format: "label CONTAINS[c] 'Stop'")).firstMatch,
             app.staticTexts.matching(
                 NSPredicate(format: "label CONTAINS[c] 'hop'")
             ).firstMatch
@@ -596,7 +639,7 @@ final class FunctionalSmokeTests: IOSUITestCase {
         }
 
         // Map should still be present during/after trace
-        XCTAssertTrue(ui("geoTrace_map").exists, "Map should remain visible during trace")
+        XCTAssertTrue(ui("geoTrace_label_map").exists, "Map should remain visible during trace")
 
         captureScreenshot(named: "21_GeoTrace_Map")
         goBackToTools()
@@ -624,7 +667,7 @@ final class FunctionalSmokeTests: IOSUITestCase {
     // MARK: - Room Scanner (Setup Only)
 
     func test23_RoomScannerSetupScreen() {
-        openTool(card: "tools_card_room_scanner", screen: "roomScanner_icon_setup")
+        openTool(card: "tools_card_room_scanner", screen: "roomScanner_image_setup")
 
         // Room Scanner should show setup screen (not crash or go blank)
         let hasSetupContent = screenContainsText("3D Room Scanner")
