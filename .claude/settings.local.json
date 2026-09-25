@@ -27,5 +27,13 @@
   "enabledMcpjsonServers": [
     "context7",
     "github"
-  ]
+  ],
+  "skillOverrides": {
+    "anthropic-skills:docs": "off",
+    "anthropic-skills:theme-factory": "off",
+    "anthropic-skills:openclaw-config": "off",
+    "anthropic-skills:morning": "off",
+    "anthropic-skills:mcp-builder": "off",
+    "anthropic-skills:gem": "off"
+  }
 }
