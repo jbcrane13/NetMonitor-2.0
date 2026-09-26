@@ -125,7 +125,10 @@ final class DashboardFunctionalUITests: IOSUITestCase {
             NSPredicate(format: "identifier BEGINSWITH 'deviceList_row_device_'")
         ).firstMatch
 
-        guard firstDeviceRow.waitForExistence(timeout: 8) else {
+        // The dashboard's own scan (ARP -> Bonjour -> ... -> latency) can take up to
+        // ~20s to populate the first row; this wait is generous on purpose so the
+        // precondition isn't confused with the tight push-timing assertion below.
+        guard firstDeviceRow.waitForExistence(timeout: 25) else {
             throw XCTSkip("No discovered devices available to exercise device detail navigation timing")
         }
 
