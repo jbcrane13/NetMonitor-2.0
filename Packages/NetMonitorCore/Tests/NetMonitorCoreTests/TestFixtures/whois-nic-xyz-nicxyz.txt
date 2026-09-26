@@ -1,0 +1,22 @@
+Domain Name: NIC.XYZ
+Registry Domain ID: D1465615-CNIC
+Registrar WHOIS Server: whois.nic.xyz
+Registrar URL: https://gen.xyz/
+Updated Date: 2026-09-05T00:05:06.0Z
+Creation Date: 2013-09-11T11:58:06.0Z
+Registry Expiry Date: 2027-09-11T23:59:59.0Z
+Registrar: XYZ.com, LLC
+Registrar IANA ID: 9999
+Domain Status: serverRenewProhibited https://icann.org/epp#serverRenewProhibited
+Domain Status: serverUpdateProhibited https://icann.org/epp#serverUpdateProhibited
+Domain Status: serverDeleteProhibited https://icann.org/epp#serverDeleteProhibited
+Domain Status: serverTransferProhibited https://icann.org/epp#serverTransferProhibited
+Name Server: X.NIC.XYZ
+Name Server: Y.NIC.XYZ
+Name Server: Z.NIC.XYZ
+Name Server: GENERATIONXYZ.NIC.XYZ
+DNSSEC: unsigned
+Registrar Abuse Contact Email: xyz_abuse@gen.xyz
+Registrar Abuse Contact Phone: +1.8009998422
+URL of the ICANN Whois Inaccuracy Complaint Form: https://www.icann.org/wicf/
+>>> Last update of WHOIS database: 2026-09-26T04:26:39.0Z <<<
