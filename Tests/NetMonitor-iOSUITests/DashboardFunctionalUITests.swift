@@ -102,6 +102,40 @@ final class DashboardFunctionalUITests: IOSUITestCase {
         captureScreenshot(named: "Dashboard_DeviceListNav")
     }
 
+    // MARK: - 3b. Device List Row -> Device Detail Navigation (regression test for #318)
+
+    /// Regression test for #318: tapping a device row on the dashboard's
+    /// device list must push the detail screen immediately, not 5-20s
+    /// later after the list silently reloads.
+    func testTapDeviceRowInDashboardDeviceListPushesDetailImmediately() throws {
+        let devicesCard = ui("dashboard_card_localDevices")
+        scrollToElement(devicesCard)
+        requireExists(devicesCard, timeout: 10, message: "Local devices card should exist on dashboard")
+
+        devicesCard.tap()
+
+        requireExists(ui("screen_deviceList"), timeout: 8,
+                      message: "Tapping local devices card should navigate to device list screen")
+
+        let firstDeviceRow = app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier BEGINSWITH 'deviceList_row_device_'")
+        ).firstMatch
+
+        guard firstDeviceRow.waitForExistence(timeout: 8) else {
+            throw XCTSkip("No discovered devices available to exercise device detail navigation timing")
+        }
+
+        firstDeviceRow.tap()
+
+        let detailScreen = app.descendants(matching: .any).matching(identifier: "screen_deviceDetail").firstMatch
+        XCTAssertTrue(
+            detailScreen.waitForExistence(timeout: 2.5),
+            "Device detail screen should push immediately (within ~2s) after tapping a device row"
+        )
+
+        captureScreenshot(named: "Dashboard_DeviceDetailImmediateNav")
+    }
+
     // MARK: - 4. Speed Test Card -> Speed Test Tool Navigation
 
     func testTapSpeedTestCardNavigatesToSpeedTestTool() {
