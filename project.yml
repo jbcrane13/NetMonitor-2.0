@@ -32,7 +32,7 @@ targets:
         CFBundleName: NetMonitor Pro
         CFBundleDisplayName: NetMonitor Pro
         CFBundleShortVersionString: "2.2.1"
-        CFBundleVersion: "1790453445"
+        CFBundleVersion: "1790454061"
         LSMinimumSystemVersion: "15.0"
         NSPrincipalClass: NSApplication
         NSHighResolutionCapable: true
