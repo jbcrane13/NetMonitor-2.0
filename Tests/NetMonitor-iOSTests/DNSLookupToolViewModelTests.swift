@@ -96,6 +96,45 @@ struct DNSLookupToolViewModelTests {
         #expect(vm.result == nil)
         #expect(vm.isLoading == false)
     }
+
+    @Test func queryAllTypesDefaultsToFalse() {
+        let vm = DNSLookupToolViewModel(dnsService: MockDNSLookupService())
+        #expect(vm.queryAllTypes == false)
+    }
+
+    @Test func lookupCallsLookupAllWhenQueryAllTypesIsOn() async {
+        let mock = MockDNSLookupService()
+        mock.mockAllResult = DNSQueryResult(
+            domain: "example.com",
+            server: "System DNS",
+            queryType: .a,
+            records: [
+                DNSRecord(name: "example.com", type: .a, value: "1.2.3.4", ttl: 60),
+                DNSRecord(name: "example.com", type: .soa, value: "ns1.example.com admin.example.com (...)", ttl: 3600)
+            ],
+            queryTime: 10
+        )
+        let vm = DNSLookupToolViewModel(dnsService: mock)
+        vm.domain = "example.com"
+        vm.queryAllTypes = true
+        await vm.lookup()
+        #expect(vm.result?.records.count == 2)
+        #expect(vm.errorMessage == nil)
+    }
+
+    @Test func lookupCallsSingleTypeLookupWhenQueryAllTypesIsOff() async {
+        let mock = MockDNSLookupService()
+        mock.mockResult = DNSQueryResult(domain: "example.com", server: "8.8.8.8", queryType: .a, records: [], queryTime: 5)
+        mock.mockAllResult = DNSQueryResult(domain: "example.com", server: "8.8.8.8", queryType: .a, records: [
+            DNSRecord(name: "example.com", type: .a, value: "should not be used", ttl: 1)
+        ], queryTime: 5)
+        let vm = DNSLookupToolViewModel(dnsService: mock)
+        vm.domain = "example.com"
+        vm.queryAllTypes = false
+        await vm.lookup()
+        // mockResult (single-type path), not mockAllResult, should have been used
+        #expect(vm.result?.records.isEmpty == true)
+    }
 }
 
 // MARK: - Error & Edge Case Tests
