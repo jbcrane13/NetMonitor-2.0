@@ -64,9 +64,17 @@ struct DNSLookupToolView: View {
                 }
                 .pickerStyle(.menu)
                 .tint(Theme.Colors.accent)
+                .disabled(viewModel.queryAllTypes)
                 .accessibilityIdentifier("dnsLookup_picker_type")
             }
             .padding(.horizontal, 4)
+
+            Toggle("Query All Record Types", isOn: $viewModel.queryAllTypes)
+                .font(.subheadline)
+                .foregroundStyle(Theme.Colors.textSecondary)
+                .tint(Theme.Colors.accent)
+                .padding(.horizontal, 4)
+                .accessibilityIdentifier("dnsLookup_toggle_allTypes")
         }
     }
 
@@ -162,7 +170,7 @@ struct DNSLookupToolView: View {
                     GlassCard {
                         VStack(spacing: 0) {
                             ForEach(Array(result.records.enumerated()), id: \.element.id) { index, record in
-                                DNSRecordRow(record: record)
+                                DNSRecordRow(record: record, queriedDomain: result.domain)
 
                                 if index < result.records.count - 1 {
                                     Divider()
@@ -183,6 +191,15 @@ struct DNSLookupToolView: View {
 
 private struct DNSRecordRow: View {
     let record: DNSRecord
+    let queriedDomain: String
+
+    private var recordNameDiffersFromQuery: Bool {
+        var trimmedName = record.name
+        if trimmedName.hasSuffix(".") {
+            trimmedName.removeLast()
+        }
+        return !trimmedName.isEmpty && trimmedName != queriedDomain
+    }
 
     var body: some View {
         HStack(spacing: 12) {
@@ -200,14 +217,30 @@ private struct DNSRecordRow: View {
 
             // Value
             VStack(alignment: .leading, spacing: 2) {
+                // Shows the hop this record actually belongs to, e.g. a CNAME target,
+                // when it differs from the domain the user queried.
+                if recordNameDiffersFromQuery {
+                    Text(record.name)
+                        .font(.caption2)
+                        .foregroundStyle(Theme.Colors.textTertiary)
+                }
+
                 Text(record.value)
                     .font(.system(.subheadline, design: .monospaced))
                     .foregroundStyle(Theme.Colors.textPrimary)
                     .textSelection(.enabled)
 
-                Text("TTL: \(record.ttlText)")
-                    .font(.caption)
-                    .foregroundStyle(Theme.Colors.textTertiary)
+                HStack(spacing: 8) {
+                    Text("TTL: \(record.ttlText)")
+                        .font(.caption)
+                        .foregroundStyle(Theme.Colors.textTertiary)
+
+                    if let priority = record.priority {
+                        Text("Priority: \(priority)")
+                            .font(.caption)
+                            .foregroundStyle(Theme.Colors.textTertiary)
+                    }
+                }
             }
 
             Spacer()

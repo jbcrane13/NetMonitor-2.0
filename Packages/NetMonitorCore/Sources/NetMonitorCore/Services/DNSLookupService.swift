@@ -8,8 +8,19 @@ public final class DNSLookupService: DNSLookupServiceProtocol {
     public private(set) var isLoading: Bool = false
     public private(set) var lastError: String?
 
+    /// Record types queried for a "look up everything" pass. HTTPS/SVCB and DNSSEC
+    /// records are omitted — see issue #322 for scope.
+    private static let allTypes: [DNSRecordType] = [.a, .aaaa, .cname, .mx, .ns, .txt, .soa, .caa]
+
     public init() {}
 
+    /// Looks up a single record type.
+    ///
+    /// - When `server` is nil/empty, queries the system-configured resolver via
+    ///   `DNSServiceQueryRecord` (mDNSResponder) — `DNSQueryResult.server` reads
+    ///   "System DNS" since the actual resolver IP isn't exposed by that API.
+    /// - When `server` is set, queries that server directly over UDP/53 via
+    ///   `DNSUDPResolver` — `DNSQueryResult.server` is that address.
     public func lookup(
         domain: String,
         recordType: DNSRecordType = .a,
@@ -19,14 +30,20 @@ public final class DNSLookupService: DNSLookupServiceProtocol {
         lastError = nil
 
         let start = Date()
+        let effectiveDomain: String
+        if recordType == .ptr, let reverseName = DNSWireFormat.reverseLookupName(for: domain) {
+            effectiveDomain = reverseName
+        } else {
+            effectiveDomain = domain
+        }
 
         do {
-            let records = try await performLookup(domain: domain, type: recordType)
+            let records = try await Self.performLookup(domain: effectiveDomain, type: recordType, server: server)
             let queryTime = Date().timeIntervalSince(start) * 1000
 
             let result = DNSQueryResult(
                 domain: domain,
-                server: server ?? "System DNS",
+                server: Self.serverLabel(for: server),
                 queryType: recordType,
                 records: records,
                 queryTime: queryTime
@@ -42,71 +59,87 @@ public final class DNSLookupService: DNSLookupServiceProtocol {
         }
     }
 
-    nonisolated private func performLookup(domain: String, type: DNSRecordType) async throws -> [DNSRecord] {
-        // Use getaddrinfo for A and AAAA records
-        if type == .a || type == .aaaa {
-            return try await performAddressLookup(domain: domain, type: type)
+    /// Looks up A, AAAA, CNAME, MX, NS, TXT, SOA and CAA concurrently and merges the
+    /// results into a single `DNSQueryResult`. Per-type failures (e.g. no CAA records)
+    /// are tolerated silently; the call only fails if every type failed.
+    public func lookupAll(domain: String, server: String? = nil) async -> DNSQueryResult? {
+        isLoading = true
+        lastError = nil
+
+        let start = Date()
+        let outcomes = await Self.performAll(domain: domain, types: Self.allTypes, server: server)
+        let queryTime = Date().timeIntervalSince(start) * 1000
+        isLoading = false
+
+        let allRecords = outcomes.flatMap { $0.records }
+        guard !allRecords.isEmpty else {
+            lastError = outcomes.compactMap { $0.errorDescription }.first ?? "No records found for \(domain)"
+            return nil
         }
 
-        // Use DNSServiceQueryRecord for other record types
+        let result = DNSQueryResult(
+            domain: domain,
+            server: Self.serverLabel(for: server),
+            queryType: Self.allTypes.first ?? .a,
+            records: allRecords,
+            queryTime: queryTime
+        )
+        lastResult = result
+        return result
+    }
+
+    nonisolated private static func serverLabel(for server: String?) -> String {
+        server.flatMap { $0.isEmpty ? nil : $0 } ?? "System DNS"
+    }
+
+    // MARK: - Per-type dispatch
+
+    nonisolated private static func performLookup(domain: String, type: DNSRecordType, server: String?) async throws -> [DNSRecord] {
+        if let server, !server.isEmpty {
+            return try await DNSUDPResolver.query(domain: domain, type: type, server: server)
+        }
         return try await performDNSServiceLookup(domain: domain, type: type)
     }
 
-    nonisolated private func performAddressLookup(domain: String, type: DNSRecordType) async throws -> [DNSRecord] {
-        return try await withCheckedThrowingContinuation { continuation in
-            let domainCopy = domain
-            let typeCopy = type
-            DispatchQueue.global(qos: .userInitiated).async {
-                var hints = addrinfo()
-                hints.ai_family = typeCopy == .a ? AF_INET : AF_INET6
-                hints.ai_socktype = SOCK_STREAM
+    // MARK: - "All" aggregation
 
-                var result: UnsafeMutablePointer<addrinfo>?
-                let status = getaddrinfo(domainCopy, nil, &hints, &result)
+    /// One type's outcome from a `lookupAll` fan-out. Exposed (not `private`) so tests
+    /// can drive `performAll` with a fake `fetch` closure instead of real network I/O.
+    struct TypeOutcome: Sendable {
+        let type: DNSRecordType
+        let records: [DNSRecord]
+        let errorDescription: String?
+    }
 
-                guard status == 0, let addrInfo = result else {
-                    continuation.resume(throwing: DNSError.lookupFailed)
-                    return
-                }
-
-                defer { freeaddrinfo(result) }
-
-                var records: [DNSRecord] = []
-                var current: UnsafeMutablePointer<addrinfo>? = addrInfo
-
-                while let info = current {
-                    var hostname = [CChar](repeating: 0, count: Int(NI_MAXHOST))
-
-                    let sockaddr = info.pointee.ai_addr
-                    let socklen = info.pointee.ai_addrlen
-
-                    getnameinfo(sockaddr, socklen, &hostname, socklen_t(hostname.count),
-                               nil, 0, NI_NUMERICHOST)
-
-                    let length = strnlen(hostname, hostname.count)
-                    let bytes = hostname.prefix(length).map { UInt8(bitPattern: $0) }
-                    let address = String(decoding: bytes, as: UTF8.self)
-                    let recordType: DNSRecordType = info.pointee.ai_family == AF_INET6 ? .aaaa : .a
-
-                    if (typeCopy == .a && recordType == .a) || (typeCopy == .aaaa && recordType == .aaaa) {
-                        let record = DNSRecord(
-                            name: domainCopy,
-                            type: recordType,
-                            value: address,
-                            ttl: 300
-                        )
-                        records.append(record)
+    nonisolated static func performAll(
+        domain: String,
+        types: [DNSRecordType],
+        server: String?,
+        fetch: @escaping @Sendable (String, DNSRecordType, String?) async throws -> [DNSRecord] = DNSLookupService.performLookup
+    ) async -> [TypeOutcome] {
+        await withTaskGroup(of: TypeOutcome.self) { group in
+            for type in types {
+                group.addTask {
+                    do {
+                        let records = try await fetch(domain, type, server)
+                        return TypeOutcome(type: type, records: records, errorDescription: nil)
+                    } catch {
+                        return TypeOutcome(type: type, records: [], errorDescription: error.localizedDescription)
                     }
-
-                    current = info.pointee.ai_next
                 }
+            }
 
-                continuation.resume(returning: records)
+            var outcomes: [TypeOutcome] = []
+            for await outcome in group { outcomes.append(outcome) }
+            return outcomes.sorted {
+                (types.firstIndex(of: $0.type) ?? 0) < (types.firstIndex(of: $1.type) ?? 0)
             }
         }
     }
 
-    nonisolated private func performDNSServiceLookup(domain: String, type: DNSRecordType) async throws -> [DNSRecord] {
+    // MARK: - System resolver (DNSServiceQueryRecord)
+
+    nonisolated private static func performDNSServiceLookup(domain: String, type: DNSRecordType) async throws -> [DNSRecord] {
         return try await withCheckedThrowingContinuation { continuation in
             let queryContext = QueryContext(
                 domain: domain,
@@ -122,7 +155,7 @@ public final class DNSLookupService: DNSLookupServiceProtocol {
             var serviceRef: DNSServiceRef?
             let error = DNSServiceQueryRecord(
                 &serviceRef,
-                0, // flags
+                kDNSServiceFlagsReturnIntermediates, // surface NXDOMAIN and CNAME chain hops
                 0, // interfaceIndex (0 = all interfaces)
                 domain,
                 UInt16(dnsRecordTypeToConstant(type)),
@@ -141,35 +174,62 @@ public final class DNSLookupService: DNSLookupServiceProtocol {
     }
 
     /// C-compatible callback for DNSServiceQueryRecord that accumulates DNS records.
-    nonisolated private static let dnsQueryCallback: DNSServiceQueryRecordReply = { _, flags, _, errorCode, _, _, _, rdlen, rdata, ttl, context in
-        guard errorCode == kDNSServiceErr_NoError else { return }
-        guard let context = context else { return }
+    /// With `kDNSServiceFlagsReturnIntermediates`, this may see an authoritative
+    /// NXDOMAIN (via `errorCode`) or intermediate CNAME hops (via `rrtype`/`fullname`
+    /// differing from the originally requested type/name) before the final answer.
+    nonisolated private static let dnsQueryCallback: DNSServiceQueryRecordReply = { _, flags, _, errCode, fname, rrtype, _, rdlen, rdata, ttl, ctx in
+        guard let ctx = ctx else { return }
+        let queryContext = Unmanaged<QueryContext>.fromOpaque(ctx).takeUnretainedValue()
 
-        let queryContext = Unmanaged<QueryContext>.fromOpaque(context).takeUnretainedValue()
-
-        if let record = DNSLookupService.parseRecord(
-            domain: queryContext.domain,
-            type: queryContext.recordType,
-            rdata: rdata,
-            rdlen: rdlen,
-            ttl: ttl
-        ) {
-            queryContext.records.append(record)
-        }
-
-        if (flags & kDNSServiceFlagsMoreComing) == 0 {
-            let records = queryContext.records
+        if errCode != kDNSServiceErr_NoError {
+            let mapped = DNSError.map(errorCode: errCode, domain: queryContext.domain, type: queryContext.recordType)
             let resumeState = queryContext.resumeState
             let cont = queryContext.continuation
             Task {
                 guard await resumeState.tryResume() else { return }
-                cont.resume(returning: records)
+                cont.resume(throwing: mapped)
+            }
+            return
+        }
+
+        if let rdata = rdata, rdlen > 0, let parsedType = DNSWireFormat.recordType(forTypeNumber: rrtype) {
+            var recordName = fname.map { String(cString: $0) } ?? queryContext.domain
+            if recordName.hasSuffix(".") {
+                recordName.removeLast()
+            }
+
+            let rdataBuffer = Data(bytes: rdata, count: Int(rdlen))
+            if let record = DNSWireFormat.parseRecord(
+                domain: recordName,
+                type: parsedType,
+                packet: rdataBuffer,
+                rdataOffset: 0,
+                rdataLength: Int(rdlen),
+                ttl: ttl
+            ) {
+                queryContext.records.append(record)
+            }
+        }
+
+        if (flags & kDNSServiceFlagsMoreComing) == 0 {
+            let records = queryContext.records
+            let domain = queryContext.domain
+            let type = queryContext.recordType
+            let resumeState = queryContext.resumeState
+            let cont = queryContext.continuation
+            Task {
+                guard await resumeState.tryResume() else { return }
+                if records.isEmpty {
+                    cont.resume(throwing: DNSError.noRecords(domain: domain, type: type))
+                } else {
+                    cont.resume(returning: records)
+                }
             }
         }
     }
 
     /// Resumes the continuation with an error and releases the retained query context.
-    nonisolated private func resumeContinuationWithError(queryContext: QueryContext, unmanaged: Unmanaged<QueryContext>, error: DNSError) {
+    nonisolated private static func resumeContinuationWithError(queryContext: QueryContext, unmanaged: Unmanaged<QueryContext>, error: DNSError) {
         let resumeState = queryContext.resumeState
         let continuation = queryContext.continuation
         Task {
@@ -180,7 +240,7 @@ public final class DNSLookupService: DNSLookupServiceProtocol {
     }
 
     /// Sets up a dispatch source to process DNS results and schedules a timeout.
-    nonisolated private func scheduleResultProcessing(
+    nonisolated private static func scheduleResultProcessing(
         service: DNSServiceRef,
         rawPtr: UnsafeMutableRawPointer,
         resumeState: ResumeState,
@@ -213,194 +273,8 @@ public final class DNSLookupService: DNSLookupServiceProtocol {
         }
     }
 
-    nonisolated private func dnsRecordTypeToConstant(_ type: DNSRecordType) -> Int32 {
-        switch type {
-        case .a: return Int32(kDNSServiceType_A)
-        case .aaaa: return Int32(kDNSServiceType_AAAA)
-        case .mx: return 15 // kDNSServiceType_MX
-        case .txt: return 16 // kDNSServiceType_TXT
-        case .cname: return 5 // kDNSServiceType_CNAME
-        case .ns: return 2 // kDNSServiceType_NS
-        case .soa: return 6 // kDNSServiceType_SOA
-        case .ptr: return 12 // kDNSServiceType_PTR
-        }
-    }
-
-    nonisolated private static func parseRecord(
-        domain: String,
-        type: DNSRecordType,
-        rdata: UnsafeRawPointer?,
-        rdlen: UInt16,
-        ttl: UInt32
-    ) -> DNSRecord? {
-        guard let rdata = rdata, rdlen > 0 else { return nil }
-
-        let data = Data(bytes: rdata, count: Int(rdlen))
-
-        switch type {
-        case .mx:
-            return parseMXRecord(domain: domain, data: data, ttl: ttl)
-        case .txt:
-            return parseTXTRecord(domain: domain, data: data, ttl: ttl)
-        case .cname, .ns, .ptr:
-            return parseDomainNameRecord(domain: domain, type: type, data: data, ttl: ttl)
-        case .soa:
-            return parseSOARecord(domain: domain, data: data, ttl: ttl)
-        default:
-            return nil
-        }
-    }
-
-    nonisolated private static func parseMXRecord(domain: String, data: Data, ttl: UInt32) -> DNSRecord? {
-        guard data.count >= 2 else { return nil }
-
-        let priority = data.withUnsafeBytes { $0.load(as: UInt16.self).bigEndian }
-        let nameData = data.dropFirst(2)
-
-        guard let mailServer = parseDNSName(from: nameData) else { return nil }
-
-        return DNSRecord(
-            name: domain,
-            type: .mx,
-            value: mailServer,
-            ttl: Int(ttl),
-            priority: Int(priority)
-        )
-    }
-
-    nonisolated private static func parseTXTRecord(domain: String, data: Data, ttl: UInt32) -> DNSRecord? {
-        var offset = 0
-        var strings: [String] = []
-
-        while offset < data.count {
-            let length = Int(data[offset])
-            offset += 1
-
-            guard offset + length <= data.count else { break }
-
-            let stringData = data[offset..<offset + length]
-            if let string = String(data: stringData, encoding: .utf8) {
-                strings.append(string)
-            }
-            offset += length
-        }
-
-        return DNSRecord(
-            name: domain,
-            type: .txt,
-            value: strings.joined(separator: "\n"),
-            ttl: Int(ttl)
-        )
-    }
-
-    nonisolated private static func parseDomainNameRecord(domain: String, type: DNSRecordType, data: Data, ttl: UInt32) -> DNSRecord? {
-        guard let name = parseDNSName(from: data) else { return nil }
-
-        return DNSRecord(
-            name: domain,
-            type: type,
-            value: name,
-            ttl: Int(ttl)
-        )
-    }
-
-    nonisolated private static func parseSOARecord(domain: String, data: Data, ttl: UInt32) -> DNSRecord? {
-        var offset = 0
-
-        // Parse mname (primary name server)
-        // Pass the full data with offset — don't slice, to avoid startIndex issues
-        guard let mname = parseDNSName(from: data, offset: &offset) else { return nil }
-
-        // Parse rname (responsible authority's mailbox)
-        guard let rname = parseDNSName(from: data, offset: &offset) else { return nil }
-
-        // Parse 5 UInt32 values: serial, refresh, retry, expire, minimum
-        guard data.startIndex + offset + 20 <= data.endIndex else { return nil }
-
-        let base = data.startIndex + offset
-        let values = data[base..<base + 20].withUnsafeBytes { ptr in
-            (0..<5).map { i in
-                ptr.load(fromByteOffset: i * 4, as: UInt32.self).bigEndian
-            }
-        }
-
-        let soaValue = """
-        \(mname) \(rname) (
-          Serial: \(values[0])
-          Refresh: \(values[1])
-          Retry: \(values[2])
-          Expire: \(values[3])
-          Minimum: \(values[4])
-        )
-        """
-
-        return DNSRecord(
-            name: domain,
-            type: .soa,
-            value: soaValue,
-            ttl: Int(ttl)
-        )
-    }
-
-    nonisolated private static func parseDNSName(from data: Data, offset: inout Int) -> String? {
-        var labels: [String] = []
-        // Use startIndex-relative addressing so this works correctly with
-        // Data slices (e.g. data.dropFirst(2)) whose startIndex != 0.
-        var currentOffset = data.startIndex + offset
-        // Track whether we have followed a compression pointer so we can update
-        // the caller's offset correctly (it should advance past the pointer bytes,
-        // not past the expanded name).
-        var didFollowPointer = false
-
-        while currentOffset < data.endIndex {
-            let lengthByte = Int(data[currentOffset])
-
-            // DNS name compression pointer: top two bits are both set (0xC0 mask).
-            // The 14-bit pointer value gives the offset into the packet buffer.
-            if (lengthByte & 0xC0) == 0xC0 {
-                // Need two bytes for the pointer.
-                guard currentOffset + 1 < data.endIndex else { return nil }
-                let pointerHigh = (lengthByte & 0x3F) << 8
-                let pointerLow  = Int(data[currentOffset + 1])
-                let pointer     = data.startIndex + pointerHigh + pointerLow
-
-                // Update the caller's logical offset to just after the two pointer bytes,
-                // but only if we have not already followed an earlier pointer.
-                if !didFollowPointer {
-                    offset = (currentOffset + 2) - data.startIndex
-                }
-                didFollowPointer = true
-
-                // Jump to the pointed-to location and continue parsing.
-                guard pointer < data.endIndex else { return nil }
-                currentOffset = pointer
-                continue
-            }
-
-            currentOffset += 1
-
-            if lengthByte == 0 {
-                if !didFollowPointer {
-                    offset = currentOffset - data.startIndex
-                }
-                return labels.joined(separator: ".")
-            }
-
-            guard currentOffset + lengthByte <= data.endIndex else { return nil }
-
-            let labelData = data[currentOffset..<currentOffset + lengthByte]
-            guard let label = String(data: labelData, encoding: .utf8) else { return nil }
-
-            labels.append(label)
-            currentOffset += lengthByte
-        }
-
-        return nil
-    }
-
-    nonisolated private static func parseDNSName(from data: Data) -> String? {
-        var offset = 0
-        return parseDNSName(from: data, offset: &offset)
+    nonisolated private static func dnsRecordTypeToConstant(_ type: DNSRecordType) -> Int32 {
+        Int32(DNSWireFormat.typeNumber(for: type))
     }
 }
 
@@ -427,22 +301,48 @@ private class QueryContext {
 }
 
 /// Legacy alias — new code should use NetworkError directly
-enum DNSError: LocalizedError {
+enum DNSError: LocalizedError, Sendable {
     case lookupFailed
     case timeout
+    /// Authoritative NXDOMAIN — the name does not exist.
+    case nxdomain(domain: String)
+    /// The name exists (or the resolver didn't say otherwise) but has no records of the queried type.
+    case noRecords(domain: String, type: DNSRecordType)
+    /// Response had the TC bit set and no usable answers were parsed (no EDNS0 is sent, so
+    /// larger record sets — e.g. many TXT/CAA — can be truncated over classic UDP/512).
+    case truncated(domain: String)
 
     var errorDescription: String? {
         switch self {
         case .lookupFailed: "DNS lookup failed"
         case .timeout: "DNS query timed out"
+        case .nxdomain(let domain): "\(domain) does not exist (NXDOMAIN)"
+        case .noRecords(let domain, let type): "No \(type.displayName) records found for \(domain)"
+        case .truncated(let domain): "Response for \(domain) was truncated; try a different DNS server"
         }
     }
 
     // periphery:ignore
     var asNetworkError: NetworkError {
         switch self {
-        case .lookupFailed: .dnsLookupFailed
+        case .lookupFailed, .nxdomain, .noRecords, .truncated: .dnsLookupFailed
         case .timeout: .timeout
+        }
+    }
+
+    /// Best-effort mapping from a `DNSServiceQueryRecord` errorCode. mDNSResponder does not
+    /// expose the underlying RCODE for unicast queries, so NXDOMAIN and NODATA can both
+    /// surface as `kDNSServiceErr_NoSuchRecord` — only the custom UDP path (`DNSUDPResolver`)
+    /// distinguishes them precisely via the raw RCODE.
+    static func map(errorCode: DNSServiceErrorType, domain: String, type: DNSRecordType) -> DNSError {
+        if errorCode == kDNSServiceErr_NoSuchRecord {
+            return .noRecords(domain: domain, type: type)
+        } else if errorCode == kDNSServiceErr_NoSuchName {
+            return .nxdomain(domain: domain)
+        } else if errorCode == kDNSServiceErr_Timeout {
+            return .timeout
+        } else {
+            return .lookupFailed
         }
     }
 }

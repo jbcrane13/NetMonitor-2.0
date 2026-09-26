@@ -18,6 +18,10 @@ final class DNSLookupToolViewModel {
 
     var recordType: DNSRecordType = .a
 
+    /// When true, `lookup()` queries every supported record type and merges the
+    /// results instead of just `recordType`.
+    var queryAllTypes: Bool = false
+
     // MARK: - State Properties
 
     var isLoading: Bool = false
@@ -48,7 +52,7 @@ final class DNSLookupToolViewModel {
     }
 
     var recordTypes: [DNSRecordType] {
-        [.a, .aaaa, .mx, .txt, .cname, .ns, .soa, .ptr]
+        [.a, .aaaa, .mx, .txt, .cname, .ns, .soa, .ptr, .caa, .srv, .https]
     }
 
     // MARK: - Actions
@@ -66,11 +70,16 @@ final class DNSLookupToolViewModel {
 
         let customServer = UserDefaults.standard.string(forKey: AppSettings.Keys.dnsServer)
         let effectiveServer = (customServer?.isEmpty ?? true) ? nil : customServer
-        result = await dnsService.lookup(
-            domain: domain.trimmingCharacters(in: .whitespaces),
-            recordType: recordType,
-            server: effectiveServer
-        )
+        let trimmedInput = domain.trimmingCharacters(in: .whitespaces)
+        if queryAllTypes {
+            result = await dnsService.lookupAll(domain: trimmedInput, server: effectiveServer)
+        } else {
+            result = await dnsService.lookup(
+                domain: trimmedInput,
+                recordType: recordType,
+                server: effectiveServer
+            )
+        }
 
         let trimmedDomain = domain.trimmingCharacters(in: .whitespaces)
         if let result {

@@ -220,10 +220,13 @@ struct DNSRecordTypeTests {
         #expect(DNSRecordType.ns.displayName == "NS")
         #expect(DNSRecordType.soa.displayName == "SOA")
         #expect(DNSRecordType.ptr.displayName == "PTR")
+        #expect(DNSRecordType.caa.displayName == "CAA")
+        #expect(DNSRecordType.srv.displayName == "SRV")
+        #expect(DNSRecordType.https.displayName == "HTTPS")
     }
 
     @Test func allCasesAreCovered() {
-        #expect(DNSRecordType.allCases.count == 8)
+        #expect(DNSRecordType.allCases.count == 11)
     }
 }
 

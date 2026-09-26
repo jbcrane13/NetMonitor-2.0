@@ -127,6 +127,12 @@ struct DNSLookupToolView: View {
             return "doc.text"
         case .ptr:
             return "arrow.uturn.backward"
+        case .caa:
+            return "checkmark.shield"
+        case .srv:
+            return "point.3.connected.trianglepath.dotted"
+        case .https:
+            return "lock.shield"
         }
     }
 

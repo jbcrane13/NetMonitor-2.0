@@ -68,9 +68,14 @@ final class MockDNSLookupService: DNSLookupServiceProtocol {
     var isLoading: Bool = false
     var lastError: String? = nil
     var mockResult: DNSQueryResult?
+    var mockAllResult: DNSQueryResult?
 
     func lookup(domain: String, recordType: DNSRecordType, server: String?) async -> DNSQueryResult? {
         return mockResult
+    }
+
+    func lookupAll(domain: String, server: String?) async -> DNSQueryResult? {
+        return mockAllResult ?? mockResult
     }
 }
 
@@ -82,7 +87,9 @@ final class MockWHOISService: WHOISServiceProtocol, @unchecked Sendable {
     var thrownError: Error = URLError(.badServerResponse)
 
     func lookup(query: String) async throws -> WHOISResult {
-        if shouldThrow { throw thrownError }
+        if shouldThrow {
+            throw thrownError
+        }
         return mockResult ?? WHOISResult(query: query, rawData: "")
     }
 }
@@ -102,7 +109,9 @@ final class MockWakeOnLANService: WakeOnLANServiceProtocol {
             success: shouldSucceed,
             error: shouldSucceed ? nil : "Mock error"
         )
-        if !shouldSucceed { lastError = "Mock error" }
+        if !shouldSucceed {
+            lastError = "Mock error"
+        }
         return shouldSucceed
     }
 }
@@ -178,7 +187,9 @@ final class MockSpeedTestService: SpeedTestServiceProtocol, @unchecked Sendable 
     var stopCallCount = 0
 
     func startTest() async throws -> SpeedTestData {
-        if shouldThrow { throw URLError(.notConnectedToInternet) }
+        if shouldThrow {
+            throw URLError(.notConnectedToInternet)
+        }
         return mockResult ?? SpeedTestData(downloadSpeed: 100, uploadSpeed: 50, latency: 20)
     }
 

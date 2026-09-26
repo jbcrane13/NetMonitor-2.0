@@ -315,6 +315,9 @@ public enum DNSRecordType: String, Codable, CaseIterable, Sendable {
     case ns   = "NS"
     case soa  = "SOA"
     case ptr  = "PTR"
+    case caa  = "CAA"
+    case srv  = "SRV"
+    case https = "HTTPS"
 
     public var displayName: String { rawValue }
 }
