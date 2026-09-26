@@ -31,6 +31,12 @@ struct DashboardView: View {
                         .padding(.bottom, Theme.Layout.sectionSpacing)
                 }
                 .appDestinations()
+                .navigationDestination(for: DeviceListRoute.self) { _ in
+                    DeviceListView(
+                        discoveredDevices: viewModel.discoveredDevices,
+                        networkProfile: viewModel.activeNetwork
+                    )
+                }
                 .themedBackground()
                 .navigationTitle("Dashboard")
                 .navigationBarTitleDisplayMode(.inline)
@@ -134,10 +140,7 @@ struct DashboardView: View {
 
             LiveEventTicker()
 
-            LocalDevicesCard(
-                viewModel: viewModel,
-                selectedNetwork: viewModel.activeNetwork
-            )
+            LocalDevicesCard(viewModel: viewModel)
         }
     }
 }
@@ -613,9 +616,22 @@ struct ConnectivityRow: View {
 
 // MARK: - Devices
 
+/// Value-based navigation route for the dashboard's local-devices card.
+///
+/// Commit c84fefd converted the device row's push (inside `DeviceListView`)
+/// from `NavigationLink(destination:)` to `NavigationLink(value:
+/// AppDestination.deviceDetail)`, but left this card's own push to
+/// `DeviceListView` as a legacy `NavigationLink(destination:)`. That mix
+/// meant the row's `path`-driven push had to be reconciled with the card's
+/// older identity/`isActive`-driven push, and while `DashboardViewModel`
+/// kept publishing (e.g. during an active scan), that reconciliation
+/// stalled the device-detail push for several seconds (#318). Routing both
+/// hops through `NavigationLink(value:)` puts them on the same mechanism
+/// and removes the stall.
+private struct DeviceListRoute: Hashable {}
+
 struct LocalDevicesCard: View {
     @Bindable var viewModel: DashboardViewModel
-    let selectedNetwork: NetworkProfile?
     @Environment(\.horizontalSizeClass) private var sizeClass
 
     /// Show all devices on iPad, cap at 5 on iPhone
@@ -627,12 +643,7 @@ struct LocalDevicesCard: View {
     }
 
     var body: some View {
-        NavigationLink(
-            destination: DeviceListView(
-                discoveredDevices: viewModel.discoveredDevices,
-                networkProfile: selectedNetwork
-            )
-        ) {
+        NavigationLink(value: DeviceListRoute()) {
             GlassCard(statusGlow: Theme.Colors.info) {
                 VStack(alignment: .leading, spacing: 14) {
                     HStack {
