@@ -14,7 +14,7 @@ Service protocols and platform-agnostic service implementations. `ServiceProtoco
 | `DeviceDiscoveryService.swift` | `@MainActor @Observable` discovery coordinator wrapping `NetworkScanKit` |
 | `PingService.swift` | Platform-agnostic ping via Network framework (iOS primary path) |
 | `PortScannerService.swift` | Concurrent TCP port scanner returning `AsyncStream<PortScanResult>` |
-| `DNSLookupService.swift` | DNS record queries supporting A, AAAA, MX, TXT, CNAME, NS, SOA, PTR |
+| `DNSLookupService.swift` | DNS record queries: A, AAAA, MX, TXT, CNAME, NS, SOA, PTR, CAA, SRV, HTTPS (raw rdata); custom server via `DNSUDPResolver` |
 | `WHOISService.swift` | WHOIS TCP queries to whois servers |
 | `BonjourDiscoveryService.swift` | mDNS service browser via `NetServiceBrowser` |
 | `TracerouteService.swift` | ICMP traceroute via TTL-manipulation |
