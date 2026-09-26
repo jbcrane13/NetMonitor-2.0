@@ -429,7 +429,6 @@ struct ToolsGridSection: View {
                     LazyVGrid(columns: columns, spacing: Theme.Layout.itemSpacing) {
                         ForEach(section.tools) { tool in
                             ToolCard(tool: tool)
-                                .containerRelativeFrame(.horizontal, count: 2, span: 1, spacing: Theme.Layout.itemSpacing)
                         }
                     }
                 }
