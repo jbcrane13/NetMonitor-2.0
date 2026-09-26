@@ -107,7 +107,30 @@ final class DashboardFunctionalUITests: IOSUITestCase {
     /// Regression test for #318: tapping a device row on the dashboard's
     /// device list must push the detail screen immediately, not 5-20s
     /// later after the list silently reloads.
+    ///
+    /// The dashboard only ever *reflects* `env.deviceDiscovery`'s
+    /// `discoveredDevices` — it doesn't kick off a scan on its own. Trigger
+    /// a scan from the Map tab first (same shared discovery service) so the
+    /// dashboard's device list is actually populated, and so the scan is
+    /// likely still publishing updates when the row is tapped — the exact
+    /// condition that produced the multi-second stall in #318.
     func testTapDeviceRowInDashboardDeviceListPushesDetailImmediately() throws {
+        app.tabBars.buttons["Map"].tap()
+        let scanButton = app.buttons["networkMap_button_scan"]
+        guard scanButton.waitForExistence(timeout: 5) else {
+            throw XCTSkip("Network map scan button unavailable to seed discovered devices")
+        }
+        scanButton.tap()
+
+        let firstMapRow = app.otherElements.matching(
+            NSPredicate(format: "identifier BEGINSWITH 'networkMap_row_'")
+        ).firstMatch
+        guard firstMapRow.waitForExistence(timeout: 15) else {
+            throw XCTSkip("No discovered devices available to exercise device detail navigation timing")
+        }
+
+        app.tabBars.buttons["Dashboard"].tap()
+
         // Container identifiers can be duplicated/stamped over children on iOS 26,
         // so resolve via `.matching(identifier:).firstMatch` rather than the
         // ambiguous `ui()` subscript helper used elsewhere in this file.
@@ -125,10 +148,7 @@ final class DashboardFunctionalUITests: IOSUITestCase {
             NSPredicate(format: "identifier BEGINSWITH 'deviceList_row_device_'")
         ).firstMatch
 
-        // The dashboard's own scan (ARP -> Bonjour -> ... -> latency) can take up to
-        // ~20s to populate the first row; this wait is generous on purpose so the
-        // precondition isn't confused with the tight push-timing assertion below.
-        guard firstDeviceRow.waitForExistence(timeout: 25) else {
+        guard firstDeviceRow.waitForExistence(timeout: 10) else {
             throw XCTSkip("No discovered devices available to exercise device detail navigation timing")
         }
 
