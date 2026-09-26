@@ -471,6 +471,116 @@ struct DashboardViewModelEventLoggingTests {
             #expect(value == 10.0)
         }
     }
+
+    // MARK: - Anchor resilience (#319)
+
+    @Test func measureAnchorsMapsDistinctLatenciesToCorrectAnchor() async {
+        let ping = ScriptedPingService()
+        ping.script(host: "8.8.8.8", results: [
+            PingResult(sequence: 1, host: "8.8.8.8", ttl: 64, time: 12.0, isTimeout: false)
+        ])
+        ping.script(host: "1.1.1.1", results: [
+            PingResult(sequence: 1, host: "1.1.1.1", ttl: 64, time: 30.0, isTimeout: false)
+        ])
+        ping.script(host: "17.253.144.10", results: [
+            PingResult(sequence: 1, host: "17.253.144.10", ttl: 64, time: 20.0, isTimeout: false)
+        ])
+
+        let vm = makeVM(pingService: ping)
+        await vm.refresh()
+        await waitUntil { vm.anchorLatencies.count == 3 }
+
+        #expect(vm.anchorLatencies["Google"] == 12.0)
+        #expect(vm.anchorLatencies["Cloudflare"] == 30.0)
+        #expect(vm.anchorLatencies["Apple"] == 20.0)
+    }
+
+    @Test func oneAnchorTimingOutTwiceLeavesOthersPresent() async {
+        let ping = ScriptedPingService()
+        ping.script(host: "8.8.8.8", results: [
+            PingResult(sequence: 1, host: "8.8.8.8", ttl: 64, time: 12.0, isTimeout: false)
+        ])
+        ping.script(host: "1.1.1.1", results: [
+            PingResult(sequence: 1, host: "1.1.1.1", ttl: 64, time: 30.0, isTimeout: false)
+        ])
+        // Apple anchor times out on both attempts (initial + retry).
+        ping.script(host: "17.253.144.10", results: [
+            PingResult(sequence: 1, host: "17.253.144.10", ttl: 0, time: 0, isTimeout: true)
+        ])
+        ping.script(host: "17.253.144.10", results: [
+            PingResult(sequence: 1, host: "17.253.144.10", ttl: 0, time: 0, isTimeout: true)
+        ])
+
+        let vm = makeVM(pingService: ping)
+        await vm.refresh()
+        await waitUntil { vm.anchorLatencies.count == 2 }
+
+        #expect(vm.anchorLatencies["Google"] == 12.0)
+        #expect(vm.anchorLatencies["Cloudflare"] == 30.0)
+        #expect(vm.anchorLatencies["Apple"] == nil)
+        #expect(ping.callCount(for: "17.253.144.10") == 2)
+    }
+
+    @Test func retriesAnchorOnceBeforeGivingUp() async {
+        let ping = ScriptedPingService()
+        // First attempt times out, second succeeds.
+        ping.script(host: "8.8.8.8", results: [
+            PingResult(sequence: 1, host: "8.8.8.8", ttl: 0, time: 0, isTimeout: true)
+        ])
+        ping.script(host: "8.8.8.8", results: [
+            PingResult(sequence: 1, host: "8.8.8.8", ttl: 64, time: 14.0, isTimeout: false)
+        ])
+        ping.script(host: "1.1.1.1", results: [
+            PingResult(sequence: 1, host: "1.1.1.1", ttl: 64, time: 30.0, isTimeout: false)
+        ])
+        ping.script(host: "17.253.144.10", results: [
+            PingResult(sequence: 1, host: "17.253.144.10", ttl: 64, time: 20.0, isTimeout: false)
+        ])
+
+        let vm = makeVM(pingService: ping)
+        await vm.refresh()
+        await waitUntil { vm.anchorLatencies["Google"] == 14.0 }
+
+        #expect(ping.callCount(for: "8.8.8.8") == 2)
+    }
+
+    @Test func keepsLastGoodValueWhenAnchorLaterTimesOut() async {
+        let ping = ScriptedPingService()
+        ping.script(host: "8.8.8.8", results: [
+            PingResult(sequence: 1, host: "8.8.8.8", ttl: 64, time: 12.0, isTimeout: false)
+        ])
+        ping.script(host: "1.1.1.1", results: [
+            PingResult(sequence: 1, host: "1.1.1.1", ttl: 64, time: 30.0, isTimeout: false)
+        ])
+        ping.script(host: "17.253.144.10", results: [
+            PingResult(sequence: 1, host: "17.253.144.10", ttl: 64, time: 20.0, isTimeout: false)
+        ])
+
+        let vm = makeVM(pingService: ping)
+        await vm.refresh()
+        await waitUntil { vm.anchorLatencies.count == 3 }
+        #expect(vm.anchorLatencies["Google"] == 12.0)
+
+        // Second round: Google times out on both attempts; the others succeed with new values.
+        ping.script(host: "8.8.8.8", results: [
+            PingResult(sequence: 1, host: "8.8.8.8", ttl: 0, time: 0, isTimeout: true)
+        ])
+        ping.script(host: "8.8.8.8", results: [
+            PingResult(sequence: 1, host: "8.8.8.8", ttl: 0, time: 0, isTimeout: true)
+        ])
+        ping.script(host: "1.1.1.1", results: [
+            PingResult(sequence: 1, host: "1.1.1.1", ttl: 64, time: 31.0, isTimeout: false)
+        ])
+        ping.script(host: "17.253.144.10", results: [
+            PingResult(sequence: 1, host: "17.253.144.10", ttl: 64, time: 21.0, isTimeout: false)
+        ])
+
+        await vm.refresh()
+        await waitUntil { vm.anchorLatencies["Cloudflare"] == 31.0 }
+
+        // Google's prior good value must survive the timed-out round, not be blanked to nil.
+        #expect(vm.anchorLatencies["Google"] == 12.0)
+    }
 }
 
 // MARK: - Concurrency Tracking Mock
@@ -508,6 +618,49 @@ final class ConcurrencyTrackingPingService: PingServiceProtocol, Sendable {
         let result = PingResult(sequence: 1, host: host, ttl: 64, time: 10.0, isTimeout: false)
         return AsyncStream { continuation in
             continuation.yield(result)
+            continuation.finish()
+        }
+    }
+
+    func stop() async {}
+
+    func calculateStatistics(_ results: [PingResult], requestedCount: Int?) async -> PingStatistics? {
+        nil
+    }
+}
+
+// MARK: - Scripted Per-Host Mock
+
+/// Mock ping service whose results are scripted per host, per call. Each call to
+/// `ping(host:...)` consumes the next queued script for that host (repeating the
+/// last queued script once exhausted), so tests can simulate one anchor timing out
+/// while others succeed, and verify retry behaviour independently per host.
+final class ScriptedPingService: PingServiceProtocol, Sendable {
+    private struct State {
+        var scripts: [String: [[PingResult]]] = [:]
+        var callCounts: [String: Int] = [:]
+    }
+
+    private let state = OSAllocatedUnfairLock(initialState: State())
+
+    /// Queues `results` to be returned by the next call to `ping(host:)` for `host`.
+    func script(host: String, results: [PingResult]) {
+        state.withLock { $0.scripts[host, default: []].append(results) }
+    }
+
+    func callCount(for host: String) -> Int {
+        state.withLock { $0.callCounts[host, default: 0] }
+    }
+
+    func ping(host: String, count: Int, timeout: TimeInterval) async -> AsyncStream<PingResult> {
+        let results = state.withLock { state -> [PingResult] in
+            let index = state.callCounts[host, default: 0]
+            state.callCounts[host, default: 0] += 1
+            guard let scripts = state.scripts[host], !scripts.isEmpty else { return [] }
+            return scripts[min(index, scripts.count - 1)]
+        }
+        return AsyncStream { continuation in
+            for result in results { continuation.yield(result) }
             continuation.finish()
         }
     }
