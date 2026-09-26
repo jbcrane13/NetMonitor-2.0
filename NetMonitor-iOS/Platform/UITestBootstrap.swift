@@ -18,7 +18,7 @@ enum UITestBootstrap {
         ToolActivityLog.shared.clear()
     }
 
-    private static var isUITesting: Bool {
+    static var isUITesting: Bool {
         let args = ProcessInfo.processInfo.arguments
         if args.contains("--uitesting") || args.contains("--uitesting-reset") {
             return true
