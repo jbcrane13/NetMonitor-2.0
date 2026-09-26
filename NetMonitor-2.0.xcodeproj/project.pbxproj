@@ -254,6 +254,7 @@
 		8799A697534134CF042C4848 /* DataMaintenanceServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3040499F7A80AFDBC284E188 /* DataMaintenanceServiceTests.swift */; };
 		87DB0F0965199B4BB3E25411 /* PersistenceRecoveryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEA7544FC741B6E9B70E195F /* PersistenceRecoveryView.swift */; };
 		87F8C04AE709A8337D320FCB /* UptimeHistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C02F9A3B9E5936A4B1BD948D /* UptimeHistoryView.swift */; };
+		883A031767649B8D3B9142C1 /* ToolsGridLayoutUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1268AE7B610824F778D376F6 /* ToolsGridLayoutUITests.swift */; };
 		88972A34C3E66281CF1A0CD3 /* SSLCertificateMonitorUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4D1CAE1F08AF8C7C2450636 /* SSLCertificateMonitorUITests.swift */; };
 		88CA4E319D8AC8D6C5F4F83A /* MacTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92BF0C346E28EDB80D9A26AB /* MacTheme.swift */; };
 		8942A94C0CA1A6F0DFB6E087 /* WHOISToolUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6DBA0C16A1DE7F77F218E6A /* WHOISToolUITests.swift */; };
@@ -559,6 +560,7 @@
 		101F26E4BECFFBFB3797E920 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		113F54C8B77279EBFE7FBF0D /* IOSUITestCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSUITestCase.swift; sourceTree = "<group>"; };
 		11ECEB0143FB17F5EE8C4EB4 /* GatewayService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GatewayService.swift; sourceTree = "<group>"; };
+		1268AE7B610824F778D376F6 /* ToolsGridLayoutUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolsGridLayoutUITests.swift; sourceTree = "<group>"; };
 		1280084A1B0D74730547A6EB /* TargetManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TargetManager.swift; sourceTree = "<group>"; };
 		1416864948742E11E4580141 /* WakeOnLanAction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WakeOnLanAction.swift; sourceTree = "<group>"; };
 		1428BB9BB443F390D8405C03 /* SettingsFunctionalUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsFunctionalUITests.swift; sourceTree = "<group>"; };
@@ -1637,6 +1639,7 @@
 				47384CC91538ECC29ED7E22C /* TimelineUITests.swift */,
 				53DCA7226E72436E142DB0FE /* ToolOutcomeUITests.swift */,
 				BC9B8228A5B2FFCD294C88EC /* ToolsGoldenPathUITests.swift */,
+				1268AE7B610824F778D376F6 /* ToolsGridLayoutUITests.swift */,
 				94B066F0CD9CFC336ED86D3E /* TracerouteToolUITests.swift */,
 				04BDC838230764B6AA69A835 /* VPNInfoUITests.swift */,
 				8060BA1D46DE89D4DF06753D /* WakeOnLANToolUITests.swift */,
@@ -2586,6 +2589,7 @@
 				A19017FAD45462168EAB7157 /* TimelineUITests.swift in Sources */,
 				E9D12894A96B3973E13FC38B /* ToolOutcomeUITests.swift in Sources */,
 				1991B7FB607C1B52DB0F10EF /* ToolsGoldenPathUITests.swift in Sources */,
+				883A031767649B8D3B9142C1 /* ToolsGridLayoutUITests.swift in Sources */,
 				DF6BC00231E6C72864EAEB70 /* TracerouteToolUITests.swift in Sources */,
 				B36B2F6CB68D44649515AA06 /* VPNInfoUITests.swift in Sources */,
 				A070D72D192471E7F0BB66E4 /* WHOISToolUITests.swift in Sources */,
