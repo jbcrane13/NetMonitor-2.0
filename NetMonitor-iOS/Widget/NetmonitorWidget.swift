@@ -101,7 +101,7 @@ struct SmallWidgetView: View {
                     .foregroundStyle(entry.isConnected ? .green : .red)
                 Spacer()
                 Image(systemName: "circle.fill")
-                    .font(.system(size: 8))
+                    .font(.caption2)
                     .foregroundStyle(entry.isConnected ? .green : .red)
             }
 
@@ -173,7 +173,7 @@ struct MediumWidgetView: View {
                 if let dl = entry.downloadSpeed {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Download")
-                            .font(.caption2)
+                            .font(.caption)
                             .foregroundStyle(.secondary)
                         Text(dl)
                             .font(.subheadline)
@@ -184,7 +184,7 @@ struct MediumWidgetView: View {
                 if let ul = entry.uploadSpeed {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Upload")
-                            .font(.caption2)
+                            .font(.caption)
                             .foregroundStyle(.secondary)
                         Text(ul)
                             .font(.subheadline)
@@ -226,7 +226,7 @@ struct LargeWidgetView: View {
                 }
                 Spacer()
                 Image(systemName: "circle.fill")
-                    .font(.system(size: 8))
+                    .font(.caption2)
                     .foregroundStyle(entry.isConnected ? .green : .red)
             }
 
@@ -248,7 +248,7 @@ struct LargeWidgetView: View {
             Spacer()
 
             Text("Updated \(entry.date, style: .relative) ago")
-                .font(.caption2)
+                .font(.caption)
                 .foregroundStyle(.tertiary)
         }
         .padding()
@@ -262,7 +262,7 @@ private struct StatCell: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(label)
-                .font(.caption2)
+                .font(.caption)
                 .foregroundStyle(.secondary)
             Text(value)
                 .font(.subheadline)

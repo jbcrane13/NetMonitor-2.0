@@ -51,11 +51,11 @@ struct NetworkMapView: View {
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("SIGNAL GRID")
-                                .font(.system(size: 10, weight: .black))
+                                .font(.system(.caption2, weight: .black))
                                 .foregroundStyle(Theme.Colors.textTertiary)
                                 .tracking(1.5)
                             Text("\(viewModel.deviceCount) active nodes")
-                                .font(.system(size: 12, weight: .bold, design: .rounded))
+                                .font(.system(.caption, design: .rounded, weight: .bold))
                                 .foregroundStyle(Theme.Colors.accent)
                         }
 
@@ -169,7 +169,7 @@ struct NetworkMapView: View {
                             .font(.system(size: 16, weight: .bold, design: .rounded))
                             .foregroundStyle(Theme.Colors.textStrong)
                         Text(viewModel.gateway?.ipAddress ?? "---.---.---.---")
-                            .font(.system(size: 12, design: .monospaced))
+                            .font(.system(.caption, design: .monospaced))
                             .foregroundStyle(Theme.Colors.textTertiary)
                     }
                     Spacer()
@@ -190,7 +190,7 @@ struct NetworkMapView: View {
                     Label("Gateway: Reachable", systemImage: "checkmark.circle.fill")
                         .foregroundStyle(Theme.Colors.success)
                 }
-                .font(.system(size: 11, weight: .bold))
+                .font(.system(.caption2, weight: .bold))
                 .foregroundStyle(Theme.Colors.textSecondary)
             }
         }
@@ -238,7 +238,7 @@ struct ProDeviceRow: View {
                         .font(.system(size: 14, weight: .bold))
                         .foregroundStyle(Theme.Colors.textStrong)
                     Text(device.ipAddress)
-                        .font(.system(size: 11, design: .monospaced))
+                        .font(.system(.caption2, design: .monospaced))
                         .foregroundStyle(Theme.Colors.textTertiary)
                 }
 
@@ -250,7 +250,7 @@ struct ProDeviceRow: View {
                         .foregroundStyle(Theme.Colors.success)
 
                     Text(device.source == .local ? "DIRECT" : "PEER")
-                        .font(.system(size: 8, weight: .black))
+                        .font(.system(.caption2, weight: .black))
                         .padding(.horizontal, 4)
                         .padding(.vertical, 1)
                         .background(Theme.Colors.divider)
