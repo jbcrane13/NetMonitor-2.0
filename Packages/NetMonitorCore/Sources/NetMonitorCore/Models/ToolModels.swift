@@ -46,8 +46,12 @@ public struct PingResult: Identifiable, Sendable {
     }
 
     public var timeText: String {
-        if isTimeout { return "timeout" }
-        if time < 1 { return String(format: "%.2f ms", time) }
+        if isTimeout {
+            return "timeout"
+        }
+        if time < 1 {
+            return String(format: "%.2f ms", time)
+        }
         return String(format: "%.1f ms", time)
     }
 }
@@ -123,7 +127,9 @@ public struct TracerouteHop: Identifiable, Sendable {
     }
 
     public var displayAddress: String {
-        if isTimeout { return "*" }
+        if isTimeout {
+            return "*"
+        }
         return hostname ?? ipAddress ?? "*"
     }
 
@@ -133,7 +139,9 @@ public struct TracerouteHop: Identifiable, Sendable {
     }
 
     public var timeText: String {
-        if isTimeout { return "*" }
+        if isTimeout {
+            return "*"
+        }
         guard let avg = averageTime else { return "*" }
         return String(format: "%.1f ms", avg)
     }
@@ -214,9 +222,15 @@ public struct DNSRecord: Identifiable, Sendable {
     }
 
     public var ttlText: String {
-        if ttl >= 86400 { return "\(ttl / 86400)d" }
-        if ttl >= 3600  { return "\(ttl / 3600)h" }
-        if ttl >= 60    { return "\(ttl / 60)m" }
+        if ttl >= 86400 {
+            return "\(ttl / 86400)d"
+        }
+        if ttl >= 3600 {
+            return "\(ttl / 3600)h"
+        }
+        if ttl >= 60 {
+            return "\(ttl / 60)m"
+        }
         return "\(ttl)s"
     }
 }
@@ -434,6 +448,30 @@ public struct WHOISResult: Sendable {
     public let rawData: String
     public let queriedAt: Date
 
+    // MARK: - Registrar detail (registrar-level referral / RDAP entity)
+
+    public let registrarURL: String?
+    public let registrarIANAID: String?
+    public let abuseEmail: String?
+    public let abusePhone: String?
+
+    // MARK: - Registrant detail (when not redacted)
+
+    public let registrantOrganization: String?
+    public let registrantCountry: String?
+    public let registrantState: String?
+
+    /// "signed" / "unsigned", or nil if unknown.
+    public let dnssec: String?
+
+    // MARK: - IP WHOIS / RDAP "ip network" fields
+
+    public let networkRange: String?
+    public let networkName: String?
+    public let networkOrganization: String?
+    public let networkCountry: String?
+    public let asn: String?
+
     public init(
         query: String,
         registrar: String? = nil,
@@ -442,7 +480,20 @@ public struct WHOISResult: Sendable {
         updatedDate: Date? = nil,
         nameServers: [String] = [],
         status: [String] = [],
-        rawData: String
+        rawData: String,
+        registrarURL: String? = nil,
+        registrarIANAID: String? = nil,
+        abuseEmail: String? = nil,
+        abusePhone: String? = nil,
+        registrantOrganization: String? = nil,
+        registrantCountry: String? = nil,
+        registrantState: String? = nil,
+        dnssec: String? = nil,
+        networkRange: String? = nil,
+        networkName: String? = nil,
+        networkOrganization: String? = nil,
+        networkCountry: String? = nil,
+        asn: String? = nil
     ) {
         self.query = query
         self.registrar = registrar
@@ -453,6 +504,19 @@ public struct WHOISResult: Sendable {
         self.status = status
         self.rawData = rawData
         self.queriedAt = Date()
+        self.registrarURL = registrarURL
+        self.registrarIANAID = registrarIANAID
+        self.abuseEmail = abuseEmail
+        self.abusePhone = abusePhone
+        self.registrantOrganization = registrantOrganization
+        self.registrantCountry = registrantCountry
+        self.registrantState = registrantState
+        self.dnssec = dnssec
+        self.networkRange = networkRange
+        self.networkName = networkName
+        self.networkOrganization = networkOrganization
+        self.networkCountry = networkCountry
+        self.asn = asn
     }
 
     public var domainAge: String? {
@@ -464,5 +528,64 @@ public struct WHOISResult: Sendable {
     public var daysUntilExpiration: Int? {
         guard let expiration = expirationDate else { return nil }
         return Calendar.current.dateComponents([.day], from: Date(), to: expiration).day
+    }
+
+    /// True once any IP-network field has been populated (i.e. this result came from an IP lookup).
+    public var isIPNetworkResult: Bool {
+        networkRange != nil || networkName != nil || networkOrganization != nil
+    }
+}
+
+// MARK: - EPP domain status hints
+
+/// Plain-language hints for common EPP domain status codes (RFC 8056 / icann.org/epp).
+/// Matches both the RDAP wording ("client delete prohibited") and the WHOIS wording
+/// ("clientDeleteProhibited https://icann.org/epp#clientDeleteProhibited") by
+/// canonicalizing to a lowercase, letters-only token before lookup.
+public enum EPPStatusHints {
+    private static let hints: [String: String] = [
+        "clientdeleteprohibited": "Registrar has blocked deletion of this domain.",
+        "clienttransferprohibited": "Registrar has blocked transferring this domain to another registrar.",
+        "clientupdateprohibited": "Registrar has blocked changes to this domain's records.",
+        "clientrenewprohibited": "Registrar has blocked renewal of this domain.",
+        "clienthold": "Registrar has taken this domain out of DNS (often a dispute or fraud hold).",
+        "serverdeleteprohibited": "Registry has blocked deletion of this domain.",
+        "servertransferprohibited": "Registry has blocked transferring this domain.",
+        "serverupdateprohibited": "Registry has blocked changes to this domain's records.",
+        "serverrenewprohibited": "Registry has blocked renewal of this domain.",
+        "serverhold": "Registry has taken this domain out of DNS — usually a serious policy or legal issue.",
+        "pendingdelete": "Domain is in the process of being deleted.",
+        "pendingtransfer": "A transfer to another registrar is in progress.",
+        "pendingupdate": "A change to this domain is in progress.",
+        "pendingrenewal": "A renewal is in progress.",
+        "pendingrestore": "Domain is being restored from a redemption grace period.",
+        "pendingcreate": "Domain registration is in progress.",
+        "redemptionperiod": "Domain was deleted and is in a grace period before its name is released.",
+        "autorenewperiod": "Domain auto-renewed and is in a grace period where the renewal can still be reversed.",
+        "addperiod": "Domain was just registered and is in an initial grace period.",
+        "renewperiod": "Domain was just renewed and is in a grace period.",
+        "transferperiod": "Domain was just transferred and is in a grace period.",
+        "active": "Domain is active and resolving normally.",
+        "ok": "Domain is active and resolving normally.",
+        "inactive": "Domain has no nameservers delegated."
+    ]
+
+    /// Reduces a raw status string (from either RDAP or WHOIS text) to a lowercase,
+    /// letters-only token suitable for hint lookup, e.g.
+    /// "clientDeleteProhibited https://icann.org/epp#..." -> "clientdeleteprohibited"
+    /// "client delete prohibited" -> "clientdeleteprohibited"
+    public static func canonicalToken(for rawStatus: String) -> String {
+        let codePhrase: String
+        if let httpRange = rawStatus.range(of: "http") {
+            codePhrase = String(rawStatus[rawStatus.startIndex..<httpRange.lowerBound])
+        } else {
+            codePhrase = rawStatus
+        }
+        return codePhrase.lowercased().filter { $0.isLetter }
+    }
+
+    /// A short plain-language explanation for a raw domain status string, if known.
+    public static func hint(for rawStatus: String) -> String? {
+        hints[canonicalToken(for: rawStatus)]
     }
 }
