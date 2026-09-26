@@ -354,4 +354,65 @@ struct WHOISResultTests {
         let days = result.daysUntilExpiration ?? 0
         #expect(days < 0)
     }
+
+    @Test func newDetailFieldsDefaultToNil() {
+        let result = WHOISResult(query: "example.com", rawData: "raw")
+        #expect(result.registrarURL == nil)
+        #expect(result.registrarIANAID == nil)
+        #expect(result.abuseEmail == nil)
+        #expect(result.abusePhone == nil)
+        #expect(result.registrantOrganization == nil)
+        #expect(result.registrantCountry == nil)
+        #expect(result.registrantState == nil)
+        #expect(result.dnssec == nil)
+        #expect(result.networkRange == nil)
+        #expect(result.asn == nil)
+        #expect(result.isIPNetworkResult == false)
+    }
+
+    @Test func isIPNetworkResultTrueWhenNetworkRangeSet() {
+        let result = WHOISResult(query: "8.8.8.8", rawData: "raw", networkRange: "8.8.8.0 - 8.8.8.255")
+        #expect(result.isIPNetworkResult == true)
+    }
+}
+
+// MARK: - EPPStatusHints
+
+struct EPPStatusHintsTests {
+    @Test func canonicalTokenStripsWHOISStyleURL() {
+        let token = EPPStatusHints.canonicalToken(
+            for: "clientDeleteProhibited https://icann.org/epp#clientDeleteProhibited"
+        )
+        #expect(token == "clientdeleteprohibited")
+    }
+
+    @Test func canonicalTokenStripsParenthesizedURL() {
+        let token = EPPStatusHints.canonicalToken(
+            for: "clientUpdateProhibited (https://www.icann.org/epp#clientUpdateProhibited)"
+        )
+        #expect(token == "clientupdateprohibited")
+    }
+
+    @Test func canonicalTokenHandlesRDAPSpacedWording() {
+        let token = EPPStatusHints.canonicalToken(for: "client delete prohibited")
+        #expect(token == "clientdeleteprohibited")
+    }
+
+    @Test func rdapAndWHOISWordingsProduceTheSameHint() {
+        let rdapHint = EPPStatusHints.hint(for: "client transfer prohibited")
+        let whoisHint = EPPStatusHints.hint(
+            for: "clientTransferProhibited https://icann.org/epp#clientTransferProhibited"
+        )
+        #expect(rdapHint != nil)
+        #expect(rdapHint == whoisHint)
+    }
+
+    @Test func unknownStatusHasNoHint() {
+        #expect(EPPStatusHints.hint(for: "totallyMadeUpStatus") == nil)
+    }
+
+    @Test func activeAndOkShareTheSameHint() {
+        #expect(EPPStatusHints.hint(for: "active") == EPPStatusHints.hint(for: "ok"))
+        #expect(EPPStatusHints.hint(for: "active") != nil)
+    }
 }
