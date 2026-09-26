@@ -151,7 +151,7 @@ struct ConnectionStatusHeader: View {
         HStack(spacing: 6) {
             StatusDot(status: viewModel.isConnected ? .online : .offline, size: 8, animated: viewModel.isConnected)
             Text(viewModel.isConnected ? "MONITORING" : "OFFLINE")
-                .font(.system(size: 11, weight: .bold, design: .monospaced))
+                .font(.system(.caption2, design: .monospaced, weight: .bold))
                 .foregroundStyle(Theme.Colors.textSecondary)
         }
         .accessibilityIdentifier("dashboard_label_connectionStatus")
@@ -174,7 +174,7 @@ struct OfflineBanner: View {
 
                 if let date = lastScanDate {
                     Text("Updated \(date, style: .relative) ago")
-                        .font(.system(size: 11))
+                        .font(.system(.caption2))
                         .foregroundStyle(Theme.Colors.textSecondary)
                 }
             }
@@ -226,7 +226,7 @@ struct TacticalHUDHeader: View {
                                     Text("•")
                                         .foregroundStyle(Theme.Colors.textTertiary)
                                     Text("CH \(channel)")
-                                        .font(.system(size: 10, weight: .black, design: .monospaced))
+                                        .font(.system(.caption2, design: .monospaced, weight: .black))
                                         .padding(.horizontal, 4)
                                         .padding(.vertical, 1)
                                         .background(Theme.Colors.accent.opacity(0.1))
@@ -301,12 +301,12 @@ struct RefinedNetworkHealthCard: View {
             VStack(alignment: .leading, spacing: 10) {
                 HStack {
                     Text("NETWORK HEALTH")
-                        .font(.system(size: 9, weight: .heavy))
+                        .font(.system(.caption2, weight: .heavy))
                         .foregroundStyle(Theme.Colors.textTertiary)
                         .tracking(2.0)
                     Spacer()
                     Text("LIVE")
-                        .font(.system(size: 9, weight: .black))
+                        .font(.system(.caption2, weight: .black))
                         .foregroundStyle(Theme.Colors.success)
                         .padding(.horizontal, 4)
                         .padding(.vertical, 2)
@@ -336,7 +336,7 @@ struct RefinedNetworkHealthCard: View {
                                 .font(.system(size: 24, weight: .semibold, design: .rounded))
                                 .foregroundStyle(Theme.Colors.textStrong)
                             Text(healthViewModel.gradeText)
-                                .font(.system(size: 7, weight: .black))
+                                .font(.system(.caption2, weight: .black))
                                 .foregroundStyle(Theme.Colors.textTertiary)
                                 .tracking(1)
                         }
@@ -355,7 +355,7 @@ struct RefinedNetworkHealthCard: View {
                         }
 
                         Text(healthDetailText)
-                            .font(.system(size: 11))
+                            .font(.system(.caption2))
                             .foregroundStyle(Theme.Colors.textSecondary)
                             .lineSpacing(1)
                     }
@@ -421,13 +421,13 @@ struct SignalEQView: View {
             VStack(alignment: .leading, spacing: 10) {
                 HStack {
                     Text("STABILITY SPECTRUM (JITTER)")
-                        .font(.system(size: 9, weight: .heavy))
+                        .font(.system(.caption2, weight: .heavy))
                         .foregroundStyle(Theme.Colors.textTertiary)
                         .tracking(2.0)
                     Spacer()
                     if !hasRealData {
                         Text("COLLECTING…")
-                            .font(.system(size: 9, weight: .black))
+                            .font(.system(.caption2, weight: .black))
                             .foregroundStyle(Theme.Colors.textTertiary)
                     }
                 }
@@ -479,7 +479,7 @@ struct WANInfoCard: View {
         GlassCard(padding: 12, statusGlow: Theme.Colors.info) {
             VStack(alignment: .leading, spacing: 10) {
                 Text("WAN INFO")
-                    .font(.system(size: 9, weight: .heavy))
+                    .font(.system(.caption2, weight: .heavy))
                     .foregroundStyle(Theme.Colors.textTertiary)
                     .tracking(2.0)
 
@@ -522,7 +522,7 @@ struct AnchorLatencyCard: View {
         GlassCard(padding: 12, statusGlow: Theme.Colors.info) {
             VStack(alignment: .leading, spacing: 10) {
                 Text("INTERNET LATENCY")
-                    .font(.system(size: 9, weight: .heavy))
+                    .font(.system(.caption2, weight: .heavy))
                     .foregroundStyle(Theme.Colors.textTertiary)
                     .tracking(2.0)
 
@@ -565,7 +565,7 @@ struct AnchorMetricColumn: View {
                     .font(.system(size: 20, weight: .semibold, design: .rounded))
                     .foregroundStyle(Theme.Colors.textStrong)
                 Text("ms")
-                    .font(.system(size: 8, weight: .heavy))
+                    .font(.system(.caption2, weight: .heavy))
                     .foregroundStyle(Theme.Colors.textTertiary)
                     .tracking(0.5)
             } else {
@@ -573,12 +573,12 @@ struct AnchorMetricColumn: View {
                     .font(.system(size: 20, weight: .semibold, design: .rounded))
                     .foregroundStyle(Theme.Colors.textTertiary)
                 Text("ms")
-                    .font(.system(size: 8, weight: .heavy))
+                    .font(.system(.caption2, weight: .heavy))
                     .foregroundStyle(Theme.Colors.textTertiary)
                     .tracking(0.5)
             }
             Text(label.uppercased())
-                .font(.system(size: 7, weight: .heavy))
+                .font(.system(.caption2, weight: .heavy))
                 .foregroundStyle(Theme.Colors.textTertiary)
                 .tracking(1.2)
         }
@@ -599,7 +599,7 @@ struct ConnectivityRow: View {
                 .frame(width: 20)
 
             Text(label.uppercased())
-                .font(.system(size: 10, weight: .bold))
+                .font(.system(.caption2, weight: .bold))
                 .foregroundStyle(Theme.Colors.textTertiary)
 
             Spacer()
@@ -637,16 +637,16 @@ struct LocalDevicesCard: View {
                 VStack(alignment: .leading, spacing: 14) {
                     HStack {
                         Text("ACTIVE DEVICES")
-                            .font(.system(size: 9, weight: .heavy))
+                            .font(.system(.caption2, weight: .heavy))
                             .foregroundStyle(Theme.Colors.textTertiary)
                             .tracking(2.0)
                         Spacer()
                         HStack(spacing: 4) {
                             Text("\(viewModel.deviceCount) total")
-                                .font(.system(size: 11, weight: .bold))
+                                .font(.system(.caption2, weight: .bold))
                                 .foregroundStyle(Theme.Colors.accent)
                             Image(systemName: "chevron.right")
-                                .font(.system(size: 9, weight: .bold))
+                                .font(.system(.caption2, weight: .bold))
                                 .foregroundStyle(Theme.Colors.textTertiary)
                         }
                     }
@@ -680,7 +680,7 @@ struct LocalDevicesCard: View {
                                 Text("NO SCAN YET • RUN A DEVICE SCAN")
                             }
                         }
-                        .font(.system(size: 10, weight: .black, design: .monospaced))
+                        .font(.system(.caption2, design: .monospaced, weight: .black))
                         .foregroundStyle(Theme.Colors.textTertiary)
                         .frame(maxWidth: .infinity, alignment: .center)
                         .padding(.vertical, 10)
@@ -721,7 +721,7 @@ struct DeviceRow: View {
                     .font(.system(size: 14, weight: .bold))
                     .foregroundStyle(Theme.Colors.textStrong)
                 Text(device.ipAddress)
-                    .font(.system(size: 11, design: .monospaced))
+                    .font(.system(.caption2, design: .monospaced))
                     .foregroundStyle(Theme.Colors.textTertiary)
                     .tracking(0.3)
             }
@@ -776,11 +776,11 @@ struct SpeedTestQuickCard: View {
 
                         if let result = lastResult {
                             Text(String(format: "Last: %.0f Mbps ↓ • %.0f Mbps ↑", result.downloadSpeed, result.uploadSpeed))
-                                .font(.system(size: 11, design: .monospaced))
+                                .font(.system(.caption2, design: .monospaced))
                                 .foregroundStyle(Theme.Colors.textSecondary)
                         } else {
                             Text("Tap to measure your connection speed")
-                                .font(.system(size: 11))
+                                .font(.system(.caption2))
                                 .foregroundStyle(Theme.Colors.textSecondary)
                         }
                     }
@@ -792,7 +792,7 @@ struct SpeedTestQuickCard: View {
                             .font(.system(size: 12, weight: .bold))
                             .foregroundStyle(Theme.Colors.accent)
                         Image(systemName: "chevron.right")
-                            .font(.system(size: 10, weight: .bold))
+                            .font(.system(.caption2, weight: .bold))
                             .foregroundStyle(Theme.Colors.accent)
                     }
                     .padding(.horizontal, 10)
@@ -845,7 +845,7 @@ struct WiFiHeatmapQuickCard: View {
                             .foregroundStyle(Theme.Colors.textPrimary)
 
                         Text("Map signal coverage across your space")
-                            .font(.system(size: 11))
+                            .font(.system(.caption2))
                             .foregroundStyle(Theme.Colors.textSecondary)
                     }
 
@@ -856,7 +856,7 @@ struct WiFiHeatmapQuickCard: View {
                             .font(.system(size: 12, weight: .bold))
                             .foregroundStyle(.cyan)
                         Image(systemName: "chevron.right")
-                            .font(.system(size: 10, weight: .bold))
+                            .font(.system(.caption2, weight: .bold))
                             .foregroundStyle(.cyan)
                     }
                     .padding(.horizontal, 10)
@@ -893,7 +893,7 @@ struct LiveEventTicker: View {
                         .font(.caption)
                         .foregroundStyle(Theme.Colors.accent)
                     Text("LIVE EVENTS")
-                        .font(.system(size: 9, weight: .heavy))
+                        .font(.system(.caption2, weight: .heavy))
                         .foregroundStyle(Theme.Colors.textSecondary)
                         .tracking(2.0)
                     Spacer()
@@ -902,7 +902,7 @@ struct LiveEventTicker: View {
 
                 if recentEvents.isEmpty {
                     Text("NO EVENTS YET")
-                        .font(.system(size: 10, weight: .black, design: .monospaced))
+                        .font(.system(.caption2, design: .monospaced, weight: .black))
                         .foregroundStyle(Theme.Colors.textTertiary)
                         .frame(maxWidth: .infinity, alignment: .center)
                         .padding(.vertical, 4)
@@ -927,10 +927,10 @@ struct EventRow: View {
     var body: some View {
         HStack(spacing: 8) {
             Text(time)
-                .font(.system(size: 9, design: .monospaced))
+                .font(.system(.caption2, design: .monospaced))
                 .foregroundStyle(Theme.Colors.textTertiary)
             Text(text)
-                .font(.system(size: 10, design: .monospaced))
+                .font(.system(.caption2, design: .monospaced))
                 .foregroundStyle(Theme.Colors.textSecondary)
                 .lineLimit(1)
         }
