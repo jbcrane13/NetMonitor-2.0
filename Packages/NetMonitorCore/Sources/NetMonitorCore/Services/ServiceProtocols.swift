@@ -94,6 +94,8 @@ public protocol DNSLookupServiceProtocol: AnyObject, Sendable {
     @MainActor var isLoading: Bool { get }
     @MainActor var lastError: String? { get }
     @MainActor func lookup(domain: String, recordType: DNSRecordType, server: String?) async -> DNSQueryResult?
+    /// Queries A, AAAA, CNAME, MX, NS, TXT, SOA and CAA and merges the results into one result.
+    @MainActor func lookupAll(domain: String, server: String?) async -> DNSQueryResult?
 }
 
 /// Protocol for WHOIS lookup operations.
