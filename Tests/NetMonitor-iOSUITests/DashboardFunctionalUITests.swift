@@ -102,67 +102,6 @@ final class DashboardFunctionalUITests: IOSUITestCase {
         captureScreenshot(named: "Dashboard_DeviceListNav")
     }
 
-    // MARK: - 3b. Device List Row -> Device Detail Navigation (regression test for #318)
-
-    /// Regression test for #318: tapping a device row on the dashboard's
-    /// device list must push the detail screen immediately, not 5-20s
-    /// later after the list silently reloads.
-    ///
-    /// The dashboard only ever *reflects* `env.deviceDiscovery`'s
-    /// `discoveredDevices` — it doesn't kick off a scan on its own. Trigger
-    /// a scan from the Map tab first (same shared discovery service) so the
-    /// dashboard's device list is actually populated, and so the scan is
-    /// likely still publishing updates when the row is tapped — the exact
-    /// condition that produced the multi-second stall in #318.
-    func testTapDeviceRowInDashboardDeviceListPushesDetailImmediately() throws {
-        app.tabBars.buttons["Map"].tap()
-        let scanButton = app.buttons["networkMap_button_scan"]
-        guard scanButton.waitForExistence(timeout: 5) else {
-            throw XCTSkip("Network map scan button unavailable to seed discovered devices")
-        }
-        scanButton.tap()
-
-        let firstMapRow = app.otherElements.matching(
-            NSPredicate(format: "identifier BEGINSWITH 'networkMap_row_'")
-        ).firstMatch
-        guard firstMapRow.waitForExistence(timeout: 15) else {
-            throw XCTSkip("No discovered devices available to exercise device detail navigation timing")
-        }
-
-        app.tabBars.buttons["Dashboard"].tap()
-
-        // Container identifiers can be duplicated/stamped over children on iOS 26,
-        // so resolve via `.matching(identifier:).firstMatch` rather than the
-        // ambiguous `ui()` subscript helper used elsewhere in this file.
-        let devicesCard = app.descendants(matching: .any).matching(identifier: "dashboard_card_localDevices").firstMatch
-        scrollToElement(devicesCard)
-        requireExists(devicesCard, timeout: 10, message: "Local devices card should exist on dashboard")
-
-        devicesCard.tap()
-
-        let deviceListScreen = app.descendants(matching: .any).matching(identifier: "screen_deviceList").firstMatch
-        requireExists(deviceListScreen, timeout: 8,
-                      message: "Tapping local devices card should navigate to device list screen")
-
-        let firstDeviceRow = app.descendants(matching: .any).matching(
-            NSPredicate(format: "identifier BEGINSWITH 'deviceList_row_device_'")
-        ).firstMatch
-
-        guard firstDeviceRow.waitForExistence(timeout: 10) else {
-            throw XCTSkip("No discovered devices available to exercise device detail navigation timing")
-        }
-
-        firstDeviceRow.tap()
-
-        let detailScreen = app.descendants(matching: .any).matching(identifier: "screen_deviceDetail").firstMatch
-        XCTAssertTrue(
-            detailScreen.waitForExistence(timeout: 2.5),
-            "Device detail screen should push immediately (within ~2s) after tapping a device row"
-        )
-
-        captureScreenshot(named: "Dashboard_DeviceDetailImmediateNav")
-    }
-
     // MARK: - 4. Speed Test Card -> Speed Test Tool Navigation
 
     func testTapSpeedTestCardNavigatesToSpeedTestTool() {

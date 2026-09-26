@@ -17,6 +17,10 @@ final class DashboardViewModel {
     private var lastLoggedGatewayLatency: Double?
     private var lastLoggedWiFiSSID: String?
 
+    /// Deterministic device fixture for UI tests (see #318). Inert unless
+    /// launched with `UITEST_FAKE_DEVICES=1`.
+    private let uiTestFakeDeviceFeed = UITestFakeDeviceFeed()
+
     // MARK: - Network Selection
 
     /// Available network interfaces for scanning.
@@ -75,6 +79,7 @@ final class DashboardViewModel {
             networkProfileManager: networkProfileManager,
             selectedNetworkID: &selectedNetworkID
         )
+        uiTestFakeDeviceFeed.startIfNeeded()
     }
 
     var isConnected: Bool {
@@ -139,6 +144,9 @@ final class DashboardViewModel {
     }
 
     var discoveredDevices: [DiscoveredDevice] {
+        if UITestFakeDeviceFeed.isEnabled {
+            return uiTestFakeDeviceFeed.devices
+        }
         let currentDevices = scopedDevices(from: deviceDiscoveryService.discoveredDevices)
         if !currentDevices.isEmpty {
             return currentDevices

@@ -4,6 +4,12 @@ import XCTest
 class IOSUITestCase: XCTestCase {
     var app: XCUIApplication!
 
+    /// Extra launch-environment entries applied before `app.launch()`.
+    /// Override in a subclass that needs a special app configuration for
+    /// one test file (e.g. a deterministic device fixture) instead of
+    /// duplicating this class's `setUp()`.
+    var additionalLaunchEnvironment: [String: String] { [:] }
+
     override func setUp() async throws {
         continueAfterFailure = false
         app = XCUIApplication()
@@ -30,6 +36,9 @@ class IOSUITestCase: XCTestCase {
         app.launchArguments += ["--uitesting", "--uitesting-reset"]
         app.launchEnvironment["UITEST_MODE"] = "1"
         app.launchEnvironment["XCUITest"] = "1"
+        for (key, value) in additionalLaunchEnvironment {
+            app.launchEnvironment[key] = value
+        }
         app.launch()
         XCTAssertTrue(app.wait(for: .runningForeground, timeout: 10), "App should launch to foreground")
     }
@@ -78,9 +87,13 @@ class IOSUITestCase: XCTestCase {
 
         let scrollContainer: XCUIElement = {
             let table = app.tables.firstMatch
-            if table.exists { return table }
+            if table.exists {
+                return table
+            }
             let collection = app.collectionViews.firstMatch
-            if collection.exists { return collection }
+            if collection.exists {
+                return collection
+            }
             return app.scrollViews.firstMatch
         }()
 
