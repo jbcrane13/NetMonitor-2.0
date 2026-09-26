@@ -6,8 +6,12 @@ public actor PingService: PingServiceProtocol {
 
     // MARK: - State
 
-    private var isRunning = false
-    private var activeRunID: UUID?
+    /// IDs of ping runs currently in flight on this actor instance.
+    /// A set (not a single ID) because callers may invoke `ping()` multiple times
+    /// concurrently on the same `PingService` instance (e.g. pinging several anchor
+    /// hosts at once) — each run must track its own liveness independently rather
+    /// than the most-recently-started run silently invalidating the others.
+    private var activeRunIDs: Set<UUID> = []
 
     /// Dedicated queue isolates TCP ping measurements from other traffic.
     ///
@@ -59,8 +63,7 @@ public actor PingService: PingServiceProtocol {
     }
 
     public func stop() async {
-        isRunning = false
-        activeRunID = nil
+        activeRunIDs.removeAll()
     }
 
     public func calculateStatistics(_ results: [PingResult], requestedCount: Int? = nil) async -> PingStatistics? {
@@ -98,19 +101,16 @@ public actor PingService: PingServiceProtocol {
 
     private func beginRun() -> UUID {
         let runID = UUID()
-        activeRunID = runID
-        isRunning = true
+        activeRunIDs.insert(runID)
         return runID
     }
 
     private func shouldContinue(runID: UUID) -> Bool {
-        isRunning && activeRunID == runID
+        activeRunIDs.contains(runID)
     }
 
     private func endRun(runID: UUID) {
-        guard activeRunID == runID else { return }
-        activeRunID = nil
-        isRunning = false
+        activeRunIDs.remove(runID)
     }
 
     // MARK: - DNS Resolution

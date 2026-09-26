@@ -258,18 +258,24 @@ final class DashboardViewModel {
     /// Ping well-known anchors to show real external latency.
     /// Pings run concurrently via `withTaskGroup` so worst-case latency is bounded by
     /// the slowest single anchor instead of the sum across all anchors.
+    ///
+    /// Each anchor gets up to 2 attempts — a single dropped or late reply shouldn't
+    /// blank an anchor for a whole refresh cycle. A failed attempt (both retries miss)
+    /// keeps the anchor's last known-good value rather than overwriting it with nil,
+    /// so a transient miss doesn't hide a value that was reachable moments ago.
     private func measureAnchors() async {
         let anchors = ["Google": "8.8.8.8", "Cloudflare": "1.1.1.1", "Apple": "17.253.144.10"]
 
         let results = await withTaskGroup(of: (String, Double?).self) { [pingService] group in
             for (name, host) in anchors {
                 group.addTask {
-                    let stream = await pingService.ping(host: host, count: 1, timeout: 2)
-                    var latency: Double?
-                    for await result in stream where !result.isTimeout {
-                        latency = result.time
+                    for _ in 0..<2 {
+                        let stream = await pingService.ping(host: host, count: 1, timeout: 2)
+                        for await result in stream where !result.isTimeout {
+                            return (name, result.time)
+                        }
                     }
-                    return (name, latency)
+                    return (name, nil)
                 }
             }
             var collected: [(String, Double?)] = []
@@ -279,18 +285,19 @@ final class DashboardViewModel {
             return collected
         }
 
-        for (name, latency) in results {
+        for (name, latency) in results where latency != nil {
             anchorLatencies[name] = latency
         }
 
-        // Log a summary event for anchors
-        let reachable = anchorLatencies.compactMap { $0.value }
+        // Log a summary event for this round's anchors (not the cumulative kept-value dict,
+        // which may still hold a stale value for an anchor that just failed).
+        let reachable = results.compactMap(\.1)
         if !reachable.isEmpty {
             let avg = reachable.reduce(0, +) / Double(reachable.count)
             activityLog.add(
                 tool: "Internet",
                 target: "Anchors",
-                result: String(format: "%.0fms avg (%d/%d)", avg, reachable.count, anchorLatencies.count),
+                result: String(format: "%.0fms avg (%d/%d)", avg, reachable.count, results.count),
                 success: true
             )
         }

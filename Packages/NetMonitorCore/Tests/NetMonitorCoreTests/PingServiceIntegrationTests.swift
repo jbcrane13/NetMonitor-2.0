@@ -75,7 +75,9 @@ struct PingServiceIntegrationTests {
             var count = 0
             for await _ in await service.ping(host: "127.0.0.1", count: 100, timeout: 30.0) {
                 count += 1
-                if count >= 1 { break }  // exit after first result
+                if count >= 1 {
+                    break
+                }  // exit after first result
             }
             return count
         }
@@ -83,5 +85,42 @@ struct PingServiceIntegrationTests {
         await service.stop()
         let count = await pingTask.value
         #expect(count >= 0)  // no crash
+    }
+
+    // MARK: - Concurrent runs on one instance (regression for #319)
+
+    /// Regression for the dashboard anchor-latency bug: `PingService` previously tracked
+    /// a single `activeRunID`, so calling `ping()` several times concurrently on the same
+    /// actor instance (e.g. one shared service pinging Google/Cloudflare/Apple anchors at
+    /// once) let the most-recently-started run silently invalidate the others' `shouldContinue`
+    /// check, breaking their loop before a single probe was sent. Each concurrent run must now
+    /// yield its own results independently.
+    @Test("Concurrent ping() calls on the same PingService instance each yield their own results",
+          .tags(.integration))
+    func concurrentPingsOnSameInstanceEachGetOwnResults() async {
+        let service = PingService()
+
+        async let runA = pingAndCollect(service, host: "127.0.0.1", count: 1, timeout: 2.0)
+        async let runB = pingAndCollect(service, host: "127.0.0.1", count: 1, timeout: 2.0)
+        async let runC = pingAndCollect(service, host: "127.0.0.1", count: 1, timeout: 2.0)
+
+        let (resultsA, resultsB, resultsC) = await (runA, runB, runC)
+
+        #expect(resultsA.count == 1, "run A should yield its 1 requested result, got \(resultsA.count)")
+        #expect(resultsB.count == 1, "run B should yield its 1 requested result, got \(resultsB.count)")
+        #expect(resultsC.count == 1, "run C should yield its 1 requested result, got \(resultsC.count)")
+    }
+
+    private func pingAndCollect(
+        _ service: PingService,
+        host: String,
+        count: Int,
+        timeout: TimeInterval
+    ) async -> [PingResult] {
+        var results: [PingResult] = []
+        for await result in await service.ping(host: host, count: count, timeout: timeout) {
+            results.append(result)
+        }
+        return results
     }
 }
