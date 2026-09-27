@@ -231,6 +231,41 @@ struct CompanionServiceValueTypeTests {
         let type = await service.serviceType
         #expect(type == "_netmon._tcp")
     }
+
+    @Test("CompanionService initial connected client infos is empty")
+    func initialConnectedClientInfosEmpty() async {
+        let service = CompanionService()
+        let infos = await service.getConnectedClientInfos()
+        #expect(infos.isEmpty)
+    }
+}
+
+// MARK: - CompanionService Lifecycle Edge Cases
+
+// start() can throw before the listener is fully wired, and the listener can
+// land in `.failed` after start. Verify the actor is safe to stop in those
+// edge states.
+
+struct CompanionServiceLifecycleTests {
+
+    @Test("stop on a fresh service is a no-op")
+    func stopBeforeStartIsSafe() async {
+        let service = CompanionService()
+        await service.stop()
+        let running = await service.isRunning
+        #expect(!running)
+    }
+
+    @Test("stop is idempotent")
+    func stopIsIdempotent() async {
+        let service = CompanionService()
+        await service.stop()
+        await service.stop()
+        let running = await service.isRunning
+        let clients = await service.connectedClients
+        #expect(!running)
+        #expect(clients.isEmpty)
+    }
 }
 
 // MARK: - CompanionService Callback Queue Tests

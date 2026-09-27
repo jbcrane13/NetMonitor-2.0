@@ -101,10 +101,11 @@ actor CompanionService {
     }
 
     // periphery:ignore
-    /// Stop the service
+    /// Stop the service. Safe to call before `start()` or after a failed start.
     func stop() {
         listener?.cancel()
         listener = nil
+        messageHandler = nil
 
         for (_, connection) in connectedClients {
             connection.cancel()
@@ -140,8 +141,15 @@ actor CompanionService {
         switch state {
         case .ready:
             Logger.companion.info("Listening on port \(self.port)")
+        case .waiting(let error):
+            // Port may be in use, or network path temporarily unavailable.
+            // NWListener will retry; surface for diagnostics rather than swallowing.
+            Logger.companion.warning("Listener waiting: \(error, privacy: .public)")
         case .failed(let error):
             Logger.companion.error("Failed to start: \(error, privacy: .public)")
+            listener?.cancel()
+            listener = nil
+            messageHandler = nil
             isRunning = false
         case .cancelled:
             isRunning = false
@@ -183,8 +191,11 @@ actor CompanionService {
                     to: clientID
                 )
             }
+        case .waiting(let error):
+            Logger.companion.warning("Client \(clientID) waiting: \(error, privacy: .public)")
         case .failed(let error):
             Logger.companion.error("Client \(clientID) failed: \(error, privacy: .public)")
+            connectedClients[clientID]?.cancel()
             connectedClients.removeValue(forKey: clientID)
             decoders.removeValue(forKey: clientID)
             clientInfos.removeValue(forKey: clientID)
