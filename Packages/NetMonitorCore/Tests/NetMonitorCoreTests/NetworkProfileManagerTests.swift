@@ -245,6 +245,9 @@ struct NetworkProfileManagerTests {
             name: "Blake's iPhone Network",
             interfaceName: "en2"
         )
+        #expect(returned?.isLocal == true)
+        #expect(returned?.discoveryMethod == .auto)
+        #expect(returned?.interfaceName == "en0")
         // The companion handler re-runs detection right after the upsert.
         manager.detectLocalNetwork()
 
