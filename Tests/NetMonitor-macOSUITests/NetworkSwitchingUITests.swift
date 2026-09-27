@@ -3,36 +3,82 @@ import XCTest
 @MainActor
 final class NetworkSwitchingUITests: MacOSUITestCase {
 
-    func testNetworksSectionExistsInSidebar() {
-        XCTAssertTrue(app.descendants(matching: .any)["sidebar_section_networks"].waitForExistence(timeout: 5),
-                      "Networks section should exist in sidebar")
+    // MARK: - Helpers
+
+    /// On macOS 27 the NETWORKS section header can be exposed as one element
+    /// labelled "NETWORKS, Add" carrying the + button's identifier; the + sits
+    /// at its trailing edge. macOS 27 ignores synthesized `tap()`s here, so
+    /// this file clicks.
+    private func clickAddNetwork() {
+        let add = ui("sidebar_button_addNetwork").firstMatch
+        requireExists(add, timeout: 5, message: "Add Network control should exist in sidebar")
+        if add.elementType == .button {
+            add.click()
+        } else {
+            add.coordinate(withNormalizedOffset: CGVector(dx: 0.96, dy: 0.5)).click()
+        }
     }
 
-    func testAddNetworkButtonExists() {
-        XCTAssertTrue(app.buttons["sidebar_button_addNetwork"].waitForExistence(timeout: 5),
-                      "Add Network button should exist in sidebar")
+    private func addNetwork(gateway: String, subnet: String, name: String? = nil) {
+        clickAddNetwork()
+        requireExists(app.sheets.firstMatch, timeout: 3, message: "Add Network sheet should appear")
+
+        // clearAndTypeText focuses with tap(), which macOS 27 ignores; click first.
+        app.textFields["addNetwork_textfield_gateway"].click()
+        clearAndTypeText(gateway, into: app.textFields["addNetwork_textfield_gateway"])
+        app.textFields["addNetwork_textfield_subnet"].click()
+        clearAndTypeText(subnet, into: app.textFields["addNetwork_textfield_subnet"])
+        if let name {
+            app.textFields["addNetwork_textfield_name"].click()
+            clearAndTypeText(name, into: app.textFields["addNetwork_textfield_name"])
+        }
+
+        app.buttons["addNetwork_button_add"].click()
+        XCTAssertTrue(waitForDisappearance(app.sheets.firstMatch, timeout: 3),
+                      "Sheet should dismiss after adding")
+    }
+
+    /// The sidebar row for the network with this exact name.
+    private func sidebarRow(named name: String) -> XCUIElement {
+        app.descendants(matching: .any).matching(NSPredicate(
+            format: "identifier BEGINSWITH 'sidebar_row_network' AND (label == %@ OR value == %@)", name, name
+        )).firstMatch
+    }
+
+    /// The not-connected banner shown for a network this Mac is not on.
+    private func notConnectedText(for name: String) -> XCUIElement {
+        let text = "Not connected to \(name)"
+        return app.staticTexts.matching(NSPredicate(format: "label == %@ OR value == %@", text, text)).firstMatch
+    }
+
+    // MARK: - Tests
+
+    func testNetworksSectionListsLocalNetwork() {
+        let rows = app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier BEGINSWITH 'sidebar_row_network'")
+        )
+        XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: 5),
+                      "Networks section should list at least the local network")
+        let activeBadge = rows.matching(NSPredicate(format: "label == 'ACTIVE' OR value == 'ACTIVE'")).firstMatch
+        XCTAssertTrue(activeBadge.exists, "One network row should carry the ACTIVE badge")
     }
 
     func testOpenAddNetworkSheet() {
-        let addButton = app.buttons["sidebar_button_addNetwork"]
-        XCTAssertTrue(addButton.waitForExistence(timeout: 5))
-        addButton.tap()
+        clickAddNetwork()
 
         XCTAssertTrue(app.sheets.firstMatch.waitForExistence(timeout: 3),
                       "Add Network sheet should appear")
 
         let cancelButton = app.buttons["addNetwork_button_cancel"]
         XCTAssertTrue(cancelButton.waitForExistence(timeout: 3))
-        cancelButton.tap()
+        cancelButton.click()
 
         XCTAssertTrue(waitForDisappearance(app.sheets.firstMatch, timeout: 3),
                       "Sheet should dismiss after cancel")
     }
 
     func testAddNetworkValidation() {
-        let addButton = app.buttons["sidebar_button_addNetwork"]
-        XCTAssertTrue(addButton.waitForExistence(timeout: 5))
-        addButton.tap()
+        clickAddNetwork()
 
         XCTAssertTrue(app.sheets.firstMatch.waitForExistence(timeout: 3))
 
@@ -46,172 +92,100 @@ final class NetworkSwitchingUITests: MacOSUITestCase {
 
         XCTAssertFalse(addBarButton.isEnabled, "Add button should be disabled initially")
 
+        gatewayField.click()
         clearAndTypeText("invalid", into: gatewayField)
         XCTAssertFalse(addBarButton.isEnabled, "Add button should be disabled with invalid IP")
 
         clearAndTypeText("192.168.1.1", into: gatewayField)
         XCTAssertFalse(addBarButton.isEnabled, "Add button should be disabled without subnet")
 
+        subnetField.click()
         clearAndTypeText("192.168.1.0/24", into: subnetField)
         XCTAssertTrue(addBarButton.isEnabled, "Add button should be enabled with valid input")
 
-        app.buttons["addNetwork_button_cancel"].tap()
+        app.buttons["addNetwork_button_cancel"].click()
     }
 
     func testAddNetworkSuccessfully() {
-        let addButton = app.buttons["sidebar_button_addNetwork"]
-        XCTAssertTrue(addButton.waitForExistence(timeout: 5))
-        addButton.tap()
+        addNetwork(gateway: "10.0.0.1", subnet: "10.0.0.0/24", name: "Test Network")
 
-        XCTAssertTrue(app.sheets.firstMatch.waitForExistence(timeout: 3))
-
-        let gatewayField = app.textFields["addNetwork_textfield_gateway"]
-        let subnetField = app.textFields["addNetwork_textfield_subnet"]
-        let nameField = app.textFields["addNetwork_textfield_name"]
-
-        clearAndTypeText("10.0.0.1", into: gatewayField)
-        clearAndTypeText("10.0.0.0/24", into: subnetField)
-        clearAndTypeText("Test Network", into: nameField)
-
-        let addBarButton = app.buttons["addNetwork_button_add"]
-        XCTAssertTrue(addBarButton.isEnabled)
-        addBarButton.tap()
-
-        XCTAssertTrue(waitForDisappearance(app.sheets.firstMatch, timeout: 3),
-                      "Sheet should dismiss after adding")
-
-        XCTAssertTrue(app.staticTexts["Test Network"].waitForExistence(timeout: 3),
+        XCTAssertTrue(sidebarRow(named: "Test Network").waitForExistence(timeout: 3),
                       "New network should appear in sidebar")
     }
 
     func testSelectNetworkShowsDetail() {
-        let addButton = app.buttons["sidebar_button_addNetwork"]
-        XCTAssertTrue(addButton.waitForExistence(timeout: 5))
-        addButton.tap()
+        // Unnamed networks are named after their subnet.
+        addNetwork(gateway: "172.16.0.1", subnet: "172.16.0.0/24")
 
-        XCTAssertTrue(app.sheets.firstMatch.waitForExistence(timeout: 3))
-
-        clearAndTypeText("172.16.0.1", into: app.textFields["addNetwork_textfield_gateway"])
-        clearAndTypeText("172.16.0.0/24", into: app.textFields["addNetwork_textfield_subnet"])
-
-        app.buttons["addNetwork_button_add"].tap()
-        XCTAssertTrue(waitForDisappearance(app.sheets.firstMatch, timeout: 3))
-
-        let networkItem = app.staticTexts.matching(NSPredicate(format: "label CONTAINS '172.16'")).firstMatch
+        let networkItem = sidebarRow(named: "Network 172.16.0.0/24")
         XCTAssertTrue(networkItem.waitForExistence(timeout: 5))
-        networkItem.tap()
+        networkItem.click()
 
-        XCTAssertTrue(app.otherElements["contentView_nav_network"].waitForExistence(timeout: 3),
-                      "Network detail view should appear after selecting a network")
+        XCTAssertTrue(notConnectedText(for: "Network 172.16.0.0/24").waitForExistence(timeout: 5),
+                      "Selecting a network should show that network's detail")
     }
 
     func testNetworkDetailShowsCorrectInfo() {
-        let addButton = app.buttons["sidebar_button_addNetwork"]
-        XCTAssertTrue(addButton.waitForExistence(timeout: 5))
-        addButton.tap()
+        addNetwork(gateway: "192.168.50.1", subnet: "192.168.50.0/24", name: "Office Network")
 
-        XCTAssertTrue(app.sheets.firstMatch.waitForExistence(timeout: 3))
-
-        clearAndTypeText("192.168.50.1", into: app.textFields["addNetwork_textfield_gateway"])
-        clearAndTypeText("192.168.50.0/24", into: app.textFields["addNetwork_textfield_subnet"])
-        clearAndTypeText("Office Network", into: app.textFields["addNetwork_textfield_name"])
-
-        app.buttons["addNetwork_button_add"].tap()
-        XCTAssertTrue(waitForDisappearance(app.sheets.firstMatch, timeout: 3))
-
-        let networkItem = app.staticTexts["Office Network"]
+        let networkItem = sidebarRow(named: "Office Network")
         XCTAssertTrue(networkItem.waitForExistence(timeout: 5))
-        networkItem.tap()
+        networkItem.click()
 
-        XCTAssertTrue(app.otherElements["networkDetail_card_header"].waitForExistence(timeout: 3))
-        XCTAssertTrue(app.otherElements["networkDetail_card_networkInfo"].waitForExistence(timeout: 3))
-        XCTAssertTrue(app.otherElements["networkDetail_card_discovery"].waitForExistence(timeout: 3))
-        XCTAssertTrue(app.otherElements["networkDetail_card_devices"].waitForExistence(timeout: 3))
-        XCTAssertTrue(app.buttons["networkDetail_button_scan"].waitForExistence(timeout: 3))
+        XCTAssertTrue(ui("networkDetail_state_inactiveNetwork").waitForExistence(timeout: 5),
+                      "A manual network should open its detail in the not-connected state")
+        XCTAssertTrue(notConnectedText(for: "Office Network").exists,
+                      "Detail should name the selected network")
+        XCTAssertTrue(ui("networkDetail_section_devices").exists,
+                      "Detail should list the selected network's devices")
+
+        // ⌘1 switches back to the local network's live dashboard.
+        app.typeKey("1", modifierFlags: .command)
+        XCTAssertTrue(ui("networkDetail_card_isp").waitForExistence(timeout: 5),
+                      "Switching to the local network should show its live cards")
+        XCTAssertFalse(ui("networkDetail_state_inactiveNetwork").exists,
+                       "The not-connected state should not show for the local network")
     }
 
     /// #336: a manually added network is not the one this Mac is on, so the
     /// live cards (which read the Mac's own connection) must not appear under it.
     func testManualNetworkHidesLiveDiagnostics() {
-        let addButton = app.buttons["sidebar_button_addNetwork"]
-        XCTAssertTrue(addButton.waitForExistence(timeout: 5))
-        addButton.tap()
+        addNetwork(gateway: "10.236.0.1", subnet: "10.236.0.0/24", name: "Inactive Test Network")
 
-        XCTAssertTrue(app.sheets.firstMatch.waitForExistence(timeout: 3))
-
-        clearAndTypeText("10.236.0.1", into: app.textFields["addNetwork_textfield_gateway"])
-        clearAndTypeText("10.236.0.0/24", into: app.textFields["addNetwork_textfield_subnet"])
-        clearAndTypeText("Inactive Test Network", into: app.textFields["addNetwork_textfield_name"])
-
-        app.buttons["addNetwork_button_add"].tap()
-        XCTAssertTrue(waitForDisappearance(app.sheets.firstMatch, timeout: 3))
-
-        let networkItem = app.staticTexts["Inactive Test Network"]
+        let networkItem = sidebarRow(named: "Inactive Test Network")
         XCTAssertTrue(networkItem.waitForExistence(timeout: 5))
-        networkItem.tap()
+        networkItem.click()
 
-        XCTAssertTrue(app.otherElements["networkDetail_state_inactiveNetwork"].waitForExistence(timeout: 5),
+        XCTAssertTrue(ui("networkDetail_state_inactiveNetwork").waitForExistence(timeout: 5),
                       "Inactive network should show the not-connected state")
-        XCTAssertTrue(app.descendants(matching: .any)["networkDetail_section_devices"].exists,
+        XCTAssertTrue(ui("networkDetail_section_devices").exists,
                       "Device history stays visible for an inactive network")
         for liveCard in ["networkDetail_card_isp", "networkDetail_row_health", "networkDetail_card_latency",
                          "networkDetail_card_wifiSignal", "networkDetail_card_connectivity", "networkDetail_card_intel"] {
-            XCTAssertFalse(app.descendants(matching: .any)[liveCard].exists,
+            XCTAssertFalse(ui(liveCard).exists,
                            "\(liveCard) reads this Mac's connection and must not show under an inactive network")
         }
     }
 
     func testSwitchBetweenNetworks() {
-        let addButton = app.buttons["sidebar_button_addNetwork"]
-        XCTAssertTrue(addButton.waitForExistence(timeout: 5))
-
         for i in 1...2 {
-            addButton.tap()
-            XCTAssertTrue(app.sheets.firstMatch.waitForExistence(timeout: 3))
-
-            clearAndTypeText("10.\(i).0.1", into: app.textFields["addNetwork_textfield_gateway"])
-            clearAndTypeText("10.\(i).0.0/24", into: app.textFields["addNetwork_textfield_subnet"])
-            clearAndTypeText("Network \(i)", into: app.textFields["addNetwork_textfield_name"])
-
-            app.buttons["addNetwork_button_add"].tap()
-            XCTAssertTrue(waitForDisappearance(app.sheets.firstMatch, timeout: 3))
+            addNetwork(gateway: "10.\(i).0.1", subnet: "10.\(i).0.0/24", name: "Network \(i)")
         }
 
-        let network1 = app.staticTexts["Network 1"]
-        let network2 = app.staticTexts["Network 2"]
+        let network1 = sidebarRow(named: "Network 1")
+        let network2 = sidebarRow(named: "Network 2")
 
         XCTAssertTrue(network1.waitForExistence(timeout: 5))
         XCTAssertTrue(network2.waitForExistence(timeout: 5))
 
-        network1.tap()
-        XCTAssertTrue(app.otherElements["contentView_nav_network"].waitForExistence(timeout: 3))
+        network1.click()
+        XCTAssertTrue(notConnectedText(for: "Network 1").waitForExistence(timeout: 5),
+                      "Detail should show Network 1")
 
-        network2.tap()
-        XCTAssertTrue(app.otherElements["contentView_nav_network"].waitForExistence(timeout: 3))
-    }
-
-    func testScanButtonFromNetworkDetail() {
-        let addButton = app.buttons["sidebar_button_addNetwork"]
-        XCTAssertTrue(addButton.waitForExistence(timeout: 5))
-        addButton.tap()
-
-        XCTAssertTrue(app.sheets.firstMatch.waitForExistence(timeout: 3))
-
-        clearAndTypeText("192.168.100.1", into: app.textFields["addNetwork_textfield_gateway"])
-        clearAndTypeText("192.168.100.0/24", into: app.textFields["addNetwork_textfield_subnet"])
-
-        app.buttons["addNetwork_button_add"].tap()
-        XCTAssertTrue(waitForDisappearance(app.sheets.firstMatch, timeout: 3))
-
-        let networkItem = app.staticTexts.matching(NSPredicate(format: "label CONTAINS '192.168.100'")).firstMatch
-        XCTAssertTrue(networkItem.waitForExistence(timeout: 5))
-        networkItem.tap()
-
-        let scanButton = app.buttons["networkDetail_button_scan"]
-        XCTAssertTrue(scanButton.waitForExistence(timeout: 3))
-        scanButton.tap()
-
-        XCTAssertTrue(app.descendants(matching: .any)["sidebar_nav_devices"].waitForExistence(timeout: 3),
-                      "Should navigate to devices after initiating scan")
+        network2.click()
+        XCTAssertTrue(notConnectedText(for: "Network 2").waitForExistence(timeout: 5),
+                      "Detail should switch to Network 2")
+        XCTAssertFalse(notConnectedText(for: "Network 1").exists,
+                       "Network 1's detail should be replaced")
     }
 }

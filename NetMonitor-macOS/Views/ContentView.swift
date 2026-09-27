@@ -108,6 +108,7 @@ struct ContentView: View {
                         set: { selectedNetworkProfile = $0 }
                     )
                 )
+                .accessibilityElement(children: .contain)
                 .accessibilityIdentifier("contentView_nav_network")
             } else {
                 Text("Network not found")
