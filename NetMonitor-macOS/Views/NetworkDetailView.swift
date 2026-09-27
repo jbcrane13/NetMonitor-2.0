@@ -49,12 +49,16 @@ struct NetworkDetailView: View {
             $0.name.localizedCaseInsensitiveContains("gateway")
         }) {
             let history = session.recentLatencies[gateway.id] ?? []
-            if !history.isEmpty { return history }
+            if !history.isEmpty {
+                return history
+            }
         }
         // Fall back to first ICMP target with data
         for target in targets where target.targetProtocol == .icmp {
             let history = session.recentLatencies[target.id] ?? []
-            if !history.isEmpty { return history }
+            if !history.isEmpty {
+                return history
+            }
         }
         // Fall back to any target with latency data
         for (_, history) in session.recentLatencies where !history.isEmpty {
@@ -71,11 +75,18 @@ struct NetworkDetailView: View {
         case compact, standard, wide
 
         init(width: CGFloat) {
-            if width >= 1600 { self = .wide } else if width >= 900 { self = .standard } else { self = .compact }
+            if width >= 1600 {
+                self = .wide
+            } else if width >= 900 {
+                self = .standard
+            } else {
+                self = .compact
+            }
         }
     }
 
-    var body: some View {
+    /// Live dashboard for the network this Mac is on.
+    private var liveDashboard: some View {
         GeometryReader { geo in
             let gap: CGFloat = 10
             let pad: CGFloat = 14
@@ -140,6 +151,43 @@ struct NetworkDetailView: View {
             }
             .padding(pad)
         }
+    }
+
+    /// A network this Mac is not on: live cards would describe the wrong network,
+    /// so only the persisted device history is shown.
+    private var inactiveNetworkLayout: some View {
+        VStack(spacing: 10) {
+            CardEmptyState(
+                icon: "wifi.slash",
+                title: "Not connected to \(profile.displayName)",
+                description: "Live diagnostics show the network this Mac is on. Devices seen on this network are listed below."
+            )
+            .frame(maxWidth: .infinity)
+            .macGlassCard(cornerRadius: 14, padding: 10)
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("networkDetail_state_inactiveNetwork")
+
+            NetworkDevicesPanel(networkProfileID: profile.id)
+                .accessibilityIdentifier("networkDetail_section_devices")
+        }
+        .padding(14)
+    }
+
+    /// Live cards read the Mac's current connection, so they belong only to the
+    /// auto-detected local network. Not `activeProfile`: scanning a manual
+    /// network calls switchProfile and makes it "active" too (#336).
+    static func showsLiveDiagnostics(for profile: NetworkProfile) -> Bool {
+        profile.isLocal
+    }
+
+    var body: some View {
+        Group {
+            if Self.showsLiveDiagnostics(for: profile) {
+                liveDashboard
+            } else {
+                inactiveNetworkLayout
+            }
+        }
         .navigationTitle(profile.displayName)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
@@ -168,7 +216,9 @@ struct NetworkDetailView: View {
         }
         .onAppear {
             // Initialize connectivity monitoring and uptime stats if not yet set up.
-            if connectivityMonitor == nil {
+            // Only for the local network: pinging another network's gateway from here
+            // would record this Mac's connection under that network's history.
+            if connectivityMonitor == nil, Self.showsLiveDiagnostics(for: profile) {
                 let monitor = ConnectivityMonitor(
                     profileID: profile.id,
                     gatewayIP: profile.gatewayIP,
