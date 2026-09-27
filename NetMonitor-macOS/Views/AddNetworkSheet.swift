@@ -5,9 +5,57 @@ struct AddNetworkSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(NetworkProfileManager.self) private var profileManager
 
+    /// Called with the added profile, or the existing one it matched, so the caller can select it.
+    var onAdded: (NetworkProfile) -> Void = { _ in }
+
     @State private var gatewayIP: String = ""
     @State private var subnetCIDR: String = ""
     @State private var networkName: String = ""
+    @State private var addFailed = false
+
+    /// Mirrors `NetworkProfileManager.addProfile`'s input rules so the sheet
+    /// can't submit something the manager will reject.
+    enum Validation: Equatable {
+        case valid
+        case invalidGateway
+        case invalidSubnet
+        case gatewayOutsideSubnet
+    }
+
+    static func validate(gateway: String, subnet: String) -> Validation {
+        guard let gatewayValue = NetworkUtilities.ipv4ToUInt32(gateway) else { return .invalidGateway }
+        let parts = subnet.trimmingCharacters(in: .whitespacesAndNewlines).split(separator: "/")
+        guard parts.count == 2,
+              let address = NetworkUtilities.ipv4ToUInt32(String(parts[0])),
+              let prefixLength = Int(parts[1]),
+              prefixLength >= 0,
+              prefixLength <= 32 else {
+            return .invalidSubnet
+        }
+        let netmask: UInt32 = prefixLength == 0 ? 0 : UInt32.max << UInt32(32 - prefixLength)
+        let networkAddress = address & netmask
+        let broadcastAddress = networkAddress | ~netmask
+        guard gatewayValue >= networkAddress, gatewayValue <= broadcastAddress else {
+            return .gatewayOutsideSubnet
+        }
+        return .valid
+    }
+
+    /// Adds the network and reports the resulting profile through `onAdded`.
+    /// Returns false when the manager rejected it, so the sheet stays open (#348).
+    static func add(
+        gateway: String,
+        subnet: String,
+        name: String,
+        to manager: NetworkProfileManager,
+        onAdded: (NetworkProfile) -> Void
+    ) -> Bool {
+        guard let profile = manager.addProfile(gateway: gateway, subnet: subnet, name: name) else {
+            return false
+        }
+        onAdded(profile)
+        return true
+    }
 
     var body: some View {
         NavigationStack {
@@ -32,12 +80,20 @@ struct AddNetworkSheet: View {
                 } header: {
                     Text("Network Details")
                 } footer: {
-                    if !gatewayIP.isEmpty && !isValidGateway {
+                    if addFailed {
+                        Text("Couldn't add this network. Check the gateway and subnet.")
+                            .foregroundStyle(.red)
+                            .accessibilityIdentifier("addNetwork_label_addError")
+                    } else if !gatewayIP.isEmpty && !isValidGateway {
                         Text("Enter a valid IPv4 address")
                             .foregroundStyle(.red)
                     } else if !subnetCIDR.isEmpty && !isValidCIDR {
                         Text("Enter a valid CIDR notation (e.g., 192.168.1.0/24)")
                             .foregroundStyle(.red)
+                    } else if validation == .gatewayOutsideSubnet {
+                        Text("The gateway must be inside the subnet")
+                            .foregroundStyle(.red)
+                            .accessibilityIdentifier("addNetwork_label_validationGatewayOutsideSubnet")
                     }
                 }
 
@@ -62,7 +118,6 @@ struct AddNetworkSheet: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Add") {
                         addNetwork()
-                        dismiss()
                     }
                     .disabled(!isValid)
                     .accessibilityIdentifier("addNetwork_button_add")
@@ -70,10 +125,16 @@ struct AddNetworkSheet: View {
             }
         }
         .frame(minWidth: 400, minHeight: 300)
+        .onChange(of: gatewayIP) { addFailed = false }
+        .onChange(of: subnetCIDR) { addFailed = false }
+    }
+
+    private var validation: Validation {
+        Self.validate(gateway: gatewayIP, subnet: subnetCIDR)
     }
 
     private var isValid: Bool {
-        isValidGateway && isValidCIDR
+        validation == .valid
     }
 
     private var isValidGateway: Bool {
@@ -105,7 +166,11 @@ struct AddNetworkSheet: View {
     }
 
     private func addNetwork() {
-        _ = profileManager.addProfile(gateway: gatewayIP, subnet: subnetCIDR, name: networkName)
+        if Self.add(gateway: gatewayIP, subnet: subnetCIDR, name: networkName, to: profileManager, onAdded: onAdded) {
+            dismiss()
+        } else {
+            addFailed = true
+        }
     }
 }
 

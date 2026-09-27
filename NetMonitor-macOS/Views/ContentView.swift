@@ -49,7 +49,7 @@ struct ContentView: View {
         }
         .frame(minWidth: 1000, idealWidth: 1400, maxWidth: 2200, minHeight: 600, idealHeight: 900, maxHeight: 1600)
         .sheet(isPresented: $showingAddNetworkSheet) {
-            AddNetworkSheet()
+            AddNetworkSheet(onAdded: { selectedSection = .network($0.id) })
         }
         .task {
             if session == nil && localSession == nil {
