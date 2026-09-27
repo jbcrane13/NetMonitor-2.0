@@ -661,3 +661,134 @@ struct NetworkDetailViewLiveDiagnosticsTests {
         #expect(!NetworkDetailView.showsLiveDiagnostics(for: manual))
     }
 }
+
+// MARK: - AddNetworkSheetTests
+
+/// Add Network must mirror `addProfile`'s rules and report what it added, so the
+/// sheet never closes without a visible result (#348).
+@Suite(.serialized)
+@MainActor
+struct AddNetworkSheetTests {
+
+    private func makeManager() -> (NetworkProfileManager, NetworkProfile) {
+        let suite = "AddNetworkSheetTests-\(UUID().uuidString)"
+        // swiftlint:disable:next force_unwrapping
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+        let local = NetworkProfile(
+            interfaceName: "en0",
+            ipAddress: "192.168.1.100",
+            network: NetworkUtilities.IPv4Network(
+                networkAddress: 0xC0A80100,
+                broadcastAddress: 0xC0A801FF,
+                interfaceAddress: 0xC0A80164,
+                netmask: 0xFFFFFF00
+            ),
+            connectionType: .wifi
+        )
+        let manager = NetworkProfileManager(userDefaults: defaults, activeProfilesProvider: { [local] })
+        return (manager, local)
+    }
+
+    @Test("Validation accepts a gateway inside the subnet, including its edges")
+    func validationAcceptsInSubnetGateway() {
+        #expect(AddNetworkSheet.validate(gateway: "192.168.1.1", subnet: "192.168.1.0/24") == .valid)
+        #expect(AddNetworkSheet.validate(gateway: "192.168.1.0", subnet: "192.168.1.0/24") == .valid)
+        #expect(AddNetworkSheet.validate(gateway: "192.168.1.255", subnet: "192.168.1.0/24") == .valid)
+        #expect(AddNetworkSheet.validate(gateway: "8.8.8.8", subnet: "0.0.0.0/0") == .valid)
+        #expect(AddNetworkSheet.validate(gateway: "10.0.0.5", subnet: "10.0.0.5/32") == .valid)
+    }
+
+    @Test("Validation rejects a gateway outside the subnet")
+    func validationRejectsOutOfSubnetGateway() {
+        #expect(AddNetworkSheet.validate(gateway: "10.0.1.1", subnet: "10.0.0.0/24") == .gatewayOutsideSubnet)
+        #expect(AddNetworkSheet.validate(gateway: "10.0.0.6", subnet: "10.0.0.5/32") == .gatewayOutsideSubnet)
+    }
+
+    @Test("Validation rejects malformed gateways and subnets")
+    func validationRejectsBadFormats() {
+        #expect(AddNetworkSheet.validate(gateway: "", subnet: "10.0.0.0/24") == .invalidGateway)
+        #expect(AddNetworkSheet.validate(gateway: "10.0.0", subnet: "10.0.0.0/24") == .invalidGateway)
+        #expect(AddNetworkSheet.validate(gateway: "10.0.0.1", subnet: "10.0.0.0") == .invalidSubnet)
+        #expect(AddNetworkSheet.validate(gateway: "10.0.0.1", subnet: "10.0.0.0/33") == .invalidSubnet)
+        #expect(AddNetworkSheet.validate(gateway: "10.0.0.1", subnet: "10.0.0/24") == .invalidSubnet)
+    }
+
+    @Test("Validation passes exactly when addProfile accepts the input")
+    func validationMatchesAddProfile() {
+        let inputs: [(String, String)] = [
+            ("10.0.0.1", "10.0.0.0/24"),
+            ("10.0.1.1", "10.0.0.0/24"),
+            ("10.0.0.255", "10.0.0.0/24"),
+            ("172.16.5.1", "172.16.0.0/16"),
+            ("172.17.0.1", "172.16.0.0/16"),
+            ("10.0.0.1", "10.0.0.0/33"),
+            ("bogus", "10.0.0.0/24")
+        ]
+        for (gateway, subnet) in inputs {
+            let (manager, _) = makeManager()
+            let accepted = manager.addProfile(gateway: gateway, subnet: subnet, name: "") != nil
+            #expect(
+                (AddNetworkSheet.validate(gateway: gateway, subnet: subnet) == .valid) == accepted,
+                "\(gateway) in \(subnet)"
+            )
+        }
+    }
+
+    @Test("Adding the current network reports the local profile so it gets selected")
+    func addingCurrentNetworkReportsLocalProfile() throws {
+        let (manager, local) = makeManager()
+        let current = try #require(manager.profiles.first { $0.id == local.id })
+        var reported: NetworkProfile?
+
+        let dismisses = AddNetworkSheet.add(
+            gateway: current.gatewayIP,
+            subnet: current.subnet,
+            name: "",
+            to: manager,
+            onAdded: { reported = $0 }
+        )
+
+        #expect(dismisses)
+        #expect(reported?.id == local.id)
+        #expect(reported?.isLocal == true)
+    }
+
+    @Test("Re-adding a manual network reports the same, renamed profile")
+    func readdingManualNetworkReportsSameProfile() throws {
+        let (manager, _) = makeManager()
+        let first = try #require(manager.addProfile(gateway: "10.20.0.1", subnet: "10.20.0.0/24", name: "Office"))
+        var reported: NetworkProfile?
+
+        let dismisses = AddNetworkSheet.add(
+            gateway: "10.20.0.1",
+            subnet: "10.20.0.0/24",
+            name: "HQ",
+            to: manager,
+            onAdded: { reported = $0 }
+        )
+
+        #expect(dismisses)
+        #expect(reported?.id == first.id)
+        #expect(reported?.name == "HQ")
+    }
+
+    @Test("A rejected add keeps the sheet open and selects nothing")
+    func rejectedAddKeepsSheetOpen() {
+        let (manager, _) = makeManager()
+        let countBefore = manager.profiles.count
+        var reported: NetworkProfile?
+
+        let dismisses = AddNetworkSheet.add(
+            gateway: "10.0.1.1",
+            subnet: "10.0.0.0/24",
+            name: "",
+            to: manager,
+            onAdded: { reported = $0 }
+        )
+
+        #expect(!dismisses)
+        #expect(reported == nil)
+        #expect(manager.profiles.count == countBefore)
+    }
+}
