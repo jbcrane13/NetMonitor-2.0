@@ -113,11 +113,17 @@ final class NetworkDetailFunctionalUITests: MacOSUITestCase {
         requireExists(pingButton, timeout: 5, message: "Device detail should offer a Ping action")
         pingButton.click()
 
-        requireExists(app.buttons["devicePingSheet_button_close"], timeout: 5,
-                      message: "Ping action should open the device ping sheet")
+        // The sheet root's id (devices_section_pingSheet) is stamped over its
+        // controls on macOS 27, so devicePingSheet_button_close is not exposed.
+        let pingSheet = ui("devices_section_pingSheet").firstMatch
+        requireExists(pingSheet, timeout: 5, message: "Ping action should open the device ping sheet")
         requireExists(staticText("Target:"), timeout: 3, message: "Ping sheet should show its target row")
         XCTAssertTrue(staticText(ip).waitForExistence(timeout: 3),
                       "Ping sheet should target the selected device \(ip)")
+        let pingOutput = app.staticTexts.matching(NSPredicate(
+            format: "value BEGINSWITH %@ OR label BEGINSWITH %@", "PING \(ip)", "PING \(ip)"
+        )).firstMatch
+        XCTAssertTrue(pingOutput.waitForExistence(timeout: 10), "Ping sheet should start pinging \(ip)")
 
         captureScreenshot(named: "NetworkDetail_PingAction")
     }
