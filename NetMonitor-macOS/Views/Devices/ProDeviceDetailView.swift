@@ -55,6 +55,7 @@ struct ProDeviceDetailView: View {
         .sheet(isPresented: $showPortScanSheet) {
             DevicePortScanSheet(device: device, isPresented: $showPortScanSheet)
         }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("screen_deviceDetail")
     }
 }
