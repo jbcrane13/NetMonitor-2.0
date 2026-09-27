@@ -55,6 +55,7 @@ struct SidebarView: View {
                         .accessibilityIdentifier("sidebar_button_addNetwork")
                     }
                     .padding(.vertical, 4)
+                    .accessibilityElement(children: .contain)
                 }
 
                 Section {

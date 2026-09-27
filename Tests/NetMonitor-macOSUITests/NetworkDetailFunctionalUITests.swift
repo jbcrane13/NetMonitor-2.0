@@ -15,10 +15,10 @@ final class NetworkDetailFunctionalUITests: MacOSUITestCase {
     /// Manual networks show `networkDetail_state_inactiveNetwork` instead of live
     /// cards (#336), so there is no fallback to adding one.
     private func ensureLocalNetworkDetailVisible() {
-        if !app.otherElements["contentView_nav_network"].waitForExistence(timeout: 4) {
+        if !ui("contentView_nav_network").waitForExistence(timeout: 4) {
             app.typeKey("1", modifierFlags: .command)
         }
-        requireExists(app.otherElements["contentView_nav_network"], timeout: 5,
+        requireExists(ui("contentView_nav_network"), timeout: 5,
                       message: "Network detail should be showing")
 
         // ⌘1 falls back to the first profile when none is local, so check the layout.
@@ -48,6 +48,15 @@ final class NetworkDetailFunctionalUITests: MacOSUITestCase {
         return deviceRow
     }
 
+    /// macOS 27 exposes SwiftUI Text as `value`, not `label`.
+    private func staticText(_ text: String) -> XCUIElement {
+        app.staticTexts.matching(NSPredicate(format: "label == %@ OR value == %@", text, text)).firstMatch
+    }
+
+    private func hasText(_ element: XCUIElement) -> Bool {
+        !element.label.isEmpty || !((element.value as? String) ?? "").isEmpty
+    }
+
     // MARK: - 1. Click Device in Table -> Device Detail Sheet Opens
 
     func testClickDeviceRowShowsDeviceInfo() throws {
@@ -61,7 +70,7 @@ final class NetworkDetailFunctionalUITests: MacOSUITestCase {
         requireExists(ui("screen_deviceDetail"), timeout: 5,
                       message: "Clicking a device row should open the device detail sheet")
         XCTAssertTrue(app.sheets.firstMatch.staticTexts.matching(
-            NSPredicate(format: "label CONTAINS %@", ip)
+            NSPredicate(format: "label CONTAINS %@ OR value CONTAINS %@", ip, ip)
         ).firstMatch.exists, "Device detail should show the selected device's IP \(ip)")
 
         captureScreenshot(named: "NetworkDetail_DeviceSelected")
@@ -104,8 +113,8 @@ final class NetworkDetailFunctionalUITests: MacOSUITestCase {
 
         requireExists(app.buttons["devicePingSheet_button_close"], timeout: 5,
                       message: "Ping action should open the device ping sheet")
-        requireExists(app.staticTexts["Target:"], timeout: 3, message: "Ping sheet should show its target row")
-        XCTAssertTrue(app.staticTexts[ip].waitForExistence(timeout: 3),
+        requireExists(staticText("Target:"), timeout: 3, message: "Ping sheet should show its target row")
+        XCTAssertTrue(staticText(ip).waitForExistence(timeout: 3),
                       "Ping sheet should target the selected device \(ip)")
 
         captureScreenshot(named: "NetworkDetail_PingAction")
@@ -119,7 +128,7 @@ final class NetworkDetailFunctionalUITests: MacOSUITestCase {
         let scoreText = app.staticTexts["healthGauge_label_score"]
         requireExists(scoreText, timeout: 5, message: "Health gauge score should be visible on the local network")
 
-        let label = scoreText.label
+        let label = (scoreText.value as? String).flatMap { $0.isEmpty ? nil : $0 } ?? scoreText.label
         // Score is a number, or "—" (no data) / "…" (calculating)
         let isValidScore = label == "\u{2014}" || label == "\u{2026}" || Int(label) != nil
         XCTAssertTrue(isValidScore,
@@ -143,7 +152,7 @@ final class NetworkDetailFunctionalUITests: MacOSUITestCase {
 
         var missingCards: [String] = []
         for cardID in requiredCards {
-            if !app.otherElements[cardID].waitForExistence(timeout: 3) {
+            if !ui(cardID).waitForExistence(timeout: 3) {
                 missingCards.append(cardID)
             }
         }
@@ -153,28 +162,28 @@ final class NetworkDetailFunctionalUITests: MacOSUITestCase {
 
         // Verify at least one card has real data (not just an empty container)
         // Check ISP card for non-empty label content
-        let ispCard = app.otherElements["networkDetail_card_isp"]
+        let ispCard = ui("networkDetail_card_isp")
         if ispCard.exists {
             let ispLabels = ispCard.staticTexts
-            let hasNonEmptyLabel = ispLabels.allElementsBoundByIndex.contains { !$0.label.isEmpty }
+            let hasNonEmptyLabel = ispLabels.allElementsBoundByIndex.contains(where: hasText)
             XCTAssertTrue(hasNonEmptyLabel,
                           "ISP card should display non-empty text content")
         }
 
         // Check latency card for non-empty label content
-        let latencyCard = app.otherElements["networkDetail_card_latency"]
+        let latencyCard = ui("networkDetail_card_latency")
         if latencyCard.exists {
             let latencyLabels = latencyCard.staticTexts
-            let hasNonEmptyLabel = latencyLabels.allElementsBoundByIndex.contains { !$0.label.isEmpty }
+            let hasNonEmptyLabel = latencyLabels.allElementsBoundByIndex.contains(where: hasText)
             XCTAssertTrue(hasNonEmptyLabel,
                           "Latency card should display non-empty text content")
         }
 
         // Check connectivity card for non-empty label content
-        let connectivityCard = app.otherElements["networkDetail_card_connectivity"]
+        let connectivityCard = ui("networkDetail_card_connectivity")
         if connectivityCard.exists {
             let connLabels = connectivityCard.staticTexts
-            let hasNonEmptyLabel = connLabels.allElementsBoundByIndex.contains { !$0.label.isEmpty }
+            let hasNonEmptyLabel = connLabels.allElementsBoundByIndex.contains(where: hasText)
             XCTAssertTrue(hasNonEmptyLabel,
                           "Connectivity card should display non-empty text content")
         }
