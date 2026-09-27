@@ -183,6 +183,121 @@ struct NetworkProfileManagerTests {
         #expect(manager.profiles.first(where: { $0.id == second?.id })?.name == "Office Network Updated")
     }
 
+    @Test("addProfile matching the local network does not demote it (#342)")
+    @MainActor
+    func addProfileMatchingLocalKeepsLocalProfile() throws {
+        let (defaults, suiteName) = makeUserDefaults()
+        defer { clear(defaults, suiteName: suiteName) }
+
+        let localProfile = makeProfile(
+            interfaceName: "en0",
+            ipAddress: "192.168.1.10",
+            connectionType: .wifi,
+            subnet: "192.168.1.0/24"
+        )
+        let manager = NetworkProfileManager(
+            userDefaults: defaults,
+            activeProfilesProvider: { [localProfile] in [localProfile] }
+        )
+        let before = try #require(manager.profiles.first(where: { $0.id == localProfile.id }))
+
+        let returned = manager.addProfile(gateway: "192.168.1.1", subnet: "192.168.1.0/24", name: "Home")
+
+        #expect(returned?.id == localProfile.id)
+        #expect(returned?.isLocal == true)
+        #expect(manager.profiles.count == 1)
+        let local = try #require(manager.profiles.first(where: { $0.id == localProfile.id }))
+        #expect(local.name == before.name)
+        #expect(local.isLocal)
+        #expect(local.discoveryMethod == .auto)
+        #expect(local.interfaceName == "en0")
+        #expect(manager.activeProfile?.isLocal == true)
+
+        let data = try #require(defaults.data(forKey: "netmonitor.networkProfiles"))
+        let persisted = try JSONDecoder().decode([NetworkProfile].self, from: data)
+        let persistedLocal = try #require(persisted.first(where: { $0.id == localProfile.id }))
+        #expect(persistedLocal.isLocal)
+        #expect(persistedLocal.discoveryMethod == .auto)
+        #expect(persistedLocal.name == before.name)
+    }
+
+    @Test("Companion sync matching the local network does not rename or demote it (#342)")
+    @MainActor
+    func companionUpsertMatchingLocalKeepsLocalProfile() throws {
+        let (defaults, suiteName) = makeUserDefaults()
+        defer { clear(defaults, suiteName: suiteName) }
+
+        let localProfile = makeProfile(
+            interfaceName: "en0",
+            ipAddress: "192.168.1.10",
+            connectionType: .wifi,
+            subnet: "192.168.1.0/24"
+        )
+        let manager = NetworkProfileManager(
+            userDefaults: defaults,
+            activeProfilesProvider: { [localProfile] in [localProfile] }
+        )
+        let before = try #require(manager.profiles.first(where: { $0.id == localProfile.id }))
+
+        let returned = manager.upsertCompanionProfile(
+            gateway: "192.168.1.1",
+            subnet: "192.168.1.0/24",
+            name: "Blake's iPhone Network",
+            interfaceName: "en2"
+        )
+        #expect(returned?.isLocal == true)
+        #expect(returned?.discoveryMethod == .auto)
+        #expect(returned?.interfaceName == "en0")
+        // The companion handler re-runs detection right after the upsert.
+        manager.detectLocalNetwork()
+
+        #expect(returned?.id == localProfile.id)
+        #expect(returned?.name == before.name)
+        #expect(manager.profiles.count == 1)
+        #expect(!manager.profiles.contains(where: { $0.discoveryMethod == .companion }))
+        let local = try #require(manager.profiles.first(where: { $0.id == localProfile.id }))
+        #expect(local.name == before.name)
+        #expect(local.isLocal)
+        #expect(local.discoveryMethod == .auto)
+        #expect(local.interfaceName == "en0")
+    }
+
+    @Test("Non-local matches are still updated by addProfile and companion sync")
+    @MainActor
+    func nonLocalMatchesStillUpdate() {
+        let (defaults, suiteName) = makeUserDefaults()
+        defer { clear(defaults, suiteName: suiteName) }
+
+        let localProfile = makeProfile(
+            interfaceName: "en0",
+            ipAddress: "192.168.1.10",
+            connectionType: .wifi,
+            subnet: "192.168.1.0/24"
+        )
+        let manager = NetworkProfileManager(
+            userDefaults: defaults,
+            activeProfilesProvider: { [localProfile] in [localProfile] }
+        )
+
+        let manual = manager.addProfile(gateway: "10.0.0.1", subnet: "10.0.0.0/24", name: "Lab")
+        let companion = manager.upsertCompanionProfile(
+            gateway: "10.0.0.1",
+            subnet: "10.0.0.0/24",
+            name: "iPhone Network",
+            interfaceName: "en2"
+        )
+        #expect(companion?.id == manual?.id)
+        #expect(companion?.name == "iPhone Network")
+        #expect(companion?.discoveryMethod == .companion)
+        #expect(companion?.interfaceName == "en2")
+
+        let readded = manager.addProfile(gateway: "10.0.0.1", subnet: "10.0.0.0/24", name: "Lab Again")
+        #expect(readded?.id == manual?.id)
+        #expect(readded?.name == "Lab Again")
+        #expect(readded?.discoveryMethod == .manual)
+        #expect(readded?.isLocal == false)
+    }
+
     @Test("Integration: local and remote scan metadata stay separated")
     @MainActor
     func scanMetadataSeparationAcrossProfiles() {
