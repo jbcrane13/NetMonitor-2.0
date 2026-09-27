@@ -8,8 +8,8 @@ import AppKit
 
     // MARK: - App Store ID
 
-    // NOTE: Update with real App Store ID once live
-    static let appStoreID: String = "APP_STORE_ID_PLACEHOLDER"
+    /// App Store Connect app ID for com.netmonitor.NetMonitor (NetMonitor Pro).
+    static let appStoreID: String = "6759060882"
     private static let reviewURL = "macappstore://itunes.apple.com/app/id\(appStoreID)?action=write-review"
     private static let ratingsURL = "macappstore://itunes.apple.com/app/id\(appStoreID)"
 

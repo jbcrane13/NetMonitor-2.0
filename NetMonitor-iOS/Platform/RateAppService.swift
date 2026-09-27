@@ -8,8 +8,8 @@ import SwiftUI
 
     // MARK: - App Store ID
 
-    /// Replace with the real App Store ID before shipping.
-    static let appStoreID: String = "APP_STORE_ID_PLACEHOLDER"
+    /// App Store Connect app ID for com.blakemiller.netmonitor (NetMonitor).
+    static let appStoreID: String = "6759060947"
     private static let reviewURL = "itms-apps://itunes.apple.com/app/id\(appStoreID)?action=write-review"
     private static let ratingsURL = "itms-apps://itunes.apple.com/app/id\(appStoreID)"
 

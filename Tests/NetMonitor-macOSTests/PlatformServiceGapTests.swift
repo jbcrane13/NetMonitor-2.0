@@ -48,6 +48,19 @@ import Testing
 //   Static Logger extensions. No testable logic.
 // =============================================================================
 
+// MARK: - RateAppService App Store ID
+
+@MainActor
+struct MacRateAppServiceAppStoreIDTests {
+
+    @Test("App Store ID is the real numeric ID for com.netmonitor.NetMonitor")
+    func appStoreIDIsRealNumericID() {
+        // "Write a Review" opened a dead macappstore:// link while this was a placeholder (#335).
+        #expect(RateAppService.appStoreID.allSatisfy(\.isNumber))
+        #expect(RateAppService.appStoreID == "6759060882")
+    }
+}
+
 // MARK: - WiFi Channel-to-Frequency Contract Tests
 
 struct WiFiChannelFrequencyContractTests {
