@@ -23,11 +23,21 @@ struct AddNetworkSheet: View {
     }
 
     static func validate(gateway: String, subnet: String) -> Validation {
-        // Stub: today's format-only check (red commit for #348).
-        guard NetworkUtilities.ipv4ToUInt32(gateway) != nil else { return .invalidGateway }
+        guard let gatewayValue = NetworkUtilities.ipv4ToUInt32(gateway) else { return .invalidGateway }
         let parts = subnet.trimmingCharacters(in: .whitespacesAndNewlines).split(separator: "/")
-        guard parts.count == 2, NetworkUtilities.ipv4ToUInt32(String(parts[0])) != nil,
-              let prefixLength = Int(parts[1]), (0...32).contains(prefixLength) else { return .invalidSubnet }
+        guard parts.count == 2,
+              let address = NetworkUtilities.ipv4ToUInt32(String(parts[0])),
+              let prefixLength = Int(parts[1]),
+              prefixLength >= 0,
+              prefixLength <= 32 else {
+            return .invalidSubnet
+        }
+        let netmask: UInt32 = prefixLength == 0 ? 0 : UInt32.max << UInt32(32 - prefixLength)
+        let networkAddress = address & netmask
+        let broadcastAddress = networkAddress | ~netmask
+        guard gatewayValue >= networkAddress, gatewayValue <= broadcastAddress else {
+            return .gatewayOutsideSubnet
+        }
         return .valid
     }
 
@@ -40,8 +50,10 @@ struct AddNetworkSheet: View {
         to manager: NetworkProfileManager,
         onAdded: (NetworkProfile) -> Void
     ) -> Bool {
-        // Stub: today's behavior discards the result and always dismisses.
-        _ = manager.addProfile(gateway: gateway, subnet: subnet, name: name)
+        guard let profile = manager.addProfile(gateway: gateway, subnet: subnet, name: name) else {
+            return false
+        }
+        onAdded(profile)
         return true
     }
 
