@@ -130,6 +130,37 @@ final class NetworkSwitchingUITests: MacOSUITestCase {
         XCTAssertTrue(app.buttons["networkDetail_button_scan"].waitForExistence(timeout: 3))
     }
 
+    /// #336: a manually added network is not the one this Mac is on, so the
+    /// live cards (which read the Mac's own connection) must not appear under it.
+    func testManualNetworkHidesLiveDiagnostics() {
+        let addButton = app.buttons["sidebar_button_addNetwork"]
+        XCTAssertTrue(addButton.waitForExistence(timeout: 5))
+        addButton.tap()
+
+        XCTAssertTrue(app.sheets.firstMatch.waitForExistence(timeout: 3))
+
+        clearAndTypeText("10.236.0.1", into: app.textFields["addNetwork_textfield_gateway"])
+        clearAndTypeText("10.236.0.0/24", into: app.textFields["addNetwork_textfield_subnet"])
+        clearAndTypeText("Inactive Test Network", into: app.textFields["addNetwork_textfield_name"])
+
+        app.buttons["addNetwork_button_add"].tap()
+        XCTAssertTrue(waitForDisappearance(app.sheets.firstMatch, timeout: 3))
+
+        let networkItem = app.staticTexts["Inactive Test Network"]
+        XCTAssertTrue(networkItem.waitForExistence(timeout: 5))
+        networkItem.tap()
+
+        XCTAssertTrue(app.otherElements["networkDetail_state_inactiveNetwork"].waitForExistence(timeout: 5),
+                      "Inactive network should show the not-connected state")
+        XCTAssertTrue(app.descendants(matching: .any)["networkDetail_section_devices"].exists,
+                      "Device history stays visible for an inactive network")
+        for liveCard in ["networkDetail_card_isp", "networkDetail_row_health", "networkDetail_card_latency",
+                         "networkDetail_card_wifiSignal", "networkDetail_card_connectivity", "networkDetail_card_intel"] {
+            XCTAssertFalse(app.descendants(matching: .any)[liveCard].exists,
+                           "\(liveCard) reads this Mac's connection and must not show under an inactive network")
+        }
+    }
+
     func testSwitchBetweenNetworks() {
         let addButton = app.buttons["sidebar_button_addNetwork"]
         XCTAssertTrue(addButton.waitForExistence(timeout: 5))

@@ -613,3 +613,51 @@ struct NetworkDetailViewLifecycleTests {
                 "Profile name must not change when first(where:) returns nil")
     }
 }
+
+// MARK: - Live diagnostics gating (#336)
+
+// The live cards (ISP, health gauge, latency, Wi-Fi, connectivity, intel) read
+// the Mac's current connection, so they may only appear under the network the
+// Mac is actually on. `activeProfile` is not that signal on macOS: scanning a
+// network calls switchProfile, so a manual network becomes "active" too.
+
+@MainActor
+struct NetworkDetailViewLiveDiagnosticsTests {
+
+    private func makeManager() -> (NetworkProfileManager, NetworkProfile) {
+        let suite = "NetworkDetailViewLiveDiagnosticsTests-\(UUID().uuidString)"
+        // swiftlint:disable:next force_unwrapping
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+        let local = NetworkProfile(
+            interfaceName: "en0",
+            ipAddress: "192.168.1.100",
+            network: NetworkUtilities.IPv4Network(
+                networkAddress: 0xC0A80100,
+                broadcastAddress: 0xC0A801FF,
+                interfaceAddress: 0xC0A80164,
+                netmask: 0xFFFFFF00
+            ),
+            connectionType: .wifi
+        )
+        let manager = NetworkProfileManager(userDefaults: defaults, activeProfilesProvider: { [local] })
+        return (manager, local)
+    }
+
+    @Test("The network this Mac is on shows live diagnostics")
+    func localNetworkShowsLiveDiagnostics() throws {
+        let (manager, local) = makeManager()
+        let profile = try #require(manager.profiles.first { $0.id == local.id })
+        #expect(NetworkDetailView.showsLiveDiagnostics(for: profile))
+    }
+
+    @Test("A manual network hides live diagnostics even after it becomes activeProfile")
+    func manualNetworkHidesLiveDiagnosticsWhenActive() throws {
+        let (manager, _) = makeManager()
+        let manual = try #require(manager.addProfile(gateway: "10.20.0.1", subnet: "10.20.0.0/24", name: "Office"))
+        #expect(manager.switchProfile(id: manual.id))
+        #expect(manager.activeProfile?.id == manual.id)
+
+        #expect(!NetworkDetailView.showsLiveDiagnostics(for: manual))
+    }
+}
