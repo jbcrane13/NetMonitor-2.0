@@ -41,6 +41,13 @@ struct AddNetworkSheet: View {
         return .valid
     }
 
+    /// The gateway field's ✓/✗: a well-formed gateway that lies outside a valid subnet is
+    /// wrong, even though its format is fine (#354).
+    static func gatewayIndicatorIsValid(gateway: String, subnet: String) -> Bool {
+        NetworkUtilities.ipv4ToUInt32(gateway) != nil
+            && validate(gateway: gateway, subnet: subnet) != .gatewayOutsideSubnet
+    }
+
     /// Adds the network and reports the resulting profile through `onAdded`.
     /// Returns false when the manager rejected it, so the sheet stays open (#348).
     static func add(
@@ -66,7 +73,7 @@ struct AddNetworkSheet: View {
                             .textContentType(.URL)
                             .accessibilityIdentifier("addNetwork_textfield_gateway")
 
-                        validationIndicator(isValid: isValidGateway)
+                        validationIndicator(isValid: Self.gatewayIndicatorIsValid(gateway: gatewayIP, subnet: subnetCIDR))
                             .accessibilityIdentifier("addNetwork_label_validationGateway")
                     }
 
