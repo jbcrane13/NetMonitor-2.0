@@ -10,13 +10,13 @@ final class NetworkDetailFunctionalUITests: MacOSUITestCase {
 
     // MARK: - Helpers
 
+    // macOS 27 ignores synthesized `tap()`s on these controls; this file clicks.
+
     /// Show the local network's live dashboard (the one this Mac is on).
     /// Launch already lands there; ⌘1 re-selects it if something else is showing.
     /// Manual networks show `networkDetail_state_inactiveNetwork` instead of live
     /// cards (#336), so there is no fallback to adding one.
     private func ensureLocalNetworkDetailVisible() {
-        // An inactive window spends the first click on activation.
-        app.activate()
         if !ui("contentView_nav_network").waitForExistence(timeout: 4) {
             app.typeKey("1", modifierFlags: .command)
         }
@@ -41,7 +41,7 @@ final class NetworkDetailFunctionalUITests: MacOSUITestCase {
         if !deviceRow.waitForExistence(timeout: 5) {
             let scanButton = app.buttons["networkDevicesPanel_button_scan"]
             if scanButton.exists, scanButton.isEnabled {
-                scanButton.tap()
+                scanButton.click()
             }
             guard deviceRow.waitForExistence(timeout: 45) else {
                 throw XCTSkip("No devices discovered on this network")
@@ -67,7 +67,7 @@ final class NetworkDetailFunctionalUITests: MacOSUITestCase {
 
         let deviceRow = try firstDeviceRow()
         let ip = String(deviceRow.identifier.dropFirst("networkDevicesPanel_row_".count))
-        deviceRow.tap()
+        deviceRow.click()
 
         requireExists(ui("screen_deviceDetail"), timeout: 5,
                       message: "Clicking a device row should open the device detail sheet")
@@ -86,7 +86,7 @@ final class NetworkDetailFunctionalUITests: MacOSUITestCase {
         let scanButton = app.buttons["networkDevicesPanel_button_scan"]
         requireExists(scanButton, timeout: 5, message: "Devices panel scan button should exist")
         XCTAssertTrue(scanButton.isEnabled, "Scan button should be enabled before a scan")
-        scanButton.tap()
+        scanButton.click()
 
         // While scanning, the button is disabled and a progress overlay is shown.
         let disabled = XCTNSPredicateExpectation(predicate: NSPredicate(format: "isEnabled == false"),
@@ -106,12 +106,12 @@ final class NetworkDetailFunctionalUITests: MacOSUITestCase {
 
         let deviceRow = try firstDeviceRow()
         let ip = String(deviceRow.identifier.dropFirst("networkDevicesPanel_row_".count))
-        deviceRow.tap()
+        deviceRow.click()
         requireExists(ui("screen_deviceDetail"), timeout: 5, message: "Device detail sheet should open")
 
         let pingButton = app.buttons["deviceDetail_button_ping"]
         requireExists(pingButton, timeout: 5, message: "Device detail should offer a Ping action")
-        pingButton.tap()
+        pingButton.click()
 
         requireExists(app.buttons["devicePingSheet_button_close"], timeout: 5,
                       message: "Ping action should open the device ping sheet")

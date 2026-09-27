@@ -7,30 +7,33 @@ final class NetworkSwitchingUITests: MacOSUITestCase {
 
     /// On macOS 27 the NETWORKS section header can be exposed as one element
     /// labelled "NETWORKS, Add" carrying the + button's identifier; the + sits
-    /// at its trailing edge.
-    private func tapAddNetwork() {
+    /// at its trailing edge. macOS 27 ignores synthesized `tap()`s here, so
+    /// this file clicks.
+    private func clickAddNetwork() {
         let add = ui("sidebar_button_addNetwork").firstMatch
         requireExists(add, timeout: 5, message: "Add Network control should exist in sidebar")
-        // An inactive window spends the first click on activation.
-        app.activate()
         if add.elementType == .button {
-            add.tap()
+            add.click()
         } else {
-            add.coordinate(withNormalizedOffset: CGVector(dx: 0.96, dy: 0.5)).tap()
+            add.coordinate(withNormalizedOffset: CGVector(dx: 0.96, dy: 0.5)).click()
         }
     }
 
     private func addNetwork(gateway: String, subnet: String, name: String? = nil) {
-        tapAddNetwork()
+        clickAddNetwork()
         requireExists(app.sheets.firstMatch, timeout: 3, message: "Add Network sheet should appear")
 
+        // clearAndTypeText focuses with tap(), which macOS 27 ignores; click first.
+        app.textFields["addNetwork_textfield_gateway"].click()
         clearAndTypeText(gateway, into: app.textFields["addNetwork_textfield_gateway"])
+        app.textFields["addNetwork_textfield_subnet"].click()
         clearAndTypeText(subnet, into: app.textFields["addNetwork_textfield_subnet"])
         if let name {
+            app.textFields["addNetwork_textfield_name"].click()
             clearAndTypeText(name, into: app.textFields["addNetwork_textfield_name"])
         }
 
-        app.buttons["addNetwork_button_add"].tap()
+        app.buttons["addNetwork_button_add"].click()
         XCTAssertTrue(waitForDisappearance(app.sheets.firstMatch, timeout: 3),
                       "Sheet should dismiss after adding")
     }
@@ -61,21 +64,21 @@ final class NetworkSwitchingUITests: MacOSUITestCase {
     }
 
     func testOpenAddNetworkSheet() {
-        tapAddNetwork()
+        clickAddNetwork()
 
         XCTAssertTrue(app.sheets.firstMatch.waitForExistence(timeout: 3),
                       "Add Network sheet should appear")
 
         let cancelButton = app.buttons["addNetwork_button_cancel"]
         XCTAssertTrue(cancelButton.waitForExistence(timeout: 3))
-        cancelButton.tap()
+        cancelButton.click()
 
         XCTAssertTrue(waitForDisappearance(app.sheets.firstMatch, timeout: 3),
                       "Sheet should dismiss after cancel")
     }
 
     func testAddNetworkValidation() {
-        tapAddNetwork()
+        clickAddNetwork()
 
         XCTAssertTrue(app.sheets.firstMatch.waitForExistence(timeout: 3))
 
@@ -89,16 +92,18 @@ final class NetworkSwitchingUITests: MacOSUITestCase {
 
         XCTAssertFalse(addBarButton.isEnabled, "Add button should be disabled initially")
 
+        gatewayField.click()
         clearAndTypeText("invalid", into: gatewayField)
         XCTAssertFalse(addBarButton.isEnabled, "Add button should be disabled with invalid IP")
 
         clearAndTypeText("192.168.1.1", into: gatewayField)
         XCTAssertFalse(addBarButton.isEnabled, "Add button should be disabled without subnet")
 
+        subnetField.click()
         clearAndTypeText("192.168.1.0/24", into: subnetField)
         XCTAssertTrue(addBarButton.isEnabled, "Add button should be enabled with valid input")
 
-        app.buttons["addNetwork_button_cancel"].tap()
+        app.buttons["addNetwork_button_cancel"].click()
     }
 
     func testAddNetworkSuccessfully() {
@@ -114,7 +119,7 @@ final class NetworkSwitchingUITests: MacOSUITestCase {
 
         let networkItem = sidebarRow(named: "Network 172.16.0.0/24")
         XCTAssertTrue(networkItem.waitForExistence(timeout: 5))
-        networkItem.tap()
+        networkItem.click()
 
         XCTAssertTrue(notConnectedText(for: "Network 172.16.0.0/24").waitForExistence(timeout: 5),
                       "Selecting a network should show that network's detail")
@@ -125,7 +130,7 @@ final class NetworkSwitchingUITests: MacOSUITestCase {
 
         let networkItem = sidebarRow(named: "Office Network")
         XCTAssertTrue(networkItem.waitForExistence(timeout: 5))
-        networkItem.tap()
+        networkItem.click()
 
         XCTAssertTrue(ui("networkDetail_state_inactiveNetwork").waitForExistence(timeout: 5),
                       "A manual network should open its detail in the not-connected state")
@@ -149,7 +154,7 @@ final class NetworkSwitchingUITests: MacOSUITestCase {
 
         let networkItem = sidebarRow(named: "Inactive Test Network")
         XCTAssertTrue(networkItem.waitForExistence(timeout: 5))
-        networkItem.tap()
+        networkItem.click()
 
         XCTAssertTrue(ui("networkDetail_state_inactiveNetwork").waitForExistence(timeout: 5),
                       "Inactive network should show the not-connected state")
@@ -173,61 +178,14 @@ final class NetworkSwitchingUITests: MacOSUITestCase {
         XCTAssertTrue(network1.waitForExistence(timeout: 5))
         XCTAssertTrue(network2.waitForExistence(timeout: 5))
 
-        network1.tap()
+        network1.click()
         XCTAssertTrue(notConnectedText(for: "Network 1").waitForExistence(timeout: 5),
                       "Detail should show Network 1")
 
-        network2.tap()
+        network2.click()
         XCTAssertTrue(notConnectedText(for: "Network 2").waitForExistence(timeout: 5),
                       "Detail should switch to Network 2")
         XCTAssertFalse(notConnectedText(for: "Network 1").exists,
                        "Network 1's detail should be replaced")
-    }
-
-    // TEMP DIAGNOSTIC (#341) — remove before merge.
-    func testZZDiagClickDelivery() {
-        func log(_ m: String) { print("DIAG: \(m)") }
-        _ = ui("contentView_nav_network").waitForExistence(timeout: 5)
-
-        let devices = app.staticTexts.matching(NSPredicate(format: "identifier == 'sidebar_nav_devices'")).firstMatch
-        log("devices text exists=\(devices.exists) hittable=\(devices.isHittable)")
-        devices.tap()
-        log("after tap DEVICES: nav_devices=\(ui("contentView_nav_devices").waitForExistence(timeout: 3))")
-
-        app.typeKey("1", modifierFlags: .command)
-        log("after cmd1: isp=\(ui("networkDetail_card_isp").waitForExistence(timeout: 3)) nav_devices=\(ui("contentView_nav_devices").exists)")
-
-        let row = app.outlines.firstMatch.descendants(matching: .any).matching(
-            NSPredicate(format: "identifier == 'sidebar_nav_tools'")).firstMatch
-        row.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
-        log("after coord tap TOOLS: nav_tools=\(ui("contentView_nav_tools").waitForExistence(timeout: 3))")
-        app.typeKey("1", modifierFlags: .command)
-        _ = ui("networkDetail_card_isp").waitForExistence(timeout: 3)
-
-        let scan = app.buttons["networkDevicesPanel_button_scan"]
-        log("scan exists=\(scan.exists) hittable=\(scan.isHittable) enabled=\(scan.isEnabled)")
-        scan.click()
-        let started = waitForEither([app.progressIndicators.firstMatch,
-                                     app.staticTexts.matching(NSPredicate(format: "value == 'Scanning...' OR label == 'Scanning...'")).firstMatch],
-                                    timeout: 4)
-        log("after scan click: started=\(started) enabled=\(scan.isEnabled)")
-
-        let addCtl = ui("sidebar_button_addNetwork").firstMatch
-        log("add type=\(addCtl.elementType.rawValue) frame=\(addCtl.frame) hittable=\(addCtl.isHittable)")
-        addCtl.coordinate(withNormalizedOffset: CGVector(dx: 0.96, dy: 0.5)).tap()
-        log("after add coord tap: sheet=\(app.sheets.firstMatch.waitForExistence(timeout: 3)) windows=\(app.windows.count)")
-        if !app.sheets.firstMatch.exists {
-            addCtl.coordinate(withNormalizedOffset: CGVector(dx: 0.96, dy: 0.5)).hover()
-            addCtl.coordinate(withNormalizedOffset: CGVector(dx: 0.96, dy: 0.5)).click()
-            log("after hover+click: sheet=\(app.sheets.firstMatch.waitForExistence(timeout: 3)) windows=\(app.windows.count)")
-        }
-        if !app.sheets.firstMatch.exists {
-            addCtl.tap()
-            log("after element center tap: sheet=\(app.sheets.firstMatch.waitForExistence(timeout: 3))")
-        }
-        let tree = XCTAttachment(string: app.debugDescription)
-        tree.name = "diag-final-tree"
-        tree.lifetime = .keepAlways
-        add(tree)
     }
 }
