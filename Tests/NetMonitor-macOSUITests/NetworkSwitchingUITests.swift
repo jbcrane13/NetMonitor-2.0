@@ -183,4 +183,51 @@ final class NetworkSwitchingUITests: MacOSUITestCase {
         XCTAssertFalse(notConnectedText(for: "Network 1").exists,
                        "Network 1's detail should be replaced")
     }
+
+    // TEMP DIAGNOSTIC (#341) — remove before merge.
+    func testZZDiagClickDelivery() {
+        func log(_ m: String) { print("DIAG: \(m)") }
+        _ = ui("contentView_nav_network").waitForExistence(timeout: 5)
+
+        let devices = app.staticTexts.matching(NSPredicate(format: "identifier == 'sidebar_nav_devices'")).firstMatch
+        log("devices text exists=\(devices.exists) hittable=\(devices.isHittable)")
+        devices.tap()
+        log("after tap DEVICES: nav_devices=\(ui("contentView_nav_devices").waitForExistence(timeout: 3))")
+
+        app.typeKey("1", modifierFlags: .command)
+        log("after cmd1: isp=\(ui("networkDetail_card_isp").waitForExistence(timeout: 3)) nav_devices=\(ui("contentView_nav_devices").exists)")
+
+        let row = app.outlines.firstMatch.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier == 'sidebar_nav_tools'")).firstMatch
+        row.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        log("after coord tap TOOLS: nav_tools=\(ui("contentView_nav_tools").waitForExistence(timeout: 3))")
+        app.typeKey("1", modifierFlags: .command)
+        _ = ui("networkDetail_card_isp").waitForExistence(timeout: 3)
+
+        let scan = app.buttons["networkDevicesPanel_button_scan"]
+        log("scan exists=\(scan.exists) hittable=\(scan.isHittable) enabled=\(scan.isEnabled)")
+        scan.click()
+        let started = waitForEither([app.progressIndicators.firstMatch,
+                                     app.staticTexts.matching(NSPredicate(format: "value == 'Scanning...' OR label == 'Scanning...'")).firstMatch],
+                                    timeout: 4)
+        log("after scan click: started=\(started) enabled=\(scan.isEnabled)")
+
+        let addCtl = ui("sidebar_button_addNetwork").firstMatch
+        log("add type=\(addCtl.elementType.rawValue) frame=\(addCtl.frame) hittable=\(addCtl.isHittable)")
+        addCtl.coordinate(withNormalizedOffset: CGVector(dx: 0.96, dy: 0.5)).tap()
+        log("after add coord tap: sheet=\(app.sheets.firstMatch.waitForExistence(timeout: 3)) windows=\(app.windows.count)")
+        if !app.sheets.firstMatch.exists {
+            addCtl.coordinate(withNormalizedOffset: CGVector(dx: 0.96, dy: 0.5)).hover()
+            addCtl.coordinate(withNormalizedOffset: CGVector(dx: 0.96, dy: 0.5)).click()
+            log("after hover+click: sheet=\(app.sheets.firstMatch.waitForExistence(timeout: 3)) windows=\(app.windows.count)")
+        }
+        if !app.sheets.firstMatch.exists {
+            addCtl.tap()
+            log("after element center tap: sheet=\(app.sheets.firstMatch.waitForExistence(timeout: 3))")
+        }
+        let tree = XCTAttachment(string: app.debugDescription)
+        tree.name = "diag-final-tree"
+        tree.lifetime = .keepAlways
+        add(tree)
+    }
 }
