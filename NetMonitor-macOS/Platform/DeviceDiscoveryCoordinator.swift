@@ -213,6 +213,8 @@ final class DeviceDiscoveryCoordinator {
     }
 
     func scanNetwork(_ profile: NetworkProfile) {
+        // A running scan keeps its network; switching state here would mislabel it (#353).
+        guard !isScanning else { return }
         networkProfile = profile
         _ = networkProfileManager.switchProfile(id: profile.id)
         loadPersistedDevices(for: profile.id)
