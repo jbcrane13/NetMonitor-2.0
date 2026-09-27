@@ -146,6 +146,61 @@ struct NetworkDetailViewScanRegressionTests {
 
         coordinator.stopScan()
     }
+
+    // MARK: - #347: the panel's Scan button targets the panel's own network
+
+    @Test("Panel for network B scans B even after A was scanned last")
+    func panelScanTargetsItsOwnNetwork() {
+        let networkA = makeProfile(name: "A")
+        let networkB = makeProfile(name: "B")
+
+        let target = NetworkDevicesPanel.scanTarget(
+            panelProfileID: networkB.id,
+            profiles: [networkA, networkB],
+            lastScanned: networkA
+        )
+
+        #expect(target == .network(networkB),
+                "Scan in B's panel must scan B, not the last-scanned network A")
+    }
+
+    @Test("Panel for an unknown network does not scan another network")
+    func panelScanWithUnknownProfileDoesNothing() {
+        let networkA = makeProfile(name: "A")
+
+        let target = NetworkDevicesPanel.scanTarget(
+            panelProfileID: UUID(),
+            profiles: [networkA],
+            lastScanned: networkA
+        )
+
+        #expect(target == NetworkDevicesPanel.ScanTarget.none)
+    }
+
+    @Test("Global panel (nil ID) rescans the last-scanned network")
+    func globalPanelRescansLastScanned() {
+        let networkA = makeProfile(name: "A")
+        let networkB = makeProfile(name: "B")
+
+        let target = NetworkDevicesPanel.scanTarget(
+            panelProfileID: nil,
+            profiles: [networkA, networkB],
+            lastScanned: networkA
+        )
+
+        #expect(target == .network(networkA))
+    }
+
+    @Test("Global panel (nil ID) with nothing scanned starts a default scan")
+    func globalPanelStartsDefaultScan() {
+        let target = NetworkDevicesPanel.scanTarget(
+            panelProfileID: nil,
+            profiles: [makeProfile(name: "A")],
+            lastScanned: nil
+        )
+
+        #expect(target == .startScan)
+    }
 }
 
 // MARK: - Fixture
