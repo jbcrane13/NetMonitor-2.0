@@ -12,9 +12,11 @@ import Foundation
 @MainActor
 struct RateAppServiceTests {
 
-    @Test("App Store ID constant is defined and non-empty")
-    func appStoreIDIsNonEmpty() {
-        #expect(!RateAppService.appStoreID.isEmpty)
+    @Test("App Store ID is the real numeric ID for com.blakemiller.netmonitor")
+    func appStoreIDIsRealNumericID() {
+        // A non-empty check let "APP_STORE_ID_PLACEHOLDER" ship (#335).
+        #expect(UInt64(RateAppService.appStoreID) != nil)
+        #expect(RateAppService.appStoreID == "6759060947")
     }
 
     @Test("Review URL contains the App Store ID")
