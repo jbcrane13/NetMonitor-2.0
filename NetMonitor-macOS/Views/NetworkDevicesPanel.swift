@@ -35,11 +35,17 @@ struct NetworkDevicesPanel: View {
 
     /// Resolves the Scan button's target from the panel's own profile ID.
     /// A nil ID (global Devices view) rescans the last-scanned network, or starts a default scan.
+    /// An ID that matches no known profile does nothing.
     static func scanTarget(
         panelProfileID: UUID?,
         profiles: [NetworkProfile],
         lastScanned: NetworkProfile?
     ) -> ScanTarget {
+        if let panelProfileID {
+            // Never fall back to another network: that is what made B's Scan rescan A (#347).
+            guard let profile = profiles.first(where: { $0.id == panelProfileID }) else { return .none }
+            return .network(profile)
+        }
         if let lastScanned {
             return .network(lastScanned)
         }
