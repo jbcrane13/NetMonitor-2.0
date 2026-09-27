@@ -45,6 +45,7 @@ struct AddNetworkSheet: View {
     /// wrong, even though its format is fine (#354).
     static func gatewayIndicatorIsValid(gateway: String, subnet: String) -> Bool {
         NetworkUtilities.ipv4ToUInt32(gateway) != nil
+            && validate(gateway: gateway, subnet: subnet) != .gatewayOutsideSubnet
     }
 
     /// Adds the network and reports the resulting profile through `onAdded`.
