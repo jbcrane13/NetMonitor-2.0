@@ -15,7 +15,7 @@ struct RateAppServiceTests {
     @Test("App Store ID is the real numeric ID for com.blakemiller.netmonitor")
     func appStoreIDIsRealNumericID() {
         // A non-empty check let "APP_STORE_ID_PLACEHOLDER" ship (#335).
-        #expect(RateAppService.appStoreID.allSatisfy(\.isNumber))
+        #expect(UInt64(RateAppService.appStoreID) != nil)
         #expect(RateAppService.appStoreID == "6759060947")
     }
 
