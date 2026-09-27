@@ -8,6 +8,7 @@ struct NetworkDevicesPanel: View {
     let networkProfileID: UUID?
 
     @Environment(DeviceDiscoveryCoordinator.self) private var coordinator: DeviceDiscoveryCoordinator?
+    @Environment(NetworkProfileManager.self) private var profileManager: NetworkProfileManager?
     @Query private var devices: [LocalDevice]
 
     init(networkProfileID: UUID?) {
@@ -24,6 +25,32 @@ struct NetworkDevicesPanel: View {
 
     /// Sort orders shown in this panel's picker — a subset of the six Core cases.
     static let sortOptions: [DeviceSortOrder] = [.status, .name, .ipAddress, .lastSeen]
+
+    /// What the Scan button should do.
+    enum ScanTarget: Equatable {
+        case network(NetworkProfile)
+        case startScan
+        case none
+    }
+
+    /// Resolves the Scan button's target from the panel's own profile ID.
+    /// A nil ID (global Devices view) rescans the last-scanned network, or starts a default scan.
+    /// An ID that matches no known profile does nothing.
+    static func scanTarget(
+        panelProfileID: UUID?,
+        profiles: [NetworkProfile],
+        lastScanned: NetworkProfile?
+    ) -> ScanTarget {
+        if let panelProfileID {
+            // Never fall back to another network: that is what made B's Scan rescan A (#347).
+            guard let profile = profiles.first(where: { $0.id == panelProfileID }) else { return .none }
+            return .network(profile)
+        }
+        if let lastScanned {
+            return .network(lastScanned)
+        }
+        return .startScan
+    }
 
     private var filteredDevices: [LocalDevice] {
         DeviceList.rows(
@@ -64,10 +91,14 @@ struct NetworkDevicesPanel: View {
 
                 // Scan button
                 Button {
-                    if let profile = coordinator?.networkProfile {
-                        coordinator?.scanNetwork(profile)
-                    } else {
-                        coordinator?.startScan()
+                    switch Self.scanTarget(
+                        panelProfileID: networkProfileID,
+                        profiles: profileManager?.profiles ?? [],
+                        lastScanned: coordinator?.networkProfile
+                    ) {
+                    case .network(let profile): coordinator?.scanNetwork(profile)
+                    case .startScan: coordinator?.startScan()
+                    case .none: break
                     }
                 } label: {
                     Image(systemName: "antenna.radiowaves.left.and.right")
