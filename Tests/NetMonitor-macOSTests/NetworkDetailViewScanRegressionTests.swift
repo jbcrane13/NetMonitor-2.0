@@ -27,11 +27,14 @@ struct NetworkDetailViewScanRegressionTests {
         return (container, container.mainContext)
     }
 
-    private func makeCoordinator(context: ModelContext) -> DeviceDiscoveryCoordinator {
+    private func makeCoordinator(
+        context: ModelContext,
+        networkProfileManager: NetworkProfileManager = NetworkProfileManager()
+    ) -> DeviceDiscoveryCoordinator {
         DeviceDiscoveryCoordinator(
             modelContext: context,
             bonjourScanner: BonjourDiscoveryService(),
-            networkProfileManager: NetworkProfileManager(),
+            networkProfileManager: networkProfileManager,
             // A holding fixture, never the production pipeline: these tests assert the
             // coordinator's scan lifecycle, not discovery. A real LAN scan started here used to
             // outlive the test and trap on its released ModelContainer (#309).
@@ -111,6 +114,31 @@ struct NetworkDetailViewScanRegressionTests {
         #expect(coordinator.isScanning == true)
         #expect(coordinator.scanProgress == progressAfterFirst,
                 "scanProgress must not reset when scanNetwork is called while already scanning")
+    }
+
+    @Test("scanNetwork for another network while scanning leaves the running scan's network in place (#353)")
+    func scanNetworkWhileScanningDoesNotSwitchNetwork() throws {
+        let (container, context) = try makeInMemoryStore()
+        defer { withExtendedLifetime(container) {} }
+        let suite = "ScanMidScan-\(UUID().uuidString)"
+        // swiftlint:disable:next force_unwrapping
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let manager = NetworkProfileManager(userDefaults: defaults, activeProfilesProvider: { [] })
+        let networkA = try #require(manager.addProfile(gateway: "10.1.0.1", subnet: "10.1.0.0/24", name: "A"))
+        let networkB = try #require(manager.addProfile(gateway: "10.2.0.1", subnet: "10.2.0.0/24", name: "B"))
+        let coordinator = makeCoordinator(context: context, networkProfileManager: manager)
+        defer { coordinator.stopScan() }
+
+        coordinator.scanNetwork(networkA)
+        #expect(coordinator.isScanning)
+
+        coordinator.scanNetwork(networkB)
+
+        #expect(coordinator.networkProfile?.id == networkA.id,
+                "The coordinator must keep reporting the network it is actually scanning")
+        #expect(manager.activeProfile?.id == networkA.id,
+                "A refused scan request must not move the ACTIVE network")
     }
 
     @Test("stopScan clears isScanning so button re-enables")
