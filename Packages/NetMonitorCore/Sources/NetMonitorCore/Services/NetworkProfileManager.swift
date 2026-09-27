@@ -50,6 +50,10 @@ public final class NetworkProfileManager {
             $0.gatewayIP == gateway && $0.subnet == cidr.cidr
         }) {
             var existing = profiles[existingIndex]
+            // Never demote this device's auto-detected network to a manual one.
+            if existing.isLocal && existing.discoveryMethod == .auto {
+                return existing
+            }
             existing.name = resolvedName
             existing.ipAddress = gateway
             existing.network = network
@@ -125,6 +129,13 @@ public final class NetworkProfileManager {
             netmask: cidr.netmask
         )
         let connectionType = Self.inferConnectionType(for: resolvedInterface)
+
+        // The companion is on the same network as this device: keep the local profile as-is.
+        if let local = profiles.first(where: {
+            $0.isLocal && $0.discoveryMethod == .auto && $0.gatewayIP == gateway && $0.subnet == cidr.cidr
+        }) {
+            return local
+        }
 
         if let existingIndex = profiles.firstIndex(where: {
             ($0.gatewayIP == gateway && $0.subnet == cidr.cidr) ||
@@ -361,8 +372,12 @@ public final class NetworkProfileManager {
         case "en1", "en2", "en3", "en4", "en5":
             return .ethernet
         default:
-            if interface.hasPrefix("en") { return .ethernet }
-            if interface.hasPrefix("pdp_ip") { return .cellular }
+            if interface.hasPrefix("en") {
+                return .ethernet
+            }
+            if interface.hasPrefix("pdp_ip") {
+                return .cellular
+            }
             return .ethernet
         }
     }
