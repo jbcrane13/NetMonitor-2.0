@@ -714,6 +714,22 @@ struct AddNetworkSheetTests {
         #expect(AddNetworkSheet.validate(gateway: "10.0.0.1", subnet: "10.0.0/24") == .invalidSubnet)
     }
 
+    @Test("Gateway tick is red for a gateway outside the subnet (#354)")
+    func gatewayIndicatorRejectsOutOfSubnetGateway() {
+        #expect(!AddNetworkSheet.gatewayIndicatorIsValid(gateway: "10.0.1.1", subnet: "10.0.0.0/24"))
+        #expect(!AddNetworkSheet.gatewayIndicatorIsValid(gateway: "192.168.2.1", subnet: "192.168.1.0/24"))
+    }
+
+    @Test("Gateway tick is green inside the subnet, and judges format alone when the subnet is invalid")
+    func gatewayIndicatorAcceptsInSubnetOrUnjudgeableGateway() {
+        #expect(AddNetworkSheet.gatewayIndicatorIsValid(gateway: "10.0.0.1", subnet: "10.0.0.0/24"))
+        // The subnet field shows its own error; the gateway can't be judged against it yet.
+        #expect(AddNetworkSheet.gatewayIndicatorIsValid(gateway: "10.0.0.1", subnet: ""))
+        #expect(AddNetworkSheet.gatewayIndicatorIsValid(gateway: "10.0.0.1", subnet: "10.0.0.0/99"))
+        #expect(!AddNetworkSheet.gatewayIndicatorIsValid(gateway: "10.0.0", subnet: "10.0.0.0/24"))
+        #expect(!AddNetworkSheet.gatewayIndicatorIsValid(gateway: "", subnet: "10.0.0.0/24"))
+    }
+
     @Test("Validation passes exactly when addProfile accepts the input")
     func validationMatchesAddProfile() {
         let inputs: [(String, String)] = [
