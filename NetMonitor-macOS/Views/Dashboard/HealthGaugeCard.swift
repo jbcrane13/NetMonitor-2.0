@@ -73,6 +73,7 @@ struct HealthGaugeCard: View {
         }
         .macGlassCard(cornerRadius: 14, padding: 10, statusGlow: MacTheme.Colors.info)
         .clipped()
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("dashboard_card_healthGauge")
         .task { await viewModel.refresh() }
     }
@@ -85,7 +86,9 @@ struct HealthGaugeCard: View {
 
     private var scoreText: String {
 // swiftlint:disable:next identifier_name
-        if let s = viewModel.currentScore { return "\(s.score)" }
+        if let s = viewModel.currentScore {
+            return "\(s.score)"
+        }
         return viewModel.isCalculating ? "…" : "—"
     }
 

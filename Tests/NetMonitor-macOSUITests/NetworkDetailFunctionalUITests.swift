@@ -15,6 +15,8 @@ final class NetworkDetailFunctionalUITests: MacOSUITestCase {
     /// Manual networks show `networkDetail_state_inactiveNetwork` instead of live
     /// cards (#336), so there is no fallback to adding one.
     private func ensureLocalNetworkDetailVisible() {
+        // An inactive window spends the first click on activation.
+        app.activate()
         if !ui("contentView_nav_network").waitForExistence(timeout: 4) {
             app.typeKey("1", modifierFlags: .command)
         }

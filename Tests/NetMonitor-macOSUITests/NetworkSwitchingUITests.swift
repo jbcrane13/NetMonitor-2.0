@@ -11,6 +11,8 @@ final class NetworkSwitchingUITests: MacOSUITestCase {
     private func tapAddNetwork() {
         let add = ui("sidebar_button_addNetwork").firstMatch
         requireExists(add, timeout: 5, message: "Add Network control should exist in sidebar")
+        // An inactive window spends the first click on activation.
+        app.activate()
         if add.elementType == .button {
             add.tap()
         } else {
