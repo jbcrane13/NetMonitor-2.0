@@ -158,7 +158,7 @@ struct NetworkDetailViewScanRegressionTests {
         defer { withExtendedLifetime(container) {} }
         let (manager, defaults, suite) = makeLaunchManager(withLocal: true)
         defer { defaults.removePersistentDomain(forName: suite) }
-        let local = try #require(manager.profiles.first(where: \.isLocal))
+        let local = try #require(manager.profiles.first(where: { $0.isLocal }))
         let coordinator = makeCoordinator(context: context, networkProfileManager: manager)
         defer { coordinator.stopScan() }
 
