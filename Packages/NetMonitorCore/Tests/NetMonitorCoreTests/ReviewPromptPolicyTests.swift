@@ -14,12 +14,14 @@ struct ReviewPromptPolicyTests {
         var promptShown = true
 
         init() {
+            // swiftlint:disable:next force_unwrapping
             defaults = UserDefaults(suiteName: suiteName)!
         }
 
         @MainActor
         func policy(version: String = "2.2.2") -> ReviewPromptPolicy {
-            ReviewPromptPolicy(defaults: defaults, appVersion: version) { [unowned self] in
+            ReviewPromptPolicy(defaults: defaults, appVersion: version) { [weak self] in
+                guard let self else { return false }
                 prompts += 1
                 return promptShown
             }

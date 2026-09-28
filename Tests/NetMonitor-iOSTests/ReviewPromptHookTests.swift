@@ -15,12 +15,13 @@ struct ReviewPromptHookTests {
         var prompts = 0
 
         init() {
+            // swiftlint:disable:next force_unwrapping
             defaults = UserDefaults(suiteName: suiteName)!
         }
 
         @MainActor
-        lazy var policy = ReviewPromptPolicy(defaults: defaults, appVersion: "test") { [unowned self] in
-            prompts += 1
+        lazy var policy = ReviewPromptPolicy(defaults: defaults, appVersion: "test") { [weak self] in
+            self?.prompts += 1
             return true
         }
 
