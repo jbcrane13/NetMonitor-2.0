@@ -2,6 +2,7 @@ import Foundation
 import Testing
 @testable import NetMonitorCore
 
+// swiftlint:disable type_body_length
 struct NetworkProfileManagerTests {
     @Test("Profile CRUD: add, switch, remove")
     @MainActor
@@ -298,6 +299,32 @@ struct NetworkProfileManagerTests {
         #expect(readded?.isLocal == false)
     }
 
+    @Test("A new subnet on the same interface gets its own name, not the old network's (#359)")
+    @MainActor
+    func detectingNewSubnetRegeneratesName() throws {
+        let (defaults, suiteName) = makeUserDefaults()
+        defer { clear(defaults, suiteName: suiteName) }
+
+        let home = NetworkProfile(
+            interfaceName: "en0", ipAddress: "192.168.1.10",
+            network: makeNetwork("192.168.1.0/24"), connectionType: .wifi
+        )
+        let office = NetworkProfile(
+            interfaceName: "en0", ipAddress: "10.0.0.5",
+            network: makeNetwork("10.0.0.0/24"), connectionType: .wifi
+        )
+        let box = ProfileListBox([home])
+        let manager = NetworkProfileManager(userDefaults: defaults, activeProfilesProvider: { box.value })
+
+        box.value = [office]
+        manager.detectLocalNetwork()
+
+        let local = try #require(manager.profiles.first(where: { $0.isLocal }))
+        #expect(local.subnet == "10.0.0.0/24")
+        #expect(local.name == office.name, "The office network must not keep the home network's name")
+        #expect(local.name != home.name)
+    }
+
     @Test("Integration: local and remote scan metadata stay separated")
     @MainActor
     func scanMetadataSeparationAcrossProfiles() {
@@ -402,5 +429,22 @@ struct NetworkProfileManagerTests {
         let ip = String(parts[0])
         guard let rawAddress = NetworkUtilities.ipv4ToUInt32(ip) else { return ip }
         return NetworkUtilities.uint32ToIPv4(rawAddress &+ 1)
+    }
+}
+
+// swiftlint:enable type_body_length
+
+/// Mutable interface list behind NetworkProfileManager's `@Sendable` provider.
+private final class ProfileListBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var profiles: [NetworkProfile]
+
+    init(_ profiles: [NetworkProfile]) {
+        self.profiles = profiles
+    }
+
+    var value: [NetworkProfile] {
+        get { lock.withLock { profiles } }
+        set { lock.withLock { profiles = newValue } }
     }
 }

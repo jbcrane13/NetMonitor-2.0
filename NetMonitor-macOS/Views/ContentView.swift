@@ -108,6 +108,9 @@ struct ContentView: View {
                         set: { selectedNetworkProfile = $0 }
                     )
                 )
+                // A new subnet is a different dashboard: rebuild it so its gateway monitor
+                // follows the network the Mac is on (#359).
+                .id(selectedNetworkProfile?.subnet)
                 .accessibilityElement(children: .contain)
                 .accessibilityIdentifier("contentView_nav_network")
             } else {

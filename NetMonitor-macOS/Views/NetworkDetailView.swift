@@ -249,6 +249,10 @@ struct NetworkDetailView: View {
             // Automatically cancelled when the view disappears.
             await connectivityMonitor?.start()
         }
+        .onDisappear {
+            // The path monitor outlives the cancelled task; stop it with the view.
+            connectivityMonitor?.stop()
+        }
     }
 }
 
