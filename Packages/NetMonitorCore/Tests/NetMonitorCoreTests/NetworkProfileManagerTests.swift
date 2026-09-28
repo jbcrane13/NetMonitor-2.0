@@ -2,6 +2,7 @@ import Foundation
 import Testing
 @testable import NetMonitorCore
 
+// swiftlint:disable type_body_length
 struct NetworkProfileManagerTests {
     @Test("Profile CRUD: add, switch, remove")
     @MainActor
@@ -430,6 +431,8 @@ struct NetworkProfileManagerTests {
         return NetworkUtilities.uint32ToIPv4(rawAddress &+ 1)
     }
 }
+
+// swiftlint:enable type_body_length
 
 /// Mutable interface list behind NetworkProfileManager's `@Sendable` provider.
 private final class ProfileListBox: @unchecked Sendable {
