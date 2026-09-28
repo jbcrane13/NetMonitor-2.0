@@ -216,7 +216,9 @@ final class DeviceDiscoveryCoordinator {
     /// Does nothing when there is no local network or a scan is already running.
     @discardableResult
     func startLaunchScan() -> Bool {
-        false
+        guard !isScanning, let local = networkProfileManager.profiles.first(where: { $0.isLocal }) else { return false }
+        scanNetwork(local)
+        return true
     }
 
     func scanNetwork(_ profile: NetworkProfile) {
