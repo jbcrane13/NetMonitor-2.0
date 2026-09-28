@@ -199,6 +199,147 @@ struct NetworkDetailViewScanRegressionTests {
         #expect(coordinator.scanProgress == progress)
     }
 
+    // MARK: - #359: rescan when the Mac joins a different network
+
+    private func makeLocal(_ network: NetworkUtilities.IPv4Network, ip: String) -> NetworkProfile {
+        NetworkProfile(interfaceName: "en0", ipAddress: ip, network: network, connectionType: .wifi)
+    }
+
+    private var networkB: NetworkUtilities.IPv4Network {
+        // 10.20.0.0/24
+        NetworkUtilities.IPv4Network(
+            networkAddress: 0x0A14_0000,
+            broadcastAddress: 0x0A14_00FF,
+            interfaceAddress: 0x0A14_0005,
+            netmask: 0xFFFF_FF00
+        )
+    }
+
+    private func makeWatcherFixture() -> (NetworkProfileManager, ActiveProfilesBox, UserDefaults, String) {
+        let suite = "NetworkChange-\(UUID().uuidString)"
+        // swiftlint:disable:next force_unwrapping
+        let defaults = UserDefaults(suiteName: suite)!
+        let box = ActiveProfilesBox([makeLocal(makeNetwork(), ip: "192.168.1.10")])
+        let manager = NetworkProfileManager(userDefaults: defaults, activeProfilesProvider: { box.value })
+        return (manager, box, defaults, suite)
+    }
+
+    private func countProfileChangeNotifications() -> (() -> Int, NSObjectProtocol) {
+        let counter = NotificationCounter()
+        let token = NotificationCenter.default.addObserver(
+            forName: .networkProfilesDidChange, object: nil, queue: nil
+        ) { _ in counter.increment() }
+        return ({ counter.value }, token)
+    }
+
+    @Test("Joining a different network re-detects it, announces it and scans it (#359)")
+    func networkChangeRescansNewNetwork() throws {
+        let (container, context) = try makeInMemoryStore()
+        defer { withExtendedLifetime(container) {} }
+        let (manager, box, defaults, suite) = makeWatcherFixture()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let coordinator = makeCoordinator(context: context, networkProfileManager: manager)
+        defer { coordinator.stopScan() }
+        let watcher = LocalNetworkChangeWatcher(
+            profileManager: manager, discovery: coordinator, pathEvents: AsyncStream { _ in }
+        )
+        let (notifications, token) = countProfileChangeNotifications()
+        defer { NotificationCenter.default.removeObserver(token) }
+
+        box.value = [makeLocal(networkB, ip: "10.20.0.5")]
+
+        #expect(watcher.handlePathSettled(satisfied: true))
+        let local = try #require(manager.profiles.first(where: { $0.isLocal }))
+        #expect(local.subnet == "10.20.0.0/24")
+        #expect(coordinator.isScanning)
+        #expect(coordinator.networkProfile?.subnet == "10.20.0.0/24")
+        #expect(notifications() == 1)
+    }
+
+    @Test("A settled path on the same network does not rescan")
+    func sameNetworkDoesNotRescan() throws {
+        let (container, context) = try makeInMemoryStore()
+        defer { withExtendedLifetime(container) {} }
+        let (manager, _, defaults, suite) = makeWatcherFixture()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let coordinator = makeCoordinator(context: context, networkProfileManager: manager)
+        defer { coordinator.stopScan() }
+        let watcher = LocalNetworkChangeWatcher(
+            profileManager: manager, discovery: coordinator, pathEvents: AsyncStream { _ in }
+        )
+        let (notifications, token) = countProfileChangeNotifications()
+        defer { NotificationCenter.default.removeObserver(token) }
+
+        #expect(!watcher.handlePathSettled(satisfied: true))
+        #expect(!coordinator.isScanning)
+        #expect(notifications() == 0)
+    }
+
+    @Test("An unsatisfied path does not re-detect or scan")
+    func unsatisfiedPathIsIgnored() throws {
+        let (container, context) = try makeInMemoryStore()
+        defer { withExtendedLifetime(container) {} }
+        let (manager, box, defaults, suite) = makeWatcherFixture()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let coordinator = makeCoordinator(context: context, networkProfileManager: manager)
+        defer { coordinator.stopScan() }
+        let watcher = LocalNetworkChangeWatcher(
+            profileManager: manager, discovery: coordinator, pathEvents: AsyncStream { _ in }
+        )
+        box.value = [makeLocal(networkB, ip: "10.20.0.5")]
+
+        #expect(!watcher.handlePathSettled(satisfied: false))
+        #expect(manager.profiles.first(where: { $0.isLocal })?.subnet == "192.168.1.0/24")
+        #expect(!coordinator.isScanning)
+    }
+
+    @Test("A scan of the old network is replaced by a scan of the new one")
+    func networkChangeReplacesRunningScan() throws {
+        let (container, context) = try makeInMemoryStore()
+        defer { withExtendedLifetime(container) {} }
+        let (manager, box, defaults, suite) = makeWatcherFixture()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let coordinator = makeCoordinator(context: context, networkProfileManager: manager)
+        defer { coordinator.stopScan() }
+        let watcher = LocalNetworkChangeWatcher(
+            profileManager: manager, discovery: coordinator, pathEvents: AsyncStream { _ in }
+        )
+        #expect(coordinator.startLaunchScan())
+        #expect(coordinator.networkProfile?.subnet == "192.168.1.0/24")
+
+        box.value = [makeLocal(networkB, ip: "10.20.0.5")]
+
+        #expect(watcher.handlePathSettled(satisfied: true))
+        #expect(coordinator.isScanning)
+        #expect(coordinator.networkProfile?.subnet == "10.20.0.0/24",
+                "The scan must now target the network the Mac is on")
+    }
+
+    @Test("Path events are debounced and then trigger the rescan")
+    func pathEventsTriggerRescanAfterDebounce() async throws {
+        let (container, context) = try makeInMemoryStore()
+        defer { withExtendedLifetime(container) {} }
+        let (manager, box, defaults, suite) = makeWatcherFixture()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let coordinator = makeCoordinator(context: context, networkProfileManager: manager)
+        defer { coordinator.stopScan() }
+        let (events, continuation) = AsyncStream.makeStream(of: Bool.self)
+        let watcher = LocalNetworkChangeWatcher(
+            profileManager: manager, discovery: coordinator, pathEvents: events, debounce: .milliseconds(100)
+        )
+        watcher.start()
+        defer { watcher.stop() }
+
+        box.value = [makeLocal(networkB, ip: "10.20.0.5")]
+        continuation.yield(false)
+        continuation.yield(true)
+        #expect(!coordinator.isScanning, "Nothing may happen before the path settles")
+
+        try await Task.sleep(for: .seconds(1))
+        #expect(coordinator.isScanning)
+        #expect(coordinator.networkProfile?.subnet == "10.20.0.0/24")
+    }
+
     @Test("stopScan clears isScanning so button re-enables")
     func stopScanClearsIsScanning() throws {
         let (container, context) = try makeInMemoryStore()
@@ -290,6 +431,34 @@ struct NetworkDetailViewScanRegressionTests {
 }
 
 // MARK: - Fixture
+
+/// Mutable interface list behind NetworkProfileManager's `@Sendable` provider.
+private final class ActiveProfilesBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var profiles: [NetworkProfile]
+
+    init(_ profiles: [NetworkProfile]) {
+        self.profiles = profiles
+    }
+
+    var value: [NetworkProfile] {
+        get { lock.withLock { profiles } }
+        set { lock.withLock { profiles = newValue } }
+    }
+}
+
+private final class NotificationCounter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var count = 0
+
+    func increment() {
+        lock.withLock { count += 1 }
+    }
+
+    var value: Int {
+        lock.withLock { count }
+    }
+}
 
 /// Reports a little progress, then holds the scan open until cancelled, so `isScanning`
 /// and `scanProgress` can be asserted without any network activity.
