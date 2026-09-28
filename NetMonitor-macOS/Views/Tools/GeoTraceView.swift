@@ -42,7 +42,11 @@ struct GeoTraceView: View {
                 .accessibilityIdentifier("geoTrace_textfield_host")
 
             Button(isRunning ? "Stop" : "Trace") {
-                if isRunning { stopTrace() } else { runTrace() }
+                if isRunning {
+                    stopTrace()
+                } else {
+                    runTrace()
+                }
             }
             .buttonStyle(.borderedProminent)
             .disabled(host.isEmpty && !isRunning)
@@ -82,7 +86,7 @@ struct GeoTraceView: View {
 
             if hops.isEmpty && !isRunning {
                 Text("Enter a hostname to trace its route on the map")
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(MacTheme.Colors.labelTertiary)
             }
         }
     }
@@ -111,7 +115,7 @@ struct GeoTraceView: View {
                     .font(.headline)
                 Spacer()
                 Button { selectedHop = nil } label: {
-                    Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
+                    Image(systemName: "xmark.circle.fill").foregroundStyle(MacTheme.Colors.labelTertiary)
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("geoTrace_button_popupClose")
@@ -119,12 +123,12 @@ struct GeoTraceView: View {
             if let ip = hop.hop.ipAddress {
                 Text(ip)
                     .font(.system(.caption, design: .monospaced))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(MacTheme.Colors.labelSecondary)
             }
             if let loc = hop.location {
                 Text("\(loc.city), \(loc.country)")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(MacTheme.Colors.labelSecondary)
             }
             if let avg = hop.hop.averageTime {
                 Text(String(format: "%.1f ms", avg))
@@ -146,12 +150,12 @@ struct GeoTraceView: View {
             if isRunning {
                 ProgressView().scaleEffect(0.7)
                 Text("Tracing route to \(host)… \(hops.count) hops")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(MacTheme.Colors.labelSecondary)
             } else if !hops.isEmpty {
                 Image(systemName: "checkmark.circle.fill").foregroundStyle(MacTheme.Colors.success)
-                Text("\(locatedHops.count)/\(hops.count) hops located").foregroundStyle(.secondary)
+                Text("\(locatedHops.count)/\(hops.count) hops located").foregroundStyle(MacTheme.Colors.labelSecondary)
             } else {
-                Text("Trace the geographic path to any host").foregroundStyle(.secondary)
+                Text("Trace the geographic path to any host").foregroundStyle(MacTheme.Colors.labelSecondary)
             }
 
             Spacer()

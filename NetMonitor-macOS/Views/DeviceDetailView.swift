@@ -122,13 +122,13 @@ struct DeviceDetailView: View {
 
                     Text(device.status == .online ? "Online" : "Offline")
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(MacTheme.Colors.labelSecondary)
                 }
 
                 if let vendor = device.vendor {
                     Text(vendor)
                         .font(.caption)
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(MacTheme.Colors.labelTertiary)
                 }
             }
 
@@ -319,7 +319,7 @@ struct DeviceDetailView: View {
 
             if bonjourServices.isEmpty {
                 Text("No services discovered")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(MacTheme.Colors.textSecondary)
                     .font(.body)
             } else {
                 ForEach(bonjourServices, id: \.self) { service in
@@ -349,18 +349,18 @@ struct DeviceDetailView: View {
                 TextEditor(text: $editedNotes)
                     .frame(minHeight: 80)
                     .scrollContentBackground(.hidden)
-                    .background(Color.gray.opacity(0.1))
+                    .background(MacTheme.Colors.chartSurfaceShallow)
                     .clipShape(RoundedRectangle(cornerRadius: 8))
                     .accessibilityIdentifier("deviceDetail_textfield_notes")
             } else {
                 if let notes = device.notes, !notes.isEmpty {
                     Text(notes)
                         .font(.body)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(MacTheme.Colors.textSecondary)
                 } else {
                     Text("No notes")
                         .font(.body)
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(MacTheme.Colors.labelTertiary)
                         .italic()
                 }
             }

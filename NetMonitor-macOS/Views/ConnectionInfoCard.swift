@@ -20,7 +20,7 @@ struct ConnectionInfoCard: View {
             // Header
             HStack {
                 Image(systemName: connectionIcon)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(MacTheme.Colors.labelSecondary)
 
                 Text("Connection")
                     .font(.headline)
@@ -30,7 +30,7 @@ struct ConnectionInfoCard: View {
                 // Refresh Button
                 Button(action: refreshConnection) {
                     Image(systemName: "arrow.clockwise")
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(MacTheme.Colors.labelSecondary)
                 }
                 .buttonStyle(.plain)
                 .disabled(isLoading)
@@ -47,7 +47,7 @@ struct ConnectionInfoCard: View {
 
                     Text("Loading...")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(MacTheme.Colors.labelSecondary)
                 }
                 .frame(maxWidth: .infinity, alignment: .center)
             } else if let error = errorMessage {
@@ -58,7 +58,7 @@ struct ConnectionInfoCard: View {
 
                     Text(error)
                         .font(.caption2)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(MacTheme.Colors.labelSecondary)
                 }
             } else if let info = connectionInfo {
                 VStack(alignment: .leading, spacing: 8) {
@@ -87,12 +87,12 @@ struct ConnectionInfoCard: View {
 
                             Text("\(signal) dBm")
                                 .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(MacTheme.Colors.labelSecondary)
 
                             if let channel = info.channel {
                                 Text("• Channel \(channel)")
                                     .font(.caption)
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(MacTheme.Colors.labelSecondary)
                             }
                         }
                     }
@@ -100,12 +100,12 @@ struct ConnectionInfoCard: View {
                     // Interface Name
                     Text("Interface: \(info.interfaceName)")
                         .font(.caption2)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(MacTheme.Colors.labelTertiary)
                 }
             } else {
                 Text("No network connection detected")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(MacTheme.Colors.labelSecondary)
             }
         }
         .macGlassCard()

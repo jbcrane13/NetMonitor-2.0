@@ -52,7 +52,7 @@ struct SubnetCalculatorToolView: View {
             HStack(spacing: 8) {
                 Text("Examples:")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(MacTheme.Colors.labelSecondary)
                 ForEach(examples, id: \.self) { example in
                     Button(example) {
                         cidrInput = example
@@ -89,7 +89,7 @@ struct SubnetCalculatorToolView: View {
         } else {
             ScrollView {
                 Text("Enter a CIDR address (e.g., 192.168.1.0/24) to calculate subnet details")
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(MacTheme.Colors.labelTertiary)
                     .frame(maxWidth: .infinity, alignment: .center)
                     .padding(.top, 40)
             }
@@ -146,15 +146,15 @@ struct SubnetCalculatorToolView: View {
                 Image(systemName: "checkmark.circle.fill")
                     .foregroundStyle(.green)
                 Text("CIDR: \(info.cidr)  ·  \(info.usableHosts.formatted()) usable hosts")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(MacTheme.Colors.labelSecondary)
             } else if errorMessage != nil {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .foregroundStyle(.orange)
                 Text("Invalid CIDR")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(MacTheme.Colors.labelSecondary)
             } else {
                 Text("Enter CIDR notation to calculate subnet details")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(MacTheme.Colors.labelSecondary)
             }
 
             Spacer()

@@ -25,7 +25,7 @@ struct GatewayInfoCard: View {
             // Header
             HStack {
                 Image(systemName: "network.badge.shield.half.filled")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(MacTheme.Colors.labelSecondary)
 
                 Text("Default Gateway")
                     .font(.headline)
@@ -39,7 +39,7 @@ struct GatewayInfoCard: View {
                     }
                 }) {
                     Image(systemName: "arrow.clockwise")
-                        .foregroundStyle(isLoading ? .secondary : .primary)
+                        .foregroundStyle(isLoading ? MacTheme.Colors.labelSecondary : MacTheme.Colors.textPrimary)
                 }
                 .buttonStyle(.plain)
                 .disabled(isLoading)
@@ -55,7 +55,7 @@ struct GatewayInfoCard: View {
                         .scaleEffect(0.8)
                     Text("Loading gateway info...")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(MacTheme.Colors.labelSecondary)
                 }
                 .frame(maxWidth: .infinity, alignment: .center)
                 .padding(.vertical, 8)
@@ -66,7 +66,7 @@ struct GatewayInfoCard: View {
                         .foregroundStyle(MacTheme.Colors.warning)
                     Text(error)
                         .font(.caption2)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(MacTheme.Colors.labelSecondary)
                 }
             } else if let ip = gatewayIP {
                 // Gateway Information Grid
@@ -75,12 +75,12 @@ struct GatewayInfoCard: View {
                     HStack {
                         Text("IP Address")
                             .font(.caption2)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(MacTheme.Colors.labelSecondary)
                             .frame(width: 80, alignment: .leading)
 
                         Text(ip)
                             .font(.system(.caption, design: .monospaced))
-                            .foregroundStyle(.primary)
+                            .foregroundStyle(MacTheme.Colors.textPrimary)
 
                         Spacer()
                     }
@@ -89,17 +89,17 @@ struct GatewayInfoCard: View {
                     HStack {
                         Text("MAC Address")
                             .font(.caption2)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(MacTheme.Colors.labelSecondary)
                             .frame(width: 80, alignment: .leading)
 
                         if let mac = gatewayMAC {
                             Text(mac)
                                 .font(.system(.caption, design: .monospaced))
-                                .foregroundStyle(.primary)
+                                .foregroundStyle(MacTheme.Colors.textPrimary)
                         } else {
                             Text("—")
                                 .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(MacTheme.Colors.labelSecondary)
                         }
 
                         Spacer()
@@ -109,12 +109,12 @@ struct GatewayInfoCard: View {
                     HStack {
                         Text("Vendor")
                             .font(.caption2)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(MacTheme.Colors.labelSecondary)
                             .frame(width: 80, alignment: .leading)
 
                         Text(vendor ?? "Unknown")
                             .font(.caption)
-                            .foregroundStyle(.primary)
+                            .foregroundStyle(MacTheme.Colors.textPrimary)
 
                         Spacer()
                     }
@@ -123,7 +123,7 @@ struct GatewayInfoCard: View {
                     HStack {
                         Text("Latency")
                             .font(.caption2)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(MacTheme.Colors.labelSecondary)
                             .frame(width: 80, alignment: .leading)
 
                         if let lat = latency {
@@ -134,7 +134,7 @@ struct GatewayInfoCard: View {
                         } else {
                             Text("—")
                                 .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(MacTheme.Colors.labelSecondary)
                         }
 
                         Spacer()
@@ -143,7 +143,7 @@ struct GatewayInfoCard: View {
             } else {
                 Text("No gateway found")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(MacTheme.Colors.labelSecondary)
                     .frame(maxWidth: .infinity, alignment: .center)
                     .padding(.vertical, 8)
             }

@@ -76,11 +76,11 @@ struct NetworkDevicesPanel: View {
                             .frame(width: 5, height: 5)
                         Text("NETWORK DEVICES")
                             .font(.system(size: 10, weight: .bold))
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(MacTheme.Colors.labelSecondary)
                             .tracking(1.4)
                         Image(systemName: "arrow.up.right")
                             .font(.system(size: 8, weight: .bold))
-                            .foregroundStyle(.tertiary)
+                            .foregroundStyle(MacTheme.Colors.labelTertiary)
                     }
                 }
                 .buttonStyle(.plain)
@@ -103,7 +103,7 @@ struct NetworkDevicesPanel: View {
                 } label: {
                     Image(systemName: "antenna.radiowaves.left.and.right")
                         .font(.system(size: 11))
-                        .foregroundStyle(coordinator?.isScanning == true ? MacTheme.Colors.info : .secondary)
+                        .foregroundStyle(coordinator?.isScanning == true ? MacTheme.Colors.info : MacTheme.Colors.labelSecondary)
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("networkDevicesPanel_button_scan")
@@ -116,7 +116,7 @@ struct NetworkDevicesPanel: View {
                     .foregroundStyle(.white)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 2)
-                    .background(MacTheme.Colors.info.opacity(0.5), in: RoundedRectangle(cornerRadius: 6))
+                    .background(MacTheme.Colors.info.opacity(0.85), in: RoundedRectangle(cornerRadius: 6))
 
                 // Sort menu
                 Menu {
@@ -136,7 +136,7 @@ struct NetworkDevicesPanel: View {
                 } label: {
                     Image(systemName: "arrow.up.arrow.down")
                         .font(.system(size: 12))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(MacTheme.Colors.labelSecondary)
                 }
                 .accessibilityIdentifier("networkDevicesPanel_menu_sort")
                 .menuStyle(.borderlessButton)
@@ -150,10 +150,11 @@ struct NetworkDevicesPanel: View {
             HStack(spacing: 6) {
                 Image(systemName: "magnifyingglass")
                     .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(MacTheme.Colors.labelSecondary)
                 TextField("Search devices...", text: $searchText)
                     .textFieldStyle(.plain)
                     .font(.system(size: 12))
+                    .foregroundStyle(MacTheme.Colors.textPrimary)
                     .accessibilityIdentifier("networkDevicesPanel_textfield_search")
                 if !searchText.isEmpty {
                     Button {
@@ -161,7 +162,7 @@ struct NetworkDevicesPanel: View {
                     } label: {
                         Image(systemName: "xmark.circle.fill")
                             .font(.system(size: 12))
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(MacTheme.Colors.labelSecondary)
                     }
                     .buttonStyle(.plain)
                     .accessibilityIdentifier("networkDevicesPanel_button_clearSearch")
@@ -169,7 +170,11 @@ struct NetworkDevicesPanel: View {
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
-            .background(Color.black.opacity(0.2), in: RoundedRectangle(cornerRadius: 6))
+            .background(MacTheme.Colors.chartSurfaceShallow, in: RoundedRectangle(cornerRadius: 6))
+            .overlay(
+                RoundedRectangle(cornerRadius: 6)
+                    .stroke(MacTheme.Colors.hairline, lineWidth: 0.5)
+            )
             .padding(.horizontal, 12)
             .padding(.bottom, 8)
 
@@ -226,7 +231,7 @@ struct NetworkDevicesPanel: View {
                         .frame(maxWidth: 140)
                     Text("\(Int((coordinator?.scanProgress ?? 0) * 100))%")
                         .font(.caption2)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(MacTheme.Colors.labelSecondary)
                 }
                 .padding(12)
                 .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 8))
@@ -272,38 +277,39 @@ private struct DevicePanelRow: View {
             // Device icon
             Image(systemName: device.deviceType.iconName)
                 .font(.system(size: 12))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(MacTheme.Colors.labelSecondary)
                 .frame(width: 16)
 
             // Name + IP — flexible but capped
             VStack(alignment: .leading, spacing: 1) {
                 Text(device.displayName)
                     .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(MacTheme.Colors.textPrimary)
                     .lineLimit(1)
 
                 Text(device.ipAddress)
                     .font(.system(size: 10, design: .monospaced))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(MacTheme.Colors.textSecondary)
             }
             .frame(minWidth: 120, maxWidth: 200, alignment: .leading)
 
             // Vendor — constrained width
             Text(device.vendor ?? "")
                 .font(.system(size: 10))
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(MacTheme.Colors.labelTertiary)
                 .lineLimit(1)
                 .frame(width: 120, alignment: .leading)
 
             // MAC Address (last 8 chars)
             Text(device.macAddress.isEmpty ? "" : String(device.macAddress.suffix(8)))
                 .font(.system(size: 10, design: .monospaced))
-                .foregroundStyle(Color.white.opacity(0.4))
+                .foregroundStyle(MacTheme.Colors.labelQuaternary)
                 .frame(width: 70, alignment: .leading)
 
             // Open Ports (top 3)
             portsText
                 .font(.system(size: 10, design: .monospaced))
-                .foregroundStyle(MacTheme.Colors.info.opacity(0.8))
+                .foregroundStyle(MacTheme.Colors.info)
                 .lineLimit(1)
                 .frame(width: 70, alignment: .leading)
 
@@ -317,7 +323,7 @@ private struct DevicePanelRow: View {
             } else if device.status == .online {
                 Text("--")
                     .font(.system(size: 11, design: .monospaced))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(MacTheme.Colors.labelTertiary)
             }
         }
         .padding(.horizontal, 12)
@@ -325,7 +331,7 @@ private struct DevicePanelRow: View {
         .background(
             isSelected
                 ? MacTheme.Colors.sidebarActive.opacity(0.5)
-                : (isHovering ? Color.white.opacity(0.04) : Color.clear)
+                : (isHovering ? MacTheme.Colors.chartSurfaceShallow : Color.clear)
         )
         .onHover { isHovering = $0 }
     }

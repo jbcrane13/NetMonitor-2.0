@@ -109,7 +109,7 @@ struct PortScannerToolView: View {
             LazyVStack(alignment: .leading, spacing: 4) {
                 if results.isEmpty && errorMessage == nil && !isRunning {
                     Text("Enter a hostname and select ports to scan")
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(MacTheme.Colors.labelTertiary)
                         .frame(maxWidth: .infinity, alignment: .center)
                         .padding(.top, 40)
                 } else {
@@ -135,7 +135,7 @@ struct PortScannerToolView: View {
                     if !closedPorts.isEmpty && !isRunning {
                         Text("Closed/Filtered Ports")
                             .font(.headline)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(MacTheme.Colors.labelSecondary)
                             .padding(.bottom, 4)
 
                         ForEach(closedPorts) { result in
@@ -159,14 +159,14 @@ struct PortScannerToolView: View {
     private func portRow(_ result: PortResult) -> some View {
         HStack(spacing: 12) {
             Image(systemName: result.isOpen ? "checkmark.circle.fill" : "xmark.circle")
-                .foregroundStyle(result.isOpen ? .green : .secondary)
+                .foregroundStyle(result.isOpen ? .green : MacTheme.Colors.labelTertiary)
 
             Text(String(format: "%5d", result.port))
                 .font(.system(.body, design: .monospaced))
                 .frame(width: 60, alignment: .trailing)
 
             Text(result.serviceName)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(MacTheme.Colors.labelSecondary)
 
             Spacer()
 
@@ -188,24 +188,24 @@ struct PortScannerToolView: View {
                 ProgressView()
                     .scaleEffect(0.7)
                 Text("Scanning \(scannedCount)/\(totalPorts) ports...")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(MacTheme.Colors.labelSecondary)
 
                 ProgressView(value: Double(scannedCount), total: Double(max(totalPorts, 1)))
                     .frame(width: 100)
             } else if !results.isEmpty {
                 let openCount = results.filter { $0.isOpen }.count
                 Image(systemName: openCount > 0 ? "checkmark.circle.fill" : "info.circle.fill")
-                    .foregroundStyle(openCount > 0 ? .green : .secondary)
+                    .foregroundStyle(openCount > 0 ? .green : MacTheme.Colors.labelTertiary)
                 Text("\(openCount) open port(s) found")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(MacTheme.Colors.labelSecondary)
             } else if errorMessage != nil {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .foregroundStyle(.orange)
                 Text("Scan failed")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(MacTheme.Colors.labelSecondary)
             } else {
                 Text("Scan TCP ports on any host")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(MacTheme.Colors.labelSecondary)
             }
 
             Spacer()

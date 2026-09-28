@@ -29,7 +29,7 @@ struct ConnectivityCard: View {
                 Circle().fill(MacTheme.Colors.info).frame(width: 5, height: 5)
                 Text("CONNECTIVITY")
                     .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(MacTheme.Colors.labelSecondary)
                     .tracking(1.4)
                 Spacer()
             }
@@ -45,7 +45,7 @@ struct ConnectivityCard: View {
                 connRow(key: "Public IP", value: vm.ispInfo?.publicIP ?? "—",
                         mono: true, color: MacTheme.Colors.info)
                 connRow(key: "IPv6", value: vm.hasIPv6 ? "Enabled" : "Disabled",
-                        color: vm.hasIPv6 ? MacTheme.Colors.success : .secondary)
+                        color: vm.hasIPv6 ? MacTheme.Colors.success : MacTheme.Colors.textSecondary)
                 connRow(key: "Gateway",
                         value: profileManager?.activeProfile?.gatewayIP ?? "—",
                         mono: true)
@@ -55,7 +55,7 @@ struct ConnectivityCard: View {
             if let loadError = vm.loadError {
                 Text(loadError)
                     .font(.system(size: 9))
-                    .foregroundStyle(.red.opacity(0.9))
+                    .foregroundStyle(MacTheme.Colors.error.opacity(0.9))
                     .lineLimit(2)
                     .accessibilityIdentifier("connectivity_label_error")
             }
@@ -76,18 +76,21 @@ struct ConnectivityCard: View {
         key: String,
         value: String,
         mono: Bool = false,
-        color: Color = .white
+        color: Color? = nil
     ) -> some View {
-        VStack(alignment: .leading, spacing: 1) {
+        // Default text color adapts to theme: pure white in dark, deep slate in
+        // light. Callers can still override (e.g. public IP uses accent cyan).
+        let resolved = color ?? MacTheme.Colors.textPrimary
+        return VStack(alignment: .leading, spacing: 1) {
             Text(key.uppercased())
                 .font(.system(size: 9, weight: .bold))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(MacTheme.Colors.labelSecondary)
                 .tracking(1)
             Text(value)
                 .font(mono
                       ? .system(size: 11, design: .monospaced)
                       : .system(size: 11, weight: .medium))
-                .foregroundStyle(color)
+                .foregroundStyle(resolved)
                 .lineLimit(1)
         }
     }
@@ -117,14 +120,14 @@ struct ConnectivityCard: View {
         return HStack(spacing: 4) {
             Text(name)
                 .font(.system(size: 10))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(MacTheme.Colors.labelTertiary)
             Text(latencyText)
                 .font(.system(size: 10, weight: .bold))
                 .foregroundStyle(MacTheme.Colors.info)
         }
         .padding(.horizontal, 8).padding(.vertical, 3)
-        .background(MacTheme.Colors.info.opacity(0.08))
-        .overlay(Capsule().stroke(MacTheme.Colors.info.opacity(0.2), lineWidth: 0.5))
+        .background(MacTheme.Colors.info.opacity(0.10))
+        .overlay(Capsule().stroke(MacTheme.Colors.info.opacity(0.25), lineWidth: 0.5))
         .clipShape(Capsule())
         .accessibilityIdentifier("connectivity_label_ping\(name.lowercased())")
     }

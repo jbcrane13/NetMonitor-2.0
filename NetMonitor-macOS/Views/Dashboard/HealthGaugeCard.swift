@@ -19,7 +19,7 @@ struct HealthGaugeCard: View {
                     Circle().fill(MacTheme.Colors.success).frame(width: 5, height: 5)
                     Text("NETWORK HEALTH")
                         .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(MacTheme.Colors.labelSecondary)
                         .tracking(1.4)
                     Spacer()
                 }
@@ -29,7 +29,7 @@ struct HealthGaugeCard: View {
                 // Circular gauge — scales with card height
                 ZStack {
                     Circle()
-                        .stroke(Color.white.opacity(0.06), lineWidth: lineW)
+                        .stroke(MacTheme.Colors.hairline, lineWidth: lineW)
                     Circle()
                         .trim(from: 0, to: scoreProgress)
                         .stroke(
@@ -46,11 +46,11 @@ struct HealthGaugeCard: View {
                     VStack(spacing: 2) {
                         Text(scoreText)
                             .font(.system(size: scoreFontSize, weight: .bold, design: .rounded))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(MacTheme.Colors.textPrimary)
                             .accessibilityIdentifier("healthGauge_label_score")
                         Text(gradeText)
                             .font(.system(size: gradeFontSize, weight: .bold))
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(MacTheme.Colors.labelSecondary)
                             .tracking(1.5)
                     }
                 }
@@ -113,13 +113,13 @@ struct HealthGaugeCard: View {
         HStack(spacing: 6) {
             Text(label)
                 .font(.system(size: 9, weight: .semibold))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(MacTheme.Colors.labelSecondary)
                 .tracking(0.8)
                 .frame(width: 46, alignment: .leading)
 // swiftlint:disable:next identifier_name
             GeometryReader { g in
                 ZStack(alignment: .leading) {
-                    Capsule().fill(Color.white.opacity(0.07))
+                    Capsule().fill(MacTheme.Colors.hairline)
                     Capsule().fill(color)
                         .frame(width: g.size.width * CGFloat(min(1, max(0, pct))))
                         .animation(.easeOut(duration: 0.4), value: pct)

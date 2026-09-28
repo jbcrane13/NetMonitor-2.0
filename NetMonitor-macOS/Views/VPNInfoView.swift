@@ -19,7 +19,7 @@ struct VPNInfoView: View {
                         .frame(width: 8, height: 8)
                     Text(viewModel.isActive ? "Connected" : "Not Connected")
                         .font(.caption)
-                        .foregroundStyle(viewModel.isActive ? .primary : .secondary)
+                        .foregroundStyle(viewModel.isActive ? MacTheme.Colors.textPrimary : MacTheme.Colors.labelSecondary)
                 }
                 .accessibilityIdentifier("vpn_label_status")
             }
@@ -36,7 +36,7 @@ struct VPNInfoView: View {
             } else {
                 Text("No VPN tunnel detected")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(MacTheme.Colors.labelSecondary)
             }
         }
         .macGlassCard()
@@ -48,7 +48,7 @@ struct VPNInfoView: View {
     @ViewBuilder
     private func macRow(label: String, value: String) -> some View {
         HStack {
-            Text(label).font(.caption).foregroundStyle(.secondary)
+            Text(label).font(.caption).foregroundStyle(MacTheme.Colors.labelSecondary)
             Spacer()
             Text(value).font(.caption).fontDesign(.monospaced)
         }
