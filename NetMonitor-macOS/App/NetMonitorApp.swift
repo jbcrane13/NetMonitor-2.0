@@ -207,11 +207,14 @@ struct NetMonitorApp: App {
         }
 
         if deviceDiscovery == nil {
-            deviceDiscovery = DeviceDiscoveryCoordinator(
+            let discovery = DeviceDiscoveryCoordinator(
                 modelContext: context,
                 bonjourScanner: bonjourScanner,
                 networkProfileManager: profileManager
             )
+            deviceDiscovery = discovery
+            // Fill the dashboard without waiting for the user to press Scan (#358).
+            discovery.startLaunchScan()
         }
 
         if let session = monitoringSession,

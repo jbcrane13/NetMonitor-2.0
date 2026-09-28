@@ -156,6 +156,7 @@ final class DeviceDiscoveryCoordinator {
                 inferDeviceTypes(profileID: profileID)
 
                 markOfflineDevices(currentIPs: Set(allDiscovered.map(\.ipAddress)), profileID: profileID)
+                Logger.discovery.notice("Scan finished: \(allDiscovered.count, privacy: .public) devices")
                 scanProgress = 1.0
                 lastScanTime = Date()
 
@@ -210,6 +211,23 @@ final class DeviceDiscoveryCoordinator {
         guard !Task.isCancelled else { return }
         let sparse = Self.mapDiscoveredDevices(snapshot)
         mergeDiscoveredDevices(sparse, profileID: profileID, recordLatencyHistory: false)
+    }
+
+    /// Scans the network this Mac is on, so the dashboard isn't empty until the user presses Scan (#358).
+    /// Does nothing when there is no local network or a scan is already running.
+    @discardableResult
+    func startLaunchScan() -> Bool {
+        guard !isScanning else {
+            Logger.discovery.notice("Launch scan skipped: a scan is already running")
+            return false
+        }
+        guard let local = networkProfileManager.profiles.first(where: { $0.isLocal }) else {
+            Logger.discovery.notice("Launch scan skipped: no local network")
+            return false
+        }
+        Logger.discovery.notice("Launch scan started")
+        scanNetwork(local)
+        return true
     }
 
     func scanNetwork(_ profile: NetworkProfile) {
