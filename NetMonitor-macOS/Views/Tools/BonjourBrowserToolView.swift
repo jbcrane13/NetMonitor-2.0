@@ -74,7 +74,7 @@ struct BonjourBrowserToolView: View {
             LazyVStack(alignment: .leading, spacing: 0) {
                 if services.isEmpty && !isScanning {
                     Text("No services found")
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(MacTheme.Colors.labelTertiary)
                         .frame(maxWidth: .infinity, alignment: .center)
                         .padding(.top, 40)
                 } else {
@@ -100,15 +100,15 @@ struct BonjourBrowserToolView: View {
             Spacer()
             Text("\(groupedServices.first { $0.type == type }?.services.count ?? 0)")
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(MacTheme.Colors.labelSecondary)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 2)
-                .background(Color.gray.opacity(0.2))
+                .background(MacTheme.Colors.chartSurfaceShallow)
                 .clipShape(Capsule())
         }
         .padding(.horizontal)
         .padding(.vertical, 8)
-        .background(Color.gray.opacity(0.1))
+        .background(MacTheme.Colors.chartSurfaceShallow.opacity(0.5))
     }
 
     private func serviceRow(_ service: BonjourService) -> some View {
@@ -124,7 +124,7 @@ struct BonjourBrowserToolView: View {
                     if let hostname = service.hostName {
                         Text(hostname)
                             .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(MacTheme.Colors.labelSecondary)
                     }
                 }
 
@@ -133,12 +133,12 @@ struct BonjourBrowserToolView: View {
                 if let port = service.port {
                     Text(":\(port)")
                         .font(.system(.caption, design: .monospaced))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(MacTheme.Colors.labelSecondary)
                 }
 
                 Image(systemName: "chevron.right")
                     .font(.caption)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(MacTheme.Colors.labelTertiary)
             }
             .padding(.horizontal)
             .padding(.vertical, 8)
@@ -155,7 +155,7 @@ struct BonjourBrowserToolView: View {
                 serviceDetailView(service)
             } else {
                 Text("Select a service to view details")
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(MacTheme.Colors.labelTertiary)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
     }
@@ -174,7 +174,7 @@ struct BonjourBrowserToolView: View {
                             .font(.title2.bold())
                         Text(friendlyServiceName(service.type))
                             .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(MacTheme.Colors.labelSecondary)
                     }
                 }
 
@@ -239,20 +239,20 @@ struct BonjourBrowserToolView: View {
                 ProgressView()
                     .scaleEffect(0.7)
                 Text("Scanning for services...")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(MacTheme.Colors.labelSecondary)
             } else if !services.isEmpty {
                 Image(systemName: "checkmark.circle.fill")
                     .foregroundStyle(.green)
                 Text("\(services.count) service(s) found")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(MacTheme.Colors.labelSecondary)
             } else if errorMessage != nil {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .foregroundStyle(.orange)
                 Text(errorMessage ?? "")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(MacTheme.Colors.labelSecondary)
             } else {
                 Text("Discover Bonjour services on your network")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(MacTheme.Colors.labelSecondary)
             }
 
             Spacer()

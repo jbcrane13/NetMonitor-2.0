@@ -88,7 +88,7 @@ struct SSLCertificateMonitorView: View {
                 if isLoading {
                     HStack {
                         ProgressView().scaleEffect(0.8)
-                        Text("Checking certificate…").foregroundStyle(.secondary)
+                        Text("Checking certificate…").foregroundStyle(MacTheme.Colors.labelSecondary)
                     }
                     .frame(maxWidth: .infinity, alignment: .center)
                     .padding(.top, 40)
@@ -101,7 +101,7 @@ struct SSLCertificateMonitorView: View {
                     resultContent(result)
                 } else {
                     Text("Enter a domain to check its SSL certificate and registration status.")
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(MacTheme.Colors.labelTertiary)
                         .frame(maxWidth: .infinity, alignment: .center)
                         .padding(.top, 40)
                 }
@@ -138,7 +138,7 @@ struct SSLCertificateMonitorView: View {
                 infoRow("Expires", ssl.validTo.formatted(date: .abbreviated, time: .omitted))
                 HStack {
                     Text("Days Left")
-                        .font(.caption).foregroundStyle(.secondary).frame(width: 90, alignment: .leading)
+                        .font(.caption).foregroundStyle(MacTheme.Colors.labelSecondary).frame(width: 90, alignment: .leading)
                     Text("\(ssl.daysUntilExpiry) days")
                         .font(.caption).fontDesign(.monospaced)
                         .foregroundStyle(expiryColor(days: ssl.daysUntilExpiry))
@@ -162,7 +162,7 @@ struct SSLCertificateMonitorView: View {
                     infoRow("Expires", exp.formatted(date: .abbreviated, time: .omitted))
                     let days = Calendar.current.dateComponents([.day], from: Date(), to: exp).day ?? 0
                     HStack {
-                        Text("Days Left").font(.caption).foregroundStyle(.secondary).frame(width: 90, alignment: .leading)
+                        Text("Days Left").font(.caption).foregroundStyle(MacTheme.Colors.labelSecondary).frame(width: 90, alignment: .leading)
                         Text("\(max(0, days)) days").font(.caption).fontDesign(.monospaced).foregroundStyle(expiryColor(days: days))
                     }
                 }
@@ -181,7 +181,7 @@ struct SSLCertificateMonitorView: View {
     private var watchListArea: some View {
         if trackedDomains.isEmpty {
                 Text("No domains tracked. Query a domain and add it to the watch list.")
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(MacTheme.Colors.labelTertiary)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
                     .padding()
                     .accessibilityIdentifier("sslMonitor_label_watchlistEmpty")
@@ -202,7 +202,7 @@ struct SSLCertificateMonitorView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(status.domain).fontWeight(.medium)
                 if let notes = status.notes, !notes.isEmpty {
-                    Text(notes).font(.caption).foregroundStyle(.secondary)
+                    Text(notes).font(.caption).foregroundStyle(MacTheme.Colors.labelSecondary)
                 }
             }
 
@@ -256,7 +256,7 @@ struct SSLCertificateMonitorView: View {
                                 .accessibilityIdentifier("sslMonitor_button_add")
                         }
                     } else {
-                        Text("In watch list").foregroundStyle(.secondary).font(.caption)
+                        Text("In watch list").foregroundStyle(MacTheme.Colors.labelSecondary).font(.caption)
                     }
                 }
             } else {

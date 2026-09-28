@@ -201,10 +201,10 @@ struct SidebarRow: View {
                     .foregroundStyle(.white)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
-                    .background(badgeColor.opacity(isSelected ? 0.8 : 0.4), in: RoundedRectangle(cornerRadius: 4))
+                    .background(badgeColor.opacity(isSelected ? 0.9 : 0.7), in: RoundedRectangle(cornerRadius: 4))
                     .overlay(
                         RoundedRectangle(cornerRadius: 4)
-                            .stroke(badgeColor.opacity(0.5), lineWidth: 1)
+                            .stroke(badgeColor.opacity(0.6), lineWidth: 1)
                     )
             }
         }

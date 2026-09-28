@@ -167,11 +167,11 @@ struct WiFiHeatmapView: View {
         VStack(spacing: 20) {
             Image(systemName: "map")
                 .font(.system(size: 64))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(MacTheme.Colors.labelTertiary)
             Text("WiFi Heatmap")
                 .font(.title2)
             Text("Import a floor plan image to start surveying WiFi coverage")
-                .foregroundStyle(.secondary)
+                .foregroundStyle(MacTheme.Colors.labelSecondary)
                 .multilineTextAlignment(.center)
             HStack(spacing: 12) {
                 Button("Import Floor Plan") {
@@ -331,7 +331,7 @@ extension WiFiHeatmapView {
             if let name = viewModel.surveyProject?.name {
                 Text(name)
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(MacTheme.Colors.labelSecondary)
             }
 
             // Visualization picker (toolbar)
@@ -354,7 +354,7 @@ extension WiFiHeatmapView {
                 if !pts.isEmpty {
                     Text("\(pts.count) pts")
                         .font(.caption.monospacedDigit())
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(MacTheme.Colors.labelSecondary)
                 }
             }
 
@@ -362,7 +362,7 @@ extension WiFiHeatmapView {
             if viewModel.surveyProject == nil, !viewModel.measurementPoints.isEmpty {
                 Text("\(viewModel.filteredPoints.count) pts")
                     .font(.caption.monospacedDigit())
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(MacTheme.Colors.labelSecondary)
             }
 
             Divider()
@@ -455,7 +455,7 @@ struct CalibrationSheet: View {
 
             Text("Click two points on the floor plan with a known distance between them.")
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(MacTheme.Colors.labelSecondary)
 
             if viewModel.calibrationPoints.count < 2 {
                 HStack {

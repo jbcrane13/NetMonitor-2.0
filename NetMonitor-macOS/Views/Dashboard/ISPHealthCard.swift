@@ -46,7 +46,7 @@ struct ISPHealthCard: View {
                 Circle().fill(MacTheme.Colors.success).frame(width: 5, height: 5)
                 Text("GATEWAY HEALTH")
                     .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(MacTheme.Colors.labelSecondary)
                     .tracking(1.4)
                 Spacer()
                 Button {
@@ -54,7 +54,7 @@ struct ISPHealthCard: View {
                 } label: {
                     Image(systemName: "clock.arrow.circlepath")
                         .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(MacTheme.Colors.labelTertiary)
                 }
                 .buttonStyle(.plain)
                 .disabled(uptime == nil)
@@ -74,6 +74,7 @@ struct ISPHealthCard: View {
                     VStack(alignment: .leading, spacing: 3) {
                         Text(gatewayAddress)
                             .font(.system(size: 16, weight: .bold, design: .monospaced))
+                            .foregroundStyle(MacTheme.Colors.textPrimary)
                             .lineLimit(1)
                         if let domain = resolvedDomain {
                             Text(domain)
@@ -85,10 +86,10 @@ struct ISPHealthCard: View {
                             HStack(spacing: 4) {
                                 Text("WAN")
                                     .font(.system(size: 9, weight: .bold))
-                                    .foregroundStyle(.tertiary)
+                                    .foregroundStyle(MacTheme.Colors.labelQuaternary)
                                 Text(ip)
                                     .font(.system(size: 11, design: .monospaced))
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(MacTheme.Colors.textSecondary)
                             }
                         }
                         uptimeBarView
@@ -102,7 +103,7 @@ struct ISPHealthCard: View {
                     VStack(alignment: .trailing, spacing: 2) {
                         Text("30-DAY UPTIME")
                             .font(.system(size: 9, weight: .semibold))
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(MacTheme.Colors.labelSecondary)
                             .tracking(1)
                         if let pct = uptime?.uptimePct {
                             Text(String(format: "%.1f%%", pct))
@@ -114,14 +115,14 @@ struct ISPHealthCard: View {
                                 )
                             Text("\(uptime?.outageCount ?? 0) outage\(uptime?.outageCount == 1 ? "" : "s")")
                                 .font(.system(size: 11))
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(MacTheme.Colors.textSecondary)
                         } else {
                             Text("—")
                                 .font(.system(size: 20, weight: .bold, design: .rounded))
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(MacTheme.Colors.textSecondary)
                             Text("No history yet")
                                 .font(.system(size: 11))
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(MacTheme.Colors.textSecondary)
                         }
                     }
                 }
@@ -170,10 +171,11 @@ struct ISPHealthCard: View {
             let segments = uptime?.uptimeBar ?? []
             HStack(spacing: 1) {
                 if segments.isEmpty {
-                    // No history yet — render neutral gray placeholder capsules.
+                    // No history yet — render neutral placeholder capsules that
+                    // adapt to the active theme so they remain visible.
                     ForEach(0..<30, id: \.self) { _ in
                         RoundedRectangle(cornerRadius: 1)
-                            .fill(Color.white.opacity(0.15))
+                            .fill(MacTheme.Colors.hairline)
                             .frame(
                                 width: max(1, (g.size.width - 29) / 30)
                             )

@@ -99,38 +99,111 @@ enum MacTheme {
             light: NSColor(red: 15/255, green: 23/255, blue: 42/255, alpha: 1)
         ))
 
+        /// Brightened from 0.7 → 0.88 for dark mode so secondary labels stay
+        /// legible on glass surfaces. Light mode deepens slate-600 → slate-700.
         static let textSecondary = Color(nsColor: macColor(
-            dark: .white.withAlphaComponent(0.7),
+            dark: .white.withAlphaComponent(0.88),
+            light: NSColor(red: 51/255, green: 65/255, blue: 85/255, alpha: 1)
+        ))
+
+        /// Brightened from 0.5 → 0.68 for dark mode. Light deepens slate-500 → slate-600.
+        static let textTertiary = Color(nsColor: macColor(
+            dark: .white.withAlphaComponent(0.68),
             light: NSColor(red: 71/255, green: 85/255, blue: 105/255, alpha: 1)
         ))
 
-        static let textTertiary = Color(nsColor: macColor(
-            dark: .white.withAlphaComponent(0.5),
+        // MARK: — Label colors for use *on* glass cards
+        // These replace ad-hoc `.foregroundStyle(.secondary)` / `.tertiary`
+        // calls inside widgets, where SwiftUI's automatic resolution is too dim
+        // (especially on dark glass).
+
+        /// Strong-weight label for short labels and stats inside cards.
+        /// Resolves brighter than `.secondary` on dark glass and to slate-800 on light glass.
+        static let labelSecondary = Color(nsColor: macColor(
+            dark: .white.withAlphaComponent(0.92),
+            light: NSColor(red: 30/255, green: 41/255, blue: 59/255, alpha: 1)   // slate-800
+        ))
+
+        /// Mid-weight label (e.g. 10pt section captions).
+        static let labelTertiary = Color(nsColor: macColor(
+            dark: .white.withAlphaComponent(0.78),
+            light: NSColor(red: 51/255, green: 65/255, blue: 85/255, alpha: 1)   // slate-700
+        ))
+
+        /// Quieter caption tone for legends, axis labels.
+        static let labelQuaternary = Color(nsColor: macColor(
+            dark: .white.withAlphaComponent(0.55),
             light: NSColor(red: 100/255, green: 116/255, blue: 139/255, alpha: 1)
         ))
 
         // MARK: — Glass/Crystal tokens (adaptive)
 
+        /// Light-mode crystal base now picks up a faint slate-blue tint instead
+        /// of pure white.  Combined with the gradient overlay in MacGlassCard
+        /// the card surface reads as a tinted pane of glass rather than a sheet
+        /// of paper, which fixes the washed-out widgets reported in light mode.
         static let crystalBase = Color(nsColor: macColor(
             dark: NSColor(red: 26/255, green: 31/255, blue: 38/255, alpha: 0.6),
-            light: NSColor(white: 1.0, alpha: 0.55)
+            light: NSColor(red: 248/255, green: 250/255, blue: 253/255, alpha: 0.78)
+        ))
+
+        /// Secondary tint applied as a directional gradient in the glass card —
+        /// gives light-mode widgets the "bass" / depth the user requested.
+        static let crystalDeep = Color(nsColor: macColor(
+            dark: NSColor(red: 14/255, green: 18/255, blue: 26/255, alpha: 0.65),
+            light: NSColor(red: 215/255, green: 224/255, blue: 236/255, alpha: 0.75)
         ))
 
         // periphery:ignore
         static let crystalHighlight = Color(nsColor: macColor(
-            dark: .white.withAlphaComponent(0.12),
-            light: .white.withAlphaComponent(0.85)
+            dark: .white.withAlphaComponent(0.14),
+            light: .white.withAlphaComponent(0.92)
         ))
 
         static let crystalBorder = Color(nsColor: macColor(
-            dark: .white.withAlphaComponent(0.15),
-            light: .white.withAlphaComponent(0.60)
+            dark: .white.withAlphaComponent(0.18),
+            light: NSColor(red: 148/255, green: 163/255, blue: 184/255, alpha: 0.45)  // slate-400 @ 45%
         ))
 
         static let glassBackground = crystalBase
         static let glassBorder = crystalBorder
         // periphery:ignore
         static let glassHighlight = crystalHighlight
+
+        // MARK: — Surface tokens for inset elements (charts, search fields, etc.)
+
+        /// Recessed well used behind sparklines and chart areas. Replaces
+        /// hardcoded `Color.black.opacity(...)` calls so the depth reads in
+        /// both themes.
+        static let chartSurface = Color(nsColor: macColor(
+            dark: NSColor(red: 0/255, green: 0/255, blue: 0/255, alpha: 0.32),
+            light: NSColor(red: 30/255, green: 41/255, blue: 59/255, alpha: 0.07)
+        ))
+
+        /// Slightly shallower variant for stat-strip backgrounds.
+        static let chartSurfaceShallow = Color(nsColor: macColor(
+            dark: NSColor(red: 0/255, green: 0/255, blue: 0/255, alpha: 0.22),
+            light: NSColor(red: 30/255, green: 41/255, blue: 59/255, alpha: 0.05)
+        ))
+
+        /// Subtle gridline used inside chart wells.
+        static let chartGridline = Color(nsColor: macColor(
+            dark: .white.withAlphaComponent(0.06),
+            light: NSColor(red: 30/255, green: 41/255, blue: 59/255, alpha: 0.10)
+        ))
+
+        /// Inline horizontal dividers inside cards.
+        static let cardDivider = Color(nsColor: macColor(
+            dark: .white.withAlphaComponent(0.08),
+            light: NSColor(red: 30/255, green: 41/255, blue: 59/255, alpha: 0.10)
+        ))
+
+        /// Hairline used for unfilled bar tracks / sparkline placeholder lines /
+        /// signal-bar empty segments. Visible on both themes.
+        static let hairline = Color(nsColor: macColor(
+            dark: .white.withAlphaComponent(0.14),
+            light: NSColor(red: 30/255, green: 41/255, blue: 59/255, alpha: 0.18)
+        ))
 
         // MARK: — Status colors
 
@@ -331,12 +404,14 @@ enum MacTheme {
     // MARK: - Shadows — adaptive
 
     enum Shadows {
+        // Deeper shadow in light mode so the tinted-glass cards visibly lift
+        // off the brushed-steel background instead of melting into it.
         static let card = Color(nsColor: macColor(
             dark: .black.withAlphaComponent(0.25),
-            light: NSColor(calibratedRed: 15/255, green: 23/255, blue: 42/255, alpha: 0.06)
+            light: NSColor(calibratedRed: 15/255, green: 23/255, blue: 42/255, alpha: 0.12)
         ))
         static let cardRadius: CGFloat = 10        // dark mode — original value
-        static let cardRadiusLight: CGFloat = 20   // light mode — softer shadow
+        static let cardRadiusLight: CGFloat = 18   // light mode — pronounced soft shadow
         static let cardY: CGFloat = 5
 
         // periphery:ignore

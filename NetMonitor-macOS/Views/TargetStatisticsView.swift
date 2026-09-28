@@ -40,13 +40,13 @@ struct TargetStatisticsView: View {
                     .font(.headline)
                 Text("· Last 30 days")
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(MacTheme.Colors.labelSecondary)
             }
 
             if measurements.isEmpty {
                 Text("No measurements yet")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(MacTheme.Colors.labelSecondary)
             } else {
                 // Statistics
                 HStack(spacing: 32) {
@@ -115,7 +115,7 @@ struct StatisticItem: View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title)
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(MacTheme.Colors.labelSecondary)
 
             HStack(alignment: .firstTextBaseline, spacing: 2) {
                 Text(value)
@@ -124,7 +124,7 @@ struct StatisticItem: View {
 
                 Text(unit)
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(MacTheme.Colors.labelSecondary)
             }
         }
         .accessibilityIdentifier("target_statistics_item_\(title.lowercased().replacingOccurrences(of: " ", with: "_"))")

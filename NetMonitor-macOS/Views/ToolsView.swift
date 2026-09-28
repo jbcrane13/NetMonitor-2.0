@@ -163,7 +163,7 @@ struct ToolCard: View {
 
             Text(tool.description)
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(MacTheme.Colors.labelSecondary)
                 .lineLimit(2)
                 .multilineTextAlignment(.center)
         }

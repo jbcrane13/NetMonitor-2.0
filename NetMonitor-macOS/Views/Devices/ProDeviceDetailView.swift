@@ -72,7 +72,7 @@ private extension ProDeviceDetailView {
             } label: {
                 Image(systemName: "xmark")
                     .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(MacTheme.Colors.labelSecondary)
                     .frame(width: 24, height: 24)
                     .background(Color.primary.opacity(0.06))
                     .clipShape(Circle())
@@ -191,14 +191,14 @@ private extension ProDeviceDetailView {
 
                     Text(device.status == .online ? "Online" : "Offline")
                         .font(.subheadline)
-                        .foregroundStyle(device.status == .online ? MacTheme.Colors.success : .secondary)
+                        .foregroundStyle(device.status == .online ? MacTheme.Colors.success : MacTheme.Colors.labelSecondary)
 
                     if device.status == .online, let latency = device.lastLatency {
                         Text("·")
-                            .foregroundStyle(.tertiary)
+                            .foregroundStyle(MacTheme.Colors.labelTertiary)
                         Text(latencyText(latency))
                             .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(MacTheme.Colors.labelSecondary)
                     }
 
                     if device.isGateway {
@@ -216,7 +216,7 @@ private extension ProDeviceDetailView {
                 if let vendor = device.vendor {
                     Text(vendor)
                         .font(.subheadline)
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(MacTheme.Colors.labelTertiary)
                 }
             }
 
@@ -255,7 +255,7 @@ private extension ProDeviceDetailView {
         VStack(spacing: 2) {
             Text(title)
                 .font(.system(size: 9, weight: .bold))
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(MacTheme.Colors.labelQuaternary)
                 .tracking(0.5)
             Text(value)
                 .font(.system(size: 13, weight: .semibold, design: .monospaced))
@@ -310,7 +310,7 @@ private extension ProDeviceDetailView {
             }
 
             detailRow("Wake-on-LAN", device.supportsWakeOnLan ? "Supported" : "No",
-                       valueColor: device.supportsWakeOnLan ? MacTheme.Colors.success : .secondary)
+                       valueColor: device.supportsWakeOnLan ? MacTheme.Colors.success : MacTheme.Colors.labelSecondary)
 
             Divider().padding(.vertical, 2)
 
@@ -343,7 +343,7 @@ private extension ProDeviceDetailView {
             } else {
                 Text("No open ports detected")
                     .font(.subheadline)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(MacTheme.Colors.labelTertiary)
             }
 
             if !bonjourServices.isEmpty {
@@ -351,7 +351,7 @@ private extension ProDeviceDetailView {
 
                 Text("BONJOUR SERVICES")
                     .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(MacTheme.Colors.labelQuaternary)
                     .tracking(0.5)
 
                 FlowLayout(spacing: 8) {
@@ -388,10 +388,10 @@ private extension ProDeviceDetailView {
             } else if let notes = device.notes, !notes.isEmpty {
                 Text(notes)
                     .font(.body)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(MacTheme.Colors.textSecondary)
             } else {
                 Text("No notes — click Edit to add")
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(MacTheme.Colors.labelTertiary)
                     .italic()
                     .font(.subheadline)
             }
@@ -407,10 +407,10 @@ private extension ProDeviceDetailView {
         HStack(spacing: 6) {
             Image(systemName: icon)
                 .font(.system(size: 11))
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(MacTheme.Colors.labelTertiary)
             Text(title.uppercased())
                 .font(.system(size: 11, weight: .bold))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(MacTheme.Colors.labelSecondary)
                 .tracking(0.8)
             if loading {
                 ProgressView()

@@ -26,14 +26,14 @@ struct NetworkHealthScoreView: View {
             if viewModel.isCalculating {
                 HStack(spacing: 8) {
                     ProgressView().scaleEffect(0.7)
-                    Text("Calculating…").font(.caption).foregroundStyle(.secondary)
+                    Text("Calculating…").font(.caption).foregroundStyle(MacTheme.Colors.labelSecondary)
                 }
             } else if let score = viewModel.currentScore {
                 HStack(spacing: 16) {
                     // Circular score
                     ZStack {
                         Circle()
-                            .stroke(Color.secondary.opacity(0.2), lineWidth: 5)
+                            .stroke(MacTheme.Colors.hairline, lineWidth: 5)
                         Circle()
                             .trim(from: 0, to: CGFloat(score.score) / 100.0)
                             .stroke(gradeColor(score.score), style: StrokeStyle(lineWidth: 5, lineCap: .round))
@@ -65,7 +65,7 @@ struct NetworkHealthScoreView: View {
             } else {
                 Text("Click refresh to calculate")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(MacTheme.Colors.labelSecondary)
             }
         }
         .macGlassCard()
@@ -80,7 +80,7 @@ struct NetworkHealthScoreView: View {
     @ViewBuilder
     private func macScoreRow(label: String, value: String) -> some View {
         HStack {
-            Text(label).font(.caption).foregroundStyle(.secondary)
+            Text(label).font(.caption).foregroundStyle(MacTheme.Colors.labelSecondary)
             Spacer()
             Text(value).font(.caption).fontDesign(.monospaced)
         }

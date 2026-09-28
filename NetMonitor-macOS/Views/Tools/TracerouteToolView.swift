@@ -70,7 +70,7 @@ struct TracerouteToolView: View {
                 LazyVStack(alignment: .leading, spacing: 4) {
                     if hops.isEmpty && errorMessage == nil && !isRunning {
                         Text("Enter a hostname to trace the network path")
-                            .foregroundStyle(.tertiary)
+                            .foregroundStyle(MacTheme.Colors.labelTertiary)
                             .frame(maxWidth: .infinity, alignment: .center)
                             .padding(.top, 40)
                     } else {
@@ -101,7 +101,7 @@ struct TracerouteToolView: View {
         HStack(alignment: .top, spacing: 8) {
             Text(String(format: "%2d", hop.hopNumber))
                 .font(.system(.body, design: .monospaced))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(MacTheme.Colors.labelTertiary)
                 .frame(width: 25, alignment: .trailing)
 
             if hop.isTimeout {
@@ -117,7 +117,7 @@ struct TracerouteToolView: View {
                         if let ip = hop.ipAddress, hop.hostname != nil {
                             Text("(\(ip))")
                                 .font(.system(.caption, design: .monospaced))
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(MacTheme.Colors.labelTertiary)
                         }
                     }
 
@@ -137,16 +137,16 @@ struct TracerouteToolView: View {
         HStack {
             if isRunning {
                 ProgressView().scaleEffect(0.7)
-                Text("Tracing route to \(host)...").foregroundStyle(.secondary)
+                Text("Tracing route to \(host)...").foregroundStyle(MacTheme.Colors.labelSecondary)
             } else if !hops.isEmpty {
                 let successfulHops = hops.filter { !$0.isTimeout }.count
                 Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
-                Text("\(successfulHops)/\(hops.count) hops completed").foregroundStyle(.secondary)
+                Text("\(successfulHops)/\(hops.count) hops completed").foregroundStyle(MacTheme.Colors.labelSecondary)
             } else if errorMessage != nil {
                 Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
-                Text("Trace failed").foregroundStyle(.secondary)
+                Text("Trace failed").foregroundStyle(MacTheme.Colors.labelSecondary)
             } else {
-                Text("Trace the path to any host").foregroundStyle(.secondary)
+                Text("Trace the path to any host").foregroundStyle(MacTheme.Colors.labelSecondary)
             }
 
             Spacer()

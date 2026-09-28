@@ -43,7 +43,7 @@ struct SpeedTestToolView: View {
                 VStack(spacing: 8) {
                     Text("Test Duration")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(MacTheme.Colors.labelSecondary)
 
                     Picker("Duration", selection: $testDuration) {
                         Text("5 seconds").tag(TimeInterval(5))
@@ -59,7 +59,7 @@ struct SpeedTestToolView: View {
                 VStack(spacing: 8) {
                     Text("Server")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(MacTheme.Colors.labelSecondary)
 
                     Picker("Server", selection: $selectedServer) {
                         ForEach(SpeedTestServer.all) { server in
@@ -79,7 +79,7 @@ struct SpeedTestToolView: View {
             if service.isRunning && (service.phase == .download || service.phase == .upload) && timeRemaining > 0 {
                 Text("Time remaining: \(Int(timeRemaining))s")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(MacTheme.Colors.labelSecondary)
             }
 
             resultsView
@@ -120,7 +120,7 @@ struct SpeedTestToolView: View {
         ZStack {
             Circle()
                 .trim(from: 0.15, to: 0.85)
-                .stroke(Color.gray.opacity(0.3), lineWidth: 20)
+                .stroke(MacTheme.Colors.hairline, lineWidth: 20)
                 .rotationEffect(.degrees(90))
                 .frame(width: 200, height: 200)
 
@@ -142,7 +142,7 @@ struct SpeedTestToolView: View {
                 if service.isRunning {
                     Text(service.phase.displayName)
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(MacTheme.Colors.labelSecondary)
                 } else if service.phase == .complete {
                     Text("Complete")
                         .font(.caption)
@@ -165,10 +165,10 @@ struct SpeedTestToolView: View {
                 } else {
                     Text("--")
                         .font(.system(size: 36, weight: .bold, design: .rounded))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(MacTheme.Colors.labelTertiary)
                     Text("Mbps")
                         .font(.caption)
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(MacTheme.Colors.labelQuaternary)
                 }
             }
         }
@@ -187,14 +187,14 @@ struct SpeedTestToolView: View {
                         .font(.title2.bold())
                     Text("ms ping")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(MacTheme.Colors.labelSecondary)
                 } else {
                     Text("--")
                         .font(.title2.bold())
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(MacTheme.Colors.labelTertiary)
                     Text("ms ping")
                         .font(.caption)
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(MacTheme.Colors.labelQuaternary)
                 }
             }
             .accessibilityIdentifier("speedTest_label_latency")
@@ -210,19 +210,19 @@ struct SpeedTestToolView: View {
                         .font(.title2.bold())
                     Text("avg down")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(MacTheme.Colors.labelSecondary)
                     if service.peakDownloadSpeed > 0 {
                         Text("Peak: \(formatSpeed(service.peakDownloadSpeed))")
                             .font(.caption2)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(MacTheme.Colors.labelSecondary)
                     }
                 } else {
                     Text("--")
                         .font(.title2.bold())
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(MacTheme.Colors.labelTertiary)
                     Text("down")
                         .font(.caption)
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(MacTheme.Colors.labelQuaternary)
                 }
             }
             .accessibilityIdentifier("speedTest_label_download")
@@ -238,19 +238,19 @@ struct SpeedTestToolView: View {
                         .font(.title2.bold())
                     Text("avg up")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(MacTheme.Colors.labelSecondary)
                     if service.peakUploadSpeed > 0 {
                         Text("Peak: \(formatSpeed(service.peakUploadSpeed))")
                             .font(.caption2)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(MacTheme.Colors.labelSecondary)
                     }
                 } else {
                     Text("--")
                         .font(.title2.bold())
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(MacTheme.Colors.labelTertiary)
                     Text("up")
                         .font(.caption)
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(MacTheme.Colors.labelQuaternary)
                 }
             }
             .accessibilityIdentifier("speedTest_label_upload")
@@ -265,7 +265,7 @@ struct SpeedTestToolView: View {
                     .font(.title3.bold())
                 Text(selectedServer.location)
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(MacTheme.Colors.labelSecondary)
             }
             .accessibilityIdentifier("speedTest_label_server")
         }
@@ -280,18 +280,18 @@ struct SpeedTestToolView: View {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .foregroundStyle(.orange)
                 Text(error)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(MacTheme.Colors.labelSecondary)
             } else if service.isRunning {
                 Text(service.phase.displayName)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(MacTheme.Colors.labelSecondary)
             } else if service.phase == .complete {
                 Image(systemName: "checkmark.circle.fill")
                     .foregroundStyle(.green)
                 Text("Test completed")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(MacTheme.Colors.labelSecondary)
             } else {
                 Text("Test your internet connection speed")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(MacTheme.Colors.labelSecondary)
             }
 
             Spacer()

@@ -72,13 +72,13 @@ struct WorldPingToolView: View {
                     HStack(spacing: 8) {
                         ProgressView().scaleEffect(0.8)
                         Text("Pinging from global nodes…")
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(MacTheme.Colors.labelSecondary)
                     }
                     .frame(maxWidth: .infinity, alignment: .center)
                     .padding(.top, 40)
                 } else {
                     Text("Enter a hostname or IP address to ping from global locations")
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(MacTheme.Colors.labelTertiary)
                         .frame(maxWidth: .infinity, alignment: .center)
                         .padding(.top, 40)
                 }
@@ -104,11 +104,11 @@ struct WorldPingToolView: View {
                             HStack(spacing: 4) {
                                 Text(result.country)
                                     .font(.caption)
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(MacTheme.Colors.labelSecondary)
                                 if let ip = result.resolvedAddress {
                                     Text("→ \(ip)")
                                         .font(.system(.caption2, design: .monospaced))
-                                        .foregroundStyle(.tertiary)
+                                        .foregroundStyle(MacTheme.Colors.labelTertiary)
                                 }
                             }
                         }
@@ -123,7 +123,7 @@ struct WorldPingToolView: View {
                         } else {
                             Text("—")
                                 .font(.system(.body, design: .monospaced))
-                                .foregroundStyle(.tertiary)
+                                .foregroundStyle(MacTheme.Colors.labelTertiary)
                         }
                     }
                     .padding(.horizontal)
@@ -146,14 +146,14 @@ struct WorldPingToolView: View {
             if viewModel.isRunning {
                 ProgressView().scaleEffect(0.7)
                 Text("Pinging from global nodes…")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(MacTheme.Colors.labelSecondary)
             } else if viewModel.hasResults {
                 Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
                 Text("\(viewModel.successCount) / \(viewModel.results.count) nodes responded")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(MacTheme.Colors.labelSecondary)
             } else {
                 Text("Ping from up to 20 global locations")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(MacTheme.Colors.labelSecondary)
             }
 
             Spacer()

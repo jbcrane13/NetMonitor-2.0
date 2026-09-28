@@ -24,7 +24,6 @@ import NetMonitorCore
 /// MiniSparklineView(data: latencyHistory, thresholdColor: MacTheme.Colors.latencyColor)
 /// ```
 struct MiniSparklineView: View {
-    @Environment(\.colorScheme) private var colorScheme
     let data: [Double]
     let color: Color
     let lineWidth: CGFloat
@@ -75,7 +74,7 @@ struct MiniSparklineView: View {
     var body: some View {
         ZStack {
             RoundedRectangle(cornerRadius: cornerRadius)
-                .fill(Color.black.opacity(colorScheme == .dark ? 0.28 : 0.06))
+                .fill(MacTheme.Colors.chartSurface)
 
             if data.count > 1 {
                 // Overlay sparkline (behind main)
@@ -107,7 +106,7 @@ struct MiniSparklineView: View {
                         path.move(to: CGPoint(x: 4, y: y))
                         path.addLine(to: CGPoint(x: g.size.width - 4, y: y))
                     }
-                    .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                    .stroke(MacTheme.Colors.chartGridline, lineWidth: 1)
                 }
             }
         }

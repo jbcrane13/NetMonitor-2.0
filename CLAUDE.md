@@ -131,7 +131,7 @@ Use a single shared context and the existing architecture records. See `docs/age
 
 ## macOS UI Theme Notes
 
-**Dark theme contrast** — macOS views use `MacTheme` (in `MacTheme.swift`) with explicit colors, not system semantic styles. Use `Color.white.opacity(0.7)` for secondary text and `Color.white.opacity(0.5)` for tertiary — SwiftUI's `.secondary`/`.tertiary` are too dim against the dark backgrounds.
+**Text contrast (light + dark)** — macOS views use `MacTheme` (in `MacTheme.swift`) with explicit adaptive colors, not system semantic styles. On glass cards and app surfaces use `MacTheme.Colors.labelSecondary` / `labelTertiary` / `labelQuaternary` (legends, axis labels) instead of `.secondary`/`.tertiary`, which are too dim on dark glass and washed out on light glass; `textSecondary`/`textTertiary` remain for general text. Don't hard-code `Color.white.opacity(...)` — it breaks light mode. Keep system `.secondary` where the system draws the background: native `Form`/Settings panes, native `List`s (e.g. Timeline), the menu bar popover, `ContentUnavailableView`. Chart wells, dividers and empty bar tracks use `chartSurface`, `chartSurfaceShallow`, `chartGridline`, `cardDivider`, `hairline`.
 
 **Pro mode table** — `ProModeRowView` defines shared column width constants (`statusWidth`, `ipWidth`, etc.) that `DevicesView.proModeHeaderRow` references. Always keep header and row widths in sync via these constants.
 

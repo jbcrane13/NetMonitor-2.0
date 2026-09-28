@@ -62,20 +62,20 @@ struct ISPInfoCard: View {
                 // Public IP
                 HStack {
                     Text("Public IP:")
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(MacTheme.Colors.labelSecondary)
                     Spacer()
                     Text(info.publicIP)
                         .font(.system(.body, design: .monospaced))
-                        .foregroundStyle(.primary)
+                        .foregroundStyle(MacTheme.Colors.textPrimary)
                 }
 
                 // ISP
                 HStack {
                     Label("ISP:", systemImage: "network")
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(MacTheme.Colors.labelSecondary)
                     Spacer()
                     Text(info.isp)
-                        .foregroundStyle(.primary)
+                        .foregroundStyle(MacTheme.Colors.textPrimary)
                         .lineLimit(1)
                         .truncationMode(.tail)
                 }
@@ -84,7 +84,7 @@ struct ISPInfoCard: View {
                 if let asn = info.asn {
                     HStack {
                         Text("ASN:")
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(MacTheme.Colors.labelSecondary)
                         Spacer()
                         Text(asn)
                             .font(.system(.body, design: .monospaced))
@@ -96,20 +96,20 @@ struct ISPInfoCard: View {
                 if let city = info.city, let country = info.country {
                     HStack {
                         Label("Location:", systemImage: "globe.americas")
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(MacTheme.Colors.labelSecondary)
                         Spacer()
                         Text("\(city), \(country)")
-                            .foregroundStyle(.primary)
+                            .foregroundStyle(MacTheme.Colors.textPrimary)
                             .lineLimit(1)
                             .truncationMode(.tail)
                     }
                 } else if let country = info.country {
                     HStack {
                         Label("Location:", systemImage: "globe.americas")
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(MacTheme.Colors.labelSecondary)
                         Spacer()
                         Text(country)
-                            .foregroundStyle(.primary)
+                            .foregroundStyle(MacTheme.Colors.textPrimary)
                     }
                 }
             } else if let error = errorMessage {
@@ -117,12 +117,12 @@ struct ISPInfoCard: View {
                     Image(systemName: "exclamationmark.triangle")
                         .foregroundStyle(MacTheme.Colors.warning)
                     Text(error)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(MacTheme.Colors.labelSecondary)
                         .font(.caption)
                 }
             } else {
                 Text("Unable to determine")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(MacTheme.Colors.labelSecondary)
                     .font(.caption)
             }
         }

@@ -44,15 +44,15 @@ struct DeviceCardView: View {
                     HStack(spacing: 8) {
                         Text(device.ipAddress)
                             .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(MacTheme.Colors.labelSecondary)
                             .monospacedDigit()
 
                         if let vendor = device.vendor {
                             Text("·")
-                                .foregroundStyle(.tertiary)
+                                .foregroundStyle(MacTheme.Colors.labelTertiary)
                             Text(vendor)
                                 .font(.caption)
-                                .foregroundStyle(.tertiary)
+                                .foregroundStyle(MacTheme.Colors.labelTertiary)
                                 .lineLimit(1)
                         }
                     }
@@ -69,7 +69,7 @@ struct DeviceCardView: View {
 
                         Text(device.status == .online ? "Online" : "Offline")
                             .font(.caption)
-                            .foregroundStyle(device.status == .online ? MacTheme.Colors.success : .secondary)
+                            .foregroundStyle(device.status == .online ? MacTheme.Colors.success : MacTheme.Colors.labelSecondary)
                     }
 
                     if let latency = device.lastLatency {

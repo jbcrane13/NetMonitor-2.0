@@ -18,47 +18,72 @@ struct MacGlassCardModifier: ViewModifier {
             .padding(padding)
             .background(
                 ZStack {
-                    // Base material
+                    // Base material — a little richer in light mode so the
+                    // frosting has more body.
                     RoundedRectangle(cornerRadius: cornerRadius)
                         .fill(.ultraThinMaterial)
-                        .opacity(colorScheme == .dark ? 0.8 : 0.7)
+                        .opacity(colorScheme == .dark ? 0.82 : 0.9)
 
-                    // Crystal base tint
+                    // Crystal base tint (slate-tinted in light mode)
                     RoundedRectangle(cornerRadius: cornerRadius)
                         .fill(MacTheme.Colors.glassBackground)
 
-                    // Crystal shine — 3-color gradient (adaptive)
+                    // Directional depth gradient — gives each card a "top-lit"
+                    // feel: crisper/brighter up top, deeper and cooler down low.
+                    // This is the "bass" the light theme was missing.
                     LinearGradient(
                         colors: colorScheme == .dark
-                            ? [.white.opacity(0.08), .clear, .white.opacity(0.02)]
-                            : [.white.opacity(0.6), .white.opacity(0.15), .white.opacity(0.35)],
+                            ? [
+                                Color.white.opacity(0.10),
+                                Color.clear,
+                                Color.black.opacity(0.18)
+                            ]
+                            : [
+                                Color.white.opacity(0.85),
+                                Color.white.opacity(0.25),
+                                MacTheme.Colors.crystalDeep.opacity(0.75)
+                            ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
+
+                    // Subtle diagonal sheen — adds a premium polished-metal feel
+                    // in light mode without washing out content.
+                    LinearGradient(
+                        colors: colorScheme == .dark
+                            ? [Color.white.opacity(0.05), .clear]
+                            : [Color.white.opacity(0.35), .clear],
                         startPoint: .topLeading,
-                        endPoint: .bottomTrailing
+                        endPoint: .center
                     )
                     .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
                 }
             )
-            // Status glow: inner top glow
+            // Status glow: inner top glow — saturated a bit more in light mode
+            // so the accent color actually reads against a bright surface.
             .overlay(alignment: .top) {
                 if let glow = statusGlow {
                     Rectangle()
-                        .fill(glow.opacity(colorScheme == .dark ? 0.08 : 0.08))
-                        .frame(height: 40)
-                        .blur(radius: 20)
+                        .fill(glow.opacity(colorScheme == .dark ? 0.10 : 0.16))
+                        .frame(height: 48)
+                        .blur(radius: 22)
                         .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
                 }
             }
-            // Status glow: top-edge colored stroke
+            // Status glow: top-edge colored stroke — stronger in light mode.
             .overlay {
                 if let glow = statusGlow {
                     RoundedRectangle(cornerRadius: cornerRadius)
                         .stroke(
                             LinearGradient(
-                                colors: [glow.opacity(0.4), glow.opacity(0.15), .clear],
+                                colors: colorScheme == .dark
+                                    ? [glow.opacity(0.45), glow.opacity(0.15), .clear]
+                                    : [glow.opacity(0.75), glow.opacity(0.25), .clear],
                                 startPoint: .top,
                                 endPoint: .bottom
                             ),
-                            lineWidth: 1.5
+                            lineWidth: colorScheme == .dark ? 1.5 : 1.8
                         )
                 }
             }
@@ -68,8 +93,8 @@ struct MacGlassCardModifier: ViewModifier {
                     .stroke(
                         LinearGradient(
                             colors: colorScheme == .dark
-                                ? [.white.opacity(0.2), .white.opacity(0.05), .clear]
-                                : [.white.opacity(0.7), .white.opacity(0.2), .clear],
+                                ? [.white.opacity(0.22), .white.opacity(0.06), .clear]
+                                : [.white.opacity(0.85), .white.opacity(0.30), .clear],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         ),
@@ -82,7 +107,7 @@ struct MacGlassCardModifier: ViewModifier {
                     RoundedRectangle(cornerRadius: cornerRadius)
                         .stroke(
                             LinearGradient(
-                                colors: [.clear, .white.opacity(0.9), .clear],
+                                colors: [.clear, .white.opacity(0.95), .clear],
                                 startPoint: .leading,
                                 endPoint: .trailing
                             ),
@@ -95,7 +120,10 @@ struct MacGlassCardModifier: ViewModifier {
             }
             .overlay(
                 RoundedRectangle(cornerRadius: cornerRadius)
-                    .stroke(MacTheme.Colors.glassBorder, lineWidth: showBorder ? 0.5 : 0)
+                    .stroke(
+                        MacTheme.Colors.glassBorder,
+                        lineWidth: showBorder ? (colorScheme == .dark ? 0.5 : 0.8) : 0
+                    )
             )
             .shadow(
                 color: MacTheme.Shadows.card,

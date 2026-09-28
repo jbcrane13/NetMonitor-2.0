@@ -10,7 +10,6 @@ import NetMonitorCore
 
 /// Compact network intelligence card — active connections, listeners, DNS health, events.
 struct NetworkIntelCard: View {
-    @Environment(\.colorScheme) private var colorScheme
     @State private var activeConnections: Int = 0
     @State private var listeningPorts: Int = 0
     @State private var establishedCount: Int = 0
@@ -35,7 +34,7 @@ struct NetworkIntelCard: View {
                 Circle().fill(MacTheme.Colors.info).frame(width: 5, height: 5)
                 Text("NETWORK INTEL")
                     .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(MacTheme.Colors.labelSecondary)
                     .tracking(1.4)
                 Spacer()
                 if !isLoading {
@@ -45,7 +44,7 @@ struct NetworkIntelCard: View {
                         .tracking(1.2)
                         .padding(.horizontal, 5)
                         .padding(.vertical, 2)
-                        .background(MacTheme.Colors.success.opacity(0.15), in: RoundedRectangle(cornerRadius: 3))
+                        .background(MacTheme.Colors.success.opacity(0.18), in: RoundedRectangle(cornerRadius: 3))
                 }
             }
 
@@ -60,10 +59,10 @@ struct NetworkIntelCard: View {
                     Divider().frame(height: 28).opacity(0.2)
                     statTile(value: "\(listeningPorts)", label: "LISTENING", color: MacTheme.Colors.warning)
                     Divider().frame(height: 28).opacity(0.2)
-                    statTile(value: "\(timeWaitCount)", label: "TIME_WAIT", color: .secondary)
+                    statTile(value: "\(timeWaitCount)", label: "TIME_WAIT", color: MacTheme.Colors.textSecondary)
                 }
                 .padding(.vertical, 4)
-                .background(Color.black.opacity(colorScheme == .dark ? 0.18 : 0.04), in: RoundedRectangle(cornerRadius: 6))
+                .background(MacTheme.Colors.chartSurfaceShallow, in: RoundedRectangle(cornerRadius: 6))
 
                 // DNS resolver health
                 HStack(spacing: 8) {
@@ -72,11 +71,11 @@ struct NetworkIntelCard: View {
                         .foregroundStyle(dnsHealthColor)
                     Text("DNS")
                         .font(.system(size: 9, weight: .bold))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(MacTheme.Colors.labelSecondary)
                         .tracking(0.8)
                     Text(dnsResolver)
                         .font(.system(size: 11, design: .monospaced))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(MacTheme.Colors.textSecondary)
                         .lineLimit(1)
                     Spacer()
                     if let ms = dnsLatencyMs {
@@ -88,7 +87,7 @@ struct NetworkIntelCard: View {
 
                 // Recent events feed
                 if !recentEvents.isEmpty {
-                    Divider().opacity(0.15)
+                    Divider().background(MacTheme.Colors.cardDivider)
                     VStack(alignment: .leading, spacing: 3) {
                         ForEach(recentEvents.prefix(3)) { event in
                             HStack(spacing: 6) {
@@ -98,12 +97,12 @@ struct NetworkIntelCard: View {
                                     .frame(width: 12)
                                 Text(event.text)
                                     .font(.system(size: 10))
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(MacTheme.Colors.textSecondary)
                                     .lineLimit(1)
                                 Spacer()
                                 Text(event.time)
                                     .font(.system(size: 9, design: .monospaced))
-                                    .foregroundStyle(.tertiary)
+                                    .foregroundStyle(MacTheme.Colors.labelQuaternary)
                             }
                         }
                     }
@@ -124,7 +123,7 @@ struct NetworkIntelCard: View {
                 .foregroundStyle(color)
             Text(label)
                 .font(.system(size: 7, weight: .bold))
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(MacTheme.Colors.labelTertiary)
                 .tracking(0.8)
         }
         .frame(maxWidth: .infinity)
