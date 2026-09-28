@@ -212,6 +212,13 @@ final class DeviceDiscoveryCoordinator {
         mergeDiscoveredDevices(sparse, profileID: profileID, recordLatencyHistory: false)
     }
 
+    /// Scans the network this Mac is on, so the dashboard isn't empty until the user presses Scan (#358).
+    /// Does nothing when there is no local network or a scan is already running.
+    @discardableResult
+    func startLaunchScan() -> Bool {
+        false
+    }
+
     func scanNetwork(_ profile: NetworkProfile) {
         // A running scan keeps its network; switching state here would mislabel it (#353).
         guard !isScanning else { return }

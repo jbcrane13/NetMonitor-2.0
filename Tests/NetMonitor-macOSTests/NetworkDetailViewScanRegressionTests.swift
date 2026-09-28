@@ -141,6 +141,64 @@ struct NetworkDetailViewScanRegressionTests {
                 "A refused scan request must not move the ACTIVE network")
     }
 
+    // MARK: - #358: scan the local network at launch
+
+    private func makeLaunchManager(withLocal: Bool) -> (NetworkProfileManager, UserDefaults, String) {
+        let suite = "LaunchScan-\(UUID().uuidString)"
+        // swiftlint:disable:next force_unwrapping
+        let defaults = UserDefaults(suiteName: suite)!
+        let local = makeProfile(name: "Home")
+        let manager = NetworkProfileManager(userDefaults: defaults, activeProfilesProvider: { withLocal ? [local] : [] })
+        return (manager, defaults, suite)
+    }
+
+    @Test("Launch scan scans the local network (#358)")
+    func launchScanScansLocalNetwork() throws {
+        let (container, context) = try makeInMemoryStore()
+        defer { withExtendedLifetime(container) {} }
+        let (manager, defaults, suite) = makeLaunchManager(withLocal: true)
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let local = try #require(manager.profiles.first(where: \.isLocal))
+        let coordinator = makeCoordinator(context: context, networkProfileManager: manager)
+        defer { coordinator.stopScan() }
+
+        #expect(coordinator.startLaunchScan())
+        #expect(coordinator.isScanning, "Launch must start a scan so the dashboard fills without pressing Scan")
+        #expect(coordinator.networkProfile?.id == local.id)
+    }
+
+    @Test("Launch scan does nothing without a local network")
+    func launchScanSkipsWithoutLocalNetwork() throws {
+        let (container, context) = try makeInMemoryStore()
+        defer { withExtendedLifetime(container) {} }
+        let (manager, defaults, suite) = makeLaunchManager(withLocal: false)
+        defer { defaults.removePersistentDomain(forName: suite) }
+        _ = manager.addProfile(gateway: "10.9.0.1", subnet: "10.9.0.0/24", name: "Remote")
+        let coordinator = makeCoordinator(context: context, networkProfileManager: manager)
+        defer { coordinator.stopScan() }
+
+        #expect(!coordinator.startLaunchScan())
+        #expect(!coordinator.isScanning, "A remote manual network must not be scanned automatically")
+    }
+
+    @Test("Launch scan does not restart a scan that is already running")
+    func launchScanLeavesRunningScanAlone() throws {
+        let (container, context) = try makeInMemoryStore()
+        defer { withExtendedLifetime(container) {} }
+        let (manager, defaults, suite) = makeLaunchManager(withLocal: true)
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let remote = try #require(manager.addProfile(gateway: "10.9.0.1", subnet: "10.9.0.0/24", name: "Remote"))
+        let coordinator = makeCoordinator(context: context, networkProfileManager: manager)
+        defer { coordinator.stopScan() }
+
+        coordinator.scanNetwork(remote)
+        let progress = coordinator.scanProgress
+
+        #expect(!coordinator.startLaunchScan())
+        #expect(coordinator.networkProfile?.id == remote.id)
+        #expect(coordinator.scanProgress == progress)
+    }
+
     @Test("stopScan clears isScanning so button re-enables")
     func stopScanClearsIsScanning() throws {
         let (container, context) = try makeInMemoryStore()
