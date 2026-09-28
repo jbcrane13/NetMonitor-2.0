@@ -132,9 +132,15 @@ struct NetworkIntelCard: View {
 
     private var dnsHealthColor: Color {
         guard let ms = dnsLatencyMs else { return .secondary }
-        if ms < 20 { return MacTheme.Colors.success }
-        if ms < 50 { return MacTheme.Colors.info }
-        if ms < 100 { return MacTheme.Colors.warning }
+        if ms < 20 {
+            return MacTheme.Colors.success
+        }
+        if ms < 50 {
+            return MacTheme.Colors.info
+        }
+        if ms < 100 {
+            return MacTheme.Colors.warning
+        }
         return MacTheme.Colors.error
     }
 
@@ -174,9 +180,11 @@ struct NetworkIntelCard: View {
                 if trimmed.contains("ESTABLISHED") {
                     established += 1
                     total += 1
-                } else if trimmed.contains("LISTEN") { listening += 1
+                } else if trimmed.contains("LISTEN") {
+                    listening += 1
                 total += 1
-                } else if trimmed.contains("TIME_WAIT") { timeWait += 1
+                } else if trimmed.contains("TIME_WAIT") {
+                    timeWait += 1
                 total += 1
                 } else if trimmed.contains("CLOSE_WAIT") || trimmed.contains("SYN_SENT") ||
                         trimmed.contains("SYN_RECEIVED") || trimmed.contains("FIN_WAIT") {

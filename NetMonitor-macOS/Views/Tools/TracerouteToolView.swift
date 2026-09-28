@@ -51,7 +51,11 @@ struct TracerouteToolView: View {
             .accessibilityIdentifier("traceroute_picker_hops")
 
             Button(isRunning ? "Stop" : "Trace") {
-                if isRunning { stopTraceroute() } else { runTraceroute() }
+                if isRunning {
+                    stopTraceroute()
+                } else {
+                    runTraceroute()
+                }
             }
             .buttonStyle(.borderedProminent)
             .disabled(host.isEmpty && !isRunning)
@@ -86,7 +90,9 @@ struct TracerouteToolView: View {
             }
             .background(MacTheme.Colors.subtleBackground)
             .onChange(of: hops.count) { _, _ in
-                if let lastHop = hops.last { proxy.scrollTo(lastHop.id, anchor: .bottom) }
+                if let lastHop = hops.last {
+                    proxy.scrollTo(lastHop.id, anchor: .bottom)
+                }
             }
         }
     }

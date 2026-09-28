@@ -149,16 +149,15 @@ struct BonjourBrowserToolView: View {
         .accessibilityIdentifier("bonjour_row_\(service.id)")
     }
 
+    @ViewBuilder
     private var detailView: some View {
-        Group {
-            if let service = selectedService {
+        if let service = selectedService {
                 serviceDetailView(service)
             } else {
                 Text("Select a service to view details")
                     .foregroundStyle(.tertiary)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-        }
     }
 
     private func serviceDetailView(_ service: BonjourService) -> some View {

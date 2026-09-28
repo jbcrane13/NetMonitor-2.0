@@ -42,7 +42,11 @@ struct GeoTraceView: View {
                 .accessibilityIdentifier("geoTrace_textfield_host")
 
             Button(isRunning ? "Stop" : "Trace") {
-                if isRunning { stopTrace() } else { runTrace() }
+                if isRunning {
+                    stopTrace()
+                } else {
+                    runTrace()
+                }
             }
             .buttonStyle(.borderedProminent)
             .disabled(host.isEmpty && !isRunning)

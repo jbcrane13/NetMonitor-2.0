@@ -38,7 +38,11 @@ struct WorldPingToolView: View {
                 .accessibilityIdentifier("worldPing_textfield_host")
 
             Button(viewModel.isRunning ? "Stop" : "Run") {
-                if viewModel.isRunning { viewModel.stop() } else { viewModel.run() }
+                if viewModel.isRunning {
+                    viewModel.stop()
+                } else {
+                    viewModel.run()
+                }
             }
             .buttonStyle(.borderedProminent)
             .disabled(!viewModel.canRun && !viewModel.isRunning)

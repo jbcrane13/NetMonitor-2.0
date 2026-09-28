@@ -54,7 +54,11 @@ struct PingToolView: View {
             .accessibilityIdentifier("ping_picker_count")
 
             Button(isRunning ? "Stop" : "Run") {
-                if isRunning { stopPing() } else { runPing() }
+                if isRunning {
+                    stopPing()
+                } else {
+                    runPing()
+                }
             }
             .buttonStyle(.borderedProminent)
             .disabled(host.isEmpty && !isRunning)

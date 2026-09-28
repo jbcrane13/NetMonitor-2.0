@@ -73,14 +73,13 @@ struct SSLCertificateMonitorView: View {
 
     // MARK: - Output Area
 
+    @ViewBuilder
     private var outputArea: some View {
-        Group {
-            if selectedTab == 0 {
+        if selectedTab == 0 {
                 queryOutputArea
             } else {
                 watchListArea
             }
-        }
     }
 
     private var queryOutputArea: some View {
@@ -156,7 +155,9 @@ struct SSLCertificateMonitorView: View {
     private func whoisSection(_ whois: WHOISResult) -> some View {
         GroupBox {
             VStack(alignment: .leading, spacing: 6) {
-                if let reg = whois.registrar { infoRow("Registrar", reg) }
+                if let reg = whois.registrar {
+                    infoRow("Registrar", reg)
+                }
                 if let exp = whois.expirationDate {
                     infoRow("Expires", exp.formatted(date: .abbreviated, time: .omitted))
                     let days = Calendar.current.dateComponents([.day], from: Date(), to: exp).day ?? 0
@@ -176,9 +177,9 @@ struct SSLCertificateMonitorView: View {
         .accessibilityIdentifier("sslMonitor_card_whois")
     }
 
+    @ViewBuilder
     private var watchListArea: some View {
-        Group {
-            if trackedDomains.isEmpty {
+        if trackedDomains.isEmpty {
                 Text("No domains tracked. Query a domain and add it to the watch list.")
                     .foregroundStyle(.tertiary)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
@@ -191,7 +192,6 @@ struct SSLCertificateMonitorView: View {
                 }
                 .accessibilityIdentifier("sslMonitor_section_watchlist")
             }
-        }
     }
 
     private func watchListRow(_ status: DomainExpirationStatus) -> some View {
@@ -275,7 +275,9 @@ struct SSLCertificateMonitorView: View {
 
             Spacer()
 
-            if isLoading { ProgressView().scaleEffect(0.7) }
+            if isLoading {
+                ProgressView().scaleEffect(0.7)
+            }
         }
         .padding()
     }
@@ -311,22 +313,34 @@ struct SSLCertificateMonitorView: View {
     }
 
     private func expiryColor(days: Int) -> Color {
-        if days <= 7 { return .red }
-        if days <= 30 { return .orange }
+        if days <= 7 {
+            return .red
+        }
+        if days <= 30 {
+            return .orange
+        }
         return .green
     }
 
     private func sslIcon(for status: DomainExpirationStatus) -> String {
         guard let days = status.sslDaysUntilExpiration else { return "questionmark.circle" }
-        if days <= 7 { return "xmark.shield" }
-        if days <= 30 { return "exclamationmark.shield" }
+        if days <= 7 {
+            return "xmark.shield"
+        }
+        if days <= 30 {
+            return "exclamationmark.shield"
+        }
         return "checkmark.shield"
     }
 
     private func sslColor(for status: DomainExpirationStatus) -> Color {
         guard let days = status.sslDaysUntilExpiration else { return .gray }
-        if days <= 7 { return .red }
-        if days <= 30 { return .orange }
+        if days <= 7 {
+            return .red
+        }
+        if days <= 30 {
+            return .orange
+        }
         return .green
     }
 }

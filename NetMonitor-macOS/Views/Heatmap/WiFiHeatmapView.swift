@@ -64,7 +64,11 @@ struct WiFiHeatmapView: View {
         .onOpenURL { url in
             if url.pathExtension == "netmonblueprint" {
                 let didAccess = url.startAccessingSecurityScopedResource()
-                defer { if didAccess { url.stopAccessingSecurityScopedResource() } }
+                defer {
+                    if didAccess {
+                        url.stopAccessingSecurityScopedResource()
+                    }
+                }
                 do {
                     try viewModel.importBlueprint(from: url)
                 } catch {
@@ -75,7 +79,11 @@ struct WiFiHeatmapView: View {
         .onChange(of: pendingSurveyURL) { _, newURL in
             guard let newURL else { return }
             let didAccess = newURL.startAccessingSecurityScopedResource()
-            defer { if didAccess { newURL.stopAccessingSecurityScopedResource() } }
+            defer {
+                if didAccess {
+                    newURL.stopAccessingSecurityScopedResource()
+                }
+            }
             do {
                 try viewModel.importBlueprint(from: newURL)
             } catch {
@@ -86,7 +94,11 @@ struct WiFiHeatmapView: View {
             // Handle pendingSurveyURL passed from ContentView on first appear
             if let url = pendingSurveyURL {
                 let didAccess = url.startAccessingSecurityScopedResource()
-                defer { if didAccess { url.stopAccessingSecurityScopedResource() } }
+                defer {
+                    if didAccess {
+                        url.stopAccessingSecurityScopedResource()
+                    }
+                }
                 do {
                     try viewModel.importBlueprint(from: url)
                 } catch {
@@ -97,7 +109,11 @@ struct WiFiHeatmapView: View {
         }
         .alert("Error", isPresented: Binding(
             get: { viewModel.errorMessage != nil },
-            set: { if !$0 { viewModel.errorMessage = nil } }
+            set: {
+                if !$0 {
+                    viewModel.errorMessage = nil
+                }
+            }
         )) {
             Button("OK") { viewModel.errorMessage = nil }
                 .accessibilityIdentifier("heatmap_button_dismissError")
@@ -110,9 +126,9 @@ struct WiFiHeatmapView: View {
 
     // MARK: - Canvas
 
+    @ViewBuilder
     private var canvas: some View {
-        Group {
-            if viewModel.surveyProject != nil {
+        if viewModel.surveyProject != nil {
                 HeatmapCanvasRepresentable(
                     floorPlanImageData: viewModel.surveyProject?.floorPlan.imageData,
                     measurementPoints: viewModel.filteredPoints,
@@ -143,7 +159,6 @@ struct WiFiHeatmapView: View {
             } else {
                 emptyState
             }
-        }
     }
 
     // MARK: - Empty State
@@ -189,7 +204,11 @@ struct WiFiHeatmapView: View {
         case .success(let urls):
             guard let url = urls.first else { return }
             let didAccess = url.startAccessingSecurityScopedResource()
-            defer { if didAccess { url.stopAccessingSecurityScopedResource() } }
+            defer {
+                if didAccess {
+                    url.stopAccessingSecurityScopedResource()
+                }
+            }
             do {
                 try viewModel.importFloorPlan(from: url)
             } catch {
@@ -205,7 +224,11 @@ struct WiFiHeatmapView: View {
         case .success(let urls):
             guard let url = urls.first else { return }
             let didAccess = url.startAccessingSecurityScopedResource()
-            defer { if didAccess { url.stopAccessingSecurityScopedResource() } }
+            defer {
+                if didAccess {
+                    url.stopAccessingSecurityScopedResource()
+                }
+            }
             do {
                 try viewModel.importBlueprint(from: url)
             } catch {
@@ -322,7 +345,9 @@ extension WiFiHeatmapView {
                 }
                 .frame(width: 140)
                 .onChange(of: viewModel.selectedVisualization) { _, _ in
-                    if viewModel.isHeatmapGenerated { viewModel.generateHeatmap() }
+                    if viewModel.isHeatmapGenerated {
+                        viewModel.generateHeatmap()
+                    }
                 }
                 .accessibilityIdentifier("heatmap_picker_viz")
 
