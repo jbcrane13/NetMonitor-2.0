@@ -122,7 +122,7 @@ final class CompanionMessageHandler {
             return generateStatusUpdate()
 
         case .scanDevices:
-            deviceDiscovery.startScan()
+            deviceDiscovery.startScan(countsTowardReviewPrompt: false)
             return .toolResult(ToolResultPayload(
                 tool: "deviceScan",
                 success: true,

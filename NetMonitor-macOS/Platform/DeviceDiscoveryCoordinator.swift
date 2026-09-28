@@ -38,6 +38,7 @@ final class DeviceDiscoveryCoordinator {
     /// the real shell `/sbin/ping` (3 probes, min latency); tests inject a stub. The
     /// `ShellPingLatencyPhase`'s dependency (ADR-003 fallback, E3).
     private let pingRunner: @Sendable (_ host: String) async -> Double?
+    private let reviewPrompt: ReviewPromptPolicy?
 
     private var scanTask: Task<Void, Never>?
 
@@ -74,7 +75,8 @@ final class DeviceDiscoveryCoordinator {
             )
         },
         portChecker: @escaping @Sendable (_ host: String, _ port: Int, _ timeoutMs: Int32) async -> Bool = DeviceDiscoveryCoordinator.checkPort,
-        pingRunner: @escaping @Sendable (_ host: String) async -> Double? = DeviceDiscoveryCoordinator.shellPing
+        pingRunner: @escaping @Sendable (_ host: String) async -> Double? = DeviceDiscoveryCoordinator.shellPing,
+        reviewPrompt: ReviewPromptPolicy? = nil
     ) {
         self.modelContext = modelContext
         self.bonjourScanner = bonjourScanner
@@ -84,6 +86,7 @@ final class DeviceDiscoveryCoordinator {
         self.pipelineFactory = pipelineFactory
         self.portChecker = portChecker
         self.pingRunner = pingRunner
+        self.reviewPrompt = reviewPrompt
         self.networkProfile = networkProfileManager.activeProfile
         loadPersistedDevices(for: effectiveProfileID())
     }
@@ -92,7 +95,9 @@ final class DeviceDiscoveryCoordinator {
         networkProfile?.interfaceName
     }
 
-    func startScan() {
+    /// - Parameter countsTowardReviewPrompt: `false` for scans the user didn't start here
+    ///   (launch scan, companion requests), so they don't trigger the review prompt (#337).
+    func startScan(countsTowardReviewPrompt: Bool = true) {
         guard !isScanning else { return }
         isScanning = true
         scanProgress = 0.0
@@ -173,6 +178,10 @@ final class DeviceDiscoveryCoordinator {
                         gatewayReachable: gatewayReachable
                     )
                 }
+
+                if countsTowardReviewPrompt {
+                    reviewPrompt?.recordScanCompleted()
+                }
             } catch is CancellationError {
             } catch {
                 Logger.discovery.error("Scan error: \(error, privacy: .public)")
@@ -226,17 +235,17 @@ final class DeviceDiscoveryCoordinator {
             return false
         }
         Logger.discovery.notice("Launch scan started")
-        scanNetwork(local)
+        scanNetwork(local, countsTowardReviewPrompt: false)
         return true
     }
 
-    func scanNetwork(_ profile: NetworkProfile) {
+    func scanNetwork(_ profile: NetworkProfile, countsTowardReviewPrompt: Bool = true) {
         // A running scan keeps its network; switching state here would mislabel it (#353).
         guard !isScanning else { return }
         networkProfile = profile
         _ = networkProfileManager.switchProfile(id: profile.id)
         loadPersistedDevices(for: profile.id)
-        startScan()
+        startScan(countsTowardReviewPrompt: countsTowardReviewPrompt)
     }
 
     func stopScan() {
