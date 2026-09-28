@@ -27,19 +27,65 @@ final class LocalNetworkChangeWatcher {
         self.debounce = debounce
     }
 
-    func start() {}
+    func start() {
+        guard watchTask == nil else { return }
+        let events = pathEvents
+        let debounce = debounce
+        watchTask = Task { [weak self] in
+            var settle: Task<Void, Never>?
+            for await satisfied in events {
+                settle?.cancel()
+                settle = Task { [weak self] in
+                    try? await Task.sleep(for: debounce)
+                    guard !Task.isCancelled else { return }
+                    self?.handlePathSettled(satisfied: satisfied)
+                }
+            }
+            settle?.cancel()
+        }
+    }
 
-    func stop() {}
+    func stop() {
+        watchTask?.cancel()
+        watchTask = nil
+    }
 
     /// Re-detects the local network after the path settles. Returns true when it changed
     /// and a scan of the new network was started.
     @discardableResult
     func handlePathSettled(satisfied: Bool) -> Bool {
-        false
+        guard satisfied else { return false }
+        let before = localNetworkKey()
+        profileManager.detectLocalNetwork()
+        let after = localNetworkKey()
+        guard after != nil, after != before else {
+            Logger.discovery.notice("Network path settled: same local network")
+            return false
+        }
+        Logger.discovery.notice("Local network changed: rescanning")
+        NotificationCenter.default.post(name: .networkProfilesDidChange, object: nil)
+        // A scan of the old network would only probe addresses that aren't there any more.
+        if discovery.isScanning {
+            discovery.stopScan()
+        }
+        discovery.startLaunchScan()
+        return true
+    }
+
+    private func localNetworkKey() -> String? {
+        profileManager.profiles.first(where: { $0.isLocal }).map { "\($0.id)|\($0.subnet)|\($0.gatewayIP)" }
     }
 
     /// Satisfied/unsatisfied updates from the system path monitor.
     nonisolated static func systemPathEvents() -> AsyncStream<Bool> {
-        AsyncStream { _ in }
+        AsyncStream { continuation in
+            let monitor = NWPathMonitor()
+            monitor.pathUpdateHandler = { path in
+                continuation.yield(path.status == .satisfied)
+            }
+            continuation.onTermination = { _ in monitor.cancel() }
+            // NWPathMonitor.start(queue:) is an Apple API that requires a DispatchQueue.
+            monitor.start(queue: DispatchQueue(label: "com.netmonitor.localNetworkChange"))
+        }
     }
 }

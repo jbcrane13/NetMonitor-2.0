@@ -231,9 +231,12 @@ public final class NetworkProfileManager {
             $0.interfaceName == detected.interfaceName
         }) {
             let existing = profiles[index]
-            detected.name = existing.name
-            detected.lastScanned = existing.lastScanned
-            detected.deviceCount = existing.deviceCount
+            // The name is always regenerated: neither app can rename a detected network, and
+            // a new subnet on the same interface must not keep the old network's name (#359).
+            if existing.subnet == detected.subnet {
+                detected.lastScanned = existing.lastScanned
+                detected.deviceCount = existing.deviceCount
+            }
             profiles[index] = detected
         } else {
             profiles.append(detected)
