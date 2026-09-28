@@ -16,50 +16,7 @@ struct MacGlassCardModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
             .padding(padding)
-            .background(
-                ZStack {
-                    // Base material — a little richer in light mode so the
-                    // frosting has more body.
-                    RoundedRectangle(cornerRadius: cornerRadius)
-                        .fill(.ultraThinMaterial)
-                        .opacity(colorScheme == .dark ? 0.82 : 0.9)
-
-                    // Crystal base tint (slate-tinted in light mode)
-                    RoundedRectangle(cornerRadius: cornerRadius)
-                        .fill(MacTheme.Colors.glassBackground)
-
-                    // Directional depth gradient — gives each card a "top-lit"
-                    // feel: crisper/brighter up top, deeper and cooler down low.
-                    // This is the "bass" the light theme was missing.
-                    LinearGradient(
-                        colors: colorScheme == .dark
-                            ? [
-                                Color.white.opacity(0.10),
-                                Color.clear,
-                                Color.black.opacity(0.18)
-                            ]
-                            : [
-                                Color.white.opacity(0.85),
-                                Color.white.opacity(0.25),
-                                MacTheme.Colors.crystalDeep.opacity(0.75)
-                            ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                    .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
-
-                    // Subtle diagonal sheen — adds a premium polished-metal feel
-                    // in light mode without washing out content.
-                    LinearGradient(
-                        colors: colorScheme == .dark
-                            ? [Color.white.opacity(0.05), .clear]
-                            : [Color.white.opacity(0.35), .clear],
-                        startPoint: .topLeading,
-                        endPoint: .center
-                    )
-                    .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
-                }
-            )
+            .background(glassBackground)
             // Status glow: inner top glow — saturated a bit more in light mode
             // so the accent color actually reads against a bright surface.
             .overlay(alignment: .top) {
@@ -132,6 +89,51 @@ struct MacGlassCardModifier: ViewModifier {
                 y: MacTheme.Shadows.cardY
             )
     }
+
+    private var glassBackground: some View {
+        ZStack {
+            // Base material — a little richer in light mode so the
+            // frosting has more body.
+            RoundedRectangle(cornerRadius: cornerRadius)
+                .fill(.ultraThinMaterial)
+                .opacity(colorScheme == .dark ? 0.82 : 0.9)
+
+            // Crystal base tint (slate-tinted in light mode)
+            RoundedRectangle(cornerRadius: cornerRadius)
+                .fill(MacTheme.Colors.glassBackground)
+
+            // Directional depth gradient — gives each card a "top-lit"
+            // feel: crisper/brighter up top, deeper and cooler down low.
+            LinearGradient(
+                colors: colorScheme == .dark
+                    ? [
+                        Color.white.opacity(0.10),
+                        Color.clear,
+                        Color.black.opacity(0.18)
+                    ]
+                    : [
+                        Color.white.opacity(0.85),
+                        Color.white.opacity(0.25),
+                        MacTheme.Colors.crystalDeep.opacity(0.75)
+                    ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
+
+            // Subtle diagonal sheen — adds a premium polished-metal feel
+            // in light mode without washing out content.
+            LinearGradient(
+                colors: colorScheme == .dark
+                    ? [Color.white.opacity(0.05), .clear]
+                    : [Color.white.opacity(0.35), .clear],
+                startPoint: .topLeading,
+                endPoint: .center
+            )
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
+        }
+    }
+
 }
 
 // MARK: - View Extension

@@ -147,8 +147,8 @@ enum MacTheme {
             light: NSColor(red: 248/255, green: 250/255, blue: 253/255, alpha: 0.78)
         ))
 
-        /// Secondary tint applied as a directional gradient in the glass card —
-        /// gives light-mode widgets the "bass" / depth the user requested.
+        /// Secondary tint applied as a directional gradient in the glass card to
+        /// give light-mode widgets depth.
         static let crystalDeep = Color(nsColor: macColor(
             dark: NSColor(red: 14/255, green: 18/255, blue: 26/255, alpha: 0.65),
             light: NSColor(red: 215/255, green: 224/255, blue: 236/255, alpha: 0.75)
