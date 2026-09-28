@@ -17,7 +17,8 @@ struct DashboardView: View {
             wifiService: env.wifiInfo,
             publicIPService: env.publicIP,
             deviceDiscoveryService: env.deviceDiscovery,
-            macConnectionService: env.macConnection
+            macConnectionService: env.macConnection,
+            reviewPrompt: RateAppService.reviewPrompt
         ))
     }
 

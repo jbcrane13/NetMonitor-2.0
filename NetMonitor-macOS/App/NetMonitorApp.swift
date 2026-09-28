@@ -210,7 +210,8 @@ struct NetMonitorApp: App {
             let discovery = DeviceDiscoveryCoordinator(
                 modelContext: context,
                 bonjourScanner: bonjourScanner,
-                networkProfileManager: profileManager
+                networkProfileManager: profileManager,
+                reviewPrompt: RateAppService.reviewPrompt
             )
             deviceDiscovery = discovery
             // Fill the dashboard without waiting for the user to press Scan (#358).

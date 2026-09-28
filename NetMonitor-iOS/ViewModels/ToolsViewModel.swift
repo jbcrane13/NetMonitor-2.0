@@ -19,6 +19,7 @@ final class ToolsViewModel {
     let deviceDiscoveryService: any DeviceDiscoveryServiceProtocol
     let gatewayService: any GatewayServiceProtocol
     private let activityLog: ToolActivityLog
+    private let reviewPrompt: ReviewPromptPolicy?
 
     init(
         pingService: any PingServiceProtocol = PingService(),
@@ -27,7 +28,8 @@ final class ToolsViewModel {
         wakeOnLANService: any WakeOnLANServiceProtocol = WakeOnLANService(),
         deviceDiscoveryService: any DeviceDiscoveryServiceProtocol = DeviceDiscoveryService.shared,
         gatewayService: any GatewayServiceProtocol = GatewayService(),
-        activityLog: ToolActivityLog = .shared
+        activityLog: ToolActivityLog = .shared,
+        reviewPrompt: ReviewPromptPolicy? = nil
     ) {
         self.pingService = pingService
         self.portScannerService = portScannerService
@@ -36,6 +38,7 @@ final class ToolsViewModel {
         self.deviceDiscoveryService = deviceDiscoveryService
         self.gatewayService = gatewayService
         self.activityLog = activityLog
+        self.reviewPrompt = reviewPrompt
     }
 
     var isScanning: Bool {
@@ -141,6 +144,7 @@ final class ToolsViewModel {
             result: "\(deviceDiscoveryService.discoveredDevices.count) devices",
             success: true
         )
+        reviewPrompt?.recordScanCompleted()
     }
 
     func pingGateway() async {
