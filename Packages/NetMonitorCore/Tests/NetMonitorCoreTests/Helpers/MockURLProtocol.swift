@@ -1,4 +1,12 @@
 import Foundation
+import Testing
+
+/// Parent of every suite that uses the global `MockURLProtocol.requestHandler`.
+/// `.serialized` on a suite also covers its nested suites, so these suites run one at a
+/// time. Separate `.serialized` suites still run in parallel with each other, and each
+/// test's `init()` cleared the handler another suite's test was using (#330).
+@Suite(.serialized)
+enum GlobalMockURLProtocolSuites {}
 
 /// Test-only URLProtocol that intercepts all URLSession requests and routes them
 /// to a handler closure. Supports two handler dispatch modes:
@@ -10,7 +18,7 @@ import Foundation
 ///
 /// 2. **Global static handler** (shared, legacy): set `requestHandler` directly, or use
 ///    `stub(json:statusCode:)` / `stubRoutes(_:statusCode:)` + `makeSession()`.
-///    Tests using this path must run inside a `.serialized` suite to prevent races.
+///    Tests using this path must be nested in `GlobalMockURLProtocolSuites` to prevent races.
 final class MockURLProtocol: URLProtocol, @unchecked Sendable {
 
     // MARK: - Thread-safe handler store
@@ -79,7 +87,9 @@ final class MockURLProtocol: URLProtocol, @unchecked Sendable {
             dispatch(handler: handler)
             return
         }
-        client?.urlProtocolDidFinishLoading(self)
+        // Finishing without a response makes `URLSession.data(for:)` trap and kill the
+        // whole test run (#330); fail the request instead.
+        client?.urlProtocol(self, didFailWithError: URLError(.resourceUnavailable))
     }
 
     override func stopLoading() {}
@@ -153,7 +163,7 @@ final class MockURLProtocol: URLProtocol, @unchecked Sendable {
     /// Set `requestHandler` (or call `stub(json:)` / `stubRoutes(_:)`) **before** calling
     /// this method, then pass the returned session to the service under test.
     ///
-    /// Tests using this factory must be in a `.serialized` suite with `init()` and
+    /// Tests using this factory must be nested in `GlobalMockURLProtocolSuites`, with `init()` and
     /// `defer` cleanup of `requestHandler` to avoid races with concurrent test suites.
     static func makeSession() -> URLSession {
         let config = URLSessionConfiguration.ephemeral
@@ -164,7 +174,7 @@ final class MockURLProtocol: URLProtocol, @unchecked Sendable {
     // MARK: - Global static handler helpers (legacy)
 
     /// Stubs every request to return the given JSON string with the given status code.
-    /// Sets the global `requestHandler` — use inside `.serialized` suites only.
+    /// Sets the global `requestHandler` — use inside `GlobalMockURLProtocolSuites` only.
     static func stub(json: String, statusCode: Int = 200) {
         requestHandler = { request in
             let url = request.url ?? URL(string: "https://example.com")!
@@ -179,7 +189,7 @@ final class MockURLProtocol: URLProtocol, @unchecked Sendable {
     }
 
     /// Routes requests by URL path substring to JSON response strings.
-    /// Sets the global `requestHandler` — use inside `.serialized` suites only.
+    /// Sets the global `requestHandler` — use inside `GlobalMockURLProtocolSuites` only.
     static func stubRoutes(_ routes: [String: String], statusCode: Int = 200) {
         requestHandler = { request in
             let path = request.url?.absoluteString ?? ""

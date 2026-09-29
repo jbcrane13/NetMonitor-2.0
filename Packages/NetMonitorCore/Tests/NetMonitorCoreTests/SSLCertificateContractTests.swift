@@ -169,19 +169,30 @@ struct SSLCertificateContractTests {
 
     // MARK: - Expiry Date Calculation Verification
 
+    /// 2026-10-15 00:00 UTC.
+    private static let knownDate = Date(timeIntervalSince1970: 1_792_022_400)
+
+    private static let utcCalendar: Calendar = {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "UTC")!
+        return calendar
+    }()
+
     @Test("Expiry calculation: days between two known dates")
     func expiryCalculation() {
-        let now = Date()
+        // Fixed dates in UTC: with `Date()` and the local zone, 60 × 86400 s spans only
+        // 59 calendar days whenever it crosses a DST change (#330).
+        let now = Self.knownDate
         let validTo = now.addingTimeInterval(86400 * 60)
-        let daysUntilExpiry = Calendar.current.dateComponents([.day], from: now, to: validTo).day ?? 0
+        let daysUntilExpiry = Self.utcCalendar.dateComponents([.day], from: now, to: validTo).day ?? 0
         #expect(daysUntilExpiry == 60)
     }
 
     @Test("Expiry calculation: past expiry returns negative days")
     func expiryCalculationPastDate() {
-        let now = Date()
+        let now = Self.knownDate
         let validTo = now.addingTimeInterval(-86400 * 10)
-        let daysUntilExpiry = Calendar.current.dateComponents([.day], from: now, to: validTo).day ?? 0
+        let daysUntilExpiry = Self.utcCalendar.dateComponents([.day], from: now, to: validTo).day ?? 0
         #expect(daysUntilExpiry == -10)
     }
 
