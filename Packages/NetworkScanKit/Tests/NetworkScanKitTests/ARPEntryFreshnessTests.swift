@@ -82,7 +82,13 @@ struct ARPEntryFreshnessTests {
         #expect(fresh.isEmpty)
     }
 
-    @Test("a zero expiry, before or after, proves nothing")
+    @Test("a new entry counts as answered even with a zero expiry")
+    func newZeroExpiryEntryIsFresh() {
+        let fresh = ARPCacheScanner.refreshedIPs(baseline: ["10.0.0.6": 900], current: [Self.entry("10.0.0.5", 0)])
+        #expect(fresh == ["10.0.0.5"])
+    }
+
+    @Test("a zero expiry on an entry already in the baseline proves nothing")
     func zeroExpiryIsNotFresh() {
         let fresh = ARPCacheScanner.refreshedIPs(
             baseline: ["10.0.0.5": 0, "10.0.0.6": 900],

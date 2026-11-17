@@ -81,6 +81,13 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
         )
     }
 
+    /// The devices a completed scan publishes and persists. An empty scan keeps the previous
+    /// list, marked cached: nothing answered, so those devices may have left (#378).
+    nonisolated static func finalDevices(scanned: [DiscoveredDevice], previous: [DiscoveredDevice]) -> [DiscoveredDevice] {
+        guard scanned.isEmpty else { return scanned }
+        return previous.map { $0.withCached(true) }
+    }
+
     private func loadCachedDevices() {
         guard let data = userDefaults.data(forKey: Self.deviceCacheStorageKey),
               let decoded = try? JSONDecoder().decode([String: [DiscoveredDevice]].self, from: data) else {
@@ -233,13 +240,10 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
 
         // Final sort and flush
         let sorted = await engine.accumulator.sortedSnapshot().map { Self.withProfile($0, profileID: profileID) }
-        if sorted.isEmpty, !staleDevices.isEmpty {
-            discoveredDevices = staleDevices
-        } else {
-            discoveredDevices = sorted
-            cachedDevicesByProfileID[cacheKey] = sorted
-            persistCachedDevices()
-        }
+        let result = Self.finalDevices(scanned: sorted, previous: staleDevices)
+        discoveredDevices = result
+        cachedDevicesByProfileID[cacheKey] = result
+        persistCachedDevices()
         scanProgress = 1.0
         scanPhase = .done
     }

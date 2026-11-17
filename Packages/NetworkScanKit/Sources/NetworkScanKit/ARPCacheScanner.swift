@@ -159,7 +159,9 @@ public enum ARPCacheScanner: Sendable {
     /// Entries past their expiry keep working and many still answer ping, and a UDP
     /// probe to a host with a valid entry does not refresh it. What does prove the host
     /// answered is its expiry moving forward, or an entry appearing that was not there
-    /// before. A zero expiry (permanent, or not reported) proves nothing.
+    /// before. A new entry counts even with a zero expiry: it was just resolved, and iOS
+    /// may report 0 for every entry. For an entry already in the baseline, a zero expiry
+    /// before or after (permanent, or not reported) proves nothing.
     ///
     /// The `arp -anl` fallback derives expiry from whole seconds left, so an entry that
     /// is only counting down can drift by a second between reads; a real refresh moves

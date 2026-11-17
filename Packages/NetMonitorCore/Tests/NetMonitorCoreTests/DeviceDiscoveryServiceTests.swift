@@ -57,6 +57,27 @@ struct DeviceDiscoveryServiceTests {
         #expect(!copy.isCached)
     }
 
+    @Test("an empty scan after an online device keeps it, marked cached (#378)")
+    func emptyScanMarksPreviousDevicesCached() {
+        let previous = [makeDevice(isCached: false)]
+
+        let result = DeviceDiscoveryService.finalDevices(scanned: [], previous: previous)
+
+        #expect(result.count == 1)
+        #expect(result.first?.isCached == true)
+        #expect(result.first?.ipAddress == previous.first?.ipAddress)
+    }
+
+    @Test("a non-empty scan replaces the previous devices")
+    func nonEmptyScanReplacesPrevious() {
+        let scanned = [makeDevice(isCached: false)]
+
+        let result = DeviceDiscoveryService.finalDevices(scanned: scanned, previous: [makeDevice(isCached: false), makeDevice(isCached: false)])
+
+        #expect(result.map(\.id) == scanned.map(\.id))
+        #expect(result.first?.isCached == false)
+    }
+
     @Test("mid-scan snapshots (keepCached: false) never show a device as cached")
     func withProfileMidScanClearsCached() {
         let copy = DeviceDiscoveryService.withProfile(makeDevice(isCached: true), profileID: nil, keepCached: false)

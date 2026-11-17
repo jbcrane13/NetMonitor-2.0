@@ -31,8 +31,19 @@ public struct TCPProbeScanPhase: ScanPhase, Sendable {
     /// Base timeout for secondary ports (ms).
     private static let baseSecondaryTimeout: Double = 800
 
+    /// Measures one known device's latency by TCP connect; `nil` when nothing answered.
+    typealias LatencyProbe = @Sendable (_ ip: String, _ timeout: Duration, _ interface: NWInterface.InterfaceType?) async -> Double?
+
+    private let latencyProbe: LatencyProbe
+
     public init(maxConcurrentHosts: Int = 40) {
+        self.init(maxConcurrentHosts: maxConcurrentHosts, latencyProbe: Self.quickLatencyProbe)
+    }
+
+    /// Test seam: replaces the network latency probe used for already-known devices.
+    init(maxConcurrentHosts: Int = 40, latencyProbe: @escaping LatencyProbe) {
         self.maxConcurrentHosts = maxConcurrentHosts
+        self.latencyProbe = latencyProbe
     }
 
     public func execute(
@@ -49,14 +60,48 @@ public struct TCPProbeScanPhase: ScanPhase, Sendable {
             ? context.hosts
             : context.hosts.filter { !knownIPs.contains($0) }
 
-        guard !hostsToProbe.isEmpty else {
-            await onProgress(1.0)
-            return
+        // Shared so the latency step's timeouts adapt to RTTs the probe loop measured.
+        let tracker = RTTTracker()
+
+        // When earlier phases already know every host, skip only the probe loop: known
+        // devices that drop ICMP but answer TCP still need the latency step below, or
+        // they would stay cached (#378).
+        if !hostsToProbe.isEmpty {
+            await probeUnknownHosts(
+                hostsToProbe,
+                knownCount: knownIPs.count,
+                tracker: tracker,
+                context: context,
+                accumulator: accumulator,
+                onProgress: onProgress
+            )
         }
 
+        // Enrich already-known devices with latency via lightweight single-port probe
+        guard !Task.isCancelled else { return }
+        let ipsNeedingLatency = await accumulator.ipsWithoutLatency()
+        if !ipsNeedingLatency.isEmpty {
+            await enrichLatency(
+                ips: ipsNeedingLatency,
+                tracker: tracker,
+                accumulator: accumulator,
+                requiredInterfaceType: context.requiredInterfaceType
+            )
+        }
+
+        await onProgress(1.0)
+    }
+
+    private func probeUnknownHosts(
+        _ hostsToProbe: [String],
+        knownCount: Int,
+        tracker: RTTTracker,
+        context: ScanContext,
+        accumulator: ScanAccumulator,
+        onProgress: @Sendable (Double) async -> Void
+    ) async {
         let total = hostsToProbe.count
         let concurrencyLimit = ThermalThrottleMonitor.shared.effectiveLimit(from: maxConcurrentHosts)
-        let tracker = RTTTracker()
         var scannedCount = 0
         var foundOnlyByProbe = 0
         let started = ContinuousClock.now
@@ -78,22 +123,8 @@ public struct TCPProbeScanPhase: ScanPhase, Sendable {
         // Counts only, no addresses: how much this step adds over ARP and Bonjour (#380).
         let elapsedMs = Int((ContinuousClock.now - started) / .milliseconds(1))
         logger.notice(
-            "TCP probe: \(foundOnlyByProbe, privacy: .public) new of \(total, privacy: .public) probed (\(knownIPs.count, privacy: .public) already known) in \(elapsedMs, privacy: .public) ms"
+            "TCP probe: \(foundOnlyByProbe, privacy: .public) new of \(total, privacy: .public) probed (\(knownCount, privacy: .public) already known) in \(elapsedMs, privacy: .public) ms"
         )
-
-        // Enrich already-known devices with latency via lightweight single-port probe
-        guard !Task.isCancelled else { return }
-        let ipsNeedingLatency = await accumulator.ipsWithoutLatency()
-        if !ipsNeedingLatency.isEmpty {
-            await enrichLatency(
-                ips: ipsNeedingLatency,
-                tracker: tracker,
-                accumulator: accumulator,
-                requiredInterfaceType: context.requiredInterfaceType
-            )
-        }
-
-        await onProgress(1.0)
     }
 
     // MARK: - Probe logic
@@ -267,11 +298,7 @@ public struct TCPProbeScanPhase: ScanPhase, Sendable {
 
         await forEachBounded(ips, limit: concurrencyLimit, operation: { ip -> (String, Double?) in
             let timeoutMs = await tracker.adaptiveTimeout(base: 500)
-            let latency = await Self.quickLatencyProbe(
-                ip: ip,
-                timeout: .milliseconds(timeoutMs),
-                requiredInterfaceType: requiredInterfaceType
-            )
+            let latency = await latencyProbe(ip, .milliseconds(timeoutMs), requiredInterfaceType)
             return (ip, latency)
         }, onResult: { ip, latency in
             if let latency {
