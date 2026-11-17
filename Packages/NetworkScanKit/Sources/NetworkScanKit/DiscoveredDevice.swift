@@ -22,6 +22,10 @@ public struct DiscoveredDevice: Identifiable, Codable, Sendable {
     /// Ports found open by a quick TCP port scan. Additive/optional so older
     /// JSON caches (`UserDefaults`) that predate this field decode as `nil`.
     public let openPorts: [Int]?
+    /// `true` when the device is only known from the ARP cache and gave no answer
+    /// during the scan that produced it, so it may have left the network (#378).
+    /// Older JSON caches without this field decode as `false`.
+    public let isCached: Bool
 
     /// Convenience init for local TCP probe (backward compatible).
     public init(ipAddress: String, latency: Double, discoveredAt: Date, networkProfileID: UUID? = nil) {
@@ -35,6 +39,7 @@ public struct DiscoveredDevice: Identifiable, Codable, Sendable {
         self.source = .local
         self.networkProfileID = networkProfileID
         self.openPorts = nil
+        self.isCached = false
     }
 
     /// Full init with all fields.
@@ -48,7 +53,8 @@ public struct DiscoveredDevice: Identifiable, Codable, Sendable {
         discoveredAt: Date,
         source: DeviceSource,
         networkProfileID: UUID? = nil,
-        openPorts: [Int]? = nil
+        openPorts: [Int]? = nil,
+        isCached: Bool = false
     ) {
         self.id = id
         self.ipAddress = ipAddress
@@ -60,6 +66,43 @@ public struct DiscoveredDevice: Identifiable, Codable, Sendable {
         self.source = source
         self.networkProfileID = networkProfileID
         self.openPorts = openPorts
+        self.isCached = isCached
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, ipAddress, hostname, vendor, macAddress, latency, discoveredAt, source, networkProfileID, openPorts, isCached
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        ipAddress = try container.decode(String.self, forKey: .ipAddress)
+        hostname = try container.decodeIfPresent(String.self, forKey: .hostname)
+        vendor = try container.decodeIfPresent(String.self, forKey: .vendor)
+        macAddress = try container.decodeIfPresent(String.self, forKey: .macAddress)
+        latency = try container.decodeIfPresent(Double.self, forKey: .latency)
+        discoveredAt = try container.decode(Date.self, forKey: .discoveredAt)
+        source = try container.decode(DeviceSource.self, forKey: .source)
+        networkProfileID = try container.decodeIfPresent(UUID.self, forKey: .networkProfileID)
+        openPorts = try container.decodeIfPresent([Int].self, forKey: .openPorts)
+        isCached = try container.decodeIfPresent(Bool.self, forKey: .isCached) ?? false
+    }
+
+    /// A copy with `isCached` replaced; every other field is kept.
+    public func withCached(_ isCached: Bool) -> DiscoveredDevice {
+        DiscoveredDevice(
+            id: id,
+            ipAddress: ipAddress,
+            hostname: hostname,
+            vendor: vendor,
+            macAddress: macAddress,
+            latency: latency,
+            discoveredAt: discoveredAt,
+            source: source,
+            networkProfileID: networkProfileID,
+            openPorts: openPorts,
+            isCached: isCached
+        )
     }
 
     public var displayName: String {
@@ -68,6 +111,9 @@ public struct DiscoveredDevice: Identifiable, Codable, Sendable {
 
     public var latencyText: String {
         guard let latency else {
+            if isCached {
+                return "Cached"
+            }
             switch source {
             case .macCompanion: return "via Mac"
             case .ssdp: return "UPnP"

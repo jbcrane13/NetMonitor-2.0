@@ -28,8 +28,9 @@ public struct ScanPipeline: Sendable {
     /// 1. [ARP + Bonjour] concurrent — discover devices
     /// 2. [TCP Probe + SSDP] concurrent — find more devices + TCP latency
     /// 3. [latencyPhase] — enrich remaining devices with ICMP ping latency
-    /// 4. [Reverse DNS] — resolve hostnames
-    /// 5. [trailingSteps] — platform-supplied enrichment (defaults to none; iOS is byte-identical)
+    /// 4. [ARP re-check] — confirm devices whose ARP entry the pings re-confirmed (#378)
+    /// 5. [Reverse DNS] — resolve hostnames
+    /// 6. [trailingSteps] — platform-supplied enrichment (defaults to none)
     ///
     /// - Parameters:
     ///   - latencyPhase: Replaces the default ``ICMPLatencyPhase`` in step 3, e.g. to
@@ -53,6 +54,7 @@ public struct ScanPipeline: Sendable {
             ], concurrent: true),
             Step(phases: [TCPProbeScanPhase(), SSDPScanPhase()], concurrent: true),
             Step(phases: [latencyPhase], concurrent: false),
+            Step(phases: [ARPRecheckPhase()], concurrent: false),
             Step(phases: [ReverseDNSScanPhase()], concurrent: false),
         ] + trailingSteps)
     }

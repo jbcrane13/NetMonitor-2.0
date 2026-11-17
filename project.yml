@@ -288,6 +288,16 @@ targets:
         CODE_SIGN_STYLE: Automatic
         IPHONEOS_DEPLOYMENT_TARGET: "18.0"
         CODE_SIGN_ENTITLEMENTS: NetMonitor-iOS/Widget/NetMonitorWidgetExtension.entitlements
+    postBuildScripts:
+      # #406: the widget never looks up vendors, so drop NetMonitorCore's 1.2 MB OUI list
+      # from its copy of the package bundle. The bundle itself stays, so Bundle.module
+      # still resolves; the app keeps its own copies.
+      - script: |
+          rm -f "${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/NetMonitorCore_NetMonitorCore.bundle/oui.tsv"
+        name: Strip OUI list
+        inputFiles:
+          - $(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/NetMonitorCore_NetMonitorCore.bundle
+        basedOnDependencyAnalysis: false
     dependencies:
       - package: NetMonitorCore
 

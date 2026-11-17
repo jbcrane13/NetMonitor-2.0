@@ -15,13 +15,13 @@ Core implementation of the composable network scan engine. Provides the fundamen
 | `ScanEngine.swift` | Actor orchestrating phases via ScanPipeline with progress tracking |
 | `ScanPipeline.swift` | Defines phase ordering and concurrency (sequential vs concurrent steps) |
 | `ScanContext.swift` | Sendable scan configuration (subnet, hosts, local IP, cancellation) |
-| `ScanAccumulator.swift` | Actor collecting discovered devices with deduplication |
-| `DiscoveredDevice.swift` | Sendable model representing a discovered device (IP, hostname, MAC, latency) |
+| `ScanAccumulator.swift` | Actor collecting discovered devices with deduplication; tracks which devices this scan confirmed and the ARP expiry baseline |
+| `DiscoveredDevice.swift` | Sendable model representing a discovered device (IP, hostname, MAC, latency, `isCached`) |
 | `RTTTracker.swift` | Actor tracking RTT stats for adaptive timeout calculation |
 | `ConnectionBudget.swift` | Actor managing concurrent connection limits with thermal throttling |
 | `ResumeState.swift` | Actor managing scan resume state for interruption recovery |
 | `ThermalThrottleMonitor.swift` | ProcessInfo-based thermal state monitoring for concurrency adaptation |
-| `ARPCacheScanner.swift` | ARP cache parsing utility (`/usr/sbin/arp -an`) |
+| `ARPCacheScanner.swift` | UDP probes to fill the ARP table; reads it via `sysctl` (macOS falls back to `/usr/sbin/arp -anl` when the sysctl is empty); settle polling; `refreshedIPs` for presence |
 | `DeviceNameResolver.swift` | DNS reverse lookup utility for hostname resolution |
 | `IPv4Helpers.swift` | String extension for natural IPv4 sorting (192.168.1.10 before 192.168.1.100) |
 
@@ -29,7 +29,7 @@ Core implementation of the composable network scan engine. Provides the fundamen
 
 | Directory | Purpose |
 |-----------|---------|
-| `Phases/` | Concrete scan phase implementations (ARP, Bonjour, TCP, SSDP, DNS) |
+| `Phases/` | Concrete scan phase implementations (ARP, Bonjour, TCP, SSDP, ICMP, ARP re-check, DNS) |
 
 ## For AI Agents
 
@@ -41,10 +41,11 @@ Core implementation of the composable network scan engine. Provides the fundamen
 4. **RTT-Based Adaptive Timeouts:** `RTTTracker` maintains P50/P90 stats. Phases query it to calculate dynamic timeouts.
 5. **Thermal Throttling:** `ConnectionBudget` reduces concurrency when `ProcessInfo.thermalState` is elevated.
 6. **Cancellation:** `ScanContext.isCancelled` is checked by phases to support early termination.
+7. **Cached devices (#378):** `ScanAccumulator.upsert(_:confirmsPresence:)` records whether the device answered this scan. Devices with no answer (only an ARP entry that did not refresh) come out of snapshots with `isCached == true`. See `Phases/AGENTS.md`.
 
 ### Working Instructions
 
-- **Adding a New Phase:** Create a type conforming to `ScanPhase` in `Phases/`, implement `execute()`, call `accumulator.merge()` for each device.
+- **Adding a New Phase:** Create a type conforming to `ScanPhase` in `Phases/`, implement `execute()`, call `accumulator.upsert(_:confirmsPresence:)` for each device (`false` unless the device answered).
 - **Modifying RTT Logic:** Update `RTTTracker.swift`. Ensure stats are calculated per-subnet for accuracy.
 - **Connection Budget:** Wrap connection work in `withConnectionSlot { ... }`; it acquires and releases the slot for you, including on cancellation. `ConnectionBudget`'s own acquire/release pair is internal and not called directly outside `ConnectionBudget.swift`.
 - **Resume State:** `ResumeState` allows pausing/resuming scans by tracking completed IPs. Update on each successful probe.

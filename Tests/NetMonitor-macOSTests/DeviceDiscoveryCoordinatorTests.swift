@@ -295,6 +295,85 @@ struct DeviceDiscoveryCoordinatorTests {
     }
 }
 
+// MARK: - Cached devices (#378)
+
+@Suite(.serialized)
+@MainActor
+struct DeviceDiscoveryCoordinatorCachedTests {
+
+    private func makeCoordinator(context: ModelContext) -> DeviceDiscoveryCoordinator {
+        DeviceDiscoveryCoordinator(
+            modelContext: context,
+            bonjourScanner: BonjourDiscoveryService(),
+            networkProfileManager: NetworkProfileManager()
+        )
+    }
+
+    @Test func cachedDeviceBecomesCachedAndKeepsLastSeen() throws {
+        let (container, context) = try makeInMemoryStore()
+        _ = container
+
+        let lastSeen = Date(timeIntervalSince1970: 1_000_000)
+        let existing = LocalDevice(ipAddress: "192.168.1.10", macAddress: "AA:BB:CC:DD:EE:FF")
+        existing.lastSeen = lastSeen
+        context.insert(existing)
+        try context.save()
+
+        makeCoordinator(context: context).mergeDiscoveredDevices([
+            LocalDiscoveredDevice(ipAddress: "192.168.1.10", macAddress: "AA:BB:CC:DD:EE:FF", hostname: nil, isCached: true)
+        ], profileID: nil)
+
+        let device = try #require(try context.fetch(FetchDescriptor<LocalDevice>()).first)
+        #expect(device.status == .cached)
+        #expect(device.lastSeen == lastSeen)
+    }
+
+    @Test func answeredDeviceBecomesOnlineAndUpdatesLastSeen() throws {
+        let (container, context) = try makeInMemoryStore()
+        _ = container
+
+        let lastSeen = Date(timeIntervalSince1970: 1_000_000)
+        let existing = LocalDevice(ipAddress: "192.168.1.10", macAddress: "AA:BB:CC:DD:EE:FF", status: .cached)
+        existing.lastSeen = lastSeen
+        context.insert(existing)
+        try context.save()
+
+        makeCoordinator(context: context).mergeDiscoveredDevices([
+            LocalDiscoveredDevice(ipAddress: "192.168.1.10", macAddress: "AA:BB:CC:DD:EE:FF", hostname: nil)
+        ], profileID: nil)
+
+        let device = try #require(try context.fetch(FetchDescriptor<LocalDevice>()).first)
+        #expect(device.status == .online)
+        #expect(device.lastSeen > lastSeen)
+    }
+
+    @Test func newCachedDeviceIsInsertedAsCached() throws {
+        let (container, context) = try makeInMemoryStore()
+        _ = container
+
+        makeCoordinator(context: context).mergeDiscoveredDevices([
+            LocalDiscoveredDevice(ipAddress: "192.168.1.30", macAddress: "11:22:33:44:55:66", hostname: nil, isCached: true)
+        ], profileID: nil)
+
+        let device = try #require(try context.fetch(FetchDescriptor<LocalDevice>()).first)
+        #expect(device.status == .cached)
+    }
+
+    @Test func mapDiscoveredDevicesCarriesIsCached() {
+        let engine = [
+            DiscoveredDevice(
+                ipAddress: "192.168.1.40", hostname: nil, vendor: nil, macAddress: "AA:AA:AA:AA:AA:AA",
+                latency: nil, discoveredAt: Date(), source: .local, isCached: true
+            ),
+            DiscoveredDevice(ipAddress: "192.168.1.41", latency: 3, discoveredAt: Date())
+        ]
+
+        let mapped = DeviceDiscoveryCoordinator.mapDiscoveredDevices(engine)
+
+        #expect(mapped.map(\.isCached) == [true, false])
+    }
+}
+
 // MARK: - Shared test helpers
 //
 // File-scope (not struct members) so both `DeviceDiscoveryCoordinatorTests` and

@@ -1,9 +1,23 @@
 import Testing
 import Foundation
+import Network
 @testable import NetworkScanKit
 
 @Suite("SSDPScanPhase")
 struct SSDPScanPhaseTests {
+
+    // MARK: - Error summary (#381)
+
+    @Test("errorSummary logs a POSIX error as its code, with no address")
+    func errorSummaryPosix() {
+        #expect(SSDPScanPhase.errorSummary(.posix(.EHOSTUNREACH)) == "posix 65")
+        #expect(SSDPScanPhase.errorSummary(.posix(.EPERM)) == "posix 1")
+    }
+
+    @Test("errorSummary logs a DNS error by domain")
+    func errorSummaryDNS() {
+        #expect(SSDPScanPhase.errorSummary(.dns(-65554)).hasPrefix("dns "))
+    }
 
     // MARK: - Phase metadata
 

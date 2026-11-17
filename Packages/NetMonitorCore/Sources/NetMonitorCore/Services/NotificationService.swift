@@ -2,6 +2,24 @@ import Foundation
 @preconcurrency import UserNotifications
 import os
 
+/// Hands a notification request to the system. `UNUserNotificationCenter` is the production
+/// poster; tests pass a fake that records requests (#403).
+@MainActor
+public protocol NotificationRequestPosting: AnyObject {
+    func post(_ request: UNNotificationRequest)
+}
+
+extension UNUserNotificationCenter: NotificationRequestPosting {
+    public func post(_ request: UNNotificationRequest) {
+        add(request) { error in
+            if let error {
+                Logger(subsystem: Bundle.main.bundleIdentifier ?? "com.blakemiller.netmonitor", category: "NotificationService")
+                    .error("Failed to schedule notification: \(error)")
+            }
+        }
+    }
+}
+
 /// Manages local notifications for network events.
 /// Uses UserNotifications framework, which is cross-platform (iOS + macOS 11+).
 @MainActor
@@ -19,10 +37,26 @@ public final class NotificationService {
         static let newDeviceAlertEnabled   = "newDeviceAlertEnabled"
     }
 
-    private let center = UNUserNotificationCenter.current()
-    private let defaults = UserDefaults.standard
+    /// The system center, used only for authorization, categories and clearing; it is looked
+    /// up when needed so an instance built with a fake poster never touches it.
+    private var center: UNUserNotificationCenter { .current() }
+    private let poster: any NotificationRequestPosting
+    private let defaults: UserDefaults
 
-    public init() {}
+    /// UserDefaults keys for the new-device and target-down alert toggles.
+    public static let targetDownAlertKey = Keys.targetDownAlertEnabled
+    public static let newDeviceAlertKey = Keys.newDeviceAlertEnabled
+
+    public init() {
+        poster = UNUserNotificationCenter.current()
+        defaults = .standard
+    }
+
+    /// Posts through `poster` and reads alert settings from `defaults` (tests, #403).
+    public init(poster: any NotificationRequestPosting, defaults: UserDefaults) {
+        self.poster = poster
+        self.defaults = defaults
+    }
 
     // MARK: - Alert preferences
 
@@ -120,11 +154,7 @@ public final class NotificationService {
             trigger: nil // Deliver immediately
         )
 
-        center.add(request) { error in
-            if let error {
-                Self.logger.error("Failed to schedule target down notification: \(error)")
-            }
-        }
+        poster.post(request)
     }
 
     // MARK: - High Latency Alert
@@ -150,11 +180,7 @@ public final class NotificationService {
             trigger: nil
         )
 
-        center.add(request) { error in
-            if let error {
-                Self.logger.error("Failed to schedule high latency notification: \(error)")
-            }
-        }
+        poster.post(request)
     }
 
     // MARK: - New Device Alert
@@ -179,11 +205,7 @@ public final class NotificationService {
             trigger: nil
         )
 
-        center.add(request) { error in
-            if let error {
-                Self.logger.error("Failed to schedule new device notification: \(error)")
-            }
-        }
+        poster.post(request)
     }
 
     // MARK: - Pending Notifications

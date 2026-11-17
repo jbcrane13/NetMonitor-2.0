@@ -64,7 +64,9 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
         profile?.id.uuidString ?? "auto"
     }
 
-    nonisolated private func withProfile(_ device: DiscoveredDevice, profileID: UUID?) -> DiscoveredDevice {
+    /// Copies `device` with `profileID`. Mid-scan snapshots pass `keepCached: false` so rows
+    /// don't show "Cached" before ICMP has had a chance to answer (#378).
+    nonisolated static func withProfile(_ device: DiscoveredDevice, profileID: UUID?, keepCached: Bool = true) -> DiscoveredDevice {
         DiscoveredDevice(
             id: device.id,
             ipAddress: device.ipAddress,
@@ -74,8 +76,16 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
             latency: device.latency,
             discoveredAt: device.discoveredAt,
             source: device.source,
-            networkProfileID: profileID
+            networkProfileID: profileID,
+            isCached: keepCached && device.isCached
         )
+    }
+
+    /// The devices a completed scan publishes and persists. An empty scan keeps the previous
+    /// list, marked cached: nothing answered, so those devices may have left (#378).
+    nonisolated static func finalDevices(scanned: [DiscoveredDevice], previous: [DiscoveredDevice]) -> [DiscoveredDevice] {
+        guard scanned.isEmpty else { return scanned }
+        return previous.map { $0.withCached(true) }
     }
 
     private func loadCachedDevices() {
@@ -99,7 +109,7 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
         phase: ScanDisplayPhase? = nil,
         profileID: UUID? = nil
     ) async {
-        let devices = await engine.accumulator.snapshot().map { withProfile($0, profileID: profileID) }
+        let devices = await engine.accumulator.snapshot().map { Self.withProfile($0, profileID: profileID) }
         self.discoveredDevices = devices
         if let progress {
             self.scanProgress = progress
@@ -206,7 +216,7 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
             await MainActor.run {
                 guard let self else { return }
                 self.scanProgress = progress
-                self.discoveredDevices = snapshot.map { self.withProfile($0, profileID: profileID) }
+                self.discoveredDevices = snapshot.map { Self.withProfile($0, profileID: profileID, keepCached: false) }
                 if let phase = ScanDisplayPhase(phaseID: phaseID) {
                     self.scanPhase = phase
                 }
@@ -229,14 +239,11 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
         await flushToMainActor(progress: 0.95, profileID: profileID)
 
         // Final sort and flush
-        let sorted = await engine.accumulator.sortedSnapshot().map { withProfile($0, profileID: profileID) }
-        if sorted.isEmpty, !staleDevices.isEmpty {
-            discoveredDevices = staleDevices
-        } else {
-            discoveredDevices = sorted
-            cachedDevicesByProfileID[cacheKey] = sorted
-            persistCachedDevices()
-        }
+        let sorted = await engine.accumulator.sortedSnapshot().map { Self.withProfile($0, profileID: profileID) }
+        let result = Self.finalDevices(scanned: sorted, previous: staleDevices)
+        discoveredDevices = result
+        cachedDevicesByProfileID[cacheKey] = result
+        persistCachedDevices()
         scanProgress = 1.0
         scanPhase = .done
     }

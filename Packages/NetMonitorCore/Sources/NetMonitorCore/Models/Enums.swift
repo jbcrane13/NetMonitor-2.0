@@ -63,6 +63,7 @@ public enum StatusType: String, CaseIterable, Sendable {
     case online
     case offline
     case idle
+    case cached
     case unknown
 
     public var label: String {
@@ -70,6 +71,7 @@ public enum StatusType: String, CaseIterable, Sendable {
         case .online: "Online"
         case .offline: "Offline"
         case .idle: "Idle"
+        case .cached: "Cached"
         case .unknown: "Unknown"
         }
     }
@@ -79,6 +81,7 @@ public enum StatusType: String, CaseIterable, Sendable {
         case .online: "checkmark.circle.fill"
         case .offline: "xmark.circle.fill"
         case .idle: "moon.circle.fill"
+        case .cached: "clock.badge.questionmark"
         case .unknown: "questionmark.circle.fill"
         }
     }
@@ -89,6 +92,7 @@ public enum StatusType: String, CaseIterable, Sendable {
         case .online: .green
         case .offline: .red
         case .idle: .orange
+        case .cached: .yellow
         case .unknown: .gray
         }
     }
@@ -101,12 +105,15 @@ public enum DeviceStatus: String, Codable, CaseIterable, Sendable {
     case online
     case offline
     case idle
+    /// Still in the ARP cache but gave no answer during the last scan; it may have left (#378).
+    case cached
 
     public var statusType: StatusType {
         switch self {
         case .online: .online
         case .offline: .offline
         case .idle: .idle
+        case .cached: .cached
         }
     }
 

@@ -1,5 +1,8 @@
 import Foundation
 import Network
+import os.log
+
+private let logger = Logger(subsystem: "com.netmonitor.scankit", category: "TCPProbe")
 
 /// Discovers devices by attempting TCP connections to common service ports.
 ///
@@ -18,7 +21,8 @@ public struct TCPProbeScanPhase: ScanPhase, Sendable {
     static let primaryProbePorts: [UInt16] = [80, 443, 22, 445]
 
     /// Stage 2 ports: broaden coverage for IoT, printers, media devices, and Apple services.
-    static let secondaryProbePorts: [UInt16] = [7000, 8080, 8443, 62078, 5353, 9100, 1883, 554, 548]
+    /// 5353 is not here: it is the mDNS port and is UDP, so a TCP knock there rarely answers (#380).
+    static let secondaryProbePorts: [UInt16] = [7000, 8080, 8443, 62078, 9100, 1883, 554, 548]
 
     private static let maxConcurrentPortProbes = 3
 
@@ -27,8 +31,19 @@ public struct TCPProbeScanPhase: ScanPhase, Sendable {
     /// Base timeout for secondary ports (ms).
     private static let baseSecondaryTimeout: Double = 800
 
+    /// Measures one known device's latency by TCP connect; `nil` when nothing answered.
+    typealias LatencyProbe = @Sendable (_ ip: String, _ timeout: Duration, _ interface: NWInterface.InterfaceType?) async -> Double?
+
+    private let latencyProbe: LatencyProbe
+
     public init(maxConcurrentHosts: Int = 40) {
+        self.init(maxConcurrentHosts: maxConcurrentHosts, latencyProbe: Self.quickLatencyProbe)
+    }
+
+    /// Test seam: replaces the network latency probe used for already-known devices.
+    init(maxConcurrentHosts: Int = 40, latencyProbe: @escaping LatencyProbe) {
         self.maxConcurrentHosts = maxConcurrentHosts
+        self.latencyProbe = latencyProbe
     }
 
     public func execute(
@@ -45,28 +60,22 @@ public struct TCPProbeScanPhase: ScanPhase, Sendable {
             ? context.hosts
             : context.hosts.filter { !knownIPs.contains($0) }
 
-        guard !hostsToProbe.isEmpty else {
-            await onProgress(1.0)
-            return
-        }
-
-        let total = hostsToProbe.count
-        let concurrencyLimit = ThermalThrottleMonitor.shared.effectiveLimit(from: maxConcurrentHosts)
+        // Shared so the latency step's timeouts adapt to RTTs the probe loop measured.
         let tracker = RTTTracker()
-        var scannedCount = 0
 
-        await forEachBounded(hostsToProbe, limit: concurrencyLimit, operation: { ip in
-            await Self.probeHost(ip, tracker: tracker, requiredInterfaceType: context.requiredInterfaceType)
-        }, onResult: { device in
-            scannedCount += 1
-
-            if let device {
-                await accumulator.upsert(device)
-            }
-
-            let progress = Double(scannedCount) / Double(max(total, 1))
-            await onProgress(progress)
-        })
+        // When earlier phases already know every host, skip only the probe loop: known
+        // devices that drop ICMP but answer TCP still need the latency step below, or
+        // they would stay cached (#378).
+        if !hostsToProbe.isEmpty {
+            await probeUnknownHosts(
+                hostsToProbe,
+                knownCount: knownIPs.count,
+                tracker: tracker,
+                context: context,
+                accumulator: accumulator,
+                onProgress: onProgress
+            )
+        }
 
         // Enrich already-known devices with latency via lightweight single-port probe
         guard !Task.isCancelled else { return }
@@ -81,6 +90,41 @@ public struct TCPProbeScanPhase: ScanPhase, Sendable {
         }
 
         await onProgress(1.0)
+    }
+
+    private func probeUnknownHosts(
+        _ hostsToProbe: [String],
+        knownCount: Int,
+        tracker: RTTTracker,
+        context: ScanContext,
+        accumulator: ScanAccumulator,
+        onProgress: @Sendable (Double) async -> Void
+    ) async {
+        let total = hostsToProbe.count
+        let concurrencyLimit = ThermalThrottleMonitor.shared.effectiveLimit(from: maxConcurrentHosts)
+        var scannedCount = 0
+        var foundOnlyByProbe = 0
+        let started = ContinuousClock.now
+
+        await forEachBounded(hostsToProbe, limit: concurrencyLimit, operation: { ip in
+            await Self.probeHost(ip, tracker: tracker, requiredInterfaceType: context.requiredInterfaceType)
+        }, onResult: { device in
+            scannedCount += 1
+
+            if let device {
+                foundOnlyByProbe += 1
+                await accumulator.upsert(device)
+            }
+
+            let progress = Double(scannedCount) / Double(max(total, 1))
+            await onProgress(progress)
+        })
+
+        // Counts only, no addresses: how much this step adds over ARP and Bonjour (#380).
+        let elapsedMs = Int((ContinuousClock.now - started) / .milliseconds(1))
+        logger.notice(
+            "TCP probe: \(foundOnlyByProbe, privacy: .public) new of \(total, privacy: .public) probed (\(knownCount, privacy: .public) already known) in \(elapsedMs, privacy: .public) ms"
+        )
     }
 
     // MARK: - Probe logic
@@ -254,11 +298,7 @@ public struct TCPProbeScanPhase: ScanPhase, Sendable {
 
         await forEachBounded(ips, limit: concurrencyLimit, operation: { ip -> (String, Double?) in
             let timeoutMs = await tracker.adaptiveTimeout(base: 500)
-            let latency = await Self.quickLatencyProbe(
-                ip: ip,
-                timeout: .milliseconds(timeoutMs),
-                requiredInterfaceType: requiredInterfaceType
-            )
+            let latency = await latencyProbe(ip, .milliseconds(timeoutMs), requiredInterfaceType)
             return (ip, latency)
         }, onResult: { ip, latency in
             if let latency {
@@ -283,9 +323,7 @@ public struct TCPProbeScanPhase: ScanPhase, Sendable {
         timeout: Duration,
         requiredInterfaceType: NWInterface.InterfaceType?
     ) async -> Double? {
-        guard !Task.isCancelled else { return nil }
-
-        guard let latency = await withConnectionSlot({ () async -> Double? in
+        guard !Task.isCancelled, let latency = await withConnectionSlot({ () async -> Double? in
             let host = NWEndpoint.Host(ip)
 
             return await withTaskGroup(of: Double?.self, returning: Double?.self) { group in

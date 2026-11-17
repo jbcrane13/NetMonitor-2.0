@@ -76,7 +76,7 @@ struct VendorLookupPhase: ScanPhase, Sendable {
                     latency: nil,
                     discoveredAt: Date(),
                     source: .local
-                ))
+                ), confirmsPresence: false) // a vendor lookup says nothing about presence (#378)
             }
             await onProgress(Double(completed) / Double(max(total, 1)))
         })

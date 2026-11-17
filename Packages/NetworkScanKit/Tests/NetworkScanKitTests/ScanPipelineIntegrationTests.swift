@@ -48,10 +48,16 @@ struct ScanPipelineIntegrationTests {
         #expect(pipeline.steps[2].phases[0].id == "icmpLatency")
     }
 
-    @Test("standard pipeline step 3 contains reverseDNS phase")
+    @Test("standard pipeline step 3 re-checks ARP after the latency phase")
     func standardStep3PhaseID() {
         let pipeline = ScanPipeline.standard()
-        #expect(pipeline.steps[3].phases[0].id == "reverseDNS")
+        #expect(pipeline.steps[3].phases[0].id == "arpRecheck")
+    }
+
+    @Test("standard pipeline step 4 contains reverseDNS phase")
+    func standardStep4PhaseID() {
+        let pipeline = ScanPipeline.standard()
+        #expect(pipeline.steps[4].phases[0].id == "reverseDNS")
     }
 
     // MARK: - ScanEngine with empty pipeline

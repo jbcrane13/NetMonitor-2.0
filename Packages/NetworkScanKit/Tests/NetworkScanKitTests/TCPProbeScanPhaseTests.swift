@@ -1,5 +1,6 @@
 import Testing
 import Foundation
+import Network
 @testable import NetworkScanKit
 
 @Suite("TCPProbeScanPhase")
@@ -78,12 +79,12 @@ struct TCPProbeScanPhaseTests {
         #expect(ports.contains(8080))
         #expect(ports.contains(8443))
         #expect(ports.contains(62078))
-        #expect(ports.contains(5353))
+        #expect(!ports.contains(5353)) // mDNS is UDP; a TCP knock there rarely answers (#380)
         #expect(ports.contains(9100))
         #expect(ports.contains(1883))
         #expect(ports.contains(554))
         #expect(ports.contains(548))
-        #expect(ports.count == 9)
+        #expect(ports.count == 8)
     }
 
     // MARK: - Execute with empty hosts
@@ -244,6 +245,38 @@ struct TCPProbeScanPhaseTests {
         #expect(values.last == 1.0)
     }
 
+    @Test("with every host already known, latency enrichment still runs and confirms the device (#378)")
+    func allKnownHostsStillEnrichLatency() async {
+        let probed = TCPProbedIPs()
+        let phase = TCPProbeScanPhase(maxConcurrentHosts: 2) { ip, _, _ in
+            await probed.append(ip)
+            return 7
+        }
+        let accumulator = ScanAccumulator()
+        await accumulator.upsert(DiscoveredDevice(
+            ipAddress: "192.168.1.1",
+            hostname: nil,
+            vendor: nil,
+            macAddress: "aa:bb:cc:dd:ee:ff",
+            latency: nil,
+            discoveredAt: Date(),
+            source: .local
+        ), confirmsPresence: false)
+        let context = ScanContext(
+            hosts: ["192.168.1.1"],
+            subnetFilter: { _ in true },
+            localIP: nil,
+            requiredInterfaceType: .wifi
+        )
+
+        await phase.execute(context: context, accumulator: accumulator) { _ in }
+
+        #expect(await probed.values == ["192.168.1.1"])
+        let device = await accumulator.snapshot().first
+        #expect(device?.latency == 7)
+        #expect(device?.isCached == false)
+    }
+
     // MARK: - Progress reporting
 
     @Test("execute always reports progress from 0 to 1")
@@ -284,4 +317,10 @@ private actor TCPProgressCollector {
     private var _values: [Double] = []
     func append(_ v: Double) { _values.append(v) }
     var values: [Double] { _values }
+}
+
+private actor TCPProbedIPs {
+    private var ips: [String] = []
+    func append(_ ip: String) { ips.append(ip) }
+    var values: [String] { ips }
 }

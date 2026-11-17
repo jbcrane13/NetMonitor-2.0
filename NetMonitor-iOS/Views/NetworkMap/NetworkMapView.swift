@@ -88,6 +88,9 @@ struct NetworkMapView: View {
                                     ProDeviceRow(device: device, isScanning: viewModel.isScanning)
                                 }
                                 .buttonStyle(PlainButtonStyle())
+                                // A cached device gave no answer this scan and may have left (#378).
+                                .opacity(device.isCached ? 0.55 : 1)
+                                .accessibilityValue(device.isCached ? "Cached, may have left the network" : "")
                                 .accessibilityIdentifier("networkMap_row_\(device.ipAddress)")
                             }
                         }
@@ -247,7 +250,7 @@ struct ProDeviceRow: View {
                 VStack(alignment: .trailing, spacing: 4) {
                     Text(device.latencyText)
                         .font(.system(size: 13, weight: .bold, design: .rounded))
-                        .foregroundStyle(Theme.Colors.success)
+                        .foregroundStyle(device.isCached ? Theme.Colors.textTertiary : Theme.Colors.success)
 
                     Text(device.source == .local ? "DIRECT" : "PEER")
                         .font(.system(.caption2, weight: .black))
