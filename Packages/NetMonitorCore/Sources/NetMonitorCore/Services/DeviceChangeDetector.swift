@@ -154,26 +154,7 @@ public enum DeviceChangeDetector {
             // A cached sighting doesn't confirm anything; the miss pass below counts it.
             guard !observation.isCached else { continue }
             answered.insert(index)
-            let previous = records[index]
-
-            if previous.isConfirmed, isChanged(previous, observation) {
-                events.append(.changed(observation, previous: previous))
-            }
-            records[index].ipAddress = observation.ipAddress
-            if let name = nonEmpty(observation.name) {
-                records[index].name = name
-            }
-            if !previous.isConfirmed {
-                records[index].isConfirmed = true
-                if !isBaseline {
-                    events.append(.firstSeen(observation))
-                }
-            } else if previous.isOffline {
-                events.append(.cameOnline(observation))
-            }
-            records[index].lastSeen = now
-            records[index].missedScans = 0
-            records[index].isOffline = false
+            events += answer(&records[index], with: observation, now: now, isBaseline: isBaseline)
         }
 
         for index in records.indices where !answered.contains(index) {
@@ -187,6 +168,36 @@ public enum DeviceChangeDetector {
         }
 
         return Result(events: events, known: records)
+    }
+
+    /// Updates a known device that answered this scan and returns what changed.
+    private static func answer(
+        _ record: inout KnownDevice,
+        with observation: DeviceObservation,
+        now: Date,
+        isBaseline: Bool
+    ) -> [DeviceChangeEvent] {
+        let previous = record
+        var events: [DeviceChangeEvent] = []
+        if previous.isConfirmed, isChanged(previous, observation) {
+            events.append(.changed(observation, previous: previous))
+        }
+        record.ipAddress = observation.ipAddress
+        if let name = nonEmpty(observation.name) {
+            record.name = name
+        }
+        if !previous.isConfirmed {
+            record.isConfirmed = true
+            if !isBaseline {
+                events.append(.firstSeen(observation))
+            }
+        } else if previous.isOffline {
+            events.append(.cameOnline(observation))
+        }
+        record.lastSeen = now
+        record.missedScans = 0
+        record.isOffline = false
+        return events
     }
 
     // MARK: Helpers

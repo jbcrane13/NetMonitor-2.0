@@ -110,12 +110,7 @@ final class DeviceDiscoveryCoordinator {
         // Rows from before #393, used only when this network has no tracker state yet, so an
         // update doesn't report every existing device as new. A row only ever cached isn't
         // confirmed. Captured now, before the merge rewrites the rows.
-        let trackerSeed = discoveredDevices.map {
-            KnownDevice(
-                macAddress: $0.macAddress, ipAddress: $0.ipAddress, name: $0.hostname,
-                firstSeen: $0.firstSeen, lastSeen: $0.lastSeen, isConfirmed: $0.status != .cached
-            )
-        }
+        let trackerSeed = Self.trackerSeed(from: discoveredDevices)
 
         let context = makeScanContext()
         let bonjourScannerRef = bonjourScanner
@@ -172,16 +167,7 @@ final class DeviceDiscoveryCoordinator {
                 inferDeviceTypes(profileID: profileID)
 
                 markOfflineDevices(currentIPs: Set(allDiscovered.map(\.ipAddress)), profileID: profileID)
-                let changes = changeTracker.record(
-                    scope: profileID?.uuidString ?? "default",
-                    observed: allDiscovered.map {
-                        DeviceObservation(ipAddress: $0.ipAddress, macAddress: $0.macAddress, name: $0.hostname, isCached: $0.isCached)
-                    },
-                    seed: { trackerSeed }
-                )
-                if !changes.isEmpty {
-                    onDeviceChanges?(changes)
-                }
+                reportDeviceChanges(allDiscovered, profileID: profileID, seed: trackerSeed)
                 Logger.discovery.notice("Scan finished: \(allDiscovered.count, privacy: .public) devices")
                 scanProgress = 1.0
                 lastScanTime = Date()
@@ -571,6 +557,29 @@ final class DeviceDiscoveryCoordinator {
         networkProvider: (String) -> NetworkUtilities.IPv4Network? = { NetworkUtilities.detectLocalIPv4Network(interface: $0) }
     ) -> String? {
         candidates.first { networkProvider($0) != nil }
+    }
+
+    private static func trackerSeed(from rows: [LocalDevice]) -> [KnownDevice] {
+        rows.map {
+            KnownDevice(
+                macAddress: $0.macAddress, ipAddress: $0.ipAddress, name: $0.hostname,
+                firstSeen: $0.firstSeen, lastSeen: $0.lastSeen, isConfirmed: $0.status != .cached
+            )
+        }
+    }
+
+    /// Compares a completed scan with the devices seen before and reports changes (#393).
+    private func reportDeviceChanges(_ discovered: [LocalDiscoveredDevice], profileID: UUID?, seed: [KnownDevice]) {
+        let changes = changeTracker.record(
+            scope: profileID?.uuidString ?? "default",
+            observed: discovered.map {
+                DeviceObservation(ipAddress: $0.ipAddress, macAddress: $0.macAddress, name: $0.hostname, isCached: $0.isCached)
+            },
+            seed: { seed }
+        )
+        if !changes.isEmpty {
+            onDeviceChanges?(changes)
+        }
     }
 
     private func effectiveProfileID() -> UUID? {
