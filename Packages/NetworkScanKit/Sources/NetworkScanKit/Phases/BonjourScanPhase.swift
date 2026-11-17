@@ -155,7 +155,7 @@ public struct BonjourScanPhase: ScanPhase, Sendable {
 
         // Devices with no model from a browsed TXT record: ask for the `_device-info._tcp`
         // TXT record by name, once per name, all at once (DNS-SD queries, no connections).
-        let namesNeedingModel = Set(devices.filter { $0.model == nil }.compactMap(\.hostname))
+        let namesNeedingModel = Set(devices.filter { $0.modelName == nil }.compactMap(\.hostname))
         var queriedModels: [String: String] = [:]
         let deviceInfoQuery = self.deviceInfoQuery
         await forEachBounded(namesNeedingModel, limit: maxDeviceInfoConcurrency, operation: { name in
@@ -167,11 +167,11 @@ public struct BonjourScanPhase: ScanPhase, Sendable {
         })
 
         for device in devices {
-            guard device.model == nil, let name = device.hostname, let model = queriedModels[name] else {
+            guard device.modelName == nil, let name = device.hostname, let model = queriedModels[name] else {
                 await accumulator.upsert(device)
                 continue
             }
-            await accumulator.upsert(device.withModel(model))
+            await accumulator.upsert(device.withModelName(model))
         }
 
         await stopProvider?()
@@ -214,7 +214,7 @@ public struct BonjourScanPhase: ScanPhase, Sendable {
             latency: nil,
             discoveredAt: Date(),
             source: .bonjour,
-            model: model
+            modelName: model
         )
     }
 

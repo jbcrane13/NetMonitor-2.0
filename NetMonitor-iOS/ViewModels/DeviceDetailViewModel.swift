@@ -56,8 +56,8 @@ final class DeviceDetailViewModel {
             device = newDevice
         }
         // The model isn't persisted (#386), so take it from the latest scan.
-        if let model = deviceDiscoveryService.discoveredDevices.first(where: { $0.ipAddress == ipAddress })?.model {
-            device?.model = model
+        if let model = deviceDiscoveryService.discoveredDevices.first(where: { $0.ipAddress == ipAddress })?.modelName {
+            device?.modelName = model
         }
     }
 

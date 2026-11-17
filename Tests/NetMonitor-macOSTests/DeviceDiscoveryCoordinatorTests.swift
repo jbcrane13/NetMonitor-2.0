@@ -392,11 +392,11 @@ struct DeviceDiscoveryCoordinatorModelTests {
         let engine = [
             DiscoveredDevice(
                 ipAddress: "192.168.1.50", hostname: "Studio", vendor: nil, macAddress: nil,
-                latency: nil, discoveredAt: Date(), source: .bonjour, model: "Mac16,10"
+                latency: nil, discoveredAt: Date(), source: .bonjour, modelName: "Mac16,10"
             ),
             DiscoveredDevice(ipAddress: "192.168.1.51", latency: 3, discoveredAt: Date())
         ]
-        #expect(DeviceDiscoveryCoordinator.mapDiscoveredDevices(engine).map(\.model) == ["Mac16,10", nil])
+        #expect(DeviceDiscoveryCoordinator.mapDiscoveredDevices(engine).map(\.modelName) == ["Mac16,10", nil])
     }
 
     @Test func mergeSetsModelOnNewAndExistingDevicesAndKeepsItWhenMissing() throws {
@@ -409,19 +409,19 @@ struct DeviceDiscoveryCoordinatorModelTests {
 
         let coordinator = makeCoordinator(context: context)
         coordinator.mergeDiscoveredDevices([
-            LocalDiscoveredDevice(ipAddress: "192.168.1.60", macAddress: "00:11:22:33:44:55", hostname: nil, model: "MacBookPro18,1"),
-            LocalDiscoveredDevice(ipAddress: "192.168.1.61", macAddress: "", hostname: "tv", model: "AppleTV14,1")
+            LocalDiscoveredDevice(ipAddress: "192.168.1.60", macAddress: "00:11:22:33:44:55", hostname: nil, modelName: "MacBookPro18,1"),
+            LocalDiscoveredDevice(ipAddress: "192.168.1.61", macAddress: "", hostname: "tv", modelName: "AppleTV14,1")
         ], profileID: nil)
 
         let byIP = try Dictionary(uniqueKeysWithValues: context.fetch(FetchDescriptor<LocalDevice>()).map { ($0.ipAddress, $0) })
-        #expect(byIP["192.168.1.60"]?.model == "MacBookPro18,1")
-        #expect(byIP["192.168.1.61"]?.model == "AppleTV14,1")
+        #expect(byIP["192.168.1.60"]?.modelName == "MacBookPro18,1")
+        #expect(byIP["192.168.1.61"]?.modelName == "AppleTV14,1")
 
         // A later scan that saw no TXT record keeps the model already known.
         coordinator.mergeDiscoveredDevices([
             LocalDiscoveredDevice(ipAddress: "192.168.1.60", macAddress: "00:11:22:33:44:55", hostname: nil)
         ], profileID: nil)
-        #expect(byIP["192.168.1.60"]?.model == "MacBookPro18,1")
+        #expect(byIP["192.168.1.60"]?.modelName == "MacBookPro18,1")
     }
 }
 

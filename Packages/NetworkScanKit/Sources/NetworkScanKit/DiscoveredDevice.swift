@@ -28,7 +28,7 @@ public struct DiscoveredDevice: Identifiable, Codable, Sendable {
     public let isCached: Bool
     /// Exact model from Bonjour TXT records (e.g. `MacBookPro18,1`), when a service
     /// published one (#386). Older JSON caches without this field decode as `nil`.
-    public let model: String?
+    public let modelName: String?
 
     /// Convenience init for local TCP probe (backward compatible).
     public init(ipAddress: String, latency: Double, discoveredAt: Date, networkProfileID: UUID? = nil) {
@@ -43,7 +43,7 @@ public struct DiscoveredDevice: Identifiable, Codable, Sendable {
         self.networkProfileID = networkProfileID
         self.openPorts = nil
         self.isCached = false
-        self.model = nil
+        self.modelName = nil
     }
 
     /// Full init with all fields.
@@ -59,7 +59,7 @@ public struct DiscoveredDevice: Identifiable, Codable, Sendable {
         networkProfileID: UUID? = nil,
         openPorts: [Int]? = nil,
         isCached: Bool = false,
-        model: String? = nil
+        modelName: String? = nil
     ) {
         self.id = id
         self.ipAddress = ipAddress
@@ -72,11 +72,11 @@ public struct DiscoveredDevice: Identifiable, Codable, Sendable {
         self.networkProfileID = networkProfileID
         self.openPorts = openPorts
         self.isCached = isCached
-        self.model = model
+        self.modelName = modelName
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, ipAddress, hostname, vendor, macAddress, latency, discoveredAt, source, networkProfileID, openPorts, isCached, model
+        case id, ipAddress, hostname, vendor, macAddress, latency, discoveredAt, source, networkProfileID, openPorts, isCached, modelName
     }
 
     public init(from decoder: any Decoder) throws {
@@ -92,7 +92,7 @@ public struct DiscoveredDevice: Identifiable, Codable, Sendable {
         networkProfileID = try container.decodeIfPresent(UUID.self, forKey: .networkProfileID)
         openPorts = try container.decodeIfPresent([Int].self, forKey: .openPorts)
         isCached = try container.decodeIfPresent(Bool.self, forKey: .isCached) ?? false
-        model = try container.decodeIfPresent(String.self, forKey: .model)
+        modelName = try container.decodeIfPresent(String.self, forKey: .modelName)
     }
 
     /// A copy with `isCached` replaced; every other field is kept.
@@ -109,12 +109,12 @@ public struct DiscoveredDevice: Identifiable, Codable, Sendable {
             networkProfileID: networkProfileID,
             openPorts: openPorts,
             isCached: isCached,
-            model: model
+            modelName: modelName
         )
     }
 
-    /// A copy with `model` replaced; every other field is kept.
-    public func withModel(_ model: String?) -> DiscoveredDevice {
+    /// A copy with `modelName` replaced; every other field is kept.
+    public func withModelName(_ modelName: String?) -> DiscoveredDevice {
         DiscoveredDevice(
             id: id,
             ipAddress: ipAddress,
@@ -127,7 +127,7 @@ public struct DiscoveredDevice: Identifiable, Codable, Sendable {
             networkProfileID: networkProfileID,
             openPorts: openPorts,
             isCached: isCached,
-            model: model
+            modelName: modelName
         )
     }
 

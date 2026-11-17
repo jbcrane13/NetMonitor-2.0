@@ -73,7 +73,7 @@ struct LocalDiscoveredDevice: Equatable {
     /// No answer this scan; only the ARP cache still lists it (#378).
     let isCached: Bool
     /// Exact model from Bonjour TXT records (#386).
-    let model: String?
+    let modelName: String?
 
     init(
         ipAddress: String,
@@ -83,7 +83,7 @@ struct LocalDiscoveredDevice: Equatable {
         openPorts: [Int]? = nil,
         latency: Double? = nil,
         isCached: Bool = false,
-        model: String? = nil
+        modelName: String? = nil
     ) {
         self.ipAddress = ipAddress
         self.macAddress = macAddress.uppercased()
@@ -92,7 +92,7 @@ struct LocalDiscoveredDevice: Equatable {
         self.openPorts = openPorts
         self.latency = latency
         self.isCached = isCached
-        self.model = model
+        self.modelName = modelName
     }
 }
 

@@ -158,7 +158,7 @@ struct DeviceDetailView: View {
                         .accessibilityIdentifier("deviceDetail_row_manufacturerInfo")
                 }
 
-                if let model = device.model {
+                if let model = device.modelName {
                     infoRow(label: "Model", value: model)
                         .accessibilityIdentifier("deviceDetail_row_model")
                 }

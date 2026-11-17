@@ -78,7 +78,7 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
             source: device.source,
             networkProfileID: profileID,
             isCached: keepCached && device.isCached,
-            model: device.model
+            modelName: device.modelName
         )
     }
 

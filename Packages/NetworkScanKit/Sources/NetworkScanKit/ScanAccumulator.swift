@@ -101,7 +101,7 @@ public actor ScanAccumulator {
             source: existing.source,
             networkProfileID: existing.networkProfileID,
             openPorts: existing.openPorts,
-            model: existing.model
+            modelName: existing.modelName
         )
         latencySourceByIP[ip] = source
         // A measured latency means the device answered this scan.
@@ -170,7 +170,7 @@ public actor ScanAccumulator {
             source: existing.source,
             networkProfileID: existing.networkProfileID ?? incoming.networkProfileID,
             openPorts: existing.openPorts ?? incoming.openPorts,
-            model: existing.model ?? incoming.model
+            modelName: existing.modelName ?? incoming.modelName
         )
     }
 }

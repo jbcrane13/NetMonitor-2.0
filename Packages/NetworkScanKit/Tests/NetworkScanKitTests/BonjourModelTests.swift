@@ -79,16 +79,16 @@ struct DiscoveredDeviceModelTests {
     func decodesModel() throws {
         let old = #"{"id":"6F9619FF-8B86-D011-B42D-00C04FC964FF","ipAddress":"192.0.2.5","discoveredAt":0,"source":"bonjour"}"#
         let decoded = try JSONDecoder().decode(DiscoveredDevice.self, from: Data(old.utf8))
-        #expect(decoded.model == nil)
+        #expect(decoded.modelName == nil)
 
         let device = DiscoveredDevice(
             ipAddress: "192.0.2.6", hostname: "Mac", vendor: nil, macAddress: nil, latency: nil,
-            discoveredAt: Date(timeIntervalSince1970: 0), source: .bonjour, model: "MacBookPro18,1"
+            discoveredAt: Date(timeIntervalSince1970: 0), source: .bonjour, modelName: "MacBookPro18,1"
         )
         let roundTrip = try JSONDecoder().decode(DiscoveredDevice.self, from: JSONEncoder().encode(device))
-        #expect(roundTrip.model == "MacBookPro18,1")
-        #expect(device.withCached(true).model == "MacBookPro18,1")
-        #expect(device.withModel("X").model == "X")
+        #expect(roundTrip.modelName == "MacBookPro18,1")
+        #expect(device.withCached(true).modelName == "MacBookPro18,1")
+        #expect(device.withModelName("X").modelName == "X")
     }
 
     @Test("The accumulator keeps a model through merges and latency updates")
@@ -100,11 +100,11 @@ struct DiscoveredDeviceModelTests {
         ))
         await accumulator.upsert(DiscoveredDevice(
             ipAddress: "192.0.2.7", hostname: "Living Room", vendor: nil, macAddress: nil,
-            latency: nil, discoveredAt: Date(), source: .bonjour, model: "AppleTV14,1"
+            latency: nil, discoveredAt: Date(), source: .bonjour, modelName: "AppleTV14,1"
         ))
         await accumulator.setLatency(ip: "192.0.2.7", value: 3, source: .icmp)
         let device = await accumulator.snapshot().first
-        #expect(device?.model == "AppleTV14,1")
+        #expect(device?.modelName == "AppleTV14,1")
         #expect(device?.hostname == "Living Room")
     }
 }
@@ -153,8 +153,8 @@ struct BonjourScanPhaseModelTests {
         await phase.execute(context: context, accumulator: accumulator) { _ in }
 
         let byIP = await Dictionary(uniqueKeysWithValues: accumulator.snapshot().map { ($0.ipAddress, $0) })
-        #expect(byIP["192.0.2.20"]?.model == "AppleTV14,1")
-        #expect(byIP["192.0.2.21"]?.model == "Chromecast")
+        #expect(byIP["192.0.2.20"]?.modelName == "AppleTV14,1")
+        #expect(byIP["192.0.2.21"]?.modelName == "Chromecast")
         #expect(await calls.queries.isEmpty, "No _device-info query when a model is already known")
     }
 
@@ -174,7 +174,7 @@ struct BonjourScanPhaseModelTests {
         let devices = await accumulator.snapshot()
         #expect(devices.count == 1)
         #expect(devices.first?.ipAddress == "192.0.2.10")
-        #expect(devices.first?.model == "MacBookPro18,1")
+        #expect(devices.first?.modelName == "MacBookPro18,1")
         #expect(await calls.resolves == ["Blake’s MacBook Pro|_ssh._tcp."])
         #expect(await calls.lookups == ["macbook.local."])
     }
@@ -196,8 +196,8 @@ struct BonjourScanPhaseModelTests {
         await phase.execute(context: context, accumulator: accumulator) { _ in }
 
         let byIP = await Dictionary(uniqueKeysWithValues: accumulator.snapshot().map { ($0.ipAddress, $0) })
-        #expect(byIP["192.0.2.30"]?.model == "Mac16,10")
-        #expect(byIP["192.0.2.31"]?.model == nil)
+        #expect(byIP["192.0.2.30"]?.modelName == "Mac16,10")
+        #expect(byIP["192.0.2.31"]?.modelName == nil)
         #expect(await calls.queries.sorted() == ["Printer", "Studio"])
     }
 

@@ -307,8 +307,8 @@ final class DeviceDiscoveryCoordinator {
                     let combined = Set(existing.openPorts ?? []).union(openPorts).sorted()
                     existing.openPorts = combined
                 }
-                if let model = discovered.model, !model.isEmpty {
-                    existing.model = model
+                if let model = discovered.modelName, !model.isEmpty {
+                    existing.modelName = model
                 }
                 if let latency = discovered.latency {
                     if recordLatencyHistory {
@@ -334,7 +334,7 @@ final class DeviceDiscoveryCoordinator {
                     openPorts: discovered.openPorts,
                     networkProfileID: profileID
                 )
-                newDevice.model = discovered.model
+                newDevice.modelName = discovered.modelName
                 modelContext.insert(newDevice)
                 devicesByIP[newDevice.ipAddress] = newDevice
                 if !normalizedMAC.isEmpty {
@@ -488,7 +488,7 @@ final class DeviceDiscoveryCoordinator {
                 openPorts: device.openPorts,
                 latency: device.latency,
                 isCached: device.isCached,
-                model: device.model
+                modelName: device.modelName
             )
         }
     }

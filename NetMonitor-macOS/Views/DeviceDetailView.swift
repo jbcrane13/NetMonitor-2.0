@@ -267,7 +267,7 @@ struct DeviceDetailView: View {
                 infoRow(label: "Manufacturer", value: vendor)
             }
 
-            if let model = device.model {
+            if let model = device.modelName {
                 infoRow(label: "Model", value: model, monospace: true)
             }
 

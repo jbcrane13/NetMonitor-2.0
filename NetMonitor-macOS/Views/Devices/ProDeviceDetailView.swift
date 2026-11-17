@@ -286,7 +286,7 @@ private extension ProDeviceDetailView {
             if let resolved = device.resolvedHostname, !resolved.isEmpty {
                 detailRow("Resolved", resolved, mono: true)
             }
-            if let model = device.model, !model.isEmpty {
+            if let model = device.modelName, !model.isEmpty {
                 detailRow("Model", model, mono: true)
             }
 

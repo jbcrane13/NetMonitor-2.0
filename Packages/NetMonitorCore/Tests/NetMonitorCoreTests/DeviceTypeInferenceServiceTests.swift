@@ -698,15 +698,15 @@ struct DeviceTypeInferenceModelTests {
     @Test("A model beats hostname rules; an unmapped model falls through")
     func modelPriority() {
         let laptop = LocalDevice(ipAddress: "192.168.1.100", macAddress: "", hostname: "office-printer")
-        laptop.model = "MacBookPro18,1"
+        laptop.modelName = "MacBookPro18,1"
         #expect(sut.inferDeviceType(for: laptop) == .laptop)
 
         let board = LocalDevice(ipAddress: "192.168.1.101", macAddress: "", hostname: "office-printer")
-        board.model = "J255AP"
+        board.modelName = "J255AP"
         #expect(sut.inferDeviceType(for: board) == .printer)
 
         let gateway = LocalDevice(ipAddress: "192.168.1.1", macAddress: "", isGateway: true)
-        gateway.model = "AppleTV14,1"
+        gateway.modelName = "AppleTV14,1"
         #expect(sut.inferDeviceType(for: gateway) == .router)
     }
 }

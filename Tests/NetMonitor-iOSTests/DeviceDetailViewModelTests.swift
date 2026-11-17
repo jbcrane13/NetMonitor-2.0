@@ -32,7 +32,7 @@ struct DeviceDetailViewModelTests {
         discovery.discoveredDevices = [
             DiscoveredDevice(
                 ipAddress: "192.168.1.70", hostname: "Studio", vendor: nil, macAddress: nil,
-                latency: nil, discoveredAt: Date(), source: .bonjour, model: "Mac16,10"
+                latency: nil, discoveredAt: Date(), source: .bonjour, modelName: "Mac16,10"
             ),
             DiscoveredDevice(
                 ipAddress: "192.168.1.71", hostname: nil, vendor: nil, macAddress: nil,
@@ -42,10 +42,10 @@ struct DeviceDetailViewModelTests {
         let viewModel = makeViewModel(deviceDiscoveryService: discovery)
 
         viewModel.loadDevice(ipAddress: "192.168.1.70", context: context)
-        #expect(viewModel.device?.model == "Mac16,10")
+        #expect(viewModel.device?.modelName == "Mac16,10")
 
         viewModel.loadDevice(ipAddress: "192.168.1.71", context: context)
-        #expect(viewModel.device?.model == nil)
+        #expect(viewModel.device?.modelName == nil)
     }
 
     @Test func loadDeviceReusesExistingDevice() throws {

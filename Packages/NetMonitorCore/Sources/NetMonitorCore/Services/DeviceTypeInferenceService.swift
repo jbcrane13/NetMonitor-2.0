@@ -53,7 +53,7 @@ public struct DeviceTypeInferenceService: Sendable {
         }
 
         // 2. Exact model from Bonjour TXT records
-        if let model = device.model, let result = Self.deviceType(forModel: model) {
+        if let model = device.modelName, let result = Self.deviceType(forModel: model) {
             return result
         }
 
