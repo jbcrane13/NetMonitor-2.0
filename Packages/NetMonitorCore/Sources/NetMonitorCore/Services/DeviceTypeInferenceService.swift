@@ -77,9 +77,12 @@ public struct DeviceTypeInferenceService: Sendable {
 
     // MARK: - Hostname Inference
 
+    /// Distinctive product names still match inside glued names ("blakesiphone"). Short or
+    /// common words (`nas`, `cam`, `canon`, `brother`) and multi-word names must match
+    /// whole words (#389).
     private func inferFromHostnames(_ device: LocalDevice) -> DeviceType? {
         let names = [device.hostname, device.resolvedHostname, device.customName]
-            .compactMap { $0?.lowercased() }
+            .compactMap { $0.map(NameWords.init) }
 
         for name in names {
             if name.contains("iphone") {
@@ -94,31 +97,34 @@ public struct DeviceTypeInferenceService: Sendable {
             if name.contains("macbook") || name.contains("laptop") {
                 return .laptop
             }
-            if name.contains("imac") || name.contains("mac-pro")
-                || name.contains("mac-mini") || name.contains("mac-studio") {
-                    return .computer
-                }
-            if name.contains("appletv") || name.contains("apple-tv") {
+            if name.contains("imac") || name.has("mac pro")
+                || name.has("mac mini") || name.has("mac studio") {
+                return .computer
+            }
+            if name.contains("appletv") || name.has("apple tv") {
                 return .tv
             }
             if name.contains("homepod") {
                 return .speaker
             }
-            if name.contains("nas") || name.contains("synology")
+            if name.has("nas") || name.contains("synology")
                 || name.contains("qnap") || name.contains("drobo") {
-                    return .storage
-                }
-            if name.contains("printer") || name.contains("canon")
-                || name.contains("epson") || name.contains("brother") {
-                    return .printer
-                }
-            if name.contains("camera") || name.contains("cam") {
+                return .storage
+            }
+            if name.contains("printer") || name.has("canon")
+                || name.contains("epson") || name.has("brother") {
+                return .printer
+            }
+            if name.contains("camera") || name.has("cam")
+                || name.has("webcam") || name.has("ipcam") {
                 return .camera
             }
+            // "switch" alone is usually a network switch ("switch-24"), so a Nintendo
+            // Switch is recognised by "nintendo".
             if name.contains("playstation") || name.contains("xbox")
-                || name.contains("nintendo") || name.contains("switch") {
-                    return .gaming
-                }
+                || name.contains("nintendo") {
+                return .gaming
+            }
         }
 
         return nil
@@ -175,23 +181,26 @@ public struct DeviceTypeInferenceService: Sendable {
 
     // MARK: - Vendor / Manufacturer Inference
 
+    /// Vendor names match whole words, so "RingCentral" is not Ring and "Intelligent" is
+    /// not Intel (#389). "Hewlett Packard" (printer) and "Hewlett-Packard" (computer) keep
+    /// their exact-text checks, since splitting into words would merge them.
     private func inferFromVendor(_ device: LocalDevice) -> DeviceType? {
         let vendors = [device.vendor, device.manufacturer]
-            .compactMap { $0?.lowercased() }
+            .compactMap { $0.map(NameWords.init) }
 
         guard !vendors.isEmpty else { return nil }
 
         for v in vendors {
             // Speakers
-            if v.contains("sonos") || v.contains("bose") || v.contains("harman") {
+            if v.has("sonos") || v.has("bose") || v.has("harman") {
                 return .speaker
             }
             // TVs
-            if v.contains("roku") || v.contains("lg electronics") {
+            if v.has("roku") || v.has("lg electronics") {
                 return .tv
             }
             // Samsung — only TV if it has Tizen/smart-TV ports
-            if v.contains("samsung") {
+            if v.has("samsung") {
                 let ports = Set(device.openPorts ?? [])
                 if !ports.isDisjoint(with: Self.samsungTVPorts) {
                     return .tv
@@ -199,45 +208,95 @@ public struct DeviceTypeInferenceService: Sendable {
                 // Otherwise fall through — don't return unknown yet
             }
             // Storage
-            if v.contains("synology") || v.contains("qnap")
-                || v.contains("western digital") || v.contains("drobo") {
+            if v.has("synology") || v.has("qnap")
+                || v.has("western digital") || v.has("drobo") {
                 return .storage
             }
             // IoT
-            if v.contains("raspberry pi") || v.contains("espressif") || v.contains("tuya") {
+            if v.has("raspberry pi") || v.has("espressif") || v.has("tuya") {
                 return .iot
             }
             // Cameras
-            if v.contains("ring") || v.contains("nest") || v.contains("wyze")
-                || v.contains("hikvision") || v.contains("dahua") {
+            if v.has("ring") || v.has("nest") || v.has("wyze")
+                || v.has("hikvision") || v.has("dahua") {
                 return .camera
             }
             // Printers
-            if v.contains("canon") || v.contains("epson") || v.contains("brother")
-                || v.contains("hp inc") || v.contains("hewlett packard") {
+            if v.has("canon") || v.has("epson") || v.has("brother")
+                || v.has("hp inc") || v.contains("hewlett packard") {
                 return .printer
             }
             // Gaming
-            if v.contains("nintendo") || v.contains("sony interactive") {
+            if v.has("nintendo") || v.has("sony interactive") {
                 return .gaming
             }
-            if v.contains("microsoft") {
+            if v.has("microsoft") {
                 let ports = Set(device.openPorts ?? [])
                 if !ports.isDisjoint(with: Self.xboxPorts) {
                     return .gaming
                 }
             }
             // Apple (generic fallback)
-            if v.contains("apple") {
+            if v.has("apple") {
                 return .computer
             }
             // Computers
-            if v.contains("intel") || v.contains("dell") || v.contains("lenovo")
-                || v.contains("asus") || v.contains("hewlett-packard") {
+            if v.has("intel") || v.has("dell") || v.has("lenovo")
+                || v.has("asus") || v.has("asustek") || v.contains("hewlett-packard") {
                 return .computer
             }
         }
 
         return nil
+    }
+}
+
+// MARK: - NameWords
+
+/// A device or vendor name split into lowercased words on anything that is not a letter
+/// or digit, and between letters and digits: "Switch-24" → ["switch", "24"],
+/// "camera2" → ["camera", "2"], "Hewlett-Packard" → ["hewlett", "packard"].
+struct NameWords {
+    let text: String
+    let words: [String]
+
+    init(_ name: String) {
+        text = name.lowercased()
+        var words: [String] = []
+        var current = ""
+        var currentIsDigit = false
+        for character in text {
+            guard character.isLetter || character.isNumber else {
+                if !current.isEmpty {
+                    words.append(current)
+                }
+                current = ""
+                continue
+            }
+            if !current.isEmpty, character.isNumber != currentIsDigit {
+                words.append(current)
+                current = ""
+            }
+            current.append(character)
+            currentIsDigit = character.isNumber
+        }
+        if !current.isEmpty {
+            words.append(current)
+        }
+        self.words = words
+    }
+
+    /// Whether the name has `phrase` as whole consecutive words ("mac mini").
+    func has(_ phrase: String) -> Bool {
+        let target = phrase.split(separator: " ").map(String.init)
+        guard !target.isEmpty, target.count <= words.count else { return false }
+        return (0...(words.count - target.count)).contains { start in
+            Array(words[start..<(start + target.count)]) == target
+        }
+    }
+
+    /// Whether `fragment` appears anywhere in the lowercased name.
+    func contains(_ fragment: String) -> Bool {
+        text.contains(fragment)
     }
 }
