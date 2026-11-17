@@ -13,6 +13,7 @@ struct NetMonitorApp: App {
     @State private var networkChangeWatcher: LocalNetworkChangeWatcher?
     @State private var periodicScanScheduler: PeriodicScanScheduler?
     @State private var speedTestScheduler: ScheduledSpeedTestRunner?
+    @State private var speedTestMaintenance: SpeedTestHistoryMaintenance?
     @State private var companionHandler: CompanionMessageHandler?
     @State private var menuBarController: MenuBarController?
     @State private var notificationService: NotificationService?
@@ -295,7 +296,11 @@ struct NetMonitorApp: App {
 
     /// Optional scheduled speed tests while the app runs, off by default (#398).
     private func startSpeedTestSchedulerIfNeeded() {
-        MacSpeedTestHistory.prune()
+        if speedTestMaintenance == nil {
+            let maintenance = SpeedTestHistoryMaintenance()
+            maintenance.start()
+            speedTestMaintenance = maintenance
+        }
         guard speedTestScheduler == nil, !isUITesting else { return }
         let runner = MacSpeedTestHistory.makeScheduler()
         runner.start()

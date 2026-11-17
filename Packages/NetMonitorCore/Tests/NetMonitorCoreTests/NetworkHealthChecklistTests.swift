@@ -16,7 +16,7 @@ struct NetworkHealthChecklistTests {
     @Test func allHealthyInputsPassInFixedOrder() {
         let inputs = HealthCheckInputs(
             gatewayReachable: true,
-            dnsServers: ["192.168.1.1"],
+            dnsServers: .servers(["192.168.1.1"]),
             internetReachable: true,
             vpnActive: false,
             wifiRSSI: -45,
@@ -38,15 +38,21 @@ struct NetworkHealthChecklistTests {
     }
 
     @Test func noDNSServersWarns() {
-        #expect(check(.dnsServers, in: HealthCheckInputs(dnsServers: []))?.status == .warn)
+        #expect(check(.dnsServers, in: HealthCheckInputs(dnsServers: .servers([])))?.status == .warn)
     }
 
-    @Test func unreadableDNSConfigOmitsRow() {
+    @Test func unmeasuredDNSOmitsRow() {
         #expect(check(.dnsServers, in: HealthCheckInputs(dnsServers: nil)) == nil)
     }
 
+    @Test func unavailableDNSIsLabelledNotGuessed() throws {
+        let row = try #require(check(.dnsServers, in: HealthCheckInputs(dnsServers: .unavailable)))
+        #expect(row.status == .unavailable)
+        #expect(row.message == "Configured DNS unavailable on this device.")
+    }
+
     @Test func dnsMessageListsAtMostTwoServers() throws {
-        let row = try #require(check(.dnsServers, in: HealthCheckInputs(dnsServers: ["1.1.1.1", "8.8.8.8", "9.9.9.9"])))
+        let row = try #require(check(.dnsServers, in: HealthCheckInputs(dnsServers: .servers(["1.1.1.1", "8.8.8.8", "9.9.9.9"]))))
         #expect(row.status == .pass)
         #expect(row.message.contains("3 DNS servers"))
         #expect(!row.message.contains("9.9.9.9"))
@@ -86,24 +92,20 @@ struct NetworkHealthChecklistTests {
 @Suite("SystemDNSConfiguration")
 struct SystemDNSConfigurationTests {
 
-    @Test func parsesNameserversInOrderAndIgnoresOtherLines() {
-        let conf = """
-        #
-        # macOS Notice
-        domain lan
-        nameserver 192.168.1.1
-        nameserver\tfe80::1%en0
-        search lan
-        nameserver 8.8.8.8
-        """
-        #expect(SystemDNSConfiguration.nameservers(fromResolvConf: conf) == ["192.168.1.1", "fe80::1%en0", "8.8.8.8"])
+    @Test func loopbackOnlyResolverAnswerIsUnavailable() {
+        #expect(SystemDNSConfiguration.usable(["127.0.0.1"]) == .unavailable)
+        #expect(SystemDNSConfiguration.usable([]) == .unavailable)
     }
 
-    @Test func emptyFileHasNoNameservers() {
-        #expect(SystemDNSConfiguration.nameservers(fromResolvConf: "").isEmpty)
+    @Test func realServersAreKeptInOrder() {
+        #expect(SystemDNSConfiguration.usable(["192.168.1.1", "::1"]) == .servers(["192.168.1.1", "::1"]))
     }
 
-    @Test func missingFileReturnsNil() {
-        #expect(SystemDNSConfiguration.currentNameservers(path: "/nonexistent/resolv.conf") == nil)
+    @Test func currentReadsThePlatformSourceWithoutCrashing() {
+        // Runs against the test host's real configuration; either outcome is valid.
+        switch SystemDNSConfiguration.current() {
+        case let .servers(servers): #expect(!servers.isEmpty)
+        case .unavailable: break
+        }
     }
 }

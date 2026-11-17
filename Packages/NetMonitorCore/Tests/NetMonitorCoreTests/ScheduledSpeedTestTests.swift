@@ -37,6 +37,35 @@ struct SpeedTestHistoryStoreTests {
     }
 }
 
+@Suite("SpeedTestHistoryStore corrupt file")
+struct SpeedTestHistoryStoreCorruptFileTests {
+
+    @Test func corruptFileIsMovedAsideNotOverwritten() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("speedtest-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let url = dir.appendingPathComponent("history.json")
+        let garbage = Data("not json".utf8)
+        try garbage.write(to: url)
+
+        let store = SpeedTestHistoryStore(fileURL: url)
+        #expect(store.entries().isEmpty)
+        store.append(entry(Date(timeIntervalSince1970: 1_800_000_000)))
+
+        let files = try FileManager.default.contentsOfDirectory(atPath: dir.path)
+        let aside = try #require(files.first { $0.hasPrefix("history.json.corrupt-") })
+        #expect(try Data(contentsOf: dir.appendingPathComponent(aside)) == garbage)
+        #expect(store.entries().count == 1)
+    }
+
+    @Test func missingFileStartsEmptyWithoutQuarantine() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("speedtest-\(UUID().uuidString)", isDirectory: true)
+        let store = SpeedTestHistoryStore(fileURL: dir.appendingPathComponent("history.json"))
+        #expect(store.entries().isEmpty)
+        store.append(entry(Date(timeIntervalSince1970: 1_800_000_000)))
+        #expect(try FileManager.default.contentsOfDirectory(atPath: dir.path) == ["history.json"])
+    }
+}
+
 @Suite("SpeedTestTrend")
 struct SpeedTestTrendTests {
 
@@ -62,6 +91,14 @@ private final class TestClock: @unchecked Sendable {
     func advance(hours: Double) { lock.withLock { current = current.addingTimeInterval(hours * 3600) } }
 }
 
+/// Network cost the tests set by hand.
+private final class CostBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var stored: NetworkCost = .free
+    var value: NetworkCost { lock.withLock { stored } }
+    func set(_ cost: NetworkCost) { lock.withLock { stored = cost } }
+}
+
 @Suite("ScheduledSpeedTestRunner", .serialized)
 @MainActor
 struct ScheduledSpeedTestRunnerTests {
@@ -72,6 +109,7 @@ struct ScheduledSpeedTestRunnerTests {
         let clock = TestClock(Date(timeIntervalSince1970: 1_800_000_000))
         var lastRun: Date?
         var running = false
+        let cost = CostBox()
         var runs = 0
         lazy var runner = ScheduledSpeedTestRunner(
             defaults: defaults,
@@ -79,6 +117,7 @@ struct ScheduledSpeedTestRunnerTests {
             sleep: { _ in try? await Task.sleep(for: .seconds(3600)) },
             lastRunAt: { [weak self] in self?.lastRun },
             isRunning: { [weak self] in self?.running ?? false },
+            networkCost: { [cost] in cost.value },
             runTest: { [weak self] in
                 guard let self else { return }
                 runs += 1
@@ -134,6 +173,7 @@ struct ScheduledSpeedTestRunnerTests {
             sleep: { _ in try? await Task.sleep(for: .seconds(3600)) },
             lastRunAt: { nil },
             isRunning: { false },
+            networkCost: { .free },
             runTest: {}
         )
         failing.reload()
@@ -152,5 +192,30 @@ struct ScheduledSpeedTestRunnerTests {
         harness.defaults.set(0, forKey: ScheduledSpeedTestRunner.intervalKey)
         harness.runner.reload()
         #expect(harness.runner.activeIntervalHours == nil)
+    }
+
+    @Test(arguments: [
+        NetworkCost(isExpensive: true, isConstrained: false),
+        NetworkCost(isExpensive: false, isConstrained: true)
+    ])
+    func meteredPathSkipsScheduledRun(cost: NetworkCost) async {
+        let harness = Harness(hours: 1)
+        harness.cost.set(cost)
+        harness.runner.reload()
+        #expect(await harness.runner.tick() == false)
+        #expect(harness.runs == 0)
+        // Back on Wi-Fi, the skipped run happens at the next check.
+        harness.cost.set(.free)
+        #expect(await harness.runner.tick())
+        harness.runner.stop()
+    }
+
+    @Test func allowOnCellularSettingRunsOnMeteredPath() async {
+        let harness = Harness(hours: 1)
+        harness.defaults.set(true, forKey: ScheduledSpeedTestRunner.allowMeteredKey)
+        harness.cost.set(NetworkCost(isExpensive: true, isConstrained: true))
+        harness.runner.reload()
+        #expect(await harness.runner.tick())
+        harness.runner.stop()
     }
 }

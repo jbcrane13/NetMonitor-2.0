@@ -20,13 +20,15 @@ enum MacSpeedTestHistory {
         ))
     }
 
+    static let retentionKey = "netmonitor.data.historyRetention"
+
     /// Deletes results older than the "Keep measurement history" setting (#395).
     static func prune(
         store: SpeedTestHistoryStore = store,
         defaults: UserDefaults = .standard,
         now: Date = Date()
     ) {
-        let raw = defaults.string(forKey: "netmonitor.data.historyRetention") ?? HistoryRetention.sevenDays.rawValue
+        let raw = defaults.string(forKey: retentionKey) ?? HistoryRetention.sevenDays.rawValue
         guard let days = (HistoryRetention(rawValue: raw) ?? .sevenDays).days else { return }
         let cutoff = Calendar.current.date(byAdding: .day, value: -days, to: now) ?? now
         store.prune(olderThan: cutoff)
@@ -54,5 +56,78 @@ enum MacSpeedTestHistory {
             isRunning: { isTestRunning },
             runTest: { await runScheduledTest(service: service) }
         )
+    }
+}
+
+/// Keeps saved speed tests within the retention setting while the app runs (#398, #395):
+/// prunes at start, every `interval`, and whenever "Keep measurement history" changes.
+/// It has its own timer because the hourly prune in `MonitoringSession` only runs while
+/// monitoring is on.
+@MainActor
+final class SpeedTestHistoryMaintenance {
+    private let store: SpeedTestHistoryStore
+    private let defaults: UserDefaults
+    private let now: @Sendable () -> Date
+    private let sleep: @Sendable (Duration) async -> Void
+    private let interval: Duration
+    private var loopTask: Task<Void, Never>?
+    private var defaultsObserver: (any NSObjectProtocol)?
+    private var lastRetention: String?
+
+    init(
+        store: SpeedTestHistoryStore = MacSpeedTestHistory.store,
+        defaults: UserDefaults = .standard,
+        now: @escaping @Sendable () -> Date = { Date() },
+        sleep: @escaping @Sendable (Duration) async -> Void = { try? await Task.sleep(for: $0) },
+        interval: Duration = .seconds(3600)
+    ) {
+        self.store = store
+        self.defaults = defaults
+        self.now = now
+        self.sleep = sleep
+        self.interval = interval
+    }
+
+    func start() {
+        guard loopTask == nil else { return }
+        lastRetention = defaults.string(forKey: MacSpeedTestHistory.retentionKey)
+        prune()
+        defaultsObserver = NotificationCenter.default.addObserver(
+            forName: UserDefaults.didChangeNotification,
+            object: defaults,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.retentionMayHaveChanged() }
+        }
+        let sleep = sleep
+        let interval = interval
+        loopTask = Task { [weak self] in
+            while !Task.isCancelled {
+                await sleep(interval)
+                guard !Task.isCancelled else { return }
+                self?.prune()
+            }
+        }
+    }
+
+    func stop() {
+        if let defaultsObserver {
+            NotificationCenter.default.removeObserver(defaultsObserver)
+        }
+        defaultsObserver = nil
+        loopTask?.cancel()
+        loopTask = nil
+    }
+
+    /// Prunes when the retention value differs from the last one seen.
+    func retentionMayHaveChanged() {
+        let current = defaults.string(forKey: MacSpeedTestHistory.retentionKey)
+        guard current != lastRetention else { return }
+        lastRetention = current
+        prune()
+    }
+
+    func prune() {
+        MacSpeedTestHistory.prune(store: store, defaults: defaults, now: now())
     }
 }

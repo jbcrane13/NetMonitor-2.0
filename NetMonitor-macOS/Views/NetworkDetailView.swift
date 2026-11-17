@@ -38,7 +38,9 @@ struct NetworkDetailView: View {
                 .accessibilityElement(children: .contain)
                 .accessibilityIdentifier("networkDetail_card_wifiSignal")
 
-            HealthChecklistCard(viewModel: healthViewModel)
+            HealthChecklistCard(viewModel: healthViewModel) {
+                Task { await refreshHealth() }
+            }
                 .accessibilityElement(children: .contain)
                 .accessibilityIdentifier("networkDetail_card_healthChecks")
 
@@ -93,6 +95,12 @@ struct NetworkDetailView: View {
                 self = .compact
             }
         }
+    }
+
+    /// What the health checks depend on: a change re-runs them.
+    private struct HealthRefreshKey: Equatable {
+        let profileID: UUID
+        let lastScanTime: Date?
     }
 
     /// Gathers the Mac's own Wi-Fi and device readings, then refreshes the health score and checks.
@@ -181,7 +189,11 @@ struct NetworkDetailView: View {
             }
             .padding(pad)
         }
-        .task(id: profile.id) { await refreshHealth() }
+        // Re-run when the network changes and whenever a device scan finishes, so the
+        // device count, router and Wi-Fi rows don't go stale.
+        .task(id: HealthRefreshKey(profileID: profile.id, lastScanTime: deviceDiscovery?.lastScanTime)) {
+            await refreshHealth()
+        }
     }
 
     /// A network this Mac is not on: live cards would describe the wrong network,

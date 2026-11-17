@@ -1,4 +1,8 @@
+import CResolv
 import Foundation
+#if os(macOS)
+import SystemConfiguration
+#endif
 
 // MARK: - Health Check Model
 
@@ -29,6 +33,8 @@ public struct HealthCheck: Sendable, Equatable, Identifiable {
     public enum Status: String, Sendable {
         case pass
         case warn
+        /// The platform couldn't measure it; shown neutrally rather than guessed.
+        case unavailable
     }
 
     public let kind: Kind
@@ -48,8 +54,15 @@ public struct HealthCheck: Sendable, Equatable, Identifiable {
 /// Measured inputs for the checklist. A `nil` field means the platform could not
 /// measure it (for example Wi-Fi signal on Ethernet), and its row is left out.
 public struct HealthCheckInputs: Sendable, Equatable {
+    /// What the system reported about configured DNS servers.
+    public enum DNSServers: Sendable, Equatable {
+        case servers([String])
+        /// The platform couldn't report them.
+        case unavailable
+    }
+
     public var gatewayReachable: Bool?
-    public var dnsServers: [String]?
+    public var dnsServers: DNSServers?
     public var internetReachable: Bool?
     public var vpnActive: Bool?
     public var wifiRSSI: Int?
@@ -58,7 +71,7 @@ public struct HealthCheckInputs: Sendable, Equatable {
 
     public init(
         gatewayReachable: Bool? = nil,
-        dnsServers: [String]? = nil,
+        dnsServers: DNSServers? = nil,
         internetReachable: Bool? = nil,
         vpnActive: Bool? = nil,
         wifiRSSI: Int? = nil,
@@ -93,7 +106,12 @@ public enum NetworkHealthChecklist {
                 : HealthCheck(kind: .gateway, status: .warn, message: "Your router didn't answer. Check your connection to it."))
         }
 
-        if let servers = inputs.dnsServers {
+        switch inputs.dnsServers {
+        case nil:
+            break
+        case .unavailable:
+            checks.append(HealthCheck(kind: .dnsServers, status: .unavailable, message: "Configured DNS unavailable on this device."))
+        case let .servers(servers):
             if servers.isEmpty {
                 checks.append(HealthCheck(kind: .dnsServers, status: .warn, message: "No DNS servers are set, so websites may not load."))
             } else {
@@ -152,23 +170,51 @@ public enum NetworkHealthChecklist {
 
 // MARK: - System DNS Configuration
 
-/// Reads the DNS servers the system resolver uses from `/etc/resolv.conf`,
-/// which is readable from the sandbox on both macOS and iOS.
+/// The DNS servers the system resolver uses. macOS reads them from SystemConfiguration
+/// (`State:/Network/Global/DNS`); iOS asks the resolver library (`res_ninit`).
 public enum SystemDNSConfiguration {
 
-    /// Nameserver addresses in file order, or `nil` when the file can't be read.
-    public static func currentNameservers(path: String = "/etc/resolv.conf") -> [String]? {
-        guard let contents = try? String(contentsOfFile: path, encoding: .utf8) else { return nil }
-        return nameservers(fromResolvConf: contents)
+    /// Server addresses, or `.unavailable` when the platform can't report them.
+    public static func current() -> HealthCheckInputs.DNSServers {
+        #if os(macOS)
+        return fromDynamicStore()
+        #else
+        return fromResolver()
+        #endif
     }
 
-    public static func nameservers(fromResolvConf contents: String) -> [String] {
-        contents
-            .components(separatedBy: .newlines)
-            .compactMap { line -> String? in
-                let parts = line.split(whereSeparator: { $0 == " " || $0 == "\t" })
-                guard parts.count >= 2, parts[0] == "nameserver" else { return nil }
-                return String(parts[1])
-            }
+    /// Just the addresses, or nil when unavailable (used to pick the "Your DNS" server).
+    public static func currentNameservers() -> [String]? {
+        if case let .servers(servers) = current() {
+            return servers
+        }
+        return nil
+    }
+
+    /// The resolver falls back to loopback when it has no configuration, so a
+    /// loopback-only answer means "unknown", not a real server.
+    static func usable(_ servers: [String]) -> HealthCheckInputs.DNSServers {
+        let isLoopback: (String) -> Bool = { $0 == "127.0.0.1" || $0 == "::1" }
+        return servers.isEmpty || servers.allSatisfy(isLoopback) ? .unavailable : .servers(servers)
+    }
+
+    #if os(macOS)
+    private static func fromDynamicStore() -> HealthCheckInputs.DNSServers {
+        guard let store = SCDynamicStoreCreate(nil, "NetMonitor" as CFString, nil, nil),
+              let value = SCDynamicStoreCopyValue(store, "State:/Network/Global/DNS" as CFString) as? [String: Any],
+              let servers = value["ServerAddresses"] as? [String]
+        else {
+            return .unavailable
+        }
+        return .servers(servers)
+    }
+    #endif
+
+    private static func fromResolver() -> HealthCheckInputs.DNSServers {
+        var buffer = [CChar](repeating: 0, count: 1024)
+        let count = nm_copy_dns_servers(&buffer, Int32(buffer.count))
+        guard count >= 0 else { return .unavailable }
+        let text = String(decoding: buffer.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self)
+        return usable(text.split(separator: "\n").map(String.init))
     }
 }

@@ -53,4 +53,59 @@ struct MacSpeedTestHistoryTests {
         #expect(store.entries().count == 1)
         #expect(MacSpeedTestHistory.isTestRunning == false)
     }
+
+    // MARK: - Maintenance (#395 cleanup)
+
+    private func waitUntil(_ condition: () -> Bool) async {
+        let deadline = ContinuousClock.now.advanced(by: .seconds(5))
+        while !condition(), ContinuousClock.now < deadline {
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+    }
+
+    @Test func maintenancePrunesAtStart() {
+        let store = makeStore()
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        MacSpeedTestHistory.record(SpeedTestData(downloadSpeed: 1, uploadSpeed: 1, latency: 1), at: now.addingTimeInterval(-10 * 86400), store: store)
+        let maintenance = SpeedTestHistoryMaintenance(
+            store: store, defaults: makeDefaults(retention: "7 days"), now: { now },
+            sleep: { _ in try? await Task.sleep(for: .seconds(3600)) }
+        )
+        maintenance.start()
+        defer { maintenance.stop() }
+        #expect(store.entries().isEmpty)
+    }
+
+    @Test func maintenancePrunesWhenRetentionChanges() async {
+        let store = makeStore()
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let defaults = makeDefaults(retention: "30 days")
+        MacSpeedTestHistory.record(SpeedTestData(downloadSpeed: 1, uploadSpeed: 1, latency: 1), at: now.addingTimeInterval(-3 * 86400), store: store)
+        let maintenance = SpeedTestHistoryMaintenance(
+            store: store, defaults: defaults, now: { now },
+            sleep: { _ in try? await Task.sleep(for: .seconds(3600)) }
+        )
+        maintenance.start()
+        defer { maintenance.stop() }
+        #expect(store.entries().count == 1)
+
+        defaults.set("1 day", forKey: "netmonitor.data.historyRetention")
+        await waitUntil { store.entries().isEmpty }
+        #expect(store.entries().isEmpty)
+    }
+
+    @Test func maintenancePrunesOnItsPeriodicTimer() async {
+        let store = makeStore()
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let maintenance = SpeedTestHistoryMaintenance(
+            store: store, defaults: makeDefaults(retention: "1 day"), now: { now },
+            sleep: { _ in try? await Task.sleep(for: .milliseconds(20)) }
+        )
+        maintenance.start()
+        defer { maintenance.stop() }
+        // Added after start, so only the periodic prune can remove it.
+        MacSpeedTestHistory.record(SpeedTestData(downloadSpeed: 1, uploadSpeed: 1, latency: 1), at: now.addingTimeInterval(-2 * 86400), store: store)
+        await waitUntil { store.entries().isEmpty }
+        #expect(store.entries().isEmpty)
+    }
 }

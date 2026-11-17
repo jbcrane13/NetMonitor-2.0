@@ -102,14 +102,14 @@ final class NetworkHealthScoreMacViewModel {
     private let service: NetworkHealthScoreService
     private let pingService: any PingServiceProtocol
     private let vpnService: any VPNDetectionServiceProtocol
-    private let readDNSServers: @Sendable () -> [String]?
+    private let readDNSServers: @Sendable () -> HealthCheckInputs.DNSServers
     private let dnsBenchmark: DNSServerBenchmark
 
     init(
         service: NetworkHealthScoreService = NetworkHealthScoreService(),
         pingService: any PingServiceProtocol = PingService(),
         vpnService: any VPNDetectionServiceProtocol = VPNDetectionService(),
-        readDNSServers: @escaping @Sendable () -> [String]? = { SystemDNSConfiguration.currentNameservers() },
+        readDNSServers: @escaping @Sendable () -> HealthCheckInputs.DNSServers = { SystemDNSConfiguration.current() },
         dnsBenchmark: DNSServerBenchmark = DNSServerBenchmark()
     ) {
         self.service = service
@@ -126,7 +126,11 @@ final class NetworkHealthScoreMacViewModel {
         guard !isComparingDNS else { return }
         isComparingDNS = true
         defer { isComparingDNS = false }
-        let servers = DNSServerBenchmark.servers(currentNameservers: readDNSServers())
+        var current: [String]?
+        if case let .servers(addresses) = readDNSServers() {
+            current = addresses
+        }
+        let servers = DNSServerBenchmark.servers(currentNameservers: current)
         dnsResults = await dnsBenchmark.run(servers: servers)
     }
 

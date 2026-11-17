@@ -1,4 +1,6 @@
 import Foundation
+import Network
+import os
 
 // MARK: - Speed Test History (#398)
 
@@ -69,10 +71,32 @@ public final class SpeedTestHistoryStore: @unchecked Sendable {
         }
     }
 
+    /// A missing file means no history yet. A file that can't be read or decoded is moved
+    /// aside as `<name>.corrupt-<date>` so the next save can't overwrite it, and history
+    /// starts fresh.
     private func load() -> [SpeedTestHistoryEntry] {
-        guard let data = try? Data(contentsOf: fileURL) else { return [] }
-        return (try? JSONDecoder().decode([SpeedTestHistoryEntry].self, from: data)) ?? []
+        guard FileManager.default.fileExists(atPath: fileURL.path) else { return [] }
+        do {
+            let data = try Data(contentsOf: fileURL)
+            return try JSONDecoder().decode([SpeedTestHistoryEntry].self, from: data)
+        } catch {
+            quarantine(error)
+            return []
+        }
     }
+
+    private func quarantine(_ error: any Error) {
+        let stamp = ISO8601DateFormatter().string(from: Date()).replacingOccurrences(of: ":", with: "-")
+        let aside = fileURL.appendingPathExtension("corrupt-\(stamp)")
+        do {
+            try FileManager.default.moveItem(at: fileURL, to: aside)
+            Self.logger.error("Speed test history unreadable, moved aside: \(error.localizedDescription, privacy: .public)")
+        } catch {
+            Self.logger.error("Speed test history unreadable and couldn't be moved aside: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    private static let logger = Logger(subsystem: "com.netmonitor", category: "SpeedTestHistory")
 
     private func save(_ entries: [SpeedTestHistoryEntry]) {
         do {
@@ -87,17 +111,59 @@ public final class SpeedTestHistoryStore: @unchecked Sendable {
     }
 }
 
+// MARK: - Network Cost
+
+/// Whether the current path costs the user: cellular or a personal hotspot (expensive),
+/// or Low Data Mode (constrained).
+public struct NetworkCost: Sendable, Equatable {
+    public let isExpensive: Bool
+    public let isConstrained: Bool
+
+    public init(isExpensive: Bool, isConstrained: Bool) {
+        self.isExpensive = isExpensive
+        self.isConstrained = isConstrained
+    }
+
+    public var isMetered: Bool { isExpensive || isConstrained }
+    public static let free = NetworkCost(isExpensive: false, isConstrained: false)
+}
+
+/// Keeps the latest `NWPath` cost flags for the scheduler to read.
+public final class NetworkCostMonitor: @unchecked Sendable {
+    private let monitor = NWPathMonitor()
+    private let lock = NSLock()
+    private var latest: NetworkCost = .free
+
+    public init() {
+        monitor.pathUpdateHandler = { [weak self] path in
+            self?.lock.withLock {
+                self?.latest = NetworkCost(isExpensive: path.isExpensive, isConstrained: path.isConstrained)
+            }
+        }
+        monitor.start(queue: DispatchQueue(label: "com.netmonitor.speedtest.cost", qos: .utility))
+    }
+
+    deinit { monitor.cancel() }
+
+    public var current: NetworkCost {
+        lock.withLock { latest }
+    }
+}
+
 // MARK: - Scheduler
 
 /// Runs a speed test every few hours while the app is open (#398). Off by default.
 ///
 /// The schedule is stored in hours under `intervalKey`; 0 means off. The timer wakes
 /// every `checkInterval` and runs a test when the last one is at least one interval old,
-/// so a schedule carries over app restarts. A test never starts while one is running.
+/// so a schedule carries over app restarts. A test never starts while one is running,
+/// or on a metered path unless `allowMeteredKey` is on.
 @MainActor
 public final class ScheduledSpeedTestRunner {
     nonisolated public static let intervalKey = "netmonitor.speedTest.scheduleHours"
     nonisolated public static let intervalOptions = [0, 1, 3, 6, 12, 24]
+    /// "Allow on cellular or hotspot". Off by default: scheduled tests skip metered paths.
+    nonisolated public static let allowMeteredKey = "netmonitor.speedTest.allowOnCellular"
 
     private let defaults: UserDefaults
     private let now: @Sendable () -> Date
@@ -106,6 +172,7 @@ public final class ScheduledSpeedTestRunner {
     private let lastRunAt: @MainActor () -> Date?
     private let isRunning: @MainActor () -> Bool
     private let runTest: @MainActor () async -> Void
+    private let networkCost: @Sendable () -> NetworkCost
     private var loopTask: Task<Void, Never>?
     private var defaultsObserver: (any NSObjectProtocol)?
     /// When this runner last started a test, so a failing test isn't retried every check.
@@ -121,8 +188,15 @@ public final class ScheduledSpeedTestRunner {
         checkInterval: Duration = .seconds(300),
         lastRunAt: @escaping @MainActor () -> Date?,
         isRunning: @escaping @MainActor () -> Bool,
+        networkCost: (@Sendable () -> NetworkCost)? = nil,
         runTest: @escaping @MainActor () async -> Void
     ) {
+        if let networkCost {
+            self.networkCost = networkCost
+        } else {
+            let monitor = NetworkCostMonitor()
+            self.networkCost = { monitor.current }
+        }
         self.defaults = defaults
         self.now = now
         self.sleep = sleep
@@ -187,10 +261,17 @@ public final class ScheduledSpeedTestRunner {
         return now().timeIntervalSince(last) >= TimeInterval(hours) * 3600
     }
 
-    /// Runs a test when one is due and none is running. Returns true when a test ran.
+    /// False on a cellular, hotspot or Low Data Mode path unless the user allowed it.
+    /// Manual tests don't check this.
+    public func isNetworkAllowed() -> Bool {
+        defaults.bool(forKey: Self.allowMeteredKey) || !networkCost().isMetered
+    }
+
+    /// Runs a test when one is due, none is running and the network allows it.
+    /// Returns true when a test ran. A skipped metered check is retried on the next tick.
     @discardableResult
     public func tick() async -> Bool {
-        guard !Task.isCancelled, isDue(), !isRunning() else { return false }
+        guard !Task.isCancelled, isDue(), !isRunning(), isNetworkAllowed() else { return false }
         lastAttemptAt = now()
         await runTest()
         return true

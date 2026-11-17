@@ -19,7 +19,7 @@ struct NetworkHealthChecklistViewModelTests {
     private func makeVM(
         pingResults: [PingResult],
         vpn: StubVPNService = StubVPNService(),
-        dnsServers: [String]? = ["192.168.1.1"],
+        dnsServers: HealthCheckInputs.DNSServers = .servers(["192.168.1.1"]),
         lookup: @escaping DNSServerBenchmark.Lookup = { _, _, _ in nil }
     ) -> NetworkHealthScoreViewModel {
         let ping = MockPingService()
@@ -52,7 +52,7 @@ struct NetworkHealthChecklistViewModelTests {
     @Test func failedPingsWarnInternetAndActiveVPNWarns() async {
         let vpn = StubVPNService()
         vpn.isActive = true
-        let vm = makeVM(pingResults: [reply(1, timeout: true), reply(2, timeout: true)], vpn: vpn, dnsServers: [])
+        let vm = makeVM(pingResults: [reply(1, timeout: true), reply(2, timeout: true)], vpn: vpn, dnsServers: .servers([]))
         vm.refresh()
         await waitUntil { !vm.checks.isEmpty }
 
@@ -63,7 +63,7 @@ struct NetworkHealthChecklistViewModelTests {
     }
 
     @Test func compareDNSServersTimesCurrentAndPublicServers() async {
-        let vm = makeVM(pingResults: [], dnsServers: ["192.168.1.1"]) { _, server, _ in
+        let vm = makeVM(pingResults: [], dnsServers: .servers(["192.168.1.1"])) { _, server, _ in
             server == "1.1.1.1" ? 8 : (server == "192.168.1.1" ? nil : 30)
         }
         await vm.compareDNSServers()

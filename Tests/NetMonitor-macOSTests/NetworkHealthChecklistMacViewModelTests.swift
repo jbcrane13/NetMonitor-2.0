@@ -41,7 +41,7 @@ struct NetworkHealthChecklistMacViewModelTests {
 
     private func makeVM(
         ping: HostPingService,
-        dnsServers: [String]? = ["192.168.1.1"],
+        dnsServers: HealthCheckInputs.DNSServers = .servers(["192.168.1.1"]),
         lookup: @escaping DNSServerBenchmark.Lookup = { _, _, _ in nil }
     ) -> NetworkHealthScoreMacViewModel {
         NetworkHealthScoreMacViewModel(
@@ -67,12 +67,12 @@ struct NetworkHealthChecklistMacViewModelTests {
 
     @Test func noGatewayIPSkipsRouterRowAndPing() async {
         let ping = HostPingService(replying: [])
-        let vm = makeVM(ping: ping, dnsServers: nil)
+        let vm = makeVM(ping: ping, dnsServers: .unavailable)
         await vm.refresh()
 
         #expect(ping.hosts == ["8.8.8.8"])
         #expect(!vm.checks.contains { $0.kind == .gateway })
-        #expect(!vm.checks.contains { $0.kind == .dnsServers })
+        #expect(vm.checks.first { $0.kind == .dnsServers }?.status == .unavailable)
         #expect(vm.checks.first { $0.kind == .internet }?.status == .warn)
     }
 

@@ -32,11 +32,27 @@ struct HealthChecklistCard: View {
         .accessibilityIdentifier("dashboard_card_healthChecks")
     }
 
+    private static func icon(for status: HealthCheck.Status) -> String {
+        switch status {
+        case .pass: "checkmark.circle.fill"
+        case .warn: "exclamationmark.triangle.fill"
+        case .unavailable: "questionmark.circle"
+        }
+    }
+
+    private static func color(for status: HealthCheck.Status) -> Color {
+        switch status {
+        case .pass: Theme.Colors.success
+        case .warn: Theme.Colors.warning
+        case .unavailable: Theme.Colors.textTertiary
+        }
+    }
+
     private func checkRow(_ check: HealthCheck) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Image(systemName: check.status == .pass ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+            Image(systemName: Self.icon(for: check.status))
                 .font(.caption)
-                .foregroundStyle(check.status == .pass ? Theme.Colors.success : Theme.Colors.warning)
+                .foregroundStyle(Self.color(for: check.status))
             VStack(alignment: .leading, spacing: 1) {
                 Text(check.kind.title)
                     .font(.caption.weight(.semibold))

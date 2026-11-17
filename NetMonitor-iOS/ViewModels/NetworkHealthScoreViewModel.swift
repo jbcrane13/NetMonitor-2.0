@@ -24,7 +24,7 @@ final class NetworkHealthScoreViewModel {
     private let pingService: any PingServiceProtocol
     private let networkMonitor: any NetworkMonitorServiceProtocol
     private let vpnService: any VPNDetectionServiceProtocol
-    private let readDNSServers: @Sendable () -> [String]?
+    private let readDNSServers: @Sendable () -> HealthCheckInputs.DNSServers
     private let dnsBenchmark: DNSServerBenchmark
     private var currentTask: Task<Void, Never>?
 
@@ -33,7 +33,7 @@ final class NetworkHealthScoreViewModel {
         pingService: any PingServiceProtocol = PingService(),
         networkMonitor: any NetworkMonitorServiceProtocol = NetworkMonitorService(),
         vpnService: any VPNDetectionServiceProtocol = VPNDetectionService(),
-        readDNSServers: @escaping @Sendable () -> [String]? = { SystemDNSConfiguration.currentNameservers() },
+        readDNSServers: @escaping @Sendable () -> HealthCheckInputs.DNSServers = { SystemDNSConfiguration.current() },
         dnsBenchmark: DNSServerBenchmark = DNSServerBenchmark()
     ) {
         self.service = service
@@ -76,7 +76,11 @@ final class NetworkHealthScoreViewModel {
         guard !isComparingDNS else { return }
         isComparingDNS = true
         defer { isComparingDNS = false }
-        let servers = DNSServerBenchmark.servers(currentNameservers: readDNSServers())
+        var current: [String]?
+        if case let .servers(addresses) = readDNSServers() {
+            current = addresses
+        }
+        let servers = DNSServerBenchmark.servers(currentNameservers: current)
         dnsResults = await dnsBenchmark.run(servers: servers)
     }
 
