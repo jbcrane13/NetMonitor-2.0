@@ -29,6 +29,11 @@ public final class LocalDevice {
     /// Not persisted — resets each session. Capped at 20 samples.
     @Transient public var latencyHistory: [Double] = []
 
+    /// Exact model from Bonjour TXT records (e.g. `MacBookPro18,1`), filled by each scan
+    /// (#386). Not persisted yet: adding a stored property needs a SwiftData schema
+    /// version, so it resets each session like `latencyHistory`.
+    @Transient public var modelName: String?
+
     /// Maximum number of latency samples to retain in memory.
     private static let maxLatencyHistory = 20
 

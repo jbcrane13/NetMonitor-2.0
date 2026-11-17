@@ -3,6 +3,7 @@ import SwiftData
 import Testing
 @testable import NetMonitor_iOS
 import NetMonitorCore
+import NetworkScanKit
 
 @MainActor
 struct DeviceDetailViewModelTests {
@@ -21,6 +22,30 @@ struct DeviceDetailViewModelTests {
         )
         let fetched = try context.fetch(descriptor)
         #expect(fetched.count == 1)
+    }
+
+    @Test func loadDeviceTakesModelFromLatestScan() throws {
+        let (container, context) = try makeInMemoryStore()
+        _ = container
+
+        let discovery = MockDeviceDiscoveryService()
+        discovery.discoveredDevices = [
+            DiscoveredDevice(
+                ipAddress: "192.168.1.70", hostname: "Studio", vendor: nil, macAddress: nil,
+                latency: nil, discoveredAt: Date(), source: .bonjour, modelName: "Mac16,10"
+            ),
+            DiscoveredDevice(
+                ipAddress: "192.168.1.71", hostname: nil, vendor: nil, macAddress: nil,
+                latency: nil, discoveredAt: Date(), source: .local
+            )
+        ]
+        let viewModel = makeViewModel(deviceDiscoveryService: discovery)
+
+        viewModel.loadDevice(ipAddress: "192.168.1.70", context: context)
+        #expect(viewModel.device?.modelName == "Mac16,10")
+
+        viewModel.loadDevice(ipAddress: "192.168.1.71", context: context)
+        #expect(viewModel.device?.modelName == nil)
     }
 
     @Test func loadDeviceReusesExistingDevice() throws {
@@ -198,13 +223,15 @@ struct DeviceDetailViewModelTests {
         macLookupService: any MACVendorLookupServiceProtocol = MockMACVendorLookupService(vendor: nil),
         nameResolver: any DeviceNameResolverProtocol = MockDeviceNameResolver(hostname: nil),
         portScanner: any PortScannerServiceProtocol = MockPortScannerService(),
-        bonjourService: any BonjourDiscoveryServiceProtocol = MockBonjourDiscoveryService()
+        bonjourService: any BonjourDiscoveryServiceProtocol = MockBonjourDiscoveryService(),
+        deviceDiscoveryService: any DeviceDiscoveryServiceProtocol = MockDeviceDiscoveryService()
     ) -> DeviceDetailViewModel {
         DeviceDetailViewModel(
             macLookupService: macLookupService,
             nameResolver: nameResolver,
             portScanner: portScanner,
-            bonjourService: bonjourService
+            bonjourService: bonjourService,
+            deviceDiscoveryService: deviceDiscoveryService
         )
     }
 
