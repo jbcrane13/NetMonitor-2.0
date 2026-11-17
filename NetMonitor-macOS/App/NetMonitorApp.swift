@@ -12,6 +12,8 @@ struct NetMonitorApp: App {
     @State private var companionService: CompanionService?
     @State private var networkChangeWatcher: LocalNetworkChangeWatcher?
     @State private var periodicScanScheduler: PeriodicScanScheduler?
+    /// One store for every window and the rule dispatcher (#394).
+    @State private var alertRuleStore = AlertRuleStore()
     @State private var speedTestScheduler: ScheduledSpeedTestRunner?
     @State private var speedTestMaintenance: SpeedTestHistoryMaintenance?
     @State private var companionHandler: CompanionMessageHandler?
@@ -76,6 +78,7 @@ struct NetMonitorApp: App {
                         .environment(monitoringSession)
                         .environment(deviceDiscovery)
                         .environment(networkProfileManager)
+                        .environment(alertRuleStore)
                 } else {
                     ProgressView("Starting NetMonitor…")
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -117,6 +120,8 @@ struct NetMonitorApp: App {
 
         Settings {
             SettingsView()
+                .environment(networkProfileManager)
+                .environment(alertRuleStore)
                 .tint(Color(hex: accentColorHex))
                 .environment(\.appAccentColor, Color(hex: accentColorHex))
                 .environment(\.compactMode, compactMode)
@@ -261,7 +266,20 @@ struct NetMonitorApp: App {
             MacAlertNotifier.migrateLegacyToggles()
             let alerts = MacAlertNotifier(service: service)
             monitoringSession?.onTargetDown = { name, host in alerts.targetWentDown(name: name, host: host) }
-            deviceDiscovery?.onDeviceChanges = { events in alerts.devicesChanged(events) }
+            // Check the user's alert rules against the same events and check results (#394).
+            let discovery = deviceDiscovery
+            let rules = MacRuleAlerts(store: alertRuleStore, service: service) { [weak discovery] in
+                (discovery?.discoveredDevices ?? [], discovery?.networkProfile?.id)
+            }
+            monitoringSession?.onTargetResult = { result in rules.handle(targetResult: result) }
+            deviceDiscovery?.onDeviceChanges = { [weak discovery] events in
+                alerts.devicesChanged(events)
+                rules.handle(
+                    deviceChanges: events,
+                    devices: discovery?.discoveredDevices ?? [],
+                    networkID: discovery?.networkProfile?.id
+                )
+            }
         }
 
         if autoStartMonitoring && !shouldDisableMonitoring,

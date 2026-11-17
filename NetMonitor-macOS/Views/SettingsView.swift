@@ -2,7 +2,7 @@
 //  SettingsView.swift
 //  NetMonitor
 //
-//  Tab-based settings interface with 7 sections.
+//  Tab-based settings interface with 8 sections.
 //
 
 import SwiftUI
@@ -12,6 +12,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
     case general = "General"
     case monitoring = "Monitoring"
     case notifications = "Notifications"
+    case rules = "Rules"
     case network = "Network"
     case data = "Data"
     case appearance = "Appearance"
@@ -24,6 +25,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
         case .general: return "gearshape"
         case .monitoring: return "waveform.path.ecg"
         case .notifications: return "bell"
+        case .rules: return "list.bullet.rectangle"
         case .network: return "network"
         case .data: return "externaldrive"
         case .appearance: return "paintbrush"
@@ -67,6 +69,8 @@ struct SettingsView: View {
             MonitoringSettingsView()
         case .notifications:
             NotificationSettingsView()
+        case .rules:
+            RulesSettingsView()
         case .network:
             NetworkSettingsView()
         case .data:
