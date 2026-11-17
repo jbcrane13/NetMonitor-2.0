@@ -15,6 +15,21 @@ struct SpeedTestToolView: View {
     @State private var viewModel = SpeedTestToolViewModel()
     @Environment(\.modelContext) private var modelContext
     @Query(Self.historyDescriptor) private var history: [SpeedTestResult]
+    @Query private var weekResults: [SpeedTestResult]
+
+    init() {
+        let cutoff = Date().addingTimeInterval(-7 * 24 * 3600)
+        _weekResults = Query(
+            filter: #Predicate<SpeedTestResult> { $0.timestamp >= cutoff && $0.success },
+            sort: \.timestamp
+        )
+    }
+
+    private var trendEntries: [SpeedTestHistoryEntry] {
+        SpeedTestTrend.lastSevenDays(weekResults.map {
+            SpeedTestHistoryEntry(timestamp: $0.timestamp, downloadMbps: $0.downloadSpeed, uploadMbps: $0.uploadSpeed, pingMs: $0.latency)
+        }, now: Date())
+    }
 
     var body: some View {
         ScrollView {
@@ -22,6 +37,9 @@ struct SpeedTestToolView: View {
                 gaugeSection
                 controlSection
                 currentResultSection
+                GlassCard {
+                    SpeedTestTrendChart(entries: trendEntries, accessibilityPrefix: "speedTest")
+                }
                 historySection
             }
             .padding(.horizontal, Theme.Layout.screenPadding)

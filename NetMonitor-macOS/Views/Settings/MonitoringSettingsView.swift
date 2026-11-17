@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import NetMonitorCore
 
 struct MonitoringSettingsView: View {
     @AppStorage("netmonitor.monitoring.defaultInterval") private var defaultInterval = 30
@@ -16,6 +17,7 @@ struct MonitoringSettingsView: View {
 
     private let intervalOptions = [5, 10, 30, 60]
     private let timeoutOptions = [3, 5, 10, 30]
+    @AppStorage(ScheduledSpeedTestRunner.intervalKey) private var speedTestScheduleHours = 0
     private let scanFrequencyOptions = [0, 60, 120, 300, 600, 1800, 3600]
     private let scanFrequencyLabels = ["Off", "1 minute", "2 minutes", "5 minutes", "10 minutes", "30 minutes", "1 hour"]
 
@@ -52,6 +54,19 @@ struct MonitoringSettingsView: View {
                 Text("Device Scanning")
             } footer: {
                 Text("How often NetMonitor automatically re-scans the network for new devices while it is open.")
+            }
+
+            SwiftUI.Section {
+                Picker("Scheduled speed test", selection: $speedTestScheduleHours) {
+                    ForEach(ScheduledSpeedTestRunner.intervalOptions, id: \.self) { hours in
+                        Text(hours == 0 ? "Off" : (hours == 1 ? "Every hour" : "Every \(hours) hours")).tag(hours)
+                    }
+                }
+                .accessibilityIdentifier("settings_picker_speedTestSchedule")
+            } header: {
+                Text("Speed Test")
+            } footer: {
+                Text("Runs a speed test on this schedule while NetMonitor is open. Results show as a 7-day trend in the Speed Test tool.")
             }
 
             SwiftUI.Section {
