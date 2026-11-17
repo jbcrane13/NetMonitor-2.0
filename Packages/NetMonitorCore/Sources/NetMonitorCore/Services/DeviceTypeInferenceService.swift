@@ -8,6 +8,27 @@ public struct DeviceTypeInferenceService: Sendable {
 
     public init() {}
 
+    // MARK: - Rule Ports
+
+    static let routerPorts: Set<Int> = [53, 80, 443]
+    static let printerPorts: Set<Int> = [631, 9100]
+    static let castPorts: Set<Int> = [8008, 8009]
+    static let mediaServerPorts: Set<Int> = [32400]
+    static let samsungTVPorts: Set<Int> = [8001, 8002]
+    static let xboxPorts: Set<Int> = [3074]
+
+    /// Every port a type rule looks at. A port scan must probe all of these, or the rule
+    /// can never fire.
+    public static let rulePorts: Set<Int> = routerPorts.union(printerPorts).union(castPorts)
+        .union(mediaServerPorts).union(samsungTVPorts).union(xboxPorts)
+
+    /// The quick fingerprinting port list scans use before type inference: common service
+    /// ports plus every rule port.
+    public static let fingerprintPorts: [Int] = [
+        22, 53, 80, 443, 445, 548, 631, 3389, 5900, 8080, 8443, 8008, 9100, 32400, 62078,
+        8001, 8002, 8009, 3074
+    ]
+
     /// Infers the device type for a given `LocalDevice` based on network scan data.
     ///
     /// Only updates if the current `deviceType` is `.unknown` — never overrides
@@ -61,21 +82,43 @@ public struct DeviceTypeInferenceService: Sendable {
             .compactMap { $0?.lowercased() }
 
         for name in names {
-            if name.contains("iphone") { return .phone }
-            if name.contains("ipad") { return .tablet }
-            if name.contains("android") { return .phone }
-            if name.contains("macbook") || name.contains("laptop") { return .laptop }
+            if name.contains("iphone") {
+                return .phone
+            }
+            if name.contains("ipad") {
+                return .tablet
+            }
+            if name.contains("android") {
+                return .phone
+            }
+            if name.contains("macbook") || name.contains("laptop") {
+                return .laptop
+            }
             if name.contains("imac") || name.contains("mac-pro")
-                || name.contains("mac-mini") || name.contains("mac-studio") { return .computer }
-            if name.contains("appletv") || name.contains("apple-tv") { return .tv }
-            if name.contains("homepod") { return .speaker }
+                || name.contains("mac-mini") || name.contains("mac-studio") {
+                    return .computer
+                }
+            if name.contains("appletv") || name.contains("apple-tv") {
+                return .tv
+            }
+            if name.contains("homepod") {
+                return .speaker
+            }
             if name.contains("nas") || name.contains("synology")
-                || name.contains("qnap") || name.contains("drobo") { return .storage }
+                || name.contains("qnap") || name.contains("drobo") {
+                    return .storage
+                }
             if name.contains("printer") || name.contains("canon")
-                || name.contains("epson") || name.contains("brother") { return .printer }
-            if name.contains("camera") || name.contains("cam") { return .camera }
+                || name.contains("epson") || name.contains("brother") {
+                    return .printer
+                }
+            if name.contains("camera") || name.contains("cam") {
+                return .camera
+            }
             if name.contains("playstation") || name.contains("xbox")
-                || name.contains("nintendo") || name.contains("switch") { return .gaming }
+                || name.contains("nintendo") || name.contains("switch") {
+                    return .gaming
+                }
         }
 
         return nil
@@ -110,19 +153,20 @@ public struct DeviceTypeInferenceService: Sendable {
 
     private func inferFromPorts(_ device: LocalDevice) -> DeviceType? {
         guard let ports = device.openPorts else { return nil }
+        return Self.inferFromPorts(Set(ports))
+    }
 
-        let portSet = Set(ports)
-
-        if portSet.contains(80) && portSet.contains(443) && portSet.contains(53) {
+    static func inferFromPorts(_ portSet: Set<Int>) -> DeviceType? {
+        if portSet.isSuperset(of: routerPorts) {
             return .router
         }
-        if portSet.contains(631) || portSet.contains(9100) {
+        if !portSet.isDisjoint(with: printerPorts) {
             return .printer
         }
-        if portSet.contains(8008) || portSet.contains(8009) {
+        if !portSet.isDisjoint(with: castPorts) {
             return .tv
         }
-        if portSet.contains(32400) {
+        if !portSet.isDisjoint(with: mediaServerPorts) {
             return .storage
         }
 
@@ -149,7 +193,7 @@ public struct DeviceTypeInferenceService: Sendable {
             // Samsung — only TV if it has Tizen/smart-TV ports
             if v.contains("samsung") {
                 let ports = Set(device.openPorts ?? [])
-                if ports.contains(8001) || ports.contains(8002) {
+                if !ports.isDisjoint(with: Self.samsungTVPorts) {
                     return .tv
                 }
                 // Otherwise fall through — don't return unknown yet
@@ -179,7 +223,7 @@ public struct DeviceTypeInferenceService: Sendable {
             }
             if v.contains("microsoft") {
                 let ports = Set(device.openPorts ?? [])
-                if ports.contains(3074) {
+                if !ports.isDisjoint(with: Self.xboxPorts) {
                     return .gaming
                 }
             }

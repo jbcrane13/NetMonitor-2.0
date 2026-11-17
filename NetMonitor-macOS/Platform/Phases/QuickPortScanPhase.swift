@@ -1,4 +1,5 @@
 import Foundation
+import NetMonitorCore
 import NetworkScanKit
 
 extension ScanPhaseID {
@@ -8,7 +9,7 @@ extension ScanPhaseID {
     static let portScan = ScanPhaseID(rawValue: "portScan")
 }
 
-/// Quick 15-port TCP fingerprinting scan over every accumulator entry, writing `openPorts`
+/// Quick TCP fingerprinting scan over every accumulator entry, writing `openPorts`
 /// (E7).
 ///
 /// `checker` still runs under `withConnectionSlot`, exactly as today — that happens inside
@@ -20,9 +21,9 @@ struct QuickPortScanPhase: ScanPhase, Sendable {
     let weight: Double
     let timeout: Duration?
 
-    /// Top common ports — fast fingerprinting set (unchanged from the retired
-    /// `quickPortScan`'s `commonPorts`).
-    static let commonPorts = [22, 53, 80, 443, 445, 548, 631, 3389, 5900, 8080, 8443, 8008, 9100, 32400, 62078]
+    /// Fast fingerprinting set, shared with `DeviceTypeInferenceService` so every port a
+    /// type rule reads is scanned (#388).
+    static let commonPorts = DeviceTypeInferenceService.fingerprintPorts
 
     private let checker: @Sendable (_ host: String, _ port: Int, _ timeoutMs: Int32) async -> Bool
     /// Matches the retired `quickPortScan`'s device-level sliding-window cap.
