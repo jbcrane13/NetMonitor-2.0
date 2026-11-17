@@ -53,6 +53,7 @@ enum ToolDestination: Hashable {
     case sslMonitor
     case roomScanner
     case wifiHeatmap
+    case portForwards
     @ViewBuilder
     @MainActor
     func view(env: AppEnvironment) -> some View {
@@ -90,6 +91,8 @@ enum ToolDestination: Hashable {
             RoomPlanScannerView()
         case .wifiHeatmap:
             HeatmapSurveyView()
+        case .portForwards:
+            PortForwardsToolView(env: env)
         }
     }
 }
@@ -389,6 +392,7 @@ struct ToolsGridSection: View {
             ToolItem(name: "Port Scanner", icon: "door.left.hand.open", color: Theme.Colors.warning, description: "Scan open ports", destination: .portScanner),
             ToolItem(name: "Bonjour", icon: "bonjour", color: Theme.Colors.accent, description: "Discover services", destination: .bonjour),
             ToolItem(name: "Subnet Calc", icon: "square.split.bottomrightquarter", color: .purple, description: "Calculate subnet ranges", destination: .subnetCalculator),
+            ToolItem(name: "Port Forwards", icon: "arrow.left.arrow.right.circle", color: Theme.Colors.warning, description: "Router UPnP forwards", destination: .portForwards),
         ]),
         (.monitoring, [
             ToolItem(name: "Speed Test", icon: "speedometer", color: Theme.Colors.success, description: "Test bandwidth", destination: .speedTest),

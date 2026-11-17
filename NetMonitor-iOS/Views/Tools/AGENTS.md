@@ -19,6 +19,7 @@ Network diagnostic tool views. Each tool has its own view and corresponding View
 | `WakeOnLANToolView.swift` | Magic packet sender for Wake-on-LAN |
 | `SpeedTestToolView.swift` | Network speed test interface with download/upload metrics |
 | `WebBrowserToolView.swift` | Network-related web browsing with quick bookmarks |
+| `PortForwardsToolView.swift` | Read-only list of the router's UPnP port forwards (#400); state from Core `PortForwardsState`. Needs the multicast entitlement (#381) to find the router |
 
 ## For AI Agents
 

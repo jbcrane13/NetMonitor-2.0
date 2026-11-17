@@ -142,7 +142,6 @@ struct ContentView: View {
         }
     }
 
-    @ViewBuilder
     private func toolView(for tool: NetworkTool) -> some View {
         Group {
             switch tool {
@@ -159,6 +158,7 @@ struct ContentView: View {
             case .geoTrace: GeoTraceView()
             case .sslMonitor: SSLCertificateMonitorView()
             case .wifiHeatmap: WiFiHeatmapView(pendingSurveyURL: pendingSurveyURL)
+            case .portForwards: PortForwardsToolView()
             }
         }
         .toolbar {
