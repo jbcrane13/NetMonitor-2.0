@@ -302,12 +302,14 @@ final class MonitoringSession {
         } catch {
             Logger.data.error("Failed to prune measurements: \(error)")
         }
-        // A session still running is kept however old it is.
+        // A session still running is kept however old it is. A finished session ages from
+        // when it stopped, so one that ran across the cutoff is kept.
         let sessionDescriptor = FetchDescriptor<SessionRecord>(
-            predicate: #Predicate { !$0.isActive && $0.startedAt < cutoffDate }
+            predicate: #Predicate { !$0.isActive }
         )
         do {
             let old = try modelContext.fetch(sessionDescriptor)
+                .filter { ($0.stoppedAt ?? $0.startedAt) < cutoffDate }
             for session in old { modelContext.delete(session) }
             if !old.isEmpty {
                 try modelContext.save()

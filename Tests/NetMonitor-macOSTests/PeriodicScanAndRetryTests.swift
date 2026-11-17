@@ -37,6 +37,24 @@ private final class FakeSleeper: @unchecked Sendable {
     }
 }
 
+/// Records each requested sleep and parks until cancelled, counting cancellations, so a test
+/// can see a timer being replaced or stopped without waiting real time.
+private final class ParkingSleeper: @unchecked Sendable {
+    private let lock = NSLock()
+    private var _requested: [Duration] = []
+    private var _cancelled = 0
+    var requested: [Duration] { lock.withLock { _requested } }
+    var cancelled: Int { lock.withLock { _cancelled } }
+
+    func sleep(_ duration: Duration) async {
+        lock.withLock { _requested.append(duration) }
+        try? await Task.sleep(for: .seconds(3600))
+        if Task.isCancelled {
+            lock.withLock { _cancelled += 1 }
+        }
+    }
+}
+
 // MARK: - PeriodicScanScheduler
 
 @Suite("PeriodicScanScheduler")
@@ -87,21 +105,33 @@ struct PeriodicScanSchedulerTests {
         #expect(sleeper.requested.isEmpty)
     }
 
-    @Test func changingTheFrequencyRestartsTheTimer() {
+    /// No reload() call: the change must reach the scheduler through its UserDefaults observer.
+    @Test func changingTheSavedFrequencyReplacesThenCancelsTheTimer() async {
         let (defaults, suite) = makeDefaults()
         defer { defaults.removePersistentDomain(forName: suite) }
         defaults.set(60, forKey: PeriodicScanScheduler.frequencyKey)
-        let scheduler = PeriodicScanScheduler(defaults: defaults, isScanning: { false }, startScan: {})
+        let clock = ParkingSleeper()
+        let scheduler = PeriodicScanScheduler(
+            defaults: defaults,
+            isScanning: { false },
+            startScan: {},
+            sleep: { await clock.sleep($0) }
+        )
         scheduler.start()
         defer { scheduler.stop() }
-        #expect(scheduler.activeInterval == 60)
+        await waitUntil { clock.requested == [.seconds(60)] }
+        #expect(clock.requested == [.seconds(60)])
 
         defaults.set(600, forKey: PeriodicScanScheduler.frequencyKey)
-        scheduler.reload()
+        await waitUntil { clock.requested == [.seconds(60), .seconds(600)] && clock.cancelled == 1 }
+        #expect(clock.requested == [.seconds(60), .seconds(600)], "A new timer runs at the new frequency")
+        #expect(clock.cancelled == 1, "The old timer was cancelled")
         #expect(scheduler.activeInterval == 600)
 
         defaults.set(0, forKey: PeriodicScanScheduler.frequencyKey)
-        scheduler.reload()
+        await waitUntil { clock.cancelled == 2 }
+        #expect(clock.cancelled == 2, "Off cancels the running timer")
+        #expect(clock.requested.count == 2, "Off starts no new timer")
         #expect(scheduler.activeInterval == nil)
     }
 

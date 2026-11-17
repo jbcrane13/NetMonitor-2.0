@@ -42,6 +42,25 @@ struct HistoryRetentionTests {
         #expect(remaining == [oldActive.id, recentStopped.id])
     }
 
+    @Test func pruneKeepsASessionThatStartedBeforeTheCutoffButStoppedAfterIt() throws {
+        let (container, context) = try makeContext()
+        _ = container
+        let saved = UserDefaults.standard.object(forKey: retentionKey)
+        UserDefaults.standard.set("7 days", forKey: retentionKey)
+        defer { UserDefaults.standard.set(saved, forKey: retentionKey) }
+
+        let spanning = SessionRecord(startedAt: daysAgo(10), stoppedAt: daysAgo(0.5), isActive: false)
+        let endedBeforeCutoff = SessionRecord(startedAt: daysAgo(12), stoppedAt: daysAgo(8), isActive: false)
+        context.insert(spanning)
+        context.insert(endedBeforeCutoff)
+        try context.save()
+
+        MonitoringSession(modelContext: context).pruneOldMeasurements(eventService: NetworkEventService(), now: now)
+
+        let remaining = try context.fetch(FetchDescriptor<SessionRecord>()).map(\.id)
+        #expect(remaining == [spanning.id])
+    }
+
     @Test func pruneRemovesOldTimelineEvents() throws {
         let (container, context) = try makeContext()
         _ = container
