@@ -264,12 +264,17 @@ struct NetMonitorApp: App {
         }
 
         if notificationService == nil {
-            notificationService = NotificationService()
+            let service = NotificationService()
+            notificationService = service
             if !isUITesting {
                 Task {
                     _ = await notificationService?.requestAuthorization()
                 }
             }
+            // Send target-down and new-device alerts (#403).
+            let alerts = MacAlertNotifier(service: service)
+            monitoringSession?.onTargetDown = { name, host in alerts.targetWentDown(name: name, host: host) }
+            deviceDiscovery?.onNewDevices = { devices in alerts.devicesJoined(devices) }
         }
 
         if autoStartMonitoring && !shouldDisableMonitoring,
