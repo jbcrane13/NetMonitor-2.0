@@ -10,11 +10,19 @@ import SwiftUI
 
 struct RulesSettingsView: View {
     @Environment(NetworkProfileManager.self) private var profileManager: NetworkProfileManager?
-    @State private var store = AlertRuleStore()
+    /// The app's one shared store, so every Settings window edits the same rules.
+    @Environment(AlertRuleStore.self) private var store
     @State private var editing: AlertRule?
 
     var body: some View {
         Form {
+            if let loadError = store.loadError {
+                SwiftUI.Section {
+                    Label(loadError, systemImage: "exclamationmark.triangle")
+                        .foregroundStyle(.orange)
+                        .accessibilityIdentifier("rules_label_loadError")
+                }
+            }
             SwiftUI.Section {
                 if store.rules.isEmpty {
                     Text("No rules yet. Add one to get a notification when something happens, like a printer going offline.")
@@ -47,6 +55,7 @@ struct RulesSettingsView: View {
         .formStyle(.grouped)
         .padding()
         .navigationTitle("Rules")
+        .onAppear { store.reload() }
         .sheet(item: $editing) { rule in
             RuleEditorView(
                 rule: rule,
@@ -250,4 +259,5 @@ private struct RuleEditorView: View {
 
 #Preview {
     RulesSettingsView()
+        .environment(AlertRuleStore())
 }

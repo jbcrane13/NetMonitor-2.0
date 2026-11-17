@@ -19,6 +19,7 @@ struct DefaultMonitorServiceProvider: MonitorServiceProviding {
 
 /// One recorded check of a monitored target, for alert rules (#394).
 struct TargetCheckOutcome: Equatable {
+    let targetID: UUID
     let name: String
     let host: String
     let isReachable: Bool
@@ -279,6 +280,7 @@ final class MonitoringSession {
             onTargetDown?(target.name, target.host)
         }
         onTargetResult?(TargetCheckOutcome(
+            targetID: target.id,
             name: target.name,
             host: target.host,
             isReachable: measurement.isReachable,

@@ -3,38 +3,63 @@ import NetMonitorCore
 import os
 
 /// The user's alert rules, saved in UserDefaults (#394).
+///
+/// One instance is shared app-wide through the environment. Each change is also applied to
+/// freshly loaded state, so a second window or instance can't save a stale list over it.
+/// Stored data that can't be decoded is copied aside once before anything is saved over it,
+/// the last good rules are kept in memory, and `loadError` explains the problem.
 @MainActor
 @Observable
 final class AlertRuleStore {
     static let storageKey = "netmonitor.alertRules"
+    /// Where unreadable stored rules are kept, so a save can't destroy them.
+    static let unreadableKey = "netmonitor.alertRules.unreadable"
 
     private(set) var rules: [AlertRule] = []
+    /// Set when the stored rules couldn't be read. Shown in the Rules tab.
+    private(set) var loadError: String?
     private let defaults: UserDefaults
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
-        rules = Self.load(from: defaults)
+        reload()
     }
 
     func add(_ rule: AlertRule) {
-        rules.append(rule)
-        save()
+        mutate { $0.append(rule) }
     }
 
     func update(_ rule: AlertRule) {
-        guard let index = rules.firstIndex(where: { $0.id == rule.id }) else { return }
-        rules[index] = rule
-        save()
+        mutate { rules in
+            guard let index = rules.firstIndex(where: { $0.id == rule.id }) else { return }
+            rules[index] = rule
+        }
     }
 
     func delete(id: UUID) {
-        rules.removeAll { $0.id == id }
-        save()
+        mutate { $0.removeAll { $0.id == id } }
     }
 
-    /// Re-reads the saved rules, so a change made in the Settings window reaches the app.
+    /// Re-reads the saved rules. On unreadable data, keeps the last good rules.
     func reload() {
-        rules = Self.load(from: defaults)
+        guard let data = defaults.data(forKey: Self.storageKey) else {
+            rules = []
+            return
+        }
+        do {
+            rules = try JSONDecoder().decode([AlertRule].self, from: data)
+            loadError = nil
+        } catch {
+            setAside(data, error: error)
+        }
+    }
+
+    private func mutate(_ change: (inout [AlertRule]) -> Void) {
+        reload()
+        var updated = rules
+        change(&updated)
+        rules = updated
+        save()
     }
 
     private func save() {
@@ -45,9 +70,12 @@ final class AlertRuleStore {
         }
     }
 
-    private static func load(from defaults: UserDefaults) -> [AlertRule] {
-        guard let data = defaults.data(forKey: storageKey) else { return [] }
-        return (try? JSONDecoder().decode([AlertRule].self, from: data)) ?? []
+    private func setAside(_ data: Data, error: Error) {
+        if defaults.data(forKey: Self.unreadableKey) == nil {
+            defaults.set(data, forKey: Self.unreadableKey)
+        }
+        loadError = "Saved rules couldn't be read. They were kept aside; rules shown here are the last ones that loaded."
+        Logger.app.error("Alert rules unreadable, set aside: \(error, privacy: .public)")
     }
 }
 
@@ -58,12 +86,21 @@ final class MacRuleAlerts {
     private let store: AlertRuleStore
     private let service: NotificationService
     private let defaults: UserDefaults
+    /// The current network's device rows and ID, used to fill in a monitored target's
+    /// MAC, type, maker and network from its host.
+    private let currentDevices: @MainActor () -> (devices: [LocalDevice], networkID: UUID?)
     private var evaluator = AlertRuleEvaluator()
 
-    init(store: AlertRuleStore, service: NotificationService, defaults: UserDefaults = .standard) {
+    init(
+        store: AlertRuleStore,
+        service: NotificationService,
+        defaults: UserDefaults = .standard,
+        currentDevices: @escaping @MainActor () -> (devices: [LocalDevice], networkID: UUID?) = { ([], nil) }
+    ) {
         self.store = store
         self.service = service
         self.defaults = defaults
+        self.currentDevices = currentDevices
     }
 
     /// From a completed scan (#393). `devices` are the network's rows, used for each device's
@@ -84,9 +121,23 @@ final class MacRuleAlerts {
         fire(events)
     }
 
-    /// From one monitored-target check.
+    /// From one monitored-target check. The target's host is looked up in the current
+    /// network's devices so device conditions can match it.
     func handle(targetResult result: TargetCheckOutcome) {
-        let subject = AlertRuleSubject(name: result.name, ipAddress: result.host)
+        let (devices, networkID) = currentDevices()
+        let row = devices.first {
+            $0.ipAddress == result.host
+                || ($0.hostname?.caseInsensitiveCompare(result.host) == .orderedSame)
+        }
+        let subject = AlertRuleSubject(
+            name: result.name,
+            ipAddress: result.host,
+            macAddress: row.flatMap { $0.macAddress.isEmpty ? nil : $0.macAddress },
+            deviceType: row?.deviceType,
+            maker: row?.manufacturer ?? row?.vendor,
+            networkID: row == nil ? nil : networkID,
+            stateKey: "target:\(result.targetID.uuidString)"
+        )
         var events: [AlertRuleEvent] = []
         if result.wentDown {
             events.append(AlertRuleEvent(kind: .wentOffline, subject: subject))
@@ -124,11 +175,11 @@ final class MacRuleAlerts {
     private func subject(
         _ ip: String, _ mac: String?, _ name: String?, _ devices: [LocalDevice], _ networkID: UUID?
     ) -> AlertRuleSubject {
-        let row = devices.first { row in
-            if let mac, !mac.isEmpty, row.macAddress.caseInsensitiveCompare(mac) == .orderedSame {
-                return true
-            }
-            return row.ipAddress == ip
+        // A MAC identifies the row exactly; the IP is only a fallback for an event without one.
+        let row: LocalDevice? = if let mac, !mac.isEmpty {
+            devices.first { $0.macAddress.caseInsensitiveCompare(mac) == .orderedSame }
+        } else {
+            devices.first { $0.ipAddress == ip }
         }
         return AlertRuleSubject(
             name: row?.displayName ?? name,

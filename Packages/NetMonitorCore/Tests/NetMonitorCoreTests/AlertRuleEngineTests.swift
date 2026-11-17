@@ -102,4 +102,37 @@ struct AlertRuleEngineTests {
         let decoded = try JSONDecoder().decode([AlertRule].self, from: JSONEncoder().encode(rules))
         #expect(decoded == rules)
     }
+
+    // MARK: - Review fixes (#415)
+
+    @Test func changingARulesDefinitionClearsItsCrossingState() {
+        var evaluator = AlertRuleEvaluator()
+        var rule = AlertRule(name: "slow", trigger: .latencyAbove(milliseconds: 100))
+        #expect(evaluator.evaluate([event(.latency(milliseconds: 150))], rules: [rule]).count == 1)
+        #expect(evaluator.evaluate([event(.latency(milliseconds: 150))], rules: [rule]).isEmpty)
+
+        rule.trigger = .latencyAbove(milliseconds: 120)
+        #expect(evaluator.evaluate([event(.latency(milliseconds: 150))], rules: [rule]).count == 1, "New threshold, fresh state")
+
+        rule.conditions = AlertRuleConditions(deviceType: .printer)
+        #expect(evaluator.evaluate([event(.latency(milliseconds: 150))], rules: [rule]).count == 1, "New conditions, fresh state")
+
+        rule.name = "renamed"
+        #expect(evaluator.evaluate([event(.latency(milliseconds: 150))], rules: [rule]).isEmpty, "A rename keeps state")
+    }
+
+    @Test func aStateKeyKeepsTwoTargetsOnOneHostApart() {
+        var evaluator = AlertRuleEvaluator()
+        let rule = AlertRule(name: "slow", trigger: .latencyAbove(milliseconds: 100))
+        let icmp = AlertRuleSubject(name: "Router ping", ipAddress: "10.0.0.1", stateKey: "target:icmp")
+        let https = AlertRuleSubject(name: "Router admin", ipAddress: "10.0.0.1", stateKey: "target:https")
+        func run(_ subject: AlertRuleSubject, _ ms: Double) -> Int {
+            evaluator.evaluate([AlertRuleEvent(kind: .latency(milliseconds: ms), subject: subject)], rules: [rule]).count
+        }
+
+        #expect(run(icmp, 150) == 1)
+        #expect(run(https, 50) == 0, "The HTTPS target dropping below doesn't re-arm the ICMP one")
+        #expect(run(icmp, 150) == 0)
+        #expect(run(https, 150) == 1, "Each target crosses on its own")
+    }
 }

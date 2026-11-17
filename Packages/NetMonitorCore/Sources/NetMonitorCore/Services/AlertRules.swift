@@ -62,6 +62,8 @@ public struct AlertRuleSubject: Sendable, Equatable {
     public var deviceType: DeviceType?
     public var maker: String?
     public var networkID: UUID?
+    /// Overrides `key`, e.g. a monitored target's ID, so two targets on one host stay apart.
+    public var stateKey: String?
 
     public init(
         name: String?,
@@ -69,7 +71,8 @@ public struct AlertRuleSubject: Sendable, Equatable {
         macAddress: String? = nil,
         deviceType: DeviceType? = nil,
         maker: String? = nil,
-        networkID: UUID? = nil
+        networkID: UUID? = nil,
+        stateKey: String? = nil
     ) {
         self.name = name
         self.ipAddress = ipAddress
@@ -77,10 +80,14 @@ public struct AlertRuleSubject: Sendable, Equatable {
         self.deviceType = deviceType
         self.maker = maker
         self.networkID = networkID
+        self.stateKey = stateKey
     }
 
     /// Identifies the subject across events, for latency crossing.
     public var key: String {
+        if let stateKey {
+            return stateKey
+        }
         if let macAddress, !macAddress.isEmpty {
             return "mac:\(macAddress.uppercased())"
         }
@@ -159,10 +166,18 @@ public struct AlertRuleEvaluator: Sendable {
     }
 
     private var aboveThreshold: Set<String> = []
+    /// Each rule's trigger and conditions when its state was recorded; a change clears it.
+    private var definitions: [UUID: Definition] = [:]
+
+    private struct Definition: Equatable {
+        var trigger: AlertRuleTrigger
+        var conditions: AlertRuleConditions
+    }
 
     public init() {}
 
     public mutating func evaluate(_ events: [AlertRuleEvent], rules: [AlertRule]) -> [Match] {
+        resetChangedRules(rules)
         var matches: [Match] = []
         for event in events {
             for rule in rules where rule.isEnabled && AlertRuleEngine.conditionsMatch(rule.conditions, event.subject) {
@@ -172,6 +187,19 @@ public struct AlertRuleEvaluator: Sendable {
             }
         }
         return matches
+    }
+
+    /// Forgets crossing state for rules whose trigger or conditions changed, or that were deleted.
+    private mutating func resetChangedRules(_ rules: [AlertRule]) {
+        var current: [UUID: Definition] = [:]
+        for rule in rules {
+            current[rule.id] = Definition(trigger: rule.trigger, conditions: rule.conditions)
+        }
+        let changed = definitions.compactMap { id, definition in current[id] == definition ? nil : id }
+        for id in changed {
+            aboveThreshold = aboveThreshold.filter { !$0.hasPrefix("\(id)|") }
+        }
+        definitions = current
     }
 
     private mutating func shouldFire(_ rule: AlertRule, for event: AlertRuleEvent) -> Bool {

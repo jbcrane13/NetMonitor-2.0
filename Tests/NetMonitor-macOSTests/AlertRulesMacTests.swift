@@ -33,6 +33,48 @@ struct AlertRuleStoreTests {
         #expect(AlertRuleStore(defaults: defaults).rules.isEmpty)
     }
 
+    @Test func unreadableStoredRulesAreSetAsideAndTheLastGoodRulesKept() {
+        let (defaults, suite) = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = AlertRuleStore(defaults: defaults)
+        let good = AlertRule(name: "Printer offline", trigger: .wentOffline)
+        store.add(good)
+        let garbage = Data("{not json".utf8)
+        defaults.set(garbage, forKey: AlertRuleStore.storageKey)
+
+        store.reload()
+        #expect(store.rules == [good], "Last good rules kept")
+        #expect(store.loadError != nil)
+        #expect(defaults.data(forKey: AlertRuleStore.unreadableKey) == garbage, "Raw data kept aside")
+
+        store.add(AlertRule(name: "New", trigger: .firstSeen))
+        #expect(defaults.data(forKey: AlertRuleStore.unreadableKey) == garbage, "A save never overwrites the copy set aside")
+        #expect(AlertRuleStore(defaults: defaults).rules.map(\.name) == ["Printer offline", "New"])
+    }
+
+    @Test func aFreshStoreOnUnreadableDataShowsTheError() {
+        let (defaults, suite) = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set(Data("{not json".utf8), forKey: AlertRuleStore.storageKey)
+
+        let store = AlertRuleStore(defaults: defaults)
+
+        #expect(store.rules.isEmpty)
+        #expect(store.loadError != nil)
+    }
+
+    @Test func aStaleSecondInstanceDoesNotLoseTheOthersEdits() {
+        let (defaults, suite) = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let mainWindow = AlertRuleStore(defaults: defaults)
+        let settingsScene = AlertRuleStore(defaults: defaults)
+
+        mainWindow.add(AlertRule(name: "first", trigger: .firstSeen))
+        settingsScene.add(AlertRule(name: "second", trigger: .wentOffline))
+
+        #expect(AlertRuleStore(defaults: defaults).rules.map(\.name) == ["first", "second"])
+    }
+
     @Test func reloadPicksUpAnotherInstancesChanges() {
         let (defaults, suite) = makeDefaults()
         defer { defaults.removePersistentDomain(forName: suite) }
@@ -117,8 +159,12 @@ struct MacRuleAlertsTests {
             AlertRule(name: "DNS down", trigger: .wentOffline, conditions: AlertRuleConditions(device: "Google DNS"))
         ])
         defer { fixture.defaults.removePersistentDomain(forName: fixture.suite) }
+        let dnsTarget = UUID()
         func result(_ reachable: Bool, _ latency: Double?, down: Bool = false, up: Bool = false) -> TargetCheckOutcome {
-            TargetCheckOutcome(name: "Google DNS", host: "8.8.8.8", isReachable: reachable, latency: latency, wentDown: down, cameUp: up)
+            TargetCheckOutcome(
+                targetID: dnsTarget, name: "Google DNS", host: "8.8.8.8",
+                isReachable: reachable, latency: latency, wentDown: down, cameUp: up
+            )
         }
 
         fixture.alerts.handle(targetResult: result(true, 40))
@@ -139,6 +185,65 @@ struct MacRuleAlertsTests {
         fixture.alerts.handle(deviceChanges: [.firstSeen(joined)], devices: [], networkID: nil)
 
         #expect(fixture.poster.requests.isEmpty)
+    }
+
+    @Test func aMonitoredTargetGetsItsDeviceMetadataFromTheNetworksRows() {
+        let (defaults, suite) = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let home = UUID()
+        let store = AlertRuleStore(defaults: defaults)
+        store.add(AlertRule(
+            name: "Slow printer",
+            trigger: .latencyAbove(milliseconds: 100),
+            conditions: AlertRuleConditions(deviceType: .printer, maker: "brother", networkID: home)
+        ))
+        let poster = RecordingPoster()
+        let row = printerRow()
+        let alerts = MacRuleAlerts(
+            store: store, service: NotificationService(poster: poster, defaults: defaults), defaults: defaults
+        ) { ([row], home) }
+
+        alerts.handle(targetResult: TargetCheckOutcome(
+            targetID: UUID(), name: "Printer", host: "10.0.0.40",
+            isReachable: true, latency: 300, wentDown: false, cameUp: false
+        ))
+
+        #expect(poster.requests.map(\.content.title) == ["Slow printer"])
+    }
+
+    @Test func twoTargetsOnTheSameHostCrossIndependently() {
+        let fixture = makeFixture([AlertRule(name: "Slow", trigger: .latencyAbove(milliseconds: 100))])
+        defer { fixture.defaults.removePersistentDomain(forName: fixture.suite) }
+        let icmp = UUID()
+        let https = UUID()
+        func check(_ id: UUID, _ latency: Double) {
+            fixture.alerts.handle(targetResult: TargetCheckOutcome(
+                targetID: id, name: "Router", host: "10.0.0.1",
+                isReachable: true, latency: latency, wentDown: false, cameUp: false
+            ))
+        }
+
+        check(icmp, 150)
+        check(https, 40)
+        check(icmp, 150)
+
+        #expect(fixture.poster.requests.count == 1, "The HTTPS check didn't re-arm the ICMP target's rule")
+    }
+
+    @Test func aMACMatchesItsRowExactlyAndNeverFallsBackToAnotherDevicesIP() {
+        let fixture = makeFixture([AlertRule(name: "Printer back", trigger: .cameOnline, conditions: AlertRuleConditions(deviceType: .printer))])
+        defer { fixture.defaults.removePersistentDomain(forName: fixture.suite) }
+        // The printer row sits at 10.0.0.40. An unknown device with its own MAC now answers at
+        // that IP: it must not borrow the printer's type.
+        let stranger = DeviceObservation(ipAddress: "10.0.0.40", macAddress: "00:1B:63:99:99:99", name: nil)
+
+        fixture.alerts.handle(deviceChanges: [.cameOnline(stranger)], devices: [printerRow()], networkID: nil)
+        #expect(fixture.poster.requests.isEmpty)
+
+        // The printer, by MAC, at a new IP still matches its own row.
+        let moved = DeviceObservation(ipAddress: "10.0.0.41", macAddress: "aa:bb:cc:00:00:40", name: nil)
+        fixture.alerts.handle(deviceChanges: [.cameOnline(moved)], devices: [printerRow()], networkID: nil)
+        #expect(fixture.poster.requests.map(\.content.title) == ["Printer back"])
     }
 
     @Test func ruleSummaryReadsPlainly() {
