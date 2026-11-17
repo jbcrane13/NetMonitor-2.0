@@ -40,7 +40,7 @@ public struct ARPScanPhase: ScanPhase, Sendable {
         guard !Task.isCancelled else { return }
         if results.isEmpty {
             // Expected on macOS 27, where sandboxed apps read an empty table (#401).
-            logger.notice("ARP read returned 0 entries after probing \(context.hosts.count) hosts")
+            logger.notice("ARP read returned 0 entries after probing \(context.hosts.count, privacy: .public) hosts")
         }
         await onProgress(0.8)
 
