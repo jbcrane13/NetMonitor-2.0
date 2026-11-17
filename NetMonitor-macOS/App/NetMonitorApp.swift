@@ -208,6 +208,9 @@ struct NetMonitorApp: App {
             )
         }
 
+        // Apply the history retention setting at launch, not only an hour into monitoring (#395).
+        monitoringSession?.pruneOldMeasurements()
+
         if deviceDiscovery == nil {
             let discovery = DeviceDiscoveryCoordinator(
                 modelContext: context,

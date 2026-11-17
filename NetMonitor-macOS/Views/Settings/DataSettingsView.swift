@@ -48,7 +48,7 @@ struct DataSettingsView: View {
             } header: {
                 Text("History")
             } footer: {
-                Text("Older measurements will be automatically deleted to save space.")
+                Text("Older measurements, monitoring sessions and timeline events will be automatically deleted to save space.")
             }
 
             SwiftUI.Section {

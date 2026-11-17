@@ -274,8 +274,13 @@ final class MonitoringSession {
         }
     }
 
+    /// Deletes history older than the "Keep measurement history" setting: target
+    /// measurements, stopped monitoring sessions and timeline events (#395).
     @MainActor
-    func pruneOldMeasurements() {
+    func pruneOldMeasurements(
+        eventService: NetworkEventService = .shared,
+        now: Date = Date()
+    ) {
         let retentionValue = UserDefaults.standard.string(forKey: "netmonitor.data.historyRetention") ?? "7 days"
         guard retentionValue != "Forever" else { return }
         let days: Int
@@ -284,7 +289,7 @@ final class MonitoringSession {
         case "30 days": days = 30
         default: days = 7
         }
-        let cutoffDate = Calendar.current.date(byAdding: .day, value: -days, to: Date()) ?? Date()
+        let cutoffDate = Calendar.current.date(byAdding: .day, value: -days, to: now) ?? now
         let descriptor = FetchDescriptor<TargetMeasurement>(
             predicate: #Predicate { $0.timestamp < cutoffDate }
         )
@@ -297,5 +302,19 @@ final class MonitoringSession {
         } catch {
             Logger.data.error("Failed to prune measurements: \(error)")
         }
+        // A session still running is kept however old it is.
+        let sessionDescriptor = FetchDescriptor<SessionRecord>(
+            predicate: #Predicate { !$0.isActive && $0.startedAt < cutoffDate }
+        )
+        do {
+            let old = try modelContext.fetch(sessionDescriptor)
+            for session in old { modelContext.delete(session) }
+            if !old.isEmpty {
+                try modelContext.save()
+            }
+        } catch {
+            Logger.data.error("Failed to prune sessions: \(error)")
+        }
+        eventService.removeEvents(olderThan: cutoffDate)
     }
 }

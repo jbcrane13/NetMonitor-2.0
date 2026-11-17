@@ -9,11 +9,17 @@ final class DataMaintenanceService {
     private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "com.blakemiller.netmonitor", category: "DataMaintenanceService")
     private init() {}
 
-    /// Deletes ToolResult and SpeedTestResult records older than the configured retention period
-    static func pruneExpiredData(modelContext: ModelContext) {
-        let retentionDays = UserDefaults.standard.object(forKey: AppSettings.Keys.dataRetentionDays) as? Int ?? 30
+    /// Deletes ToolResult and SpeedTestResult records and timeline events older than the
+    /// configured retention period (#395 added timeline events)
+    static func pruneExpiredData(
+        modelContext: ModelContext,
+        defaults: UserDefaults = .standard,
+        eventService: NetworkEventService = .shared,
+        now: Date = Date()
+    ) {
+        let retentionDays = defaults.object(forKey: AppSettings.Keys.dataRetentionDays) as? Int ?? 30
         guard retentionDays > 0 else { return }
-        let cutoff = Calendar.current.date(byAdding: .day, value: -retentionDays, to: Date()) ?? Date()
+        let cutoff = Calendar.current.date(byAdding: .day, value: -retentionDays, to: now) ?? now
 
         do {
             try modelContext.delete(model: ToolResult.self, where: #Predicate { $0.timestamp < cutoff })
@@ -30,5 +36,6 @@ final class DataMaintenanceService {
         } catch {
             logger.error("Failed to save after pruning: \(error)")
         }
+        eventService.removeEvents(olderThan: cutoff)
     }
 }

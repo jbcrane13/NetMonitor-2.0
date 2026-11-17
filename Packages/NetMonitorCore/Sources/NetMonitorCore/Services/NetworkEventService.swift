@@ -82,6 +82,19 @@ public final class NetworkEventService: NetworkEventServiceProtocol, @unchecked 
         lock.withLock { _events.filter { $0.timestamp >= start && $0.timestamp <= end } }
     }
 
+    /// Removes events older than `cutoff`, for the history retention setting (#395).
+    public func removeEvents(olderThan cutoff: Date) {
+        lock.lock()
+        let before = _events.count
+        _events.removeAll { $0.timestamp < cutoff }
+        let changed = _events.count != before
+        let snapshot = _events
+        lock.unlock()
+        if changed {
+            persist(snapshot)
+        }
+    }
+
     public func clearAll() {
         lock.lock()
         _events.removeAll()
