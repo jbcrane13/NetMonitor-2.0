@@ -43,6 +43,32 @@ public enum UPnPDescriptionFetcher {
     /// Fetches the document body, or nil on any failure, timeout, non-200 status,
     /// chunked body or a body over ``UPnPDeviceDescription/maxBytes``.
     public static func fetch(_ url: URL, requiredInterfaceType: NWInterface.InterfaceType? = nil) async -> Data? {
+        let request = Data(Self.request(for: url).utf8)
+        guard let response = await send(request, to: url, requiredInterfaceType: requiredInterfaceType) else { return nil }
+        return body(ofHTTPResponse: response)
+    }
+
+    /// POSTs a SOAP action to a LAN control URL (#400) and returns the status and body,
+    /// including non-200 replies: a UPnP fault comes back as HTTP 500 with a body.
+    /// Same deadline, size cap and no-redirect rules as ``fetch(_:requiredInterfaceType:)``.
+    public static func postSOAP(
+        _ url: URL,
+        soapAction: String,
+        body: Data,
+        requiredInterfaceType: NWInterface.InterfaceType? = nil
+    ) async -> (status: Int, body: Data)? {
+        var request = Data(Self.request(for: url, method: "POST", extraHeaders: [
+            "Content-Type: text/xml; charset=\"utf-8\"",
+            "SOAPAction: \"\(soapAction)\"",
+            "Content-Length: \(body.count)"
+        ]).utf8)
+        request.append(body)
+        guard let response = await send(request, to: url, requiredInterfaceType: requiredInterfaceType) else { return nil }
+        return statusAndBody(ofHTTPResponse: response)
+    }
+
+    /// Sends a raw HTTP request and returns the raw response, or nil on failure or timeout.
+    private static func send(_ request: Data, to url: URL, requiredInterfaceType: NWInterface.InterfaceType?) async -> Data? {
         guard let host = url.host,
               let number = port(of: url, location: url.absoluteString),
               let port = NWEndpoint.Port(rawValue: number) else { return nil }
@@ -51,9 +77,8 @@ public enum UPnPDescriptionFetcher {
             params.requiredInterfaceType = requiredInterfaceType
         }
         let connection = NWConnection(host: NWEndpoint.Host(host), port: port, using: params)
-        let request = Data(Self.request(for: url).utf8)
 
-        let result = await withTaskGroup(of: Data?.self) { group -> Data? in
+        return await withTaskGroup(of: Data?.self) { group -> Data? in
             group.addTask { await Self.exchange(connection, request: request) }
             group.addTask {
                 try? await Task.sleep(for: timeout)
@@ -64,11 +89,9 @@ public enum UPnPDescriptionFetcher {
             connection.cancel()
             return first
         }
-        guard let result else { return nil }
-        return body(ofHTTPResponse: result)
     }
 
-    static func request(for url: URL) -> String {
+    static func request(for url: URL, method: String = "GET", extraHeaders: [String] = []) -> String {
         let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
         var target = components?.percentEncodedPath ?? "/"
         if target.isEmpty {
@@ -78,27 +101,39 @@ public enum UPnPDescriptionFetcher {
             target += "?" + query
         }
         let hostHeader = url.port.map { "\(url.host ?? ""):\($0)" } ?? (url.host ?? "")
-        return "GET \(target) HTTP/1.0\r\nHost: \(hostHeader)\r\nAccept: text/xml\r\nConnection: close\r\n\r\n"
+        let headers = ["Host: \(hostHeader)", "Accept: text/xml", "Connection: close"] + extraHeaders
+        return "\(method) \(target) HTTP/1.0\r\n" + headers.map { $0 + "\r\n" }.joined() + "\r\n"
     }
 
     /// The body of a complete HTTP response, or nil unless the status is 200, the body is
     /// not chunked and it fits ``UPnPDeviceDescription/maxBytes``.
     static func body(ofHTTPResponse response: Data) -> Data? {
+        guard let result = statusAndBody(ofHTTPResponse: response), result.status == 200, !result.body.isEmpty else {
+            return nil
+        }
+        return result.body
+    }
+
+    /// The status code and body of a complete HTTP response (the body may be empty), or nil
+    /// when it is malformed, chunked, or the body exceeds ``UPnPDeviceDescription/maxBytes``.
+    static func statusAndBody(ofHTTPResponse response: Data) -> (status: Int, body: Data)? {
         guard let separator = response.range(of: Data("\r\n\r\n".utf8)),
               let head = String(data: response[response.startIndex..<separator.lowerBound], encoding: .utf8) else {
             return nil
         }
         let lines = head.components(separatedBy: "\r\n")
         let status = lines.first?.split(separator: " ") ?? []
-        guard status.count >= 2, status[0].hasPrefix("HTTP/1."), status[1] == "200" else { return nil }
+        guard status.count >= 2, status[0].hasPrefix("HTTP/1."), let code = Int(status[1]), (100...599).contains(code) else {
+            return nil
+        }
         let chunked = lines.dropFirst().contains { line in
             let lower = line.lowercased()
             return lower.hasPrefix("transfer-encoding:") && lower.contains("chunked")
         }
         guard !chunked else { return nil }
         let body = response[separator.upperBound...]
-        guard !body.isEmpty, body.count <= UPnPDeviceDescription.maxBytes else { return nil }
-        return Data(body)
+        guard body.count <= UPnPDeviceDescription.maxBytes else { return nil }
+        return (code, Data(body))
     }
 
     private static func exchange(_ connection: NWConnection, request: Data) async -> Data? {
