@@ -57,10 +57,11 @@ struct StatusTypeTests {
         #expect(StatusType.offline.icon == "xmark.circle.fill")
         #expect(StatusType.idle.icon == "moon.circle.fill")
         #expect(StatusType.unknown.icon == "questionmark.circle.fill")
+        #expect(StatusType.cached.icon == "clock.badge.questionmark")
     }
 
     @Test func allCasesAreCovered() {
-        #expect(StatusType.allCases.count == 4)
+        #expect(StatusType.allCases.count == 5)
     }
 }
 
@@ -71,10 +72,12 @@ struct DeviceStatusTests {
         #expect(DeviceStatus.online.statusType == .online)
         #expect(DeviceStatus.offline.statusType == .offline)
         #expect(DeviceStatus.idle.statusType == .idle)
+        #expect(DeviceStatus.cached.statusType == .cached)
+        #expect(DeviceStatus.cached.statusType.label == "Cached")
     }
 
     @Test func allCasesAreCovered() {
-        #expect(DeviceStatus.allCases.count == 3)
+        #expect(DeviceStatus.allCases.count == 4)
     }
 }
 

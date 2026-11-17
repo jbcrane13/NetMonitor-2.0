@@ -70,6 +70,8 @@ struct LocalDiscoveredDevice: Equatable {
     let vendor: String?
     let openPorts: [Int]?
     let latency: Double?
+    /// No answer this scan; only the ARP cache still lists it (#378).
+    let isCached: Bool
 
     init(
         ipAddress: String,
@@ -77,7 +79,8 @@ struct LocalDiscoveredDevice: Equatable {
         hostname: String?,
         vendor: String? = nil,
         openPorts: [Int]? = nil,
-        latency: Double? = nil
+        latency: Double? = nil,
+        isCached: Bool = false
     ) {
         self.ipAddress = ipAddress
         self.macAddress = macAddress.uppercased()
@@ -85,6 +88,7 @@ struct LocalDiscoveredDevice: Equatable {
         self.vendor = vendor
         self.openPorts = openPorts
         self.latency = latency
+        self.isCached = isCached
     }
 }
 
