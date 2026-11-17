@@ -161,4 +161,71 @@ struct DeviceChangeDetectorTests {
         #expect(events.isEmpty)
         #expect(tracker.hasState(for: "net"))
     }
+
+    // MARK: - Identity transitions (#410 review)
+
+    @Test func aKnownDeviceReturningWithoutItsMACIsNotNew() {
+        let events = run([
+            [obs("10.0.0.2", phone), obs("10.0.0.3", laptop)],
+            [obs("10.0.0.2", phone), obs("10.0.0.3", nil)],
+            [obs("10.0.0.2", phone), obs("10.0.0.3", nil)],
+            [obs("10.0.0.2", phone), obs("10.0.0.3", nil)],
+            [obs("10.0.0.2", phone), obs("10.0.0.3", nil)]
+        ])
+        #expect(events.allSatisfy { $0.isEmpty }, "Same device, MAC unreadable: no new, no offline")
+    }
+
+    @Test func anIPKeyedDeviceGainingAPublicMACIsNotNewAndNeverGoesOffline() {
+        // 00:… has the locally administered bit clear, so this is a public (burned-in) MAC.
+        let publicMAC = "00:1B:63:00:00:03"
+        let events = run([
+            [obs("10.0.0.2", phone), obs("10.0.0.3", nil)],
+            [obs("10.0.0.2", phone), obs("10.0.0.3", publicMAC)],
+            [obs("10.0.0.2", phone), obs("10.0.0.3", publicMAC)],
+            [obs("10.0.0.2", phone), obs("10.0.0.3", publicMAC)],
+            [obs("10.0.0.2", phone), obs("10.0.0.3", publicMAC)]
+        ])
+        #expect(events.allSatisfy { $0.isEmpty }, "The IP-keyed record becomes the MAC record")
+    }
+
+    @Test func noReconcileWhenTheCandidateWasItselfSeenThisScan() {
+        let newcomer = obs("10.0.0.3", nil)
+        // The laptop answers with its MAC at .3, and a MAC-less device also shows at .3.
+        let events = run([
+            [obs("10.0.0.2", phone), obs("10.0.0.3", laptop)],
+            [obs("10.0.0.2", phone), obs("10.0.0.3", laptop), newcomer]
+        ])
+        #expect(events[1] == [.firstSeen(newcomer)])
+    }
+
+    // MARK: - Retention (#410 review)
+
+    @Test func unconfirmedDevicesExpireButConfirmedOnesAreKept() {
+        let day: TimeInterval = 86400
+        let first = DeviceChangeDetector.detect(
+            known: [], observed: [obs("10.0.0.2", phone), obs("10.0.0.9", "AA:BB:CC:00:00:09", cached: true)],
+            now: start, policy: policy
+        )
+        #expect(first.known.count == 2)
+
+        let later = DeviceChangeDetector.detect(
+            known: first.known, observed: [], now: start.addingTimeInterval(31 * day), policy: policy
+        )
+        #expect(later.known.map(\.macAddress) == [phone], "The cached-only entry expired; the phone is kept")
+    }
+
+    @Test func trackerDropsScopesForNetworksNoLongerKnown() {
+        let suite = "DeviceChangeDetectorTests.scopes.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite) ?? .standard
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let tracker = DeviceChangeTracker(defaults: defaults)
+        _ = tracker.record(scope: "old", observed: [obs("10.0.0.2", phone)], now: start)
+        _ = tracker.record(scope: "kept", observed: [obs("10.0.0.2", phone)], now: start)
+
+        _ = tracker.record(scope: "current", observed: [obs("10.0.0.2", phone)], now: start, knownScopes: ["kept"])
+
+        #expect(!tracker.hasState(for: "old"))
+        #expect(tracker.hasState(for: "kept"))
+        #expect(tracker.hasState(for: "current"), "The scanned network is always kept")
+    }
 }

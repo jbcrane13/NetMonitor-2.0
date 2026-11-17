@@ -108,8 +108,9 @@ final class DeviceDiscoveryCoordinator {
         let profileID = effectiveProfileID()
         loadPersistedDevices(for: profileID)
         // Rows from before #393, used only when this network has no tracker state yet, so an
-        // update doesn't report every existing device as new. A row only ever cached isn't
-        // confirmed. Captured now, before the merge rewrites the rows.
+        // update doesn't report every existing device as new. Every row counts as confirmed:
+        // a row's status describes the latest scan, not whether the device ever answered.
+        // Captured now, before the merge rewrites the rows.
         let trackerSeed = Self.trackerSeed(from: discoveredDevices)
 
         let context = makeScanContext()
@@ -563,7 +564,7 @@ final class DeviceDiscoveryCoordinator {
         rows.map {
             KnownDevice(
                 macAddress: $0.macAddress, ipAddress: $0.ipAddress, name: $0.hostname,
-                firstSeen: $0.firstSeen, lastSeen: $0.lastSeen, isConfirmed: $0.status != .cached
+                firstSeen: $0.firstSeen, lastSeen: $0.lastSeen, isConfirmed: true
             )
         }
     }
@@ -575,6 +576,7 @@ final class DeviceDiscoveryCoordinator {
             observed: discovered.map {
                 DeviceObservation(ipAddress: $0.ipAddress, macAddress: $0.macAddress, name: $0.hostname, isCached: $0.isCached)
             },
+            knownScopes: Set(networkProfileManager.profiles.map(\.id.uuidString)),
             seed: { seed }
         )
         if !changes.isEmpty {
