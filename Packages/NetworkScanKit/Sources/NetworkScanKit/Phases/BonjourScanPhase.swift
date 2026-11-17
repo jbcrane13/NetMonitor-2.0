@@ -131,27 +131,35 @@ public struct BonjourScanPhase: ScanPhase, Sendable {
         var devices: [DiscoveredDevice] = []
 
         let resolver = self.resolver
-        // Several services usually share one host name, so look each host up once.
+        // Several services usually share one host name, so look each host up once. The
+        // cache's lookups belong to this scan: cancelled when it is, and when it ends.
         let addressCache = HostAddressCache(lookup: self.addressResolver)
+        defer { addressCache.cancelAll() }
         let addressResolver: @Sendable (String) async -> [String] = { await addressCache.addresses(for: $0) }
-        await forEachBounded(capped, limit: maxResolveConcurrency, operation: { service in
-            await Self.makeBonjourDevice(
-                from: service,
+        await withTaskCancellationHandler {
+            await resolveAll(
+                capped,
                 modelsByName: modelsByName,
                 subnetFilter: context.subnetFilter,
                 resolver: resolver,
                 addressResolver: addressResolver
-            )
-        }, onResult: { device in
-            resolved += 1
-
-            if let device {
-                devices.append(device)
+            ) { device in
+                resolved += 1
+                if let device {
+                    devices.append(device)
+                }
+                await onProgress(0.3 + 0.6 * Double(resolved) / Double(max(total, 1)))
             }
+        } onCancel: {
+            addressCache.cancelAll()
+        }
 
-            let progress = 0.3 + 0.6 * Double(resolved) / Double(max(total, 1))
-            await onProgress(progress)
-        })
+        // Nothing is published after cancellation or a phase timeout: the engine may have
+        // moved on. The browser is still stopped.
+        guard !Task.isCancelled else {
+            await stopProvider?()
+            return
+        }
 
         // Devices with no model from a browsed TXT record: ask for the `_device-info._tcp`
         // TXT record by name, once per name, all at once (DNS-SD queries, no connections).
@@ -167,6 +175,10 @@ public struct BonjourScanPhase: ScanPhase, Sendable {
         })
 
         for device in devices {
+            guard !Task.isCancelled else {
+                await stopProvider?()
+                return
+            }
             guard device.modelName == nil, let name = device.hostname, let model = queriedModels[name] else {
                 await accumulator.upsert(device)
                 continue
@@ -176,6 +188,25 @@ public struct BonjourScanPhase: ScanPhase, Sendable {
 
         await stopProvider?()
         await onProgress(1.0)
+    }
+
+    private func resolveAll(
+        _ services: [BonjourServiceInfo],
+        modelsByName: [String: String],
+        subnetFilter: @escaping @Sendable (String) -> Bool,
+        resolver: @escaping Resolver,
+        addressResolver: @escaping @Sendable (String) async -> [String],
+        onResult: (DiscoveredDevice?) async -> Void
+    ) async {
+        await forEachBounded(services, limit: maxResolveConcurrency, operation: { service in
+            await Self.makeBonjourDevice(
+                from: service,
+                modelsByName: modelsByName,
+                subnetFilter: subnetFilter,
+                resolver: resolver,
+                addressResolver: addressResolver
+            )
+        }, onResult: onResult)
     }
 
     // MARK: - Resolution helpers
@@ -255,22 +286,38 @@ public struct BonjourScanPhase: ScanPhase, Sendable {
 }
 
 /// Per-scan memo of host name → IPv4 addresses; concurrent callers for the same host share
-/// one lookup.
-private actor HostAddressCache {
+/// one lookup. ``cancelAll()`` cancels lookups still running (their DNS-SD refs are then
+/// released) and is safe to call from a cancellation handler.
+private final class HostAddressCache: @unchecked Sendable {
     private let lookup: @Sendable (String) async -> [String]
-    private var tasks: [String: Task<[String], Never>] = [:]
+    private let lock = NSLock()
+    private var tasks: [String: Task<[String], Never>] = [:] // guarded by `lock`
+    private var isCancelled = false // guarded by `lock`
 
     init(lookup: @escaping @Sendable (String) async -> [String]) {
         self.lookup = lookup
     }
 
     func addresses(for host: String) async -> [String] {
-        if let task = tasks[host] {
-            return await task.value
-        }
         let lookup = self.lookup
-        let task = Task { await lookup(host) }
-        tasks[host] = task
-        return await task.value
+        let task: Task<[String], Never>? = lock.withLock {
+            guard !isCancelled else { return nil }
+            if let existing = tasks[host] {
+                return existing
+            }
+            let created = Task { await lookup(host) }
+            tasks[host] = created
+            return created
+        }
+        return await task?.value ?? []
+    }
+
+    func cancelAll() {
+        let running = lock.withLock {
+            isCancelled = true
+            defer { tasks = [:] }
+            return Array(tasks.values)
+        }
+        running.forEach { $0.cancel() }
     }
 }

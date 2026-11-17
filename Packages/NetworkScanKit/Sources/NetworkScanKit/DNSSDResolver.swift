@@ -59,15 +59,25 @@ public enum DNSSDResolver {
     }
 }
 
-/// One DNS-SD call. Every state change runs on `queue`, which is also the queue replies
-/// arrive on, so the continuation is resumed exactly once: by the reply, the timeout or
-/// cancellation, whichever comes first.
-private final class DNSSDRequest<Value: Sendable>: @unchecked Sendable {
+/// One DNS-SD call.
+///
+/// The caller's continuation is resumed exactly once, by whichever comes first: a reply,
+/// the timeout, or cancellation. The timeout and cancellation are armed before the call
+/// starts and don't wait for it, because starting can block while mDNSResponder is busy.
+/// The start runs on its own queue. A ref it returns after the request already finished
+/// is deallocated at once. Replies and every `DNSServiceRefDeallocate` run on `queue`.
+final class DNSSDRequest<Value: Sendable>: @unchecked Sendable {
+    /// Refs currently held, across all requests. Tests use it to check refs are released.
+    static var liveRefCount: Int {
+        DNSSDRefCounter.shared.value
+    }
+
     private let queue = DispatchQueue(label: "com.netmonitor.scankit.dnssd")
-    private var serviceRef: DNSServiceRef?
-    private var continuation: CheckedContinuation<Value, Never>?
-    private var isCancelled = false
-    /// Addresses collected across `DNSServiceGetAddrInfo` replies.
+    private let lock = NSLock()
+    private var serviceRef: DNSServiceRef? // guarded by `lock`
+    private var continuation: CheckedContinuation<Value, Never>? // guarded by `lock`
+    private var isFinished = false // guarded by `lock`
+    /// Addresses collected across `DNSServiceGetAddrInfo` replies; touched only on `queue`.
     var addresses: [String] = []
 
     /// Starts the call with `start(&ref, context)` and waits for `finish`. Returns
@@ -84,10 +94,7 @@ private final class DNSSDRequest<Value: Sendable>: @unchecked Sendable {
                 request.begin(timeout: timeout, timeoutValue: timeoutValue, start: start, continuation: continuation)
             }
         } onCancel: {
-            request.queue.async { [request] in
-                request.isCancelled = true
-                request.finish(timeoutValue)
-            }
+            request.finish(timeoutValue)
         }
     }
 
@@ -97,42 +104,93 @@ private final class DNSSDRequest<Value: Sendable>: @unchecked Sendable {
         start: @escaping @Sendable (UnsafeMutablePointer<DNSServiceRef?>, UnsafeMutableRawPointer) -> DNSServiceErrorType,
         continuation: CheckedContinuation<Value, Never>
     ) {
-        queue.async { [self] in
-            guard !isCancelled else {
-                continuation.resume(returning: timeoutValue)
-                return
+        let alreadyFinished = lock.withLock {
+            if isFinished {
+                return true
             }
             self.continuation = continuation
+            return false
+        }
+        guard !alreadyFinished else {
+            continuation.resume(returning: timeoutValue)
+            return
+        }
 
-            var ref: DNSServiceRef?
-            // Unretained: the timeout closure below keeps `self` alive until it fires,
-            // and `finish` deallocates the ref, which stops replies, before that.
-            let error = start(&ref, Unmanaged.passUnretained(self).toOpaque())
-            guard error == kDNSServiceErr_NoError, let ref else {
-                finish(timeoutValue)
-                return
-            }
-            serviceRef = ref
-            DNSServiceSetDispatchQueue(ref, queue)
-            let nanoseconds = timeout.components.seconds * 1_000_000_000 + timeout.components.attoseconds / 1_000_000_000
-            queue.asyncAfter(deadline: .now() + .nanoseconds(Int(nanoseconds))) { [self] in
-                finish(timeoutValue)
+        let nanoseconds = timeout.components.seconds * 1_000_000_000 + timeout.components.attoseconds / 1_000_000_000
+        DispatchQueue.global().asyncAfter(deadline: .now() + .nanoseconds(Int(nanoseconds))) { [self] in
+            finish(timeoutValue)
+        }
+
+        // `self` stays alive in these closures until the ref is installed or released, and
+        // the ref is deallocated (which stops replies) before the last of them returns.
+        DispatchQueue.global().async { [self] in
+            var created: DNSServiceRef?
+            let error = start(&created, Unmanaged.passUnretained(self).toOpaque())
+            let started = StartedRef(ref: created)
+            queue.async { [self] in
+                guard error == kDNSServiceErr_NoError, let ref = started.ref else {
+                    finish(timeoutValue)
+                    return
+                }
+                let install = lock.withLock {
+                    guard !isFinished else { return false }
+                    serviceRef = ref
+                    return true
+                }
+                guard install else {
+                    // Finished while the start was blocked: release the late ref.
+                    DNSServiceRefDeallocate(ref)
+                    return
+                }
+                DNSSDRefCounter.shared.add(1)
+                DNSServiceSetDispatchQueue(ref, queue)
             }
         }
     }
 
-    /// Runs on `queue`.
+    /// Safe from any thread. The first call wins; later calls do nothing.
     func finish(_ value: Value) {
-        if let serviceRef {
-            DNSServiceRefDeallocate(serviceRef)
-            self.serviceRef = nil
+        let pending: CheckedContinuation<Value, Never>? = lock.withLock {
+            guard !isFinished else { return nil }
+            isFinished = true
+            defer { continuation = nil }
+            return continuation
         }
-        continuation?.resume(returning: value)
-        continuation = nil
+        pending?.resume(returning: value)
+        queue.async { [self] in
+            let ref: DNSServiceRef? = lock.withLock {
+                defer { serviceRef = nil }
+                return serviceRef
+            }
+            if let ref {
+                DNSServiceRefDeallocate(ref)
+                DNSSDRefCounter.shared.add(-1)
+            }
+        }
     }
 
     static func from(_ context: UnsafeMutableRawPointer) -> DNSSDRequest<Value> {
         Unmanaged<DNSSDRequest<Value>>.fromOpaque(context).takeUnretainedValue()
+    }
+}
+
+/// Carries a just-created ref from the start queue to `queue`, the only place it is used.
+private struct StartedRef: @unchecked Sendable {
+    let ref: DNSServiceRef?
+}
+
+/// Counts DNS-SD refs held by `DNSSDRequest`s.
+final class DNSSDRefCounter: @unchecked Sendable {
+    static let shared = DNSSDRefCounter()
+    private let lock = NSLock()
+    private var count = 0
+
+    var value: Int {
+        lock.withLock { count }
+    }
+
+    func add(_ delta: Int) {
+        lock.withLock { count += delta }
     }
 }
 
@@ -163,13 +221,11 @@ private let addrInfoReply: DNSServiceGetAddrInfoReply = { _, flags, _, errorCode
     }
     if flags & DNSServiceFlags(kDNSServiceFlagsAdd) != 0,
        let address, Int32(address.pointee.sa_family) == AF_INET {
-        var ipv4 = address.withMemoryRebound(to: sockaddr_in.self, capacity: 1) { $0.pointee.sin_addr }
-        var buffer = [CChar](repeating: 0, count: Int(INET_ADDRSTRLEN))
-        if inet_ntop(AF_INET, &ipv4, &buffer, socklen_t(buffer.count)) != nil {
-            let text = String(cString: buffer)
-            if !request.addresses.contains(text) {
-                request.addresses.append(text)
-            }
+        let ipv4 = address.withMemoryRebound(to: sockaddr_in.self, capacity: 1) { $0.pointee.sin_addr.s_addr }
+        // `s_addr` is in network byte order, so its bytes in memory are the dotted octets.
+        let text = withUnsafeBytes(of: ipv4) { $0.map(String.init).joined(separator: ".") }
+        if !request.addresses.contains(text) {
+            request.addresses.append(text)
         }
     }
     // Finish once mDNSResponder says no more answers are queued.
