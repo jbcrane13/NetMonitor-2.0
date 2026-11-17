@@ -77,7 +77,10 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
             discoveredAt: device.discoveredAt,
             source: device.source,
             networkProfileID: profileID,
-            isCached: keepCached && device.isCached
+            isCached: keepCached && device.isCached,
+            friendlyName: device.friendlyName,
+            manufacturer: device.manufacturer,
+            modelName: device.modelName
         )
     }
 

@@ -26,6 +26,10 @@ public struct DiscoveredDevice: Identifiable, Codable, Sendable {
     /// during the scan that produced it, so it may have left the network (#378).
     /// Older JSON caches without this field decode as `false`.
     public let isCached: Bool
+    /// From the device's UPnP description (#387). Additive: older JSON caches decode as nil.
+    public let friendlyName: String?
+    public let manufacturer: String?
+    public let modelName: String?
 
     /// Convenience init for local TCP probe (backward compatible).
     public init(ipAddress: String, latency: Double, discoveredAt: Date, networkProfileID: UUID? = nil) {
@@ -40,6 +44,9 @@ public struct DiscoveredDevice: Identifiable, Codable, Sendable {
         self.networkProfileID = networkProfileID
         self.openPorts = nil
         self.isCached = false
+        self.friendlyName = nil
+        self.manufacturer = nil
+        self.modelName = nil
     }
 
     /// Full init with all fields.
@@ -54,7 +61,10 @@ public struct DiscoveredDevice: Identifiable, Codable, Sendable {
         source: DeviceSource,
         networkProfileID: UUID? = nil,
         openPorts: [Int]? = nil,
-        isCached: Bool = false
+        isCached: Bool = false,
+        friendlyName: String? = nil,
+        manufacturer: String? = nil,
+        modelName: String? = nil
     ) {
         self.id = id
         self.ipAddress = ipAddress
@@ -67,10 +77,14 @@ public struct DiscoveredDevice: Identifiable, Codable, Sendable {
         self.networkProfileID = networkProfileID
         self.openPorts = openPorts
         self.isCached = isCached
+        self.friendlyName = friendlyName
+        self.manufacturer = manufacturer
+        self.modelName = modelName
     }
 
     private enum CodingKeys: String, CodingKey {
         case id, ipAddress, hostname, vendor, macAddress, latency, discoveredAt, source, networkProfileID, openPorts, isCached
+        case friendlyName, manufacturer, modelName
     }
 
     public init(from decoder: any Decoder) throws {
@@ -86,6 +100,9 @@ public struct DiscoveredDevice: Identifiable, Codable, Sendable {
         networkProfileID = try container.decodeIfPresent(UUID.self, forKey: .networkProfileID)
         openPorts = try container.decodeIfPresent([Int].self, forKey: .openPorts)
         isCached = try container.decodeIfPresent(Bool.self, forKey: .isCached) ?? false
+        friendlyName = try container.decodeIfPresent(String.self, forKey: .friendlyName)
+        manufacturer = try container.decodeIfPresent(String.self, forKey: .manufacturer)
+        modelName = try container.decodeIfPresent(String.self, forKey: .modelName)
     }
 
     /// A copy with `isCached` replaced; every other field is kept.
@@ -101,12 +118,24 @@ public struct DiscoveredDevice: Identifiable, Codable, Sendable {
             source: source,
             networkProfileID: networkProfileID,
             openPorts: openPorts,
-            isCached: isCached
+            isCached: isCached,
+            friendlyName: friendlyName,
+            manufacturer: manufacturer,
+            modelName: modelName
         )
     }
 
+    /// The hostname, else the UPnP friendly name (#387), else the IP.
     public var displayName: String {
-        hostname ?? ipAddress
+        hostname ?? friendlyName ?? ipAddress
+    }
+
+    /// The vendor (OUI or companion), else the UPnP manufacturer (#387).
+    public var vendorOrManufacturer: String? {
+        if let vendor, !vendor.isEmpty {
+            return vendor
+        }
+        return manufacturer
     }
 
     public var latencyText: String {
