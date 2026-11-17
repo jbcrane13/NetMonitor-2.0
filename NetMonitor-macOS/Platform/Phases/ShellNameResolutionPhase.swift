@@ -68,7 +68,7 @@ struct ShellNameResolutionPhase: ScanPhase, Sendable {
                     latency: nil,
                     discoveredAt: Date(),
                     source: .local
-                ))
+                ), confirmsPresence: false) // a name lookup says nothing about presence (#378)
             }
             await onProgress(Double(resolved) / Double(max(total, 1)))
         })

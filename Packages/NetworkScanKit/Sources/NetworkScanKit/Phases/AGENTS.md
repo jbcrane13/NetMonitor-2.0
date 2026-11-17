@@ -5,16 +5,18 @@
 
 ## Purpose
 
-Concrete implementations of network discovery techniques. Each phase conforms to `ScanPhase` and performs a specific discovery method (ARP cache reading, Bonjour/mDNS discovery, TCP probing, SSDP multicast, reverse DNS lookups).
+Concrete implementations of network discovery techniques. Each phase conforms to `ScanPhase` and performs a specific discovery method (ARP probing and table reads, Bonjour/mDNS discovery, TCP probing, SSDP multicast, ICMP latency, the ARP re-check, reverse DNS lookups).
 
 ## Key Files
 
 | File | Purpose |
 |------|---------|
-| `ARPScanPhase.swift` | Parses system ARP cache (`/usr/sbin/arp -an`) for IP-MAC mappings |
+| `ARPScanPhase.swift` | Sends UDP probes to fill the ARP table, then reads it (via `ARPCacheScanner`) until it settles |
 | `BonjourScanPhase.swift` | Discovers mDNS/Bonjour services with adaptive exit timeout |
 | `TCPProbeScanPhase.swift` | TCP connect probes to common ports with RTT-adaptive timeouts |
-| `SSDPScanPhase.swift` | SSDP (UPnP) multicast discovery with configurable overlap duration |
+| `SSDPScanPhase.swift` | SSDP (UPnP) M-SEARCH multicast discovery; logs connection/send failures |
+| `ICMPLatencyPhase.swift` | ICMP echo sweep that fills in latency for discovered devices |
+| `ARPRecheckPhase.swift` | Re-reads the ARP table after ICMP and confirms devices whose entry was refreshed |
 | `ReverseDNSScanPhase.swift` | DNS PTR lookups to resolve hostnames for discovered IPs |
 
 ## For AI Agents
@@ -22,38 +24,50 @@ Concrete implementations of network discovery techniques. Each phase conforms to
 ### Phase-Specific Patterns
 
 **ARPScanPhase:**
-- Executes `/usr/sbin/arp -an` via `Process` and parses output for IP/MAC pairs.
-- Lightweight and fast (weight: 1.0).
-- No network I/O, purely local cache reading.
+- Reads the ARP table first and records each entry's expiry as a baseline (`accumulator.recordARPBaseline`).
+- Sends fire-and-forget UDP probes to every host (`ARPCacheScanner.populateARPCache`) so the kernel resolves them.
+- Reads the table with `ARPCacheScanner.readARPEntries()`: a routing-table `sysctl` (`NET_RT_FLAGS`, `RTF_LLINFO`). On macOS, when the sysctl returns no entries (seen on macOS 27.2, #401), it falls back to parsing `/usr/sbin/arp -anl`. iOS uses the sysctl only.
+- Settle polling (#379): `ARPCacheScanner.pollUntilSettled` re-reads every 250 ms and stops after 500 ms with no new IP, capped at 2 s.
+- An entry confirms presence only if it is new since the baseline or its expiry moved forward (`refreshedIPs`). Other entries are upserted with `confirmsPresence: false`, so the device stays cached unless a later phase answers for it.
+- Weight: 0.10.
+
+**ARPRecheckPhase:**
+- Runs after the latency step. Pings make the kernel re-check entries even for hosts that drop ICMP, so their expiry moves forward.
+- Compares unconfirmed devices' entries with the ARP baseline and calls `accumulator.confirmPresence` for refreshed ones.
+- Weight: 0.01.
 
 **BonjourScanPhase:**
 - Uses `NetService` and `NetServiceBrowser` for mDNS discovery.
 - Adaptive exit timeout: waits until no new services found for N seconds.
 - Supports custom service type filtering (default: `_services._dns-sd._udp`).
-- Moderate weight: 2.0.
+- Weight: 0.13.
 
 **TCPProbeScanPhase:**
 - Probes common ports (22, 80, 443, 445, etc.) via `NWConnection`.
 - Queries `RTTTracker` for adaptive timeout calculation (P90 + buffer).
 - Respects `ConnectionBudget` for thermal throttling.
-- Highest weight: 10.0 (most time-consuming).
+- Highest weight: 0.55 (most time-consuming).
 - Uses `withThrowingTaskGroup` for concurrent probing.
 
 **SSDPScanPhase:**
 - Sends SSDP M-SEARCH multicast to 239.255.255.250:1900.
-- Listens for UPnP device responses.
-- Configurable overlap duration (default: 3 seconds past Bonjour).
-- Weight: 3.0.
+- Listens for UPnP device responses for 3 seconds.
+- Logs (`os.Logger` category `SSDP`, codes and counts only) a connection that fails, waits or never becomes ready, and a send error. On iPhone these are the signs of a missing multicast entitlement (#381).
+- Weight: 0.06.
 
 **ReverseDNSScanPhase:**
-- DNS PTR lookups via `host` command or `gethostbyaddr`.
-- Enriches discovered devices with hostnames.
+- DNS PTR lookups via `DeviceNameResolver` (`getnameinfo`).
+- Enriches discovered devices with hostnames; upserts pass `confirmsPresence: false` (a name is not evidence the device is present).
 - Sequential execution (not parallelized).
-- Weight: 2.0.
+- Weight: 0.08.
+
+### Presence and the cached state (#378)
+
+A device is online only with evidence from this scan: an answer (ICMP, TCP connect or RST, Bonjour, SSDP, Mac companion, open port) or a refreshed ARP entry. `ScanAccumulator` tracks the rest as unconfirmed, and its snapshots set `DiscoveredDevice.isCached = true` for them. The apps show these as "Cached" (macOS `DeviceStatus.cached`). Enrichment phases that only add data (names, vendor, reverse DNS) must upsert with `confirmsPresence: false`.
 
 ### Working Instructions
 
-1. **Adding a New Phase:** Implement `ScanPhase` protocol, add to `ScanPipeline.standard()` in appropriate step.
+1. **Adding a New Phase:** Implement `ScanPhase` protocol, add to `ScanPipeline.standard()` in appropriate step. Pass `confirmsPresence: false` to `upsert` unless the device answered your phase.
 2. **RTT-Based Timeouts:** Use `await context.rttTracker?.calculateTimeout()` for adaptive timeouts. Fallback to static timeout if tracker unavailable.
 3. **Progress Reporting:** Call `onProgress()` callback with 0.0–1.0 as work completes. ScanEngine aggregates this with phase weights.
 4. **Cancellation:** Check `context.isCancelled()` in loops to support early termination.
@@ -70,15 +84,17 @@ xcodebuild test -scheme Netmonitor -destination 'platform=iOS Simulator,name=iPh
 
 - Foundation (Process, Timer, RunLoop)
 - Network.framework (NWConnection for TCP probes)
-- Darwin (gethostbyaddr for reverse DNS)
+- Darwin (`getnameinfo` for reverse DNS, `sysctl` for the ARP table)
 - CFNetwork (NetService for Bonjour)
 
-### Phase Weights
+### Pipeline order and weights
 
-- ARP: 1.0 (instant, local cache)
-- Bonjour: 2.0 (mDNS discovery, adaptive timeout)
-- TCP Probe: 10.0 (most time-consuming, full subnet scan)
-- SSDP: 3.0 (multicast with timeout)
-- Reverse DNS: 2.0 (PTR lookups)
+`ScanPipeline.standard()` runs five steps:
 
-Total weight in `ScanPipeline.standard()`: 18.0
+1. ARP (0.10) + Bonjour (0.13), concurrent
+2. TCP probe (0.55) + SSDP (0.06), concurrent
+3. ICMP latency (0.10)
+4. ARP re-check (0.01)
+5. Reverse DNS (0.08)
+
+Platforms may append trailing steps (macOS adds its enrichment step: name resolution, vendor lookup, quick port scan, shell ping).

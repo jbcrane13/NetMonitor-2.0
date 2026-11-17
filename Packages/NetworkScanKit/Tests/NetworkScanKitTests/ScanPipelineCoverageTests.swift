@@ -17,7 +17,7 @@ struct ScanPipelineCoverageTests {
         let pipeline = ScanPipeline.standard(bonjourServiceProvider: services)
 
         // Structure should match standard pipeline
-        #expect(pipeline.steps.count == 4)
+        #expect(pipeline.steps.count == 5)
         #expect(pipeline.steps[0].concurrent == true)
         #expect(pipeline.steps[0].phases.count == 2)
         #expect(pipeline.steps[1].concurrent == true)
@@ -26,6 +26,8 @@ struct ScanPipelineCoverageTests {
         #expect(pipeline.steps[2].phases.count == 1)
         #expect(pipeline.steps[3].concurrent == false)
         #expect(pipeline.steps[3].phases.count == 1)
+        #expect(pipeline.steps[4].concurrent == false)
+        #expect(pipeline.steps[4].phases.count == 1)
     }
 
     @Test("standard() with bonjourStopProvider preserves pipeline structure")
@@ -36,7 +38,7 @@ struct ScanPipelineCoverageTests {
         }
         let pipeline = ScanPipeline.standard(bonjourStopProvider: stopProvider)
 
-        #expect(pipeline.steps.count == 4)
+        #expect(pipeline.steps.count == 5)
         // Verify the stop provider is wired into the bonjour phase
         let bonjourPhase = pipeline.steps[0].phases.first { $0.id == "bonjour" }
         #expect(bonjourPhase != nil, "Step 0 should contain a bonjour phase")
@@ -53,7 +55,7 @@ struct ScanPipelineCoverageTests {
             bonjourStopProvider: stop
         )
 
-        #expect(pipeline.steps.count == 4)
+        #expect(pipeline.steps.count == 5)
         let allPhaseIds = pipeline.steps.flatMap { $0.phases.map(\.id) }
         #expect(allPhaseIds.contains("bonjour"))
     }
@@ -134,14 +136,15 @@ struct ScanPipelineCoverageTests {
         #expect(weightsById["ssdp"] == 0.06)
         #expect(weightsById["icmpLatency"] == 0.10)
         #expect(weightsById["reverseDNS"] == 0.08)
+        #expect(weightsById["arpRecheck"] == 0.01)
     }
 
     // MARK: - latencyPhase / trailingSteps (E5)
 
-    @Test("standard() with default params keeps 4 steps and no trailing steps (iOS byte-identical)")
+    @Test("standard() with default params has 5 steps and no trailing steps")
     func standardDefaultsHaveNoTrailingSteps() {
         let pipeline = ScanPipeline.standard()
-        #expect(pipeline.steps.count == 4)
+        #expect(pipeline.steps.count == 5)
     }
 
     @Test("standard() substitutes a custom latencyPhase into step 2")
@@ -164,9 +167,9 @@ struct ScanPipelineCoverageTests {
         let trailing = ScanPipeline.Step(phases: [trailingPhase], concurrent: true)
         let pipeline = ScanPipeline.standard(trailingSteps: [trailing])
 
-        #expect(pipeline.steps.count == 5)
-        #expect(pipeline.steps[4].phases[0].id == "trailing")
-        #expect(pipeline.steps[4].concurrent == true)
+        #expect(pipeline.steps.count == 6)
+        #expect(pipeline.steps[5].phases[0].id == "trailing")
+        #expect(pipeline.steps[5].concurrent == true)
     }
 
     @Test("standard() supports multiple trailingSteps in order")
@@ -175,9 +178,9 @@ struct ScanPipelineCoverageTests {
         let stepB = ScanPipeline.Step(phases: [SimpleTestPhase(id: "b", displayName: "B", weight: 1.0)], concurrent: false)
         let pipeline = ScanPipeline.standard(trailingSteps: [stepA, stepB])
 
-        #expect(pipeline.steps.count == 6)
-        #expect(pipeline.steps[4].phases[0].id == "a")
-        #expect(pipeline.steps[5].phases[0].id == "b")
+        #expect(pipeline.steps.count == 7)
+        #expect(pipeline.steps[5].phases[0].id == "a")
+        #expect(pipeline.steps[6].phases[0].id == "b")
     }
 
     // MARK: - Pipeline mutability

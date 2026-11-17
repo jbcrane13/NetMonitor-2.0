@@ -5,11 +5,14 @@
 //  Notification preferences settings.
 //
 
+import NetMonitorCore
 import SwiftUI
 
 struct NotificationSettingsView: View {
-    @AppStorage("netmonitor.notifications.enabled") private var notificationsEnabled = true
-    @AppStorage("netmonitor.notifications.targetDown") private var notifyTargetDown = true
+    @AppStorage(MacAlertNotifier.notificationsEnabledKey) private var notificationsEnabled = true
+    // Same keys and defaults as NotificationService, so these toggles control the alerts (#403).
+    @AppStorage(NotificationService.targetDownAlertKey) private var notifyTargetDown = true
+    @AppStorage(NotificationService.newDeviceAlertKey) private var notifyNewDevice = true
     @AppStorage("netmonitor.notifications.targetRecovery") private var notifyTargetRecovery = true
     @AppStorage("netmonitor.notifications.latencyThreshold") private var latencyThreshold = 500.0
 
@@ -26,6 +29,10 @@ struct NotificationSettingsView: View {
                 Toggle("Notify when target goes down", isOn: $notifyTargetDown)
                     .disabled(!notificationsEnabled)
                     .accessibilityIdentifier("settings_toggle_notifyTargetDown")
+
+                Toggle("Notify when a new device joins", isOn: $notifyNewDevice)
+                    .disabled(!notificationsEnabled)
+                    .accessibilityIdentifier("settings_toggle_notifyNewDevice")
 
                 Toggle("Notify when target recovers", isOn: $notifyTargetRecovery)
                     .disabled(!notificationsEnabled)

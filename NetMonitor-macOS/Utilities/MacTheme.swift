@@ -278,6 +278,7 @@ enum MacTheme {
         static func statusColor(_ status: StatusType) -> Color {
             switch status {
             case .online: return success
+            case .cached: return warning
             default:      return Color.gray
             }
         }

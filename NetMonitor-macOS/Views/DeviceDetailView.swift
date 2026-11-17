@@ -120,7 +120,7 @@ struct DeviceDetailView: View {
                         .fill(MacTheme.Colors.statusColor(device.status.statusType))
                         .frame(width: 8, height: 8)
 
-                    Text(device.status == .online ? "Online" : "Offline")
+                    Text(device.status == .cached ? "Cached" : device.status == .online ? "Online" : "Offline")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
