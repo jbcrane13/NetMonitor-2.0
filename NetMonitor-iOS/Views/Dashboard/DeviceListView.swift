@@ -129,7 +129,6 @@ struct DeviceListView: View {
         .accessibilityIdentifier("screen_deviceList")
     }
 
-    @ViewBuilder
     private func deviceRow(device: DiscoveredDevice) -> some View {
         GlassCard {
             HStack(spacing: Theme.Layout.itemSpacing) {
@@ -155,7 +154,7 @@ struct DeviceListView: View {
                             .foregroundStyle(Theme.Colors.textSecondary)
                     }
 
-                    if let vendor = device.vendor, !vendor.isEmpty {
+                    if let vendor = MACAddress.makerLabel(vendor: device.vendor, macAddress: device.macAddress) {
                         Text(vendor)
                             .font(.caption2)
                             .foregroundStyle(Theme.Colors.textTertiary)
@@ -172,7 +171,6 @@ struct DeviceListView: View {
         }
     }
 
-    @ViewBuilder
     private func proModeRow(device: DiscoveredDevice) -> some View {
         GlassCard(padding: 10) {
             VStack(alignment: .leading, spacing: 6) {
@@ -214,7 +212,7 @@ struct DeviceListView: View {
                         .clipShape(Capsule())
                 }
 
-                if let vendor = device.vendor, !vendor.isEmpty {
+                if let vendor = MACAddress.makerLabel(vendor: device.vendor, macAddress: device.macAddress) {
                     Text(vendor)
                         .font(.system(size: 11, design: .monospaced))
                         .foregroundStyle(Theme.Colors.textTertiary)
@@ -227,8 +225,12 @@ struct DeviceListView: View {
 
     private func latencyColor(_ latency: Double?) -> Color {
         guard let ms = latency else { return Theme.Colors.textTertiary }
-        if ms < 10 { return Theme.Colors.success }
-        if ms < 50 { return Theme.Colors.warning }
+        if ms < 10 {
+            return Theme.Colors.success
+        }
+        if ms < 50 {
+            return Theme.Colors.warning
+        }
         return Theme.Colors.error
     }
 

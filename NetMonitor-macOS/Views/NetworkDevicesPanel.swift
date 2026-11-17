@@ -288,7 +288,7 @@ private struct DevicePanelRow: View {
             .frame(minWidth: 120, maxWidth: 200, alignment: .leading)
 
             // Vendor — constrained width
-            Text(device.vendor ?? "")
+            Text(MACAddress.makerLabel(vendor: device.vendor, macAddress: device.macAddress) ?? "")
                 .font(.system(size: 10))
                 .foregroundStyle(.tertiary)
                 .lineLimit(1)

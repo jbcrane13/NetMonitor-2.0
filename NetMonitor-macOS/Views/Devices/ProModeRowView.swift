@@ -52,7 +52,7 @@ struct ProModeRowView: View {
                 .frame(width: Self.nameWidth, alignment: .leading)
 
             // Vendor
-            Text(device.vendor ?? "")
+            Text(MACAddress.makerLabel(vendor: device.vendor, macAddress: device.macAddress) ?? "")
                 .foregroundStyle(MacTheme.Colors.textSecondary)
                 .lineLimit(1)
                 .frame(width: Self.vendorWidth, alignment: .leading)

@@ -35,36 +35,36 @@ struct MACVendorOnlineContractTests {
         // Use a MAC prefix that is NOT in the local OUI database so the service
         // proceeds to the online API path.
         let service = makeService(responseBody: "Apple, Inc.")
-        // 12:34:56 is not in the local database
-        let vendor = await service.lookupVendorEnhanced(macAddress: "12:34:56:78:90:AB")
+        // 10:34:56 is a maker-assigned (not private) prefix with no IEEE assignment
+        let vendor = await service.lookupVendorEnhanced(macAddress: "10:34:56:78:90:AB")
         #expect(vendor == "Apple, Inc.")
     }
 
     @Test("macvendors.com response is trimmed of whitespace")
     func onlineAPIResponseIsTrimmed() async {
         let service = makeService(responseBody: "  Cisco Systems, Inc.  \n")
-        let vendor = await service.lookupVendorEnhanced(macAddress: "12:34:56:78:90:AB")
+        let vendor = await service.lookupVendorEnhanced(macAddress: "10:34:56:78:90:AB")
         #expect(vendor == "Cisco Systems, Inc.")
     }
 
     @Test("macvendors.com 'Not Found' response: returns nil")
     func onlineAPINotFoundReturnsNil() async {
         let service = makeService(responseBody: "Not Found", statusCode: 404)
-        let vendor = await service.lookupVendorEnhanced(macAddress: "12:34:56:78:90:AB")
+        let vendor = await service.lookupVendorEnhanced(macAddress: "10:34:56:78:90:AB")
         #expect(vendor == nil)
     }
 
     @Test("macvendors.com HTTP 404: returns nil gracefully")
     func onlineAPIHTTP404ReturnsNil() async {
         let service = makeService(responseBody: "", statusCode: 404)
-        let vendor = await service.lookupVendorEnhanced(macAddress: "12:34:56:78:90:AB")
+        let vendor = await service.lookupVendorEnhanced(macAddress: "10:34:56:78:90:AB")
         #expect(vendor == nil)
     }
 
     @Test("macvendors.com HTTP 429 rate-limit: returns nil gracefully")
     func onlineAPIHTTP429ReturnsNil() async {
         let service = makeService(responseBody: "Too Many Requests", statusCode: 429)
-        let vendor = await service.lookupVendorEnhanced(macAddress: "12:34:56:78:90:AB")
+        let vendor = await service.lookupVendorEnhanced(macAddress: "10:34:56:78:90:AB")
         #expect(vendor == nil)
     }
 
@@ -74,15 +74,72 @@ struct MACVendorOnlineContractTests {
             throw URLError(.notConnectedToInternet)
         }
         let service = MACVendorLookupService(session: session)
-        let vendor = await service.lookupVendorEnhanced(macAddress: "12:34:56:78:90:AB")
+        let vendor = await service.lookupVendorEnhanced(macAddress: "10:34:56:78:90:AB")
         #expect(vendor == nil)
     }
 
     @Test("macvendors.com empty body: returns nil gracefully")
     func onlineAPIEmptyBodyReturnsNil() async {
         let service = makeService(responseBody: "", statusCode: 200)
-        let vendor = await service.lookupVendorEnhanced(macAddress: "12:34:56:78:90:AB")
+        let vendor = await service.lookupVendorEnhanced(macAddress: "10:34:56:78:90:AB")
         // Empty body after trimming is treated the same as Not Found
+        #expect(vendor == nil)
+    }
+
+    // MARK: - Private (randomised) addresses never reach the network (#385)
+
+    @Test("Private MAC: enhanced lookup returns nil without any online request")
+    func privateMACSkipsOnlineLookup() async {
+        let requests = RequestCounter()
+        let session = MockURLProtocol.makeSession { request in
+            requests.increment()
+            guard let url = request.url,
+                  let response = HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil) else {
+                throw URLError(.badURL)
+            }
+            return (response, Data("Should Not Be Used".utf8))
+        }
+        let service = MACVendorLookupService(session: session)
+        let vendor = await service.lookupVendorEnhanced(macAddress: "DA:A1:19:12:34:56")
+        let dashed = await service.lookupVendorEnhanced(macAddress: "3a-7b-00-11-22-33")
+        #expect(vendor == nil)
+        #expect(dashed == nil)
+        #expect(requests.isEmpty)
+    }
+
+    @Test("IEEE-listed MAC resolves offline without any online request (#384)")
+    func offlineListSkipsOnlineLookup() async {
+        let requests = RequestCounter()
+        let service = makeCountingService(requests, responseBody: "Should Not Be Used")
+        let vendor = await service.lookupVendorEnhanced(macAddress: "28:6F:B9:11:22:33")
+        #expect(vendor == "Nokia Shanghai Bell Co., Ltd.")
+        #expect(requests.isEmpty)
+    }
+
+    @Test("Unlisted public MAC still falls back to the online lookup (#384)")
+    func unlistedMACUsesOnlineLookup() async {
+        let requests = RequestCounter()
+        let service = makeCountingService(requests, responseBody: "Acme Networks")
+        let vendor = await service.lookupVendorEnhanced(macAddress: "10:34:56:78:90:AB")
+        #expect(vendor == "Acme Networks")
+        #expect(!requests.isEmpty)
+    }
+
+    private func makeCountingService(_ requests: RequestCounter, responseBody: String) -> MACVendorLookupService {
+        MACVendorLookupService(session: MockURLProtocol.makeSession { request in
+            requests.increment()
+            guard let url = request.url,
+                  let response = HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil) else {
+                throw URLError(.badURL)
+            }
+            return (response, Data(responseBody.utf8))
+        })
+    }
+
+    @Test("Private MAC: local lookup returns nil even if the prefix bits match a table entry")
+    func privateMACSkipsLocalLookup() async {
+        let service = MACVendorLookupService()
+        let vendor = await service.lookup(macAddress: "02:03:93:AA:BB:CC")
         #expect(vendor == nil)
     }
 
@@ -129,5 +186,19 @@ struct MACVendorOnlineContractTests {
 
         let macPrefix = vendorDetails?["macPrefix"] as? String
         #expect(macPrefix == "AABBCC", "macPrefix should be 'AABBCC'")
+    }
+}
+
+/// Counts requests a mock session receives (the handler runs off the test's actor).
+private final class RequestCounter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value = 0
+
+    var isEmpty: Bool {
+        lock.withLock { value == 0 }
+    }
+
+    func increment() {
+        lock.withLock { value += 1 }
     }
 }

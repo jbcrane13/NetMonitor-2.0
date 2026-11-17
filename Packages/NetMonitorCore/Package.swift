@@ -27,6 +27,7 @@ let package = Package(
                 .product(name: "ZIPFoundation", package: "ZIPFoundation")
             ],
             path: "Sources/NetMonitorCore",
+            resources: [.copy("Resources/oui.tsv")],
             swiftSettings: [
                 .swiftLanguageMode(.v6)
             ]
