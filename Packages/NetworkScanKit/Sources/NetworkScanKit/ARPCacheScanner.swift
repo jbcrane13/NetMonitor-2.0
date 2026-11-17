@@ -163,9 +163,9 @@ public enum ARPCacheScanner: Sendable {
     /// may report 0 for every entry. For an entry already in the baseline, a zero expiry
     /// before or after (permanent, or not reported) proves nothing.
     ///
-    /// The `arp -anl` fallback derives expiry from whole seconds left, so an entry that
-    /// is only counting down can drift by a second between reads; a real refresh moves
-    /// it forward by minutes, hence the small tolerance.
+    /// The kernel converts each entry's expiry from uptime to wall-clock seconds on every
+    /// read, so an entry that is only counting down can wobble by a second between reads;
+    /// a real refresh moves it forward by minutes, hence the small tolerance.
     public static func refreshedIPs(baseline: [String: Int32], current: [ARPEntry]) -> Set<String> {
         let tolerance: Int32 = 2
         var refreshed: Set<String> = []
@@ -231,20 +231,9 @@ public enum ARPCacheScanner: Sendable {
 
     /// Read the system ARP cache, keeping each entry's expiry.
     ///
-    /// On macOS 27 the routing sysctl returns no IPv4 entries to third-party
-    /// processes, while `/usr/sbin/arp` still lists them (#401), so macOS falls back
-    /// to running it when the sysctl comes back empty.
+    /// On macOS 27 the routing sysctl returns no IPv4 entries to sandboxed apps (#401),
+    /// so scans there get no MACs and discovery relies on TCP, Bonjour and SSDP.
     public static func readARPEntries() -> [ARPEntry] {
-        let entries = readSysctlEntries()
-        #if os(macOS)
-        if entries.isEmpty {
-            return readArpCommandEntries()
-        }
-        #endif
-        return entries
-    }
-
-    private static func readSysctlEntries() -> [ARPEntry] {
         // sysctl parameters for reading the routing table's ARP entries
         var mib: [Int32] = [
             CTL_NET,
@@ -269,84 +258,6 @@ public enum ARPCacheScanner: Sendable {
         }
 
         return parseARPEntries(buffer: buffer, length: bufferSize)
-    }
-
-    // MARK: - `arp -anl` fallback (#401)
-
-    #if os(macOS)
-    private static func readArpCommandEntries() -> [ARPEntry] {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/sbin/arp")
-        process.arguments = ["-anl"]
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = FileHandle.nullDevice
-        do {
-            try process.run()
-        } catch {
-            return []
-        }
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
-        let now = Int32(clamping: Int(Date().timeIntervalSince1970))
-        guard let text = String(bytes: data, encoding: .utf8) else { return [] }
-        return parseArpListing(text, now: now)
-    }
-    #endif
-
-    /// Parses `arp -anl` output (columns: Neighbor, Linklayer Address, Expire(O),
-    /// Expire(I), Netif, ...). Incomplete, all-zero and broadcast entries are dropped,
-    /// MAC octets are zero-padded (`arp` prints `9c:5:d6:...`), and Expire(O) becomes
-    /// an absolute time in seconds (`now` plus the time left) so two reads compare the
-    /// way kernel `rmx_expire` values do. `expired` becomes 1, which is non-zero but
-    /// older than any live entry; `(none)` becomes 0 (permanent or unknown).
-    static func parseArpListing(_ text: String, now: Int32) -> [ARPEntry] {
-        var entries: [ARPEntry] = []
-        for line in text.split(separator: "\n").dropFirst() {
-            let columns = line.split(whereSeparator: { $0 == " " || $0 == "\t" })
-            guard columns.count >= 3 else { continue }
-            let ip = String(columns[0])
-            let octets = columns[1].split(separator: ":")
-            guard isValidIPv4Address(ip), octets.count == 6 else { continue }
-            let bytes = octets.compactMap { UInt8($0, radix: 16) }
-            guard bytes.count == 6,
-                  !bytes.allSatisfy({ $0 == 0 }),
-                  !bytes.allSatisfy({ $0 == 0xFF }) else { continue }
-            let mac = bytes.map { String(format: "%02x", $0) }.joined(separator: ":")
-
-            let expiry: Int32
-            switch columns[2] {
-            case "(none)": expiry = 0
-            case "expired": expiry = 1
-            default:
-                guard let seconds = parseDuration(columns[2]) else { continue }
-                expiry = now &+ seconds
-            }
-            entries.append(ARPEntry(ip: ip, mac: mac, expiry: expiry))
-        }
-        return entries
-    }
-
-    /// Parses `arp`'s compact durations such as `51s`, `2m6s` or `1h2m3s`.
-    static func parseDuration(_ text: Substring) -> Int32? {
-        var total: Int32 = 0
-        var number: Int32 = 0
-        var sawUnit = false
-        for character in text {
-            if let digit = character.wholeNumberValue {
-                number = number * 10 + Int32(digit)
-                continue
-            }
-            switch character {
-            case "h": total += number * 3600
-            case "m": total += number * 60
-            case "s": total += number
-            default: return nil
-            }
-            number = 0
-            sawUnit = true
-        }
-        return sawUnit ? total : nil
     }
 
     // MARK: - Routing message parsing

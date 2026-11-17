@@ -21,7 +21,7 @@ Core implementation of the composable network scan engine. Provides the fundamen
 | `ConnectionBudget.swift` | Actor managing concurrent connection limits with thermal throttling |
 | `ResumeState.swift` | Actor managing scan resume state for interruption recovery |
 | `ThermalThrottleMonitor.swift` | ProcessInfo-based thermal state monitoring for concurrency adaptation |
-| `ARPCacheScanner.swift` | UDP probes to fill the ARP table; reads it via `sysctl` (macOS falls back to `/usr/sbin/arp -anl` when the sysctl is empty); settle polling; `refreshedIPs` for presence |
+| `ARPCacheScanner.swift` | UDP probes to fill the ARP table; reads it via `sysctl` (returns nothing to sandboxed apps on macOS 27, #401); settle polling; `refreshedIPs` for presence |
 | `SSDPSocketSearch.swift` | SSDP M-SEARCH over a BSD UDP socket, bound to the scan interface |
 | `UPnPDeviceDescription.swift` | Parses a UPnP description's root device (friendly name, maker, model); reusable for the router IGD (#400) |
 | `UPnPPortMappings.swift` | Router UPnP port forwards, read-only (#400): WAN service discovery, `GetGenericPortMappingEntry` SOAP, read loop that reports whether the list is complete |
