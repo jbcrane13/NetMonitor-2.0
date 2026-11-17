@@ -304,6 +304,7 @@ final class DeviceDiscoveryCoordinator {
                 if let vendor = discovered.vendor, !vendor.isEmpty {
                     existing.vendor = vendor
                 }
+                Self.fillFromDescription(existing, discovered)
                 if let openPorts = discovered.openPorts, !openPorts.isEmpty {
                     let combined = Set(existing.openPorts ?? []).union(openPorts).sorted()
                     existing.openPorts = combined
@@ -332,6 +333,7 @@ final class DeviceDiscoveryCoordinator {
                     openPorts: discovered.openPorts,
                     networkProfileID: profileID
                 )
+                Self.fillFromDescription(newDevice, discovered)
                 modelContext.insert(newDevice)
                 devicesByIP[newDevice.ipAddress] = newDevice
                 if !normalizedMAC.isEmpty {
@@ -344,6 +346,21 @@ final class DeviceDiscoveryCoordinator {
             Logger.discovery.error("Failed to save discovered devices: \(error)")
         }
         loadPersistedDevices(for: profileID)
+    }
+
+    /// Fills name, vendor and manufacturer from the UPnP description (#387), only where
+    /// the row has none: a hostname or an OUI vendor from any other source stays ahead.
+    private static func fillFromDescription(_ device: LocalDevice, _ discovered: LocalDiscoveredDevice) {
+        if device.hostname?.isEmpty ?? true, let name = discovered.friendlyName, !name.isEmpty {
+            device.hostname = name
+        }
+        guard let maker = discovered.manufacturer, !maker.isEmpty else { return }
+        if device.vendor?.isEmpty ?? true {
+            device.vendor = maker
+        }
+        if device.manufacturer?.isEmpty ?? true {
+            device.manufacturer = maker
+        }
     }
 
     func markOfflineDevices(currentIPs: Set<String>, profileID: UUID?) {
@@ -484,7 +501,9 @@ final class DeviceDiscoveryCoordinator {
                 vendor: device.vendor,
                 openPorts: device.openPorts,
                 latency: device.latency,
-                isCached: device.isCached
+                isCached: device.isCached,
+                friendlyName: device.friendlyName,
+                manufacturer: device.manufacturer
             )
         }
     }
