@@ -78,12 +78,12 @@ struct TCPProbeScanPhaseTests {
         #expect(ports.contains(8080))
         #expect(ports.contains(8443))
         #expect(ports.contains(62078))
-        #expect(ports.contains(5353))
+        #expect(!ports.contains(5353)) // mDNS is UDP; a TCP knock there rarely answers (#380)
         #expect(ports.contains(9100))
         #expect(ports.contains(1883))
         #expect(ports.contains(554))
         #expect(ports.contains(548))
-        #expect(ports.count == 9)
+        #expect(ports.count == 8)
     }
 
     // MARK: - Execute with empty hosts

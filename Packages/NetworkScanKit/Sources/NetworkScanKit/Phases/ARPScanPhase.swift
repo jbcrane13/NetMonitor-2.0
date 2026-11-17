@@ -22,24 +22,23 @@ public struct ARPScanPhase: ScanPhase, Sendable {
         guard !Task.isCancelled else { return }
         await onProgress(0.3)
 
-        // Wait for ARP resolution
-        try? await Task.sleep(for: .seconds(2))
+        // Read the ARP cache until it stops growing (#379). Filter to the target subnet
+        // only: the cache holds entries from every interface (VPN, Docker, stale, etc.),
+        // and those must not keep the loop waiting.
+        let filter = context.subnetFilter
+        let results = await ARPCacheScanner.pollUntilSettled(read: {
+            ARPCacheScanner.readARPEntries().filter { filter($0.ip) }
+        })
         guard !Task.isCancelled else { return }
-        await onProgress(0.6)
-
-        // Read the ARP cache
-        let results = ARPCacheScanner.readARPCache()
         await onProgress(0.8)
 
-        // Upsert discovered devices — filter to target subnet only
-        // (the ARP cache contains entries from all interfaces: VPN, Docker, stale, etc.)
-        for (ip, mac) in results where context.subnetFilter(ip) {
+        for entry in results {
             guard !Task.isCancelled else { return }
             await accumulator.upsert(DiscoveredDevice(
-                ipAddress: ip,
+                ipAddress: entry.ip,
                 hostname: nil,
                 vendor: nil,
-                macAddress: mac,
+                macAddress: entry.mac,
                 latency: nil,
                 discoveredAt: Date(),
                 source: .local

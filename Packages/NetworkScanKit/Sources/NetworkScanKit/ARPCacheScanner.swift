@@ -60,6 +60,23 @@ private struct SockaddrDL {
                    CChar, CChar, CChar, CChar, CChar, CChar)
 }
 
+// MARK: - ARP Entry
+
+/// One resolved entry from the system ARP table.
+public struct ARPEntry: Sendable, Equatable {
+    public let ip: String
+    public let mac: String
+    /// The kernel's `rmx_expire` for the entry; 0 means permanent or not reported.
+    /// Only compared against an earlier read of the same table, never against a clock.
+    public let expiry: Int32
+
+    public init(ip: String, mac: String, expiry: Int32) {
+        self.ip = ip
+        self.mac = mac
+        self.expiry = expiry
+    }
+}
+
 // MARK: - ARP Cache Scanner
 
 /// Scans the local subnet by triggering ARP resolution via UDP probes,
@@ -74,16 +91,92 @@ public enum ARPCacheScanner: Sendable {
     // MARK: - Public API
 
     /// Send UDP packets to all hosts to trigger ARP resolution, wait for the
-    /// cache to populate, then read it back.
+    /// cache to settle, then read it back.
     ///
     /// - Parameter hosts: IP address strings to probe (e.g. `["192.168.1.1", ...]`)
     /// - Returns: Tuples of (ip, mac) for each live device found in the ARP cache.
     public static func scanSubnet(hosts: [String]) async -> [(ip: String, mac: String)] {
         populateARPCache(hosts: hosts)
-        // Give the OS time to complete ARP resolution for all probed hosts.
-        // 2 seconds is sufficient for most /24 networks.
-        try? await Task.sleep(for: .seconds(2))
-        return readARPCache()
+        let entries = await pollUntilSettled(read: readARPEntries)
+        return entries.map { (ip: $0.ip, mac: $0.mac) }
+    }
+
+    // MARK: - Settle polling (#379)
+
+    /// Re-reads the ARP table every `pollInterval` until no new IP has appeared for
+    /// `quietPeriod`, or `cap` has elapsed, and returns the last read.
+    ///
+    /// Replaces a fixed 2 s sleep: on a warm or small network the table stops changing
+    /// well before 2 s, while `cap` keeps the worst case no slower than before.
+    /// `read` and `sleep` are injectable so tests run without real waits.
+    static func pollUntilSettled(
+        pollInterval: Duration = .milliseconds(250),
+        quietPeriod: Duration = .milliseconds(500),
+        cap: Duration = .seconds(2),
+        sleep: @Sendable (Duration) async -> Void = { try? await Task.sleep(for: $0) },
+        read: () -> [ARPEntry]
+    ) async -> [ARPEntry] {
+        var latest = read()
+        var knownIPs = Set(latest.map(\.ip))
+        var elapsed: Duration = .zero
+        var quiet: Duration = .zero
+
+        while elapsed < cap, quiet < quietPeriod {
+            // `try? Task.sleep` returns at once when cancelled; without this check the
+            // loop would spin to `cap` re-reading the table.
+            guard !Task.isCancelled else { break }
+            await sleep(pollInterval)
+            elapsed += pollInterval
+            guard !Task.isCancelled else { break }
+
+            latest = read()
+            let ips = Set(latest.map(\.ip))
+            if ips.isSubset(of: knownIPs) {
+                quiet += pollInterval
+            } else {
+                knownIPs.formUnion(ips)
+                quiet = .zero
+            }
+        }
+        return latest
+    }
+
+    // MARK: - Entry freshness (#378)
+
+    /// The latest expiry seen for each IP. The table can hold one entry per interface
+    /// for the same IP (`ifscope`), so the newest wins.
+    public static func expiryByIP(_ entries: [ARPEntry]) -> [String: Int32] {
+        var result: [String: Int32] = [:]
+        for entry in entries {
+            result[entry.ip] = max(result[entry.ip] ?? entry.expiry, entry.expiry)
+        }
+        return result
+    }
+
+    /// IPs whose ARP entry was resolved or re-confirmed after `baseline` was read.
+    ///
+    /// Measured on macOS (Nov 2026): an entry's age does not tell "gone" from "quiet".
+    /// Entries past their expiry keep working and many still answer ping, and a UDP
+    /// probe to a host with a valid entry does not refresh it. What does prove the host
+    /// answered is its expiry moving forward, or an entry appearing that was not there
+    /// before. A zero expiry (permanent, or not reported) proves nothing.
+    ///
+    /// The `arp -anl` fallback derives expiry from whole seconds left, so an entry that
+    /// is only counting down can drift by a second between reads; a real refresh moves
+    /// it forward by minutes, hence the small tolerance.
+    public static func refreshedIPs(baseline: [String: Int32], current: [ARPEntry]) -> Set<String> {
+        let tolerance: Int32 = 2
+        var refreshed: Set<String> = []
+        for (ip, expiry) in expiryByIP(current) {
+            guard let previous = baseline[ip] else {
+                refreshed.insert(ip)
+                continue
+            }
+            if expiry != 0, previous != 0, expiry > previous &+ tolerance {
+                refreshed.insert(ip)
+            }
+        }
+        return refreshed
     }
 
     // MARK: - UDP probe (triggers ARP resolution)
@@ -131,6 +224,25 @@ public enum ARPCacheScanner: Sendable {
 
     /// Read the system ARP cache and return IP/MAC pairs for live devices.
     public static func readARPCache() -> [(ip: String, mac: String)] {
+        readARPEntries().map { (ip: $0.ip, mac: $0.mac) }
+    }
+
+    /// Read the system ARP cache, keeping each entry's expiry.
+    ///
+    /// On macOS 27 the routing sysctl returns no IPv4 entries to third-party
+    /// processes, while `/usr/sbin/arp` still lists them (#401), so macOS falls back
+    /// to running it when the sysctl comes back empty.
+    public static func readARPEntries() -> [ARPEntry] {
+        let entries = readSysctlEntries()
+        #if os(macOS)
+        if entries.isEmpty {
+            return readArpCommandEntries()
+        }
+        #endif
+        return entries
+    }
+
+    private static func readSysctlEntries() -> [ARPEntry] {
         // sysctl parameters for reading the routing table's ARP entries
         var mib: [Int32] = [
             CTL_NET,
@@ -157,10 +269,88 @@ public enum ARPCacheScanner: Sendable {
         return parseARPEntries(buffer: buffer, length: bufferSize)
     }
 
+    // MARK: - `arp -anl` fallback (#401)
+
+    #if os(macOS)
+    private static func readArpCommandEntries() -> [ARPEntry] {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/sbin/arp")
+        process.arguments = ["-anl"]
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = FileHandle.nullDevice
+        do {
+            try process.run()
+        } catch {
+            return []
+        }
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        let now = Int32(clamping: Int(Date().timeIntervalSince1970))
+        guard let text = String(bytes: data, encoding: .utf8) else { return [] }
+        return parseArpListing(text, now: now)
+    }
+    #endif
+
+    /// Parses `arp -anl` output (columns: Neighbor, Linklayer Address, Expire(O),
+    /// Expire(I), Netif, ...). Incomplete, all-zero and broadcast entries are dropped,
+    /// MAC octets are zero-padded (`arp` prints `9c:5:d6:...`), and Expire(O) becomes
+    /// an absolute time in seconds (`now` plus the time left) so two reads compare the
+    /// way kernel `rmx_expire` values do. `expired` becomes 1, which is non-zero but
+    /// older than any live entry; `(none)` becomes 0 (permanent or unknown).
+    static func parseArpListing(_ text: String, now: Int32) -> [ARPEntry] {
+        var entries: [ARPEntry] = []
+        for line in text.split(separator: "\n").dropFirst() {
+            let columns = line.split(whereSeparator: { $0 == " " || $0 == "\t" })
+            guard columns.count >= 3 else { continue }
+            let ip = String(columns[0])
+            let octets = columns[1].split(separator: ":")
+            guard isValidIPv4Address(ip), octets.count == 6 else { continue }
+            let bytes = octets.compactMap { UInt8($0, radix: 16) }
+            guard bytes.count == 6,
+                  !bytes.allSatisfy({ $0 == 0 }),
+                  !bytes.allSatisfy({ $0 == 0xFF }) else { continue }
+            let mac = bytes.map { String(format: "%02x", $0) }.joined(separator: ":")
+
+            let expiry: Int32
+            switch columns[2] {
+            case "(none)": expiry = 0
+            case "expired": expiry = 1
+            default:
+                guard let seconds = parseDuration(columns[2]) else { continue }
+                expiry = now &+ seconds
+            }
+            entries.append(ARPEntry(ip: ip, mac: mac, expiry: expiry))
+        }
+        return entries
+    }
+
+    /// Parses `arp`'s compact durations such as `51s`, `2m6s` or `1h2m3s`.
+    static func parseDuration(_ text: Substring) -> Int32? {
+        var total: Int32 = 0
+        var number: Int32 = 0
+        var sawUnit = false
+        for character in text {
+            if let digit = character.wholeNumberValue {
+                number = number * 10 + Int32(digit)
+                continue
+            }
+            switch character {
+            case "h": total += number * 3600
+            case "m": total += number * 60
+            case "s": total += number
+            default: return nil
+            }
+            number = 0
+            sawUnit = true
+        }
+        return sawUnit ? total : nil
+    }
+
     // MARK: - Routing message parsing
 
-    private static func parseARPEntries(buffer: [UInt8], length: Int) -> [(ip: String, mac: String)] {
-        var results: [(ip: String, mac: String)] = []
+    private static func parseARPEntries(buffer: [UInt8], length: Int) -> [ARPEntry] {
+        var results: [ARPEntry] = []
         results.reserveCapacity(64)
 
         let headerSize = MemoryLayout<RouteMsgHdr>.size
@@ -187,7 +377,7 @@ public enum ARPCacheScanner: Sendable {
 
     private static func parseOneEntry(
         buffer: [UInt8], offset: Int, msgLen: Int
-    ) -> (ip: String, mac: String)? {
+    ) -> ARPEntry? {
         let headerSize = MemoryLayout<RouteMsgHdr>.size
         guard msgLen > headerSize else { return nil }
 
@@ -244,7 +434,7 @@ public enum ARPCacheScanner: Sendable {
             guard !allZero, !broadcast else { return nil }
 
             let mac = macBytes.map { String(format: "%02x", $0) }.joined(separator: ":")
-            return (ip: ip, mac: mac)
+            return ARPEntry(ip: ip, mac: mac, expiry: header.rtm_rmx.rmx_expire)
         }
     }
 

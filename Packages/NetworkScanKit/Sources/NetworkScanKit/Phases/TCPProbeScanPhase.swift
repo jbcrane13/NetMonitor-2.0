@@ -1,5 +1,8 @@
 import Foundation
 import Network
+import os.log
+
+private let logger = Logger(subsystem: "com.netmonitor.scankit", category: "TCPProbe")
 
 /// Discovers devices by attempting TCP connections to common service ports.
 ///
@@ -18,7 +21,8 @@ public struct TCPProbeScanPhase: ScanPhase, Sendable {
     static let primaryProbePorts: [UInt16] = [80, 443, 22, 445]
 
     /// Stage 2 ports: broaden coverage for IoT, printers, media devices, and Apple services.
-    static let secondaryProbePorts: [UInt16] = [7000, 8080, 8443, 62078, 5353, 9100, 1883, 554, 548]
+    /// 5353 is not here: it is the mDNS port and is UDP, so a TCP knock there rarely answers (#380).
+    static let secondaryProbePorts: [UInt16] = [7000, 8080, 8443, 62078, 9100, 1883, 554, 548]
 
     private static let maxConcurrentPortProbes = 3
 
@@ -54,6 +58,8 @@ public struct TCPProbeScanPhase: ScanPhase, Sendable {
         let concurrencyLimit = ThermalThrottleMonitor.shared.effectiveLimit(from: maxConcurrentHosts)
         let tracker = RTTTracker()
         var scannedCount = 0
+        var foundOnlyByProbe = 0
+        let started = ContinuousClock.now
 
         await forEachBounded(hostsToProbe, limit: concurrencyLimit, operation: { ip in
             await Self.probeHost(ip, tracker: tracker, requiredInterfaceType: context.requiredInterfaceType)
@@ -61,12 +67,19 @@ public struct TCPProbeScanPhase: ScanPhase, Sendable {
             scannedCount += 1
 
             if let device {
+                foundOnlyByProbe += 1
                 await accumulator.upsert(device)
             }
 
             let progress = Double(scannedCount) / Double(max(total, 1))
             await onProgress(progress)
         })
+
+        // Counts only, no addresses: how much this step adds over ARP and Bonjour (#380).
+        let elapsedMs = Int((ContinuousClock.now - started) / .milliseconds(1))
+        logger.notice(
+            "TCP probe: \(foundOnlyByProbe, privacy: .public) new of \(total, privacy: .public) probed (\(knownIPs.count, privacy: .public) already known) in \(elapsedMs, privacy: .public) ms"
+        )
 
         // Enrich already-known devices with latency via lightweight single-port probe
         guard !Task.isCancelled else { return }
@@ -283,9 +296,7 @@ public struct TCPProbeScanPhase: ScanPhase, Sendable {
         timeout: Duration,
         requiredInterfaceType: NWInterface.InterfaceType?
     ) async -> Double? {
-        guard !Task.isCancelled else { return nil }
-
-        guard let latency = await withConnectionSlot({ () async -> Double? in
+        guard !Task.isCancelled, let latency = await withConnectionSlot({ () async -> Double? in
             let host = NWEndpoint.Host(ip)
 
             return await withTaskGroup(of: Double?.self, returning: Double?.self) { group in
