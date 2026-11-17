@@ -290,13 +290,31 @@ final class DeviceDiscoveryCoordinator {
             }
         }
 
+        let incomingMACs = Set(devices.map { $0.macAddress.uppercased() }.filter { !$0.isEmpty })
+        var matchedThisScan: Set<ObjectIdentifier> = []
+
         for discovered in devices {
             let normalizedMAC = discovered.macAddress.uppercased()
-            let existing = normalizedMAC.isEmpty
+            var existing = normalizedMAC.isEmpty
                 ? devicesByIP[discovered.ipAddress]
                 : devicesByMAC[normalizedMAC]
 
+            // A rotated private MAC: reuse the one row with the same IP and name (#411).
+            if existing == nil,
+               let rotated = Self.rotatedPrivateMACMatch(
+                   for: discovered,
+                   in: existingDevices,
+                   incomingMACs: incomingMACs,
+                   matchedThisScan: matchedThisScan
+               ) {
+                devicesByMAC[rotated.macAddress.uppercased()] = nil
+                rotated.macAddress = discovered.macAddress
+                devicesByMAC[normalizedMAC] = rotated
+                existing = rotated
+            }
+
             if let existing {
+                matchedThisScan.insert(ObjectIdentifier(existing))
                 existing.ipAddress = discovered.ipAddress
                 if let hostname = discovered.hostname, !hostname.isEmpty {
                     existing.hostname = hostname
@@ -361,6 +379,28 @@ final class DeviceDiscoveryCoordinator {
         if device.manufacturer?.isEmpty ?? true {
             device.manufacturer = maker
         }
+    }
+
+    /// The one saved row an unmatched private MAC should take over, or nil. Mirrors the
+    /// conservative rule in `DeviceChangeDetector` (#393): same IP and same non-empty name,
+    /// exactly one candidate, and that row wasn't seen under its own MAC (or matched) this scan.
+    /// An IP match alone isn't enough, because DHCP reuses addresses.
+    static func rotatedPrivateMACMatch(
+        for discovered: LocalDiscoveredDevice,
+        in rows: [LocalDevice],
+        incomingMACs: Set<String>,
+        matchedThisScan: Set<ObjectIdentifier>
+    ) -> LocalDevice? {
+        guard MACAddress.isPrivate(discovered.macAddress),
+              let name = discovered.hostname, !name.isEmpty
+        else { return nil }
+        let candidates = rows.filter {
+            $0.ipAddress == discovered.ipAddress
+                && $0.hostname == name
+                && !incomingMACs.contains($0.macAddress.uppercased())
+                && !matchedThisScan.contains(ObjectIdentifier($0))
+        }
+        return candidates.count == 1 ? candidates[0] : nil
     }
 
     func markOfflineDevices(currentIPs: Set<String>, profileID: UUID?) {
