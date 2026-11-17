@@ -16,10 +16,13 @@ final class DeviceDiscoveryCoordinator {
     private(set) var lastScanTime: Date?
     private(set) var scanProgress: Double = 0.0
     private(set) var networkProfile: NetworkProfile?
-    /// Called after a completed scan with devices it added to a network that already had
-    /// devices, leaving out cached rows that gave no answer. The first scan of a network
-    /// only records a baseline (#403).
-    var onNewDevices: (@MainActor ([LocalDevice]) -> Void)?
+    /// Called after a completed scan with what changed against every device seen before on
+    /// this network, with a grace period (#393): first seen, came online, went offline,
+    /// changed. Only reports; device rows and their status are still set by the merge and
+    /// `markOfflineDevices`.
+    var onDeviceChanges: (@MainActor ([DeviceChangeEvent]) -> Void)?
+    /// Remembers devices between scans for `onDeviceChanges`. Tests inject one with fresh defaults.
+    var changeTracker = DeviceChangeTracker()
 
     private let modelContext: ModelContext
     let bonjourScanner: BonjourDiscoveryService
@@ -104,7 +107,15 @@ final class DeviceDiscoveryCoordinator {
 
         let profileID = effectiveProfileID()
         loadPersistedDevices(for: profileID)
-        let knownDeviceIDs = Set(discoveredDevices.map(\.id))
+        // Rows from before #393, used only when this network has no tracker state yet, so an
+        // update doesn't report every existing device as new. A row only ever cached isn't
+        // confirmed. Captured now, before the merge rewrites the rows.
+        let trackerSeed = discoveredDevices.map {
+            KnownDevice(
+                macAddress: $0.macAddress, ipAddress: $0.ipAddress, name: $0.hostname,
+                firstSeen: $0.firstSeen, lastSeen: $0.lastSeen, isConfirmed: $0.status != .cached
+            )
+        }
 
         let context = makeScanContext()
         let bonjourScannerRef = bonjourScanner
@@ -161,12 +172,15 @@ final class DeviceDiscoveryCoordinator {
                 inferDeviceTypes(profileID: profileID)
 
                 markOfflineDevices(currentIPs: Set(allDiscovered.map(\.ipAddress)), profileID: profileID)
-                if !knownDeviceIDs.isEmpty {
-                    // A cached row gave no answer this scan, so it isn't a device joining (#378).
-                    let added = discoveredDevices.filter { !knownDeviceIDs.contains($0.id) && $0.status != .cached }
-                    if !added.isEmpty {
-                        onNewDevices?(added)
-                    }
+                let changes = changeTracker.record(
+                    scope: profileID?.uuidString ?? "default",
+                    observed: allDiscovered.map {
+                        DeviceObservation(ipAddress: $0.ipAddress, macAddress: $0.macAddress, name: $0.hostname, isCached: $0.isCached)
+                    },
+                    seed: { trackerSeed }
+                )
+                if !changes.isEmpty {
+                    onDeviceChanges?(changes)
                 }
                 Logger.discovery.notice("Scan finished: \(allDiscovered.count, privacy: .public) devices")
                 scanProgress = 1.0

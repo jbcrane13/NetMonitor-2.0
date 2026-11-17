@@ -39,10 +39,12 @@ final class MacAlertNotifier {
         service.notifyTargetDown(name: name, host: host)
     }
 
-    func devicesJoined(_ devices: [LocalDevice]) {
+    /// Sends a new-device alert for each device answering for the first time (#393). The
+    /// first scan of a network and devices only ever cached never count.
+    func devicesChanged(_ events: [DeviceChangeEvent]) {
         guard isEnabled else { return }
-        for device in devices {
-            service.notifyNewDevice(ipAddress: device.ipAddress, hostname: device.hostname)
+        for case let .firstSeen(device) in events {
+            service.notifyNewDevice(ipAddress: device.ipAddress, hostname: device.name)
         }
     }
 }
