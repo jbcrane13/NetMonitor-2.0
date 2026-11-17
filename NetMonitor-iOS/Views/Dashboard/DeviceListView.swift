@@ -157,7 +157,7 @@ struct DeviceListView: View {
                             .foregroundStyle(Theme.Colors.textSecondary)
                     }
 
-                    if let vendor = device.vendor, !vendor.isEmpty {
+                    if let vendor = MACAddress.makerLabel(vendor: device.vendor, macAddress: device.macAddress) {
                         Text(vendor)
                             .font(.caption2)
                             .foregroundStyle(Theme.Colors.textTertiary)
@@ -215,7 +215,7 @@ struct DeviceListView: View {
                         .clipShape(Capsule())
                 }
 
-                if let vendor = device.vendor, !vendor.isEmpty {
+                if let vendor = MACAddress.makerLabel(vendor: device.vendor, macAddress: device.macAddress) {
                     Text(vendor)
                         .font(.system(size: 11, design: .monospaced))
                         .foregroundStyle(Theme.Colors.textTertiary)

@@ -208,9 +208,9 @@ struct DeviceTypeInferenceHostnameTests {
         #expect(sut.inferDeviceType(for: makeDevice(hostname: "nintendo-switch")) == .gaming)
     }
 
-    @Test("Hostname 'switch' resolves to gaming")
-    func hostnameSwitchResolvesToGaming() {
-        #expect(sut.inferDeviceType(for: makeDevice(hostname: "my-switch-console")) == .gaming)
+    @Test("Hostname 'switch' alone is no longer a console (#389)")
+    func hostnameSwitchAloneIsNotGaming() {
+        #expect(sut.inferDeviceType(for: makeDevice(hostname: "my-switch-console")) == .unknown)
     }
 
     @Test("resolvedHostname is used when hostname is nil")
@@ -578,5 +578,84 @@ struct DeviceTypeInferenceFallbackTests {
         // ports → printer (631); vendor → speaker (Sonos)
         let device = makeDevice(openPorts: [631], vendor: "Sonos Inc.")
         #expect(sut.inferDeviceType(for: device) == .printer)
+    }
+}
+
+// MARK: - #389: whole-word name rules
+
+struct DeviceTypeInferenceWholeWordTests {
+
+    let sut = DeviceTypeInferenceService()
+
+    @Test("Tricky hostnames", arguments: [
+        ("switch-24", DeviceType.unknown),
+        ("core-switch", DeviceType.unknown),
+        ("Nintendo-Switch", DeviceType.gaming),
+        ("NintendoSwitch", DeviceType.gaming),
+        ("camera-2", DeviceType.camera),
+        ("camera2", DeviceType.camera),
+        ("cam-01", DeviceType.camera),
+        ("porch_cam", DeviceType.camera),
+        ("garage.webcam", DeviceType.camera),
+        ("ipcam-3", DeviceType.camera),
+        ("cambridge-pc", DeviceType.unknown),
+        ("dashboard-camden", DeviceType.unknown),
+        ("nas", DeviceType.storage),
+        ("NAS-01", DeviceType.storage),
+        ("home nas", DeviceType.storage),
+        ("nas2", DeviceType.storage),
+        ("dynasty-pc", DeviceType.unknown),
+        ("vinas-laptop", DeviceType.laptop),
+        ("canonical-server", DeviceType.unknown),
+        ("brotherhood", DeviceType.unknown),
+        ("Brother_MFC", DeviceType.printer),
+        ("mac mini", DeviceType.computer),
+        ("mac_studio", DeviceType.computer),
+        ("macintosh-hd", DeviceType.unknown),
+        ("apple tv", DeviceType.tv),
+        ("blakesiphone", DeviceType.phone),
+        ("iPhone15", DeviceType.phone)
+    ])
+    func trickyHostnames(hostname: String, expected: DeviceType) {
+        #expect(sut.inferDeviceType(for: makeDevice(hostname: hostname)) == expected, "\(hostname)")
+    }
+
+    @Test("Tricky vendor names", arguments: [
+        ("RingCentral, Inc.", DeviceType.unknown),
+        ("RingCube Technologies, Inc.", DeviceType.unknown),
+        ("Ring LLC", DeviceType.camera),
+        ("A&D ENGINEERING CO., LTD.", DeviceType.unknown),
+        ("Armstrong Monitoring Corp", DeviceType.unknown),
+        ("Nestle Purina PetCare", DeviceType.unknown),
+        ("Google Nest", DeviceType.camera),
+        ("Intelligent Systems", DeviceType.unknown),
+        ("Intel Corporate", DeviceType.computer),
+        ("DellKing Industrial Co., Ltd", DeviceType.unknown),
+        ("Dell Inc.", DeviceType.computer),
+        ("BOSER TECHNOLOGY CO., LTD.", DeviceType.unknown),
+        ("SonoSite, Inc.", DeviceType.unknown),
+        ("Sonos, Inc.", DeviceType.speaker),
+        ("ASUSTek COMPUTER INC.", DeviceType.computer),
+        ("LenovoEMC Products USA, LLC", DeviceType.computer),
+        ("Pineapple Systems", DeviceType.unknown),
+        ("Apple, Inc.", DeviceType.computer),
+        ("Raspberry Pi Trading Ltd", DeviceType.iot),
+        ("LG Electronics (Mobile Communications)", DeviceType.tv)
+    ])
+    func trickyVendors(vendor: String, expected: DeviceType) {
+        #expect(sut.inferDeviceType(for: makeDevice(vendor: vendor)) == expected, "\(vendor)")
+    }
+
+    @Test("Names split on separators, case and letter–digit boundaries")
+    func nameWords() {
+        #expect(NameWords("Switch-24").words == ["switch", "24"])
+        #expect(NameWords("camera2").words == ["camera", "2"])
+        #expect(NameWords("a_b.c d-e").words == ["a", "b", "c", "d", "e"])
+        #expect(NameWords("Hewlett-Packard").words == ["hewlett", "packard"])
+        #expect(NameWords("").words.isEmpty)
+        #expect(NameWords("--").words.isEmpty)
+        #expect(NameWords("mac mini").has("mac mini"))
+        #expect(!NameWords("mini mac").has("mac mini"))
+        #expect(!NameWords("mac").has("mac mini"))
     }
 }
