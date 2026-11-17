@@ -8,6 +8,19 @@ import NetMonitorCore
 @MainActor
 final class MacAlertNotifier {
     static let notificationsEnabledKey = "netmonitor.notifications.enabled"
+    /// The key the target-down toggle wrote before #403. Nothing read it, but a user who
+    /// turned it off meant it.
+    static let legacyTargetDownKey = "netmonitor.notifications.targetDown"
+
+    /// Copies the old target-down toggle onto the service's key once, if the new key has no
+    /// stored value yet. Safe to call on every launch.
+    static func migrateLegacyToggles(in defaults: UserDefaults = .standard) {
+        let newKey = NotificationService.targetDownAlertKey
+        guard defaults.object(forKey: newKey) == nil,
+              let legacy = defaults.object(forKey: legacyTargetDownKey) as? Bool
+        else { return }
+        defaults.set(legacy, forKey: newKey)
+    }
 
     private let service: NotificationService
     private let defaults: UserDefaults

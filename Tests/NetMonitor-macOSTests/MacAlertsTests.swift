@@ -116,6 +116,51 @@ struct MacAlertNotifierTests {
     }
 }
 
+// MARK: - Legacy toggle migration
+
+@Suite("MacAlertNotifier legacy toggle migration")
+@MainActor
+struct MacAlertLegacyToggleMigrationTests {
+    private func targetDownAlertCount(_ defaults: UserDefaults) -> Int {
+        let poster = FakeNotificationPoster()
+        MacAlertNotifier(service: NotificationService(poster: poster, defaults: defaults), defaults: defaults)
+            .targetWentDown(name: "Router", host: "192.0.2.1")
+        return poster.requests.count
+    }
+
+    @Test func oldTargetDownOffCarriesOverAsOff() {
+        let (defaults, suite) = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set(false, forKey: MacAlertNotifier.legacyTargetDownKey)
+
+        MacAlertNotifier.migrateLegacyToggles(in: defaults)
+
+        #expect(defaults.object(forKey: NotificationService.targetDownAlertKey) as? Bool == false)
+        #expect(targetDownAlertCount(defaults) == 0)
+    }
+
+    @Test func nothingStoredLeavesTheDefaultOn() {
+        let (defaults, suite) = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        MacAlertNotifier.migrateLegacyToggles(in: defaults)
+
+        #expect(defaults.object(forKey: NotificationService.targetDownAlertKey) == nil)
+        #expect(targetDownAlertCount(defaults) == 1)
+    }
+
+    @Test func anExistingNewValueIsNeverOverwritten() {
+        let (defaults, suite) = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set(false, forKey: MacAlertNotifier.legacyTargetDownKey)
+        defaults.set(true, forKey: NotificationService.targetDownAlertKey)
+
+        MacAlertNotifier.migrateLegacyToggles(in: defaults)
+
+        #expect(defaults.object(forKey: NotificationService.targetDownAlertKey) as? Bool == true)
+    }
+}
+
 // MARK: - MonitoringSession target-down
 
 @Suite("MonitoringSession target-down alert", .serialized)
