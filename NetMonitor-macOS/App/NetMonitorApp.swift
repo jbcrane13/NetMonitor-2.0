@@ -1,5 +1,6 @@
 // swiftlint:disable function_body_length
 import SwiftUI
+import UserNotifications
 import SwiftData
 import NetMonitorCore
 import os
@@ -14,6 +15,7 @@ struct NetMonitorApp: App {
     @State private var companionHandler: CompanionMessageHandler?
     @State private var menuBarController: MenuBarController?
     @State private var notificationService: NotificationService?
+    @State private var notificationPresenter: MacNotificationPresenter?
     @State private var networkProfileManager: NetworkProfileManager?
 
     @AppStorage("autoStartMonitoring") private var autoStartMonitoring = false
@@ -264,12 +266,22 @@ struct NetMonitorApp: App {
         }
 
         if notificationService == nil {
-            notificationService = NotificationService()
+            let service = NotificationService()
+            notificationService = service
+            // Show alerts while the app is frontmost too; the center holds its delegate weakly (#403).
+            let presenter = MacNotificationPresenter()
+            UNUserNotificationCenter.current().delegate = presenter
+            notificationPresenter = presenter
             if !isUITesting {
                 Task {
                     _ = await notificationService?.requestAuthorization()
                 }
             }
+            // Send target-down and new-device alerts (#403).
+            MacAlertNotifier.migrateLegacyToggles()
+            let alerts = MacAlertNotifier(service: service)
+            monitoringSession?.onTargetDown = { name, host in alerts.targetWentDown(name: name, host: host) }
+            deviceDiscovery?.onDeviceChanges = { events in alerts.devicesChanged(events) }
         }
 
         if autoStartMonitoring && !shouldDisableMonitoring,

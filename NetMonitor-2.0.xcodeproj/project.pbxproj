@@ -31,6 +31,7 @@
 		0851A80ABC19553C1B783B24 /* ShellPingParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7F5029903C114F43AD8F523 /* ShellPingParserTests.swift */; };
 		09411B2C37328ADA4C3C08DD /* SaveWiFiReadingIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB5854F30D541CCD251909AD /* SaveWiFiReadingIntent.swift */; };
 		097A650172E9B2C29CF796B3 /* MenuBarCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FCDC97BB9134866F737D36C /* MenuBarCommands.swift */; };
+		0A3D4140F7B2E5114C05404D /* MacAlertNotifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C59B59FF422F15C3C0C6899 /* MacAlertNotifier.swift */; };
 		0A8BF0C73A245B62957C2C9A /* SharedViewModelHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBB29135703E0FE0FA145BEA /* SharedViewModelHelpers.swift */; };
 		0A91865357171E9AB13C6E3D /* DataSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A250E7592344D3DD67910685 /* DataSettingsView.swift */; };
 		0AA7514D54E6807C05B93492 /* GeneralSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6D260F565079AC63677DCB7 /* GeneralSettingsView.swift */; };
@@ -345,6 +346,7 @@
 		B5C58E5DC1825BD6609D274B /* MiniSparklineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EA84BE258FB44E79A514C66 /* MiniSparklineView.swift */; };
 		B739BF4CA46131A72AF6B8EF /* QuickPortScanPhasePortsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48DDBD2D505CD1D7473C17C5 /* QuickPortScanPhasePortsTests.swift */; };
 		B76E63A805AD6382FF712F08 /* NetMonitorCore in Frameworks */ = {isa = PBXBuildFile; productRef = D31F8242EE281886CCDE5A5D /* NetMonitorCore */; };
+		B8D77C3E82725C04DD6F1DC5 /* MacNotificationPresenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = F144855DC4FE68A78947A441 /* MacNotificationPresenter.swift */; };
 		B8D8F09CE7D6FD7997C0BDEB /* MacNetworkMonitorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB5C5F9EF530BB6FA79E1972 /* MacNetworkMonitorTests.swift */; };
 		B900445CE1D393D733289207 /* NetworkEventServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE584A8394FFA0BFC9255154 /* NetworkEventServiceTests.swift */; };
 		B90A3DA2C8AC570A246AC885 /* PortScannerToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5895DED1FC083716813EB576 /* PortScannerToolView.swift */; };
@@ -400,6 +402,7 @@
 		D36D133311A2A1347194DD61 /* WindowOpener.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CC69E9737C5F7F3278AB73E /* WindowOpener.swift */; };
 		D3E475CA4674AFCF9955F6D2 /* QuickPortScanPhase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 038ABDEBA0434AAE9343CEBA /* QuickPortScanPhase.swift */; };
 		D4607D1A7F33DCDC0642E1B5 /* WiFiHeatmapToolUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F121763A9548D3239623BC68 /* WiFiHeatmapToolUITests.swift */; };
+		D4A2703272F698336768FCBD /* MacAlertsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C71A825DF5F2D07492BF639B /* MacAlertsTests.swift */; };
 		D4D3B95726C78BCAC7085754 /* TracerouteToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15CF57CCF80C504B5D2A4F7E /* TracerouteToolView.swift */; };
 		D598C18C53DA54E5F75F7859 /* SSLCertificateMonitorUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E70AD800EF86711EE7B4F2A /* SSLCertificateMonitorUITests.swift */; };
 		D653F4116C56708DB58398CB /* MetricCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C3943143B99D5243073376A /* MetricCard.swift */; };
@@ -794,6 +797,7 @@
 		8BB0F99A463B96E0387EA80D /* WiFiReadingBridgeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WiFiReadingBridgeTests.swift; sourceTree = "<group>"; };
 		8C02C598E7B86F34E4C55714 /* PingToolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PingToolView.swift; sourceTree = "<group>"; };
 		8C13FFA46B9EE752A4071CA3 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		8C59B59FF422F15C3C0C6899 /* MacAlertNotifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacAlertNotifier.swift; sourceTree = "<group>"; };
 		8D107F4C12376D4879B4F5D4 /* ContinuationTrackerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContinuationTrackerTests.swift; sourceTree = "<group>"; };
 		8E42E03E6C5BFDF617454119 /* MacGlassCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacGlassCard.swift; sourceTree = "<group>"; };
 		8E9B7FBD1F07CF6425DC114A /* ScheduledScanSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduledScanSettingsView.swift; sourceTree = "<group>"; };
@@ -902,6 +906,7 @@
 		C6392CA5B0C8107207EFCED6 /* SchemaMigrationPlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchemaMigrationPlan.swift; sourceTree = "<group>"; };
 		C6CBE58C2938DC79DF670A35 /* ThemeManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeManager.swift; sourceTree = "<group>"; };
 		C6FE541A23CE7784745B9EBA /* ProModeRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProModeRowView.swift; sourceTree = "<group>"; };
+		C71A825DF5F2D07492BF639B /* MacAlertsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacAlertsTests.swift; sourceTree = "<group>"; };
 		C78A2017DEA3D9CD49AFEC03 /* SidebarFunctionalUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarFunctionalUITests.swift; sourceTree = "<group>"; };
 		C7992370AD2AA142027C6DF3 /* MenuBarPopoverView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarPopoverView.swift; sourceTree = "<group>"; };
 		C7F5029903C114F43AD8F523 /* ShellPingParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShellPingParserTests.swift; sourceTree = "<group>"; };
@@ -989,6 +994,7 @@
 		EE5424E1EFA92603C33CDBB0 /* CompanionVersionCompatTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionVersionCompatTests.swift; sourceTree = "<group>"; };
 		EEF6AF5675CD44C4FC29A84E /* ISPHealthCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ISPHealthCard.swift; sourceTree = "<group>"; };
 		F121763A9548D3239623BC68 /* WiFiHeatmapToolUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WiFiHeatmapToolUITests.swift; sourceTree = "<group>"; };
+		F144855DC4FE68A78947A441 /* MacNotificationPresenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacNotificationPresenter.swift; sourceTree = "<group>"; };
 		F344E43A65DB15AAD34BEE6D /* PortScannerToolUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortScannerToolUITests.swift; sourceTree = "<group>"; };
 		F3A064CE98C7F5FDE16358B4 /* DNSLookupServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DNSLookupServiceTests.swift; sourceTree = "<group>"; };
 		F3F836FFF7AB7CE62A5F3CBD /* WakeOnLANToolViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WakeOnLANToolViewModelTests.swift; sourceTree = "<group>"; };
@@ -1559,7 +1565,9 @@
 				3FFF84B44EBFDC371781AB17 /* ISPLookupService.swift */,
 				4C7F7763DDAE09B344879997 /* LocalNetworkChangeWatcher.swift */,
 				902FDF34A4DD511DF5326DA1 /* Logging.swift */,
+				8C59B59FF422F15C3C0C6899 /* MacAlertNotifier.swift */,
 				E3DE27495CAFD0EF97D63222 /* MacNetworkMonitor.swift */,
+				F144855DC4FE68A78947A441 /* MacNotificationPresenter.swift */,
 				1885F20A5827B051C5546251 /* MacWiFiInfoService.swift */,
 				CFCF80A32B7899970DFA3C3B /* MonitoringSession.swift */,
 				5E8D38F19275D03369E77C3E /* NetworkInfoService.swift */,
@@ -1813,6 +1821,7 @@
 				BC50DF5BC553FC2B2E1E51FA /* ISPLookupServiceCacheErrorTests.swift */,
 				41CF7CEC4120984D8B5722E5 /* ISPLookupServiceContractTests.swift */,
 				0203A45AF57DA6D9B5EDF5F5 /* ISPLookupServiceTests.swift */,
+				C71A825DF5F2D07492BF639B /* MacAlertsTests.swift */,
 				CB5C5F9EF530BB6FA79E1972 /* MacNetworkMonitorTests.swift */,
 				44AADB70157B20E77264BBC0 /* MacThemeContrastTests.swift */,
 				46243D19F39198B48EDB4240 /* MonitoringSessionExtendedTests.swift */,
@@ -1940,6 +1949,7 @@
 				D5E23DB787BCEDF84CAB2F8D /* Sources */,
 				2AC4DF81B4B7C3AA09AFDD73 /* Resources */,
 				260732E263DA431A4ADBBC9B /* Frameworks */,
+				D1A5E77F236D887CF5242A5B /* Strip OUI list */,
 			);
 			buildRules = (
 			);
@@ -2184,6 +2194,26 @@
 			shellPath = /bin/sh;
 			shellScript = "if command -v swiftlint >/dev/null 2>&1; then\n  swiftlint lint --quiet --reporter xcode\nelse\n  echo \"warning: SwiftLint not installed — brew install swiftlint\"\nfi\n";
 		};
+		D1A5E77F236D887CF5242A5B /* Strip OUI list */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/NetMonitorCore_NetMonitorCore.bundle",
+			);
+			name = "Strip OUI list";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "rm -f \"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/NetMonitorCore_NetMonitorCore.bundle/oui.tsv\"\n";
+		};
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -2238,8 +2268,10 @@
 				FE417B8E8E6E543BFE4E7FEB /* LocalDeviceQueries.swift in Sources */,
 				7C0F386164F75570A0587404 /* LocalNetworkChangeWatcher.swift in Sources */,
 				AAF35FC2E47B9088503B00FF /* Logging.swift in Sources */,
+				0A3D4140F7B2E5114C05404D /* MacAlertNotifier.swift in Sources */,
 				817E1E1561D2AD55E5836DAC /* MacGlassCard.swift in Sources */,
 				ACC95524FDB6D069334A6DE6 /* MacNetworkMonitor.swift in Sources */,
+				B8D77C3E82725C04DD6F1DC5 /* MacNotificationPresenter.swift in Sources */,
 				88CA4E319D8AC8D6C5F4F83A /* MacTheme.swift in Sources */,
 				2A7AE89B0756DB0B5C61153F /* MacWiFiInfoService.swift in Sources */,
 				097A650172E9B2C29CF796B3 /* MenuBarCommands.swift in Sources */,
@@ -2552,6 +2584,7 @@
 				C9B3B7AE7F396A3E054A0303 /* ISPLookupServiceContractTests.swift in Sources */,
 				C323E9367B0F864A8517172D /* ISPLookupServiceTests.swift in Sources */,
 				B4115011B1C9B973434CC775 /* LiveTestGate.swift in Sources */,
+				D4A2703272F698336768FCBD /* MacAlertsTests.swift in Sources */,
 				B8D8F09CE7D6FD7997C0BDEB /* MacNetworkMonitorTests.swift in Sources */,
 				40508EBF27769879115E8D42 /* MacThemeContrastTests.swift in Sources */,
 				3F829B2262F2CC4A2BC72D14 /* MockURLProtocol.swift in Sources */,

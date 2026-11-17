@@ -115,6 +115,8 @@ struct DataSettingsView: View {
             try modelContext.delete(model: LocalDevice.self)
             try modelContext.delete(model: SessionRecord.self)
             try modelContext.save()
+            // Forget remembered devices too, so change detection starts a fresh baseline (#393).
+            DeviceChangeTracker().clearAll()
         } catch {
             Logger.data.error("Failed to clear data: \(error, privacy: .public)")
         }
