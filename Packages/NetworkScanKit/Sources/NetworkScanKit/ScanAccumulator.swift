@@ -24,16 +24,56 @@ public actor ScanAccumulator {
     /// is treated as ``LatencySource/tcpHandshake`` for ranking purposes.
     private var latencySourceByIP: [String: LatencySource] = [:]
 
+    /// IPs with no evidence yet that the device answered during this scan (#378).
+    /// Snapshots report these devices as ``DiscoveredDevice/isCached``.
+    private var unconfirmedIPs: Set<String> = []
+
+    /// ARP expiry per IP, read before the ARP phase probed (#378), so later
+    /// phases can tell entries re-confirmed during the scan.
+    private var arpBaseline: [String: Int32] = [:]
+
     public init() {}
 
-    public func upsert(_ device: DiscoveredDevice) {
-        if let existingIndex = indexByIP[device.ipAddress] {
+    /// Adds or merges a device.
+    ///
+    /// - Parameter confirmsPresence: whether this report is evidence the device
+    ///   answered during this scan. Discovery by an answer (TCP, Bonjour, SSDP, a fresh
+    ///   ARP entry, the Mac companion) passes `true`; enrichment that only looks a
+    ///   device up (names, vendors, reverse DNS) and a stale ARP entry pass `false`.
+    ///   Evidence is never taken back: once confirmed, a device stays confirmed.
+    public func upsert(_ device: DiscoveredDevice, confirmsPresence: Bool = true) {
+        let ip = device.ipAddress
+        if let existingIndex = indexByIP[ip] {
             let existing = devices[existingIndex]
             devices[existingIndex] = Self.merged(existing: existing, incoming: device)
+            if confirmsPresence {
+                unconfirmedIPs.remove(ip)
+            }
         } else {
-            indexByIP[device.ipAddress] = devices.count
+            indexByIP[ip] = devices.count
             devices.append(device)
+            if !confirmsPresence {
+                unconfirmedIPs.insert(ip)
+            }
         }
+    }
+
+    /// Records that these devices answered during this scan.
+    public func confirmPresence(ips: Set<String>) {
+        unconfirmedIPs.subtract(ips)
+    }
+
+    /// IPs of devices that have not answered during this scan yet.
+    public func unconfirmedDeviceIPs() -> Set<String> {
+        unconfirmedIPs
+    }
+
+    public func recordARPBaseline(_ baseline: [String: Int32]) {
+        arpBaseline = baseline
+    }
+
+    public func arpBaselineExpiries() -> [String: Int32] {
+        arpBaseline
     }
 
     /// Set latency for an already-known device, ranked by ``LatencySource``.
@@ -63,6 +103,8 @@ public actor ScanAccumulator {
             openPorts: existing.openPorts
         )
         latencySourceByIP[ip] = source
+        // A measured latency means the device answered this scan.
+        unconfirmedIPs.remove(ip)
     }
 
     public func contains(ip: String) -> Bool {
@@ -93,18 +135,22 @@ public actor ScanAccumulator {
         devices.map(\.ipAddress)
     }
 
+    /// Devices in discovery order. Devices with no evidence yet carry
+    /// `isCached == true`; mid-scan that can still change as later phases answer.
     public func snapshot() -> [DiscoveredDevice] {
-        devices
+        devices.map { $0.withCached(unconfirmedIPs.contains($0.ipAddress)) }
     }
 
     public func sortedSnapshot() -> [DiscoveredDevice] {
-        devices.sorted { $0.ipAddress.ipSortKey < $1.ipAddress.ipSortKey }
+        snapshot().sorted { $0.ipAddress.ipSortKey < $1.ipAddress.ipSortKey }
     }
 
     public func reset() {
         devices = []
         indexByIP = [:]
         latencySourceByIP = [:]
+        unconfirmedIPs = []
+        arpBaseline = [:]
     }
 
     public var isEmpty: Bool { devices.isEmpty }

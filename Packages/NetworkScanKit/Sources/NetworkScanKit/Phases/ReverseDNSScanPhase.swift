@@ -48,7 +48,7 @@ public struct ReverseDNSScanPhase: ScanPhase, Sendable {
                     latency: nil,
                     discoveredAt: Date(),
                     source: .local
-                ))
+                ), confirmsPresence: false) // a PTR record says nothing about presence (#378)
             }
 
             let progress = Double(resolved) / Double(max(total, 1))

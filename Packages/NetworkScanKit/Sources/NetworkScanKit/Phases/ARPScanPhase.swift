@@ -17,6 +17,12 @@ public struct ARPScanPhase: ScanPhase, Sendable {
         guard !Task.isCancelled else { return }
         await onProgress(0.0)
 
+        // Read the table before probing, so entries re-confirmed during this scan can be
+        // told from ones left over from devices that may have gone (#378).
+        let filter = context.subnetFilter
+        let baseline = ARPCacheScanner.expiryByIP(ARPCacheScanner.readARPEntries().filter { filter($0.ip) })
+        await accumulator.recordARPBaseline(baseline)
+
         // Fire UDP probes to populate the ARP cache
         ARPCacheScanner.populateARPCache(hosts: context.hosts)
         guard !Task.isCancelled else { return }
@@ -25,13 +31,15 @@ public struct ARPScanPhase: ScanPhase, Sendable {
         // Read the ARP cache until it stops growing (#379). Filter to the target subnet
         // only: the cache holds entries from every interface (VPN, Docker, stale, etc.),
         // and those must not keep the loop waiting.
-        let filter = context.subnetFilter
         let results = await ARPCacheScanner.pollUntilSettled(read: {
             ARPCacheScanner.readARPEntries().filter { filter($0.ip) }
         })
         guard !Task.isCancelled else { return }
         await onProgress(0.8)
 
+        // A stale entry alone is not evidence the device is still here; later phases
+        // (ICMP, TCP, Bonjour, SSDP, the ARP re-check) can still confirm it.
+        let refreshed = ARPCacheScanner.refreshedIPs(baseline: baseline, current: results)
         for entry in results {
             guard !Task.isCancelled else { return }
             await accumulator.upsert(DiscoveredDevice(
@@ -42,7 +50,7 @@ public struct ARPScanPhase: ScanPhase, Sendable {
                 latency: nil,
                 discoveredAt: Date(),
                 source: .local
-            ))
+            ), confirmsPresence: refreshed.contains(entry.ip))
         }
 
         await onProgress(1.0)
