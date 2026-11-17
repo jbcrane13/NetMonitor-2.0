@@ -217,6 +217,61 @@ struct MonitoringSessionTargetDownAlertTests {
     }
 }
 
+// MARK: - Stop during an in-flight check
+
+/// A check that never finishes on its own: it waits until its task is cancelled, then throws,
+/// the way an HTTP check does when monitoring stops mid-request.
+private actor HangingMonitorService: NetMonitor_macOS.NetworkMonitorService {
+    private(set) var started = 0
+    func check(request: TargetCheckRequest) async throws -> MeasurementResult {
+        started += 1
+        try await Task.sleep(for: .seconds(3600))
+        return MeasurementResult(targetID: request.id, timestamp: Date(), latency: 5, isReachable: true, errorMessage: nil)
+    }
+}
+
+@Suite("MonitoringSession stop mid-check")
+@MainActor
+struct MonitoringSessionStopMidCheckTests {
+    @Test func stoppingDuringACheckRecordsNothingAndAlertsNothing() async throws {
+        let schema = Schema([NetworkTarget.self, TargetMeasurement.self, SessionRecord.self])
+        let config = ModelConfiguration(UUID().uuidString, schema: schema, isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+        let container = try ModelContainer(for: schema, configurations: [config])
+        let context = container.mainContext
+        let target = NetworkTarget(name: "Web", host: "example.com", targetProtocol: .https, checkInterval: 60, isEnabled: true)
+        context.insert(target)
+        try context.save()
+
+        let stub = HangingMonitorService()
+        let session = MonitoringSession(modelContext: context, anyHTTPService: stub, anyICMPService: stub, anyTCPService: stub)
+        var alerted: [String] = []
+        session.onTargetDown = { name, _ in alerted.append(name) }
+        session.startMonitoring()
+        let deadline = ContinuousClock.now + .seconds(10)
+        while await stub.started == 0, ContinuousClock.now < deadline {
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+        #expect(await stub.started == 1)
+
+        await session.stopMonitoringAndWait()
+
+        #expect(alerted.isEmpty)
+        #expect(session.latestResults.isEmpty)
+        #expect(try context.fetch(FetchDescriptor<TargetMeasurement>()).isEmpty)
+    }
+}
+
+// MARK: - MacNotificationPresenter
+
+@Suite("MacNotificationPresenter")
+struct MacNotificationPresenterTests {
+    /// UNNotification has no public initializer, so the delegate method is checked through the
+    /// options it returns.
+    @Test func foregroundAlertsShowAsBannerWithSoundAndInTheList() {
+        #expect(MacNotificationPresenter.foregroundOptions == [.banner, .sound, .list])
+    }
+}
+
 // MARK: - DeviceDiscoveryCoordinator new devices
 
 @Suite("DeviceDiscoveryCoordinator new-device hook", .serialized)

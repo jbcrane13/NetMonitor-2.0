@@ -212,6 +212,9 @@ final class MonitoringSession {
             )
 
             let measurement = await checkWithRetry(service: service, request: req)
+            // A check cut short by stopping monitoring isn't a failure: drop it, so it is
+            // neither recorded nor alerted as down (#403).
+            guard !Task.isCancelled, isMonitoring else { return }
             updateMeasurement(measurement, for: target)
 
             try? await Task.sleep(for: .seconds(target.checkInterval))
