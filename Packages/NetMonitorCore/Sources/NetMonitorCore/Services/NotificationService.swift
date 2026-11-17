@@ -75,6 +75,7 @@ public final class NotificationService {
     public static let targetDownCategory  = "TARGET_DOWN"
     public static let highLatencyCategory = "HIGH_LATENCY"
     public static let newDeviceCategory   = "NEW_DEVICE"
+    public static let ruleMatchCategory   = "RULE_MATCH"
 
     // MARK: - Authorization
 
@@ -205,6 +206,25 @@ public final class NotificationService {
             trigger: nil
         )
 
+        poster.post(request)
+    }
+
+    // MARK: - Rule Alert
+
+    /// Posts a user rule's notification (#394). Rules have their own on/off switch, so the
+    /// per-alert toggles don't apply.
+    public func notifyRuleMatched(ruleName: String, detail: String, identifier: String) {
+        let content = UNMutableNotificationContent()
+        content.title = ruleName
+        content.body = detail
+        content.sound = .default
+        content.categoryIdentifier = Self.ruleMatchCategory
+
+        let request = UNNotificationRequest(
+            identifier: "rule-\(identifier)-\(Date().timeIntervalSince1970)",
+            content: content,
+            trigger: nil
+        )
         poster.post(request)
     }
 

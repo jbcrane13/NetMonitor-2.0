@@ -139,6 +139,7 @@ struct NetMonitorApp: App {
 
         Settings {
             SettingsView()
+                .environment(networkProfileManager)
                 .tint(Color(hex: accentColorHex))
                 .environment(\.appAccentColor, Color(hex: accentColorHex))
                 .environment(\.compactMode, compactMode)
@@ -281,7 +282,18 @@ struct NetMonitorApp: App {
             MacAlertNotifier.migrateLegacyToggles()
             let alerts = MacAlertNotifier(service: service)
             monitoringSession?.onTargetDown = { name, host in alerts.targetWentDown(name: name, host: host) }
-            deviceDiscovery?.onDeviceChanges = { events in alerts.devicesChanged(events) }
+            // Check the user's alert rules against the same events and check results (#394).
+            let rules = MacRuleAlerts(store: AlertRuleStore(), service: service)
+            monitoringSession?.onTargetResult = { result in rules.handle(targetResult: result) }
+            let discovery = deviceDiscovery
+            deviceDiscovery?.onDeviceChanges = { [weak discovery] events in
+                alerts.devicesChanged(events)
+                rules.handle(
+                    deviceChanges: events,
+                    devices: discovery?.discoveredDevices ?? [],
+                    networkID: discovery?.networkProfile?.id
+                )
+            }
         }
 
         if autoStartMonitoring && !shouldDisableMonitoring,

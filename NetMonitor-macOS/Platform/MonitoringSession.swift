@@ -17,6 +17,18 @@ struct DefaultMonitorServiceProvider: MonitorServiceProviding {
     func createICMPService() -> ICMPMonitorService { ICMPMonitorService() }
 }
 
+/// One recorded check of a monitored target, for alert rules (#394).
+struct TargetCheckOutcome: Equatable {
+    let name: String
+    let host: String
+    let isReachable: Bool
+    let latency: Double?
+    /// Up (or unchecked) before, down now.
+    let wentDown: Bool
+    /// Down before, up now.
+    let cameUp: Bool
+}
+
 // MARK: - MonitoringSession
 
 @MainActor
@@ -32,6 +44,8 @@ final class MonitoringSession {
     private(set) var errorMessage: String?
     /// Called when a target goes from up (or unchecked) to down, after any retries (#403).
     var onTargetDown: (@MainActor (_ name: String, _ host: String) -> Void)?
+    /// Called with every recorded check result, after any retries, for alert rules (#394).
+    var onTargetResult: (@MainActor (TargetCheckOutcome) -> Void)?
 
     private var monitoringTasks: [UUID: Task<Void, Never>] = [:]
     private var currentSessionRecord: SessionRecord?
@@ -258,11 +272,20 @@ final class MonitoringSession {
 
     @MainActor
     private func updateMeasurement(_ measurement: TargetMeasurement, for target: NetworkTarget) {
-        let wasDown = latestResults[target.id].map { !$0.isReachable } ?? false
+        let previous = latestResults[target.id]
+        let wasDown = previous.map { !$0.isReachable } ?? false
         latestResults[target.id] = measurement
         if !measurement.isReachable, !wasDown {
             onTargetDown?(target.name, target.host)
         }
+        onTargetResult?(TargetCheckOutcome(
+            name: target.name,
+            host: target.host,
+            isReachable: measurement.isReachable,
+            latency: measurement.latency,
+            wentDown: !measurement.isReachable && !wasDown,
+            cameUp: measurement.isReachable && wasDown
+        ))
         target.measurements.append(measurement)
 
         // Maintain rolling latency history for live sparklines
