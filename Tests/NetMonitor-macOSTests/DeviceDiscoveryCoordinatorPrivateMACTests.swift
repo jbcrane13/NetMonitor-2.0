@@ -105,4 +105,81 @@ struct PrivateMACMergeTests {
         #expect(devices.count == 2)
         #expect(devices.contains { $0.macAddress == "AC:DE:48:00:11:22" })
     }
+
+    // MARK: - startScan's two merges (review of #416)
+
+    @Test func rotationSurvivesSparseThenFinalMerge() throws {
+        let (container, context) = try makeInMemoryStore()
+        _ = container
+        let originalID = UUID()
+        let lastSeen = Date(timeIntervalSince1970: 1_800_000_000)
+        let saved = LocalDevice(
+            id: originalID, ipAddress: "192.0.2.20", macAddress: oldPrivateMAC, hostname: "pixel.local",
+            vendor: "Google", deviceType: .phone, customName: "Blake's Pixel", openPorts: [8009]
+        )
+        saved.lastSeen = lastSeen
+        context.insert(saved)
+        try context.save()
+        let coordinator = makeCoordinator(context: context)
+
+        // Enrichment transition: the name isn't resolved yet.
+        coordinator.mergeDiscoveredDevices([
+            LocalDiscoveredDevice(ipAddress: "192.0.2.20", macAddress: newPrivateMAC, hostname: nil)
+        ], profileID: nil, recordLatencyHistory: false, isSparse: true)
+        #expect(try context.fetch(FetchDescriptor<LocalDevice>()).count == 1)
+
+        // Final merge: the name has arrived.
+        coordinator.mergeDiscoveredDevices([
+            LocalDiscoveredDevice(ipAddress: "192.0.2.20", macAddress: newPrivateMAC, hostname: "pixel.local", latency: 4)
+        ], profileID: nil, recordLatencyHistory: true)
+
+        let devices = try context.fetch(FetchDescriptor<LocalDevice>())
+        #expect(devices.count == 1)
+        let row = try #require(devices.first)
+        #expect(row.id == originalID)
+        #expect(row.macAddress == newPrivateMAC)
+        #expect(row.customName == "Blake's Pixel")
+        #expect(row.vendor == "Google")
+        #expect(row.deviceType == .phone)
+        #expect(row.openPorts == [8009])
+        #expect(row.status == .online)
+    }
+
+    @Test func sparseMergeStillInsertsPublicMACs() throws {
+        let (container, context) = try makeInMemoryStore()
+        _ = container
+        makeCoordinator(context: context).mergeDiscoveredDevices([
+            LocalDiscoveredDevice(ipAddress: "192.0.2.30", macAddress: "AC:DE:48:00:11:22", hostname: nil),
+            LocalDiscoveredDevice(ipAddress: "192.0.2.31", macAddress: newPrivateMAC, hostname: nil)
+        ], profileID: nil, recordLatencyHistory: false, isSparse: true)
+
+        let devices = try context.fetch(FetchDescriptor<LocalDevice>())
+        #expect(devices.map(\.macAddress) == ["AC:DE:48:00:11:22"])
+    }
+
+    @Test func cachedRotatedObservationReusesRowAndKeepsLastSeen() throws {
+        let (container, context) = try makeInMemoryStore()
+        _ = container
+        let originalID = UUID()
+        let lastSeen = Date(timeIntervalSince1970: 1_800_000_000)
+        let saved = LocalDevice(id: originalID, ipAddress: "192.0.2.20", macAddress: oldPrivateMAC, hostname: "pixel.local")
+        saved.lastSeen = lastSeen
+        context.insert(saved)
+        try context.save()
+        let coordinator = makeCoordinator(context: context)
+
+        coordinator.mergeDiscoveredDevices([
+            LocalDiscoveredDevice(ipAddress: "192.0.2.20", macAddress: newPrivateMAC, hostname: nil, isCached: true)
+        ], profileID: nil, recordLatencyHistory: false, isSparse: true)
+        coordinator.mergeDiscoveredDevices([
+            LocalDiscoveredDevice(ipAddress: "192.0.2.20", macAddress: newPrivateMAC, hostname: "pixel.local", isCached: true)
+        ], profileID: nil)
+
+        let devices = try context.fetch(FetchDescriptor<LocalDevice>())
+        #expect(devices.count == 1)
+        #expect(devices.first?.id == originalID)
+        #expect(devices.first?.macAddress == newPrivateMAC)
+        #expect(devices.first?.status == .cached)
+        #expect(devices.first?.lastSeen == lastSeen)
+    }
 }

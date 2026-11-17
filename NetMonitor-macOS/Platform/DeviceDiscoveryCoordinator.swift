@@ -223,7 +223,7 @@ final class DeviceDiscoveryCoordinator {
         let snapshot = await accumulator.sortedSnapshot()
         guard !Task.isCancelled else { return }
         let sparse = Self.mapDiscoveredDevices(snapshot)
-        mergeDiscoveredDevices(sparse, profileID: profileID, recordLatencyHistory: false)
+        mergeDiscoveredDevices(sparse, profileID: profileID, recordLatencyHistory: false, isSparse: true)
     }
 
     /// Scans the network this Mac is on, so the dashboard isn't empty until the user presses Scan (#358).
@@ -276,7 +276,17 @@ final class DeviceDiscoveryCoordinator {
     ///
     /// A device with `isCached` (no answer this scan, #378) gets `.cached` status and keeps
     /// its old `lastSeen`; every other device becomes `.online` with `lastSeen` set to now.
-    func mergeDiscoveredDevices(_ devices: [LocalDiscoveredDevice], profileID: UUID?, recordLatencyHistory: Bool = true) {
+    ///
+    /// `isSparse` marks the merge at the enrichment transition, before names are resolved.
+    /// It never inserts a row for an unmatched private MAC: without a name the rotation rule
+    /// can't match it yet, and a new row there would stop the final merge from reusing the
+    /// device's existing row (#411).
+    func mergeDiscoveredDevices(
+        _ devices: [LocalDiscoveredDevice],
+        profileID: UUID?,
+        recordLatencyHistory: Bool = true,
+        isSparse: Bool = false
+    ) {
         let existingDevices = fetchDevices(for: profileID)
         var devicesByMAC: [String: LocalDevice] = [:]
         var devicesByIP: [String: LocalDevice] = [:]
@@ -315,30 +325,9 @@ final class DeviceDiscoveryCoordinator {
 
             if let existing {
                 matchedThisScan.insert(ObjectIdentifier(existing))
-                existing.ipAddress = discovered.ipAddress
-                if let hostname = discovered.hostname, !hostname.isEmpty {
-                    existing.hostname = hostname
-                }
-                if let vendor = discovered.vendor, !vendor.isEmpty {
-                    existing.vendor = vendor
-                }
-                Self.fillFromDescription(existing, discovered)
-                if let openPorts = discovered.openPorts, !openPorts.isEmpty {
-                    let combined = Set(existing.openPorts ?? []).union(openPorts).sorted()
-                    existing.openPorts = combined
-                }
-                if let latency = discovered.latency {
-                    if recordLatencyHistory {
-                        existing.updateLatency(latency)
-                    } else {
-                        existing.lastLatency = latency
-                    }
-                }
-                // A cached device gave no answer this scan, so it wasn't "seen" (#378).
-                if !discovered.isCached {
-                    existing.lastSeen = Date()
-                }
-                existing.status = discovered.isCached ? .cached : .online
+                Self.apply(discovered, to: existing, recordLatencyHistory: recordLatencyHistory)
+            } else if isSparse, MACAddress.isPrivate(normalizedMAC) {
+                continue
             } else {
                 let newDevice = LocalDevice(
                     ipAddress: discovered.ipAddress,
@@ -364,6 +353,34 @@ final class DeviceDiscoveryCoordinator {
             Logger.discovery.error("Failed to save discovered devices: \(error)")
         }
         loadPersistedDevices(for: profileID)
+    }
+
+    /// Writes a matched observation onto its saved row. See `mergeDiscoveredDevices`.
+    private static func apply(_ discovered: LocalDiscoveredDevice, to existing: LocalDevice, recordLatencyHistory: Bool) {
+        existing.ipAddress = discovered.ipAddress
+        if let hostname = discovered.hostname, !hostname.isEmpty {
+            existing.hostname = hostname
+        }
+        if let vendor = discovered.vendor, !vendor.isEmpty {
+            existing.vendor = vendor
+        }
+        Self.fillFromDescription(existing, discovered)
+        if let openPorts = discovered.openPorts, !openPorts.isEmpty {
+            let combined = Set(existing.openPorts ?? []).union(openPorts).sorted()
+            existing.openPorts = combined
+        }
+        if let latency = discovered.latency {
+            if recordLatencyHistory {
+                existing.updateLatency(latency)
+            } else {
+                existing.lastLatency = latency
+            }
+        }
+        // A cached device gave no answer this scan, so it wasn't "seen" (#378).
+        if !discovered.isCached {
+            existing.lastSeen = Date()
+        }
+        existing.status = discovered.isCached ? .cached : .online
     }
 
     /// Fills name, vendor and manufacturer from the UPnP description (#387), only where
