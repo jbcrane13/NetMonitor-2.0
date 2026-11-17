@@ -71,12 +71,12 @@ final class MacRuleAlerts {
     func handle(deviceChanges: [DeviceChangeEvent], devices: [LocalDevice], networkID: UUID?) {
         let events = deviceChanges.compactMap { change -> AlertRuleEvent? in
             switch change {
-            case let .firstSeen(observation):
-                AlertRuleEvent(kind: .firstSeen, subject: subject(observation.ipAddress, observation.macAddress, observation.name, devices, networkID))
-            case let .cameOnline(observation):
-                AlertRuleEvent(kind: .cameOnline, subject: subject(observation.ipAddress, observation.macAddress, observation.name, devices, networkID))
+            case let .firstSeen(seen):
+                event(.firstSeen, seen.ipAddress, seen.macAddress, seen.name, devices, networkID)
+            case let .cameOnline(seen):
+                event(.cameOnline, seen.ipAddress, seen.macAddress, seen.name, devices, networkID)
             case let .wentOffline(known):
-                AlertRuleEvent(kind: .wentOffline, subject: subject(known.ipAddress, known.macAddress, known.name, devices, networkID))
+                event(.wentOffline, known.ipAddress, known.macAddress, known.name, devices, networkID)
             case .changed:
                 nil
             }
@@ -113,6 +113,12 @@ final class MacRuleAlerts {
                 identifier: "\(match.rule.id)-\(match.event.subject.key)"
             )
         }
+    }
+
+    private func event(
+        _ kind: AlertRuleEvent.Kind, _ ip: String, _ mac: String?, _ name: String?, _ devices: [LocalDevice], _ networkID: UUID?
+    ) -> AlertRuleEvent {
+        AlertRuleEvent(kind: kind, subject: subject(ip, mac, name, devices, networkID))
     }
 
     private func subject(

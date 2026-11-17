@@ -135,7 +135,8 @@ struct MacRuleAlertsTests {
         defer { fixture.defaults.removePersistentDomain(forName: fixture.suite) }
         fixture.defaults.set(false, forKey: MacAlertNotifier.notificationsEnabledKey)
 
-        fixture.alerts.handle(deviceChanges: [.firstSeen(DeviceObservation(ipAddress: "10.0.0.9", macAddress: nil, name: nil))], devices: [], networkID: nil)
+        let joined = DeviceObservation(ipAddress: "10.0.0.9", macAddress: nil, name: nil)
+        fixture.alerts.handle(deviceChanges: [.firstSeen(joined)], devices: [], networkID: nil)
 
         #expect(fixture.poster.requests.isEmpty)
     }

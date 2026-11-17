@@ -94,7 +94,10 @@ struct AlertRuleEngineTests {
     @Test func rulesRoundTripThroughJSON() throws {
         let rules = [
             AlertRule(name: "slow", trigger: .latencyAbove(milliseconds: 250), conditions: AlertRuleConditions(device: "nas")),
-            AlertRule(name: "printer", isEnabled: false, trigger: .wentOffline, conditions: AlertRuleConditions(deviceType: .printer, networkID: home))
+            AlertRule(
+                name: "printer", isEnabled: false, trigger: .wentOffline,
+                conditions: AlertRuleConditions(deviceType: .printer, networkID: home)
+            )
         ]
         let decoded = try JSONDecoder().decode([AlertRule].self, from: JSONEncoder().encode(rules))
         #expect(decoded == rules)
