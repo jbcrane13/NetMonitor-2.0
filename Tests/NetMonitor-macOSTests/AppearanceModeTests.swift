@@ -39,7 +39,7 @@ struct AppearanceModeTests {
         #expect(icons.count == AppearanceMode.allCases.count)
     }
 
-    @Test("v2.2.0 macOS SchemaV1 store reopens through the migration plan")
+    @Test("v2.2.0 macOS SchemaV1 store reopens through the migration plan at SchemaV2")
     @MainActor
     func lastShippedStoreReopens() throws {
         let directory = FileManager.default.temporaryDirectory
@@ -48,17 +48,14 @@ struct AppearanceModeTests {
         defer { try? FileManager.default.removeItem(at: directory) }
 
         let storeURL = directory.appending(path: "v2.2.0.store")
-        let schema = Schema(versionedSchema: SchemaV1.self)
         let fixtureID = UUID()
 
         do {
+            // Written the way 2.2.x wrote it: the frozen V1 models, no migration plan.
+            let schema = Schema(versionedSchema: SchemaV1.self)
             let configuration = ModelConfiguration(schema: schema, url: storeURL, cloudKitDatabase: .none)
-            let container = try ModelContainer(
-                for: schema,
-                migrationPlan: NetMonitorMigrationPlan.self,
-                configurations: [configuration]
-            )
-            container.mainContext.insert(NetworkTarget(
+            let container = try ModelContainer(for: schema, configurations: [configuration])
+            container.mainContext.insert(SchemaV1.NetworkTarget(
                 id: fixtureID,
                 name: "v2.2.0 fixture",
                 host: "fixture.invalid",
@@ -67,6 +64,7 @@ struct AppearanceModeTests {
             try container.mainContext.save()
         }
 
+        let schema = Schema(versionedSchema: SchemaV2.self)
         let configuration = ModelConfiguration(schema: schema, url: storeURL, cloudKitDatabase: .none)
         let reopened = try ModelContainer(
             for: schema,
