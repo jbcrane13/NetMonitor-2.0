@@ -1949,6 +1949,7 @@
 				D5E23DB787BCEDF84CAB2F8D /* Sources */,
 				2AC4DF81B4B7C3AA09AFDD73 /* Resources */,
 				260732E263DA431A4ADBBC9B /* Frameworks */,
+				D1A5E77F236D887CF5242A5B /* Strip OUI list */,
 			);
 			buildRules = (
 			);
@@ -2192,6 +2193,26 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "if command -v swiftlint >/dev/null 2>&1; then\n  swiftlint lint --quiet --reporter xcode\nelse\n  echo \"warning: SwiftLint not installed — brew install swiftlint\"\nfi\n";
+		};
+		D1A5E77F236D887CF5242A5B /* Strip OUI list */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/NetMonitorCore_NetMonitorCore.bundle",
+			);
+			name = "Strip OUI list";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "rm -f \"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/NetMonitorCore_NetMonitorCore.bundle/oui.tsv\"\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
