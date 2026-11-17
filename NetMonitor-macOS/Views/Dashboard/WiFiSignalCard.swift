@@ -35,11 +35,11 @@ struct WiFiSignalCard: View {
         VStack(alignment: .leading, spacing: 6) {
             // Header — compact, matches other card style
             HStack {
-                Circle().fill(isMonitoring ? MacTheme.Colors.success : .secondary)
+                Circle().fill(isMonitoring ? MacTheme.Colors.success : MacTheme.Colors.labelTertiary)
                     .frame(width: 5, height: 5)
                 Text("WIFI SIGNAL")
                     .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(MacTheme.Colors.labelSecondary)
                     .tracking(1.4)
                 Spacer()
                 Button(action: toggleMonitoring) {
@@ -73,10 +73,10 @@ struct WiFiSignalCard: View {
                         HStack(alignment: .firstTextBaseline, spacing: 2) {
                             Text("\(currentRSSI ?? 0)")
                                 .font(.system(size: 20, weight: .bold, design: .rounded))
-                                .foregroundStyle(.white)
+                                .foregroundStyle(MacTheme.Colors.textPrimary)
                             Text("dBm")
                                 .font(.system(size: 9))
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(MacTheme.Colors.labelTertiary)
                         }
                         Text(signalQualityLabel)
                             .font(.system(size: 10, weight: .medium))
@@ -92,18 +92,18 @@ struct WiFiSignalCard: View {
                         if let channel = currentChannel {
                             Text("Ch \(channel)")
                                 .font(.system(size: 10, design: .monospaced))
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(MacTheme.Colors.textSecondary)
                         }
                         if let speed = linkSpeed {
                             Text("\(speed) Mbps")
                                 .font(.system(size: 10, design: .monospaced))
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(MacTheme.Colors.textSecondary)
                         }
                         if !signalHistory.isEmpty {
                             let avg = signalHistory.map(\.rssi).reduce(0, +) / signalHistory.count
                             Text("Avg \(avg)")
                                 .font(.system(size: 10, design: .monospaced))
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(MacTheme.Colors.textSecondary)
                         }
                     }
                 }
@@ -143,7 +143,7 @@ struct WiFiSignalCard: View {
     }
 
     private var signalQualityColor: Color {
-        guard let rssi = currentRSSI else { return .secondary }
+        guard let rssi = currentRSSI else { return MacTheme.Colors.labelTertiary }
         switch rssi {
         case -60...0: return MacTheme.Colors.success
         case -70..<(-60): return MacTheme.Colors.warning
@@ -163,7 +163,7 @@ struct WiFiSignalCard: View {
     }
 
     private func barColor(for index: Int) -> Color {
-        guard let rssi = currentRSSI else { return Color.white.opacity(0.3) }
+        guard let rssi = currentRSSI else { return MacTheme.Colors.hairline }
         let barsFilled: Int
         switch rssi {
         case -50...0: barsFilled = 4
@@ -172,7 +172,7 @@ struct WiFiSignalCard: View {
         case -80..<(-70): barsFilled = 1
         default: barsFilled = 0
         }
-        return index < barsFilled ? signalQualityColor : Color.white.opacity(0.3)
+        return index < barsFilled ? signalQualityColor : MacTheme.Colors.hairline
     }
 
     // MARK: - Actions

@@ -14,7 +14,7 @@ struct DeviceRowView: View {
             // Device icon
             Image(systemName: device.deviceType.iconName)
                 .font(.title2)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(MacTheme.Colors.labelSecondary)
                 .frame(width: 32)
 
             // Device info
@@ -24,7 +24,7 @@ struct DeviceRowView: View {
 
                 Text(device.ipAddress)
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(MacTheme.Colors.labelSecondary)
                     .fontDesign(.monospaced)
             }
 
@@ -41,7 +41,7 @@ struct DeviceRowView: View {
             if !device.macAddress.isEmpty {
                 Text(device.macAddress)
                     .font(.caption)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(MacTheme.Colors.labelTertiary)
                     .fontDesign(.monospaced)
             }
         }

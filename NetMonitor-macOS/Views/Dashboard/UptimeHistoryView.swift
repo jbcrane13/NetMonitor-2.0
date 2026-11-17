@@ -26,7 +26,7 @@ struct UptimeHistoryView: View {
                     dismiss()
                 } label: {
                     Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(MacTheme.Colors.labelSecondary)
                 }
                 .keyboardShortcut(.escape, modifiers: [])
                 .accessibilityIdentifier("uptimeHistory_button_close")
@@ -61,11 +61,11 @@ struct UptimeHistoryView: View {
                         .foregroundStyle(pct > 99 ? MacTheme.Colors.success : MacTheme.Colors.warning)
                     Text("\(vm?.outageCount ?? 0) outage\(vm?.outageCount == 1 ? "" : "s")")
                         .font(.title3)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(MacTheme.Colors.labelSecondary)
                 }
             } else {
                 Text("No history recorded yet")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(MacTheme.Colors.labelSecondary)
             }
 
             if let bar = vm?.uptimeBar, !bar.isEmpty {
@@ -93,11 +93,11 @@ struct UptimeHistoryView: View {
                 HStack {
                     Text("30 days ago")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(MacTheme.Colors.labelQuaternary)
                     Spacer()
                     Text("Today")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(MacTheme.Colors.labelQuaternary)
                 }
             }
         }
@@ -115,7 +115,7 @@ struct UptimeHistoryView: View {
 
             if recentOutages.isEmpty {
                 Text("No outages recorded in the last 30 days")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(MacTheme.Colors.labelSecondary)
                     .italic()
             } else {
                 ForEach(recentOutages, id: \.id) { record in
@@ -127,7 +127,7 @@ struct UptimeHistoryView: View {
                         Spacer()
                         Text(record.timestamp.formatted(date: .abbreviated, time: .shortened))
                             .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(MacTheme.Colors.labelSecondary)
                     }
                     Divider()
                 }

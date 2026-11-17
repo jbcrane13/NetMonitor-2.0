@@ -94,7 +94,7 @@ struct WHOISToolView: View {
             if result == nil && errorMessage == nil && !isRunning {
                 ScrollView {
                     Text("Enter a domain name to lookup registration information")
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(MacTheme.Colors.labelTertiary)
                         .frame(maxWidth: .infinity, alignment: .center)
                         .padding(.top, 40)
                 }
@@ -205,20 +205,20 @@ struct WHOISToolView: View {
                 ProgressView()
                     .scaleEffect(0.7)
                 Text("Looking up \(domain)...")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(MacTheme.Colors.labelSecondary)
             } else if result != nil {
                 Image(systemName: "checkmark.circle.fill")
                     .foregroundStyle(.green)
                 Text("WHOIS data retrieved")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(MacTheme.Colors.labelSecondary)
             } else if errorMessage != nil {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .foregroundStyle(.orange)
                 Text("Lookup failed")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(MacTheme.Colors.labelSecondary)
             } else {
                 Text("Query domain registration information")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(MacTheme.Colors.labelSecondary)
             }
 
             Spacer()

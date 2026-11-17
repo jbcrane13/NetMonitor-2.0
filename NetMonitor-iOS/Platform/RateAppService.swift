@@ -1,3 +1,4 @@
+import NetMonitorCore
 import StoreKit
 import SwiftUI
 
@@ -17,12 +18,19 @@ import SwiftUI
 
     /// Request in-app rating. Apple may or may not show the prompt
     /// (respects user settings and system limits). Safe to call every time.
-    static func requestReview() {
+    /// Returns `false` when there is no foreground scene to show it in.
+    @discardableResult
+    static func requestReview() -> Bool {
         if let scene = UIApplication.shared.connectedScenes
             .first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene {
             SKStoreReviewController.requestReview(in: scene)
+            return true
         }
+        return false
     }
+
+    /// Asks for a review automatically after meaningful use (#337).
+    static let reviewPrompt = ReviewPromptPolicy { requestReview() }
 
     /// Opens the App Store directly to the review page for this app.
     /// Use this as the explicit "Write a Review" action.

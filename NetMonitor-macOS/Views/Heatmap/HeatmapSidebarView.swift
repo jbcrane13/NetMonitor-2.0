@@ -80,7 +80,7 @@ struct HeatmapSidebarView: View {
         VStack(spacing: 4) {
             Text("LIVE SIGNAL")
                 .font(.caption2)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(MacTheme.Colors.labelTertiary)
                 .textCase(.uppercase)
                 .tracking(0.5)
 
@@ -91,16 +91,16 @@ struct HeatmapSidebarView: View {
 
                 Text("dBm · \(RSSIQuality(rssi: signal.rssi).label)")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(MacTheme.Colors.labelSecondary)
 
                 signalBars(rssi: signal.rssi)
             } else {
                 Text("--")
                     .font(.system(size: 36, weight: .heavy, design: .rounded))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(MacTheme.Colors.labelTertiary)
                 Text("No WiFi")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(MacTheme.Colors.labelSecondary)
             }
         }
         .frame(maxWidth: .infinity)
@@ -125,7 +125,7 @@ struct HeatmapSidebarView: View {
             } else {
                 Text("Not connected")
                     .font(.caption)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(MacTheme.Colors.labelTertiary)
             }
         }
     }
@@ -157,7 +157,7 @@ struct HeatmapSidebarView: View {
             if viewModel.measurementMode == .active {
                 Text("Speed + latency at each point (slower)")
                     .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(MacTheme.Colors.labelQuaternary)
             }
 
             Divider()
@@ -172,7 +172,7 @@ struct HeatmapSidebarView: View {
                 HStack {
                     Text("Every")
                         .font(.caption2)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(MacTheme.Colors.labelQuaternary)
                     Stepper(
                         "\(Int(viewModel.continuousScanInterval))s",
                         value: $viewModel.continuousScanInterval,
@@ -184,7 +184,7 @@ struct HeatmapSidebarView: View {
                 }
                 Text("Hover cursor over your position — measurements captured automatically.")
                     .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(MacTheme.Colors.labelQuaternary)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -197,7 +197,7 @@ struct HeatmapSidebarView: View {
             if viewModel.isScanning {
                 HStack(spacing: 6) {
                     ProgressView().scaleEffect(0.6)
-                    Text("Scanning…").font(.caption).foregroundStyle(.secondary)
+                    Text("Scanning…").font(.caption).foregroundStyle(MacTheme.Colors.labelSecondary)
                 }
                 .padding(.vertical, 2)
             } else if viewModel.nearbyAPs.isEmpty {
@@ -215,7 +215,7 @@ struct HeatmapSidebarView: View {
                                 .lineLimit(1)
                             Text("Ch \(ap.channel)")
                                 .font(.caption2)
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(MacTheme.Colors.labelQuaternary)
                         }
                         Spacer()
                         Text("\(ap.rssi) dBm")
@@ -266,7 +266,7 @@ struct HeatmapSidebarView: View {
                 }
             Text(String(format: "%.0f%%", viewModel.overlayOpacity * 100))
                 .font(.caption2)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(MacTheme.Colors.labelQuaternary)
         }
 
         VStack(alignment: .leading, spacing: 4) {
@@ -307,7 +307,7 @@ struct HeatmapSidebarView: View {
                     .accessibilityIdentifier("heatmap_slider_threshold")
                 Text(String(format: "%.0f dBm", viewModel.coverageThreshold))
                     .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(MacTheme.Colors.labelQuaternary)
             }
         }
 
@@ -342,7 +342,7 @@ struct HeatmapSidebarView: View {
     private func sectionHeader(_ title: String) -> some View {
         Text(title.uppercased())
             .font(.caption2)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(MacTheme.Colors.labelTertiary)
             .tracking(0.5)
     }
 
@@ -354,7 +354,7 @@ struct HeatmapSidebarView: View {
         HStack(spacing: 2) {
             ForEach(0..<5) { i in
                 RoundedRectangle(cornerRadius: 1)
-                    .fill(rssi >= -90 + i * 12 ? RSSIQuality(rssi: rssi).color : Color.gray.opacity(0.3))
+                    .fill(rssi >= -90 + i * 12 ? RSSIQuality(rssi: rssi).color : MacTheme.Colors.hairline)
                     .frame(width: 6, height: CGFloat(6 + i * 3))
             }
         }

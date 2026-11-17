@@ -12,7 +12,6 @@ struct DevicesView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(DeviceDiscoveryCoordinator.self) private var coordinator: DeviceDiscoveryCoordinator?
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.colorScheme) private var colorScheme
     @State private var devices: [LocalDevice] = []
 
     @State private var selectedDevice: LocalDevice?
@@ -235,7 +234,7 @@ struct DevicesView: View {
                 }
             }
         }
-        .background(colorScheme == .dark ? Color.black.opacity(0.3) : MacTheme.Colors.subtleBackground)
+        .background(MacTheme.Colors.chartSurface)
     }
 
     private var proModeHeaderRow: some View {
@@ -258,10 +257,10 @@ struct DevicesView: View {
         .foregroundStyle(MacTheme.Colors.textTertiary)
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
-        .background(colorScheme == .dark ? Color.white.opacity(0.05) : MacTheme.Colors.subtleBackground)
+        .background(MacTheme.Colors.chartSurfaceShallow)
         .overlay(alignment: .bottom) {
             Rectangle()
-                .fill(colorScheme == .dark ? Color.white.opacity(0.15) : MacTheme.Colors.divider)
+                .fill(MacTheme.Colors.hairline)
                 .frame(height: 1)
         }
     }
@@ -287,7 +286,7 @@ struct DevicesView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .foregroundStyle(sortOrder == order ? Color.white : Color.white.opacity(0.6))
+        .foregroundStyle(sortOrder == order ? MacTheme.Colors.textPrimary : MacTheme.Colors.labelTertiary)
         .accessibilityIdentifier("devices_proHeader_\(order.label.lowercased().replacingOccurrences(of: " ", with: "_"))")
     }
 
@@ -304,7 +303,7 @@ struct DevicesView: View {
 
             Text("\(Int((coordinator?.scanProgress ?? 0) * 100))% complete")
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(MacTheme.Colors.labelSecondary)
 
             Button("Stop") {
                 coordinator?.stopScan()
@@ -326,7 +325,7 @@ struct DevicesView: View {
                 } label: {
                     Image(systemName: "xmark")
                         .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(MacTheme.Colors.labelSecondary)
                         .frame(width: 24, height: 24)
                         .background(Color.primary.opacity(0.06))
                         .clipShape(Circle())
@@ -342,10 +341,10 @@ struct DevicesView: View {
             // Device count
             Text("\(filteredDevices.count)")
                 .font(.system(size: 11, weight: .bold, design: .rounded))
-                .foregroundStyle(.white)
+                .foregroundStyle(MacTheme.Colors.textPrimary)
                 .padding(.horizontal, 6)
                 .padding(.vertical, 2)
-                .background(Color.secondary.opacity(0.5))
+                .background(MacTheme.Colors.chartSurface)
                 .clipShape(Capsule())
 
             if coordinator?.isScanning == true {
@@ -360,7 +359,7 @@ struct DevicesView: View {
             HStack(spacing: 6) {
                 Image(systemName: "magnifyingglass")
                     .font(.system(size: 11))
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(MacTheme.Colors.labelTertiary)
                 TextField("Search...", text: $searchText)
                     .textFieldStyle(.plain)
                     .font(.system(size: 12))
@@ -371,7 +370,7 @@ struct DevicesView: View {
                     } label: {
                         Image(systemName: "xmark.circle.fill")
                             .font(.system(size: 10))
-                            .foregroundStyle(.tertiary)
+                            .foregroundStyle(MacTheme.Colors.labelTertiary)
                     }
                     .buttonStyle(.plain)
                     .accessibilityIdentifier("devices_button_clearSearch")
@@ -437,7 +436,7 @@ struct DevicesView: View {
             Toggle(isOn: $filterOnlineOnly) {
                 Image(systemName: filterOnlineOnly ? "circle.fill" : "circle")
                     .font(.system(size: 10))
-                    .foregroundStyle(filterOnlineOnly ? MacTheme.Colors.success : .secondary)
+                    .foregroundStyle(filterOnlineOnly ? MacTheme.Colors.success : MacTheme.Colors.labelSecondary)
             }
             .toggleStyle(.button)
             .controlSize(.small)
@@ -564,7 +563,7 @@ struct DevicePingSheet: View {
                     isPresented = false
                 } label: {
                     Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(MacTheme.Colors.labelSecondary)
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("devicePingSheet_button_close")
@@ -576,17 +575,17 @@ struct DevicePingSheet: View {
             // Device info
             HStack {
                 Text("Target:")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(MacTheme.Colors.labelSecondary)
                 Text(device.ipAddress)
                     .fontDesign(.monospaced)
                 if let hostname = device.hostname {
                     Text("(\(hostname))")
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(MacTheme.Colors.labelTertiary)
                 }
                 Spacer()
             }
             .padding()
-            .background(Color.gray.opacity(0.1))
+            .background(MacTheme.Colors.chartSurfaceShallow)
 
             Divider()
 
@@ -604,7 +603,7 @@ struct DevicePingSheet: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding()
                 }
-                .background(Color.black.opacity(0.2))
+                .background(MacTheme.Colors.chartSurface)
                 .onChange(of: pingResults.count) { _, _ in
                     if let lastIndex = pingResults.indices.last {
                         proxy.scrollTo(lastIndex, anchor: .bottom)
@@ -620,10 +619,10 @@ struct DevicePingSheet: View {
                     ProgressView()
                         .scaleEffect(0.7)
                     Text("Pinging...")
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(MacTheme.Colors.labelSecondary)
                 } else {
                     Text(pingResults.isEmpty ? "Ready to ping" : "Completed")
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(MacTheme.Colors.labelSecondary)
                 }
 
                 Spacer()
@@ -716,7 +715,7 @@ struct DevicePortScanSheet: View {
                     isPresented = false
                 } label: {
                     Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(MacTheme.Colors.labelSecondary)
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("devicePortScanSheet_button_close")
@@ -728,17 +727,17 @@ struct DevicePortScanSheet: View {
             // Device info
             HStack {
                 Text("Target:")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(MacTheme.Colors.labelSecondary)
                 Text(device.ipAddress)
                     .fontDesign(.monospaced)
                 if let hostname = device.hostname {
                     Text("(\(hostname))")
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(MacTheme.Colors.labelTertiary)
                 }
                 Spacer()
             }
             .padding()
-            .background(Color.gray.opacity(0.1))
+            .background(MacTheme.Colors.chartSurfaceShallow)
 
             Divider()
 
@@ -749,7 +748,7 @@ struct DevicePortScanSheet: View {
                         .progressViewStyle(.linear)
                     Text("\(Int(scanProgress * 100))% complete")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(MacTheme.Colors.labelSecondary)
                 }
                 .padding()
             }
@@ -763,14 +762,14 @@ struct DevicePortScanSheet: View {
                                 .fontDesign(.monospaced)
                                 .frame(width: 60, alignment: .leading)
                             Text(result.name)
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(MacTheme.Colors.labelSecondary)
                             Spacer()
                             HStack(spacing: 4) {
                                 Circle()
-                                    .fill(result.isOpen ? MacTheme.Colors.success : Color.gray.opacity(0.3))
+                                    .fill(result.isOpen ? MacTheme.Colors.success : MacTheme.Colors.labelQuaternary.opacity(0.4))
                                     .frame(width: 8, height: 8)
                                 Text(result.isOpen ? "Open" : "Closed")
-                                    .foregroundStyle(result.isOpen ? MacTheme.Colors.success : .secondary)
+                                    .foregroundStyle(result.isOpen ? MacTheme.Colors.success : MacTheme.Colors.labelSecondary)
                                     .font(.caption)
                             }
                         }
@@ -780,7 +779,7 @@ struct DevicePortScanSheet: View {
                     }
                 }
             }
-            .background(Color.black.opacity(0.1))
+            .background(MacTheme.Colors.chartSurfaceShallow)
 
             Divider()
 
@@ -790,11 +789,11 @@ struct DevicePortScanSheet: View {
                     ProgressView()
                         .scaleEffect(0.7)
                     Text("Scanning ports...")
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(MacTheme.Colors.labelSecondary)
                 } else {
                     let openCount = portScanResults.filter { $0.isOpen }.count
                     Text(portScanResults.isEmpty ? "Ready to scan" : "\(openCount) open ports found")
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(MacTheme.Colors.labelSecondary)
                 }
 
                 Spacer()

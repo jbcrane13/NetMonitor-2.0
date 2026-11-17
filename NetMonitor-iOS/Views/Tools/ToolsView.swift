@@ -7,7 +7,10 @@ struct ToolsView: View {
 
     init(env: AppEnvironment) {
         self.env = env
-        _viewModel = State(initialValue: ToolsViewModel(deviceDiscoveryService: env.deviceDiscovery))
+        _viewModel = State(initialValue: ToolsViewModel(
+            deviceDiscoveryService: env.deviceDiscovery,
+            reviewPrompt: RateAppService.reviewPrompt
+        ))
     }
 
     var body: some View {

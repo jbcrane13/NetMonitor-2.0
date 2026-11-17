@@ -14,7 +14,14 @@ import SwiftUI
 /// Animated shimmer modifier for skeleton loading placeholders.
 /// Sweeps a highlight from left to right to indicate loading progress.
 struct ShimmerModifier: ViewModifier {
+    @Environment(\.colorScheme) private var colorScheme
     @State private var phase: CGFloat = -1.0
+
+    private var sweepColor: Color {
+        colorScheme == .dark
+            ? Color.white.opacity(0.10)
+            : Color.white.opacity(0.55)
+    }
 
     func body(content: Content) -> some View {
         content
@@ -23,7 +30,7 @@ struct ShimmerModifier: ViewModifier {
                     LinearGradient(
                         stops: [
                             .init(color: .clear, location: max(0, phase - 0.15)),
-                            .init(color: .white.opacity(0.08), location: phase),
+                            .init(color: sweepColor, location: phase),
                             .init(color: .clear, location: min(1, phase + 0.15)),
                         ],
                         startPoint: .leading,
@@ -51,14 +58,23 @@ extension View {
 
 /// A rounded placeholder bar that shimmers — used to build skeleton layouts.
 struct SkeletonBar: View {
+    @Environment(\.colorScheme) private var colorScheme
     var width: CGFloat? = nil
     var height: CGFloat = 10
     var cornerRadius: CGFloat = 4
     var opacity: Double = 0.12
 
+    private var fillColor: Color {
+        // In light mode, a darker base reads against the bright glass card;
+        // in dark mode, white over dark glass is correct.
+        colorScheme == .dark
+            ? Color.white.opacity(opacity)
+            : Color(red: 0.20, green: 0.27, blue: 0.39).opacity(min(1.0, opacity * 2.4))
+    }
+
     var body: some View {
         RoundedRectangle(cornerRadius: cornerRadius)
-            .fill(Color.white.opacity(opacity))
+            .fill(fillColor)
             .frame(width: width, height: height)
             .shimmer()
     }
@@ -66,12 +82,19 @@ struct SkeletonBar: View {
 
 /// A circular skeleton placeholder.
 struct SkeletonCircle: View {
+    @Environment(\.colorScheme) private var colorScheme
     var size: CGFloat = 24
     var opacity: Double = 0.12
 
+    private var fillColor: Color {
+        colorScheme == .dark
+            ? Color.white.opacity(opacity)
+            : Color(red: 0.20, green: 0.27, blue: 0.39).opacity(min(1.0, opacity * 2.4))
+    }
+
     var body: some View {
         Circle()
-            .fill(Color.white.opacity(opacity))
+            .fill(fillColor)
             .frame(width: size, height: size)
             .shimmer()
     }
@@ -109,7 +132,7 @@ struct CardLoadingSkeleton: View {
             // Chart placeholder
             if showChart {
                 RoundedRectangle(cornerRadius: 6)
-                    .fill(Color.white.opacity(0.05))
+                    .fill(MacTheme.Colors.chartSurface)
                     .frame(height: 34)
                     .shimmer()
             }
@@ -130,16 +153,16 @@ struct CardEmptyState: View {
         VStack(spacing: 8) {
             Image(systemName: icon)
                 .font(.system(size: 22))
-                .foregroundStyle(.secondary.opacity(0.5))
+                .foregroundStyle(MacTheme.Colors.labelTertiary)
 
             Text(title)
                 .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(MacTheme.Colors.labelSecondary)
 
             if let description {
                 Text(description)
                     .font(.system(size: 10))
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(MacTheme.Colors.labelTertiary)
                     .multilineTextAlignment(.center)
             }
         }
@@ -158,11 +181,11 @@ struct CardErrorState: View {
         VStack(spacing: 8) {
             Image(systemName: "exclamationmark.triangle")
                 .font(.system(size: 18))
-                .foregroundStyle(MacTheme.Colors.warning.opacity(0.7))
+                .foregroundStyle(MacTheme.Colors.warning.opacity(0.85))
 
             Text(message)
                 .font(.system(size: 10))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(MacTheme.Colors.labelSecondary)
                 .multilineTextAlignment(.center)
                 .lineLimit(3)
 

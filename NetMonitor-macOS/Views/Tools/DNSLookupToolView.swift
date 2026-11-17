@@ -76,7 +76,7 @@ struct DNSLookupToolView: View {
             VStack(alignment: .leading, spacing: 4) {
                 if results.isEmpty && errorMessage == nil && !isRunning {
                     Text("Enter a hostname and select a record type to query")
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(MacTheme.Colors.labelTertiary)
                         .frame(maxWidth: .infinity, alignment: .center)
                         .padding(.top, 40)
                 } else {
@@ -144,20 +144,20 @@ struct DNSLookupToolView: View {
                 ProgressView()
                     .scaleEffect(0.7)
                 Text("Querying DNS...")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(MacTheme.Colors.labelSecondary)
             } else if !results.isEmpty {
                 Image(systemName: "checkmark.circle.fill")
                     .foregroundStyle(.green)
                 Text("\(results.count) record(s) found")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(MacTheme.Colors.labelSecondary)
             } else if errorMessage != nil {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .foregroundStyle(.orange)
                 Text("Query failed")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(MacTheme.Colors.labelSecondary)
             } else {
                 Text("Query DNS records for any hostname")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(MacTheme.Colors.labelSecondary)
             }
 
             Spacer()

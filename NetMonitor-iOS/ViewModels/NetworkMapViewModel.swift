@@ -9,6 +9,7 @@ final class NetworkMapViewModel {
     private let networkProfileManager: NetworkProfileManager
     private let pingService: any PingServiceProtocol
     private let userDefaults: UserDefaults
+    private let reviewPrompt: ReviewPromptPolicy?
 
     let deviceDiscoveryService: any DeviceDiscoveryServiceProtocol
     let gatewayService: any GatewayServiceProtocol
@@ -37,7 +38,8 @@ final class NetworkMapViewModel {
         macConnectionService: any MacConnectionServiceProtocol = MacConnectionService.shared,
         networkProfileManager: NetworkProfileManager = NetworkProfileManager(),
         pingService: any PingServiceProtocol = PingService(),
-        userDefaults: UserDefaults = .standard
+        userDefaults: UserDefaults = .standard,
+        reviewPrompt: ReviewPromptPolicy? = nil
     ) {
         self.deviceDiscoveryService = deviceDiscoveryService
         self.gatewayService = gatewayService
@@ -46,6 +48,7 @@ final class NetworkMapViewModel {
         self.networkProfileManager = networkProfileManager
         self.pingService = pingService
         self.userDefaults = userDefaults
+        self.reviewPrompt = reviewPrompt
 
         refreshAvailableNetworks()
         restoreSelectedNetwork(
@@ -129,6 +132,7 @@ final class NetworkMapViewModel {
         let profile = activeNetwork
         await deviceDiscoveryService.scanNetwork(profile: profile)
         updateScanMetadata(for: profile)
+        reviewPrompt?.recordScanCompleted()
     }
 
     func stopScan() {

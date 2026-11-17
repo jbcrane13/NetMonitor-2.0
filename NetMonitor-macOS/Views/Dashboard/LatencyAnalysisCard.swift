@@ -41,7 +41,7 @@ struct LatencyAnalysisCard: View {
                 Circle().fill(MacTheme.Colors.success).frame(width: 5, height: 5)
                 Text("LATENCY ANALYSIS \u{00B7} GATEWAY")
                     .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(MacTheme.Colors.labelSecondary)
                     .tracking(1.4)
                 Spacer()
                 if let ms = currentLatency {
@@ -63,7 +63,7 @@ struct LatencyAnalysisCard: View {
             gradientLegend
 
             // Stats divider + row
-            Divider().background(Color.white.opacity(0.06))
+            Divider().background(MacTheme.Colors.cardDivider)
             HStack(spacing: 14) {
                 statCell(value: formatMs(stats.avg), label: "AVG", ms: stats.avg)
                 statCell(value: formatMs(stats.min), label: "MIN", ms: stats.min)
@@ -82,7 +82,7 @@ struct LatencyAnalysisCard: View {
     private var waveformView: some View {
         ZStack {
             RoundedRectangle(cornerRadius: 6)
-                .fill(Color.black.opacity(colorScheme == .dark ? 0.28 : 0.06))
+                .fill(MacTheme.Colors.chartSurface)
 
 // swiftlint:disable:next identifier_name
             GeometryReader { g in
@@ -120,7 +120,7 @@ struct LatencyAnalysisCard: View {
                             path.move(to: CGPoint(x: padding, y: y))
                             path.addLine(to: CGPoint(x: padding + w, y: y))
                         }
-                        .stroke(Color.white.opacity(0.04), lineWidth: 0.5)
+                        .stroke(MacTheme.Colors.chartGridline, lineWidth: 0.5)
                     }
 
                     // Gradient fill below line
@@ -147,10 +147,11 @@ struct LatencyAnalysisCard: View {
                     .stroke(lineColor, style: StrokeStyle(lineWidth: 2.0, lineCap: .round, lineJoin: .round))
                     .shadow(color: lineColor.opacity(0.5), radius: 5)
 
-                    // Pulse node at rightmost point
+                    // Pulse node at rightmost point — use the line color so it
+                    // remains visible on the light-mode chart well too.
                     if let last = points.last {
                         Circle()
-                            .fill(.white)
+                            .fill(lineColor)
                             .frame(width: 4, height: 4)
                             .position(x: last.x, y: last.y)
 
@@ -206,7 +207,7 @@ struct LatencyAnalysisCard: View {
                 Text(">50ms")
             }
             .font(.system(size: 8, weight: .semibold))
-            .foregroundStyle(.secondary.opacity(0.6))
+            .foregroundStyle(MacTheme.Colors.labelQuaternary)
         }
     }
 
@@ -219,7 +220,7 @@ struct LatencyAnalysisCard: View {
                 .foregroundStyle(thresholdColor(ms: ms ?? 0))
             Text(label)
                 .font(.system(size: 9, weight: .semibold))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(MacTheme.Colors.labelSecondary)
                 .tracking(1)
         }
     }
@@ -243,6 +244,11 @@ struct LatencyAnalysisCard: View {
     private func calibratingView(size: CGSize) -> some View {
         let baselineOpacity = 0.08 + 0.07 * (1 + sin(calibrationPhase * 3)) / 2
         let scanX = 4 + (size.width - 8) * calibrationPhase.truncatingRemainder(dividingBy: 1.0)
+        // Adapt the pulsing baseline to the active scheme so it's visible
+        // against both the dark well and the light slate-tinted well.
+        let baselineColor: Color = colorScheme == .dark
+            ? Color.white.opacity(baselineOpacity)
+            : MacTheme.Colors.info.opacity(baselineOpacity * 2.5)
 
         return ZStack {
             // Pulsing baseline
@@ -251,7 +257,7 @@ struct LatencyAnalysisCard: View {
                 path.move(to: CGPoint(x: 4, y: y))
                 path.addLine(to: CGPoint(x: size.width - 4, y: y))
             }
-            .stroke(Color.white.opacity(baselineOpacity), lineWidth: 1)
+            .stroke(baselineColor, lineWidth: 1)
 
             // Scanning vertical line
             Rectangle()
@@ -269,7 +275,7 @@ struct LatencyAnalysisCard: View {
             // Label
             Text("MEASURING\u{2026}")
                 .font(.system(size: 9, weight: .bold))
-                .foregroundStyle(.secondary.opacity(0.6))
+                .foregroundStyle(MacTheme.Colors.labelTertiary)
                 .tracking(2.0)
         }
         .onAppear {

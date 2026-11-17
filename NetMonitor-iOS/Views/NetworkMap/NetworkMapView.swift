@@ -10,7 +10,8 @@ struct NetworkMapView: View {
     init(env: AppEnvironment) {
         _viewModel = State(initialValue: NetworkMapViewModel(
             deviceDiscoveryService: env.deviceDiscovery,
-            macConnectionService: env.macConnection
+            macConnectionService: env.macConnection,
+            reviewPrompt: RateAppService.reviewPrompt
         ))
     }
 
