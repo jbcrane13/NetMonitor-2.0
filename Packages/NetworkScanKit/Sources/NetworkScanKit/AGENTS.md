@@ -22,6 +22,9 @@ Core implementation of the composable network scan engine. Provides the fundamen
 | `ResumeState.swift` | Actor managing scan resume state for interruption recovery |
 | `ThermalThrottleMonitor.swift` | ProcessInfo-based thermal state monitoring for concurrency adaptation |
 | `ARPCacheScanner.swift` | UDP probes to fill the ARP table; reads it via `sysctl` (macOS falls back to `/usr/sbin/arp -anl` when the sysctl is empty); settle polling; `refreshedIPs` for presence |
+| `SSDPSocketSearch.swift` | SSDP M-SEARCH over a BSD UDP socket, bound to the scan interface |
+| `UPnPDeviceDescription.swift` | Parses a UPnP description's root device (friendly name, maker, model); reusable for the router IGD (#400) |
+| `UPnPDescriptionFetcher.swift` | HTTP/1.0 GET of a LAN description document over `NWConnection` (2 s, 64 KB) |
 | `DeviceNameResolver.swift` | DNS reverse lookup utility for hostname resolution |
 | `IPv4Helpers.swift` | String extension for natural IPv4 sorting (192.168.1.10 before 192.168.1.100) |
 

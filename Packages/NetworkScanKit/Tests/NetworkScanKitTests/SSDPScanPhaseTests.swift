@@ -1,22 +1,40 @@
 import Testing
 import Foundation
-import Network
 @testable import NetworkScanKit
 
 @Suite("SSDPScanPhase")
 struct SSDPScanPhaseTests {
 
-    // MARK: - Error summary (#381)
+    // MARK: - Reply grouping (#387)
 
-    @Test("errorSummary logs a POSIX error as its code, with no address")
-    func errorSummaryPosix() {
-        #expect(SSDPScanPhase.errorSummary(.posix(.EHOSTUNREACH)) == "posix 65")
-        #expect(SSDPScanPhase.errorSummary(.posix(.EPERM)) == "posix 1")
+    @Test("collect groups replies by responder and keeps each distinct LOCATION in order")
+    func collectGroupsReplies() {
+        let replies = SSDPSocketSearch.collect([
+            "HTTP/1.1 200 OK\r\nLOCATION: http://192.168.1.1:44695/rootDesc.xml\r\nST: upnp:rootdevice\r\n\r\n",
+            "HTTP/1.1 200 OK\r\nLOCATION: http://192.168.1.1:44695/rootDesc.xml\r\nST: urn:schemas-upnp-org:device:WANDevice:2\r\n\r\n",
+            "HTTP/1.1 200 OK\r\nLocation: http://192.168.1.1:1400/xml/desc.xml\r\n\r\n",
+            "HTTP/1.1 200 OK\r\nlocation: http://192.168.1.84:80/description.xml\r\n\r\n"
+        ])
+        #expect(replies == [
+            "192.168.1.1": ["http://192.168.1.1:44695/rootDesc.xml", "http://192.168.1.1:1400/xml/desc.xml"],
+            "192.168.1.84": ["http://192.168.1.84:80/description.xml"]
+        ])
     }
 
-    @Test("errorSummary logs a DNS error by domain")
-    func errorSummaryDNS() {
-        #expect(SSDPScanPhase.errorSummary(.dns(-65554)).hasPrefix("dns "))
+    @Test("collect keeps a responder without LOCATION and drops replies with no address")
+    func collectWithoutLocation() {
+        let replies = SSDPSocketSearch.collect([
+            "HTTP/1.1 200 OK\r\nSERVER: x 192.168.1.9\r\n\r\n",
+            "HTTP/1.1 200 OK\r\nST: upnp:rootdevice\r\n\r\n",
+            "garbage"
+        ])
+        #expect(replies == ["192.168.1.9": []])
+    }
+
+    @Test("the M-SEARCH message targets the SSDP group and ends with a blank line")
+    func searchMessage() {
+        #expect(SSDPSocketSearch.message.hasPrefix("M-SEARCH * HTTP/1.1\r\nHOST: 239.255.255.250:1900\r\n"))
+        #expect(SSDPSocketSearch.message.hasSuffix("\r\n\r\n"))
     }
 
     // MARK: - Phase metadata
