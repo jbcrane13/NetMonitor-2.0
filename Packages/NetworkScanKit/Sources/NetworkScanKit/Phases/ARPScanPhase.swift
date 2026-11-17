@@ -1,4 +1,7 @@
 import Foundation
+import os
+
+private let logger = Logger(subsystem: "com.netmonitor.scankit", category: "ARP")
 
 /// Discovers devices by firing UDP probes to trigger ARP resolution,
 /// then reading the system ARP cache for IP/MAC pairs.
@@ -35,6 +38,10 @@ public struct ARPScanPhase: ScanPhase, Sendable {
             ARPCacheScanner.readARPEntries().filter { filter($0.ip) }
         })
         guard !Task.isCancelled else { return }
+        if results.isEmpty {
+            // Expected on macOS 27, where sandboxed apps read an empty table (#401).
+            logger.notice("ARP read returned 0 entries after probing \(context.hosts.count) hosts")
+        }
         await onProgress(0.8)
 
         // A stale entry alone is not evidence the device is still here; later phases

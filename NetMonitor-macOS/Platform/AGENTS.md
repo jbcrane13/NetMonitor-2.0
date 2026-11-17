@@ -31,7 +31,7 @@ macOS-specific service implementations. Implements protocols from `NetMonitorCor
 ## For AI Agents
 
 ### Device discovery
-There is no `ARPScannerService`; ARP discovery lives in NetworkScanKit (`ARPScanPhase`, `ARPCacheScanner`): UDP probes, a `sysctl` read of the ARP table with an `/usr/sbin/arp -anl` fallback on macOS, settle polling, and an ARP re-check after ICMP. See `Packages/NetworkScanKit/Sources/NetworkScanKit/Phases/AGENTS.md`.
+There is no `ARPScannerService`; ARP discovery lives in NetworkScanKit (`ARPScanPhase`, `ARPCacheScanner`): UDP probes, a `sysctl` read of the ARP table (empty for the sandboxed app on macOS 27, #401), settle polling, and an ARP re-check after ICMP. See `Packages/NetworkScanKit/Sources/NetworkScanKit/Phases/AGENTS.md`.
 
 `DeviceDiscoveryCoordinator.mergeDiscoveredDevices` maps each device's `isCached` to `DeviceStatus.cached` (no answer this scan; `lastSeen` is left alone) or `.online` (`lastSeen` = now). `markOfflineDevices` sets `.offline` for rows not in the scan result. Online counts, the menu bar and the companion's `isOnline` count only `.online`.
 
