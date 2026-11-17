@@ -13,7 +13,16 @@ struct ScanSchedulerServiceTests {
     /// Clears UserDefaults baseline so every test starts from a clean slate.
     init() {
         UserDefaults.standard.removeObject(forKey: "scanScheduler_baseline")
+        UserDefaults.standard.removeObject(forKey: "deviceChangeRegistry")
     }
+
+    /// A device seen in the first scan. The first scan that sees any device is a baseline
+    /// that reports nothing new (#393), so tests that expect "new" scan this first.
+    private var anchor: DiscoveredDevice { makeDevice(mac: "AA:BB:CC:DD:EE:FF", ip: "192.168.1.254") }
+    private let start = Date(timeIntervalSince1970: 1_790_000_000)
+
+    /// Scan times far enough apart that 3 misses also pass the 15-minute grace period.
+    private func time(_ scan: Int) -> Date { start.addingTimeInterval(Double(scan) * 600) }
 
     private func makeDevice(mac: String, ip: String) -> DiscoveredDevice {
         DiscoveredDevice(
@@ -33,7 +42,7 @@ struct ScanSchedulerServiceTests {
     func computeDiffDetectsNewDevices() {
         // Clear any previous baseline by running an empty scan first
         let service = ScanSchedulerService()
-        _ = service.computeDiff(current: [])
+        _ = service.computeDiff(current: [anchor])
 
         let newDevice = makeDevice(mac: "AA:BB:CC:DD:EE:01", ip: "192.168.1.10")
         let diff = service.computeDiff(current: [newDevice])
@@ -43,18 +52,20 @@ struct ScanSchedulerServiceTests {
         #expect(diff.removedDevices.isEmpty)
     }
 
-    @Test("computeDiff detects removed devices that were in baseline")
+    @Test("computeDiff reports a device removed only after the grace period (#393)")
     @MainActor
     func computeDiffDetectsRemovedDevices() {
         let service = ScanSchedulerService()
         let device = makeDevice(mac: "AA:BB:CC:DD:EE:02", ip: "192.168.1.11")
 
-        // Establish baseline with the device
-        _ = service.computeDiff(current: [device])
+        _ = service.computeDiff(current: [device], now: time(0))
 
-        // Next scan — device is gone
-        let diff = service.computeDiff(current: [])
+        // Missing for one and two scans: still within the grace period.
+        #expect(service.computeDiff(current: [], now: time(1)).removedDevices.isEmpty)
+        #expect(service.computeDiff(current: [], now: time(2)).removedDevices.isEmpty)
 
+        // Third missed scan, 30 minutes on: removed.
+        let diff = service.computeDiff(current: [], now: time(3))
         #expect(diff.removedDevices.count == 1)
         #expect(diff.removedDevices.first?.macAddress == "AA:BB:CC:DD:EE:02")
         #expect(diff.newDevices.isEmpty)
@@ -107,19 +118,19 @@ struct ScanSchedulerServiceTests {
         #expect(service.getLastScanDiff() == nil)
     }
 
-    @Test("Devices without MAC addresses are excluded from diff")
+    @Test("Devices without MAC addresses are tracked by IP (#393)")
     @MainActor
-    func devicesWithoutMACExcludedFromDiff() {
+    func devicesWithoutMACAreTrackedByIP() {
         let service = ScanSchedulerService()
         // Clear baseline
-        _ = service.computeDiff(current: [])
+        _ = service.computeDiff(current: [anchor])
 
         // Device with no MAC
         let noMAC = DiscoveredDevice(ipAddress: "192.168.1.20", latency: 1.0, discoveredAt: Date())
         let diff = service.computeDiff(current: [noMAC])
 
-        // Devices without MAC are skipped in diff logic
-        #expect(diff.newDevices.isEmpty)
+        // Keyed by IP, matching how the Mac merge keys MAC-less devices.
+        #expect(diff.newDevices.map(\.ipAddress) == ["192.168.1.20"])
     }
 
     // MARK: - Schedule next scan: correct interval calculation
@@ -164,29 +175,33 @@ struct ScanSchedulerServiceTests {
         let deviceB = makeDevice(mac: "AA:BB:CC:DD:EE:11", ip: "192.168.1.11")
 
         // Baseline: [A]
-        _ = service.computeDiff(current: [deviceA])
+        _ = service.computeDiff(current: [deviceA], now: time(0))
 
-        // Next scan: [B] (A removed, B new)
-        let diff = service.computeDiff(current: [deviceB])
+        // B appears while A is missing; A is removed once its grace period runs out.
+        let first = service.computeDiff(current: [deviceB], now: time(1))
+        #expect(first.newDevices.map(\.macAddress) == ["AA:BB:CC:DD:EE:11"])
+        #expect(first.removedDevices.isEmpty)
+        _ = service.computeDiff(current: [deviceB], now: time(2))
+        let diff = service.computeDiff(current: [deviceB], now: time(3))
 
-        #expect(diff.newDevices.count == 1)
-        #expect(diff.newDevices.first?.macAddress == "AA:BB:CC:DD:EE:11")
+        #expect(diff.newDevices.isEmpty)
         #expect(diff.removedDevices.count == 1)
         #expect(diff.removedDevices.first?.macAddress == "AA:BB:CC:DD:EE:10")
     }
 
-    @Test("computeDiff changedDevices is always empty in current implementation")
+    @Test("computeDiff reports an IP change in changedDevices (#393)")
     @MainActor
-    func computeDiffChangedDevicesAlwaysEmpty() {
+    func computeDiffReportsIPChange() {
         let service = ScanSchedulerService()
         let device = makeDevice(mac: "AA:BB:CC:DD:EE:20", ip: "192.168.1.20")
         _ = service.computeDiff(current: [device])
 
-        // Same MAC but different IP — current implementation does not detect changes
+        // Same MAC, different IP: changed, not new.
         let deviceUpdated = makeDevice(mac: "AA:BB:CC:DD:EE:20", ip: "192.168.1.21")
         let diff = service.computeDiff(current: [deviceUpdated])
 
-        #expect(diff.changedDevices.isEmpty, "changedDevices is not computed in current implementation")
+        #expect(diff.changedDevices.map(\.ipAddress) == ["192.168.1.21"])
+        #expect(diff.newDevices.isEmpty)
     }
 
     @Test("computeDiff with many devices works correctly")
@@ -194,7 +209,7 @@ struct ScanSchedulerServiceTests {
     func computeDiffManyDevices() {
         let service = ScanSchedulerService()
         // Clear baseline
-        _ = service.computeDiff(current: [])
+        _ = service.computeDiff(current: [anchor])
 
         // Generate 50 devices
         var devices: [DiscoveredDevice] = []
@@ -246,7 +261,7 @@ struct ScanSchedulerServiceTests {
     @MainActor
     func scanDiffHasChangesWithNewDevices() {
         let service = ScanSchedulerService()
-        _ = service.computeDiff(current: [])
+        _ = service.computeDiff(current: [anchor])
 
         let device = makeDevice(mac: "AA:BB:CC:DD:EE:50", ip: "192.168.1.50")
         let diff = service.computeDiff(current: [device])
@@ -271,7 +286,7 @@ struct ScanSchedulerServiceTests {
     @MainActor
     func scanDiffSummaryText() {
         let service = ScanSchedulerService()
-        _ = service.computeDiff(current: [])
+        _ = service.computeDiff(current: [anchor])
 
         let device = makeDevice(mac: "AA:BB:CC:DD:EE:70", ip: "192.168.1.70")
         let diff = service.computeDiff(current: [device])
@@ -290,11 +305,11 @@ struct ScanSchedulerServiceTests {
         #expect(diff.summaryText == "No changes")
     }
 
-    @Test("Devices with empty MAC strings are excluded from diff")
+    @Test("Devices with empty MAC strings are tracked by IP (#393)")
     @MainActor
-    func devicesWithEmptyMACExcludedFromDiff() {
+    func devicesWithEmptyMACAreTrackedByIP() {
         let service = ScanSchedulerService()
-        _ = service.computeDiff(current: [])
+        _ = service.computeDiff(current: [anchor])
 
         let emptyMAC = DiscoveredDevice(
             id: UUID(),
@@ -307,6 +322,18 @@ struct ScanSchedulerServiceTests {
             source: .local
         )
         let diff = service.computeDiff(current: [emptyMAC])
-        #expect(diff.newDevices.isEmpty, "Devices with empty MAC should be excluded")
+        #expect(diff.newDevices.map(\.ipAddress) == ["192.168.1.99"], "An empty MAC means key by IP")
+    }
+
+    @Test("An upgrade seeds from the old previous-scan baseline, so known devices aren't new (#393)")
+    @MainActor
+    func upgradeSeedsFromOldBaseline() throws {
+        let known = makeDevice(mac: "AA:BB:CC:DD:EE:A1", ip: "192.168.1.101")
+        let newcomer = makeDevice(mac: "AA:BB:CC:DD:EE:A2", ip: "192.168.1.102")
+        try UserDefaults.standard.set(JSONEncoder().encode([known]), forKey: "scanScheduler_baseline")
+
+        let diff = ScanSchedulerService().computeDiff(current: [known, newcomer])
+
+        #expect(diff.newDevices.map(\.macAddress) == ["AA:BB:CC:DD:EE:A2"])
     }
 }

@@ -84,7 +84,7 @@ struct MacAlertNotifierTests {
         let alerts = MacAlertNotifier(service: NotificationService(poster: poster, defaults: defaults), defaults: defaults)
 
         alerts.targetWentDown(name: "Router", host: "192.0.2.1")
-        alerts.devicesJoined([LocalDevice(ipAddress: "192.0.2.9", macAddress: "")])
+        alerts.devicesChanged([.firstSeen(DeviceObservation(ipAddress: "192.0.2.9", macAddress: nil, name: nil))])
 
         #expect(poster.categories == [NotificationService.targetDownCategory, NotificationService.newDeviceCategory])
     }
@@ -100,7 +100,7 @@ struct MacAlertNotifierTests {
         #expect(poster.requests.isEmpty)
 
         defaults.set(false, forKey: NotificationService.newDeviceAlertKey)
-        alerts.devicesJoined([LocalDevice(ipAddress: "192.0.2.9", macAddress: "")])
+        alerts.devicesChanged([.firstSeen(DeviceObservation(ipAddress: "192.0.2.9", macAddress: nil, name: nil))])
         #expect(poster.requests.isEmpty)
     }
 
@@ -112,7 +112,7 @@ struct MacAlertNotifierTests {
         let alerts = MacAlertNotifier(service: NotificationService(poster: poster, defaults: defaults), defaults: defaults)
 
         alerts.targetWentDown(name: "Router", host: "192.0.2.1")
-        alerts.devicesJoined([LocalDevice(ipAddress: "192.0.2.9", macAddress: "")])
+        alerts.devicesChanged([.firstSeen(DeviceObservation(ipAddress: "192.0.2.9", macAddress: nil, name: nil))])
 
         #expect(poster.requests.isEmpty)
     }
@@ -293,8 +293,22 @@ struct DeviceDiscoveryNewDeviceHookTests {
             },
             portChecker: { _, _, _ in false }
         )
+        let suite = "DeviceDiscoveryNewDeviceHookTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite) ?? .standard
+        defer { defaults.removePersistentDomain(forName: suite) }
+        coordinator.changeTracker = DeviceChangeTracker(defaults: defaults)
         var reported: [[String]] = []
-        coordinator.onNewDevices = { devices in reported.append(devices.map(\.ipAddress).sorted()) }
+        coordinator.onDeviceChanges = { events in
+            let firstSeen = events.compactMap { event -> String? in
+                if case let .firstSeen(device) = event {
+                    return device.ipAddress
+                }
+                return nil
+            }
+            if !firstSeen.isEmpty {
+                reported.append(firstSeen.sorted())
+            }
+        }
 
         // First scan of the network records a baseline and alerts nothing.
         coordinator.startScan()
@@ -320,5 +334,51 @@ struct DeviceDiscoveryNewDeviceHookTests {
         let rows = try container.mainContext.fetch(FetchDescriptor<LocalDevice>())
         #expect(rows.first { $0.ipAddress == "192.0.2.4" }?.status == .cached)
         #expect(reported == [["192.0.2.3"]])
+
+        // When that device first answers, it alerts once (#393 folds in the #407 trade-off).
+        box.unansweredIPs = []
+        coordinator.startScan()
+        await waitUntil { !coordinator.isScanning }
+        #expect(reported == [["192.0.2.3"], ["192.0.2.4"]])
+        coordinator.startScan()
+        await waitUntil { !coordinator.isScanning }
+        #expect(reported == [["192.0.2.3"], ["192.0.2.4"]])
+    }
+
+    /// Upgrade from a build with #405's cached rows: a row's status describes the latest scan,
+    /// not whether the device ever answered, so every existing row is seeded as known (#410 review).
+    @Test func upgradeSeedsCachedRowsAsKnownSoTheirFirstAnswerDoesNotAlert() async throws {
+        let schema = Schema([LocalDevice.self])
+        let config = ModelConfiguration(UUID().uuidString, schema: schema, isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+        let container = try ModelContainer(for: schema, configurations: [config])
+        let context = container.mainContext
+        let profiles = NetworkProfileManager()
+        let profileID = profiles.activeProfile?.id
+        for (ip, status) in [("192.0.2.1", DeviceStatus.cached), ("192.0.2.2", .cached), ("192.0.2.3", .online)] {
+            context.insert(LocalDevice(ipAddress: ip, macAddress: "", status: status, networkProfileID: profileID))
+        }
+        try context.save()
+
+        let box = DeviceListBox([device("192.0.2.1"), device("192.0.2.2"), device("192.0.2.3")])
+        let coordinator = DeviceDiscoveryCoordinator(
+            modelContext: context,
+            bonjourScanner: BonjourDiscoveryService(),
+            networkProfileManager: profiles,
+            pipelineFactory: { _ in
+                ScanPipeline(steps: [ScanPipeline.Step(phases: [ListUpsertPhase(box: box)], concurrent: false)])
+            },
+            portChecker: { _, _, _ in false }
+        )
+        let suite = "UpgradeSeedTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite) ?? .standard
+        defer { defaults.removePersistentDomain(forName: suite) }
+        coordinator.changeTracker = DeviceChangeTracker(defaults: defaults)
+        var events: [DeviceChangeEvent] = []
+        coordinator.onDeviceChanges = { events += $0 }
+
+        coordinator.startScan()
+        await waitUntil { !coordinator.isScanning }
+
+        #expect(events.isEmpty, "Existing rows, cached or not, are known devices: no alert on first answer")
     }
 }
