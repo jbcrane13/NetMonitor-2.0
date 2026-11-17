@@ -21,10 +21,24 @@ struct UPnPDescriptionFetcherTests {
         "http://router.local/desc.xml",
         "http://example.com/desc.xml",
         "http://10.0.0.1/desc.xml",
-        "not a url"
+        "not a url",
+        "http://192.168.1.20:0/desc.xml",
+        "http://192.168.1.20:65536/desc.xml",
+        "http://192.168.1.20:-1/desc.xml",
+        "http://192.168.1.20:abc/desc.xml",
+        "http://192.168.1.20:/desc.xml",
+        "http://192.168.1.20:99999999999999999999/desc.xml"
     ])
     func rejects(_ location: String) {
         #expect(UPnPDescriptionFetcher.descriptionURL(fromLocation: location, subnetFilter: lan) == nil)
+    }
+
+    @Test("accepts the port boundaries 1 and 65535, and no port means 80")
+    func portBoundaries() throws {
+        for (location, port) in [("http://192.168.1.20:1/d.xml", 1), ("http://192.168.1.20:65535/d.xml", 65_535), ("http://192.168.1.20/d.xml", 80)] {
+            let url = try #require(UPnPDescriptionFetcher.descriptionURL(fromLocation: location, subnetFilter: lan))
+            #expect(UPnPDescriptionFetcher.port(of: url, location: location) == UInt16(port))
+        }
     }
 
     // MARK: - request

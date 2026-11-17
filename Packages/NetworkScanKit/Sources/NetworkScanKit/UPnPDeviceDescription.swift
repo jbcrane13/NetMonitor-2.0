@@ -75,6 +75,10 @@ private final class RootDeviceFieldCollector: NSObject, XMLParserDelegate {
         text += string
     }
 
+    func parser(_ parser: XMLParser, foundCDATA CDATABlock: Data) {
+        text += String(bytes: CDATABlock, encoding: .utf8) ?? ""
+    }
+
     func parser(_ parser: XMLParser, didEndElement elementName: String, namespaceURI: String?, qualifiedName qName: String?) {
         let name = Self.localName(elementName)
         if !rootDeviceDone, path.count == 3, path[0] == "root", path[1] == "device", Self.fields.contains(name),

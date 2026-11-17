@@ -14,22 +14,38 @@ public enum UPnPDescriptionFetcher {
     static let maxHeaderBytes = 8 * 1024
 
     /// The URL to fetch for an SSDP `LOCATION`, or nil unless it is plain `http` to an
-    /// IPv4 literal that passes `subnetFilter` (the scan subnet).
+    /// IPv4 literal that passes `subnetFilter` (the scan subnet), with no port or a port
+    /// in 1...65535. `LOCATION` is untrusted input.
     public static func descriptionURL(fromLocation location: String, subnetFilter: (String) -> Bool) -> URL? {
-        guard let url = URL(string: location.trimmingCharacters(in: .whitespaces)),
+        let trimmed = location.trimmingCharacters(in: .whitespaces)
+        guard let url = URL(string: trimmed),
               url.scheme?.lowercased() == "http",
               let host = url.host,
               isValidIPv4Address(host),
-              subnetFilter(host) else {
+              subnetFilter(host),
+              port(of: url, location: trimmed) != nil else {
             return nil
         }
         return url
     }
 
+    /// The TCP port to use, or nil when the location names a port that is not 1...65535.
+    /// `URL` accepts 0 and 65536 as written and turns an unparseable number into a nil
+    /// port, so a written port is checked against the authority text, not only `url.port`.
+    static func port(of url: URL, location: String) -> UInt16? {
+        let afterScheme = location.range(of: "://").map { location[$0.upperBound...] } ?? Substring(location)
+        let authority = afterScheme.prefix { $0 != "/" && $0 != "?" && $0 != "#" }
+        guard authority.contains(":") else { return 80 }
+        guard let written = url.port, (1...65_535).contains(written) else { return nil }
+        return UInt16(exactly: written)
+    }
+
     /// Fetches the document body, or nil on any failure, timeout, non-200 status,
     /// chunked body or a body over ``UPnPDeviceDescription/maxBytes``.
     public static func fetch(_ url: URL, requiredInterfaceType: NWInterface.InterfaceType? = nil) async -> Data? {
-        guard let host = url.host, let port = NWEndpoint.Port(rawValue: UInt16(url.port ?? 80)) else { return nil }
+        guard let host = url.host,
+              let number = port(of: url, location: url.absoluteString),
+              let port = NWEndpoint.Port(rawValue: number) else { return nil }
         let params = NWParameters.tcp
         if let requiredInterfaceType {
             params.requiredInterfaceType = requiredInterfaceType

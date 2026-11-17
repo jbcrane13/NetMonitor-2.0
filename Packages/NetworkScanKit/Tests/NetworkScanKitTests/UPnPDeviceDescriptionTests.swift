@@ -97,6 +97,18 @@ struct UPnPDeviceDescriptionTests {
         ))
     }
 
+    @Test("CDATA-only values parse")
+    func cdataOnly() {
+        let xml = "<root><device><friendlyName><![CDATA[Kitchen & Den]]></friendlyName><manufacturer><![CDATA[Sonos, Inc.]]></manufacturer></device></root>"
+        #expect(parse(xml) == UPnPDeviceDescription(friendlyName: "Kitchen & Den", manufacturer: "Sonos, Inc.", modelName: nil))
+    }
+
+    @Test("values mixing text and CDATA parse in order")
+    func cdataMixed() {
+        let xml = "<root><device><friendlyName> Living <![CDATA[Room <TV>]]> 2 </friendlyName><modelName>Q<![CDATA[80]]></modelName></device></root>"
+        #expect(parse(xml) == UPnPDeviceDescription(friendlyName: "Living Room <TV> 2", manufacturer: nil, modelName: "Q80"))
+    }
+
     @Test("a missing field is nil; the others still parse")
     func partialFields() {
         let xml = "<root><device><manufacturer>Sonos, Inc.</manufacturer></device></root>"
