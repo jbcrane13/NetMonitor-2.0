@@ -204,8 +204,9 @@ public actor MACVendorLookupService: MACVendorLookupServiceProtocol {
 
     // MARK: - Public Methods
 
-    /// Look up vendor using the local database first, then online API as fallback.
-    /// Private (randomised) addresses have no maker, so neither lookup runs for them.
+    /// Look up vendor offline first (curated names, then the IEEE MA-L list), then the
+    /// online API only if both miss. Private (randomised) addresses have no maker, so
+    /// neither lookup runs for them.
     /// - Parameter macAddress: MAC address in any format (colons, dashes, or none)
     /// - Returns: Vendor name if found
     public func lookupVendorEnhanced(macAddress: String) async -> String? {
@@ -223,15 +224,21 @@ public actor MACVendorLookupService: MACVendorLookupServiceProtocol {
         return nil
     }
 
-    /// Look up the vendor for a MAC address (local database only)
+    /// Look up the vendor for a MAC address offline: the curated short names first, then
+    /// the bundled IEEE MA-L list (#384). Never touches the network.
     /// - Parameter macAddress: MAC address in any format (colons, dashes, or none)
     /// - Returns: Vendor name if found
     public func lookup(macAddress: String) -> String? {
         guard !MACAddress.isPrivate(macAddress) else { return nil }
         let normalized = normalizeMAC(macAddress)
         guard normalized.count >= 8 else { return nil }
+        // An all-zero address is a placeholder, not Xerox's 00:00:00 block.
+        guard normalized.contains(where: { $0 != "0" && $0 != ":" }) else { return nil }
         let prefix = String(normalized.prefix(8)) // First 3 bytes = OUI
-        return vendorDatabase[prefix]
+        if let curated = vendorDatabase[prefix] {
+            return curated
+        }
+        return OUIDatabase.vendor(forPrefix: prefix.replacingOccurrences(of: ":", with: ""))
     }
 
     // MARK: - Private Methods

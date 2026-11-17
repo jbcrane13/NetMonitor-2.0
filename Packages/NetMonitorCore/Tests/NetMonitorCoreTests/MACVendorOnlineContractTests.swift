@@ -107,6 +107,35 @@ struct MACVendorOnlineContractTests {
         #expect(requests.isEmpty)
     }
 
+    @Test("IEEE-listed MAC resolves offline without any online request (#384)")
+    func offlineListSkipsOnlineLookup() async {
+        let requests = RequestCounter()
+        let service = makeCountingService(requests, responseBody: "Should Not Be Used")
+        let vendor = await service.lookupVendorEnhanced(macAddress: "28:6F:B9:11:22:33")
+        #expect(vendor == "Nokia Shanghai Bell Co., Ltd.")
+        #expect(requests.isEmpty)
+    }
+
+    @Test("Unlisted public MAC still falls back to the online lookup (#384)")
+    func unlistedMACUsesOnlineLookup() async {
+        let requests = RequestCounter()
+        let service = makeCountingService(requests, responseBody: "Acme Networks")
+        let vendor = await service.lookupVendorEnhanced(macAddress: "10:34:56:78:90:AB")
+        #expect(vendor == "Acme Networks")
+        #expect(!requests.isEmpty)
+    }
+
+    private func makeCountingService(_ requests: RequestCounter, responseBody: String) -> MACVendorLookupService {
+        MACVendorLookupService(session: MockURLProtocol.makeSession { request in
+            requests.increment()
+            guard let url = request.url,
+                  let response = HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil) else {
+                throw URLError(.badURL)
+            }
+            return (response, Data(responseBody.utf8))
+        })
+    }
+
     @Test("Private MAC: local lookup returns nil even if the prefix bits match a table entry")
     func privateMACSkipsLocalLookup() async {
         let service = MACVendorLookupService()
