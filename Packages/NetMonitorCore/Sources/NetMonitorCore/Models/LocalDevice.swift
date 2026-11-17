@@ -82,7 +82,9 @@ public final class LocalDevice {
 
     public var latencyText: String? {
         guard let latency = lastLatency else { return nil }
-        if latency < 1 { return "<1 ms" }
+        if latency < 1 {
+            return "<1 ms"
+        }
         return String(format: "%.0f ms", latency)
     }
 
@@ -94,7 +96,7 @@ public final class LocalDevice {
     public func updateLatency(_ latency: Double) {
         lastLatency = latency
         lastSeen = Date()
-        if status == .offline {
+        if status == .offline || status == .cached {
             status = .online
         }
         // Append to in-memory sparkline buffer

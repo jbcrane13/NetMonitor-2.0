@@ -104,6 +104,9 @@ struct DeviceListView: View {
                                 deviceRow(device: device)
                             }
                         }
+                        // A cached device gave no answer this scan and may have left (#378).
+                        .opacity(device.isCached ? 0.55 : 1)
+                        .accessibilityValue(device.isCached ? "Cached, may have left the network" : "")
                         .accessibilityIdentifier("deviceList_row_device_\(device.ipAddress.replacingOccurrences(of: ".", with: "_"))")
                     }
                 }
@@ -177,7 +180,7 @@ struct DeviceListView: View {
                 HStack(spacing: 8) {
                     // Status dot
                     Circle()
-                        .fill(Theme.Colors.success)
+                        .fill(device.isCached ? Theme.Colors.warning : Theme.Colors.success)
                         .frame(width: 6, height: 6)
 
                     // IP Address (monospaced, prominent)

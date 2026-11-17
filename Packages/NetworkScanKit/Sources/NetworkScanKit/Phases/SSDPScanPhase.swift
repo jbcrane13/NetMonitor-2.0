@@ -1,5 +1,9 @@
 import Foundation
 import Network
+import os.log
+
+/// Counts and error codes only, never addresses (#381).
+private let logger = Logger(subsystem: "com.netmonitor.scankit", category: "SSDP")
 
 /// Discovers devices via SSDP/UPnP M-SEARCH multicast.
 public struct SSDPScanPhase: ScanPhase, Sendable {
@@ -72,16 +76,29 @@ public struct SSDPScanPhase: ScanPhase, Sendable {
             let ready = await withNWConnection(connection, timeout: .seconds(2), timeoutValue: false) { state in
                 switch state {
                 case .ready: return .completeKeepAlive(true)
-                case .failed, .cancelled: return .complete(false)
+                case let .failed(error):
+                    logger.error("SSDP connection failed: \(errorSummary(error), privacy: .public)")
+                    return .complete(false)
+                case .cancelled: return .complete(false)
+                case let .waiting(error):
+                    logger.notice("SSDP connection waiting: \(errorSummary(error), privacy: .public)")
+                    return nil
                 default: return nil
                 }
             }
 
-            guard ready else { return [] }
+            guard ready else {
+                logger.notice("SSDP skipped: connection not ready")
+                return []
+            }
             guard !Task.isCancelled else { return [] }
 
             // Send M-SEARCH
-            connection.send(content: messageData, completion: .contentProcessed { _ in })
+            connection.send(content: messageData, completion: .contentProcessed { error in
+                if let error {
+                    logger.error("SSDP M-SEARCH send failed: \(errorSummary(error), privacy: .public)")
+                }
+            })
 
             // Receive loop using AsyncStream
             let responses = AsyncStream<Data> { continuation in
@@ -119,9 +136,21 @@ public struct SSDPScanPhase: ScanPhase, Sendable {
             collectTask.cancel()
             connection.cancel()
             let discoveredIPs = await collectTask.value
+            logger.info("SSDP responders: \(discoveredIPs.count)")
             return Array(discoveredIPs)
         }
 
         return discoveredIPs ?? []
+    }
+
+    /// A log-safe summary of a Network framework error: its domain and code, no addresses.
+    /// On iPhone, a missing multicast entitlement shows up here as a POSIX error (#381).
+    static func errorSummary(_ error: NWError) -> String {
+        switch error {
+        case let .posix(code): "posix \(code.rawValue)"
+        case let .dns(code): "dns \(code)"
+        case let .tls(code): "tls \(code)"
+        default: "other"
+        }
     }
 }

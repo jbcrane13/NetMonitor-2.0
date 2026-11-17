@@ -23,10 +23,10 @@ struct ScanPipelineTests {
         #expect(step.concurrent == false)
     }
 
-    @Test("standard pipeline has 4 steps")
-    func standardHasFourSteps() {
+    @Test("standard pipeline has 5 steps")
+    func standardHasFiveSteps() {
         let pipeline = ScanPipeline.standard()
-        #expect(pipeline.steps.count == 4)
+        #expect(pipeline.steps.count == 5)
     }
 
     @Test("standard pipeline step 0 is concurrent with 2 phases")
@@ -57,6 +57,14 @@ struct ScanPipelineTests {
     func standardStep3() {
         let pipeline = ScanPipeline.standard()
         let step = pipeline.steps[3]
+        #expect(step.concurrent == false)
+        #expect(step.phases.count == 1)
+    }
+
+    @Test("standard pipeline step 4 is sequential with 1 phase")
+    func standardStep4() {
+        let pipeline = ScanPipeline.standard()
+        let step = pipeline.steps[4]
         #expect(step.concurrent == false)
         #expect(step.phases.count == 1)
     }
