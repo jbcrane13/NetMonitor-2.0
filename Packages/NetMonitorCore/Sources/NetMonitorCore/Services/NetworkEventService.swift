@@ -29,6 +29,7 @@ public final class NetworkEventService: NetworkEventServiceProtocol, @unchecked 
 
     private let lock = NSLock()
     private var _events: [NetworkEvent] = []
+    private let storage: UserDefaults
     private let userDefaultsKey = "com.netmonitor.networkEvents"
     private let maxEvents = 500
 
@@ -39,10 +40,17 @@ public final class NetworkEventService: NetworkEventServiceProtocol, @unchecked 
     /// and from production state, even when tests run concurrently.
     public init() {
         // Intentionally empty — start with no events.
+        storage = .standard
+    }
+
+    /// A fresh, empty instance that persists to `storage`, so tests can read back what was saved.
+    init(storage: UserDefaults) {
+        self.storage = storage
     }
 
     // Private designated init used by the shared singleton to restore persisted events.
     private init(restoringPersistedEvents: Bool) {
+        storage = .standard
         if restoringPersistedEvents {
             loadFromStorage()
         }
@@ -60,9 +68,9 @@ public final class NetworkEventService: NetworkEventServiceProtocol, @unchecked 
         if _events.count > maxEvents {
             _events = Array(_events.prefix(maxEvents))
         }
-        let snapshot = _events
+        // Persist under the lock so concurrent writers save in the order they changed the list.
+        persist(_events)
         lock.unlock()
-        persist(snapshot)
     }
 
     public func log(
@@ -82,23 +90,34 @@ public final class NetworkEventService: NetworkEventServiceProtocol, @unchecked 
         lock.withLock { _events.filter { $0.timestamp >= start && $0.timestamp <= end } }
     }
 
+    /// Removes events older than `cutoff`, for the history retention setting (#395).
+    public func removeEvents(olderThan cutoff: Date) {
+        lock.lock()
+        let before = _events.count
+        _events.removeAll { $0.timestamp < cutoff }
+        if _events.count != before {
+            persist(_events)
+        }
+        lock.unlock()
+    }
+
     public func clearAll() {
         lock.lock()
         _events.removeAll()
+        storage.removeObject(forKey: userDefaultsKey)
         lock.unlock()
-        UserDefaults.standard.removeObject(forKey: userDefaultsKey)
     }
 
     // MARK: - Persistence
 
     private func persist(_ events: [NetworkEvent]) {
         if let data = try? JSONEncoder().encode(events) {
-            UserDefaults.standard.set(data, forKey: userDefaultsKey)
+            storage.set(data, forKey: userDefaultsKey)
         }
     }
 
     private func loadFromStorage() {
-        guard let data = UserDefaults.standard.data(forKey: userDefaultsKey),
+        guard let data = storage.data(forKey: userDefaultsKey),
               let decoded = try? JSONDecoder().decode([NetworkEvent].self, from: data)
         else { return }
         _events = decoded

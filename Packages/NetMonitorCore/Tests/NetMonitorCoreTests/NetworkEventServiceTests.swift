@@ -181,3 +181,19 @@ struct NetworkEventServiceTests {
         }
     }
 }
+
+@Suite("NetworkEventService retention")
+struct NetworkEventServiceRetentionTests {
+    @Test func removeEventsOlderThanCutoffKeepsNewerOnes() {
+        let service = NetworkEventService()
+        let now = Date()
+        let old = NetworkEvent(type: .scanComplete, timestamp: now.addingTimeInterval(-10 * 86400), title: "old")
+        let recent = NetworkEvent(type: .scanComplete, timestamp: now.addingTimeInterval(-1 * 86400), title: "recent")
+        service.log(old)
+        service.log(recent)
+
+        service.removeEvents(olderThan: now.addingTimeInterval(-7 * 86400))
+
+        #expect(service.events.map(\.id) == [recent.id])
+    }
+}
