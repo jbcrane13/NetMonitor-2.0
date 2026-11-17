@@ -29,6 +29,8 @@ public struct DiscoveredDevice: Identifiable, Codable, Sendable {
     /// From the device's UPnP description (#387). Additive: older JSON caches decode as nil.
     public let friendlyName: String?
     public let manufacturer: String?
+    /// The device's model: a Bonjour TXT model (#386, e.g. `MacBookPro18,1`) or the UPnP
+    /// `modelName` (#387). Bonjour wins when both exist.
     public let modelName: String?
 
     /// Convenience init for local TCP probe (backward compatible).
@@ -125,6 +127,26 @@ public struct DiscoveredDevice: Identifiable, Codable, Sendable {
         )
     }
 
+    /// A copy with `modelName` replaced; every other field is kept.
+    public func withModelName(_ modelName: String?) -> DiscoveredDevice {
+        DiscoveredDevice(
+            id: id,
+            ipAddress: ipAddress,
+            hostname: hostname,
+            vendor: vendor,
+            macAddress: macAddress,
+            latency: latency,
+            discoveredAt: discoveredAt,
+            source: source,
+            networkProfileID: networkProfileID,
+            openPorts: openPorts,
+            isCached: isCached,
+            friendlyName: friendlyName,
+            manufacturer: manufacturer,
+            modelName: modelName
+        )
+    }
+
     /// The hostname, else the UPnP friendly name (#387), else the IP.
     public var displayName: String {
         hostname ?? friendlyName ?? ipAddress
@@ -174,10 +196,13 @@ public struct BonjourServiceInfo: Sendable {
     public let name: String
     public let type: String
     public let domain: String
+    /// TXT record keys (lowercased) and values from the browse result, when known (#386).
+    public let txtRecord: [String: String]
 
-    public init(name: String, type: String, domain: String) {
+    public init(name: String, type: String, domain: String, txtRecord: [String: String] = [:]) {
         self.name = name
         self.type = type
         self.domain = domain
+        self.txtRecord = txtRecord
     }
 }

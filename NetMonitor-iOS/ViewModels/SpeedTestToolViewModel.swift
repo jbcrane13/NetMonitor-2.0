@@ -85,7 +85,9 @@ final class SpeedTestToolViewModel {
     // MARK: - Actions
 
     func startTest(modelContext: ModelContext) {
-        guard !isRunning else { return }
+        // A scheduled test (#398) already using the connection would skew both results.
+        guard !isRunning, !IOSScheduledSpeedTest.isTestRunning else { return }
+        IOSScheduledSpeedTest.manualTestsRunning += 1
 
         errorMessage = nil
         isRunning = true
@@ -134,6 +136,7 @@ final class SpeedTestToolViewModel {
                 )
             }
             isRunning = false
+            IOSScheduledSpeedTest.manualTestsRunning -= 1
         }
 
         // Observe service state changes

@@ -20,6 +20,8 @@ struct NetworkDetailView: View {
     @State private var connectivityMonitor: ConnectivityMonitor?
     /// Computes uptime statistics from persisted records for display in ISPHealthCard.
     @State private var uptimeViewModel: UptimeViewModel?
+    /// Shared by the health gauge and the Health Checks card so one refresh feeds both.
+    @State private var healthViewModel = NetworkHealthScoreMacViewModel()
 
     /// Shared diagnostics card stack used across all layout modes.
     /// WiFi Signal is 2nd so the live sparkline is visible without scrolling.
@@ -35,6 +37,12 @@ struct NetworkDetailView: View {
             WiFiSignalCard()
                 .accessibilityElement(children: .contain)
                 .accessibilityIdentifier("networkDetail_card_wifiSignal")
+
+            HealthChecklistCard(viewModel: healthViewModel) {
+                Task { await refreshHealth() }
+            }
+                .accessibilityElement(children: .contain)
+                .accessibilityIdentifier("networkDetail_card_healthChecks")
 
             ConnectivityCard(session: session, profileManager: profileManager)
                 .accessibilityElement(children: .contain)
@@ -89,6 +97,27 @@ struct NetworkDetailView: View {
         }
     }
 
+    /// What the health checks depend on: a change re-runs them.
+    private struct HealthRefreshKey: Equatable {
+        let profileID: UUID
+        let lastScanTime: Date?
+    }
+
+    /// Gathers the Mac's own Wi-Fi and device readings, then refreshes the health score and checks.
+    private func refreshHealth() async {
+        let connection = try? await NetworkInfoService().getCurrentConnection()
+        let isWiFi = connection?.connectionType == .wifi
+        let deviceCount = deviceDiscovery.flatMap { $0.lastScanTime == nil ? nil : $0.discoveredDevices.count }
+        await healthViewModel.refresh(
+            gatewayIP: profile.gatewayIP.isEmpty ? nil : profile.gatewayIP,
+            localInputs: HealthCheckInputs(
+                wifiRSSI: isWiFi ? connection?.signalStrength : nil,
+                deviceCount: deviceCount,
+                linkSpeedMbps: connection?.linkSpeed.map(Double.init)
+            )
+        )
+    }
+
     /// Live dashboard for the network this Mac is on.
     private var liveDashboard: some View {
         GeometryReader { geo in
@@ -108,7 +137,7 @@ struct NetworkDetailView: View {
                         .accessibilityElement(children: .contain)
                         .accessibilityIdentifier("networkDetail_card_isp")
 
-                    HealthGaugeCard()
+                    HealthGaugeCard(viewModel: healthViewModel)
                         .frame(width: rowAHeight, height: rowAHeight)
                         .accessibilityElement(children: .contain)
                         .accessibilityIdentifier("networkDetail_row_health")
@@ -159,6 +188,11 @@ struct NetworkDetailView: View {
                 }
             }
             .padding(pad)
+        }
+        // Re-run when the network changes and whenever a device scan finishes, so the
+        // device count, router and Wi-Fi rows don't go stale.
+        .task(id: HealthRefreshKey(profileID: profile.id, lastScanTime: deviceDiscovery?.lastScanTime)) {
+            await refreshHealth()
         }
     }
 

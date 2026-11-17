@@ -26,7 +26,7 @@ Concrete implementations of network discovery techniques. Each phase conforms to
 **ARPScanPhase:**
 - Reads the ARP table first and records each entry's expiry as a baseline (`accumulator.recordARPBaseline`).
 - Sends fire-and-forget UDP probes to every host (`ARPCacheScanner.populateARPCache`) so the kernel resolves them.
-- Reads the table with `ARPCacheScanner.readARPEntries()`: a routing-table `sysctl` (`NET_RT_FLAGS`, `RTF_LLINFO`). On macOS, when the sysctl returns no entries (seen on macOS 27.2, #401), it falls back to parsing `/usr/sbin/arp -anl`. iOS uses the sysctl only.
+- Reads the table with `ARPCacheScanner.readARPEntries()`: a routing-table `sysctl` (`NET_RT_FLAGS`, `RTF_LLINFO`). On macOS 27 the sysctl returns no IPv4 entries to sandboxed apps (#401), so scans there get no MACs and discovery relies on TCP, Bonjour and SSDP; the phase logs a `.notice` (category `ARP`, count only) when the read comes back empty.
 - Settle polling (#379): `ARPCacheScanner.pollUntilSettled` re-reads every 250 ms and stops after 500 ms with no new IP, capped at 2 s.
 - An entry confirms presence only if it is new since the baseline or its expiry moved forward (`refreshedIPs`). Other entries are upserted with `confirmsPresence: false`, so the device stays cached unless a later phase answers for it.
 - Weight: 0.10.

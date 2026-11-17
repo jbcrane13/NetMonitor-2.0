@@ -36,11 +36,12 @@ public struct DeviceTypeInferenceService: Sendable {
     ///
     /// Priority chain (first match wins):
     /// 1. Gateway flag
-    /// 2. Hostname patterns
-    /// 3. Bonjour services
-    /// 4. Open ports
-    /// 5. Vendor / manufacturer
-    /// 6. Falls back to current `device.deviceType`
+    /// 2. Bonjour TXT model (#386)
+    /// 3. Hostname patterns
+    /// 4. Bonjour services
+    /// 5. Open ports
+    /// 6. Vendor / manufacturer
+    /// 7. Falls back to current `device.deviceType`
     public func inferDeviceType(for device: LocalDevice) -> DeviceType {
         guard device.deviceType == .unknown else {
             return device.deviceType
@@ -51,28 +52,70 @@ public struct DeviceTypeInferenceService: Sendable {
             return .router
         }
 
-        // 2. Hostname-based inference
+        // 2. Exact model from Bonjour TXT records
+        if let model = device.modelName, let result = Self.deviceType(forModel: model) {
+            return result
+        }
+
+        // 3. Hostname-based inference
         if let result = inferFromHostnames(device) {
             return result
         }
 
-        // 3. Bonjour services
+        // 4. Bonjour services
         if let result = inferFromServices(device) {
             return result
         }
 
-        // 4. Open ports
+        // 5. Open ports
         if let result = inferFromPorts(device) {
             return result
         }
 
-        // 5. Vendor / manufacturer
+        // 6. Vendor / manufacturer
         if let result = inferFromVendor(device) {
             return result
         }
 
-        // 6. No match — preserve current type
+        // 7. No match — preserve current type
         return device.deviceType
+    }
+
+    // MARK: - Model Inference
+
+    /// The type an exact model names: Apple model identifiers (`MacBookPro18,1`,
+    /// `Mac16,10`, `iPhone15,2`, `AppleTV14,1`, `AudioAccessory5,1`) and Google Cast models
+    /// (`Chromecast`, `Google Home Mini`). Board IDs (`J255AP`) and unknown makers' models
+    /// return nil, so the other rules still run.
+    public static func deviceType(forModel model: String) -> DeviceType? {
+        let id = model.lowercased().trimmingCharacters(in: .whitespaces)
+        if id.hasPrefix("macbook") {
+            return .laptop
+        }
+        if id.hasPrefix("imac") || id.hasPrefix("macmini") || id.hasPrefix("macpro")
+            || id.hasPrefix("macstudio") || isGenericMacIdentifier(id) {
+            return .computer
+        }
+        if id.hasPrefix("iphone") {
+            return .phone
+        }
+        if id.hasPrefix("ipad") {
+            return .tablet
+        }
+        if id.hasPrefix("appletv") || id.contains("chromecast") || id.hasPrefix("google tv") {
+            return .tv
+        }
+        if id.hasPrefix("audioaccessory") || id.hasPrefix("google home") || id.hasPrefix("google nest mini")
+            || id.hasPrefix("nest audio") || id.hasPrefix("nest mini") {
+            return .speaker
+        }
+        return nil
+    }
+
+    /// Newer Macs report "Mac" plus a number ("Mac16,10"), which doesn't say laptop or desktop.
+    private static func isGenericMacIdentifier(_ id: String) -> Bool {
+        guard id.hasPrefix("mac"), let next = id.dropFirst(3).first else { return false }
+        return next.isNumber
     }
 
     // MARK: - Hostname Inference

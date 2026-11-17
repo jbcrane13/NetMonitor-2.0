@@ -12,6 +12,8 @@ struct NetMonitorApp: App {
     @State private var companionService: CompanionService?
     @State private var networkChangeWatcher: LocalNetworkChangeWatcher?
     @State private var periodicScanScheduler: PeriodicScanScheduler?
+    @State private var speedTestScheduler: ScheduledSpeedTestRunner?
+    @State private var speedTestMaintenance: SpeedTestHistoryMaintenance?
     @State private var companionHandler: CompanionMessageHandler?
     @State private var menuBarController: MenuBarController?
     @State private var notificationService: NotificationService?
@@ -235,6 +237,8 @@ struct NetMonitorApp: App {
             periodicScanScheduler = scheduler
         }
 
+        startSpeedTestSchedulerIfNeeded()
+
         if let session = monitoringSession,
            let discovery = deviceDiscovery,
            companionService == nil {
@@ -288,6 +292,19 @@ struct NetMonitorApp: App {
            let session = monitoringSession, !session.isMonitoring {
             session.startMonitoring()
         }
+    }
+
+    /// Optional scheduled speed tests while the app runs, off by default (#398).
+    private func startSpeedTestSchedulerIfNeeded() {
+        if speedTestMaintenance == nil {
+            let maintenance = SpeedTestHistoryMaintenance()
+            maintenance.start()
+            speedTestMaintenance = maintenance
+        }
+        guard speedTestScheduler == nil, !isUITesting else { return }
+        let runner = MacSpeedTestHistory.makeScheduler()
+        runner.start()
+        speedTestScheduler = runner
     }
 
     /// Seeds a deterministic `LocalDevice` for UI tests that need a

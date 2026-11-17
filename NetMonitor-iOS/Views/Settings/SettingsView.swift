@@ -17,6 +17,8 @@ struct SettingsView: View {
     @State private var highLatencyAlertEnabled =
         (UserDefaults.standard.object(forKey: AppSettings.Keys.highLatencyAlertEnabled) as? Bool) ?? false
     @State var connectionService = MacConnectionService.shared
+    @AppStorage(ScheduledSpeedTestRunner.intervalKey) private var speedTestScheduleHours = 0
+    @AppStorage(ScheduledSpeedTestRunner.allowMeteredKey) private var speedTestAllowMetered = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -131,6 +133,34 @@ struct SettingsView: View {
             } header: {
                 Text("Notifications")
                     .foregroundStyle(Theme.Colors.textSecondary)
+            }
+            .listRowBackground(Theme.Colors.glassBackground)
+
+            // MARK: - Scheduled Speed Test Section (#398)
+            Section {
+                Picker(selection: $speedTestScheduleHours) {
+                    ForEach(ScheduledSpeedTestRunner.intervalOptions, id: \.self) { hours in
+                        Text(hours == 0 ? "Off" : (hours == 1 ? "Every hour" : "Every \(hours) hours")).tag(hours)
+                    }
+                } label: {
+                    Text("Scheduled Test")
+                        .foregroundStyle(Theme.Colors.textPrimary)
+                }
+                .accessibilityIdentifier("settings_picker_speedTestSchedule")
+
+                Toggle(isOn: $speedTestAllowMetered) {
+                    Text("Allow on Cellular or Hotspot")
+                        .foregroundStyle(Theme.Colors.textPrimary)
+                }
+                .tint(Theme.Colors.accent)
+                .disabled(speedTestScheduleHours == 0)
+                .accessibilityIdentifier("settings_toggle_speedTestAllowMetered")
+            } header: {
+                Text("Speed Test")
+                    .foregroundStyle(Theme.Colors.textSecondary)
+            } footer: {
+                Text("Runs while NetMonitor is open. Scheduled tests skip cellular, hotspots and Low Data Mode unless allowed. Results show as a 7-day trend in the Speed Test tool.")
+                    .foregroundStyle(Theme.Colors.textTertiary)
             }
             .listRowBackground(Theme.Colors.glassBackground)
 

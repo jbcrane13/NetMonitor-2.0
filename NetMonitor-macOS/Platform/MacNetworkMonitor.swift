@@ -75,6 +75,8 @@ struct LocalDiscoveredDevice: Equatable {
     /// From the device's UPnP description (#387). Used only where nothing better is known.
     let friendlyName: String?
     let manufacturer: String?
+    /// Bonjour TXT model (#386) or UPnP model name (#387); Bonjour wins.
+    let modelName: String?
 
     init(
         ipAddress: String,
@@ -85,7 +87,8 @@ struct LocalDiscoveredDevice: Equatable {
         latency: Double? = nil,
         isCached: Bool = false,
         friendlyName: String? = nil,
-        manufacturer: String? = nil
+        manufacturer: String? = nil,
+        modelName: String? = nil
     ) {
         self.ipAddress = ipAddress
         self.macAddress = macAddress.uppercased()
@@ -96,6 +99,7 @@ struct LocalDiscoveredDevice: Equatable {
         self.isCached = isCached
         self.friendlyName = friendlyName
         self.manufacturer = manufacturer
+        self.modelName = modelName
     }
 }
 

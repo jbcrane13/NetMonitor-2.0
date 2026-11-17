@@ -441,6 +441,57 @@ struct DeviceDiscoveryCoordinatorDescriptionTests {
     }
 }
 
+// MARK: - Bonjour TXT models (#386)
+
+@Suite(.serialized)
+@MainActor
+struct DeviceDiscoveryCoordinatorModelTests {
+
+    private func makeCoordinator(context: ModelContext) -> DeviceDiscoveryCoordinator {
+        DeviceDiscoveryCoordinator(
+            modelContext: context,
+            bonjourScanner: BonjourDiscoveryService(),
+            networkProfileManager: NetworkProfileManager()
+        )
+    }
+
+    @Test func mapDiscoveredDevicesCarriesModel() {
+        let engine = [
+            DiscoveredDevice(
+                ipAddress: "192.168.1.50", hostname: "Studio", vendor: nil, macAddress: nil,
+                latency: nil, discoveredAt: Date(), source: .bonjour, modelName: "Mac16,10"
+            ),
+            DiscoveredDevice(ipAddress: "192.168.1.51", latency: 3, discoveredAt: Date())
+        ]
+        #expect(DeviceDiscoveryCoordinator.mapDiscoveredDevices(engine).map(\.modelName) == ["Mac16,10", nil])
+    }
+
+    @Test func mergeSetsModelOnNewAndExistingDevicesAndKeepsItWhenMissing() throws {
+        let (container, context) = try makeInMemoryStore()
+        _ = container
+
+        let existing = LocalDevice(ipAddress: "192.168.1.60", macAddress: "00:11:22:33:44:55")
+        context.insert(existing)
+        try context.save()
+
+        let coordinator = makeCoordinator(context: context)
+        coordinator.mergeDiscoveredDevices([
+            LocalDiscoveredDevice(ipAddress: "192.168.1.60", macAddress: "00:11:22:33:44:55", hostname: nil, modelName: "MacBookPro18,1"),
+            LocalDiscoveredDevice(ipAddress: "192.168.1.61", macAddress: "", hostname: "tv", modelName: "AppleTV14,1")
+        ], profileID: nil)
+
+        let byIP = try Dictionary(uniqueKeysWithValues: context.fetch(FetchDescriptor<LocalDevice>()).map { ($0.ipAddress, $0) })
+        #expect(byIP["192.168.1.60"]?.modelName == "MacBookPro18,1")
+        #expect(byIP["192.168.1.61"]?.modelName == "AppleTV14,1")
+
+        // A later scan that saw no TXT record keeps the model already known.
+        coordinator.mergeDiscoveredDevices([
+            LocalDiscoveredDevice(ipAddress: "192.168.1.60", macAddress: "00:11:22:33:44:55", hostname: nil)
+        ], profileID: nil)
+        #expect(byIP["192.168.1.60"]?.modelName == "MacBookPro18,1")
+    }
+}
+
 // MARK: - Shared test helpers
 //
 // File-scope (not struct members) so both `DeviceDiscoveryCoordinatorTests` and
