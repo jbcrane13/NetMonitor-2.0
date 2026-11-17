@@ -104,6 +104,9 @@ struct DeviceListView: View {
                                 deviceRow(device: device)
                             }
                         }
+                        // A cached device gave no answer this scan and may have left (#378).
+                        .opacity(device.isCached ? 0.55 : 1)
+                        .accessibilityValue(device.isCached ? "Cached, may have left the network" : "")
                         .accessibilityIdentifier("deviceList_row_device_\(device.ipAddress.replacingOccurrences(of: ".", with: "_"))")
                     }
                 }
@@ -129,7 +132,6 @@ struct DeviceListView: View {
         .accessibilityIdentifier("screen_deviceList")
     }
 
-    @ViewBuilder
     private func deviceRow(device: DiscoveredDevice) -> some View {
         GlassCard {
             HStack(spacing: Theme.Layout.itemSpacing) {
@@ -172,14 +174,13 @@ struct DeviceListView: View {
         }
     }
 
-    @ViewBuilder
     private func proModeRow(device: DiscoveredDevice) -> some View {
         GlassCard(padding: 10) {
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 8) {
                     // Status dot
                     Circle()
-                        .fill(Theme.Colors.success)
+                        .fill(device.isCached ? Theme.Colors.warning : Theme.Colors.success)
                         .frame(width: 6, height: 6)
 
                     // IP Address (monospaced, prominent)
@@ -227,8 +228,12 @@ struct DeviceListView: View {
 
     private func latencyColor(_ latency: Double?) -> Color {
         guard let ms = latency else { return Theme.Colors.textTertiary }
-        if ms < 10 { return Theme.Colors.success }
-        if ms < 50 { return Theme.Colors.warning }
+        if ms < 10 {
+            return Theme.Colors.success
+        }
+        if ms < 50 {
+            return Theme.Colors.warning
+        }
         return Theme.Colors.error
     }
 

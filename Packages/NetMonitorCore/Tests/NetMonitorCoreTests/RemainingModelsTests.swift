@@ -749,6 +749,22 @@ struct LocalDeviceTests {
         #expect(device.status == .online)
     }
 
+    @Test("updateLatency marks a cached device online: an answer proves it is present (#378)")
+    @MainActor
+    func updateLatencyBringsCachedOnline() throws {
+        let container = try makeContainer()
+        let context = ModelContext(container)
+        let device = LocalDevice(
+            ipAddress: "192.168.1.5",
+            macAddress: "AA:BB:CC:DD:EE:FF",
+            status: .cached
+        )
+        context.insert(device)
+
+        device.updateLatency(15.0)
+        #expect(device.status == .online)
+    }
+
     @Test("updateLatency does not change status when already online")
     @MainActor
     func updateLatencyKeepsOnline() throws {
