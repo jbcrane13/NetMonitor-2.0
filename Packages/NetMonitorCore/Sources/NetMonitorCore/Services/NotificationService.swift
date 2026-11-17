@@ -19,7 +19,7 @@ public final class NotificationService {
         static let newDeviceAlertEnabled   = "newDeviceAlertEnabled"
     }
 
-    private var center: UNUserNotificationCenter { .current() }
+    private let center = UNUserNotificationCenter.current()
     private let defaults = UserDefaults.standard
 
     public init() {}
