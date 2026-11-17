@@ -30,6 +30,8 @@ final class MonitoringSession {
     private(set) var recentLatencies: [UUID: [Double]] = [:]
     private static let maxLatencyHistory = 20
     private(set) var errorMessage: String?
+    /// Called when a target goes from up (or unchecked) to down, after any retries (#403).
+    var onTargetDown: (@MainActor (_ name: String, _ host: String) -> Void)?
 
     private var monitoringTasks: [UUID: Task<Void, Never>] = [:]
     private var currentSessionRecord: SessionRecord?
@@ -210,6 +212,9 @@ final class MonitoringSession {
             )
 
             let measurement = await checkWithRetry(service: service, request: req)
+            // A check cut short by stopping monitoring isn't a failure: drop it, so it is
+            // neither recorded nor alerted as down (#403).
+            guard !Task.isCancelled, isMonitoring else { return }
             updateMeasurement(measurement, for: target)
 
             try? await Task.sleep(for: .seconds(target.checkInterval))
@@ -253,7 +258,11 @@ final class MonitoringSession {
 
     @MainActor
     private func updateMeasurement(_ measurement: TargetMeasurement, for target: NetworkTarget) {
+        let wasDown = latestResults[target.id].map { !$0.isReachable } ?? false
         latestResults[target.id] = measurement
+        if !measurement.isReachable, !wasDown {
+            onTargetDown?(target.name, target.host)
+        }
         target.measurements.append(measurement)
 
         // Maintain rolling latency history for live sparklines
