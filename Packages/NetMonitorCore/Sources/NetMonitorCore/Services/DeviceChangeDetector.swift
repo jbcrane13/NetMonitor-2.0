@@ -150,20 +150,13 @@ public enum DeviceChangeDetector {
             }
 
             guard let index else {
-                records.append(KnownDevice(
-                    macAddress: mac,
-                    ipAddress: observation.ipAddress,
-                    name: nonEmpty(observation.name),
-                    firstSeen: now,
-                    lastSeen: now,
-                    isConfirmed: !observation.isCached
-                ))
+                records.append(newRecord(for: observation, mac: mac, now: now))
                 indexByKey[observedKey] = records.count - 1
                 if !observation.isCached {
                     answered.insert(records.count - 1)
-                    if !isBaseline {
-                        events.append(.firstSeen(observation))
-                    }
+                }
+                if !observation.isCached, !isBaseline {
+                    events.append(.firstSeen(observation))
                 }
                 continue
             }
@@ -180,6 +173,21 @@ public enum DeviceChangeDetector {
             events += answer(&records[index], with: observation, now: now, isBaseline: isBaseline)
         }
 
+        events += countMisses(&records, answered: answered, now: now, policy: policy)
+
+        records.removeAll { !$0.isConfirmed && now.timeIntervalSince($0.lastSeen) > unconfirmedRetention }
+        return Result(events: events, known: records)
+    }
+
+    /// Counts a miss for each confirmed device that didn't answer, and reports any that
+    /// reach the grace period.
+    private static func countMisses(
+        _ records: inout [KnownDevice],
+        answered: Set<Int>,
+        now: Date,
+        policy: DeviceGracePolicy
+    ) -> [DeviceChangeEvent] {
+        var events: [DeviceChangeEvent] = []
         for index in records.indices where !answered.contains(index) {
             guard records[index].isConfirmed, !records[index].isOffline else { continue }
             records[index].missedScans += 1
@@ -189,9 +197,18 @@ public enum DeviceChangeDetector {
                 events.append(.wentOffline(records[index]))
             }
         }
+        return events
+    }
 
-        records.removeAll { !$0.isConfirmed && now.timeIntervalSince($0.lastSeen) > unconfirmedRetention }
-        return Result(events: events, known: records)
+    private static func newRecord(for observation: DeviceObservation, mac: String?, now: Date) -> KnownDevice {
+        KnownDevice(
+            macAddress: mac,
+            ipAddress: observation.ipAddress,
+            name: nonEmpty(observation.name),
+            firstSeen: now,
+            lastSeen: now,
+            isConfirmed: !observation.isCached
+        )
     }
 
     /// Updates a known device that answered this scan and returns what changed.
