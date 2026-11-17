@@ -182,7 +182,8 @@ public struct DeviceTypeInferenceService: Sendable {
     // MARK: - Vendor / Manufacturer Inference
 
     /// Vendor names match whole words, so "RingCentral" is not Ring and "Intelligent" is
-    /// not Intel (#389). "Hewlett Packard" (printer) and "Hewlett-Packard" (computer) keep
+    /// not Intel (#389). Glued maker names that matched before ("ASUSTek", "LenovoEMC") are
+    /// listed as their own words. "Hewlett Packard" (printer) and "Hewlett-Packard" (computer) keep
     /// their exact-text checks, since splitting into words would merge them.
     private func inferFromVendor(_ device: LocalDevice) -> DeviceType? {
         let vendors = [device.vendor, device.manufacturer]
@@ -242,7 +243,8 @@ public struct DeviceTypeInferenceService: Sendable {
             }
             // Computers
             if v.has("intel") || v.has("dell") || v.has("lenovo")
-                || v.has("asus") || v.has("asustek") || v.contains("hewlett-packard") {
+                || v.has("asus") || v.has("asustek") || v.has("lenovoemc")
+                || v.contains("hewlett-packard") {
                 return .computer
             }
         }

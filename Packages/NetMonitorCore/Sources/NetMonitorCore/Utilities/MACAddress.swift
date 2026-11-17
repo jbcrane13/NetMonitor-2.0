@@ -20,14 +20,15 @@ public enum MACAddress {
         return octets[0] & 0x02 != 0
     }
 
-    /// What a device list shows where a maker would go: the vendor when known, otherwise
-    /// "Private address" for a private hardware address, otherwise nil.
+    /// What a device list shows where a maker would go: "Private address" for a private
+    /// hardware address (even if a stale stored or companion vendor exists), otherwise the
+    /// vendor when known, otherwise nil.
     public static func makerLabel(vendor: String?, macAddress: String?) -> String? {
-        if let vendor, !vendor.isEmpty {
-            return vendor
-        }
         if let macAddress, isPrivate(macAddress) {
             return privateAddressLabel
+        }
+        if let vendor, !vendor.isEmpty {
+            return vendor
         }
         return nil
     }

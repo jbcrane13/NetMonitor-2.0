@@ -636,6 +636,7 @@ struct DeviceTypeInferenceWholeWordTests {
         ("SonoSite, Inc.", DeviceType.unknown),
         ("Sonos, Inc.", DeviceType.speaker),
         ("ASUSTek COMPUTER INC.", DeviceType.computer),
+        ("LenovoEMC Products USA, LLC", DeviceType.computer),
         ("Pineapple Systems", DeviceType.unknown),
         ("Apple, Inc.", DeviceType.computer),
         ("Raspberry Pi Trading Ltd", DeviceType.iot),

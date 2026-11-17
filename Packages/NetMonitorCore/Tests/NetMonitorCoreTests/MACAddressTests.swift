@@ -48,14 +48,20 @@ struct MACAddressTests {
         #expect(!MACAddress.isPrivate(mac))
     }
 
-    @Test("Maker label prefers a known vendor, then the private label, then nothing")
+    @Test("Maker label shows the private label first, then a known vendor, then nothing")
     func makerLabel() {
-        #expect(MACAddress.makerLabel(vendor: "Apple", macAddress: "da:a1:19:00:00:01") == "Apple")
+        #expect(MACAddress.makerLabel(vendor: "Apple", macAddress: "00:03:93:aa:bb:cc") == "Apple")
         #expect(MACAddress.makerLabel(vendor: nil, macAddress: "da:a1:19:00:00:01") == "Private address")
         #expect(MACAddress.makerLabel(vendor: "", macAddress: "da:a1:19:00:00:01") == "Private address")
         #expect(MACAddress.makerLabel(vendor: nil, macAddress: "00:03:93:aa:bb:cc") == nil)
         #expect(MACAddress.makerLabel(vendor: nil, macAddress: nil) == nil)
         #expect(MACAddress.makerLabel(vendor: nil, macAddress: "") == nil)
+    }
+
+    @Test("A private MAC with a stale stored vendor still shows the private label")
+    func privateLabelBeatsStaleVendor() {
+        #expect(MACAddress.makerLabel(vendor: "Apple, Inc.", macAddress: "DA-A1-19-00-00-01") == "Private address")
+        #expect(MACAddress.makerLabel(vendor: "Stale Vendor", macAddress: "3a7b00112233") == "Private address")
     }
 
     @Test("The iOS hidden-address placeholder is not private")
