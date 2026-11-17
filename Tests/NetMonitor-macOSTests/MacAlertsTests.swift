@@ -344,4 +344,41 @@ struct DeviceDiscoveryNewDeviceHookTests {
         await waitUntil { !coordinator.isScanning }
         #expect(reported == [["192.0.2.3"], ["192.0.2.4"]])
     }
+
+    /// Upgrade from a build with #405's cached rows: a row's status describes the latest scan,
+    /// not whether the device ever answered, so every existing row is seeded as known (#410 review).
+    @Test func upgradeSeedsCachedRowsAsKnownSoTheirFirstAnswerDoesNotAlert() async throws {
+        let schema = Schema([LocalDevice.self])
+        let config = ModelConfiguration(UUID().uuidString, schema: schema, isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+        let container = try ModelContainer(for: schema, configurations: [config])
+        let context = container.mainContext
+        let profiles = NetworkProfileManager()
+        let profileID = profiles.activeProfile?.id
+        for (ip, status) in [("192.0.2.1", DeviceStatus.cached), ("192.0.2.2", .cached), ("192.0.2.3", .online)] {
+            context.insert(LocalDevice(ipAddress: ip, macAddress: "", status: status, networkProfileID: profileID))
+        }
+        try context.save()
+
+        let box = DeviceListBox([device("192.0.2.1"), device("192.0.2.2"), device("192.0.2.3")])
+        let coordinator = DeviceDiscoveryCoordinator(
+            modelContext: context,
+            bonjourScanner: BonjourDiscoveryService(),
+            networkProfileManager: profiles,
+            pipelineFactory: { _ in
+                ScanPipeline(steps: [ScanPipeline.Step(phases: [ListUpsertPhase(box: box)], concurrent: false)])
+            },
+            portChecker: { _, _, _ in false }
+        )
+        let suite = "UpgradeSeedTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite) ?? .standard
+        defer { defaults.removePersistentDomain(forName: suite) }
+        coordinator.changeTracker = DeviceChangeTracker(defaults: defaults)
+        var events: [DeviceChangeEvent] = []
+        coordinator.onDeviceChanges = { events += $0 }
+
+        coordinator.startScan()
+        await waitUntil { !coordinator.isScanning }
+
+        #expect(events.isEmpty, "Existing rows, cached or not, are known devices: no alert on first answer")
+    }
 }

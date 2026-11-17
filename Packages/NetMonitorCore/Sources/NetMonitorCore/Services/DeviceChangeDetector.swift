@@ -88,16 +88,27 @@ public struct DeviceGracePolicy: Sendable, Equatable {
 /// Identity: a device is keyed by its hardware address, or by IP when it has none (the iOS
 /// `02:00:00:00:00:00` placeholder counts as none).
 ///
-/// Private (randomised) addresses: a private address nobody has seen before is matched to
-/// a known device when exactly one known device has the same IP and the same non-empty
-/// name and wasn't itself seen in this scan. That device is re-keyed to the new address
-/// instead of being reported new. An IP match alone isn't enough, because DHCP reuses
-/// addresses.
+/// When a scan's key matches no known device, it is reconciled conservatively, only when
+/// exactly one known device qualifies and that device wasn't itself seen in this scan:
+/// - A private (randomised) address nobody has seen before matches a known device with the
+///   same IP and the same non-empty name. An IP match alone isn't enough for a private
+///   address, because DHCP reuses addresses.
+/// - A device seen without a MAC matches a known device with a MAC at the same IP (its MAC
+///   wasn't readable this time).
+/// - A public MAC matches a known IP-keyed device at the same IP (its MAC became readable),
+///   which is then keyed by the MAC.
+///
+/// Unconfirmed (only ever cached) devices not sighted for `unconfirmedRetention` are dropped,
+/// so the list can't grow without bound. Confirmed devices are kept: they are what stops a
+/// returning device from being reported as new.
 public enum DeviceChangeDetector {
     public struct Result: Sendable, Equatable {
         public var events: [DeviceChangeEvent]
         public var known: [KnownDevice]
     }
+
+    /// How long an unconfirmed device is kept without being sighted.
+    public static let unconfirmedRetention: TimeInterval = 30 * 86400
 
     public static func detect(
         known: [KnownDevice],
@@ -116,6 +127,7 @@ public enum DeviceChangeDetector {
         let observations = deduplicated(observed)
         let observedKeys = Set(observations.map { key(mac: normalizedMAC($0.macAddress), ip: $0.ipAddress) })
         var answered = Set<Int>()
+        var claimed = Set<Int>()
         var events: [DeviceChangeEvent] = []
 
         for observation in observations {
@@ -123,13 +135,18 @@ public enum DeviceChangeDetector {
             let observedKey = key(mac: mac, ip: observation.ipAddress)
             var index = indexByKey[observedKey]
 
-            if index == nil, let mac, MACAddress.isPrivate(mac) {
-                index = rotatedPrivateMatch(for: observation, in: records, observedKeys: observedKeys)
-                if let index {
-                    indexByKey[records[index].key] = nil
-                    records[index].macAddress = mac
-                    indexByKey[observedKey] = index
+            if index == nil,
+               let match = reconciledMatch(for: observation, mac: mac, in: records, observedKeys: observedKeys, claimed: claimed) {
+                index = match
+                // A device that gained a MAC (or rotated a private one) is keyed by it from now on.
+                if let mac {
+                    indexByKey[records[match].key] = nil
+                    records[match].macAddress = mac
+                    indexByKey[observedKey] = match
                 }
+            }
+            if let index {
+                claimed.insert(index)
             }
 
             guard let index else {
@@ -151,8 +168,14 @@ public enum DeviceChangeDetector {
                 continue
             }
 
-            // A cached sighting doesn't confirm anything; the miss pass below counts it.
-            guard !observation.isCached else { continue }
+            // A cached sighting doesn't confirm anything; the miss pass below counts it. For a
+            // device never confirmed, it still counts as sighted, for retention.
+            guard !observation.isCached else {
+                if !records[index].isConfirmed {
+                    records[index].lastSeen = now
+                }
+                continue
+            }
             answered.insert(index)
             events += answer(&records[index], with: observation, now: now, isBaseline: isBaseline)
         }
@@ -167,6 +190,7 @@ public enum DeviceChangeDetector {
             }
         }
 
+        records.removeAll { !$0.isConfirmed && now.timeIntervalSince($0.lastSeen) > unconfirmedRetention }
         return Result(events: events, known: records)
     }
 
@@ -231,16 +255,28 @@ public enum DeviceChangeDetector {
         return false
     }
 
-    private static func rotatedPrivateMatch(
+    /// The one known device an unmatched observation should be treated as, or nil. See the
+    /// type's documentation for the rules.
+    private static func reconciledMatch(
         for observation: DeviceObservation,
+        mac: String?,
         in records: [KnownDevice],
-        observedKeys: Set<String>
+        observedKeys: Set<String>,
+        claimed: Set<Int>
     ) -> Int? {
-        guard let name = nonEmpty(observation.name) else { return nil }
-        let candidates = records.indices.filter {
+        let available = records.indices.filter {
             records[$0].ipAddress == observation.ipAddress
-                && records[$0].name == name
                 && !observedKeys.contains(records[$0].key)
+                && !claimed.contains($0)
+        }
+        let candidates: [Int]
+        if let mac, MACAddress.isPrivate(mac) {
+            guard let name = nonEmpty(observation.name) else { return nil }
+            candidates = available.filter { records[$0].name == name }
+        } else if mac == nil {
+            candidates = available.filter { records[$0].macAddress != nil }
+        } else {
+            candidates = available.filter { records[$0].macAddress == nil }
         }
         return candidates.count == 1 ? candidates[0] : nil
     }
@@ -281,14 +317,19 @@ public final class DeviceChangeTracker {
 
     /// Runs the detector for `scope` (a network) and saves the result. When the scope has
     /// never been stored, `seed` supplies devices known from before this tracker existed,
-    /// so an app update doesn't report every existing device as new.
+    /// so an app update doesn't report every existing device as new. When `knownScopes` is
+    /// given, stored scopes not in it (networks the app no longer knows) are dropped.
     public func record(
         scope: String,
         observed: [DeviceObservation],
         now: Date = Date(),
+        knownScopes: Set<String>? = nil,
         seed: () -> [KnownDevice] = { [] }
     ) -> [DeviceChangeEvent] {
         var registry = load()
+        if let knownScopes {
+            registry = registry.filter { knownScopes.contains($0.key) || $0.key == scope }
+        }
         let known = registry[scope] ?? seed()
         let result = DeviceChangeDetector.detect(known: known, observed: observed, now: now, policy: policy)
         registry[scope] = result.known
