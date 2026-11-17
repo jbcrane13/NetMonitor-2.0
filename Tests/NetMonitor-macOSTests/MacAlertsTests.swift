@@ -37,6 +37,8 @@ private func device(_ ip: String) -> DiscoveredDevice {
 
 private final class DeviceListBox: @unchecked Sendable {
     var devices: [DiscoveredDevice]
+    /// IPs reported without presence evidence, so the scan marks them cached (#378).
+    var unansweredIPs: Set<String> = []
     init(_ devices: [DiscoveredDevice]) { self.devices = devices }
 }
 
@@ -48,7 +50,7 @@ private struct ListUpsertPhase: ScanPhase, Sendable {
 
     func execute(context: ScanContext, accumulator: ScanAccumulator, onProgress: @Sendable (Double) async -> Void) async {
         for device in box.devices {
-            await accumulator.upsert(device)
+            await accumulator.upsert(device, confirmsPresence: !box.unansweredIPs.contains(device.ipAddress))
         }
         await onProgress(1.0)
     }
@@ -308,6 +310,15 @@ struct DeviceDiscoveryNewDeviceHookTests {
         // Seeing the same devices again reports nothing.
         coordinator.startScan()
         await waitUntil { !coordinator.isScanning }
+        #expect(reported == [["192.0.2.3"]])
+
+        // A never-seen device that only shows up cached (no answer this scan) isn't new.
+        box.devices.append(device("192.0.2.4"))
+        box.unansweredIPs = ["192.0.2.4"]
+        coordinator.startScan()
+        await waitUntil { !coordinator.isScanning }
+        let rows = try container.mainContext.fetch(FetchDescriptor<LocalDevice>())
+        #expect(rows.first { $0.ipAddress == "192.0.2.4" }?.status == .cached)
         #expect(reported == [["192.0.2.3"]])
     }
 }

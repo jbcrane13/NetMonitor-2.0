@@ -17,7 +17,8 @@ final class DeviceDiscoveryCoordinator {
     private(set) var scanProgress: Double = 0.0
     private(set) var networkProfile: NetworkProfile?
     /// Called after a completed scan with devices it added to a network that already had
-    /// devices. The first scan of a network only records a baseline (#403).
+    /// devices, leaving out cached rows that gave no answer. The first scan of a network
+    /// only records a baseline (#403).
     var onNewDevices: (@MainActor ([LocalDevice]) -> Void)?
 
     private let modelContext: ModelContext
@@ -161,7 +162,8 @@ final class DeviceDiscoveryCoordinator {
 
                 markOfflineDevices(currentIPs: Set(allDiscovered.map(\.ipAddress)), profileID: profileID)
                 if !knownDeviceIDs.isEmpty {
-                    let added = discoveredDevices.filter { !knownDeviceIDs.contains($0.id) }
+                    // A cached row gave no answer this scan, so it isn't a device joining (#378).
+                    let added = discoveredDevices.filter { !knownDeviceIDs.contains($0.id) && $0.status != .cached }
                     if !added.isEmpty {
                         onNewDevices?(added)
                     }
