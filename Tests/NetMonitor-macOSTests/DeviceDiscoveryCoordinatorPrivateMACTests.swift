@@ -157,6 +157,23 @@ struct PrivateMACMergeTests {
         #expect(devices.map(\.macAddress) == ["AC:DE:48:00:11:22"])
     }
 
+    /// The sparse merge skips a new private MAC, so the final merge inserts it: that insert
+    /// must still record this scan's latency point, as the sparse-insert-then-update path did.
+    @Test func newPrivateMACInsertedByFinalMergeRecordsOneLatencyPoint() throws {
+        let (container, context) = try makeInMemoryStore()
+        _ = container
+        let coordinator = makeCoordinator(context: context)
+        let observed = LocalDiscoveredDevice(ipAddress: "192.0.2.32", macAddress: newPrivateMAC, hostname: nil, latency: 12.5)
+
+        coordinator.mergeDiscoveredDevices([observed], profileID: nil, recordLatencyHistory: false, isSparse: true)
+        coordinator.mergeDiscoveredDevices([observed], profileID: nil)
+
+        let devices = try context.fetch(FetchDescriptor<LocalDevice>())
+        #expect(devices.count == 1)
+        #expect(devices.first?.lastLatency == 12.5)
+        #expect(devices.first?.latencyHistory == [12.5])
+    }
+
     @Test func cachedRotatedObservationReusesRowAndKeepsLastSeen() throws {
         let (container, context) = try makeInMemoryStore()
         _ = container

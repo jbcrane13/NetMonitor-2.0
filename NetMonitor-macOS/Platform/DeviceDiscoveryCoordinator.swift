@@ -341,6 +341,10 @@ final class DeviceDiscoveryCoordinator {
                     networkProfileID: profileID
                 )
                 newDevice.modelName = discovered.modelName
+                // A private MAC the sparse merge skipped is first inserted here (#411).
+                if recordLatencyHistory, !discovered.isCached, let latency = discovered.latency {
+                    newDevice.updateLatency(latency)
+                }
                 Self.fillFromDescription(newDevice, discovered)
                 modelContext.insert(newDevice)
                 devicesByIP[newDevice.ipAddress] = newDevice
