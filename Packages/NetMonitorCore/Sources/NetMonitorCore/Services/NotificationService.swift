@@ -19,10 +19,22 @@ public final class NotificationService {
         static let newDeviceAlertEnabled   = "newDeviceAlertEnabled"
     }
 
-    private let center = UNUserNotificationCenter.current()
+    private var center: UNUserNotificationCenter { .current() }
     private let defaults = UserDefaults.standard
 
     public init() {}
+
+    // MARK: - Alert preferences
+
+    /// Target-down alerts are on until the user turns them off; an unset key means on (#391).
+    nonisolated static func isTargetDownAlertEnabled(in defaults: UserDefaults) -> Bool {
+        defaults.object(forKey: Keys.targetDownAlertEnabled) as? Bool ?? true
+    }
+
+    /// New-device alerts are on until the user turns them off; an unset key means on (#391).
+    nonisolated static func isNewDeviceAlertEnabled(in defaults: UserDefaults) -> Bool {
+        defaults.object(forKey: Keys.newDeviceAlertEnabled) as? Bool ?? true
+    }
 
     // MARK: - Categories
 
@@ -93,7 +105,7 @@ public final class NotificationService {
     // MARK: - Target Down Alert
 
     public func notifyTargetDown(name: String, host: String) {
-        guard defaults.bool(forKey: Keys.targetDownAlertEnabled) != false else { return }
+        guard Self.isTargetDownAlertEnabled(in: defaults) else { return }
 
         let content = UNMutableNotificationContent()
         content.title = "Target Down"
@@ -109,7 +121,9 @@ public final class NotificationService {
         )
 
         center.add(request) { error in
-            if let error { Self.logger.error("Failed to schedule target down notification: \(error)") }
+            if let error {
+                Self.logger.error("Failed to schedule target down notification: \(error)")
+            }
         }
     }
 
@@ -137,14 +151,16 @@ public final class NotificationService {
         )
 
         center.add(request) { error in
-            if let error { Self.logger.error("Failed to schedule high latency notification: \(error)") }
+            if let error {
+                Self.logger.error("Failed to schedule high latency notification: \(error)")
+            }
         }
     }
 
     // MARK: - New Device Alert
 
     public func notifyNewDevice(ipAddress: String, hostname: String?) {
-        guard defaults.bool(forKey: Keys.newDeviceAlertEnabled) != false else { return }
+        guard Self.isNewDeviceAlertEnabled(in: defaults) else { return }
 
         let content = UNMutableNotificationContent()
         content.title = "New Device Detected"
@@ -164,7 +180,9 @@ public final class NotificationService {
         )
 
         center.add(request) { error in
-            if let error { Self.logger.error("Failed to schedule new device notification: \(error)") }
+            if let error {
+                Self.logger.error("Failed to schedule new device notification: \(error)")
+            }
         }
     }
 
