@@ -205,9 +205,12 @@ public actor MACVendorLookupService: MACVendorLookupServiceProtocol {
     // MARK: - Public Methods
 
     /// Look up vendor using the local database first, then online API as fallback.
+    /// Private (randomised) addresses have no maker, so neither lookup runs for them.
     /// - Parameter macAddress: MAC address in any format (colons, dashes, or none)
     /// - Returns: Vendor name if found
     public func lookupVendorEnhanced(macAddress: String) async -> String? {
+        guard !MACAddress.isPrivate(macAddress) else { return nil }
+
         if let localVendor = lookup(macAddress: macAddress) {
             return localVendor
         }
@@ -224,6 +227,7 @@ public actor MACVendorLookupService: MACVendorLookupServiceProtocol {
     /// - Parameter macAddress: MAC address in any format (colons, dashes, or none)
     /// - Returns: Vendor name if found
     public func lookup(macAddress: String) -> String? {
+        guard !MACAddress.isPrivate(macAddress) else { return nil }
         let normalized = normalizeMAC(macAddress)
         guard normalized.count >= 8 else { return nil }
         let prefix = String(normalized.prefix(8)) // First 3 bytes = OUI
