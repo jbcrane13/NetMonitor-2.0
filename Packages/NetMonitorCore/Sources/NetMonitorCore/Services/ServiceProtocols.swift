@@ -511,3 +511,9 @@ public struct DiscoveredMac: Identifiable, Sendable, Equatable {
         lhs.id == rhs.id && lhs.name == rhs.name
     }
 }
+
+/// Reads the router's UPnP port forwards, read-only (#400).
+public protocol UPnPPortMappingServiceProtocol: Sendable {
+    /// The report for the LAN on `interface`, or nil when that interface has no IPv4 network.
+    func readPortMappings(interface: String) async -> UPnPPortMappingReport?
+}

@@ -19,6 +19,7 @@ Network diagnostic tool views for macOS. Each tool is presented as a sheet from 
 | `BonjourBrowserToolView.swift` | Bonjour service browser with service details |
 | `WakeOnLanToolView.swift` | Magic packet sender with MAC address input |
 | `SpeedTestToolView.swift` | Download/upload speed test with gauge display |
+| `PortForwardsToolView.swift` | Read-only table of the router's UPnP port forwards (#400); state from Core `PortForwardsState` |
 
 ## For AI Agents
 
