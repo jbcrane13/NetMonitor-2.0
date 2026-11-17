@@ -10,6 +10,7 @@ struct NetMonitorApp: App {
     @State private var deviceDiscovery: DeviceDiscoveryCoordinator?
     @State private var companionService: CompanionService?
     @State private var networkChangeWatcher: LocalNetworkChangeWatcher?
+    @State private var periodicScanScheduler: PeriodicScanScheduler?
     @State private var companionHandler: CompanionMessageHandler?
     @State private var menuBarController: MenuBarController?
     @State private var notificationService: NotificationService?
@@ -207,6 +208,9 @@ struct NetMonitorApp: App {
             )
         }
 
+        // Apply the history retention setting at launch, not only an hour into monitoring (#395).
+        monitoringSession?.pruneOldMeasurements()
+
         if deviceDiscovery == nil {
             let discovery = DeviceDiscoveryCoordinator(
                 modelContext: context,
@@ -220,6 +224,13 @@ struct NetMonitorApp: App {
             let watcher = LocalNetworkChangeWatcher(profileManager: profileManager, discovery: discovery)
             watcher.start()
             networkChangeWatcher = watcher
+            // Rescan at the user's chosen scan frequency while the app runs (#392).
+            let scheduler = PeriodicScanScheduler(
+                isScanning: { [weak discovery] in discovery?.isScanning ?? true },
+                startScan: { [weak discovery] in discovery?.startScan() }
+            )
+            scheduler.start()
+            periodicScanScheduler = scheduler
         }
 
         if let session = monitoringSession,
