@@ -39,6 +39,7 @@ final class MonitoringSession {
     private let httpService: any NetworkMonitorService
     private let icmpService: any NetworkMonitorService
     private let tcpService: any NetworkMonitorService
+    private var defaults: UserDefaults = .standard
 
     init(
         modelContext: ModelContext,
@@ -68,12 +69,14 @@ final class MonitoringSession {
         modelContext: ModelContext,
         anyHTTPService: any NetworkMonitorService,
         anyICMPService: any NetworkMonitorService,
-        anyTCPService: any NetworkMonitorService
+        anyTCPService: any NetworkMonitorService,
+        defaults: UserDefaults = .standard
     ) {
         self.modelContext = modelContext
         self.httpService = anyHTTPService
         self.icmpService = anyICMPService
         self.tcpService = anyTCPService
+        self.defaults = defaults
     }
 
     // MARK: - Public API
@@ -119,7 +122,9 @@ final class MonitoringSession {
         pruneTimer = Task<Void, Never> { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(3600))
-                if let self { await self.pruneOldMeasurements() }
+                if let self {
+                    await self.pruneOldMeasurements()
+                }
             }
         }
     }
@@ -181,7 +186,9 @@ final class MonitoringSession {
     private func startMonitoringTarget(_ target: NetworkTarget) {
         monitoringTasks[target.id]?.cancel()
         let task = Task<Void, Never> { [weak self] in
-            if let self { await self.monitorTarget(target) }
+            if let self {
+                await self.monitorTarget(target)
+            }
         }
         monitoringTasks[target.id] = task
     }
@@ -202,24 +209,45 @@ final class MonitoringSession {
                 timeout: target.timeout
             )
 
+            let measurement = await checkWithRetry(service: service, request: req)
+            updateMeasurement(measurement, for: target)
+
+            try? await Task.sleep(for: .seconds(target.checkInterval))
+        }
+    }
+
+    /// Runs the check, retrying failures per the "Retry failed checks" setting so a target
+    /// is marked down only after the configured number of consecutive failures (#392).
+    /// Only the final result is recorded.
+    private func checkWithRetry(
+        service: any NetworkMonitorService,
+        request: TargetCheckRequest
+    ) async -> TargetMeasurement {
+        let policy = CheckRetryPolicy(defaults: defaults)
+        var failures = 0
+        while true {
+            let measurement: TargetMeasurement
             do {
-                let result = try await service.check(request: req)
-                let measurement = TargetMeasurement(
+                let result = try await service.check(request: request)
+                measurement = TargetMeasurement(
                     latency: result.latency,
                     isReachable: result.isReachable,
                     errorMessage: result.errorMessage
                 )
-                await updateMeasurement(measurement, for: target)
             } catch {
-                let failedMeasurement = TargetMeasurement(
+                measurement = TargetMeasurement(
                     latency: nil,
                     isReachable: false,
                     errorMessage: error.localizedDescription
                 )
-                await updateMeasurement(failedMeasurement, for: target)
             }
-
-            try? await Task.sleep(for: .seconds(target.checkInterval))
+            if measurement.isReachable {
+                return measurement
+            }
+            failures += 1
+            guard policy.shouldRetry(afterConsecutiveFailures: failures), !Task.isCancelled else {
+                return measurement
+            }
         }
     }
 
@@ -263,7 +291,9 @@ final class MonitoringSession {
         do {
             let old = try modelContext.fetch(descriptor)
             for measurement in old { modelContext.delete(measurement) }
-            if !old.isEmpty { try modelContext.save() }
+            if !old.isEmpty {
+                try modelContext.save()
+            }
         } catch {
             Logger.data.error("Failed to prune measurements: \(error)")
         }
