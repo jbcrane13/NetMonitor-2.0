@@ -53,25 +53,33 @@ public enum UPnPPortMappingReport: Sendable, Equatable {
     case noGateway
     /// Devices answered, but none offers a WANIPConnection or WANPPPConnection service.
     case noWANService
-    /// The forwards read. `isComplete` is false when reading stopped early (a timeout,
-    /// an unreadable reply or the entry cap), so the list may be missing entries.
+    /// The forwards read. `isComplete` is true only when the router ended the list with an
+    /// end-of-list fault; it is false when reading stopped early (a timeout, an unreadable
+    /// reply, any other fault such as an auth error, or the entry cap).
     case mappings([UPnPPortMapping], isComplete: Bool)
 }
 
-/// A router's WAN connection service, the one that lists port forwards.
-public struct UPnPWANService: Sendable, Equatable {
-    public let serviceType: String
-    public let controlURL: URL
+/// A router's WAN connection service, the one that lists port forwards. It can only be
+/// made through validation: the type is WANIPConnection or WANPPPConnection, and the
+/// control URL passes the same LAN rules as a `LOCATION` (plain http, an IPv4 literal in
+/// the scan subnet, port 1...65535). It is the only destination SOAP is sent to.
+struct UPnPWANService: Sendable, Equatable {
+    let serviceType: String
+    let controlURL: URL
 
-    public init(serviceType: String, controlURL: URL) {
+    init?(serviceType: String, controlURL: String, subnetFilter: (String) -> Bool) {
+        guard UPnPWANServiceParser.isWANConnectionType(serviceType),
+              let url = UPnPDescriptionFetcher.descriptionURL(fromLocation: controlURL, subnetFilter: subnetFilter) else {
+            return nil
+        }
         self.serviceType = serviceType
-        self.controlURL = controlURL
+        self.controlURL = url
     }
 }
 
 // MARK: - Service discovery
 
-public enum UPnPWANServiceParser {
+enum UPnPWANServiceParser {
     /// The only service types used: they are echoed into a header and the SOAP envelope.
     static func isWANConnectionType(_ type: String) -> Bool {
         type.range(of: #"^urn:schemas-upnp-org:service:WAN(IP|PPP)Connection:[0-9]{1,3}$"#, options: .regularExpression) != nil
@@ -80,7 +88,7 @@ public enum UPnPWANServiceParser {
     /// WANIPConnection / WANPPPConnection services anywhere in a description (they sit in
     /// nested devices), with `controlURL` resolved against `URLBase` or the description's
     /// own URL and kept only when it passes the same LAN rules as a `LOCATION`.
-    public static func wanServices(in data: Data, descriptionURL: URL, subnetFilter: (String) -> Bool) -> [UPnPWANService] {
+    static func wanServices(in data: Data, descriptionURL: URL, subnetFilter: (String) -> Bool) -> [UPnPWANService] {
         guard !data.isEmpty, data.count <= UPnPDeviceDescription.maxBytes else { return [] }
         let parser = XMLParser(data: data)
         parser.shouldResolveExternalEntities = false
@@ -90,12 +98,8 @@ public enum UPnPWANServiceParser {
 
         let base = collector.urlBase.flatMap { URL(string: $0) } ?? descriptionURL
         return collector.services.compactMap { type, control in
-            guard isWANConnectionType(type),
-                  let resolved = URL(string: control, relativeTo: base)?.absoluteURL,
-                  let url = UPnPDescriptionFetcher.descriptionURL(fromLocation: resolved.absoluteString, subnetFilter: subnetFilter) else {
-                return nil
-            }
-            return UPnPWANService(serviceType: type, controlURL: url)
+            guard let resolved = URL(string: control, relativeTo: base)?.absoluteURL else { return nil }
+            return UPnPWANService(serviceType: type, controlURL: resolved.absoluteString, subnetFilter: subnetFilter)
         }
     }
 }
@@ -161,41 +165,51 @@ private final class ServiceCollector: NSObject, XMLParserDelegate {
 
 // MARK: - SOAP
 
-public enum UPnPPortMappingSOAP {
-    public static let action = "GetGenericPortMappingEntry"
+enum UPnPPortMappingSOAP {
+    /// The only action ever sent. Read-only.
+    static let action = "GetGenericPortMappingEntry"
+    static let responseElement = "GetGenericPortMappingEntryResponse"
     static let maxDescriptionLength = 128
+    /// Faults that mean "no entry at this index", the normal end of the list: 713
+    /// SpecifiedArrayIndexInvalid (the IGD spec's code) and 714 NoSuchEntryInArray, which
+    /// some routers send instead. Any other fault (401 Invalid Action, 501 Action Failed, an
+    /// auth error) stops the read with an incomplete list.
+    static let endOfListFaultCodes: Set<Int> = [713, 714]
 
     /// The SOAPAction header value and the envelope for one entry index.
-    static func request(serviceType: String, index: Int) -> (soapAction: String, body: Data) {
+    static func request(service: UPnPWANService, index: Int) -> (soapAction: String, body: Data) {
         let envelope = """
         <?xml version="1.0"?>\
         <s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">\
-        <s:Body><u:\(action) xmlns:u="\(serviceType)"><NewPortMappingIndex>\(index)</NewPortMappingIndex></u:\(action)></s:Body>\
+        <s:Body><u:\(action) xmlns:u="\(service.serviceType)"><NewPortMappingIndex>\(index)</NewPortMappingIndex></u:\(action)></s:Body>\
         </s:Envelope>
         """
-        return ("\(serviceType)#\(action)", Data(envelope.utf8))
+        return ("\(service.serviceType)#\(action)", Data(envelope.utf8))
     }
 
     /// What one `GetGenericPortMappingEntry` call answered.
     enum Reply: Equatable {
         case entry(UPnPPortMapping)
-        /// A SOAP fault: the router has no entry at this index (713 is
-        /// SpecifiedArrayIndexInvalid). Some routers send other codes, so any fault ends
-        /// the list.
+        /// A SOAP fault, with its UPnP error code when the reply carries a numeric one.
+        /// Only ``endOfListFaultCodes`` end the list as complete.
         case fault(code: Int?)
         /// No usable answer: a timeout, a malformed reply or bad values.
         case unreadable
     }
 
     static func parse(status: Int, body: Data) -> Reply {
-        let fields = ElementTextCollector.collect(body)
-        guard let fields else { return .unreadable }
-        if fields["Fault"] != nil || status == 500 {
-            guard fields["Fault"] != nil else { return .unreadable }
-            return .fault(code: fields["errorCode"].flatMap { Int($0) })
+        guard let reply = SOAPReplyParser.parse(body) else { return .unreadable }
+        switch reply {
+        case let .fault(errorCode):
+            return .fault(code: errorCode.flatMap { Int($0) })
+        case let .response(fields):
+            guard status == 200 else { return .unreadable }
+            return entry(from: fields)
         }
-        guard status == 200,
-              let external = fields["NewExternalPort"].flatMap(port),
+    }
+
+    private static func entry(from fields: [String: String]) -> Reply {
+        guard let external = fields["NewExternalPort"].flatMap(port),
               let transport = fields["NewProtocol"].flatMap({ UPnPPortMapping.TransportProtocol(rawValue: $0.uppercased()) }),
               let client = fields["NewInternalClient"], isValidIPv4Address(client),
               let internalPort = fields["NewInternalPort"].flatMap(port) else {
@@ -222,19 +236,40 @@ public enum UPnPPortMappingSOAP {
     }
 }
 
-/// Text of each leaf element by local name (first one wins); `Fault` is recorded as
-/// present. Nil for malformed XML.
-private final class ElementTextCollector: NSObject, XMLParserDelegate {
-    private var values: [String: String] = [:]
-    private var text = ""
+/// Reads a SOAP reply by its structure, not by element names found anywhere. Only these
+/// count: the direct leaf children of `Envelope/Body/GetGenericPortMappingEntryResponse`,
+/// or `Envelope/Body/Fault` with its code at `Fault/detail/UPnPError/errorCode`. The
+/// Header is ignored. Nil for malformed XML, a Body without exactly one of those, a
+/// duplicate field or error code, or a field with child elements. Used synchronously.
+private final class SOAPReplyParser: NSObject, XMLParserDelegate {
+    enum Result {
+        case response([String: String])
+        case fault(errorCode: String?)
+    }
 
-    static func collect(_ data: Data) -> [String: String]? {
+    private enum Kind { case response, fault }
+
+    private static let errorCodePath = ["Envelope", "Body", "Fault", "detail", "UPnPError", "errorCode"]
+
+    private var path: [String] = []
+    private var text = ""
+    private var isInvalid = false
+    private var bodyCount = 0
+    private var kind: Kind?
+    private var fields: [String: String] = [:]
+    private var errorCode: String?
+
+    static func parse(_ data: Data) -> Result? {
         guard !data.isEmpty, data.count <= UPnPDeviceDescription.maxBytes else { return nil }
         let parser = XMLParser(data: data)
         parser.shouldResolveExternalEntities = false
-        let collector = ElementTextCollector()
+        let collector = SOAPReplyParser()
         parser.delegate = collector
-        return parser.parse() ? collector.values : nil
+        guard parser.parse(), !collector.isInvalid, let kind = collector.kind else { return nil }
+        switch kind {
+        case .response: return .response(collector.fields)
+        case .fault: return .fault(errorCode: collector.errorCode)
+        }
     }
 
     func parser(
@@ -244,9 +279,38 @@ private final class ElementTextCollector: NSObject, XMLParserDelegate {
         qualifiedName qName: String?,
         attributes attributeDict: [String: String] = [:]
     ) {
-        if localName(elementName) == "Fault" {
-            values["Fault"] = values["Fault"] ?? ""
+        let name = localName(elementName)
+        let inBody = path.count >= 2 && path[1] == "Body"
+        switch path.count {
+        case 0:
+            if name != "Envelope" {
+                isInvalid = true
+            }
+        case 1:
+            if name == "Body" {
+                bodyCount += 1
+                if bodyCount > 1 {
+                    isInvalid = true
+                }
+            }
+        case 2 where inBody:
+            // Exactly one child of Body: the response or a fault.
+            if kind != nil {
+                isInvalid = true
+            } else if name == UPnPPortMappingSOAP.responseElement {
+                kind = .response
+            } else if name == "Fault" {
+                kind = .fault
+            } else {
+                isInvalid = true
+            }
+        default:
+            // A response field is a leaf: an element inside one is not trusted.
+            if inBody, kind == .response, path.count >= 4 {
+                isInvalid = true
+            }
         }
+        path.append(name)
         text = ""
     }
 
@@ -260,8 +324,20 @@ private final class ElementTextCollector: NSObject, XMLParserDelegate {
 
     func parser(_ parser: XMLParser, didEndElement elementName: String, namespaceURI: String?, qualifiedName qName: String?) {
         let name = localName(elementName)
-        if values[name] == nil {
-            values[name] = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let value = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if path.count == 4, path[1] == "Body", kind == .response {
+            if fields[name] != nil {
+                isInvalid = true
+            }
+            fields[name] = value
+        } else if path == Self.errorCodePath {
+            if errorCode != nil {
+                isInvalid = true
+            }
+            errorCode = value
+        }
+        if !path.isEmpty {
+            path.removeLast()
         }
         text = ""
     }
@@ -277,8 +353,9 @@ public enum UPnPPortMappingReader {
     /// Most entries read from one router.
     public static let maxEntries = 128
 
-    /// One SOAP call: status and body, or nil for no usable reply (timeout, refused).
-    typealias Call = @Sendable (_ url: URL, _ soapAction: String, _ body: Data) async -> (status: Int, body: Data)?
+    /// One `GetGenericPortMappingEntry` call: status and body, or nil for no usable reply
+    /// (timeout, refused).
+    typealias Call = @Sendable (_ service: UPnPWANService, _ index: Int) async -> (status: Int, body: Data)?
     /// Fetches a description document.
     typealias Fetch = @Sendable (_ url: URL) async -> Data?
     /// SSDP search: responder IP to its `LOCATION`s.
@@ -291,7 +368,7 @@ public enum UPnPPortMappingReader {
             subnetFilter: subnetFilter,
             search: { await SSDPSocketSearch.search(localIP: localIP) },
             fetch: { await UPnPDescriptionFetcher.fetch($0) },
-            call: { await UPnPDescriptionFetcher.postSOAP($0, soapAction: $1, body: $2) }
+            call: { await UPnPDescriptionFetcher.getGenericPortMappingEntry(index: $1, service: $0) }
         )
     }
 
@@ -333,14 +410,14 @@ public enum UPnPPortMappingReader {
         return nil
     }
 
-    /// Calls index 0, 1, … until the router faults (end of list, complete) or a call
-    /// gives no usable answer, the cap is reached or the task is cancelled (incomplete).
+    /// Calls index 0, 1, … until the router sends an end-of-list fault (complete), or
+    /// until any other fault, a call with no usable answer, the cap or cancellation
+    /// (incomplete).
     static func readEntries(service: UPnPWANService, call: Call, maxEntries: Int = maxEntries) async -> UPnPPortMappingReport {
         var mappings: [UPnPPortMapping] = []
         for index in 0..<maxEntries {
             guard !Task.isCancelled else { return .mappings(mappings, isComplete: false) }
-            let request = UPnPPortMappingSOAP.request(serviceType: service.serviceType, index: index)
-            guard let reply = await call(service.controlURL, request.soapAction, request.body) else {
+            guard let reply = await call(service, index) else {
                 logger.notice("UPnP: no reply at entry \(index, privacy: .public)")
                 return .mappings(mappings, isComplete: false)
             }
@@ -348,8 +425,9 @@ public enum UPnPPortMappingReader {
             case let .entry(mapping):
                 mappings.append(mapping)
             case let .fault(code):
-                logger.info("UPnP: \(mappings.count, privacy: .public) forwards, end fault \(code ?? -1, privacy: .public)")
-                return .mappings(mappings, isComplete: true)
+                let isEnd = code.map { UPnPPortMappingSOAP.endOfListFaultCodes.contains($0) } ?? false
+                logger.info("UPnP: \(mappings.count, privacy: .public) forwards, fault \(code ?? -1, privacy: .public), end \(isEnd, privacy: .public)")
+                return .mappings(mappings, isComplete: isEnd)
             case .unreadable:
                 logger.notice("UPnP: unreadable reply at entry \(index, privacy: .public), status \(reply.status, privacy: .public)")
                 return .mappings(mappings, isComplete: false)

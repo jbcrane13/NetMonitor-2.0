@@ -69,7 +69,7 @@ struct PortForwardsToolView: View {
         case let .loaded(rows, isComplete):
             VStack(alignment: .leading, spacing: 8) {
                 if !isComplete {
-                    Label("The router stopped answering, so this list may be missing forwards.", systemImage: "exclamationmark.triangle.fill")
+                    Label("Couldn't read all forwards, so this list may be incomplete.", systemImage: "exclamationmark.triangle.fill")
                         .foregroundStyle(MacTheme.Colors.warning)
                         .accessibilityIdentifier("portForwards_label_incomplete")
                 }

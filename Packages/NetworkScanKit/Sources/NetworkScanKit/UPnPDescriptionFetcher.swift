@@ -48,23 +48,33 @@ public enum UPnPDescriptionFetcher {
         return body(ofHTTPResponse: response)
     }
 
-    /// POSTs a SOAP action to a LAN control URL (#400) and returns the status and body,
-    /// including non-200 replies: a UPnP fault comes back as HTTP 500 with a body.
+    /// Asks a router's WAN service for one port forward (#400) and returns the status and
+    /// body, including non-200 replies: a UPnP fault comes back as HTTP 500 with a body.
     /// Same deadline, size cap and no-redirect rules as ``fetch(_:requiredInterfaceType:)``.
-    public static func postSOAP(
-        _ url: URL,
-        soapAction: String,
-        body: Data,
+    ///
+    /// This is the only SOAP request the module can send. There is no generic POST, so
+    /// nothing can send AddPortMapping or DeletePortMapping, and the destination is a
+    /// ``UPnPWANService`` that can only exist once its control URL passed the LAN rules.
+    static func getGenericPortMappingEntry(
+        index: Int,
+        service: UPnPWANService,
         requiredInterfaceType: NWInterface.InterfaceType? = nil
     ) async -> (status: Int, body: Data)? {
-        var request = Data(Self.request(for: url, method: "POST", extraHeaders: [
-            "Content-Type: text/xml; charset=\"utf-8\"",
-            "SOAPAction: \"\(soapAction)\"",
-            "Content-Length: \(body.count)"
-        ]).utf8)
-        request.append(body)
-        guard let response = await send(request, to: url, requiredInterfaceType: requiredInterfaceType) else { return nil }
+        let request = portMappingEntryRequest(index: index, service: service)
+        guard let response = await send(request, to: service.controlURL, requiredInterfaceType: requiredInterfaceType) else { return nil }
         return statusAndBody(ofHTTPResponse: response)
+    }
+
+    /// The full HTTP request for one `GetGenericPortMappingEntry` call.
+    static func portMappingEntryRequest(index: Int, service: UPnPWANService) -> Data {
+        let soap = UPnPPortMappingSOAP.request(service: service, index: index)
+        var request = Data(Self.request(for: service.controlURL, method: "POST", extraHeaders: [
+            "Content-Type: text/xml; charset=\"utf-8\"",
+            "SOAPAction: \"\(soap.soapAction)\"",
+            "Content-Length: \(soap.body.count)"
+        ]).utf8)
+        request.append(soap.body)
+        return request
     }
 
     /// Sends a raw HTTP request and returns the raw response, or nil on failure or timeout.
