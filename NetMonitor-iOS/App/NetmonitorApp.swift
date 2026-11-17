@@ -11,6 +11,7 @@ struct NetmonitorApp: App {
     @State private var showOnboarding = false
     @State private var deepLinkRouter = DeepLinkRouter()
     @State private var environment: AppEnvironment = .live()
+    @State private var speedTestScheduler: ScheduledSpeedTestRunner?
 
     private static var isUITesting: Bool {
         let args = ProcessInfo.processInfo.arguments
@@ -124,6 +125,13 @@ struct NetmonitorApp: App {
 
                     // Prune data older than the configured retention period
                     DataMaintenanceService.pruneExpiredData(modelContext: sharedModelContainer.mainContext)
+
+                    // Optional scheduled speed tests while the app is open, off by default (#398).
+                    if speedTestScheduler == nil {
+                        let runner = IOSScheduledSpeedTest.makeScheduler(modelContext: sharedModelContainer.mainContext)
+                        runner.start()
+                        speedTestScheduler = runner
+                    }
                 }
         }
         .modelContainer(sharedModelContainer)

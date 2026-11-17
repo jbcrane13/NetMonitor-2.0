@@ -659,3 +659,54 @@ struct DeviceTypeInferenceWholeWordTests {
         #expect(!NameWords("mac").has("mac mini"))
     }
 }
+
+// MARK: - #386: Bonjour TXT model
+
+struct DeviceTypeInferenceModelTests {
+
+    let sut = DeviceTypeInferenceService()
+
+    @Test("Model identifiers map to types", arguments: [
+        ("MacBookPro18,1", DeviceType.laptop),
+        ("MacBookAir10,1", DeviceType.laptop),
+        ("MacBook10,1", DeviceType.laptop),
+        ("iMac21,1", DeviceType.computer),
+        ("Macmini9,1", DeviceType.computer),
+        ("MacPro7,1", DeviceType.computer),
+        ("Mac16,10", DeviceType.computer),
+        ("Mac15,12", DeviceType.computer),
+        ("iPhone15,2", DeviceType.phone),
+        ("iPad13,1", DeviceType.tablet),
+        ("AppleTV14,1", DeviceType.tv),
+        ("AudioAccessory5,1", DeviceType.speaker),
+        ("Chromecast", DeviceType.tv),
+        ("Chromecast Ultra", DeviceType.tv),
+        ("Google Home Mini", DeviceType.speaker),
+        ("Google Nest Mini", DeviceType.speaker)
+    ])
+    func modelMapping(model: String, expected: DeviceType) {
+        #expect(DeviceTypeInferenceService.deviceType(forModel: model) == expected, "\(model)")
+    }
+
+    @Test("Board IDs and other makers' models are not mapped", arguments: [
+        "J255AP", "B238aAP", "Arc Ultra", "Machine-X", "Mac", "Watch6,1", ""
+    ])
+    func unmappedModels(model: String) {
+        #expect(DeviceTypeInferenceService.deviceType(forModel: model) == nil, "\(model)")
+    }
+
+    @Test("A model beats hostname rules; an unmapped model falls through")
+    func modelPriority() {
+        let laptop = LocalDevice(ipAddress: "192.168.1.100", macAddress: "", hostname: "office-printer")
+        laptop.modelName = "MacBookPro18,1"
+        #expect(sut.inferDeviceType(for: laptop) == .laptop)
+
+        let board = LocalDevice(ipAddress: "192.168.1.101", macAddress: "", hostname: "office-printer")
+        board.modelName = "J255AP"
+        #expect(sut.inferDeviceType(for: board) == .printer)
+
+        let gateway = LocalDevice(ipAddress: "192.168.1.1", macAddress: "", isGateway: true)
+        gateway.modelName = "AppleTV14,1"
+        #expect(sut.inferDeviceType(for: gateway) == .router)
+    }
+}

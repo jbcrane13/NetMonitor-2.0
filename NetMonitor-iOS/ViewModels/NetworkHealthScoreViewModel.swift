@@ -12,22 +12,36 @@ final class NetworkHealthScoreViewModel {
     var isCalculating: Bool = false
     var lastUpdated: Date?
     var errorMessage: String?
+    /// Pass/warn checklist shown under the score (#397).
+    private(set) var checks: [HealthCheck] = []
+    /// Per-server DNS timings from the last comparison (#399).
+    private(set) var dnsResults: [DNSBenchmarkResult] = []
+    private(set) var isComparingDNS = false
 
     // MARK: - Dependencies
 
     private let service: any NetworkHealthScoreServiceProtocol
     private let pingService: any PingServiceProtocol
     private let networkMonitor: any NetworkMonitorServiceProtocol
+    private let vpnService: any VPNDetectionServiceProtocol
+    private let readDNSServers: @Sendable () -> HealthCheckInputs.DNSServers
+    private let dnsBenchmark: DNSServerBenchmark
     private var currentTask: Task<Void, Never>?
 
     init(
         service: any NetworkHealthScoreServiceProtocol = NetworkHealthScoreService(),
         pingService: any PingServiceProtocol = PingService(),
-        networkMonitor: any NetworkMonitorServiceProtocol = NetworkMonitorService()
+        networkMonitor: any NetworkMonitorServiceProtocol = NetworkMonitorService(),
+        vpnService: any VPNDetectionServiceProtocol = VPNDetectionService(),
+        readDNSServers: @escaping @Sendable () -> HealthCheckInputs.DNSServers = { SystemDNSConfiguration.current() },
+        dnsBenchmark: DNSServerBenchmark = DNSServerBenchmark()
     ) {
         self.service = service
         self.pingService = pingService
         self.networkMonitor = networkMonitor
+        self.vpnService = vpnService
+        self.readDNSServers = readDNSServers
+        self.dnsBenchmark = dnsBenchmark
     }
 
     // MARK: - Computed
@@ -45,12 +59,29 @@ final class NetworkHealthScoreViewModel {
         return String(format: "%.0f%%", loss * 100)
     }
 
+    var fastestDNS: DNSBenchmarkResult? { DNSServerBenchmark.fastest(dnsResults) }
+
     // MARK: - Actions
 
-    func refresh() {
+    /// Recalculates the score and checklist. `localInputs` carries what the dashboard
+    /// already measured (router, Wi-Fi, device count); the rest is measured here.
+    func refresh(localInputs: HealthCheckInputs = HealthCheckInputs()) {
         guard !isCalculating else { return }
         currentTask?.cancel()
-        currentTask = Task { await performRefresh() }
+        currentTask = Task { await performRefresh(localInputs: localInputs) }
+    }
+
+    /// Times lookups against the current DNS server and Cloudflare, Google and Quad9.
+    func compareDNSServers() async {
+        guard !isComparingDNS else { return }
+        isComparingDNS = true
+        defer { isComparingDNS = false }
+        var current: [String]?
+        if case let .servers(addresses) = readDNSServers() {
+            current = addresses
+        }
+        let servers = DNSServerBenchmark.servers(currentNameservers: current)
+        dnsResults = await dnsBenchmark.run(servers: servers)
     }
 
     // periphery:ignore
@@ -72,7 +103,8 @@ final class NetworkHealthScoreViewModel {
 
     // MARK: - Private
 
-    private func performRefresh() async {
+    private func performRefresh(localInputs: HealthCheckInputs = HealthCheckInputs()) async {
+        vpnService.startMonitoring()
         isCalculating = true
         errorMessage = nil
         defer { isCalculating = false }
@@ -105,6 +137,12 @@ final class NetworkHealthScoreViewModel {
         let score = await service.calculateScore()
         currentScore = score
         lastUpdated = Date()
+
+        var inputs = localInputs
+        inputs.internetReachable = results.isEmpty ? nil : latencyMs != nil
+        inputs.dnsServers = readDNSServers()
+        inputs.vpnActive = vpnService.status.isActive
+        checks = NetworkHealthChecklist.evaluate(inputs)
 
         NetworkEventService.shared.log(
             type: .toolRun,

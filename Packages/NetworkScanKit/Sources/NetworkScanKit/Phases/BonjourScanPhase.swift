@@ -9,7 +9,14 @@ import Network
 ///
 /// Uses adaptive early exit: instead of waiting a fixed duration, polls for new
 /// services and exits when no new services arrive for `stableExitThreshold`.
+///
+/// Services resolve through DNS-SD (``DNSSDResolver``), which opens no connection to the
+/// device (#386). Models from TXT records (``BonjourTXT``) are attached to the device, and
+/// a TXT-only `_device-info._tcp` model reaches the device through the shared service name.
 public struct BonjourScanPhase: ScanPhase, Sendable {
+    /// Resolves one service to its host, port and TXT record.
+    public typealias Resolver = @Sendable (BonjourServiceInfo) async -> BonjourResolution?
+
     public let id: ScanPhaseID = .bonjour
     public let displayName = "Bonjour discovery…"
     public let weight: Double = 0.13
@@ -28,13 +35,39 @@ public struct BonjourScanPhase: ScanPhase, Sendable {
 
     private let maxResolves: Int = 100
     private let maxResolveConcurrency: Int = 8
+    private let maxDeviceInfoConcurrency: Int = 32
+
+    let resolver: Resolver
+    let addressResolver: @Sendable (String) async -> [String]
+    let deviceInfoQuery: @Sendable (String) async -> String?
 
     public init(
         serviceProvider: @escaping @Sendable () async -> [BonjourServiceInfo],
-        stopProvider: (@Sendable () async -> Void)? = nil
+        stopProvider: (@Sendable () async -> Void)? = nil,
+        resolver: @escaping Resolver = { await DNSSDResolver.resolve($0) }
+    ) {
+        self.init(
+            serviceProvider: serviceProvider,
+            stopProvider: stopProvider,
+            resolver: resolver,
+            addressResolver: { await DNSSDResolver.ipv4Addresses(host: $0) },
+            deviceInfoQuery: { await DNSSDResolver.deviceInfoModel(serviceName: $0) }
+        )
+    }
+
+    /// Test seam: also replaces the host-name → IPv4 lookup and the `_device-info` query.
+    init(
+        serviceProvider: @escaping @Sendable () async -> [BonjourServiceInfo],
+        stopProvider: (@Sendable () async -> Void)?,
+        resolver: @escaping Resolver,
+        addressResolver: @escaping @Sendable (String) async -> [String],
+        deviceInfoQuery: @escaping @Sendable (String) async -> String?
     ) {
         self.serviceProvider = serviceProvider
         self.stopProvider = stopProvider
+        self.resolver = resolver
+        self.addressResolver = addressResolver
+        self.deviceInfoQuery = deviceInfoQuery
     }
 
     public func execute(
@@ -82,7 +115,10 @@ public struct BonjourScanPhase: ScanPhase, Sendable {
         // Get discovered services
         let allServices = await serviceProvider()
         let unique = deduplicateServices(allServices)
-        let capped = Array(unique.prefix(maxResolves))
+        let modelsByName = Self.modelsByServiceName(unique)
+        // `_device-info._tcp` is TXT-only (no SRV record), so there is nothing to resolve;
+        // its model reaches the device through `modelsByName`.
+        let capped = Array(unique.filter { !Self.isTXTOnly($0) }.prefix(maxResolves))
         guard !capped.isEmpty else {
             await stopProvider?()
             await onProgress(1.0)
@@ -92,44 +128,114 @@ public struct BonjourScanPhase: ScanPhase, Sendable {
         // Resolve services to IPs and merge
         let total = capped.count
         var resolved = 0
+        var devices: [DiscoveredDevice] = []
 
-        await forEachBounded(capped, limit: maxResolveConcurrency, operation: { service in
-            await Self.makeBonjourDevice(from: service, subnetFilter: context.subnetFilter)
-        }, onResult: { device in
-            resolved += 1
-
-            if let device {
-                await accumulator.upsert(device)
+        let resolver = self.resolver
+        // Several services usually share one host name, so look each host up once. The
+        // cache's lookups belong to this scan: cancelled when it is, and when it ends.
+        let addressCache = HostAddressCache(lookup: self.addressResolver)
+        defer { addressCache.cancelAll() }
+        let addressResolver: @Sendable (String) async -> [String] = { await addressCache.addresses(for: $0) }
+        await withTaskCancellationHandler {
+            await resolveAll(
+                capped,
+                modelsByName: modelsByName,
+                subnetFilter: context.subnetFilter,
+                resolver: resolver,
+                addressResolver: addressResolver
+            ) { device in
+                resolved += 1
+                if let device {
+                    devices.append(device)
+                }
+                await onProgress(0.3 + 0.6 * Double(resolved) / Double(max(total, 1)))
             }
+        } onCancel: {
+            addressCache.cancelAll()
+        }
 
-            let progress = 0.3 + 0.7 * Double(resolved) / Double(max(total, 1))
-            await onProgress(progress)
+        // Nothing is published after cancellation or a phase timeout: the engine may have
+        // moved on. The browser is still stopped.
+        guard !Task.isCancelled else {
+            await stopProvider?()
+            return
+        }
+
+        // Devices with no model from a browsed TXT record: ask for the `_device-info._tcp`
+        // TXT record by name, once per name, all at once (DNS-SD queries, no connections).
+        let namesNeedingModel = Set(devices.filter { $0.modelName == nil }.compactMap(\.hostname))
+        var queriedModels: [String: String] = [:]
+        let deviceInfoQuery = self.deviceInfoQuery
+        await forEachBounded(namesNeedingModel, limit: maxDeviceInfoConcurrency, operation: { name in
+            await (name, deviceInfoQuery(name))
+        }, onResult: { name, model in
+            if let model {
+                queriedModels[name] = model
+            }
         })
+
+        for device in devices {
+            guard !Task.isCancelled else {
+                await stopProvider?()
+                return
+            }
+            guard device.modelName == nil, let name = device.hostname, let model = queriedModels[name] else {
+                await accumulator.upsert(device)
+                continue
+            }
+            await accumulator.upsert(device.withModelName(model))
+        }
 
         await stopProvider?()
         await onProgress(1.0)
     }
 
+    private func resolveAll(
+        _ services: [BonjourServiceInfo],
+        modelsByName: [String: String],
+        subnetFilter: @escaping @Sendable (String) -> Bool,
+        resolver: @escaping Resolver,
+        addressResolver: @escaping @Sendable (String) async -> [String],
+        onResult: (DiscoveredDevice?) async -> Void
+    ) async {
+        await forEachBounded(services, limit: maxResolveConcurrency, operation: { service in
+            await Self.makeBonjourDevice(
+                from: service,
+                modelsByName: modelsByName,
+                subnetFilter: subnetFilter,
+                resolver: resolver,
+                addressResolver: addressResolver
+            )
+        }, onResult: onResult)
+    }
+
     // MARK: - Resolution helpers
 
-    private static func makeBonjourDevice(
+    static func makeBonjourDevice(
         from service: BonjourServiceInfo,
-        subnetFilter: @Sendable (String) -> Bool
+        modelsByName: [String: String],
+        subnetFilter: @Sendable (String) -> Bool,
+        resolver: Resolver,
+        addressResolver: @Sendable (String) async -> [String]
     ) async -> DiscoveredDevice? {
-        guard !Task.isCancelled else { return nil }
-        guard let host = await resolveBonjourHost(for: service) else { return nil }
+        guard !Task.isCancelled, let resolution = await resolver(service) else { return nil }
 
+        let host = resolution.hostTarget
         let normalizedHost = host.split(separator: "%", maxSplits: 1).first.map(String.init) ?? host
         let candidateIPs: [String]
         if let ip = cleanedIPv4Address(normalizedHost) {
             candidateIPs = [ip]
         } else {
-            candidateIPs = await resolveIPv4Addresses(for: normalizedHost)
+            candidateIPs = await addressResolver(normalizedHost)
         }
 
         guard let matchedIP = candidateIPs.first(where: { subnetFilter($0) }) else {
             return nil
         }
+
+        let model = BonjourTXT.model(serviceType: service.type, txt: service.txtRecord)
+            ?? BonjourTXT.model(serviceType: service.type, txt: resolution.txtRecord)
+            ?? modelsByName[service.name]
 
         return DiscoveredDevice(
             ipAddress: matchedIP,
@@ -138,82 +244,27 @@ public struct BonjourScanPhase: ScanPhase, Sendable {
             macAddress: nil,
             latency: nil,
             discoveredAt: Date(),
-            source: .bonjour
+            source: .bonjour,
+            modelName: model
         )
     }
 
-    private static func resolveBonjourHost(for service: BonjourServiceInfo) async -> String? {
-        guard !Task.isCancelled else { return nil }
-
-        guard let host = await withConnectionSlot({ () async -> String? in
-            let endpoint = NWEndpoint.service(
-                name: service.name,
-                type: service.type,
-                domain: service.domain,
-                interface: nil
-            )
-
-            let params = NWParameters.tcp
-            let connection = NWConnection(to: endpoint, using: params)
-
-            return await withNWConnection(connection, timeout: .seconds(2), timeoutValue: nil) { state in
-                switch state {
-                case .ready:
-                    if let innerEndpoint = connection.currentPath?.remoteEndpoint,
-                       case let .hostPort(host, _) = innerEndpoint {
-                        return .complete("\(host)")
-                    }
-                    return .complete(nil)
-                case .failed, .cancelled:
-                    return .complete(nil)
-                default:
-                    return nil
-                }
+    /// Models named by any service's TXT record, keyed by service name. Apple devices
+    /// publish `_device-info._tcp` under the same name as their other services.
+    static func modelsByServiceName(_ services: [BonjourServiceInfo]) -> [String: String] {
+        var models: [String: String] = [:]
+        for service in services {
+            guard let model = BonjourTXT.model(serviceType: service.type, txt: service.txtRecord) else { continue }
+            // `_device-info._tcp` is the most specific source, so it wins over the others.
+            if models[service.name] == nil || isTXTOnly(service) {
+                models[service.name] = model
             }
-        }) else { return nil }
-        return host
+        }
+        return models
     }
 
-    private static func resolveIPv4Addresses(for host: String) async -> [String] {
-        await withCheckedContinuation { continuation in
-            let cfHost = CFHostCreateWithName(nil, host as CFString).takeRetainedValue()
-            var streamError = CFStreamError()
-
-            guard CFHostStartInfoResolution(cfHost, .addresses, &streamError),
-                  let addresses = CFHostGetAddressing(cfHost, nil)?.takeUnretainedValue() as? [Data] else {
-                continuation.resume(returning: [])
-                return
-            }
-
-            var resolved: Set<String> = []
-            resolved.reserveCapacity(addresses.count)
-
-            for addressData in addresses {
-                var hostname = [CChar](repeating: 0, count: Int(NI_MAXHOST))
-                addressData.withUnsafeBytes { ptr in
-                    guard let sockaddr = ptr.bindMemory(to: sockaddr.self).baseAddress else { return }
-                    getnameinfo(
-                        sockaddr,
-                        socklen_t(addressData.count),
-                        &hostname,
-                        socklen_t(hostname.count),
-                        nil,
-                        0,
-                        NI_NUMERICHOST
-                    )
-                }
-
-                let length = strnlen(hostname, hostname.count)
-                let bytes = hostname.prefix(length).map { UInt8(bitPattern: $0) }
-                let ip = String(decoding: bytes, as: UTF8.self)
-
-                if isValidIPv4Address(ip) {
-                    resolved.insert(ip)
-                }
-            }
-
-            continuation.resume(returning: Array(resolved))
-        }
+    static func isTXTOnly(_ service: BonjourServiceInfo) -> Bool {
+        BonjourTXT.normalizedType(service.type) == "_device-info._tcp"
     }
 
     // MARK: - Deduplication
@@ -231,5 +282,42 @@ public struct BonjourScanPhase: ScanPhase, Sendable {
         }
 
         return unique
+    }
+}
+
+/// Per-scan memo of host name → IPv4 addresses; concurrent callers for the same host share
+/// one lookup. ``cancelAll()`` cancels lookups still running (their DNS-SD refs are then
+/// released) and is safe to call from a cancellation handler.
+private final class HostAddressCache: @unchecked Sendable {
+    private let lookup: @Sendable (String) async -> [String]
+    private let lock = NSLock()
+    private var tasks: [String: Task<[String], Never>] = [:] // guarded by `lock`
+    private var isCancelled = false // guarded by `lock`
+
+    init(lookup: @escaping @Sendable (String) async -> [String]) {
+        self.lookup = lookup
+    }
+
+    func addresses(for host: String) async -> [String] {
+        let lookup = self.lookup
+        let task: Task<[String], Never>? = lock.withLock {
+            guard !isCancelled else { return nil }
+            if let existing = tasks[host] {
+                return existing
+            }
+            let created = Task { await lookup(host) }
+            tasks[host] = created
+            return created
+        }
+        return await task?.value ?? []
+    }
+
+    func cancelAll() {
+        let running = lock.withLock {
+            isCancelled = true
+            defer { tasks = [:] }
+            return Array(tasks.values)
+        }
+        running.forEach { $0.cancel() }
     }
 }

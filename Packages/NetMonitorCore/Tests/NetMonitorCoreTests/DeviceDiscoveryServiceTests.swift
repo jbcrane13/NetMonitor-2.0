@@ -51,6 +51,22 @@ struct DeviceDiscoveryServiceTests {
         #expect(copy.macAddress == device.macAddress)
     }
 
+    @Test("withProfile keeps the UPnP description fields (#387)")
+    func withProfileKeepsDescription() {
+        let device = DiscoveredDevice(
+            ipAddress: "192.168.1.20", hostname: nil, vendor: nil, macAddress: nil,
+            latency: nil, discoveredAt: Date(), source: .ssdp,
+            friendlyName: "Living Room TV", manufacturer: "Samsung Electronics", modelName: "Q80"
+        )
+
+        let copy = DeviceDiscoveryService.withProfile(device, profileID: UUID())
+
+        #expect(copy.friendlyName == "Living Room TV")
+        #expect(copy.manufacturer == "Samsung Electronics")
+        #expect(copy.modelName == "Q80")
+        #expect(copy.displayName == "Living Room TV")
+    }
+
     @Test("withProfile keeps an answered device answered")
     func withProfileKeepsAnswered() {
         let copy = DeviceDiscoveryService.withProfile(makeDevice(isCached: false), profileID: nil)

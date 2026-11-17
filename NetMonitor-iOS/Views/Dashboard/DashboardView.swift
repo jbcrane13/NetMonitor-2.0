@@ -88,10 +88,14 @@ struct DashboardView: View {
             return
         }
         lastHealthRefresh = now
-        healthViewModel.refresh()
+        healthViewModel.refresh(localInputs: HealthCheckInputs(
+            gatewayReachable: viewModel.gateway.map { $0.latency != nil },
+            wifiRSSI: viewModel.currentWiFi?.signalDBm,
+            deviceCount: viewModel.deviceCount,
+            linkSpeedMbps: viewModel.currentWiFi?.linkSpeed
+        ))
     }
 
-    @ViewBuilder
     private func dashboardContent(width: CGFloat) -> some View {
         VStack(spacing: Theme.Layout.itemSpacing) {
             if !viewModel.isConnected {
@@ -133,6 +137,8 @@ struct DashboardView: View {
                 WANInfoCard(viewModel: viewModel)
                 AnchorLatencyCard(viewModel: viewModel)
             }
+
+            HealthChecklistCard(healthViewModel: healthViewModel)
 
             SpeedTestQuickCard()
 

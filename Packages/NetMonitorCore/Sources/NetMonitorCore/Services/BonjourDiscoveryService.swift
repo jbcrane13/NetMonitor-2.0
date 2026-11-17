@@ -126,7 +126,8 @@ public final class BonjourDiscoveryService: BonjourDiscoveryServiceProtocol {
     }
 
     private func addBrowser(for type: String, generation gen: UInt64) {
-        let descriptor = NWBrowser.Descriptor.bonjour(type: type, domain: "local.")
+        // With TXT records, so device models (#386) arrive with the browse results.
+        let descriptor = NWBrowser.Descriptor.bonjourWithTXTRecord(type: type, domain: "local.")
         let parameters = NWParameters()
         parameters.includePeerToPeer = true
 
@@ -192,13 +193,25 @@ public final class BonjourDiscoveryService: BonjourDiscoveryServiceProtocol {
                     let service = BonjourService(
                         name: name,
                         type: type,
-                        domain: domain
+                        domain: domain,
+                        txtRecords: Self.txtRecords(of: result)
                     )
                     guard !discoveredServices.contains(where: { $0.name == name && $0.type == type }) else {
                         continue
                     }
                     discoveredServices.append(service)
                     serviceContinuation?.yield(service)
+                }
+            case .changed(_, let result, _):
+                // TXT records can arrive or change after the service was first seen.
+                if case let .service(name, type, domain, _) = result.endpoint,
+                   let index = discoveredServices.firstIndex(where: { $0.name == name && $0.type == type }) {
+                    discoveredServices[index] = BonjourService(
+                        name: name,
+                        type: type,
+                        domain: domain,
+                        txtRecords: Self.txtRecords(of: result)
+                    )
                 }
             case .removed(let result):
                 if case let .service(name, type, _, _) = result.endpoint {
@@ -208,6 +221,16 @@ public final class BonjourDiscoveryService: BonjourDiscoveryServiceProtocol {
                 break
             }
         }
+    }
+
+    /// TXT record keys (lowercased) and values from a browse result, or empty.
+    nonisolated static func txtRecords(of result: NWBrowser.Result) -> [String: String] {
+        guard case let .bonjour(record) = result.metadata else { return [:] }
+        var txt: [String: String] = [:]
+        for (key, value) in record.dictionary {
+            txt[key.lowercased()] = value
+        }
+        return txt
     }
 
     // MARK: - Service resolution

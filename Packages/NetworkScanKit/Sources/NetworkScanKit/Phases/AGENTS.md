@@ -14,7 +14,7 @@ Concrete implementations of network discovery techniques. Each phase conforms to
 | `ARPScanPhase.swift` | Sends UDP probes to fill the ARP table, then reads it (via `ARPCacheScanner`) until it settles |
 | `BonjourScanPhase.swift` | Discovers mDNS/Bonjour services with adaptive exit timeout |
 | `TCPProbeScanPhase.swift` | TCP connect probes to common ports with RTT-adaptive timeouts |
-| `SSDPScanPhase.swift` | SSDP (UPnP) M-SEARCH multicast discovery; logs connection/send failures |
+| `SSDPScanPhase.swift` | SSDP (UPnP) M-SEARCH discovery plus device descriptions (name, maker, model) |
 | `ICMPLatencyPhase.swift` | ICMP echo sweep that fills in latency for discovered devices |
 | `ARPRecheckPhase.swift` | Re-reads the ARP table after ICMP and confirms devices whose entry was refreshed |
 | `ReverseDNSScanPhase.swift` | DNS PTR lookups to resolve hostnames for discovered IPs |
@@ -26,7 +26,7 @@ Concrete implementations of network discovery techniques. Each phase conforms to
 **ARPScanPhase:**
 - Reads the ARP table first and records each entry's expiry as a baseline (`accumulator.recordARPBaseline`).
 - Sends fire-and-forget UDP probes to every host (`ARPCacheScanner.populateARPCache`) so the kernel resolves them.
-- Reads the table with `ARPCacheScanner.readARPEntries()`: a routing-table `sysctl` (`NET_RT_FLAGS`, `RTF_LLINFO`). On macOS, when the sysctl returns no entries (seen on macOS 27.2, #401), it falls back to parsing `/usr/sbin/arp -anl`. iOS uses the sysctl only.
+- Reads the table with `ARPCacheScanner.readARPEntries()`: a routing-table `sysctl` (`NET_RT_FLAGS`, `RTF_LLINFO`). On macOS 27 the sysctl returns no IPv4 entries to sandboxed apps (#401), so scans there get no MACs and discovery relies on TCP, Bonjour and SSDP; the phase logs a `.notice` (category `ARP`, count only) when the read comes back empty.
 - Settle polling (#379): `ARPCacheScanner.pollUntilSettled` re-reads every 250 ms and stops after 500 ms with no new IP, capped at 2 s.
 - An entry confirms presence only if it is new since the baseline or its expiry moved forward (`refreshedIPs`). Other entries are upserted with `confirmsPresence: false`, so the device stays cached unless a later phase answers for it.
 - Weight: 0.10.
@@ -50,9 +50,9 @@ Concrete implementations of network discovery techniques. Each phase conforms to
 - Uses `withThrowingTaskGroup` for concurrent probing.
 
 **SSDPScanPhase:**
-- Sends SSDP M-SEARCH multicast to 239.255.255.250:1900.
-- Listens for UPnP device responses for 3 seconds.
-- Logs (`os.Logger` category `SSDP`, codes and counts only) a connection that fails, waits or never becomes ready, and a send error. On iPhone these are the signs of a missing multicast entitlement (#381).
+- `SSDPSocketSearch` sends the M-SEARCH to 239.255.255.250:1900 from an unconnected, non-blocking BSD UDP socket and reads replies from any sender for 3 seconds, on its own queue; cancelling ends the window early. The socket is bound (`IP_BOUND_IF`, `IP_MULTICAST_IF`) to the interface of `context.localIP` when known. Do not go back to a UDP `NWConnection` to the group: it is connected to the group address and drops the devices' unicast replies (it received none on macOS, #387).
+- Reads each responder's description from its `LOCATION` (`UPnPDescriptionFetcher`, `UPnPDeviceDescription`): plain HTTP to an address in the scan subnet only, 2 s, 64 KB, at most 2 URLs per device, 4 at a time. Fills `friendlyName`, `manufacturer`, `modelName` on the device (#387).
+- Logs (`os.Logger` category `SSDP`, errno values and counts only) socket, send and poll failures and responder/description counts. On iPhone a send failure is the sign of a missing multicast entitlement (#381).
 - Weight: 0.06.
 
 **ReverseDNSScanPhase:**
