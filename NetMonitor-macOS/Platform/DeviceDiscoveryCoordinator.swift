@@ -118,7 +118,7 @@ final class DeviceDiscoveryCoordinator {
         let bonjourProvider: @Sendable () async -> [BonjourServiceInfo] = {
             await MainActor.run {
                 bonjourScannerRef.discoveredServices.map {
-                    BonjourServiceInfo(name: $0.name, type: $0.type, domain: $0.domain)
+                    BonjourServiceInfo(name: $0.name, type: $0.type, domain: $0.domain, txtRecord: $0.txtRecords)
                 }
             }
         }
@@ -309,6 +309,9 @@ final class DeviceDiscoveryCoordinator {
                     let combined = Set(existing.openPorts ?? []).union(openPorts).sorted()
                     existing.openPorts = combined
                 }
+                if let model = discovered.modelName, !model.isEmpty {
+                    existing.modelName = model
+                }
                 if let latency = discovered.latency {
                     if recordLatencyHistory {
                         existing.updateLatency(latency)
@@ -333,6 +336,7 @@ final class DeviceDiscoveryCoordinator {
                     openPorts: discovered.openPorts,
                     networkProfileID: profileID
                 )
+                newDevice.modelName = discovered.modelName
                 Self.fillFromDescription(newDevice, discovered)
                 modelContext.insert(newDevice)
                 devicesByIP[newDevice.ipAddress] = newDevice
@@ -503,7 +507,8 @@ final class DeviceDiscoveryCoordinator {
                 latency: device.latency,
                 isCached: device.isCached,
                 friendlyName: device.friendlyName,
-                manufacturer: device.manufacturer
+                manufacturer: device.manufacturer,
+                modelName: device.modelName
             )
         }
     }
