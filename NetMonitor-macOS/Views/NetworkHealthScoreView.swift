@@ -77,7 +77,6 @@ struct NetworkHealthScoreView: View {
         MacTheme.Colors.healthScoreColor(score)
     }
 
-    @ViewBuilder
     private func macScoreRow(label: String, value: String) -> some View {
         HStack {
             Text(label).font(.caption).foregroundStyle(.secondary)
@@ -94,19 +93,47 @@ struct NetworkHealthScoreView: View {
 final class NetworkHealthScoreMacViewModel {
     var currentScore: NetworkHealthScore?
     var isCalculating: Bool = false
+    /// Pass/warn checklist shown in the Health Checks card (#397).
+    private(set) var checks: [HealthCheck] = []
+    /// Per-server DNS timings from the last comparison (#399).
+    private(set) var dnsResults: [DNSBenchmarkResult] = []
+    private(set) var isComparingDNS = false
 
     private let service: NetworkHealthScoreService
     private let pingService: any PingServiceProtocol
+    private let vpnService: any VPNDetectionServiceProtocol
+    private let readDNSServers: @Sendable () -> [String]?
+    private let dnsBenchmark: DNSServerBenchmark
 
     init(
         service: NetworkHealthScoreService = NetworkHealthScoreService(),
-        pingService: any PingServiceProtocol = PingService()
+        pingService: any PingServiceProtocol = PingService(),
+        vpnService: any VPNDetectionServiceProtocol = VPNDetectionService(),
+        readDNSServers: @escaping @Sendable () -> [String]? = { SystemDNSConfiguration.currentNameservers() },
+        dnsBenchmark: DNSServerBenchmark = DNSServerBenchmark()
     ) {
         self.service = service
         self.pingService = pingService
+        self.vpnService = vpnService
+        self.readDNSServers = readDNSServers
+        self.dnsBenchmark = dnsBenchmark
     }
 
-    func refresh() async {
+    var fastestDNS: DNSBenchmarkResult? { DNSServerBenchmark.fastest(dnsResults) }
+
+    /// Times lookups against the current DNS server and Cloudflare, Google and Quad9.
+    func compareDNSServers() async {
+        guard !isComparingDNS else { return }
+        isComparingDNS = true
+        defer { isComparingDNS = false }
+        let servers = DNSServerBenchmark.servers(currentNameservers: readDNSServers())
+        dnsResults = await dnsBenchmark.run(servers: servers)
+    }
+
+    /// Recalculates the score and checklist. When `gatewayIP` is given the router is
+    /// pinged too; `localInputs` carries Wi-Fi and device readings the view already has.
+    func refresh(gatewayIP: String? = nil, localInputs: HealthCheckInputs = HealthCheckInputs()) async {
+        vpnService.startMonitoring()
         isCalculating = true
         defer { isCalculating = false }
 
@@ -128,6 +155,19 @@ final class NetworkHealthScoreMacViewModel {
             deviceCount: nil, typicalDeviceCount: nil, isConnected: true
         )
         currentScore = await service.calculateScore()
+
+        var inputs = localInputs
+        if let gatewayIP {
+            var gatewayAnswered = false
+            for await result in await pingService.ping(host: gatewayIP, count: 2, timeout: 2) where !result.isTimeout {
+                gatewayAnswered = true
+            }
+            inputs.gatewayReachable = gatewayAnswered
+        }
+        inputs.internetReachable = results.isEmpty ? nil : latencyMs != nil
+        inputs.dnsServers = readDNSServers()
+        inputs.vpnActive = vpnService.status.isActive
+        checks = NetworkHealthChecklist.evaluate(inputs)
     }
 }
 
