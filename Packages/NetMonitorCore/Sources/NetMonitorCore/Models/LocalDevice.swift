@@ -24,15 +24,14 @@ public final class LocalDevice {
     public var openPorts: [Int]?
     public var discoveredServices: [String]?
     public var networkProfileID: UUID?
+    /// Exact model from Bonjour TXT records (#386, e.g. `MacBookPro18,1`) or the UPnP
+    /// description (#387), refreshed by each scan. Stored since macOS `SchemaV2` (#409);
+    /// iOS migrates its unversioned store automatically (an added optional attribute).
+    public var modelName: String?
 
     /// In-memory buffer of recent latency readings for sparkline display.
     /// Not persisted — resets each session. Capped at 20 samples.
     @Transient public var latencyHistory: [Double] = []
-
-    /// Exact model from Bonjour TXT records (e.g. `MacBookPro18,1`), filled by each scan
-    /// (#386). Not persisted yet: adding a stored property needs a SwiftData schema
-    /// version, so it resets each session like `latencyHistory`.
-    @Transient public var modelName: String?
 
     /// Maximum number of latency samples to retain in memory.
     private static let maxLatencyHistory = 20

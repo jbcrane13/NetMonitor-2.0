@@ -57,32 +57,8 @@ struct NetMonitorApp: App {
     }
 
     private static let persistenceOutcome: PersistenceBootstrapOutcome<ModelContainer> = {
-        let schema = Schema(versionedSchema: SchemaV1.self)
-        let isTestEnv = NSClassFromString("XCTest") != nil
-        let modelConfiguration = ModelConfiguration(
-            schema: schema,
-            isStoredInMemoryOnly: isTestEnv,
-            cloudKitDatabase: .none
-        )
-
         do {
-            return try PersistenceBootstrap.load(
-                persistentStore: {
-                    try ModelContainer(
-                        for: schema,
-                        migrationPlan: NetMonitorMigrationPlan.self,
-                        configurations: [modelConfiguration]
-                    )
-                },
-                fallbackStore: {
-                    let fallback = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
-                    return try ModelContainer(
-                        for: schema,
-                        migrationPlan: NetMonitorMigrationPlan.self,
-                        configurations: [fallback]
-                    )
-                }
-            )
+            return try MacPersistence.makeOutcome(storeURL: nil, inMemory: NSClassFromString("XCTest") != nil)
         } catch {
             fatalError("Could not create recovery ModelContainer: \(error)")
         }
