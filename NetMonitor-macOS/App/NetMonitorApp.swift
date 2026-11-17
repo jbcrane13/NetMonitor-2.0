@@ -211,9 +211,10 @@ struct NetMonitorApp: App {
             watcher.start()
             networkChangeWatcher = watcher
             // Rescan at the user's chosen scan frequency while the app runs (#392).
+            // Automatic rescans aren't user-started, so they don't count toward the review prompt (#337).
             let scheduler = PeriodicScanScheduler(
                 isScanning: { [weak discovery] in discovery?.isScanning ?? true },
-                startScan: { [weak discovery] in discovery?.startScan() }
+                startScan: { [weak discovery] in discovery?.startScan(countsTowardReviewPrompt: false) }
             )
             scheduler.start()
             periodicScanScheduler = scheduler
