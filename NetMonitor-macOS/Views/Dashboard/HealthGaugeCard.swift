@@ -3,7 +3,8 @@ import NetMonitorCore
 
 /// Row A (right): Compact circular health gauge for the dashboard no-scroll layout.
 struct HealthGaugeCard: View {
-    @State private var viewModel = NetworkHealthScoreMacViewModel()
+    /// Owned by `NetworkDetailView`, which also feeds `HealthChecklistCard` and runs the refresh.
+    let viewModel: NetworkHealthScoreMacViewModel
 
     var body: some View {
         GeometryReader { geo in
@@ -75,7 +76,6 @@ struct HealthGaugeCard: View {
         .clipped()
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("dashboard_card_healthGauge")
-        .task { await viewModel.refresh() }
     }
 
     // MARK: Computed
@@ -108,7 +108,6 @@ struct HealthGaugeCard: View {
 
     // MARK: Sub-view
 
-    @ViewBuilder
     private func scoreBar(label: String, pct: Double, color: Color) -> some View {
         HStack(spacing: 6) {
             Text(label)

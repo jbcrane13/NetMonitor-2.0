@@ -16,6 +16,7 @@ struct SpeedTestToolView: View {
     @State private var timeRemaining: TimeInterval = 0
     @State private var selectedServer: SpeedTestServer = .autoSelect
     @State private var timerTask: Task<Void, Never>?
+    @State private var trendEntries: [SpeedTestHistoryEntry] = []
 
     var body: some View {
         ToolSheetContainer(
@@ -27,6 +28,7 @@ struct SpeedTestToolView: View {
             inputArea: { contentArea },
             footerContent: { footer }
         )
+        .onAppear { loadTrend() }
         .onDisappear {
             speedTestTask?.cancel()
             timerTask?.cancel()
@@ -83,6 +85,9 @@ struct SpeedTestToolView: View {
             }
 
             resultsView
+
+            SpeedTestTrendChart(entries: trendEntries, accessibilityPrefix: "speedTest")
+                .frame(maxWidth: 520)
 
             Spacer()
 
@@ -309,6 +314,8 @@ struct SpeedTestToolView: View {
     // MARK: - Actions
 
     private func runSpeedTest() {
+        // A scheduled test is already using the connection; starting another would skew both.
+        guard !MacSpeedTestHistory.isTestRunning else { return }
         service.duration = testDuration
         service.selectedServer = selectedServer.isAutoSelect ? nil : selectedServer
 
@@ -324,8 +331,13 @@ struct SpeedTestToolView: View {
         }
 
         speedTestTask = Task {
+            MacSpeedTestHistory.isTestRunning = true
+            defer { MacSpeedTestHistory.isTestRunning = false }
             do {
-                _ = try await service.startTest()
+                let data = try await service.startTest()
+                MacSpeedTestHistory.record(data)
+                MacSpeedTestHistory.prune()
+                loadTrend()
             } catch is CancellationError {
                 // User cancelled
             } catch {
@@ -334,6 +346,10 @@ struct SpeedTestToolView: View {
             timerTask?.cancel()
             timeRemaining = 0
         }
+    }
+
+    private func loadTrend() {
+        trendEntries = SpeedTestTrend.lastSevenDays(MacSpeedTestHistory.store.entries(), now: Date())
     }
 
     private func stopSpeedTest() {
