@@ -176,12 +176,14 @@ struct DeviceChangeDetectorTests {
     }
 
     @Test func anIPKeyedDeviceGainingAPublicMACIsNotNewAndNeverGoesOffline() {
+        // 00:… has the locally administered bit clear, so this is a public (burned-in) MAC.
+        let publicMAC = "00:1B:63:00:00:03"
         let events = run([
             [obs("10.0.0.2", phone), obs("10.0.0.3", nil)],
-            [obs("10.0.0.2", phone), obs("10.0.0.3", laptop)],
-            [obs("10.0.0.2", phone), obs("10.0.0.3", laptop)],
-            [obs("10.0.0.2", phone), obs("10.0.0.3", laptop)],
-            [obs("10.0.0.2", phone), obs("10.0.0.3", laptop)]
+            [obs("10.0.0.2", phone), obs("10.0.0.3", publicMAC)],
+            [obs("10.0.0.2", phone), obs("10.0.0.3", publicMAC)],
+            [obs("10.0.0.2", phone), obs("10.0.0.3", publicMAC)],
+            [obs("10.0.0.2", phone), obs("10.0.0.3", publicMAC)]
         ])
         #expect(events.allSatisfy { $0.isEmpty }, "The IP-keyed record becomes the MAC record")
     }
