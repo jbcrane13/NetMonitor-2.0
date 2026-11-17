@@ -92,7 +92,6 @@ struct DeviceDetailView: View {
 
     // MARK: - Header Section
 
-    @ViewBuilder
     private func headerSection(_ device: LocalDevice) -> some View {
         VStack(spacing: Theme.Layout.itemSpacing) {
             Image(systemName: device.deviceType.iconName)
@@ -130,7 +129,6 @@ struct DeviceDetailView: View {
 
     // MARK: - Network Info Section
 
-    @ViewBuilder
     private func networkInfoSection(_ device: LocalDevice) -> some View {
         VStack(alignment: .leading, spacing: Theme.Layout.itemSpacing) {
             Text("Network Information")
@@ -159,6 +157,11 @@ struct DeviceDetailView: View {
                     infoRow(label: "Manufacturer", value: manufacturer)
                         .accessibilityIdentifier("deviceDetail_row_manufacturerInfo")
                 }
+
+                if let model = device.model {
+                    infoRow(label: "Model", value: model)
+                        .accessibilityIdentifier("deviceDetail_row_model")
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -167,7 +170,6 @@ struct DeviceDetailView: View {
 
     // MARK: - Services & Ports Section
 
-    @ViewBuilder
     private func servicesAndPortsSection(_ device: LocalDevice) -> some View {
         VStack(alignment: .leading, spacing: Theme.Layout.itemSpacing) {
             Text("Services & Ports")
@@ -315,7 +317,6 @@ struct DeviceDetailView: View {
 
     // MARK: - Status Section
 
-    @ViewBuilder
     private func statusSection(_ device: LocalDevice) -> some View {
         VStack(alignment: .leading, spacing: Theme.Layout.itemSpacing) {
             Text("Status")
@@ -394,7 +395,6 @@ struct DeviceDetailView: View {
 
     // MARK: - Quick Actions Section
 
-    @ViewBuilder
     private func quickActionsSection(_ device: LocalDevice) -> some View {
         VStack(alignment: .leading, spacing: Theme.Layout.itemSpacing) {
             Text("Quick Actions")
@@ -498,7 +498,6 @@ struct DeviceDetailView: View {
 
     // MARK: - Notes Section
 
-    @ViewBuilder
     private func notesSection(_ device: LocalDevice) -> some View {
         VStack(alignment: .leading, spacing: Theme.Layout.itemSpacing) {
             Text("Notes")
@@ -534,7 +533,6 @@ struct DeviceDetailView: View {
 
     // MARK: - Helper Views
 
-    @ViewBuilder
     private func infoRow(label: String, value: String) -> some View {
         LabelValueRow(label: label, value: value)
     }

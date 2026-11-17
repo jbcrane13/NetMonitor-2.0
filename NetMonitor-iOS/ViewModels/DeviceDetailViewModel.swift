@@ -16,6 +16,7 @@ final class DeviceDetailViewModel {
     private let nameResolver: any DeviceNameResolverProtocol
     private let portScanner: any PortScannerServiceProtocol
     private let bonjourService: any BonjourDiscoveryServiceProtocol
+    private let deviceDiscoveryService: any DeviceDiscoveryServiceProtocol
     private let maxServiceResolves = 80
     private let maxServiceResolveConcurrency = 8
 
@@ -23,12 +24,14 @@ final class DeviceDetailViewModel {
         macLookupService: any MACVendorLookupServiceProtocol = MACVendorLookupService(),
         nameResolver: any DeviceNameResolverProtocol = DeviceNameResolver(),
         portScanner: any PortScannerServiceProtocol = PortScannerService(),
-        bonjourService: any BonjourDiscoveryServiceProtocol = BonjourDiscoveryService()
+        bonjourService: any BonjourDiscoveryServiceProtocol = BonjourDiscoveryService(),
+        deviceDiscoveryService: any DeviceDiscoveryServiceProtocol = DeviceDiscoveryService.shared
     ) {
         self.macLookupService = macLookupService
         self.nameResolver = nameResolver
         self.portScanner = portScanner
         self.bonjourService = bonjourService
+        self.deviceDiscoveryService = deviceDiscoveryService
     }
 
     // Common ports to scan
@@ -51,6 +54,10 @@ final class DeviceDetailViewModel {
             )
             context.insert(newDevice)
             device = newDevice
+        }
+        // The model isn't persisted (#386), so take it from the latest scan.
+        if let model = deviceDiscoveryService.discoveredDevices.first(where: { $0.ipAddress == ipAddress })?.model {
+            device?.model = model
         }
     }
 
@@ -78,7 +85,9 @@ final class DeviceDetailViewModel {
                 group.cancelAll()
                 return result.flatMap { $0 }
             }
-            if !Task.isCancelled { device.manufacturer = manufacturer }
+            if !Task.isCancelled {
+                device.manufacturer = manufacturer
+            }
         }
 
         guard !Task.isCancelled else { return }
@@ -97,7 +106,9 @@ final class DeviceDetailViewModel {
                 group.cancelAll()
                 return result.flatMap { $0 }
             }
-            if !Task.isCancelled { device.resolvedHostname = hostname }
+            if !Task.isCancelled {
+                device.resolvedHostname = hostname
+            }
         }
     }
 
