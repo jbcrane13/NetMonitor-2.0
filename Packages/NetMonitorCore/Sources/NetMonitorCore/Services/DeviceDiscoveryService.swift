@@ -78,6 +78,8 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
             source: device.source,
             networkProfileID: profileID,
             isCached: keepCached && device.isCached,
+            friendlyName: device.friendlyName,
+            manufacturer: device.manufacturer,
             modelName: device.modelName
         )
     }
@@ -191,7 +193,7 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
             bonjourServiceProvider: {
                 await MainActor.run {
                     bonjourService.discoveredServices.map {
-                        BonjourServiceInfo(name: $0.name, type: $0.type, domain: $0.domain, txtRecord: $0.txtRecords)
+                        BonjourServiceInfo(name: $0.name, type: $0.type, domain: $0.domain)
                     }
                 }
             },

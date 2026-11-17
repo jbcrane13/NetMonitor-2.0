@@ -374,6 +374,73 @@ struct DeviceDiscoveryCoordinatorCachedTests {
     }
 }
 
+// MARK: - UPnP descriptions (#387)
+
+@Suite(.serialized)
+@MainActor
+struct DeviceDiscoveryCoordinatorDescriptionTests {
+
+    private func makeCoordinator(context: ModelContext) -> DeviceDiscoveryCoordinator {
+        DeviceDiscoveryCoordinator(
+            modelContext: context,
+            bonjourScanner: BonjourDiscoveryService(),
+            networkProfileManager: NetworkProfileManager()
+        )
+    }
+
+    @Test func descriptionFillsMissingNameVendorAndManufacturer() throws {
+        let (container, context) = try makeInMemoryStore()
+        _ = container
+
+        makeCoordinator(context: context).mergeDiscoveredDevices([
+            LocalDiscoveredDevice(
+                ipAddress: "192.168.1.20", macAddress: "", hostname: nil,
+                friendlyName: "Living Room TV", manufacturer: "Samsung Electronics"
+            )
+        ], profileID: nil)
+
+        let device = try #require(try context.fetch(FetchDescriptor<LocalDevice>()).first)
+        #expect(device.hostname == "Living Room TV")
+        #expect(device.vendor == "Samsung Electronics")
+        #expect(device.manufacturer == "Samsung Electronics")
+    }
+
+    @Test func descriptionNeverReplacesAKnownHostnameOrVendor() throws {
+        let (container, context) = try makeInMemoryStore()
+        _ = container
+        context.insert(LocalDevice(
+            ipAddress: "192.168.1.20", macAddress: "AA:BB:CC:DD:EE:FF",
+            hostname: "tv.lan", vendor: "Samsung Electronics Co.,Ltd"
+        ))
+        try context.save()
+
+        makeCoordinator(context: context).mergeDiscoveredDevices([
+            LocalDiscoveredDevice(
+                ipAddress: "192.168.1.20", macAddress: "AA:BB:CC:DD:EE:FF", hostname: nil,
+                friendlyName: "Living Room TV", manufacturer: "Samsung Electronics"
+            )
+        ], profileID: nil)
+
+        let device = try #require(try context.fetch(FetchDescriptor<LocalDevice>()).first)
+        #expect(device.hostname == "tv.lan")
+        #expect(device.vendor == "Samsung Electronics Co.,Ltd")
+        #expect(device.manufacturer == "Samsung Electronics")
+    }
+
+    @Test func mapDiscoveredDevicesCarriesDescriptionFields() {
+        let engine = [DiscoveredDevice(
+            ipAddress: "192.168.1.20", hostname: nil, vendor: nil, macAddress: nil,
+            latency: nil, discoveredAt: Date(), source: .ssdp,
+            friendlyName: "Living Room TV", manufacturer: "Samsung Electronics", modelName: "Q80"
+        )]
+
+        let mapped = DeviceDiscoveryCoordinator.mapDiscoveredDevices(engine)
+
+        #expect(mapped.first?.friendlyName == "Living Room TV")
+        #expect(mapped.first?.manufacturer == "Samsung Electronics")
+    }
+}
+
 // MARK: - Bonjour TXT models (#386)
 
 @Suite(.serialized)

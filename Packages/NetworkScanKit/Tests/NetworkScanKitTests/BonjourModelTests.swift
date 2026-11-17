@@ -91,6 +91,32 @@ struct DiscoveredDeviceModelTests {
         #expect(device.withModelName("X").modelName == "X")
     }
 
+    @Test("A Bonjour model wins over an SSDP modelName, in either order")
+    func bonjourModelWinsOverSSDP() async {
+        func device(_ source: DeviceSource, _ model: String?) -> DiscoveredDevice {
+            DiscoveredDevice(
+                ipAddress: "192.0.2.8", hostname: nil, vendor: nil, macAddress: nil,
+                latency: nil, discoveredAt: Date(), source: source, modelName: model
+            )
+        }
+        let ssdpFirst = ScanAccumulator()
+        await ssdpFirst.upsert(device(.ssdp, "Apple TV"))
+        await ssdpFirst.upsert(device(.bonjour, "AppleTV14,1"))
+        #expect(await ssdpFirst.snapshot().first?.modelName == "AppleTV14,1")
+
+        let bonjourFirst = ScanAccumulator()
+        await bonjourFirst.upsert(device(.bonjour, "AppleTV14,1"))
+        await bonjourFirst.upsert(device(.ssdp, "Apple TV"))
+        #expect(await bonjourFirst.snapshot().first?.modelName == "AppleTV14,1")
+
+        // SSDP still fills a model nothing else supplied, and Bonjour without a model keeps it.
+        let ssdpOnly = ScanAccumulator()
+        await ssdpOnly.upsert(device(.local, nil))
+        await ssdpOnly.upsert(device(.ssdp, "Q80"))
+        await ssdpOnly.upsert(device(.bonjour, nil))
+        #expect(await ssdpOnly.snapshot().first?.modelName == "Q80")
+    }
+
     @Test("The accumulator keeps a model through merges and latency updates")
     func accumulatorKeepsModel() async {
         let accumulator = ScanAccumulator()

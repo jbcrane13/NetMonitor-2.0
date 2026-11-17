@@ -281,7 +281,7 @@ struct NetMonitorApp: App {
             MacAlertNotifier.migrateLegacyToggles()
             let alerts = MacAlertNotifier(service: service)
             monitoringSession?.onTargetDown = { name, host in alerts.targetWentDown(name: name, host: host) }
-            deviceDiscovery?.onNewDevices = { devices in alerts.devicesJoined(devices) }
+            deviceDiscovery?.onDeviceChanges = { events in alerts.devicesChanged(events) }
         }
 
         if autoStartMonitoring && !shouldDisableMonitoring,
