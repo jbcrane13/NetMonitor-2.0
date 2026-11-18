@@ -53,7 +53,7 @@ struct DeviceDetailViewModelTests {
         #expect(viewModel.device?.manufacturer == "Apple")
         #expect(viewModel.device?.vendor == "Apple")
         #expect(viewModel.device?.hostname == "Studio")
-        #expect(viewModel.device?.macAddress == "")
+        #expect(viewModel.device?.macAddress.isEmpty == true)
     }
 
     @Test func loadDeviceTakesModelFromLatestScan() throws {
