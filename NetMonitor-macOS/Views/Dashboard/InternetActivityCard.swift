@@ -3,7 +3,6 @@ import NetMonitorCore
 
 /// Row A (left): Live bandwidth chart with download + upload sparklines.
 struct InternetActivityCard: View {
-    @Environment(\.colorScheme) private var colorScheme
     let session: MonitoringSession?
     let interfaceName: String
 
@@ -27,7 +26,7 @@ struct InternetActivityCard: View {
                     .frame(width: 5, height: 5)
                 Text("INTERNET ACTIVITY")
                     .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(MacTheme.Colors.labelSecondary)
                     .tracking(1.4)
                     .textCase(.uppercase)
 
@@ -48,7 +47,7 @@ struct InternetActivityCard: View {
             // Chart
             ZStack {
                 RoundedRectangle(cornerRadius: 8)
-                    .fill(Color.black.opacity(colorScheme == .dark ? 0.28 : 0.06))
+                    .fill(MacTheme.Colors.chartSurface)
                 if !downloadHistory.isEmpty {
                     HistorySparkline(
                         data: uploadHistory,
@@ -100,7 +99,7 @@ struct InternetActivityCard: View {
                 .foregroundStyle(color)
             Text(label)
                 .font(.system(size: 9, weight: .semibold))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(MacTheme.Colors.labelSecondary)
                 .tracking(0.8)
                 .textCase(.uppercase)
         }

@@ -31,7 +31,7 @@ struct AddTargetSheet: View {
 
                         Text("Optional")
                             .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(MacTheme.Colors.labelSecondary)
                     }
                 } header: {
                     Text("Target Details")

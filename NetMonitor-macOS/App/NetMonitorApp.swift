@@ -200,7 +200,8 @@ struct NetMonitorApp: App {
             let discovery = DeviceDiscoveryCoordinator(
                 modelContext: context,
                 bonjourScanner: bonjourScanner,
-                networkProfileManager: profileManager
+                networkProfileManager: profileManager,
+                reviewPrompt: RateAppService.reviewPrompt
             )
             deviceDiscovery = discovery
             // Fill the dashboard without waiting for the user to press Scan (#358).
@@ -210,10 +211,7 @@ struct NetMonitorApp: App {
             watcher.start()
             networkChangeWatcher = watcher
             // Rescan at the user's chosen scan frequency while the app runs (#392).
-            let scheduler = PeriodicScanScheduler(
-                isScanning: { [weak discovery] in discovery?.isScanning ?? true },
-                startScan: { [weak discovery] in discovery?.startScan() }
-            )
+            let scheduler = PeriodicScanScheduler.rescanning(discovery)
             scheduler.start()
             periodicScanScheduler = scheduler
         }

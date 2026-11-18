@@ -1,5 +1,6 @@
-import StoreKit
 import AppKit
+import NetMonitorCore
+import StoreKit
 
 /// Handles "Rate in App Store" functionality for macOS.
 /// - Uses SKStoreReviewController for the native in-app rating prompt.
@@ -19,6 +20,14 @@ import AppKit
     /// (respects user settings and system limits). Safe to call every time.
     static func requestReview() {
         SKStoreReviewController.requestReview()
+    }
+
+    /// Asks for a review automatically after meaningful use (#337). Waits for the app to
+    /// be frontmost so the prompt never lands on top of another app.
+    static let reviewPrompt = ReviewPromptPolicy {
+        guard NSApp.isActive else { return false }
+        requestReview()
+        return true
     }
 
     /// Opens the Mac App Store directly to the review page for this app.

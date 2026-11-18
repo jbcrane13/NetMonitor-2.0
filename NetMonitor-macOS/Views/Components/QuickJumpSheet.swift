@@ -40,7 +40,7 @@ struct QuickJumpSheet: View {
             // Search field
             HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(MacTheme.Colors.labelSecondary)
                     .font(.system(size: 16))
 
                 TextField("Jump to device…", text: $searchText)
@@ -59,7 +59,7 @@ struct QuickJumpSheet: View {
                         searchText = ""
                     } label: {
                         Image(systemName: "xmark.circle.fill")
-                            .foregroundStyle(.tertiary)
+                            .foregroundStyle(MacTheme.Colors.labelTertiary)
                     }
                     .buttonStyle(.plain)
                     .accessibilityIdentifier("quickJump_button_clearSearch")
@@ -67,10 +67,10 @@ struct QuickJumpSheet: View {
 
                 Text("⌘K")
                     .font(.system(size: 10, weight: .medium, design: .monospaced))
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(MacTheme.Colors.labelTertiary)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 3)
-                    .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 4))
+                    .background(MacTheme.Colors.chartSurfaceShallow, in: RoundedRectangle(cornerRadius: 4))
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
@@ -82,10 +82,10 @@ struct QuickJumpSheet: View {
                 VStack(spacing: 8) {
                     Image(systemName: "magnifyingglass")
                         .font(.title2)
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(MacTheme.Colors.labelTertiary)
                     Text("No devices found")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(MacTheme.Colors.labelSecondary)
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 24)
@@ -132,20 +132,20 @@ struct QuickJumpSheet: View {
                 VStack(alignment: .leading, spacing: 1) {
                     Text(device.displayName)
                         .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(.primary)
+                        .foregroundStyle(MacTheme.Colors.textPrimary)
                         .lineLimit(1)
 
                     HStack(spacing: 6) {
                         Text(device.ipAddress)
                             .font(.system(size: 10, design: .monospaced))
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(MacTheme.Colors.labelSecondary)
 
                         if let vendor = device.vendor {
                             Text("·")
-                                .foregroundStyle(.tertiary)
+                                .foregroundStyle(MacTheme.Colors.labelTertiary)
                             Text(vendor)
                                 .font(.system(size: 10))
-                                .foregroundStyle(.tertiary)
+                                .foregroundStyle(MacTheme.Colors.labelTertiary)
                                 .lineLimit(1)
                         }
                     }
@@ -161,7 +161,7 @@ struct QuickJumpSheet: View {
             .padding(.vertical, 6)
             .background(
                 RoundedRectangle(cornerRadius: 6)
-                    .fill(Color.white.opacity(0.04))
+                    .fill(MacTheme.Colors.chartSurfaceShallow)
             )
             .contentShape(Rectangle())
         }

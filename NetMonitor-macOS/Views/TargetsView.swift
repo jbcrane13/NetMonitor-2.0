@@ -208,7 +208,7 @@ struct TargetRow: View {
 
                 Text(target.host)
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(MacTheme.Colors.labelSecondary)
             }
 
             Spacer()
@@ -216,7 +216,7 @@ struct TargetRow: View {
             HStack(spacing: 12) {
                 Label(target.targetProtocol.rawValue, systemImage: target.targetProtocol.iconName)
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(MacTheme.Colors.labelSecondary)
 
                 Toggle("Enabled", isOn: $target.isEnabled)
                     .labelsHidden()

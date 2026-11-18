@@ -137,11 +137,11 @@ struct WakeOnLanToolView: View {
     private var footer: some View {
         HStack {
             Image(systemName: "info.circle")
-                .foregroundStyle(.secondary)
+                .foregroundStyle(MacTheme.Colors.labelSecondary)
 
             Text("Wake-on-LAN requires the target device to be configured to accept magic packets.")
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(MacTheme.Colors.labelSecondary)
 
             Spacer()
         }

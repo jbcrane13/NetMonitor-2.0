@@ -54,7 +54,11 @@ struct PingToolView: View {
             .accessibilityIdentifier("ping_picker_count")
 
             Button(isRunning ? "Stop" : "Run") {
-                if isRunning { stopPing() } else { runPing() }
+                if isRunning {
+                    stopPing()
+                } else {
+                    runPing()
+                }
             }
             .buttonStyle(.borderedProminent)
             .disabled(host.isEmpty && !isRunning)
@@ -182,12 +186,12 @@ struct PingToolView: View {
             .chartYAxis {
                 AxisMarks(position: .leading) { value in
                     AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
-                        .foregroundStyle(Color.secondary.opacity(0.3))
+                        .foregroundStyle(MacTheme.Colors.chartGridline)
                     AxisValueLabel {
                         if let doubleValue = value.as(Double.self) {
                             Text(String(format: "%.0f", doubleValue))
                                 .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(MacTheme.Colors.labelQuaternary)
                         }
                     }
                 }
@@ -195,12 +199,12 @@ struct PingToolView: View {
             .chartXAxis {
                 AxisMarks { value in
                     AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
-                        .foregroundStyle(Color.secondary.opacity(0.3))
+                        .foregroundStyle(MacTheme.Colors.chartGridline)
                     AxisValueLabel {
                         if let intValue = value.as(Int.self) {
                             Text("\(intValue)")
                                 .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(MacTheme.Colors.labelQuaternary)
                         }
                     }
                 }
@@ -216,7 +220,7 @@ struct PingToolView: View {
         HStack(spacing: 4) {
             Text(label)
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(MacTheme.Colors.labelSecondary)
             Text(String(format: "%.1f ms", value))
                 .font(.system(.caption, design: .monospaced))
                 .fontWeight(.medium)
@@ -247,14 +251,14 @@ struct PingToolView: View {
         HStack {
             if isRunning {
                 ProgressView().scaleEffect(0.7)
-                Text("Pinging \(host)...").foregroundStyle(.secondary)
+                Text("Pinging \(host)...").foregroundStyle(MacTheme.Colors.labelSecondary)
             } else if let stats = statistics {
                 Image(systemName: stats.received > 0 ? "checkmark.circle.fill" : "xmark.circle.fill")
                     .foregroundStyle(stats.received > 0 ? .green : .red)
                 Text(stats.received > 0 ? "Host is reachable" : "Host unreachable")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(MacTheme.Colors.labelSecondary)
             } else {
-                Text("Enter a hostname or IP address").foregroundStyle(.secondary)
+                Text("Enter a hostname or IP address").foregroundStyle(MacTheme.Colors.labelSecondary)
             }
 
             Spacer()

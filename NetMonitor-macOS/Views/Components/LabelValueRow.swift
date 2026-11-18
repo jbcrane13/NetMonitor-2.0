@@ -18,7 +18,7 @@ struct LabelValueRow: View {
         HStack(alignment: rowAlignment, spacing: 8) {
             Text(label)
                 .font(labelFont)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(MacTheme.Colors.labelSecondary)
                 .frame(width: labelWidth, alignment: labelAlignment)
                 .layoutPriority(1)
 
@@ -36,7 +36,7 @@ struct LabelValueRow: View {
                 } label: {
                     Image(systemName: "doc.on.doc")
                         .font(.system(size: 10))
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(MacTheme.Colors.labelTertiary)
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("labelValueRow_button_copy_\(label.lowercased().replacingOccurrences(of: " ", with: "_"))")

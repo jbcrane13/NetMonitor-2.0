@@ -14,6 +14,9 @@ final class DashboardViewModel {
     private let pingService: any PingServiceProtocol
     private let activityLog: ToolActivityLog
     private let userDefaults: UserDefaults
+    private let reviewPrompt: ReviewPromptPolicy?
+    private var autoRefreshStartedAt: Date?
+    private let now: @MainActor () -> Date
     private var lastLoggedGatewayLatency: Double?
     private var lastLoggedWiFiSSID: String?
 
@@ -58,7 +61,9 @@ final class DashboardViewModel {
         networkProfileManager: NetworkProfileManager = NetworkProfileManager(),
         pingService: any PingServiceProtocol = PingService(),
         activityLog: ToolActivityLog = .shared,
-        userDefaults: UserDefaults = .standard
+        userDefaults: UserDefaults = .standard,
+        reviewPrompt: ReviewPromptPolicy? = nil,
+        now: @escaping @MainActor () -> Date = Date.init
     ) {
         self.networkMonitor = networkMonitor
         self.wifiService = wifiService
@@ -70,6 +75,8 @@ final class DashboardViewModel {
         self.pingService = pingService
         self.activityLog = activityLog
         self.userDefaults = userDefaults
+        self.reviewPrompt = reviewPrompt
+        self.now = now
         self.sessionStartTime = Date()
 
         refreshAvailableNetworks()
@@ -343,6 +350,8 @@ final class DashboardViewModel {
         }
         defaults.set(count, forKey: AppSettings.Keys.widgetDeviceCount)
         WidgetCenter.shared.reloadTimelines(ofKind: "DeviceGlanceWidget")
+
+        reviewPrompt?.recordScanCompleted()
     }
 
     var needsLocationPermission: Bool {
@@ -413,18 +422,32 @@ final class DashboardViewModel {
 
     // MARK: - Auto-Refresh
 
+    /// How often the loop re-reads the auto-refresh setting, so a switch to or from
+    /// Manual starts or stops the review prompt's monitoring clock within a few seconds.
+    private static let settingsCheckInterval = 5
+
+    private var autoRefreshInterval: Int {
+        userDefaults.object(forKey: AppSettings.Keys.autoRefreshInterval) as? Int ?? 60
+    }
+
     func startAutoRefresh() {
         stopAutoRefresh()
+        syncMonitoringClock()
         autoRefreshTask = Task {
+            var secondsSinceRefresh = 0
             while !Task.isCancelled {
-                let interval = UserDefaults.standard.object(forKey: AppSettings.Keys.autoRefreshInterval) as? Int ?? 60
+                try? await Task.sleep(for: .seconds(Self.settingsCheckInterval))
+                guard !Task.isCancelled else { break }
+                syncMonitoringClock()
+                let interval = autoRefreshInterval
+                // Manual mode: keep checking in case the user changes the setting.
                 guard interval > 0 else {
-                    // Manual mode — wait a bit then re-check in case user changes setting
-                    try? await Task.sleep(for: .seconds(5))
+                    secondsSinceRefresh = 0
                     continue
                 }
-                try? await Task.sleep(for: .seconds(interval))
-                guard !Task.isCancelled else { break }
+                secondsSinceRefresh += Self.settingsCheckInterval
+                guard secondsSinceRefresh >= interval else { continue }
+                secondsSinceRefresh = 0
                 await refresh()
             }
         }
@@ -433,6 +456,25 @@ final class DashboardViewModel {
     func stopAutoRefresh() {
         autoRefreshTask?.cancel()
         autoRefreshTask = nil
+        recordMonitoringTime()
+    }
+
+    /// Time on the dashboard counts as monitoring for the review prompt (#337) only while
+    /// automatic refresh is on: starts the clock when it is, and credits and stops it in Manual.
+    func syncMonitoringClock() {
+        if autoRefreshInterval > 0 {
+            if autoRefreshStartedAt == nil {
+                autoRefreshStartedAt = now()
+            }
+        } else {
+            recordMonitoringTime()
+        }
+    }
+
+    private func recordMonitoringTime() {
+        guard let start = autoRefreshStartedAt else { return }
+        autoRefreshStartedAt = nil
+        reviewPrompt?.recordMonitoring(duration: now().timeIntervalSince(start))
     }
 
     // MARK: - Private
