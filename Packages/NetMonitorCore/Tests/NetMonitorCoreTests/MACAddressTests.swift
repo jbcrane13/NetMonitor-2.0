@@ -69,4 +69,15 @@ struct MACAddressTests {
         #expect(!MACAddress.isPrivate("02:00:00:00:00:00"))
         #expect(!MACAddress.isPrivate("020000000000"))
     }
+
+    @Test("The list maker label appends the model when known (#426)")
+    func makerLabelWithModel() {
+        #expect(MACAddress.makerLabel(vendor: "Apple", macAddress: "", model: "Mac16,11") == "Apple · Mac16,11")
+        #expect(MACAddress.makerLabel(vendor: nil, macAddress: nil, model: "Arc Ultra") == "Arc Ultra")
+        #expect(MACAddress.makerLabel(vendor: "Sonos", macAddress: nil, model: nil) == "Sonos")
+        #expect(MACAddress.makerLabel(vendor: "Sonos", macAddress: nil, model: "  ") == "Sonos")
+        #expect(MACAddress.makerLabel(vendor: "Roku", macAddress: nil, model: "Roku") == "Roku")
+        #expect(MACAddress.makerLabel(vendor: nil, macAddress: nil, model: nil) == nil)
+        #expect(MACAddress.makerLabel(vendor: "Apple", macAddress: "da:a1:19:00:00:01", model: "iPhone17,2") == "Private address · iPhone17,2")
+    }
 }

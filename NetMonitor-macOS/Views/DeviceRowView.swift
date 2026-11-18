@@ -31,7 +31,7 @@ struct DeviceRowView: View {
             Spacer()
 
             // Vendor badge
-            if let vendor = MACAddress.makerLabel(vendor: device.vendor, macAddress: device.macAddress) {
+            if let vendor = MACAddress.makerLabel(vendor: device.vendor, macAddress: device.macAddress, model: device.modelName) {
                 Text(vendor)
                     .font(.caption2)
                     .macGlassCard(cornerRadius: MacTheme.Layout.smallCornerRadius, padding: 6, showBorder: false)

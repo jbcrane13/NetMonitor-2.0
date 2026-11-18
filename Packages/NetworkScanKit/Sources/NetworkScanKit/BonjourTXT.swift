@@ -25,6 +25,26 @@ public enum BonjourTXT {
         return value
     }
 
+    /// The maker a device's Bonjour data proves, or nil (#426). A TXT `manufacturer=` key
+    /// wins (Sonos publishes `manufacturer=Sonos` on `_airplay._tcp`); otherwise an Apple
+    /// hardware identifier (`Mac16,11`, `AppleTV14,1`, `AudioAccessory1,1`) means Apple.
+    /// The service type alone proves nothing: many non-Apple devices speak AirPlay.
+    public static func vendor(txt: [String: String], model: String?) -> String? {
+        if let maker = txt["manufacturer"]?.trimmingCharacters(in: .whitespacesAndNewlines), !maker.isEmpty {
+            return maker
+        }
+        if let model, isAppleModelIdentifier(model) {
+            return "Apple"
+        }
+        return nil
+    }
+
+    /// True for an Apple hardware model identifier: a product family then `major,minor`.
+    static func isAppleModelIdentifier(_ model: String) -> Bool {
+        let families = #/(Mac|MacBook|MacBookAir|MacBookPro|Macmini|MacPro|iMac|iMacPro|iPhone|iPad|iPod|AppleTV|AudioAccessory|Watch|RealityDevice)\d+,\d+/#
+        return model.trimmingCharacters(in: .whitespaces).wholeMatch(of: families) != nil
+    }
+
     /// Parses DNS-SD TXT wire data (RFC 6763 §6): a run of length-prefixed `key=value`
     /// strings. Keys are lowercased; a key without `=` maps to "". The first occurrence of
     /// a key wins; malformed trailing bytes are ignored.

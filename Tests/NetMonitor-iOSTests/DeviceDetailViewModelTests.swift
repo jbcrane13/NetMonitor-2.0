@@ -24,6 +24,38 @@ struct DeviceDetailViewModelTests {
         #expect(fetched.count == 1)
     }
 
+    /// #426: a fresh detail row used to lose the scan's maker, MAC and name, so the header
+    /// showed no manufacturer.
+    @Test func loadDeviceFillsMakerMACAndNameFromLatestScan() throws {
+        let (container, context) = try makeInMemoryStore()
+        _ = container
+
+        let discovery = MockDeviceDiscoveryService()
+        discovery.discoveredDevices = [
+            DiscoveredDevice(
+                ipAddress: "192.168.1.80", hostname: nil, vendor: nil, macAddress: "AA:BB:CC:00:11:22",
+                latency: nil, discoveredAt: Date(), source: .local,
+                friendlyName: "Living Room TV", manufacturer: "Samsung", modelName: "Q80"
+            ),
+            DiscoveredDevice(
+                ipAddress: "192.168.1.81", hostname: "Studio", vendor: "Apple", macAddress: nil,
+                latency: nil, discoveredAt: Date(), source: .bonjour, modelName: "Mac16,10"
+            )
+        ]
+        let viewModel = makeViewModel(deviceDiscoveryService: discovery)
+
+        viewModel.loadDevice(ipAddress: "192.168.1.80", context: context)
+        #expect(viewModel.device?.manufacturer == "Samsung")
+        #expect(viewModel.device?.macAddress == "AA:BB:CC:00:11:22")
+        #expect(viewModel.device?.hostname == "Living Room TV")
+
+        viewModel.loadDevice(ipAddress: "192.168.1.81", context: context)
+        #expect(viewModel.device?.manufacturer == "Apple")
+        #expect(viewModel.device?.vendor == "Apple")
+        #expect(viewModel.device?.hostname == "Studio")
+        #expect(viewModel.device?.macAddress == "")
+    }
+
     @Test func loadDeviceTakesModelFromLatestScan() throws {
         let (container, context) = try makeInMemoryStore()
         _ = container
