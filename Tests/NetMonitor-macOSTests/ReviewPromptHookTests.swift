@@ -110,6 +110,29 @@ struct ReviewPromptHookTests {
         #expect(harness.prompts == 0)
     }
 
+    @Test func periodicRescansDoNotCountButUserScansDo() async throws {
+        let (container, context) = try makeInMemoryStore()
+        defer { withExtendedLifetime(container) {} }
+        let harness = Harness()
+        let coordinator = makeCoordinator(context: context, harness: harness)
+        defer { coordinator.stopScan() }
+        // The scheduler the app runs (#392); its timer isn't started, ticks are driven by hand.
+        let scheduler = PeriodicScanScheduler.rescanning(coordinator, defaults: harness.defaults)
+
+        for _ in 0..<ReviewPromptPolicy.scanThreshold {
+            #expect(scheduler.tick())
+            await finish(coordinator)
+        }
+        #expect(harness.defaults.integer(forKey: "reviewPrompt_completedScanCount") == 0)
+        #expect(harness.prompts == 0)
+
+        for _ in 0..<ReviewPromptPolicy.scanThreshold {
+            coordinator.startScan()
+            await finish(coordinator)
+        }
+        #expect(harness.prompts == 1)
+    }
+
     @Test func cancelledScanDoesNotCount() async throws {
         let (container, context) = try makeInMemoryStore()
         defer { withExtendedLifetime(container) {} }

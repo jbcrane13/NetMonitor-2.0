@@ -95,3 +95,18 @@ final class PeriodicScanScheduler {
         return true
     }
 }
+
+extension PeriodicScanScheduler {
+    /// A scheduler that rescans through `discovery`. Automatic rescans aren't
+    /// user-started, so they don't count toward the review prompt (#337).
+    static func rescanning(
+        _ discovery: DeviceDiscoveryCoordinator,
+        defaults: UserDefaults = .standard
+    ) -> PeriodicScanScheduler {
+        PeriodicScanScheduler(
+            defaults: defaults,
+            isScanning: { [weak discovery] in discovery?.isScanning ?? true },
+            startScan: { [weak discovery] in discovery?.startScan(countsTowardReviewPrompt: false) }
+        )
+    }
+}
