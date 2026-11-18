@@ -28,7 +28,7 @@ struct DeviceDetailViewModelTests {
     /// showed no manufacturer.
     @Test func loadDeviceFillsMakerMACAndNameFromLatestScan() throws {
         let (container, context) = try makeInMemoryStore()
-        _ = container
+        defer { withExtendedLifetime(container) {} }
 
         let discovery = MockDeviceDiscoveryService()
         discovery.discoveredDevices = [
