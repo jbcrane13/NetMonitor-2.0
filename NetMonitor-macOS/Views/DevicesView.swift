@@ -353,7 +353,7 @@ struct DevicesView: View {
                     .frame(width: 16, height: 16)
             }
 
-            Spacer()
+            Spacer(minLength: 12)
 
             // Search
             HStack(spacing: 6) {
@@ -380,7 +380,7 @@ struct DevicesView: View {
             .padding(.vertical, 5)
             .background(Color.primary.opacity(0.04))
             .clipShape(RoundedRectangle(cornerRadius: 6))
-            .frame(width: 180)
+            .frame(minWidth: 120, maxWidth: 200)
             .accessibilityIdentifier("devices_textfield_search")
 
             Divider()
@@ -396,7 +396,8 @@ struct DevicesView: View {
                 }
             }
             .pickerStyle(.menu)
-            .frame(width: 120)
+            // Size to the network name; the old fixed 120pt clipped it behind the label.
+            .fixedSize()
             .accessibilityIdentifier("devices_picker_network")
 
             // Sort
@@ -418,7 +419,7 @@ struct DevicesView: View {
                 Label("Sort", systemImage: "arrow.up.arrow.down")
             }
             .menuStyle(.borderlessButton)
-            .frame(width: 60)
+            .fixedSize()
             .accessibilityIdentifier("devices_menu_sort")
 
             // View mode
@@ -429,7 +430,7 @@ struct DevicesView: View {
                 }
             }
             .pickerStyle(.segmented)
-            .frame(width: 80)
+            .fixedSize()
             .accessibilityIdentifier("devices_picker_viewMode")
 
             // Online only filter
