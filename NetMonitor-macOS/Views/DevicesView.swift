@@ -316,6 +316,12 @@ struct DevicesView: View {
 
     // MARK: - Top Bar
 
+    /// The picker sizes to its title, so a long network name is shortened to keep the
+    /// one-row top bar from overflowing at narrow widths (#425).
+    static func pickerTitle(_ name: String, limit: Int = 24) -> String {
+        name.count > limit ? String(name.prefix(limit - 1)) + "…" : name
+    }
+
     private var topBar: some View {
         HStack(spacing: 10) {
             // Close — only shown in sheet context
@@ -391,7 +397,7 @@ struct DevicesView: View {
                 Label("Auto", systemImage: "sparkles")
                     .tag(UUID?.none)
                 ForEach(availableNetworks) { profile in
-                    Label(profile.displayName, systemImage: profile.connectionType.iconName)
+                    Label(Self.pickerTitle(profile.displayName), systemImage: profile.connectionType.iconName)
                         .tag(Optional(profile.id))
                 }
             }
