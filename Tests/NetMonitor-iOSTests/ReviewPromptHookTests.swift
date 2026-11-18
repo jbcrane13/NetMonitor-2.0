@@ -82,6 +82,82 @@ struct ReviewPromptHookTests {
         #expect(harness.prompts == 1)
     }
 
+    /// A clock the test advances by hand.
+    private final class TestClock {
+        var date = Date(timeIntervalSinceReferenceDate: 0)
+        func advance(minutes: Double) { date.addTimeInterval(minutes * 60) }
+    }
+
+    private func makeDashboard(_ harness: Harness, clock: TestClock) -> DashboardViewModel {
+        DashboardViewModel(
+            networkMonitor: MockNetworkMonitorService(),
+            wifiService: MockWiFiInfoService(),
+            gatewayService: MockGatewayService(),
+            publicIPService: MockPublicIPService(),
+            deviceDiscoveryService: MockDeviceDiscoveryService(),
+            macConnectionService: MockMacConnectionService(),
+            networkProfileManager: profileManager(harness),
+            pingService: MockPingService(),
+            userDefaults: harness.defaults,
+            reviewPrompt: harness.policy,
+            now: { clock.date }
+        )
+    }
+
+    private func monitoringSeconds(_ harness: Harness) -> Double {
+        harness.defaults.double(forKey: "reviewPrompt_totalMonitoringSeconds")
+    }
+
+    @Test func manualRefreshDashboardTimeDoesNotCountAsMonitoring() {
+        let harness = Harness()
+        harness.defaults.set(0, forKey: AppSettings.Keys.autoRefreshInterval)
+        let clock = TestClock()
+        let vm = makeDashboard(harness, clock: clock)
+
+        vm.startAutoRefresh()
+        clock.advance(minutes: 11)
+        vm.stopAutoRefresh()
+
+        #expect(monitoringSeconds(harness) == 0)
+        #expect(harness.prompts == 0)
+    }
+
+    @Test func automaticRefreshDashboardTimeCountsAsMonitoring() {
+        let harness = Harness()
+        harness.defaults.set(60, forKey: AppSettings.Keys.autoRefreshInterval)
+        let clock = TestClock()
+        let vm = makeDashboard(harness, clock: clock)
+
+        vm.startAutoRefresh()
+        clock.advance(minutes: 11)
+        vm.stopAutoRefresh()
+
+        #expect(monitoringSeconds(harness) == 11 * 60)
+        #expect(harness.prompts == 1)
+    }
+
+    @Test func switchingRefreshModeMidSessionCreditsOnlyAutomaticTime() {
+        let harness = Harness()
+        harness.defaults.set(60, forKey: AppSettings.Keys.autoRefreshInterval)
+        let clock = TestClock()
+        let vm = makeDashboard(harness, clock: clock)
+
+        vm.startAutoRefresh()
+        clock.advance(minutes: 4)
+        harness.defaults.set(0, forKey: AppSettings.Keys.autoRefreshInterval)
+        vm.syncMonitoringClock()
+        #expect(monitoringSeconds(harness) == 4 * 60)
+
+        clock.advance(minutes: 20)
+        harness.defaults.set(300, forKey: AppSettings.Keys.autoRefreshInterval)
+        vm.syncMonitoringClock()
+        clock.advance(minutes: 5)
+        vm.stopAutoRefresh()
+
+        #expect(monitoringSeconds(harness) == 9 * 60)
+        #expect(harness.prompts == 0)
+    }
+
     @Test func networkMapForcedScansPromptOnTheThirdScan() async {
         let harness = Harness()
         let vm = NetworkMapViewModel(
