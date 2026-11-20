@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import Network
 
 actor ISPLookupService {
 
@@ -32,14 +33,16 @@ actor ISPLookupService {
     private let cacheKey = "netmonitor.isp.cache"
     private let cacheValidityDuration: TimeInterval = 5 * 60 // 5 minutes
 
-    private let primaryURL = URL(string: "https://ipapi.co/json/")!
+    /// IPv4-only service. ipapi.co is dual-stack, so asking it for "my IP" returns the
+    /// IPv6 address on IPv6-capable networks; we resolve the IPv4 address first instead.
+    private let ipv4URL = URL(string: "https://api.ipify.org")!
     private let fallbackURL = URL(string: "https://ipinfo.io/json")!
 
     // MARK: - Public API
 
     func lookup() async throws -> ISPInfo {
         // Check cache first
-        if let cached = loadCachedResult() {
+        if let cached = loadCachedResult(), Self.isIPv4(cached.info.publicIP) {
             let age = Date().timeIntervalSince(cached.timestamp)
             if age < cacheValidityDuration {
                 // Return cached data immediately, refresh in background
@@ -72,8 +75,28 @@ actor ISPLookupService {
         }
     }
 
+    /// True for a dotted-quad IPv4 address. The dashboard shows the public IPv4 address only.
+    static func isIPv4(_ address: String) -> Bool {
+        IPv4Address(address) != nil && address.contains(".")
+    }
+
+    private func fetchPublicIPv4() async throws -> String {
+        let (data, response) = try await URLSession.shared.data(from: ipv4URL)
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200,
+              let ip = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
+              Self.isIPv4(ip)
+        else {
+            throw ISPLookupError.invalidResponse
+        }
+        return ip
+    }
+
     private func fetchFromPrimary() async throws -> ISPInfo {
-        let (data, response) = try await URLSession.shared.data(from: primaryURL)
+        let ipv4 = try await fetchPublicIPv4()
+        guard let url = URL(string: "https://ipapi.co/\(ipv4)/json/") else {
+            throw ISPLookupError.invalidResponse
+        }
+        let (data, response) = try await URLSession.shared.data(from: url)
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw URLError(.badServerResponse)
@@ -89,9 +112,10 @@ actor ISPLookupService {
 
         let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
 
-        guard let ip = json?["ip"] as? String else {
+        guard json?["ip"] is String else {
             throw ISPLookupError.invalidResponse
         }
+        let ip = ipv4
 
         let org = json?["org"] as? String
         let city = json?["city"] as? String
@@ -140,8 +164,8 @@ actor ISPLookupService {
 
         let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
 
-        // ipinfo.io uses "ip" key
-        guard let ip = json?["ip"] as? String else {
+        // ipinfo.io uses "ip" key (IPv4-only host; reject anything else)
+        guard let ip = json?["ip"] as? String, Self.isIPv4(ip) else {
             throw ISPLookupError.invalidResponse
         }
 

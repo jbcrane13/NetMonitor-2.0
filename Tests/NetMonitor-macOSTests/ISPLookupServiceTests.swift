@@ -213,3 +213,17 @@ struct ISPLookupCacheTests {
         #expect(result == nil)
     }
 }
+
+// MARK: - Public IP family
+
+struct ISPLookupIPv4Tests {
+
+    @Test("dashboard public IP accepts IPv4 and rejects IPv6 or junk")
+    func ipv4Only() {
+        #expect(ISPLookupService.isIPv4("203.0.113.42"))
+        #expect(!ISPLookupService.isIPv4("2606:4700:20::ac43:45e2"))
+        #expect(!ISPLookupService.isIPv4("::ffff:203.0.113.42"))
+        #expect(!ISPLookupService.isIPv4(""))
+        #expect(!ISPLookupService.isIPv4("not-an-ip"))
+    }
+}

@@ -130,7 +130,11 @@ struct NetworkDetailView: View {
             // Row A is always anchored at the top: Gateway Health + Health Gauge
             VStack(spacing: gap) {
                 HStack(alignment: .top, spacing: gap) {
-                    ISPHealthCard(interfaceName: profile.interfaceName, uptime: uptimeViewModel)
+                    ISPHealthCard(
+                        interfaceName: profile.interfaceName,
+                        gatewayAddress: profile.gatewayIP.isEmpty ? "—" : profile.gatewayIP,
+                        uptime: uptimeViewModel
+                    )
                         .frame(maxWidth: .infinity)
                         .frame(height: rowAHeight)
                         .clipped()
