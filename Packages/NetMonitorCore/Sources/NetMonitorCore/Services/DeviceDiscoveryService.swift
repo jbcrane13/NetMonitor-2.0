@@ -60,8 +60,20 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
 
     private let maxHostsPerScan = 1024
 
-    nonisolated private func cacheKey(for profile: NetworkProfile?) -> String {
-        profile?.id.uuidString ?? "auto"
+    /// Devices are cached per network. A profile's id is per network (see
+    /// `NetworkProfileManager.resolveLocalNetworkID`); a scan without a profile is keyed by
+    /// the network it covers, so it never hands one network's devices to another.
+    nonisolated private func cacheKey(for profile: NetworkProfile?, target: ScanTarget) -> String {
+        profile?.id.uuidString ?? Self.autoCacheKey(for: target.filter)
+    }
+
+    nonisolated private static func autoCacheKey(for filter: ScanFilter) -> String {
+        switch filter {
+        case .prefix(let prefix):
+            return "auto|\(prefix)"
+        case .network(let network):
+            return "auto|\(NetworkUtilities.uint32ToIPv4(network.networkAddress))/\(network.prefixLength)"
+        }
     }
 
     /// Copies `device` with `profileID`. Mid-scan snapshots pass `keepCached: false` so rows
@@ -143,8 +155,18 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
     }
 
     private func performScan(subnet: String? = nil, profile: NetworkProfile? = nil) async {
-        let cacheKey = cacheKey(for: profile)
-        let staleDevices = cachedDevicesByProfileID[cacheKey] ?? []
+        let scanTarget: ScanTarget
+        if let profile {
+            scanTarget = makeScanTarget(profile: profile)
+        } else {
+            scanTarget = makeScanTarget(subnet: subnet)
+        }
+        let cacheKey = cacheKey(for: profile, target: scanTarget)
+        // Only cached devices inside the network being scanned. A cache saved by an older
+        // build, when every Wi-Fi network shared one id, can hold another network's devices.
+        let staleDevices = (cachedDevicesByProfileID[cacheKey] ?? []).filter {
+            scanTarget.filter.contains(ipAddress: $0.ipAddress)
+        }
         let profileID = profile?.id
 
         await engine.reset()
@@ -158,13 +180,6 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
             isScanning = false
             scanPhase = .idle
             lastScanDate = Date()
-        }
-
-        let scanTarget: ScanTarget
-        if let profile {
-            scanTarget = makeScanTarget(profile: profile)
-        } else {
-            scanTarget = makeScanTarget(subnet: subnet)
         }
 
         // If paired with Mac, kick off its scan early (it runs in parallel)
@@ -256,8 +271,25 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
         scanTask?.cancel()
     }
 
+    /// Called when the device has joined a different network: drops the old network's
+    /// devices from the list, lets a scan of the old network wind down (it shares `engine`),
+    /// then scans the new one. The old network's devices stay in its cache for next time.
+    public func rescanAfterNetworkChange(profile: NetworkProfile?) async {
+        let running = scanTask
+        running?.cancel()
+        await running?.value
+        isScanning = false
+        discoveredDevices = []
+        scanProgress = 0
+        scanPhase = .idle
+        await scanNetwork(profile: profile)
+    }
+
     public func cachedDevices(for profile: NetworkProfile?) -> [DiscoveredDevice] {
-        cachedDevicesByProfileID[cacheKey(for: profile)] ?? []
+        // Views read this often, so build only the filter, not the host list.
+        let filter: ScanFilter = profile.map { .network($0.network) } ?? makeScanTarget(subnet: nil).filter
+        let key = profile?.id.uuidString ?? Self.autoCacheKey(for: filter)
+        return (cachedDevicesByProfileID[key] ?? []).filter { filter.contains(ipAddress: $0.ipAddress) }
     }
 
     // MARK: - Scan Target Planning

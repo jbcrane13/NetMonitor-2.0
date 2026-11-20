@@ -12,6 +12,8 @@ struct NetmonitorApp: App {
     @State private var deepLinkRouter = DeepLinkRouter()
     @State private var environment: AppEnvironment = .live()
     @State private var speedTestScheduler: ScheduledSpeedTestRunner?
+    @State private var networkChangeMonitor: LocalNetworkChangeMonitor?
+    @Environment(\.scenePhase) private var scenePhase
 
     private static var isUITesting: Bool {
         let args = ProcessInfo.processInfo.arguments
@@ -131,6 +133,23 @@ struct NetmonitorApp: App {
                         let runner = IOSScheduledSpeedTest.makeScheduler(modelContext: sharedModelContainer.mainContext)
                         runner.start()
                         speedTestScheduler = runner
+                    }
+
+                    // On joining a different network, drop the old network's devices and
+                    // scan the new one, the way the Mac does (#359).
+                    if networkChangeMonitor == nil {
+                        let monitor = LocalNetworkChangeMonitor(profileManager: NetworkProfileManager()) { local in
+                            Task { await DeviceDiscoveryService.shared.rescanAfterNetworkChange(profile: local) }
+                        }
+                        monitor.start()
+                        networkChangeMonitor = monitor
+                    }
+                }
+                .onChange(of: scenePhase) { _, phase in
+                    // A network change while the app was suspended may never reach the path
+                    // monitor, so check again whenever the app comes back.
+                    if phase == .active {
+                        networkChangeMonitor?.checkNow()
                     }
                 }
         }

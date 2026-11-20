@@ -179,6 +179,55 @@ public struct NetworkProfile: Identifiable, Codable, Sendable, Hashable {
         )
     }
 
+    /// The same profile under another id. `id` is a `let`, so changing it means a copy.
+    func withID(_ newID: UUID) -> NetworkProfile {
+        NetworkProfile(
+            id: newID,
+            interfaceName: interfaceName,
+            ipAddress: ipAddress,
+            network: network,
+            connectionType: connectionType,
+            name: name,
+            gatewayIP: gatewayIP,
+            subnet: subnet,
+            isLocal: isLocal,
+            discoveryMethod: discoveryMethod,
+            lastScanned: lastScanned,
+            deviceCount: deviceCount,
+            gatewayReachable: gatewayReachable
+        )
+    }
+
+    /// Deterministic id for a detected network that can't use its interface's `stableID`,
+    /// because another network on that interface already has it. Two 64-bit FNV-1a hashes
+    /// with different offsets, so every app instance derives the same id for the same key.
+    static func networkID(forKey key: String) -> UUID {
+        func fnv1a(_ seed: UInt64) -> UInt64 {
+            var hash = seed
+            for byte in key.utf8 {
+                hash ^= UInt64(byte)
+                hash = hash &* 0x0000_0100_0000_01B3
+            }
+            return hash
+        }
+        let high = fnv1a(0xCBF2_9CE4_8422_2325)
+        let low = fnv1a(0x6C62_272E_07BB_0142)
+        var digest = [UInt8](repeating: 0, count: 16)
+        for index in 0..<8 {
+            digest[index] = UInt8(truncatingIfNeeded: high >> (8 * UInt64(index)))
+            digest[index + 8] = UInt8(truncatingIfNeeded: low >> (8 * UInt64(index)))
+        }
+        digest[6] = (digest[6] & 0x0F) | 0x40
+        digest[8] = (digest[8] & 0x3F) | 0x80
+        let uuid: uuid_t = (
+            digest[0], digest[1], digest[2], digest[3],
+            digest[4], digest[5], digest[6], digest[7],
+            digest[8], digest[9], digest[10], digest[11],
+            digest[12], digest[13], digest[14], digest[15]
+        )
+        return UUID(uuid: uuid)
+    }
+
     // MARK: - Private
 
     static func stableID(for interfaceName: String) -> UUID {

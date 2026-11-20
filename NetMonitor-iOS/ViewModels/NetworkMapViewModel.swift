@@ -120,8 +120,13 @@ final class NetworkMapViewModel {
     }
 
     func startScan(forceRefresh: Bool = false) async {
-        // Always detect gateway so the summary card shows it
-        if gatewayService.gateway == nil {
+        // Re-detect first: after a move to another network the stored local profile still
+        // describes the old one, and scanning it would only find (and keep) its devices.
+        refreshAvailableNetworks()
+
+        // Always detect gateway so the summary card shows it; a forced scan re-detects it,
+        // because the gateway changes with the network.
+        if forceRefresh || gatewayService.gateway == nil {
             await gatewayService.detectGateway()
         }
 
@@ -153,8 +158,6 @@ final class NetworkMapViewModel {
 
     // periphery:ignore
     func refresh() async {
-        refreshAvailableNetworks()
-        await gatewayService.detectGateway()
         await startScan(forceRefresh: true)
     }
 

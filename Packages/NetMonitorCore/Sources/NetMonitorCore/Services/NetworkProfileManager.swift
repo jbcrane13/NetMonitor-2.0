@@ -224,6 +224,12 @@ public final class NetworkProfileManager {
 
         detected.isLocal = true
         detected.discoveryMethod = .auto
+        // Each network the device joins gets its own id, so devices found on one network
+        // are never listed, merged or cached under another one on the same interface.
+        let networkID = resolveLocalNetworkID(for: detected)
+        if networkID != detected.id {
+            detected = detected.withID(networkID)
+        }
 
         if let index = profiles.firstIndex(where: {
             $0.id == detected.id ||
@@ -323,6 +329,56 @@ public final class NetworkProfileManager {
     private func persistProfiles() {
         guard let encoded = try? JSONEncoder().encode(profiles) else { return }
         userDefaults.set(encoded, forKey: Self.storageKey)
+    }
+
+    // MARK: - Per-network ids
+
+    /// "interface|subnet" → profile id, for every local network this device has been on.
+    private static let knownLocalNetworksKey = "netmonitor.knownLocalNetworkIDs"
+
+    nonisolated static func localNetworkKey(interface: String, subnet: String) -> String {
+        "\(interface)|\(subnet)"
+    }
+
+    /// The id the detected network goes by. Before this, a detected network's id was its
+    /// interface's `stableID`, so the home network and any other Wi-Fi shared one id and
+    /// each one showed the other's devices. Now:
+    /// - a network seen before keeps the id it had, so its devices come back;
+    /// - the first network seen on an interface keeps the interface's `stableID`, which is
+    ///   what every existing install already stored its devices under;
+    /// - any other network on that interface gets an id derived from interface and subnet.
+    /// Read from and written to `userDefaults` on every call, because each view model owns
+    /// its own manager and they must all agree on the id.
+    private func resolveLocalNetworkID(for detected: NetworkProfile) -> UUID {
+        let stored = userDefaults.dictionary(forKey: Self.knownLocalNetworksKey) as? [String: String] ?? [:]
+        var known = stored.compactMapValues(UUID.init(uuidString:))
+        let before = known
+
+        // Seed with the local profile persisted before this map existed, so an update keeps
+        // the current network's devices under the id they were saved with.
+        for profile in profiles where profile.isLocal && profile.discoveryMethod == .auto {
+            let key = Self.localNetworkKey(interface: profile.interfaceName, subnet: profile.subnet)
+            if known[key] == nil, !known.values.contains(profile.id) {
+                known[key] = profile.id
+            }
+        }
+
+        let key = Self.localNetworkKey(interface: detected.interfaceName, subnet: detected.subnet)
+        let id: UUID
+        if let existing = known[key] {
+            id = existing
+        } else if known.values.contains(detected.id) {
+            id = NetworkProfile.networkID(forKey: key)
+            known[key] = id
+        } else {
+            id = detected.id
+            known[key] = id
+        }
+
+        if known != before {
+            userDefaults.set(known.mapValues(\.uuidString), forKey: Self.knownLocalNetworksKey)
+        }
+        return id
     }
 
     // MARK: - Helpers
