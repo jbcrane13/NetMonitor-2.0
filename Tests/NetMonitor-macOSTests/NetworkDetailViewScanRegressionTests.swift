@@ -340,6 +340,18 @@ struct NetworkDetailViewScanRegressionTests {
         #expect(coordinator.networkProfile?.subnet == "10.20.0.0/24")
     }
 
+    @Test("An open local dashboard follows the local network to its new id")
+    func dashboardFollowsNewLocalNetwork() {
+        let oldID = UUID()
+        let newID = UUID()
+        let remoteID = UUID()
+        #expect(ContentView.followLocalNetwork(.network(oldID), from: oldID, to: newID) == .network(newID))
+        #expect(ContentView.followLocalNetwork(.network(remoteID), from: oldID, to: newID) == .network(remoteID))
+        #expect(ContentView.followLocalNetwork(.section(.devices), from: oldID, to: newID) == .section(.devices))
+        #expect(ContentView.followLocalNetwork(.network(oldID), from: oldID, to: nil) == .network(oldID))
+        #expect(ContentView.followLocalNetwork(nil, from: oldID, to: newID) == nil)
+    }
+
     @Test("stopScan clears isScanning so button re-enables")
     func stopScanClearsIsScanning() throws {
         let (container, context) = try makeInMemoryStore()

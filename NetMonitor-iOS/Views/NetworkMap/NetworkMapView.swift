@@ -128,6 +128,10 @@ struct NetworkMapView: View {
                 viewModel.refreshAvailableNetworks()
                 await viewModel.startScan(forceRefresh: false)
             }
+            .onReceive(NotificationCenter.default.publisher(for: .networkProfilesDidChange)) { _ in
+                // The device joined another network: show that network, not the old one.
+                viewModel.refreshAvailableNetworks()
+            }
         }
     }
 

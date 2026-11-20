@@ -327,6 +327,9 @@ final class DashboardViewModel {
     }
 
     func startDeviceScan() async {
+        // Re-detect first: after a move to another network the stored local profile still
+        // describes the old one, and scanning it would only find (and keep) its devices.
+        refreshAvailableNetworks()
         let profile = activeNetwork
         await deviceDiscoveryService.scanNetwork(profile: profile)
         updateScanMetadata(for: profile)

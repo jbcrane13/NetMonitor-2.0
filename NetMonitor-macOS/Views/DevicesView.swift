@@ -127,6 +127,11 @@ struct DevicesView: View {
         .onReceive(NotificationCenter.default.publisher(for: .networkProfilesDidChange)) { _ in
             availableNetworks = coordinator?.networkProfileManager.profiles
                 ?? NetworkProfileManager.detectActiveProfiles()
+            // A picked network that no longer exists (the old local network after a move)
+            // falls back to the network being scanned now.
+            if let selectedNetworkID, !availableNetworks.contains(where: { $0.id == selectedNetworkID }) {
+                self.selectedNetworkID = nil
+            }
             reloadDevices()
         }
         .onAppear {

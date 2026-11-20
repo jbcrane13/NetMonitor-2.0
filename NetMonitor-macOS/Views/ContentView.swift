@@ -71,6 +71,11 @@ struct ContentView: View {
                 selectedNetworkProfile = nil
             }
         }
+        .onChange(of: profileManager?.profiles.first(where: { $0.isLocal })?.id) { oldID, newID in
+            // Joining another network gives the local profile a new id and drops the old one;
+            // keep an open local dashboard on the network the Mac is on now.
+            selectedSection = Self.followLocalNetwork(selectedSection, from: oldID, to: newID)
+        }
         .onAppear {
             // Launch into the active (local) network dashboard
             if selectedSection == nil,
@@ -86,6 +91,17 @@ struct ContentView: View {
                 selectedSection = .tool(.wifiHeatmap)
             }
         }
+    }
+
+    /// The sidebar selection after the local profile's id changed from `oldID` to `newID`:
+    /// the old local network's dashboard moves to the new one, anything else stays put.
+    static func followLocalNetwork(
+        _ selection: SidebarSelection?,
+        from oldID: UUID?,
+        to newID: UUID?
+    ) -> SidebarSelection? {
+        guard let oldID, let newID, oldID != newID, selection == .network(oldID) else { return selection }
+        return .network(newID)
     }
 
     // MARK: - ⌘1 handler (navigate to active network)

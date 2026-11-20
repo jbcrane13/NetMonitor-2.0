@@ -14,6 +14,10 @@ final class LocalNetworkChangeWatcher {
     private let pathEvents: AsyncStream<Bool>
     private let debounce: Duration
     private var watchTask: Task<Void, Never>?
+    /// The local network last scanned for. Kept here rather than read before each detection:
+    /// companion sync and the views also run `detectLocalNetwork()`, and reading "before"
+    /// after one of them had already switched the profile hid the change from the watcher.
+    private var lastNetworkKey: String?
 
     init(
         profileManager: NetworkProfileManager,
@@ -25,6 +29,7 @@ final class LocalNetworkChangeWatcher {
         self.discovery = discovery
         self.pathEvents = pathEvents
         self.debounce = debounce
+        self.lastNetworkKey = Self.localNetworkKey(in: profileManager)
     }
 
     func start() {
@@ -55,13 +60,13 @@ final class LocalNetworkChangeWatcher {
     @discardableResult
     func handlePathSettled(satisfied: Bool) -> Bool {
         guard satisfied else { return false }
-        let before = localNetworkKey()
         profileManager.detectLocalNetwork()
-        let after = localNetworkKey()
-        guard after != nil, after != before else {
+        let after = Self.localNetworkKey(in: profileManager)
+        guard after != nil, after != lastNetworkKey else {
             Logger.discovery.notice("Network path settled: same local network")
             return false
         }
+        lastNetworkKey = after
         Logger.discovery.notice("Local network changed: rescanning")
         NotificationCenter.default.post(name: .networkProfilesDidChange, object: nil)
         // A scan of the old network would only probe addresses that aren't there any more.
@@ -72,7 +77,7 @@ final class LocalNetworkChangeWatcher {
         return true
     }
 
-    private func localNetworkKey() -> String? {
+    private static func localNetworkKey(in profileManager: NetworkProfileManager) -> String? {
         profileManager.profiles.first(where: { $0.isLocal }).map { "\($0.id)|\($0.subnet)|\($0.gatewayIP)" }
     }
 

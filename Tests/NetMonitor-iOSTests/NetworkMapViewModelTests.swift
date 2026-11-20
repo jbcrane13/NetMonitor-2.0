@@ -104,6 +104,19 @@ struct NetworkMapViewModelTests {
         #expect(vm.deviceCount == 3)
     }
 
+    @Test func activeNetworkDeviceCountUsesListBeforeScanMetadataExists() {
+        let discovery = MockDeviceDiscoveryService()
+        let vm = makeVM(deviceDiscovery: discovery)
+        #expect(vm.activeNetworkDeviceCount == nil)
+
+        // An automatic rescan after a network change fills the list but writes no metadata.
+        discovery.discoveredDevices = [
+            DiscoveredDevice(ipAddress: "10.0.0.2", latency: 1.0, discoveredAt: Date()),
+            DiscoveredDevice(ipAddress: "10.0.0.3", latency: 2.0, discoveredAt: Date())
+        ]
+        #expect(vm.activeNetworkDeviceCount == 2)
+    }
+
     @Test func isScanningDelegatesToService() {
         let discovery = MockDeviceDiscoveryService()
         discovery.isScanning = true

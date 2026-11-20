@@ -369,6 +369,74 @@ struct NetworkProfileManagerTests {
         #expect(updatedLocal?.subnet != updatedRemote?.subnet)
     }
 
+    @Test("Each network on the same interface gets its own id; the first keeps stableID")
+    @MainActor
+    func newSubnetGetsItsOwnID() throws {
+        let (defaults, suiteName) = makeUserDefaults()
+        defer { clear(defaults, suiteName: suiteName) }
+
+        let home = NetworkProfile(
+            interfaceName: "en0", ipAddress: "192.168.1.10",
+            network: makeNetwork("192.168.1.0/24"), connectionType: .wifi
+        )
+        let away = NetworkProfile(
+            interfaceName: "en0", ipAddress: "10.0.0.5",
+            network: makeNetwork("10.0.0.0/24"), connectionType: .wifi
+        )
+        let box = ProfileListBox([home])
+        let manager = NetworkProfileManager(userDefaults: defaults, activeProfilesProvider: { box.value })
+        manager.detectLocalNetwork()
+        let homeID = try #require(manager.profiles.first(where: { $0.isLocal })).id
+        #expect(homeID == NetworkProfile.stableID(for: "en0"), "Existing installs keep their cached devices")
+
+        box.value = [away]
+        manager.detectLocalNetwork()
+        let awayLocal = try #require(manager.profiles.first(where: { $0.isLocal }))
+        #expect(awayLocal.subnet == "10.0.0.0/24")
+        #expect(awayLocal.id != homeID, "A new network must not reuse the home network's id")
+
+        box.value = [home]
+        manager.detectLocalNetwork()
+        let backHome = try #require(manager.profiles.first(where: { $0.isLocal }))
+        #expect(backHome.id == homeID, "Returning home brings back the home network's id")
+    }
+
+    @Test("Separate managers sharing defaults agree on a network's id")
+    @MainActor
+    func managersAgreeOnNetworkID() throws {
+        let (defaults, suiteName) = makeUserDefaults()
+        defer { clear(defaults, suiteName: suiteName) }
+
+        let home = NetworkProfile(
+            interfaceName: "en0", ipAddress: "192.168.1.10",
+            network: makeNetwork("192.168.1.0/24"), connectionType: .wifi
+        )
+        let away = NetworkProfile(
+            interfaceName: "en0", ipAddress: "10.0.0.5",
+            network: makeNetwork("10.0.0.0/24"), connectionType: .wifi
+        )
+        let box = ProfileListBox([home])
+        let managerA = NetworkProfileManager(userDefaults: defaults, activeProfilesProvider: { box.value })
+        managerA.detectLocalNetwork()
+
+        box.value = [away]
+        managerA.detectLocalNetwork()
+        let managerB = NetworkProfileManager(userDefaults: defaults, activeProfilesProvider: { box.value })
+        managerB.detectLocalNetwork()
+
+        let idA = try #require(managerA.profiles.first(where: { $0.isLocal })).id
+        let idB = try #require(managerB.profiles.first(where: { $0.isLocal })).id
+        #expect(idA == idB)
+        #expect(idA != NetworkProfile.stableID(for: "en0"))
+    }
+
+    @Test("networkID(forKey:) is deterministic and differs by key")
+    func networkIDIsDeterministic() {
+        let first = NetworkProfile.networkID(forKey: "en0|10.0.0.0/24")
+        #expect(first == NetworkProfile.networkID(forKey: "en0|10.0.0.0/24"))
+        #expect(first != NetworkProfile.networkID(forKey: "en0|10.0.1.0/24"))
+    }
+
     // MARK: - Helpers
 
     private func makeUserDefaults() -> (UserDefaults, String) {
