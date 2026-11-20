@@ -102,7 +102,10 @@ final class NetworkMapViewModel {
     }
 
     var activeNetworkDeviceCount: Int? {
-        activeNetwork?.deviceCount
+        // The list on screen is the truth: an automatic rescan after a network change
+        // fills it without writing the profile's scan metadata.
+        let live = scopedDevices(from: deviceDiscoveryService.discoveredDevices).count
+        return live > 0 ? live : activeNetwork?.deviceCount
     }
 
     // periphery:ignore
