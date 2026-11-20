@@ -47,7 +47,7 @@ struct DeviceCardView: View {
                             .foregroundStyle(MacTheme.Colors.labelSecondary)
                             .monospacedDigit()
 
-                        if let vendor = MACAddress.makerLabel(vendor: device.vendor, macAddress: device.macAddress) {
+                        if let vendor = MACAddress.makerLabel(vendor: device.vendor, macAddress: device.macAddress, model: device.modelName) {
                             Text("·")
                                 .foregroundStyle(MacTheme.Colors.labelTertiary)
                             Text(vendor)

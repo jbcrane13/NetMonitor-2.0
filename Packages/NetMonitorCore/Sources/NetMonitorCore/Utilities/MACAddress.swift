@@ -33,6 +33,16 @@ public enum MACAddress {
         return nil
     }
 
+    /// The maker label with the model after it when known (#426): "Apple · Mac16,11",
+    /// "Sonos · Arc Ultra", or the model alone when no maker is known.
+    public static func makerLabel(vendor: String?, macAddress: String?, model: String?) -> String? {
+        let maker = makerLabel(vendor: vendor, macAddress: macAddress)
+        guard let model = model?.trimmingCharacters(in: .whitespaces), !model.isEmpty, model != maker else {
+            return maker
+        }
+        return maker.map { "\($0) · \(model)" } ?? model
+    }
+
     /// Parses a six-octet address with `:` or `-` separators (one or two hex digits per
     /// octet) or twelve bare hex digits. Returns nil for anything else.
     static func octets(of mac: String) -> [UInt8]? {

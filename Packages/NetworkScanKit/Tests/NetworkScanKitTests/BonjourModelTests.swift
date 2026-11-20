@@ -184,6 +184,45 @@ struct BonjourScanPhaseModelTests {
         #expect(await calls.queries.isEmpty, "No _device-info query when a model is already known")
     }
 
+    @Test("Bonjour devices get a vendor from TXT manufacturer= or an Apple model identifier (#426)")
+    func vendorFromBonjour() async {
+        // TXT shapes as published on a real LAN: Sonos names itself, Apple devices only
+        // carry a model identifier, and a third-party AirPlay speaker proves nothing.
+        let services = [
+            BonjourServiceInfo(name: "Living Room", type: "_airplay._tcp.", domain: "local.",
+                               txtRecord: ["model": "Arc Ultra", "manufacturer": "Sonos"]),
+            BonjourServiceInfo(name: "Patio POD", type: "_raop._tcp.", domain: "local.", txtRecord: ["am": "AudioAccessory1,1"]),
+            BonjourServiceInfo(name: "Speaker", type: "_airplay._tcp.", domain: "local.", txtRecord: ["model": "Arc Ultra"]),
+            BonjourServiceInfo(name: "Studio", type: "_ssh._tcp.", domain: "local.")
+        ]
+        let calls = CallLog()
+        let phase = makePhase(services: services, resolutions: [
+            "Living Room|_airplay._tcp.": BonjourResolution(hostTarget: "192.0.2.30", port: 7000),
+            "Patio POD|_raop._tcp.": BonjourResolution(hostTarget: "192.0.2.31", port: 7000),
+            "Speaker|_airplay._tcp.": BonjourResolution(hostTarget: "192.0.2.32", port: 7000),
+            "Studio|_ssh._tcp.": BonjourResolution(hostTarget: "192.0.2.33", port: 22)
+        ], deviceInfo: ["Studio": "Mac16,11"], calls: calls)
+        let accumulator = ScanAccumulator()
+        await phase.execute(context: context, accumulator: accumulator) { _ in }
+
+        let byIP = await Dictionary(uniqueKeysWithValues: accumulator.snapshot().map { ($0.ipAddress, $0) })
+        #expect(byIP["192.0.2.30"]?.vendor == "Sonos")
+        #expect(byIP["192.0.2.31"]?.vendor == "Apple")
+        #expect(byIP["192.0.2.32"]?.vendor == nil, "AirPlay alone doesn't mean Apple")
+        #expect(byIP["192.0.2.33"]?.modelName == "Mac16,11")
+        #expect(byIP["192.0.2.33"]?.vendor == "Apple", "A model from the _device-info query also names the vendor")
+    }
+
+    @Test("Apple model identifiers", arguments: [
+        ("Mac16,11", true), ("MacBookPro18,1", true), ("Macmini9,1", true), ("AppleTV14,1", true),
+        ("AudioAccessory5,1", true), ("iPhone17,2", true), ("iPad13,4", true),
+        ("Arc Ultra", false), ("Chromecast", false), ("MacBook", false), ("MacX1,2", false), ("", false)
+    ])
+    func appleModelIdentifiers(model: String, isApple: Bool) {
+        #expect(BonjourTXT.isAppleModelIdentifier(model) == isApple)
+        #expect(BonjourTXT.vendor(txt: [:], model: model) == (isApple ? "Apple" : nil))
+    }
+
     @Test("A browsed _device-info model reaches the device by name and is never resolved")
     func deviceInfoByName() async {
         let services = [

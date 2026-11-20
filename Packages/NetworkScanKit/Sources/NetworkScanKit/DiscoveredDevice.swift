@@ -127,13 +127,14 @@ public struct DiscoveredDevice: Identifiable, Codable, Sendable {
         )
     }
 
-    /// A copy with `modelName` replaced; every other field is kept.
-    public func withModelName(_ modelName: String?) -> DiscoveredDevice {
+    /// A copy with `modelName` replaced, and `vendor` too when one is given; every other
+    /// field is kept.
+    public func withModelName(_ modelName: String?, vendor newVendor: String? = nil) -> DiscoveredDevice {
         DiscoveredDevice(
             id: id,
             ipAddress: ipAddress,
             hostname: hostname,
-            vendor: vendor,
+            vendor: newVendor ?? vendor,
             macAddress: macAddress,
             latency: latency,
             discoveredAt: discoveredAt,

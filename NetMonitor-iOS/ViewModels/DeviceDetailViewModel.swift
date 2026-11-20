@@ -55,9 +55,25 @@ final class DeviceDetailViewModel {
             context.insert(newDevice)
             device = newDevice
         }
-        // The model isn't persisted (#386), so take it from the latest scan.
-        if let model = deviceDiscoveryService.discoveredDevices.first(where: { $0.ipAddress == ipAddress })?.modelName {
-            device?.modelName = model
+        // The scan knows more than a fresh row: take its model (#386), and fill the maker,
+        // MAC and name where the row has none (#426). The header shows `manufacturer`.
+        guard let device, let scanned = deviceDiscoveryService.discoveredDevices.first(where: { $0.ipAddress == ipAddress }) else {
+            return
+        }
+        if let model = scanned.modelName {
+            device.modelName = model
+        }
+        if device.manufacturer?.isEmpty ?? true, let maker = scanned.vendorOrManufacturer {
+            device.manufacturer = maker
+        }
+        if device.vendor?.isEmpty ?? true, let vendor = scanned.vendor, !vendor.isEmpty {
+            device.vendor = vendor
+        }
+        if device.macAddress.isEmpty, let mac = scanned.macAddress, !mac.isEmpty {
+            device.macAddress = mac
+        }
+        if device.hostname?.isEmpty ?? true, let name = scanned.hostname ?? scanned.friendlyName, !name.isEmpty {
+            device.hostname = name
         }
     }
 
