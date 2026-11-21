@@ -10,8 +10,10 @@ public extension ScanPhaseID {
 ///
 /// This reaches what nothing else can: UniFi devices on a fixed IP (no DNS name, no answer
 /// to discovery) get their exact model, and every client's real MAC gives its maker even
-/// where the system hides MACs from apps (macOS 27, iOS). The MAC itself isn't recorded: the
-/// Mac matches saved rows by MAC, and a MAC appearing on a MAC-less row would split it.
+/// where the system hides MACs from apps (macOS 27, iOS). A public MAC is recorded too: the
+/// device match lets a saved device without a MAC adopt it (#461). A private MAC isn't: a
+/// device without a MAC only adopts a private one when the names match, so recording it
+/// could split a nameless device.
 ///
 /// It writes `manufacturer`, not `vendor`, so on the Mac it only fills an empty maker.
 public struct UniFiInventoryPhase: ScanPhase, Sendable {
@@ -72,12 +74,15 @@ public struct UniFiInventoryPhase: ScanPhase, Sendable {
             maker = maker ?? fill.maker
             model = model ?? fill.model
         }
-        guard maker != nil || model != nil || entry.name != nil else { return nil }
+        let publicMAC = entry.macAddress.flatMap { mac in
+            DeviceMatcher.normalizedMAC(mac).flatMap { MACAddress.isPrivate($0) ? nil : $0 }
+        }
+        guard maker != nil || model != nil || entry.name != nil || publicMAC != nil else { return nil }
         return DiscoveredDevice(
             ipAddress: entry.ipAddress,
             hostname: nil,
             vendor: nil,
-            macAddress: nil,
+            macAddress: publicMAC,
             latency: nil,
             discoveredAt: Date(),
             source: .local,

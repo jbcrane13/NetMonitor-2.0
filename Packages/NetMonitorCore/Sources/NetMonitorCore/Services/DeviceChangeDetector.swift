@@ -85,18 +85,8 @@ public struct DeviceGracePolicy: Sendable, Equatable {
 
 /// Compares a scan with the devices seen before, with a grace period (#393).
 ///
-/// Identity: a device is keyed by its hardware address, or by IP when it has none (the iOS
-/// `02:00:00:00:00:00` placeholder counts as none).
-///
-/// When a scan's key matches no known device, it is reconciled conservatively, only when
-/// exactly one known device qualifies and that device wasn't itself seen in this scan:
-/// - A private (randomised) address nobody has seen before matches a known device with the
-///   same IP and the same non-empty name. An IP match alone isn't enough for a private
-///   address, because DHCP reuses addresses.
-/// - A device seen without a MAC matches a known device with a MAC at the same IP (its MAC
-///   wasn't readable this time).
-/// - A public MAC matches a known IP-keyed device at the same IP (its MAC became readable),
-///   which is then keyed by the MAC.
+/// Which known device each observation is comes from ``DeviceMatcher`` (the device match),
+/// the same rule the macOS device list uses.
 ///
 /// Unconfirmed (only ever cached) devices not sighted for `unconfirmedRetention` are dropped,
 /// so the list can't grow without bound. Confirmed devices are kept: they are what stops a
@@ -119,39 +109,22 @@ public enum DeviceChangeDetector {
         // The first scan that confirms any device is the baseline: nothing is "new" yet.
         let isBaseline = !known.contains(where: \.isConfirmed)
         var records = known
-        var indexByKey: [String: Int] = [:]
-        for (index, record) in records.enumerated() where indexByKey[record.key] == nil {
-            indexByKey[record.key] = index
-        }
-
         let observations = deduplicated(observed)
-        let observedKeys = Set(observations.map { key(mac: normalizedMAC($0.macAddress), ip: $0.ipAddress) })
+        var matcher = DeviceMatcher(known: records.map(\.matchCandidate), observed: observations.map(\.matchCandidate))
         var answered = Set<Int>()
-        var claimed = Set<Int>()
         var events: [DeviceChangeEvent] = []
 
         for observation in observations {
-            let mac = normalizedMAC(observation.macAddress)
-            let observedKey = key(mac: mac, ip: observation.ipAddress)
-            var index = indexByKey[observedKey]
-
-            if index == nil,
-               let match = reconciledMatch(for: observation, mac: mac, in: records, observedKeys: observedKeys, claimed: claimed) {
-                index = match
-                // A device that gained a MAC (or rotated a private one) is keyed by it from now on.
-                if let mac {
-                    indexByKey[records[match].key] = nil
-                    records[match].macAddress = mac
-                    indexByKey[observedKey] = match
-                }
-            }
-            if let index {
-                claimed.insert(index)
+            let match = matcher.match(observation.matchCandidate)
+            // A device that gained a MAC (or rotated a private one) is keyed by it from now on.
+            if let match, let mac = match.adoptedMAC {
+                records[match.index].macAddress = mac
             }
 
-            guard let index else {
+            guard let index = match?.index else {
+                let mac = normalizedMAC(observation.macAddress)
                 records.append(newRecord(for: observation, mac: mac, now: now))
-                indexByKey[observedKey] = records.count - 1
+                matcher.add(observation.matchCandidate)
                 if !observation.isCached {
                     answered.insert(records.count - 1)
                 }
@@ -243,16 +216,12 @@ public enum DeviceChangeDetector {
 
     // MARK: Helpers
 
-    /// Uppercase `AA:BB:CC:DD:EE:FF`, or nil for empty, invalid or the iOS placeholder.
     static func normalizedMAC(_ mac: String?) -> String? {
-        guard let mac, let octets = MACAddress.octets(of: mac), octets != [0x02, 0, 0, 0, 0, 0],
-              octets != [0, 0, 0, 0, 0, 0]
-        else { return nil }
-        return octets.map { String(format: "%02X", $0) }.joined(separator: ":")
+        DeviceMatcher.normalizedMAC(mac)
     }
 
     static func key(mac: String?, ip: String) -> String {
-        mac.map { "mac:\($0)" } ?? "ip:\(ip)"
+        DeviceMatcher.key(mac: mac, ip: ip)
     }
 
     private static func nonEmpty(_ name: String?) -> String? {
@@ -272,32 +241,6 @@ public enum DeviceChangeDetector {
         return false
     }
 
-    /// The one known device an unmatched observation should be treated as, or nil. See the
-    /// type's documentation for the rules.
-    private static func reconciledMatch(
-        for observation: DeviceObservation,
-        mac: String?,
-        in records: [KnownDevice],
-        observedKeys: Set<String>,
-        claimed: Set<Int>
-    ) -> Int? {
-        let available = records.indices.filter {
-            records[$0].ipAddress == observation.ipAddress
-                && !observedKeys.contains(records[$0].key)
-                && !claimed.contains($0)
-        }
-        let candidates: [Int]
-        if let mac, MACAddress.isPrivate(mac) {
-            guard let name = nonEmpty(observation.name) else { return nil }
-            candidates = available.filter { records[$0].name == name }
-        } else if mac == nil {
-            candidates = available.filter { records[$0].macAddress != nil }
-        } else {
-            candidates = available.filter { records[$0].macAddress == nil }
-        }
-        return candidates.count == 1 ? candidates[0] : nil
-    }
-
     /// One observation per key, preferring one that answered over a cached one.
     private static func deduplicated(_ observed: [DeviceObservation]) -> [DeviceObservation] {
         var result: [DeviceObservation] = []
@@ -314,6 +257,18 @@ public enum DeviceChangeDetector {
             }
         }
         return result
+    }
+}
+
+extension DeviceObservation {
+    var matchCandidate: DeviceMatchCandidate {
+        DeviceMatchCandidate(ipAddress: ipAddress, macAddress: macAddress, name: name.flatMap { $0.isEmpty ? nil : $0 })
+    }
+}
+
+extension KnownDevice {
+    var matchCandidate: DeviceMatchCandidate {
+        DeviceMatchCandidate(ipAddress: ipAddress, macAddress: macAddress, name: name)
     }
 }
 
