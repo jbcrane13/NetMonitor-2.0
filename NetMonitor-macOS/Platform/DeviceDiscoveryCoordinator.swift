@@ -80,7 +80,8 @@ final class DeviceDiscoveryCoordinator {
                 latencyPhase: ICMPLatencyPhase(probeCount: 3),
                 // Through the gateway's DNS too: a VPN's DNS (Tailscale) knows no LAN names.
                 nameResolver: { await GatewayNameResolver().resolve(ipAddress: $0) },
-                trailingSteps: [inputs.standardEnrichmentStep]
+                // The UniFi gateway's list (with an API key), then the Mac's own enrichment.
+                trailingSteps: [ScanPipeline.Step(phases: [UniFiInventoryPhase()], concurrent: false), inputs.standardEnrichmentStep]
             )
         },
         portChecker: @escaping @Sendable (_ host: String, _ port: Int, _ timeoutMs: Int32) async -> Bool = DeviceDiscoveryCoordinator.checkPort,

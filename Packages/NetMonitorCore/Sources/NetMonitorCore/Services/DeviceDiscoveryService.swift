@@ -245,9 +245,7 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
         }
         guard !Task.isCancelled else { return }
         await mergeCompanionDevices(filter: scanTarget.filter, profileID: profileID)
-        // Hostname guesses come last, so the Mac's MAC-prefix makers win over them (#439).
-        await HostnameIdentityPhase(lookUpName: { await nameResolver.resolve(ipAddress: $0) })
-            .execute(context: context, accumulator: engine.accumulator) { _ in }
+        await identifyDevices(context: context, nameResolver: nameResolver)
         await flushToMainActor(progress: 0.95, profileID: profileID)
 
         // Final sort and flush
@@ -258,6 +256,14 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
         persistCachedDevices()
         scanProgress = 1.0
         scanPhase = .done
+    }
+
+    /// Fills makers and models after every scan and companion source: the UniFi gateway's list
+    /// (with an API key), then guesses from names, last so better makers win over them (#439).
+    private func identifyDevices(context: ScanContext, nameResolver: GatewayNameResolver) async {
+        await UniFiInventoryPhase().execute(context: context, accumulator: engine.accumulator) { _ in }
+        await HostnameIdentityPhase(lookUpName: { await nameResolver.resolve(ipAddress: $0) })
+            .execute(context: context, accumulator: engine.accumulator) { _ in }
     }
 
     /// The standard pipeline, fed by this scan's Bonjour browser.

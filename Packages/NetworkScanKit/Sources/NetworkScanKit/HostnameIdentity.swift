@@ -90,6 +90,7 @@ public struct HostnameIdentity: Equatable, Sendable {
         "shelly": Brand("Shelly"),
         "tasmota": Brand("Tasmota"),
         "twinkly": Brand("Twinkly"),
+        "eufy": Brand("Eufy"),
         "wyze": Brand("Wyze"),
         "arlo": Brand("Arlo"),
         "samsung": Brand("Samsung"),
