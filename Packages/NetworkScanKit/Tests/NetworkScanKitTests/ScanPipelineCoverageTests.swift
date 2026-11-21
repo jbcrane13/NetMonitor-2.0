@@ -21,7 +21,7 @@ struct ScanPipelineCoverageTests {
         #expect(pipeline.steps[0].concurrent == true)
         #expect(pipeline.steps[0].phases.count == 2)
         #expect(pipeline.steps[1].concurrent == true)
-        #expect(pipeline.steps[1].phases.count == 2)
+        #expect(pipeline.steps[1].phases.count == 3)
         #expect(pipeline.steps[2].concurrent == false)
         #expect(pipeline.steps[2].phases.count == 1)
         #expect(pipeline.steps[3].concurrent == false)

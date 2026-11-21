@@ -254,6 +254,8 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
         }
         guard !Task.isCancelled else { return }
         await mergeCompanionDevices(filter: scanTarget.filter, profileID: profileID)
+        // Hostname guesses come last, so the Mac's MAC-prefix makers win over them (#439).
+        await HostnameIdentityPhase().execute(context: context, accumulator: engine.accumulator) { _ in }
         await flushToMainActor(progress: 0.95, profileID: profileID)
 
         // Final sort and flush
