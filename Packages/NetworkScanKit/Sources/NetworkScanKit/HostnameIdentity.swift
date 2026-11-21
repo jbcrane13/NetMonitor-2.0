@@ -40,6 +40,7 @@ public struct HostnameIdentity: Equatable, Sendable {
         "ucg": Brand("Ubiquiti", display: "UCG", digitSuffix: true),
         "uck": Brand("Ubiquiti", display: "UCK", digitSuffix: true),
         "u": Brand("Ubiquiti", display: "U", digitSuffixOnly: true),
+        "cloudgateway": Brand("Ubiquiti", display: "UniFi Cloud Gateway"),
         "edgerouter": Brand("Ubiquiti", display: "EdgeRouter"),
         "edgeswitch": Brand("Ubiquiti", display: "EdgeSwitch"),
         // Other network gear
@@ -60,6 +61,8 @@ public struct HostnameIdentity: Equatable, Sendable {
         "qnap": Brand("QNAP"),
         // Apple
         "macbook": Brand("Apple", display: "MacBook"),
+        "mbp": Brand("Apple", display: "MacBook Pro"),
+        "mba": Brand("Apple", display: "MacBook Air"),
         "imac": Brand("Apple", display: "iMac"),
         "macmini": Brand("Apple", display: "Mac mini"),
         "mac": Brand("Apple", display: "Mac"),
@@ -86,6 +89,8 @@ public struct HostnameIdentity: Equatable, Sendable {
         "dreame": Brand("Dreame"),
         "shelly": Brand("Shelly"),
         "tasmota": Brand("Tasmota"),
+        "twinkly": Brand("Twinkly"),
+        "eufy": Brand("Eufy"),
         "wyze": Brand("Wyze"),
         "arlo": Brand("Arlo"),
         "samsung": Brand("Samsung"),
@@ -113,8 +118,20 @@ public struct HostnameIdentity: Equatable, Sendable {
 
     /// Brand names written as two words in hostnames, joined before matching.
     static let joinedPairs: [(String, String)] = [
-        ("tp", "link"), ("apple", "tv"), ("mac", "mini"), ("raspberry", "pi"), ("home", "pod")
+        ("tp", "link"), ("apple", "tv"), ("mac", "mini"), ("raspberry", "pi"), ("home", "pod"),
+        ("cloud", "gateway")
     ]
+
+    /// The identity from the first of `names` that has one: a device can carry a Bonjour
+    /// name, a UPnP name and a DNS name, and any of them may be the one with the brand.
+    public static func identify(names: [String?]) -> HostnameIdentity? {
+        for name in names {
+            if let name, !name.isEmpty, let identity = parse(hostname: name) {
+                return identity
+            }
+        }
+        return nil
+    }
 
     /// Reads the first label of `hostname` (the part before the local domain). Nil when no
     /// brand word appears in it.
@@ -145,6 +162,11 @@ public struct HostnameIdentity: Equatable, Sendable {
                 rest.removeLast()
             }
             rest = rest.filter { !looksLikeSerial($0) }
+            // "iPhone-91", "Blakes-iPad-12": Apple adds a number when names clash; no Apple
+            // product name has a bare number in it.
+            if brand.maker == "Apple" {
+                rest = rest.filter { !$0.allSatisfy(\.isNumber) }
+            }
 
             let model: String?
             if let display = brand.display {
@@ -208,10 +230,11 @@ public struct HostnameIdentity: Equatable, Sendable {
         return result
     }
 
-    /// A MAC or serial fragment such as "a1b2c3": six or more hex characters with a digit and a letter.
+    /// A MAC or serial fragment: six or more hex characters ("a1b2c3"), or ten or more letters
+    /// and digits ("f4dk75txxv", an Apple serial), with both a digit and a letter.
     static func looksLikeSerial(_ word: String) -> Bool {
-        word.count >= 6 && word.allSatisfy(\.isHexDigit)
-            && word.contains(where: \.isNumber) && word.contains(where: \.isLetter)
+        guard word.contains(where: \.isNumber), word.contains(where: \.isLetter) else { return false }
+        return word.count >= 6 && word.allSatisfy(\.isHexDigit) || word.count >= 10
     }
 
     private static func displayWord(_ word: String) -> String {

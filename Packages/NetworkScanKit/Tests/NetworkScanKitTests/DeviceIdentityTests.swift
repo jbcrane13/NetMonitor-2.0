@@ -69,6 +69,57 @@ struct HostnameIdentityTests {
         // A brand word in the domain, not the device's own label, doesn't count.
         #expect(HostnameIdentity.parse(hostname: "desk.unifi.example") == nil)
     }
+
+    @Test("Names from Blake's LAN that build 21 missed or got wrong", arguments: [
+        // Clash suffixes of any length are not part of an Apple model.
+        ("iPhone-91.local", "Apple", "iPhone"),
+        ("Blakes-iPad-12", "Apple", "iPad"),
+        // AirPlay names: a serial, "@", then the device's own name.
+        ("66E5844C658B@MBP-F4DK75TXXV", "Apple", "MacBook Pro"),
+        ("Blakes-MBA.local", "Apple", "MacBook Air"),
+        ("Montrose-Cloud-Gateway-Max.local", "Ubiquiti", "UniFi Cloud Gateway Max"),
+        ("u7-pro.lan.windingbrook.net", "Ubiquiti", "U7 Pro"),
+        ("unifi-pro-max-16", "Ubiquiti", "UniFi Pro Max 16")
+    ])
+    func missedNames(hostname: String, maker: String, model: String) {
+        #expect(HostnameIdentity.parse(hostname: hostname) == HostnameIdentity(maker: maker, model: model))
+    }
+
+    @Test("Case, spaces and apostrophes don't change the result", arguments: [
+        "Blake’s MacBook Air", "Blake's MacBook Air", "BLAKES-MACBOOK-AIR", "blakes macbook air.local", "Blakes-MacBook-Air-3"
+    ])
+    func nameVariants(hostname: String) {
+        #expect(HostnameIdentity.parse(hostname: hostname) == HostnameIdentity(maker: "Apple", model: "MacBook Air"))
+    }
+
+    @Test("Mac mini written as a Bonjour name or a hostname", arguments: ["Mac Mini Pro", "mac-mini-pro", "MAC-MINI-PRO.local"])
+    func macMini(hostname: String) {
+        #expect(HostnameIdentity.parse(hostname: hostname) == HostnameIdentity(maker: "Apple", model: "Mac mini Pro"))
+    }
+
+    @Test("Brands with no model word in the name", arguments: [
+        ("wiz_fcd4aa.lan.windingbrook.net", "WiZ"),
+        ("samsung-microwave.lan.windingbrook.net", "Samsung"),
+        ("Lutron-05143dcc.local", "Lutron"),
+        ("twinkly-1e5415.lan.windingbrook.net", "Twinkly")
+    ])
+    func brandOnly(hostname: String, maker: String) {
+        #expect(HostnameIdentity.parse(hostname: hostname) == HostnameIdentity(maker: maker, model: nil))
+    }
+
+    @Test("A Wi-Fi chip's name doesn't say who made the device")
+    func chipNames() {
+        // MediaTek MT7687 is in Meross bulbs and in other brands' devices.
+        #expect(HostnameIdentity.parse(hostname: "mt7687-4.local") == nil)
+        #expect(HostnameIdentity.parse(hostname: "Mini-Pro-1.local") == nil)
+    }
+
+    @Test("The first name that identifies a device wins")
+    func identifyFromNames() {
+        let identity = HostnameIdentity.identify(names: [nil, "12A9007389F1@Living room", "", "u7-pro.lan.windingbrook.net"])
+        #expect(identity == HostnameIdentity(maker: "Ubiquiti", model: "U7 Pro"))
+        #expect(HostnameIdentity.identify(names: ["Hallway", nil]) == nil)
+    }
 }
 
 struct HostnameIdentityPhaseTests {
@@ -101,6 +152,68 @@ struct HostnameIdentityPhaseTests {
         #expect(update?.modelName == "UniFi Pro Max 16 Switch")
         // A maker that disagrees with the hostname blocks the hostname's model.
         #expect(HostnameIdentityPhase.update(for: device(hostname: "unifi-pro-max-16-switch", vendor: "Raspberry Pi")) == nil)
+    }
+
+    @Test("Reads the UPnP name when the hostname has no brand")
+    func friendlyName() {
+        let named = DiscoveredDevice(
+            ipAddress: "192.168.2.163", hostname: "Hallway", vendor: nil, macAddress: nil, latency: nil,
+            discoveredAt: Date(), source: .ssdp, friendlyName: "Aqara-Hub-M3-8548"
+        )
+        let update = HostnameIdentityPhase.update(for: named)
+        #expect(update?.vendor == "Aqara")
+        #expect(update?.modelName == "Hub M3")
+    }
+
+    @Test("Asks DNS for a name when the device's own names give nothing")
+    func dnsFallback() async {
+        let accumulator = ScanAccumulator()
+        // Bonjour named it first, so reverse DNS never ran for it.
+        await accumulator.upsert(device(hostname: "12A9007389F1@Living room"))
+        let context = ScanContext(hosts: [], subnetFilter: { _ in true }, localIP: nil)
+        let phase = HostnameIdentityPhase(lookUpName: { ip in ip == "192.168.2.2" ? "u7-pro.lan.windingbrook.net" : nil })
+        await phase.execute(context: context, accumulator: accumulator) { _ in }
+        let result = await accumulator.snapshot().first
+        #expect(result?.vendor == "Ubiquiti")
+        #expect(result?.modelName == "U7 Pro")
+        // The device keeps the name it already had.
+        #expect(result?.hostname == "12A9007389F1@Living room")
+    }
+
+    @Test("Doesn't look a name up for a device whose maker and model are known")
+    func noLookupWhenKnown() async {
+        let accumulator = ScanAccumulator()
+        await accumulator.upsert(device(hostname: "Living room", vendor: "Apple", model: "AppleTV14,1"))
+        let context = ScanContext(hosts: [], subnetFilter: { _ in true }, localIP: nil)
+        let lookups = LookupCounter()
+        let phase = HostnameIdentityPhase(lookUpName: { _ in
+            await lookups.increment()
+            return "unifi-switch"
+        })
+        await phase.execute(context: context, accumulator: accumulator) { _ in }
+        #expect(await lookups.calls == 0)
+        #expect(await accumulator.snapshot().first?.vendor == "Apple")
+    }
+}
+
+private actor LookupCounter {
+    private(set) var calls = 0
+    func increment() { calls += 1 }
+}
+
+struct ReverseDNSResolverTests {
+
+    @Test("Reverse DNS uses the resolver it's given")
+    func injectedResolver() async {
+        let accumulator = ScanAccumulator()
+        await accumulator.upsert(DiscoveredDevice(
+            ipAddress: "192.168.2.4", hostname: nil, vendor: nil, macAddress: nil,
+            latency: nil, discoveredAt: Date(), source: .local
+        ))
+        let context = ScanContext(hosts: [], subnetFilter: { _ in true }, localIP: nil)
+        let phase = ReverseDNSScanPhase(resolve: { _ in "u7-pro.lan.windingbrook.net" })
+        await phase.execute(context: context, accumulator: accumulator) { _ in }
+        #expect(await accumulator.snapshot().first?.hostname == "u7-pro.lan.windingbrook.net")
     }
 }
 

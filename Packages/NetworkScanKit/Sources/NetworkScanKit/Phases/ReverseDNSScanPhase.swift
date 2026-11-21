@@ -10,8 +10,16 @@ public struct ReverseDNSScanPhase: ScanPhase, Sendable {
     /// Maximum number of concurrent PTR lookups.
     let maxConcurrentResolves: Int
 
-    public init(maxConcurrentResolves: Int = 8) {
+    /// Returns the PTR name for an IP, or nil. Defaults to the system resolver; callers pass
+    /// one that also asks the gateway, since a VPN's DNS (Tailscale) knows no LAN names.
+    private let resolve: @Sendable (_ ipAddress: String) async -> String?
+
+    public init(
+        maxConcurrentResolves: Int = 8,
+        resolve: (@Sendable (_ ipAddress: String) async -> String?)? = nil
+    ) {
         self.maxConcurrentResolves = maxConcurrentResolves
+        self.resolve = resolve ?? { await DeviceNameResolver().resolve(ipAddress: $0) }
     }
 
     public func execute(
@@ -29,12 +37,12 @@ public struct ReverseDNSScanPhase: ScanPhase, Sendable {
             return
         }
 
-        let nameResolver = DeviceNameResolver()
+        let resolve = self.resolve
         let total = devicesNeedingNames.count
         var resolved = 0
 
         await forEachBounded(devicesNeedingNames, limit: maxConcurrentResolves, operation: { device -> (String, String?) in
-            let name = await nameResolver.resolve(ipAddress: device.ipAddress)
+            let name = await resolve(device.ipAddress)
             return (device.ipAddress, name)
         }, onResult: { ip, hostname in
             resolved += 1

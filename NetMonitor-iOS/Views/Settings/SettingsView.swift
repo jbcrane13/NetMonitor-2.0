@@ -83,6 +83,9 @@ struct SettingsView: View {
             }
             .listRowBackground(Theme.Colors.glassBackground)
 
+            // MARK: - UniFi Section
+            UniFiSettingsSection()
+
             // MARK: - Monitoring Settings Section
             Section {
                 Picker("Auto-Refresh Interval", selection: $viewModel.autoRefreshInterval) {

@@ -78,7 +78,10 @@ final class DeviceDiscoveryCoordinator {
                 // macOS keeps the shell ping's min-of-3 semantics (E3): 3 ICMP echoes per
                 // host instead of iOS's default 1.
                 latencyPhase: ICMPLatencyPhase(probeCount: 3),
-                trailingSteps: [inputs.standardEnrichmentStep]
+                // Through the gateway's DNS too: a VPN's DNS (Tailscale) knows no LAN names.
+                nameResolver: { await GatewayNameResolver().resolve(ipAddress: $0) },
+                // The UniFi gateway's list (with an API key), then the Mac's own enrichment.
+                trailingSteps: [ScanPipeline.Step(phases: [UniFiInventoryPhase()], concurrent: false), inputs.standardEnrichmentStep]
             )
         },
         portChecker: @escaping @Sendable (_ host: String, _ port: Int, _ timeoutMs: Int32) async -> Bool = DeviceDiscoveryCoordinator.checkPort,
@@ -364,6 +367,12 @@ final class DeviceDiscoveryCoordinator {
             }
         }
 
+        // Saved rows this scan didn't find still get a maker and model from their names: a
+        // device that stopped answering would otherwise keep an empty maker forever.
+        for device in existingDevices {
+            Self.fillFromHostname(device)
+        }
+
         do { try modelContext.save() } catch {
             Logger.discovery.error("Failed to save discovered devices: \(error)")
         }
@@ -417,11 +426,11 @@ final class DeviceDiscoveryCoordinator {
         }
     }
 
-    /// Fills an empty maker or model from the row's hostname (#439). It runs after every other
+    /// Fills an empty maker or model from the row's hostname or resolved name (#439). It runs after every other
     /// source has written to the row, including values saved by earlier scans, so a hostname
     /// guess never replaces a MAC-prefix maker or an exact Bonjour or UPnP model.
     static func fillFromHostname(_ device: LocalDevice) {
-        guard let hostname = device.hostname, let identity = HostnameIdentity.parse(hostname: hostname) else { return }
+        guard let identity = HostnameIdentity.identify(names: [device.hostname, device.resolvedHostname]) else { return }
         let knownMaker = [device.vendor, device.manufacturer].compactMap { $0 }.first { !$0.isEmpty }
         let fill = identity.fills(knownMaker: knownMaker, knownModel: device.modelName)
         if let maker = fill.maker {

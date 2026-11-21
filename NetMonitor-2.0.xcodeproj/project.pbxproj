@@ -77,6 +77,7 @@
 		20D60EAD6B79561CB1E8CE97 /* AGENTS.md in Resources */ = {isa = PBXBuildFile; fileRef = 0FCE51303E1119E639A5B8C2 /* AGENTS.md */; };
 		21029659A5E393FF4BE5174A /* WHOISToolViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C16AD1D5A29DB71D72A39D4 /* WHOISToolViewModelTests.swift */; };
 		2154DEEBE29F72B0962B2599 /* AppIntentsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 273DFEA060BE77C6F58BE72B /* AppIntentsTests.swift */; };
+		220559AD26383537339F5E03 /* UniFiSettingsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 280555CE0EE7DAEEE8C2D0F4 /* UniFiSettingsSection.swift */; };
 		2330438B644B8CF9BB92653B /* ShellPingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EE294C34E0DD9F4AB70452D /* ShellPingService.swift */; };
 		2392478AE1A9D7A7A7BDEC67 /* TargetManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01E6AFDD85C2E113081B9646 /* TargetManagerTests.swift */; };
 		23FA7883EB6A0748810C82FA /* SaveWiFiReadingIntentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0BED56FCE2CE5CDD9B8A403 /* SaveWiFiReadingIntentTests.swift */; };
@@ -641,6 +642,7 @@
 		26335B5AC0E45923FD2B40C7 /* RSSIQuality+NSColor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RSSIQuality+NSColor.swift"; sourceTree = "<group>"; };
 		273DFEA060BE77C6F58BE72B /* AppIntentsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppIntentsTests.swift; sourceTree = "<group>"; };
 		2746D96C15673D48AAA752C2 /* NetworkScanActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkScanActivity.swift; sourceTree = "<group>"; };
+		280555CE0EE7DAEEE8C2D0F4 /* UniFiSettingsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UniFiSettingsSection.swift; sourceTree = "<group>"; };
 		28840E366E12B65E3AAD7F2E /* ToolInputField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolInputField.swift; sourceTree = "<group>"; };
 		2926D7C25A7E15A889609FFE /* FunctionalSmokeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FunctionalSmokeTests.swift; sourceTree = "<group>"; };
 		294BE57FBA3FFA271BE7B9B5 /* MockURLProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockURLProtocol.swift; sourceTree = "<group>"; };
@@ -1132,6 +1134,7 @@
 				18300B34F5E90EE2E552E8E5 /* MacPairingView.swift */,
 				8E9B7FBD1F07CF6425DC114A /* ScheduledScanSettingsView.swift */,
 				8650B3D9EC5CDB844E93B843 /* SettingsView.swift */,
+				280555CE0EE7DAEEE8C2D0F4 /* UniFiSettingsSection.swift */,
 			);
 			path = Settings;
 			sourceTree = "<group>";
@@ -2627,6 +2630,7 @@
 				E746C6FF5CA5D2C37EB2E603 /* TracerouteToolViewModel.swift in Sources */,
 				C872123DA12DFED11C7A6161 /* UITestBootstrap.swift in Sources */,
 				D287BB0FBCE2BEC4205068C1 /* UITestFakeDeviceFeed.swift in Sources */,
+				220559AD26383537339F5E03 /* UniFiSettingsSection.swift in Sources */,
 				5F6FB0694DC8F6D44CBE4501 /* VPNInfoView.swift in Sources */,
 				0CE3332D94D12F5FAE0FA18A /* VPNInfoViewModel.swift in Sources */,
 				4937EB6D1A9EBB7B43A1DA48 /* WHOISToolView.swift in Sources */,
