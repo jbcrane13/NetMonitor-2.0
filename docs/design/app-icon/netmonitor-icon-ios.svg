@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0.4" y2="1">
+      <stop offset="0" stop-color="#3B82F6"/>
+      <stop offset="0.55" stop-color="#1E3A8A"/>
+      <stop offset="1" stop-color="#0F1B4D"/>
+    </linearGradient>
+    <linearGradient id="glass" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#E0F2FE" stop-opacity="0.6"/>
+      <stop offset="1" stop-color="#7DD3FC" stop-opacity="0.22"/>
+    </linearGradient>
+    <linearGradient id="rim" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0.2"/>
+    </linearGradient>
+    <radialGradient id="core" cx="0.5" cy="0.4" r="0.6">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#7DD3FC"/>
+    </radialGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="18" stdDeviation="22" flood-color="#020617" flood-opacity="0.45"/>
+    </filter>
+  </defs>
+  <rect width="1024" height="1024" fill="url(#bg)"/>
+  <circle cx="512" cy="512" r="370" fill="none" stroke="#FFFFFF" stroke-width="10" opacity="0.22"/>
+  <circle cx="512" cy="512" r="265" fill="none" stroke="#FFFFFF" stroke-width="10" opacity="0.32"/>
+  <g stroke="#FFFFFF" stroke-width="16" stroke-linecap="round" opacity="0.7">
+    <line x1="406" y1="406" x2="344" y2="344"/>
+    <line x1="618" y1="406" x2="680" y2="344"/>
+    <line x1="406" y1="618" x2="344" y2="680"/>
+    <line x1="618" y1="618" x2="680" y2="680"/>
+  </g>
+  <g>
+    <circle cx="300" cy="300" r="62" fill="url(#glass)" stroke="url(#rim)" stroke-width="6"/>
+    <circle cx="724" cy="300" r="62" fill="url(#glass)" stroke="url(#rim)" stroke-width="6"/>
+    <circle cx="300" cy="724" r="62" fill="url(#glass)" stroke="url(#rim)" stroke-width="6"/>
+    <circle cx="724" cy="724" r="62" fill="url(#glass)" stroke="url(#rim)" stroke-width="6"/>
+    <circle cx="512" cy="512" r="150" fill="url(#glass)" stroke="url(#rim)" stroke-width="8"/>
+  </g>
+  <circle cx="512" cy="512" r="70" fill="url(#core)"/>
+  <!-- specular highlight on the hub -->
+  <path d="M410 470 A110 110 0 0 1 560 385" fill="none" stroke="#FFFFFF" stroke-width="14" stroke-linecap="round" opacity="0.7"/>
+</svg>
