@@ -203,19 +203,10 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
             requiredInterfaceType: .wifi
         )
 
-        // Build pipeline with Bonjour service provider
-        let pipeline = ScanPipeline.standard(
-            bonjourServiceProvider: {
-                await MainActor.run {
-                    bonjourService.discoveredServices.map {
-                        BonjourServiceInfo(name: $0.name, type: $0.type, domain: $0.domain, txtRecord: $0.txtRecords)
-                    }
-                }
-            },
-            bonjourStopProvider: {
-                await MainActor.run { bonjourService.stopDiscovery() }
-            }
-        )
+        // Names through the gateway's DNS too: a VPN's DNS (Tailscale) knows no LAN names.
+        let nameResolver = GatewayNameResolver(interface: interfaceName)
+
+        let pipeline = Self.makePipeline(bonjourService: bonjourService, nameResolver: nameResolver)
 
         // Run the scan engine
         let engineRef = engine
@@ -255,7 +246,8 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
         guard !Task.isCancelled else { return }
         await mergeCompanionDevices(filter: scanTarget.filter, profileID: profileID)
         // Hostname guesses come last, so the Mac's MAC-prefix makers win over them (#439).
-        await HostnameIdentityPhase().execute(context: context, accumulator: engine.accumulator) { _ in }
+        await HostnameIdentityPhase(lookUpName: { await nameResolver.resolve(ipAddress: $0) })
+            .execute(context: context, accumulator: engine.accumulator) { _ in }
         await flushToMainActor(progress: 0.95, profileID: profileID)
 
         // Final sort and flush
@@ -266,6 +258,23 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
         persistCachedDevices()
         scanProgress = 1.0
         scanPhase = .done
+    }
+
+    /// The standard pipeline, fed by this scan's Bonjour browser.
+    private static func makePipeline(bonjourService: BonjourDiscoveryService, nameResolver: GatewayNameResolver) -> ScanPipeline {
+        ScanPipeline.standard(
+            bonjourServiceProvider: {
+                await MainActor.run {
+                    bonjourService.discoveredServices.map {
+                        BonjourServiceInfo(name: $0.name, type: $0.type, domain: $0.domain, txtRecord: $0.txtRecords)
+                    }
+                }
+            },
+            bonjourStopProvider: {
+                await MainActor.run { bonjourService.stopDiscovery() }
+            },
+            nameResolver: { await nameResolver.resolve(ipAddress: $0) }
+        )
     }
 
     public func stopScan() {

@@ -39,6 +39,8 @@ public struct ScanPipeline: Sendable {
     /// - Parameters:
     ///   - latencyPhase: Replaces the default ``ICMPLatencyPhase`` in step 3, e.g. to
     ///     construct one with a non-default `probeCount`.
+    ///   - nameResolver: Replaces the system PTR lookup in reverse DNS, e.g. with one that
+    ///     also asks the gateway.
     ///   - trailingSteps: Additional steps appended after reverse DNS. Callers that need
     ///     platform-specific enrichment append steps here instead of rebuilding the
     ///     pipeline by hand.
@@ -46,6 +48,7 @@ public struct ScanPipeline: Sendable {
         bonjourServiceProvider: @escaping @Sendable () async -> [BonjourServiceInfo] = { [] },
         bonjourStopProvider: (@Sendable () async -> Void)? = nil,
         latencyPhase: any ScanPhase = ICMPLatencyPhase(),
+        nameResolver: (@Sendable (_ ipAddress: String) async -> String?)? = nil,
         trailingSteps: [Step] = []
     ) -> ScanPipeline {
         ScanPipeline(steps: [
@@ -59,7 +62,7 @@ public struct ScanPipeline: Sendable {
             Step(phases: [TCPProbeScanPhase(), SSDPScanPhase(), UbiquitiDiscoveryPhase()], concurrent: true),
             Step(phases: [latencyPhase], concurrent: false),
             Step(phases: [ARPRecheckPhase()], concurrent: false),
-            Step(phases: [ReverseDNSScanPhase()], concurrent: false),
+            Step(phases: [ReverseDNSScanPhase(resolve: nameResolver)], concurrent: false),
         ] + trailingSteps)
     }
 }
