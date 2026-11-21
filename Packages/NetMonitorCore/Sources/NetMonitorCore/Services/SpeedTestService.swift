@@ -141,15 +141,32 @@ public final class SpeedTestService: SpeedTestServiceProtocol {
     /// Uses delegate-based URLSession for efficient chunked byte counting.
     /// URLSession delivers data in ~16-64 KB chunks via didReceive callbacks,
     /// avoiding the catastrophic per-byte overhead of AsyncBytes iteration.
+    /// Cloudflare answers `__down` requests above about 5 MB with 429 or 403 (2026-11-21), so
+    /// each stream asks for 5 MB at a time and starts the next request when one finishes.
+    nonisolated static let defaultDownloadURL = URL(string: "https://speed.cloudflare.com/__down?bytes=5000000")!
+
+    /// The same request at half the size (at least 1 MB), for a server that refused it. Nil when
+    /// the URL names no size (a fixed file) or is already at 1 MB.
+    nonisolated static func smallerDownloadURL(after url: URL) -> URL? {
+        let minimum = 1_000_000
+        guard var components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+              let index = components.queryItems?.firstIndex(where: { $0.name == "bytes" }),
+              let bytes = components.queryItems?[index].value.flatMap(Int.init), bytes > minimum else { return nil }
+        components.queryItems?[index].value = String(max(bytes / 2, minimum))
+        return components.url
+    }
+
+    /// Whether a response's body is the test data: a refusal's error page is not.
+    nonisolated static func isMeasurableResponse(statusCode: Int) -> Bool {
+        (200..<300).contains(statusCode)
+    }
+
     private func measureDownload(server: SpeedTestServer?) async throws -> Double {
         let parallelStreams = 8
         let startTime = Date()
         let totalBytesAtomic = AtomicInt64()
-        // 25 MB per stream: large enough to saturate fast connections for the full
-        // test duration without exhausting memory on iPhone (100 MB × 8 streams
-        // caused stalls and download failures on device).
-        let downloadURLString = server?.downloadURL ?? "https://speed.cloudflare.com/__down?bytes=25000000"
-        let url = URL(string: downloadURLString)!
+        let refusals = AtomicInt64()
+        let url = server?.downloadURL.flatMap(URL.init(string:)) ?? Self.defaultDownloadURL
 
         // Create one URLSession per stream. A single session with multiple tasks to the same
         // host will have all tasks multiplexed over one HTTP/2 TCP connection, capping throughput.
@@ -160,6 +177,7 @@ public final class SpeedTestService: SpeedTestServiceProtocol {
         for _ in 0..<parallelStreams {
             let delegate = DownloadMeasurementDelegate(
                 bytesReceived: totalBytesAtomic,
+                refusals: refusals,
                 downloadURL: url,
                 startTime: startTime,
                 duration: duration
@@ -208,6 +226,10 @@ public final class SpeedTestService: SpeedTestServiceProtocol {
 
         let totalElapsed = Date().timeIntervalSince(startTime)
         let totalBytes = totalBytesAtomic.load()
+        // Every request refused: report the server, not a speed of 0.
+        if totalBytes == 0, refusals.load() > 0 {
+            throw NetworkError.serverError
+        }
         guard totalElapsed > 0, totalBytes > 0 else { return 0 }
         // Final result uses overall average (consistent with industry standard)
         let finalSpeed = Double(totalBytes * 8) / totalElapsed / 1_000_000
@@ -313,18 +335,39 @@ public final class SpeedTestService: SpeedTestServiceProtocol {
 
 /// Counts received bytes efficiently via URLSession's chunked data delivery (~16-64 KB chunks).
 /// Automatically restarts downloads when one completes, keeping all streams continuously saturated.
+///
+/// A refused request (429, 403) is cancelled without counting its body, and the stream asks
+/// again for half as much after a short pause, instead of re-sending the refused request at once.
 private final class DownloadMeasurementDelegate: NSObject, URLSessionDataDelegate, @unchecked Sendable {
     let bytesReceived: AtomicInt64
-    private let downloadURL: URL
+    private let refusals: AtomicInt64
     private let startTime: Date
     private let duration: TimeInterval
+    // One task runs at a time per session, and URLSession calls a delegate serially.
+    private var downloadURL: URL
+    private var refusedCurrentRequest = false
 
-    init(bytesReceived: AtomicInt64, downloadURL: URL, startTime: Date, duration: TimeInterval) {
+    init(bytesReceived: AtomicInt64, refusals: AtomicInt64, downloadURL: URL, startTime: Date, duration: TimeInterval) {
         self.bytesReceived = bytesReceived
+        self.refusals = refusals
         self.downloadURL = downloadURL
         self.startTime = startTime
         self.duration = duration
         super.init()
+    }
+
+    func urlSession(
+        _ session: URLSession,
+        dataTask: URLSessionDataTask,
+        didReceive response: URLResponse,
+        completionHandler: @escaping @Sendable (URLSession.ResponseDisposition) -> Void
+    ) {
+        let status = (response as? HTTPURLResponse)?.statusCode ?? 200
+        refusedCurrentRequest = !SpeedTestService.isMeasurableResponse(statusCode: status)
+        if refusedCurrentRequest {
+            refusals.add(1)
+        }
+        completionHandler(refusedCurrentRequest ? .cancel : .allow)
     }
 
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
@@ -332,14 +375,26 @@ private final class DownloadMeasurementDelegate: NSObject, URLSessionDataDelegat
     }
 
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
-        // Don't restart if cancelled (from invalidateAndCancel) or past duration
-        if let error = error as? URLError, error.code == .cancelled { return }
+        let refused = refusedCurrentRequest
+        refusedCurrentRequest = false
+        // A cancel we didn't ask for comes from invalidateAndCancel at the end of the test.
+        if !refused, let error = error as? URLError, error.code == .cancelled {
+            return
+        }
         guard Date().timeIntervalSince(startTime) < duration else { return }
 
+        if refused {
+            downloadURL = SpeedTestService.smallerDownloadURL(after: downloadURL) ?? downloadURL
+        }
         var request = URLRequest(url: downloadURL)
         request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
         request.timeoutInterval = max(duration + 10, 30)
-        session.dataTask(with: request).resume()
+        let task = session.dataTask(with: request)
+        if refused {
+            DispatchQueue.global().asyncAfter(deadline: .now() + 0.5) { task.resume() }
+        } else {
+            task.resume()
+        }
     }
 }
 
@@ -371,7 +426,9 @@ private final class UploadMeasurementDelegate: NSObject, URLSessionDataDelegate,
     }
 
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
-        if let error = error as? URLError, error.code == .cancelled { return }
+        if let error = error as? URLError, error.code == .cancelled {
+            return
+        }
         guard Date().timeIntervalSince(startTime) < duration else { return }
 
         var request = URLRequest(url: uploadURL)

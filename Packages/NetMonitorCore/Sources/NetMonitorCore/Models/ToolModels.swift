@@ -368,29 +368,9 @@ public extension SpeedTestServer {
         id: "cloudflare",
         name: "Cloudflare",
         location: "Global CDN",
-        downloadURL: "https://speed.cloudflare.com/__down?bytes=10000000",
+        downloadURL: "https://speed.cloudflare.com/__down?bytes=5000000",
         uploadURL: "https://speed.cloudflare.com/__up",
         pingURL: "https://speed.cloudflare.com"
-    )
-
-    /// Linode/Akamai — Atlanta, GA (closest to SE US).
-    static let linodeAtlanta = SpeedTestServer(
-        id: "linode-atl",
-        name: "Linode",
-        location: "Atlanta, GA",
-        downloadURL: "https://speedtest.atlanta.linode.com/100MB-atlanta.bin",
-        uploadURL: nil,
-        pingURL: "https://speedtest.atlanta.linode.com"
-    )
-
-    /// Linode/Akamai — Dallas, TX.
-    static let linodeDallas = SpeedTestServer(
-        id: "linode-dal",
-        name: "Linode",
-        location: "Dallas, TX",
-        downloadURL: "https://speedtest.dallas.linode.com/100MB-dallas.bin",
-        uploadURL: nil,
-        pingURL: "https://speedtest.dallas.linode.com"
     )
 
     /// Vultr — Dallas, TX (supports both download and upload).
@@ -403,16 +383,6 @@ public extension SpeedTestServer {
         pingURL: "https://tx-us-ping.vultr.com"
     )
 
-    /// Linode/Akamai — Newark, NJ.
-    static let linodeNewark = SpeedTestServer(
-        id: "linode-nwk",
-        name: "Linode",
-        location: "Newark, NJ",
-        downloadURL: "https://speedtest.newark.linode.com/100MB-newark.bin",
-        uploadURL: nil,
-        pingURL: "https://speedtest.newark.linode.com"
-    )
-
     /// OVH (France/Europe).
     static let ovh = SpeedTestServer(
         id: "ovh",
@@ -423,14 +393,12 @@ public extension SpeedTestServer {
         pingURL: "https://proof.ovh.net"
     )
 
-    /// The canonical ordered list shown in the picker (auto-select first).
+    /// The canonical ordered list shown in the picker (auto-select first). Linode's speed test
+    /// hosts (Atlanta, Dallas, Newark) stopped accepting connections in 2026 and are left out.
     static let all: [SpeedTestServer] = [
         .autoSelect,
         .cloudflare,
-        .linodeAtlanta,
-        .linodeDallas,
         .vultrDallas,
-        .linodeNewark,
         .ovh
     ]
 }
