@@ -24,4 +24,6 @@ public struct ScanPhaseID: RawRepresentable, Hashable, Sendable, ExpressibleBySt
     public static let icmpLatency = ScanPhaseID(rawValue: "icmpLatency")
     public static let reverseDNS = ScanPhaseID(rawValue: "reverseDNS")
     public static let arpRecheck = ScanPhaseID(rawValue: "arpRecheck")
+    public static let ubiquitiDiscovery = ScanPhaseID(rawValue: "ubiquitiDiscovery")
+    public static let hostnameIdentity = ScanPhaseID(rawValue: "hostnameIdentity")
 }

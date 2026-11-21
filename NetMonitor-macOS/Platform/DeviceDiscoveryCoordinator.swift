@@ -355,6 +355,7 @@ final class DeviceDiscoveryCoordinator {
                     newDevice.updateLatency(latency)
                 }
                 Self.fillFromDescription(newDevice, discovered)
+                Self.fillFromHostname(newDevice)
                 modelContext.insert(newDevice)
                 devicesByIP[newDevice.ipAddress] = newDevice
                 if !normalizedMAC.isEmpty {
@@ -386,6 +387,7 @@ final class DeviceDiscoveryCoordinator {
         if let model = discovered.modelName, !model.isEmpty {
             existing.modelName = model
         }
+        Self.fillFromHostname(existing)
         if let latency = discovered.latency {
             if recordLatencyHistory {
                 existing.updateLatency(latency)
@@ -412,6 +414,21 @@ final class DeviceDiscoveryCoordinator {
         }
         if device.manufacturer?.isEmpty ?? true {
             device.manufacturer = maker
+        }
+    }
+
+    /// Fills an empty maker or model from the row's hostname (#439). It runs after every other
+    /// source has written to the row, including values saved by earlier scans, so a hostname
+    /// guess never replaces a MAC-prefix maker or an exact Bonjour or UPnP model.
+    static func fillFromHostname(_ device: LocalDevice) {
+        guard let hostname = device.hostname, let identity = HostnameIdentity.parse(hostname: hostname) else { return }
+        let knownMaker = [device.vendor, device.manufacturer].compactMap { $0 }.first { !$0.isEmpty }
+        let fill = identity.fills(knownMaker: knownMaker, knownModel: device.modelName)
+        if let maker = fill.maker {
+            device.vendor = maker
+        }
+        if let model = fill.model {
+            device.modelName = model
         }
     }
 

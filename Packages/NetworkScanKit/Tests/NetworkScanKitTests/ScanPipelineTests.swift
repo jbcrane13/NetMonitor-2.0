@@ -37,12 +37,18 @@ struct ScanPipelineTests {
         #expect(step.phases.count == 2)
     }
 
-    @Test("standard pipeline step 1 is concurrent with 2 phases")
+    @Test("standard pipeline step 1 runs TCP, SSDP and UniFi discovery concurrently")
     func standardStep1() {
         let pipeline = ScanPipeline.standard()
         let step = pipeline.steps[1]
         #expect(step.concurrent == true)
-        #expect(step.phases.count == 2)
+        #expect(step.phases.map(\.id) == [.tcpProbe, .ssdp, .ubiquitiDiscovery])
+    }
+
+    @Test("hostname identity is left to the caller, after merges outside the pipeline (#439)")
+    func standardLeavesHostnameIdentityToCaller() {
+        let pipeline = ScanPipeline.standard()
+        #expect(!pipeline.steps.flatMap(\.phases).contains { $0.id == .hostnameIdentity })
     }
 
     @Test("standard pipeline step 2 is sequential with 1 phase")

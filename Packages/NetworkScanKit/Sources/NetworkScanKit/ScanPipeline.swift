@@ -26,11 +26,15 @@ public struct ScanPipeline: Sendable {
 
     /// The default scan pipeline:
     /// 1. [ARP + Bonjour] concurrent — discover devices
-    /// 2. [TCP Probe + SSDP] concurrent — find more devices + TCP latency
+    /// 2. [TCP Probe + SSDP + UniFi discovery] concurrent — find more devices + TCP latency
     /// 3. [latencyPhase] — enrich remaining devices with ICMP ping latency
     /// 4. [ARP re-check] — confirm devices whose ARP entry the pings re-confirmed (#378)
     /// 5. [Reverse DNS] — resolve hostnames
     /// 6. [trailingSteps] — platform-supplied enrichment (defaults to none)
+    ///
+    /// Hostname identity (#439) is not a step here: it must come after every other source,
+    /// including ones merged after the scan (the Mac companion on iOS, saved rows on macOS),
+    /// so each platform applies ``HostnameIdentity`` at that point.
     ///
     /// - Parameters:
     ///   - latencyPhase: Replaces the default ``ICMPLatencyPhase`` in step 3, e.g. to
@@ -52,7 +56,7 @@ public struct ScanPipeline: Sendable {
                     stopProvider: bonjourStopProvider
                 ),
             ], concurrent: true),
-            Step(phases: [TCPProbeScanPhase(), SSDPScanPhase()], concurrent: true),
+            Step(phases: [TCPProbeScanPhase(), SSDPScanPhase(), UbiquitiDiscoveryPhase()], concurrent: true),
             Step(phases: [latencyPhase], concurrent: false),
             Step(phases: [ARPRecheckPhase()], concurrent: false),
             Step(phases: [ReverseDNSScanPhase()], concurrent: false),
