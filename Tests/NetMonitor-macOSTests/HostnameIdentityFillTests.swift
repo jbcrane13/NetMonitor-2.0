@@ -1,3 +1,4 @@
+import NetMonitorCore
 import Testing
 @testable import NetMonitor_macOS
 
