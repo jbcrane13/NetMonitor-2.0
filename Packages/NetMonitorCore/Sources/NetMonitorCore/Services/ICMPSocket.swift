@@ -42,14 +42,15 @@ struct ICMPResponse {
 /// The kernel handles:
 /// - IP header construction/stripping
 /// - Identifier remapping (maps to internal port)
-/// - Response filtering (only delivers replies matching our socket)
 ///
-/// We match responses by sequence number only.
+/// The kernel can deliver an echo reply to every open ICMP socket, so an echo reply
+/// must match both our sequence number and the address we pinged (#435).
 actor ICMPSocket {
     /// The BSD socket file descriptor. Set once in init, never changed.
     private let fd: Int32
-    /// Monotonically increasing sequence counter for correlating probes.
-    private var sequenceCounter: UInt16 = 0
+    /// Sequence counter for correlating probes. Starts at a random value so concurrent
+    /// sockets don't send the same sequence numbers (#435).
+    private var sequenceCounter = UInt16.random(in: 0...UInt16.max)
     /// Dedicated queue for blocking BSD socket I/O to avoid blocking the cooperative pool.
     nonisolated private let ioQueue = DispatchQueue(label: "com.netmonitor.icmp.io", qos: .userInteractive)
 
@@ -232,10 +233,10 @@ actor ICMPSocket {
             // Verify this is the response we're looking for
             switch parsed.kind {
             case .echoReply(let respSeq):
-                if respSeq == sequence {
+                if isOwnEchoReply(sequence: respSeq, sourceIP: sourceIP, expectedSequence: sequence, target: target) {
                     return parsed
                 }
-                icmpLog.debug("Skipping echo reply with wrong seq: got=\(respSeq) expected=\(sequence)")
+                icmpLog.debug("Skipping echo reply for another probe: seq=\(respSeq) expected=\(sequence)")
                 continue // Read next message
 
             case .timeExceeded(_, let origSeq):
@@ -249,6 +250,13 @@ actor ICMPSocket {
                 return parsed
             }
         }
+    }
+
+    /// True when an echo reply answers this probe: same sequence number and sent by the target.
+    /// Without the address check, concurrent pings to different hosts could take each other's
+    /// replies and all report the fastest host's time (#435).
+    nonisolated static func isOwnEchoReply(sequence: UInt16, sourceIP: String?, expectedSequence: UInt16, target: String) -> Bool {
+        sequence == expectedSequence && sourceIP == target
     }
 
     // MARK: - Packet Construction
@@ -396,7 +404,9 @@ actor ICMPSocket {
         var drained = 0
         while true {
             let n = recv(fd, &buf, buf.count, MSG_DONTWAIT)
-            if n <= 0 { break }
+            if n <= 0 {
+                break
+            }
             drained += 1
         }
         if drained > 0 {

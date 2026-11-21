@@ -200,4 +200,15 @@ struct ICMPSocketTests {
         let packet = ICMPSocket.buildEchoRequest(sequence: 1, payloadSize: payloadSize)
         #expect(packet.count == 8 + payloadSize)
     }
+
+    // MARK: - isOwnEchoReply (#435)
+
+    @Test("Echo reply is ours only when both sequence and source match the target")
+    func ownEchoReplyNeedsSequenceAndSource() {
+        #expect(ICMPSocket.isOwnEchoReply(sequence: 1, sourceIP: "1.1.1.1", expectedSequence: 1, target: "1.1.1.1"))
+        // #435: concurrent pings shared seq 1, so Google's probe took Cloudflare's reply.
+        #expect(!ICMPSocket.isOwnEchoReply(sequence: 1, sourceIP: "1.1.1.1", expectedSequence: 1, target: "8.8.8.8"))
+        #expect(!ICMPSocket.isOwnEchoReply(sequence: 2, sourceIP: "8.8.8.8", expectedSequence: 1, target: "8.8.8.8"))
+        #expect(!ICMPSocket.isOwnEchoReply(sequence: 1, sourceIP: nil, expectedSequence: 1, target: "8.8.8.8"))
+    }
 }
