@@ -194,3 +194,12 @@ enum DeviceDiscoveryCoordinatorFixtures {
         Row(ipAddress: "192.0.2.99", macAddress: "", hostname: "iot-device.local", vendor: nil, status: .offline, lastLatency: nil),
     ]
 }
+
+extension DeviceDiscoveryCoordinator {
+    /// Test shorthand: keeps the rows at `currentIPs` online. Production passes the rows the
+    /// final merge's device match claimed (#461); for fixtures without duplicate IPs the two agree.
+    func markOfflineDevices(currentIPs: Set<String>, profileID: UUID?) {
+        let seen = discoveredDevices.filter { currentIPs.contains($0.ipAddress) }.map(\.id)
+        markOfflineDevices(keeping: Set(seen), profileID: profileID)
+    }
+}

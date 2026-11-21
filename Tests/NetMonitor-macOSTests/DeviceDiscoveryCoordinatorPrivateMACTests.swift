@@ -200,3 +200,115 @@ struct PrivateMACMergeTests {
         #expect(devices.first?.lastSeen == lastSeen)
     }
 }
+
+/// The macOS row update uses the device match (#461), so a device's MAC appearing, vanishing
+/// or being a placeholder never splits its row (#442).
+@MainActor
+struct DeviceMatchMergeTests {
+    let publicMAC = "3C:22:FB:00:00:01"
+
+    func makeInMemoryStore() throws -> (ModelContainer, ModelContext) {
+        let schema = Schema([LocalDevice.self])
+        let config = ModelConfiguration(UUID().uuidString, schema: schema, isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+        let container = try ModelContainer(for: schema, configurations: [config])
+        return (container, container.mainContext)
+    }
+
+    func makeCoordinator(context: ModelContext) -> DeviceDiscoveryCoordinator {
+        DeviceDiscoveryCoordinator(
+            modelContext: context,
+            bonjourScanner: BonjourDiscoveryService(),
+            networkProfileManager: NetworkProfileManager(),
+            pipelineFactory: { _ in ScanPipeline(steps: []) }
+        )
+    }
+
+    @Test func aRowWithoutAMACAdoptsTheMACALaterScanReads() throws {
+        let (container, context) = try makeInMemoryStore()
+        _ = container
+        let originalID = UUID()
+        context.insert(LocalDevice(id: originalID, ipAddress: "192.0.2.30", macAddress: "", hostname: "switch.local"))
+        try context.save()
+
+        makeCoordinator(context: context).mergeDiscoveredDevices([
+            LocalDiscoveredDevice(ipAddress: "192.0.2.30", macAddress: publicMAC, hostname: "switch.local")
+        ], profileID: nil)
+
+        let devices = try context.fetch(FetchDescriptor<LocalDevice>())
+        #expect(devices.count == 1)
+        #expect(devices.first?.id == originalID)
+        #expect(devices.first?.macAddress == publicMAC)
+    }
+
+    @Test func aMACThatComesGoesAndComesBackKeepsOneRow() throws {
+        let (container, context) = try makeInMemoryStore()
+        _ = container
+        let coordinator = makeCoordinator(context: context)
+
+        for mac in ["", publicMAC, "", publicMAC] {
+            coordinator.mergeDiscoveredDevices([
+                LocalDiscoveredDevice(ipAddress: "192.0.2.30", macAddress: mac, hostname: "switch.local")
+            ], profileID: nil)
+        }
+
+        let devices = try context.fetch(FetchDescriptor<LocalDevice>())
+        #expect(devices.count == 1)
+        #expect(devices.first?.macAddress == publicMAC)
+    }
+
+    @Test(arguments: ["02:00:00:00:00:00", "00:00:00:00:00:00"])
+    func aPlaceholderMACMatchesByIP(placeholder: String) throws {
+        let (container, context) = try makeInMemoryStore()
+        _ = container
+        context.insert(LocalDevice(ipAddress: "192.0.2.30", macAddress: "", hostname: "camera.local"))
+        try context.save()
+
+        makeCoordinator(context: context).mergeDiscoveredDevices([
+            LocalDiscoveredDevice(ipAddress: "192.0.2.30", macAddress: placeholder, hostname: "camera.local")
+        ], profileID: nil)
+
+        #expect(try context.fetch(FetchDescriptor<LocalDevice>()).count == 1)
+    }
+
+    /// Two MAC'd rows at one IP are ambiguous, so a MAC-less sighting there is a new device.
+    /// (Before #461 it silently reused whichever row came first.)
+    @Test func aMACLessSightingBetweenTwoMACdRowsIsNew() throws {
+        let (container, context) = try makeInMemoryStore()
+        _ = container
+        context.insert(LocalDevice(ipAddress: "192.0.2.30", macAddress: "3C:22:FB:00:00:08"))
+        context.insert(LocalDevice(ipAddress: "192.0.2.30", macAddress: "3C:22:FB:00:00:09"))
+        try context.save()
+
+        makeCoordinator(context: context).mergeDiscoveredDevices([
+            LocalDiscoveredDevice(ipAddress: "192.0.2.30", macAddress: "", hostname: nil)
+        ], profileID: nil)
+
+        #expect(try context.fetch(FetchDescriptor<LocalDevice>()).count == 3)
+    }
+}
+
+extension DeviceMatchMergeTests {
+    /// A duplicate row #442 left behind goes offline once the device answers under its MAC,
+    /// even though the live device has the same IP.
+    @Test func aStaleDuplicateRowAtALiveIPGoesOffline() throws {
+        let (container, context) = try makeInMemoryStore()
+        _ = container
+        let stale = LocalDevice(ipAddress: "192.0.2.30", macAddress: "", hostname: "switch.local")
+        let live = LocalDevice(ipAddress: "192.0.2.30", macAddress: publicMAC, hostname: "switch.local")
+        stale.status = .online
+        live.status = .online
+        context.insert(stale)
+        context.insert(live)
+        try context.save()
+        let coordinator = makeCoordinator(context: context)
+
+        let seen = coordinator.mergeDiscoveredDevices([
+            LocalDiscoveredDevice(ipAddress: "192.0.2.30", macAddress: publicMAC, hostname: "switch.local")
+        ], profileID: nil)
+        coordinator.markOfflineDevices(keeping: seen, profileID: nil)
+
+        #expect(seen == [live.id])
+        #expect(stale.status == .offline)
+        #expect(live.status == .online)
+    }
+}
