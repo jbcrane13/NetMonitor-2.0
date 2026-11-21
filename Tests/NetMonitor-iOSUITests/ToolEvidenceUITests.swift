@@ -11,10 +11,13 @@ final class ToolEvidenceUITests: IOSUITestCase {
         app.descendants(matching: .any).matching(identifier: identifier).firstMatch
     }
 
+    /// The card's button, else any element carrying its identifier (some cards expose it only on
+    /// their contents); a coordinate tap opens the card either way.
     private func card(_ cardID: String) -> XCUIElement {
-        app.buttons.matching(
+        let button = app.buttons.matching(
             NSPredicate(format: "identifier == %@ OR identifier BEGINSWITH %@", cardID, cardID + "-")
         ).firstMatch
+        return button.exists ? button : element(cardID)
     }
 
     /// The card's upper part is on screen and above the floating tab bar.
@@ -24,17 +27,22 @@ final class ToolEvidenceUITests: IOSUITestCase {
         return card.frame.minY >= 0 && tapY < app.tabBars.firstMatch.frame.minY - 8
     }
 
-    /// Opens a tool, scrolling the grid in small steps either way until its card is clear.
+    /// Opens a tool. The grid is lazy, so a card exists only while on screen, and a swipe (even a
+    /// slow one, on iOS 26) can carry it past between checks. Short drags in the left gutter, which
+    /// never land on a card, move the grid a fixed 15% of its height per step instead.
     private func openTool(_ cardID: String, screen: String) {
         app.tabBars.buttons["Tools"].tap()
         requireExists(element("screen_tools"), timeout: 5, message: "Tools screen should appear")
-        let target = card(cardID)
         let grid = app.scrollViews.matching(identifier: "screen_tools").firstMatch
-        for _ in 0..<30 where !onScreen(target) {
-            if target.exists, target.frame.minY < 0 {
-                grid.swipeDown(velocity: .slow)
-            } else {
-                grid.swipeUp(velocity: .slow)
+        var target = card(cardID)
+        for attempt in 0..<40 where !onScreen(target) {
+            let back = target.exists && target.frame.minY < 0
+            let from = grid.coordinate(withNormalizedOffset: CGVector(dx: 0.01, dy: back ? 0.4 : 0.6))
+            let to = grid.coordinate(withNormalizedOffset: CGVector(dx: 0.01, dy: back ? 0.55 : 0.45))
+            from.press(forDuration: 0.01, thenDragTo: to, withVelocity: .slow, thenHoldForDuration: 0.2)
+            target = card(cardID)
+            if attempt == 39 {
+                captureScreenshot(named: "nav_fail_\(cardID)")
             }
         }
         XCTAssertTrue(onScreen(target), "\(cardID) should be visible")
@@ -64,7 +72,9 @@ final class ToolEvidenceUITests: IOSUITestCase {
         openTool("tools_card_traceroute", screen: "screen_tracerouteTool")
         type("1.1.1.1", into: app.textFields["tracerouteTool_input_host"])
         app.buttons["tracerouteTool_button_run"].tap()
-        XCTAssertTrue(element("tracerouteTool_row_3").waitForExistence(timeout: 60), "Traceroute should list 3+ hops")
+        // Hop rows carry the section's identifier; the header counts them ("8 hops").
+        let hopCount = app.staticTexts.matching(NSPredicate(format: "label MATCHES %@", "[3-9] hops|[1-9][0-9] hops")).firstMatch
+        XCTAssertTrue(hopCount.waitForExistence(timeout: 60), "Traceroute should list 3+ hops")
         _ = waitForDisappearance(app.buttons["Stop Trace"], timeout: 60)
         hideKeyboard()
         captureScreenshot(named: "E1_Traceroute_1.1.1.1")
@@ -73,7 +83,11 @@ final class ToolEvidenceUITests: IOSUITestCase {
     func test02_BonjourFindsServices() {
         openTool("tools_card_bonjour", screen: "screen_bonjourTool")
         app.buttons["bonjour_button_run"].tap()
-        XCTAssertTrue(element("bonjour_section_services").waitForExistence(timeout: 20), "Bonjour should list services")
+        // The simulator only sees LAN services once macOS grants it local network access.
+        XCTAssertTrue(
+            waitForEither([element("bonjour_section_services"), element("bonjour_label_noServices")], timeout: 20),
+            "Bonjour should finish discovery"
+        )
         settle(3)
         captureScreenshot(named: "E2_Bonjour_services")
     }
