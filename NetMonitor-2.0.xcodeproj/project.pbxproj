@@ -291,6 +291,7 @@
 		8DCAE89B23C4BFE39C9CDCF8 /* NetworkScanActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2746D96C15673D48AAA752C2 /* NetworkScanActivity.swift */; };
 		8DEBD7188452657834F7EFFF /* BandwidthMonitorServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED714BFBF69259A62EF490EA /* BandwidthMonitorServiceTests.swift */; };
 		8E49595DB6E4ED2E0C4DDEF1 /* HTTPMonitorService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9397061B694F2821A01D1805 /* HTTPMonitorService.swift */; };
+		8EEB0998E527EE7885480D69 /* ToolEvidenceUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 164F9E281689A4CBF4C615CE /* ToolEvidenceUITests.swift */; };
 		8F7A9368E876A861DAE933F1 /* DeviceListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87D31E0912E4D4C961789D8F /* DeviceListView.swift */; };
 		9068EA8E55B070B48B51D183 /* ReviewPromptHookTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C028C04A032C65C9BD35913 /* ReviewPromptHookTests.swift */; };
 		906B2614538B4DD28D0C0341 /* DeviceContextMenuUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A65269491BA2C2B0B6EC740C /* DeviceContextMenuUITests.swift */; };
@@ -611,6 +612,7 @@
 		159B6B694B9F3C1567CCE10F /* HistoryRetentionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryRetentionTests.swift; sourceTree = "<group>"; };
 		15CF57CCF80C504B5D2A4F7E /* TracerouteToolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TracerouteToolView.swift; sourceTree = "<group>"; };
 		15F8F1960BEB3D161E3A289A /* DeviceDiscoveryCoordinatorExtendedTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceDiscoveryCoordinatorExtendedTests.swift; sourceTree = "<group>"; };
+		164F9E281689A4CBF4C615CE /* ToolEvidenceUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolEvidenceUITests.swift; sourceTree = "<group>"; };
 		172DD803998F508A24071CB3 /* OnboardingViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingViewTests.swift; sourceTree = "<group>"; };
 		18300B34F5E90EE2E552E8E5 /* MacPairingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacPairingView.swift; sourceTree = "<group>"; };
 		185704DD77179DFE62766E0D /* SpeedTestToolViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeedTestToolViewModel.swift; sourceTree = "<group>"; };
@@ -1743,6 +1745,7 @@
 				48CEEE4D5A124B872F21F508 /* TabNavigationUITests.swift */,
 				D76AADA215639B49E8EAC188 /* TimelineFunctionalUITests.swift */,
 				47384CC91538ECC29ED7E22C /* TimelineUITests.swift */,
+				164F9E281689A4CBF4C615CE /* ToolEvidenceUITests.swift */,
 				53DCA7226E72436E142DB0FE /* ToolOutcomeUITests.swift */,
 				BC9B8228A5B2FFCD294C88EC /* ToolsGoldenPathUITests.swift */,
 				1268AE7B610824F778D376F6 /* ToolsGridLayoutUITests.swift */,
@@ -2775,6 +2778,7 @@
 				4459481DA501075D8E72DC0B /* TabNavigationUITests.swift in Sources */,
 				5E7462D2E7F1A5BF28567126 /* TimelineFunctionalUITests.swift in Sources */,
 				A19017FAD45462168EAB7157 /* TimelineUITests.swift in Sources */,
+				8EEB0998E527EE7885480D69 /* ToolEvidenceUITests.swift in Sources */,
 				E9D12894A96B3973E13FC38B /* ToolOutcomeUITests.swift in Sources */,
 				1991B7FB607C1B52DB0F10EF /* ToolsGoldenPathUITests.swift in Sources */,
 				883A031767649B8D3B9142C1 /* ToolsGridLayoutUITests.swift in Sources */,
