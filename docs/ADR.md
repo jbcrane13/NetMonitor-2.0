@@ -413,4 +413,28 @@ The `.prefix(while:)` trims the null terminator; `.map { UInt8(bitPattern:) }` r
 
 ---
 
+## ADR-022: Ranked identity sources with stored provenance
+**Date:** 2026-11-21
+**Status:** Accepted (implementation: epic #460, #461, #462)
+**Decision:** A device's maker, model and friendly name are each resolved by ranking the identity source that produced them, not by the order sources arrive in. On every merge (inside a scan, across scans, between the Mac companion and iOS), a higher-ranked value wins and an equal rank lets the newer value win. The saved device stores the winning value **and its source** (`modelSource`, `makerSource`, `friendlyNameSource`; macOS SchemaV3). Rankings:
+- Model: Bonjour TXT > UniFi (discovery reply or controller) > UPnP description > hostname guess
+- Maker: the device's own announcement (UPnP manufacturer, UniFi, Bonjour) > MAC-prefix maker (including the companion's `vendor`) > hostname guess
+- Friendly name: UniFi > UPnP
+- The user's custom name is never ranked; it always wins. `vendor` holds only the MAC-prefix maker.
+
+**Context:** By 2.2.2, "who wins" lived in at least six places with different rules. The accumulator kept the first value seen (phase order decided precedence), with a Bonjour-model override. The macOS row update kept the last value seen, after `source` had been dropped. iOS detail, `AlertRuleStore` and `vendorOrManufacturer` disagreed on whether the MAC prefix or the device's announcement names the maker. #439's hostname guesses only worked because two platform-specific code paths ran them last. A stored Bonjour model flipped to a UPnP model on any scan where Bonjour was silent (#443). The MAC prefix names whoever made the network chip (Espressif, Murata) rather than the brand on a speaker or plug, so the device's own announcement ranks above it. This reverses the earlier `vendorOrManufacturer` order.
+
+**Alternatives rejected:**
+- Store every source's raw value per field: it would allow re-ranking without re-scanning, but needs many more columns and every view would still have to resolve the values.
+- Store nothing and only let Bonjour overwrite: no schema change, but it can't tell a UPnP model from a hostname guess or a UniFi model.
+
+**Consequences:**
+- macOS SchemaV3, with a migration that rebuilds `vendor` from the MAC prefix. iOS adds the same optional attributes, and the `DiscoveredDevice` cache carries the sources.
+- A missing source counts as the lowest rank, so the first scan after upgrading replaces pre-V3 values once.
+- Source order in `ScanPipeline` no longer affects identity; `HostnameIdentityPhase` is an ordinary step.
+- A new identity source is one ranked case plus a phase. Adding a field means adding its value and source together.
+- The companion protocol carries each identity value's source (#427).
+
+---
+
 *To add a new ADR: append with the next number, include date, status, decision, context, and consequences. Reference the GitHub issue if applicable.*
