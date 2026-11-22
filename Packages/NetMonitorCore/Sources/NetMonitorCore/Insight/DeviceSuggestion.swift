@@ -24,6 +24,26 @@ public struct DeviceSuggestion: Sendable, Codable, Equatable {
     public var isEmpty: Bool {
         (deviceType ?? .unknown) == .unknown && (maker ?? "").isEmpty && (model ?? "").isEmpty
     }
+
+    /// The suggestion without values that say nothing new. The on-device model answers
+    /// "unknown" in text fields, names the chip maker from the MAC prefix as the maker, and
+    /// repeats a hostname as the model (seen on macOS 27.2).
+    public func checked(against evidence: DeviceEvidence) -> DeviceSuggestion {
+        func meaningful(_ text: String?) -> String? {
+            guard let text = text?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty,
+                  !["unknown", "none", "n/a", "unspecified"].contains(text.lowercased())
+            else { return nil }
+            return text
+        }
+        let names = evidence.names.flatMap { name in
+            [name.lowercased(), name.lowercased().split(separator: ".").first.map(String.init) ?? ""]
+        }
+        var checked = self
+        checked.deviceType = deviceType == .unknown ? nil : deviceType
+        checked.maker = meaningful(maker).flatMap { DeviceIdentity.isChipMaker($0) ? nil : $0 }
+        checked.model = meaningful(model).flatMap { names.contains($0.lowercased()) ? nil : $0 }
+        return checked
+    }
 }
 
 /// What the app knows about a device, for the model to suggest its identity from (#449).
@@ -87,7 +107,7 @@ public struct DeviceEvidence: Sendable, Equatable {
 
     // MARK: - Eligibility
 
-    private var names: [String] {
+    var names: [String] {
         [customName, friendlyName, resolvedHostname, hostname].compactMap { $0 }
     }
 

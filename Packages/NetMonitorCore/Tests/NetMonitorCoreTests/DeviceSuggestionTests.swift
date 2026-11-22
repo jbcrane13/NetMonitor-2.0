@@ -221,6 +221,27 @@ struct DeviceSuggesterTests {
         #expect(store.record(for: device.id) == DeviceSuggestionStore.Record(fingerprint: fingerprint, suggestion: nil))
     }
 
+    @Test("Values that say nothing new are dropped: unknown, a chip maker, a model that is a name")
+    func checkedSuggestion() {
+        let evidence = DeviceEvidence(hostname: "Blakes-iPad.lan", macPrefixMaker: "Texas Instruments")
+        let answer = DeviceSuggestion(deviceType: .unknown, maker: "Texas Instruments", model: "blakes-ipad", confidence: .medium)
+        #expect(answer.checked(against: evidence) == DeviceSuggestion(confidence: .medium))
+        #expect(DeviceSuggestion(maker: " Unknown ", model: "N/A", confidence: .high).checked(against: evidence).isEmpty)
+        let useful = DeviceSuggestion(deviceType: .tablet, maker: "Apple", model: "iPad", confidence: .high)
+        #expect(useful.checked(against: evidence) == useful)
+    }
+
+    @Test("A suggestion left empty by the check is stored as nothing to show")
+    func emptyAfterCheck() async {
+        let service = MockInsightService(suggestion: DeviceSuggestion(maker: "Texas Instruments", model: "unknown", confidence: .high))
+        let suggester = DeviceSuggester(service: service, store: store)
+        let device = bridge()
+        await suggester.suggest(for: [device])
+        #expect(device.manufacturer == nil)
+        #expect(device.modelName == nil)
+        #expect(store.record(for: device.id)?.suggestion == nil)
+    }
+
     @Test("Nothing is asked while the model is unavailable, or about a device that needs nothing")
     func skips() async {
         let unavailable = MockInsightService(isAvailable: false, suggestion: lutron)

@@ -84,7 +84,8 @@ public final class DeviceSuggester {
             if Task.isCancelled {
                 return
             }
-            let suggestion = answer.flatMap { $0.confidence == .low || $0.isEmpty ? nil : $0 }
+            let suggestion = answer.map { $0.checked(against: evidence) }
+                .flatMap { $0.confidence == .low || $0.isEmpty ? nil : $0 }
             store.setRecord(DeviceSuggestionStore.Record(fingerprint: evidence.fingerprint, suggestion: suggestion), for: device.id)
             if let suggestion {
                 device.mergeIdentity(DeviceIdentity(
