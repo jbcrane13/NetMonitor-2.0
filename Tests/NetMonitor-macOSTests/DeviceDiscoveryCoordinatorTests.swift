@@ -6,6 +6,7 @@ import NetworkScanKit
 @testable import NetMonitor_macOS
 
 @Suite("Standard scan pipeline")
+@MainActor
 struct StandardScanPipelineTests {
     @Test("The standard Mac scan doesn't read the UniFi gateway list")
     func noUniFiStep() {
