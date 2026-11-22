@@ -127,16 +127,20 @@ public final class NotificationService {
             intentIdentifiers: []
         )
 
-        center.setNotificationCategories(Set(Self.categoryIdentifiers.map {
-            UNNotificationCategory(identifier: $0, actions: [viewAction, dismissAction], intentIdentifiers: [])
+        center.setNotificationCategories(Set(Self.categoryIdentifiers.map { identifier in
+            let actions = Self.categoriesWithViewAction.contains(identifier) ? [viewAction, dismissAction] : [dismissAction]
+            return UNNotificationCategory(identifier: identifier, actions: actions, intentIdentifiers: [])
         }))
     }
 
-    /// Every category this service posts, each registered with View and Dismiss actions.
-    /// Rule alerts were missing before #445.
+    /// Every category this service posts. Rule alerts were missing before #445.
     public static let categoryIdentifiers = [
         targetDownCategory, targetRecoveredCategory, highLatencyCategory, newDeviceCategory, ruleMatchCategory
     ]
+
+    /// Categories that offer View Details. The categories added in #445 offer Dismiss only,
+    /// because no response handler opens a target or rule yet.
+    public static let categoriesWithViewAction: Set = [targetDownCategory, highLatencyCategory, newDeviceCategory]
 
     // MARK: - Target Down Alert
 

@@ -26,6 +26,10 @@ struct ContentView: View {
                 showQuickJump: $showQuickJump,
                 onJumpToNetwork: { jumpToActiveNetwork() }
             ))
+            .focusedSceneValue(\.scanNetworkAction) { [deviceDiscovery, selectedNetworkProfile] in
+                guard let deviceDiscovery else { return }
+                Self.scan(with: deviceDiscovery, selected: selectedNetworkProfile)
+            }
             .sheet(isPresented: $showQuickJump) {
                 QuickJumpSheet(selection: $selectedSection, isPresented: $showQuickJump)
             }
@@ -182,6 +186,18 @@ struct ContentView: View {
                 }
                 .accessibilityIdentifier("contentView_button_back")
             }
+        }
+    }
+}
+
+extension ContentView {
+    /// File ▸ Scan Network and ⌘R (#444): scans the network dashboard on screen, like its Scan
+    /// button, else the coordinator's current network.
+    static func scan(with coordinator: DeviceDiscoveryCoordinator, selected profile: NetworkProfile?) {
+        if let profile {
+            coordinator.scanNetwork(profile)
+        } else {
+            coordinator.startScan()
         }
     }
 }
