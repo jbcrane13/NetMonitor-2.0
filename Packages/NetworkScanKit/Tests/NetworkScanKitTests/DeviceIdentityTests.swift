@@ -197,6 +197,23 @@ struct HostnameIdentityPhaseTests {
         #expect(await lookups.calls == 0)
         #expect(await accumulator.snapshot().first?.vendor == "Apple")
     }
+
+    @Test("Looks a name up for a device whose maker and model are empty strings")
+    func lookupWhenEmpty() async {
+        let accumulator = ScanAccumulator()
+        // Only the non-failable init can build an empty value; no scan step does today.
+        await accumulator.upsert(DiscoveredDevice(
+            ipAddress: "192.168.2.2", hostname: "Living room", vendor: "", macAddress: nil,
+            latency: nil, discoveredAt: Date(), source: .local,
+            identity: DeviceIdentity(maker: IdentityValue("", source: nil), model: IdentityValue("", source: nil))
+        ))
+        let context = ScanContext(hosts: [], subnetFilter: { _ in true }, localIP: nil)
+        let phase = HostnameIdentityPhase(lookUpName: { _ in "u7-pro.lan.windingbrook.net" })
+        await phase.execute(context: context, accumulator: accumulator) { _ in }
+        let result = await accumulator.snapshot().first
+        #expect(result?.manufacturer == "Ubiquiti")
+        #expect(result?.modelName == "U7 Pro")
+    }
 }
 
 private actor LookupCounter {

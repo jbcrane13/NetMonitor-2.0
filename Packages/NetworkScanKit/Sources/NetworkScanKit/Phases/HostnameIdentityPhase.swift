@@ -81,6 +81,6 @@ public struct HostnameIdentityPhase: ScanPhase, Sendable {
     }
 
     private static func needsIdentity(_ device: DiscoveredDevice) -> Bool {
-        device.maker == nil || device.modelName == nil
+        (device.maker?.isEmpty ?? true) || (device.modelName?.isEmpty ?? true)
     }
 }
