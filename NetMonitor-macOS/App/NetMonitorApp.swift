@@ -10,7 +10,7 @@ struct NetMonitorApp: App {
     @State private var monitoringSession: MonitoringSession?
     @State private var deviceDiscovery: DeviceDiscoveryCoordinator?
     @State private var companionService: CompanionService?
-    @State private var networkChangeWatcher: LocalNetworkChangeWatcher?
+    @State private var networkChangeWatcher: LocalNetworkChangeMonitor?
     @State private var periodicScanScheduler: PeriodicScanScheduler?
     /// One store for every window and the rule dispatcher (#394).
     @State private var alertRuleStore = AlertRuleStore()
@@ -208,7 +208,7 @@ struct NetMonitorApp: App {
             // Fill the dashboard without waiting for the user to press Scan (#358).
             discovery.startLaunchScan()
             // Rescan when the Mac moves to a different network while the app is open (#359).
-            let watcher = LocalNetworkChangeWatcher(profileManager: profileManager, discovery: discovery)
+            let watcher = LocalNetworkChangeMonitor.rescanning(discovery, profileManager: profileManager)
             watcher.start()
             networkChangeWatcher = watcher
             // Rescan at the user's chosen scan frequency while the app runs (#392).

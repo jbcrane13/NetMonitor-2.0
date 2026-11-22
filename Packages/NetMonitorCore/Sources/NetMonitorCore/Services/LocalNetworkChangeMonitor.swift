@@ -2,8 +2,8 @@ import Foundation
 import Network
 
 /// Tells the app when the device has joined a different local network, so it can drop the
-/// old network's devices and scan the new one. iOS uses this; the Mac has its own
-/// `LocalNetworkChangeWatcher` (#359) built on the same rule.
+/// old network's devices and scan the new one. Both apps use it; the Mac builds it with
+/// `LocalNetworkChangeMonitor.rescanning(_:profileManager:)` (#359).
 ///
 /// Path updates arrive in bursts while an interface comes up, so each one restarts a short
 /// debounce; only a settled, satisfied path re-runs local-network detection. Apps that can
@@ -69,7 +69,7 @@ public final class LocalNetworkChangeMonitor {
     public func handlePathSettled(satisfied: Bool) -> Bool {
         guard satisfied else { return false }
         profileManager.detectLocalNetwork()
-        guard let local = profileManager.profiles.first(where: { $0.isLocal }) else { return false }
+        guard let local = profileManager.localProfile else { return false }
         let key = Self.networkKey(of: local)
         guard key != lastNetworkKey else { return false }
         lastNetworkKey = key
@@ -79,7 +79,7 @@ public final class LocalNetworkChangeMonitor {
     }
 
     private static func localNetworkKey(in manager: NetworkProfileManager) -> String? {
-        guard let local = manager.profiles.first(where: { $0.isLocal }) else { return nil }
+        guard let local = manager.localProfile else { return nil }
         return networkKey(of: local)
     }
 

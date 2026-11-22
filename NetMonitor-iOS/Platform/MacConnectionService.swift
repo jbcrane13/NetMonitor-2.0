@@ -365,7 +365,7 @@ final class MacConnectionService: MacConnectionServiceProtocol {
 
     private func sendLocalNetworkProfile() async {
         networkProfileManager.detectLocalNetwork()
-        guard let profile = networkProfileManager.profiles.first(where: { $0.isLocal })
+        guard let profile = networkProfileManager.localProfile
                 ?? networkProfileManager.activeProfile else {
             return
         }
@@ -387,8 +387,7 @@ final class MacConnectionService: MacConnectionServiceProtocol {
         heartbeatTask = Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(Self.heartbeatInterval))
-                guard !Task.isCancelled else { break }
-                guard let self else { break }
+                guard !Task.isCancelled, let self else { break }
                 await self.sendHeartbeat()
                 let stillAlive = self.checkLinkLiveness(generation: generation)
                 if !stillAlive {
@@ -431,8 +430,7 @@ final class MacConnectionService: MacConnectionServiceProtocol {
         let delay = linkSession.nextReconnectDelay(jitterFraction: Double.random(in: 0...1))
         reconnectTask = Task { [weak self] in
             try? await Task.sleep(for: .seconds(delay))
-            guard !Task.isCancelled else { return }
-            guard let self else { return }
+            guard !Task.isCancelled, let self else { return }
 
             await MainActor.run {
                 self.reconnectTask = nil

@@ -240,8 +240,8 @@ struct NetworkDetailViewScanRegressionTests {
         defer { defaults.removePersistentDomain(forName: suite) }
         let coordinator = makeCoordinator(context: context, networkProfileManager: manager)
         defer { coordinator.stopScan() }
-        let watcher = LocalNetworkChangeWatcher(
-            profileManager: manager, discovery: coordinator, pathEvents: AsyncStream { _ in }
+        let watcher = LocalNetworkChangeMonitor.rescanning(
+            coordinator, profileManager: manager, pathEvents: AsyncStream { _ in }
         )
         let (notifications, token) = countProfileChangeNotifications()
         defer { NotificationCenter.default.removeObserver(token) }
@@ -264,8 +264,8 @@ struct NetworkDetailViewScanRegressionTests {
         defer { defaults.removePersistentDomain(forName: suite) }
         let coordinator = makeCoordinator(context: context, networkProfileManager: manager)
         defer { coordinator.stopScan() }
-        let watcher = LocalNetworkChangeWatcher(
-            profileManager: manager, discovery: coordinator, pathEvents: AsyncStream { _ in }
+        let watcher = LocalNetworkChangeMonitor.rescanning(
+            coordinator, profileManager: manager, pathEvents: AsyncStream { _ in }
         )
         let (notifications, token) = countProfileChangeNotifications()
         defer { NotificationCenter.default.removeObserver(token) }
@@ -283,8 +283,8 @@ struct NetworkDetailViewScanRegressionTests {
         defer { defaults.removePersistentDomain(forName: suite) }
         let coordinator = makeCoordinator(context: context, networkProfileManager: manager)
         defer { coordinator.stopScan() }
-        let watcher = LocalNetworkChangeWatcher(
-            profileManager: manager, discovery: coordinator, pathEvents: AsyncStream { _ in }
+        let watcher = LocalNetworkChangeMonitor.rescanning(
+            coordinator, profileManager: manager, pathEvents: AsyncStream { _ in }
         )
         box.value = [makeLocal(networkB, ip: "10.20.0.5")]
 
@@ -301,8 +301,8 @@ struct NetworkDetailViewScanRegressionTests {
         defer { defaults.removePersistentDomain(forName: suite) }
         let coordinator = makeCoordinator(context: context, networkProfileManager: manager)
         defer { coordinator.stopScan() }
-        let watcher = LocalNetworkChangeWatcher(
-            profileManager: manager, discovery: coordinator, pathEvents: AsyncStream { _ in }
+        let watcher = LocalNetworkChangeMonitor.rescanning(
+            coordinator, profileManager: manager, pathEvents: AsyncStream { _ in }
         )
         #expect(coordinator.startLaunchScan())
         #expect(coordinator.networkProfile?.subnet == "192.168.1.0/24")
@@ -324,8 +324,8 @@ struct NetworkDetailViewScanRegressionTests {
         let coordinator = makeCoordinator(context: context, networkProfileManager: manager)
         defer { coordinator.stopScan() }
         let (events, continuation) = AsyncStream.makeStream(of: Bool.self)
-        let watcher = LocalNetworkChangeWatcher(
-            profileManager: manager, discovery: coordinator, pathEvents: events, debounce: .milliseconds(100)
+        let watcher = LocalNetworkChangeMonitor.rescanning(
+            coordinator, profileManager: manager, pathEvents: events, debounce: .milliseconds(100)
         )
         watcher.start()
         defer { watcher.stop() }

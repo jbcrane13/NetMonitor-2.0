@@ -230,7 +230,7 @@ final class CompanionMessageHandler {
 
         NotificationCenter.default.post(name: .networkProfilesDidChange, object: nil)
         networkProfileManager.detectLocalNetwork()
-        guard let localProfile = networkProfileManager.profiles.first(where: { $0.isLocal })
+        guard let localProfile = networkProfileManager.localProfile
                 ?? networkProfileManager.activeProfile else {
             return nil
         }
