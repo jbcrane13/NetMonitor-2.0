@@ -2,40 +2,6 @@ import Testing
 import Foundation
 @testable import NetMonitorCore
 
-/// An insight service the test drives by hand.
-final class MockInsightService: InsightServiceProtocol, @unchecked Sendable {
-    private let lock = NSLock()
-    private var available: Bool
-    private var continuations: [AsyncStream<InsightUpdate>.Continuation] = []
-    private var received: [InsightRequest] = []
-
-    init(isAvailable: Bool = true) {
-        available = isAvailable
-    }
-
-    var isAvailable: Bool { lock.withLock { available } }
-    var requests: [InsightRequest] { lock.withLock { received } }
-
-    func explain(_ request: InsightRequest) -> AsyncStream<InsightUpdate> {
-        AsyncStream { continuation in
-            lock.withLock {
-                received.append(request)
-                continuations.append(continuation)
-            }
-        }
-    }
-
-    /// Sends `update` on the stream of the `index`th request.
-    func send(_ update: InsightUpdate, to index: Int = 0) {
-        let continuation = lock.withLock { continuations[index] }
-        continuation.yield(update)
-        if case .partial = update {
-            return
-        }
-        continuation.finish()
-    }
-}
-
 @Suite("ToolInsightState")
 @MainActor
 struct ToolInsightStateTests {
@@ -153,5 +119,9 @@ private struct EndsEarlyInsightService: InsightServiceProtocol {
     let isAvailable = true
     func explain(_ request: InsightRequest) -> AsyncStream<InsightUpdate> {
         AsyncStream { $0.finish() }
+    }
+
+    func suggestIdentity(_ evidence: DeviceEvidence) async -> DeviceSuggestion? {
+        nil
     }
 }

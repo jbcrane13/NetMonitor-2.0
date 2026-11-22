@@ -132,6 +132,12 @@ public final class LocalDevice {
         identity.resolvedMaker(macPrefixMaker: vendor)
     }
 
+    /// ``maker`` without a model suggestion (#449): for alert rules and the companion feed,
+    /// which act on what the device and the user said, not on a guess.
+    public var makerExcludingSuggestions: String? {
+        identity.withoutSuggestions.resolvedMaker(macPrefixMaker: vendor)
+    }
+
     public var formattedMacAddress: String {
         macAddress.uppercased()
     }

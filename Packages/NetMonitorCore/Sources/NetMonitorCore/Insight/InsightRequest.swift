@@ -47,9 +47,10 @@ public struct InsightRequest: Sendable, Equatable {
     /// Longest line a prompt carries.
     static let lineLimit = 300
 
-    private static func line(_ text: String) -> String {
+    /// `text` on one line, without control characters, capped at `limit` characters.
+    static func line(_ text: String, limit: Int = lineLimit) -> String {
         let flat = text.components(separatedBy: .newlines).joined(separator: " ")
             .components(separatedBy: .controlCharacters).joined()
-        return flat.count > lineLimit ? flat.prefix(lineLimit) + "…" : flat
+        return flat.count > limit ? flat.prefix(limit) + "…" : flat
     }
 }

@@ -52,8 +52,8 @@ public struct DeviceTypeInferenceService: Sendable {
             return .router
         }
 
-        // 2. Exact model from Bonjour TXT records
-        if let model = device.modelName, let result = Self.deviceType(forModel: model) {
+        // 2. Exact model from Bonjour TXT records. A model suggestion never decides the type (#449).
+        if let model = device.identity.withoutSuggestions.model?.value, let result = Self.deviceType(forModel: model) {
             return result
         }
 
@@ -230,7 +230,7 @@ public struct DeviceTypeInferenceService: Sendable {
     /// listed as their own words. "Hewlett Packard" (printer) and "Hewlett-Packard" (computer) keep
     /// their exact-text checks, since splitting into words would merge them.
     private func inferFromVendor(_ device: LocalDevice) -> DeviceType? {
-        let vendors = [device.vendor, device.manufacturer]
+        let vendors = [device.vendor, device.identity.withoutSuggestions.maker?.value]
             .compactMap { $0.map(NameWords.init) }
 
         guard !vendors.isEmpty else { return nil }
