@@ -23,44 +23,60 @@ public struct UniFiInventoryEntry: Equatable, Sendable {
 
 /// Reads the device list from a UniFi gateway.
 public protocol UniFiNetworkServiceProtocol: Sendable {
-    /// Every UniFi device and connected client, or empty when there is no key or the gateway
-    /// doesn't answer.
+    /// Every UniFi device and connected client, or empty when the list can't be read.
     func inventory() async -> [UniFiInventoryEntry]
 }
 
-/// Reads UniFi devices and clients from the gateway's UniFi Network integration API
-/// (`/proxy/network/integration/v1`, Network 9.0 and later) with a local API key.
+/// Reads UniFi devices and clients from the enrolled controller's UniFi Network integration API
+/// (`/proxy/network/integration/v1`, Network 9.0 and later).
 ///
-/// The gateway serves a self-signed certificate, so the service trusts any certificate, but
-/// only from the gateway's own private LAN address; every other host gets normal checks.
+/// Only an enrolled controller is read, and only through `UniFiControllerTransport`, which sends
+/// the key solely to that controller's verified HTTPS origin. Without an enrollment (including a
+/// key saved by an earlier version without one) nothing is sent.
 public struct UniFiNetworkService: UniFiNetworkServiceProtocol {
-    private let gateway: @Sendable () -> String?
-    private let apiKey: @Sendable () -> String?
+    private let enrollment: @Sendable () -> UniFiControllerEnrollment?
+    private let transport: any UniFiControllerTransport
 
     public init(
-        gateway: @escaping @Sendable () -> String? = { NetworkUtilities.detectDefaultGateway() },
-        apiKey: @escaping @Sendable () -> String? = { UniFiAPIKeyStore().read() }
+        enrollment: @escaping @Sendable () -> UniFiControllerEnrollment? = { UniFiAPIKeyStore().enrollment() },
+        transport: any UniFiControllerTransport = URLSessionUniFiTransport()
     ) {
-        self.gateway = gateway
-        self.apiKey = apiKey
+        self.enrollment = enrollment
+        self.transport = transport
     }
 
     public func inventory() async -> [UniFiInventoryEntry] {
-        guard let key = apiKey(), !key.isEmpty, let host = gateway(), Self.isPrivateIPv4(host) else { return [] }
-        let delegate = GatewayTrustDelegate(host: host)
-        let session = URLSession(configuration: .ephemeral, delegate: delegate, delegateQueue: nil)
-        defer { session.finishTasksAndInvalidate() }
-        let base = "https://\(host)/proxy/network/integration/v1"
-
-        guard let sitesData = await get("\(base)/sites", key: key, session: session),
+        guard let enrollment = enrollment() else { return [] }
+        let base = "https://\(enrollment.host)/proxy/network/integration/v1"
+        guard let sitesData = await get("\(base)/sites", enrollment),
               let sites = try? JSONDecoder().decode(Page<Site>.self, from: sitesData) else { return [] }
         var entries: [UniFiInventoryEntry] = []
         for site in sites.data {
-            let devices: [DeviceRecord] = await allPages("\(base)/sites/\(site.id)/devices", key: key, session: session)
-            let clients: [ClientRecord] = await allPages("\(base)/sites/\(site.id)/clients", key: key, session: session)
+            let devices: [DeviceRecord] = await allPages("\(base)/sites/\(site.id)/devices", enrollment)
+            let clients: [ClientRecord] = await allPages("\(base)/sites/\(site.id)/clients", enrollment)
             entries += Self.entries(devices: devices, clients: clients)
         }
         return entries
+    }
+
+    private func allPages<Item: Decodable>(_ url: String, _ enrollment: UniFiControllerEnrollment) async -> [Item] {
+        let limit = 200
+        var items: [Item] = []
+        // A home network has a few hundred clients at most; ten pages is a safety stop.
+        for page in 0..<10 {
+            guard let data = await get("\(url)?offset=\(page * limit)&limit=\(limit)", enrollment),
+                  let decoded = try? JSONDecoder().decode(Page<Item>.self, from: data) else { break }
+            items += decoded.data
+            if decoded.data.count < limit || items.count >= decoded.totalCount ?? 0 {
+                break
+            }
+        }
+        return items
+    }
+
+    private func get(_ url: String, _ enrollment: UniFiControllerEnrollment) async -> Data? {
+        guard let url = URL(string: url) else { return nil }
+        return await transport.get(url, enrollment: enrollment)
     }
 
     // MARK: - Parsing
@@ -118,59 +134,5 @@ public struct UniFiNetworkService: UniFiNetworkServiceProtocol {
         }
         let trimmed = name.trimmingCharacters(in: .whitespaces)
         return trimmed.isEmpty ? nil : trimmed
-    }
-
-    static func isPrivateIPv4(_ host: String) -> Bool {
-        let octets = host.split(separator: ".").compactMap { UInt8($0) }
-        guard octets.count == 4 else { return false }
-        return octets[0] == 10 || octets[0] == 192 && octets[1] == 168 || octets[0] == 172 && (16...31).contains(octets[1])
-    }
-
-    // MARK: - Requests
-
-    private func allPages<Item: Decodable>(_ url: String, key: String, session: URLSession) async -> [Item] {
-        let limit = 200
-        var items: [Item] = []
-        // A home network has a few hundred clients at most; ten pages is a safety stop.
-        for page in 0..<10 {
-            guard let data = await get("\(url)?offset=\(page * limit)&limit=\(limit)", key: key, session: session),
-                  let decoded = try? JSONDecoder().decode(Page<Item>.self, from: data) else { break }
-            items += decoded.data
-            if decoded.data.count < limit || items.count >= decoded.totalCount ?? 0 {
-                break
-            }
-        }
-        return items
-    }
-
-    private func get(_ url: String, key: String, session: URLSession) async -> Data? {
-        guard let url = URL(string: url) else { return nil }
-        var request = URLRequest(url: url, timeoutInterval: 5)
-        request.setValue(key, forHTTPHeaderField: "X-API-KEY")
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        guard let (data, response) = try? await session.data(for: request),
-              (response as? HTTPURLResponse)?.statusCode == 200 else { return nil }
-        return data
-    }
-}
-
-/// Accepts the self-signed certificate of one host; default handling for every other host.
-private final class GatewayTrustDelegate: NSObject, URLSessionDelegate, Sendable {
-    let host: String
-
-    init(host: String) {
-        self.host = host
-    }
-
-    func urlSession(
-        _ session: URLSession,
-        didReceive challenge: URLAuthenticationChallenge
-    ) async -> (URLSession.AuthChallengeDisposition, URLCredential?) {
-        guard challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust,
-              challenge.protectionSpace.host == host,
-              let trust = challenge.protectionSpace.serverTrust else {
-            return (.performDefaultHandling, nil)
-        }
-        return (.useCredential, URLCredential(trust: trust))
     }
 }

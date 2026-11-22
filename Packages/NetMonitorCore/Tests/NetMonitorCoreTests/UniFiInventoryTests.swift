@@ -55,21 +55,6 @@ struct UniFiInventoryParsingTests {
         #expect(UniFiNetworkService.cleanName(nil) == nil)
     }
 
-    @Test("Only a private LAN address is trusted as the gateway")
-    func privateGateway() {
-        #expect(UniFiNetworkService.isPrivateIPv4("192.168.2.1"))
-        #expect(UniFiNetworkService.isPrivateIPv4("10.0.0.1"))
-        #expect(UniFiNetworkService.isPrivateIPv4("172.16.0.1"))
-        #expect(!UniFiNetworkService.isPrivateIPv4("172.32.0.1"))
-        #expect(!UniFiNetworkService.isPrivateIPv4("203.0.113.9"))
-        #expect(!UniFiNetworkService.isPrivateIPv4("unifi.example.com"))
-    }
-
-    @Test("No key, no request")
-    func noKey() async {
-        let service = UniFiNetworkService(gateway: { "192.168.2.1" }, apiKey: { nil })
-        #expect(await service.inventory().isEmpty)
-    }
 }
 
 private struct FixedInventory: UniFiNetworkServiceProtocol {

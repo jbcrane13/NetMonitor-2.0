@@ -258,8 +258,8 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
         scanPhase = .done
     }
 
-    /// Fills makers and models after every scan and companion source: the UniFi gateway's list
-    /// (with an API key), then guesses from names, last so better makers win over them (#439).
+    /// Fills makers and models after every scan and companion source: the enrolled UniFi
+    /// controller's list, then guesses from names, last so better makers win over them (#439).
     private func identifyDevices(context: ScanContext, nameResolver: GatewayNameResolver) async {
         await UniFiInventoryPhase().execute(context: context, accumulator: engine.accumulator) { _ in }
         await HostnameIdentityPhase(lookUpName: { await nameResolver.resolve(ipAddress: $0) })
