@@ -49,7 +49,7 @@ final class NetworkHealthScoreViewModel {
     /// What the "Explain" card explains: the finished result on screen (#448).
     var insightRequest: InsightRequest? {
         guard !isCalculating, let currentScore else { return nil }
-        return ToolInsightBuilder.healthScore(currentScore)
+        return ToolInsightBuilder.healthScore(currentScore, checks: checks)
     }
 
     var gradeText: String { currentScore?.grade ?? "—" }

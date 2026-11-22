@@ -23,6 +23,8 @@ struct HealthChecklistCard: View {
                     }
                 }
 
+                ToolInsightCard(screen: "healthScore", request: healthViewModel.insightRequest, isEmbedded: true)
+
                 Divider().background(Theme.Colors.divider)
 
                 dnsSection

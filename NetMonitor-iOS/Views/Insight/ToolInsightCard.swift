@@ -62,12 +62,14 @@ struct ToolInsightCard: View {
                 header
                 ProgressView().controlSize(.small)
             }
+            keyPoints(request)
             if !text.isEmpty {
                 explanation(text)
                 generatedNote
             }
         case let .finished(text):
             header
+            keyPoints(request)
             explanation(text)
             generatedNote
         case .failed:
@@ -81,8 +83,25 @@ struct ToolInsightCard: View {
         }
     }
 
+    /// The judgements the app computed, shown word for word. The model's text below can
+    /// leave one out or contradict it, so these are what the reader can rely on.
+    @ViewBuilder
+    private func keyPoints(_ request: InsightRequest) -> some View {
+        if !request.observations.isEmpty {
+            VStack(alignment: .leading, spacing: 4) {
+                ForEach(request.observations, id: \.self) { point in
+                    Label(point, systemImage: "checkmark.circle")
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(Theme.Colors.textPrimary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .accessibilityIdentifier("\(screen)_insight_list_keyPoints")
+        }
+    }
+
     private var generatedNote: some View {
-            Text("Generated on this device. Check it against the result above.")
+            Text("Summary generated on this device. Check it against the key points and the result.")
             .font(.caption2)
             .foregroundStyle(Theme.Colors.textSecondary)
             .accessibilityIdentifier("\(screen)_insight_label_generated")

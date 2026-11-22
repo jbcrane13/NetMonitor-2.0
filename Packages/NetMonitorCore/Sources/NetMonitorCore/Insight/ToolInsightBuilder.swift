@@ -5,26 +5,35 @@ import Foundation
 public enum ToolInsightBuilder {
     // MARK: - SSL certificate
 
-    /// - Parameter calendar: reads dates the way the screen shows them.
-    public static func sslCertificate(_ info: SSLCertificateInfo, calendar: Calendar = .current) -> InsightRequest {
+    /// - Parameters:
+    ///   - now: the time expiry is judged against. `daysUntilExpiry` can't tell an expired
+    ///     certificate from one expiring today, because the service clamps it to zero.
+    ///   - calendar: reads dates the way the screen shows them.
+    public static func sslCertificate(_ info: SSLCertificateInfo, now: Date = Date(), calendar: Calendar = .current) -> InsightRequest {
+        let isExpired = info.validTo < now
         var facts = [
             "Issuer: \(info.issuer)",
             "Subject: \(info.subject)",
             "Valid from: \(day(info.validFrom, calendar))",
             "Valid to: \(day(info.validTo, calendar))",
-            "Days until expiry: \(info.daysUntilExpiry)"
+            isExpired ? "Expired: yes" : "Days until expiry: \(info.daysUntilExpiry)"
         ]
         facts.append("Certificate valid: \(info.isValid ? "yes" : "no")")
 
         var observations: [String] = []
-        if info.daysUntilExpiry < 0 {
-            observations.append("The certificate expired \(plural(-info.daysUntilExpiry, "day")) ago; browsers will show a warning.")
+        if isExpired {
+            let days = calendar.dateComponents([.day], from: info.validTo, to: now).day ?? 0
+            observations.append(
+                days >= 1
+                    ? "The certificate expired \(plural(days, "day")) ago; browsers will show a warning."
+                    : "The certificate expired earlier today; browsers will show a warning."
+            )
         } else if info.daysUntilExpiry <= 14 {
             observations.append("The certificate expires in \(plural(info.daysUntilExpiry, "day")) and should be renewed now.")
         } else if info.daysUntilExpiry <= 30 {
             observations.append("The certificate expires in \(plural(info.daysUntilExpiry, "day")); plan the renewal.")
         }
-        if !info.isValid, info.daysUntilExpiry >= 0 {
+        if !info.isValid, !isExpired {
             observations.append("The certificate did not pass validation even though it has not expired.")
         }
         return InsightRequest(subject: "SSL certificate check for \(info.domain)", facts: facts, observations: observations)
@@ -32,21 +41,22 @@ public enum ToolInsightBuilder {
 
     // MARK: - Port scan
 
-    /// What an open port means, for the ports worth a remark.
+    /// What an open port usually means, for the ports worth a remark. The scan only proves
+    /// the port accepts a connection, so every note says "usually".
     static let portNotes: [Int: String] = [
-        21: "is file transfer without encryption; prefer SFTP if the device offers it.",
-        22: "is encrypted remote login, normal on computers and network equipment.",
-        23: "gives remote login without encryption; turn it off if it is not needed.",
-        53: "is DNS, normal on a router.",
-        80: "is an unencrypted web page, usually the device's settings page.",
-        443: "is an encrypted web page, usually the device's settings page.",
-        445: "is Windows file sharing, normal on computers and network storage.",
-        554: "is video streaming, normal for cameras and media devices.",
-        631: "is network printing, normal on printers.",
-        3389: "is Windows Remote Desktop; make sure it is meant to be on.",
-        5900: "is screen sharing (VNC); make sure it is meant to be on.",
-        9100: "is network printing, normal on printers.",
-        62078: "is the sync service that iPhones and iPads keep open."
+        21: "is usually FTP, file transfer without encryption; prefer SFTP if the device offers it.",
+        22: "is usually SSH, encrypted remote login, normal on computers and network equipment.",
+        23: "is usually Telnet, remote login without encryption; turn it off if it is not needed.",
+        53: "is usually DNS, normal on a router.",
+        80: "is usually an unencrypted web page, often the device's settings page.",
+        443: "is usually an encrypted web page, often the device's settings page.",
+        445: "is usually Windows file sharing, normal on computers and network storage.",
+        554: "is usually video streaming (RTSP), normal for cameras and media devices.",
+        631: "is usually network printing, normal on printers.",
+        3389: "is usually Windows Remote Desktop; make sure it is meant to be on.",
+        5900: "is usually screen sharing (VNC); make sure it is meant to be on.",
+        9100: "is usually network printing, normal on printers.",
+        62078: "is usually the sync service that iPhones and iPads keep open."
     ]
 
     /// - Parameter scannedCount: how many ports were scanned, when `results` holds only the open ones.
@@ -55,26 +65,30 @@ public enum ToolInsightBuilder {
         let closed = results.count { $0.state == .closed }
         let filtered = results.count { $0.state == .filtered }
         func label(_ result: PortScanResult) -> String {
-            result.serviceName.map { "\(result.port) (\($0))" } ?? "\(result.port)"
+            result.serviceName.map { "\(result.port) (usually \($0))" } ?? "\(result.port)"
         }
 
         var openText = open.prefix(listLimit).map(label).joined(separator: ", ")
         if open.count > listLimit {
             openText += ", and \(open.count - listLimit) more"
         }
-        var facts = ["Ports scanned: \(scannedCount ?? results.count)", open.isEmpty ? "Open ports: none" : "Open ports (\(open.count)): \(openText)"]
+        var facts = ["Number of ports scanned: \(scannedCount ?? results.count)", open.isEmpty ? "Open ports: none" : "Open ports (\(open.count)): \(openText)"]
         if closed > 0 {
-            facts.append("Closed ports: \(closed)")
+            facts.append("Number of closed ports: \(closed)")
         }
         if filtered > 0 {
-            facts.append("Filtered ports (no answer, usually a firewall): \(filtered)")
+            facts.append("Number of filtered ports (no answer, usually a firewall): \(filtered)")
         }
         if let scannedCount, scannedCount > results.count {
-            facts.append("Ports that did not accept a connection: \(scannedCount - results.count)")
+            facts.append("Number of ports that did not accept a connection: \(scannedCount - results.count)")
+        }
+
+        if !open.isEmpty {
+            facts.append("The scan only checked whether each port accepts a connection; service names are the usual use of that port number.")
         }
 
         var observations = open.compactMap { result in
-            portNotes[result.port].map { "Port \(label(result)) \($0)" }
+            portNotes[result.port].map { "Port \(result.port) \($0)" }
         }
         if open.isEmpty {
             observations.append("No scanned port accepted a connection.")
@@ -135,7 +149,9 @@ public enum ToolInsightBuilder {
 
     // MARK: - DNS
 
-    public static func dnsLookup(_ result: DNSQueryResult) -> InsightRequest {
+    /// - Parameter allTypes: true when every record type was queried; `result.queryType` is then
+    ///   a placeholder and not what was asked.
+    public static func dnsLookup(_ result: DNSQueryResult, allTypes: Bool = false) -> InsightRequest {
         var facts = ["DNS server: \(result.server)", "Query time: \(number(result.queryTime)) ms"]
         facts += result.records.prefix(recordLimit).map { record in
             let value = record.value.count > valueLimit ? record.value.prefix(valueLimit) + "…" : record.value
@@ -151,13 +167,15 @@ public enum ToolInsightBuilder {
 
         var observations: [String] = []
         if result.records.isEmpty {
-            observations.append("The name has no \(result.queryType.rawValue) records.")
+            observations.append(
+                allTypes ? "The name has no records of any type that was queried." : "The name has no \(result.queryType.rawValue) records."
+            )
         }
         if result.queryTime >= 300 {
             observations.append("The answer took \(number(result.queryTime)) ms, which is slow for a DNS lookup.")
         }
         return InsightRequest(
-            subject: "DNS lookup of \(result.queryType.rawValue) records for \(result.domain)",
+            subject: "DNS lookup of \(allTypes ? "all record types" : "\(result.queryType.rawValue) records") for \(result.domain)",
             facts: facts,
             observations: observations
         )
@@ -272,7 +290,8 @@ public enum ToolInsightBuilder {
 
     // MARK: - Health score
 
-    public static func healthScore(_ score: NetworkHealthScore) -> InsightRequest {
+    /// - Parameter checks: the health checks shown with the score; the ones that warn are stated.
+    public static func healthScore(_ score: NetworkHealthScore, checks: [HealthCheck] = []) -> InsightRequest {
         var facts = ["Score: \(score.score) out of 100, grade \(score.grade)"]
         var observations: [String] = []
         if let latency = score.latencyMs {
@@ -291,6 +310,7 @@ public enum ToolInsightBuilder {
         if let dns = score.details["dns"] {
             facts.append("DNS response: \(dns)")
         }
+        observations += checks.filter { $0.status == .warn }.map { "\($0.kind.title): \($0.message)" }
         return InsightRequest(subject: "Network health score", facts: facts, observations: observations)
     }
 

@@ -242,7 +242,6 @@ struct PortScannerToolView: View {
         guard !host.isEmpty else { return }
 
         lastUsedTarget = host
-        scannedHost = host.trimmingCharacters(in: .whitespacesAndNewlines)
         let portsToScan = getPortsToScan()
         guard !portsToScan.isEmpty else {
             errorMessage = "No valid ports specified"
@@ -251,6 +250,7 @@ struct PortScannerToolView: View {
 
         isRunning = true
         results.removeAll()
+        scannedHost = host.trimmingCharacters(in: .whitespacesAndNewlines)
         errorMessage = nil
         scannedCount = 0
         totalPorts = portsToScan.count

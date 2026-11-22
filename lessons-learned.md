@@ -71,3 +71,7 @@ Project-specific notes for agents. Global lessons live in `~/.claude/lessons-lea
 - **The pre-commit hook rejects a staged file for SwiftFormat findings that were already there** (#264), so touching an old file can force reformatting it in the same commit.
 - **Two `swift build`s resolving Sentry at once can corrupt a scratch path** ("no Info.plist found … Sentry.xcframework"). Use a fresh `--scratch-path`.
 - **mini-pro-1 has no "iPhone 17 Pro" simulator on Xcode 27.2;** the documented test destination fails with "Unable to find a device". Pass `id=` for an installed simulator.
+- **Even with greedy sampling the model can contradict a point it was told to state** ("no indication that renewal is required" for a certificate 8 days from expiry). The card therefore shows the app's computed key points word for word above the model's summary; treat the summary as wording, never as the record.
+- **Tightening the instructions can make output worse.** "Add no numbers" made it drop every figure. Re-run the real-model pass after any prompt change.
+- **GitHub "apply suggestion" commits can break the build** (#480: one removed `outputAreaContent`, one removed a `struct` line). Build after applying them.
+- **Build caches under `/tmp` lose files mid-session** (Sentry xcframework `Info.plist`). Keep DerivedData and SwiftPM scratch paths under `~/Library/Caches` for long runs.

@@ -43,7 +43,10 @@ struct SystemInsightService: InsightServiceProtocol {
                 do {
                     let session = LanguageModelSession(instructions: InsightRequest.instructions)
                     var text = ""
-                    for try await snapshot in session.streamResponse(to: request.prompt) {
+                    // Greedy sampling: the same result gets the same explanation, and the model
+                    // stays closest to the facts it was given.
+                    let options = GenerationOptions(sampling: .greedy, maximumResponseTokens: 220)
+                    for try await snapshot in session.streamResponse(to: request.prompt, options: options) {
                         text = snapshot.content
                         continuation.yield(.partial(text))
                     }

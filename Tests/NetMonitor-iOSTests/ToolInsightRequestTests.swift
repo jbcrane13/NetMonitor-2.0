@@ -6,6 +6,7 @@ import NetMonitorCore
 /// What each tool hands the "Explain" card (#448).
 @Suite(.serialized)
 @MainActor
+struct ToolInsightRequestTests {
     func until(_ condition: @MainActor () -> Bool, timeout: Duration = .seconds(2)) async {
         await waitUntil(condition, timeout: timeout)
     }
@@ -29,9 +30,10 @@ import NetMonitorCore
         let request = vm.insightRequest
         #expect(request?.subject == "Port scan of 192.168.1.20")
         #expect(request?.facts == [
-            "Ports scanned: 3",
-            "Open ports (1): 80 (HTTP)",
-            "Ports that did not accept a connection: 2"
+            "Number of ports scanned: 3",
+            "Open ports (1): 80 (usually HTTP)",
+            "Number of ports that did not accept a connection: 2",
+            "The scan only checked whether each port accepts a connection; service names are the usual use of that port number."
         ])
     }
 
@@ -82,5 +84,21 @@ import NetMonitorCore
         #expect(vm.insightRequest == nil)
         vm.isRunning = false
         #expect(vm.insightRequest?.facts == ["Hop 1: 192.168.1.1, 2.0 ms"])
+    }
+
+    @Test func dnsLookupOfAllTypesKeepsItsScopeAfterTheToggleChanges() async {
+        let service = MockDNSLookupService()
+        service.mockAllResult = DNSQueryResult(
+            domain: "example.com", server: "1.1.1.1", queryType: .a,
+            records: [DNSRecord(name: "example.com", type: .mx, value: "mx1.example.com", ttl: 300, priority: 10)],
+            queryTime: 12
+        )
+        let vm = DNSLookupToolViewModel(dnsService: service)
+        vm.domain = "example.com"
+        vm.queryAllTypes = true
+        await vm.lookup()
+        vm.queryAllTypes = false
+
+        #expect(vm.insightRequest?.subject == "DNS lookup of all record types for example.com")
     }
 }

@@ -37,6 +37,8 @@ struct HealthChecklistCard: View {
                 }
             }
 
+            ToolInsightStrip(screen: "healthScore", request: insightRequest, isInset: false)
+
             Divider()
 
             dnsSection
@@ -44,6 +46,12 @@ struct HealthChecklistCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .macGlassCard(cornerRadius: 14, padding: 10, statusGlow: MacTheme.Colors.info)
         .accessibilityIdentifier("dashboard_card_healthChecks")
+    }
+
+    /// What the "Explain" strip explains: the score and the checks on screen (#448).
+    private var insightRequest: InsightRequest? {
+        guard !viewModel.isCalculating, let score = viewModel.currentScore else { return nil }
+        return ToolInsightBuilder.healthScore(score, checks: viewModel.checks)
     }
 
     private static func icon(for status: HealthCheck.Status) -> String {

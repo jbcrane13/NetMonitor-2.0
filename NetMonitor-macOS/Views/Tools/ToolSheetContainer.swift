@@ -63,6 +63,10 @@ struct ToolSheetContainer<InputArea: View, OutputArea: View, FooterContent: View
 
             if OutputArea.self != EmptyView.self {
                 Divider()
+                outputAreaContent
+            }
+
+            // No divider either when the model is unavailable, so older systems keep their layout.
             if let insightRequest, InsightService.shared.isAvailable {
                 Divider()
                 ToolInsightStrip(screen: insightScreen, request: insightRequest)
