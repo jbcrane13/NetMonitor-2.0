@@ -20,17 +20,13 @@ enum MacSpeedTestHistory {
         ))
     }
 
-    static let retentionKey = "netmonitor.data.historyRetention"
-
     /// Deletes results older than the "Keep measurement history" setting (#395).
     static func prune(
         store: SpeedTestHistoryStore = store,
         defaults: UserDefaults = .standard,
         now: Date = Date()
     ) {
-        let raw = defaults.string(forKey: retentionKey) ?? HistoryRetention.sevenDays.rawValue
-        guard let days = (HistoryRetention(rawValue: raw) ?? .sevenDays).days else { return }
-        let cutoff = Calendar.current.date(byAdding: .day, value: -days, to: now) ?? now
+        guard let cutoff = HistoryRetention.current(in: defaults).cutoff(now: now) else { return }
         store.prune(olderThan: cutoff)
     }
 
@@ -90,7 +86,7 @@ final class SpeedTestHistoryMaintenance {
 
     func start() {
         guard loopTask == nil else { return }
-        lastRetention = defaults.string(forKey: MacSpeedTestHistory.retentionKey)
+        lastRetention = defaults.string(forKey: HistoryRetention.key)
         prune()
         defaultsObserver = NotificationCenter.default.addObserver(
             forName: UserDefaults.didChangeNotification,
@@ -121,7 +117,7 @@ final class SpeedTestHistoryMaintenance {
 
     /// Prunes when the retention value differs from the last one seen.
     func retentionMayHaveChanged() {
-        let current = defaults.string(forKey: MacSpeedTestHistory.retentionKey)
+        let current = defaults.string(forKey: HistoryRetention.key)
         guard current != lastRetention else { return }
         lastRetention = current
         prune()
