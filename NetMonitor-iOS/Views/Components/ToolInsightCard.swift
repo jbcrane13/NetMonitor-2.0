@@ -35,7 +35,7 @@ struct ToolInsightCard: View {
                 }
             }
             .accessibilityIdentifier("\(screen)_insight_card")
-            .onChange(of: request) { state.reset() }
+            .onDisappear { state.reset() }
         }
     }
 
@@ -48,7 +48,7 @@ struct ToolInsightCard: View {
 
     @ViewBuilder
     private func content(for request: InsightRequest) -> some View {
-        switch state.phase {
+        switch state.phase(for: request) {
         case .idle:
             Button {
                 state.explain(request)
@@ -64,14 +64,12 @@ struct ToolInsightCard: View {
             }
             if !text.isEmpty {
                 explanation(text)
+                generatedNote
             }
         case let .finished(text):
             header
             explanation(text)
-            Text("Generated on this device. Check it against the result above.")
-                .font(.caption2)
-                .foregroundStyle(Theme.Colors.textSecondary)
-                .accessibilityIdentifier("\(screen)_insight_label_generated")
+            generatedNote
         case .failed:
             header
             Text("This result couldn't be explained.")
@@ -81,6 +79,13 @@ struct ToolInsightCard: View {
                 .font(.subheadline)
                 .accessibilityIdentifier("\(screen)_insight_button_retry")
         }
+    }
+
+    private var generatedNote: some View {
+            Text("Generated on this device. Check it against the result above.")
+            .font(.caption2)
+            .foregroundStyle(Theme.Colors.textSecondary)
+            .accessibilityIdentifier("\(screen)_insight_label_generated")
     }
 
     private var header: some View {

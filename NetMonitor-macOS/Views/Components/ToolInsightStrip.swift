@@ -34,13 +34,13 @@ struct ToolInsightStrip: View {
             .padding(.horizontal, isInset ? 16 : 0)
             .padding(.vertical, isInset ? 10 : 0)
             .accessibilityIdentifier("\(screen)_insight_card")
-            .onChange(of: request) { state.reset() }
+            .onDisappear { state.reset() }
         }
     }
 
     @ViewBuilder
     private func content(for request: InsightRequest) -> some View {
-        switch state.phase {
+        switch state.phase(for: request) {
         case .idle:
             Button {
                 state.explain(request)
@@ -55,14 +55,12 @@ struct ToolInsightStrip: View {
             }
             if !text.isEmpty {
                 explanation(text)
+                generatedNote
             }
         case let .finished(text):
             header
             explanation(text)
-            Text("Generated on this Mac. Check it against the result above.")
-                .font(.caption)
-                .foregroundStyle(MacTheme.Colors.labelTertiary)
-                .accessibilityIdentifier("\(screen)_insight_label_generated")
+            generatedNote
         case .failed:
             HStack(spacing: 8) {
                 Text("This result couldn't be explained.")
@@ -71,6 +69,13 @@ struct ToolInsightStrip: View {
                     .accessibilityIdentifier("\(screen)_insight_button_retry")
             }
         }
+    }
+
+    private var generatedNote: some View {
+            Text("Generated on this Mac. Check it against the result above.")
+            .font(.caption)
+            .foregroundStyle(MacTheme.Colors.labelTertiary)
+            .accessibilityIdentifier("\(screen)_insight_label_generated")
     }
 
     private var header: some View {

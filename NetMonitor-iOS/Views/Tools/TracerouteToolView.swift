@@ -15,7 +15,7 @@ struct TracerouteToolView: View {
                 inputSection
                 controlSection
                 hopsSection
-                ToolInsightCard(screen: "traceroute", request: viewModel.insightRequest)
+                ToolInsightCard(screen: "tracerouteTool", request: viewModel.insightRequest)
             }
             .padding(.horizontal, Theme.Layout.screenPadding)
             .padding(.bottom, Theme.Layout.sectionSpacing)

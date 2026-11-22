@@ -5,12 +5,13 @@ import Foundation
 public enum ToolInsightBuilder {
     // MARK: - SSL certificate
 
-    public static func sslCertificate(_ info: SSLCertificateInfo) -> InsightRequest {
+    /// - Parameter calendar: reads dates the way the screen shows them.
+    public static func sslCertificate(_ info: SSLCertificateInfo, calendar: Calendar = .current) -> InsightRequest {
         var facts = [
             "Issuer: \(info.issuer)",
             "Subject: \(info.subject)",
-            "Valid from: \(day(info.validFrom))",
-            "Valid to: \(day(info.validTo))",
+            "Valid from: \(day(info.validFrom, calendar))",
+            "Valid to: \(day(info.validTo, calendar))",
             "Days until expiry: \(info.daysUntilExpiry)"
         ]
         facts.append("Certificate valid: \(info.isValid ? "yes" : "no")")
@@ -45,7 +46,7 @@ public enum ToolInsightBuilder {
         3389: "is Windows Remote Desktop; make sure it is meant to be on.",
         5900: "is screen sharing (VNC); make sure it is meant to be on.",
         9100: "is network printing, normal on printers.",
-        62078: "is the sync service on iPhones and iPads, and is normal."
+        62078: "is the sync service that iPhones and iPads keep open."
     ]
 
     /// - Parameter scannedCount: how many ports were scanned, when `results` holds only the open ones.
@@ -78,7 +79,7 @@ public enum ToolInsightBuilder {
         if open.isEmpty {
             observations.append("No scanned port accepted a connection.")
         }
-        return InsightRequest(subject: "Port scan of \(host)", facts: facts, observations: Array(observations.prefix(8)))
+        return InsightRequest(subject: "Port scan of \(host)", facts: facts, observations: Array(observations.prefix(observationLimit)))
     }
 
     // MARK: - Traceroute and GeoTrace
@@ -102,8 +103,15 @@ public enum ToolInsightBuilder {
 
         let replied = hops.filter { !$0.isTimeout && ($0.ipAddress ?? $0.hostname) != nil }
         var observations: [String] = []
-        if let last = hops.last, !last.isTimeout, let finalTime = last.averageTime {
-            observations.append("The trace reached the destination in \(plural(hops.count, "hop")), at \(String(format: "%.1f", finalTime)) ms.")
+        if let last = hops.last, !last.isTimeout, let finalTime = last.averageTime, let address = last.ipAddress ?? last.hostname {
+            // Arrival is only certain when the last hop is the host that was asked for.
+            let arrived = last.ipAddress == host || last.hostname == host
+            let finalText = String(format: "%.1f", finalTime)
+            observations.append(
+                arrived
+                    ? "The trace reached the destination in \(plural(hops.count, "hop")), at \(finalText) ms."
+                    : "The last hop to reply was hop \(last.hopNumber) (\(address)), at \(finalText) ms."
+            )
             let silent = hops.count - replied.count
             if silent > 0 {
                 let verb = silent == 1 ? "1 hop did not reply" : "\(silent) hops did not reply"
@@ -112,8 +120,9 @@ public enum ToolInsightBuilder {
             let slowest = replied.dropLast().max { ($0.averageTime ?? 0) < ($1.averageTime ?? 0) }
             if let slowest, let time = slowest.averageTime, time > finalTime * 2, time - finalTime >= 20 {
                 observations.append(
-                    "Hop \(slowest.hopNumber) answered slower (\(String(format: "%.1f", time)) ms) than the destination " +
-                        "(\(String(format: "%.1f", finalTime)) ms), so the delay is that router answering probes slowly, not a slow path."
+                    "Hop \(slowest.hopNumber) answered slower (\(String(format: "%.1f", time)) ms) than " +
+                        "\(arrived ? "the destination" : "the last hop") (\(finalText) ms), " +
+                        "so the delay is that router answering probes slowly, not a slow path."
                 )
             }
         } else if let lastReply = replied.last, let address = lastReply.ipAddress ?? lastReply.hostname {
@@ -129,7 +138,8 @@ public enum ToolInsightBuilder {
     public static func dnsLookup(_ result: DNSQueryResult) -> InsightRequest {
         var facts = ["DNS server: \(result.server)", "Query time: \(number(result.queryTime)) ms"]
         facts += result.records.prefix(recordLimit).map { record in
-            var line = "\(record.type.rawValue) \(record.value)"
+            let value = record.value.count > valueLimit ? record.value.prefix(valueLimit) + "…" : record.value
+            var line = "\(record.type.rawValue) \(value)"
             if let priority = record.priority {
                 line += ", priority \(priority)"
             }
@@ -167,7 +177,7 @@ public enum ToolInsightBuilder {
 
     // MARK: - WHOIS
 
-    public static func whois(_ result: WHOISResult, now: Date = Date()) -> InsightRequest {
+    public static func whois(_ result: WHOISResult, now: Date = Date(), calendar: Calendar = .current) -> InsightRequest {
         var facts: [String] = []
         func add(_ label: String, _ value: String?) {
             if let value, !value.isEmpty {
@@ -175,9 +185,13 @@ public enum ToolInsightBuilder {
             }
         }
         add("Registrar", result.registrar)
-        add("Registered", result.creationDate.map(day))
-        add("Expires", result.expirationDate.map(day))
-        add("Name servers", result.nameServers.isEmpty ? nil : result.nameServers.prefix(4).joined(separator: ", "))
+        add("Registered", result.creationDate.map { day($0, calendar) })
+        add("Expires", result.expirationDate.map { day($0, calendar) })
+        var nameServers = result.nameServers.prefix(4).joined(separator: ", ")
+        if result.nameServers.count > 4 {
+            nameServers += ", and \(result.nameServers.count - 4) more"
+        }
+        add("Name servers", nameServers)
         add("Owner", result.registrantOrganization)
         add("DNSSEC", result.dnssec)
         add("Network range", result.networkRange)
@@ -187,7 +201,6 @@ public enum ToolInsightBuilder {
         add("ASN", result.asn)
 
         var observations: [String] = []
-        let calendar = Calendar(identifier: .gregorian)
         if let created = result.creationDate {
             let years = calendar.dateComponents([.year], from: created, to: now).year ?? 0
             observations.append(
@@ -239,15 +252,20 @@ public enum ToolInsightBuilder {
                     "and limits backups and sending large files."
             )
         }
-        let jitter = data.jitter ?? 0
         if data.latency >= 100 {
             observations.append("Latency of \(number(data.latency)) ms is high and will make calls and games feel delayed.")
         }
-        if jitter >= 30 {
+        if let jitter = data.jitter, jitter >= 30 {
             observations.append("Jitter of \(number(jitter)) ms is high, so calls may break up.")
         }
-        if data.latency < 50, jitter < 10 {
-            observations.append("Latency and jitter are low, good for video calls and gaming.")
+        if data.latency < 50 {
+            if let jitter = data.jitter {
+                if jitter < 10 {
+                    observations.append("Latency and jitter are low, good for video calls and gaming.")
+                }
+            } else {
+                observations.append("Latency is low, good for video calls and gaming.")
+            }
         }
         return InsightRequest(subject: "Internet speed test", facts: facts, observations: observations)
     }
@@ -273,12 +291,6 @@ public enum ToolInsightBuilder {
         if let dns = score.details["dns"] {
             facts.append("DNS response: \(dns)")
         }
-        if let download = score.downloadSpeed {
-            facts.append("Download: \(number(download)) Mbps")
-        }
-        if let upload = score.uploadSpeed {
-            facts.append("Upload: \(number(upload)) Mbps")
-        }
         return InsightRequest(subject: "Network health score", facts: facts, observations: observations)
     }
 
@@ -287,10 +299,11 @@ public enum ToolInsightBuilder {
     /// Longest list of hops or ports a request carries; the on-device model's context is small.
     static let listLimit = 30
     static let recordLimit = 20
+    static let observationLimit = 8
+    /// Longest record value a request carries; TXT records can run to kilobytes.
+    static let valueLimit = 120
 
-    static func day(_ date: Date) -> String {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(identifier: "UTC") ?? .gmt
+    static func day(_ date: Date, _ calendar: Calendar) -> String {
         let parts = calendar.dateComponents([.year, .month, .day], from: date)
         return String(format: "%04d-%02d-%02d", parts.year ?? 0, parts.month ?? 0, parts.day ?? 0)
     }

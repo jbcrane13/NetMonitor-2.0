@@ -285,8 +285,7 @@ struct SpeedTestToolView: View {
             downloadSpeed: service.downloadSpeed,
             uploadSpeed: service.uploadSpeed,
             latency: service.latency,
-            jitter: service.jitter > 0 ? service.jitter : nil,
-            serverName: service.selectedServer?.isAutoSelect == false ? service.selectedServer?.name : nil
+            jitter: service.jitter > 0 ? service.jitter : nil
         ))
     }
 

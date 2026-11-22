@@ -4,6 +4,13 @@ import Foundation
 
 @Suite("ToolInsightBuilder")
 struct ToolInsightBuilderTests {
+    /// Dates in these tests are read in UTC.
+    static let utc: Calendar = {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "UTC") ?? .gmt
+        return calendar
+    }()
+
     @Test func certificateExpiringSoonIsStatedAsAnObservation() {
         let info = SSLCertificateInfo(
             domain: "example.com",
@@ -15,7 +22,7 @@ struct ToolInsightBuilderTests {
             daysUntilExpiry: 8
         )
 
-        let request = ToolInsightBuilder.sslCertificate(info)
+        let request = ToolInsightBuilder.sslCertificate(info, calendar: Self.utc)
 
         #expect(request.subject == "SSL certificate check for example.com")
         #expect(request.facts.contains("Issuer: Let's Encrypt R11"))
@@ -31,7 +38,7 @@ struct ToolInsightBuilderTests {
             validFrom: Date(timeIntervalSince1970: 1_788_000_000), validTo: Date(timeIntervalSince1970: 1_820_000_000),
             isValid: true, daysUntilExpiry: 200
         )
-        #expect(ToolInsightBuilder.sslCertificate(info).observations.isEmpty)
+        #expect(ToolInsightBuilder.sslCertificate(info, calendar: Self.utc).observations.isEmpty)
     }
 
     @Test func portScanListsOpenPortsAndFlagsUnencryptedRemoteAccess() {
@@ -155,7 +162,7 @@ struct ToolInsightBuilderTests {
             dnssec: "unsigned"
         )
 
-        let request = ToolInsightBuilder.whois(result, now: now)
+        let request = ToolInsightBuilder.whois(result, now: now, calendar: Self.utc)
 
         #expect(request.subject == "WHOIS lookup for example.org")
         #expect(request.facts == [
@@ -255,5 +262,43 @@ struct ToolInsightBuilderTests {
             "Open ports (1): 62078 (iphone-sync)",
             "Ports that did not accept a connection: 14"
         ])
+    }
+
+    @Test func speedTestWithoutAJitterFigureDoesNotJudgeJitter() {
+        let request = ToolInsightBuilder.speedTest(SpeedTestData(downloadSpeed: 50, uploadSpeed: 20, latency: 12))
+        #expect(request.observations == [
+            "Download is enough for 4K streaming and video calls.",
+            "Latency is low, good for video calls and gaming."
+        ])
+    }
+
+    @Test func tracerouteToANameDoesNotClaimArrivalItCannotProve() {
+        let hops = [
+            TracerouteHop(hopNumber: 1, ipAddress: "192.168.2.1", times: [2]),
+            TracerouteHop(hopNumber: 2, ipAddress: "93.184.216.34", times: [21])
+        ]
+        let request = ToolInsightBuilder.traceroute(host: "example.com", hops: hops)
+        #expect(request.observations == ["The last hop to reply was hop 2 (93.184.216.34), at 21.0 ms."])
+    }
+
+    @Test func whoisSaysWhenNameServersAreLeftOut() {
+        let result = WHOISResult(query: "example.org", nameServers: ["a", "b", "c", "d", "e", "f"], rawData: "")
+        let request = ToolInsightBuilder.whois(result, now: Date(timeIntervalSince1970: 1_795_000_000), calendar: Self.utc)
+        #expect(request.facts == ["Name servers: a, b, c, d, and 2 more"])
+    }
+
+    @Test func longDNSValuesAreShortened() {
+        let result = DNSQueryResult(
+            domain: "example.com", server: "1.1.1.1", queryType: .txt,
+            records: [DNSRecord(name: "example.com", type: .txt, value: String(repeating: "x", count: 500), ttl: 60)],
+            queryTime: 10
+        )
+        let line = ToolInsightBuilder.dnsLookup(result).facts[2]
+        #expect(line == "TXT " + String(repeating: "x", count: 120) + "…, TTL 60 s")
+    }
+
+    @Test func healthScoreLeavesOutSpeedsTheCardDoesNotShow() {
+        let score = NetworkHealthScore(score: 95, grade: "A", latencyMs: 12, downloadSpeed: 400, uploadSpeed: 20)
+        #expect(ToolInsightBuilder.healthScore(score).facts == ["Score: 95 out of 100, grade A", "Latency: 12.0 ms"])
     }
 }

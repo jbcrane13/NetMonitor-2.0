@@ -21,7 +21,8 @@ public struct InsightRequest: Sendable, Equatable {
     public static let instructions = """
     You explain a network diagnostic result to a home or small-office user. \
     Use only the facts and observations you are given. Never add numbers, addresses, ports or \
-    conclusions that are not in them. Lead with what matters most, and state every observation. \
+    conclusions that are not in them, and do not guess at causes or at what is reachable from \
+    the internet. Lead with what matters most, and state every observation. \
     Answer in two to four short sentences of plain language, without lists or headings.
     """
 

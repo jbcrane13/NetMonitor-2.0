@@ -58,8 +58,7 @@ final class SpeedTestToolViewModel {
             downloadSpeed: downloadSpeed,
             uploadSpeed: uploadSpeed,
             latency: latency,
-            jitter: jitter > 0 ? jitter : nil,
-            serverName: selectedServer.isAutoSelect ? nil : selectedServer.name
+            jitter: jitter > 0 ? jitter : nil
         ))
     }
 

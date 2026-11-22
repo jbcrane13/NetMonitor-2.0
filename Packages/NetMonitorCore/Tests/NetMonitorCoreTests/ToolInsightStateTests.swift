@@ -124,6 +124,29 @@ struct ToolInsightStateTests {
 
         #expect(state.phase == .finished("Second"))
     }
+
+    @Test func anExplanationIsShownOnlyForTheResultItDescribes() async {
+        let service = MockInsightService()
+        let state = ToolInsightState(service: service)
+        let task = state.explain(request)
+        await until { !service.requests.isEmpty }
+        service.send(.finished("Your download is fast."))
+        await task.value
+
+        let newer = InsightRequest(subject: "Internet speed test", facts: ["Download: 4.0 Mbps"])
+        #expect(state.phase(for: request) == .finished("Your download is fast."))
+        #expect(state.phase(for: newer) == .idle)
+    }
+
+    @Test func theUnavailableServiceIsNeverAvailableAndFailsARequest() async {
+        let service = UnavailableInsightService()
+        #expect(!service.isAvailable)
+        var updates: [InsightUpdate] = []
+        for await update in service.explain(request) {
+            updates.append(update)
+        }
+        #expect(updates == [.failed])
+    }
 }
 
 private struct EndsEarlyInsightService: InsightServiceProtocol {

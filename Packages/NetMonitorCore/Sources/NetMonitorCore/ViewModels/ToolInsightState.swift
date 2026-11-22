@@ -16,6 +16,8 @@ public final class ToolInsightState {
 
     private let service: any InsightServiceProtocol
     private var task: Task<Void, Never>?
+    /// The request `phase` belongs to.
+    private var explained: InsightRequest?
     /// Identifies the current explanation, so a replaced or reset one can't write its text.
     private var generation = 0
 
@@ -25,6 +27,12 @@ public final class ToolInsightState {
 
     /// Whether to show the affordance at all.
     public var isAvailable: Bool { service.isAvailable }
+
+    /// The phase to show under `request`: idle unless `request` is the one being explained,
+    /// so an explanation never sits under a result it does not describe.
+    public func phase(for request: InsightRequest) -> Phase {
+        request == explained ? phase : .idle
+    }
 
     /// Explains `request`, replacing any explanation in progress.
     @discardableResult
@@ -36,6 +44,7 @@ public final class ToolInsightState {
             return Task {}
         }
         phase = .generating("")
+        explained = request
         let current = generation
         let service = service
         let task = Task { [weak self] in
@@ -63,5 +72,6 @@ public final class ToolInsightState {
         task?.cancel()
         generation += 1
         phase = .idle
+        explained = nil
     }
 }

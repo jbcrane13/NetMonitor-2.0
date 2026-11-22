@@ -14,6 +14,9 @@ struct DNSLookupToolView: View {
     @State private var recordType: DNSRecordType = .a
     @State private var isRunning = false
     @State private var results: [String] = []
+    /// The record type `results` answer; the picker may have changed since.
+    @State private var queriedType: DNSRecordType = .a
+    @State private var queriedHost = ""
     @State private var errorMessage: String?
     @State private var lookupTask: Task<Void, Never>?
     @AppStorage("netmonitor.lastUsedTarget") private var lastUsedTarget: String = ""
@@ -140,7 +143,7 @@ struct DNSLookupToolView: View {
     /// What the "Explain" strip explains: the finished result on screen (#448).
     private var insightRequest: InsightRequest? {
         guard !isRunning, !results.isEmpty else { return nil }
-        return ToolInsightBuilder.dnsAnswers(domain: lastUsedTarget, recordType: recordType, answers: results)
+        return ToolInsightBuilder.dnsAnswers(domain: queriedHost, recordType: queriedType, answers: results)
     }
 
     // MARK: - Footer
@@ -186,6 +189,8 @@ struct DNSLookupToolView: View {
         guard !hostname.isEmpty else { return }
 
         lastUsedTarget = hostname
+        queriedType = recordType
+        queriedHost = hostname.trimmingCharacters(in: .whitespacesAndNewlines)
         isRunning = true
         results.removeAll()
         errorMessage = nil

@@ -8,6 +8,8 @@ struct TracerouteToolView: View {
     @AppStorage("netmonitor.lastUsedTarget") private var lastUsedTarget: String = ""
     @State private var isRunning = false
     @State private var hops: [TracerouteHop] = []
+    /// The host `hops` were traced to; `host` may have been edited since.
+    @State private var tracedHost = ""
     @State private var errorMessage: String?
     @State private var tracerouteTask: Task<Void, Never>?
 
@@ -137,7 +139,7 @@ struct TracerouteToolView: View {
     /// What the "Explain" strip explains: the finished result on screen (#448).
     private var insightRequest: InsightRequest? {
         guard !isRunning, !hops.isEmpty else { return nil }
-        return ToolInsightBuilder.traceroute(host: lastUsedTarget, hops: hops)
+        return ToolInsightBuilder.traceroute(host: tracedHost, hops: hops)
     }
 
     private var footer: some View {
@@ -172,6 +174,7 @@ struct TracerouteToolView: View {
     private func runTraceroute() {
         guard !host.isEmpty else { return }
         lastUsedTarget = host
+        tracedHost = host.trimmingCharacters(in: .whitespacesAndNewlines)
         isRunning = true
         hops.removeAll()
         errorMessage = nil
