@@ -1,4 +1,5 @@
 import Foundation
+import NetworkScanKit
 import SwiftData
 
 /// A locally-discovered network device, persisted via SwiftData.
@@ -20,6 +21,9 @@ public final class LocalDevice {
     public var lastSeen: Date
     public var notes: String?
     public var resolvedHostname: String?
+    /// The maker the device announced (UPnP, UniFi, Bonjour) or a guess from its names;
+    /// `vendor` is the MAC-prefix maker only. Views show ``maker``, the higher-ranked of the
+    /// two (ADR-022).
     public var manufacturer: String?
     public var openPorts: [Int]?
     public var discoveredServices: [String]?
@@ -28,6 +32,14 @@ public final class LocalDevice {
     /// description (#387), refreshed by each scan. Stored since macOS `SchemaV2` (#409);
     /// iOS migrates its unversioned store automatically (an added optional attribute).
     public var modelName: String?
+    /// Where `modelName`, `manufacturer` and `friendlyName` came from: ``IdentitySource``
+    /// raw values. Nil (a value saved before macOS `SchemaV3`) ranks below every source.
+    public var modelSource: String?
+    public var makerSource: String?
+    public var friendlyNameSource: String?
+    /// The name the device or the UniFi console gives it. Before `SchemaV3` it was written
+    /// into `hostname`; now it's kept apart and ranked (UniFi > UPnP).
+    public var friendlyName: String?
 
     /// In-memory buffer of recent latency readings for sparkline display.
     /// Not persisted — resets each session. Capped at 20 samples.
@@ -76,8 +88,48 @@ public final class LocalDevice {
         self.networkProfileID = networkProfileID
     }
 
+    /// The device name: the custom name, else the friendly name, else a hostname, else the IP.
     public var displayName: String {
-        customName ?? resolvedHostname ?? hostname ?? ipAddress
+        customName ?? friendlyName ?? resolvedHostname ?? hostname ?? ipAddress
+    }
+
+    /// The name the device match compares: the hostname, else the friendly name (see
+    /// `DiscoveredDevice.matchName`).
+    public var matchName: String? {
+        [hostname, friendlyName].compactMap { $0 }.first { !$0.isEmpty }
+    }
+
+    /// The stored maker, model and friendly name with their sources (ADR-022).
+    public var identity: DeviceIdentity {
+        get {
+            DeviceIdentity(
+                maker: IdentityValue(manufacturer, source: makerSource.flatMap(IdentitySource.init(rawValue:))),
+                model: IdentityValue(modelName, source: modelSource.flatMap(IdentitySource.init(rawValue:))),
+                friendlyName: IdentityValue(friendlyName, source: friendlyNameSource.flatMap(IdentitySource.init(rawValue:)))
+            )
+        }
+        set {
+            manufacturer = newValue.maker?.value
+            makerSource = newValue.maker?.source?.rawValue
+            modelName = newValue.model?.value
+            modelSource = newValue.model?.source?.rawValue
+            friendlyName = newValue.friendlyName?.value
+            friendlyNameSource = newValue.friendlyName?.source?.rawValue
+        }
+    }
+
+    /// Merges a scan's identity into the saved one by rank (ADR-022). Writes only on change.
+    public func mergeIdentity(_ scanned: DeviceIdentity) {
+        let merged = identity.merging(scanned)
+        if merged != identity {
+            identity = merged
+        }
+    }
+
+    /// The maker to show: the announced or guessed maker, or the MAC-prefix maker, whichever
+    /// ranks higher (ADR-022).
+    public var maker: String? {
+        identity.resolvedMaker(macPrefixMaker: vendor)
     }
 
     public var formattedMacAddress: String {

@@ -99,8 +99,11 @@ final class CompanionMessageHandler {
                 id: device.id,
                 ipAddress: device.ipAddress,
                 macAddress: device.macAddress,
-                hostname: device.hostname,
-                vendor: device.vendor,
+                // The friendly name when there's no hostname, as 2.2.x sent it: since #462 it's
+                // kept apart, and the feed has no friendly-name field yet (#427).
+                hostname: device.matchName,
+                // The shown maker, as 2.2.x sent: the feed has no maker or source fields yet (#427).
+                vendor: device.maker,
                 deviceType: device.deviceType.rawValue,
                 isOnline: device.status == .online
             )

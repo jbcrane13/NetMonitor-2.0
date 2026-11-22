@@ -29,7 +29,7 @@ public actor MACVendorLookupService: MACVendorLookupServiceProtocol {
     private let rateLimitInterval: TimeInterval = 1.0
 
     /// Common vendor prefixes (OUI - first 3 bytes of MAC address)
-    private let vendorDatabase: [String: String] = [
+    private static let vendorDatabase: [String: String] = [
         // Apple
         "00:03:93": "Apple",
         "00:05:02": "Apple",
@@ -229,13 +229,19 @@ public actor MACVendorLookupService: MACVendorLookupServiceProtocol {
     /// - Parameter macAddress: MAC address in any format (colons, dashes, or none)
     /// - Returns: Vendor name if found
     public func lookup(macAddress: String) -> String? {
+        Self.offlineVendor(macAddress: macAddress)
+    }
+
+    /// ``lookup(macAddress:)`` without the actor, for synchronous callers such as the
+    /// SchemaV3 migration, which rebuilds `vendor` from the MAC prefix (ADR-022).
+    public static func offlineVendor(macAddress: String) -> String? {
         guard !MACAddress.isPrivate(macAddress) else { return nil }
-        let normalized = normalizeMAC(macAddress)
+        let normalized = Self.normalizeMAC(macAddress)
         guard normalized.count >= 8 else { return nil }
         // An all-zero address is a placeholder, not Xerox's 00:00:00 block.
         guard normalized.contains(where: { $0 != "0" && $0 != ":" }) else { return nil }
         let prefix = String(normalized.prefix(8)) // First 3 bytes = OUI
-        if let curated = vendorDatabase[prefix] {
+        if let curated = Self.vendorDatabase[prefix] {
             return curated
         }
         return OUIDatabase.vendor(forPrefix: prefix.replacingOccurrences(of: ":", with: ""))
@@ -303,7 +309,7 @@ public actor MACVendorLookupService: MACVendorLookupServiceProtocol {
     }
 
     /// Normalize MAC address to XX:XX:XX:XX:XX:XX format
-    private func normalizeMAC(_ mac: String) -> String {
+    private static func normalizeMAC(_ mac: String) -> String {
         // Remove separators and convert to uppercase
         let cleaned = mac
             .replacingOccurrences(of: ":", with: "")

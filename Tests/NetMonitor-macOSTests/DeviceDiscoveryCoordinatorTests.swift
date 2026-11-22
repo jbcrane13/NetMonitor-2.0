@@ -388,24 +388,30 @@ struct DeviceDiscoveryCoordinatorDescriptionTests {
         )
     }
 
-    @Test func descriptionFillsMissingNameVendorAndManufacturer() throws {
+    private static let upnpTV = DeviceIdentity(
+        maker: IdentityValue("Samsung Electronics", source: .upnp),
+        friendlyName: IdentityValue("Living Room TV", source: .upnp)
+    )
+
+    /// ADR-022: the friendly name is kept apart from the hostname, and the UPnP maker isn't
+    /// copied into `vendor` (the MAC-prefix maker).
+    @Test func descriptionSetsFriendlyNameAndMaker() throws {
         let (container, context) = try makeInMemoryStore()
         _ = container
 
         makeCoordinator(context: context).mergeDiscoveredDevices([
-            LocalDiscoveredDevice(
-                ipAddress: "192.168.1.20", macAddress: "", hostname: nil,
-                friendlyName: "Living Room TV", manufacturer: "Samsung Electronics"
-            )
+            LocalDiscoveredDevice(ipAddress: "192.168.1.20", macAddress: "", hostname: nil, identity: Self.upnpTV)
         ], profileID: nil)
 
         let device = try #require(try context.fetch(FetchDescriptor<LocalDevice>()).first)
-        #expect(device.hostname == "Living Room TV")
-        #expect(device.vendor == "Samsung Electronics")
-        #expect(device.manufacturer == "Samsung Electronics")
+        #expect(device.hostname == nil)
+        #expect(device.identity == Self.upnpTV)
+        #expect(device.vendor == nil)
+        #expect(device.maker == "Samsung Electronics")
+        #expect(device.displayName == "Living Room TV")
     }
 
-    @Test func descriptionNeverReplacesAKnownHostnameOrVendor() throws {
+    @Test func descriptionKeepsTheHostnameAndVendor() throws {
         let (container, context) = try makeInMemoryStore()
         _ = container
         context.insert(LocalDevice(
@@ -415,29 +421,24 @@ struct DeviceDiscoveryCoordinatorDescriptionTests {
         try context.save()
 
         makeCoordinator(context: context).mergeDiscoveredDevices([
-            LocalDiscoveredDevice(
-                ipAddress: "192.168.1.20", macAddress: "AA:BB:CC:DD:EE:FF", hostname: nil,
-                friendlyName: "Living Room TV", manufacturer: "Samsung Electronics"
-            )
+            LocalDiscoveredDevice(ipAddress: "192.168.1.20", macAddress: "AA:BB:CC:DD:EE:FF", hostname: nil, identity: Self.upnpTV)
         ], profileID: nil)
 
         let device = try #require(try context.fetch(FetchDescriptor<LocalDevice>()).first)
         #expect(device.hostname == "tv.lan")
         #expect(device.vendor == "Samsung Electronics Co.,Ltd")
-        #expect(device.manufacturer == "Samsung Electronics")
+        #expect(device.maker == "Samsung Electronics") // the device's own maker outranks the MAC prefix
     }
 
     @Test func mapDiscoveredDevicesCarriesDescriptionFields() {
         let engine = [DiscoveredDevice(
             ipAddress: "192.168.1.20", hostname: nil, vendor: nil, macAddress: nil,
-            latency: nil, discoveredAt: Date(), source: .ssdp,
-            friendlyName: "Living Room TV", manufacturer: "Samsung Electronics", modelName: "Q80"
+            latency: nil, discoveredAt: Date(), source: .ssdp, identity: Self.upnpTV
         )]
 
         let mapped = DeviceDiscoveryCoordinator.mapDiscoveredDevices(engine)
 
-        #expect(mapped.first?.friendlyName == "Living Room TV")
-        #expect(mapped.first?.manufacturer == "Samsung Electronics")
+        #expect(mapped.first?.identity == Self.upnpTV)
     }
 }
 
@@ -459,11 +460,14 @@ struct DeviceDiscoveryCoordinatorModelTests {
         let engine = [
             DiscoveredDevice(
                 ipAddress: "192.168.1.50", hostname: "Studio", vendor: nil, macAddress: nil,
-                latency: nil, discoveredAt: Date(), source: .bonjour, modelName: "Mac16,10"
+                latency: nil, discoveredAt: Date(), source: .bonjour,
+                identity: DeviceIdentity(model: IdentityValue("Mac16,10", source: .bonjour))
             ),
             DiscoveredDevice(ipAddress: "192.168.1.51", latency: 3, discoveredAt: Date())
         ]
-        #expect(DeviceDiscoveryCoordinator.mapDiscoveredDevices(engine).map(\.modelName) == ["Mac16,10", nil])
+        #expect(DeviceDiscoveryCoordinator.mapDiscoveredDevices(engine).map(\.identity.model) == [
+            IdentityValue("Mac16,10", source: .bonjour), nil
+        ])
     }
 
     @Test func mergeSetsModelOnNewAndExistingDevicesAndKeepsItWhenMissing() throws {
@@ -476,8 +480,10 @@ struct DeviceDiscoveryCoordinatorModelTests {
 
         let coordinator = makeCoordinator(context: context)
         coordinator.mergeDiscoveredDevices([
-            LocalDiscoveredDevice(ipAddress: "192.168.1.60", macAddress: "00:11:22:33:44:55", hostname: nil, modelName: "MacBookPro18,1"),
-            LocalDiscoveredDevice(ipAddress: "192.168.1.61", macAddress: "", hostname: "tv", modelName: "AppleTV14,1")
+            LocalDiscoveredDevice(ipAddress: "192.168.1.60", macAddress: "00:11:22:33:44:55", hostname: nil,
+                                  identity: DeviceIdentity(model: IdentityValue("MacBookPro18,1", source: .bonjour))),
+            LocalDiscoveredDevice(ipAddress: "192.168.1.61", macAddress: "", hostname: "tv",
+                                  identity: DeviceIdentity(model: IdentityValue("AppleTV14,1", source: .bonjour)))
         ], profileID: nil)
 
         let byIP = try Dictionary(uniqueKeysWithValues: context.fetch(FetchDescriptor<LocalDevice>()).map { ($0.ipAddress, $0) })

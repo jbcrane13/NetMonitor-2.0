@@ -1,4 +1,5 @@
 import NetMonitorCore
+import NetworkScanKit
 import Foundation
 
 // MARK: - Network Monitor Protocol
@@ -72,11 +73,14 @@ struct LocalDiscoveredDevice: Equatable {
     let latency: Double?
     /// No answer this scan; only the ARP cache still lists it (#378).
     let isCached: Bool
-    /// From the device's UPnP description (#387). Used only where nothing better is known.
-    let friendlyName: String?
-    let manufacturer: String?
-    /// Bonjour TXT model (#386) or UPnP model name (#387); Bonjour wins.
-    let modelName: String?
+    /// Maker, model and friendly name with their sources; merged into the saved row by rank
+    /// (ADR-022). `vendor` is the MAC-prefix maker only.
+    let identity: DeviceIdentity
+
+    /// The hostname, else the friendly name: what the device match compares.
+    var matchName: String? {
+        [hostname, identity.friendlyName?.value].compactMap { $0 }.first { !$0.isEmpty }
+    }
 
     init(
         ipAddress: String,
@@ -86,9 +90,7 @@ struct LocalDiscoveredDevice: Equatable {
         openPorts: [Int]? = nil,
         latency: Double? = nil,
         isCached: Bool = false,
-        friendlyName: String? = nil,
-        manufacturer: String? = nil,
-        modelName: String? = nil
+        identity: DeviceIdentity = DeviceIdentity()
     ) {
         self.ipAddress = ipAddress
         self.macAddress = macAddress.uppercased()
@@ -97,9 +99,7 @@ struct LocalDiscoveredDevice: Equatable {
         self.openPorts = openPorts
         self.latency = latency
         self.isCached = isCached
-        self.friendlyName = friendlyName
-        self.manufacturer = manufacturer
-        self.modelName = modelName
+        self.identity = identity
     }
 }
 

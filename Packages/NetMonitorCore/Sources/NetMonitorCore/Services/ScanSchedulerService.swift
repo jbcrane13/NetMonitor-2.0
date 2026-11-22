@@ -43,11 +43,11 @@ public final class ScanSchedulerService: ScanSchedulerServiceProtocol {
     /// the whole grace period; changed = answered with a new IP address or name (#393).
     func computeDiff(current: [DiscoveredDevice], now: Date) -> ScanDiff {
         let observations = current.map {
-            DeviceObservation(ipAddress: $0.ipAddress, macAddress: $0.macAddress, name: $0.hostname, isCached: $0.isCached)
+            DeviceObservation(ipAddress: $0.ipAddress, macAddress: $0.macAddress, name: $0.matchName, isCached: $0.isCached)
         }
         let events = tracker.record(scope: Self.trackerScope, observed: observations, now: now) {
             loadBaseline().map {
-                KnownDevice(macAddress: $0.macAddress, ipAddress: $0.ipAddress, name: $0.hostname, firstSeen: now, lastSeen: now)
+                KnownDevice(macAddress: $0.macAddress, ipAddress: $0.ipAddress, name: $0.matchName, firstSeen: now, lastSeen: now)
             }
         }
 

@@ -183,7 +183,10 @@ public struct BonjourScanPhase: ScanPhase, Sendable {
                 await accumulator.upsert(device)
                 continue
             }
-            await accumulator.upsert(device.withModelName(model, vendor: device.vendor ?? BonjourTXT.vendor(txt: [:], model: model)))
+            var identity = device.identity
+            identity.model = IdentityValue(model, source: .bonjour)
+            identity.maker = identity.maker ?? IdentityValue(BonjourTXT.vendor(txt: [:], model: model), source: .bonjour)
+            await accumulator.upsert(device.withIdentity(identity))
         }
 
         await stopProvider?()
@@ -236,18 +239,21 @@ public struct BonjourScanPhase: ScanPhase, Sendable {
         let model = BonjourTXT.model(serviceType: service.type, txt: service.txtRecord)
             ?? BonjourTXT.model(serviceType: service.type, txt: resolution.txtRecord)
             ?? modelsByName[service.name]
-        let vendor = BonjourTXT.vendor(txt: service.txtRecord.merging(resolution.txtRecord) { browse, _ in browse },
-                                       model: model)
+        let maker = BonjourTXT.vendor(txt: service.txtRecord.merging(resolution.txtRecord) { browse, _ in browse },
+                                      model: model)
 
         return DiscoveredDevice(
             ipAddress: matchedIP,
             hostname: service.name,
-            vendor: vendor,
+            vendor: nil,
             macAddress: nil,
             latency: nil,
             discoveredAt: Date(),
             source: .bonjour,
-            modelName: model
+            identity: DeviceIdentity(
+                maker: IdentityValue(maker, source: .bonjour),
+                model: IdentityValue(model, source: .bonjour)
+            )
         )
     }
 

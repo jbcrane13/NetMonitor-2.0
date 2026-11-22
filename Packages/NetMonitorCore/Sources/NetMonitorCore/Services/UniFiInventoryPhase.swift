@@ -10,10 +10,11 @@ public extension ScanPhaseID {
 ///
 /// This reaches what nothing else can: UniFi devices on a fixed IP (no DNS name, no answer
 /// to discovery) get their exact model, and every client's real MAC gives its maker even
-/// where the system hides MACs from apps (macOS 27, iOS). The MAC itself isn't recorded: the
-/// Mac matches saved rows by MAC, and a MAC appearing on a MAC-less row would split it.
+/// where the system hides MACs from apps (macOS 27, iOS). A public MAC is recorded too: the
+/// device match lets a saved device without a MAC adopt it (#461). A private MAC isn't: a
+/// device without a MAC only adopts a private one when the names match, so recording it
+/// could split a nameless device.
 ///
-/// It writes `manufacturer`, not `vendor`, so on the Mac it only fills an empty maker.
 public struct UniFiInventoryPhase: ScanPhase, Sendable {
     public let id: ScanPhaseID = .unifiInventory
     public let displayName = "Reading UniFi devices…"
@@ -47,43 +48,68 @@ public struct UniFiInventoryPhase: ScanPhase, Sendable {
             await onProgress(1.0)
             return
         }
-        let found = await Set(accumulator.snapshot().map(\.ipAddress))
+        // Each found IP's MAC as the scan read it: the accumulator keeps that MAC over the controller's.
+        let found = await Dictionary(
+            accumulator.snapshot().map { ($0.ipAddress, DeviceMatcher.normalizedMAC($0.macAddress)) },
+            uniquingKeysWith: { first, _ in first }
+        )
         var seen: Set<String> = []
-        for entry in entries where found.contains(entry.ipAddress) && context.subnetFilter(entry.ipAddress) {
-            guard seen.insert(entry.ipAddress).inserted else { continue } // the first entry per IP wins
-            if let update = await update(for: entry) {
+        for entry in entries where context.subnetFilter(entry.ipAddress) {
+            // The first entry per found IP wins.
+            guard let scanMAC = found[entry.ipAddress] else { continue }
+            // Two sites can reuse an address: an entry whose real MAC contradicts the MAC the
+            // scan read is another device, so none of its identity applies.
+            if let scanMAC, let entryMAC = Self.publicMAC(entry.macAddress), entryMAC != scanMAC {
+                continue
+            }
+            guard seen.insert(entry.ipAddress).inserted else { continue }
+            if let update = await update(for: entry, scanMAC: scanMAC) {
                 await accumulator.upsert(update, confirmsPresence: false) // the scan already decided presence
             }
         }
         await onProgress(1.0)
     }
 
-    func update(for entry: UniFiInventoryEntry) async -> DiscoveredDevice? {
-        var maker: String?
-        var model = entry.model
-        if entry.isUniFiDevice {
-            maker = "Ubiquiti"
-        } else if let mac = entry.macAddress, !mac.isEmpty, !MACAddress.isPrivate(mac) {
-            maker = await vendorForMAC(mac)
+    /// Ranks (ADR-022, #462): the controller's model, a UniFi device's maker and the console's
+    /// client name rank as UniFi; the maker from a client's MAC is a MAC-prefix maker (`vendor`);
+    /// a maker or model parsed from UniFi's fingerprint name ("Meross Smart Bulb") is a guess.
+    ///
+    /// - Parameter scanMAC: the normalized MAC the scan already read for this IP. When it
+    ///   differs from the controller's, the device keeps the scan's MAC, so the controller's
+    ///   MAC must not name its maker.
+    func update(for entry: UniFiInventoryEntry, scanMAC: String? = nil) async -> DiscoveredDevice? {
+        let publicMAC = Self.publicMAC(entry.macAddress)
+        var identity = DeviceIdentity(
+            maker: entry.isUniFiDevice ? IdentityValue("Ubiquiti", source: .unifi) : nil,
+            model: IdentityValue(entry.model, source: .unifi),
+            friendlyName: IdentityValue(entry.name, source: .unifi)
+        )
+        var macPrefixMaker: String?
+        if !entry.isUniFiDevice, let publicMAC, scanMAC == nil || scanMAC == publicMAC {
+            macPrefixMaker = await vendorForMAC(publicMAC)
         }
-        // UniFi names clients from fingerprints ("Meross Smart Bulb", "Aqara Hub M3").
-        if let name = entry.name, let identity = HostnameIdentity.parse(hostname: name) {
-            let fill = identity.fills(knownMaker: maker, knownModel: model)
-            maker = maker ?? fill.maker
-            model = model ?? fill.model
+        if let name = entry.name, let guess = HostnameIdentity.parse(hostname: name) {
+            let fill = guess.fills(knownMaker: identity.knownMakerForGuessing(macPrefixMaker: macPrefixMaker), knownModel: identity.model?.value)
+            identity = identity.merging(DeviceIdentity(
+                maker: IdentityValue(fill.maker, source: .hostnameGuess),
+                model: IdentityValue(fill.model, source: .hostnameGuess)
+            ))
         }
-        guard maker != nil || model != nil || entry.name != nil else { return nil }
+        guard identity != DeviceIdentity() || macPrefixMaker != nil || publicMAC != nil else { return nil }
         return DiscoveredDevice(
             ipAddress: entry.ipAddress,
             hostname: nil,
-            vendor: nil,
-            macAddress: nil,
+            vendor: macPrefixMaker,
+            macAddress: publicMAC,
             latency: nil,
             discoveredAt: Date(),
             source: .local,
-            friendlyName: entry.name,
-            manufacturer: maker,
-            modelName: model
+            identity: identity
         )
+    }
+
+    /// The entry's MAC, normalized, when it's a real (public) address.
+    static func publicMAC(_ mac: String?) -> String? {
+        mac.flatMap { DeviceMatcher.normalizedMAC($0).flatMap { MACAddress.isPrivate($0) ? nil : $0 } }
     }
 }

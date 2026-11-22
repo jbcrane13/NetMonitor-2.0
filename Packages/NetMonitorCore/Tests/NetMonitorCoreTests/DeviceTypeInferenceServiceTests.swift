@@ -1,5 +1,6 @@
 import Testing
 import Foundation
+import NetworkScanKit
 @testable import NetMonitorCore
 
 // MARK: - Helpers
@@ -186,6 +187,20 @@ struct DeviceTypeInferenceHostnameTests {
     @Test("Hostname 'camera' resolves to camera")
     func hostnameCameraResolvesToCamera() {
         #expect(sut.inferDeviceType(for: makeDevice(hostname: "front-door-camera")) == .camera)
+    }
+
+    @Test("A friendly name alone resolves the type; a hostname is read first")
+    func friendlyNameResolvesType() {
+        let camera = makeDevice()
+        camera.mergeIdentity(DeviceIdentity(
+            model: IdentityValue("RLC-810A", source: .upnp),
+            friendlyName: IdentityValue("Driveway Camera", source: .upnp)
+        ))
+        #expect(sut.inferDeviceType(for: camera) == .camera)
+
+        let printer = makeDevice(hostname: "office-printer")
+        printer.mergeIdentity(DeviceIdentity(friendlyName: IdentityValue("Driveway Camera", source: .upnp)))
+        #expect(sut.inferDeviceType(for: printer) == .printer)
     }
 
     @Test("Hostname 'cam' resolves to camera")
