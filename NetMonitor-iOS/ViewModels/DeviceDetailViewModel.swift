@@ -69,14 +69,14 @@ final class DeviceDetailViewModel {
     static func savedRow(ipAddress: String, scanned: DiscoveredDevice?, in context: ModelContext) -> LocalDevice {
         let networkID = scanned?.networkProfileID
         let rows = (try? context.fetch(FetchDescriptor<LocalDevice>())) ?? []
-        let observation = DeviceMatchCandidate(ipAddress: ipAddress, macAddress: scanned?.macAddress, name: scanned?.hostname)
+        let observation = DeviceMatchCandidate(ipAddress: ipAddress, macAddress: scanned?.macAddress, name: scanned?.matchName)
         var pools = [rows.filter { $0.networkProfileID == networkID }]
         if networkID != nil {
             pools.append(rows.filter { $0.networkProfileID == nil })
         }
         for pool in pools {
             var matcher = DeviceMatcher(
-                known: pool.map { DeviceMatchCandidate(ipAddress: $0.ipAddress, macAddress: $0.macAddress, name: $0.hostname) },
+                known: pool.map { DeviceMatchCandidate(ipAddress: $0.ipAddress, macAddress: $0.macAddress, name: $0.matchName) },
                 observed: [observation]
             )
             guard let match = matcher.match(observation) else { continue }

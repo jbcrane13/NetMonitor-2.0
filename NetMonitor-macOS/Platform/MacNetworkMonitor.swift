@@ -77,6 +77,11 @@ struct LocalDiscoveredDevice: Equatable {
     /// (ADR-022). `vendor` is the MAC-prefix maker only.
     let identity: DeviceIdentity
 
+    /// The hostname, else the friendly name: what the device match compares.
+    var matchName: String? {
+        [hostname, identity.friendlyName?.value].compactMap { $0 }.first { !$0.isEmpty }
+    }
+
     init(
         ipAddress: String,
         macAddress: String,

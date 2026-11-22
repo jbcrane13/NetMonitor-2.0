@@ -82,6 +82,28 @@ struct IdentityPrecedenceMergeTests {
         #expect(device.displayName == "Blake's TV")
     }
 
+    /// A device known only by its UPnP name kept that name in `hostname` before SchemaV3; now
+    /// it's a friendly name. Private-MAC rotation still has a name to compare.
+    @Test("A UPnP-named device with a private MAC keeps its row when the MAC rotates")
+    func upnpNamedPrivateMACRotates() throws {
+        let (container, context, coordinator) = try makeCoordinator()
+        _ = container
+        let saved = LocalDevice(ipAddress: "192.168.2.60", macAddress: "AA:BB:CC:00:00:01", hostname: "Living Room TV")
+        context.insert(saved) // as 2.2.x saved it: the friendly name in hostname
+        try context.save()
+
+        coordinator.mergeDiscoveredDevices([
+            LocalDiscoveredDevice(
+                ipAddress: "192.168.2.60", macAddress: "AA:BB:CC:00:00:02", hostname: nil,
+                identity: DeviceIdentity(friendlyName: IdentityValue("Living Room TV", source: .upnp))
+            )
+        ], profileID: nil)
+
+        let rows = try context.fetch(FetchDescriptor<LocalDevice>())
+        #expect(rows.count == 1)
+        #expect(rows.first?.macAddress == "AA:BB:CC:00:00:02")
+    }
+
     @Test("Device name: custom name, else friendly name, else hostname, else IP")
     func deviceNameOrder() {
         let device = LocalDevice(ipAddress: "192.168.2.50", macAddress: "")
