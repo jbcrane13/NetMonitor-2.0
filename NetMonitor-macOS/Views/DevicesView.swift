@@ -484,11 +484,7 @@ struct DevicesView: View {
 
             // Scan button
             Button {
-                if let profile = selectedNetwork {
-                    coordinator?.scanNetwork(profile)
-                } else {
-                    coordinator?.startScan()
-                }
+                coordinator?.rescan(.user(selectedNetwork))
             } label: {
                 Label("Scan", systemImage: "antenna.radiowaves.left.and.right")
             }

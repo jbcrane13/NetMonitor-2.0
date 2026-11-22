@@ -101,7 +101,7 @@ struct ReviewPromptHookTests {
         defer { coordinator.stopScan() }
 
         for _ in 0..<3 {
-            #expect(coordinator.startLaunchScan())
+            #expect(coordinator.rescan(.launch))
             await finish(coordinator)
             coordinator.startScan(countsTowardReviewPrompt: false)
             await finish(coordinator)

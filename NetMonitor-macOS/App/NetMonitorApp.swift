@@ -115,7 +115,7 @@ struct NetMonitorApp: App {
                 ),
                 startMonitoring: { monitoringSession?.startMonitoring() },
                 stopMonitoring: { monitoringSession?.stopMonitoring() },
-                scanNetwork: { deviceDiscovery?.startScan() }
+                scanNetwork: { deviceDiscovery?.rescan(.user(nil)) }
             )
         }
 
@@ -206,7 +206,7 @@ struct NetMonitorApp: App {
             )
             deviceDiscovery = discovery
             // Fill the dashboard without waiting for the user to press Scan (#358).
-            discovery.startLaunchScan()
+            discovery.rescan(.launch)
             // Rescan when the Mac moves to a different network while the app is open (#359).
             let watcher = LocalNetworkChangeMonitor.rescanning(discovery, profileManager: profileManager)
             watcher.start()

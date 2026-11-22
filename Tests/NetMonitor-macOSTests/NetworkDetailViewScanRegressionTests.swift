@@ -162,7 +162,7 @@ struct NetworkDetailViewScanRegressionTests {
         let coordinator = makeCoordinator(context: context, networkProfileManager: manager)
         defer { coordinator.stopScan() }
 
-        #expect(coordinator.startLaunchScan())
+        #expect(coordinator.rescan(.launch))
         #expect(coordinator.isScanning, "Launch must start a scan so the dashboard fills without pressing Scan")
         #expect(coordinator.networkProfile?.id == local.id)
     }
@@ -177,7 +177,7 @@ struct NetworkDetailViewScanRegressionTests {
         let coordinator = makeCoordinator(context: context, networkProfileManager: manager)
         defer { coordinator.stopScan() }
 
-        #expect(!coordinator.startLaunchScan())
+        #expect(!coordinator.rescan(.launch))
         #expect(!coordinator.isScanning, "A remote manual network must not be scanned automatically")
     }
 
@@ -194,7 +194,7 @@ struct NetworkDetailViewScanRegressionTests {
         coordinator.scanNetwork(remote)
         let progress = coordinator.scanProgress
 
-        #expect(!coordinator.startLaunchScan())
+        #expect(!coordinator.rescan(.launch))
         #expect(coordinator.networkProfile?.id == remote.id)
         #expect(coordinator.scanProgress == progress)
     }
@@ -304,7 +304,7 @@ struct NetworkDetailViewScanRegressionTests {
         let watcher = LocalNetworkChangeMonitor.rescanning(
             coordinator, profileManager: manager, pathEvents: AsyncStream { _ in }
         )
-        #expect(coordinator.startLaunchScan())
+        #expect(coordinator.rescan(.launch))
         #expect(coordinator.networkProfile?.subnet == "192.168.1.0/24")
 
         box.value = [makeLocal(networkB, ip: "10.20.0.5")]
