@@ -114,7 +114,8 @@ struct NetMonitorApp: App {
                     set: { _ in }
                 ),
                 startMonitoring: { monitoringSession?.startMonitoring() },
-                stopMonitoring: { monitoringSession?.stopMonitoring() }
+                stopMonitoring: { monitoringSession?.stopMonitoring() },
+                scanNetwork: { deviceDiscovery?.startScan() }
             )
         }
 
@@ -269,7 +270,10 @@ struct NetMonitorApp: App {
             let rules = MacRuleAlerts(store: alertRuleStore, service: service) { [weak discovery] in
                 (discovery?.discoveredDevices ?? [], discovery?.networkProfile?.id)
             }
-            monitoringSession?.onTargetResult = { result in rules.handle(targetResult: result) }
+            monitoringSession?.onTargetResult = { result in
+                alerts.targetChecked(result)
+                rules.handle(targetResult: result)
+            }
             deviceDiscovery?.onDeviceChanges = { [weak discovery] events in
                 alerts.devicesChanged(events)
                 rules.handle(

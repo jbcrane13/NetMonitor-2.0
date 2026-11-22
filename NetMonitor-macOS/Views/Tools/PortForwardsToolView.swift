@@ -137,7 +137,8 @@ struct PortForwardsToolView: View {
     // MARK: - Loading
 
     private func load() {
-        let interface = profileManager?.activeProfile?.interfaceName ?? "en0"
+        // The Mac's own interface, not the last scanned network's (#441).
+        let interface = profileManager?.localProfile?.interfaceName ?? "en0"
         var names: [String: String] = [:]
         for device in devices where names[device.ipAddress] == nil {
             names[device.ipAddress] = device.displayName

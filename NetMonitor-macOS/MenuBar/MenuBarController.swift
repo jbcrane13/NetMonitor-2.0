@@ -63,11 +63,9 @@ final class MenuBarController: NSObject {
         observationTask = Task { [weak self] in
             while !Task.isCancelled {
                 guard let self else { return }
-                // Use coordinator's profile first, fall back to profile manager's active profile
-                // (coordinator.networkProfile is only set at init or on manual switch,
-                //  but detectLocalNetwork() updates profileManager.activeProfile asynchronously)
-                let profile = self.deviceDiscovery.networkProfile
-                    ?? self.deviceDiscovery.networkProfileManager.activeProfile
+                // The icon shows the Mac's own connection: the local network, not the last
+                // scanned one, which can be a manual network (#441).
+                let profile = self.deviceDiscovery.networkProfileManager.localProfile
                 let connectionType = profile?.connectionType ?? .none
                 let isOnline = profile != nil
                 let hasIssues = self.monitoringSession.latestResults.values.contains { !$0.isReachable }

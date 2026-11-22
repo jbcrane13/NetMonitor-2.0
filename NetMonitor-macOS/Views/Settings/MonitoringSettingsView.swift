@@ -9,8 +9,8 @@ import SwiftUI
 import NetMonitorCore
 
 struct MonitoringSettingsView: View {
-    @AppStorage("netmonitor.monitoring.defaultInterval") private var defaultInterval = 30
-    @AppStorage("netmonitor.monitoring.defaultTimeout") private var defaultTimeout = 5
+    @AppStorage(TargetDefaults.intervalKey) private var defaultInterval = TargetDefaults.defaultInterval
+    @AppStorage(TargetDefaults.timeoutKey) private var defaultTimeout = TargetDefaults.defaultTimeout
     @AppStorage(CheckRetryPolicy.enabledKey) private var retryEnabled = false
     @AppStorage(CheckRetryPolicy.countKey) private var retryCount = CheckRetryPolicy.defaultCount
     @AppStorage(PeriodicScanScheduler.frequencyKey) private var scanFrequency = PeriodicScanScheduler.defaultFrequency
