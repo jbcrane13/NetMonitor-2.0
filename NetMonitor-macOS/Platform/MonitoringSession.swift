@@ -60,12 +60,14 @@ final class MonitoringSession {
 
     init(
         modelContext: ModelContext,
-        serviceProvider: MonitorServiceProviding = DefaultMonitorServiceProvider()
+        serviceProvider: MonitorServiceProviding = DefaultMonitorServiceProvider(),
+        defaults: UserDefaults = .standard
     ) {
         self.modelContext = modelContext
         self.httpService = serviceProvider.createHTTPService()
         self.icmpService = serviceProvider.createICMPService()
         self.tcpService = serviceProvider.createTCPService()
+        self.defaults = defaults
     }
 
     init(
@@ -315,15 +317,7 @@ final class MonitoringSession {
         eventService: NetworkEventService = .shared,
         now: Date = Date()
     ) {
-        let retentionValue = UserDefaults.standard.string(forKey: "netmonitor.data.historyRetention") ?? "7 days"
-        guard retentionValue != "Forever" else { return }
-        let days: Int
-        switch retentionValue {
-        case "1 day": days = 1
-        case "30 days": days = 30
-        default: days = 7
-        }
-        let cutoffDate = Calendar.current.date(byAdding: .day, value: -days, to: now) ?? now
+        guard let cutoffDate = HistoryRetention.current(in: defaults).cutoff(now: now) else { return }
         let descriptor = FetchDescriptor<TargetMeasurement>(
             predicate: #Predicate { $0.timestamp < cutoffDate }
         )

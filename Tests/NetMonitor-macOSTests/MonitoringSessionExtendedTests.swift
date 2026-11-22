@@ -91,7 +91,6 @@ private func makeSession(
 
 // MARK: - MonitoringSession extended tests (state / lifecycle)
 
-@Suite(.serialized)
 @MainActor
 struct MonitoringSessionExtendedTests {
 
@@ -200,7 +199,9 @@ struct MonitoringSessionExtendedTests {
         #expect(session.isMonitoring == true)
         #expect(session.errorMessage == nil)
         #expect(session.startTime != nil)
-        if let t = session.startTime { #expect(t >= before) }
+        if let startTime = session.startTime {
+            #expect(startTime >= before)
+        }
 
         await session.stopMonitoringAndWait()
     }
@@ -290,8 +291,8 @@ struct MonitoringSessionExtendedTests {
     @Test func pruneRemovesStaleAndKeepsRecentWithDefaultRetention() throws {
         let (container, context) = try makeInMemoryStore()
         _ = container
-        UserDefaults.standard.set("7 days", forKey: "netmonitor.data.historyRetention")
-        defer { UserDefaults.standard.removeObject(forKey: "netmonitor.data.historyRetention") }
+        let suite = RetentionSuite("7 days")
+        defer { suite.clear() }
 
         let stale = TargetMeasurement(
             timestamp: Date().addingTimeInterval(-10 * 86400), latency: 20, isReachable: true)
@@ -301,7 +302,7 @@ struct MonitoringSessionExtendedTests {
         context.insert(fresh)
         try context.save()
 
-        MonitoringSession(modelContext: context).pruneOldMeasurements()
+        MonitoringSession(modelContext: context, defaults: suite.defaults).pruneOldMeasurements()
 
         let remaining = try context.fetch(FetchDescriptor<TargetMeasurement>())
         #expect(remaining.count == 1)
@@ -311,8 +312,8 @@ struct MonitoringSessionExtendedTests {
     @Test func pruneRemovesEntriesOlderThanOneDayWhenRetentionIsOneDay() throws {
         let (container, context) = try makeInMemoryStore()
         _ = container
-        UserDefaults.standard.set("1 day", forKey: "netmonitor.data.historyRetention")
-        defer { UserDefaults.standard.removeObject(forKey: "netmonitor.data.historyRetention") }
+        let suite = RetentionSuite("1 day")
+        defer { suite.clear() }
 
         let stale = TargetMeasurement(
             timestamp: Date().addingTimeInterval(-2 * 86400), latency: 30, isReachable: false)
@@ -322,7 +323,7 @@ struct MonitoringSessionExtendedTests {
         context.insert(fresh)
         try context.save()
 
-        MonitoringSession(modelContext: context).pruneOldMeasurements()
+        MonitoringSession(modelContext: context, defaults: suite.defaults).pruneOldMeasurements()
 
         let remaining = try context.fetch(FetchDescriptor<TargetMeasurement>())
         #expect(remaining.count == 1)
@@ -332,8 +333,8 @@ struct MonitoringSessionExtendedTests {
     @Test func pruneKeepsEntriesWithinThirtyDaysWhenRetentionIsThirtyDays() throws {
         let (container, context) = try makeInMemoryStore()
         _ = container
-        UserDefaults.standard.set("30 days", forKey: "netmonitor.data.historyRetention")
-        defer { UserDefaults.standard.removeObject(forKey: "netmonitor.data.historyRetention") }
+        let suite = RetentionSuite("30 days")
+        defer { suite.clear() }
 
         let stale = TargetMeasurement(
             timestamp: Date().addingTimeInterval(-35 * 86400), latency: 50, isReachable: true)
@@ -343,7 +344,7 @@ struct MonitoringSessionExtendedTests {
         context.insert(kept)
         try context.save()
 
-        MonitoringSession(modelContext: context).pruneOldMeasurements()
+        MonitoringSession(modelContext: context, defaults: suite.defaults).pruneOldMeasurements()
 
         let remaining = try context.fetch(FetchDescriptor<TargetMeasurement>())
         #expect(remaining.count == 1)
@@ -353,8 +354,8 @@ struct MonitoringSessionExtendedTests {
     @Test func pruneKeepsAllDataWhenRetentionIsForever() throws {
         let (container, context) = try makeInMemoryStore()
         _ = container
-        UserDefaults.standard.set("Forever", forKey: "netmonitor.data.historyRetention")
-        defer { UserDefaults.standard.removeObject(forKey: "netmonitor.data.historyRetention") }
+        let suite = RetentionSuite("Forever")
+        defer { suite.clear() }
 
         context.insert(TargetMeasurement(
             timestamp: Date().addingTimeInterval(-365 * 86400), latency: 100, isReachable: true))
@@ -362,7 +363,7 @@ struct MonitoringSessionExtendedTests {
             timestamp: Date().addingTimeInterval(-1 * 86400), latency: 10, isReachable: true))
         try context.save()
 
-        MonitoringSession(modelContext: context).pruneOldMeasurements()
+        MonitoringSession(modelContext: context, defaults: suite.defaults).pruneOldMeasurements()
 
         let remaining = try context.fetch(FetchDescriptor<TargetMeasurement>())
         #expect(remaining.count == 2)

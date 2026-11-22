@@ -11,26 +11,9 @@ import SwiftData
 import UniformTypeIdentifiers
 import os
 
-enum HistoryRetention: String, CaseIterable {
-    case oneDay = "1 day"
-    case sevenDays = "7 days"
-    case thirtyDays = "30 days"
-    case forever = "Forever"
-
-    // periphery:ignore
-    var days: Int? {
-        switch self {
-        case .oneDay: return 1
-        case .sevenDays: return 7
-        case .thirtyDays: return 30
-        case .forever: return nil
-        }
-    }
-}
-
 struct DataSettingsView: View {
     @Environment(\.modelContext) private var modelContext
-    @AppStorage("netmonitor.data.historyRetention") private var historyRetention = HistoryRetention.sevenDays.rawValue
+    @AppStorage(HistoryRetention.key) private var historyRetention = HistoryRetention.default.rawValue
 
     @State private var showExportDialog = false
     @State private var showClearConfirmation = false

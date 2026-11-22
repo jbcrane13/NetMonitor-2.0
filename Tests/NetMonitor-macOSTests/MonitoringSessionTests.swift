@@ -4,7 +4,6 @@ import Testing
 import NetMonitorCore
 @testable import NetMonitor_macOS
 
-@Suite(.serialized)
 @MainActor
 struct MonitoringSessionTests {
 
@@ -47,8 +46,8 @@ struct MonitoringSessionTests {
         let (container, context) = try makeInMemoryStore()
         _ = container
 
-        UserDefaults.standard.set("7 days", forKey: "netmonitor.data.historyRetention")
-        defer { UserDefaults.standard.removeObject(forKey: "netmonitor.data.historyRetention") }
+        let suite = RetentionSuite("7 days")
+        defer { suite.clear() }
 
         let oldMeasurement = TargetMeasurement(
             timestamp: Date().addingTimeInterval(-9 * 24 * 60 * 60),
@@ -65,7 +64,7 @@ struct MonitoringSessionTests {
         context.insert(recentMeasurement)
         try context.save()
 
-        let session = MonitoringSession(modelContext: context)
+        let session = MonitoringSession(modelContext: context, defaults: suite.defaults)
         session.pruneOldMeasurements()
 
         let remaining = try context.fetch(FetchDescriptor<TargetMeasurement>())
@@ -77,8 +76,8 @@ struct MonitoringSessionTests {
         let (container, context) = try makeInMemoryStore()
         _ = container
 
-        UserDefaults.standard.set("Forever", forKey: "netmonitor.data.historyRetention")
-        defer { UserDefaults.standard.removeObject(forKey: "netmonitor.data.historyRetention") }
+        let suite = RetentionSuite("Forever")
+        defer { suite.clear() }
 
         context.insert(TargetMeasurement(
             timestamp: Date().addingTimeInterval(-30 * 24 * 60 * 60),
@@ -92,7 +91,7 @@ struct MonitoringSessionTests {
         ))
         try context.save()
 
-        let session = MonitoringSession(modelContext: context)
+        let session = MonitoringSession(modelContext: context, defaults: suite.defaults)
         session.pruneOldMeasurements()
 
         let remaining = try context.fetch(FetchDescriptor<TargetMeasurement>())
