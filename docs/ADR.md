@@ -444,6 +444,14 @@ The `.prefix(while:)` trims the null terminator; `.map { UInt8(bitPattern:) }` r
 - The device match compares the hostname, else the friendly name, because friendly names no longer go into `hostname`.
 - iOS device detail finds its saved row by device match among the rows of the device's network (#463). A row saved before that is adopted by the first network that opens it.
 
+**Amended 2026-11-22 (#449): model suggestions and user confirmation.**
+- Two more identity sources. `modelSuggestion` is the on-device model's answer from a device's evidence (names, services, ports, MAC-prefix maker, non-suggested maker and model). It ranks −1 for every field, below a value without a source (0), so it only fills a field nothing else has, and any later value replaces it. `userConfirmed` is a suggestion the user accepted: it ranks 10 for maker and model, above every other source, and −1 for friendly name (it never names a device).
+- A suggested maker beats a chip-maker MAC prefix (any maker does); every other MAC prefix beats it. Hostname guesses ignore suggested values (`knownMakerForGuessing`, `withoutSuggestions`), so a suggestion never stops a guess.
+- A suggested device type is never written to `deviceType` until the user accepts it. It lives in a side store (`DeviceSuggestionStore`, UserDefaults, keyed by `LocalDevice.id`) with the evidence fingerprint and a dismissed flag, and is shown only while the type is unknown. The fingerprint stops the model being asked again while the evidence is unchanged; a low-confidence or empty answer is stored as "asked, nothing to show".
+- Alert rules and the companion feed use the maker excluding suggestions (`makerExcludingSuggestions`); display, ⌘K search and exports use the shown maker.
+- macOS suggests after every completed scan for the network's devices. iOS suggests when device detail opens, the only place a device has a stable `LocalDevice.id`; iOS lists show no badge.
+- Sources are stored as strings, so neither case needs a schema change.
+
 ---
 
 *To add a new ADR: append with the next number, include date, status, decision, context, and consequences. Reference the GitHub issue if applicable.*
