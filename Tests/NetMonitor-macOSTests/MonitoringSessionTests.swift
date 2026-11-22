@@ -65,7 +65,7 @@ struct MonitoringSessionTests {
         try context.save()
 
         let session = MonitoringSession(modelContext: context, defaults: suite.defaults)
-        session.pruneOldMeasurements()
+        session.pruneOldMeasurements(eventService: NetworkEventService())
 
         let remaining = try context.fetch(FetchDescriptor<TargetMeasurement>())
         #expect(remaining.count == 1)
@@ -92,7 +92,7 @@ struct MonitoringSessionTests {
         try context.save()
 
         let session = MonitoringSession(modelContext: context, defaults: suite.defaults)
-        session.pruneOldMeasurements()
+        session.pruneOldMeasurements(eventService: NetworkEventService())
 
         let remaining = try context.fetch(FetchDescriptor<TargetMeasurement>())
         #expect(remaining.count == 2)

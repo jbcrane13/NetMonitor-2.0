@@ -8,7 +8,11 @@ struct RetentionSuite {
     private let name = "HistoryRetentionTests-\(UUID().uuidString)"
 
     init(_ value: String? = nil) {
-        defaults = UserDefaults(suiteName: name) ?? .standard
+        // Never `.standard`: these suites run in parallel, so a shared domain would leak.
+        guard let suite = UserDefaults(suiteName: name) else {
+            preconditionFailure("could not create the defaults suite \(name)")
+        }
+        defaults = suite
         if let value {
             defaults.set(value, forKey: HistoryRetention.key)
         }

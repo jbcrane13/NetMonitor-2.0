@@ -302,7 +302,7 @@ struct MonitoringSessionExtendedTests {
         context.insert(fresh)
         try context.save()
 
-        MonitoringSession(modelContext: context, defaults: suite.defaults).pruneOldMeasurements()
+        MonitoringSession(modelContext: context, defaults: suite.defaults).pruneOldMeasurements(eventService: NetworkEventService())
 
         let remaining = try context.fetch(FetchDescriptor<TargetMeasurement>())
         #expect(remaining.count == 1)
@@ -323,7 +323,7 @@ struct MonitoringSessionExtendedTests {
         context.insert(fresh)
         try context.save()
 
-        MonitoringSession(modelContext: context, defaults: suite.defaults).pruneOldMeasurements()
+        MonitoringSession(modelContext: context, defaults: suite.defaults).pruneOldMeasurements(eventService: NetworkEventService())
 
         let remaining = try context.fetch(FetchDescriptor<TargetMeasurement>())
         #expect(remaining.count == 1)
@@ -344,7 +344,7 @@ struct MonitoringSessionExtendedTests {
         context.insert(kept)
         try context.save()
 
-        MonitoringSession(modelContext: context, defaults: suite.defaults).pruneOldMeasurements()
+        MonitoringSession(modelContext: context, defaults: suite.defaults).pruneOldMeasurements(eventService: NetworkEventService())
 
         let remaining = try context.fetch(FetchDescriptor<TargetMeasurement>())
         #expect(remaining.count == 1)
@@ -363,7 +363,7 @@ struct MonitoringSessionExtendedTests {
             timestamp: Date().addingTimeInterval(-1 * 86400), latency: 10, isReachable: true))
         try context.save()
 
-        MonitoringSession(modelContext: context, defaults: suite.defaults).pruneOldMeasurements()
+        MonitoringSession(modelContext: context, defaults: suite.defaults).pruneOldMeasurements(eventService: NetworkEventService())
 
         let remaining = try context.fetch(FetchDescriptor<TargetMeasurement>())
         #expect(remaining.count == 2)
