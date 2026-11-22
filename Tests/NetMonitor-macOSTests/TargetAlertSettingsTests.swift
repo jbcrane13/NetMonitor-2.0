@@ -78,9 +78,8 @@ struct TargetAlertSettingsTests {
     func ruleCategoryRegistered() throws {
         #expect(NotificationService.categoryIdentifiers.contains(NotificationService.ruleMatchCategory))
         #expect(Set(NotificationService.categoryIdentifiers).count == NotificationService.categoryIdentifiers.count)
-        // Nothing opens a target or rule from a notification yet, so the new ones offer Dismiss only.
-        #expect(!NotificationService.categoriesWithViewAction.contains(NotificationService.ruleMatchCategory))
-        #expect(!NotificationService.categoriesWithViewAction.contains(NotificationService.targetRecoveredCategory))
+        // View Details opens what the alert is about (#478), so every category offers it.
+        #expect(NotificationService.categoriesWithViewAction == Set(NotificationService.categoryIdentifiers))
     }
 
     @Test("New targets start from the Monitoring settings' interval and timeout")

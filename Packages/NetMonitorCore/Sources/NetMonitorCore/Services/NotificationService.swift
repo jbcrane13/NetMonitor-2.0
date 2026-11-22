@@ -74,11 +74,11 @@ public final class NotificationService {
 
     // MARK: - Categories
 
-    public static let targetDownCategory  = "TARGET_DOWN"
-    public static let targetRecoveredCategory = "TARGET_RECOVERED"
-    public static let highLatencyCategory = "HIGH_LATENCY"
-    public static let newDeviceCategory   = "NEW_DEVICE"
-    public static let ruleMatchCategory   = "RULE_MATCH"
+    nonisolated public static let targetDownCategory  = "TARGET_DOWN"
+    nonisolated public static let targetRecoveredCategory = "TARGET_RECOVERED"
+    nonisolated public static let highLatencyCategory = "HIGH_LATENCY"
+    nonisolated public static let newDeviceCategory   = "NEW_DEVICE"
+    nonisolated public static let ruleMatchCategory   = "RULE_MATCH"
 
     // MARK: - Authorization
 
@@ -110,7 +110,7 @@ public final class NotificationService {
         )
 
         let viewAction = UNNotificationAction(
-            identifier: "VIEW",
+            identifier: Self.viewActionIdentifier,
             title: "View Details",
             options: .foreground
         )
@@ -134,13 +134,14 @@ public final class NotificationService {
     }
 
     /// Every category this service posts. Rule alerts were missing before #445.
-    public static let categoryIdentifiers = [
+    nonisolated public static let categoryIdentifiers = [
         targetDownCategory, targetRecoveredCategory, highLatencyCategory, newDeviceCategory, ruleMatchCategory
     ]
 
-    /// Categories that offer View Details. The categories added in #445 offer Dismiss only,
-    /// because no response handler opens a target or rule yet.
-    public static let categoriesWithViewAction: Set = [targetDownCategory, highLatencyCategory, newDeviceCategory]
+    /// Every category offers View Details; the Mac opens what the alert is about (#478).
+    nonisolated public static let categoriesWithViewAction = Set(categoryIdentifiers)
+
+    nonisolated public static let viewActionIdentifier = "VIEW"
 
     // MARK: - Target Down Alert
 
@@ -217,7 +218,8 @@ public final class NotificationService {
 
     // MARK: - New Device Alert
 
-    public func notifyNewDevice(ipAddress: String, hostname: String?) {
+    /// `networkID` is the network the device joined, for View Details (#478).
+    public func notifyNewDevice(ipAddress: String, hostname: String?, networkID: UUID? = nil) {
         guard Self.isNewDeviceAlertEnabled(in: defaults) else { return }
 
         let content = UNMutableNotificationContent()
@@ -229,7 +231,7 @@ public final class NotificationService {
         }
         content.sound = .default
         content.categoryIdentifier = Self.newDeviceCategory
-        content.userInfo = ["ipAddress": ipAddress]
+        content.userInfo = Self.deviceUserInfo(ipAddress: ipAddress, networkID: networkID)
 
         let request = UNNotificationRequest(
             identifier: "new-device-\(ipAddress)-\(Date().timeIntervalSince1970)",
@@ -244,12 +246,18 @@ public final class NotificationService {
 
     /// Posts a user rule's notification (#394). Rules have their own on/off switch, so the
     /// per-alert toggles don't apply.
-    public func notifyRuleMatched(ruleName: String, detail: String, identifier: String) {
+    /// `ipAddress` and `networkID` are the device or target the rule matched, for View Details (#478).
+    public func notifyRuleMatched(
+        ruleName: String, detail: String, identifier: String, ipAddress: String? = nil, networkID: UUID? = nil
+    ) {
         let content = UNMutableNotificationContent()
         content.title = ruleName
         content.body = detail
         content.sound = .default
         content.categoryIdentifier = Self.ruleMatchCategory
+        if let ipAddress {
+            content.userInfo = Self.deviceUserInfo(ipAddress: ipAddress, networkID: networkID)
+        }
 
         let request = UNNotificationRequest(
             identifier: "rule-\(identifier)-\(Date().timeIntervalSince1970)",
@@ -257,6 +265,13 @@ public final class NotificationService {
             trigger: nil
         )
         poster.post(request)
+    }
+
+    /// The payload View Details routes on: the device's address and its network.
+    nonisolated static func deviceUserInfo(ipAddress: String, networkID: UUID?) -> [String: String] {
+        var info = ["ipAddress": ipAddress]
+        info["networkID"] = networkID?.uuidString
+        return info
     }
 
     // MARK: - Pending Notifications

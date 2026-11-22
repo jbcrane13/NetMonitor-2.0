@@ -247,6 +247,8 @@ struct NetMonitorApp: App {
            menuBarController == nil {
             menuBarController = MenuBarController(monitoringSession: session, deviceDiscovery: discovery)
             menuBarController?.setup()
+            // Target alerts' View Details opens the popover, which lists the targets (#478).
+            NotificationRouter.shared.showTargets = { [weak menuBarController] in menuBarController?.showPopover() }
         }
 
         if notificationService == nil {
@@ -275,7 +277,7 @@ struct NetMonitorApp: App {
                 rules.handle(targetResult: result)
             }
             deviceDiscovery?.onDeviceChanges = { [weak discovery] events in
-                alerts.devicesChanged(events)
+                alerts.devicesChanged(events, networkID: discovery?.networkProfile?.id)
                 rules.handle(
                     deviceChanges: events,
                     devices: discovery?.discoveredDevices ?? [],

@@ -86,6 +86,9 @@ struct DevicesView: View {
                     // Detail pane
                     if let device = selectedDevice {
                         DeviceDetailView(device: device)
+                            // A new device starts with fresh edit state, so a draft can't be
+                            // saved onto a device an alert selected (#478).
+                            .id(device.id)
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                     } else {
                         ContentUnavailableView(
@@ -142,10 +145,31 @@ struct DevicesView: View {
         .onChange(of: selectedNetworkID) {
             reloadDevices()
         }
+        .onChange(of: NotificationRouter.shared.deviceToSelect, initial: true) { _, id in
+            selectPendingDevice(id)
+        }
         .onChange(of: coordinator?.isScanning) { _, isScanning in
             if isScanning == false {
                 reloadDevices()
             }
+        }
+    }
+
+    /// Selects the device an alert's View Details asked for (#478), on its own network.
+    private func selectPendingDevice(_ id: UUID?) {
+        guard let id else { return }
+        NotificationRouter.shared.deviceToSelect = nil
+        let descriptor = FetchDescriptor<LocalDevice>(predicate: #Predicate { $0.id == id })
+        guard let device = try? modelContext.fetch(descriptor).first else { return }
+        if let network = device.networkProfileID, network != activeProfileID {
+            selectedNetworkID = network
+        }
+        reloadDevices()
+        let row = devices.first { $0.id == id } ?? device
+        if viewMode == .pro {
+            selectedProDevice = row
+        } else {
+            selectedDevice = row
         }
     }
 

@@ -1,5 +1,6 @@
 import SwiftUI
 import NetMonitorCore
+import SwiftData
 
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
@@ -69,6 +70,23 @@ struct ContentView: View {
                 selectedNetworkProfile = profileManager?.profiles.first(where: { $0.id == networkID })
             } else {
                 selectedNetworkProfile = nil
+            }
+        }
+        .onChange(of: NotificationRouter.shared.pending, initial: true) { _, route in
+            // View Details on an alert (#478).
+            guard let route else { return }
+            NotificationRouter.shared.pending = nil
+            // Only the saved devices at the alert's address.
+            var devices: [LocalDevice] = []
+            if case let .device(ip, _) = route {
+                devices = (try? modelContext.fetch(FetchDescriptor<LocalDevice>(predicate: #Predicate { $0.ipAddress == ip }))) ?? []
+            }
+            let target = NotificationRouter.selection(
+                for: route, devices: devices, localNetworkID: profileManager?.profiles.first(where: { $0.isLocal })?.id
+            )
+            NotificationRouter.shared.deviceToSelect = target.device
+            if let section = target.section {
+                selectedSection = section
             }
         }
         .onChange(of: profileManager?.profiles.first(where: { $0.isLocal })?.id) { oldID, newID in

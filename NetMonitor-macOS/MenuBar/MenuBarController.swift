@@ -101,6 +101,13 @@ final class MenuBarController: NSObject {
         }
     }
 
+    /// Opens the popover; it lists the monitored targets (#478).
+    func showPopover() {
+        guard let popover, let button = statusItem?.button, !popover.isShown else { return }
+        NSApp.activate(ignoringOtherApps: true)
+        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+    }
+
     private func closePopover() {
         popover?.performClose(nil)
         isVisible = false
