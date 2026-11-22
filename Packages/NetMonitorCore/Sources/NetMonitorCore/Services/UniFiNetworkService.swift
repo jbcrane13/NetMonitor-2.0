@@ -27,13 +27,56 @@ public protocol UniFiNetworkServiceProtocol: Sendable {
     func inventory() async -> [UniFiInventoryEntry]
 }
 
-/// The UniFi gateway's device list. Reading it is off for now: `inventory()` returns nothing,
-/// never reads a saved API key and sends no request. The parsers stay for when it returns.
+/// Reads UniFi devices and clients from the enrolled controller's UniFi Network integration API
+/// (`/proxy/network/integration/v1`, Network 9.0 and later).
+///
+/// Only an enrolled controller is read, and only through `UniFiControllerTransport`, which sends
+/// the key solely to that controller's verified HTTPS origin. Without an enrollment (including a
+/// key saved by an earlier version without one) nothing is sent.
 public struct UniFiNetworkService: UniFiNetworkServiceProtocol {
-    public init() {}
+    private let enrollment: @Sendable () -> UniFiControllerEnrollment?
+    private let transport: any UniFiControllerTransport
+
+    public init(
+        enrollment: @escaping @Sendable () -> UniFiControllerEnrollment? = { UniFiAPIKeyStore().enrollment() },
+        transport: any UniFiControllerTransport = URLSessionUniFiTransport()
+    ) {
+        self.enrollment = enrollment
+        self.transport = transport
+    }
 
     public func inventory() async -> [UniFiInventoryEntry] {
-        []
+        guard let enrollment = enrollment() else { return [] }
+        let base = "https://\(enrollment.host)/proxy/network/integration/v1"
+        guard let sitesData = await get("\(base)/sites", enrollment),
+              let sites = try? JSONDecoder().decode(Page<Site>.self, from: sitesData) else { return [] }
+        var entries: [UniFiInventoryEntry] = []
+        for site in sites.data {
+            let devices: [DeviceRecord] = await allPages("\(base)/sites/\(site.id)/devices", enrollment)
+            let clients: [ClientRecord] = await allPages("\(base)/sites/\(site.id)/clients", enrollment)
+            entries += Self.entries(devices: devices, clients: clients)
+        }
+        return entries
+    }
+
+    private func allPages<Item: Decodable>(_ url: String, _ enrollment: UniFiControllerEnrollment) async -> [Item] {
+        let limit = 200
+        var items: [Item] = []
+        // A home network has a few hundred clients at most; ten pages is a safety stop.
+        for page in 0..<10 {
+            guard let data = await get("\(url)?offset=\(page * limit)&limit=\(limit)", enrollment),
+                  let decoded = try? JSONDecoder().decode(Page<Item>.self, from: data) else { break }
+            items += decoded.data
+            if decoded.data.count < limit || items.count >= decoded.totalCount ?? 0 {
+                break
+            }
+        }
+        return items
+    }
+
+    private func get(_ url: String, _ enrollment: UniFiControllerEnrollment) async -> Data? {
+        guard let url = URL(string: url) else { return nil }
+        return await transport.get(url, enrollment: enrollment)
     }
 
     // MARK: - Parsing
@@ -41,6 +84,10 @@ public struct UniFiNetworkService: UniFiNetworkServiceProtocol {
     struct Page<Item: Decodable>: Decodable {
         let data: [Item]
         let totalCount: Int?
+    }
+
+    struct Site: Decodable {
+        let id: String
     }
 
     struct DeviceRecord: Decodable {

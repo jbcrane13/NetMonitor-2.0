@@ -55,10 +55,6 @@ struct UniFiInventoryParsingTests {
         #expect(UniFiNetworkService.cleanName(nil) == nil)
     }
 
-    @Test("Reading the gateway list is off: nothing comes back")
-    func lookupOff() async {
-        #expect(await UniFiNetworkService().inventory().isEmpty)
-    }
 }
 
 private struct FixedInventory: UniFiNetworkServiceProtocol {

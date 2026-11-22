@@ -5,25 +5,6 @@ import NetMonitorCore
 import NetworkScanKit
 @testable import NetMonitor_macOS
 
-@Suite("Standard scan pipeline")
-@MainActor
-struct StandardScanPipelineTests {
-    @Test("The standard Mac scan doesn't read the UniFi gateway list")
-    func noUniFiStep() {
-        let inputs = ScanPipelineInputs(
-            bonjourServiceProvider: { [] },
-            bonjourStopProvider: {},
-            nameResolver: { _ in nil },
-            macVendorService: MACVendorLookupService(),
-            portChecker: { _, _, _ in false },
-            pingRunner: { _ in nil }
-        )
-        let phaseIDs = DeviceDiscoveryCoordinator.standardPipelineFactory(inputs).steps.flatMap(\.phases).map(\.id)
-        #expect(!phaseIDs.isEmpty)
-        #expect(!phaseIDs.contains(.unifiInventory))
-    }
-}
-
 @Suite(.serialized)
 @MainActor
 struct DeviceDiscoveryCoordinatorTests {
