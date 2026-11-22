@@ -28,7 +28,7 @@ struct QuickJumpSheet: View {
         return devices.filter { device in
             device.displayName.lowercased().contains(query) ||
             device.ipAddress.lowercased().contains(query) ||
-            (device.vendor?.lowercased().contains(query) ?? false) ||
+            (device.maker?.lowercased().contains(query) ?? false) ||
             (device.hostname?.lowercased().contains(query) ?? false)
         }
         .prefix(8)
@@ -140,10 +140,10 @@ struct QuickJumpSheet: View {
                             .font(.system(size: 10, design: .monospaced))
                             .foregroundStyle(MacTheme.Colors.labelSecondary)
 
-                        if let vendor = device.vendor {
+                        if let maker = device.maker {
                             Text("·")
                                 .foregroundStyle(MacTheme.Colors.labelTertiary)
-                            Text(vendor)
+                            Text(maker)
                                 .font(.system(size: 10))
                                 .foregroundStyle(MacTheme.Colors.labelTertiary)
                                 .lineLimit(1)

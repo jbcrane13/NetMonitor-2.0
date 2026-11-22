@@ -13,7 +13,9 @@ import SwiftUI
 /// 4. Make sure the originating `NavigationStack` has `.appDestinations()`
 ///    installed on its root content.
 enum AppDestination: Hashable {
-    case deviceDetail(ipAddress: String)
+    /// `networkID` and `macAddress` describe the tapped device as the list showed it, so detail
+    /// opens that network's saved row even for a cached result (#463).
+    case deviceDetail(ipAddress: String, networkID: UUID?, macAddress: String?)
     case ping(host: String)
     case portScanner(host: String)
     case dnsLookup(domain: String)
@@ -28,8 +30,8 @@ private struct AppDestinationModifier: ViewModifier {
     func body(content: Content) -> some View {
         content.navigationDestination(for: AppDestination.self) { destination in
             switch destination {
-            case .deviceDetail(let ip):
-                DeviceDetailView(ipAddress: ip)
+            case .deviceDetail(let ip, let networkID, let mac):
+                DeviceDetailView(ipAddress: ip, networkID: networkID, macAddress: mac)
             case .ping(let host):
                 PingToolView(initialHost: host)
             case .portScanner(let host):

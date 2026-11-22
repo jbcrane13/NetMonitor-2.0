@@ -90,9 +90,7 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
             source: device.source,
             networkProfileID: profileID,
             isCached: keepCached && device.isCached,
-            friendlyName: device.friendlyName,
-            manufacturer: device.manufacturer,
-            modelName: device.modelName
+            identity: device.identity
         )
     }
 
@@ -258,8 +256,10 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
         scanPhase = .done
     }
 
-    /// Fills makers and models after every scan and companion source: the enrolled UniFi
-    /// controller's list, then guesses from names, last so better makers win over them (#439).
+    /// Identity after the Mac companion's devices are merged: the enrolled UniFi controller's
+    /// list, then guesses from names, asking DNS for devices whose names don't identify them.
+    /// iOS runs the hostname step here instead of in the pipeline, so a guess sees the
+    /// companion's makers and names, and companion-only devices get a lookup (ADR-022).
     private func identifyDevices(context: ScanContext, nameResolver: GatewayNameResolver) async {
         await UniFiInventoryPhase().execute(context: context, accumulator: engine.accumulator) { _ in }
         await HostnameIdentityPhase(lookUpName: { await nameResolver.resolve(ipAddress: $0) })
@@ -279,7 +279,9 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
             bonjourStopProvider: {
                 await MainActor.run { bonjourService.stopDiscovery() }
             },
-            nameResolver: { await nameResolver.resolve(ipAddress: $0) }
+            nameResolver: { await nameResolver.resolve(ipAddress: $0) },
+            // Run after the companion merge instead (identifyDevices).
+            includeHostnameIdentity: false
         )
     }
 

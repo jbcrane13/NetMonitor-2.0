@@ -35,22 +35,30 @@ struct DeviceDetailViewModelTests {
             DiscoveredDevice(
                 ipAddress: "192.168.1.80", hostname: nil, vendor: nil, macAddress: "AA:BB:CC:00:11:22",
                 latency: nil, discoveredAt: Date(), source: .local,
-                friendlyName: "Living Room TV", manufacturer: "Samsung", modelName: "Q80"
+                identity: DeviceIdentity(
+                    maker: IdentityValue("Samsung", source: .upnp),
+                    model: IdentityValue("Q80", source: .upnp),
+                    friendlyName: IdentityValue("Living Room TV", source: .upnp)
+                )
             ),
             DiscoveredDevice(
                 ipAddress: "192.168.1.81", hostname: "Studio", vendor: "Apple", macAddress: nil,
-                latency: nil, discoveredAt: Date(), source: .bonjour, modelName: "Mac16,10"
+                latency: nil, discoveredAt: Date(), source: .bonjour,
+                identity: DeviceIdentity(model: IdentityValue("Mac16,10", source: .bonjour))
             )
         ]
         let viewModel = makeViewModel(deviceDiscoveryService: discovery)
 
         viewModel.loadDevice(ipAddress: "192.168.1.80", context: context)
-        #expect(viewModel.device?.manufacturer == "Samsung")
+        #expect(viewModel.device?.identity.maker == IdentityValue("Samsung", source: .upnp))
+        #expect(viewModel.device?.maker == "Samsung")
         #expect(viewModel.device?.macAddress == "AA:BB:CC:00:11:22")
-        #expect(viewModel.device?.hostname == "Living Room TV")
+        // The friendly name is kept apart from the hostname, and names the device (ADR-022).
+        #expect(viewModel.device?.hostname == nil)
+        #expect(viewModel.device?.displayName == "Living Room TV")
 
         viewModel.loadDevice(ipAddress: "192.168.1.81", context: context)
-        #expect(viewModel.device?.manufacturer == "Apple")
+        #expect(viewModel.device?.maker == "Apple")
         #expect(viewModel.device?.vendor == "Apple")
         #expect(viewModel.device?.hostname == "Studio")
         #expect(viewModel.device?.macAddress.isEmpty == true)
@@ -64,7 +72,8 @@ struct DeviceDetailViewModelTests {
         discovery.discoveredDevices = [
             DiscoveredDevice(
                 ipAddress: "192.168.1.70", hostname: "Studio", vendor: nil, macAddress: nil,
-                latency: nil, discoveredAt: Date(), source: .bonjour, modelName: "Mac16,10"
+                latency: nil, discoveredAt: Date(), source: .bonjour,
+                identity: DeviceIdentity(model: IdentityValue("Mac16,10", source: .bonjour))
             ),
             DiscoveredDevice(
                 ipAddress: "192.168.1.71", hostname: nil, vendor: nil, macAddress: nil,
@@ -97,7 +106,7 @@ struct DeviceDetailViewModelTests {
         #expect(viewModel.device?.id == existing.id)
     }
 
-    @Test func enrichDeviceSetsManufacturerAndResolvedHostname() async {
+    @Test func enrichDeviceSetsMACPrefixMakerAndResolvedHostname() async {
         let macLookup = MockMACVendorLookupService(vendor: "Acme Networking")
         let nameResolver = MockDeviceNameResolver(hostname: "router.local")
         let viewModel = makeViewModel(
@@ -112,7 +121,8 @@ struct DeviceDetailViewModelTests {
 
         await viewModel.enrichDevice(bonjourServices: [])
 
-        #expect(viewModel.device?.manufacturer == "Acme Networking")
+        #expect(viewModel.device?.vendor == "Acme Networking")
+        #expect(viewModel.device?.maker == "Acme Networking")
         #expect(viewModel.device?.resolvedHostname == "router.local")
         #expect(macLookup.lookupCallCount == 1)
         #expect(nameResolver.resolveCallCount == 1)
@@ -131,7 +141,7 @@ struct DeviceDetailViewModelTests {
 
         await viewModel.enrichDevice(bonjourServices: [])
 
-        #expect(viewModel.device?.manufacturer == nil)
+        #expect(viewModel.device?.vendor == nil)
         #expect(viewModel.device?.resolvedHostname == "host.local")
         #expect(macLookup.lookupCallCount == 0)
         #expect(nameResolver.resolveCallCount == 1)
@@ -203,19 +213,19 @@ struct DeviceDetailViewModelTests {
         #expect(macLookup.lookupCallCount == 0)
     }
 
-    @Test func enrichDeviceSkipsManufacturerWhenAlreadySet() async {
+    @Test func enrichDeviceSkipsVendorLookupWhenAlreadySet() async {
         let macLookup = MockMACVendorLookupService(vendor: "ShouldNotBeUsed")
         let viewModel = makeViewModel(macLookupService: macLookup)
         viewModel.device = LocalDevice(
             ipAddress: "192.168.1.1",
             macAddress: "AA:BB:CC:DD:EE:FF",
-            manufacturer: "Apple"
+            vendor: "Apple"
         )
 
         await viewModel.enrichDevice(bonjourServices: [])
 
         #expect(macLookup.lookupCallCount == 0)
-        #expect(viewModel.device?.manufacturer == "Apple")
+        #expect(viewModel.device?.vendor == "Apple")
     }
 
     @Test func enrichDeviceSkipsHostnameWhenAlreadySet() async {
@@ -249,6 +259,124 @@ struct DeviceDetailViewModelTests {
         await viewModel.discoverServices()
 
         #expect(viewModel.isDiscovering == false)
+    }
+
+    // MARK: - #463: the row is found by device match within its network
+
+    private func scanned(_ ip: String, mac: String?, network: UUID, hostname: String? = nil) -> DiscoveredDevice {
+        DiscoveredDevice(
+            ipAddress: ip, hostname: hostname, vendor: nil, macAddress: mac,
+            latency: nil, discoveredAt: Date(), source: .local, networkProfileID: network
+        )
+    }
+
+    @Test func twoNetworksSharingAnIPKeepSeparateRows() throws {
+        let (container, context) = try makeInMemoryStore()
+        defer { withExtendedLifetime(container) {} }
+        let home = UUID(), office = UUID()
+        let discovery = MockDeviceDiscoveryService()
+        let viewModel = makeViewModel(deviceDiscoveryService: discovery)
+
+        discovery.discoveredDevices = [scanned("192.168.1.10", mac: nil, network: home)]
+        viewModel.loadDevice(ipAddress: "192.168.1.10", context: context)
+        viewModel.device?.notes = "home printer"
+
+        discovery.discoveredDevices = [scanned("192.168.1.10", mac: nil, network: office)]
+        viewModel.loadDevice(ipAddress: "192.168.1.10", context: context)
+        #expect(viewModel.device?.notes == nil)
+        #expect(viewModel.device?.networkProfileID == office)
+
+        discovery.discoveredDevices = [scanned("192.168.1.10", mac: nil, network: home)]
+        viewModel.loadDevice(ipAddress: "192.168.1.10", context: context)
+        #expect(viewModel.device?.notes == "home printer")
+        #expect(try context.fetch(FetchDescriptor<LocalDevice>()).count == 2)
+    }
+
+    @Test func aRowSavedWithoutANetworkIsAdoptedByTheFirstNetworkThatOpensIt() throws {
+        let (container, context) = try makeInMemoryStore()
+        defer { withExtendedLifetime(container) {} }
+        let legacy = LocalDevice(ipAddress: "192.168.1.20", macAddress: "")
+        legacy.customName = "NAS"
+        context.insert(legacy)
+        let home = UUID()
+        let discovery = MockDeviceDiscoveryService()
+        discovery.discoveredDevices = [scanned("192.168.1.20", mac: nil, network: home)]
+        let viewModel = makeViewModel(deviceDiscoveryService: discovery)
+
+        viewModel.loadDevice(ipAddress: "192.168.1.20", context: context)
+
+        #expect(viewModel.device?.customName == "NAS")
+        #expect(viewModel.device?.networkProfileID == home)
+    }
+
+    @Test func aDeviceThatMovedToAnotherIPKeepsItsRow() throws {
+        let (container, context) = try makeInMemoryStore()
+        defer { withExtendedLifetime(container) {} }
+        let home = UUID()
+        let saved = LocalDevice(ipAddress: "192.168.1.30", macAddress: "3C:22:FB:00:00:30", networkProfileID: home)
+        saved.customName = "Studio"
+        context.insert(saved)
+        let discovery = MockDeviceDiscoveryService()
+        discovery.discoveredDevices = [scanned("192.168.1.31", mac: "3C:22:FB:00:00:30", network: home)]
+        let viewModel = makeViewModel(deviceDiscoveryService: discovery)
+
+        viewModel.loadDevice(ipAddress: "192.168.1.31", context: context)
+
+        #expect(viewModel.device?.customName == "Studio")
+        #expect(viewModel.device?.ipAddress == "192.168.1.31")
+        #expect(try context.fetch(FetchDescriptor<LocalDevice>()).count == 1)
+    }
+
+    @Test func aCachedDeviceOpensItsNetworksRow() throws {
+        let (container, context) = try makeInMemoryStore()
+        defer { withExtendedLifetime(container) {} }
+        let home = UUID()
+        let saved = LocalDevice(ipAddress: "192.168.1.40", macAddress: "", networkProfileID: home)
+        saved.notes = "garage"
+        context.insert(saved)
+        // The list showed a cached result: the live scan array is empty.
+        let viewModel = makeViewModel(deviceDiscoveryService: MockDeviceDiscoveryService())
+
+        viewModel.loadDevice(ipAddress: "192.168.1.40", networkID: home, context: context)
+
+        #expect(viewModel.device?.notes == "garage")
+        #expect(try context.fetch(FetchDescriptor<LocalDevice>()).count == 1)
+    }
+
+    @Test func aNewcomerAtAMovedDevicesOldAddressGetsItsOwnRow() throws {
+        let (container, context) = try makeInMemoryStore()
+        defer { withExtendedLifetime(container) {} }
+        let home = UUID()
+        let laptop = LocalDevice(ipAddress: "192.168.1.50", macAddress: "3C:22:FB:00:00:50", networkProfileID: home)
+        laptop.notes = "Blake's laptop"
+        context.insert(laptop)
+        let discovery = MockDeviceDiscoveryService()
+        discovery.discoveredDevices = [
+            scanned("192.168.1.51", mac: "3C:22:FB:00:00:50", network: home), // the laptop moved
+            scanned("192.168.1.50", mac: nil, network: home)                  // something new took .50
+        ]
+        let viewModel = makeViewModel(deviceDiscoveryService: discovery)
+
+        viewModel.loadDevice(ipAddress: "192.168.1.50", networkID: home, context: context)
+
+        #expect(viewModel.device?.notes == nil)
+        #expect(laptop.ipAddress == "192.168.1.50")
+        #expect(try context.fetch(FetchDescriptor<LocalDevice>()).count == 2)
+    }
+
+    @Test func aCachedDeviceWhoseIPChangedOpensItsRowByMAC() throws {
+        let (container, context) = try makeInMemoryStore()
+        defer { withExtendedLifetime(container) {} }
+        let home = UUID()
+        let saved = LocalDevice(ipAddress: "192.168.1.60", macAddress: "3C:22:FB:00:00:60", networkProfileID: home)
+        saved.notes = "studio"
+        context.insert(saved)
+        let viewModel = makeViewModel(deviceDiscoveryService: MockDeviceDiscoveryService())
+
+        viewModel.loadDevice(ipAddress: "192.168.1.61", networkID: home, macAddress: "3C:22:FB:00:00:60", context: context)
+
+        #expect(viewModel.device?.notes == "studio")
+        #expect(try context.fetch(FetchDescriptor<LocalDevice>()).count == 1)
     }
 
     private func makeViewModel(

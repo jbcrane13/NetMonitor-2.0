@@ -62,6 +62,14 @@ Project-specific notes for agents. Global lessons live in `~/.claude/lessons-lea
 - **iOS build numbers are only unique per marketing version.** App Store Connect already holds iOS builds 18 and 19 from February (version 1.0/2.0, highest is 48 under 2.0), and 2.2.2's 18 and 19 were still accepted. Filter build queries by `filter[preReleaseVersion.version]` so a status check or compliance PATCH doesn't hit the old build with the same number.
 - **The ASC API key is reachable without 1Password:** `KEY_ID`/`ISSUER_ID` in `~/.hermes/.env` and the `.p8` in `~/.appstoreconnect/private_keys`. The `ISSUER_ID` value carries a stray trailing character, so take the UUID with a regex, or the API returns 401.
 
+## 2026-11-22 — SchemaV3 / identity precedence (#462)
+
+- **Spike a SwiftData migration outside the app first.** Make a throwaway SwiftPM executable that depends on `Packages/NetMonitorCore` by path and symlinks the app's `SchemaV*.swift` and `SchemaMigrationPlan.swift` into it. It migrates a store copy in seconds, with no `xcodebuild test`. Copy the `-wal` and `-shm` files with the store, or you migrate stale data.
+- **Write a fixture store with the live models before changing them.** Then run `sqlite3 store 'PRAGMA wal_checkpoint(TRUNCATE); PRAGMA journal_mode=DELETE;'` so it's a single file. A store written by your own frozen copy only proves the copy is self-consistent.
+- **Also migrate a copy of a real store** (`~/Library/Containers/com.netmonitor.NetMonitor/Data/Library/Application Support/default.store*`) and compare makers before and after. It showed makers that UniFi wrote into `manufacturer` and guesses that sat in `vendor`, which no synthetic fixture had. Never commit it.
+- **`project.yml` version bumps leave the generated Info.plists dirty.** Since 2.2.3 they've been out of date, so setup shows plist drift. Discard it with `git checkout`; don't commit it with feature work.
+- **`scanProgress advances once scan task begins` fails on mini-pro-1 on main too** (#472, #429). Don't blame your change or a busy machine.
+
 ## 2026-11-22 — On-device model "Explain this result" (#448)
 
 - **The system language model restates facts but does not judge them.** Given a certificate with 8 days left it said "valid" and never mentioned the expiry. Compute the judgement in the app (`ToolInsightBuilder` observations) and let the model only word it; that also makes the prompt builder the place to test correctness.

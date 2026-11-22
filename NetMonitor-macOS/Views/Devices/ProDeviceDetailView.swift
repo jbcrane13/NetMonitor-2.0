@@ -213,8 +213,8 @@ private extension ProDeviceDetailView {
                     }
                 }
 
-                if let vendor = device.vendor {
-                    Text(vendor)
+                if let maker = device.maker {
+                    Text(maker)
                         .font(.subheadline)
                         .foregroundStyle(MacTheme.Colors.labelTertiary)
                 }
@@ -305,7 +305,12 @@ private extension ProDeviceDetailView {
         VStack(alignment: .leading, spacing: 10) {
             sectionHeader("Hardware", icon: "cpu", loading: isLoadingVendor)
 
-            detailRow("Manufacturer", device.vendor ?? "Unknown")
+            detailRow("Manufacturer", device.maker ?? "Unknown")
+            // The MAC prefix names the network chip's maker (Espressif, Murata), often not the
+            // brand on the device (ADR-022).
+            if let chipMaker = device.vendor, !chipMaker.isEmpty, chipMaker != device.maker {
+                detailRow("Network Chip", chipMaker)
+            }
             detailRow("Device Type", device.deviceType.rawValue.capitalized)
 
             if !device.macAddress.isEmpty {

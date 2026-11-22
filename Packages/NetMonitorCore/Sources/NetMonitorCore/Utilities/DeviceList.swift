@@ -47,7 +47,7 @@ public enum DeviceList {
                 device.displayName.localizedCaseInsensitiveContains(search) ||
                 device.ipAddress.contains(search) ||
                 device.macAddress.localizedCaseInsensitiveContains(search) ||
-                (device.vendor?.localizedCaseInsensitiveContains(search) ?? false)
+                (device.maker?.localizedCaseInsensitiveContains(search) ?? false)
             }
         }
 
@@ -61,7 +61,7 @@ public enum DeviceList {
         case .status:
             result.sort { ($0.status == .online ? 0 : 1) < ($1.status == .online ? 0 : 1) }
         case .vendor:
-            result.sort { ($0.vendor ?? "zzz").localizedCaseInsensitiveCompare($1.vendor ?? "zzz") == .orderedAscending }
+            result.sort { ($0.maker ?? "zzz").localizedCaseInsensitiveCompare($1.maker ?? "zzz") == .orderedAscending }
         case .latency:
             result.sort { ($0.lastLatency ?? .infinity) < ($1.lastLatency ?? .infinity) }
         }

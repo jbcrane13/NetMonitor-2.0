@@ -23,10 +23,10 @@ struct ScanPipelineTests {
         #expect(step.concurrent == false)
     }
 
-    @Test("standard pipeline has 5 steps")
-    func standardHasFiveSteps() {
+    @Test("standard pipeline has 6 steps")
+    func standardHasSixSteps() {
         let pipeline = ScanPipeline.standard()
-        #expect(pipeline.steps.count == 5)
+        #expect(pipeline.steps.count == 6)
     }
 
     @Test("standard pipeline step 0 is concurrent with 2 phases")
@@ -45,9 +45,16 @@ struct ScanPipelineTests {
         #expect(step.phases.map(\.id) == [.tcpProbe, .ssdp, .ubiquitiDiscovery])
     }
 
-    @Test("hostname identity is left to the caller, after merges outside the pipeline (#439)")
-    func standardLeavesHostnameIdentityToCaller() {
+    @Test("hostname identity is an ordinary step, last so it reads every name (ADR-022)")
+    func standardEndsWithHostnameIdentity() {
         let pipeline = ScanPipeline.standard()
+        #expect(pipeline.steps.last?.phases.map(\.id) == [.hostnameIdentity])
+    }
+
+    @Test("A caller that runs hostname identity itself can leave the step out")
+    func standardWithoutHostnameIdentity() {
+        let pipeline = ScanPipeline.standard(includeHostnameIdentity: false)
+        #expect(pipeline.steps.count == 5)
         #expect(!pipeline.steps.flatMap(\.phases).contains { $0.id == .hostnameIdentity })
     }
 

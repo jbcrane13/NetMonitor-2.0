@@ -128,7 +128,8 @@ enum DeviceDiscoveryCoordinatorFixtures {
             vendor: "Cisco", status: .online, lastLatency: 5.5, openPorts: [22, 80]
         ),
         Row(ipAddress: "192.0.2.50", macAddress: "", hostname: "printer.local", vendor: nil, status: .online, lastLatency: nil),
-        Row(ipAddress: "192.0.2.60", macAddress: "", hostname: "chromecast.local", vendor: "Google", status: .online, lastLatency: nil),
+        // `vendor` is the MAC-prefix maker only; the "Google" guess from the name is ranked identity (ADR-022).
+        Row(ipAddress: "192.0.2.60", macAddress: "", hostname: "chromecast.local", vendor: nil, status: .online, lastLatency: nil),
         Row(ipAddress: "192.0.2.99", macAddress: "AA:BB:CC:DD:EE:04", hostname: nil, vendor: nil, status: .offline, lastLatency: nil),
     ]
 
@@ -190,7 +191,17 @@ enum DeviceDiscoveryCoordinatorFixtures {
     static let expectedRowsAfterEndToEndScans: [Row] = [
         Row(ipAddress: "192.0.2.1", macAddress: "", hostname: "router.local", vendor: nil, status: .online, lastLatency: nil),
         Row(ipAddress: "192.0.2.50", macAddress: "", hostname: "printer.local", vendor: nil, status: .online, lastLatency: nil),
-        Row(ipAddress: "192.0.2.60", macAddress: "", hostname: "chromecast.local", vendor: "Google", status: .online, lastLatency: nil),
+        // `vendor` is the MAC-prefix maker only; the "Google" guess from the name is ranked identity (ADR-022).
+        Row(ipAddress: "192.0.2.60", macAddress: "", hostname: "chromecast.local", vendor: nil, status: .online, lastLatency: nil),
         Row(ipAddress: "192.0.2.99", macAddress: "", hostname: "iot-device.local", vendor: nil, status: .offline, lastLatency: nil),
     ]
+}
+
+extension DeviceDiscoveryCoordinator {
+    /// Test shorthand: keeps the rows at `currentIPs` online. Production passes the rows the
+    /// final merge's device match claimed (#461); for fixtures without duplicate IPs the two agree.
+    func markOfflineDevices(currentIPs: Set<String>, profileID: UUID?) {
+        let seen = discoveredDevices.filter { currentIPs.contains($0.ipAddress) }.map(\.id)
+        markOfflineDevices(keeping: Set(seen), profileID: profileID)
+    }
 }

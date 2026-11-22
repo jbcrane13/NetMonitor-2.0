@@ -4,6 +4,10 @@ import SwiftData
 
 struct DeviceDetailView: View {
     let ipAddress: String
+    /// The network the device was found on; nil when opened without one.
+    var networkID: UUID?
+    /// The MAC the list showed, which matters for a cached result the live scan lacks.
+    var macAddress: String?
     @State private var viewModel = DeviceDetailViewModel()
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
@@ -83,7 +87,7 @@ struct DeviceDetailView: View {
             }
         }
         .task(id: ipAddress) {
-            viewModel.loadDevice(ipAddress: ipAddress, context: modelContext)
+            viewModel.loadDevice(ipAddress: ipAddress, networkID: networkID, macAddress: macAddress, context: modelContext)
             guard !Task.isCancelled else { return }
             await viewModel.enrichDevice(bonjourServices: [])
         }
@@ -116,8 +120,8 @@ struct DeviceDetailView: View {
             }
             .accessibilityIdentifier("deviceDetail_label_status")
 
-            if let manufacturer = device.manufacturer {
-                Text(manufacturer)
+            if let maker = device.maker {
+                Text(maker)
                     .font(.subheadline)
                     .foregroundStyle(Theme.Colors.textSecondary)
                     .accessibilityIdentifier("deviceDetail_label_manufacturer")
@@ -153,8 +157,8 @@ struct DeviceDetailView: View {
                         .accessibilityIdentifier("deviceDetail_row_resolvedHostname")
                 }
 
-                if let manufacturer = device.manufacturer {
-                    infoRow(label: "Manufacturer", value: manufacturer)
+                if let maker = device.maker {
+                    infoRow(label: "Manufacturer", value: maker)
                         .accessibilityIdentifier("deviceDetail_row_manufacturerInfo")
                 }
 
@@ -548,7 +552,7 @@ struct DeviceDetailView: View {
         Name: \(device.displayName)
         IP: \(device.ipAddress)
         MAC: \(device.macAddress.isEmpty ? "—" : device.macAddress)
-        Vendor: \(device.vendor ?? "Unknown")
+        Manufacturer: \(device.maker ?? "Unknown")
         Type: \(device.deviceType.rawValue)
         Status: \(device.status.rawValue)
         First Seen: \(dateFormatter.string(from: device.firstSeen))

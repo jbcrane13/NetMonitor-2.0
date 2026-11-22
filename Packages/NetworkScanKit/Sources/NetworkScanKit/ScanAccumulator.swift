@@ -101,9 +101,7 @@ public actor ScanAccumulator {
             source: existing.source,
             networkProfileID: existing.networkProfileID,
             openPorts: existing.openPorts,
-            friendlyName: existing.friendlyName,
-            manufacturer: existing.manufacturer,
-            modelName: existing.modelName
+            identity: existing.identity
         )
         latencySourceByIP[ip] = source
         // A measured latency means the device answered this scan.
@@ -160,6 +158,8 @@ public actor ScanAccumulator {
 
     public var count: Int { devices.count }
 
+    /// Identity merges by rank (ADR-022): a higher-ranked value wins, and on equal rank the
+    /// later report wins. Everything else keeps the first value heard.
     private static func merged(existing: DiscoveredDevice, incoming: DiscoveredDevice) -> DiscoveredDevice {
         DiscoveredDevice(
             id: existing.id,
@@ -172,18 +172,7 @@ public actor ScanAccumulator {
             source: existing.source,
             networkProfileID: existing.networkProfileID ?? incoming.networkProfileID,
             openPorts: existing.openPorts ?? incoming.openPorts,
-            friendlyName: existing.friendlyName ?? incoming.friendlyName,
-            manufacturer: existing.manufacturer ?? incoming.manufacturer,
-            modelName: mergedModelName(existing: existing, incoming: incoming)
+            identity: existing.identity.merging(incoming.identity)
         )
-    }
-
-    /// A Bonjour TXT model (#386) is exact, so it replaces a UPnP `modelName` (#387);
-    /// any other model only fills an empty one.
-    private static func mergedModelName(existing: DiscoveredDevice, incoming: DiscoveredDevice) -> String? {
-        if incoming.source == .bonjour, let model = incoming.modelName {
-            return model
-        }
-        return existing.modelName ?? incoming.modelName
     }
 }

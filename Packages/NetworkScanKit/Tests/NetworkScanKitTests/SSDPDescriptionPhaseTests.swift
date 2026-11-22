@@ -39,7 +39,8 @@ struct SSDPDescriptionPhaseTests {
         #expect(tv?.manufacturer == "Samsung Electronics")
         #expect(tv?.modelName == "QN65Q80B")
         #expect(tv?.displayName == "Living Room TV")
-        #expect(tv?.vendorOrManufacturer == "Samsung Electronics")
+        #expect(tv?.maker == "Samsung Electronics")
+        #expect(tv?.identity.model?.source == .upnp)
         #expect(tv?.isCached == false)
     }
 
@@ -77,8 +78,10 @@ struct SSDPDescriptionPhaseTests {
         #expect(devices.first?.friendlyName == "Router")
     }
 
-    @Test("a hostname and an OUI vendor found elsewhere stay ahead of the description")
-    func existingNamesWin() async {
+    /// ADR-022: the device's own UPnP maker outranks the MAC-prefix maker, which is kept as
+    /// `vendor`; the friendly name is the device name.
+    @Test("the description's maker outranks the OUI vendor, which is kept")
+    func descriptionMakerOutranksVendor() async {
         let phase = SSDPScanPhase(discover: { _ in ["192.168.1.20": ["http://192.168.1.20/d.xml"]] }) { _, _ in
             Self.xml("TV", maker: "Samsung Electronics", model: "Q80")
         }
@@ -92,8 +95,10 @@ struct SSDPDescriptionPhaseTests {
         await accumulator.setLatency(ip: "192.168.1.20", value: 4, source: .icmp)
 
         let device = await accumulator.snapshot().first
-        #expect(device?.displayName == "tv.lan")
-        #expect(device?.vendorOrManufacturer == "Samsung Electronics Co.,Ltd")
+        #expect(device?.hostname == "tv.lan")
+        #expect(device?.displayName == "TV")
+        #expect(device?.vendor == "Samsung Electronics Co.,Ltd")
+        #expect(device?.maker == "Samsung Electronics")
         // setLatency rebuilds the device; the description fields must survive it.
         #expect(device?.friendlyName == "TV")
         #expect(device?.modelName == "Q80")

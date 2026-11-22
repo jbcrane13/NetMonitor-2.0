@@ -97,7 +97,9 @@ struct DeviceListView: View {
                     .padding(.horizontal, Theme.Layout.screenPadding)
 
                     ForEach(sortedDevices) { device in
-                        NavigationLink(value: AppDestination.deviceDetail(ipAddress: device.ipAddress)) {
+                        NavigationLink(value: AppDestination.deviceDetail(
+                            ipAddress: device.ipAddress, networkID: device.networkProfileID, macAddress: device.macAddress
+                        )) {
                             if isProMode {
                                 proModeRow(device: device)
                             } else {
@@ -157,7 +159,7 @@ struct DeviceListView: View {
                             .foregroundStyle(Theme.Colors.textSecondary)
                     }
 
-                    if let vendor = makerLabel(device) {
+                    if let vendor = device.makerLabel {
                         Text(vendor)
                             .font(.caption2)
                             .foregroundStyle(Theme.Colors.textTertiary)
@@ -215,7 +217,7 @@ struct DeviceListView: View {
                         .clipShape(Capsule())
                 }
 
-                if let vendor = makerLabel(device) {
+                if let vendor = device.makerLabel {
                     Text(vendor)
                         .font(.system(size: 11, design: .monospaced))
                         .foregroundStyle(Theme.Colors.textTertiary)
@@ -224,11 +226,6 @@ struct DeviceListView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-    }
-
-    /// "Ubiquiti · U7 Pro": the maker, with the model when known.
-    private func makerLabel(_ device: DiscoveredDevice) -> String? {
-        MACAddress.makerLabel(vendor: device.vendorOrManufacturer, macAddress: device.macAddress, model: device.modelName)
     }
 
     private func latencyColor(_ latency: Double?) -> Color {
