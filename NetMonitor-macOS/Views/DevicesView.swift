@@ -86,6 +86,9 @@ struct DevicesView: View {
                     // Detail pane
                     if let device = selectedDevice {
                         DeviceDetailView(device: device)
+                            // A new device starts with fresh edit state, so a draft can't be
+                            // saved onto a device an alert selected (#478).
+                            .id(device.id)
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                     } else {
                         ContentUnavailableView(

@@ -19,11 +19,7 @@ final class MacNotificationPresenter: NSObject, UNUserNotificationCenterDelegate
         guard [NotificationService.viewActionIdentifier, UNNotificationDefaultActionIdentifier].contains(response.actionIdentifier)
         else { return }
         let content = response.notification.request.content
-        let category = content.categoryIdentifier
-        let ipAddress = content.userInfo["ipAddress"] as? String
-        await MainActor.run {
-            let userInfo: [AnyHashable: Any] = ipAddress.map { ["ipAddress": $0] } ?? [:]
-            NotificationRouter.shared.pending = NotificationRoute.route(category: category, userInfo: userInfo)
-        }
+        guard let route = NotificationRoute.route(category: content.categoryIdentifier, userInfo: content.userInfo) else { return }
+        await MainActor.run { NotificationRouter.shared.open(route) }
     }
 }

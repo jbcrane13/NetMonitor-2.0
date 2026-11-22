@@ -76,7 +76,11 @@ struct ContentView: View {
             // View Details on an alert (#478).
             guard let route else { return }
             NotificationRouter.shared.pending = nil
-            let devices = (try? modelContext.fetch(FetchDescriptor<LocalDevice>())) ?? []
+            // Only the saved devices at the alert's address.
+            var devices: [LocalDevice] = []
+            if case let .device(ip, _) = route {
+                devices = (try? modelContext.fetch(FetchDescriptor<LocalDevice>(predicate: #Predicate { $0.ipAddress == ip }))) ?? []
+            }
             let target = NotificationRouter.selection(
                 for: route, devices: devices, localNetworkID: profileManager?.profiles.first(where: { $0.isLocal })?.id
             )
