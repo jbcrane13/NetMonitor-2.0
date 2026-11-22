@@ -348,11 +348,28 @@ final class DeviceDiscoveryCoordinator {
             }
         }
 
+        // Saved rows this scan didn't find still get a maker and model from their names: a
+        // device that stopped answering would otherwise keep an empty maker forever (#439).
+        for device in existingDevices where !seenRows.contains(device.id) {
+            Self.fillFromSavedNames(device)
+        }
+
         do { try modelContext.save() } catch {
             Logger.discovery.error("Failed to save discovered devices: \(error)")
         }
         loadPersistedDevices(for: profileID)
         return seenRows
+    }
+
+    /// What `HostnameIdentityPhase` does for a scanned device, for a saved row the scan didn't
+    /// find: a guess from its names fills an empty maker or model, ranked as a guess (ADR-022).
+    private static func fillFromSavedNames(_ device: LocalDevice) {
+        guard let guess = HostnameIdentity.identify(names: [device.hostname, device.resolvedHostname, device.friendlyName]) else { return }
+        let fill = guess.fills(knownMaker: device.maker, knownModel: device.modelName)
+        device.mergeIdentity(DeviceIdentity(
+            maker: IdentityValue(fill.maker, source: .hostnameGuess),
+            model: IdentityValue(fill.model, source: .hostnameGuess)
+        ))
     }
 
     /// Writes a matched observation onto its saved row. See `mergeDiscoveredDevices`.

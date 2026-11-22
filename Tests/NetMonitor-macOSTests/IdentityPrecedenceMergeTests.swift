@@ -95,4 +95,32 @@ struct IdentityPrecedenceMergeTests {
         device.customName = "Big TV"
         #expect(device.displayName == "Big TV")
     }
+
+    /// #439: rows saved before hostname identity, for devices that no longer answer scans.
+    @Test("A saved row the scan didn't find gets a guessed maker from its name; a saved maker stays")
+    func staleRowIsFilledFromItsName() throws {
+        let (container, context, coordinator) = try makeCoordinator()
+        _ = container
+        context.insert(LocalDevice(ipAddress: "192.168.2.108", macAddress: "", hostname: "wiz_fcd4aa.lan", status: .offline))
+        context.insert(LocalDevice(ipAddress: "192.168.2.2", macAddress: "", hostname: "unifi-pro-max-16-switch.lan", status: .offline))
+        // An unranked maker from an older build, and a MAC-prefix maker: neither is replaced.
+        let legacy = LocalDevice(ipAddress: "192.168.2.154", macAddress: "", hostname: "samsung-microwave.lan", status: .offline)
+        legacy.manufacturer = "SmartThings"
+        context.insert(legacy)
+        context.insert(LocalDevice(
+            ipAddress: "192.168.2.30", macAddress: "", hostname: "unifi-pro-max-16-switch", vendor: "Raspberry Pi Trading", status: .offline
+        ))
+        try context.save()
+
+        coordinator.mergeDiscoveredDevices([scan(DeviceIdentity())], profileID: nil)
+
+        let byIP = try Dictionary(uniqueKeysWithValues: context.fetch(FetchDescriptor<LocalDevice>()).map { ($0.ipAddress, $0) })
+        #expect(byIP["192.168.2.108"]?.identity.maker == IdentityValue("WiZ", source: .hostnameGuess))
+        #expect(byIP["192.168.2.108"]?.vendor == nil)
+        #expect(byIP["192.168.2.2"]?.maker == "Ubiquiti")
+        #expect(byIP["192.168.2.2"]?.identity.model == IdentityValue("UniFi Pro Max 16 Switch", source: .hostnameGuess))
+        #expect(byIP["192.168.2.154"]?.identity.maker == IdentityValue("SmartThings", source: nil))
+        #expect(byIP["192.168.2.30"]?.maker == "Raspberry Pi Trading")
+        #expect(byIP["192.168.2.30"]?.modelName == nil)
+    }
 }
