@@ -171,11 +171,11 @@ final class DeviceDiscoveryCoordinator {
                 try Task.checkCancellation()
 
                 let allDiscovered = Self.mapDiscoveredDevices(engineDevices)
-                mergeDiscoveredDevices(allDiscovered, profileID: profileID, recordLatencyHistory: true)
+                let seenRows = mergeDiscoveredDevices(allDiscovered, profileID: profileID, recordLatencyHistory: true)
 
                 inferDeviceTypes(profileID: profileID)
 
-                markOfflineDevices(currentIPs: Set(allDiscovered.map(\.ipAddress)), profileID: profileID)
+                markOfflineDevices(keeping: seenRows, profileID: profileID)
                 reportDeviceChanges(allDiscovered, profileID: profileID, seed: trackerSeed)
                 Logger.discovery.notice("Scan finished: \(allDiscovered.count, privacy: .public) devices")
                 scanProgress = 1.0
@@ -293,52 +293,36 @@ final class DeviceDiscoveryCoordinator {
     /// It never inserts a row for an unmatched private MAC: without a name the rotation rule
     /// can't match it yet, and a new row there would stop the final merge from reusing the
     /// device's existing row (#411).
+    ///
+    /// Returns the IDs of the rows this merge matched or inserted, for `markOfflineDevices`.
+    @discardableResult
     func mergeDiscoveredDevices(
         _ devices: [LocalDiscoveredDevice],
         profileID: UUID?,
         recordLatencyHistory: Bool = true,
         isSparse: Bool = false
-    ) {
+    ) -> Set<UUID> {
         let existingDevices = fetchDevices(for: profileID)
-        var devicesByMAC: [String: LocalDevice] = [:]
-        var devicesByIP: [String: LocalDevice] = [:]
-        for device in existingDevices {
-            let mac = device.macAddress.uppercased()
-            if !mac.isEmpty, devicesByMAC[mac] == nil {
-                devicesByMAC[mac] = device
-            }
-            if devicesByIP[device.ipAddress] == nil {
-                devicesByIP[device.ipAddress] = device
-            }
-        }
-
-        let incomingMACs = Set(devices.map { $0.macAddress.uppercased() }.filter { !$0.isEmpty })
-        var matchedThisScan: Set<ObjectIdentifier> = []
+        // The device match (#461): the same rule `DeviceChangeDetector` uses. `rows` stays
+        // index-aligned with the matcher's known devices, including rows inserted below.
+        var rows = existingDevices
+        var seenRows: Set<UUID> = []
+        var matcher = DeviceMatcher(
+            known: existingDevices.map(Self.matchCandidate),
+            observed: devices.map(Self.matchCandidate)
+        )
 
         for discovered in devices {
-            let normalizedMAC = discovered.macAddress.uppercased()
-            var existing = normalizedMAC.isEmpty
-                ? devicesByIP[discovered.ipAddress]
-                : devicesByMAC[normalizedMAC]
-
-            // A rotated private MAC: reuse the one row with the same IP and name (#411).
-            if existing == nil,
-               let rotated = Self.rotatedPrivateMACMatch(
-                   for: discovered,
-                   in: existingDevices,
-                   incomingMACs: incomingMACs,
-                   matchedThisScan: matchedThisScan
-               ) {
-                devicesByMAC[rotated.macAddress.uppercased()] = nil
-                rotated.macAddress = discovered.macAddress
-                devicesByMAC[normalizedMAC] = rotated
-                existing = rotated
-            }
-
-            if let existing {
-                matchedThisScan.insert(ObjectIdentifier(existing))
+            let candidate = Self.matchCandidate(discovered)
+            if let match = matcher.match(candidate) {
+                let existing = rows[match.index]
+                seenRows.insert(existing.id)
+                // It gained a MAC, or rotated a private one (#411, #442).
+                if match.adoptedMAC != nil {
+                    existing.macAddress = discovered.macAddress
+                }
                 Self.apply(discovered, to: existing, recordLatencyHistory: recordLatencyHistory)
-            } else if isSparse, MACAddress.isPrivate(normalizedMAC) {
+            } else if isSparse, MACAddress.isPrivate(discovered.macAddress) {
                 continue
             } else {
                 let newDevice = LocalDevice(
@@ -360,10 +344,9 @@ final class DeviceDiscoveryCoordinator {
                 Self.fillFromDescription(newDevice, discovered)
                 Self.fillFromHostname(newDevice)
                 modelContext.insert(newDevice)
-                devicesByIP[newDevice.ipAddress] = newDevice
-                if !normalizedMAC.isEmpty {
-                    devicesByMAC[normalizedMAC] = newDevice
-                }
+                matcher.add(candidate)
+                rows.append(newDevice)
+                seenRows.insert(newDevice.id)
             }
         }
 
@@ -377,6 +360,7 @@ final class DeviceDiscoveryCoordinator {
             Logger.discovery.error("Failed to save discovered devices: \(error)")
         }
         loadPersistedDevices(for: profileID)
+        return seenRows
     }
 
     /// Writes a matched observation onto its saved row. See `mergeDiscoveredDevices`.
@@ -441,36 +425,22 @@ final class DeviceDiscoveryCoordinator {
         }
     }
 
-    /// The one saved row an unmatched private MAC should take over, or nil. Mirrors the
-    /// conservative rule in `DeviceChangeDetector` (#393): same IP and same non-empty name,
-    /// exactly one candidate, and that row wasn't seen under its own MAC (or matched) this scan.
-    /// An IP match alone isn't enough, because DHCP reuses addresses.
-    static func rotatedPrivateMACMatch(
-        for discovered: LocalDiscoveredDevice,
-        in rows: [LocalDevice],
-        incomingMACs: Set<String>,
-        matchedThisScan: Set<ObjectIdentifier>
-    ) -> LocalDevice? {
-        guard MACAddress.isPrivate(discovered.macAddress),
-              let name = discovered.hostname, !name.isEmpty
-        else { return nil }
-        let candidates = rows.filter {
-            $0.ipAddress == discovered.ipAddress
-                && $0.hostname == name
-                && !incomingMACs.contains($0.macAddress.uppercased())
-                && !matchedThisScan.contains(ObjectIdentifier($0))
-        }
-        return candidates.count == 1 ? candidates[0] : nil
+    /// A saved row or a scan observation as the device match sees it. The name is the
+    /// hostname, which private-MAC rotation compares.
+    private static func matchCandidate(_ device: LocalDevice) -> DeviceMatchCandidate {
+        DeviceMatchCandidate(ipAddress: device.ipAddress, macAddress: device.macAddress, name: device.hostname)
     }
 
-    func markOfflineDevices(currentIPs: Set<String>, profileID: UUID?) {
-        for device in discoveredDevices {
-            if device.networkProfileID != profileID {
-                continue
-            }
-            if !currentIPs.contains(device.ipAddress) {
-                device.status = .offline
-            }
+    private static func matchCandidate(_ device: LocalDiscoveredDevice) -> DeviceMatchCandidate {
+        DeviceMatchCandidate(ipAddress: device.ipAddress, macAddress: device.macAddress, name: device.hostname)
+    }
+
+    /// Marks this network's rows offline unless the scan's device match claimed them
+    /// (`keeping`, from `mergeDiscoveredDevices`). Matching by row rather than by IP means a
+    /// stale row sharing an IP with a live device still goes offline (#461).
+    func markOfflineDevices(keeping seenRows: Set<UUID>, profileID: UUID?) {
+        for device in discoveredDevices where device.networkProfileID == profileID && !seenRows.contains(device.id) {
+            device.status = .offline
         }
         do { try modelContext.save() } catch {
             Logger.discovery.error("Failed to save offline status: \(error)")

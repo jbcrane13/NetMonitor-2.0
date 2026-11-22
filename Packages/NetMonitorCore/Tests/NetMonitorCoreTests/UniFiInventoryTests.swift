@@ -98,8 +98,8 @@ struct UniFiInventoryPhaseTests {
         #expect(result["192.168.2.4"]?.vendorOrManufacturer == "Ubiquiti")
         #expect(result["192.168.2.4"]?.modelName == "U7 Pro")
         #expect(result["192.168.2.4"]?.displayName == "U7 Pro")
-        // The MAC is used for the maker, not recorded.
-        #expect(result["192.168.2.4"]?.macAddress == nil)
+        // A public MAC is recorded, normalized, so the device match can key the device by it (#461).
+        #expect(result["192.168.2.4"]?.macAddress == "28:70:4E:00:00:04")
     }
 
     @Test("A client's maker comes from its MAC, else from the name UniFi gave it")
@@ -137,5 +137,19 @@ struct UniFiInventoryPhaseTests {
             found: [found("192.168.2.144")]
         )
         #expect(result["192.168.2.144"]?.vendorOrManufacturer == nil)
+        // Nor is it recorded: a nameless device without a MAC wouldn't adopt it (#461).
+        #expect(result["192.168.2.144"]?.macAddress == nil)
+    }
+
+    @Test("A MAC the scan already read wins over the controller's")
+    func scanMACWins() async {
+        let result = await run(
+            [client("192.168.2.12", "Printer", mac: "3c:22:fb:00:00:99")],
+            found: [DiscoveredDevice(
+                ipAddress: "192.168.2.12", hostname: nil, vendor: nil, macAddress: "3C:22:FB:00:00:12",
+                latency: nil, discoveredAt: Date(), source: .local
+            )]
+        )
+        #expect(result["192.168.2.12"]?.macAddress == "3C:22:FB:00:00:12")
     }
 }
