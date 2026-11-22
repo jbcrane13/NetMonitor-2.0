@@ -182,7 +182,14 @@ enum DataExportService {
 
     // MARK: - Helpers
 
-    private static func csvEscape(_ value: String) -> String {
+    /// Quotes a CSV cell, and neutralizes one a spreadsheet would read as a formula: names and
+    /// makers come from devices on the network, so a leading `=`, `+`, `-`, `@`, tab or carriage
+    /// return gets an apostrophe in front (OWASP CSV injection).
+    static func csvEscape(_ value: String) -> String {
+        var value = value
+        if let first = value.first, ["=", "+", "-", "@", "\t", "\r"].contains(first) {
+            value = "'" + value
+        }
         if value.contains(",") || value.contains("\"") || value.contains("\n") {
             return "\"\(value.replacingOccurrences(of: "\"", with: "\"\""))\""
         }

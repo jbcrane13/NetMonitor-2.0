@@ -2,6 +2,7 @@ import Foundation
 import SwiftData
 import Testing
 import NetMonitorCore
+import NetworkScanKit
 @testable import NetMonitor_macOS
 
 @Suite(.serialized)
@@ -139,6 +140,26 @@ struct CompanionMessageHandlerTests {
         #expect(payload.devices[0].ipAddress == "192.168.1.44")
         #expect(payload.devices[0].hostname == "office-printer.local")
         #expect(payload.devices[0].isOnline == true)
+    }
+
+    /// #462 keeps friendly names out of `hostname`; the feed has no friendly-name field (#427),
+    /// so a device known only by its UPnP or UniFi name still reaches iOS with that name.
+    @Test func generateDeviceListSendsTheFriendlyNameWithoutAHostname() throws {
+        let (container, _, handler, coordinator, _) = try makeFixture()
+        _ = container
+
+        coordinator.mergeDiscoveredDevices([
+            LocalDiscoveredDevice(
+                ipAddress: "192.168.1.45", macAddress: "", hostname: nil,
+                identity: DeviceIdentity(friendlyName: IdentityValue("Living Room TV", source: .upnp))
+            )
+        ], profileID: nil)
+
+        guard case .deviceList(let payload) = handler.generateDeviceList() else {
+            #expect(Bool(false))
+            return
+        }
+        #expect(payload.devices.first?.hostname == "Living Room TV")
     }
 
     private func makeFixture() throws -> (

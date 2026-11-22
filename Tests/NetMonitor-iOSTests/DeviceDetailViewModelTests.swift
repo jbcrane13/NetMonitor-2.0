@@ -364,6 +364,21 @@ struct DeviceDetailViewModelTests {
         #expect(try context.fetch(FetchDescriptor<LocalDevice>()).count == 2)
     }
 
+    @Test func aCachedDeviceWhoseIPChangedOpensItsRowByMAC() throws {
+        let (container, context) = try makeInMemoryStore()
+        defer { withExtendedLifetime(container) {} }
+        let home = UUID()
+        let saved = LocalDevice(ipAddress: "192.168.1.60", macAddress: "3C:22:FB:00:00:60", networkProfileID: home)
+        saved.notes = "studio"
+        context.insert(saved)
+        let viewModel = makeViewModel(deviceDiscoveryService: MockDeviceDiscoveryService())
+
+        viewModel.loadDevice(ipAddress: "192.168.1.61", networkID: home, macAddress: "3C:22:FB:00:00:60", context: context)
+
+        #expect(viewModel.device?.notes == "studio")
+        #expect(try context.fetch(FetchDescriptor<LocalDevice>()).count == 1)
+    }
+
     private func makeViewModel(
         macLookupService: any MACVendorLookupServiceProtocol = MockMACVendorLookupService(vendor: nil),
         nameResolver: any DeviceNameResolverProtocol = MockDeviceNameResolver(hostname: nil),

@@ -146,6 +146,20 @@ struct UniFiInventoryPhaseTests {
         #expect(result["192.168.2.108"]?.maker == "Signify")
     }
 
+    @Test("An entry whose MAC contradicts the scan's is another site's device and is skipped")
+    func contradictingMACSkipsTheEntry() async {
+        let scanned = DiscoveredDevice(
+            ipAddress: "192.168.2.20", hostname: nil, vendor: nil, macAddress: "28:70:4E:00:00:20",
+            latency: 1, discoveredAt: Date(), source: .local
+        )
+        let result = await run([
+            UniFiInventoryEntry(ipAddress: "192.168.2.20", name: "Other Site AP", model: "U6 Lite", macAddress: "28:70:4e:00:00:99", isUniFiDevice: true),
+            UniFiInventoryEntry(ipAddress: "192.168.2.20", name: "Office AP", model: "U7 Pro", macAddress: "28:70:4e:00:00:20", isUniFiDevice: true)
+        ], found: [scanned])
+        #expect(result["192.168.2.20"]?.friendlyName == "Office AP")
+        #expect(result["192.168.2.20"]?.modelName == "U7 Pro")
+    }
+
     @Test("A private MAC says nothing about the maker")
     func privateMAC() async {
         let result = await run(

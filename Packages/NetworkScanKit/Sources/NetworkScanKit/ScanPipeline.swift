@@ -43,6 +43,8 @@ public struct ScanPipeline: Sendable {
     ///     also asks the gateway.
     ///   - identityLookUpName: Lets the hostname step ask DNS for a device whose own names
     ///     don't identify it. Nil (the default) reads the names the scan found only.
+    ///   - includeHostnameIdentity: False leaves the hostname step out, for a caller that merges
+    ///     more devices after the pipeline (iOS's Mac companion) and runs it after them.
     ///   - trailingSteps: Additional steps appended after reverse DNS. Callers that need
     ///     platform-specific enrichment append steps here instead of rebuilding the
     ///     pipeline by hand.
@@ -52,6 +54,7 @@ public struct ScanPipeline: Sendable {
         latencyPhase: any ScanPhase = ICMPLatencyPhase(),
         nameResolver: (@Sendable (_ ipAddress: String) async -> String?)? = nil,
         identityLookUpName: (@Sendable (_ ipAddress: String) async -> String?)? = nil,
+        includeHostnameIdentity: Bool = true,
         trailingSteps: [Step] = []
     ) -> ScanPipeline {
         ScanPipeline(steps: [
@@ -66,8 +69,8 @@ public struct ScanPipeline: Sendable {
             Step(phases: [latencyPhase], concurrent: false),
             Step(phases: [ARPRecheckPhase()], concurrent: false),
             Step(phases: [ReverseDNSScanPhase(resolve: nameResolver)], concurrent: false),
-        ] + trailingSteps + [
+        ] + trailingSteps + (includeHostnameIdentity ? [
             Step(phases: [HostnameIdentityPhase(lookUpName: identityLookUpName)], concurrent: false),
-        ])
+        ] : []))
     }
 }

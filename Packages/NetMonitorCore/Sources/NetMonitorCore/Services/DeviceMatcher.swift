@@ -108,6 +108,12 @@ public struct DeviceMatcher: Sendable {
 
     // MARK: Reconciliation
 
+    /// Two different non-empty names: a different device took the address (DHCP reuse).
+    static func namesConflict(_ lhs: String?, _ rhs: String?) -> Bool {
+        guard let lhs, let rhs, !lhs.isEmpty, !rhs.isEmpty else { return false }
+        return lhs.caseInsensitiveCompare(rhs) != .orderedSame
+    }
+
     private func reconciledMatch(for observation: DeviceMatchCandidate, mac: String?, observedKey: String) -> Int? {
         let available = known.indices.filter {
             known[$0].ipAddress == observation.ipAddress
@@ -119,9 +125,9 @@ public struct DeviceMatcher: Sendable {
             guard let name = observation.name, !name.isEmpty else { return nil }
             candidates = available.filter { known[$0].name == name }
         } else if mac == nil {
-            candidates = available.filter { known[$0].macAddress != nil }
+            candidates = available.filter { known[$0].macAddress != nil && !Self.namesConflict(known[$0].name, observation.name) }
         } else {
-            candidates = available.filter { known[$0].macAddress == nil }
+            candidates = available.filter { known[$0].macAddress == nil && !Self.namesConflict(known[$0].name, observation.name) }
         }
         return candidates.count == 1 ? candidates[0] : nil
     }

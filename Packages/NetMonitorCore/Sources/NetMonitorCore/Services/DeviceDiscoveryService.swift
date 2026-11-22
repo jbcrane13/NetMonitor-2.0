@@ -243,7 +243,7 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
         }
         guard !Task.isCancelled else { return }
         await mergeCompanionDevices(filter: scanTarget.filter, profileID: profileID)
-        await identifyDevices(context: context)
+        await identifyDevices(context: context, nameResolver: nameResolver)
         await flushToMainActor(progress: 0.95, profileID: profileID)
 
         // Final sort and flush
@@ -256,13 +256,14 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
         scanPhase = .done
     }
 
-    /// Identity for the devices and names the Mac companion added after the pipeline: the
-    /// enrolled UniFi controller's list and guesses from names. Values are ranked (ADR-022),
-    /// so running after the companion changes no precedence; the pipeline's own hostname step
-    /// already asked DNS, so this one reads names only.
-    private func identifyDevices(context: ScanContext) async {
+    /// Identity after the Mac companion's devices are merged: the enrolled UniFi controller's
+    /// list, then guesses from names, asking DNS for devices whose names don't identify them.
+    /// iOS runs the hostname step here instead of in the pipeline, so a guess sees the
+    /// companion's makers and names, and companion-only devices get a lookup (ADR-022).
+    private func identifyDevices(context: ScanContext, nameResolver: GatewayNameResolver) async {
         await UniFiInventoryPhase().execute(context: context, accumulator: engine.accumulator) { _ in }
-        await HostnameIdentityPhase().execute(context: context, accumulator: engine.accumulator) { _ in }
+        await HostnameIdentityPhase(lookUpName: { await nameResolver.resolve(ipAddress: $0) })
+            .execute(context: context, accumulator: engine.accumulator) { _ in }
     }
 
     /// The standard pipeline, fed by this scan's Bonjour browser.
@@ -279,7 +280,8 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
                 await MainActor.run { bonjourService.stopDiscovery() }
             },
             nameResolver: { await nameResolver.resolve(ipAddress: $0) },
-            identityLookUpName: { await nameResolver.resolve(ipAddress: $0) }
+            // Run after the companion merge instead (identifyDevices).
+            includeHostnameIdentity: false
         )
     }
 

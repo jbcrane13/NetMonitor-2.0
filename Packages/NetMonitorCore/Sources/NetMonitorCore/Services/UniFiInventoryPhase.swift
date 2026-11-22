@@ -56,7 +56,13 @@ public struct UniFiInventoryPhase: ScanPhase, Sendable {
         var seen: Set<String> = []
         for entry in entries where context.subnetFilter(entry.ipAddress) {
             // The first entry per found IP wins.
-            guard let scanMAC = found[entry.ipAddress], seen.insert(entry.ipAddress).inserted else { continue }
+            guard let scanMAC = found[entry.ipAddress] else { continue }
+            // Two sites can reuse an address: an entry whose real MAC contradicts the MAC the
+            // scan read is another device, so none of its identity applies.
+            if let scanMAC, let entryMAC = Self.publicMAC(entry.macAddress), entryMAC != scanMAC {
+                continue
+            }
+            guard seen.insert(entry.ipAddress).inserted else { continue }
             if let update = await update(for: entry, scanMAC: scanMAC) {
                 await accumulator.upsert(update, confirmsPresence: false) // the scan already decided presence
             }
@@ -72,9 +78,7 @@ public struct UniFiInventoryPhase: ScanPhase, Sendable {
     ///   differs from the controller's, the device keeps the scan's MAC, so the controller's
     ///   MAC must not name its maker.
     func update(for entry: UniFiInventoryEntry, scanMAC: String? = nil) async -> DiscoveredDevice? {
-        let publicMAC = entry.macAddress.flatMap { mac in
-            DeviceMatcher.normalizedMAC(mac).flatMap { MACAddress.isPrivate($0) ? nil : $0 }
-        }
+        let publicMAC = Self.publicMAC(entry.macAddress)
         var identity = DeviceIdentity(
             maker: entry.isUniFiDevice ? IdentityValue("Ubiquiti", source: .unifi) : nil,
             model: IdentityValue(entry.model, source: .unifi),
@@ -102,5 +106,10 @@ public struct UniFiInventoryPhase: ScanPhase, Sendable {
             source: .local,
             identity: identity
         )
+    }
+
+    /// The entry's MAC, normalized, when it's a real (public) address.
+    static func publicMAC(_ mac: String?) -> String? {
+        mac.flatMap { DeviceMatcher.normalizedMAC($0).flatMap { MACAddress.isPrivate($0) ? nil : $0 } }
     }
 }

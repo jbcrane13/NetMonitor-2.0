@@ -51,6 +51,13 @@ struct ScanPipelineTests {
         #expect(pipeline.steps.last?.phases.map(\.id) == [.hostnameIdentity])
     }
 
+    @Test("A caller that runs hostname identity itself can leave the step out")
+    func standardWithoutHostnameIdentity() {
+        let pipeline = ScanPipeline.standard(includeHostnameIdentity: false)
+        #expect(pipeline.steps.count == 5)
+        #expect(!pipeline.steps.flatMap(\.phases).contains { $0.id == .hostnameIdentity })
+    }
+
     @Test("standard pipeline step 2 is sequential with 1 phase")
     func standardStep2() {
         let pipeline = ScanPipeline.standard()

@@ -114,4 +114,14 @@ struct DeviceMatcherTests {
         }
         #expect(known == [device("10.0.0.5", publicMAC)])
     }
+
+    /// DHCP gave a saved device's address to a different device: two different names mean a
+    /// different device, whichever side has the readable MAC.
+    @Test func aReplacementWithAnotherNameIsNotTheSavedDevice() {
+        #expect(matchAll(known: [device("10.0.0.5", publicMAC, "printer")], observed: [device("10.0.0.5", nil, "phone")]) == [nil])
+        #expect(matchAll(known: [device("10.0.0.5", nil, "printer")], observed: [device("10.0.0.5", publicMAC, "phone")]) == [nil])
+        // The same name, or no name on one side, still matches.
+        #expect(matchAll(known: [device("10.0.0.5", publicMAC, "Printer")], observed: [device("10.0.0.5", nil, "printer")]).first??.index == 0)
+        #expect(matchAll(known: [device("10.0.0.5", nil, "printer")], observed: [device("10.0.0.5", publicMAC, nil)]).first??.index == 0)
+    }
 }

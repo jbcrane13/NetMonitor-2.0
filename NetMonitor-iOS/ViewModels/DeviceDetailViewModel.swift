@@ -42,13 +42,16 @@ final class DeviceDetailViewModel {
 
     /// Loads the saved row for the device at `ipAddress` on `networkID` (the network the list
     /// showed it on), creating one if none matches.
-    func loadDevice(ipAddress: String, networkID: UUID? = nil, context: ModelContext) {
+    /// `macAddress` is the MAC the list showed, used when the live scan doesn't have the device
+    /// (a cached result), so a device whose IP changed still matches its row.
+    func loadDevice(ipAddress: String, networkID: UUID? = nil, macAddress: String? = nil, context: ModelContext) {
         let live = deviceDiscoveryService.discoveredDevices
         let scanned = live.first { $0.ipAddress == ipAddress && (networkID == nil || $0.networkProfileID == networkID) }
         let network = networkID ?? scanned?.networkProfileID
         device = Self.savedRow(
             ipAddress: ipAddress,
             scanned: scanned,
+            macAddress: scanned?.macAddress ?? macAddress,
             networkID: network,
             scan: live.filter { $0.networkProfileID == network },
             in: context
@@ -80,12 +83,13 @@ final class DeviceDetailViewModel {
     static func savedRow(
         ipAddress: String,
         scanned: DiscoveredDevice?,
+        macAddress: String? = nil,
         networkID: UUID?,
         scan: [DiscoveredDevice],
         in context: ModelContext
     ) -> LocalDevice {
         let rows = (try? context.fetch(FetchDescriptor<LocalDevice>())) ?? []
-        let observation = DeviceMatchCandidate(ipAddress: ipAddress, macAddress: scanned?.macAddress, name: scanned?.matchName)
+        let observation = DeviceMatchCandidate(ipAddress: ipAddress, macAddress: macAddress ?? scanned?.macAddress, name: scanned?.matchName)
         let observed = scan.map { DeviceMatchCandidate(ipAddress: $0.ipAddress, macAddress: $0.macAddress, name: $0.matchName) }
         var pools = [rows.filter { $0.networkProfileID == networkID }]
         if networkID != nil {
@@ -109,7 +113,7 @@ final class DeviceDetailViewModel {
             row.networkProfileID = networkID
             return row
         }
-        let row = LocalDevice(ipAddress: ipAddress, macAddress: scanned?.macAddress ?? "", networkProfileID: networkID)
+        let row = LocalDevice(ipAddress: ipAddress, macAddress: macAddress ?? scanned?.macAddress ?? "", networkProfileID: networkID)
         context.insert(row)
         return row
     }

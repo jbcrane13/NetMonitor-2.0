@@ -91,7 +91,9 @@ struct DataExportServiceTests {
         let data = "{}".data(using: .utf8)!
         let url = DataExportService.writeToTempFile(data: data, name: "export", ext: "json")
         #expect(url?.pathExtension == "json")
-        if let url { try? FileManager.default.removeItem(at: url) }
+        if let url {
+            try? FileManager.default.removeItem(at: url)
+        }
     }
 
     @Test func writeToTempFileContainsCorrectData() throws {
@@ -104,5 +106,19 @@ struct DataExportServiceTests {
         let written = try String(contentsOf: url, encoding: .utf8)
         #expect(written == expected)
         try? FileManager.default.removeItem(at: url)
+    }
+
+    /// Names and makers come from devices on the network; a cell a spreadsheet would run as a
+    /// formula gets an apostrophe in front (CSV injection).
+    @Test(arguments: ["=HYPERLINK(\"x\")", "+1", "-2", "@SUM(A1)", "\tTab"])
+    func csvCellsNeverStartAFormula(value: String) {
+        let escaped = DataExportService.csvEscape(value)
+        let cell = escaped.hasPrefix("\"") ? String(escaped.dropFirst()) : escaped
+        #expect(cell.hasPrefix("'"))
+    }
+
+    @Test func ordinaryCSVCellsAreUnchanged() {
+        #expect(DataExportService.csvEscape("Samsung") == "Samsung")
+        #expect(DataExportService.csvEscape("a,b") == "\"a,b\"")
     }
 }
