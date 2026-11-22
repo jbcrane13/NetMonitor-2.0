@@ -28,6 +28,7 @@ struct SpeedTestToolView: View {
             inputArea: { contentArea },
             footerContent: { footer }
         )
+        .explaining(insightRequest, screen: "speedTest")
         .onAppear { loadTrend() }
         .onDisappear {
             speedTestTask?.cancel()
@@ -275,6 +276,17 @@ struct SpeedTestToolView: View {
             .accessibilityIdentifier("speedTest_label_server")
         }
         .accessibilityIdentifier("speedTest_section_results")
+    }
+
+    /// What the "Explain" strip explains: the finished result on screen (#448).
+    private var insightRequest: InsightRequest? {
+        guard !service.isRunning, service.phase == .complete, service.errorMessage == nil else { return nil }
+        return ToolInsightBuilder.speedTest(SpeedTestData(
+            downloadSpeed: service.downloadSpeed,
+            uploadSpeed: service.uploadSpeed,
+            latency: service.latency,
+            jitter: service.jitter > 0 ? service.jitter : nil
+        ))
     }
 
     // MARK: - Footer

@@ -16,6 +16,9 @@ struct GeoTraceView: View {
             if let hop = viewModel.selectedHop {
                 hopDetailPanel(hop)
             }
+            ToolInsightCard(screen: "geoTrace", request: viewModel.insightRequest)
+                .padding(.horizontal, Theme.Layout.screenPadding)
+                .padding(.bottom, 8)
         }
         .themedBackground()
         .navigationTitle("Geo Trace")
@@ -44,7 +47,9 @@ struct GeoTraceView: View {
                     keyboardType: .URL,
                     accessibilityID: "geoTrace_input_host",
                     onSubmit: {
-                        if viewModel.canTrace { viewModel.startTrace() }
+                        if viewModel.canTrace {
+                            viewModel.startTrace()
+                        }
                     }
                 )
 

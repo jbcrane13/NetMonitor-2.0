@@ -34,6 +34,8 @@ struct PortScannerToolView: View {
     @State private var customPorts = ""
     @State private var isRunning = false
     @State private var results: [PortResult] = []
+    /// The host `results` were scanned on; `host` may have been edited since.
+    @State private var scannedHost = ""
     @State private var scannedCount = 0
     @State private var totalPorts = 0
     @State private var errorMessage: String?
@@ -50,6 +52,7 @@ struct PortScannerToolView: View {
             outputArea: { outputArea },
             footerContent: { footer }
         )
+        .explaining(insightRequest, screen: "portScan")
         .onAppear {
             if host.isEmpty && !lastUsedTarget.isEmpty {
                 host = lastUsedTarget
@@ -180,6 +183,15 @@ struct PortScannerToolView: View {
         .accessibilityIdentifier("portScan_row_\(result.port)")
     }
 
+    /// What the "Explain" strip explains: the finished result on screen (#448).
+    private var insightRequest: InsightRequest? {
+        guard !isRunning, !results.isEmpty else { return nil }
+        let open = results.filter(\.isOpen).map { result in
+            PortScanResult(port: Int(result.port), state: .open, serviceName: result.serviceName.isEmpty ? nil : result.serviceName)
+        }
+        return ToolInsightBuilder.portScan(host: scannedHost, results: open, scannedCount: results.count)
+    }
+
     // MARK: - Footer
 
     private var footer: some View {
@@ -238,6 +250,7 @@ struct PortScannerToolView: View {
 
         isRunning = true
         results.removeAll()
+        scannedHost = host.trimmingCharacters(in: .whitespacesAndNewlines)
         errorMessage = nil
         scannedCount = 0
         totalPorts = portsToScan.count

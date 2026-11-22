@@ -25,6 +25,8 @@ final class PortScannerToolViewModel {
     var results: [PortScanResult] = []
     var errorMessage: String?
     var scannedCount: Int = 0
+    /// The host `results` were scanned on; `host` may have been edited since.
+    private(set) var scannedHost = ""
 
     // MARK: - Dependencies
 
@@ -45,6 +47,12 @@ final class PortScannerToolViewModel {
     }
 
     // MARK: - Computed Properties
+
+    /// What the "Explain" card explains: the finished result on screen (#448).
+    var insightRequest: InsightRequest? {
+        guard !isRunning, scannedCount > 0 else { return nil }
+        return ToolInsightBuilder.portScan(host: scannedHost, results: results, scannedCount: scannedCount)
+    }
 
     var canStartScan: Bool {
         !host.trimmingCharacters(in: .whitespaces).isEmpty && !isRunning && totalPorts > 0
@@ -84,6 +92,7 @@ final class PortScannerToolViewModel {
         clearResults()
         isRunning = true
         scannedCount = 0
+        scannedHost = trimmed
 
         let ports = effectivePorts
 

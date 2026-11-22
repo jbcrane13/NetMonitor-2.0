@@ -21,8 +21,12 @@ struct GeoTraceHop: Identifiable {
 
     var latencyColor: Color {
         guard let avg = hop.averageTime else { return .gray }
-        if avg < 50 { return .green }
-        if avg < 150 { return .yellow }
+        if avg < 50 {
+            return .green
+        }
+        if avg < 150 {
+            return .yellow
+        }
         return .red
     }
 }
@@ -47,6 +51,8 @@ final class GeoTraceViewModel {
 
     var isRunning: Bool = false
     var hops: [GeoTraceHop] = []
+    /// The host `hops` were traced to; `host` may have been edited since.
+    private(set) var tracedHost = ""
     var selectedHop: GeoTraceHop?
     var errorMessage: String?
 
@@ -69,6 +75,17 @@ final class GeoTraceViewModel {
 
     // MARK: - Computed
 
+    /// What the "Explain" card explains: the finished result on screen (#448).
+    var insightRequest: InsightRequest? {
+        guard !isRunning, !hops.isEmpty else { return nil }
+        let places = hops.reduce(into: [Int: String]()) { places, hop in
+            if let location = hop.location {
+                places[hop.hop.hopNumber] = "\(location.city), \(location.country)"
+            }
+        }
+        return ToolInsightBuilder.traceroute(host: tracedHost, hops: hops.map(\.hop), places: places)
+    }
+
     var canTrace: Bool {
         !host.trimmingCharacters(in: .whitespaces).isEmpty && !isRunning
     }
@@ -89,6 +106,7 @@ final class GeoTraceViewModel {
         isRunning = true
 
         let trimmedHost = host.trimmingCharacters(in: .whitespaces)
+        tracedHost = trimmedHost
 
         traceTask = Task {
             let stream = await tracerouteService.trace(host: trimmedHost, maxHops: 30, timeout: nil)

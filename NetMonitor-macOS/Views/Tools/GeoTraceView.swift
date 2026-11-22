@@ -9,6 +9,8 @@ struct GeoTraceView: View {
     @State private var host = ""
     @State private var isRunning = false
     @State private var hops: [GeoTraceHop] = []
+    /// The host `hops` were traced to; `host` may have been edited since.
+    @State private var tracedHost = ""
     @State private var selectedHop: GeoTraceHop?
     @State private var cameraPosition: MapCameraPosition = .automatic
     @State private var traceTask: Task<Void, Never>?
@@ -25,6 +27,7 @@ struct GeoTraceView: View {
             outputArea: { mapArea },
             footerContent: { footer }
         )
+        .explaining(insightRequest, screen: "geoTrace")
         .onDisappear {
             traceTask?.cancel()
             traceTask = nil
@@ -143,6 +146,17 @@ struct GeoTraceView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
+    /// What the "Explain" strip explains: the finished result on screen (#448).
+    private var insightRequest: InsightRequest? {
+        guard !isRunning, !hops.isEmpty else { return nil }
+        let places = hops.reduce(into: [Int: String]()) { places, hop in
+            if let location = hop.location {
+                places[hop.hop.hopNumber] = "\(location.city), \(location.country)"
+            }
+        }
+        return ToolInsightBuilder.traceroute(host: tracedHost, hops: hops.map(\.hop), places: places)
+    }
+
     // MARK: - Footer
 
     private var footer: some View {
@@ -186,6 +200,7 @@ struct GeoTraceView: View {
         selectedHop = nil
 
         let trimmed = host.trimmingCharacters(in: .whitespacesAndNewlines)
+        tracedHost = trimmed
         traceTask = Task {
             let stream = await tracerouteService.trace(host: trimmed, maxHops: 30)
             for await hop in stream {

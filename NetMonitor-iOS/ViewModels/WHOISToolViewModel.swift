@@ -41,6 +41,12 @@ final class WHOISToolViewModel {
 
     // MARK: - Computed Properties
 
+    /// What the "Explain" card explains: the finished result on screen (#448).
+    var insightRequest: InsightRequest? {
+        guard !isLoading, let result else { return nil }
+        return ToolInsightBuilder.whois(result)
+    }
+
     var canStartLookup: Bool {
         !domain.trimmingCharacters(in: .whitespaces).isEmpty && !isLoading
     }

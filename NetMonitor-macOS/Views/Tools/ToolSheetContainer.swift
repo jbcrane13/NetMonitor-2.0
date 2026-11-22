@@ -6,6 +6,7 @@
 //  header (title + dismiss button), dividers, and layout structure.
 //
 
+import NetMonitorCore
 import SwiftUI
 
 /// A generic container that provides the standard tool sheet layout:
@@ -25,6 +26,8 @@ struct ToolSheetContainer<InputArea: View, OutputArea: View, FooterContent: View
     private let inputAreaContent: InputArea
     private let outputAreaContent: OutputArea
     private let footerAreaContent: FooterContent
+    private var insightScreen = ""
+    private var insightRequest: InsightRequest?
     @Environment(\.dismiss) private var dismiss
 
     /// Full initializer with all four generic parameters.
@@ -63,6 +66,12 @@ struct ToolSheetContainer<InputArea: View, OutputArea: View, FooterContent: View
                 outputAreaContent
             }
 
+            // No divider either when the model is unavailable, so older systems keep their layout.
+            if let insightRequest, InsightService.shared.isAvailable {
+                Divider()
+                ToolInsightStrip(screen: insightScreen, request: insightRequest)
+            }
+
             Divider()
 
             footerAreaContent
@@ -81,6 +90,14 @@ struct ToolSheetContainer<InputArea: View, OutputArea: View, FooterContent: View
             .accessibilityIdentifier(closeAccessibilityID)
             .padding(12)
         }
+    }
+
+    /// Adds an "Explain this result" strip above the footer while `request` is non-nil (#448).
+    func explaining(_ request: InsightRequest?, screen: String) -> Self {
+        var copy = self
+        copy.insightRequest = request
+        copy.insightScreen = screen
+        return copy
     }
 
     private var header: some View {

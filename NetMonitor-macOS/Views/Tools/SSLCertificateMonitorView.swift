@@ -26,6 +26,7 @@ struct SSLCertificateMonitorView: View {
             outputArea: { outputArea },
             footerContent: { footer }
         )
+        .explaining(insightRequest, screen: "sslMonitor")
         .task { trackedDomains = await tracker.getAllTrackedDomains() }
     }
 
@@ -224,6 +225,12 @@ struct SSLCertificateMonitorView: View {
             .foregroundStyle(.red)
             .accessibilityIdentifier("sslMonitor_button_delete\(status.domain)")
         }
+    }
+
+    /// What the "Explain" strip explains: the finished result on screen (#448).
+    private var insightRequest: InsightRequest? {
+        guard !isLoading, selectedTab == 0, let certificate = currentResult?.sslCertificate else { return nil }
+        return ToolInsightBuilder.sslCertificate(certificate)
     }
 
     // MARK: - Footer

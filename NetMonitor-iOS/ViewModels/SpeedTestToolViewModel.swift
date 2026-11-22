@@ -51,6 +51,17 @@ final class SpeedTestToolViewModel {
 
     // MARK: - Computed Properties
 
+    /// What the "Explain" card explains: the finished result on screen (#448).
+    var insightRequest: InsightRequest? {
+        guard !isRunning, phase == .complete, errorMessage == nil else { return nil }
+        return ToolInsightBuilder.speedTest(SpeedTestData(
+            downloadSpeed: downloadSpeed,
+            uploadSpeed: uploadSpeed,
+            latency: latency,
+            jitter: jitter > 0 ? jitter : nil
+        ))
+    }
+
     var phaseText: String {
         switch phase {
         case .idle: "Ready"

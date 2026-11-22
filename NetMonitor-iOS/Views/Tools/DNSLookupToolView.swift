@@ -17,6 +17,7 @@ struct DNSLookupToolView: View {
                 inputSection
                 controlSection
                 resultsSection
+                ToolInsightCard(screen: "dnsLookup", request: viewModel.insightRequest)
             }
             .padding(.horizontal, Theme.Layout.screenPadding)
             .padding(.bottom, Theme.Layout.sectionSpacing)

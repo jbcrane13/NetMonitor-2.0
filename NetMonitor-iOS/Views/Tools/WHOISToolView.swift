@@ -16,6 +16,7 @@ struct WHOISToolView: View {
                 inputSection
                 controlSection
                 resultsSection
+                ToolInsightCard(screen: "whois", request: viewModel.insightRequest)
             }
             .padding(.horizontal, Theme.Layout.screenPadding)
             .padding(.bottom, Theme.Layout.sectionSpacing)
@@ -132,7 +133,6 @@ extension WHOISToolView {
 
     // MARK: - Domain / Registrar Info
 
-    @ViewBuilder
     private func domainInfoSection(_ result: WHOISResult) -> some View {
         GlassCard {
             VStack(spacing: 8) {

@@ -69,3 +69,17 @@ Project-specific notes for agents. Global lessons live in `~/.claude/lessons-lea
 - **Also migrate a copy of a real store** (`~/Library/Containers/com.netmonitor.NetMonitor/Data/Library/Application Support/default.store*`) and compare makers before and after. It showed makers that UniFi wrote into `manufacturer` and guesses that sat in `vendor`, which no synthetic fixture had. Never commit it.
 - **`project.yml` version bumps leave the generated Info.plists dirty.** Since 2.2.3 they've been out of date, so setup shows plist drift. Discard it with `git checkout`; don't commit it with feature work.
 - **`scanProgress advances once scan task begins` fails on mini-pro-1 on main too** (#472, #429). Don't blame your change or a busy machine.
+
+## 2026-11-22 — On-device model "Explain this result" (#448)
+
+- **The system language model restates facts but does not judge them.** Given a certificate with 8 days left it said "valid" and never mentioned the expiry. Compute the judgement in the app (`ToolInsightBuilder` observations) and let the model only word it; that also makes the prompt builder the place to test correctness.
+- **It still miscounts and adds conclusions.** "Four ports, with two open" for three open ports, and "may be accessible from outside" from a LAN scan. Put counts in the facts ("Open ports (3): …") and forbid guessing at causes in the instructions.
+- **Default guardrails did not refuse port scan, telnet, certificate or security-ranking prompts** on macOS 27.2 (spike on #448). Context is 8192 tokens, so cap every list.
+- **Reset state by identity, not `onChange` inside an `if`.** A card that hides while a tool reruns never sees the old→new change, so its explanation stayed under the new result. `ToolInsightState.phase(for:)` shows text only for the request it explained.
+- **The pre-commit hook rejects a staged file for SwiftFormat findings that were already there** (#264), so touching an old file can force reformatting it in the same commit.
+- **Two `swift build`s resolving Sentry at once can corrupt a scratch path** ("no Info.plist found … Sentry.xcframework"). Use a fresh `--scratch-path`.
+- **mini-pro-1 has no "iPhone 17 Pro" simulator on Xcode 27.2;** the documented test destination fails with "Unable to find a device". Pass `id=` for an installed simulator.
+- **Even with greedy sampling the model can contradict a point it was told to state** ("no indication that renewal is required" for a certificate 8 days from expiry). The card therefore shows the app's computed key points word for word above the model's summary; treat the summary as wording, never as the record.
+- **Tightening the instructions can make output worse.** "Add no numbers" made it drop every figure. Re-run the real-model pass after any prompt change.
+- **GitHub "apply suggestion" commits can break the build** (#480: one removed `outputAreaContent`, one removed a `struct` line). Build after applying them.
+- **Build caches under `/tmp` lose files mid-session** (Sentry xcframework `Info.plist`). Keep DerivedData and SwiftPM scratch paths under `~/Library/Caches` for long runs.

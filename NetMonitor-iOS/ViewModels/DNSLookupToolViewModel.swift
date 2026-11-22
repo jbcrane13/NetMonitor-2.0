@@ -26,6 +26,8 @@ final class DNSLookupToolViewModel {
 
     var isLoading: Bool = false
     var result: DNSQueryResult?
+    /// Whether `result` came from a lookup of every record type; the toggle may have changed since.
+    private(set) var resultCoversAllTypes = false
     var errorMessage: String?
 
     // MARK: - Dependencies
@@ -46,6 +48,12 @@ final class DNSLookupToolViewModel {
     }
 
     // MARK: - Computed Properties
+
+    /// What the "Explain" card explains: the finished result on screen (#448).
+    var insightRequest: InsightRequest? {
+        guard !isLoading, let result else { return nil }
+        return ToolInsightBuilder.dnsLookup(result, allTypes: resultCoversAllTypes)
+    }
 
     var canStartLookup: Bool {
         !domain.trimmingCharacters(in: .whitespaces).isEmpty && !isLoading
@@ -71,6 +79,7 @@ final class DNSLookupToolViewModel {
         let customServer = UserDefaults.standard.string(forKey: AppSettings.Keys.dnsServer)
         let effectiveServer = (customServer?.isEmpty ?? true) ? nil : customServer
         let trimmedInput = domain.trimmingCharacters(in: .whitespaces)
+        resultCoversAllTypes = queryAllTypes
         if queryAllTypes {
             result = await dnsService.lookupAll(domain: trimmedInput, server: effectiveServer)
         } else {
