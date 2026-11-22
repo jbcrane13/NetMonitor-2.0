@@ -548,7 +548,7 @@ struct DeviceDetailView: View {
         Name: \(device.displayName)
         IP: \(device.ipAddress)
         MAC: \(device.macAddress.isEmpty ? "—" : device.macAddress)
-        Vendor: \(device.maker ?? "Unknown")
+        Manufacturer: \(device.maker ?? "Unknown")
         Type: \(device.deviceType.rawValue)
         Status: \(device.status.rawValue)
         First Seen: \(dateFormatter.string(from: device.firstSeen))
