@@ -6,11 +6,8 @@ import NetMonitorCore
 /// What each tool hands the "Explain" card (#448).
 @Suite(.serialized)
 @MainActor
-struct ToolInsightRequestTests {
-    func until(_ condition: () -> Bool) async {
-        for _ in 0 ..< 2000 where !condition() {
-            await Task.yield()
-        }
+    func until(_ condition: @MainActor () -> Bool, timeout: Duration = .seconds(2)) async {
+        await waitUntil(condition, timeout: timeout)
     }
 
     @Test func portScannerExplainsTheFinishedScanOfTheHostItScanned() async {
