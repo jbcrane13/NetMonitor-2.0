@@ -365,7 +365,7 @@ final class DeviceDiscoveryCoordinator {
     /// find: a guess from its names fills an empty maker or model, ranked as a guess (ADR-022).
     private static func fillFromSavedNames(_ device: LocalDevice) {
         guard let guess = HostnameIdentity.identify(names: [device.hostname, device.resolvedHostname, device.friendlyName]) else { return }
-        let fill = guess.fills(knownMaker: device.maker, knownModel: device.modelName)
+        let fill = guess.fills(knownMaker: device.identity.knownMakerForGuessing(macPrefixMaker: device.vendor), knownModel: device.modelName)
         device.mergeIdentity(DeviceIdentity(
             maker: IdentityValue(fill.maker, source: .hostnameGuess),
             model: IdentityValue(fill.model, source: .hostnameGuess)
