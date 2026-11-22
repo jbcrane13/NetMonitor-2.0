@@ -4,6 +4,8 @@ import SwiftData
 
 struct DeviceDetailView: View {
     let ipAddress: String
+    /// The network the device was found on; nil when opened without one.
+    var networkID: UUID?
     @State private var viewModel = DeviceDetailViewModel()
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
@@ -83,7 +85,7 @@ struct DeviceDetailView: View {
             }
         }
         .task(id: ipAddress) {
-            viewModel.loadDevice(ipAddress: ipAddress, context: modelContext)
+            viewModel.loadDevice(ipAddress: ipAddress, networkID: networkID, context: modelContext)
             guard !Task.isCancelled else { return }
             await viewModel.enrichDevice(bonjourServices: [])
         }

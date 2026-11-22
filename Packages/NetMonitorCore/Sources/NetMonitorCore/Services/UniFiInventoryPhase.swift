@@ -85,7 +85,7 @@ public struct UniFiInventoryPhase: ScanPhase, Sendable {
             macPrefixMaker = await vendorForMAC(publicMAC)
         }
         if let name = entry.name, let guess = HostnameIdentity.parse(hostname: name) {
-            let fill = guess.fills(knownMaker: identity.resolvedMaker(macPrefixMaker: macPrefixMaker), knownModel: identity.model?.value)
+            let fill = guess.fills(knownMaker: identity.knownMakerForGuessing(macPrefixMaker: macPrefixMaker), knownModel: identity.model?.value)
             identity = identity.merging(DeviceIdentity(
                 maker: IdentityValue(fill.maker, source: .hostnameGuess),
                 model: IdentityValue(fill.model, source: .hostnameGuess)

@@ -40,25 +40,23 @@ final class DeviceDetailViewModel {
         993, 995, 3306, 3389, 5432, 5900, 8080, 8443
     ]
 
-    /// Load device from SwiftData by IP address, creating one if not found
-    func loadDevice(ipAddress: String, context: ModelContext) {
-        let descriptor = FetchDescriptor<LocalDevice>(
-            predicate: #Predicate { $0.ipAddress == ipAddress }
+    /// Loads the saved row for the device at `ipAddress` on `networkID` (the network the list
+    /// showed it on), creating one if none matches.
+    func loadDevice(ipAddress: String, networkID: UUID? = nil, context: ModelContext) {
+        let live = deviceDiscoveryService.discoveredDevices
+        let scanned = live.first { $0.ipAddress == ipAddress && (networkID == nil || $0.networkProfileID == networkID) }
+        let network = networkID ?? scanned?.networkProfileID
+        device = Self.savedRow(
+            ipAddress: ipAddress,
+            scanned: scanned,
+            networkID: network,
+            scan: live.filter { $0.networkProfileID == network },
+            in: context
         )
-        if let existing = try? context.fetch(descriptor).first {
-            device = existing
-        } else {
-            let newDevice = LocalDevice(
-                ipAddress: ipAddress,
-                macAddress: ""
-            )
-            context.insert(newDevice)
-            device = newDevice
-        }
         // The scan knows more than a fresh row: merge its maker, model and friendly name by
         // rank (ADR-022), and fill the MAC-prefix maker, MAC and hostname where the row has
         // none (#426). The header shows `maker`.
-        guard let device, let scanned = deviceDiscoveryService.discoveredDevices.first(where: { $0.ipAddress == ipAddress }) else {
+        guard let device, let scanned else {
             return
         }
         device.mergeIdentity(scanned.identity)
@@ -71,6 +69,49 @@ final class DeviceDetailViewModel {
         if device.hostname?.isEmpty ?? true, let name = scanned.hostname, !name.isEmpty {
             device.hostname = name
         }
+    }
+
+    /// The row for a device, found by the device match (#461: MAC, else IP, with private-MAC
+    /// rotation) among the rows of the device's network (#463), so two networks that use the
+    /// same addresses keep separate rows. `scan` is every device the latest scan saw on that
+    /// network; the match needs them all so it never hands one device's row to another, such
+    /// as a newcomer at the old address of a device that moved. A row saved before rows had a
+    /// network (every detail row before #463) is adopted by the first network it's opened on.
+    static func savedRow(
+        ipAddress: String,
+        scanned: DiscoveredDevice?,
+        networkID: UUID?,
+        scan: [DiscoveredDevice],
+        in context: ModelContext
+    ) -> LocalDevice {
+        let rows = (try? context.fetch(FetchDescriptor<LocalDevice>())) ?? []
+        let observation = DeviceMatchCandidate(ipAddress: ipAddress, macAddress: scanned?.macAddress, name: scanned?.matchName)
+        let observed = scan.map { DeviceMatchCandidate(ipAddress: $0.ipAddress, macAddress: $0.macAddress, name: $0.matchName) }
+        var pools = [rows.filter { $0.networkProfileID == networkID }]
+        if networkID != nil {
+            pools.append(rows.filter { $0.networkProfileID == nil })
+        }
+        for pool in pools {
+            var matcher = DeviceMatcher(
+                known: pool.map { DeviceMatchCandidate(ipAddress: $0.ipAddress, macAddress: $0.macAddress, name: $0.matchName) },
+                observed: observed + [observation]
+            )
+            // The other devices in the scan claim their own rows first.
+            for other in observed where other != observation {
+                _ = matcher.match(other)
+            }
+            guard let match = matcher.match(observation) else { continue }
+            let row = pool[match.index]
+            if let mac = match.adoptedMAC {
+                row.macAddress = mac
+            }
+            row.ipAddress = ipAddress
+            row.networkProfileID = networkID
+            return row
+        }
+        let row = LocalDevice(ipAddress: ipAddress, macAddress: scanned?.macAddress ?? "", networkProfileID: networkID)
+        context.insert(row)
+        return row
     }
 
     /// Enrich device data with the MAC-prefix maker and resolved hostname

@@ -365,7 +365,7 @@ final class DeviceDiscoveryCoordinator {
     /// find: a guess from its names fills an empty maker or model, ranked as a guess (ADR-022).
     private static func fillFromSavedNames(_ device: LocalDevice) {
         guard let guess = HostnameIdentity.identify(names: [device.hostname, device.resolvedHostname, device.friendlyName]) else { return }
-        let fill = guess.fills(knownMaker: device.maker, knownModel: device.modelName)
+        let fill = guess.fills(knownMaker: device.identity.knownMakerForGuessing(macPrefixMaker: device.vendor), knownModel: device.modelName)
         device.mergeIdentity(DeviceIdentity(
             maker: IdentityValue(fill.maker, source: .hostnameGuess),
             model: IdentityValue(fill.model, source: .hostnameGuess)
@@ -401,14 +401,14 @@ final class DeviceDiscoveryCoordinator {
         existing.status = discovered.isCached ? .cached : .online
     }
 
-    /// A saved row or a scan observation as the device match sees it. The name is the
-    /// hostname, which private-MAC rotation compares.
+    /// A saved row or a scan observation as the device match sees it. The name, which
+    /// private-MAC rotation compares, is the hostname, else the friendly name.
     private static func matchCandidate(_ device: LocalDevice) -> DeviceMatchCandidate {
-        DeviceMatchCandidate(ipAddress: device.ipAddress, macAddress: device.macAddress, name: device.hostname)
+        DeviceMatchCandidate(ipAddress: device.ipAddress, macAddress: device.macAddress, name: device.matchName)
     }
 
     private static func matchCandidate(_ device: LocalDiscoveredDevice) -> DeviceMatchCandidate {
-        DeviceMatchCandidate(ipAddress: device.ipAddress, macAddress: device.macAddress, name: device.hostname)
+        DeviceMatchCandidate(ipAddress: device.ipAddress, macAddress: device.macAddress, name: device.matchName)
     }
 
     /// Marks this network's rows offline unless the scan's device match claimed them
@@ -627,7 +627,7 @@ final class DeviceDiscoveryCoordinator {
     private static func trackerSeed(from rows: [LocalDevice]) -> [KnownDevice] {
         rows.map {
             KnownDevice(
-                macAddress: $0.macAddress, ipAddress: $0.ipAddress, name: $0.hostname,
+                macAddress: $0.macAddress, ipAddress: $0.ipAddress, name: $0.matchName,
                 firstSeen: $0.firstSeen, lastSeen: $0.lastSeen, isConfirmed: true
             )
         }
@@ -638,7 +638,7 @@ final class DeviceDiscoveryCoordinator {
         let changes = changeTracker.record(
             scope: profileID?.uuidString ?? "default",
             observed: discovered.map {
-                DeviceObservation(ipAddress: $0.ipAddress, macAddress: $0.macAddress, name: $0.hostname, isCached: $0.isCached)
+                DeviceObservation(ipAddress: $0.ipAddress, macAddress: $0.macAddress, name: $0.matchName, isCached: $0.isCached)
             },
             knownScopes: Set(networkProfileManager.profiles.map(\.id.uuidString)),
             seed: { seed }

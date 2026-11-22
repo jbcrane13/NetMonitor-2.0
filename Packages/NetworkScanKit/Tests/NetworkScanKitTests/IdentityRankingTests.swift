@@ -74,12 +74,43 @@ struct IdentityRankingTests {
 
     @Test("The shown maker: an announcement beats the MAC prefix, which beats a guess or an unsourced value")
     func resolvedMaker() {
-        #expect(DeviceIdentity(maker: IdentityValue("Wiz", source: .upnp)).resolvedMaker(macPrefixMaker: "Espressif") == "Wiz")
-        #expect(DeviceIdentity(maker: IdentityValue("Meross", source: .hostnameGuess)).resolvedMaker(macPrefixMaker: "Espressif") == "Espressif")
+        #expect(DeviceIdentity(maker: IdentityValue("Wiz", source: .upnp)).resolvedMaker(macPrefixMaker: "Sonos, Inc.") == "Wiz")
+        #expect(DeviceIdentity(maker: IdentityValue("Roku", source: .hostnameGuess)).resolvedMaker(macPrefixMaker: "Sonos, Inc.") == "Sonos, Inc.")
         #expect(DeviceIdentity(maker: IdentityValue("Samsung", source: nil)).resolvedMaker(macPrefixMaker: "Samsung Electronics Co.,Ltd")
             == "Samsung Electronics Co.,Ltd")
         #expect(DeviceIdentity(maker: IdentityValue("Meross", source: .hostnameGuess)).resolvedMaker(macPrefixMaker: nil) == "Meross")
         #expect(DeviceIdentity().resolvedMaker(macPrefixMaker: "") == nil)
+    }
+
+    @Test("A chip maker's MAC prefix loses to any other maker, even a guess")
+    func chipMakerLosesToAGuess() {
+        let guess = DeviceIdentity(maker: IdentityValue("Lutron", source: .hostnameGuess))
+        #expect(guess.resolvedMaker(macPrefixMaker: "Texas Instruments") == "Lutron")
+        #expect(DeviceIdentity(maker: IdentityValue("Meross", source: .hostnameGuess)).resolvedMaker(macPrefixMaker: "Espressif Inc.") == "Meross")
+        // Still shown when nothing else names the device, and a device maker's own prefix still wins.
+        #expect(DeviceIdentity().resolvedMaker(macPrefixMaker: "Texas Instruments") == "Texas Instruments")
+        #expect(DeviceIdentity(maker: IdentityValue("Apple TV", source: .hostnameGuess)).resolvedMaker(macPrefixMaker: "Apple, Inc.") == "Apple, Inc.")
+    }
+
+    @Test("A guess may name the device when only a chip maker is known")
+    func guessingIgnoresChipMakers() {
+        #expect(DeviceIdentity().knownMakerForGuessing(macPrefixMaker: "Texas Instruments") == nil)
+        #expect(DeviceIdentity().knownMakerForGuessing(macPrefixMaker: "Apple") == "Apple")
+        #expect(DeviceIdentity.isChipMaker("ESPRESSIF INC."))
+        #expect(DeviceIdentity.isChipMaker("Intel Corporate"))
+        #expect(!DeviceIdentity.isChipMaker("Intelbras"))
+        #expect(!DeviceIdentity.isChipMaker("Sonos, Inc."))
+    }
+
+    @Test("The hostname step names a Lutron bridge whose MAC prefix is Texas Instruments")
+    func hostnameStepNamesChipDevices() {
+        let bridge = DiscoveredDevice(
+            ipAddress: "192.168.2.70", hostname: "lutron-02e1f4a1.lan", vendor: "Texas Instruments",
+            macAddress: nil, latency: nil, discoveredAt: Date(), source: .local
+        )
+        let update = HostnameIdentityPhase.update(for: bridge)
+        #expect(update?.identity.maker == IdentityValue("Lutron", source: .hostnameGuess))
+        #expect(bridge.withIdentity(update?.identity ?? DeviceIdentity()).maker == "Lutron")
     }
 
     @Test("Within a scan, a UPnP model after a Bonjour one doesn't replace it; a guess never does")

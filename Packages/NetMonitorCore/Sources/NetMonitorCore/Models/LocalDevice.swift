@@ -93,6 +93,12 @@ public final class LocalDevice {
         customName ?? friendlyName ?? resolvedHostname ?? hostname ?? ipAddress
     }
 
+    /// The name the device match compares: the hostname, else the friendly name (see
+    /// `DiscoveredDevice.matchName`).
+    public var matchName: String? {
+        [hostname, friendlyName].compactMap { $0 }.first { !$0.isEmpty }
+    }
+
     /// The stored maker, model and friendly name with their sources (ADR-022).
     public var identity: DeviceIdentity {
         get {

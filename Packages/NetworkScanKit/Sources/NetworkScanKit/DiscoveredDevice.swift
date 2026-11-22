@@ -173,6 +173,13 @@ public struct DiscoveredDevice: Identifiable, Codable, Sendable {
         )
     }
 
+    /// The name the device match compares for private-MAC rotation: the hostname, else the
+    /// friendly name. Friendly names no longer go into `hostname` (ADR-022), and rows saved
+    /// before that hold them there, so both forms compare equal.
+    public var matchName: String? {
+        [hostname, friendlyName].compactMap { $0 }.first { !$0.isEmpty }
+    }
+
     /// The device name: the friendly name, else the hostname, else the IP.
     public var displayName: String {
         friendlyName ?? hostname ?? ipAddress
