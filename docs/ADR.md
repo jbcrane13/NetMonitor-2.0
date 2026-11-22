@@ -435,6 +435,13 @@ The `.prefix(while:)` trims the null terminator; `.map { UInt8(bitPattern:) }` r
 - A new identity source is one ranked case plus a phase. Adding a field means adding its value and source together.
 - The companion protocol carries each identity value's source (#427).
 
+**As built (#462, 2026-11-22):**
+- `manufacturer` holds the announced or guessed maker with `makerSource`. `vendor` stays a separate MAC-prefix maker. The shown maker (`maker`) is whichever of the two ranks higher.
+- The V2 → V3 migration keeps a `vendor` that names the same company as the MAC prefix ("Apple" for "Apple, Inc."). A maker it displaces moves into an empty `manufacturer` with no source, so a device without a readable MAC keeps a maker. iOS has no rebuild: its store gains the optional attributes by lightweight migration.
+- `HostnameIdentityPhase` is the last step of `ScanPipeline.standard`. Its DNS lookup is opt-in (`identityLookUpName`): iOS opts in and macOS reads names only, as before. iOS also runs the UniFi inventory and a names-only hostname step after the Mac companion merge, for the devices and names the companion adds.
+- Until #427, the companion feed sends the shown maker in its `vendor` field, as 2.2.x did, and iOS ranks it as a MAC-prefix maker.
+- A hostname guess ranks below the MAC prefix even when the MAC prefix names a chip maker. A Lutron bridge with a Texas Instruments chip shows Texas Instruments once the UniFi controller supplies its MAC, unless the bridge announces itself.
+
 ---
 
 *To add a new ADR: append with the next number, include date, status, decision, context, and consequences. Reference the GitHub issue if applicable.*
