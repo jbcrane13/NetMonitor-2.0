@@ -343,8 +343,7 @@ struct MenuBarPopoverView: View {
                 systemImage: "antenna.radiowaves.left.and.right",
                 color: .blue
             ) {
-                guard !deviceDiscovery.isScanning else { return }
-                deviceDiscovery.startScan()
+                deviceDiscovery.rescan(.menuBar)
             }
             .disabled(deviceDiscovery.isScanning)
             .accessibilityIdentifier("menubar_button_scan")
@@ -482,8 +481,7 @@ struct MenuBarPopoverView: View {
             Spacer()
 
             Button {
-                guard !deviceDiscovery.isScanning else { return }
-                deviceDiscovery.startScan()
+                deviceDiscovery.rescan(.menuBar)
             } label: {
                 HStack(spacing: 4) {
                     if deviceDiscovery.isScanning {

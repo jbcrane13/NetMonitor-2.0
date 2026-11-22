@@ -13,6 +13,12 @@ public final class NetworkProfileManager {
         profiles.first { $0.isLocal && $0.discoveryMethod == .auto } ?? profiles.first(where: \.isLocal)
     }
 
+    /// ``localProfile`` only while this device has a live interface. The saved local profile
+    /// outlives a disconnect, so automatic scans use this and skip a network they can't reach.
+    public var connectedLocalProfile: NetworkProfile? {
+        activeProfilesProvider().isEmpty ? nil : localProfile
+    }
+
     private let userDefaults: UserDefaults
     private let activeProfilesProvider: @Sendable () -> [NetworkProfile]
 

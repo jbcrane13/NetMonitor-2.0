@@ -15,11 +15,7 @@ extension LocalNetworkChangeMonitor {
         LocalNetworkChangeMonitor(profileManager: profileManager, pathEvents: pathEvents, debounce: debounce) { [weak discovery] _ in
             Logger.discovery.notice("Local network changed: rescanning")
             guard let discovery else { return }
-            // A scan of the old network would only probe addresses that aren't there any more.
-            if discovery.isScanning {
-                discovery.stopScan()
-            }
-            discovery.startLaunchScan()
+            discovery.rescan(.networkChanged)
         }
     }
 }

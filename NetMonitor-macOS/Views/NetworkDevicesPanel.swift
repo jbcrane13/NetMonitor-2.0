@@ -96,8 +96,8 @@ struct NetworkDevicesPanel: View {
                         profiles: profileManager?.profiles ?? [],
                         lastScanned: coordinator?.networkProfile
                     ) {
-                    case .network(let profile): coordinator?.scanNetwork(profile)
-                    case .startScan: coordinator?.startScan()
+                    case .network(let profile): coordinator?.rescan(.user(profile))
+                    case .startScan: coordinator?.rescan(.user(nil))
                     case .none: break
                     }
                 } label: {

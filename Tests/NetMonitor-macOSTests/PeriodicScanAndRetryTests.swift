@@ -63,7 +63,7 @@ struct PeriodicScanSchedulerTests {
     @Test func defaultFrequencyIsFiveMinutes() {
         let (defaults, suite) = makeDefaults()
         defer { defaults.removePersistentDomain(forName: suite) }
-        let scheduler = PeriodicScanScheduler(defaults: defaults, isScanning: { false }, startScan: {})
+        let scheduler = PeriodicScanScheduler(defaults: defaults, rescan: { true })
         #expect(scheduler.configuredInterval == 300)
     }
 
@@ -75,8 +75,10 @@ struct PeriodicScanSchedulerTests {
         var scans = 0
         let scheduler = PeriodicScanScheduler(
             defaults: defaults,
-            isScanning: { false },
-            startScan: { scans += 1 },
+            rescan: {
+                scans += 1
+                return true
+            },
             sleep: { await sleeper.sleep($0) }
         )
         scheduler.start()
@@ -95,8 +97,7 @@ struct PeriodicScanSchedulerTests {
         let sleeper = FakeSleeper()
         let scheduler = PeriodicScanScheduler(
             defaults: defaults,
-            isScanning: { false },
-            startScan: {},
+            rescan: { true },
             sleep: { await sleeper.sleep($0) }
         )
         scheduler.start()
@@ -113,8 +114,7 @@ struct PeriodicScanSchedulerTests {
         let clock = ParkingSleeper()
         let scheduler = PeriodicScanScheduler(
             defaults: defaults,
-            isScanning: { false },
-            startScan: {},
+            rescan: { true },
             sleep: { await clock.sleep($0) }
         )
         scheduler.start()
@@ -135,23 +135,24 @@ struct PeriodicScanSchedulerTests {
         #expect(scheduler.activeInterval == nil)
     }
 
-    @Test func tickSkipsWhileAScanIsRunning() {
-        var scanning = true
-        var scans = 0
-        let scheduler = PeriodicScanScheduler(isScanning: { scanning }, startScan: { scans += 1 })
+    @Test func tickReportsWhetherTheRescanStarted() {
+        var started = false
+        var asks = 0
+        let scheduler = PeriodicScanScheduler(rescan: {
+            asks += 1
+            return started
+        })
         #expect(scheduler.tick() == false)
-        #expect(scans == 0)
-
-        scanning = false
+        started = true
         #expect(scheduler.tick() == true)
-        #expect(scans == 1)
+        #expect(asks == 2)
     }
 
     @Test func stopCancelsTheTimer() {
         let (defaults, suite) = makeDefaults()
         defer { defaults.removePersistentDomain(forName: suite) }
         defaults.set(60, forKey: PeriodicScanScheduler.frequencyKey)
-        let scheduler = PeriodicScanScheduler(defaults: defaults, isScanning: { false }, startScan: {})
+        let scheduler = PeriodicScanScheduler(defaults: defaults, rescan: { true })
         scheduler.start()
         scheduler.stop()
         #expect(scheduler.activeInterval == nil)

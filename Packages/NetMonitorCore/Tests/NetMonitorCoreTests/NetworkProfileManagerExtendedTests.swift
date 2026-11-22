@@ -160,6 +160,20 @@ struct NetworkProfileManagerExtendedTests {
         #expect(found?.name == "PersistTest")
     }
 
+    @Test("connectedLocalProfile is nil after a disconnect, though the saved local profile is kept (#485)")
+    @MainActor
+    func connectedLocalProfileNeedsLiveInterface() {
+        let (defaults, suite) = makeUserDefaults()
+        defer { clear(defaults, suiteName: suite) }
+
+        let connected = makeManager(defaults: defaults, localProfile: makeLocalProfile())
+        #expect(connected.connectedLocalProfile?.id == connected.localProfile?.id)
+
+        let disconnected = makeManager(defaults: defaults)
+        #expect(disconnected.localProfile != nil)
+        #expect(disconnected.connectedLocalProfile == nil)
+    }
+
     @Test("Empty name falls back to network CIDR label")
     @MainActor
     func emptyNameFallsBackToCIDR() {

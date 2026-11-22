@@ -4,16 +4,15 @@ import os
 /// Rescans devices at the "Scan frequency" chosen in Monitoring settings while the app runs (#392).
 ///
 /// A frequency of 0 or less means off: no timer runs. Changing the setting restarts the
-/// timer at once instead of waiting out the old interval. A tick never starts a scan
-/// while one is already running.
+/// timer at once instead of waiting out the old interval. Each tick asks for a `.periodic`
+/// rescan; the coordinator's policy decides whether it runs (#484).
 @MainActor
 final class PeriodicScanScheduler {
     static let frequencyKey = "netmonitor.monitoring.scanFrequency"
     static let defaultFrequency = 300
 
     private let defaults: UserDefaults
-    private let isScanning: @MainActor () -> Bool
-    private let startScan: @MainActor () -> Void
+    private let rescan: @MainActor () -> Bool
     private let sleep: @Sendable (Duration) async -> Void
     private var loopTask: Task<Void, Never>?
     private var defaultsObserver: (any NSObjectProtocol)?
@@ -23,13 +22,11 @@ final class PeriodicScanScheduler {
 
     init(
         defaults: UserDefaults = .standard,
-        isScanning: @escaping @MainActor () -> Bool,
-        startScan: @escaping @MainActor () -> Void,
+        rescan: @escaping @MainActor () -> Bool,
         sleep: @escaping @Sendable (Duration) async -> Void = { try? await Task.sleep(for: $0) }
     ) {
         self.defaults = defaults
-        self.isScanning = isScanning
-        self.startScan = startScan
+        self.rescan = rescan
         self.sleep = sleep
     }
 
@@ -84,15 +81,10 @@ final class PeriodicScanScheduler {
         }
     }
 
-    /// Starts a scan unless one is running. Returns true when a scan was started.
+    /// Asks for a rescan. Returns true when a scan was started.
     @discardableResult
     func tick() -> Bool {
-        guard !isScanning() else {
-            Logger.discovery.notice("Periodic scan skipped: a scan is already running")
-            return false
-        }
-        startScan()
-        return true
+        rescan()
     }
 }
 
@@ -105,8 +97,7 @@ extension PeriodicScanScheduler {
     ) -> PeriodicScanScheduler {
         PeriodicScanScheduler(
             defaults: defaults,
-            isScanning: { [weak discovery] in discovery?.isScanning ?? true },
-            startScan: { [weak discovery] in discovery?.startScan(countsTowardReviewPrompt: false) }
+            rescan: { [weak discovery] in discovery?.rescan(.periodic) ?? false }
         )
     }
 }

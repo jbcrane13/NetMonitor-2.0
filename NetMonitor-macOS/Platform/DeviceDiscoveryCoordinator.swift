@@ -238,20 +238,37 @@ final class DeviceDiscoveryCoordinator {
         mergeDiscoveredDevices(sparse, profileID: profileID, recordLatencyHistory: false, isSparse: true)
     }
 
-    /// Scans the network this Mac is on, so the dashboard isn't empty until the user presses Scan (#358).
-    /// Does nothing when there is no local network or a scan is already running.
+    /// The one entry point for every scan trigger (#484): `ScanPolicy` picks the network and
+    /// whether to start, replace or ignore. Returns true when a scan was started.
+    /// The launch scan fills the dashboard without waiting for Scan (#358).
     @discardableResult
-    func startLaunchScan() -> Bool {
-        guard !isScanning else {
-            Logger.discovery.notice("Launch scan skipped: a scan is already running")
+    func rescan(_ reason: ScanReason) -> Bool {
+        let decision = ScanPolicy.decide(
+            reason,
+            isScanning: isScanning,
+            local: networkProfileManager.connectedLocalProfile,
+            current: networkProfile
+        )
+        let counts = reason.countsTowardReviewPrompt
+        let name = reason.logLabel
+        switch decision {
+        case .ignore:
+            let why = isScanning ? "a scan is already running" : "not connected to a local network"
+            Logger.discovery.notice("Scan skipped (\(name, privacy: .public)): \(why, privacy: .public)")
             return false
+        case .start(let profile):
+            Logger.discovery.notice("Scan started (\(name, privacy: .public))")
+            if let profile {
+                scanNetwork(profile, countsTowardReviewPrompt: counts)
+            } else {
+                startScan(countsTowardReviewPrompt: counts)
+            }
+        case .replace(let profile):
+            // A scan of the old network would only probe addresses that aren't there any more (#359).
+            Logger.discovery.notice("Scan replaced (\(name, privacy: .public))")
+            stopScan()
+            scanNetwork(profile, countsTowardReviewPrompt: counts)
         }
-        guard let local = networkProfileManager.localProfile else {
-            Logger.discovery.notice("Launch scan skipped: no local network")
-            return false
-        }
-        Logger.discovery.notice("Launch scan started")
-        scanNetwork(local, countsTowardReviewPrompt: false)
         return true
     }
 
