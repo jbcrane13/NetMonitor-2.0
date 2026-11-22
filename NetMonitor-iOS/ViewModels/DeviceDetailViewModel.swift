@@ -55,29 +55,25 @@ final class DeviceDetailViewModel {
             context.insert(newDevice)
             device = newDevice
         }
-        // The scan knows more than a fresh row: take its model (#386), and fill the maker,
-        // MAC and name where the row has none (#426). The header shows `manufacturer`.
+        // The scan knows more than a fresh row: merge its maker, model and friendly name by
+        // rank (ADR-022), and fill the MAC-prefix maker, MAC and hostname where the row has
+        // none (#426). The header shows `maker`.
         guard let device, let scanned = deviceDiscoveryService.discoveredDevices.first(where: { $0.ipAddress == ipAddress }) else {
             return
         }
-        if let model = scanned.modelName {
-            device.modelName = model
-        }
-        if device.manufacturer?.isEmpty ?? true, let maker = scanned.vendorOrManufacturer {
-            device.manufacturer = maker
-        }
+        device.mergeIdentity(scanned.identity)
         if device.vendor?.isEmpty ?? true, let vendor = scanned.vendor, !vendor.isEmpty {
             device.vendor = vendor
         }
         if device.macAddress.isEmpty, let mac = scanned.macAddress, !mac.isEmpty {
             device.macAddress = mac
         }
-        if device.hostname?.isEmpty ?? true, let name = scanned.hostname ?? scanned.friendlyName, !name.isEmpty {
+        if device.hostname?.isEmpty ?? true, let name = scanned.hostname, !name.isEmpty {
             device.hostname = name
         }
     }
 
-    /// Enrich device data with manufacturer and resolved hostname
+    /// Enrich device data with the MAC-prefix maker and resolved hostname
     func enrichDevice(bonjourServices _: [BonjourService]) async {
         guard let device = device else { return }
         isLoading = true
@@ -87,9 +83,9 @@ final class DeviceDetailViewModel {
         let macAddress = device.macAddress
         let ipAddress = device.ipAddress
 
-        // Lookup manufacturer from MAC address (skip if empty)
-        if device.manufacturer == nil, !macAddress.isEmpty {
-            let manufacturer: String? = await withTaskGroup(of: String?.self) { group in
+        // Look up the MAC-prefix maker (`vendor`, ADR-022); skip without a MAC
+        if device.vendor?.isEmpty ?? true, !macAddress.isEmpty {
+            let vendor: String? = await withTaskGroup(of: String?.self) { group in
                 group.addTask {
                     await self.macLookupService.lookup(macAddress: macAddress)
                 }
@@ -102,7 +98,7 @@ final class DeviceDetailViewModel {
                 return result.flatMap { $0 }
             }
             if !Task.isCancelled {
-                device.manufacturer = manufacturer
+                device.vendor = vendor
             }
         }
 

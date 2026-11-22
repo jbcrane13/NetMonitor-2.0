@@ -78,9 +78,11 @@ public struct SSDPScanPhase: ScanPhase, Sendable {
                 latency: nil,
                 discoveredAt: Date(),
                 source: .ssdp,
-                friendlyName: description.friendlyName,
-                manufacturer: description.manufacturer,
-                modelName: description.modelName
+                identity: DeviceIdentity(
+                    maker: IdentityValue(description.manufacturer, source: .upnp),
+                    model: IdentityValue(description.modelName, source: .upnp),
+                    friendlyName: IdentityValue(description.friendlyName, source: .upnp)
+                )
             ))
         }
 

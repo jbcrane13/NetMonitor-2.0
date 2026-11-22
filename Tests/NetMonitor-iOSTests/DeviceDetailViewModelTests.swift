@@ -35,22 +35,30 @@ struct DeviceDetailViewModelTests {
             DiscoveredDevice(
                 ipAddress: "192.168.1.80", hostname: nil, vendor: nil, macAddress: "AA:BB:CC:00:11:22",
                 latency: nil, discoveredAt: Date(), source: .local,
-                friendlyName: "Living Room TV", manufacturer: "Samsung", modelName: "Q80"
+                identity: DeviceIdentity(
+                    maker: IdentityValue("Samsung", source: .upnp),
+                    model: IdentityValue("Q80", source: .upnp),
+                    friendlyName: IdentityValue("Living Room TV", source: .upnp)
+                )
             ),
             DiscoveredDevice(
                 ipAddress: "192.168.1.81", hostname: "Studio", vendor: "Apple", macAddress: nil,
-                latency: nil, discoveredAt: Date(), source: .bonjour, modelName: "Mac16,10"
+                latency: nil, discoveredAt: Date(), source: .bonjour,
+                identity: DeviceIdentity(model: IdentityValue("Mac16,10", source: .bonjour))
             )
         ]
         let viewModel = makeViewModel(deviceDiscoveryService: discovery)
 
         viewModel.loadDevice(ipAddress: "192.168.1.80", context: context)
-        #expect(viewModel.device?.manufacturer == "Samsung")
+        #expect(viewModel.device?.identity.maker == IdentityValue("Samsung", source: .upnp))
+        #expect(viewModel.device?.maker == "Samsung")
         #expect(viewModel.device?.macAddress == "AA:BB:CC:00:11:22")
-        #expect(viewModel.device?.hostname == "Living Room TV")
+        // The friendly name is kept apart from the hostname, and names the device (ADR-022).
+        #expect(viewModel.device?.hostname == nil)
+        #expect(viewModel.device?.displayName == "Living Room TV")
 
         viewModel.loadDevice(ipAddress: "192.168.1.81", context: context)
-        #expect(viewModel.device?.manufacturer == "Apple")
+        #expect(viewModel.device?.maker == "Apple")
         #expect(viewModel.device?.vendor == "Apple")
         #expect(viewModel.device?.hostname == "Studio")
         #expect(viewModel.device?.macAddress.isEmpty == true)
@@ -64,7 +72,8 @@ struct DeviceDetailViewModelTests {
         discovery.discoveredDevices = [
             DiscoveredDevice(
                 ipAddress: "192.168.1.70", hostname: "Studio", vendor: nil, macAddress: nil,
-                latency: nil, discoveredAt: Date(), source: .bonjour, modelName: "Mac16,10"
+                latency: nil, discoveredAt: Date(), source: .bonjour,
+                identity: DeviceIdentity(model: IdentityValue("Mac16,10", source: .bonjour))
             ),
             DiscoveredDevice(
                 ipAddress: "192.168.1.71", hostname: nil, vendor: nil, macAddress: nil,
@@ -97,7 +106,7 @@ struct DeviceDetailViewModelTests {
         #expect(viewModel.device?.id == existing.id)
     }
 
-    @Test func enrichDeviceSetsManufacturerAndResolvedHostname() async {
+    @Test func enrichDeviceSetsMACPrefixMakerAndResolvedHostname() async {
         let macLookup = MockMACVendorLookupService(vendor: "Acme Networking")
         let nameResolver = MockDeviceNameResolver(hostname: "router.local")
         let viewModel = makeViewModel(
@@ -112,7 +121,8 @@ struct DeviceDetailViewModelTests {
 
         await viewModel.enrichDevice(bonjourServices: [])
 
-        #expect(viewModel.device?.manufacturer == "Acme Networking")
+        #expect(viewModel.device?.vendor == "Acme Networking")
+        #expect(viewModel.device?.maker == "Acme Networking")
         #expect(viewModel.device?.resolvedHostname == "router.local")
         #expect(macLookup.lookupCallCount == 1)
         #expect(nameResolver.resolveCallCount == 1)
@@ -131,7 +141,7 @@ struct DeviceDetailViewModelTests {
 
         await viewModel.enrichDevice(bonjourServices: [])
 
-        #expect(viewModel.device?.manufacturer == nil)
+        #expect(viewModel.device?.vendor == nil)
         #expect(viewModel.device?.resolvedHostname == "host.local")
         #expect(macLookup.lookupCallCount == 0)
         #expect(nameResolver.resolveCallCount == 1)
@@ -203,19 +213,19 @@ struct DeviceDetailViewModelTests {
         #expect(macLookup.lookupCallCount == 0)
     }
 
-    @Test func enrichDeviceSkipsManufacturerWhenAlreadySet() async {
+    @Test func enrichDeviceSkipsVendorLookupWhenAlreadySet() async {
         let macLookup = MockMACVendorLookupService(vendor: "ShouldNotBeUsed")
         let viewModel = makeViewModel(macLookupService: macLookup)
         viewModel.device = LocalDevice(
             ipAddress: "192.168.1.1",
             macAddress: "AA:BB:CC:DD:EE:FF",
-            manufacturer: "Apple"
+            vendor: "Apple"
         )
 
         await viewModel.enrichDevice(bonjourServices: [])
 
         #expect(macLookup.lookupCallCount == 0)
-        #expect(viewModel.device?.manufacturer == "Apple")
+        #expect(viewModel.device?.vendor == "Apple")
     }
 
     @Test func enrichDeviceSkipsHostnameWhenAlreadySet() async {

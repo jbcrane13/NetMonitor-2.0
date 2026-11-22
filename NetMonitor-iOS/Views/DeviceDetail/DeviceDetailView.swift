@@ -116,8 +116,8 @@ struct DeviceDetailView: View {
             }
             .accessibilityIdentifier("deviceDetail_label_status")
 
-            if let manufacturer = device.manufacturer {
-                Text(manufacturer)
+            if let maker = device.maker {
+                Text(maker)
                     .font(.subheadline)
                     .foregroundStyle(Theme.Colors.textSecondary)
                     .accessibilityIdentifier("deviceDetail_label_manufacturer")
@@ -153,8 +153,8 @@ struct DeviceDetailView: View {
                         .accessibilityIdentifier("deviceDetail_row_resolvedHostname")
                 }
 
-                if let manufacturer = device.manufacturer {
-                    infoRow(label: "Manufacturer", value: manufacturer)
+                if let maker = device.maker {
+                    infoRow(label: "Manufacturer", value: maker)
                         .accessibilityIdentifier("deviceDetail_row_manufacturerInfo")
                 }
 
@@ -548,7 +548,7 @@ struct DeviceDetailView: View {
         Name: \(device.displayName)
         IP: \(device.ipAddress)
         MAC: \(device.macAddress.isEmpty ? "—" : device.macAddress)
-        Vendor: \(device.vendor ?? "Unknown")
+        Vendor: \(device.maker ?? "Unknown")
         Type: \(device.deviceType.rawValue)
         Status: \(device.status.rawValue)
         First Seen: \(dateFormatter.string(from: device.firstSeen))

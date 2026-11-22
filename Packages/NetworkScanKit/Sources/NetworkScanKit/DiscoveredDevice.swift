@@ -26,12 +26,17 @@ public struct DiscoveredDevice: Identifiable, Codable, Sendable {
     /// during the scan that produced it, so it may have left the network (#378).
     /// Older JSON caches without this field decode as `false`.
     public let isCached: Bool
-    /// From the device's UPnP description (#387). Additive: older JSON caches decode as nil.
-    public let friendlyName: String?
-    public let manufacturer: String?
-    /// The device's model: a Bonjour TXT model (#386, e.g. `MacBookPro18,1`) or the UPnP
-    /// `modelName` (#387). Bonjour wins when both exist.
-    public let modelName: String?
+    /// Maker, model and friendly name with their sources (ADR-022). Additive: older JSON
+    /// caches decode with nil values or nil sources.
+    public let identity: DeviceIdentity
+
+    public var friendlyName: String? { identity.friendlyName?.value }
+    /// The maker the device announced, or a guess from its names. See ``maker``.
+    public var manufacturer: String? { identity.maker?.value }
+    public var modelName: String? { identity.model?.value }
+    /// The maker to show: the announced maker or the MAC-prefix maker (`vendor`), whichever
+    /// ranks higher (ADR-022).
+    public var maker: String? { identity.resolvedMaker(macPrefixMaker: vendor) }
 
     /// Convenience init for local TCP probe (backward compatible).
     public init(ipAddress: String, latency: Double, discoveredAt: Date, networkProfileID: UUID? = nil) {
@@ -46,12 +51,11 @@ public struct DiscoveredDevice: Identifiable, Codable, Sendable {
         self.networkProfileID = networkProfileID
         self.openPorts = nil
         self.isCached = false
-        self.friendlyName = nil
-        self.manufacturer = nil
-        self.modelName = nil
+        self.identity = DeviceIdentity()
     }
 
-    /// Full init with all fields.
+    /// Full init with all fields. `vendor` is the MAC-prefix maker only; a maker from any
+    /// other source goes in `identity`.
     public init(
         id: UUID = UUID(),
         ipAddress: String,
@@ -64,9 +68,7 @@ public struct DiscoveredDevice: Identifiable, Codable, Sendable {
         networkProfileID: UUID? = nil,
         openPorts: [Int]? = nil,
         isCached: Bool = false,
-        friendlyName: String? = nil,
-        manufacturer: String? = nil,
-        modelName: String? = nil
+        identity: DeviceIdentity = DeviceIdentity()
     ) {
         self.id = id
         self.ipAddress = ipAddress
@@ -79,14 +81,13 @@ public struct DiscoveredDevice: Identifiable, Codable, Sendable {
         self.networkProfileID = networkProfileID
         self.openPorts = openPorts
         self.isCached = isCached
-        self.friendlyName = friendlyName
-        self.manufacturer = manufacturer
-        self.modelName = modelName
+        self.identity = identity
     }
 
     private enum CodingKeys: String, CodingKey {
         case id, ipAddress, hostname, vendor, macAddress, latency, discoveredAt, source, networkProfileID, openPorts, isCached
         case friendlyName, manufacturer, modelName
+        case friendlyNameSource, makerSource, modelSource
     }
 
     public init(from decoder: any Decoder) throws {
@@ -102,9 +103,38 @@ public struct DiscoveredDevice: Identifiable, Codable, Sendable {
         networkProfileID = try container.decodeIfPresent(UUID.self, forKey: .networkProfileID)
         openPorts = try container.decodeIfPresent([Int].self, forKey: .openPorts)
         isCached = try container.decodeIfPresent(Bool.self, forKey: .isCached) ?? false
-        friendlyName = try container.decodeIfPresent(String.self, forKey: .friendlyName)
-        manufacturer = try container.decodeIfPresent(String.self, forKey: .manufacturer)
-        modelName = try container.decodeIfPresent(String.self, forKey: .modelName)
+        func value(_ key: CodingKeys, _ sourceKey: CodingKeys) throws -> IdentityValue? {
+            try IdentityValue(
+                container.decodeIfPresent(String.self, forKey: key),
+                source: container.decodeIfPresent(IdentitySource.self, forKey: sourceKey)
+            )
+        }
+        identity = try DeviceIdentity(
+            maker: value(.manufacturer, .makerSource),
+            model: value(.modelName, .modelSource),
+            friendlyName: value(.friendlyName, .friendlyNameSource)
+        )
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(ipAddress, forKey: .ipAddress)
+        try container.encodeIfPresent(hostname, forKey: .hostname)
+        try container.encodeIfPresent(vendor, forKey: .vendor)
+        try container.encodeIfPresent(macAddress, forKey: .macAddress)
+        try container.encodeIfPresent(latency, forKey: .latency)
+        try container.encode(discoveredAt, forKey: .discoveredAt)
+        try container.encode(source, forKey: .source)
+        try container.encodeIfPresent(networkProfileID, forKey: .networkProfileID)
+        try container.encodeIfPresent(openPorts, forKey: .openPorts)
+        try container.encode(isCached, forKey: .isCached)
+        try container.encodeIfPresent(identity.friendlyName?.value, forKey: .friendlyName)
+        try container.encodeIfPresent(identity.friendlyName?.source, forKey: .friendlyNameSource)
+        try container.encodeIfPresent(identity.maker?.value, forKey: .manufacturer)
+        try container.encodeIfPresent(identity.maker?.source, forKey: .makerSource)
+        try container.encodeIfPresent(identity.model?.value, forKey: .modelName)
+        try container.encodeIfPresent(identity.model?.source, forKey: .modelSource)
     }
 
     /// A copy with `isCached` replaced; every other field is kept.
@@ -121,20 +151,17 @@ public struct DiscoveredDevice: Identifiable, Codable, Sendable {
             networkProfileID: networkProfileID,
             openPorts: openPorts,
             isCached: isCached,
-            friendlyName: friendlyName,
-            manufacturer: manufacturer,
-            modelName: modelName
+            identity: identity
         )
     }
 
-    /// A copy with `modelName` replaced, and `vendor` too when one is given; every other
-    /// field is kept.
-    public func withModelName(_ modelName: String?, vendor newVendor: String? = nil) -> DiscoveredDevice {
+    /// A copy with `identity` replaced; every other field is kept.
+    public func withIdentity(_ identity: DeviceIdentity) -> DiscoveredDevice {
         DiscoveredDevice(
             id: id,
             ipAddress: ipAddress,
             hostname: hostname,
-            vendor: newVendor ?? vendor,
+            vendor: vendor,
             macAddress: macAddress,
             latency: latency,
             discoveredAt: discoveredAt,
@@ -142,23 +169,13 @@ public struct DiscoveredDevice: Identifiable, Codable, Sendable {
             networkProfileID: networkProfileID,
             openPorts: openPorts,
             isCached: isCached,
-            friendlyName: friendlyName,
-            manufacturer: manufacturer,
-            modelName: modelName
+            identity: identity
         )
     }
 
-    /// The hostname, else the UPnP friendly name (#387), else the IP.
+    /// The device name: the friendly name, else the hostname, else the IP.
     public var displayName: String {
-        hostname ?? friendlyName ?? ipAddress
-    }
-
-    /// The vendor (OUI or companion), else the UPnP manufacturer (#387).
-    public var vendorOrManufacturer: String? {
-        if let vendor, !vendor.isEmpty {
-            return vendor
-        }
-        return manufacturer
+        friendlyName ?? hostname ?? ipAddress
     }
 
     public var latencyText: String {

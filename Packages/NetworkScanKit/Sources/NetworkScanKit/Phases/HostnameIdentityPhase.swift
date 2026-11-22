@@ -1,6 +1,6 @@
 import Foundation
 
-/// Fills an empty maker and model from each device's names (#439), for example a switch
+/// Guesses an empty maker and model from each device's names (#439), for example a switch
 /// named `unifi-pro-max-16-switch` becomes Ubiquiti, "UniFi Pro Max 16 Switch".
 ///
 /// A device can carry a Bonjour name, a UPnP name and a DNS name. The accumulator keeps the
@@ -8,9 +8,9 @@ import Foundation
 /// like `u7-pro.lan`. The phase reads the hostname, then the UPnP name, then, when neither
 /// identifies the device, asks `lookUpName` for its DNS name.
 ///
-/// Not part of ``ScanPipeline/standard(bonjourServiceProvider:bonjourStopProvider:latencyPhase:nameResolver:trailingSteps:)``:
-/// the caller runs it after every other source, including the Mac companion merge on iOS. It
-/// only fills empty fields, and the accumulator keeps an existing vendor and model over it.
+/// Guesses are ``IdentitySource/hostnameGuess``, the lowest rank, so where the phase runs
+/// doesn't decide what wins (ADR-022). It runs last in the standard pipeline only so it can
+/// read the names every other step found.
 public struct HostnameIdentityPhase: ScanPhase, Sendable {
     public let id: ScanPhaseID = .hostnameIdentity
     public let displayName = "Reading device names…"
@@ -59,17 +59,20 @@ public struct HostnameIdentityPhase: ScanPhase, Sendable {
 
     static func update(for device: DiscoveredDevice, names: [String?]) -> DiscoveredDevice? {
         guard let identity = HostnameIdentity.identify(names: names) else { return nil }
-        let fill = identity.fills(knownMaker: knownMaker(device), knownModel: device.modelName)
+        let fill = identity.fills(knownMaker: device.maker, knownModel: device.modelName)
         guard fill.maker != nil || fill.model != nil else { return nil }
         return DiscoveredDevice(
             ipAddress: device.ipAddress,
             hostname: nil,
-            vendor: fill.maker,
+            vendor: nil,
             macAddress: nil,
             latency: nil,
             discoveredAt: Date(),
             source: .local,
-            modelName: fill.model
+            identity: DeviceIdentity(
+                maker: IdentityValue(fill.maker, source: .hostnameGuess),
+                model: IdentityValue(fill.model, source: .hostnameGuess)
+            )
         )
     }
 
@@ -77,11 +80,7 @@ public struct HostnameIdentityPhase: ScanPhase, Sendable {
         HostnameIdentity.identify(names: [device.hostname, device.friendlyName])
     }
 
-    private static func knownMaker(_ device: DiscoveredDevice) -> String? {
-        [device.vendor, device.manufacturer].compactMap { $0 }.first { !$0.isEmpty }
-    }
-
     private static func needsIdentity(_ device: DiscoveredDevice) -> Bool {
-        knownMaker(device) == nil || (device.modelName?.isEmpty ?? true)
+        device.maker == nil || device.modelName == nil
     }
 }

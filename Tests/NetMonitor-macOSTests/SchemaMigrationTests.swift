@@ -1,11 +1,14 @@
 import Foundation
 import NetMonitorCore
+import NetworkScanKit
 import SwiftData
 import Testing
 @testable import NetMonitor_macOS
 
 /// #409: SchemaV1 (frozen 2.2.x) → SchemaV2 (stored `LocalDevice.modelName`).
-@Suite("Schema migration V1 → V2", .serialized)
+/// #462: SchemaV2 (frozen 2.2.2–2.2.3) → SchemaV3 (identity sources, `friendlyName`, `vendor`
+/// rebuilt from the MAC prefix).
+@Suite("Schema migration V1 → V2 → V3", .serialized)
 @MainActor
 struct SchemaMigrationTests {
 
@@ -64,7 +67,7 @@ struct SchemaMigrationTests {
         let fixture = V1Fixture()
         try writeV1Store(at: url, fixture)
 
-        let schema = Schema(versionedSchema: SchemaV2.self)
+        let schema = Schema(versionedSchema: SchemaV3.self)
         let container = try ModelContainer(
             for: schema,
             migrationPlan: NetMonitorMigrationPlan.self,
@@ -79,7 +82,11 @@ struct SchemaMigrationTests {
         #expect(device.ipAddress == "192.168.1.20")
         #expect(device.macAddress == "00:11:22:33:44:55")
         #expect(device.hostname == "studio.local")
-        #expect(device.vendor == "Apple")
+        // V2 → V3: `vendor` is the MAC prefix's maker (00:11:22 is CIMSYS); the maker it held
+        // moves to `manufacturer` without a source.
+        #expect(device.vendor == MACVendorLookupService.offlineVendor(macAddress: "00:11:22:33:44:55"))
+        #expect(device.manufacturer == "Apple")
+        #expect(device.makerSource == nil)
         #expect(device.customName == "Studio")
         #expect(device.deviceType == .computer)
         #expect(device.openPorts == [22, 445])
@@ -101,11 +108,16 @@ struct SchemaMigrationTests {
         #expect(try context.fetch(FetchDescriptor<LocalDevice>()).first?.modelName == "Mac16,10")
     }
 
-    @Test("(b) A fresh V2 store saves and reloads modelName")
-    func v2StorePersistsModelName() throws {
+    @Test("(b) A fresh V3 store saves and reloads the identity and its sources")
+    func v3StorePersistsIdentity() throws {
         let (directory, url) = try makeStoreURL()
         defer { try? FileManager.default.removeItem(at: directory) }
-        let schema = Schema(versionedSchema: SchemaV2.self)
+        let schema = Schema(versionedSchema: SchemaV3.self)
+        let identity = DeviceIdentity(
+            maker: IdentityValue("Apple", source: .bonjour),
+            model: IdentityValue("MacBookPro18,1", source: .bonjour),
+            friendlyName: IdentityValue("Studio", source: .unifi)
+        )
         let deviceID = UUID()
 
         do {
@@ -115,7 +127,7 @@ struct SchemaMigrationTests {
                 configurations: [ModelConfiguration(schema: schema, url: url, cloudKitDatabase: .none)]
             )
             let device = LocalDevice(id: deviceID, ipAddress: "192.168.1.30", macAddress: "")
-            device.modelName = "MacBookPro18,1"
+            device.identity = identity
             container.mainContext.insert(device)
             try container.mainContext.save()
         }
@@ -127,7 +139,7 @@ struct SchemaMigrationTests {
         )
         let device = try #require(try reopened.mainContext.fetch(FetchDescriptor<LocalDevice>()).first)
         #expect(device.id == deviceID)
-        #expect(device.modelName == "MacBookPro18,1")
+        #expect(device.identity == identity)
     }
 
     @Test("(c) The app's bootstrap opens an existing V1 store durably, not in memory")
@@ -202,8 +214,9 @@ struct SchemaMigrationTests {
     @Test("The schemas differ, so the plan has no duplicate version checksums")
     func schemasAreDistinct() throws {
         #expect(SchemaV1.versionIdentifier != SchemaV2.versionIdentifier)
-        // Building a container with both schemas in the plan throws on duplicate checksums.
-        let schema = Schema(versionedSchema: SchemaV2.self)
+        #expect(SchemaV2.versionIdentifier != SchemaV3.versionIdentifier)
+        // Building a container with every schema in the plan throws on duplicate checksums.
+        let schema = Schema(versionedSchema: SchemaV3.self)
         _ = try ModelContainer(
             for: schema,
             migrationPlan: NetMonitorMigrationPlan.self,
@@ -211,8 +224,71 @@ struct SchemaMigrationTests {
         )
         let v1Device = Schema(versionedSchema: SchemaV1.self).entities.first { $0.name == "LocalDevice" }
         let v2Device = Schema(versionedSchema: SchemaV2.self).entities.first { $0.name == "LocalDevice" }
+        let v3Device = Schema(versionedSchema: SchemaV3.self).entities.first { $0.name == "LocalDevice" }
         #expect(v1Device?.storedPropertiesByName["modelName"] == nil)
         #expect(v2Device?.storedPropertiesByName["modelName"] != nil)
+        #expect(v2Device?.storedPropertiesByName["modelSource"] == nil)
+        for name in ["modelSource", "makerSource", "friendlyName", "friendlyNameSource"] {
+            #expect(v3Device?.storedPropertiesByName[name] != nil, "\(name)")
+        }
+    }
+
+    /// `Fixtures/v2.2.3-default.store` was written by the live models at d54748e (2.2.3,
+    /// SchemaV2) with synthetic rows, so it proves the frozen SchemaV2 matches what shipped.
+    @Test("A 2.2.3 store migrates to V3: vendor holds only the MAC prefix's maker, and no maker is lost")
+    func shippedV2FixtureStoreMigrates() throws {
+        let fixture = try #require(
+            Bundle(for: FixtureBundleToken.self).url(forResource: "v2.2.3-default", withExtension: "store"),
+            "fixture missing from the test bundle"
+        )
+        let (directory, url) = try makeStoreURL()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try FileManager.default.copyItem(at: fixture, to: url)
+
+        let outcome = try MacPersistence.makeOutcome(storeURL: url, inMemory: false)
+        #expect(!outcome.isDegraded, "fell back: \(outcome.recovery?.diagnosticText ?? "")")
+        let rows = try outcome.store.mainContext.fetch(FetchDescriptor<LocalDevice>())
+        let byIP = Dictionary(uniqueKeysWithValues: rows.map { ($0.ipAddress, $0) })
+        #expect(rows.count == 4)
+
+        // A vendor naming the MAC prefix's company stays as it was.
+        let studio = try #require(byIP["192.168.1.20"])
+        #expect(studio.vendor == "Apple")
+        #expect(studio.manufacturer == nil)
+        #expect(studio.modelName == "Mac16,10")
+        #expect(studio.modelSource == nil)
+        #expect(studio.displayName == "Studio")
+
+        // No MAC: a hostname guess sat in `vendor`; it moves to `manufacturer`, unranked.
+        let plug = try #require(byIP["192.168.1.21"])
+        #expect(plug.vendor == nil)
+        #expect(plug.manufacturer == "Meross")
+        #expect(plug.maker == "Meross")
+
+        // No MAC: the UPnP maker was in both; `vendor` is cleared. The friendly name that
+        // sat in `hostname` can't be told apart, so it stays there.
+        let tv = try #require(byIP["192.168.1.22"])
+        #expect(tv.vendor == nil)
+        #expect(tv.manufacturer == "Samsung Electronics")
+        #expect(tv.hostname == "Living Room TV")
+        #expect(tv.friendlyName == nil)
+
+        // The chip's maker stays in `vendor`; the announced maker stays in `manufacturer`.
+        let bulb = try #require(byIP["192.168.1.23"])
+        #expect(bulb.vendor == "Espressif")
+        #expect(bulb.manufacturer == "Wiz")
+        // Unranked until a scan reports it again, so the MAC prefix shows meanwhile.
+        #expect(bulb.maker == "Espressif")
+    }
+
+    @Test("Maker names match by their first word", arguments: [
+        ("Apple", "Apple, Inc.", true),
+        ("Samsung Electronics Co.,Ltd", "SAMSUNG ELECTRO-MECHANICS", true),
+        ("Meross", "Espressif Inc.", false),
+        ("", "Apple", false)
+    ])
+    func sameCompany(lhs: String, rhs: String, same: Bool) {
+        #expect(NetMonitorMigrationPlan.sameCompany(lhs, rhs) == same)
     }
 }
 

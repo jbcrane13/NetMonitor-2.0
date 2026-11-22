@@ -336,24 +336,16 @@ final class DeviceDiscoveryCoordinator {
                     openPorts: discovered.openPorts,
                     networkProfileID: profileID
                 )
-                newDevice.modelName = discovered.modelName
+                newDevice.mergeIdentity(discovered.identity)
                 // A private MAC the sparse merge skipped is first inserted here (#411).
                 if recordLatencyHistory, !discovered.isCached, let latency = discovered.latency {
                     newDevice.updateLatency(latency)
                 }
-                Self.fillFromDescription(newDevice, discovered)
-                Self.fillFromHostname(newDevice)
                 modelContext.insert(newDevice)
                 matcher.add(candidate)
                 rows.append(newDevice)
                 seenRows.insert(newDevice.id)
             }
-        }
-
-        // Saved rows this scan didn't find still get a maker and model from their names: a
-        // device that stopped answering would otherwise keep an empty maker forever.
-        for device in existingDevices {
-            Self.fillFromHostname(device)
         }
 
         do { try modelContext.save() } catch {
@@ -372,15 +364,12 @@ final class DeviceDiscoveryCoordinator {
         if let vendor = discovered.vendor, !vendor.isEmpty {
             existing.vendor = vendor
         }
-        Self.fillFromDescription(existing, discovered)
+        // Maker, model and friendly name change only to an equal or higher-ranked value (#443).
+        existing.mergeIdentity(discovered.identity)
         if let openPorts = discovered.openPorts, !openPorts.isEmpty {
             let combined = Set(existing.openPorts ?? []).union(openPorts).sorted()
             existing.openPorts = combined
         }
-        if let model = discovered.modelName, !model.isEmpty {
-            existing.modelName = model
-        }
-        Self.fillFromHostname(existing)
         if let latency = discovered.latency {
             if recordLatencyHistory {
                 existing.updateLatency(latency)
@@ -393,36 +382,6 @@ final class DeviceDiscoveryCoordinator {
             existing.lastSeen = Date()
         }
         existing.status = discovered.isCached ? .cached : .online
-    }
-
-    /// Fills name, vendor and manufacturer from the UPnP description (#387), only where
-    /// the row has none: a hostname or an OUI vendor from any other source stays ahead.
-    private static func fillFromDescription(_ device: LocalDevice, _ discovered: LocalDiscoveredDevice) {
-        if device.hostname?.isEmpty ?? true, let name = discovered.friendlyName, !name.isEmpty {
-            device.hostname = name
-        }
-        guard let maker = discovered.manufacturer, !maker.isEmpty else { return }
-        if device.vendor?.isEmpty ?? true {
-            device.vendor = maker
-        }
-        if device.manufacturer?.isEmpty ?? true {
-            device.manufacturer = maker
-        }
-    }
-
-    /// Fills an empty maker or model from the row's hostname or resolved name (#439). It runs after every other
-    /// source has written to the row, including values saved by earlier scans, so a hostname
-    /// guess never replaces a MAC-prefix maker or an exact Bonjour or UPnP model.
-    static func fillFromHostname(_ device: LocalDevice) {
-        guard let identity = HostnameIdentity.identify(names: [device.hostname, device.resolvedHostname]) else { return }
-        let knownMaker = [device.vendor, device.manufacturer].compactMap { $0 }.first { !$0.isEmpty }
-        let fill = identity.fills(knownMaker: knownMaker, knownModel: device.modelName)
-        if let maker = fill.maker {
-            device.vendor = maker
-        }
-        if let model = fill.model {
-            device.modelName = model
-        }
     }
 
     /// A saved row or a scan observation as the device match sees it. The name is the
@@ -572,9 +531,7 @@ final class DeviceDiscoveryCoordinator {
                 openPorts: device.openPorts,
                 latency: device.latency,
                 isCached: device.isCached,
-                friendlyName: device.friendlyName,
-                manufacturer: device.manufacturer,
-                modelName: device.modelName
+                identity: device.identity
             )
         }
     }

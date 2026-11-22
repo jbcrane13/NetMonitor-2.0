@@ -67,7 +67,8 @@ struct UniFiInventoryPhaseTests {
     private func found(_ ip: String, hostname: String? = nil, vendor: String? = nil, model: String? = nil) -> DiscoveredDevice {
         DiscoveredDevice(
             ipAddress: ip, hostname: hostname, vendor: vendor, macAddress: nil,
-            latency: 1, discoveredAt: Date(), source: .local, modelName: model
+            latency: 1, discoveredAt: Date(), source: .local,
+            identity: DeviceIdentity(model: IdentityValue(model, source: .bonjour))
         )
     }
 
@@ -95,8 +96,8 @@ struct UniFiInventoryPhaseTests {
             [UniFiInventoryEntry(ipAddress: "192.168.2.4", name: "U7 Pro", model: "U7 Pro", macAddress: "28:70:4e:00:00:04", isUniFiDevice: true)],
             found: [found("192.168.2.4")]
         )
-        #expect(result["192.168.2.4"]?.vendorOrManufacturer == "Ubiquiti")
-        #expect(result["192.168.2.4"]?.modelName == "U7 Pro")
+        #expect(result["192.168.2.4"]?.identity.maker == IdentityValue("Ubiquiti", source: .unifi))
+        #expect(result["192.168.2.4"]?.identity.model == IdentityValue("U7 Pro", source: .unifi))
         #expect(result["192.168.2.4"]?.displayName == "U7 Pro")
         // A public MAC is recorded, normalized, so the device match can key the device by it (#461).
         #expect(result["192.168.2.4"]?.macAddress == "28:70:4E:00:00:04")
@@ -109,11 +110,15 @@ struct UniFiInventoryPhaseTests {
             client("192.168.2.183", "Meross Smart Bulb", mac: "c4:e7:ae:00:1f:57"),
             client("192.168.2.163", "Aqara Hub M3", mac: "18:c2:3c:4a:02:54")
         ], found: [found("192.168.2.108"), found("192.168.2.183", hostname: "mt7687-4.local"), found("192.168.2.163")])
-        #expect(result["192.168.2.108"]?.vendorOrManufacturer == "WiZ")
-        #expect(result["192.168.2.183"]?.vendorOrManufacturer == "Meross")
+        // The MAC's maker is a MAC-prefix maker (`vendor`); a maker read from UniFi's
+        // fingerprint name is a guess (ADR-022, #462 Q16).
+        #expect(result["192.168.2.108"]?.vendor == "WiZ")
+        #expect(result["192.168.2.108"]?.maker == "WiZ")
+        #expect(result["192.168.2.183"]?.identity.maker == IdentityValue("Meross", source: .hostnameGuess))
         #expect(result["192.168.2.183"]?.hostname == "mt7687-4.local")
-        #expect(result["192.168.2.163"]?.vendorOrManufacturer == "Aqara")
-        #expect(result["192.168.2.163"]?.modelName == "Hub M3")
+        #expect(result["192.168.2.183"]?.identity.friendlyName == IdentityValue("Meross Smart Bulb", source: .unifi))
+        #expect(result["192.168.2.163"]?.maker == "Aqara")
+        #expect(result["192.168.2.163"]?.identity.model == IdentityValue("Hub M3", source: .hostnameGuess))
     }
 
     @Test("Keeps what the scan already knew, and ignores devices it didn't find")
@@ -130,13 +135,24 @@ struct UniFiInventoryPhaseTests {
         #expect(result["203.0.113.9"] == nil)
     }
 
+    @Test("A device's own UPnP maker outranks the maker from its MAC")
+    func announcedMakerOutranksMAC() async {
+        let bulb = DiscoveredDevice(
+            ipAddress: "192.168.2.108", hostname: nil, vendor: nil, macAddress: nil, latency: 1, discoveredAt: Date(),
+            source: .ssdp, identity: DeviceIdentity(maker: IdentityValue("Signify", source: .upnp))
+        )
+        let result = await run([client("192.168.2.108", nil, mac: "d8:a0:11:aa:d4:aa")], found: [bulb])
+        #expect(result["192.168.2.108"]?.vendor == "WiZ")
+        #expect(result["192.168.2.108"]?.maker == "Signify")
+    }
+
     @Test("A private MAC says nothing about the maker")
     func privateMAC() async {
         let result = await run(
             [UniFiInventoryEntry(ipAddress: "192.168.2.144", name: nil, model: nil, macAddress: "7e:8d:13:00:57:56", isUniFiDevice: false)],
             found: [found("192.168.2.144")]
         )
-        #expect(result["192.168.2.144"]?.vendorOrManufacturer == nil)
+        #expect(result["192.168.2.144"]?.maker == nil)
         // Nor is it recorded: a nameless device without a MAC wouldn't adopt it (#461).
         #expect(result["192.168.2.144"]?.macAddress == nil)
     }

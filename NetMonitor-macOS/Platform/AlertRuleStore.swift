@@ -134,7 +134,7 @@ final class MacRuleAlerts {
             ipAddress: result.host,
             macAddress: row.flatMap { $0.macAddress.isEmpty ? nil : $0.macAddress },
             deviceType: row?.deviceType,
-            maker: row?.manufacturer ?? row?.vendor,
+            maker: row?.maker,
             networkID: row == nil ? nil : networkID,
             stateKey: "target:\(result.targetID.uuidString)"
         )
@@ -186,7 +186,7 @@ final class MacRuleAlerts {
             ipAddress: ip,
             macAddress: mac,
             deviceType: row?.deviceType,
-            maker: row?.manufacturer ?? row?.vendor,
+            maker: row?.maker,
             networkID: networkID
         )
     }

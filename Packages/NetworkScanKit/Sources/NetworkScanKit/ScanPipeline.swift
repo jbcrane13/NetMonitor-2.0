@@ -31,10 +31,10 @@ public struct ScanPipeline: Sendable {
     /// 4. [ARP re-check] — confirm devices whose ARP entry the pings re-confirmed (#378)
     /// 5. [Reverse DNS] — resolve hostnames
     /// 6. [trailingSteps] — platform-supplied enrichment (defaults to none)
+    /// 7. [Hostname identity] — maker and model guesses from the names found (#439)
     ///
-    /// Hostname identity (#439) is not a step here: it must come after every other source,
-    /// including ones merged after the scan (the Mac companion on iOS, saved rows on macOS),
-    /// so each platform applies ``HostnameIdentity`` at that point.
+    /// Identity values are ranked by source (ADR-022), so step order doesn't decide which
+    /// maker or model wins. Hostname identity is last so it reads every name the scan found.
     ///
     /// - Parameters:
     ///   - latencyPhase: Replaces the default ``ICMPLatencyPhase`` in step 3, e.g. to
@@ -63,6 +63,8 @@ public struct ScanPipeline: Sendable {
             Step(phases: [latencyPhase], concurrent: false),
             Step(phases: [ARPRecheckPhase()], concurrent: false),
             Step(phases: [ReverseDNSScanPhase(resolve: nameResolver)], concurrent: false),
-        ] + trailingSteps)
+        ] + trailingSteps + [
+            Step(phases: [HostnameIdentityPhase(lookUpName: nameResolver)], concurrent: false),
+        ])
     }
 }
