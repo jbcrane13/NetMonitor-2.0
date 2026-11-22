@@ -63,10 +63,7 @@ struct ToolSheetContainer<InputArea: View, OutputArea: View, FooterContent: View
 
             if OutputArea.self != EmptyView.self {
                 Divider()
-                outputAreaContent
-            }
-
-            if insightRequest != nil {
+            if let insightRequest, InsightService.shared.isAvailable {
                 Divider()
                 ToolInsightStrip(screen: insightScreen, request: insightRequest)
             }
