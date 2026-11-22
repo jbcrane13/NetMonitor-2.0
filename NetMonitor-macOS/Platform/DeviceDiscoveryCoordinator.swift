@@ -318,8 +318,8 @@ final class DeviceDiscoveryCoordinator {
                 let existing = rows[match.index]
                 seenRows.insert(existing.id)
                 // It gained a MAC, or rotated a private one (#411, #442).
-                if match.adoptedMAC != nil {
-                    existing.macAddress = discovered.macAddress
+                if let adoptedMAC = match.adoptedMAC {
+                    existing.macAddress = adoptedMAC // normalized by the matcher, never a placeholder
                 }
                 Self.apply(discovered, to: existing, recordLatencyHistory: recordLatencyHistory)
             } else if isSparse, MACAddress.isPrivate(discovered.macAddress) {
