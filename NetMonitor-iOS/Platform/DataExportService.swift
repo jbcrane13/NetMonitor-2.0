@@ -136,14 +136,25 @@ enum DataExportService {
         }
     }
 
+    /// The `hostname` and `vendor` columns keep what they held before friendly names and
+    /// announced makers moved to their own fields (ADR-022): the hostname, else the friendly
+    /// name; the MAC-prefix maker, else the announced or guessed maker.
+    private static func exportedHostname(_ device: LocalDevice) -> String {
+        [device.hostname, device.friendlyName].compactMap { $0 }.first { !$0.isEmpty } ?? ""
+    }
+
+    private static func exportedVendor(_ device: LocalDevice) -> String {
+        [device.vendor, device.manufacturer].compactMap { $0 }.first { !$0.isEmpty } ?? ""
+    }
+
     private static func exportDevicesJSON(_ devices: [LocalDevice]) -> Data? {
         let items = devices.map { d in
             [
                 "id": d.id.uuidString,
                 "ipAddress": d.ipAddress,
                 "macAddress": d.macAddress,
-                "hostname": d.hostname ?? "",
-                "vendor": d.vendor ?? "",
+                "hostname": exportedHostname(d),
+                "vendor": exportedVendor(d),
                 "deviceType": d.deviceType.rawValue,
                 "customName": d.customName ?? "",
                 "status": d.status.rawValue,
@@ -161,7 +172,7 @@ enum DataExportService {
         let formatter = ISO8601DateFormatter()
         for d in devices {
             csv += "\(csvEscape(d.id.uuidString)),\(csvEscape(d.ipAddress)),\(csvEscape(d.macAddress)),"
-            csv += "\(csvEscape(d.hostname ?? "")),\(csvEscape(d.vendor ?? "")),\(csvEscape(d.deviceType.rawValue)),"
+            csv += "\(csvEscape(exportedHostname(d))),\(csvEscape(exportedVendor(d))),\(csvEscape(d.deviceType.rawValue)),"
             csv += "\(csvEscape(d.customName ?? "")),\(csvEscape(d.status.rawValue)),"
             csv += "\(d.lastLatency.map { String($0) } ?? ""),\(d.isGateway),"
             csv += "\(csvEscape(formatter.string(from: d.firstSeen))),\(csvEscape(formatter.string(from: d.lastSeen)))\n"
