@@ -246,7 +246,7 @@ final class DeviceDiscoveryCoordinator {
             Logger.discovery.notice("Launch scan skipped: a scan is already running")
             return false
         }
-        guard let local = networkProfileManager.profiles.first(where: { $0.isLocal }) else {
+        guard let local = networkProfileManager.localProfile else {
             Logger.discovery.notice("Launch scan skipped: no local network")
             return false
         }

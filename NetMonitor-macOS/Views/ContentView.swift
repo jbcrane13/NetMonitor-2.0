@@ -82,14 +82,14 @@ struct ContentView: View {
                 devices = (try? modelContext.fetch(FetchDescriptor<LocalDevice>(predicate: #Predicate { $0.ipAddress == ip }))) ?? []
             }
             let target = NotificationRouter.selection(
-                for: route, devices: devices, localNetworkID: profileManager?.profiles.first(where: { $0.isLocal })?.id
+                for: route, devices: devices, localNetworkID: profileManager?.localProfile?.id
             )
             NotificationRouter.shared.deviceToSelect = target.device
             if let section = target.section {
                 selectedSection = section
             }
         }
-        .onChange(of: profileManager?.profiles.first(where: { $0.isLocal })?.id) { oldID, newID in
+        .onChange(of: profileManager?.localProfile?.id) { oldID, newID in
             // Joining another network gives the local profile a new id and drops the old one;
             // keep an open local dashboard on the network the Mac is on now.
             selectedSection = Self.followLocalNetwork(selectedSection, from: oldID, to: newID)
@@ -97,7 +97,7 @@ struct ContentView: View {
         .onAppear {
             // Launch into the active (local) network dashboard
             if selectedSection == nil,
-               let activeProfile = profileManager?.profiles.first(where: { $0.isLocal })
+               let activeProfile = profileManager?.localProfile
                    ?? profileManager?.profiles.first {
                 selectedSection = .network(activeProfile.id)
             }
@@ -124,7 +124,7 @@ struct ContentView: View {
 
     // MARK: - ⌘1 handler (navigate to active network)
     private func jumpToActiveNetwork() {
-        if let activeProfile = profileManager?.profiles.first(where: { $0.isLocal })
+        if let activeProfile = profileManager?.localProfile
                ?? profileManager?.profiles.first {
             selectedSection = .network(activeProfile.id)
         }

@@ -191,7 +191,7 @@ final class NetworkMapViewModel {
             persistSelectedNetwork()
         } else {
             networkProfileManager.detectLocalNetwork()
-            if let localID = networkProfileManager.profiles.first(where: { $0.isLocal })?.id {
+            if let localID = networkProfileManager.localProfile?.id {
                 _ = networkProfileManager.switchProfile(id: localID)
             }
             clearSelectedNetwork()
