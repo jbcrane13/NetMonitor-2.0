@@ -31,8 +31,8 @@ targets:
       properties:
         CFBundleName: NetMonitor Pro
         CFBundleDisplayName: NetMonitor Pro
-        CFBundleShortVersionString: "2.2.2"
-        CFBundleVersion: "1795258945"
+        CFBundleShortVersionString: "2.2.3"
+        CFBundleVersion: "1795306090"
         LSMinimumSystemVersion: "15.0"
         NSPrincipalClass: NSApplication
         NSHighResolutionCapable: true
@@ -147,8 +147,8 @@ targets:
       properties:
         CFBundleName: Netmonitor
         CFBundleDisplayName: Netmonitor
-        CFBundleShortVersionString: "2.2.2"
-        CFBundleVersion: "23"
+        CFBundleShortVersionString: "2.2.3"
+        CFBundleVersion: "24"
         CFBundleIconName: AppIcon
         NSCameraUsageDescription: "NetMonitor uses the camera for AR-assisted room scanning to create floor plans for Wi-Fi coverage surveys."
         NSLocationWhenInUseUsageDescription: "NetMonitor uses your location to display WiFi network information and monitor GeoFence zones."
@@ -274,8 +274,8 @@ targets:
       path: NetMonitor-iOS/Widget/Info.plist
       properties:
         CFBundleDisplayName: Netmonitor Widget
-        CFBundleShortVersionString: "2.2.2"
-        CFBundleVersion: "23"
+        CFBundleShortVersionString: "2.2.3"
+        CFBundleVersion: "24"
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
         NSSupportsLiveActivities: true

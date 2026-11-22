@@ -65,25 +65,28 @@ final class DeviceDiscoveryCoordinator {
         .shellNameResolution, .vendorLookup, .portScan, .shellPingLatency,
     ]
 
+    /// The Mac's standard scan. It doesn't read the UniFi gateway list: that lookup is off
+    /// for now.
+    static let standardPipelineFactory: @Sendable (ScanPipelineInputs) -> ScanPipeline = { inputs in
+        ScanPipeline.standard(
+            bonjourServiceProvider: inputs.bonjourServiceProvider,
+            bonjourStopProvider: inputs.bonjourStopProvider,
+            // macOS keeps the shell ping's min-of-3 semantics (E3): 3 ICMP echoes per
+            // host instead of iOS's default 1.
+            latencyPhase: ICMPLatencyPhase(probeCount: 3),
+            // Through the gateway's DNS too: a VPN's DNS (Tailscale) knows no LAN names.
+            nameResolver: { await GatewayNameResolver().resolve(ipAddress: $0) },
+            trailingSteps: [inputs.standardEnrichmentStep]
+        )
+    }
+
     init(
         modelContext: ModelContext,
         bonjourScanner: BonjourDiscoveryService,
         nameResolver: ShellDeviceNameResolver = ShellDeviceNameResolver(),
         macVendorService: MACVendorLookupService = MACVendorLookupService(),
         networkProfileManager: NetworkProfileManager,
-        pipelineFactory: @escaping @Sendable (ScanPipelineInputs) -> ScanPipeline = { inputs in
-            ScanPipeline.standard(
-                bonjourServiceProvider: inputs.bonjourServiceProvider,
-                bonjourStopProvider: inputs.bonjourStopProvider,
-                // macOS keeps the shell ping's min-of-3 semantics (E3): 3 ICMP echoes per
-                // host instead of iOS's default 1.
-                latencyPhase: ICMPLatencyPhase(probeCount: 3),
-                // Through the gateway's DNS too: a VPN's DNS (Tailscale) knows no LAN names.
-                nameResolver: { await GatewayNameResolver().resolve(ipAddress: $0) },
-                // The UniFi gateway's list (with an API key), then the Mac's own enrichment.
-                trailingSteps: [ScanPipeline.Step(phases: [UniFiInventoryPhase()], concurrent: false), inputs.standardEnrichmentStep]
-            )
-        },
+        pipelineFactory: @escaping @Sendable (ScanPipelineInputs) -> ScanPipeline = DeviceDiscoveryCoordinator.standardPipelineFactory,
         portChecker: @escaping @Sendable (_ host: String, _ port: Int, _ timeoutMs: Int32) async -> Bool = DeviceDiscoveryCoordinator.checkPort,
         pingRunner: @escaping @Sendable (_ host: String) async -> Double? = DeviceDiscoveryCoordinator.shellPing,
         reviewPrompt: ReviewPromptPolicy? = nil

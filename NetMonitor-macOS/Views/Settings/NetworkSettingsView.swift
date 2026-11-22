@@ -17,7 +17,6 @@ enum PreferredInterface: String, CaseIterable {
 struct NetworkSettingsView: View {
     @AppStorage("netmonitor.network.preferredInterface") private var preferredInterface = PreferredInterface.auto.rawValue
     @AppStorage("netmonitor.network.useSystemProxy") private var useSystemProxy = true
-    @State private var unifiKey = ""
     @State private var hasUniFiKey = UniFiAPIKeyStore().hasKey
 
     var body: some View {
@@ -44,33 +43,24 @@ struct NetworkSettingsView: View {
                 Text("When enabled, HTTP/HTTPS monitoring will use your system's proxy configuration.")
             }
 
+            // UniFi device lookup is off for now: no key can be added, and a saved one isn't used.
             SwiftUI.Section {
-                LabeledContent("Status", value: hasUniFiKey ? "Key saved" : "No key")
+                LabeledContent("Status", value: "Temporarily unavailable")
                     .accessibilityIdentifier("settings_label_unifiStatus")
-                SecureField("API key", text: $unifiKey)
-                    .accessibilityIdentifier("settings_field_unifiAPIKey")
-                HStack {
-                    Button("Save") {
-                        UniFiAPIKeyStore().save(unifiKey)
-                        unifiKey = ""
-                        hasUniFiKey = UniFiAPIKeyStore().hasKey
+                if hasUniFiKey {
+                    Button("Remove Saved Key", role: .destructive) {
+                        UniFiAPIKeyStore().save("")
+                        hasUniFiKey = false
                     }
-                    .disabled(unifiKey.trimmingCharacters(in: .whitespaces).isEmpty)
-                    .accessibilityIdentifier("settings_button_saveUnifiKey")
-                    if hasUniFiKey {
-                        Button("Remove", role: .destructive) {
-                            UniFiAPIKeyStore().save("")
-                            hasUniFiKey = false
-                        }
-                        .accessibilityIdentifier("settings_button_removeUnifiKey")
-                    }
+                    .accessibilityIdentifier("settings_button_removeUnifiKey")
                 }
             } header: {
                 Text("UniFi")
             } footer: {
                 Text(
-                    "With a UniFi Network API key (UniFi Network → Settings → Control Plane → Integrations), scans read "
-                        + "your UniFi gateway's device list for exact models and makers. The key stays in this Mac's Keychain."
+                    hasUniFiKey
+                        ? "UniFi device lookup is temporarily unavailable. Your saved API key isn't used; you can remove it."
+                        : "UniFi device lookup is temporarily unavailable."
                 )
             }
         }
