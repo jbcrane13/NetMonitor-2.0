@@ -40,10 +40,19 @@ final class DeviceDetailViewModel {
         993, 995, 3306, 3389, 5432, 5900, 8080, 8443
     ]
 
-    /// Loads the saved row for the device at `ipAddress`, creating one if none matches.
-    func loadDevice(ipAddress: String, context: ModelContext) {
-        let scanned = deviceDiscoveryService.discoveredDevices.first(where: { $0.ipAddress == ipAddress })
-        device = Self.savedRow(ipAddress: ipAddress, scanned: scanned, in: context)
+    /// Loads the saved row for the device at `ipAddress` on `networkID` (the network the list
+    /// showed it on), creating one if none matches.
+    func loadDevice(ipAddress: String, networkID: UUID? = nil, context: ModelContext) {
+        let live = deviceDiscoveryService.discoveredDevices
+        let scanned = live.first { $0.ipAddress == ipAddress && (networkID == nil || $0.networkProfileID == networkID) }
+        let network = networkID ?? scanned?.networkProfileID
+        device = Self.savedRow(
+            ipAddress: ipAddress,
+            scanned: scanned,
+            networkID: network,
+            scan: live.filter { $0.networkProfileID == network },
+            in: context
+        )
         // The scan knows more than a fresh row: merge its maker, model and friendly name by
         // rank (ADR-022), and fill the MAC-prefix maker, MAC and hostname where the row has
         // none (#426). The header shows `maker`.
@@ -63,13 +72,21 @@ final class DeviceDetailViewModel {
     }
 
     /// The row for a device, found by the device match (#461: MAC, else IP, with private-MAC
-    /// rotation) among the rows of the scanned device's network (#463), so two networks that
-    /// use the same addresses keep separate rows. A row saved before rows had a network (every
-    /// detail row before #463) is adopted by the first network it's opened on.
-    static func savedRow(ipAddress: String, scanned: DiscoveredDevice?, in context: ModelContext) -> LocalDevice {
-        let networkID = scanned?.networkProfileID
+    /// rotation) among the rows of the device's network (#463), so two networks that use the
+    /// same addresses keep separate rows. `scan` is every device the latest scan saw on that
+    /// network; the match needs them all so it never hands one device's row to another, such
+    /// as a newcomer at the old address of a device that moved. A row saved before rows had a
+    /// network (every detail row before #463) is adopted by the first network it's opened on.
+    static func savedRow(
+        ipAddress: String,
+        scanned: DiscoveredDevice?,
+        networkID: UUID?,
+        scan: [DiscoveredDevice],
+        in context: ModelContext
+    ) -> LocalDevice {
         let rows = (try? context.fetch(FetchDescriptor<LocalDevice>())) ?? []
         let observation = DeviceMatchCandidate(ipAddress: ipAddress, macAddress: scanned?.macAddress, name: scanned?.matchName)
+        let observed = scan.map { DeviceMatchCandidate(ipAddress: $0.ipAddress, macAddress: $0.macAddress, name: $0.matchName) }
         var pools = [rows.filter { $0.networkProfileID == networkID }]
         if networkID != nil {
             pools.append(rows.filter { $0.networkProfileID == nil })
@@ -77,8 +94,12 @@ final class DeviceDetailViewModel {
         for pool in pools {
             var matcher = DeviceMatcher(
                 known: pool.map { DeviceMatchCandidate(ipAddress: $0.ipAddress, macAddress: $0.macAddress, name: $0.matchName) },
-                observed: [observation]
+                observed: observed + [observation]
             )
+            // The other devices in the scan claim their own rows first.
+            for other in observed where other != observation {
+                _ = matcher.match(other)
+            }
             guard let match = matcher.match(observation) else { continue }
             let row = pool[match.index]
             if let mac = match.adoptedMAC {
