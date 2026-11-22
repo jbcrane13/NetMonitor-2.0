@@ -20,6 +20,7 @@ struct NetMonitorApp: App {
     @State private var menuBarController: MenuBarController?
     @State private var notificationService: NotificationService?
     @State private var notificationPresenter: MacNotificationPresenter?
+    @State private var alertDispatcher: MacAlertDispatcher?
     @State private var networkProfileManager: NetworkProfileManager?
 
     @AppStorage("autoStartMonitoring") private var autoStartMonitoring = false
@@ -263,27 +264,10 @@ struct NetMonitorApp: App {
                     _ = await notificationService?.requestAuthorization()
                 }
             }
-            // Send target-down and new-device alerts (#403).
-            MacAlertNotifier.migrateLegacyToggles()
-            let alerts = MacAlertNotifier(service: service)
-            monitoringSession?.onTargetDown = { name, host in alerts.targetWentDown(name: name, host: host) }
-            // Check the user's alert rules against the same events and check results (#394).
-            let discovery = deviceDiscovery
-            let rules = MacRuleAlerts(store: alertRuleStore, service: service) { [weak discovery] in
-                (discovery?.discoveredDevices ?? [], discovery?.networkProfile?.id)
-            }
-            monitoringSession?.onTargetResult = { result in
-                alerts.targetChecked(result)
-                rules.handle(targetResult: result)
-            }
-            deviceDiscovery?.onDeviceChanges = { [weak discovery] events in
-                alerts.devicesChanged(events, networkID: discovery?.networkProfile?.id)
-                rules.handle(
-                    deviceChanges: events,
-                    devices: discovery?.discoveredDevices ?? [],
-                    networkID: discovery?.networkProfile?.id
-                )
-            }
+            // Target-down, recovery, latency, new-device and rule alerts (#403, #394, #486).
+            let dispatcher = MacAlertDispatcher(service: service, store: alertRuleStore)
+            alertDispatcher = dispatcher
+            dispatcher.attach(to: monitoringSession, discovery: deviceDiscovery)
         }
 
         if autoStartMonitoring && !shouldDisableMonitoring,
