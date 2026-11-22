@@ -122,9 +122,10 @@ public struct DeviceTypeInferenceService: Sendable {
 
     /// Distinctive product names still match inside glued names ("blakesiphone"). Short or
     /// common words (`nas`, `cam`, `canon`, `brother`) and multi-word names must match
-    /// whole words (#389).
+    /// whole words (#389). The friendly name (UPnP, UniFi) is read last: it is stored apart
+    /// from the hostname (ADR-022).
     private func inferFromHostnames(_ device: LocalDevice) -> DeviceType? {
-        let names = [device.hostname, device.resolvedHostname, device.customName]
+        let names = [device.hostname, device.resolvedHostname, device.customName, device.friendlyName]
             .compactMap { $0.map(NameWords.init) }
 
         for name in names {

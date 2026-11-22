@@ -85,7 +85,7 @@ struct NetworkMapView: View {
                     } else {
                         VStack(spacing: 8) {
                             ForEach(sortedDevices) { device in
-                                NavigationLink(value: AppDestination.deviceDetail(ipAddress: device.ipAddress)) {
+                                NavigationLink(value: AppDestination.deviceDetail(ipAddress: device.ipAddress, networkID: device.networkProfileID)) {
                                     ProDeviceRow(device: device, isScanning: viewModel.isScanning)
                                 }
                                 .buttonStyle(PlainButtonStyle())

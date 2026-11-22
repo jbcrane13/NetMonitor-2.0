@@ -336,13 +336,11 @@ final class DeviceDiscoveryCoordinator {
                     openPorts: discovered.openPorts,
                     networkProfileID: profileID
                 )
-                newDevice.modelName = discovered.modelName
+                newDevice.mergeIdentity(discovered.identity)
                 // A private MAC the sparse merge skipped is first inserted here (#411).
                 if recordLatencyHistory, !discovered.isCached, let latency = discovered.latency {
                     newDevice.updateLatency(latency)
                 }
-                Self.fillFromDescription(newDevice, discovered)
-                Self.fillFromHostname(newDevice)
                 modelContext.insert(newDevice)
                 matcher.add(candidate)
                 rows.append(newDevice)
@@ -351,9 +349,9 @@ final class DeviceDiscoveryCoordinator {
         }
 
         // Saved rows this scan didn't find still get a maker and model from their names: a
-        // device that stopped answering would otherwise keep an empty maker forever.
-        for device in existingDevices {
-            Self.fillFromHostname(device)
+        // device that stopped answering would otherwise keep an empty maker forever (#439).
+        for device in existingDevices where !seenRows.contains(device.id) {
+            Self.fillFromSavedNames(device)
         }
 
         do { try modelContext.save() } catch {
@@ -361,6 +359,17 @@ final class DeviceDiscoveryCoordinator {
         }
         loadPersistedDevices(for: profileID)
         return seenRows
+    }
+
+    /// What `HostnameIdentityPhase` does for a scanned device, for a saved row the scan didn't
+    /// find: a guess from its names fills an empty maker or model, ranked as a guess (ADR-022).
+    private static func fillFromSavedNames(_ device: LocalDevice) {
+        guard let guess = HostnameIdentity.identify(names: [device.hostname, device.resolvedHostname, device.friendlyName]) else { return }
+        let fill = guess.fills(knownMaker: device.identity.knownMakerForGuessing(macPrefixMaker: device.vendor), knownModel: device.modelName)
+        device.mergeIdentity(DeviceIdentity(
+            maker: IdentityValue(fill.maker, source: .hostnameGuess),
+            model: IdentityValue(fill.model, source: .hostnameGuess)
+        ))
     }
 
     /// Writes a matched observation onto its saved row. See `mergeDiscoveredDevices`.
@@ -372,15 +381,12 @@ final class DeviceDiscoveryCoordinator {
         if let vendor = discovered.vendor, !vendor.isEmpty {
             existing.vendor = vendor
         }
-        Self.fillFromDescription(existing, discovered)
+        // Maker, model and friendly name change only to an equal or higher-ranked value (#443).
+        existing.mergeIdentity(discovered.identity)
         if let openPorts = discovered.openPorts, !openPorts.isEmpty {
             let combined = Set(existing.openPorts ?? []).union(openPorts).sorted()
             existing.openPorts = combined
         }
-        if let model = discovered.modelName, !model.isEmpty {
-            existing.modelName = model
-        }
-        Self.fillFromHostname(existing)
         if let latency = discovered.latency {
             if recordLatencyHistory {
                 existing.updateLatency(latency)
@@ -395,44 +401,14 @@ final class DeviceDiscoveryCoordinator {
         existing.status = discovered.isCached ? .cached : .online
     }
 
-    /// Fills name, vendor and manufacturer from the UPnP description (#387), only where
-    /// the row has none: a hostname or an OUI vendor from any other source stays ahead.
-    private static func fillFromDescription(_ device: LocalDevice, _ discovered: LocalDiscoveredDevice) {
-        if device.hostname?.isEmpty ?? true, let name = discovered.friendlyName, !name.isEmpty {
-            device.hostname = name
-        }
-        guard let maker = discovered.manufacturer, !maker.isEmpty else { return }
-        if device.vendor?.isEmpty ?? true {
-            device.vendor = maker
-        }
-        if device.manufacturer?.isEmpty ?? true {
-            device.manufacturer = maker
-        }
-    }
-
-    /// Fills an empty maker or model from the row's hostname or resolved name (#439). It runs after every other
-    /// source has written to the row, including values saved by earlier scans, so a hostname
-    /// guess never replaces a MAC-prefix maker or an exact Bonjour or UPnP model.
-    static func fillFromHostname(_ device: LocalDevice) {
-        guard let identity = HostnameIdentity.identify(names: [device.hostname, device.resolvedHostname]) else { return }
-        let knownMaker = [device.vendor, device.manufacturer].compactMap { $0 }.first { !$0.isEmpty }
-        let fill = identity.fills(knownMaker: knownMaker, knownModel: device.modelName)
-        if let maker = fill.maker {
-            device.vendor = maker
-        }
-        if let model = fill.model {
-            device.modelName = model
-        }
-    }
-
-    /// A saved row or a scan observation as the device match sees it. The name is the
-    /// hostname, which private-MAC rotation compares.
+    /// A saved row or a scan observation as the device match sees it. The name, which
+    /// private-MAC rotation compares, is the hostname, else the friendly name.
     private static func matchCandidate(_ device: LocalDevice) -> DeviceMatchCandidate {
-        DeviceMatchCandidate(ipAddress: device.ipAddress, macAddress: device.macAddress, name: device.hostname)
+        DeviceMatchCandidate(ipAddress: device.ipAddress, macAddress: device.macAddress, name: device.matchName)
     }
 
     private static func matchCandidate(_ device: LocalDiscoveredDevice) -> DeviceMatchCandidate {
-        DeviceMatchCandidate(ipAddress: device.ipAddress, macAddress: device.macAddress, name: device.hostname)
+        DeviceMatchCandidate(ipAddress: device.ipAddress, macAddress: device.macAddress, name: device.matchName)
     }
 
     /// Marks this network's rows offline unless the scan's device match claimed them
@@ -572,9 +548,7 @@ final class DeviceDiscoveryCoordinator {
                 openPorts: device.openPorts,
                 latency: device.latency,
                 isCached: device.isCached,
-                friendlyName: device.friendlyName,
-                manufacturer: device.manufacturer,
-                modelName: device.modelName
+                identity: device.identity
             )
         }
     }
@@ -653,7 +627,7 @@ final class DeviceDiscoveryCoordinator {
     private static func trackerSeed(from rows: [LocalDevice]) -> [KnownDevice] {
         rows.map {
             KnownDevice(
-                macAddress: $0.macAddress, ipAddress: $0.ipAddress, name: $0.hostname,
+                macAddress: $0.macAddress, ipAddress: $0.ipAddress, name: $0.matchName,
                 firstSeen: $0.firstSeen, lastSeen: $0.lastSeen, isConfirmed: true
             )
         }
@@ -664,7 +638,7 @@ final class DeviceDiscoveryCoordinator {
         let changes = changeTracker.record(
             scope: profileID?.uuidString ?? "default",
             observed: discovered.map {
-                DeviceObservation(ipAddress: $0.ipAddress, macAddress: $0.macAddress, name: $0.hostname, isCached: $0.isCached)
+                DeviceObservation(ipAddress: $0.ipAddress, macAddress: $0.macAddress, name: $0.matchName, isCached: $0.isCached)
             },
             knownScopes: Set(networkProfileManager.profiles.map(\.id.uuidString)),
             seed: { seed }

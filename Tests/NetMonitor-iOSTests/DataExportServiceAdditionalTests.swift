@@ -1,6 +1,7 @@
 import Testing
 import Foundation
 import NetMonitorCore
+import NetworkScanKit
 @testable import NetMonitor_iOS
 
 /// Additional DataExportService tests for gaps not covered by
@@ -69,6 +70,35 @@ struct DataExportServiceAdditionalTests {
         let data = DataExportService.exportDevices(devices, format: .json)!
         let parsed = try? JSONSerialization.jsonObject(with: data) as? [[String: String]]
         #expect(parsed?.count == 4)
+    }
+
+    // MARK: - Ranked identity (ADR-022)
+
+    @Test("A device with only a friendly name and an announced maker exports both")
+    func rankedIdentityOnlyDeviceExports() throws {
+        let unifiSwitch = LocalDevice(ipAddress: "192.168.2.2", macAddress: "")
+        unifiSwitch.mergeIdentity(DeviceIdentity(
+            maker: IdentityValue("Ubiquiti", source: .unifi),
+            friendlyName: IdentityValue("Main Switch", source: .unifi)
+        ))
+        // A hostname and a MAC-prefix maker still come first.
+        let bulb = LocalDevice(ipAddress: "192.168.2.108", macAddress: "D8:A0:11:AA:D4:AA", hostname: "wiz_fcd4aa", vendor: "WiZ")
+        bulb.mergeIdentity(DeviceIdentity(
+            maker: IdentityValue("Signify", source: .upnp),
+            friendlyName: IdentityValue("Desk Lamp", source: .upnp)
+        ))
+
+        let json = try #require(DataExportService.exportDevices([unifiSwitch, bulb], format: .json))
+        let parsed = try #require(try JSONSerialization.jsonObject(with: json) as? [[String: String]])
+        #expect(parsed[0]["hostname"] == "Main Switch")
+        #expect(parsed[0]["vendor"] == "Ubiquiti")
+        #expect(parsed[1]["hostname"] == "wiz_fcd4aa")
+        #expect(parsed[1]["vendor"] == "WiZ")
+
+        let csv = try #require(DataExportService.exportDevices([unifiSwitch, bulb], format: .csv))
+        let rows = try #require(String(data: csv, encoding: .utf8)).components(separatedBy: "\n")
+        #expect(rows[1].contains("192.168.2.2,,Main Switch,Ubiquiti,"))
+        #expect(rows[2].contains("192.168.2.108,D8:A0:11:AA:D4:AA,wiz_fcd4aa,WiZ,"))
     }
 
     // MARK: - writeToTempFile overwrite behavior

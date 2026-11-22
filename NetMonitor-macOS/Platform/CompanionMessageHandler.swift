@@ -100,7 +100,8 @@ final class CompanionMessageHandler {
                 ipAddress: device.ipAddress,
                 macAddress: device.macAddress,
                 hostname: device.hostname,
-                vendor: device.vendor,
+                // The shown maker, as 2.2.x sent: the feed has no maker or source fields yet (#427).
+                vendor: device.maker,
                 deviceType: device.deviceType.rawValue,
                 isOnline: device.status == .online
             )

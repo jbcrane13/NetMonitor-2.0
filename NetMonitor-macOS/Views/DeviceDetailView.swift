@@ -125,8 +125,8 @@ struct DeviceDetailView: View {
                         .foregroundStyle(MacTheme.Colors.labelSecondary)
                 }
 
-                if let vendor = device.vendor {
-                    Text(vendor)
+                if let maker = device.maker {
+                    Text(maker)
                         .font(.caption)
                         .foregroundStyle(MacTheme.Colors.labelTertiary)
                 }
@@ -263,8 +263,8 @@ struct DeviceDetailView: View {
 
             Divider()
 
-            if let vendor = device.vendor {
-                infoRow(label: "Manufacturer", value: vendor)
+            if let maker = device.maker {
+                infoRow(label: "Manufacturer", value: maker)
             }
 
             if let model = device.modelName {

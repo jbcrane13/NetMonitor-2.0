@@ -159,7 +159,7 @@ final class EventListenerService {
 
             for ip in joined.sorted() {
                 let device = currentDevices.first { $0.ipAddress == ip }
-                let label = device?.hostname ?? device?.vendor ?? ip
+                let label = device?.hostname ?? device?.maker ?? ip
                 eventService.log(
                     type: .deviceJoined,
                     title: "Device Joined: \(label)",

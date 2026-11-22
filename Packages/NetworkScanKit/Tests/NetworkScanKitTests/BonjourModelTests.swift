@@ -75,20 +75,33 @@ struct BonjourTXTTests {
 @Suite("DiscoveredDevice model")
 struct DiscoveredDeviceModelTests {
 
-    @Test("Older JSON without a model decodes as nil, and model round-trips")
+    @Test("Older JSON decodes with no model or no source, and identity round-trips")
     func decodesModel() throws {
         let old = #"{"id":"6F9619FF-8B86-D011-B42D-00C04FC964FF","ipAddress":"192.0.2.5","discoveredAt":0,"source":"bonjour"}"#
         let decoded = try JSONDecoder().decode(DiscoveredDevice.self, from: Data(old.utf8))
         #expect(decoded.modelName == nil)
+        // A 2.2.x cache has values but no sources: they rank lowest (ADR-022).
+        let unsourced = #"{"id":"6F9619FF-8B86-D011-B42D-00C04FC964FF","ipAddress":"192.0.2.5","discoveredAt":0,"source":"ssdp","#
+            + #""modelName":"Q80","manufacturer":"Samsung","friendlyName":"TV"}"#
+        let legacy = try JSONDecoder().decode(DiscoveredDevice.self, from: Data(unsourced.utf8))
+        #expect(legacy.identity == DeviceIdentity(
+            maker: IdentityValue("Samsung", source: nil),
+            model: IdentityValue("Q80", source: nil),
+            friendlyName: IdentityValue("TV", source: nil)
+        ))
 
+        let identity = DeviceIdentity(
+            maker: IdentityValue("Apple", source: .bonjour),
+            model: IdentityValue("MacBookPro18,1", source: .bonjour),
+            friendlyName: IdentityValue("Studio", source: .upnp)
+        )
         let device = DiscoveredDevice(
             ipAddress: "192.0.2.6", hostname: "Mac", vendor: nil, macAddress: nil, latency: nil,
-            discoveredAt: Date(timeIntervalSince1970: 0), source: .bonjour, modelName: "MacBookPro18,1"
+            discoveredAt: Date(timeIntervalSince1970: 0), source: .bonjour, identity: identity
         )
         let roundTrip = try JSONDecoder().decode(DiscoveredDevice.self, from: JSONEncoder().encode(device))
-        #expect(roundTrip.modelName == "MacBookPro18,1")
-        #expect(device.withCached(true).modelName == "MacBookPro18,1")
-        #expect(device.withModelName("X").modelName == "X")
+        #expect(roundTrip.identity == identity)
+        #expect(device.withCached(true).identity == identity)
     }
 
     @Test("A Bonjour model wins over an SSDP modelName, in either order")
@@ -96,7 +109,8 @@ struct DiscoveredDeviceModelTests {
         func device(_ source: DeviceSource, _ model: String?) -> DiscoveredDevice {
             DiscoveredDevice(
                 ipAddress: "192.0.2.8", hostname: nil, vendor: nil, macAddress: nil,
-                latency: nil, discoveredAt: Date(), source: source, modelName: model
+                latency: nil, discoveredAt: Date(), source: source,
+                identity: DeviceIdentity(model: IdentityValue(model, source: source == .bonjour ? .bonjour : .upnp))
             )
         }
         let ssdpFirst = ScanAccumulator()
@@ -126,11 +140,12 @@ struct DiscoveredDeviceModelTests {
         ))
         await accumulator.upsert(DiscoveredDevice(
             ipAddress: "192.0.2.7", hostname: "Living Room", vendor: nil, macAddress: nil,
-            latency: nil, discoveredAt: Date(), source: .bonjour, modelName: "AppleTV14,1"
+            latency: nil, discoveredAt: Date(), source: .bonjour,
+            identity: DeviceIdentity(model: IdentityValue("AppleTV14,1", source: .bonjour))
         ))
         await accumulator.setLatency(ip: "192.0.2.7", value: 3, source: .icmp)
         let device = await accumulator.snapshot().first
-        #expect(device?.modelName == "AppleTV14,1")
+        #expect(device?.identity.model == IdentityValue("AppleTV14,1", source: .bonjour))
         #expect(device?.hostname == "Living Room")
     }
 }
@@ -206,11 +221,11 @@ struct BonjourScanPhaseModelTests {
         await phase.execute(context: context, accumulator: accumulator) { _ in }
 
         let byIP = await Dictionary(uniqueKeysWithValues: accumulator.snapshot().map { ($0.ipAddress, $0) })
-        #expect(byIP["192.0.2.30"]?.vendor == "Sonos")
-        #expect(byIP["192.0.2.31"]?.vendor == "Apple")
-        #expect(byIP["192.0.2.32"]?.vendor == nil, "AirPlay alone doesn't mean Apple")
+        #expect(byIP["192.0.2.30"]?.identity.maker == IdentityValue("Sonos", source: .bonjour))
+        #expect(byIP["192.0.2.31"]?.manufacturer == "Apple")
+        #expect(byIP["192.0.2.32"]?.manufacturer == nil, "AirPlay alone doesn't mean Apple")
         #expect(byIP["192.0.2.33"]?.modelName == "Mac16,11")
-        #expect(byIP["192.0.2.33"]?.vendor == "Apple", "A model from the _device-info query also names the vendor")
+        #expect(byIP["192.0.2.33"]?.manufacturer == "Apple", "A model from the _device-info query also names the maker")
     }
 
     @Test("Apple model identifiers", arguments: [

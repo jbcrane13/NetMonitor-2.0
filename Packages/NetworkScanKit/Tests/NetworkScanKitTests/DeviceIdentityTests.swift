@@ -127,7 +127,8 @@ struct HostnameIdentityPhaseTests {
     private func device(hostname: String?, vendor: String? = nil, model: String? = nil) -> DiscoveredDevice {
         DiscoveredDevice(
             ipAddress: "192.168.2.2", hostname: hostname, vendor: vendor, macAddress: nil,
-            latency: nil, discoveredAt: Date(), source: .local, modelName: model
+            latency: nil, discoveredAt: Date(), source: .local,
+            identity: DeviceIdentity(model: IdentityValue(model, source: .upnp))
         )
     }
 
@@ -138,8 +139,9 @@ struct HostnameIdentityPhaseTests {
         let context = ScanContext(hosts: [], subnetFilter: { _ in true }, localIP: nil)
         await HostnameIdentityPhase().execute(context: context, accumulator: accumulator) { _ in }
         let result = await accumulator.snapshot().first
-        #expect(result?.vendor == "Ubiquiti")
-        #expect(result?.modelName == "UniFi Pro Max 16 Switch")
+        #expect(result?.vendor == nil) // `vendor` is the MAC-prefix maker only
+        #expect(result?.identity.maker == IdentityValue("Ubiquiti", source: .hostnameGuess))
+        #expect(result?.identity.model == IdentityValue("UniFi Pro Max 16 Switch", source: .hostnameGuess))
     }
 
     @Test("Never replaces a maker or model from a better source")
@@ -148,7 +150,7 @@ struct HostnameIdentityPhaseTests {
         #expect(HostnameIdentityPhase.update(for: device(hostname: "unifi-switch-24", vendor: "Ubiquiti Inc", model: "USW24")) == nil)
         // An agreeing MAC-prefix maker stays, and the model is filled.
         let update = HostnameIdentityPhase.update(for: device(hostname: "unifi-pro-max-16-switch", vendor: "Ubiquiti Inc"))
-        #expect(update?.vendor == nil)
+        #expect(update?.manufacturer == nil)
         #expect(update?.modelName == "UniFi Pro Max 16 Switch")
         // A maker that disagrees with the hostname blocks the hostname's model.
         #expect(HostnameIdentityPhase.update(for: device(hostname: "unifi-pro-max-16-switch", vendor: "Raspberry Pi")) == nil)
@@ -158,10 +160,11 @@ struct HostnameIdentityPhaseTests {
     func friendlyName() {
         let named = DiscoveredDevice(
             ipAddress: "192.168.2.163", hostname: "Hallway", vendor: nil, macAddress: nil, latency: nil,
-            discoveredAt: Date(), source: .ssdp, friendlyName: "Aqara-Hub-M3-8548"
+            discoveredAt: Date(), source: .ssdp,
+            identity: DeviceIdentity(friendlyName: IdentityValue("Aqara-Hub-M3-8548", source: .upnp))
         )
         let update = HostnameIdentityPhase.update(for: named)
-        #expect(update?.vendor == "Aqara")
+        #expect(update?.manufacturer == "Aqara")
         #expect(update?.modelName == "Hub M3")
     }
 
@@ -174,7 +177,7 @@ struct HostnameIdentityPhaseTests {
         let phase = HostnameIdentityPhase(lookUpName: { ip in ip == "192.168.2.2" ? "u7-pro.lan.windingbrook.net" : nil })
         await phase.execute(context: context, accumulator: accumulator) { _ in }
         let result = await accumulator.snapshot().first
-        #expect(result?.vendor == "Ubiquiti")
+        #expect(result?.manufacturer == "Ubiquiti")
         #expect(result?.modelName == "U7 Pro")
         // The device keeps the name it already had.
         #expect(result?.hostname == "12A9007389F1@Living room")
@@ -193,6 +196,23 @@ struct HostnameIdentityPhaseTests {
         await phase.execute(context: context, accumulator: accumulator) { _ in }
         #expect(await lookups.calls == 0)
         #expect(await accumulator.snapshot().first?.vendor == "Apple")
+    }
+
+    @Test("Looks a name up for a device whose maker and model are empty strings")
+    func lookupWhenEmpty() async {
+        let accumulator = ScanAccumulator()
+        // Only the non-failable init can build an empty value; no scan step does today.
+        await accumulator.upsert(DiscoveredDevice(
+            ipAddress: "192.168.2.2", hostname: "Living room", vendor: "", macAddress: nil,
+            latency: nil, discoveredAt: Date(), source: .local,
+            identity: DeviceIdentity(maker: IdentityValue("", source: nil), model: IdentityValue("", source: nil))
+        ))
+        let context = ScanContext(hosts: [], subnetFilter: { _ in true }, localIP: nil)
+        let phase = HostnameIdentityPhase(lookUpName: { _ in "u7-pro.lan.windingbrook.net" })
+        await phase.execute(context: context, accumulator: accumulator) { _ in }
+        let result = await accumulator.snapshot().first
+        #expect(result?.manufacturer == "Ubiquiti")
+        #expect(result?.modelName == "U7 Pro")
     }
 }
 
@@ -271,8 +291,9 @@ struct UbiquitiDiscoveryTests {
         await phase.execute(context: context, accumulator: accumulator) { _ in }
         let devices = await accumulator.snapshot()
         #expect(devices.count == 1)
-        #expect(devices.first?.vendor == "Ubiquiti")
-        #expect(devices.first?.modelName == "UCGMAX")
+        #expect(devices.first?.vendor == nil)
+        #expect(devices.first?.identity.maker == IdentityValue("Ubiquiti", source: .unifi))
+        #expect(devices.first?.identity.model == IdentityValue("UCGMAX", source: .unifi))
         #expect(devices.first?.friendlyName == "Montrose-Cloud-Gateway-Max")
     }
 
