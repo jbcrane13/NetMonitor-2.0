@@ -250,7 +250,7 @@ final class DeviceDiscoveryCoordinator {
             current: networkProfile
         )
         let counts = reason.countsTowardReviewPrompt
-        let name = String(describing: reason)
+        let name = reason.logLabel
         switch decision {
         case .ignore:
             let why = isScanning ? "a scan is already running" : "no local network"

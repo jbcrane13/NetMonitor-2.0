@@ -10,6 +10,19 @@ enum ScanReason {
     /// A scan the user asked for, of `network` or, with nil, the coordinator's current network.
     case user(NetworkProfile?)
 
+    /// The reason without its network, for logs: a profile holds IPs and the gateway, which
+    /// must not reach the log unredacted.
+    var logLabel: String {
+        switch self {
+        case .launch: "launch"
+        case .networkChanged: "networkChanged"
+        case .periodic: "periodic"
+        case .menuBar: "menuBar"
+        case .companion: "companion"
+        case .user: "user"
+        }
+    }
+
     /// Only scans the user started count toward the review prompt (#337).
     var countsTowardReviewPrompt: Bool {
         if case .user = self {

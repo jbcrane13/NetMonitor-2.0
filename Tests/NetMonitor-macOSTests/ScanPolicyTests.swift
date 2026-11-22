@@ -174,3 +174,19 @@ struct ScanPolicyCoordinatorTests {
         #expect(coordinator.networkProfile?.id == localID)
     }
 }
+
+/// #484: logs name the reason, never the network profile.
+struct ScanReasonLogLabelTests {
+    @Test func labelsCarryNoNetworkDetails() {
+        let profile = NetworkProfile(
+            interfaceName: "en0", ipAddress: "192.168.1.10",
+            network: NetworkUtilities.IPv4Network(
+                networkAddress: 0xC0A80100, broadcastAddress: 0xC0A801FF, interfaceAddress: 0xC0A8010A, netmask: 0xFFFFFF00
+            ),
+            connectionType: .wifi, name: "Home", gatewayIP: "192.168.1.1", subnet: "192.168.1.0/24",
+            isLocal: true, discoveryMethod: .auto
+        )
+        #expect(ScanReason.user(profile).logLabel == "user")
+        #expect(ScanReason.periodic.logLabel == "periodic")
+    }
+}
