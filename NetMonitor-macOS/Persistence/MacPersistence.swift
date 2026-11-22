@@ -10,7 +10,7 @@ enum MacPersistence {
     ///   - storeURL: The store file; nil uses SwiftData's default location.
     ///   - inMemory: Use an in-memory primary store (tests).
     static func makeOutcome(storeURL: URL?, inMemory: Bool) throws -> PersistenceBootstrapOutcome<ModelContainer> {
-        let schema = Schema(versionedSchema: SchemaV2.self)
+        let schema = Schema(versionedSchema: SchemaV3.self)
         let configuration = if let storeURL, !inMemory {
             ModelConfiguration(schema: schema, url: storeURL, cloudKitDatabase: .none)
         } else {

@@ -15,7 +15,6 @@ public extension ScanPhaseID {
 /// device without a MAC only adopts a private one when the names match, so recording it
 /// could split a nameless device.
 ///
-/// It writes `manufacturer`, not `vendor`, so on the Mac it only fills an empty maker.
 public struct UniFiInventoryPhase: ScanPhase, Sendable {
     public let id: ScanPhaseID = .unifiInventory
     public let displayName = "Reading UniFi devices…"
@@ -60,35 +59,39 @@ public struct UniFiInventoryPhase: ScanPhase, Sendable {
         await onProgress(1.0)
     }
 
+    /// Ranks (ADR-022, #462): the controller's model, a UniFi device's maker and the console's
+    /// client name rank as UniFi; the maker from a client's MAC is a MAC-prefix maker (`vendor`);
+    /// a maker or model parsed from UniFi's fingerprint name ("Meross Smart Bulb") is a guess.
     func update(for entry: UniFiInventoryEntry) async -> DiscoveredDevice? {
-        var maker: String?
-        var model = entry.model
-        if entry.isUniFiDevice {
-            maker = "Ubiquiti"
-        } else if let mac = entry.macAddress, !mac.isEmpty, !MACAddress.isPrivate(mac) {
-            maker = await vendorForMAC(mac)
-        }
-        // UniFi names clients from fingerprints ("Meross Smart Bulb", "Aqara Hub M3").
-        if let name = entry.name, let identity = HostnameIdentity.parse(hostname: name) {
-            let fill = identity.fills(knownMaker: maker, knownModel: model)
-            maker = maker ?? fill.maker
-            model = model ?? fill.model
-        }
         let publicMAC = entry.macAddress.flatMap { mac in
             DeviceMatcher.normalizedMAC(mac).flatMap { MACAddress.isPrivate($0) ? nil : $0 }
         }
-        guard maker != nil || model != nil || entry.name != nil || publicMAC != nil else { return nil }
+        var identity = DeviceIdentity(
+            maker: entry.isUniFiDevice ? IdentityValue("Ubiquiti", source: .unifi) : nil,
+            model: IdentityValue(entry.model, source: .unifi),
+            friendlyName: IdentityValue(entry.name, source: .unifi)
+        )
+        var macPrefixMaker: String?
+        if !entry.isUniFiDevice, let publicMAC {
+            macPrefixMaker = await vendorForMAC(publicMAC)
+        }
+        if let name = entry.name, let guess = HostnameIdentity.parse(hostname: name) {
+            let fill = guess.fills(knownMaker: identity.resolvedMaker(macPrefixMaker: macPrefixMaker), knownModel: identity.model?.value)
+            identity = identity.merging(DeviceIdentity(
+                maker: IdentityValue(fill.maker, source: .hostnameGuess),
+                model: IdentityValue(fill.model, source: .hostnameGuess)
+            ))
+        }
+        guard identity != DeviceIdentity() || macPrefixMaker != nil || publicMAC != nil else { return nil }
         return DiscoveredDevice(
             ipAddress: entry.ipAddress,
             hostname: nil,
-            vendor: nil,
+            vendor: macPrefixMaker,
             macAddress: publicMAC,
             latency: nil,
             discoveredAt: Date(),
             source: .local,
-            friendlyName: entry.name,
-            manufacturer: maker,
-            modelName: model
+            identity: identity
         )
     }
 }

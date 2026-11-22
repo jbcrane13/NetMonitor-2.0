@@ -90,9 +90,7 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
             source: device.source,
             networkProfileID: profileID,
             isCached: keepCached && device.isCached,
-            friendlyName: device.friendlyName,
-            manufacturer: device.manufacturer,
-            modelName: device.modelName
+            identity: device.identity
         )
     }
 
@@ -245,7 +243,7 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
         }
         guard !Task.isCancelled else { return }
         await mergeCompanionDevices(filter: scanTarget.filter, profileID: profileID)
-        await identifyDevices(context: context, nameResolver: nameResolver)
+        await identifyDevices(context: context)
         await flushToMainActor(progress: 0.95, profileID: profileID)
 
         // Final sort and flush
@@ -258,12 +256,13 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
         scanPhase = .done
     }
 
-    /// Fills makers and models after every scan and companion source: the enrolled UniFi
-    /// controller's list, then guesses from names, last so better makers win over them (#439).
-    private func identifyDevices(context: ScanContext, nameResolver: GatewayNameResolver) async {
+    /// Identity for the devices and names the Mac companion added after the pipeline: the
+    /// enrolled UniFi controller's list and guesses from names. Values are ranked (ADR-022),
+    /// so running after the companion changes no precedence; the pipeline's own hostname step
+    /// already asked DNS, so this one reads names only.
+    private func identifyDevices(context: ScanContext) async {
         await UniFiInventoryPhase().execute(context: context, accumulator: engine.accumulator) { _ in }
-        await HostnameIdentityPhase(lookUpName: { await nameResolver.resolve(ipAddress: $0) })
-            .execute(context: context, accumulator: engine.accumulator) { _ in }
+        await HostnameIdentityPhase().execute(context: context, accumulator: engine.accumulator) { _ in }
     }
 
     /// The standard pipeline, fed by this scan's Bonjour browser.
@@ -279,7 +278,8 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
             bonjourStopProvider: {
                 await MainActor.run { bonjourService.stopDiscovery() }
             },
-            nameResolver: { await nameResolver.resolve(ipAddress: $0) }
+            nameResolver: { await nameResolver.resolve(ipAddress: $0) },
+            identityLookUpName: { await nameResolver.resolve(ipAddress: $0) }
         )
     }
 

@@ -39,14 +39,16 @@ public struct UbiquitiDiscoveryPhase: ScanPhase, Sendable {
             await accumulator.upsert(DiscoveredDevice(
                 ipAddress: ip,
                 hostname: nil,
-                vendor: maker,
+                vendor: nil,
                 macAddress: nil,
                 latency: nil,
                 discoveredAt: Date(),
                 source: .local,
-                friendlyName: info.name,
-                manufacturer: maker,
-                modelName: info.model
+                identity: DeviceIdentity(
+                    maker: IdentityValue(maker, source: .unifi),
+                    model: IdentityValue(info.model, source: .unifi),
+                    friendlyName: IdentityValue(info.name, source: .unifi)
+                )
             ))
         }
         await onProgress(1.0)

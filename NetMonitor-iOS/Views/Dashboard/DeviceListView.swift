@@ -228,7 +228,7 @@ struct DeviceListView: View {
 
     /// "Ubiquiti · U7 Pro": the maker, with the model when known.
     private func makerLabel(_ device: DiscoveredDevice) -> String? {
-        MACAddress.makerLabel(vendor: device.vendorOrManufacturer, macAddress: device.macAddress, model: device.modelName)
+        MACAddress.makerLabel(vendor: device.maker, macAddress: device.macAddress, model: device.modelName)
     }
 
     private func latencyColor(_ latency: Double?) -> Color {
