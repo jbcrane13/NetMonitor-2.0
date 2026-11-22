@@ -61,3 +61,13 @@ Project-specific notes for agents. Global lessons live in `~/.claude/lessons-lea
 - **`ITSAppUsesNonExemptEncryption` is no longer in the built Info.plists** (ADR-012 says it should be), so each upload lands without an export-compliance answer. Set `usesNonExemptEncryption = false` on the new build through the App Store Connect API after processing (Blake's standing answer), or testers see "Missing Compliance".
 - **iOS build numbers are only unique per marketing version.** App Store Connect already holds iOS builds 18 and 19 from February (version 1.0/2.0, highest is 48 under 2.0), and 2.2.2's 18 and 19 were still accepted. Filter build queries by `filter[preReleaseVersion.version]` so a status check or compliance PATCH doesn't hit the old build with the same number.
 - **The ASC API key is reachable without 1Password:** `KEY_ID`/`ISSUER_ID` in `~/.hermes/.env` and the `.p8` in `~/.appstoreconnect/private_keys`. The `ISSUER_ID` value carries a stray trailing character, so take the UUID with a regex, or the API returns 401.
+
+## 2026-11-22 — On-device model "Explain this result" (#448)
+
+- **The system language model restates facts but does not judge them.** Given a certificate with 8 days left it said "valid" and never mentioned the expiry. Compute the judgement in the app (`ToolInsightBuilder` observations) and let the model only word it; that also makes the prompt builder the place to test correctness.
+- **It still miscounts and adds conclusions.** "Four ports, with two open" for three open ports, and "may be accessible from outside" from a LAN scan. Put counts in the facts ("Open ports (3): …") and forbid guessing at causes in the instructions.
+- **Default guardrails did not refuse port scan, telnet, certificate or security-ranking prompts** on macOS 27.2 (spike on #448). Context is 8192 tokens, so cap every list.
+- **Reset state by identity, not `onChange` inside an `if`.** A card that hides while a tool reruns never sees the old→new change, so its explanation stayed under the new result. `ToolInsightState.phase(for:)` shows text only for the request it explained.
+- **The pre-commit hook rejects a staged file for SwiftFormat findings that were already there** (#264), so touching an old file can force reformatting it in the same commit.
+- **Two `swift build`s resolving Sentry at once can corrupt a scratch path** ("no Info.plist found … Sentry.xcframework"). Use a fresh `--scratch-path`.
+- **mini-pro-1 has no "iPhone 17 Pro" simulator on Xcode 27.2;** the documented test destination fails with "Unable to find a device". Pass `id=` for an installed simulator.
