@@ -440,7 +440,9 @@ The `.prefix(while:)` trims the null terminator; `.map { UInt8(bitPattern:) }` r
 - The V2 → V3 migration keeps a `vendor` that names the same company as the MAC prefix ("Apple" for "Apple, Inc."). A maker it displaces moves into an empty `manufacturer` with no source, so a device without a readable MAC keeps a maker. iOS has no rebuild: its store gains the optional attributes by lightweight migration.
 - `HostnameIdentityPhase` is the last step of `ScanPipeline.standard`. Its DNS lookup is opt-in (`identityLookUpName`): iOS opts in and macOS reads names only, as before. iOS also runs the UniFi inventory and a names-only hostname step after the Mac companion merge, for the devices and names the companion adds.
 - Until #427, the companion feed sends the shown maker in its `vendor` field, as 2.2.x did, and iOS ranks it as a MAC-prefix maker.
-- A hostname guess ranks below the MAC prefix even when the MAC prefix names a chip maker. A Lutron bridge with a Texas Instruments chip shows Texas Instruments once the UniFi controller supplies its MAC, unless the bridge announces itself.
+- **Amended 2026-11-22 (Blake):** a MAC prefix registered to a network-chip maker (Espressif, Texas Instruments, Murata, Realtek and similar; `DeviceIdentity.chipMakers`) names the chip, not the device. Any other maker beats it, even a hostname guess, and a guess may name such a device (`knownMakerForGuessing`). A Lutron bridge with a Texas Instruments chip shows Lutron. Every other MAC prefix still outranks a guess.
+- The device match compares the hostname, else the friendly name, because friendly names no longer go into `hostname`.
+- iOS device detail finds its saved row by device match among the rows of the device's network (#463). A row saved before that is adopted by the first network that opens it.
 
 ---
 
