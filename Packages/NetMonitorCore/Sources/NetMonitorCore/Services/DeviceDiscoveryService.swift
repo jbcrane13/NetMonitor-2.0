@@ -278,7 +278,8 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
             bonjourStopProvider: {
                 await MainActor.run { bonjourService.stopDiscovery() }
             },
-            nameResolver: { await nameResolver.resolve(ipAddress: $0) }
+            nameResolver: { await nameResolver.resolve(ipAddress: $0) },
+            identityLookUpName: { await nameResolver.resolve(ipAddress: $0) }
         )
     }
 

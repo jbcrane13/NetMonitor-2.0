@@ -41,6 +41,8 @@ public struct ScanPipeline: Sendable {
     ///     construct one with a non-default `probeCount`.
     ///   - nameResolver: Replaces the system PTR lookup in reverse DNS, e.g. with one that
     ///     also asks the gateway.
+    ///   - identityLookUpName: Lets the hostname step ask DNS for a device whose own names
+    ///     don't identify it. Nil (the default) reads the names the scan found only.
     ///   - trailingSteps: Additional steps appended after reverse DNS. Callers that need
     ///     platform-specific enrichment append steps here instead of rebuilding the
     ///     pipeline by hand.
@@ -49,6 +51,7 @@ public struct ScanPipeline: Sendable {
         bonjourStopProvider: (@Sendable () async -> Void)? = nil,
         latencyPhase: any ScanPhase = ICMPLatencyPhase(),
         nameResolver: (@Sendable (_ ipAddress: String) async -> String?)? = nil,
+        identityLookUpName: (@Sendable (_ ipAddress: String) async -> String?)? = nil,
         trailingSteps: [Step] = []
     ) -> ScanPipeline {
         ScanPipeline(steps: [
@@ -64,7 +67,7 @@ public struct ScanPipeline: Sendable {
             Step(phases: [ARPRecheckPhase()], concurrent: false),
             Step(phases: [ReverseDNSScanPhase(resolve: nameResolver)], concurrent: false),
         ] + trailingSteps + [
-            Step(phases: [HostnameIdentityPhase(lookUpName: nameResolver)], concurrent: false),
+            Step(phases: [HostnameIdentityPhase(lookUpName: identityLookUpName)], concurrent: false),
         ])
     }
 }
