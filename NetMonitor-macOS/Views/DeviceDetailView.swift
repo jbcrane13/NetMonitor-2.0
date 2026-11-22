@@ -525,8 +525,9 @@ struct DeviceDetailView: View {
                 host: device.ipAddress,
                 port: nil,
                 targetProtocol: .icmp,
-                checkInterval: 30,
-                timeout: 10,
+                // Settings › Monitoring › Timing, like Add Target (#445).
+                checkInterval: TargetDefaults.interval(),
+                timeout: TargetDefaults.timeout(),
                 isEnabled: true
             )
             modelContext.insert(target)

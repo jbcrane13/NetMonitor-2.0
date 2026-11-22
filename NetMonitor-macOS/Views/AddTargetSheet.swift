@@ -11,8 +11,9 @@ struct AddTargetSheet: View {
     @State private var host: String = ""
     @State private var port: String = ""
     @State private var selectedProtocol: TargetProtocol = .https
-    @State private var checkInterval: Double = 5.0
-    @State private var timeout: Double = 3.0
+    // New targets start from Settings › Monitoring › Timing (#445).
+    @State private var checkInterval: Double = TargetDefaults.interval()
+    @State private var timeout: Double = TargetDefaults.timeout()
 
     var body: some View {
         NavigationStack {

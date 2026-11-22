@@ -13,8 +13,8 @@ struct NotificationSettingsView: View {
     // Same keys and defaults as NotificationService, so these toggles control the alerts (#403).
     @AppStorage(NotificationService.targetDownAlertKey) private var notifyTargetDown = true
     @AppStorage(NotificationService.newDeviceAlertKey) private var notifyNewDevice = true
-    @AppStorage("netmonitor.notifications.targetRecovery") private var notifyTargetRecovery = true
-    @AppStorage("netmonitor.notifications.latencyThreshold") private var latencyThreshold = 500.0
+    @AppStorage(NotificationService.targetRecoveryAlertKey) private var notifyTargetRecovery = true
+    @AppStorage(MacAlertNotifier.latencyThresholdKey) private var latencyThreshold = MacAlertNotifier.defaultLatencyThreshold
 
     var body: some View {
         Form {
@@ -51,7 +51,7 @@ struct NotificationSettingsView: View {
                     .disabled(!notificationsEnabled)
                     .accessibilityIdentifier("settings_slider_latencyThreshold")
 
-                    Text("Alert when latency exceeds this value")
+                    Text("Alert when a monitored target's latency rises above this value")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

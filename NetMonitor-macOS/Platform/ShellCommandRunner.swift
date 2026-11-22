@@ -165,42 +165,13 @@ actor ShellCommandRunner {
 
                 self.setCurrentProcess(process)
 
-                // Set up line-by-line reading
-                let fileHandle = stdoutPipe.fileHandleForReading
-
-                // Read stdout asynchronously
-                fileHandle.readabilityHandler = { handle in
-                    let data = handle.availableData
-                    if data.isEmpty {
-                        return
-                    }
-
-                    if let string = String(data: data, encoding: .utf8) {
-                        // Split into lines and yield each
-                        let lines = string.components(separatedBy: .newlines)
-                        for line in lines where !line.isEmpty {
-                            continuation.yield(line)
-                        }
-                    }
-                }
-
-                // Handle process termination
-                process.terminationHandler = { [weak self] proc in
-                    fileHandle.readabilityHandler = nil
-
-                    Task {
-                        await self?.clearCurrentProcess()
-                        let wasCancelled = await self?.isCancelled ?? false
-
-                        if wasCancelled {
-                            continuation.finish(throwing: ToolError.cancelled)
-                        } else if proc.terminationStatus != 0 {
-                            let stderr = String(data: stderrPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-                            continuation.finish(throwing: ToolError.executionFailed(exitCode: proc.terminationStatus, stderr: stderr))
-                        } else {
-                            continuation.finish()
-                        }
-                    }
+                // One reader yields whole lines in order until end of file, then the exit
+                // status decides how the stream ends. Reading in the termination handler lost
+                // output written just before exit and could reorder lines (#474).
+                let (exits, exitContinuation) = AsyncStream<Int32>.makeStream()
+                process.terminationHandler = { proc in
+                    exitContinuation.yield(proc.terminationStatus)
+                    exitContinuation.finish()
                 }
 
                 do {
@@ -208,6 +179,29 @@ actor ShellCommandRunner {
                 } catch {
                     self.clearCurrentProcess()
                     continuation.finish(throwing: ToolError.executionFailed(exitCode: -1, stderr: error.localizedDescription))
+                    return
+                }
+
+                do {
+                    for try await line in stdoutPipe.fileHandleForReading.bytes.lines where !line.isEmpty {
+                        continuation.yield(line)
+                    }
+                } catch {
+                    // A read error ends the output; the exit status still decides the result.
+                }
+                var status: Int32 = -1
+                for await exitStatus in exits {
+                    status = exitStatus
+                }
+
+                self.clearCurrentProcess()
+                if self.isCancelled {
+                    continuation.finish(throwing: ToolError.cancelled)
+                } else if status != 0 {
+                    let stderr = String(data: stderrPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+                    continuation.finish(throwing: ToolError.executionFailed(exitCode: status, stderr: stderr))
+                } else {
+                    continuation.finish()
                 }
             }
         }

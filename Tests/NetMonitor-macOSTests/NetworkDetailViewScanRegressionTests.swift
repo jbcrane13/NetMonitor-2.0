@@ -378,8 +378,12 @@ struct NetworkDetailViewScanRegressionTests {
         coordinator.scanNetwork(makeProfile())
         #expect(coordinator.isScanning == true)
 
-        // Give scan task time to advance past the 0.1 progress checkpoint
-        try await Task.sleep(for: .milliseconds(300))
+        // Wait for the fixture's 0.1 progress report. A fixed 300 ms sleep failed on a busy
+        // mini-pro-1 (#472); the deadline only bounds a real failure.
+        let deadline = ContinuousClock.now + .seconds(10)
+        while coordinator.scanProgress == 0.0, ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(20))
+        }
         #expect(coordinator.scanProgress > 0.0,
                 "scanProgress must advance — the UI ProgressView depends on this value")
 
