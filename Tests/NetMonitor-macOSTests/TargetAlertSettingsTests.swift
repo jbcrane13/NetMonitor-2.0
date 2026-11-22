@@ -16,9 +16,12 @@ private final class RecordingPoster: NotificationRequestPosting {
 struct TargetAlertSettingsTests {
     private let targetID = UUID()
 
-    private func makeDefaults() -> UserDefaults {
+    /// A fresh suite per test, never `.standard` (which would leak settings between tests).
+    private func makeDefaults() throws -> UserDefaults {
         let suite = "TargetAlertSettingsTests.\(UUID().uuidString)"
-        return UserDefaults(suiteName: suite) ?? .standard
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        return defaults
     }
 
     private func check(reachable: Bool = true, latency: Double?, wentDown: Bool = false, cameUp: Bool = false) -> TargetCheckOutcome {
@@ -29,8 +32,8 @@ struct TargetAlertSettingsTests {
     }
 
     @Test("A target that comes back up alerts, unless recovery alerts are off")
-    func recovery() {
-        let defaults = makeDefaults()
+    func recovery() throws {
+        let defaults = try makeDefaults()
         let poster = RecordingPoster()
         let alerts = MacAlertNotifier(service: NotificationService(poster: poster, defaults: defaults), defaults: defaults)
 
@@ -43,8 +46,8 @@ struct TargetAlertSettingsTests {
     }
 
     @Test("Latency above the threshold alerts once per crossing")
-    func latencyCrossing() {
-        let defaults = makeDefaults()
+    func latencyCrossing() throws {
+        let defaults = try makeDefaults()
         defaults.set(200.0, forKey: MacAlertNotifier.latencyThresholdKey)
         let poster = RecordingPoster()
         let alerts = MacAlertNotifier(service: NotificationService(poster: poster, defaults: defaults), defaults: defaults)
@@ -59,8 +62,8 @@ struct TargetAlertSettingsTests {
     }
 
     @Test("The default threshold is 500 ms, and the master switch silences both alerts")
-    func defaultsAndMasterSwitch() {
-        let defaults = makeDefaults()
+    func defaultsAndMasterSwitch() throws {
+        let defaults = try makeDefaults()
         let poster = RecordingPoster()
         let alerts = MacAlertNotifier(service: NotificationService(poster: poster, defaults: defaults), defaults: defaults)
         alerts.targetChecked(check(latency: 450))
@@ -72,7 +75,7 @@ struct TargetAlertSettingsTests {
     }
 
     @Test("Rule alerts' category is registered with the others")
-    func ruleCategoryRegistered() {
+    func ruleCategoryRegistered() throws {
         #expect(NotificationService.categoryIdentifiers.contains(NotificationService.ruleMatchCategory))
         #expect(Set(NotificationService.categoryIdentifiers).count == NotificationService.categoryIdentifiers.count)
         // Nothing opens a target or rule from a notification yet, so the new ones offer Dismiss only.
@@ -81,8 +84,8 @@ struct TargetAlertSettingsTests {
     }
 
     @Test("New targets start from the Monitoring settings' interval and timeout")
-    func targetDefaults() {
-        let defaults = makeDefaults()
+    func targetDefaults() throws {
+        let defaults = try makeDefaults()
         #expect(TargetDefaults.interval(in: defaults) == 30)
         #expect(TargetDefaults.timeout(in: defaults) == 5)
         defaults.set(10, forKey: TargetDefaults.intervalKey)
