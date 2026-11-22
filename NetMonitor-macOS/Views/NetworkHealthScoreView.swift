@@ -62,6 +62,7 @@ struct NetworkHealthScoreView: View {
                         }
                     }
                 }
+                ToolInsightStrip(screen: "healthScore", request: ToolInsightBuilder.healthScore(score), isInset: false)
             } else {
                 Text("Click refresh to calculate")
                     .font(.caption)

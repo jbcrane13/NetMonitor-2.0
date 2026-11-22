@@ -517,3 +517,23 @@ public protocol UPnPPortMappingServiceProtocol: Sendable {
     /// The report for the LAN on `interface`, or nil when that interface has no IPv4 network.
     func readPortMappings(interface: String) async -> UPnPPortMappingReport?
 }
+
+/// One step of an explanation from the on-device language model (#448).
+public enum InsightUpdate: Sendable, Equatable {
+    /// The explanation so far.
+    case partial(String)
+    /// The complete explanation.
+    case finished(String)
+    /// The model refused, was interrupted, or stopped being available.
+    case failed
+}
+
+/// Explains measured results in plain language with the on-device language model (#448).
+/// The only way the apps reach the model.
+public protocol InsightServiceProtocol: Sendable {
+    /// Whether the model can be used now. False on systems before iOS 27 / macOS 27, on
+    /// ineligible devices, with Apple Intelligence off, and while the model downloads.
+    var isAvailable: Bool { get }
+    /// Streams an explanation of `request`, ending with `.finished` or `.failed`.
+    func explain(_ request: InsightRequest) -> AsyncStream<InsightUpdate>
+}

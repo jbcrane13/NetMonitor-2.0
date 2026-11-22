@@ -18,6 +18,7 @@ struct PortScannerToolView: View {
                 controlSection
                 progressSection
                 resultsSection
+                ToolInsightCard(screen: "portScanner", request: viewModel.insightRequest)
             }
             .padding(.horizontal, Theme.Layout.screenPadding)
             .padding(.bottom, Theme.Layout.sectionSpacing)

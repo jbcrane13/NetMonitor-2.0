@@ -30,6 +30,12 @@ final class SSLCertificateMonitorViewModel {
 
     // MARK: - Computed
 
+    /// What the "Explain" card explains: the finished result on screen (#448).
+    var insightRequest: InsightRequest? {
+        guard !isLoading, let certificate = currentResult?.sslCertificate else { return nil }
+        return ToolInsightBuilder.sslCertificate(certificate)
+    }
+
     var canQuery: Bool {
         !domain.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }

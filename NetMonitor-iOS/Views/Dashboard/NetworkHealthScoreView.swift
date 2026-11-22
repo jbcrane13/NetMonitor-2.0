@@ -61,6 +61,8 @@ struct NetworkHealthScoreView: View {
                     emptyState
                 }
 
+                ToolInsightCard(screen: "healthScore", request: viewModel.insightRequest, isEmbedded: true)
+
                 if let updated = viewModel.lastUpdated {
                     Text("Updated \(updated, style: .relative) ago")
                         .font(.caption2)

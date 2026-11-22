@@ -22,6 +22,7 @@ struct TracerouteToolView: View {
             outputArea: { outputArea },
             footerContent: { footer }
         )
+        .explaining(insightRequest, screen: "traceroute")
         .onAppear {
             if host.isEmpty && !lastUsedTarget.isEmpty {
                 host = lastUsedTarget
@@ -131,6 +132,12 @@ struct TracerouteToolView: View {
         }
         .padding(.vertical, 2)
         .accessibilityIdentifier("traceroute_row_\(hop.hopNumber)")
+    }
+
+    /// What the "Explain" strip explains: the finished result on screen (#448).
+    private var insightRequest: InsightRequest? {
+        guard !isRunning, !hops.isEmpty else { return nil }
+        return ToolInsightBuilder.traceroute(host: lastUsedTarget, hops: hops)
     }
 
     private var footer: some View {

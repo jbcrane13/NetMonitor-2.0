@@ -29,6 +29,7 @@ struct DNSLookupToolView: View {
             outputArea: { outputArea },
             footerContent: { footer }
         )
+        .explaining(insightRequest, screen: "dns")
         .onAppear {
             if hostname.isEmpty && !lastUsedTarget.isEmpty {
                 hostname = lastUsedTarget
@@ -134,6 +135,12 @@ struct DNSLookupToolView: View {
         case .https:
             return "lock.shield"
         }
+    }
+
+    /// What the "Explain" strip explains: the finished result on screen (#448).
+    private var insightRequest: InsightRequest? {
+        guard !isRunning, !results.isEmpty else { return nil }
+        return ToolInsightBuilder.dnsAnswers(domain: lastUsedTarget, recordType: recordType, answers: results)
     }
 
     // MARK: - Footer

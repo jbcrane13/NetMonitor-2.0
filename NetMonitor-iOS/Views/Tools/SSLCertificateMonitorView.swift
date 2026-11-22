@@ -12,6 +12,7 @@ struct SSLCertificateMonitorView: View {
                 modePicker
                 if selectedTab == 0 {
                     querySection
+                    ToolInsightCard(screen: "sslMonitor", request: viewModel.insightRequest)
                 } else {
                     watchListSection
                 }
@@ -364,8 +365,12 @@ struct SSLCertificateMonitorView: View {
     }
 
     private func expiryColor(days: Int) -> Color {
-        if days <= 7 { return Theme.Colors.error }
-        if days <= 30 { return Theme.Colors.warning }
+        if days <= 7 {
+            return Theme.Colors.error
+        }
+        if days <= 30 {
+            return Theme.Colors.warning
+        }
         return Theme.Colors.success
     }
 }
@@ -420,15 +425,23 @@ private struct WatchListRow: View {
 
     private var sslIcon: String {
         guard let days = status.sslDaysUntilExpiration else { return "questionmark.circle" }
-        if days <= 7 { return "xmark.shield" }
-        if days <= 30 { return "exclamationmark.shield" }
+        if days <= 7 {
+            return "xmark.shield"
+        }
+        if days <= 30 {
+            return "exclamationmark.shield"
+        }
         return "checkmark.shield"
     }
 
     private var sslColor: Color {
         guard let days = status.sslDaysUntilExpiration else { return .gray }
-        if days <= 7 { return Theme.Colors.error }
-        if days <= 30 { return Theme.Colors.warning }
+        if days <= 7 {
+            return Theme.Colors.error
+        }
+        if days <= 30 {
+            return Theme.Colors.warning
+        }
         return Theme.Colors.success
     }
 

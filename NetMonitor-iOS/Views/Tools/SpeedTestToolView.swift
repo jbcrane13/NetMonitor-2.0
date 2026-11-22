@@ -37,6 +37,7 @@ struct SpeedTestToolView: View {
                 gaugeSection
                 controlSection
                 currentResultSection
+                ToolInsightCard(screen: "speedTest", request: viewModel.insightRequest)
                 GlassCard {
                     SpeedTestTrendChart(entries: trendEntries, accessibilityPrefix: "speedTest")
                 }

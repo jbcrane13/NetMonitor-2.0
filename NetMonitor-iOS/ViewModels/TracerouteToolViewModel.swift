@@ -22,6 +22,8 @@ final class TracerouteToolViewModel {
 
     var isRunning: Bool = false
     var hops: [TracerouteHop] = []
+    /// The host `hops` were traced to; `host` may have been edited since.
+    private(set) var tracedHost = ""
     var errorMessage: String?
 
     // MARK: - Configuration
@@ -48,6 +50,12 @@ final class TracerouteToolViewModel {
 
     // MARK: - Computed Properties
 
+    /// What the "Explain" card explains: the finished result on screen (#448).
+    var insightRequest: InsightRequest? {
+        guard !isRunning, !hops.isEmpty else { return nil }
+        return ToolInsightBuilder.traceroute(host: tracedHost, hops: hops)
+    }
+
     var canStartTrace: Bool {
         !host.trimmingCharacters(in: .whitespaces).isEmpty && !isRunning
     }
@@ -68,6 +76,7 @@ final class TracerouteToolViewModel {
 
         clearResults()
         isRunning = true
+        tracedHost = trimmed
 
         traceTask = Task {
             let stream = await tracerouteService.trace(

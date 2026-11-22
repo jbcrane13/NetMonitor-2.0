@@ -25,6 +25,7 @@ struct GeoTraceView: View {
             outputArea: { mapArea },
             footerContent: { footer }
         )
+        .explaining(insightRequest, screen: "geoTrace")
         .onDisappear {
             traceTask?.cancel()
             traceTask = nil
@@ -141,6 +142,17 @@ struct GeoTraceView: View {
         .macGlassCard(cornerRadius: 10, padding: 0, showBorder: true)
         .padding()
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    /// What the "Explain" strip explains: the finished result on screen (#448).
+    private var insightRequest: InsightRequest? {
+        guard !isRunning, !hops.isEmpty else { return nil }
+        let places = hops.reduce(into: [Int: String]()) { places, hop in
+            if let location = hop.location {
+                places[hop.hop.hopNumber] = "\(location.city), \(location.country)"
+            }
+        }
+        return ToolInsightBuilder.traceroute(host: host, hops: hops.map(\.hop), places: places)
     }
 
     // MARK: - Footer

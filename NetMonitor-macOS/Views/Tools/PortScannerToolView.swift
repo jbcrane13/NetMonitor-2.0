@@ -50,6 +50,7 @@ struct PortScannerToolView: View {
             outputArea: { outputArea },
             footerContent: { footer }
         )
+        .explaining(insightRequest, screen: "portScan")
         .onAppear {
             if host.isEmpty && !lastUsedTarget.isEmpty {
                 host = lastUsedTarget
@@ -178,6 +179,19 @@ struct PortScannerToolView: View {
         }
         .padding(.vertical, 2)
         .accessibilityIdentifier("portScan_row_\(result.port)")
+    }
+
+    /// What the "Explain" strip explains: the finished result on screen (#448).
+    private var insightRequest: InsightRequest? {
+        guard !isRunning, !results.isEmpty else { return nil }
+        let scanned = results.map { result in
+            PortScanResult(
+                port: Int(result.port),
+                state: result.isOpen ? .open : .closed,
+                serviceName: result.serviceName.isEmpty ? nil : result.serviceName
+            )
+        }
+        return ToolInsightBuilder.portScan(host: lastUsedTarget, results: scanned)
     }
 
     // MARK: - Footer

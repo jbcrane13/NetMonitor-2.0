@@ -37,6 +37,7 @@ struct WHOISToolView: View {
             outputArea: { outputArea },
             footerContent: { footer }
         )
+        .explaining(insightRequest, screen: "whois")
         .onAppear {
             if domain.isEmpty && !lastUsedTarget.isEmpty {
                 domain = lastUsedTarget
@@ -195,6 +196,12 @@ struct WHOISToolView: View {
 
     private func infoRow(_ label: String, _ value: String) -> some View {
         LabelValueRow(label: label, value: value, labelWidth: 120, rowAlignment: .top, valueFont: .body, isMonospaced: true)
+    }
+
+    /// What the "Explain" strip explains: the finished result on screen (#448).
+    private var insightRequest: InsightRequest? {
+        guard !isRunning, let result else { return nil }
+        return ToolInsightBuilder.whois(result)
     }
 
     // MARK: - Footer
