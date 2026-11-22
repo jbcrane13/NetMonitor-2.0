@@ -24,10 +24,6 @@ struct ContentView: View {
             .modifier(KeyboardShortcutsModifier(
                 selectedSection: $selectedSection,
                 showQuickJump: $showQuickJump,
-                onRescan: {
-                    guard let deviceDiscovery, !deviceDiscovery.isScanning else { return }
-                    deviceDiscovery.startScan()
-                },
                 onJumpToNetwork: { jumpToActiveNetwork() }
             ))
             .sheet(isPresented: $showQuickJump) {
@@ -195,7 +191,6 @@ struct ContentView: View {
 private struct KeyboardShortcutsModifier: ViewModifier {
     @Binding var selectedSection: SidebarSelection?
     @Binding var showQuickJump: Bool
-    var onRescan: () -> Void
     var onJumpToNetwork: () -> Void
 
     func body(content: Content) -> some View {
@@ -226,10 +221,7 @@ private struct KeyboardShortcutsModifier: ViewModifier {
                 .keyboardShortcut("4", modifiers: .command)
                 .accessibilityIdentifier("contentView_nav_settingsShortcut")
 
-            // ⌘R — Rescan network
-            Button("", action: onRescan)
-                .keyboardShortcut("r", modifiers: .command)
-                .accessibilityIdentifier("contentView_button_rescan")
+            // ⌘R is the File ▸ Scan Network command (MenuBarCommands, #444).
 
             // ⌘K — Quick jump to device
             Button("") { showQuickJump = true }

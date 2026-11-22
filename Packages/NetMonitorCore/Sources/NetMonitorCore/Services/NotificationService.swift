@@ -46,6 +46,8 @@ public final class NotificationService {
     /// UserDefaults keys for the new-device and target-down alert toggles.
     public static let targetDownAlertKey = Keys.targetDownAlertEnabled
     public static let newDeviceAlertKey = Keys.newDeviceAlertEnabled
+    /// The Mac's "Notify when target recovers" toggle (#445); unset means on.
+    public static let targetRecoveryAlertKey = "netmonitor.notifications.targetRecovery"
 
     public init() {
         poster = UNUserNotificationCenter.current()
@@ -73,6 +75,7 @@ public final class NotificationService {
     // MARK: - Categories
 
     public static let targetDownCategory  = "TARGET_DOWN"
+    public static let targetRecoveredCategory = "TARGET_RECOVERED"
     public static let highLatencyCategory = "HIGH_LATENCY"
     public static let newDeviceCategory   = "NEW_DEVICE"
     public static let ruleMatchCategory   = "RULE_MATCH"
@@ -124,18 +127,16 @@ public final class NotificationService {
             intentIdentifiers: []
         )
 
-        let newDeviceCategory = UNNotificationCategory(
-            identifier: Self.newDeviceCategory,
-            actions: [viewAction, dismissAction],
-            intentIdentifiers: []
-        )
-
-        center.setNotificationCategories([
-            targetDownCategory,
-            highLatencyCategory,
-            newDeviceCategory
-        ])
+        center.setNotificationCategories(Set(Self.categoryIdentifiers.map {
+            UNNotificationCategory(identifier: $0, actions: [viewAction, dismissAction], intentIdentifiers: [])
+        }))
     }
+
+    /// Every category this service posts, each registered with View and Dismiss actions.
+    /// Rule alerts were missing before #445.
+    public static let categoryIdentifiers = [
+        targetDownCategory, targetRecoveredCategory, highLatencyCategory, newDeviceCategory, ruleMatchCategory
+    ]
 
     // MARK: - Target Down Alert
 
@@ -156,6 +157,32 @@ public final class NotificationService {
         )
 
         poster.post(request)
+    }
+
+    // MARK: - Target Recovered Alert
+
+    /// A monitored target answers again after being down (#445).
+    public func notifyTargetRecovered(name: String, host: String) {
+        guard defaults.object(forKey: Self.targetRecoveryAlertKey) as? Bool ?? true else { return }
+        let content = UNMutableNotificationContent()
+        content.title = "Target Recovered"
+        content.body = "\(name) (\(host)) is responding again"
+        content.sound = .default
+        content.categoryIdentifier = Self.targetRecoveredCategory
+        content.userInfo = ["host": host, "name": name]
+        poster.post(UNNotificationRequest(identifier: "target-recovered-\(host)", content: content, trigger: nil))
+    }
+
+    /// A monitored target's latency rose above the Mac's threshold (#445). The caller decides
+    /// when it crossed; this posts unconditionally.
+    public func notifyTargetLatency(name: String, host: String, latency: Double, thresholdMs: Int) {
+        let content = UNMutableNotificationContent()
+        content.title = "High Latency Detected"
+        content.body = String(format: "%@ (%@) latency is %.0f ms (threshold: %d ms)", name, host, latency, thresholdMs)
+        content.sound = .default
+        content.categoryIdentifier = Self.highLatencyCategory
+        content.userInfo = ["host": host, "latency": latency]
+        poster.post(UNNotificationRequest(identifier: "high-latency-\(host)", content: content, trigger: nil))
     }
 
     // MARK: - High Latency Alert

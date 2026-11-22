@@ -11,6 +11,8 @@ struct MenuBarCommands: Commands {
     @Binding var isMonitoring: Bool
     let startMonitoring: () -> Void
     let stopMonitoring: () -> Void
+    /// The app's one ⌘R binding (#444): scans the current network, like the toolbar button.
+    let scanNetwork: () -> Void
 
     var body: some Commands {
         CommandGroup(after: .appInfo) {
@@ -27,13 +29,8 @@ struct MenuBarCommands: Commands {
         }
 
         CommandGroup(replacing: .newItem) {
-            Button("Scan Network") {
-                NotificationCenter.default.post(
-                    name: .scanNetworkRequested,
-                    object: nil
-                )
-            }
-            .keyboardShortcut("r", modifiers: [.command])
+            Button("Scan Network", action: scanNetwork)
+                .keyboardShortcut("r", modifiers: [.command])
         }
     }
 }
@@ -41,7 +38,6 @@ struct MenuBarCommands: Commands {
 // MARK: - Notification Names
 
 extension Notification.Name {
-    static let scanNetworkRequested = Notification.Name("scanNetworkRequested")
     // periphery:ignore
     static let monitoringStateChanged = Notification.Name("monitoringStateChanged")
     // periphery:ignore
