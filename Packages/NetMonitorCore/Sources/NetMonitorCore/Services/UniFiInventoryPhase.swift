@@ -48,11 +48,16 @@ public struct UniFiInventoryPhase: ScanPhase, Sendable {
             await onProgress(1.0)
             return
         }
-        let found = await Set(accumulator.snapshot().map(\.ipAddress))
+        // Each found IP's MAC as the scan read it: the accumulator keeps that MAC over the controller's.
+        let found = await Dictionary(
+            accumulator.snapshot().map { ($0.ipAddress, DeviceMatcher.normalizedMAC($0.macAddress)) },
+            uniquingKeysWith: { first, _ in first }
+        )
         var seen: Set<String> = []
-        for entry in entries where found.contains(entry.ipAddress) && context.subnetFilter(entry.ipAddress) {
-            guard seen.insert(entry.ipAddress).inserted else { continue } // the first entry per IP wins
-            if let update = await update(for: entry) {
+        for entry in entries where context.subnetFilter(entry.ipAddress) {
+            // The first entry per found IP wins.
+            guard let scanMAC = found[entry.ipAddress], seen.insert(entry.ipAddress).inserted else { continue }
+            if let update = await update(for: entry, scanMAC: scanMAC) {
                 await accumulator.upsert(update, confirmsPresence: false) // the scan already decided presence
             }
         }
@@ -62,7 +67,11 @@ public struct UniFiInventoryPhase: ScanPhase, Sendable {
     /// Ranks (ADR-022, #462): the controller's model, a UniFi device's maker and the console's
     /// client name rank as UniFi; the maker from a client's MAC is a MAC-prefix maker (`vendor`);
     /// a maker or model parsed from UniFi's fingerprint name ("Meross Smart Bulb") is a guess.
-    func update(for entry: UniFiInventoryEntry) async -> DiscoveredDevice? {
+    ///
+    /// - Parameter scanMAC: the normalized MAC the scan already read for this IP. When it
+    ///   differs from the controller's, the device keeps the scan's MAC, so the controller's
+    ///   MAC must not name its maker.
+    func update(for entry: UniFiInventoryEntry, scanMAC: String? = nil) async -> DiscoveredDevice? {
         let publicMAC = entry.macAddress.flatMap { mac in
             DeviceMatcher.normalizedMAC(mac).flatMap { MACAddress.isPrivate($0) ? nil : $0 }
         }
@@ -72,7 +81,7 @@ public struct UniFiInventoryPhase: ScanPhase, Sendable {
             friendlyName: IdentityValue(entry.name, source: .unifi)
         )
         var macPrefixMaker: String?
-        if !entry.isUniFiDevice, let publicMAC {
+        if !entry.isUniFiDevice, let publicMAC, scanMAC == nil || scanMAC == publicMAC {
             macPrefixMaker = await vendorForMAC(publicMAC)
         }
         if let name = entry.name, let guess = HostnameIdentity.parse(hostname: name) {

@@ -168,4 +168,23 @@ struct UniFiInventoryPhaseTests {
         )
         #expect(result["192.168.2.12"]?.macAddress == "3C:22:FB:00:00:12")
     }
+
+    @Test("The controller's MAC doesn't name the maker when the scan read a different MAC")
+    func scanMACDecidesMaker() async {
+        func scanned(_ mac: String) -> DiscoveredDevice {
+            DiscoveredDevice(
+                ipAddress: "192.168.2.12", hostname: nil, vendor: nil, macAddress: mac,
+                latency: nil, discoveredAt: Date(), source: .local
+            )
+        }
+        // The IP was reassigned: the controller still lists a WiZ bulb there.
+        let stale = await run([client("192.168.2.12", nil, mac: "d8:a0:11:aa:d4:aa")], found: [scanned("3C:22:FB:00:00:12")])
+        #expect(stale["192.168.2.12"]?.macAddress == "3C:22:FB:00:00:12")
+        #expect(stale["192.168.2.12"]?.vendor == nil)
+        #expect(stale["192.168.2.12"]?.maker == nil)
+
+        // The same MAC, written differently, still names the maker.
+        let same = await run([client("192.168.2.12", nil, mac: "d8:a0:11:aa:d4:aa")], found: [scanned("D8:A0:11:AA:D4:AA")])
+        #expect(same["192.168.2.12"]?.vendor == "WiZ")
+    }
 }
