@@ -246,14 +246,14 @@ final class DeviceDiscoveryCoordinator {
         let decision = ScanPolicy.decide(
             reason,
             isScanning: isScanning,
-            local: networkProfileManager.localProfile,
+            local: networkProfileManager.connectedLocalProfile,
             current: networkProfile
         )
         let counts = reason.countsTowardReviewPrompt
         let name = reason.logLabel
         switch decision {
         case .ignore:
-            let why = isScanning ? "a scan is already running" : "no local network"
+            let why = isScanning ? "a scan is already running" : "not connected to a local network"
             Logger.discovery.notice("Scan skipped (\(name, privacy: .public)): \(why, privacy: .public)")
             return false
         case .start(let profile):

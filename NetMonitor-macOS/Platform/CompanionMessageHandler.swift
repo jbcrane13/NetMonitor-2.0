@@ -125,11 +125,13 @@ final class CompanionMessageHandler {
             return generateStatusUpdate()
 
         case .scanDevices:
-            deviceDiscovery.rescan(.companion)
+            let wasScanning = deviceDiscovery.isScanning
+            let started = deviceDiscovery.rescan(.companion)
+            // A scan already running still answers the request; no local network means no scan.
             return .toolResult(ToolResultPayload(
                 tool: "deviceScan",
-                success: true,
-                result: "Scan started"
+                success: started || wasScanning,
+                result: started ? "Scan started" : wasScanning ? "Scan already running" : "Not connected to a local network"
             ))
 
         case .refreshTargets:

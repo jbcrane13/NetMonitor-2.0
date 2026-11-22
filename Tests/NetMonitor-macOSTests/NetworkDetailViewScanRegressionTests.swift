@@ -199,6 +199,27 @@ struct NetworkDetailViewScanRegressionTests {
         #expect(coordinator.scanProgress == progress)
     }
 
+    @Test("A disconnected Mac skips automatic scans instead of marking the saved local network offline (#485)")
+    func disconnectedMacSkipsAutomaticScans() throws {
+        let (container, context) = try makeInMemoryStore()
+        defer { withExtendedLifetime(container) {} }
+        let (manager, box, defaults, suite) = makeWatcherFixture()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let remote = try #require(manager.addProfile(gateway: "10.9.0.1", subnet: "10.9.0.0/24", name: "Office"))
+        let coordinator = makeCoordinator(context: context, networkProfileManager: manager)
+        defer { coordinator.stopScan() }
+
+        coordinator.rescan(.user(remote))
+        coordinator.stopScan()
+        box.value = []
+
+        for reason in [ScanReason.periodic, .menuBar, .companion, .launch] {
+            #expect(!coordinator.rescan(reason), "\(reason.logLabel) must not scan an unreachable network")
+            #expect(!coordinator.isScanning)
+            #expect(coordinator.networkProfile?.id == remote.id)
+        }
+    }
+
     // MARK: - #359: rescan when the Mac joins a different network
 
     private func makeLocal(_ network: NetworkUtilities.IPv4Network, ip: String) -> NetworkProfile {

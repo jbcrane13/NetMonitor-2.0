@@ -11,7 +11,9 @@ struct CompanionMessageHandlerExtendedTests {
 
     // MARK: - Fixture
 
-    private func makeFixture() throws -> (
+    private func makeFixture(
+        activeProfiles: @escaping @Sendable () -> [NetworkProfile] = NetworkProfileManager.detectActiveProfiles
+    ) throws -> (
         ModelContainer,
         ModelContext,
         CompanionMessageHandler,
@@ -28,7 +30,7 @@ struct CompanionMessageHandlerExtendedTests {
         let container = try ModelContainer(for: schema, configurations: [config])
         let context = container.mainContext
 
-        let networkProfileManager = NetworkProfileManager()
+        let networkProfileManager = NetworkProfileManager(activeProfilesProvider: activeProfiles)
         let monitoringSession = MonitoringSession(modelContext: context)
         let deviceDiscovery = DeviceDiscoveryCoordinator(
             modelContext: context,
@@ -117,7 +119,14 @@ struct CompanionMessageHandlerExtendedTests {
     // MARK: - scanRequest Handling
 
     @Test func scanDevicesCommandReturnsToolResultSuccess() async throws {
-        let (container, _, handler, deviceDiscovery, _) = try makeFixture()
+        let local = NetworkProfile(
+            interfaceName: "en0", ipAddress: "192.168.1.10",
+            network: NetworkUtilities.IPv4Network(
+                networkAddress: 0xC0A8_0100, broadcastAddress: 0xC0A8_01FF, interfaceAddress: 0xC0A8_010A, netmask: 0xFFFF_FF00
+            ),
+            connectionType: .wifi
+        )
+        let (container, _, handler, deviceDiscovery, _) = try makeFixture(activeProfiles: { [local] })
         defer { withExtendedLifetime(container) {} }
         defer { deviceDiscovery.stopScan() }
 
@@ -128,6 +137,21 @@ struct CompanionMessageHandlerExtendedTests {
         }
         #expect(payload.tool == "deviceScan")
         #expect(payload.success == true)
+    }
+
+    @Test("A scan request the Mac can't run is not acknowledged as started (#485)")
+    func scanDevicesWithoutLocalNetworkReportsFailure() async throws {
+        let (container, _, handler, deviceDiscovery, _) = try makeFixture(activeProfiles: { [] })
+        defer { withExtendedLifetime(container) {} }
+        defer { deviceDiscovery.stopScan() }
+
+        let response = await handler.handle(.command(CommandPayload(action: .scanDevices)), from: UUID())
+        guard case .toolResult(let payload)? = response else {
+            #expect(Bool(false), "Expected .toolResult")
+            return
+        }
+        #expect(payload.success == false)
+        #expect(!deviceDiscovery.isScanning)
     }
 
     @Test func refreshDevicesCommandReturnsDeviceList() async throws {
