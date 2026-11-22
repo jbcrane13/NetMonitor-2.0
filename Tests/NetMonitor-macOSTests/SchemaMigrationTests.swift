@@ -277,8 +277,8 @@ struct SchemaMigrationTests {
         let bulb = try #require(byIP["192.168.1.23"])
         #expect(bulb.vendor == "Espressif")
         #expect(bulb.manufacturer == "Wiz")
-        // Unranked until a scan reports it again, so the MAC prefix shows meanwhile.
-        #expect(bulb.maker == "Espressif")
+        // Espressif makes the Wi-Fi module, so the device's own maker shows even unranked.
+        #expect(bulb.maker == "Wiz")
     }
 
     @Test("Maker names match by their first word", arguments: [

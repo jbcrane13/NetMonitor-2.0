@@ -86,9 +86,40 @@ public struct DeviceIdentity: Equatable, Sendable {
         )
     }
 
-    /// The maker to show: ``maker`` or the MAC-prefix maker, whichever ranks higher.
+    /// The maker to show: ``maker`` or the MAC-prefix maker, whichever ranks higher. A MAC
+    /// prefix that belongs to a network-chip maker (``isChipMaker(_:)``) names the chip, not
+    /// the device, so any other maker beats it, even a guess.
     public func resolvedMaker(macPrefixMaker: String?) -> String? {
-        Self.winner(IdentityValue(macPrefixMaker, source: .macPrefix), maker, .maker)?.value
+        if let macPrefixMaker, Self.isChipMaker(macPrefixMaker), let maker {
+            return maker.value
+        }
+        return Self.winner(IdentityValue(macPrefixMaker, source: .macPrefix), maker, .maker)?.value
+    }
+
+    /// The maker a guess from the device's names must agree with: ``resolvedMaker(macPrefixMaker:)``,
+    /// except that a chip maker alone doesn't count, so the guess can name the device.
+    public func knownMakerForGuessing(macPrefixMaker: String?) -> String? {
+        if let macPrefixMaker, Self.isChipMaker(macPrefixMaker) {
+            return maker?.value
+        }
+        return resolvedMaker(macPrefixMaker: macPrefixMaker)
+    }
+
+    /// Companies whose MAC prefixes mostly name a Wi-Fi or network chip or module inside
+    /// someone else's product (a Lutron bridge with a Texas Instruments chip, a plug with an
+    /// Espressif module). Matched on the start of the registered name, ignoring case.
+    static let chipMakers = [
+        "espressif", "texas instruments", "murata", "realtek", "mediatek", "qualcomm", "broadcom",
+        "azurewave", "hon hai", "universal global scientific", "liteon", "lite-on", "silicon laboratories",
+        "silicon labs", "cypress semiconductor", "marvell", "beken", "shanghai high-flying", "amlogic",
+        "chongqing fugui", "nordic semiconductor", "intel corporate", "intel"
+    ]
+
+    public static func isChipMaker(_ name: String) -> Bool {
+        let name = name.lowercased()
+        return chipMakers.contains { prefix in
+            name == prefix || [" ", ",", "."].contains { name.hasPrefix(prefix + $0) }
+        }
     }
 
     private static func winner(_ current: IdentityValue?, _ newer: IdentityValue?, _ field: IdentitySource.Field) -> IdentityValue? {
