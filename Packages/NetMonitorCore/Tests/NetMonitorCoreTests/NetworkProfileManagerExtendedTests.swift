@@ -14,7 +14,9 @@ struct NetworkProfileManagerExtendedTests {
         localProfile: NetworkProfile? = nil
     ) -> NetworkProfileManager {
         let provider: @Sendable () -> [NetworkProfile] = {
-            if let p = localProfile { return [p] }
+            if let p = localProfile {
+                return [p]
+            }
             return []
         }
         return NetworkProfileManager(userDefaults: defaults, activeProfilesProvider: provider)
@@ -171,5 +173,35 @@ struct NetworkProfileManagerExtendedTests {
         // Resolved name should contain the CIDR, not be blank
         #expect(profile?.name.isEmpty == false)
         #expect(profile?.name.contains("10.20.0.0/24") == true)
+    }
+}
+
+// MARK: - localProfile (#441)
+
+@MainActor
+extension NetworkProfileManagerExtendedTests {
+    @Test("Scanning a manual network makes it active, but localProfile stays the local network")
+    func localProfileIgnoresTheLastScannedNetwork() throws {
+        let (defaults, suite) = makeUserDefaults()
+        defer { clear(defaults, suiteName: suite) }
+        let local = makeLocalProfile()
+        let manager = makeManager(defaults: defaults, localProfile: local)
+        let manual = try #require(manager.addProfile(gateway: "10.20.0.1", subnet: "10.20.0.0/24", name: "Office"))
+
+        #expect(manager.switchProfile(id: manual.id))
+
+        #expect(manager.activeProfile?.id == manual.id)
+        #expect(manager.localProfile?.id == local.id)
+        #expect(manager.localProfile?.gatewayIP == "192.168.1.1")
+    }
+
+    @Test("No local network means no localProfile, whatever is active")
+    func noLocalProfileWithoutALocalNetwork() throws {
+        let (defaults, suite) = makeUserDefaults()
+        defer { clear(defaults, suiteName: suite) }
+        let manager = makeManager(defaults: defaults)
+        let manual = try #require(manager.addProfile(gateway: "10.20.0.1", subnet: "10.20.0.0/24", name: "Office"))
+        manager.switchProfile(id: manual.id)
+        #expect(manager.localProfile == nil)
     }
 }

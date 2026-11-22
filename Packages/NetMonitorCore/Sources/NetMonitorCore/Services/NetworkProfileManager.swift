@@ -4,7 +4,14 @@ import Foundation
 @Observable
 public final class NetworkProfileManager {
     public private(set) var profiles: [NetworkProfile] = []
+    /// The last network switched to, which is the last one scanned. Scanning a manual network
+    /// makes it active, so this isn't the network this device is on; that's ``localProfile``.
     public private(set) var activeProfile: NetworkProfile?
+
+    /// The network this device is on: the auto-detected local network (#441).
+    public var localProfile: NetworkProfile? {
+        profiles.first { $0.isLocal && $0.discoveryMethod == .auto } ?? profiles.first(where: \.isLocal)
+    }
 
     private let userDefaults: UserDefaults
     private let activeProfilesProvider: @Sendable () -> [NetworkProfile]
@@ -29,11 +36,8 @@ public final class NetworkProfileManager {
     @discardableResult
     public func addProfile(gateway: String, subnet: String, name: String) -> NetworkProfile? {
         guard let gatewayValue = NetworkUtilities.ipv4ToUInt32(gateway),
-              let cidr = Self.parseCIDR(subnet) else {
-            return nil
-        }
-
-        guard gatewayValue >= cidr.networkAddress, gatewayValue <= cidr.broadcastAddress else {
+              let cidr = Self.parseCIDR(subnet),
+              gatewayValue >= cidr.networkAddress, gatewayValue <= cidr.broadcastAddress else {
             return nil
         }
 
@@ -104,11 +108,8 @@ public final class NetworkProfileManager {
         interfaceName: String? = nil
     ) -> NetworkProfile? {
         guard let gatewayValue = NetworkUtilities.ipv4ToUInt32(gateway),
-              let cidr = Self.parseCIDR(subnet) else {
-            return nil
-        }
-
-        guard gatewayValue >= cidr.networkAddress, gatewayValue <= cidr.broadcastAddress else {
+              let cidr = Self.parseCIDR(subnet),
+              gatewayValue >= cidr.networkAddress, gatewayValue <= cidr.broadcastAddress else {
             return nil
         }
 
@@ -289,9 +290,8 @@ public final class NetworkProfileManager {
             guard name != "lo0", !seen.contains(name) else { continue }
 
             let flags = Int32(iface.ifa_flags)
-            guard (flags & IFF_UP) != 0, (flags & IFF_RUNNING) != 0 else { continue }
-
-            guard let network = NetworkUtilities.detectLocalIPv4Network(interface: name),
+            guard (flags & IFF_UP) != 0, (flags & IFF_RUNNING) != 0,
+                  let network = NetworkUtilities.detectLocalIPv4Network(interface: name),
                   let ip = NetworkUtilities.detectLocalIPAddress(interface: name) else { continue }
 
             // Skip link-local (APIPA) addresses
@@ -320,8 +320,7 @@ public final class NetworkProfileManager {
     // MARK: - Persistence
 
     private func loadProfiles() {
-        guard let data = userDefaults.data(forKey: Self.storageKey) else { return }
-        guard let decoded = try? JSONDecoder().decode([NetworkProfile].self, from: data) else { return }
+        guard let data = userDefaults.data(forKey: Self.storageKey), let decoded = try? JSONDecoder().decode([NetworkProfile].self, from: data) else { return }
         profiles = decoded
         activeProfile = Self.primaryProfile(from: decoded)
     }

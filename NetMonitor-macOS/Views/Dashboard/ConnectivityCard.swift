@@ -22,6 +22,12 @@ struct ConnectivityCard: View {
         _vm = State(initialValue: ConnectivityCardViewModel(service: ispService))
     }
 
+    /// The local network's gateway. The card shows the Mac's own connection, and the last
+    /// scanned network may be a manual one (#441).
+    static func gatewayText(_ profileManager: NetworkProfileManager?) -> String {
+        profileManager?.localProfile?.gatewayIP ?? "—"
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
             // Header
@@ -47,7 +53,7 @@ struct ConnectivityCard: View {
                 connRow(key: "IPv6", value: vm.hasIPv6 ? "Enabled" : "Disabled",
                         color: vm.hasIPv6 ? MacTheme.Colors.success : MacTheme.Colors.textSecondary)
                 connRow(key: "Gateway",
-                        value: profileManager?.activeProfile?.gatewayIP ?? "—",
+                        value: Self.gatewayText(profileManager),
                         mono: true)
                 connRow(key: "Location", value: locationString)
             }
