@@ -161,7 +161,8 @@ final class MacRuleAlerts {
             service.notifyRuleMatched(
                 ruleName: match.rule.name,
                 detail: Self.detail(for: match.event),
-                identifier: "\(match.rule.id)-\(match.event.subject.key)"
+                identifier: "\(match.rule.id)-\(match.event.subject.key)",
+                ipAddress: match.event.subject.ipAddress
             )
         }
     }

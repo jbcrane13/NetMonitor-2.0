@@ -110,7 +110,7 @@ public final class NotificationService {
         )
 
         let viewAction = UNNotificationAction(
-            identifier: "VIEW",
+            identifier: Self.viewActionIdentifier,
             title: "View Details",
             options: .foreground
         )
@@ -138,9 +138,10 @@ public final class NotificationService {
         targetDownCategory, targetRecoveredCategory, highLatencyCategory, newDeviceCategory, ruleMatchCategory
     ]
 
-    /// Categories that offer View Details. The categories added in #445 offer Dismiss only,
-    /// because no response handler opens a target or rule yet.
-    public static let categoriesWithViewAction: Set = [targetDownCategory, highLatencyCategory, newDeviceCategory]
+    /// Every category offers View Details; the Mac opens what the alert is about (#478).
+    public static let categoriesWithViewAction = Set(categoryIdentifiers)
+
+    nonisolated public static let viewActionIdentifier = "VIEW"
 
     // MARK: - Target Down Alert
 
@@ -244,12 +245,16 @@ public final class NotificationService {
 
     /// Posts a user rule's notification (#394). Rules have their own on/off switch, so the
     /// per-alert toggles don't apply.
-    public func notifyRuleMatched(ruleName: String, detail: String, identifier: String) {
+    /// `ipAddress` is the device or target the rule matched, for View Details (#478).
+    public func notifyRuleMatched(ruleName: String, detail: String, identifier: String, ipAddress: String? = nil) {
         let content = UNMutableNotificationContent()
         content.title = ruleName
         content.body = detail
         content.sound = .default
         content.categoryIdentifier = Self.ruleMatchCategory
+        if let ipAddress {
+            content.userInfo = ["ipAddress": ipAddress]
+        }
 
         let request = UNNotificationRequest(
             identifier: "rule-\(identifier)-\(Date().timeIntervalSince1970)",
