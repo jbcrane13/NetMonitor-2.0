@@ -5,7 +5,8 @@ import Foundation
 public enum InsightSummarizer {
     /// The model's answer to `request`, or nil when it can't be used: the model is
     /// unavailable, fails, answers with nothing or with a cut-off sentence, takes longer than
-    /// `timeout`, or states a number that isn't in the request (`InsightGrounding`). Callers
+    /// `timeout`, states a number that isn't in the request (`InsightGrounding`), or contains a
+    /// link, email address, phone number or unstated domain (`InsightTextFilter`). Callers
     /// omit the summary on nil.
     /// A timed-out answer is cancelled.
     public static func summary(
@@ -38,7 +39,8 @@ public enum InsightSummarizer {
         // An answer cut off by the token cap ends mid-sentence; it is dropped like any other.
         guard let text = answer.map({ usable($0, for: request.kind) }),
               let last = text.last, ".!?".contains(last),
-              InsightGrounding.isGrounded(text, in: request)
+              InsightGrounding.isGrounded(text, in: request),
+              InsightTextFilter.isClean(text, in: request)
         else {
             return nil
         }
