@@ -80,6 +80,35 @@ struct ChangeBriefViewModelTests {
         #expect(viewModel.brief?.keyPoints == ["2 devices joined the network."])
     }
 
+    @Test func anotherNetworksBriefIsHiddenEvenDuringAScan() async {
+        let insight = MockInsightService()
+        let viewModel = makeViewModel(insight)
+        logJoin("Camera")
+        let first = Task { await viewModel.refresh(scanned: [], saved: [], networkProfileID: nil, speedTests: [], isScanning: false) }
+        await waitUntil { insight.requests.count == 1 }
+        insight.send(.finished("A camera joined the network."))
+        await first.value
+
+        await viewModel.refresh(scanned: [], saved: [], networkProfileID: UUID(), speedTests: [], isScanning: true)
+
+        #expect(viewModel.brief == nil)
+    }
+
+    @Test func aNewDigestHidesTheOldBriefUntilItIsAnswered() async {
+        let insight = MockInsightService()
+        let viewModel = makeViewModel(insight)
+        logJoin("Camera")
+        await refreshAnswering(viewModel, insight, with: .finished("A camera joined the network."))
+        logJoin("Speaker")
+
+        let second = Task { await viewModel.refresh(scanned: [], saved: [], networkProfileID: nil, speedTests: [], isScanning: false) }
+        await waitUntil { insight.requests.count == 2 }
+        #expect(viewModel.brief == nil)
+        insight.send(.finished(Self.answer), to: 1)
+        await second.value
+        #expect(viewModel.brief?.text == Self.answer)
+    }
+
     @Test func nothingIsAskedDuringAScan() async {
         let insight = MockInsightService()
         let viewModel = makeViewModel(insight)

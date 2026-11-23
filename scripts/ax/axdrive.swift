@@ -5,6 +5,8 @@ import ApplicationServices
 // identifier, and captures only its window. Build: swiftc -O scripts/ax/axdrive.swift -o <out>. Usage:
 //   axdrive press <id> | click <id> | type <id> <text> | wait <id> <seconds> | gone <id> <seconds>
 //   axdrive capture <file.png> | ids | value <id> | menu <menu item title>
+//   axdrive text <substring> <seconds> | notext <substring> <seconds>  (any element's value, title or description)
+//   axdrive capture-element <id> <file.png>  (only that element's frame on screen)
 let args = CommandLine.arguments
 guard args.count >= 2 else { print("usage")
 exit(2)
@@ -71,6 +73,38 @@ func allIDs() -> [String] {
         }
     }
     return ids
+}
+
+/// Whether any element's value, title or description contains `text`. For content whose container
+/// identifier is stamped over its children's on macOS 27.
+func hasText(_ text: String) -> Bool {
+    guard let pid = app()?.processIdentifier else { return false }
+    var queue: [AXUIElement] = [AXUIElementCreateApplication(pid)]
+    var seen = 0
+    while !queue.isEmpty, seen < 20000 {
+        let el = queue.removeFirst()
+        seen += 1
+        for name in [kAXValueAttribute, kAXTitleAttribute, kAXDescriptionAttribute] {
+            if let string = attr(el, name) as? String, string.contains(text) {
+                return true
+            }
+        }
+        if let children = attr(el, kAXChildrenAttribute) as? [AXUIElement] {
+            queue += children
+        }
+    }
+    return false
+}
+
+func waitForText(_ text: String, _ seconds: Double, present: Bool) -> Bool {
+    let deadline = Date().addingTimeInterval(seconds)
+    while Date() < deadline {
+        if hasText(text) == present {
+            return true
+        }
+        usleep(300_000)
+    }
+    return false
 }
 
 func center(_ el: AXUIElement) -> CGPoint? {
@@ -167,6 +201,27 @@ case "menu":
         exit(1)
     }
     print("pressed menu \(args[2])")
+case "text":
+    print(waitForText(args[2], Double(args[3]) ?? 10, present: true) ? "found text \(args[2])" : "TIMEOUT text \(args[2])")
+case "notext":
+    print(waitForText(args[2], Double(args[3]) ?? 10, present: false) ? "no text \(args[2])" : "STILL text \(args[2])")
+case "capture-element":
+    guard let el = find(args[2]), let posValue = attr(el, kAXPositionAttribute), let sizeValue = attr(el, kAXSizeAttribute),
+          CFGetTypeID(posValue) == AXValueGetTypeID(), CFGetTypeID(sizeValue) == AXValueGetTypeID()
+    else { print("NOTFOUND \(args[2])")
+        exit(1)
+    }
+    var pos = CGPoint.zero, size = CGSize.zero
+    // swiftlint:disable force_cast
+    AXValueGetValue(posValue as! AXValue, .cgPoint, &pos)
+    AXValueGetValue(sizeValue as! AXValue, .cgSize, &size)
+    // swiftlint:enable force_cast
+    let task = Process()
+    task.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
+    task.arguments = ["-x", "-R\(Int(pos.x)),\(Int(pos.y)),\(Int(size.width)),\(Int(size.height))", args[3]]
+    try task.run()
+    task.waitUntilExit()
+    print("captured \(args[2]) to \(args[3])")
 case "ids":
     print(allIDs().joined(separator: "\n"))
 case "capture":

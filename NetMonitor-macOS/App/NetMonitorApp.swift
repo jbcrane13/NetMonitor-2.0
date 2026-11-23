@@ -340,6 +340,7 @@ struct NetMonitorApp: App {
             UITestScanFixture.seedEvents(into: NetworkEventService.shared, profileID: profileManager.activeProfile?.id)
         }
         UITestHealthHistory.seedIfRequested(networkProfileID: profileManager.localProfile?.id)
+        ChangeBriefMacViewModel.configureForUITests(arguments: arguments)
     }
 
     /// A health sample for the Mac's network every 15 minutes (#491 D10).

@@ -231,21 +231,6 @@ enum UITestBootstrap {
     }
 }
 
-/// Answers every request at once with a fixed text (UI tests only).
-private struct FixedAnswerInsightService: InsightServiceProtocol {
-    let answer: String
-    var isAvailable: Bool { true }
-
-    func explain(_ request: InsightRequest) -> AsyncStream<InsightUpdate> {
-        AsyncStream { continuation in
-            continuation.yield(.finished(answer))
-            continuation.finish()
-        }
-    }
-
-    func suggestIdentity(_ evidence: DeviceEvidence) async -> DeviceSuggestion? { nil }
-}
-
 // MARK: - Event IDs fixtures (#491 S4)
 
 extension UITestBootstrap {

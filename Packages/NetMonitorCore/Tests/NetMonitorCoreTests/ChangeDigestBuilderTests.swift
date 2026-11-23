@@ -219,4 +219,99 @@ struct ChangeDigestBuilderTests {
         ])
         #expect(names == ["192.168.1.50": "Garage Camera", "192.168.1.30": "printer.lan"])
     }
+
+    // MARK: - Names by device ID (#491 S6)
+
+    @Test func aDeviceIDNamesTheDeviceByItsCurrentName() {
+        let printer = UUID()
+        let events = [
+            // macOS writes the name at the time into the title and the address into the details.
+            NetworkEvent(type: .deviceLeft, timestamp: now.addingTimeInterval(-300), title: "Device Left: Old Printer",
+                         details: "192.168.1.30", deviceID: printer),
+            NetworkEvent(type: .deviceJoined, timestamp: now.addingTimeInterval(-600), title: "Device Joined: Old Printer",
+                         details: "192.168.1.30", deviceID: printer),
+            event(.deviceJoined, "Device Joined: Camera", details: "192.168.1.50", minutesAgo: 60)
+        ]
+        let result = ChangeDigestBuilder.request(
+            events: events, from: dayAgo, to: now,
+            deviceNames: ["192.168.1.50": "Garage Camera", "192.168.1.30": "Wrong By Address"],
+            deviceNamesByID: [printer: "Office Printer"]
+        )
+        #expect(result?.facts == [
+            "Devices joined: 2", "Joined: Garage Camera", "Joined: Office Printer",
+            "Devices left: 1", "Left: Office Printer"
+        ])
+    }
+
+    @Test func aDeviceJoiningTwiceUnderTwoNamesCountsOnceByID() {
+        let printer = UUID()
+        let events = [
+            NetworkEvent(type: .deviceJoined, timestamp: now.addingTimeInterval(-300), title: "Device Joined: Printer",
+                         details: "192.168.1.31", deviceID: printer),
+            NetworkEvent(type: .deviceJoined, timestamp: now.addingTimeInterval(-600), title: "Device Joined: printer.lan",
+                         details: "192.168.1.30", deviceID: printer)
+        ]
+        let result = ChangeDigestBuilder.request(events: events, from: dayAgo, to: now, deviceNamesByID: [printer: "Office Printer"])
+        #expect(result?.facts == ["Devices joined: 1", "Joined: Office Printer"])
+    }
+
+    @Test func savedDeviceNamesByIDUseTheIdentitySeam() {
+        let named = LocalDevice(ipAddress: "192.168.1.50", macAddress: "00:1B:CC:00:00:50", customName: "Garage Camera")
+        let plain = LocalDevice(ipAddress: "192.168.1.30", macAddress: "00:1B:CC:00:00:30", hostname: "printer.lan")
+        #expect(ChangeDigestBuilder.deviceNamesByID([named, plain]) == [named.id: "Garage Camera", plain.id: "printer.lan"])
+    }
+
+    // MARK: - Back online and mixed keys (#491 S6 review)
+
+    @Test func devicesBackOnlineAreTheirOwnPointNotJoins() {
+        let events = [
+            event(.deviceJoined, "Device Joined: Camera", details: "192.168.1.50", minutesAgo: 30),
+            event(.deviceJoined, "Device Back Online: Printer", details: "192.168.1.30", minutesAgo: 20),
+            event(.deviceJoined, "Device Back Online: Speaker", details: "192.168.1.51", minutesAgo: 10)
+        ]
+        let result = request(events, names: ["192.168.1.30": "Office Printer"])
+        #expect(result?.facts == [
+            "Devices joined: 1", "Joined: Camera",
+            "Devices back online: 2", "Back online: Office Printer", "Back online: Speaker"
+        ])
+        #expect(result?.observations == ["1 device joined the network.", "2 devices came back online."])
+    }
+
+    @Test func oneDeviceCountsOnceAcrossItsIDAndAddress() {
+        let printer = UUID()
+        let events = [
+            // An event written before the device had a saved row, then one with its ID.
+            event(.deviceJoined, "Device Joined: printer.lan", details: "192.168.1.30", minutesAgo: 50),
+            NetworkEvent(type: .deviceJoined, timestamp: now.addingTimeInterval(-40 * 60), title: "Device Joined: printer.lan",
+                         details: "192.168.1.30", deviceID: printer),
+            NetworkEvent(type: .deviceLeft, timestamp: now.addingTimeInterval(-30 * 60), title: "Device Left: Office Printer",
+                         details: "192.168.1.30", deviceID: printer),
+            event(.deviceLeft, "Device Left: Office Printer", details: "192.168.1.30", minutesAgo: 20)
+        ]
+        let result = ChangeDigestBuilder.request(events: events, from: dayAgo, to: now, deviceNamesByID: [printer: "Office Printer"])
+        #expect(result?.facts == ["Devices joined: 1", "Joined: printer.lan", "Devices left: 1", "Left: Office Printer"])
+    }
+
+    // MARK: - Recorded IDs without a saved row (#491 S6 review)
+
+    @Test func distinctRecordedIDsWithTheSameNameCountSeparately() {
+        let events = [
+            NetworkEvent(type: .deviceLeft, timestamp: now.addingTimeInterval(-600), title: "Device Left: Printer",
+                         details: "192.168.1.30", deviceID: UUID()),
+            NetworkEvent(type: .deviceLeft, timestamp: now.addingTimeInterval(-300), title: "Device Left: Printer",
+                         details: "192.168.1.31", deviceID: UUID())
+        ]
+        #expect(request(events)?.facts == ["Devices left: 2", "Left: Printer", "Left: Printer"])
+    }
+
+    @Test func oneRecordedIDAtTwoAddressesCountsOnce() {
+        let printer = UUID()
+        let events = [
+            NetworkEvent(type: .deviceJoined, timestamp: now.addingTimeInterval(-600), title: "Device Joined: printer.lan",
+                         details: "192.168.1.30", deviceID: printer),
+            NetworkEvent(type: .deviceJoined, timestamp: now.addingTimeInterval(-300), title: "Device Joined: printer.lan",
+                         details: "192.168.1.31", deviceID: printer)
+        ]
+        #expect(request(events)?.facts == ["Devices joined: 1", "Joined: printer.lan"])
+    }
 }

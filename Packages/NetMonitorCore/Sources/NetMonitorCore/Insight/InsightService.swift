@@ -62,6 +62,30 @@ public struct FixedSuggestionInsightService: InsightServiceProtocol {
     }
 }
 
+/// Answers every request at once with a fixed text, for UI tests that need a model-written
+/// summary on screen without the on-device model (#491 S6). The answer still goes through
+/// `InsightSummarizer`'s checks, so it must state nothing the request doesn't.
+public struct FixedAnswerInsightService: InsightServiceProtocol {
+    private let answer: String
+
+    public init(answer: String) {
+        self.answer = answer
+    }
+
+    public var isAvailable: Bool { true }
+
+    public func explain(_ request: InsightRequest) -> AsyncStream<InsightUpdate> {
+        AsyncStream { continuation in
+            continuation.yield(.finished(answer))
+            continuation.finish()
+        }
+    }
+
+    public func suggestIdentity(_ evidence: DeviceEvidence) async -> DeviceSuggestion? {
+        nil
+    }
+}
+
 #if canImport(FoundationModels)
 /// Explains requests with the system language model. Everything stays on the device.
 /// Prompts carry addresses and hostnames, so nothing here is logged.
