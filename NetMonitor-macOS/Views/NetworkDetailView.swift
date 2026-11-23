@@ -113,7 +113,7 @@ struct NetworkDetailView: View {
                 deviceCount: deviceCount,
                 linkSpeedMbps: connection?.linkSpeed.map(Double.init)
             ),
-            networkProfileID: profileManager?.localProfile?.id
+            networkProfileID: profileManager?.connectedLocalProfile?.id
         )
     }
 

@@ -108,6 +108,7 @@ struct DataSettingsView: View {
             // Forget remembered devices too, so change detection starts a fresh baseline (#393).
             DeviceChangeTracker().clearAll()
             DeviceSuggestionStore().clearAll()
+            HealthScoreHistoryStore.shared.clearAll()
         } catch {
             Logger.data.error("Failed to clear data: \(error, privacy: .public)")
         }

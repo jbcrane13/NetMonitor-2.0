@@ -19,6 +19,16 @@ private final class AnsweringPingService: PingServiceProtocol, @unchecked Sendab
     func calculateStatistics(_ results: [PingResult], requestedCount: Int?) async -> PingStatistics? { nil }
 }
 
+/// Never answers: its stream ends only when the consuming task is cancelled.
+private final class HangingPingService: PingServiceProtocol, @unchecked Sendable {
+    func ping(host: String, count: Int, timeout: TimeInterval) async -> AsyncStream<PingResult> {
+        AsyncStream { _ in }
+    }
+
+    func stop() async {}
+    func calculateStatistics(_ results: [PingResult], requestedCount: Int?) async -> PingStatistics? { nil }
+}
+
 /// Records each wait, and stops the loop after `limit` of them.
 private final class RecordingSleep: @unchecked Sendable {
     private let lock = NSLock()
@@ -83,6 +93,20 @@ struct HealthScoreMacVMHistoryTests {
         #expect(vm.showsHistoryChart)
     }
 
+    /// A new scan restarts the dashboard's refresh; the interrupted probe must not be saved.
+    @Test func cancelledRefreshSavesNothing() async {
+        let store = HealthScoreHistoryStore()
+        let vm = NetworkHealthScoreMacViewModel(pingService: HangingPingService(), readDNSServers: { .unavailable }, historyStore: store)
+        let network = network
+        let refresh = Task { await vm.refresh(networkProfileID: network) }
+        while !vm.isCalculating {
+            await Task.yield()
+        }
+        refresh.cancel()
+        await refresh.value
+        #expect(store.samples(for: network).isEmpty)
+    }
+
     @Test func noNetworkMeansNoSample() async {
         let store = HealthScoreHistoryStore()
         let vm = makeVM(store: store)
@@ -124,6 +148,18 @@ struct MacHealthSamplerTests {
         #expect(sleeper.durations == [.seconds(900), .seconds(900), .seconds(900)])
     }
 
+    @Test func prunesBeforeEverySample() async {
+        let sleeper = RecordingSleep(limit: 2)
+        var steps: [String] = []
+        let sampler = MacHealthSampler(
+            sleep: { try sleeper.sleep($0) },
+            prune: { steps.append("prune") },
+            sample: { steps.append("sample") }
+        )
+        await sampler.run()
+        #expect(steps == ["prune", "sample", "prune", "sample"])
+    }
+
     @Test func timerSamplesAreSavedThroughTheViewModel() async {
         let network = UUID()
         let store = HealthScoreHistoryStore()
@@ -150,6 +186,30 @@ struct UITestHealthHistoryTests {
 @Suite("History retention: health samples (macOS)")
 @MainActor
 struct HealthHistoryRetentionTests {
+    /// Target monitoring is usually off, so the sampler prunes the history itself.
+    @Test func samplerPruneAppliesTheRetentionSetting() {
+        let now = Date(timeIntervalSince1970: 1_790_000_000)
+        let suite = RetentionSuite("7 days")
+        defer { suite.clear() }
+        let network = UUID()
+        let store = HealthScoreHistoryStore()
+        store.record(NetworkHealthScore(score: 30, grade: "F"), networkProfileID: network, at: now.addingTimeInterval(-10 * 86400))
+        store.record(NetworkHealthScore(score: 95, grade: "A"), networkProfileID: network, at: now.addingTimeInterval(-86400))
+        MacHealthSampler.pruneHealthHistory(store: store, defaults: suite.defaults, now: now)
+        #expect(store.samples(for: network).map(\.score) == [95])
+    }
+
+    @Test func samplerPruneKeepsEverythingForever() {
+        let now = Date(timeIntervalSince1970: 1_790_000_000)
+        let suite = RetentionSuite("Forever")
+        defer { suite.clear() }
+        let network = UUID()
+        let store = HealthScoreHistoryStore()
+        store.record(NetworkHealthScore(score: 30, grade: "F"), networkProfileID: network, at: now.addingTimeInterval(-400 * 86400))
+        MacHealthSampler.pruneHealthHistory(store: store, defaults: suite.defaults, now: now)
+        #expect(store.samples(for: network).count == 1)
+    }
+
     @Test func pruneRemovesOldHealthSamples() throws {
         let now = Date(timeIntervalSince1970: 1_790_000_000)
         let schema = Schema([NetworkTarget.self, TargetMeasurement.self, SessionRecord.self])

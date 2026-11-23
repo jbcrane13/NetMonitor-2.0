@@ -56,9 +56,11 @@ struct HealthSampleProbe {
         return Reading(score: score, internetReachable: results.isEmpty ? nil : latencyMs != nil)
     }
 
-    /// The network health samples belong to: the one this device is on. Never the active
-    /// profile, which can be a remote or manual network the pings from here don't measure.
+    /// The network health samples belong to: the one this device is on, while it is connected.
+    /// Never the active profile, which can be a remote or manual network the pings from here
+    /// don't measure, and not the saved local profile after a disconnect: an offline score
+    /// would be filed under the last network and throttle its next real reading.
     static func localNetworkProfileID(in manager: NetworkProfileManager = NetworkProfileManager()) -> UUID? {
-        manager.localProfile?.id
+        manager.connectedLocalProfile?.id
     }
 }

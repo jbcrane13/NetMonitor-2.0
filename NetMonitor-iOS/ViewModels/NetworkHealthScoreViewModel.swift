@@ -129,7 +129,8 @@ final class NetworkHealthScoreViewModel {
         currentScore = score
         lastUpdated = Date()
         // Saved at once: at most one sample per 15 minutes, and iOS may suspend the app any time.
-        if let networkID, historyStore.record(score, networkProfileID: networkID) {
+        // A refresh cancelled mid-probe scored partial pings: not saved.
+        if !Task.isCancelled, let networkID, historyStore.record(score, networkProfileID: networkID) {
             historyStore.flush()
         }
         loadHistory(networkID)

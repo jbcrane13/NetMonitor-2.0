@@ -12,6 +12,16 @@ private final class FixedHealthScoreService: NetworkHealthScoreServiceProtocol, 
     func calculateScore() async -> NetworkHealthScore { score }
 }
 
+/// Never answers: its stream ends only when the consuming task is cancelled.
+private final class HangingPingService: PingServiceProtocol, @unchecked Sendable {
+    func ping(host: String, count: Int, timeout: TimeInterval) async -> AsyncStream<PingResult> {
+        AsyncStream { _ in }
+    }
+
+    func stop() async {}
+    func calculateStatistics(_ results: [PingResult], requestedCount: Int?) async -> PingStatistics? { nil }
+}
+
 @MainActor
 private func makeProbe(score: Int = 84) -> HealthSampleProbe {
     let service = FixedHealthScoreService()
@@ -77,6 +87,23 @@ struct NetworkHealthScoreViewModelHistoryTests {
         #expect(vm.showsHistoryChart)
     }
 
+    @Test func cancelledRefreshSavesNothing() async {
+        let store = HealthScoreHistoryStore()
+        let network = network
+        let vm = NetworkHealthScoreViewModel(
+            service: FixedHealthScoreService(),
+            pingService: HangingPingService(),
+            networkMonitor: MockNetworkMonitorService(),
+            historyStore: store,
+            currentNetworkProfileID: { network }
+        )
+        vm.refresh()
+        await waitUntil { vm.isCalculating }
+        vm.stopAutoRefresh()
+        await waitUntil { !vm.isCalculating }
+        #expect(store.samples(for: network).isEmpty)
+    }
+
     @Test func refreshNoLongerLogsAHealthEvent() async {
         let before = NetworkEventService.shared.events.filter { $0.title.hasPrefix("Health Score") }.count
         let vm = makeVM(store: HealthScoreHistoryStore(), networkID: network)
@@ -126,6 +153,22 @@ struct BackgroundHealthSampleTests {
     }
 }
 
+@Suite("Clear all data: health history")
+@MainActor
+struct ClearAllDataHealthHistoryTests {
+    @Test func clearAllCachedDataClearsHealthHistory() async throws {
+        let schema = Schema([LocalDevice.self, MonitoringTarget.self, ToolResult.self, SpeedTestResult.self, PairedMac.self])
+        let config = ModelConfiguration(UUID().uuidString, schema: schema, isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+        let container = try ModelContainer(for: schema, configurations: [config])
+        defer { withExtendedLifetime(container) {} }
+        let network = UUID()
+        let store = HealthScoreHistoryStore()
+        store.record(NetworkHealthScore(score: 70, grade: "C"), networkProfileID: network)
+        await SettingsViewModel(healthHistory: store).clearAllCachedData(modelContext: container.mainContext)
+        #expect(store.samples(for: network).isEmpty)
+    }
+}
+
 @Suite("DataMaintenanceService health pruning")
 @MainActor
 struct DataMaintenanceHealthPruneTests {
@@ -147,6 +190,16 @@ struct DataMaintenanceHealthPruneTests {
             eventService: NetworkEventService(), healthHistory: store, now: now
         )
         #expect(store.samples(for: network).map(\.score) == [90])
+    }
+}
+
+private final class ConnectionBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var _profiles: [NetworkProfile]
+    init(profiles: [NetworkProfile]) { _profiles = profiles }
+    var profiles: [NetworkProfile] {
+        get { lock.withLock { _profiles } }
+        set { lock.withLock { _profiles = newValue } }
     }
 }
 
@@ -177,6 +230,18 @@ struct HealthSampleProbeNetworkTests {
         let manual = try #require(manager.addProfile(gateway: "10.9.0.1", subnet: "10.9.0.0/24", name: "Office"))
         #expect(manager.switchProfile(id: manual.id))
         #expect(manager.activeProfile?.id == manual.id)
+        #expect(HealthSampleProbe.localNetworkProfileID(in: manager) == nil)
+    }
+
+    /// After a disconnect the saved local profile lingers; an offline score must not be filed
+    /// under it.
+    @Test func noSamplesAfterThisDeviceDisconnects() throws {
+        let local = detectedLocalProfile()
+        let connected = ConnectionBox(profiles: [local])
+        let manager = NetworkProfileManager(userDefaults: makeDefaults(), activeProfilesProvider: { connected.profiles })
+        #expect(HealthSampleProbe.localNetworkProfileID(in: manager) == manager.localProfile?.id)
+        connected.profiles = []
+        #expect(manager.localProfile != nil)
         #expect(HealthSampleProbe.localNetworkProfileID(in: manager) == nil)
     }
 

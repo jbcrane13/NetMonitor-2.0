@@ -225,7 +225,6 @@ final class BackgroundTaskService {
         }
         Self.logger.debug("Checking monitoring targets...")
         await checkMonitoringTargets()
-        await recordHealthSample(isCancelled: { taskCancelled })
 
         guard !taskCancelled else {
             Self.logger.info("Task cancelled before widget reload")
@@ -234,6 +233,9 @@ final class BackgroundTaskService {
         // Reload widget timeline
         Self.logger.debug("Reloading widget timelines")
         WidgetCenter.shared.reloadAllTimelines()
+
+        // Last, so a slow probe never delays the widget (#491).
+        await recordHealthSample(isCancelled: { taskCancelled })
     }
 
     private func handleSyncTask(_ task: BGProcessingTask) async {

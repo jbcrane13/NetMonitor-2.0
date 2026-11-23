@@ -150,7 +150,8 @@ final class NetworkHealthScoreMacViewModel {
 
     /// Recalculates the score and checklist. When `gatewayIP` is given the router is
     /// pinged too; `localInputs` carries Wi-Fi and device readings the view already has.
-    /// `networkProfileID` is the Mac's own network: the score is saved to its history (#491).
+    /// `networkProfileID` is the Mac's own network while connected to it: the score is saved to
+    /// its history (#491).
     func refresh(
         gatewayIP: String? = nil,
         localInputs: HealthCheckInputs = HealthCheckInputs(),
@@ -180,8 +181,10 @@ final class NetworkHealthScoreMacViewModel {
         )
         let score = await service.calculateScore()
         currentScore = score
-        // Saved at once: at most one sample per 15 minutes, so nothing waits for quit.
-        if let networkProfileID, historyStore.record(score, networkProfileID: networkProfileID) {
+        // Saved at once: at most one sample per 15 minutes, so nothing waits for quit. A refresh
+        // cancelled mid-probe (a new scan restarts it) scored partial pings: not saved, or the
+        // throttle would turn away the full reading that follows.
+        if !Task.isCancelled, let networkProfileID, historyStore.record(score, networkProfileID: networkProfileID) {
             historyStore.flush()
         }
 
