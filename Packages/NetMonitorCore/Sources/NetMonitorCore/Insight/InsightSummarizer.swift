@@ -4,8 +4,9 @@ import Foundation
 /// whole rather than as it streams: a report page, a notification (#453).
 public enum InsightSummarizer {
     /// The model's answer to `request`, or nil when it can't be used: the model is
-    /// unavailable, fails, answers with nothing, takes longer than `timeout`, or states a
-    /// number that isn't in the request (`InsightGrounding`). Callers omit the summary on nil.
+    /// unavailable, fails, answers with nothing or with a cut-off sentence, takes longer than
+    /// `timeout`, or states a number that isn't in the request (`InsightGrounding`). Callers
+    /// omit the summary on nil.
     /// A timed-out answer is cancelled.
     public static func summary(
         for request: InsightRequest,
@@ -34,7 +35,9 @@ public enum InsightSummarizer {
             group.cancelAll()
             return first
         }
-        guard let text = answer?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty,
+        // An answer cut off by the token cap ends mid-sentence; it is dropped like any other.
+        guard let text = answer?.trimmingCharacters(in: .whitespacesAndNewlines),
+              let last = text.last, ".!?".contains(last),
               InsightGrounding.isGrounded(text, in: request)
         else {
             return nil

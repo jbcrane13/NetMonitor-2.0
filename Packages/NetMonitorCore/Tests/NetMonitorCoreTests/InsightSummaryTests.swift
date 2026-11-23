@@ -34,6 +34,17 @@ private struct AnsweringInsightService: InsightServiceProtocol {
     }
 }
 
+/// Fails every request at once.
+private struct FailingInsightService: InsightServiceProtocol {
+    let isAvailable = true
+    func explain(_ request: InsightRequest) -> AsyncStream<InsightUpdate> {
+        AsyncStream { continuation in
+            continuation.yield(.failed)
+            continuation.finish()
+        }
+    }
+}
+
 // MARK: - Summary requests
 
 @Suite("InsightRequest summary kind")
@@ -117,12 +128,6 @@ struct InsightSummarizerTests {
         subject: "Network report", facts: ["Number of devices: 12"], observations: ["2 devices are offline."], kind: .summary
     )
 
-    func until(_ condition: () -> Bool) async {
-        for _ in 0 ..< 1000 where !condition() {
-            await Task.yield()
-        }
-    }
-
     @Test func aGroundedAnswerIsReturnedTrimmed() async {
         let service = AnsweringInsightService(text: "  Two of the 12 devices are offline.\n")
         let summary = await InsightSummarizer.summary(for: request, service: service, timeout: .seconds(5))
@@ -135,16 +140,15 @@ struct InsightSummarizerTests {
         #expect(summary == nil)
     }
 
-    @Test func aFailureOrAnEmptyAnswerGivesNothing() async {
-        let service = MockInsightService()
-        let task = Task { await InsightSummarizer.summary(for: request, service: service, timeout: .seconds(5)) }
-        await until { !service.requests.isEmpty }
-        service.send(.failed)
-        #expect(await task.value == nil)
-        #expect(service.requests == [request])
-
+    @Test func aFailureAnEmptyAnswerOrACutOffAnswerGivesNothing() async {
+        let failing = await InsightSummarizer.summary(for: request, service: FailingInsightService(), timeout: .seconds(5))
+        #expect(failing == nil)
         let blank = await InsightSummarizer.summary(for: request, service: AnsweringInsightService(text: " \n"), timeout: .seconds(5))
         #expect(blank == nil)
+        let cutOff = await InsightSummarizer.summary(
+            for: request, service: AnsweringInsightService(text: "Two of the 12 devices are offline, and the"), timeout: .seconds(5)
+        )
+        #expect(cutOff == nil)
     }
 
     @Test func nothingIsRequestedWhenTheModelIsUnavailable() async {
