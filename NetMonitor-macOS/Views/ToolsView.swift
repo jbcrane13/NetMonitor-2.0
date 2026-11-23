@@ -60,6 +60,11 @@ enum NetworkTool: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
+    /// The Tools grid card's accessibility identifier, such as `tools_card_timeline`.
+    var cardIdentifier: String {
+        "tools_card_\(rawValue.lowercased().replacingOccurrences(of: " ", with: "_"))"
+    }
+
     var iconName: String {
         switch self {
         case .ping: return "waveform.path"
@@ -135,7 +140,7 @@ struct ToolsView: View {
                                     .onTapGesture {
                                         selection = .tool(tool)
                                     }
-                                    .accessibilityIdentifier("tools_card_\(tool.rawValue.lowercased().replacingOccurrences(of: " ", with: "_"))")
+                                    .accessibilityIdentifier(tool.cardIdentifier)
                             }
                         }
                     }

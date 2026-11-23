@@ -5,6 +5,7 @@ import SwiftData
 struct TimelineView: View {
     @State private var viewModel: TimelineViewModel
     @State private var showingFilterSheet = false
+    @State private var isConfirmingClear = false
     /// Summaries name devices through their saved rows and compare speed tests (#453).
     @Query(Self.savedDevicesDescriptor) private var savedDevices: [LocalDevice]
     @Query(Self.speedTestsDescriptor) private var speedTests: [SpeedTestResult]
@@ -58,9 +59,10 @@ struct TimelineView: View {
                 }
 
                 ToolbarItem(placement: .topBarLeading) {
-                    if !viewModel.events.isEmpty {
-                        Button("Clear") {
-                            viewModel.clearAll()
+                    // Whenever the log has events, even outside the range: it deletes them all.
+                    if viewModel.hasLoggedEvents {
+                        Button("Clear All") {
+                            isConfirmingClear = true
                         }
                         .font(.caption)
                         .foregroundStyle(Theme.Colors.error)
@@ -76,6 +78,14 @@ struct TimelineView: View {
             }
             .sheet(isPresented: $showingFilterSheet) {
                 TimelineFilterSheet(viewModel: viewModel)
+            }
+            .confirmationDialog("Delete all network events?", isPresented: $isConfirmingClear, titleVisibility: .visible) {
+                Button("Clear All", role: .destructive) {
+                    viewModel.clearAll()
+                }
+                .accessibilityIdentifier("timeline_button_confirmClearAll")
+            } message: {
+                Text("This removes every event in the log, not just the ones shown.")
             }
             // Keeps the empty state's and the list's own identifiers on iOS 26+.
             .accessibilityElement(children: .contain)
@@ -162,7 +172,9 @@ struct TimelineView: View {
                 .foregroundStyle(Theme.Colors.textPrimary)
                 // On the text: iOS 26+ gives the stack no element of its own to carry it.
                 .accessibilityIdentifier("timeline_label_emptyState")
-            Text("Network events will appear here as they occur.")
+            Text(viewModel.hasLoggedEvents
+                ? "No events match this range and filter."
+                : "Network events will appear here as they occur.")
                 .font(.caption)
                 .foregroundStyle(Theme.Colors.textSecondary)
                 .multilineTextAlignment(.center)

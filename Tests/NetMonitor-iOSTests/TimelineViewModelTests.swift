@@ -217,6 +217,27 @@ struct TimelineViewModelRangeTests {
         #expect(vm.groupedEvents.map(\.label) == ["Today", "Yesterday", "Dec 28, 2026", "Dec 27, 2026", "Nov 5, 2026"])
     }
 
+    @Test func todayExcludesTomorrowsMidnight() {
+        let (vm, mock) = makeVM()
+        mock.log(NetworkEvent(type: .deviceJoined, timestamp: date(1, 4, 0), title: "Midnight"))
+        vm.selectedRange = .today
+        #expect(!titles(vm).contains("Midnight"))
+        vm.selectedRange = .all
+        #expect(titles(vm).contains("Midnight"))
+    }
+
+    @Test func clearAllStaysOfferedWhileTheLogHasEventsOutsideTheRange() {
+        let mock = MockNetworkEventService()
+        mock.mockEvents = [NetworkEvent(type: .deviceLeft, timestamp: date(12, 20, year: 2026), title: "Old")]
+        let now = date(1, 3, 10)
+        let vm = TimelineViewModel(service: mock, calendar: calendar, now: { now })
+        vm.selectedRange = .today
+        #expect(!vm.hasEvents)
+        #expect(vm.hasLoggedEvents)
+        vm.clearAll()
+        #expect(!vm.hasLoggedEvents)
+    }
+
     @Test func aNewEventShowsOnRefreshWithinTheRange() {
         let (vm, mock) = makeVM()
         vm.selectedRange = .today

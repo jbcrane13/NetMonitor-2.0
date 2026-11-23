@@ -23,6 +23,9 @@ final class TimelineMacViewModel {
     /// Kept, not computed, so a 20,000-event log groups once per change rather than per render.
     private(set) var groupedEvents: [TimelineDayGroup] = []
 
+    /// Whether the log has any events at all, in or out of the range: Clear All deletes them all.
+    private(set) var hasLoggedEvents = false
+
     private let service: any NetworkEventServiceProtocol
     private let calendar: Calendar
     private let now: () -> Date
@@ -32,7 +35,7 @@ final class TimelineMacViewModel {
     ///   - now: the clock the ranges are measured from.
     init(
         service: any NetworkEventServiceProtocol = NetworkEventService.shared,
-        calendar: Calendar = .current,
+        calendar: Calendar = .autoupdatingCurrent,
         now: @escaping () -> Date = Date.init
     ) {
         self.service = service
@@ -48,8 +51,11 @@ final class TimelineMacViewModel {
     var hasEvents: Bool { !groupedEvents.isEmpty }
 
     func load() {
+        // `events(from:to:)` includes its end; tomorrow's first instant isn't today.
         events = selectedRange.bounds(now: now(), calendar: calendar)
-            .map { service.events(from: $0.start, to: $0.end) } ?? service.events
+            .map { bounds in service.events(from: bounds.start, to: bounds.end).filter { $0.timestamp < bounds.end } }
+            ?? service.events
+        hasLoggedEvents = !service.events.isEmpty
     }
 
     // periphery:ignore
@@ -58,6 +64,7 @@ final class TimelineMacViewModel {
     func clearAll() {
         service.clearAll()
         events = []
+        hasLoggedEvents = false
     }
 
     private func regroup() {
@@ -69,6 +76,7 @@ final class TimelineMacViewModel {
 
 struct TimelineView: View {
     @State private var viewModel = TimelineMacViewModel()
+    @State private var isConfirmingClear = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -92,9 +100,9 @@ struct TimelineView: View {
                 ContentUnavailableView(
                     "No Events",
                     systemImage: "clock.arrow.circlepath",
-                    description: Text(viewModel.selectedRange == .all && viewModel.selectedFilter == nil
-                        ? "Network events will appear here as they occur."
-                        : "No events match this range and filter.")
+                    description: Text(viewModel.hasLoggedEvents
+                        ? "No events match this range and filter."
+                        : "Network events will appear here as they occur.")
                 )
                 .accessibilityIdentifier("timeline_label_empty")
             }
@@ -130,11 +138,20 @@ struct TimelineView: View {
             .frame(maxWidth: 180)
             .accessibilityIdentifier("timeline_picker_eventType")
 
-            Button("Clear All") { viewModel.clearAll() }
+            Button("Clear All") { isConfirmingClear = true }
                 .buttonStyle(.plain)
                 .foregroundStyle(MacTheme.Colors.error)
                 .font(.caption)
+                .disabled(!viewModel.hasLoggedEvents)
                 .accessibilityIdentifier("timeline_button_clearAll")
+                .confirmationDialog("Delete all network events?", isPresented: $isConfirmingClear) {
+                    Button("Clear All", role: .destructive) { viewModel.clearAll() }
+                        .accessibilityIdentifier("timeline_button_confirmClearAll")
+                    Button("Cancel", role: .cancel) {}
+                        .accessibilityIdentifier("timeline_button_cancelClearAll")
+                } message: {
+                    Text("This removes every event in the log, not just the ones shown.")
+                }
         }
         .macGlassCard(cornerRadius: MacTheme.Layout.smallCornerRadius, padding: MacTheme.Layout.cardPadding, showBorder: false)
     }

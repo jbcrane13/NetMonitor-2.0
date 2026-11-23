@@ -3,8 +3,9 @@
 # Launches a Debug build with UI-test arguments and seeded events (today and ten days ago), opens
 # Tools > Timeline, picks "Today" (the old event goes, today's stays) and "All" (both show), then
 # scans with File > Scan Network, reopens the Timeline and checks "Scan Complete" and
-# "Device Joined: uitest-printer". Screenshots are the app window cropped to the Timeline, so no
-# other window and none of the dashboard's WAN or DNS data appear.
+# "Device Joined: uitest-printer". Last, Clear All must ask first, and Cancel keeps the log.
+# Screenshots are the app window cropped to the Timeline (the confirmation one is the window), so
+# no other window and none of the dashboard's WAN or DNS data appear.
 # Never touches an installed /Applications copy: it drives only the process it started.
 # Usage: scripts/ax/s3-timeline.sh <Debug NetMonitor-macOS.app> <out-dir>
 set -euo pipefail
@@ -57,4 +58,15 @@ open_timeline
 expect "$("$AX" text "Device Joined: uitest-printer" 20)" "found text" "the scan's join is missing"
 expect "$("$AX" text "Scan Complete" 5)" "found text" "Scan Complete is missing"
 "$AX" capture-in screen_networkTimeline "$OUT/s3-timeline-after-scan.png"
+
+# Clear All deletes the whole log, so it asks first; Cancel keeps everything.
+"$AX" pressin timeline_picker_range Today
+"$AX" press timeline_button_clearAll
+expect "$("$AX" text "Delete all network events?" 5)" "found text" "Clear All didn't ask first"
+"$AX" capture "$OUT/s3-timeline-clear-confirm.png"
+"$AX" press timeline_button_cancelClearAll
+expect "$("$AX" notext "Delete all network events?" 5)" "no text" "Cancel didn't close the confirmation"
+"$AX" pressin timeline_picker_range All
+expect "$("$AX" text "UITest Event 10 Days Ago" 5)" "found text" "Cancel lost the event outside the range"
+expect "$("$AX" text "Device Joined: uitest-printer" 3)" "found text" "Cancel lost the scan's join"
 echo PASS

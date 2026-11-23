@@ -9,7 +9,7 @@ final class TimelineViewModel {
     // MARK: - State
 
     /// The events in `selectedRange`, before the type filter.
-    var events: [NetworkEvent] = [] {
+    private(set) var events: [NetworkEvent] = [] {
         didSet { regroup() }
     }
 
@@ -25,6 +25,9 @@ final class TimelineViewModel {
     /// Day sections, newest first. Kept, not computed, so a 20,000-event log groups once per
     /// change rather than once per section header.
     private(set) var groupedEvents: [TimelineDayGroup] = []
+
+    /// Whether the log has any events at all, in or out of the range: Clear All deletes them all.
+    private(set) var hasLoggedEvents = false
     var isShowingFilterSheet: Bool = false
 
     /// A day's summary from the on-device model (#453).
@@ -54,7 +57,7 @@ final class TimelineViewModel {
         service: any NetworkEventServiceProtocol = NetworkEventService.shared,
         insightService: any InsightServiceProtocol = UITestBootstrap.insightService ?? InsightService.shared,
         isScanning: @escaping @MainActor () -> Bool = { DeviceDiscoveryService.shared.isScanning },
-        calendar: Calendar = .current,
+        calendar: Calendar = .autoupdatingCurrent,
         now: @escaping () -> Date = Date.init
     ) {
         self.service = service
@@ -95,8 +98,11 @@ final class TimelineViewModel {
     // MARK: - Actions
 
     func load() {
+        // `events(from:to:)` includes its end; tomorrow's first instant isn't today.
         events = selectedRange.bounds(now: now(), calendar: calendar)
-            .map { service.events(from: $0.start, to: $0.end) } ?? service.events
+            .map { bounds in service.events(from: bounds.start, to: bounds.end).filter { $0.timestamp < bounds.end } }
+            ?? service.events
+        hasLoggedEvents = !service.events.isEmpty
     }
 
     func refresh() {
@@ -121,6 +127,7 @@ final class TimelineViewModel {
     func clearAll() {
         service.clearAll()
         events = []
+        hasLoggedEvents = false
     }
 
     // MARK: - Summaries

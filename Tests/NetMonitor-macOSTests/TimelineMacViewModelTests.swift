@@ -119,6 +119,29 @@ struct TimelineMacViewModelTests {
         #expect(titles(vm).contains("Joined later"))
     }
 
+    @Test("An event at exactly tomorrow's midnight is not Today")
+    func todayExcludesTomorrowsMidnight() {
+        let service = seeded()
+        service.log(NetworkEvent(type: .deviceJoined, timestamp: date(11, 24, 0), title: "Midnight"))
+        let vm = makeVM(service)
+        vm.selectedRange = .today
+        #expect(!titles(vm).contains("Midnight"))
+        vm.selectedRange = .all
+        #expect(titles(vm).contains("Midnight"))
+    }
+
+    @Test("Clear All stays offered while the log has events outside the range")
+    func logHasEventsOutsideTheRange() {
+        let vm = makeVM(ArrayEventService([
+            NetworkEvent(type: .deviceLeft, timestamp: date(11, 13), title: "Left 10 days ago")
+        ]))
+        vm.selectedRange = .today
+        #expect(!vm.hasEvents)
+        #expect(vm.hasLoggedEvents)
+        vm.clearAll()
+        #expect(!vm.hasLoggedEvents)
+    }
+
     @Test("Clear All empties the log and the list")
     func clearAll() {
         let service = seeded()
@@ -149,6 +172,7 @@ struct TimelineToolRegistrationTests {
     @Test("Timeline is a Monitoring tool whose card id is tools_card_timeline")
     func listedUnderMonitoring() {
         #expect(ToolCategory.allCases.filter { $0.tools.contains(.timeline) } == [.monitoring])
-        #expect("tools_card_\(NetworkTool.timeline.rawValue.lowercased().replacingOccurrences(of: " ", with: "_"))" == "tools_card_timeline")
+        #expect(NetworkTool.timeline.cardIdentifier == "tools_card_timeline")
+        #expect(NetworkTool.portForwards.cardIdentifier == "tools_card_port_forwards")
     }
 }
