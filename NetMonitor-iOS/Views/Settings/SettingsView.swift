@@ -300,6 +300,8 @@ struct SettingsView: View {
                             .foregroundStyle(Theme.Colors.error)
                     }
                 }
+                // The report holds these records while the model writes its summary (#495 review).
+                .disabled(isPreparingReport)
                 .accessibilityIdentifier("settings_button_clearHistory")
 
                 Button {
@@ -316,6 +318,7 @@ struct SettingsView: View {
                             .foregroundStyle(Theme.Colors.error)
                     }
                 }
+                .disabled(isPreparingReport)
                 .accessibilityIdentifier("settings_button_clearCache")
             } header: {
                 Text("Data & Privacy")
