@@ -68,6 +68,12 @@ public enum ChangeDigestBuilder {
         return InsightRequest(subject: subject, facts: facts, observations: observations, kind: .summary)
     }
 
+    /// Each saved device's name through the identity seam (`LocalDevice.displayName`), by IP
+    /// address, for `request(deviceNames:)`. Where two rows share an address the first wins.
+    public static func deviceNames(_ devices: [LocalDevice]) -> [String: String] {
+        Dictionary(devices.map { ($0.ipAddress, $0.displayName) }, uniquingKeysWith: { first, _ in first })
+    }
+
     /// The subject of a one-day digest, such as "Network events on November 22, 2026".
     public static func daySubject(_ day: Date, filter: NetworkEventType?, calendar: Calendar = .current) -> String {
         "\(filter?.displayName ?? "Network") events on \(ReportSummaryBuilder.longDay(day, calendar))"

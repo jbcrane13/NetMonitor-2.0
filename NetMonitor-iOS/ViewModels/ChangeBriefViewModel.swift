@@ -1,12 +1,6 @@
 import Foundation
 import NetMonitorCore
-
-/// A summary written by the on-device model with the app's own key points, which are shown
-/// word for word beside it (#453).
-struct ChangeSummary: Equatable {
-    let keyPoints: [String]
-    let text: String
-}
+import NetworkScanKit
 
 /// The dashboard's "since yesterday" brief (#453): what changed in the last 24 hours, worded
 /// by the on-device model from `ChangeDigestBuilder`'s digest.
@@ -27,11 +21,10 @@ final class ChangeBriefViewModel {
     static let timeout: Duration = .seconds(15)
 
     /// The dashboard's brief. Shared so that a dashboard rebuilt by navigation keeps its cache.
-    static let dashboard: ChangeBriefViewModel = {
-        // The dashboard can ask before the app's launch hook seeds UI-test events.
-        UITestBootstrap.seedEventsIfNeeded()
-        return ChangeBriefViewModel(service: UITestBootstrap.insightService ?? InsightService.shared, eventService: NetworkEventService.shared)
-    }()
+    static let dashboard = ChangeBriefViewModel(
+        service: UITestBootstrap.insightService ?? InsightService.shared,
+        eventService: NetworkEventService.shared
+    )
 
     private let service: any InsightServiceProtocol
     private let eventService: any NetworkEventServiceProtocol
@@ -54,22 +47,34 @@ final class ChangeBriefViewModel {
 
     /// Asks the model about the last day's changes when the digest differs from the last one.
     /// - Parameters:
-    ///   - deviceNames: saved devices' display names by IP address.
+    ///   - scanned: the dashboard's devices; cached ones did not answer the last scan.
+    ///   - saved: every saved device. Only those of the network being shown (or of none) name
+    ///     devices and count as found or missing.
+    ///   - networkProfileID: the network being shown.
     ///   - speedTests: the most recent saved speed tests; the latest two are enough.
-    func refresh(deviceNames: [String: String], speedTests: [SpeedTestResult], counts: ChangeDigestCounts, isScanning: Bool) async {
+    func refresh(
+        scanned: [DiscoveredDevice],
+        saved: [LocalDevice],
+        networkProfileID: UUID?,
+        speedTests: [SpeedTestResult],
+        isScanning: Bool
+    ) async {
         guard !isScanning else { return }
         guard service.isAvailable else {
             brief = nil
             return
         }
+        let found = Set(scanned.filter { !$0.isCached }.map(\.ipAddress))
+        // Saved rows of other networks are neither found nor missing here.
+        let network = saved.filter { $0.networkProfileID == nil || $0.networkProfileID == networkProfileID }
         let end = now()
         let request = ChangeDigestBuilder.request(
             events: eventService.events(from: end.addingTimeInterval(-Self.window), to: end),
             from: end.addingTimeInterval(-Self.window),
             to: end,
-            deviceNames: deviceNames,
+            deviceNames: ChangeDigestBuilder.deviceNames(network),
             speedTests: speedTests,
-            counts: counts
+            counts: ChangeDigestCounts(found: found.count, notFound: network.count { !found.contains($0.ipAddress) })
         )
         guard lastRequest != .some(request) else { return }
         lastRequest = .some(request)

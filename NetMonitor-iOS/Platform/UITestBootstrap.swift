@@ -21,7 +21,6 @@ enum UITestBootstrap {
         TargetManager.shared.clearSelection()
         ToolActivityLog.shared.clear()
         startNotificationDemoIfRequested()
-        seedEventsIfNeeded()
     }
 
     static var isUITesting: Bool {

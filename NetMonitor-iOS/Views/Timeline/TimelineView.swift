@@ -1,9 +1,25 @@
 import SwiftUI
 import NetMonitorCore
+import SwiftData
 
 struct TimelineView: View {
     @State private var viewModel: TimelineViewModel
     @State private var showingFilterSheet = false
+    /// Summaries name devices through their saved rows and compare speed tests (#453).
+    @Query(Self.savedDevicesDescriptor) private var savedDevices: [LocalDevice]
+    @Query(Self.speedTestsDescriptor) private var speedTests: [SpeedTestResult]
+
+    private static var savedDevicesDescriptor: FetchDescriptor<LocalDevice> {
+        var descriptor = FetchDescriptor<LocalDevice>()
+        descriptor.fetchLimit = 500
+        return descriptor
+    }
+
+    private static var speedTestsDescriptor: FetchDescriptor<SpeedTestResult> {
+        var descriptor = FetchDescriptor<SpeedTestResult>(sortBy: [SortDescriptor(\SpeedTestResult.timestamp, order: .reverse)])
+        descriptor.fetchLimit = 500
+        return descriptor
+    }
 
     init(env: AppEnvironment) {
         _viewModel = State(initialValue: TimelineViewModel(service: env.eventService))
@@ -106,7 +122,7 @@ struct TimelineView: View {
             // Hidden where the on-device model is unavailable, and while a summary is on its way.
             if viewModel.canSummarize, viewModel.summary(for: label) != .loading {
                 Button {
-                    Task { await viewModel.summarize(label) }
+                    Task { await viewModel.summarize(label, savedDevices: savedDevices, speedTests: speedTests) }
                 } label: {
                     Label("Summarize", systemImage: "sparkles")
                         .font(.caption.weight(.semibold))
@@ -158,7 +174,11 @@ private struct TimelineDaySummary: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .accessibilityIdentifier("timeline_progress_summary_\(label)")
             case let .finished(result):
-                ChangeSummaryView(summary: result, idPrefix: "timeline_summary_\(label)")
+                ChangeSummaryView(summary: result, ids: .init(
+                    keyPoints: "timeline_list_summaryKeyPoints_\(label)",
+                    text: "timeline_label_summary_\(label)",
+                    generated: "timeline_label_summaryGenerated_\(label)"
+                ))
             case .unavailable:
                 Text("Summary unavailable")
                     .font(.subheadline)

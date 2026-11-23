@@ -131,16 +131,11 @@ struct DashboardView: View {
     }
 
     private func refreshChangeBrief() async {
-        let found = viewModel.discoveredDevices.filter { !$0.isCached }
-        let foundIPs = Set(found.map(\.ipAddress))
-        // Saved rows of other networks are neither found nor missing here.
-        let profileID = viewModel.activeNetwork?.id
-        let saved = savedDevices.filter { $0.networkProfileID == nil || $0.networkProfileID == profileID }
-        let names = Dictionary(saved.map { ($0.ipAddress, $0.displayName) }, uniquingKeysWith: { first, _ in first })
         await changeBrief.refresh(
-            deviceNames: names,
+            scanned: viewModel.discoveredDevices,
+            saved: savedDevices,
+            networkProfileID: viewModel.activeNetwork?.id,
             speedTests: recentSpeedTests,
-            counts: ChangeDigestCounts(found: found.count, notFound: saved.count { !foundIPs.contains($0.ipAddress) }),
             isScanning: viewModel.isScanning
         )
     }

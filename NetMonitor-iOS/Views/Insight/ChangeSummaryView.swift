@@ -4,9 +4,15 @@ import SwiftUI
 /// A model-written summary under the app's key points, with the generated-text marker (#453).
 /// Used by the dashboard brief and the Timeline's day summaries.
 struct ChangeSummaryView: View {
+    /// Accessibility identifiers, `{screen}_{element}_{descriptor}`.
+    struct IDs {
+        let keyPoints: String
+        let text: String
+        let generated: String
+    }
+
     let summary: ChangeSummary
-    /// Accessibility prefix, such as "dashboard_changeBrief".
-    let idPrefix: String
+    let ids: IDs
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -21,39 +27,19 @@ struct ChangeSummaryView: View {
                     }
                 }
                 .accessibilityElement(children: .combine)
-                .accessibilityIdentifier("\(idPrefix)_list_keyPoints")
+                .accessibilityIdentifier(ids.keyPoints)
             }
             Text(summary.text)
                 .font(.subheadline)
                 .foregroundStyle(Theme.Colors.textPrimary)
                 .textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .accessibilityIdentifier("\(idPrefix)_label_text")
+                .accessibilityIdentifier(ids.text)
             Label("Written by the on-device model from the events the app recorded", systemImage: "sparkles")
                 .font(.caption2)
                 .foregroundStyle(Theme.Colors.textSecondary)
                 .accessibilityElement(children: .combine)
-                .accessibilityIdentifier("\(idPrefix)_label_generated")
+                .accessibilityIdentifier(ids.generated)
         }
-    }
-}
-
-/// The dashboard's "since yesterday" brief (#453). Shows only a finished brief; the
-/// dashboard hides it otherwise, never showing it blank.
-struct ChangeBriefCard: View {
-    let brief: ChangeSummary
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("SINCE YESTERDAY")
-                .font(.system(.caption2, weight: .heavy))
-                .foregroundStyle(Theme.Colors.textTertiary)
-                .tracking(2.0)
-            ChangeSummaryView(summary: brief, idPrefix: "dashboard_changeBrief")
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .glassCard()
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("dashboard_card_changeBrief")
     }
 }

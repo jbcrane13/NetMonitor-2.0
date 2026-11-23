@@ -208,4 +208,15 @@ struct ChangeDigestBuilderTests {
         #expect(ChangeDigestBuilder.daySubject(now, filter: nil, calendar: calendar) == "Network events on November 22, 2026")
         #expect(ChangeDigestBuilder.daySubject(now, filter: .deviceLeft, calendar: calendar) == "Device Left events on November 22, 2026")
     }
+
+    // MARK: - Device names
+
+    @Test func deviceNamesMapEachSavedDevicesIPToItsDisplayName() {
+        let names = ChangeDigestBuilder.deviceNames([
+            LocalDevice(ipAddress: "192.168.1.50", macAddress: "AA:BB:CC:00:00:50", customName: "Garage Camera"),
+            LocalDevice(ipAddress: "192.168.1.30", macAddress: "AA:BB:CC:00:00:30", hostname: "printer.lan"),
+            LocalDevice(ipAddress: "192.168.1.50", macAddress: "AA:BB:CC:00:00:51", customName: "Old Camera")
+        ])
+        #expect(names == ["192.168.1.50": "Garage Camera", "192.168.1.30": "printer.lan"])
+    }
 }
