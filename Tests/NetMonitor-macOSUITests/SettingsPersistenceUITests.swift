@@ -27,7 +27,7 @@ final class SettingsPersistenceUITests: MacOSUITestCase {
         ]
         for candidate in candidates {
             if candidate.waitForExistence(timeout: 2) {
-                candidate.tap()
+                candidate.click()
                 return
             }
         }
@@ -57,7 +57,7 @@ final class SettingsPersistenceUITests: MacOSUITestCase {
         let box = app.checkBoxes[id]
         guard box.waitForExistence(timeout: timeout) else { return nil }
         let before = (box.value as? String) ?? ""
-        box.tap()
+        box.click()
         let after = (box.value as? String) ?? ""
         XCTAssertNotEqual(before, after,
                           "Checkbox '\(id)' should toggle after tap (was '\(before)')")
@@ -90,7 +90,7 @@ final class SettingsPersistenceUITests: MacOSUITestCase {
                        "Show in Dock preference should persist across app launches")
 
         // Restore original state so the test is idempotent for the next run.
-        afterRelaunch.tap()
+        afterRelaunch.click()
 
         captureScreenshot(named: "MacSettings_ShowInDock_Persisted")
     }
@@ -115,7 +115,7 @@ final class SettingsPersistenceUITests: MacOSUITestCase {
         XCTAssertEqual(afterRelaunch.value as? String, valueAfterToggle,
                        "Show in Menu Bar preference should persist across app launches")
 
-        afterRelaunch.tap()
+        afterRelaunch.click()
     }
 
     // MARK: - Monitoring Tab: Retry Enabled
@@ -138,7 +138,7 @@ final class SettingsPersistenceUITests: MacOSUITestCase {
         XCTAssertEqual(afterRelaunch.value as? String, valueAfterToggle,
                        "Retry enabled preference should persist across app launches")
 
-        afterRelaunch.tap()
+        afterRelaunch.click()
     }
 
     // MARK: - Notifications Tab: Notifications Enabled
@@ -161,7 +161,7 @@ final class SettingsPersistenceUITests: MacOSUITestCase {
         XCTAssertEqual(afterRelaunch.value as? String, valueAfterToggle,
                        "Notifications enabled preference should persist across app launches")
 
-        afterRelaunch.tap()
+        afterRelaunch.click()
     }
 
     // MARK: - Notifications Tab: Latency Threshold Slider
@@ -173,7 +173,7 @@ final class SettingsPersistenceUITests: MacOSUITestCase {
         let notificationsToggle = app.checkBoxes["settings_toggle_notificationsEnabled"]
         if notificationsToggle.waitForExistence(timeout: 3),
            (notificationsToggle.value as? String) == "0" {
-            notificationsToggle.tap()
+            notificationsToggle.click()
         }
 
         let slider = app.sliders["settings_slider_latencyThreshold"]
@@ -224,7 +224,7 @@ final class SettingsPersistenceUITests: MacOSUITestCase {
         XCTAssertEqual(afterRelaunch.value as? String, valueAfterToggle,
                        "Use system proxy preference should persist across app launches")
 
-        afterRelaunch.tap()
+        afterRelaunch.click()
     }
 
     // MARK: - Appearance Tab: Compact Mode
@@ -247,7 +247,7 @@ final class SettingsPersistenceUITests: MacOSUITestCase {
         XCTAssertEqual(afterRelaunch.value as? String, valueAfterToggle,
                        "Compact mode preference should persist across app launches")
 
-        afterRelaunch.tap()
+        afterRelaunch.click()
 
         captureScreenshot(named: "MacSettings_CompactMode_Persisted")
     }
@@ -272,7 +272,7 @@ final class SettingsPersistenceUITests: MacOSUITestCase {
         XCTAssertEqual(afterRelaunch.value as? String, valueAfterToggle,
                        "Companion enabled preference should persist across app launches")
 
-        afterRelaunch.tap()
+        afterRelaunch.click()
     }
 
     // MARK: - Notify Target Down
@@ -284,7 +284,7 @@ final class SettingsPersistenceUITests: MacOSUITestCase {
         let notificationsToggle = app.checkBoxes["settings_toggle_notificationsEnabled"]
         if notificationsToggle.waitForExistence(timeout: 3),
            (notificationsToggle.value as? String) == "0" {
-            notificationsToggle.tap()
+            notificationsToggle.click()
         }
 
         guard let (_, valueAfterToggle) = flip(checkbox: "settings_toggle_notifyTargetDown") else {
@@ -302,7 +302,7 @@ final class SettingsPersistenceUITests: MacOSUITestCase {
         XCTAssertEqual(afterRelaunch.value as? String, valueAfterToggle,
                        "Notify target down preference should persist across app launches")
 
-        afterRelaunch.tap()
+        afterRelaunch.click()
     }
 
     // MARK: - Notify Target Recovery
@@ -313,7 +313,7 @@ final class SettingsPersistenceUITests: MacOSUITestCase {
         let notificationsToggle = app.checkBoxes["settings_toggle_notificationsEnabled"]
         if notificationsToggle.waitForExistence(timeout: 3),
            (notificationsToggle.value as? String) == "0" {
-            notificationsToggle.tap()
+            notificationsToggle.click()
         }
 
         guard let (_, valueAfterToggle) = flip(checkbox: "settings_toggle_notifyTargetRecovery") else {
@@ -331,6 +331,6 @@ final class SettingsPersistenceUITests: MacOSUITestCase {
         XCTAssertEqual(afterRelaunch.value as? String, valueAfterToggle,
                        "Notify target recovery preference should persist across app launches")
 
-        afterRelaunch.tap()
+        afterRelaunch.click()
     }
 }

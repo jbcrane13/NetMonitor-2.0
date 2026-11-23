@@ -11,7 +11,7 @@ final class SettingsUITests: MacOSUITestCase {
     // MARK: - Settings Detail Pane
 
     func testSettingsDetailExists() {
-        requireExists(app.otherElements["detail_settings"], timeout: 3,
+        requireExists(app.otherElements["contentView_nav_settings"], timeout: 3,
                       message: "Settings detail pane should exist")
     }
 
@@ -55,7 +55,7 @@ final class SettingsUITests: MacOSUITestCase {
     // MARK: - General Settings
 
     func testGeneralSettingsControls() {
-        app.staticTexts["settings_tab_general"].tap()
+        app.staticTexts["settings_tab_general"].click()
 
         requireExists(app.checkBoxes["settings_toggle_launchAtLogin"], timeout: 3,
                       message: "Launch at login checkbox should exist on General tab")
@@ -63,10 +63,11 @@ final class SettingsUITests: MacOSUITestCase {
                       "Show in menu bar checkbox should exist")
         XCTAssertTrue(app.checkBoxes["settings_toggle_showInDock"].exists,
                       "Show in dock checkbox should exist")
+        captureScreenshot(named: "Settings_General")
     }
 
     func testGeneralTabCheckboxToggleChangesValue() {
-        app.staticTexts["settings_tab_general"].tap()
+        app.staticTexts["settings_tab_general"].click()
 
         let showInDock = requireExists(
             app.checkBoxes["settings_toggle_showInDock"], timeout: 3,
@@ -74,7 +75,7 @@ final class SettingsUITests: MacOSUITestCase {
         )
         let valueBefore = showInDock.value as? String
 
-        showInDock.tap()
+        showInDock.click()
 
         let valueAfter = showInDock.value as? String
         if let before = valueBefore, let after = valueAfter {
@@ -82,13 +83,13 @@ final class SettingsUITests: MacOSUITestCase {
                               "Show in Dock checkbox value should change after toggling")
         }
 
-        showInDock.tap()
+        showInDock.click()
     }
 
     // MARK: - Monitoring Settings
 
     func testMonitoringSettingsControls() {
-        app.staticTexts["settings_tab_monitoring"].tap()
+        app.staticTexts["settings_tab_monitoring"].click()
 
         requireExists(app.popUpButtons["settings_picker_defaultInterval"], timeout: 3,
                       message: "Default interval picker should exist on Monitoring tab")
@@ -99,7 +100,7 @@ final class SettingsUITests: MacOSUITestCase {
     }
 
     func testMonitoringTabPickerIsInteractive() {
-        app.staticTexts["settings_tab_monitoring"].tap()
+        app.staticTexts["settings_tab_monitoring"].click()
 
         let picker = requireExists(
             app.popUpButtons["settings_picker_defaultInterval"], timeout: 3,
@@ -111,7 +112,7 @@ final class SettingsUITests: MacOSUITestCase {
     // MARK: - Notification Settings
 
     func testNotificationSettingsControls() {
-        app.staticTexts["settings_tab_notifications"].tap()
+        app.staticTexts["settings_tab_notifications"].click()
 
         requireExists(app.checkBoxes["settings_toggle_notificationsEnabled"], timeout: 3,
                       message: "Notifications enabled checkbox should exist")
@@ -124,7 +125,7 @@ final class SettingsUITests: MacOSUITestCase {
     }
 
     func testNotificationSliderInteraction() {
-        app.staticTexts["settings_tab_notifications"].tap()
+        app.staticTexts["settings_tab_notifications"].click()
 
         let slider = app.sliders["settings_slider_latencyThreshold"]
         guard slider.waitForExistence(timeout: 3) else { return }
@@ -137,7 +138,7 @@ final class SettingsUITests: MacOSUITestCase {
     // MARK: - Network Settings
 
     func testNetworkSettingsControls() {
-        app.staticTexts["settings_tab_network"].tap()
+        app.staticTexts["settings_tab_network"].click()
 
         requireExists(app.popUpButtons["settings_picker_preferredInterface"], timeout: 3,
                       message: "Preferred interface picker should exist on Network tab")
@@ -148,7 +149,7 @@ final class SettingsUITests: MacOSUITestCase {
     // MARK: - Data Settings
 
     func testDataSettingsControls() {
-        app.staticTexts["settings_tab_data"].tap()
+        app.staticTexts["settings_tab_data"].click()
 
         requireExists(app.popUpButtons["settings_picker_historyRetention"], timeout: 3,
                       message: "History retention picker should exist on Data tab")
@@ -159,7 +160,7 @@ final class SettingsUITests: MacOSUITestCase {
     }
 
     func testDataClearButtonShowsConfirmation() {
-        app.staticTexts["settings_tab_data"].tap()
+        app.staticTexts["settings_tab_data"].click()
 
         let clearButton = requireExists(
             app.buttons["settings_button_clearData"], timeout: 3,
@@ -167,7 +168,7 @@ final class SettingsUITests: MacOSUITestCase {
         )
         XCTAssertTrue(clearButton.isEnabled, "Clear data button should be enabled")
 
-        clearButton.tap()
+        clearButton.click()
 
         let appeared = waitForEither(
             [app.sheets.firstMatch, app.dialogs.firstMatch, app.alerts.firstMatch],
@@ -182,7 +183,7 @@ final class SettingsUITests: MacOSUITestCase {
             app.sheets.firstMatch.buttons.firstMatch
         ]
         for candidate in dismissCandidates where candidate.exists {
-            candidate.tap()
+            candidate.click()
             break
         }
     }
@@ -190,7 +191,7 @@ final class SettingsUITests: MacOSUITestCase {
     // MARK: - Appearance Settings
 
     func testAppearanceSettingsControls() {
-        app.staticTexts["settings_tab_appearance"].tap()
+        app.staticTexts["settings_tab_appearance"].click()
 
         requireExists(app.buttons["settings_color_cyan"], timeout: 3,
                       message: "Cyan color button should exist on Appearance tab")
@@ -204,32 +205,32 @@ final class SettingsUITests: MacOSUITestCase {
     }
 
     func testAppearanceColorSelectionInteraction() {
-        app.staticTexts["settings_tab_appearance"].tap()
+        app.staticTexts["settings_tab_appearance"].click()
 
         let cyanButton = requireExists(
             app.buttons["settings_color_cyan"], timeout: 3,
             message: "Cyan color button should exist on Appearance tab"
         )
-        cyanButton.tap()
+        cyanButton.click()
         requireExists(cyanButton, message: "Cyan button should remain after selection")
 
         let blueButton = app.buttons["settings_color_blue"]
         if blueButton.waitForExistence(timeout: 2) {
-            blueButton.tap()
+            blueButton.click()
             requireExists(blueButton, message: "Blue button should remain after selection")
         }
     }
 
     func testTabPersistenceAfterSwitch() {
-        app.staticTexts["settings_tab_appearance"].tap()
+        app.staticTexts["settings_tab_appearance"].click()
         requireExists(app.buttons["settings_color_cyan"], timeout: 3,
                       message: "Cyan button should appear on Appearance tab")
 
-        app.staticTexts["settings_tab_general"].tap()
+        app.staticTexts["settings_tab_general"].click()
         requireExists(app.checkBoxes["settings_toggle_launchAtLogin"], timeout: 3,
                       message: "General tab controls should appear after switching")
 
-        app.staticTexts["settings_tab_appearance"].tap()
+        app.staticTexts["settings_tab_appearance"].click()
         requireExists(app.buttons["settings_color_cyan"], timeout: 3,
                       message: "Cyan button should still be present after switching back to Appearance tab")
     }
@@ -237,14 +238,14 @@ final class SettingsUITests: MacOSUITestCase {
     // MARK: - Companion Settings
 
     func testCompanionSettingsControls() {
-        app.staticTexts["settings_tab_companion"].tap()
+        app.staticTexts["settings_tab_companion"].click()
 
         requireExists(app.checkBoxes["settings_toggle_companionEnabled"], timeout: 3,
                       message: "Companion enabled checkbox should exist")
     }
 
     func testCompanionServicePortFieldVisible() {
-        app.staticTexts["settings_tab_companion"].tap()
+        app.staticTexts["settings_tab_companion"].click()
 
         let enabledToggle = requireExists(
             app.checkBoxes["settings_toggle_companionEnabled"], timeout: 3,
@@ -273,7 +274,7 @@ final class SettingsUITests: MacOSUITestCase {
         for tabID in tabs {
             let tab = requireExists(app.staticTexts[tabID], timeout: 3,
                                     message: "\(tabID) should exist")
-            tab.tap()
+            tab.click()
         }
     }
 }
