@@ -42,6 +42,40 @@ private actor SuccessMonitorService: NetMonitor_macOS.NetworkMonitorService {
     }
 }
 
+/// Returns a different latency per host, so an average over several targets can't be
+/// mistaken for any single target's result.
+private actor HostLatencyMonitorService: NetMonitor_macOS.NetworkMonitorService {
+    let latencies: [String: Double]
+    init(latencies: [String: Double]) { self.latencies = latencies }
+
+    func check(request: TargetCheckRequest) async throws -> MeasurementResult {
+        MeasurementResult(
+            targetID: request.id,
+            timestamp: Date(),
+            latency: latencies[request.host],
+            isReachable: true,
+            errorMessage: nil
+        )
+    }
+}
+
+/// Returns 1, 2, 3, … ms on successive checks, so the latency history shows which samples
+/// were kept and which were evicted.
+private actor IncrementingLatencyMonitorService: NetMonitor_macOS.NetworkMonitorService {
+    private var checks = 0
+
+    func check(request: TargetCheckRequest) async throws -> MeasurementResult {
+        checks += 1
+        return MeasurementResult(
+            targetID: request.id,
+            timestamp: Date(),
+            latency: Double(checks),
+            isReachable: true,
+            errorMessage: nil
+        )
+    }
+}
+
 private actor UnreachableMonitorService: NetMonitor_macOS.NetworkMonitorService {
     func check(request: TargetCheckRequest) async throws -> MeasurementResult {
         MeasurementResult(
@@ -502,10 +536,12 @@ struct MonitoringSessionLoopTests {
             targetProtocol: .icmp, checkInterval: 60, isEnabled: true))
         try context.save()
 
-        let session = makeSession(context: context, stub: SuccessMonitorService(latency: 50.0))
+        let stub = HostLatencyMonitorService(latencies: ["192.168.1.1": 40.0, "192.168.1.2": 60.0])
+        let session = makeSession(context: context, stub: stub)
         session.startMonitoring()
         await waitUntil { session.latestResults.count == 2 }
 
+        #expect(session.latestResults.count == 2)
         #expect(session.averageLatencyString == "50ms")
         await session.stopMonitoringAndWait()
     }
@@ -590,14 +626,18 @@ struct MonitoringSessionLoopTests {
         context.insert(target)
         try context.save()
 
-        let session = makeSession(context: context, stub: SuccessMonitorService(latency: 5.0))
+        let session = makeSession(context: context, stub: IncrementingLatencyMonitorService())
         session.startMonitoring()
-        await waitUntil { (session.recentLatencies[target.id]?.count ?? 0) >= 20 }
+        // The 25th sample means at least five have been evicted.
+        await waitUntil { (session.recentLatencies[target.id]?.last ?? 0) >= 25 }
         await session.stopMonitoringAndWait()
 
         let history = session.recentLatencies[target.id] ?? []
-        #expect(history.count <= 20)
-        #expect(history.isEmpty == false)
+        let newest = try #require(history.last)
+        #expect(newest >= 25)
+        #expect(history.count == 20)
+        // FIFO: the 20 newest samples survive, oldest first, and sample 1 is gone.
+        #expect(history == (0..<20).map { newest - 19 + Double($0) })
     }
 
     // MARK: SessionRecord persisted on start / marked inactive on stop
