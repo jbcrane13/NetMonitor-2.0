@@ -1,0 +1,184 @@
+import AppKit
+import ApplicationServices
+
+// Drives the running NetMonitor-macOS app through the Accessibility API, by accessibility
+// identifier, and captures only its window. Build: swiftc -O scripts/ax/axdrive.swift -o <out>. Usage:
+//   axdrive press <id> | click <id> | type <id> <text> | wait <id> <seconds> | gone <id> <seconds>
+//   axdrive capture <file.png> | ids | value <id> | menu <menu item title>
+let args = CommandLine.arguments
+guard args.count >= 2 else { print("usage")
+exit(2)
+}
+
+// AX_PID picks one process, so the driver never touches another copy of the app (such as the
+// installed one) that shares the bundle identifier.
+func app() -> NSRunningApplication? {
+    if let pid = ProcessInfo.processInfo.environment["AX_PID"].flatMap(pid_t.init) {
+        return NSRunningApplication(processIdentifier: pid)
+    }
+    return NSWorkspace.shared.runningApplications.first { $0.bundleIdentifier == "com.netmonitor.NetMonitor" }
+}
+
+func attr(_ el: AXUIElement, _ name: String) -> AnyObject? {
+    var value: AnyObject?
+    return AXUIElementCopyAttributeValue(el, name as CFString, &value) == .success ? value : nil
+}
+
+func find(_ id: String) -> AXUIElement? {
+    guard let pid = app()?.processIdentifier else { return nil }
+    let root = AXUIElementCreateApplication(pid)
+    var queue: [AXUIElement] = [root]
+    var seen = 0
+    while !queue.isEmpty, seen < 20000 {
+        let el = queue.removeFirst()
+        seen += 1
+        if let ident = attr(el, "AXIdentifier") as? String, ident == id {
+            return el
+        }
+        if let children = attr(el, kAXChildrenAttribute) as? [AXUIElement] {
+            queue += children
+        }
+    }
+    return nil
+}
+
+func menuItem(titled title: String) -> AXUIElement? {
+    guard let pid = app()?.processIdentifier else { return nil }
+    var queue: [AXUIElement] = [AXUIElementCreateApplication(pid)]
+    while !queue.isEmpty {
+        let el = queue.removeFirst()
+        if attr(el, kAXRoleAttribute) as? String == kAXMenuItemRole, attr(el, kAXTitleAttribute) as? String == title {
+            return el
+        }
+        if let children = attr(el, kAXChildrenAttribute) as? [AXUIElement] {
+            queue += children
+        }
+    }
+    return nil
+}
+
+func allIDs() -> [String] {
+    guard let pid = app()?.processIdentifier else { return [] }
+    var queue: [AXUIElement] = [AXUIElementCreateApplication(pid)]
+    var ids: [String] = []
+    while !queue.isEmpty {
+        let el = queue.removeFirst()
+        if let ident = attr(el, "AXIdentifier") as? String, !ident.isEmpty {
+            ids.append(ident)
+        }
+        if let children = attr(el, kAXChildrenAttribute) as? [AXUIElement] {
+            queue += children
+        }
+    }
+    return ids
+}
+
+func center(_ el: AXUIElement) -> CGPoint? {
+    guard let posValue = attr(el, kAXPositionAttribute), let sizeValue = attr(el, kAXSizeAttribute),
+          CFGetTypeID(posValue) == AXValueGetTypeID(), CFGetTypeID(sizeValue) == AXValueGetTypeID()
+    else { return nil }
+    var pos = CGPoint.zero, size = CGSize.zero
+    // swiftlint:disable force_cast
+    AXValueGetValue(posValue as! AXValue, .cgPoint, &pos)
+    AXValueGetValue(sizeValue as! AXValue, .cgSize, &size)
+    // swiftlint:enable force_cast
+    return CGPoint(x: pos.x + size.width / 2, y: pos.y + size.height / 2)
+}
+
+func mouseClick(_ point: CGPoint) {
+    let src = CGEventSource(stateID: .hidSystemState)
+    for type in [CGEventType.leftMouseDown, .leftMouseUp] {
+        CGEvent(mouseEventSource: src, mouseType: type, mouseCursorPosition: point, mouseButton: .left)?.post(tap: .cghidEventTap)
+        usleep(60_000)
+    }
+}
+
+func waitFor(_ id: String, _ seconds: Double, present: Bool) -> Bool {
+    let deadline = Date().addingTimeInterval(seconds)
+    while Date() < deadline {
+        if (find(id) != nil) == present {
+            return true
+        }
+        usleep(300_000)
+    }
+    return false
+}
+
+func windowID() -> CGWindowID? {
+    guard let pid = app()?.processIdentifier,
+          let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] else { return nil }
+    let windows = list.filter { ($0[kCGWindowOwnerPID as String] as? Int32) == pid && ($0[kCGWindowLayer as String] as? Int) == 0 }
+    let biggest = windows.max { lhs, rhs in
+        let ra = lhs[kCGWindowBounds as String] as? [String: CGFloat] ?? [:]
+        let rb = rhs[kCGWindowBounds as String] as? [String: CGFloat] ?? [:]
+        return (ra["Width"] ?? 0) * (ra["Height"] ?? 0) < (rb["Width"] ?? 0) * (rb["Height"] ?? 0)
+    }
+    return (biggest?[kCGWindowNumber as String] as? Int).map { CGWindowID($0) }
+}
+
+app()?.activate()
+usleep(200_000)
+switch args[1] {
+case "press":
+    guard let el = find(args[2]) else { print("NOTFOUND \(args[2])")
+    exit(1)
+    }
+    if AXUIElementPerformAction(el, kAXPressAction as CFString) != .success, let point = center(el) {
+        mouseClick(point)
+    }
+    print("pressed \(args[2])")
+case "click":
+    guard let el = find(args[2]), let point = center(el) else { print("NOTFOUND \(args[2])")
+    exit(1)
+    }
+    mouseClick(point)
+    print("clicked \(args[2]) at \(point)")
+case "type":
+    guard let el = find(args[2]) else { print("NOTFOUND \(args[2])")
+    exit(1)
+    }
+    AXUIElementSetAttributeValue(el, kAXFocusedAttribute as CFString, kCFBooleanTrue)
+    if let point = center(el) {
+        mouseClick(point)
+    }
+    usleep(200_000)
+    AXUIElementSetAttributeValue(el, kAXValueAttribute as CFString, args[3] as CFString)
+    // SwiftUI bindings update on typing; nudge with a space + delete so the binding sees a change.
+    let src = CGEventSource(stateID: .hidSystemState)
+    for (key, _) in [(49, 0), (51, 0)] {
+        CGEvent(keyboardEventSource: src, virtualKey: CGKeyCode(key), keyDown: true)?.post(tap: .cghidEventTap)
+        CGEvent(keyboardEventSource: src, virtualKey: CGKeyCode(key), keyDown: false)?.post(tap: .cghidEventTap)
+        usleep(80_000)
+    }
+    print("typed \(args[2])")
+case "wait":
+    print(waitFor(args[2], Double(args[3]) ?? 10, present: true) ? "found \(args[2])" : "TIMEOUT \(args[2])")
+case "gone":
+    print(waitFor(args[2], Double(args[3]) ?? 10, present: false) ? "gone \(args[2])" : "STILL \(args[2])")
+case "value":
+    if let el = find(args[2]) {
+        print(attr(el, kAXValueAttribute) ?? attr(el, kAXTitleAttribute) ?? attr(el, kAXDescriptionAttribute) ?? "nil")
+    } else {
+        print("NOTFOUND")
+    }
+case "menu":
+    guard let el = menuItem(titled: args[2]), AXUIElementPerformAction(el, kAXPressAction as CFString) == .success else {
+        print("NOTFOUND \(args[2])")
+        exit(1)
+    }
+    print("pressed menu \(args[2])")
+case "ids":
+    print(allIDs().joined(separator: "\n"))
+case "capture":
+    guard let wid = windowID() else { print("NOWINDOW")
+    exit(1)
+    }
+    let task = Process()
+    task.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
+    task.arguments = ["-x", "-o", "-l\(wid)", args[2]]
+    try task.run()
+    task.waitUntilExit()
+    print("captured \(args[2])")
+default:
+    print("unknown")
+}
