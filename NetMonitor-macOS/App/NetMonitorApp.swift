@@ -381,12 +381,19 @@ struct NetMonitorApp: App {
 
 // MARK: - Network profile defaults
 
-/// Where the network list is saved (#346).
+/// Where the network list is saved (#346). A `--uitesting` launch gets its own suite, emptied at
+/// every launch, so networks a UI test adds never reach the user's list or the next launch.
 enum NetworkProfileDefaults {
     static let uiTestSuite = "netmonitor.uitest.networkProfiles"
 
     static func make(arguments: [String], uiTestSuite: String = Self.uiTestSuite) -> UserDefaults {
-        .standard
+        guard arguments.contains("--uitesting") else { return .standard }
+        // Never fall back to the standard defaults: that is the user's real network list.
+        guard let defaults = UserDefaults(suiteName: uiTestSuite) else {
+            preconditionFailure("UI-test network profile suite \(uiTestSuite) is unavailable")
+        }
+        defaults.removePersistentDomain(forName: uiTestSuite)
+        return defaults
     }
 }
 

@@ -167,6 +167,28 @@ final class NetworkSwitchingUITests: MacOSUITestCase {
         }
     }
 
+    /// #346: UI-test launches keep networks in their own suite, emptied at launch, so a network
+    /// added in one launch is gone after a relaunch and only the local network is listed.
+    func testAddedNetworkDoesNotSurviveRelaunch() {
+        addNetwork(gateway: "10.34.6.1", subnet: "10.34.6.0/24", name: "Relaunch Test Network")
+        XCTAssertTrue(sidebarRow(named: "Relaunch Test Network").waitForExistence(timeout: 3),
+                      "New network should appear in sidebar")
+
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 10),
+                      "App main window should appear after relaunch")
+
+        let rows = app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier BEGINSWITH 'sidebar_row_network'")
+        )
+        XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: 5),
+                      "Networks section should list the local network after relaunch")
+        XCTAssertFalse(sidebarRow(named: "Relaunch Test Network").exists,
+                       "A network added before relaunch should not come back")
+        captureScreenshot(named: "346-sidebar-after-relaunch")
+    }
+
     func testSwitchBetweenNetworks() {
         for i in 1...2 {
             addNetwork(gateway: "10.\(i).0.1", subnet: "10.\(i).0.0/24", name: "Network \(i)")
