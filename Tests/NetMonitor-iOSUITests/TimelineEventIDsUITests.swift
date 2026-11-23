@@ -58,5 +58,12 @@ final class TimelineEventIDsUITests: IOSUITestCase {
         XCTAssertFalse(app.staticTexts["Device Joined: uitest-device-0"].exists, "The fixture hostname must not replace the custom name")
         XCTAssertEqual(app.state, .runningForeground)
         attachScreenshot(named: "timeline-custom-name")
+
+        // The scan happened today, so the Today range (#491 S3) keeps both events.
+        let todaySegment = app.segmentedControls.buttons["Today"]
+        requireExists(todaySegment, timeout: 5, message: "The range picker should offer Today").tap()
+        requireExists(joined, timeout: 5, message: "Today keeps the scan's join")
+        XCTAssertTrue(scanComplete.exists, "Today keeps Scan Complete")
+        attachScreenshot(named: "timeline-scan-today")
     }
 }

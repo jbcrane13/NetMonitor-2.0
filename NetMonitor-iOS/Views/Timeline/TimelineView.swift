@@ -5,6 +5,7 @@ import SwiftData
 struct TimelineView: View {
     @State private var viewModel: TimelineViewModel
     @State private var showingFilterSheet = false
+    @State private var isConfirmingClear = false
     /// Summaries name devices through their saved rows and compare speed tests (#453).
     @Query(Self.savedDevicesDescriptor) private var savedDevices: [LocalDevice]
     @Query(Self.speedTestsDescriptor) private var speedTests: [SpeedTestResult]
@@ -22,12 +23,13 @@ struct TimelineView: View {
     }
 
     init(env: AppEnvironment) {
-        _viewModel = State(initialValue: TimelineViewModel(service: env.eventService))
+        _viewModel = State(initialValue: TimelineViewModel(env: env))
     }
 
     var body: some View {
         NavigationStack {
-            ZStack {
+            VStack(spacing: 0) {
+                rangePicker
                 if viewModel.hasEvents {
                     eventList
                 } else {
@@ -57,9 +59,10 @@ struct TimelineView: View {
                 }
 
                 ToolbarItem(placement: .topBarLeading) {
-                    if !viewModel.events.isEmpty {
-                        Button("Clear") {
-                            viewModel.clearAll()
+                    // Whenever the log has events, even outside the range: it deletes them all.
+                    if viewModel.hasLoggedEvents {
+                        Button("Clear All") {
+                            isConfirmingClear = true
                         }
                         .font(.caption)
                         .foregroundStyle(Theme.Colors.error)
@@ -76,6 +79,14 @@ struct TimelineView: View {
             .sheet(isPresented: $showingFilterSheet) {
                 TimelineFilterSheet(viewModel: viewModel)
             }
+            .confirmationDialog("Delete all network events?", isPresented: $isConfirmingClear, titleVisibility: .visible) {
+                Button("Clear All", role: .destructive) {
+                    viewModel.clearAll()
+                }
+                .accessibilityIdentifier("timeline_button_confirmClearAll")
+            } message: {
+                Text("This removes every event in the log, not just the ones shown.")
+            }
             // Keeps the empty state's and the list's own identifiers on iOS 26+.
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("screen_networkTimeline")
@@ -88,14 +99,15 @@ struct TimelineView: View {
     private var eventList: some View {
         ScrollView {
             LazyVStack(spacing: 0, pinnedViews: .sectionHeaders) {
-                ForEach(viewModel.groupedEvents, id: \.label) { group in
+                ForEach(viewModel.groupedEvents, id: \.day) { group in
                     Section {
                         if let summary = viewModel.summary(for: group.label) {
                             TimelineDaySummary(summary: summary, label: group.label)
                                 .padding(.horizontal, Theme.Layout.screenPadding)
                                 .padding(.bottom, Theme.Layout.itemSpacing)
                         }
-                        VStack(spacing: 1) {
+                        // Lazy too, so a day of thousands of events stays smooth (#491 D3).
+                        LazyVStack(spacing: 1) {
                             ForEach(group.events) { event in
                                 TimelineEventRow(event: event)
                             }
@@ -112,6 +124,18 @@ struct TimelineView: View {
             .padding(.bottom, Theme.Layout.sectionSpacing)
         }
         .accessibilityIdentifier("timeline_list_events")
+    }
+
+    private var rangePicker: some View {
+        Picker("Range", selection: $viewModel.selectedRange) {
+            ForEach(TimelineRange.allCases) { range in
+                Text(range.title).tag(range)
+            }
+        }
+        .pickerStyle(.segmented)
+        .padding(.horizontal, Theme.Layout.screenPadding)
+        .padding(.vertical, Theme.Layout.smallCornerRadius)
+        .accessibilityIdentifier("timeline_picker_range")
     }
 
     private func sectionHeader(_ label: String) -> some View {
@@ -148,7 +172,9 @@ struct TimelineView: View {
                 .foregroundStyle(Theme.Colors.textPrimary)
                 // On the text: iOS 26+ gives the stack no element of its own to carry it.
                 .accessibilityIdentifier("timeline_label_emptyState")
-            Text("Network events will appear here as they occur.")
+            Text(viewModel.hasLoggedEvents
+                ? "No events match this range and filter."
+                : "Network events will appear here as they occur.")
                 .font(.caption)
                 .foregroundStyle(Theme.Colors.textSecondary)
                 .multilineTextAlignment(.center)

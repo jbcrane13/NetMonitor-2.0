@@ -240,6 +240,88 @@ final class TimelineUITests: IOSUITestCase {
         }
     }
 
+    // MARK: - Range picker (#491 S3)
+
+    /// Seeded events today and ten days ago (`--seed-test-events`): "Today" hides the old one,
+    /// "All" shows both.
+    func testRangePickerTodayHidesOlderEventsAndAllShowsThem() {
+        app.terminate()
+        app.launchArguments = ["--uitesting", "--uitesting-reset", "--seed-test-events"]
+        app.launch()
+        XCTAssertTrue(app.wait(for: .runningForeground, timeout: 10), "App should relaunch to foreground")
+        openTimeline()
+
+        let today = app.staticTexts["UITest Event Today"]
+        let tenDaysAgo = app.staticTexts["UITest Event 10 Days Ago"]
+        requireExists(today, timeout: 8, message: "All (the default) shows today's event")
+        XCTAssertTrue(scrollTo(tenDaysAgo), "All (the default) shows the event from ten days ago")
+
+        rangeSegment("Today").tap()
+        requireExists(today, timeout: 5, message: "Today shows today's event")
+        XCTAssertTrue(waitForDisappearance(tenDaysAgo, timeout: 5), "Today hides the event from ten days ago")
+        attachScreenshot(named: "timeline-range-today")
+
+        rangeSegment("All").tap()
+        requireExists(today, timeout: 5, message: "All shows today's event again")
+        XCTAssertTrue(scrollTo(tenDaysAgo), "All shows the event from ten days ago again")
+        attachScreenshot(named: "timeline-range-all")
+    }
+
+    /// Clear All deletes the whole log, so it asks first; Cancel keeps everything, including
+    /// events outside the selected range.
+    func testClearAllAsksFirstAndCancelKeepsEveryEvent() {
+        app.terminate()
+        app.launchArguments = ["--uitesting", "--uitesting-reset", "--seed-test-events"]
+        app.launch()
+        XCTAssertTrue(app.wait(for: .runningForeground, timeout: 10), "App should relaunch to foreground")
+        openTimeline()
+
+        let today = app.staticTexts["UITest Event Today"]
+        let tenDaysAgo = app.staticTexts["UITest Event 10 Days Ago"]
+        requireExists(today, timeout: 8, message: "Today's seeded event should show")
+        rangeSegment("Today").tap()
+        XCTAssertTrue(waitForDisappearance(tenDaysAgo, timeout: 5), "Today hides the older event")
+
+        let clearAll = app.buttons.matching(NSPredicate(format: "label == 'Clear All'")).firstMatch
+        requireExists(clearAll, message: "Clear All should be offered while the log has events").tap()
+        requireExists(app.staticTexts["Delete all network events?"], message: "Clear All should ask before deleting")
+        attachScreenshot(named: "timeline-clear-all-confirm")
+        // iOS 26 shows the confirmation as a popover with no Cancel button: tapping outside cancels.
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.7)).tap()
+
+        XCTAssertTrue(waitForDisappearance(app.staticTexts["Delete all network events?"], timeout: 5), "Cancel closes the confirmation")
+        requireExists(today, timeout: 5, message: "Cancel keeps today's event")
+        rangeSegment("All").tap()
+        XCTAssertTrue(scrollTo(tenDaysAgo), "Cancel keeps the older event outside the range")
+        attachScreenshot(named: "timeline-clear-all-cancelled")
+    }
+
+    /// A segment of `timeline_picker_range`. iOS 26 may stamp the screen's identifier over the
+    /// control's (lessons-learned 2026-09), so fall back to the segment's label.
+    private func rangeSegment(_ title: String) -> XCUIElement {
+        let picker = app.segmentedControls["timeline_picker_range"]
+        let segment = picker.exists ? picker.buttons[title] : app.segmentedControls.buttons[title]
+        return requireExists(segment, timeout: 5, message: "The range picker should offer \(title)")
+    }
+
+    /// Scrolls the event list until `element` is on screen; false if it never appears.
+    private func scrollTo(_ element: XCUIElement) -> Bool {
+        for _ in 0 ..< 6 {
+            if element.waitForExistence(timeout: 1), element.isHittable {
+                return true
+            }
+            app.swipeUp()
+        }
+        return element.exists
+    }
+
+    private func attachScreenshot(named name: String) {
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
     private func openTimeline() {
         let tab = requireExists(app.tabBars.buttons["Timeline"], message: "Timeline tab should exist")
         tab.tap()

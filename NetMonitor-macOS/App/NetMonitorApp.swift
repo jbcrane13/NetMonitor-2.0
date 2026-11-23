@@ -447,8 +447,9 @@ enum UITestScanFixture {
             type: .connectivityChange, timestamp: now.addingTimeInterval(-10 * 86400),
             title: "UITest Event 10 Days Ago", networkProfileID: profileID
         ))
+        // A minute ago, but never before today's midnight, so it is always "Today" (as on iOS).
         eventService.log(NetworkEvent(
-            type: .connectivityChange, timestamp: now.addingTimeInterval(-60),
+            type: .connectivityChange, timestamp: max(now.addingTimeInterval(-60), Calendar.current.startOfDay(for: now)),
             title: "UITest Event Today", networkProfileID: profileID
         ))
     }

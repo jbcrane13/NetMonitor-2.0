@@ -32,7 +32,7 @@ enum ToolCategory: String, CaseIterable, Identifiable {
         switch self {
         case .diagnostics: return [.ping, .traceroute, .dnsLookup, .whois]
         case .discovery:   return [.portScanner, .bonjourBrowser, .subnetCalculator, .portForwards]
-        case .monitoring:  return [.speedTest, .worldPing, .sslMonitor, .wifiHeatmap]
+        case .monitoring:  return [.speedTest, .worldPing, .sslMonitor, .wifiHeatmap, .timeline]
         case .actions:     return [.wakeOnLan, .geoTrace]
         }
     }
@@ -56,8 +56,14 @@ enum NetworkTool: String, CaseIterable, Identifiable {
     case sslMonitor = "SSL Monitor"
     case wifiHeatmap = "WiFi Heatmap"
     case portForwards = "Port Forwards"
+    case timeline = "Timeline"
 
     var id: String { rawValue }
+
+    /// The Tools grid card's accessibility identifier, such as `tools_card_timeline`.
+    var cardIdentifier: String {
+        "tools_card_\(rawValue.lowercased().replacingOccurrences(of: " ", with: "_"))"
+    }
 
     var iconName: String {
         switch self {
@@ -75,6 +81,7 @@ enum NetworkTool: String, CaseIterable, Identifiable {
         case .sslMonitor: return "lock.shield"
         case .wifiHeatmap: return "wifi"
         case .portForwards: return "arrow.left.arrow.right.circle"
+        case .timeline: return "clock.arrow.circlepath"
         }
     }
 
@@ -94,6 +101,7 @@ enum NetworkTool: String, CaseIterable, Identifiable {
         case .sslMonitor: return "Certificate expiry check"
         case .wifiHeatmap: return "Survey WiFi coverage"
         case .portForwards: return "Router UPnP port forwards"
+        case .timeline: return "Network event history"
         }
     }
 }
@@ -132,7 +140,7 @@ struct ToolsView: View {
                                     .onTapGesture {
                                         selection = .tool(tool)
                                     }
-                                    .accessibilityIdentifier("tools_card_\(tool.rawValue.lowercased().replacingOccurrences(of: " ", with: "_"))")
+                                    .accessibilityIdentifier(tool.cardIdentifier)
                             }
                         }
                     }

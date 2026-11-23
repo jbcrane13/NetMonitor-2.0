@@ -14,7 +14,6 @@ final class TimelineUITests: MacOSUITestCase {
 
         // Verify timeline has event content or empty state — not just a blank container
         let hasContent = waitForEither([
-            app.tables["timeline_table_events"],
             app.descendants(matching: .any)["timeline_list_events"],
             app.staticTexts.matching(
                 NSPredicate(format: "identifier BEGINSWITH 'timeline_event_'")
@@ -52,7 +51,7 @@ final class TimelineUITests: MacOSUITestCase {
             app.popUpButtons.matching(
                 NSPredicate(format: "identifier CONTAINS 'timeline'")
             ).firstMatch,
-            ui("timeline_filter_bar"),
+            ui("timeline_picker_range"),
             app.tables.firstMatch
         ], timeout: 5)
 
@@ -83,7 +82,7 @@ final class TimelineUITests: MacOSUITestCase {
                 NSPredicate(format: "identifier CONTAINS 'timeline'")
             ).firstMatch,
             ui("timeline_picker_eventType"),
-            ui("timeline_search_field")
+            ui("timeline_picker_range")
         ]
 
         let hasFilterControl = waitForEither(filterControls, timeout: 5)
@@ -180,6 +179,7 @@ final class TimelineUITests: MacOSUITestCase {
         if firstEventRow.waitForExistence(timeout: 10) {
             // Event rows should contain visible text (timestamp, description, etc.)
             let eventTexts = firstEventRow.staticTexts
+            // swiftlint:disable:next empty_count
             if eventTexts.count > 0 {
                 let hasNonEmptyLabel = eventTexts.allElementsBoundByIndex.contains { text in
                     !text.label.isEmpty
@@ -203,23 +203,36 @@ final class TimelineUITests: MacOSUITestCase {
             _ = app.otherElements["detail_tools"].waitForExistence(timeout: 5)
         }
 
-        // Look for a timeline card or button in the tools section
-        let timelineCard = app.otherElements["tools_card_timeline"]
-        if timelineCard.waitForExistence(timeout: 5) {
-            timelineCard.tap()
-            return
-        }
+        // The Timeline is a Monitoring tool card (#491 D5).
+        let timelineCard = app.descendants(matching: .any)["tools_card_timeline"]
+        requireExists(timelineCard, timeout: 5, message: "Tools should list the Timeline card").click()
+    }
 
-        // Fallback: try sidebar section for timeline
-        let sidebarTimeline = app.outlineRows.matching(
-            NSPredicate(format: "identifier CONTAINS 'timeline'")
-        ).firstMatch
-        if sidebarTimeline.waitForExistence(timeout: 3) {
-            sidebarTimeline.click()
-            return
-        }
+    // MARK: - Range Picker (#491 S3)
 
-        // Last resort: the timeline screen may already be visible
-        _ = ui("screen_networkTimeline").waitForExistence(timeout: 5)
+    /// Seeded events today and ten days ago: "Today" hides the old one, "All" shows both.
+    /// Not runnable on mini-pro-1 (#512); the AX script `scripts/ax/s3-timeline.sh` covers it there.
+    func testRangePickerTodayHidesOlderEventsAndAllShowsThem() {
+        app.terminate()
+        app.launchArguments = ["--uitesting", "--in-memory-store", "--reset-history-files", "--seed-test-device", "--seed-test-events"]
+        app.launch()
+        navigateToTimeline()
+
+        let today = app.staticTexts["UITest Event Today"]
+        let tenDaysAgo = app.staticTexts["UITest Event 10 Days Ago"]
+        requireExists(today, timeout: 8, message: "All (the default) shows today's event")
+        XCTAssertTrue(tenDaysAgo.exists, "All (the default) shows the event from ten days ago")
+
+        let picker = app.radioGroups["timeline_picker_range"]
+        let segments = picker.exists ? picker.radioButtons : app.radioButtons
+        requireExists(segments["Today"], message: "The range picker should offer Today").click()
+        requireExists(today, timeout: 5, message: "Today shows today's event")
+        XCTAssertTrue(waitForDisappearance(tenDaysAgo, timeout: 5), "Today hides the event from ten days ago")
+        captureScreenshot(named: "Timeline_RangeToday")
+
+        segments["All"].click()
+        requireExists(tenDaysAgo, timeout: 5, message: "All shows the event from ten days ago again")
+        XCTAssertTrue(today.exists, "All still shows today's event")
+        captureScreenshot(named: "Timeline_RangeAll")
     }
 }

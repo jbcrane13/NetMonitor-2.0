@@ -8,8 +8,26 @@ final class TimelineViewModel {
 
     // MARK: - State
 
-    var events: [NetworkEvent] = []
-    var selectedFilter: NetworkEventType? = nil
+    /// The events in `selectedRange`, before the type filter.
+    private(set) var events: [NetworkEvent] = [] {
+        didSet { regroup() }
+    }
+
+    var selectedFilter: NetworkEventType? = nil {
+        didSet { regroup() }
+    }
+
+    /// Reloads the log through `events(from:to:)` when changed (#491 D6).
+    var selectedRange: TimelineRange = .all {
+        didSet { load() }
+    }
+
+    /// Day sections, newest first. Kept, not computed, so a 20,000-event log groups once per
+    /// change rather than once per section header.
+    private(set) var groupedEvents: [TimelineDayGroup] = []
+
+    /// Whether the log has any events at all, in or out of the range: Clear All deletes them all.
+    private(set) var hasLoggedEvents = false
     var isShowingFilterSheet: Bool = false
 
     /// A day's summary from the on-device model (#453).
@@ -28,16 +46,35 @@ final class TimelineViewModel {
     private let service: any NetworkEventServiceProtocol
     private let insightService: any InsightServiceProtocol
     private let isScanning: @MainActor () -> Bool
+    private let calendar: Calendar
+    private let now: () -> Date
 
-    /// - Parameter isScanning: whether a device scan is running; inference never runs during one.
+    /// - Parameters:
+    ///   - isScanning: whether a device scan is running; inference never runs during one.
+    ///   - calendar: days, "Today" and date labels follow its time zone.
+    ///   - now: the clock the ranges are measured from.
     init(
         service: any NetworkEventServiceProtocol = NetworkEventService.shared,
         insightService: any InsightServiceProtocol = UITestBootstrap.insightService ?? InsightService.shared,
-        isScanning: @escaping @MainActor () -> Bool = { DeviceDiscoveryService.shared.isScanning }
+        isScanning: @escaping @MainActor () -> Bool = { DeviceDiscoveryService.shared.isScanning },
+        calendar: Calendar = .autoupdatingCurrent,
+        now: @escaping () -> Date = Date.init
     ) {
         self.service = service
         self.insightService = insightService
         self.isScanning = isScanning
+        self.calendar = calendar
+        self.now = now
+    }
+
+    /// The app's Timeline: the environment's event log, and its discovery service for the
+    /// scanning state, so the UI-test fake's scans count too.
+    convenience init(
+        env: AppEnvironment,
+        insightService: any InsightServiceProtocol = UITestBootstrap.insightService ?? InsightService.shared
+    ) {
+        let discovery = env.deviceDiscovery
+        self.init(service: env.eventService, insightService: insightService, isScanning: { discovery.isScanning })
     }
 
     // MARK: - Computed
@@ -47,7 +84,7 @@ final class TimelineViewModel {
         return events.filter { $0.type == filter }
     }
 
-    var hasEvents: Bool { !filteredEvents.isEmpty }
+    var hasEvents: Bool { !groupedEvents.isEmpty }
 
     // periphery:ignore
     var availableFilters: [NetworkEventType] {
@@ -61,11 +98,15 @@ final class TimelineViewModel {
     // MARK: - Actions
 
     func load() {
-        events = service.events
+        // `events(from:to:)` includes its end; tomorrow's first instant isn't today.
+        events = selectedRange.bounds(now: now(), calendar: calendar)
+            .map { bounds in service.events(from: bounds.start, to: bounds.end).filter { $0.timestamp < bounds.end } }
+            ?? service.events
+        hasLoggedEvents = !service.events.isEmpty
     }
 
     func refresh() {
-        events = service.events
+        load()
     }
 
     func showAll() {
@@ -86,6 +127,7 @@ final class TimelineViewModel {
     func clearAll() {
         service.clearAll()
         events = []
+        hasLoggedEvents = false
     }
 
     // MARK: - Summaries
@@ -111,9 +153,8 @@ final class TimelineViewModel {
         guard let group = dayGroup(label) else { return }
         let key = summaryKey(for: group)
         let filter = selectedFilter
-        let calendar = Calendar.current
-        let start = calendar.startOfDay(for: group.newest.timestamp)
-        let end = calendar.date(byAdding: .day, value: 1, to: start)?.addingTimeInterval(-0.001) ?? group.newest.timestamp
+        let start = group.day
+        let end = calendar.dateInterval(of: .day, for: start)?.end.addingTimeInterval(-0.001) ?? group.newest.timestamp
         guard !isScanning(), let request = ChangeDigestBuilder.request(
             events: events, from: start, to: end, filter: filter,
             deviceNames: ChangeDigestBuilder.deviceNames(savedDevices),
@@ -128,60 +169,22 @@ final class TimelineViewModel {
         summaries[key] = text.map { .finished(ChangeSummary(keyPoints: request.observations, text: $0)) } ?? .unavailable
     }
 
-    /// The shown day section labelled `label` and its newest event.
-    private func dayGroup(_ label: String) -> (label: String, newest: NetworkEvent)? {
+    /// The shown day section labelled `label`, its start and its newest event.
+    private func dayGroup(_ label: String) -> (label: String, day: Date, newest: NetworkEvent)? {
         guard let group = groupedEvents.first(where: { $0.label == label }),
-              let newest = group.events.max(by: { $0.timestamp < $1.timestamp })
+              let newest = group.events.first
         else { return nil }
-        return (label, newest)
+        return (label, group.day, newest)
     }
 
     /// The day, the filter and the day's newest event: a summary is shown only for what it summarized.
-    private func summaryKey(for group: (label: String, newest: NetworkEvent)) -> String {
+    private func summaryKey(for group: (label: String, day: Date, newest: NetworkEvent)) -> String {
         "\(group.label)|\(selectedFilter?.rawValue ?? "all")|\(group.newest.id)"
     }
 
     // MARK: - Date Grouping
 
-    /// Groups filtered events by relative date label (Today, Yesterday, date string).
-    var groupedEvents: [(label: String, events: [NetworkEvent])] {
-        let calendar = Calendar.current
-        let today = calendar.startOfDay(for: Date())
-        let yesterday = calendar.date(byAdding: .day, value: -1, to: today)!
-
-        var groups: [String: [NetworkEvent]] = [:]
-        for event in filteredEvents {
-            let day = calendar.startOfDay(for: event.timestamp)
-            let label: String
-            if day == today {
-                label = "Today"
-            } else if day == yesterday {
-                label = "Yesterday"
-            } else {
-                label = DateFormatter.localizedString(from: day, dateStyle: .medium, timeStyle: .none)
-            }
-            groups[label, default: []].append(event)
-        }
-
-        // Sort groups: Today first, then Yesterday, then older dates descending
-        let sortedKeys = groups.keys.sorted { a, b in
-            if a == "Today" {
-                return true
-            }
-            if b == "Today" {
-                return false
-            }
-            if a == "Yesterday" {
-                return true
-            }
-            if b == "Yesterday" {
-                return false
-            }
-            return a > b
-        }
-        return sortedKeys.compactMap { key in
-            guard let evts = groups[key] else { return nil }
-            return (label: key, events: evts)
-        }
+    private func regroup() {
+        groupedEvents = TimelineDayGroup.groups(filteredEvents, now: now(), calendar: calendar)
     }
 }
