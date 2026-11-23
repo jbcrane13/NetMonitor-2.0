@@ -11,7 +11,7 @@ public enum InsightGrounding {
         return numbers(in: text).allSatisfy(given.contains)
     }
 
-    /// The numbers in `text`, in order. Signs are ignored, so "2026-11-22" reads as 2026, 11
+    /// The numbers in `text`: those written in digits, then those spelled out. Signs are ignored, so "2026-11-22" reads as 2026, 11
     /// and 22, and a dotted address reads the same wherever it is written.
     static func numbers(in text: String) -> [Double] {
         let range = NSRange(text.startIndex..., in: text)
