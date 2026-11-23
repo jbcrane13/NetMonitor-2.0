@@ -53,30 +53,48 @@ final class ObservationChangeWaiter: @unchecked Sendable {
 
 // MARK: - SavedDeviceLookup
 
-/// Finds a scanned device's saved row, read only (#491 D9): the device match (`DeviceMatcher`,
-/// MAC then IP) against the rows on that network, then against rows saved with no network,
-/// the way device detail does. Never inserts or changes a row.
+/// Finds scanned devices' saved rows, read only (#491 D9). Never inserts or changes a row.
 @MainActor
 struct SavedDeviceLookup {
     let context: ModelContext
 
-    func row(for device: DiscoveredDevice, networkProfileID: UUID?) -> LocalDevice? {
-        let rows = (try? context.fetch(FetchDescriptor<LocalDevice>())) ?? []
+    /// The saved rows a scan of `networkProfileID` can match, fetched once for the whole scan.
+    func snapshot(networkProfileID: UUID?) -> SavedDevices {
+        let network = fetch(#Predicate<LocalDevice> { $0.networkProfileID == networkProfileID })
+        // Rows saved before devices carried a network; only a scan of a known network falls back to them.
+        let unassigned = networkProfileID == nil ? [] : fetch(#Predicate<LocalDevice> { $0.networkProfileID == nil })
+        return SavedDevices(network: network, unassigned: unassigned)
+    }
+
+    private func fetch(_ predicate: Predicate<LocalDevice>) -> [LocalDevice] {
+        do {
+            return try context.fetch(FetchDescriptor(predicate: predicate))
+        } catch {
+            Logger.data.error("Saved-device lookup fetch failed: \(error.localizedDescription, privacy: .public)")
+            return []
+        }
+    }
+}
+
+/// One network's saved rows, for naming a scan's devices.
+@MainActor
+struct SavedDevices {
+    let network: [LocalDevice]
+    let unassigned: [LocalDevice]
+
+    /// The device match (`DeviceMatcher`, MAC then IP) against the network's rows. A row saved
+    /// with no network matches only by an identical MAC: an IP means nothing across networks.
+    func row(for device: DiscoveredDevice) -> LocalDevice? {
         let observation = DeviceMatchCandidate(ipAddress: device.ipAddress, macAddress: device.macAddress, name: device.matchName)
-        var pools = [rows.filter { $0.networkProfileID == networkProfileID }]
-        if networkProfileID != nil {
-            pools.append(rows.filter { $0.networkProfileID == nil })
+        var matcher = DeviceMatcher(
+            known: network.map { DeviceMatchCandidate(ipAddress: $0.ipAddress, macAddress: $0.macAddress, name: $0.matchName) },
+            observed: [observation]
+        )
+        if let match = matcher.match(observation) {
+            return network[match.index]
         }
-        for pool in pools {
-            var matcher = DeviceMatcher(
-                known: pool.map { DeviceMatchCandidate(ipAddress: $0.ipAddress, macAddress: $0.macAddress, name: $0.matchName) },
-                observed: [observation]
-            )
-            if let match = matcher.match(observation) {
-                return pool[match.index]
-            }
-        }
-        return nil
+        guard let mac = device.macAddress, !mac.isEmpty else { return nil }
+        return unassigned.first { $0.macAddress.caseInsensitiveCompare(mac) == .orderedSame }
     }
 }
 
@@ -102,6 +120,8 @@ final class EventListenerService {
     private var lastIsConnected: Bool?
     private var lastConnectionType: ConnectionType?
     private var wasScanning: Bool = false
+    /// The last scan finish handled, so a scan that finished unobserved is still logged.
+    private var handledScanDate: Date?
     /// The last completed scan's devices by IP, so a device that left can still be matched by MAC.
     private var knownDevices: [String: DiscoveredDevice] = [:]
 
@@ -127,11 +147,16 @@ final class EventListenerService {
 
     func start() {
         monitorTask?.cancel()
-        // A scan already running now is logged when it finishes.
+        // The baseline: a scan running now, or finishing before the first check, is still logged.
         wasScanning = discoveryService.isScanning
+        handledScanDate = discoveryService.lastScanDate
         monitorTask = Task { [weak self] in
             while !Task.isCancelled {
                 guard let self else { return }
+                // Check, then register for the next change, in one main-actor turn, so no change
+                // falls between them.
+                self.handleConnectivityChange()
+                self.handleScanChange()
                 let waiter = ObservationChangeWaiter()
                 await waiter.wait { onChange in
                     withObservationTracking {
@@ -139,13 +164,11 @@ final class EventListenerService {
                         _ = self.networkMonitor.connectionType
                         _ = self.discoveryService.isScanning
                         _ = self.discoveryService.discoveredDevices
+                        _ = self.discoveryService.lastScanDate
                     } onChange: {
                         onChange()
                     }
                 }
-                guard !Task.isCancelled else { return }
-                self.handleConnectivityChange()
-                self.handleScanChange()
             }
         }
     }
@@ -191,20 +214,30 @@ final class EventListenerService {
     private func handleScanChange() {
         let isScanning = discoveryService.isScanning
 
-        // Detect scan completion: was scanning, now not scanning
-        if wasScanning && !isScanning {
+        // A scan finished: seen going from scanning to not, or a new finish time while unobserved.
+        let lastScanDate = discoveryService.lastScanDate
+        if !isScanning, wasScanning || lastScanDate != handledScanDate {
+            handledScanDate = lastScanDate
             let currentDevices = discoveryService.discoveredDevices
             let current = Dictionary(currentDevices.map { ($0.ipAddress, $0) }, uniquingKeysWith: { first, _ in first })
             let fallbackNetwork = currentNetworkProfileID()
+            var snapshots: [UUID?: SavedDevices] = [:]
+            let savedRow = { (device: DiscoveredDevice, network: UUID?) -> LocalDevice? in
+                guard let savedDevices = self.savedDevices else { return nil }
+                if snapshots[network] == nil {
+                    snapshots[network] = savedDevices.snapshot(networkProfileID: network)
+                }
+                return snapshots[network]?.row(for: device)
+            }
 
             for ip in Set(current.keys).subtracting(knownDevices.keys).sorted() {
                 if let device = current[ip] {
-                    logDevice(device, joined: true, fallbackNetwork: fallbackNetwork)
+                    logDevice(device, joined: true, fallbackNetwork: fallbackNetwork, savedRow: savedRow)
                 }
             }
             for ip in Set(knownDevices.keys).subtracting(current.keys).sorted() {
                 if let device = knownDevices[ip] {
-                    logDevice(device, joined: false, fallbackNetwork: fallbackNetwork)
+                    logDevice(device, joined: false, fallbackNetwork: fallbackNetwork, savedRow: savedRow)
                 }
             }
 
@@ -225,9 +258,14 @@ final class EventListenerService {
 
     /// A joined or left device, named by its saved row when it matches one; otherwise a joined
     /// device by its hostname or maker and a left one by its IP, as before #491.
-    private func logDevice(_ device: DiscoveredDevice, joined: Bool, fallbackNetwork: UUID?) {
+    private func logDevice(
+        _ device: DiscoveredDevice,
+        joined: Bool,
+        fallbackNetwork: UUID?,
+        savedRow: (DiscoveredDevice, UUID?) -> LocalDevice?
+    ) {
         let network = device.networkProfileID ?? fallbackNetwork
-        let row = savedDevices?.row(for: device, networkProfileID: network)
+        let row = savedRow(device, network)
         let ip = device.ipAddress
         let label = row?.displayName ?? (joined ? device.hostname ?? device.maker ?? ip : ip)
         eventService.log(

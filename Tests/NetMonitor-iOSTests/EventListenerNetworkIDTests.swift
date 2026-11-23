@@ -24,15 +24,6 @@ private func scanned(_ ip: String, mac: String?, hostname: String? = nil, networ
     )
 }
 
-@MainActor
-private func eventually(_ condition: () -> Bool) async -> Bool {
-    let deadline = ContinuousClock.now + .seconds(5)
-    while !condition(), ContinuousClock.now < deadline {
-        try? await Task.sleep(for: .milliseconds(10))
-    }
-    return condition()
-}
-
 // MARK: - SavedDeviceLookup
 
 @Suite("SavedDeviceLookup")
@@ -47,7 +38,7 @@ struct SavedDeviceLookupTests {
         context.insert(LocalDevice(ipAddress: "192.0.2.20", macAddress: "00:1B:A9:00:00:20", customName: "Elsewhere", networkProfileID: networkB))
         try context.save()
 
-        let found = SavedDeviceLookup(context: context).row(for: scanned("192.0.2.20", mac: "00:1b:a9:00:00:20"), networkProfileID: networkA)
+        let found = SavedDeviceLookup(context: context).snapshot(networkProfileID: networkA).row(for: scanned("192.0.2.20", mac: "00:1b:a9:00:00:20"))
 
         #expect(found?.id == row.id)
         #expect(found?.displayName == "Office Printer")
@@ -60,7 +51,7 @@ struct SavedDeviceLookupTests {
         context.insert(row)
         try context.save()
 
-        let found = SavedDeviceLookup(context: context).row(for: scanned("192.0.2.30", mac: nil), networkProfileID: networkA)
+        let found = SavedDeviceLookup(context: context).snapshot(networkProfileID: networkA).row(for: scanned("192.0.2.30", mac: nil))
 
         #expect(found?.id == row.id)
     }
@@ -88,12 +79,26 @@ struct SavedDeviceLookupTests {
         context.insert(other)
         try context.save()
 
-        let found = SavedDeviceLookup(context: context).row(for: scanned("192.0.2.41", mac: "00:1B:A9:00:00:40"), networkProfileID: networkA)
+        let found = SavedDeviceLookup(context: context).snapshot(networkProfileID: networkA).row(for: scanned("192.0.2.41", mac: "00:1B:A9:00:00:40"))
 
         #expect(found == nil)
         let rows = try context.fetch(FetchDescriptor<LocalDevice>())
         #expect(rows.count == 1)
         #expect(rows.first?.ipAddress == "192.0.2.40")
+    }
+
+    /// A row saved with no network matches only by an identical MAC: an IP means nothing across networks.
+    @Test func aRowWithNoNetworkNeverMatchesByIPAlone() throws {
+        let (container, context) = try makeContext()
+        defer { withExtendedLifetime(container) {} }
+        context.insert(LocalDevice(ipAddress: "192.0.2.60", macAddress: "00:1B:A9:00:00:60", customName: "Other MAC"))
+        context.insert(LocalDevice(ipAddress: "192.0.2.61", macAddress: "", customName: "No MAC"))
+        try context.save()
+        let saved = SavedDeviceLookup(context: context).snapshot(networkProfileID: networkA)
+
+        #expect(saved.row(for: scanned("192.0.2.60", mac: "00:1B:A9:00:00:99")) == nil)
+        #expect(saved.row(for: scanned("192.0.2.61", mac: nil)) == nil)
+        #expect(saved.row(for: scanned("192.0.2.61", mac: "00:1B:A9:00:00:61")) == nil)
     }
 
     /// Rows saved before devices carried a network have none; device detail falls back to them too.
@@ -104,7 +109,7 @@ struct SavedDeviceLookupTests {
         context.insert(legacy)
         try context.save()
 
-        let found = SavedDeviceLookup(context: context).row(for: scanned("192.0.2.50", mac: "00:1B:A9:00:00:50"), networkProfileID: networkA)
+        let found = SavedDeviceLookup(context: context).snapshot(networkProfileID: networkA).row(for: scanned("192.0.2.50", mac: "00:1B:A9:00:00:50"))
 
         #expect(found?.id == legacy.id)
     }
@@ -132,11 +137,11 @@ struct EventListenerNetworkIDTests {
         )
         listener.start()
         defer { listener.stop() }
-        await Task.yield()
 
         await fake.scanNetwork(profile: nil)
 
-        #expect(await eventually { events.events(ofType: .scanComplete).count == 1 })
+        await waitUntil({ events.events(ofType: .scanComplete).count == 1 }, timeout: .seconds(5))
+        #expect(events.events(ofType: .scanComplete).count == 1)
         #expect(events.events(ofType: .deviceJoined).count == fake.discoveredDevices.count)
         #expect(events.events(ofType: .scanComplete).first?.title == "Scan Complete — 5 devices found")
         #expect(events.loggedEvents.allSatisfy { $0.networkProfileID == UITestBootstrap.networkProfileID })
@@ -164,13 +169,14 @@ struct EventListenerNetworkIDTests {
         )
         listener.start()
         defer { listener.stop() }
-        await Task.yield()
 
         await fake.scanNetwork(profile: nil)
-        #expect(await eventually { events.events(ofType: .scanComplete).count == 1 })
+        await waitUntil({ events.events(ofType: .scanComplete).count == 1 }, timeout: .seconds(5))
+        #expect(events.events(ofType: .scanComplete).count == 1)
         box.devices.removeFirst()
         await fake.scanNetwork(profile: nil)
-        #expect(await eventually { events.events(ofType: .scanComplete).count == 2 })
+        await waitUntil({ events.events(ofType: .scanComplete).count == 2 }, timeout: .seconds(5))
+        #expect(events.events(ofType: .scanComplete).count == 2)
 
         let joined = try #require(events.events(ofType: .deviceJoined).first { $0.deviceID == row.id })
         #expect(joined.title == "Device Joined: Office Printer")
@@ -189,21 +195,24 @@ struct EventListenerNetworkIDTests {
         let events = SpyNetworkEventService()
         let fake = UITestFakeDiscoveryService(hold: .milliseconds(200))
         let scan = Task { await fake.scanNetwork(profile: nil) }
-        #expect(await eventually { fake.isScanning })
+        await waitUntil({ fake.isScanning }, timeout: .seconds(5))
+        #expect(fake.isScanning)
         let listener = EventListenerService(eventService: events, discoveryService: fake, currentNetworkProfileID: { networkA })
         listener.start()
         defer { listener.stop() }
 
         await scan.value
 
-        #expect(await eventually { events.events(ofType: .scanComplete).count == 1 })
+        await waitUntil({ events.events(ofType: .scanComplete).count == 1 }, timeout: .seconds(5))
+        #expect(events.events(ofType: .scanComplete).count == 1)
     }
 
     @Test func theFakeServiceHoldsIsScanningThenPublishesStampedDevices() async {
         let fake = UITestFakeDiscoveryService(hold: .milliseconds(100))
         let scan = Task { await fake.scanNetwork(profile: nil) }
 
-        #expect(await eventually { fake.isScanning })
+        await waitUntil({ fake.isScanning }, timeout: .seconds(5))
+        #expect(fake.isScanning)
         #expect(fake.discoveredDevices.isEmpty)
         await scan.value
 
@@ -211,5 +220,26 @@ struct EventListenerNetworkIDTests {
         #expect(fake.discoveredDevices.count == 5)
         #expect(fake.discoveredDevices.allSatisfy { $0.networkProfileID == UITestBootstrap.networkProfileID })
         #expect(fake.lastScanDate != nil)
+    }
+}
+
+// MARK: - UI-test range events
+
+@Suite("UITestBootstrap range events")
+@MainActor
+struct UITestRangeEventsTests {
+    @Test func seedsTodayAndTenDaysAgoOnlyWithTheFlagAndOnlyOnce() {
+        let events = SpyNetworkEventService()
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+
+        UITestBootstrap.seedRangeEventsIfNeeded(into: events, arguments: ["--uitesting"], now: now)
+        #expect(events.loggedEvents.isEmpty)
+
+        UITestBootstrap.seedRangeEventsIfNeeded(into: events, arguments: ["--uitesting", "--seed-test-events"], now: now)
+        UITestBootstrap.seedRangeEventsIfNeeded(into: events, arguments: ["--uitesting", "--seed-test-events"], now: now)
+
+        #expect(events.loggedEvents.map(\.title) == ["UITest Event 10 Days Ago", "UITest Event Today"])
+        #expect(events.loggedEvents.map(\.timestamp) == [now.addingTimeInterval(-10 * 86400), now.addingTimeInterval(-60)])
+        #expect(events.loggedEvents.allSatisfy { $0.networkProfileID == UITestBootstrap.networkProfileID })
     }
 }

@@ -4,6 +4,7 @@ import NetworkScanKit
 import PDFKit
 import SwiftData
 import UIKit
+import os
 
 @MainActor
 enum UITestBootstrap {
@@ -272,22 +273,35 @@ extension UITestBootstrap {
             customName: timelineDeviceName,
             networkProfileID: networkProfileID
         ))
-        try? context.save()
+        do {
+            try context.save()
+        } catch {
+            Logger.data.error("UI-test timeline device seed failed to save: \(error.localizedDescription, privacy: .public)")
+        }
     }
 
     private static var hasSeededTimelineDevice = false
 
+    static let rangeEventTitles = (today: "UITest Event Today", tenDaysAgo: "UITest Event 10 Days Ago")
+
     /// `--seed-test-events`: one event today and one ten days ago on the UI-test network, for the
-    /// Timeline's ranges (S3).
-    static func seedRangeEventsIfNeeded(into eventService: any NetworkEventServiceProtocol = NetworkEventService.shared, now: Date = Date()) {
-        guard isUITesting, ProcessInfo.processInfo.arguments.contains("--seed-test-events") else { return }
+    /// Timeline's ranges (S3). Idempotent: never again into a history that already has them (the
+    /// UI-test history survives a relaunch without a reset).
+    static func seedRangeEventsIfNeeded(
+        into eventService: any NetworkEventServiceProtocol = NetworkEventService.shared,
+        arguments: [String] = ProcessInfo.processInfo.arguments,
+        now: Date = Date()
+    ) {
+        guard isUITesting, arguments.contains("--seed-test-events"),
+              !eventService.events.contains(where: { $0.title == rangeEventTitles.today }) else { return }
         eventService.log(NetworkEvent(
             type: .connectivityChange, timestamp: now.addingTimeInterval(-10 * 86400),
-            title: "UITest Event 10 Days Ago", networkProfileID: networkProfileID
+            title: rangeEventTitles.tenDaysAgo, networkProfileID: networkProfileID
         ))
         eventService.log(NetworkEvent(
             type: .connectivityChange, timestamp: now.addingTimeInterval(-60),
-            title: "UITest Event Today", networkProfileID: networkProfileID
+            title: rangeEventTitles.today, networkProfileID: networkProfileID
         ))
     }
+
 }

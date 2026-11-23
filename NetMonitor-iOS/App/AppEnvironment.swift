@@ -1,6 +1,5 @@
 import Foundation
 import NetMonitorCore
-import NetworkScanKit
 
 // MARK: - AppEnvironment
 
@@ -40,6 +39,8 @@ final class AppEnvironment {
     let activityLog: ToolActivityLog
     let eventService: NetworkEventService
     let scanScheduler: any ScanSchedulerServiceProtocol
+    /// The app's network profiles. `LocalNetworkChangeMonitor` keeps its local network current.
+    let networkProfiles: NetworkProfileManager
     /// The network the device is on, for events and samples (#491 D9): the local profile, else
     /// the active one. Under `UITEST_FAKE_DEVICES`, the UI-test network.
     let currentNetworkProfileID: @MainActor () -> UUID?
@@ -56,6 +57,7 @@ final class AppEnvironment {
         activityLog: ToolActivityLog,
         eventService: NetworkEventService,
         scanScheduler: any ScanSchedulerServiceProtocol,
+        networkProfiles: NetworkProfileManager,
         currentNetworkProfileID: @escaping @MainActor () -> UUID? = { nil }
     ) {
         self.networkMonitor = networkMonitor
@@ -67,24 +69,27 @@ final class AppEnvironment {
         self.activityLog = activityLog
         self.eventService = eventService
         self.scanScheduler = scanScheduler
+        self.networkProfiles = networkProfiles
         self.currentNetworkProfileID = currentNetworkProfileID
     }
 
     // MARK: - Factories
 
-    /// Production wiring. Uses the existing `*.shared` instances so services
-    /// shared with `@main` lifecycle hooks (`EventListenerService`,
-    /// `BackgroundTaskService`, etc.) keep observing the same state.
+    /// Production wiring. Uses the existing `*.shared` instances so services shared with `@main`
+    /// lifecycle hooks (`BackgroundTaskService`, etc.) keep observing the same state; the app builds
+    /// its event listener from this environment's discovery service and network provider.
     ///
     /// Under `UITEST_FAKE_DEVICES`, the dashboard and the event listener share one fake discovery
     /// service, so UI tests never scan the real network (#491 D9).
     static func live() -> AppEnvironment {
         let fake = UITestFakeDeviceFeed.isEnabled
+        let profiles = NetworkProfileManager()
         let networkID: @MainActor () -> UUID?
         if fake {
             networkID = { UITestBootstrap.networkProfileID }
         } else {
-            networkID = localNetworkID()
+            // Read only: the network-change monitor re-detects into this same manager.
+            networkID = { [weak profiles] in profiles?.localProfile?.id ?? profiles?.activeProfile?.id }
         }
         return AppEnvironment(
             networkMonitor: NetworkMonitorService.shared,
@@ -96,85 +101,8 @@ final class AppEnvironment {
             activityLog: ToolActivityLog.shared,
             eventService: NetworkEventService.shared,
             scanScheduler: ScanSchedulerService.shared,
+            networkProfiles: profiles,
             currentNetworkProfileID: networkID
         )
-    }
-
-    /// Re-detects the local network on each call, so the ID follows network changes.
-    private static func localNetworkID() -> @MainActor () -> UUID? {
-        let profiles = NetworkProfileManager()
-        return {
-            profiles.detectLocalNetwork()
-            return profiles.localProfile?.id ?? profiles.activeProfile?.id
-        }
-    }
-}
-
-// MARK: - UI-test discovery
-
-/// The discovery service UI tests get with `UITEST_FAKE_DEVICES=1` (#491 D9). A scan sets
-/// `isScanning`, holds it for `hold` so observers see both states, then publishes the fixture
-/// devices stamped with `UITestBootstrap.networkProfileID` and clears `isScanning`.
-@MainActor
-@Observable
-final class UITestFakeDiscoveryService: DeviceDiscoveryServiceProtocol {
-    private(set) var discoveredDevices: [DiscoveredDevice] = []
-    private(set) var isScanning = false
-    private(set) var scanProgress: Double = 0
-    private(set) var scanPhase: ScanDisplayPhase = .idle
-    private(set) var lastScanDate: Date?
-    private let devices: @MainActor () -> [DiscoveredDevice]
-    private let hold: Duration
-
-    init(devices: @escaping @MainActor () -> [DiscoveredDevice] = UITestFakeDiscoveryService.fixtureDevices, hold: Duration = .milliseconds(300)) {
-        self.devices = devices
-        self.hold = hold
-    }
-
-    /// The UI-test feed's devices on the UI-test network.
-    static func fixtureDevices() -> [DiscoveredDevice] {
-        UITestFakeDeviceFeed().devices.map { device in
-            DiscoveredDevice(
-                id: device.id,
-                ipAddress: device.ipAddress,
-                hostname: device.hostname,
-                vendor: device.vendor,
-                macAddress: device.macAddress,
-                latency: device.latency,
-                discoveredAt: device.discoveredAt,
-                source: device.source,
-                networkProfileID: UITestBootstrap.networkProfileID
-            )
-        }
-    }
-
-    func cachedDevices(for profile: NetworkProfile?) -> [DiscoveredDevice] {
-        discoveredDevices
-    }
-
-    func scanNetwork(subnet: String? = nil) async {
-        await scan()
-    }
-
-    func scanNetwork(profile: NetworkProfile?) async {
-        await scan()
-    }
-
-    func stopScan() {
-        isScanning = false
-        scanPhase = .idle
-    }
-
-    private func scan() async {
-        guard !isScanning else { return }
-        isScanning = true
-        scanPhase = .arpScan
-        scanProgress = 0
-        try? await Task.sleep(for: hold)
-        discoveredDevices = devices()
-        lastScanDate = Date()
-        scanProgress = 1
-        scanPhase = .idle
-        isScanning = false
     }
 }
