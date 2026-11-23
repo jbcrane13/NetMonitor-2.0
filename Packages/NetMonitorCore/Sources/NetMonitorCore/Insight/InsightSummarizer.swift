@@ -36,11 +36,21 @@ public enum InsightSummarizer {
             return first
         }
         // An answer cut off by the token cap ends mid-sentence; it is dropped like any other.
-        guard let text = answer?.trimmingCharacters(in: .whitespacesAndNewlines),
+        guard let text = answer.map({ usable($0, for: request.kind) }),
               let last = text.last, ".!?".contains(last),
               InsightGrounding.isGrounded(text, in: request)
         else {
             return nil
+        }
+        return text
+    }
+
+    /// The part of `answer` that is checked and used. A notification body is one line: the
+    /// model sometimes goes on to recite its facts on further lines, and those are dropped.
+    static func usable(_ answer: String, for kind: InsightRequest.Kind) -> String {
+        var text = answer.trimmingCharacters(in: .whitespacesAndNewlines)
+        if kind == .notification, let firstLine = text.split(whereSeparator: \.isNewline).first {
+            text = firstLine.trimmingCharacters(in: .whitespaces)
         }
         return text
     }
