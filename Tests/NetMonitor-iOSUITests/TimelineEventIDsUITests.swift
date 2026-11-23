@@ -45,6 +45,11 @@ final class TimelineEventIDsUITests: IOSUITestCase {
         requireExists(app.tabBars.buttons["Map"], message: "Map tab should exist").tap()
         let scan = app.descendants(matching: .any).matching(identifier: "networkMap_button_scan").firstMatch
         requireExists(scan, timeout: 8, message: "Map scan button should exist").tap()
+        // A completed scan can bring up the App Store review prompt, which isn't a system alert.
+        let notNow = app.buttons["Not Now"]
+        if notNow.waitForExistence(timeout: 3) {
+            notNow.tap()
+        }
 
         openTimeline()
         requireExists(joined, timeout: 10, message: "The scan's join should use the saved custom name")
