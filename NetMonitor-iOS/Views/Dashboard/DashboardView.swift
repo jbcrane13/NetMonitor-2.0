@@ -973,9 +973,9 @@ struct LiveEventTicker: View {
     }
 
     private static let timeFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.dateFormat = "HH:mm:ss"
-        return f
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm:ss"
+        return formatter
     }()
 
     var body: some View {
