@@ -33,6 +33,14 @@ public actor SSLCertificateService: SSLCertificateServiceProtocol {
         return try parseCertificate(cert, domain: cleanDomain)
     }
 
+    /// Builds certificate info from raw DER bytes. Test seam for fixture certificates.
+    func certificateInfo(fromDER der: Data, domain: String) throws -> SSLCertificateInfo {
+        guard let cert = SecCertificateCreateWithData(nil, der as CFData) else {
+            throw SSLCertificateError.cannotParseCertificate
+        }
+        return try parseCertificate(cert, domain: domain)
+    }
+
     // MARK: - Private Helpers
 
     private func sanitizeDomain(_ domain: String) -> String {
@@ -49,12 +57,13 @@ public actor SSLCertificateService: SSLCertificateServiceProtocol {
 
         var validFrom = Date.distantPast
         var validTo = Date.distantFuture
-        let issuer = "Unknown"
+        var issuer = "Unknown"
 
         // SecCertificateCopyValues was removed in macOS 15 SDK; use DER parsing on all platforms.
-        if let dates = parseDERValidityDates(from: cert) {
-            validFrom = dates.notBefore
-            validTo = dates.notAfter
+        if let fields = parseDERFields(from: cert) {
+            validFrom = fields.notBefore
+            validTo = fields.notAfter
+            issuer = fields.issuer ?? "Unknown"
         }
 
         let now = Date()
@@ -72,8 +81,8 @@ public actor SSLCertificateService: SSLCertificateServiceProtocol {
         )
     }
 
-    // Minimal DER/ASN.1 parser to extract validity dates from an X.509 certificate.
-    private func parseDERValidityDates(from cert: SecCertificate) -> (notBefore: Date, notAfter: Date)? {
+    // Minimal DER/ASN.1 parser to extract the issuer name and validity dates from an X.509 certificate.
+    private func parseDERFields(from cert: SecCertificate) -> (issuer: String?, notBefore: Date, notAfter: Date)? {
         let derData = SecCertificateCopyData(cert) as Data
         var idx = derData.startIndex
 
@@ -88,20 +97,78 @@ public actor SSLCertificateService: SSLCertificateServiceProtocol {
         }
         guard derSkipTLV(in: derData, at: &idx) else { return nil } // serialNumber
         guard derSkipTLV(in: derData, at: &idx) else { return nil } // signature AlgorithmIdentifier
-        guard derSkipTLV(in: derData, at: &idx) else { return nil } // issuer Name
+
+        // issuer Name
+        let issuerStart = idx
+        guard derSkipTLV(in: derData, at: &idx) else { return nil }
+        let issuer = derParseName(derData[issuerStart..<idx])
 
         // Enter Validity SEQUENCE
-        guard derReadTag(0x30, in: derData, at: &idx) != nil else { return nil }
-        guard let notBefore = derParseTime(in: derData, at: &idx),
+        guard derReadTag(0x30, in: derData, at: &idx) != nil,
+              let notBefore = derParseTime(in: derData, at: &idx),
               let notAfter  = derParseTime(in: derData, at: &idx) else { return nil }
-        return (notBefore, notAfter)
+        return (issuer, notBefore, notAfter)
+    }
+
+    /// Walks a Name (RDNSequence) and returns its commonName (2.5.4.3),
+    /// falling back to organizationName (2.5.4.10).
+    private func derParseName(_ name: Data) -> String? {
+        let commonNameOID: [UInt8] = [0x55, 0x04, 0x03]
+        let organizationOID: [UInt8] = [0x55, 0x04, 0x0A]
+        var idx = name.startIndex
+        guard derReadTag(0x30, in: name, at: &idx) != nil else { return nil }
+        var commonName: String?
+        var organization: String?
+        while idx < name.endIndex {
+            // RelativeDistinguishedName SET OF AttributeTypeAndValue
+            guard let setLen = derReadTag(0x31, in: name, at: &idx),
+                  let setEnd = name.index(idx, offsetBy: setLen, limitedBy: name.endIndex) else { return nil }
+            while idx < setEnd {
+                guard let seqLen = derReadTag(0x30, in: name, at: &idx),
+                      let seqEnd = name.index(idx, offsetBy: seqLen, limitedBy: setEnd),
+                      let oidLen = derReadTag(0x06, in: name, at: &idx),
+                      let oidEnd = name.index(idx, offsetBy: oidLen, limitedBy: seqEnd) else { return nil }
+                let oid = Array(name[idx..<oidEnd])
+                idx = oidEnd
+                let value = derParseDirectoryString(in: name, at: &idx)
+                if oid == commonNameOID, commonName == nil {
+                    commonName = value
+                }
+                if oid == organizationOID, organization == nil {
+                    organization = value
+                }
+                idx = seqEnd
+            }
+        }
+        return commonName ?? organization
+    }
+
+    /// Decodes a DirectoryString value; returns nil for unsupported or empty strings.
+    private func derParseDirectoryString(in data: Data, at idx: inout Data.Index) -> String? {
+        guard idx < data.endIndex else { return nil }
+        let tag = data[idx]
+        idx = data.index(after: idx)
+        guard let len = derReadLength(in: data, at: &idx),
+              let end = data.index(idx, offsetBy: len, limitedBy: data.endIndex) else { return nil }
+        let bytes = data[idx..<end]
+        idx = end
+        let value: String? = switch tag {
+        case 0x0C, 0x13, 0x16: String(bytes: bytes, encoding: .utf8) // UTF8String, PrintableString, IA5String
+        case 0x14: String(bytes: bytes, encoding: .isoLatin1)          // TeletexString
+        case 0x1E: String(bytes: bytes, encoding: .utf16BigEndian)     // BMPString
+        default: nil
+        }
+        guard let value, !value.isEmpty else { return nil }
+        return value
     }
 
     private func derReadLength(in data: Data, at idx: inout Data.Index) -> Int? {
         guard idx < data.endIndex else { return nil }
         let first = data[idx]
         idx = data.index(after: idx)
-        if first & 0x80 == 0 { return Int(first) }
+        if first & 0x80 == 0 {
+            return Int(first)
+        }
         let numBytes = Int(first & 0x7F)
         guard numBytes > 0, numBytes <= 4 else { return nil }
         var length = 0
