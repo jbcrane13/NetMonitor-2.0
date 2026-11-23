@@ -214,7 +214,6 @@ struct ReportSummaryBuilderTests {
             "Number of devices: 2",
             "Devices online: 2",
             "Devices offline: 0",
-            "Devices first seen in the last 7 days: 0",
             "Number of speed tests: 2",
             "Latest download: 520.0 Mbps",
             "Latest upload: 42.0 Mbps",
@@ -252,7 +251,6 @@ struct ReportSummaryBuilderTests {
             "Devices online: 4",
             "Devices offline: 2",
             "Devices idle or not answering: 2",
-            "Devices first seen in the last 7 days: 2",
             "Number of speed tests: 3",
             "Latest download: 100.0 Mbps",
             "Latest upload: 10.0 Mbps",
@@ -262,7 +260,6 @@ struct ReportSummaryBuilderTests {
         ])
         #expect(request?.observations == [
             "2 devices are offline.",
-            "2 devices were seen for the first time in the last 7 days: New Laptop, 10.0.0.8.",
             "The latest download speed, 100.0 Mbps, is well below the average of 240.0 Mbps.",
             "3 tool runs failed: Ping (2), Port Scanner (1)."
         ])
@@ -275,7 +272,6 @@ struct ReportSummaryBuilderTests {
         )
         #expect(request?.observations == [
             "1 device is offline.",
-            "1 device was seen for the first time in the last 7 days: New Laptop.",
             "1 tool run failed: Wake on LAN."
         ])
         #expect(request?.facts.contains("Number of speed tests: 0") == true)
@@ -289,14 +285,11 @@ struct ReportSummaryBuilderTests {
         #expect(build([], [], [speedTest(50, 10, daysAgo: 0)])?.observations.isEmpty == true)
     }
 
-    @Test func newDeviceNamesAreCappedAndShortened() {
-        let long = String(repeating: "x", count: 60)
-        let devices = [device("10.0.0.1", name: "Line\nBreak \(long)", firstSeenDaysAgo: 0.5)]
-            + (2 ... 8).map { device("10.0.0.\($0)", firstSeenDaysAgo: Double($0)) }
-        let points = build(devices)?.observations ?? []
-        let expectedName = "Line Break " + String(repeating: "x", count: 29) + "…"
-        #expect(points == [
-            "6 devices were seen for the first time in the last 7 days: \(expectedName), 10.0.0.2, 10.0.0.3, 10.0.0.4, 10.0.0.5, and 1 more."
-        ])
+    /// #495 review: on iOS a device's row, and its `firstSeen`, dates from when its details
+    /// were first opened, so a month-old router opened today must not be called new.
+    @Test func aRecentFirstSeenIsNotReportedAsANewDevice() {
+        let request = build([device("10.0.0.1", name: "Router", firstSeenDaysAgo: 0)])
+        #expect(request?.facts.contains { $0.localizedCaseInsensitiveContains("first seen") } == false)
+        #expect(request?.observations.isEmpty == true)
     }
 }

@@ -2,24 +2,19 @@ import Foundation
 
 /// Builds the digest behind a report's executive summary (#453). Pure, like
 /// `ToolInsightBuilder`: every figure comes from the records passed in, and every judgement
-/// is computed here rather than by the model. Devices are named through `displayName`, so the
-/// summary states names as they are when it is built.
+/// is computed here rather than by the model. It makes no claim about when a device was first
+/// discovered: on iOS a `LocalDevice` row is created when its details are first opened, so
+/// `firstSeen` is not discovery history.
 public enum ReportSummaryBuilder {
-    /// How recently a device must have been first seen to count as new.
-    public static let newDeviceWindow: TimeInterval = 7 * 24 * 60 * 60
     /// The latest download counts as well below normal under this share of the average:
     /// below 70%, a drop a reader would notice rather than everyday variation.
     public static let slowDownloadRatio = 0.7
-    /// Most new-device names a request lists.
-    static let nameLimit = 5
-    /// Longest device name a request carries, so one name can't crowd out the others.
-    static let nameLengthLimit = 40
 
     /// The summary request for a report of these records, or nil when there is nothing to
     /// summarize. Speed figures use every saved test, as the report's own Summary section
     /// does; the apps save only tests that completed.
     /// - Parameters:
-    ///   - now: the report time; new devices and the report date are judged against it.
+    ///   - now: the report time, used for the report date.
     ///   - calendar: writes the report date in the reader's time zone.
     public static func request(
         devices: [LocalDevice],
@@ -31,7 +26,7 @@ public enum ReportSummaryBuilder {
         guard !devices.isEmpty || !toolResults.isEmpty || !speedTests.isEmpty else { return nil }
         var facts = ["Report date: \(longDay(now, calendar))"]
         var observations: [String] = []
-        addDevices(devices, now: now, facts: &facts, observations: &observations)
+        addDevices(devices, facts: &facts, observations: &observations)
         addSpeedTests(speedTests, facts: &facts, observations: &observations)
         addToolResults(toolResults, facts: &facts, observations: &observations)
         return InsightRequest(subject: "Network report", facts: facts, observations: observations, kind: .summary)
@@ -39,7 +34,7 @@ public enum ReportSummaryBuilder {
 
     // MARK: - Sections
 
-    private static func addDevices(_ devices: [LocalDevice], now: Date, facts: inout [String], observations: inout [String]) {
+    private static func addDevices(_ devices: [LocalDevice], facts: inout [String], observations: inout [String]) {
         let online = devices.count { $0.status == .online }
         let offline = devices.count { $0.status == .offline }
         // Idle devices and ones only left in the ARP cache are neither online nor offline.
@@ -50,20 +45,8 @@ public enum ReportSummaryBuilder {
         if other > 0 {
             facts.append("Devices idle or not answering: \(other)")
         }
-        let cutoff = now.addingTimeInterval(-newDeviceWindow)
-        let new = devices.filter { $0.firstSeen > cutoff }.sorted { $0.firstSeen > $1.firstSeen }
-        facts.append("Devices first seen in the last 7 days: \(new.count)")
-
         if offline > 0 {
             observations.append("\(ToolInsightBuilder.plural(offline, "device")) \(offline == 1 ? "is" : "are") offline.")
-        }
-        if !new.isEmpty {
-            var names = new.prefix(nameLimit).map { name($0.displayName) }.joined(separator: ", ")
-            if new.count > nameLimit {
-                names += ", and \(new.count - nameLimit) more"
-            }
-            let verb = new.count == 1 ? "was" : "were"
-            observations.append("\(ToolInsightBuilder.plural(new.count, "device")) \(verb) seen for the first time in the last 7 days: \(names).")
         }
     }
 
@@ -97,12 +80,6 @@ public enum ReportSummaryBuilder {
     /// Speeds as the report's tables show them.
     static func mbps(_ value: Double) -> String {
         String(format: "%.1f Mbps", value)
-    }
-
-    /// A device name on one line, capped.
-    static func name(_ text: String) -> String {
-        let flat = text.components(separatedBy: .newlines).joined(separator: " ")
-        return flat.count > nameLengthLimit ? flat.prefix(nameLengthLimit) + "…" : flat
     }
 
     /// The date the way a reader says it, such as "November 22, 2026".
