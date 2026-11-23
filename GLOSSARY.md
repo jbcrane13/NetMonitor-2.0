@@ -13,7 +13,7 @@ What a device is: its maker, model and friendly name.
 _Avoid_: device info, metadata
 
 **Identity source**:
-The way an identity value was learned (Bonjour TXT record, UniFi discovery reply, UPnP description, MAC prefix, hostname guess). Sources are ranked; a higher-ranked value is never replaced by a lower-ranked one.
+The way an identity value was learned (Bonjour TXT record, UniFi discovery reply, UPnP description, MAC prefix, hostname guess, model suggestion, user confirmation). Sources are ranked; a higher-ranked value is never replaced by a lower-ranked one.
 _Avoid_: provider, origin
 
 **Maker**:
@@ -45,7 +45,15 @@ The name shown for a device: its custom name, else its friendly name, else its h
 _Avoid_: display name, title
 
 **Hostname guess**:
-A maker and model inferred from a hostname such as `unifi-pro-max-16-switch`. The lowest-ranked identity source.
+A maker and model inferred from a hostname such as `unifi-pro-max-16-switch`. Ranked below every source except a model suggestion.
+
+**Model suggestion**:
+A type, maker and model the on-device language model suggests from a device's evidence. The lowest-ranked identity source, below even a value with no source; shown with a "Suggested" badge until the user accepts or dismisses it. A suggested type is not saved until accepted.
+_Avoid_: AI guess, prediction
+
+**User-confirmed**:
+A maker or model the user accepted from a model suggestion. The highest-ranked identity source for maker and model.
+_Avoid_: verified, manual
 
 ## Matching
 

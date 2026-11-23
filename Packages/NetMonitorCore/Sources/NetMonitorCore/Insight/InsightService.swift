@@ -28,6 +28,38 @@ public struct UnavailableInsightService: InsightServiceProtocol {
             continuation.finish()
         }
     }
+
+    public func suggestIdentity(_ evidence: DeviceEvidence) async -> DeviceSuggestion? {
+        nil
+    }
+}
+
+/// Suggests the same identity for every device, for UI tests that need a suggestion on
+/// screen without the on-device model (#449). Explanations always fail.
+public struct FixedSuggestionInsightService: InsightServiceProtocol {
+    /// The suggestion the apps' UI tests expect: a printer from a maker no fixture uses.
+    public static let uiTestSuggestion = DeviceSuggestion(
+        deviceType: .printer, maker: "Brother", model: "HL-L2350DW", confidence: .high
+    )
+
+    private let suggestion: DeviceSuggestion
+
+    public init(suggestion: DeviceSuggestion = Self.uiTestSuggestion) {
+        self.suggestion = suggestion
+    }
+
+    public var isAvailable: Bool { true }
+
+    public func explain(_ request: InsightRequest) -> AsyncStream<InsightUpdate> {
+        AsyncStream { continuation in
+            continuation.yield(.failed)
+            continuation.finish()
+        }
+    }
+
+    public func suggestIdentity(_ evidence: DeviceEvidence) async -> DeviceSuggestion? {
+        suggestion
+    }
 }
 
 #if canImport(FoundationModels)
@@ -58,6 +90,46 @@ struct SystemInsightService: InsightServiceProtocol {
             }
             continuation.onTermination = { _ in task.cancel() }
         }
+    }
+
+    func suggestIdentity(_ evidence: DeviceEvidence) async -> DeviceSuggestion? {
+        do {
+            let session = LanguageModelSession(instructions: DeviceEvidence.instructions)
+            // Guided generation into a typed answer; greedy so the same evidence gets the same answer.
+            let options = GenerationOptions(sampling: .greedy, maximumResponseTokens: 120)
+            let response = try await session.respond(to: evidence.prompt, generating: GeneratedIdentity.self, options: options)
+            return response.content.suggestion
+        } catch {
+            return nil
+        }
+    }
+}
+
+/// The typed answer the model fills in for ``SystemInsightService/suggestIdentity(_:)``.
+@available(iOS 27.0, macOS 27.0, *)
+@Generable
+private struct GeneratedIdentity {
+    @Guide(description: "The kind of device; unknown when the evidence does not show it", .anyOf(DeviceType.allCases.map(\.rawValue)))
+    var deviceType: String
+    @Guide(description: "The company whose brand is on the device, or empty when the evidence does not name it")
+    var maker: String
+    @Guide(description: "The device's product model, or empty when the evidence does not name it")
+    var model: String
+    @Guide(description: "How well the evidence supports the answer", .anyOf(["low", "medium", "high"]))
+    var confidence: String
+
+    var suggestion: DeviceSuggestion {
+        func present(_ text: String) -> String? {
+            let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            return text.isEmpty ? nil : text
+        }
+        let type = DeviceType(rawValue: deviceType)
+        return DeviceSuggestion(
+            deviceType: type == .unknown ? nil : type,
+            maker: present(maker),
+            model: present(model),
+            confidence: DeviceSuggestion.Confidence(rawValue: confidence) ?? .low
+        )
     }
 }
 #endif

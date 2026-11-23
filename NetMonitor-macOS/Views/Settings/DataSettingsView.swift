@@ -13,6 +13,7 @@ import os
 
 struct DataSettingsView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(DeviceDiscoveryCoordinator.self) private var deviceDiscovery: DeviceDiscoveryCoordinator?
     @AppStorage(HistoryRetention.key) private var historyRetention = HistoryRetention.default.rawValue
 
     @State private var showExportDialog = false
@@ -92,6 +93,8 @@ struct DataSettingsView: View {
     }
 
     private func clearAllData() {
+        // A suggestion pass must not write to the rows deleted below (#449).
+        deviceDiscovery?.cancelSuggestions()
         do {
             try modelContext.delete(model: TargetMeasurement.self)
             try modelContext.delete(model: NetworkTarget.self)
@@ -100,6 +103,7 @@ struct DataSettingsView: View {
             try modelContext.save()
             // Forget remembered devices too, so change detection starts a fresh baseline (#393).
             DeviceChangeTracker().clearAll()
+            DeviceSuggestionStore().clearAll()
         } catch {
             Logger.data.error("Failed to clear data: \(error, privacy: .public)")
         }

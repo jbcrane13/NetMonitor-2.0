@@ -503,6 +503,7 @@ struct DevicesView: View {
 
     private func clearDevices() {
         selectedDevice = nil
+        coordinator?.cancelSuggestions()
         for device in filteredDevices {
             modelContext.delete(device)
         }
@@ -564,6 +565,7 @@ struct DevicesView: View {
             if selectedDevice?.id == device.id {
                 selectedDevice = nil
             }
+            coordinator?.cancelSuggestions()
             modelContext.delete(device)
             try? modelContext.save()
         } label: {

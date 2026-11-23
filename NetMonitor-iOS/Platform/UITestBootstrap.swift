@@ -53,7 +53,8 @@ enum UITestBootstrap {
             AppSettings.Keys.selectedAccentColor,
             AppSettings.Keys.webBrowserRecentURLs,
             "targetManager_savedTargets",
-            "netmonitor.networkProfiles"
+            "netmonitor.networkProfiles",
+            "netmonitor.deviceSuggestions"
         ]
 
         for key in keysToClear {

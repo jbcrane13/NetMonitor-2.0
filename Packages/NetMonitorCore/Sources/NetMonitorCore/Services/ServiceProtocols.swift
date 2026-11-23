@@ -536,4 +536,7 @@ public protocol InsightServiceProtocol: Sendable {
     var isAvailable: Bool { get }
     /// Streams an explanation of `request`, ending with `.finished` or `.failed`.
     func explain(_ request: InsightRequest) -> AsyncStream<InsightUpdate>
+    /// Suggests a device's type, maker and model from `evidence` (#449), or nil when the
+    /// model can't answer.
+    func suggestIdentity(_ evidence: DeviceEvidence) async -> DeviceSuggestion?
 }

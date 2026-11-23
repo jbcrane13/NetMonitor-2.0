@@ -61,7 +61,7 @@ public struct HostnameIdentityPhase: ScanPhase, Sendable {
         guard let identity = HostnameIdentity.identify(names: names) else { return nil }
         let fill = identity.fills(
             knownMaker: device.identity.knownMakerForGuessing(macPrefixMaker: device.vendor),
-            knownModel: device.modelName
+            knownModel: device.identity.withoutSuggestions.model?.value
         )
         guard fill.maker != nil || fill.model != nil else { return nil }
         return DiscoveredDevice(
@@ -85,6 +85,6 @@ public struct HostnameIdentityPhase: ScanPhase, Sendable {
 
     private static func needsIdentity(_ device: DiscoveredDevice) -> Bool {
         (device.identity.knownMakerForGuessing(macPrefixMaker: device.vendor)?.isEmpty ?? true)
-            || (device.modelName?.isEmpty ?? true)
+            || (device.identity.withoutSuggestions.model?.value.isEmpty ?? true)
     }
 }

@@ -158,13 +158,25 @@ struct DeviceDetailView: View {
                 }
 
                 if let maker = device.maker {
-                    infoRow(label: "Manufacturer", value: maker)
+                    suggestibleRow(label: "Manufacturer", value: maker, isSuggested: device.isMakerSuggested)
                         .accessibilityIdentifier("deviceDetail_row_manufacturerInfo")
                 }
 
                 if let model = device.modelName {
-                    infoRow(label: "Model", value: model)
+                    suggestibleRow(label: "Model", value: model, isSuggested: device.isModelSuggested)
                         .accessibilityIdentifier("deviceDetail_row_model")
+                }
+
+                // A suggested type is shown, not written, until the user accepts it (#449).
+                suggestibleRow(
+                    label: "Type",
+                    value: (viewModel.suggestedType ?? device.deviceType).rawValue.capitalized,
+                    isSuggested: viewModel.suggestedType != nil
+                )
+                .accessibilityIdentifier("deviceDetail_row_deviceType")
+
+                if viewModel.isShowingSuggestion {
+                    suggestionRow
                 }
             }
         }
@@ -318,7 +330,11 @@ struct DeviceDetailView: View {
         .glassCard()
         .accessibilityIdentifier("deviceDetail_section_services")
     }
+}
 
+// MARK: - Status, Actions and Notes
+
+extension DeviceDetailView {
     // MARK: - Status Section
 
     private func statusSection(_ device: LocalDevice) -> some View {
@@ -578,5 +594,44 @@ struct DeviceDetailView: View {
     NavigationStack {
         DeviceDetailView(ipAddress: "192.168.1.1")
             .modelContainer(for: [LocalDevice.self], inMemory: true)
+    }
+}
+
+// MARK: - Identity Suggestion (#449)
+
+extension DeviceDetailView {
+    /// An info row with a sparkles marker when its value came from the on-device model.
+    private func suggestibleRow(label: String, value: String, isSuggested: Bool) -> some View {
+        HStack(spacing: 4) {
+            infoRow(label: label, value: value)
+            if isSuggested {
+                Image(systemName: "sparkles")
+                    .font(.caption)
+                    .foregroundStyle(Theme.Colors.accent)
+                    .accessibilityLabel("Suggested by the on-device model")
+            }
+        }
+    }
+
+    /// Marks what the on-device model suggested and lets the user keep or drop it (#449).
+    private var suggestionRow: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Label("Suggested", systemImage: "sparkles")
+                .font(.caption)
+                .fontWeight(.semibold)
+                .foregroundStyle(Theme.Colors.accent)
+                .accessibilityLabel("Suggested by the on-device model")
+                .accessibilityIdentifier("deviceDetail_badge_suggested")
+
+            HStack(spacing: Theme.Layout.itemSpacing) {
+                Button("Accept") { viewModel.acceptSuggestion() }
+                    .buttonStyle(.borderedProminent)
+                    .accessibilityIdentifier("deviceDetail_button_acceptSuggestion")
+                Button("Dismiss") { viewModel.dismissSuggestion() }
+                    .buttonStyle(.bordered)
+                    .accessibilityIdentifier("deviceDetail_button_dismissSuggestion")
+            }
+            .controlSize(.small)
+        }
     }
 }

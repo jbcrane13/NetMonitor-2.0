@@ -83,3 +83,9 @@ Project-specific notes for agents. Global lessons live in `~/.claude/lessons-lea
 - **Tightening the instructions can make output worse.** "Add no numbers" made it drop every figure. Re-run the real-model pass after any prompt change.
 - **GitHub "apply suggestion" commits can break the build** (#480: one removed `outputAreaContent`, one removed a `struct` line). Build after applying them.
 - **Build caches under `/tmp` lose files mid-session** (Sentry xcframework `Info.plist`). Keep DerivedData and SwiftPM scratch paths under `~/Library/Caches` for long runs.
+
+## 2026-11-22 — Identity suggestions UI (#449)
+
+- **A macOS card's `.accessibilityIdentifier` replaces its children's identifiers** unless the card also has `.accessibilityElement(children: .contain)`. The hardware card's Accept/Dismiss were unreachable by ID until it did; the quick-actions card still has the same problem.
+- **Under the UI-test fake device feed, iOS device detail saw no scan data** (it reads `DeviceDiscoveryService.shared`), so a fresh row had no name and nothing to suggest from. The suggestion fixture feeds the fake devices to detail as the live scan.
+- **After running a Debug build with the same bundle id, `open /Applications/NetMonitor-macOS.app` failed with LaunchServices -10673** on mini-pro-1, even after unregistering the Debug copy. Blake had to reopen the app himself.

@@ -61,7 +61,10 @@ struct NetMonitorApp: App {
 
     private static let persistenceOutcome: PersistenceBootstrapOutcome<ModelContainer> = {
         do {
-            return try MacPersistence.makeOutcome(storeURL: nil, inMemory: NSClassFromString("XCTest") != nil)
+            // `--in-memory-store` keeps a UI-test or evidence run off the user's saved data.
+            let inMemory = NSClassFromString("XCTest") != nil
+                || ProcessInfo.processInfo.arguments.contains("--in-memory-store")
+            return try MacPersistence.makeOutcome(storeURL: nil, inMemory: inMemory)
         } catch {
             fatalError("Could not create recovery ModelContainer: \(error)")
         }
@@ -123,6 +126,7 @@ struct NetMonitorApp: App {
         Settings {
             SettingsView()
                 .environment(networkProfileManager)
+                .environment(deviceDiscovery)
                 .environment(alertRuleStore)
                 .tint(Color(hex: accentColorHex))
                 .environment(\.appAccentColor, Color(hex: accentColorHex))
@@ -165,13 +169,17 @@ struct NetMonitorApp: App {
                 icmpService: icmpService,
                 tcpService: tcpService
             )
-            deviceDiscovery = DeviceDiscoveryCoordinator(
+            let discovery = DeviceDiscoveryCoordinator(
                 modelContext: context,
                 bonjourScanner: BonjourDiscoveryService(),
-                networkProfileManager: profileManager
+                networkProfileManager: profileManager,
+                suggester: Self.uiTestSuggester
             )
+            deviceDiscovery = discovery
             if ProcessInfo.processInfo.arguments.contains("--seed-test-device") {
                 seedUITestDevice(into: context, profileManager: profileManager)
+                // UI tests don't scan, so ask about the seeded device directly (#449).
+                discovery.startSuggestions(profileID: profileManager.activeProfile?.id)
             }
             return
         }
@@ -203,7 +211,9 @@ struct NetMonitorApp: App {
                 modelContext: context,
                 bonjourScanner: bonjourScanner,
                 networkProfileManager: profileManager,
-                reviewPrompt: RateAppService.reviewPrompt
+                reviewPrompt: RateAppService.reviewPrompt,
+                // The on-device model suggests what unidentified devices are (#449).
+                suggester: DeviceSuggester(service: InsightService.shared, store: DeviceSuggestionStore())
             )
             deviceDiscovery = discovery
             // Fill the dashboard without waiting for the user to press Scan (#358).
@@ -289,6 +299,16 @@ struct NetMonitorApp: App {
         speedTestScheduler = runner
     }
 
+    /// With `UITEST_FAKE_SUGGESTION=1`, UI tests get a fixed suggestion instead of the
+    /// on-device model, remembered in a suite cleared at launch (#449). Otherwise none.
+    private static var uiTestSuggester: DeviceSuggester? {
+        guard ProcessInfo.processInfo.environment["UITEST_FAKE_SUGGESTION"] == "1",
+              let defaults = UserDefaults(suiteName: "netmonitor.uitest.suggestions")
+        else { return nil }
+        defaults.removePersistentDomain(forName: "netmonitor.uitest.suggestions")
+        return DeviceSuggester(service: FixedSuggestionInsightService(), store: DeviceSuggestionStore(defaults: defaults))
+    }
+
     /// Seeds a deterministic `LocalDevice` for UI tests that need a
     /// non-empty devices list (e.g. context-menu verification). Idempotent.
     /// Tags the device with the manager's active profile so the list view's
@@ -303,7 +323,8 @@ struct NetMonitorApp: App {
             ipAddress: "192.168.77.77",
             macAddress: "AA:BB:CC:DD:EE:FF",
             hostname: "uitest-device",
-            deviceType: .computer,
+            // Unknown under the suggestion fixture, so the suggested type shows (#449).
+            deviceType: ProcessInfo.processInfo.environment["UITEST_FAKE_SUGGESTION"] == "1" ? .unknown : .computer,
             status: .online,
             lastLatency: 5.0,
             networkProfileID: profileManager.activeProfile?.id

@@ -162,6 +162,32 @@ struct CompanionMessageHandlerTests {
         #expect(payload.devices.first?.hostname == "Living Room TV")
     }
 
+    /// #449: the feed carries what the device and the user said, never a model suggestion.
+    @Test func generateDeviceListLeavesOutASuggestedMaker() throws {
+        let (container, _, handler, coordinator, _) = try makeFixture()
+        _ = container
+
+        coordinator.mergeDiscoveredDevices([
+            LocalDiscoveredDevice(ipAddress: "192.168.1.46", macAddress: "", hostname: "box-46.lan"),
+            LocalDiscoveredDevice(
+                ipAddress: "192.168.1.47", macAddress: "", hostname: "box-47.lan",
+                identity: DeviceIdentity(maker: IdentityValue("Globex", source: .upnp))
+            )
+        ], profileID: nil)
+        for device in coordinator.discoveredDevices {
+            device.mergeIdentity(DeviceIdentity(maker: IdentityValue("Acme", source: .modelSuggestion)))
+        }
+
+        guard case .deviceList(let payload) = handler.generateDeviceList() else {
+            #expect(Bool(false))
+            return
+        }
+        let vendors = Dictionary(uniqueKeysWithValues: payload.devices.map { ($0.ipAddress, $0.vendor) })
+        #expect(coordinator.discoveredDevices.first { $0.ipAddress == "192.168.1.46" }?.maker == "Acme")
+        #expect(vendors["192.168.1.46"] == .some(nil))
+        #expect(vendors["192.168.1.47"] == "Globex")
+    }
+
     private func makeFixture() throws -> (
         ModelContainer,
         ModelContext,

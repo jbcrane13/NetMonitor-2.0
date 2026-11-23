@@ -13,20 +13,29 @@ public enum IdentitySource: String, Codable, Sendable, CaseIterable {
     case macPrefix
     /// A guess from the device's names (#439).
     case hostnameGuess
+    /// A suggestion from the on-device language model (#449). Ranks below everything,
+    /// including a value without a source, so it only fills a field nothing else has.
+    case modelSuggestion
+    /// A maker or model the user accepted from a suggestion (#449). Ranks above everything.
+    case userConfirmed
 
     public enum Field: Sendable {
         case maker, model, friendlyName
     }
 
     /// Higher wins. A value without a source (saved before sources were stored) ranks 0,
-    /// below every source.
+    /// below every source except a model suggestion.
     ///
-    /// - Model: Bonjour TXT > UniFi > UPnP > hostname guess.
-    /// - Maker: the device's own announcement (UPnP, UniFi, Bonjour) > MAC-prefix maker >
-    ///   hostname guess. The MAC prefix names whoever made the network chip.
-    /// - Friendly name: UniFi > UPnP.
+    /// - Model: user-confirmed > Bonjour TXT > UniFi > UPnP > hostname guess > model suggestion.
+    /// - Maker: user-confirmed > the device's own announcement (UPnP, UniFi, Bonjour) >
+    ///   MAC-prefix maker > hostname guess > model suggestion. The MAC prefix names whoever
+    ///   made the network chip.
+    /// - Friendly name: UniFi > UPnP. Neither a suggestion nor a confirmation names a device.
     public func rank(for field: Field) -> Int {
         switch (field, self) {
+        case (_, .modelSuggestion): -1
+        case (.friendlyName, .userConfirmed): -1
+        case (_, .userConfirmed): 10
         case (.model, .bonjour): 4
         case (.model, .unifi): 3
         case (.model, .upnp): 2
@@ -86,23 +95,40 @@ public struct DeviceIdentity: Equatable, Sendable {
         )
     }
 
+    /// The same identity with every model-suggested value removed (#449): what the device
+    /// itself and the user said.
+    public var withoutSuggestions: DeviceIdentity {
+        func keep(_ value: IdentityValue?) -> IdentityValue? {
+            value?.source == .modelSuggestion ? nil : value
+        }
+        return DeviceIdentity(maker: keep(maker), model: keep(model), friendlyName: keep(friendlyName))
+    }
+
     /// The maker to show: ``maker`` or the MAC-prefix maker, whichever ranks higher. A MAC
     /// prefix that belongs to a network-chip maker (``isChipMaker(_:)``) names the chip, not
-    /// the device, so any other maker beats it, even a guess.
+    /// the device, so any other maker beats it, even a guess or a suggestion.
     public func resolvedMaker(macPrefixMaker: String?) -> String? {
+        winningMaker(macPrefixMaker: macPrefixMaker)?.value
+    }
+
+    /// The value behind ``resolvedMaker(macPrefixMaker:)`` with its source; the MAC-prefix
+    /// maker is reported with source ``IdentitySource/macPrefix``.
+    public func winningMaker(macPrefixMaker: String?) -> IdentityValue? {
         if let macPrefixMaker, Self.isChipMaker(macPrefixMaker), let maker {
-            return maker.value
+            return maker
         }
-        return Self.winner(IdentityValue(macPrefixMaker, source: .macPrefix), maker, .maker)?.value
+        return Self.winner(IdentityValue(macPrefixMaker, source: .macPrefix), maker, .maker)
     }
 
     /// The maker a guess from the device's names must agree with: ``resolvedMaker(macPrefixMaker:)``,
-    /// except that a chip maker alone doesn't count, so the guess can name the device.
+    /// except that a chip maker alone doesn't count, so the guess can name the device. A model
+    /// suggestion never counts: it must not stop a guess (#449).
     public func knownMakerForGuessing(macPrefixMaker: String?) -> String? {
+        let known = withoutSuggestions
         if let macPrefixMaker, Self.isChipMaker(macPrefixMaker) {
-            return maker?.value
+            return known.maker?.value
         }
-        return resolvedMaker(macPrefixMaker: macPrefixMaker)
+        return known.resolvedMaker(macPrefixMaker: macPrefixMaker)
     }
 
     /// Companies whose MAC prefixes mostly name a Wi-Fi or network chip or module inside

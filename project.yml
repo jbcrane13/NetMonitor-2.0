@@ -307,6 +307,7 @@ targets:
     deploymentTarget: "15.0"
     sources:
       - path: Tests/NetMonitor-macOSTests
+      - path: Packages/NetMonitorCore/Tests/NetMonitorCoreTests/Helpers/MockInsightService.swift
     settings:
       base:
         DEVELOPMENT_TEAM: 32XZRDTGK3
@@ -322,6 +323,7 @@ targets:
     deploymentTarget: "18.0"
     sources:
       - path: Tests/NetMonitor-iOSTests
+      - path: Packages/NetMonitorCore/Tests/NetMonitorCoreTests/Helpers/MockInsightService.swift
     settings:
       base:
         DEVELOPMENT_TEAM: 32XZRDTGK3

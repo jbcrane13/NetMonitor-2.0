@@ -102,6 +102,104 @@ struct IdentityRankingTests {
         #expect(!DeviceIdentity.isChipMaker("Sonos, Inc."))
     }
 
+    // MARK: - Model suggestions and user confirmation (#449)
+
+    @Test("Rank table for a model suggestion and a user confirmation")
+    func suggestionAndConfirmationRanks() {
+        for field in [IdentitySource.Field.maker, .model, .friendlyName] {
+            #expect(IdentitySource.modelSuggestion.rank(for: field) == -1)
+        }
+        #expect(IdentitySource.userConfirmed.rank(for: .maker) == 10)
+        #expect(IdentitySource.userConfirmed.rank(for: .model) == 10)
+        #expect(IdentitySource.userConfirmed.rank(for: .friendlyName) == -1)
+    }
+
+    @Test("A suggestion loses to every source and to a sourceless value, in both merge orders", arguments: [
+        IdentitySource.Field.maker, .model, .friendlyName
+    ])
+    func suggestionLosesToEverything(field: IdentitySource.Field) {
+        let others: [IdentitySource?] = IdentitySource.allCases.filter { $0 != .modelSuggestion } + [nil]
+        for other in others {
+            // userConfirmed never names a device, so on a friendly name it ties with a suggestion.
+            if field == .friendlyName, other == .userConfirmed {
+                continue
+            }
+            #expect(merge(field, .modelSuggestion, other) == "newer", "\(field) \(String(describing: other))")
+            #expect(merge(field, other, .modelSuggestion) == "current", "\(field) \(String(describing: other))")
+        }
+    }
+
+    @Test("A suggestion fills an empty field and never wins a friendly name over another source")
+    func suggestionFillsOnlyEmpty() {
+        let suggested = DeviceIdentity(maker: IdentityValue("Lutron", source: .modelSuggestion))
+        #expect(DeviceIdentity().merging(suggested) == suggested)
+        #expect(merge(.friendlyName, .upnp, .modelSuggestion) == "current")
+        #expect(merge(.friendlyName, nil, .modelSuggestion) == "current")
+    }
+
+    @Test("A user-confirmed value beats a Bonjour model and a UPnP maker", arguments: [
+        (IdentitySource.Field.model, IdentitySource.bonjour),
+        (.maker, .upnp),
+        (.maker, .unifi),
+        (.model, .unifi)
+    ])
+    func confirmedBeatsAnnouncements(field: IdentitySource.Field, announced: IdentitySource) {
+        #expect(merge(field, .userConfirmed, announced) == "current")
+        #expect(merge(field, announced, .userConfirmed) == "newer")
+    }
+
+    @Test("A suggested maker beats a chip maker's MAC prefix but not a device maker's")
+    func suggestionAgainstMACPrefix() {
+        let suggested = DeviceIdentity(maker: IdentityValue("Lutron", source: .modelSuggestion))
+        #expect(suggested.resolvedMaker(macPrefixMaker: "Texas Instruments") == "Lutron")
+        #expect(suggested.winningMaker(macPrefixMaker: "Texas Instruments")?.source == .modelSuggestion)
+        #expect(suggested.resolvedMaker(macPrefixMaker: "Apple, Inc.") == "Apple, Inc.")
+        #expect(suggested.winningMaker(macPrefixMaker: "Apple, Inc.") == IdentityValue("Apple, Inc.", source: .macPrefix))
+        #expect(suggested.winningMaker(macPrefixMaker: nil)?.source == .modelSuggestion)
+        #expect(DeviceIdentity().winningMaker(macPrefixMaker: nil) == nil)
+    }
+
+    @Test("A guess ignores a suggested maker")
+    func guessingIgnoresSuggestions() {
+        let suggested = DeviceIdentity(maker: IdentityValue("Lutron", source: .modelSuggestion))
+        #expect(suggested.knownMakerForGuessing(macPrefixMaker: nil) == nil)
+        #expect(suggested.knownMakerForGuessing(macPrefixMaker: "Texas Instruments") == nil)
+        #expect(suggested.knownMakerForGuessing(macPrefixMaker: "Apple") == "Apple")
+        let guessed = DeviceIdentity(maker: IdentityValue("Lutron", source: .hostnameGuess))
+        #expect(guessed.knownMakerForGuessing(macPrefixMaker: "Texas Instruments") == "Lutron")
+    }
+
+    @Test("The hostname step fills a model over a suggested one")
+    func hostnameStepIgnoresSuggestions() {
+        let device = DiscoveredDevice(
+            ipAddress: "192.168.2.71", hostname: "unifi-pro-max-16-switch.lan", vendor: nil, macAddress: nil,
+            latency: nil, discoveredAt: Date(), source: .local,
+            identity: DeviceIdentity(
+                maker: IdentityValue("Netgear", source: .modelSuggestion),
+                model: IdentityValue("Switch", source: .modelSuggestion)
+            )
+        )
+        let update = HostnameIdentityPhase.update(for: device)
+        #expect(update?.identity.maker == IdentityValue("Ubiquiti", source: .hostnameGuess))
+        #expect(update?.identity.model == IdentityValue("UniFi Pro Max 16 Switch", source: .hostnameGuess))
+        #expect(device.withIdentity(update?.identity ?? DeviceIdentity()).modelName == "UniFi Pro Max 16 Switch")
+    }
+
+    @Test("withoutSuggestions drops only suggested values")
+    func withoutSuggestions() {
+        let identity = DeviceIdentity(
+            maker: IdentityValue("Lutron", source: .modelSuggestion),
+            model: IdentityValue("Caseta", source: .userConfirmed),
+            friendlyName: IdentityValue("Bridge", source: .upnp)
+        )
+        #expect(identity.withoutSuggestions == DeviceIdentity(
+            model: IdentityValue("Caseta", source: .userConfirmed),
+            friendlyName: IdentityValue("Bridge", source: .upnp)
+        ))
+        let unsourced = DeviceIdentity(model: IdentityValue("Q80", source: nil))
+        #expect(unsourced.withoutSuggestions == unsourced)
+    }
+
     @Test("The hostname step names a Lutron bridge whose MAC prefix is Texas Instruments")
     func hostnameStepNamesChipDevices() {
         let bridge = DiscoveredDevice(

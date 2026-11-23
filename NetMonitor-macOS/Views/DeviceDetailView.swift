@@ -264,11 +264,31 @@ struct DeviceDetailView: View {
             Divider()
 
             if let maker = device.maker {
-                infoRow(label: "Manufacturer", value: maker)
+                HStack(spacing: 4) {
+                    infoRow(label: "Manufacturer", value: maker)
+                    if device.isMakerSuggested {
+                        SuggestedMarker()
+                    }
+                }
             }
 
             if let model = device.modelName {
-                infoRow(label: "Model", value: model, monospace: true)
+                HStack(spacing: 4) {
+                    infoRow(label: "Model", value: model, monospace: true)
+                    if device.isModelSuggested {
+                        SuggestedMarker()
+                    }
+                }
+            }
+
+            // A suggested type is shown, not written, until the user accepts it (#449).
+            if let suggestedType = discoveryCoordinator?.suggestedType(for: device) {
+                HStack(spacing: 4) {
+                    infoRow(label: "Device Type", value: suggestedType.rawValue.capitalized)
+                    SuggestedMarker()
+                }
+            } else {
+                infoRow(label: "Device Type", value: device.deviceType.rawValue.capitalized)
             }
 
             if !device.macAddress.isEmpty {
@@ -280,8 +300,19 @@ struct DeviceDetailView: View {
                     monospace: true
                 )
             }
+
+            // Hidden while editing: Done writes the picker's type over an accepted one.
+            if !isEditing, let discoveryCoordinator, discoveryCoordinator.isShowingSuggestion(device) {
+                Divider()
+                DeviceSuggestionBar(
+                    onAccept: { discoveryCoordinator.acceptSuggestion(for: device) },
+                    onDismiss: { discoveryCoordinator.dismissSuggestion(for: device) }
+                )
+            }
         }
         .macGlassCard(cornerRadius: MacTheme.Layout.cardCornerRadius)
+        // Keeps the suggestion controls' own identifiers (#449).
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("deviceDetail_card_hardware")
     }
 
@@ -556,3 +587,52 @@ struct DeviceDetailView: View {
 }
 
 // swiftlint:enable type_body_length
+
+// MARK: - Model Suggestions (#449)
+
+/// Marks a value the on-device model suggested. Used by both device detail views.
+struct SuggestedMarker: View {
+    var body: some View {
+        Image(systemName: "sparkles")
+            .font(.caption)
+            .foregroundStyle(MacTheme.Colors.info)
+            .help("Suggested by on-device model")
+            .accessibilityLabel("Suggested by on-device model")
+    }
+}
+
+/// The "Suggested" badge with Accept and Dismiss, shown while a device's maker, model or
+/// type comes from the on-device model. Used by both device detail views.
+struct DeviceSuggestionBar: View {
+    let onAccept: () -> Void
+    let onDismiss: () -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Label("Suggested", systemImage: "sparkles")
+                .font(.caption)
+                .fontWeight(.semibold)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(MacTheme.Colors.info.opacity(0.15))
+                .foregroundStyle(MacTheme.Colors.info)
+                .clipShape(Capsule())
+                .help("Suggested by on-device model")
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Suggested by on-device model")
+                .accessibilityIdentifier("deviceDetail_badge_suggested")
+
+            Spacer(minLength: 8)
+
+            Button("Dismiss", action: onDismiss)
+                .help("Remove the suggestion")
+                .accessibilityIdentifier("deviceDetail_button_dismissSuggestion")
+
+            Button("Accept", action: onAccept)
+                .buttonStyle(.borderedProminent)
+                .help("Keep the suggested maker, model and type")
+                .accessibilityIdentifier("deviceDetail_button_acceptSuggestion")
+        }
+        .controlSize(.small)
+    }
+}
