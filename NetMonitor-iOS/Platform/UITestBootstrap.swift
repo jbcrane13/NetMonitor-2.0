@@ -242,3 +242,52 @@ private struct FixedAnswerInsightService: InsightServiceProtocol {
 
     func suggestIdentity(_ evidence: DeviceEvidence) async -> DeviceSuggestion? { nil }
 }
+
+// MARK: - Event IDs fixtures (#491 S4)
+
+extension UITestBootstrap {
+    // The UI-test network (#491 D9). Under `UITEST_FAKE_DEVICES` it is the current network,
+    // the fake discovery service stamps it on the fixture devices, and seeds use it.
+    // swiftlint:disable:next force_unwrapping
+    static let networkProfileID = UUID(uuidString: "00000491-0000-4000-8000-0000000000A4")!
+
+    /// The custom name `--seed-timeline-device` gives the first fixture device's saved row.
+    static let timelineDeviceName = "UITest Office Printer"
+
+    /// `--uitesting-events`: run the event listener in a UI test, which otherwise doesn't.
+    static var recordsEvents: Bool {
+        isUITesting && ProcessInfo.processInfo.arguments.contains("--uitesting-events")
+    }
+
+    /// `--seed-timeline-device`: saves the first fixture device (its IP and MAC) on the UI-test
+    /// network as "UITest Office Printer", so its events are named by the custom name.
+    static func seedTimelineDeviceIfNeeded(in context: ModelContext) {
+        guard isUITesting, ProcessInfo.processInfo.arguments.contains("--seed-timeline-device"), !hasSeededTimelineDevice else { return }
+        hasSeededTimelineDevice = true
+        guard let fixture = UITestFakeDeviceFeed().devices.first else { return }
+        context.insert(LocalDevice(
+            ipAddress: fixture.ipAddress,
+            macAddress: fixture.macAddress ?? "",
+            hostname: fixture.hostname,
+            customName: timelineDeviceName,
+            networkProfileID: networkProfileID
+        ))
+        try? context.save()
+    }
+
+    private static var hasSeededTimelineDevice = false
+
+    /// `--seed-test-events`: one event today and one ten days ago on the UI-test network, for the
+    /// Timeline's ranges (S3).
+    static func seedRangeEventsIfNeeded(into eventService: any NetworkEventServiceProtocol = NetworkEventService.shared, now: Date = Date()) {
+        guard isUITesting, ProcessInfo.processInfo.arguments.contains("--seed-test-events") else { return }
+        eventService.log(NetworkEvent(
+            type: .connectivityChange, timestamp: now.addingTimeInterval(-10 * 86400),
+            title: "UITest Event 10 Days Ago", networkProfileID: networkProfileID
+        ))
+        eventService.log(NetworkEvent(
+            type: .connectivityChange, timestamp: now.addingTimeInterval(-60),
+            title: "UITest Event Today", networkProfileID: networkProfileID
+        ))
+    }
+}
