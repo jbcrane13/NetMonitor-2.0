@@ -7,7 +7,7 @@ struct NetworkEventServicePersistenceTests {
     /// Concurrent log and prune calls must leave the saved list equal to the in-memory one, so a
     /// newer event is never overwritten by an older snapshot (#395 review, file store since #491).
     @Test func concurrentLogAndPruneKeepEveryNewEventPersisted() throws {
-        let fixture = EventFileFixture()
+        let fixture = try EventFileFixture()
         defer { fixture.cleanUp() }
         let service = NetworkEventService(fileURL: fixture.fileURL, debounce: 0.01)
         let now = Date()

@@ -74,6 +74,50 @@ struct HistoryFileLocationTests {
         #expect(result.directory.path == "/tmp/fake-tmp/netmonitor-uitest-history")
     }
 
+    @Test func legacyEventsComeFromTheAppOnlyOnANormalLaunch() {
+        #expect(location(["/app"]).legacyDefaults === UserDefaults.standard)
+        let uiTest = location(["/app", "--uitesting"]).legacyDefaults
+        #expect(uiTest != nil && uiTest !== UserDefaults.standard)
+        #expect(location(["/app"], ["XCTestConfigurationFilePath": "/x"]).legacyDefaults == nil)
+    }
+
+    /// A location under a fresh temp directory with one saved file, `events.json`.
+    func locationWithSavedFile(_ arguments: [String]) throws -> (HistoryFileLocation, URL) {
+        let root = FileManager.default.temporaryDirectory.appending(path: "HistoryFileLocationTests-\(UUID().uuidString)")
+        let result = HistoryFileLocation(
+            arguments: arguments, environment: [:],
+            temporaryDirectory: root, applicationSupportDirectory: root, processID: 1
+        )
+        try FileManager.default.createDirectory(at: result.directory, withIntermediateDirectories: true)
+        let file = result.fileURL(named: "events.json")
+        try Data("[]".utf8).write(to: file)
+        return (result, root)
+    }
+
+    @Test func lookingUpAFileNeverDeletesIt() throws {
+        let (resetting, root) = try locationWithSavedFile(["/app", "--reset-history-files"])
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let file = resetting.fileURL(named: "events.json")
+
+        #expect(FileManager.default.fileExists(atPath: file.path))
+    }
+
+    @Test func resetIfRequestedDeletesOnlyWhenAsked() throws {
+        let (keeping, keepRoot) = try locationWithSavedFile(["/app"])
+        let (resetting, resetRoot) = try locationWithSavedFile(["/app", "--reset-history-files"])
+        defer {
+            try? FileManager.default.removeItem(at: keepRoot)
+            try? FileManager.default.removeItem(at: resetRoot)
+        }
+
+        keeping.resetIfRequested(fileNamed: "events.json")
+        resetting.resetIfRequested(fileNamed: "events.json")
+
+        #expect(FileManager.default.fileExists(atPath: keeping.fileURL(named: "events.json").path))
+        #expect(!FileManager.default.fileExists(atPath: resetting.fileURL(named: "events.json").path))
+    }
+
     @Test func resetFlagsRequestAReset() {
         #expect(location(["/app", "--uitesting", "--reset-history-files"]).resetRequested)
         // iOS's --uitesting-reset implies it, and is itself a UI-test launch.
@@ -91,8 +135,12 @@ struct EventFileFixture {
         .appending(path: "NetworkEventStoreTests-\(UUID().uuidString)", directoryHint: .isDirectory)
     var fileURL: URL { directory.appending(path: "network-events.json") }
     let suiteName = "NetworkEventStoreTests.\(UUID().uuidString)"
-    var legacyDefaults: UserDefaults { UserDefaults(suiteName: suiteName)! }
-    static let legacyKey = "com.netmonitor.networkEvents"
+    let legacyDefaults: UserDefaults
+    static let legacyKey = NetworkEventService.legacyDefaultsKey
+
+    init() throws {
+        legacyDefaults = try #require(UserDefaults(suiteName: suiteName))
+    }
 
     /// Two good events (newest first) around one that isn't a valid event.
     static let blobWithCorruptElement = Data("""
@@ -105,12 +153,22 @@ struct EventFileFixture {
 
     func cleanUp() {
         try? FileManager.default.removeItem(at: directory)
-        UserDefaults().removePersistentDomain(forName: suiteName)
+        legacyDefaults.removePersistentDomain(forName: suiteName)
     }
 
     func writeFile(_ data: Data) throws {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         try data.write(to: fileURL)
+    }
+
+    /// A plain file where the directory should be makes every write fail.
+    func blockDirectory() throws {
+        try FileManager.default.createDirectory(at: directory.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data().write(to: directory)
+    }
+
+    func corruptFiles() throws -> [String] {
+        try FileManager.default.contentsOfDirectory(atPath: directory.path).filter { $0.hasPrefix("network-events.corrupt-") }
     }
 
     func savedTitles() throws -> [String] {
@@ -121,7 +179,7 @@ struct EventFileFixture {
 @Suite("NetworkEventService file store", .serialized)
 struct NetworkEventFileStoreTests {
     @Test func lossyDecodeSkipsTheBadElement() throws {
-        let fixture = EventFileFixture()
+        let fixture = try EventFileFixture()
         defer { fixture.cleanUp() }
         try fixture.writeFile(EventFileFixture.blobWithCorruptElement)
 
@@ -131,7 +189,7 @@ struct NetworkEventFileStoreTests {
     }
 
     @Test func unknownEventTypeIsSkippedNotFatal() throws {
-        let fixture = EventFileFixture()
+        let fixture = try EventFileFixture()
         defer { fixture.cleanUp() }
         try fixture.writeFile(Data("""
         [{"id":"33333333-3333-3333-3333-333333333333","type":"fromAFutureBuild","timestamp":1,"title":"x","severity":"info"},
@@ -142,7 +200,7 @@ struct NetworkEventFileStoreTests {
     }
 
     @Test func migratesTheLegacyBlobAndKeepsTheLegacyKey() throws {
-        let fixture = EventFileFixture()
+        let fixture = try EventFileFixture()
         defer { fixture.cleanUp() }
         fixture.legacyDefaults.set(EventFileFixture.blobWithCorruptElement, forKey: EventFileFixture.legacyKey)
 
@@ -156,7 +214,7 @@ struct NetworkEventFileStoreTests {
     }
 
     @Test func anExistingFileWinsOverTheLegacyBlob() throws {
-        let fixture = EventFileFixture()
+        let fixture = try EventFileFixture()
         defer { fixture.cleanUp() }
         try fixture.writeFile(Data("[]".utf8))
         fixture.legacyDefaults.set(EventFileFixture.blobWithCorruptElement, forKey: EventFileFixture.legacyKey)
@@ -165,12 +223,10 @@ struct NetworkEventFileStoreTests {
     }
 
     @Test func aFailedMigrationWriteIsRetriedNextLaunch() throws {
-        let fixture = EventFileFixture()
+        let fixture = try EventFileFixture()
         defer { fixture.cleanUp() }
         fixture.legacyDefaults.set(EventFileFixture.blobWithCorruptElement, forKey: EventFileFixture.legacyKey)
-        // A plain file where the directory should be makes the write fail.
-        try FileManager.default.createDirectory(at: fixture.directory.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try Data().write(to: fixture.directory)
+        try fixture.blockDirectory()
 
         let failed = NetworkEventService(fileURL: fixture.fileURL, legacyDefaults: fixture.legacyDefaults)
         #expect(failed.events.count == 2)
@@ -183,7 +239,7 @@ struct NetworkEventFileStoreTests {
     }
 
     @Test func writesWaitForTheDebounceUntilFlushed() throws {
-        let fixture = EventFileFixture()
+        let fixture = try EventFileFixture()
         defer { fixture.cleanUp() }
         let service = NetworkEventService(fileURL: fixture.fileURL, debounce: 3600)
 
@@ -196,20 +252,18 @@ struct NetworkEventFileStoreTests {
     }
 
     @Test func aDebouncedWriteLandsWithoutAFlush() async throws {
-        let fixture = EventFileFixture()
+        let fixture = try EventFileFixture()
         defer { fixture.cleanUp() }
         let service = NetworkEventService(fileURL: fixture.fileURL, debounce: 0.05)
 
         service.log(type: .toolRun, title: "debounced")
 
-        for _ in 0..<100 where !FileManager.default.fileExists(atPath: fixture.fileURL.path) {
-            try await Task.sleep(for: .milliseconds(50))
-        }
+        await waitUntil { FileManager.default.fileExists(atPath: fixture.fileURL.path) }
         #expect(try fixture.savedTitles() == ["debounced"])
     }
 
     @Test func eventsSurviveARelaunch() throws {
-        let fixture = EventFileFixture()
+        let fixture = try EventFileFixture()
         defer { fixture.cleanUp() }
         let service = NetworkEventService(fileURL: fixture.fileURL, debounce: 3600)
         service.log(NetworkEvent(type: .deviceJoined, title: "Joined", deviceID: UUID(), networkProfileID: UUID()))
@@ -220,9 +274,10 @@ struct NetworkEventFileStoreTests {
         #expect(relaunched.events.first?.deviceID == service.events.first?.deviceID)
     }
 
-    /// Clearing leaves an empty file, so the next launch doesn't migrate the legacy blob again.
-    @Test func clearAllWritesAnEmptyFileAtOnce() throws {
-        let fixture = EventFileFixture()
+    /// Clearing leaves an empty file and removes the legacy blob, so neither the next launch nor
+    /// an older build brings the events back.
+    @Test func clearAllWritesAnEmptyFileAtOnceAndRemovesTheLegacyEvents() throws {
+        let fixture = try EventFileFixture()
         defer { fixture.cleanUp() }
         fixture.legacyDefaults.set(EventFileFixture.blobWithCorruptElement, forKey: EventFileFixture.legacyKey)
         let service = NetworkEventService(fileURL: fixture.fileURL, legacyDefaults: fixture.legacyDefaults, debounce: 3600)
@@ -230,11 +285,12 @@ struct NetworkEventFileStoreTests {
         service.clearAll()
 
         #expect(try fixture.savedTitles().isEmpty)
+        #expect(fixture.legacyDefaults.data(forKey: EventFileFixture.legacyKey) == nil)
         #expect(NetworkEventService(fileURL: fixture.fileURL, legacyDefaults: fixture.legacyDefaults).events.isEmpty)
     }
 
     @Test func pruningIsWrittenAtOnce() throws {
-        let fixture = EventFileFixture()
+        let fixture = try EventFileFixture()
         defer { fixture.cleanUp() }
         let service = NetworkEventService(fileURL: fixture.fileURL, debounce: 3600)
         let now = Date()
@@ -259,11 +315,57 @@ struct NetworkEventFileStoreTests {
     }
 
     @Test func loadingKeepsOnlyTheNewestUpToTheCeiling() throws {
-        let fixture = EventFileFixture()
+        let fixture = try EventFileFixture()
         defer { fixture.cleanUp() }
         try fixture.writeFile(EventFileFixture.blobWithCorruptElement)
 
         #expect(NetworkEventService(fileURL: fixture.fileURL, ceiling: 1).events.map(\.title) == ["Legacy newer"])
+    }
+
+    @Test func anUnreadableFileIsMovedAsideNotOverwritten() throws {
+        let fixture = try EventFileFixture()
+        defer { fixture.cleanUp() }
+        let garbage = Data("{ not an array".utf8)
+        try fixture.writeFile(garbage)
+
+        let service = NetworkEventService(fileURL: fixture.fileURL, debounce: 3600)
+        #expect(service.events.isEmpty)
+        service.log(type: .toolRun, title: "after")
+        service.flush()
+
+        #expect(try fixture.savedTitles() == ["after"])
+        let aside = try fixture.corruptFiles()
+        #expect(aside.count == 1)
+        #expect(try Data(contentsOf: fixture.directory.appending(path: aside[0])) == garbage)
+    }
+
+    @Test func onlyTheLatestUnreadableFileIsKept() throws {
+        let fixture = try EventFileFixture()
+        defer { fixture.cleanUp() }
+        try fixture.writeFile(Data("first".utf8))
+        _ = NetworkEventService(fileURL: fixture.fileURL)
+        try fixture.writeFile(Data("second".utf8))
+        _ = NetworkEventService(fileURL: fixture.fileURL)
+
+        let aside = try fixture.corruptFiles()
+        #expect(aside.count == 1)
+        #expect(try Data(contentsOf: fixture.directory.appending(path: aside[0])) == Data("second".utf8))
+    }
+
+    /// A write that fails (disk full, say) is retried by the next flush instead of being dropped.
+    @Test func aFailedWriteIsRetriedByTheNextFlush() throws {
+        let fixture = try EventFileFixture()
+        defer { fixture.cleanUp() }
+        let service = NetworkEventService(fileURL: fixture.fileURL, debounce: 3600)
+        try fixture.blockDirectory()
+        service.log(type: .toolRun, title: "kept")
+        service.flush()
+        #expect(!FileManager.default.fileExists(atPath: fixture.fileURL.path))
+
+        try FileManager.default.removeItem(at: fixture.directory)
+        service.flush()
+
+        #expect(try fixture.savedTitles() == ["kept"])
     }
 
     @Test func anInMemoryServiceNeverWrites() {
@@ -271,5 +373,12 @@ struct NetworkEventFileStoreTests {
         service.log(type: .toolRun, title: "memory only")
         service.flush()
         #expect(service.events.count == 1)
+    }
+}
+
+private func waitUntil(timeout: Duration = .seconds(5), _ condition: () -> Bool) async {
+    let deadline = ContinuousClock.now + timeout
+    while !condition(), ContinuousClock.now < deadline {
+        try? await Task.sleep(for: .milliseconds(10))
     }
 }

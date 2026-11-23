@@ -92,3 +92,15 @@ struct HistoryRetentionTests {
         #expect(events.events.count == 1)
     }
 }
+
+/// The unit-test host shares the app's bundle and data, so `NetworkEventService.shared` must
+/// save under the temp directory, never the user's Application Support (#491 D2).
+@Suite("Event store isolation in the test host")
+struct EventStoreTestHostIsolationTests {
+    @Test func sharedEventFileIsInATempDirectory() {
+        let directory = HistoryFileLocation.current.directory.resolvingSymlinksInPath().path
+        let temp = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().path
+        #expect(directory.hasPrefix(temp), "History directory: \(directory)")
+        #expect(!directory.contains("Application Support"), "History directory: \(directory)")
+    }
+}

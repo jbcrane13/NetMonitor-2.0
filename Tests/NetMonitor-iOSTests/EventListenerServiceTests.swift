@@ -16,11 +16,6 @@ final class SpyNetworkEventService: NetworkEventServiceProtocol, @unchecked Send
         lock.withLock { _loggedEvents.append(event) }
     }
 
-    func log(type: NetworkEventType, title: String, details: String?, severity: NetworkEventSeverity) {
-        let event = NetworkEvent(type: type, title: title, details: details, severity: severity)
-        lock.withLock { _loggedEvents.append(event) }
-    }
-
     func events(ofType type: NetworkEventType) -> [NetworkEvent] {
         loggedEvents.filter { $0.type == type }
     }

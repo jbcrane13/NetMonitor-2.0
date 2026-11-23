@@ -176,15 +176,16 @@ enum UITestBootstrap {
     /// Title of the blob's element that doesn't decode as an event; it must not appear.
     static let legacyCorruptTitle = "Legacy: Corrupt element"
 
-    /// Runs before `NetworkEventService.shared` loads. A history reset also drops the legacy
-    /// UserDefaults events, so later UI tests don't migrate an earlier test's seed again.
+    /// Runs before `NetworkEventService.shared` loads. UI tests keep legacy events in their own
+    /// UserDefaults suite (`HistoryFileLocation.legacyDefaults`), never the app's. A history
+    /// reset also drops them there, so later UI tests don't migrate an earlier test's seed again.
     /// `--seed-legacy-events` then stores the blob builds before #491 wrote: two events around
     /// one corrupt element, for the migration test.
     static func prepareEventHistoryIfNeeded() {
-        guard isUITesting else { return }
-        let defaults = UserDefaults.standard
+        let location = HistoryFileLocation.current
+        guard isUITesting, let defaults = location.legacyDefaults, defaults != .standard else { return }
         let key = NetworkEventService.legacyDefaultsKey
-        if HistoryFileLocation.current.resetRequested {
+        if location.resetRequested {
             defaults.removeObject(forKey: key)
         }
         guard ProcessInfo.processInfo.arguments.contains("--seed-legacy-events") else { return }

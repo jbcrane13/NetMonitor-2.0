@@ -13,10 +13,6 @@ private final class MockNetworkEventService: NetworkEventServiceProtocol, @unche
 
     func log(_ event: NetworkEvent) { mockEvents.insert(event, at: 0) }
 
-    func log(type: NetworkEventType, title: String, details: String?, severity: NetworkEventSeverity) {
-        log(NetworkEvent(type: type, title: title, details: details, severity: severity))
-    }
-
     func events(ofType type: NetworkEventType) -> [NetworkEvent] {
         mockEvents.filter { $0.type == type }
     }

@@ -46,25 +46,32 @@ public extension NetworkEventServiceProtocol {
 public final class NetworkEventService: NetworkEventServiceProtocol, @unchecked Sendable {
 
     /// The app's event log. All production code should use this rather than creating new instances.
-    public static let shared = NetworkEventService(
-        fileURL: HistoryFileLocation.current.fileURL(named: NetworkEventStore.fileName),
-        legacyDefaults: .standard
-    )
+    public static let shared: NetworkEventService = {
+        let location = HistoryFileLocation.current
+        location.resetIfRequested(fileNamed: NetworkEventStore.fileName)
+        return NetworkEventService(
+            fileURL: location.fileURL(named: NetworkEventStore.fileName),
+            legacyDefaults: location.legacyDefaults
+        )
+    }()
 
     /// The most events kept (#491 D3). Older ones are dropped, whatever the retention setting.
     public static let eventCeiling = 20_000
 
-    /// Where builds before #491 kept the events. Read once to migrate, and left in place.
+    /// Where builds before #491 kept the events. Read to migrate and left in place, so an older
+    /// build still sees them, until `clearAll()` removes it.
     public static let legacyDefaultsKey = "com.netmonitor.networkEvents"
 
     private let lock = NSLock()
     private var _events: [NetworkEvent] = []
     private let store: NetworkEventStore?
+    private let legacyDefaults: UserDefaults?
     private let ceiling: Int
 
     /// Creates a fresh, empty, in-memory instance. Nothing it logs is saved.
     public init() {
         store = nil
+        legacyDefaults = nil
         ceiling = Self.eventCeiling
     }
 
@@ -77,6 +84,7 @@ public final class NetworkEventService: NetworkEventServiceProtocol, @unchecked 
     init(fileURL: URL, legacyDefaults: UserDefaults? = nil, debounce: TimeInterval = 1, ceiling: Int = eventCeiling) {
         let store = NetworkEventStore(fileURL: fileURL, debounce: debounce)
         self.store = store
+        self.legacyDefaults = legacyDefaults
         self.ceiling = ceiling
         _events = Array(store.load(legacyDefaults: legacyDefaults, legacyKey: Self.legacyDefaultsKey).prefix(ceiling))
     }
@@ -119,14 +127,15 @@ public final class NetworkEventService: NetworkEventServiceProtocol, @unchecked 
         }
     }
 
-    /// Empties the log and saves an empty file at once, so the next launch doesn't migrate the
-    /// legacy events again. The legacy UserDefaults blob itself is left unchanged (#491 D2).
+    /// Empties the log and saves an empty file at once. The legacy UserDefaults events go too,
+    /// so neither the next launch nor a downgrade to an older build brings them back.
     public func clearAll() {
         lock.withLock {
             _events.removeAll()
             store?.scheduleWrite(_events)
         }
         flush()
+        legacyDefaults?.removeObject(forKey: Self.legacyDefaultsKey)
     }
 
     /// Writes any change still waiting for the debounce, and returns when it is saved.

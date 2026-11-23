@@ -34,7 +34,7 @@ struct DataSettingsView: View {
             } footer: {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Older measurements, monitoring sessions and timeline events will be automatically deleted to save space.")
-                    Text("Event history keeps up to the newest 20,000 events.")
+                    Text("Event history keeps up to the newest \(NetworkEventService.eventCeiling.formatted()) events.")
                         .accessibilityIdentifier("settings_label_eventHistoryCeiling")
                 }
             }
