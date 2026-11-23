@@ -1,18 +1,24 @@
 import Foundation
-import Network
 import SwiftData
 import NetMonitorCore
 import os
 
-/// Monitors network connectivity using NWPathMonitor and persists
-/// transition events and periodic latency samples to SwiftData.
+/// Monitors one network's connectivity and persists its transitions and periodic gateway
+/// latency samples to SwiftData (Uptime History).
+///
+/// A reconnection may be to a different network: the path recovers before the app's debounced
+/// network-change check runs (#491). So going online is recorded only after `onlineSettleDelay`,
+/// and only if `isCurrent` still says this monitor's network is the local one; otherwise the
+/// app replaces this monitor and the new one records the connection under its own network.
 @MainActor
 @Observable
 final class ConnectivityMonitor {
+    typealias TransitionHandler = @MainActor (_ isOnline: Bool, _ profileID: UUID, _ timestamp: Date) -> Void
 
     // MARK: - Observable State
 
-    private(set) var isOnline: Bool = true
+    /// The path's state; nil until the first update when the monitor starts in an unknown state.
+    private(set) var isOnline: Bool?
     private(set) var currentLatencyMs: Double?
 
     // MARK: - Configuration
@@ -22,65 +28,106 @@ final class ConnectivityMonitor {
 
     /// How often to write latency samples while online (default 5 minutes).
     let sampleInterval: TimeInterval
+    /// How long a reconnection waits before it is recorded, longer than the app's 3 s network-change debounce.
+    static let onlineSettleDelay: TimeInterval = 5
     /// Called after each recorded online/offline transition, with this monitor's network (#491).
-    var onTransition: (@MainActor (_ isOnline: Bool, _ profileID: UUID) -> Void)?
+    var onTransition: TransitionHandler?
 
     // MARK: - Private
 
     private let modelContext: ModelContext
-    private var pathMonitor: NWPathMonitor?
+    private let pathEvents: @Sendable () -> AsyncStream<Bool>
+    private let now: () -> Date
+    private let schedule: MacEventRecorder.Scheduler
+    private let isCurrent: @MainActor (UUID) -> Bool
+    /// The last state written; a transition is written only when it differs.
+    private var lastRecorded: Bool?
+    /// Bumped by every path change and by `stop()`, so a pending reconnection can tell it is stale.
+    private var generation = 0
+    private var isStopped = false
 
     // MARK: - Init
 
+    /// - Parameters:
+    ///   - initialState: the state assumed before the first path update, or nil for unknown. With
+    ///     nil, the first update is recorded whichever way it goes.
+    ///   - pathEvents: satisfied/unsatisfied path updates; the system path monitor by default.
+    ///   - isCurrent: whether a network is still the local one, checked before a reconnection is recorded.
     init(
         profileID: UUID,
         gatewayIP: String,
         modelContext: ModelContext,
-        sampleInterval: TimeInterval = 300
+        sampleInterval: TimeInterval = 300,
+        initialState: Bool? = true,
+        pathEvents: @escaping @Sendable () -> AsyncStream<Bool> = LocalNetworkChangeMonitor.systemPathEvents,
+        now: @escaping () -> Date = Date.init,
+        schedule: @escaping MacEventRecorder.Scheduler = MacEventRecorder.sleepThenRun,
+        isCurrent: @escaping @MainActor (UUID) -> Bool = { _ in true }
     ) {
         self.profileID = profileID
         self.gatewayIP = gatewayIP
         self.modelContext = modelContext
         self.sampleInterval = sampleInterval
+        self.isOnline = initialState
+        self.lastRecorded = initialState
+        self.pathEvents = pathEvents
+        self.now = now
+        self.schedule = schedule
+        self.isCurrent = isCurrent
     }
 
     // MARK: - Lifecycle
 
-    /// Starts monitoring and runs the sample loop until the calling task is cancelled.
+    /// Follows path updates and runs the sample loop until the calling task is cancelled. Does
+    /// nothing when already cancelled or stopped, so a stop before the task runs starts nothing.
     func start() async {
-        startPathMonitor()
-        await runSampleLoop()
-    }
-
-    func stop() {
-        pathMonitor?.cancel()
-        pathMonitor = nil
-    }
-
-    // MARK: - NWPathMonitor
-
-    private func startPathMonitor() {
-        let monitor = NWPathMonitor()
-        pathMonitor = monitor
-
-        monitor.pathUpdateHandler = { [weak self] path in
-            // NWPathMonitor delivers updates on its queue; hop back to @MainActor.
-            Task { @MainActor [weak self] in
-                self?.pathChanged(online: path.status == .satisfied)
+        guard !isStopped, !Task.isCancelled else { return }
+        let events = pathEvents()
+        let paths = Task { [weak self] in
+            for await satisfied in events {
+                self?.pathChanged(online: satisfied)
             }
         }
-
-        // NWPathMonitor.start(queue:) is an Apple API that requires a DispatchQueue.
-        // The update handler hops back to @MainActor via Task { @MainActor in ... }.
-        monitor.start(queue: DispatchQueue(label: "com.netmonitor.pathmonitor", qos: .utility))
+        // Ending the path task ends the stream, which cancels the system path monitor.
+        await withTaskCancellationHandler {
+            await runSampleLoop()
+        } onCancel: {
+            paths.cancel()
+        }
+        paths.cancel()
     }
 
-    /// Records a transition when `online` differs from the current state.
+    /// Stops recording, including a reconnection still waiting to settle. Cancel the task running
+    /// `start()` to end the path updates and sampling.
+    func stop() {
+        isStopped = true
+        generation += 1
+    }
+
+    /// Handles a path update. Going offline, or any first update from an unknown state, is
+    /// recorded at once; a reconnection waits to settle (see the type's comment).
     func pathChanged(online: Bool) {
-        guard online != isOnline else { return }
+        guard !isStopped, online != isOnline else { return }
+        let wasKnown = isOnline != nil
         isOnline = online
-        writeTransition(isOnline: online)
-        onTransition?(online, profileID)
+        generation += 1
+        let timestamp = now()
+        guard online, wasKnown else {
+            record(online, at: timestamp)
+            return
+        }
+        let pending = generation
+        schedule(Self.onlineSettleDelay) { [weak self] in
+            guard let self, !self.isStopped, self.generation == pending, self.isCurrent(self.profileID) else { return }
+            self.record(true, at: timestamp)
+        }
+    }
+
+    private func record(_ online: Bool, at timestamp: Date) {
+        guard online != lastRecorded else { return }
+        lastRecorded = online
+        writeTransition(isOnline: online, at: timestamp)
+        onTransition?(online, profileID, timestamp)
         Logger.monitoring.info("Connectivity changed: \(online ? "online" : "offline")")
     }
 
@@ -90,7 +137,7 @@ final class ConnectivityMonitor {
         while !Task.isCancelled {
             try? await Task.sleep(for: .seconds(sampleInterval))
             guard !Task.isCancelled else { break }
-            guard isOnline else { continue }
+            guard isOnline == true else { continue }
             await takeSample()
         }
     }
@@ -113,9 +160,10 @@ final class ConnectivityMonitor {
 
     // MARK: - Persistence
 
-    private func writeTransition(isOnline: Bool) {
+    private func writeTransition(isOnline: Bool, at timestamp: Date) {
         let record = ConnectivityRecord(
             profileID: profileID,
+            timestamp: timestamp,
             isOnline: isOnline,
             isSample: false
         )
@@ -168,38 +216,61 @@ final class ConnectivityMonitor {
 
 /// The app's connectivity monitor for the local network (#491 D8). Owned by the app rather than
 /// the dashboard, so connectivity events and Uptime History record whichever screen is showing.
-/// `run(for:)` replaces the monitor when the local network or its gateway changes.
+///
+/// `run(for:)` replaces the monitor when the local network or its gateway changes, stopping the
+/// old one at once. A new network's monitor starts in an unknown state, so its first update
+/// records "connected" (or "disconnected") under the new network. A new gateway on the same
+/// network keeps the known state, so it records nothing extra.
 @MainActor
 final class AppConnectivityMonitor {
     private(set) var monitor: ConnectivityMonitor?
     private var task: Task<Void, Never>?
-    private let modelContext: ModelContext
-    private let onTransition: (@MainActor (_ isOnline: Bool, _ profileID: UUID) -> Void)?
+    private var hasRun = false
+    private let makeMonitor: @MainActor (_ profile: NetworkProfile, _ initialState: Bool?) -> ConnectivityMonitor
 
-    init(modelContext: ModelContext, onTransition: (@MainActor (_ isOnline: Bool, _ profileID: UUID) -> Void)? = nil) {
-        self.modelContext = modelContext
-        self.onTransition = onTransition
+    init(
+        modelContext: ModelContext,
+        pathEvents: @escaping @Sendable () -> AsyncStream<Bool> = LocalNetworkChangeMonitor.systemPathEvents,
+        now: @escaping () -> Date = Date.init,
+        schedule: @escaping MacEventRecorder.Scheduler = MacEventRecorder.sleepThenRun,
+        isCurrent: @escaping @MainActor (UUID) -> Bool = { _ in true },
+        onTransition: ConnectivityMonitor.TransitionHandler? = nil
+    ) {
+        makeMonitor = { profile, initialState in
+            let monitor = ConnectivityMonitor(
+                profileID: profile.id, gatewayIP: profile.gatewayIP, modelContext: modelContext,
+                initialState: initialState, pathEvents: pathEvents, now: now, schedule: schedule, isCurrent: isCurrent
+            )
+            monitor.onTransition = onTransition
+            return monitor
+        }
     }
 
     /// Monitors `profile`, the local network, or nothing when it is nil. The same network and
-    /// gateway keep the running monitor.
+    /// gateway keep the running monitor. The first network at launch is assumed online.
     func run(for profile: NetworkProfile?) {
         if let monitor, let profile, monitor.profileID == profile.id, monitor.gatewayIP == profile.gatewayIP {
             return
         }
+        let initialState: Bool? = if !hasRun {
+            true
+        } else if let monitor, monitor.profileID == profile?.id {
+            monitor.isOnline
+        } else {
+            nil
+        }
+        hasRun = true
         stop()
         guard let profile else { return }
-        let monitor = ConnectivityMonitor(profileID: profile.id, gatewayIP: profile.gatewayIP, modelContext: modelContext)
-        monitor.onTransition = onTransition
+        let monitor = makeMonitor(profile, initialState)
         self.monitor = monitor
         task = Task { await monitor.start() }
     }
 
     func stop() {
+        monitor?.stop()
         task?.cancel()
         task = nil
-        // The path monitor outlives the cancelled task; stop it too.
-        monitor?.stop()
         monitor = nil
     }
 }

@@ -23,8 +23,9 @@ final class DeviceDiscoveryCoordinator {
     typealias DeviceChangeHandler = @MainActor (_ changes: [DeviceChangeEvent], _ profileID: UUID?) -> Void
     /// Every subscriber gets each change: the alert dispatcher and the event recorder (#491).
     private(set) var deviceChangeHandlers: [DeviceChangeHandler] = []
-    /// Called when a scan completes, with its network and how many devices it found (#491).
-    var onScanCompleted: (@MainActor (_ profileID: UUID?, _ deviceCount: Int) -> Void)?
+    /// Receives each completed scan's network and how many devices it found (#491).
+    typealias ScanCompletedHandler = @MainActor (_ profileID: UUID?, _ deviceCount: Int) -> Void
+    private(set) var scanCompletedHandlers: [ScanCompletedHandler] = []
     /// Remembers devices between scans for the device change handlers. Tests inject one with fresh defaults.
     var changeTracker = DeviceChangeTracker()
     /// Asks the on-device model what this network's devices are after each completed scan
@@ -197,7 +198,9 @@ final class DeviceDiscoveryCoordinator {
                 Logger.discovery.notice("Scan finished: \(allDiscovered.count, privacy: .public) devices")
                 scanProgress = 1.0
                 lastScanTime = Date()
-                onScanCompleted?(profileID, allDiscovered.count)
+                for handler in scanCompletedHandlers {
+                    handler(profileID, allDiscovered.count)
+                }
 
                 if let profileID {
                     updateProfileScanInfo(profileID: profileID, discovered: allDiscovered)
@@ -740,6 +743,11 @@ final class DeviceDiscoveryCoordinator {
     /// Subscribes `handler` to every later scan's device changes.
     func addDeviceChangeHandler(_ handler: @escaping DeviceChangeHandler) {
         deviceChangeHandlers.append(handler)
+    }
+
+    /// Subscribes `handler` to every later completed scan.
+    func addScanCompletedHandler(_ handler: @escaping ScanCompletedHandler) {
+        scanCompletedHandlers.append(handler)
     }
 
     /// Hands `changes` to every subscriber; nothing when there are none.

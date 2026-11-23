@@ -73,9 +73,11 @@ struct NetMonitorApp: App {
 
     private static let persistenceOutcome: PersistenceBootstrapOutcome<ModelContainer> = {
         do {
-            // `--in-memory-store` keeps a UI-test or evidence run off the user's saved data.
+            // `--in-memory-store` keeps an evidence run off the user's saved data; UI tests always
+            // are, since their scans save fixture devices (#491).
+            let arguments = ProcessInfo.processInfo.arguments
             let inMemory = NSClassFromString("XCTest") != nil
-                || ProcessInfo.processInfo.arguments.contains("--in-memory-store")
+                || arguments.contains("--in-memory-store") || arguments.contains("--uitesting")
             return try MacPersistence.makeOutcome(storeURL: nil, inMemory: inMemory)
         } catch {
             fatalError("Could not create recovery ModelContainer: \(error)")
@@ -208,9 +210,17 @@ struct NetMonitorApp: App {
             recorder.attach(to: discovery)
             recorder.localNetworkObserved(profileManager.localProfile)
             eventRecorder = recorder
-            let connectivity = AppConnectivityMonitor(modelContext: context) { [weak recorder] isOnline, profileID in
-                recorder?.connectivityChanged(isOnline: isOnline, profileID: profileID)
-            }
+            let connectivity = AppConnectivityMonitor(
+                modelContext: context,
+                // A reconnection counts for this network only if it is still the local one.
+                isCurrent: { [weak profileManager] id in
+                    profileManager?.detectLocalNetwork()
+                    return profileManager?.localProfile?.id == id
+                },
+                onTransition: { [weak recorder] isOnline, profileID, timestamp in
+                    recorder?.connectivityChanged(isOnline: isOnline, profileID: profileID, at: timestamp)
+                }
+            )
             connectivity.run(for: profileManager.localProfile)
             connectivityMonitor = connectivity
             // Fill the dashboard without waiting for the user to press Scan (#358).
@@ -390,7 +400,10 @@ enum UITestScanFixture {
     /// The UI-test tracker, emptied first when `reset` (`--reset-history-files`) is set.
     @MainActor
     static func changeTracker(reset: Bool) -> DeviceChangeTracker {
-        let defaults = UserDefaults(suiteName: trackerSuite) ?? .standard
+        // Never fall back to the standard defaults: that is the user's real registry.
+        guard let defaults = UserDefaults(suiteName: trackerSuite) else {
+            preconditionFailure("UI-test tracker suite \(trackerSuite) is unavailable")
+        }
         if reset {
             defaults.removePersistentDomain(forName: trackerSuite)
         }

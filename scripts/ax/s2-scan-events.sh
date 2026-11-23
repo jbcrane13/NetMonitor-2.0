@@ -4,33 +4,47 @@
 # recorder's file for "Scan Complete" and "Device Joined: uitest-printer" with a network ID.
 # Never touches an installed /Applications copy: it drives only the process it started.
 # Usage: scripts/ax/s2-scan-events.sh <Debug NetMonitor-macOS.app> <out-dir>
-set -u
+set -euo pipefail
 APP=$1
 OUT=$2
-mkdir -p $OUT
+mkdir -p "$OUT"
+# Never validate a previous run's artifacts.
+rm -f "$OUT/network-events.json" "$OUT/s2-dashboard-after-scan.png"
 AX=$OUT/axdrive
-swiftc -O ${0:A:h}/axdrive.swift -o $AX 2>/dev/null || { echo "driver build failed"; exit 1; }
-EVENTS=${TMPDIR:-$(getconf DARWIN_USER_TEMP_DIR)}/netmonitor-uitest-history/network-events.json
+swiftc -O "${0:A:h}/axdrive.swift" -o "$AX" 2>/dev/null
 
-$APP/Contents/MacOS/NetMonitor-macOS --uitesting --in-memory-store --reset-history-files --seed-test-device \
-  > $OUT/app.log 2>&1 &
+# A sandboxed (signed) build keeps its temporary directory in its container.
+entitlements=$(codesign -d --entitlements - --xml "$APP" 2>/dev/null || true)
+if [[ $entitlements == *com.apple.security.app-sandbox* ]]; then
+  bundle_id=$(/usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' "$APP/Contents/Info.plist")
+  TMP_ROOT=$HOME/Library/Containers/$bundle_id/Data/tmp
+else
+  TMP_ROOT=${TMPDIR:-$(getconf DARWIN_USER_TEMP_DIR)}
+fi
+EVENTS=${TMP_ROOT%/}/netmonitor-uitest-history/network-events.json
+echo "events file: $EVENTS"
+
+"$APP/Contents/MacOS/NetMonitor-macOS" --uitesting --in-memory-store --reset-history-files --seed-test-device \
+  > "$OUT/app.log" 2>&1 &
 PID=$!
-trap 'kill $PID 2>/dev/null' EXIT
+trap 'kill $PID 2>/dev/null || true' EXIT
 export AX_PID=$PID
 
-$AX wait networkDetail_section_devices 30
+[[ $("$AX" wait networkDetail_section_devices 30) == found* ]] || { echo "dashboard never appeared"; exit 1; }
 sleep 2
-$AX menu "Scan Network" || exit 1
+"$AX" menu "Scan Network"
 
 # The store writes a second after a change; wait for both events.
 for _ in {1..30}; do
-  grep -q 'Device Joined: uitest-printer' $EVENTS 2>/dev/null && grep -q 'Scan Complete' $EVENTS && break
+  if grep -q 'Device Joined: uitest-printer' "$EVENTS" 2>/dev/null && grep -q 'Scan Complete' "$EVENTS"; then
+    break
+  fi
   sleep 1
 done
 sleep 1
-$AX capture $OUT/s2-dashboard-after-scan.png
-cp $EVENTS $OUT/network-events.json
-/usr/bin/python3 - $OUT/network-events.json <<'PY'
+"$AX" capture "$OUT/s2-dashboard-after-scan.png"
+cp "$EVENTS" "$OUT/network-events.json"
+/usr/bin/python3 - "$OUT/network-events.json" <<'PY'
 import json, sys
 events = json.load(open(sys.argv[1]))
 for e in events:

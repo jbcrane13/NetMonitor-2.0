@@ -10,7 +10,12 @@ import NetMonitorCore
 /// **Flap guard:** each device logs at most one left and one joined per `flapWindow`. Events are
 /// written at once with their real time; later ones in the same direction are dropped. When the
 /// window closes and the device's latest state isn't the last one written, that state is written
-/// then, and a new window starts. A correction still pending when the app quits is lost.
+/// then, stamped with the time it was observed, and a new window starts. A correction still
+/// pending when the app quits is lost.
+///
+/// **Gateway:** an auto-detected profile's `gatewayIP` is its subnet's first host, so the gateway
+/// is read from the routing table (`routedGateway(for:)`) at launch, on each local-network change
+/// and after each scan of the local network.
 @MainActor
 final class MacEventRecorder {
     typealias Scheduler = @MainActor (_ delay: TimeInterval, _ action: @escaping @MainActor () -> Void) -> Void
@@ -20,27 +25,37 @@ final class MacEventRecorder {
     private let eventService: any NetworkEventServiceProtocol
     private let now: () -> Date
     private let schedule: Scheduler
+    private let gatewayOf: @MainActor (NetworkProfile) -> String
     private var windows: [String: FlapWindow] = [:]
     /// The local network last seen and its gateway, for the gateway rule.
     private var lastNetwork: (profileID: UUID, gatewayIP: String)?
+    /// Coordinators already subscribed to, so a second `attach` doesn't log everything twice.
+    private var attached: Set<ObjectIdentifier> = []
 
     init(
         eventService: any NetworkEventServiceProtocol = NetworkEventService.shared,
         now: @escaping () -> Date = Date.init,
-        schedule: @escaping Scheduler = MacEventRecorder.sleepThenRun
+        schedule: @escaping Scheduler = MacEventRecorder.sleepThenRun,
+        gatewayOf: @escaping @MainActor (NetworkProfile) -> String = MacEventRecorder.routedGateway
     ) {
         self.eventService = eventService
         self.now = now
         self.schedule = schedule
+        self.gatewayOf = gatewayOf
     }
 
-    /// Subscribes to the coordinator's device changes and completed scans.
+    /// Subscribes to the coordinator's device changes and completed scans. Once per coordinator.
     func attach(to discovery: DeviceDiscoveryCoordinator) {
+        guard attached.insert(ObjectIdentifier(discovery)).inserted else { return }
         discovery.addDeviceChangeHandler { [weak self, weak discovery] changes, profileID in
             self?.devicesChanged(changes, devices: discovery?.discoveredDevices ?? [], profileID: profileID)
         }
-        discovery.onScanCompleted = { [weak self] profileID, deviceCount in
+        discovery.addScanCompletedHandler { [weak self, weak discovery] profileID, deviceCount in
             self?.scanCompleted(profileID: profileID, deviceCount: deviceCount)
+            // A scan of the local network re-reads its gateway, which no network-change check sees.
+            if let local = discovery?.networkProfileManager.localProfile, local.id == profileID {
+                self?.localNetworkObserved(local)
+            }
         }
     }
 
@@ -62,9 +77,9 @@ final class MacEventRecorder {
         ))
     }
 
-    func connectivityChanged(isOnline: Bool, profileID: UUID) {
+    func connectivityChanged(isOnline: Bool, profileID: UUID, at timestamp: Date) {
         log(NetworkEvent(
-            type: .connectivityChange, timestamp: now(),
+            type: .connectivityChange, timestamp: timestamp,
             title: isOnline ? "Network Connected" : "Network Disconnected",
             severity: isOnline ? .success : .warning,
             networkProfileID: profileID
@@ -79,15 +94,26 @@ final class MacEventRecorder {
             lastNetwork = nil
             return
         }
-        defer { lastNetwork = (profile.id, profile.gatewayIP) }
+        let gateway = gatewayOf(profile)
+        defer { lastNetwork = (profile.id, gateway) }
         guard let last = lastNetwork, last.profileID == profile.id,
-              !last.gatewayIP.isEmpty, !profile.gatewayIP.isEmpty, last.gatewayIP != profile.gatewayIP
+              !last.gatewayIP.isEmpty, !gateway.isEmpty, last.gatewayIP != gateway
         else { return }
         log(NetworkEvent(
             type: .gatewayChange, timestamp: now(),
-            title: "Gateway Changed: \(profile.gatewayIP)", details: "Was \(last.gatewayIP)",
+            title: "Gateway Changed: \(gateway)", details: "Was \(last.gatewayIP)",
             severity: .warning, networkProfileID: profile.id
         ))
+    }
+
+    /// The default route's gateway when it is on `profile`'s network (not a VPN's), else the
+    /// profile's own gateway.
+    static func routedGateway(for profile: NetworkProfile) -> String {
+        if let gateway = NetworkUtilities.detectDefaultGateway(interface: profile.interfaceName),
+           profile.network.contains(ipAddress: gateway) {
+            return gateway
+        }
+        return profile.gatewayIP
     }
 
     // MARK: - Flap guard
@@ -99,21 +125,22 @@ final class MacEventRecorder {
     }
 
     private func record(_ entry: DeviceEntry) {
-        guard var window = windows[entry.key] else {
-            write(entry)
+        let observed = entry.observed(at: now())
+        guard var window = windows[observed.key] else {
+            write(observed)
             return
         }
-        window.latest = entry
-        if window.written.insert(entry.direction).inserted {
-            log(entry.event(at: now()))
-            window.lastWritten = entry.direction
+        window.latest = observed
+        if window.written.insert(observed.direction).inserted {
+            log(observed.event)
+            window.lastWritten = observed.direction
         }
-        windows[entry.key] = window
+        windows[observed.key] = window
     }
 
-    /// Writes `entry` now and opens its device's window.
+    /// Writes `entry` with its observed time and opens its device's window.
     private func write(_ entry: DeviceEntry) {
-        log(entry.event(at: now()))
+        log(entry.event)
         windows[entry.key] = FlapWindow(written: [entry.direction], lastWritten: entry.direction, latest: entry)
         schedule(Self.flapWindow) { [weak self] in self?.closeWindow(entry.key) }
     }
@@ -145,12 +172,14 @@ private struct DeviceEntry {
     enum Direction { case joined, left }
 
     let direction: Direction
-    /// The flap window's key: the row, else the MAC, else the IP.
+    /// The flap window's key: the MAC, else the row, else the IP.
     let key: String
     let title: String
     let details: String?
     let deviceID: UUID?
     let profileID: UUID?
+    /// When the change was seen; the event's timestamp, including a trailing correction's.
+    private(set) var observedAt = Date.distantPast
 
     init?(_ change: DeviceChangeEvent, devices: [LocalDevice], profileID: UUID?) {
         let device: (ip: String, mac: String?, name: String?)
@@ -172,13 +201,20 @@ private struct DeviceEntry {
         details = label == ip ? nil : ip
         deviceID = row?.id
         self.profileID = profileID
-        key = row?.id.uuidString ?? mac.flatMap { $0.isEmpty ? nil : $0.uppercased() } ?? ip
+        // The MAC first: a row can be missing from one scan's rows and present in the next.
+        key = mac.flatMap { $0.isEmpty ? nil : $0.uppercased() } ?? row?.id.uuidString ?? ip
     }
 
-    func event(at timestamp: Date) -> NetworkEvent {
+    func observed(at timestamp: Date) -> DeviceEntry {
+        var entry = self
+        entry.observedAt = timestamp
+        return entry
+    }
+
+    var event: NetworkEvent {
         NetworkEvent(
             type: direction == .joined ? .deviceJoined : .deviceLeft,
-            timestamp: timestamp,
+            timestamp: observedAt,
             title: title,
             details: details,
             severity: direction == .joined ? .success : .warning,

@@ -35,7 +35,8 @@ private func makeRecorder() -> (MacEventRecorder, NetworkEventService, ManualClo
     let recorder = MacEventRecorder(
         eventService: events,
         now: { clock.now },
-        schedule: { delay, action in clock.schedule(after: delay, action) }
+        schedule: { delay, action in clock.schedule(after: delay, action) },
+        gatewayOf: { $0.gatewayIP }
     )
     return (recorder, events, clock)
 }
@@ -153,8 +154,8 @@ struct MacEventRecorderFlapTests {
 
         #expect(titles(events) == ["Device Left: printer.local", "Device Back Online: printer.local", "Device Left: printer.local"])
         let trailing = try #require(events.events.first)
-        // Written when the window closed, ten minutes after the first event.
-        #expect(trailing.timestamp == Date(timeIntervalSince1970: 1_800_000_000 + 600))
+        // Written when the window closed, stamped with when the device was last seen leaving.
+        #expect(trailing.timestamp == Date(timeIntervalSince1970: 1_800_000_000 + 120))
         #expect(trailing.networkProfileID == profileID)
     }
 
@@ -180,6 +181,18 @@ struct MacEventRecorderFlapTests {
         recorder.devicesChanged([.wentOffline(printerKnown)], devices: [], profileID: profileID)
 
         #expect(events.events.map(\.type) == [.deviceJoined, .deviceLeft, .deviceJoined, .deviceLeft])
+    }
+
+    /// The row can be in one scan's rows and missing from the next; the MAC keeps one window.
+    @Test func aDeviceKeepsOneWindowWhetherOrNotItsRowIsFound() {
+        let (recorder, events, _) = makeRecorder()
+        let row = LocalDevice(ipAddress: "192.0.2.20", macAddress: "00:1B:A9:00:00:20", hostname: "printer.local", networkProfileID: profileID)
+
+        recorder.devicesChanged([.firstSeen(printerObservation)], devices: [row], profileID: profileID)
+        recorder.devicesChanged([.wentOffline(printerKnown)], devices: [], profileID: profileID)
+        recorder.devicesChanged([.cameOnline(printerObservation)], devices: [], profileID: profileID)
+
+        #expect(events.events.map(\.type) == [.deviceLeft, .deviceJoined])
     }
 
     @Test func eachDeviceHasItsOwnWindow() {
@@ -212,12 +225,13 @@ struct MacEventRecorderNetworkTests {
     @Test func connectivityTransitionsAreLogged() {
         let (recorder, events, _) = makeRecorder()
 
-        recorder.connectivityChanged(isOnline: false, profileID: profileID)
-        recorder.connectivityChanged(isOnline: true, profileID: profileID)
+        recorder.connectivityChanged(isOnline: false, profileID: profileID, at: Date(timeIntervalSince1970: 1))
+        recorder.connectivityChanged(isOnline: true, profileID: profileID, at: Date(timeIntervalSince1970: 2))
 
         #expect(titles(events) == ["Network Disconnected", "Network Connected"])
         #expect(events.events.map(\.severity) == [.success, .warning])
         #expect(events.events.allSatisfy { $0.type == .connectivityChange && $0.networkProfileID == profileID })
+        #expect(events.events.map(\.timestamp) == [Date(timeIntervalSince1970: 2), Date(timeIntervalSince1970: 1)])
     }
 
     @Test func aNewGatewayOnTheSameNetworkIsLogged() throws {
@@ -250,50 +264,168 @@ struct MacEventRecorderNetworkTests {
 
 // MARK: - App-scope connectivity monitor
 
+/// Path updates the test sends by hand, one stream per monitor in creation order.
+private final class FakePaths: @unchecked Sendable {
+    private let lock = NSLock()
+    private var continuations: [AsyncStream<Bool>.Continuation] = []
+
+    var made: Int { lock.withLock { continuations.count } }
+
+    func make() -> AsyncStream<Bool> {
+        let (stream, continuation) = AsyncStream<Bool>.makeStream()
+        lock.withLock { continuations.append(continuation) }
+        return stream
+    }
+
+    func send(_ satisfied: Bool, toMonitor index: Int) {
+        let continuation = lock.withLock { continuations[index] }
+        continuation.yield(satisfied)
+    }
+}
+
+@MainActor
+private func eventually(_ condition: () -> Bool) async -> Bool {
+    let deadline = ContinuousClock.now + .seconds(5)
+    while !condition(), ContinuousClock.now < deadline {
+        try? await Task.sleep(for: .milliseconds(10))
+    }
+    return condition()
+}
+
 @Suite("AppConnectivityMonitor", .serialized)
 @MainActor
 struct AppConnectivityMonitorTests {
-    @Test func aTransitionRecordsUptimeHistoryAndAnEventWithNoViewShowing() throws {
-        let config = ModelConfiguration(UUID().uuidString, isStoredInMemoryOnly: true, cloudKitDatabase: .none)
-        let container = try ModelContainer(for: ConnectivityRecord.self, configurations: config)
-        defer { withExtendedLifetime(container) {} }
-        let (recorder, events, _) = makeRecorder()
-        let host = AppConnectivityMonitor(modelContext: container.mainContext) { isOnline, id in
-            recorder.connectivityChanged(isOnline: isOnline, profileID: id)
+    private let networkA = UUID()
+    private let networkB = UUID()
+
+    private struct Harness {
+        let host: AppConnectivityMonitor
+        let paths: FakePaths
+        let clock: ManualClock
+        let events: NetworkEventService
+        let container: ModelContainer
+        let current: CurrentNetwork
+
+        @MainActor
+        func records() throws -> [ConnectivityRecord] {
+            try container.mainContext.fetch(FetchDescriptor<ConnectivityRecord>(sortBy: [SortDescriptor(\.timestamp)]))
         }
-        defer { host.stop() }
-
-        host.run(for: profile(gateway: "192.0.2.1"))
-        let monitor = try #require(host.monitor)
-        monitor.pathChanged(online: false)
-
-        let records = try container.mainContext.fetch(FetchDescriptor<ConnectivityRecord>())
-        #expect(records.map(\.isOnline) == [false])
-        #expect(records.first?.profileID == profileID)
-        #expect(titles(events) == ["Network Disconnected"])
-        #expect(events.events.first?.networkProfileID == profileID)
     }
 
-    @Test func theMonitorSurvivesRepeatedRunsAndIsReplacedOnANewGatewayOrNetwork() throws {
+    /// The network the Mac is on, which the debounced network-change check hasn't caught up with yet.
+    @MainActor
+    private final class CurrentNetwork {
+        var id: UUID?
+    }
+
+    private func makeHarness() throws -> Harness {
         let config = ModelConfiguration(UUID().uuidString, isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         let container = try ModelContainer(for: ConnectivityRecord.self, configurations: config)
-        defer { withExtendedLifetime(container) {} }
-        let host = AppConnectivityMonitor(modelContext: container.mainContext)
-        defer { host.stop() }
+        let (recorder, events, clock) = makeRecorder()
+        let paths = FakePaths()
+        let current = CurrentNetwork()
+        current.id = networkA
+        let host = AppConnectivityMonitor(
+            modelContext: container.mainContext,
+            pathEvents: { paths.make() },
+            now: { clock.now },
+            schedule: { delay, action in clock.schedule(after: delay, action) },
+            isCurrent: { $0 == current.id },
+            onTransition: { isOnline, id, timestamp in recorder.connectivityChanged(isOnline: isOnline, profileID: id, at: timestamp) }
+        )
+        return Harness(host: host, paths: paths, clock: clock, events: events, container: container, current: current)
+    }
 
-        host.run(for: profile(gateway: "192.0.2.1"))
-        let first = try #require(host.monitor)
+    @Test func aReconnectionOnTheSameNetworkIsRecordedWithItsOwnTimeAfterSettling() async throws {
+        let harness = try makeHarness()
+        defer { harness.host.stop() }
+        harness.host.run(for: profile(id: networkA, gateway: "192.0.2.1"))
+        #expect(await eventually { harness.paths.made == 1 })
+
+        harness.paths.send(false, toMonitor: 0)
+        #expect(await eventually { harness.events.events.count == 1 })
+        let reconnectedAt = harness.clock.now
+        harness.paths.send(true, toMonitor: 0)
+        #expect(await eventually { harness.host.monitor?.isOnline == true })
+        #expect(harness.events.events.count == 1, "Not recorded until it settles")
+        harness.clock.advance(by: ConnectivityMonitor.onlineSettleDelay)
+
+        #expect(titles(harness.events) == ["Network Disconnected", "Network Connected"])
+        #expect(harness.events.events.first?.timestamp == reconnectedAt)
+        #expect(try harness.records().map(\.isOnline) == [false, true])
+        #expect(try harness.records().allSatisfy { $0.profileID == networkA })
+    }
+
+    /// Wi-Fi drops on network A and comes back on B: the path recovers before the app's debounced
+    /// network-change check replaces A's monitor.
+    @Test func aReconnectionToAnotherNetworkIsRecordedUnderTheNewNetworkOnly() async throws {
+        let harness = try makeHarness()
+        defer { harness.host.stop() }
+        harness.host.run(for: profile(id: networkA, gateway: "192.0.2.1"))
+        #expect(await eventually { harness.paths.made == 1 })
+        harness.paths.send(false, toMonitor: 0)
+        #expect(await eventually { harness.events.events.count == 1 })
+
+        harness.current.id = networkB
+        harness.paths.send(true, toMonitor: 0)
+        #expect(await eventually { harness.host.monitor?.isOnline == true })
+        harness.clock.advance(by: ConnectivityMonitor.onlineSettleDelay)
+        harness.host.run(for: profile(id: networkB, gateway: "198.51.100.1"))
+        #expect(await eventually { harness.paths.made == 2 })
+        harness.paths.send(true, toMonitor: 1)
+        #expect(await eventually { harness.events.events.count == 2 })
+
+        #expect(titles(harness.events) == ["Network Disconnected", "Network Connected"])
+        #expect(harness.events.events.reversed().map(\.networkProfileID) == [networkA, networkB])
+        let records = try harness.records()
+        #expect(records.map(\.isOnline) == [false, true])
+        #expect(records.map(\.profileID) == [networkA, networkB])
+    }
+
+    @Test func aSeamlessSwitchRecordsAConnectionUnderTheNewNetwork() async throws {
+        let harness = try makeHarness()
+        defer { harness.host.stop() }
+        harness.host.run(for: profile(id: networkA, gateway: "192.0.2.1"))
+        #expect(await eventually { harness.paths.made == 1 })
+
+        harness.current.id = networkB
+        harness.host.run(for: profile(id: networkB, gateway: "198.51.100.1"))
+        #expect(await eventually { harness.paths.made == 2 })
+        harness.paths.send(true, toMonitor: 1)
+
+        #expect(await eventually { harness.events.events.count == 1 })
+        #expect(titles(harness.events) == ["Network Connected"])
+        #expect(harness.events.events.first?.networkProfileID == networkB)
+    }
+
+    @Test func aNewGatewayOnTheSameNetworkKeepsTheStateAndRecordsNoConnection() async throws {
+        let harness = try makeHarness()
+        defer { harness.host.stop() }
+        harness.host.run(for: profile(id: networkA, gateway: "192.0.2.1"))
+        let first = try #require(harness.host.monitor)
+        #expect(await eventually { harness.paths.made == 1 })
         // A dashboard appearing or disappearing doesn't touch it; the same network keeps it.
-        host.run(for: profile(gateway: "192.0.2.1"))
-        #expect(host.monitor === first)
+        harness.host.run(for: profile(id: networkA, gateway: "192.0.2.1"))
+        #expect(harness.host.monitor === first)
 
-        host.run(for: profile(gateway: "192.0.2.254"))
-        let second = try #require(host.monitor)
-        #expect(second !== first)
-        #expect(second.gatewayIP == "192.0.2.254")
+        harness.host.run(for: profile(id: networkA, gateway: "192.0.2.254"))
+        #expect(harness.host.monitor !== first)
+        #expect(await eventually { harness.paths.made == 2 })
+        harness.paths.send(true, toMonitor: 1)
+        harness.paths.send(false, toMonitor: 1)
 
-        host.run(for: nil)
-        #expect(host.monitor == nil)
+        #expect(await eventually { harness.events.events.count == 1 })
+        #expect(titles(harness.events) == ["Network Disconnected"])
+    }
+
+    @Test func stoppingBeforeTheMonitorStartsOpensNoPathMonitor() async throws {
+        let harness = try makeHarness()
+        harness.host.run(for: profile(id: networkA, gateway: "192.0.2.1"))
+        harness.host.stop()
+        try await Task.sleep(for: .milliseconds(100))
+
+        #expect(harness.paths.made == 0)
+        #expect(harness.host.monitor == nil)
     }
 }
 
@@ -329,6 +461,7 @@ struct UITestScanFixtureTests {
         let events = NetworkEventService()
         let recorder = MacEventRecorder(eventService: events)
         recorder.attach(to: coordinator)
+        recorder.attach(to: coordinator) // a second attach must not log everything twice
         var firstSeen: [String] = []
         coordinator.addDeviceChangeHandler { changes, _ in
             for case let .firstSeen(device) in changes {
@@ -347,6 +480,44 @@ struct UITestScanFixtureTests {
         #expect(events.events.allSatisfy { $0.networkProfileID == networkID })
         let printerRow = try #require(coordinator.discoveredDevices.first { $0.ipAddress == UITestScanFixture.printerIP })
         #expect(events.events.last?.deviceID == printerRow.id)
+    }
+
+    /// The default route's gateway can change without a network change; a scan re-reads it.
+    @Test func aScanOfTheLocalNetworkLogsAGatewayChange() async throws {
+        let schema = Schema([LocalDevice.self])
+        let config = ModelConfiguration(UUID().uuidString, schema: schema, isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+        let container = try ModelContainer(for: schema, configurations: [config])
+        defer { withExtendedLifetime(container) {} }
+        let suite = "UITestScanFixtureTests.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let profiles = NetworkProfileManager(userDefaults: defaults, activeProfilesProvider: { [profile(gateway: "192.0.2.1")] })
+        let local = try #require(profiles.localProfile)
+        let coordinator = DeviceDiscoveryCoordinator(
+            modelContext: container.mainContext,
+            bonjourScanner: BonjourDiscoveryService(),
+            networkProfileManager: profiles,
+            pipelineFactory: UITestScanFixture.pipelineFactory,
+            portChecker: { _, _, _ in false }
+        )
+        defer { coordinator.stopScan() }
+        coordinator.changeTracker = DeviceChangeTracker(defaults: defaults)
+        let events = NetworkEventService()
+        var routedGateway = "192.0.2.1"
+        let recorder = MacEventRecorder(eventService: events, gatewayOf: { _ in routedGateway })
+        recorder.attach(to: coordinator)
+        recorder.localNetworkObserved(local)
+
+        routedGateway = "192.0.2.254"
+        coordinator.startScan()
+        let deadline = ContinuousClock.now + .seconds(10)
+        while coordinator.isScanning, ContinuousClock.now < deadline {
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+
+        let gatewayEvents = events.events(ofType: .gatewayChange)
+        #expect(gatewayEvents.map(\.title) == ["Gateway Changed: 192.0.2.254"])
+        #expect(gatewayEvents.first?.networkProfileID == local.id)
     }
 
     @Test func seededEventsAreTodayAndTenDaysAgo() {
