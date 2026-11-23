@@ -101,6 +101,23 @@ struct SavedDeviceLookupTests {
         #expect(saved.row(for: scanned("192.0.2.61", mac: "00:1B:A9:00:00:61")) == nil)
     }
 
+    /// A saved laptop moved to a new IP and a newcomer without a MAC took its old one: the laptop
+    /// keeps its row, and the newcomer doesn't inherit it.
+    @Test func aDeviceThatMovedKeepsItsRowAndANewcomerAtItsOldIPDoesNot() throws {
+        let (container, context) = try makeContext()
+        defer { withExtendedLifetime(container) {} }
+        let laptop = LocalDevice(ipAddress: "192.0.2.5", macAddress: "00:1B:A9:00:00:05", customName: "Laptop", networkProfileID: networkA)
+        context.insert(laptop)
+        try context.save()
+        let newcomer = scanned("192.0.2.5", mac: nil)
+        let moved = scanned("192.0.2.6", mac: "00:1B:A9:00:00:05")
+
+        let rows = SavedDeviceLookup(context: context).snapshot(networkProfileID: networkA).rows(for: [newcomer, moved])
+
+        #expect(rows["192.0.2.6"]?.id == laptop.id)
+        #expect(rows["192.0.2.5"] == nil)
+    }
+
     /// Rows saved before devices carried a network have none; device detail falls back to them too.
     @Test func fallsBackToRowsWithNoNetwork() throws {
         let (container, context) = try makeContext()
@@ -190,6 +207,54 @@ struct EventListenerNetworkIDTests {
         #expect(left.networkProfileID == networkA)
     }
 
+    /// Each network is compared only with its own previous scan, so switching networks logs no
+    /// false departures.
+    @Test func aScanOfAnotherNetworkLogsNoDeparturesFromTheFirst() async throws {
+        let box = DeviceBox()
+        let fake = UITestFakeDiscoveryService(devices: { box.devices }, hold: .milliseconds(20))
+        let events = SpyNetworkEventService()
+        let listener = EventListenerService(eventService: events, discoveryService: fake, currentNetworkProfileID: { networkA })
+        listener.start()
+        defer { listener.stop() }
+
+        box.devices = [scanned("192.0.2.1", mac: "00:1B:A9:00:00:01"), scanned("192.0.2.2", mac: "00:1B:A9:00:00:02")]
+        await fake.scanNetwork(profile: nil)
+        await waitUntil({ events.events(ofType: .scanComplete).count == 1 }, timeout: .seconds(5))
+        box.devices = [scanned("192.0.2.1", mac: "00:1B:A9:00:00:99", network: networkB)]
+        await fake.scanNetwork(profile: nil)
+        await waitUntil({ events.events(ofType: .scanComplete).count == 2 }, timeout: .seconds(5))
+        #expect(events.events(ofType: .deviceLeft).isEmpty)
+        let joinedOnB = events.events(ofType: .deviceJoined).filter { $0.networkProfileID == networkB }
+        #expect(joinedOnB.count == 1, "The same IP on another network is a new device there")
+
+        box.devices = [scanned("192.0.2.1", mac: "00:1B:A9:00:00:01")]
+        await fake.scanNetwork(profile: nil)
+        await waitUntil({ events.events(ofType: .scanComplete).count == 3 }, timeout: .seconds(5))
+        let left = events.events(ofType: .deviceLeft)
+        #expect(left.map(\.title) == ["Device Left: 192.0.2.2"])
+        #expect(left.first?.networkProfileID == networkA)
+    }
+
+    @Test func anEmptyScanLogsNoDepartures() async throws {
+        let box = DeviceBox()
+        let fake = UITestFakeDiscoveryService(devices: { box.devices }, hold: .milliseconds(20))
+        let events = SpyNetworkEventService()
+        let listener = EventListenerService(eventService: events, discoveryService: fake, currentNetworkProfileID: { networkA })
+        listener.start()
+        defer { listener.stop() }
+
+        box.devices = [scanned("192.0.2.1", mac: "00:1B:A9:00:00:01")]
+        await fake.scanNetwork(profile: nil)
+        await waitUntil({ events.events(ofType: .scanComplete).count == 1 }, timeout: .seconds(5))
+        box.devices = []
+        await fake.scanNetwork(profile: nil)
+        await waitUntil({ events.events(ofType: .scanComplete).count == 2 }, timeout: .seconds(5))
+
+        #expect(events.events(ofType: .scanComplete).count == 2)
+        #expect(events.events(ofType: .deviceLeft).isEmpty)
+        #expect(events.events(ofType: .scanComplete).allSatisfy { $0.networkProfileID == networkA })
+    }
+
     /// A scan already running when the listener starts still logs when it finishes.
     @Test func aScanRunningWhenTheListenerStartsIsLogged() async throws {
         let events = SpyNetworkEventService()
@@ -241,5 +306,16 @@ struct UITestRangeEventsTests {
         #expect(events.loggedEvents.map(\.title) == ["UITest Event 10 Days Ago", "UITest Event Today"])
         #expect(events.loggedEvents.map(\.timestamp) == [now.addingTimeInterval(-10 * 86400), now.addingTimeInterval(-60)])
         #expect(events.loggedEvents.allSatisfy { $0.networkProfileID == UITestBootstrap.networkProfileID })
+    }
+
+    @Test func theTodayEventIsNeverBeforeMidnight() throws {
+        let events = SpyNetworkEventService()
+        let midnight = Calendar.current.startOfDay(for: Date(timeIntervalSince1970: 1_800_000_000))
+        let now = midnight.addingTimeInterval(30)
+
+        UITestBootstrap.seedRangeEventsIfNeeded(into: events, arguments: ["--uitesting", "--seed-test-events"], now: now)
+
+        let today = try #require(events.loggedEvents.first { $0.title == "UITest Event Today" })
+        #expect(today.timestamp == midnight)
     }
 }

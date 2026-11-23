@@ -169,7 +169,7 @@ struct NetmonitorApp: App {
                     // On joining a different network, drop the old network's devices and
                     // scan the new one, the way the Mac does (#359).
                     if networkChangeMonitor == nil {
-                        let monitor = LocalNetworkChangeMonitor(profileManager: environment.networkProfiles) { local in
+                        let monitor = LocalNetworkChangeMonitor(profileManager: NetworkProfileManager()) { local in
                             Task { await DeviceDiscoveryService.shared.rescanAfterNetworkChange(profile: local) }
                         }
                         monitor.start()

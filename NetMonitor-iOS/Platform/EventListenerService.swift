@@ -82,19 +82,38 @@ struct SavedDevices {
     let network: [LocalDevice]
     let unassigned: [LocalDevice]
 
-    /// The device match (`DeviceMatcher`, MAC then IP) against the network's rows. A row saved
-    /// with no network matches only by an identical MAC: an IP means nothing across networks.
-    func row(for device: DiscoveredDevice) -> LocalDevice? {
-        let observation = DeviceMatchCandidate(ipAddress: device.ipAddress, macAddress: device.macAddress, name: device.matchName)
+    /// Each device's row by IP, from one device match (`DeviceMatcher`, MAC then IP) over the
+    /// whole scan, the way device detail matches: devices with a MAC claim their rows first, so a
+    /// newcomer without one can't take the row of a device that moved to another IP in the same
+    /// scan. A row saved with no network matches only by an identical MAC: an IP means nothing
+    /// across networks.
+    func rows(for scan: [DiscoveredDevice]) -> [String: LocalDevice] {
+        let candidates = scan.map { DeviceMatchCandidate(ipAddress: $0.ipAddress, macAddress: $0.macAddress, name: $0.matchName) }
         var matcher = DeviceMatcher(
             known: network.map { DeviceMatchCandidate(ipAddress: $0.ipAddress, macAddress: $0.macAddress, name: $0.matchName) },
-            observed: [observation]
+            observed: candidates
         )
-        if let match = matcher.match(observation) {
-            return network[match.index]
+        let order = scan.indices.sorted { lhs, rhs in
+            let lhsHasMAC = !(scan[lhs].macAddress ?? "").isEmpty
+            let rhsHasMAC = !(scan[rhs].macAddress ?? "").isEmpty
+            return lhsHasMAC != rhsHasMAC ? lhsHasMAC : lhs < rhs
         }
-        guard let mac = device.macAddress, !mac.isEmpty else { return nil }
-        return unassigned.first { $0.macAddress.caseInsensitiveCompare(mac) == .orderedSame }
+        var rows: [String: LocalDevice] = [:]
+        for index in order {
+            let device = scan[index]
+            if let match = matcher.match(candidates[index]) {
+                rows[device.ipAddress] = network[match.index]
+            } else if let mac = device.macAddress, !mac.isEmpty,
+                      let row = unassigned.first(where: { $0.macAddress.caseInsensitiveCompare(mac) == .orderedSame }) {
+                rows[device.ipAddress] = row
+            }
+        }
+        return rows
+    }
+
+    /// One device's row, matched on its own (a device that left has no scan to compete in).
+    func row(for device: DiscoveredDevice) -> LocalDevice? {
+        rows(for: [device])[device.ipAddress]
     }
 }
 
@@ -122,8 +141,9 @@ final class EventListenerService {
     private var wasScanning: Bool = false
     /// The last scan finish handled, so a scan that finished unobserved is still logged.
     private var handledScanDate: Date?
-    /// The last completed scan's devices by IP, so a device that left can still be matched by MAC.
-    private var knownDevices: [String: DiscoveredDevice] = [:]
+    /// Each network's last completed scan, by IP, so a scan is compared only with the same
+    /// network's previous one and a device that left can still be matched by MAC.
+    private var knownDevices: [UUID?: [String: DiscoveredDevice]] = [:]
 
     private var monitorTask: Task<Void, Never>?
 
@@ -219,26 +239,11 @@ final class EventListenerService {
         if !isScanning, wasScanning || lastScanDate != handledScanDate {
             handledScanDate = lastScanDate
             let currentDevices = discoveryService.discoveredDevices
-            let current = Dictionary(currentDevices.map { ($0.ipAddress, $0) }, uniquingKeysWith: { first, _ in first })
-            let fallbackNetwork = currentNetworkProfileID()
-            var snapshots: [UUID?: SavedDevices] = [:]
-            let savedRow = { (device: DiscoveredDevice, network: UUID?) -> LocalDevice? in
-                guard let savedDevices = self.savedDevices else { return nil }
-                if snapshots[network] == nil {
-                    snapshots[network] = savedDevices.snapshot(networkProfileID: network)
-                }
-                return snapshots[network]?.row(for: device)
-            }
-
-            for ip in Set(current.keys).subtracting(knownDevices.keys).sorted() {
-                if let device = current[ip] {
-                    logDevice(device, joined: true, fallbackNetwork: fallbackNetwork, savedRow: savedRow)
-                }
-            }
-            for ip in Set(knownDevices.keys).subtracting(current.keys).sorted() {
-                if let device = knownDevices[ip] {
-                    logDevice(device, joined: false, fallbackNetwork: fallbackNetwork, savedRow: savedRow)
-                }
+            // A scan's devices carry the network it scanned; the current network is the fallback.
+            let network = currentDevices.first?.networkProfileID ?? currentNetworkProfileID()
+            // An empty scan (offline, or a network that didn't answer) says nothing about who left.
+            if !currentDevices.isEmpty {
+                logDeviceChanges(currentDevices, network: network)
             }
 
             let count = currentDevices.count
@@ -247,25 +252,35 @@ final class EventListenerService {
                 title: "Scan Complete — \(count) \(count == 1 ? "device" : "devices") found",
                 details: nil,
                 severity: .info,
-                networkProfileID: currentDevices.first?.networkProfileID ?? fallbackNetwork
+                networkProfileID: network
             )
-
-            knownDevices = current
         }
 
         wasScanning = isScanning
     }
 
+    /// Joined and left devices against `network`'s previous scan, named from the saved rows.
+    private func logDeviceChanges(_ devices: [DiscoveredDevice], network: UUID?) {
+        let current = Dictionary(devices.map { ($0.ipAddress, $0) }, uniquingKeysWith: { first, _ in first })
+        let previous = knownDevices[network] ?? [:]
+        let saved = savedDevices?.snapshot(networkProfileID: network)
+        let rows = saved?.rows(for: devices) ?? [:]
+        for ip in Set(current.keys).subtracting(previous.keys).sorted() {
+            if let device = current[ip] {
+                logDevice(device, joined: true, network: network, row: rows[ip])
+            }
+        }
+        for ip in Set(previous.keys).subtracting(current.keys).sorted() {
+            if let device = previous[ip] {
+                logDevice(device, joined: false, network: network, row: saved?.row(for: device))
+            }
+        }
+        knownDevices[network] = current
+    }
+
     /// A joined or left device, named by its saved row when it matches one; otherwise a joined
     /// device by its hostname or maker and a left one by its IP, as before #491.
-    private func logDevice(
-        _ device: DiscoveredDevice,
-        joined: Bool,
-        fallbackNetwork: UUID?,
-        savedRow: (DiscoveredDevice, UUID?) -> LocalDevice?
-    ) {
-        let network = device.networkProfileID ?? fallbackNetwork
-        let row = savedRow(device, network)
+    private func logDevice(_ device: DiscoveredDevice, joined: Bool, network: UUID?, row: LocalDevice?) {
         let ip = device.ipAddress
         let label = row?.displayName ?? (joined ? device.hostname ?? device.maker ?? ip : ip)
         eventService.log(

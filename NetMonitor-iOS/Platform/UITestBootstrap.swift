@@ -300,8 +300,10 @@ extension UITestBootstrap {
             type: .connectivityChange, timestamp: now.addingTimeInterval(-10 * 86400),
             title: rangeEventTitles.tenDaysAgo, networkProfileID: networkProfileID
         ))
+        // A minute ago, but never before today's midnight, so it is always "Today".
+        let today = max(now.addingTimeInterval(-60), Calendar.current.startOfDay(for: now))
         eventService.log(NetworkEvent(
-            type: .connectivityChange, timestamp: now.addingTimeInterval(-60),
+            type: .connectivityChange, timestamp: today,
             title: rangeEventTitles.today, networkProfileID: networkProfileID
         ))
     }

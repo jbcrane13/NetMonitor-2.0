@@ -39,10 +39,8 @@ final class AppEnvironment {
     let activityLog: ToolActivityLog
     let eventService: NetworkEventService
     let scanScheduler: any ScanSchedulerServiceProtocol
-    /// The app's network profiles. `LocalNetworkChangeMonitor` keeps its local network current.
-    let networkProfiles: NetworkProfileManager
-    /// The network the device is on, for events and samples (#491 D9): the local profile, else
-    /// the active one. Under `UITEST_FAKE_DEVICES`, the UI-test network.
+    /// The network the device is on, for events (#491 D9): the saved local profile, read without
+    /// writing. Under `UITEST_FAKE_DEVICES`, the UI-test network.
     let currentNetworkProfileID: @MainActor () -> UUID?
     /// The network health samples belong to (#491 S5): the local network only while it is
     /// connected, never the active profile. Under `UITEST_FAKE_DEVICES`, the UI-test network.
@@ -60,7 +58,6 @@ final class AppEnvironment {
         activityLog: ToolActivityLog,
         eventService: NetworkEventService,
         scanScheduler: any ScanSchedulerServiceProtocol,
-        networkProfiles: NetworkProfileManager,
         currentNetworkProfileID: @escaping @MainActor () -> UUID? = { nil },
         connectedNetworkProfileID: @escaping @MainActor () -> UUID? = { nil }
     ) {
@@ -73,7 +70,6 @@ final class AppEnvironment {
         self.activityLog = activityLog
         self.eventService = eventService
         self.scanScheduler = scanScheduler
-        self.networkProfiles = networkProfiles
         self.currentNetworkProfileID = currentNetworkProfileID
         self.connectedNetworkProfileID = connectedNetworkProfileID
     }
@@ -88,16 +84,18 @@ final class AppEnvironment {
     /// service, so UI tests never scan the real network (#491 D9).
     static func live() -> AppEnvironment {
         let fake = UITestFakeDeviceFeed.isEnabled
-        let profiles = NetworkProfileManager()
         let networkID: @MainActor () -> UUID?
         let connectedNetworkID: @MainActor () -> UUID?
         if fake {
             networkID = { UITestBootstrap.networkProfileID }
             connectedNetworkID = { UITestBootstrap.networkProfileID }
         } else {
-            // Read only: the network-change monitor re-detects into this same manager.
-            networkID = { [weak profiles] in profiles?.localProfile?.id ?? profiles?.activeProfile?.id }
-            connectedNetworkID = { [weak profiles] in profiles.flatMap { HealthSampleProbe.localNetworkProfileID(in: $0) } }
+            // Read only, from the saved profiles: a manager of its own would save its startup
+            // copy of the list over networks added since (#491).
+            networkID = { NetworkProfileManager.savedLocalProfile()?.id }
+            connectedNetworkID = {
+                NetworkProfileManager.detectActiveProfiles().isEmpty ? nil : NetworkProfileManager.savedLocalProfile()?.id
+            }
         }
         return AppEnvironment(
             networkMonitor: NetworkMonitorService.shared,
@@ -109,7 +107,6 @@ final class AppEnvironment {
             activityLog: ToolActivityLog.shared,
             eventService: NetworkEventService.shared,
             scanScheduler: ScanSchedulerService.shared,
-            networkProfiles: profiles,
             currentNetworkProfileID: networkID,
             connectedNetworkProfileID: connectedNetworkID
         )
