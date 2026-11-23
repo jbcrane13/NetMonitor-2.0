@@ -98,28 +98,42 @@ final class NetworkHealthScoreMacViewModel {
     /// Per-server DNS timings from the last comparison (#399).
     private(set) var dnsResults: [DNSBenchmarkResult] = []
     private(set) var isComparingDNS = false
+    /// The network the last refresh scored, whose history the chart shows.
+    private(set) var historyNetworkID: UUID?
 
     private let service: NetworkHealthScoreService
     private let pingService: any PingServiceProtocol
     private let vpnService: any VPNDetectionServiceProtocol
     private let readDNSServers: @Sendable () -> HealthCheckInputs.DNSServers
     private let dnsBenchmark: DNSServerBenchmark
+    private let historyStore: HealthScoreHistoryStore
 
     init(
         service: NetworkHealthScoreService = NetworkHealthScoreService(),
         pingService: any PingServiceProtocol = PingService(),
         vpnService: any VPNDetectionServiceProtocol = VPNDetectionService(),
         readDNSServers: @escaping @Sendable () -> HealthCheckInputs.DNSServers = { SystemDNSConfiguration.current() },
-        dnsBenchmark: DNSServerBenchmark = DNSServerBenchmark()
+        dnsBenchmark: DNSServerBenchmark = DNSServerBenchmark(),
+        historyStore: HealthScoreHistoryStore = .shared
     ) {
         self.service = service
         self.pingService = pingService
         self.vpnService = vpnService
         self.readDNSServers = readDNSServers
         self.dnsBenchmark = dnsBenchmark
+        self.historyStore = historyStore
     }
 
     var fastestDNS: DNSBenchmarkResult? { DNSServerBenchmark.fastest(dnsResults) }
+
+    /// The scored network's saved scores, oldest first (#491 D10). Read through the store, so it
+    /// updates when the 15-minute sampler records too.
+    var history: [HealthScoreSample] {
+        historyNetworkID.map(historyStore.samples(for:)) ?? []
+    }
+
+    /// The history chart needs a line: at least two samples.
+    var showsHistoryChart: Bool { history.count >= 2 }
 
     /// Times lookups against the current DNS server and Cloudflare, Google and Quad9.
     func compareDNSServers() async {
@@ -136,10 +150,17 @@ final class NetworkHealthScoreMacViewModel {
 
     /// Recalculates the score and checklist. When `gatewayIP` is given the router is
     /// pinged too; `localInputs` carries Wi-Fi and device readings the view already has.
-    func refresh(gatewayIP: String? = nil, localInputs: HealthCheckInputs = HealthCheckInputs()) async {
+    /// `networkProfileID` is the Mac's own network while connected to it: the score is saved to
+    /// its history (#491).
+    func refresh(
+        gatewayIP: String? = nil,
+        localInputs: HealthCheckInputs = HealthCheckInputs(),
+        networkProfileID: UUID? = nil
+    ) async {
         vpnService.startMonitoring()
         isCalculating = true
         defer { isCalculating = false }
+        historyNetworkID = networkProfileID
 
         var latencyMs: Double? = nil
         var packetLoss: Double? = nil
@@ -158,7 +179,14 @@ final class NetworkHealthScoreMacViewModel {
             latencyMs: latencyMs, packetLoss: packetLoss, dnsResponseMs: nil,
             deviceCount: nil, typicalDeviceCount: nil, isConnected: true
         )
-        currentScore = await service.calculateScore()
+        let score = await service.calculateScore()
+        currentScore = score
+        // Saved at once: at most one sample per 15 minutes, so nothing waits for quit. A refresh
+        // cancelled mid-probe (a new scan restarts it) scored partial pings: not saved, or the
+        // throttle would turn away the full reading that follows.
+        if !Task.isCancelled, let networkProfileID, historyStore.record(score, networkProfileID: networkProfileID) {
+            historyStore.flush()
+        }
 
         var inputs = localInputs
         if let gatewayIP {

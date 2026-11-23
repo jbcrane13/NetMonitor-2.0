@@ -182,6 +182,7 @@ enum UITestBootstrap {
     /// `--seed-legacy-events` then stores the blob builds before #491 wrote: two events around
     /// one corrupt element, for the migration test.
     static func prepareEventHistoryIfNeeded() {
+        seedHealthSamplesIfNeeded()
         let location = HistoryFileLocation.current
         guard isUITesting, let defaults = location.legacyDefaults, defaults != .standard else { return }
         let key = NetworkEventService.legacyDefaultsKey
@@ -205,6 +206,17 @@ enum UITestBootstrap {
         guard isUITesting, let flag = args.firstIndex(of: "--log-test-event"), args.indices.contains(flag + 1) else { return }
         NetworkEventService.shared.log(type: .toolRun, title: args[flag + 1])
         NetworkEventService.shared.flush()
+    }
+
+    // MARK: - Health history fixtures (#491 S5)
+
+    /// With `UITEST_SEED_HEALTH_SAMPLES=<n>`, replaces the health history with `n` samples for
+    /// this device's network (`HealthScoreHistoryStore.seedForUITests`).
+    private static func seedHealthSamplesIfNeeded() {
+        guard isUITesting,
+              let count = ProcessInfo.processInfo.environment["UITEST_SEED_HEALTH_SAMPLES"].flatMap(Int.init),
+              let network = HealthSampleProbe.localNetworkProfileID() else { return }
+        HealthScoreHistoryStore.shared.seedForUITests(count: count, networkProfileID: network)
     }
 
     /// The first page of an exported report, as an image and its text, for the UI-test

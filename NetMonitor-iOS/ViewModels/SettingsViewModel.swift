@@ -106,9 +106,12 @@ final class SettingsViewModel {
 
     /// Identity suggestions (#449), cleared with the device rows they describe.
     private let suggestionStore: DeviceSuggestionStore
+    /// Saved health scores (#491), cleared with the other measurements.
+    private let healthHistory: HealthScoreHistoryStore
 
-    init(suggestionStore: DeviceSuggestionStore = DeviceSuggestionStore()) {
+    init(suggestionStore: DeviceSuggestionStore = DeviceSuggestionStore(), healthHistory: HealthScoreHistoryStore = .shared) {
         self.suggestionStore = suggestionStore
+        self.healthHistory = healthHistory
         let defaults = UserDefaults.standard
         defaultPingCount = defaults.object(forKey: AppSettings.Keys.defaultPingCount) as? Int ?? 4
         pingTimeout = defaults.object(forKey: AppSettings.Keys.pingTimeout) as? Double ?? 5.0
@@ -180,6 +183,7 @@ final class SettingsViewModel {
             Logger.app.error("Failed to save after clearing data: \(error)")
         }
         suggestionStore.clearAll()
+        healthHistory.clearAll()
 
         // URLCache + file-system sweeps run on a background executor — they're
         // sync I/O and can take noticeable time on a populated cache.

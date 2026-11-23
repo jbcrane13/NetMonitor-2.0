@@ -27,6 +27,7 @@ struct NetMonitorApp: App {
     @State private var eventRecorder: MacEventRecorder?
     /// Records connectivity for the local network whichever screen is showing (#491 D8).
     @State private var connectivityMonitor: AppConnectivityMonitor?
+    @State private var healthSampler: MacHealthSampler?
 
     @AppStorage("autoStartMonitoring") private var autoStartMonitoring = false
     @AppStorage("netmonitor.appearance.accentColor") private var accentColorHex = "#06B6D4"
@@ -239,6 +240,7 @@ struct NetMonitorApp: App {
         }
 
         startSpeedTestSchedulerIfNeeded()
+        startHealthSamplerIfNeeded(profileManager: profileManager)
 
         if let session = monitoringSession,
            let discovery = deviceDiscovery,
@@ -337,6 +339,15 @@ struct NetMonitorApp: App {
         if arguments.contains("--seed-test-events") {
             UITestScanFixture.seedEvents(into: NetworkEventService.shared, profileID: profileManager.activeProfile?.id)
         }
+        UITestHealthHistory.seedIfRequested(networkProfileID: profileManager.localProfile?.id)
+    }
+
+    /// A health sample for the Mac's network every 15 minutes (#491 D10).
+    private func startHealthSamplerIfNeeded(profileManager: NetworkProfileManager) {
+        guard healthSampler == nil else { return }
+        let sampler = MacHealthSampler(profileManager: profileManager)
+        sampler.start()
+        healthSampler = sampler
     }
 
     /// Optional scheduled speed tests while the app runs, off by default (#398).

@@ -10,11 +10,12 @@ final class DataMaintenanceService {
     private init() {}
 
     /// Deletes ToolResult and SpeedTestResult records and timeline events older than the
-    /// configured retention period (#395 added timeline events)
+    /// configured retention period (#395 added timeline events), and health samples (#491)
     static func pruneExpiredData(
         modelContext: ModelContext,
         defaults: UserDefaults = .standard,
         eventService: any NetworkEventServiceProtocol = NetworkEventService.shared,
+        healthHistory: HealthScoreHistoryStore = .shared,
         now: Date = Date()
     ) {
         let retentionDays = defaults.object(forKey: AppSettings.Keys.dataRetentionDays) as? Int ?? 30
@@ -37,5 +38,6 @@ final class DataMaintenanceService {
             logger.error("Failed to save after pruning: \(error)")
         }
         eventService.removeEvents(olderThan: cutoff)
+        healthHistory.removeSamples(olderThan: cutoff)
     }
 }
