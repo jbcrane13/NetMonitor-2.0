@@ -63,8 +63,12 @@ if [[ $MODE == answer ]]; then
     [[ $result == found* ]] || { echo "FAIL: \"$text\" is not on screen"; exit 1; }
   done
 else
-  # Give the brief time it would need to appear, then check it never did.
+  # Give the brief time it would need to appear, then check it never did. First prove the
+  # dashboard's text is readable, so a failed Accessibility read can't pass as "absent".
   sleep 5
+  result=$("$AX" text uitest-printer 10)
+  echo "$result"
+  [[ $result == found* ]] || { echo "FAIL: the dashboard's text can't be read"; exit 1; }
   result=$("$AX" gone $CARD 1)
   echo "$result"
   [[ $result == gone* ]] || { echo "FAIL: $CARD is on screen"; exit 1; }

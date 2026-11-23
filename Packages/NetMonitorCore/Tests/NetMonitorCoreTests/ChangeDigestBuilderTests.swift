@@ -291,4 +291,27 @@ struct ChangeDigestBuilderTests {
         let result = ChangeDigestBuilder.request(events: events, from: dayAgo, to: now, deviceNamesByID: [printer: "Office Printer"])
         #expect(result?.facts == ["Devices joined: 1", "Joined: printer.lan", "Devices left: 1", "Left: Office Printer"])
     }
+
+    // MARK: - Recorded IDs without a saved row (#491 S6 review)
+
+    @Test func distinctRecordedIDsWithTheSameNameCountSeparately() {
+        let events = [
+            NetworkEvent(type: .deviceLeft, timestamp: now.addingTimeInterval(-600), title: "Device Left: Printer",
+                         details: "192.168.1.30", deviceID: UUID()),
+            NetworkEvent(type: .deviceLeft, timestamp: now.addingTimeInterval(-300), title: "Device Left: Printer",
+                         details: "192.168.1.31", deviceID: UUID())
+        ]
+        #expect(request(events)?.facts == ["Devices left: 2", "Left: Printer", "Left: Printer"])
+    }
+
+    @Test func oneRecordedIDAtTwoAddressesCountsOnce() {
+        let printer = UUID()
+        let events = [
+            NetworkEvent(type: .deviceJoined, timestamp: now.addingTimeInterval(-600), title: "Device Joined: printer.lan",
+                         details: "192.168.1.30", deviceID: printer),
+            NetworkEvent(type: .deviceJoined, timestamp: now.addingTimeInterval(-300), title: "Device Joined: printer.lan",
+                         details: "192.168.1.31", deviceID: printer)
+        ]
+        #expect(request(events)?.facts == ["Devices joined: 1", "Joined: printer.lan"])
+    }
 }

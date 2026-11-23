@@ -184,24 +184,24 @@ public enum ChangeDigestBuilder {
         facts: inout [String],
         observations: inout [String]
     ) {
-        // The same device can join or leave more than once in a window; it counts once, whether an
-        // event names it by its saved row's ID, its address, or both.
+        // The same device can join or leave more than once in a window; it counts once. An event
+        // with a recorded ID is keyed by that ID and its IP, never by its name, so two devices
+        // sharing a name stay apart even after their saved rows are removed. One without an ID
+        // keeps the legacy key (the IP for joins, the title's label for departures) plus any IP
+        // in its details, which links it to the same device's events that have an ID.
         var seen = Set<String>()
         let devices = events.compactMap { event -> String? in
             let label = Self.label(of: event)
             let address = kind == .left ? label : (event.details ?? label)
-            let id = event.deviceID.flatMap { names.byID[$0] == nil ? nil : $0 }
-            var keys = ["address:\(address)"]
-            if let id {
-                keys.append("id:\(id.uuidString)")
-                // Mac events with an ID also carry the IP, which an ID-less event of the device may use.
-                if let details = event.details {
-                    keys.append("address:\(details)")
-                }
+            let ip = event.details ?? label
+            let keys: Set<String> = if let id = event.deviceID {
+                ["id:\(id.uuidString)", "address:\(ip)"]
+            } else {
+                Set(["address:\(address)", event.details.map { "address:\($0)" }].compactMap { $0 })
             }
             guard seen.isDisjoint(with: keys) else { return nil }
             seen.formUnion(keys)
-            return NotificationSummaryBuilder.name(id.flatMap { names.byID[$0] } ?? names.byAddress[address] ?? label)
+            return NotificationSummaryBuilder.name(event.deviceID.flatMap { names.byID[$0] } ?? names.byAddress[address] ?? label)
         }
         guard !devices.isEmpty else { return }
         let labels = kind.labels

@@ -1,5 +1,6 @@
 import Foundation
 import NetMonitorCore
+import SwiftData
 
 /// The Mac dashboard's "since yesterday" brief (#491 S6): what changed on the local network in
 /// the last 24 hours, worded by the on-device model from `ChangeDigestBuilder`'s digest. iOS's
@@ -71,6 +72,19 @@ final class ChangeBriefMacViewModel {
             counts: ChangeDigestCounts(found: found, notFound: network.count - found)
         )
         await state.ask(request, network: networkProfileID)
+    }
+
+    /// The saved devices the brief of `profileID` names and counts: that network's rows and
+    /// unassigned ones, every one of them. Read from the store, not the scan coordinator, whose
+    /// devices are whichever network it scanned last.
+    static func savedDevices(for profileID: UUID, in context: ModelContext) -> [LocalDevice] {
+        let id: UUID? = profileID
+        let descriptor = FetchDescriptor<LocalDevice>(
+            predicate: #Predicate<LocalDevice> { device in
+                device.networkProfileID == id || device.networkProfileID == nil
+            }
+        )
+        return (try? context.fetch(descriptor)) ?? []
     }
 
     /// The two most recent saved tests, as the digest compares them.

@@ -1,6 +1,7 @@
+import Testing
 import Foundation
 import NetMonitorCore
-import Testing
+import SwiftData
 @testable import NetMonitor_macOS
 
 // MARK: - Dashboard brief (#491 S6)
@@ -242,6 +243,28 @@ struct ChangeBriefMacViewModelTests {
         let request = try #require(insight.requests.first)
         #expect(request.facts.contains("Joined: just-inside"))
         #expect(!request.facts.contains("Joined: just-outside"))
+    }
+
+    // MARK: - Saved devices
+
+    /// The shown network's rows and unassigned ones, read from the store rather than the scan
+    /// coordinator, which holds whichever network it scanned last.
+    @Test func savedDevicesAreTheShownNetworksAndUnassignedRowsUncapped() throws {
+        let schema = Schema([LocalDevice.self])
+        let config = ModelConfiguration(UUID().uuidString, schema: schema, isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+        let container = try ModelContainer(for: schema, configurations: [config])
+        let context = container.mainContext
+        for index in 0..<(LocalDeviceQueries.defaultLimit + 1) {
+            context.insert(LocalDevice(ipAddress: "10.1.\(index / 250).\(index % 250)", macAddress: "", networkProfileID: home))
+        }
+        context.insert(LocalDevice(ipAddress: "10.9.0.1", macAddress: "", networkProfileID: nil))
+        context.insert(LocalDevice(ipAddress: "10.9.0.2", macAddress: "", networkProfileID: UUID()))
+        try context.save()
+
+        let rows = ChangeBriefMacViewModel.savedDevices(for: home, in: context)
+
+        #expect(rows.count == LocalDeviceQueries.defaultLimit + 2)
+        #expect(!rows.contains { $0.ipAddress == "10.9.0.2" })
     }
 
     // MARK: - UI-test seam

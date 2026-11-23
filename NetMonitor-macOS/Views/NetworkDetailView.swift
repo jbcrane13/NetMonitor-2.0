@@ -218,7 +218,7 @@ struct NetworkDetailView: View {
             profileID: profile.id, lastScanTime: deviceDiscovery?.lastScanTime, isScanning: deviceDiscovery?.isScanning ?? false
         )) {
             await changeBrief.refresh(
-                devices: deviceDiscovery?.discoveredDevices ?? [],
+                devices: ChangeBriefMacViewModel.savedDevices(for: profile.id, in: modelContext),
                 networkProfileID: profile.id,
                 isScanning: deviceDiscovery?.isScanning ?? false
             )
