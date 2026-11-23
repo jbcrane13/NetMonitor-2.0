@@ -106,9 +106,7 @@ public final class DeviceSuggester {
 
     /// Whether the device shows anything the model suggested: its maker, model or type.
     public func isShowingSuggestion(_ device: LocalDevice) -> Bool {
-        device.identity.winningMaker(macPrefixMaker: device.vendor)?.source == .modelSuggestion
-            || device.identity.model?.source == .modelSuggestion
-            || suggestedType(for: device) != nil
+        device.isMakerSuggested || device.isModelSuggested || suggestedType(for: device) != nil
     }
 
     /// Keeps what the device shows from the suggestion: a shown maker and the model become

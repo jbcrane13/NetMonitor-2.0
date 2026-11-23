@@ -23,6 +23,16 @@ final class DeviceDiscoveryCoordinator {
     var onDeviceChanges: (@MainActor ([DeviceChangeEvent]) -> Void)?
     /// Remembers devices between scans for `onDeviceChanges`. Tests inject one with fresh defaults.
     var changeTracker = DeviceChangeTracker()
+    /// Asks the on-device model what this network's devices are after each completed scan
+    /// (#449). Nil, the default, turns suggestions off: only the app passes one, so tests
+    /// never reach the real model.
+    let suggester: DeviceSuggester?
+    /// The suggestion pass started by the last completed scan. Cancelled when a scan starts or
+    /// stops and before rows are deleted, so it never writes to a deleted row.
+    private(set) var suggestionTask: Task<Void, Never>?
+    /// Bumped when suggestions change. The suggester keeps a suggested type in UserDefaults,
+    /// which SwiftUI doesn't observe, so views read this to redraw.
+    private(set) var suggestionRevision = 0
 
     private let modelContext: ModelContext
     let bonjourScanner: BonjourDiscoveryService
@@ -86,7 +96,8 @@ final class DeviceDiscoveryCoordinator {
         },
         portChecker: @escaping @Sendable (_ host: String, _ port: Int, _ timeoutMs: Int32) async -> Bool = DeviceDiscoveryCoordinator.checkPort,
         pingRunner: @escaping @Sendable (_ host: String) async -> Double? = DeviceDiscoveryCoordinator.shellPing,
-        reviewPrompt: ReviewPromptPolicy? = nil
+        reviewPrompt: ReviewPromptPolicy? = nil,
+        suggester: DeviceSuggester? = nil
     ) {
         self.modelContext = modelContext
         self.bonjourScanner = bonjourScanner
@@ -97,6 +108,7 @@ final class DeviceDiscoveryCoordinator {
         self.portChecker = portChecker
         self.pingRunner = pingRunner
         self.reviewPrompt = reviewPrompt
+        self.suggester = suggester
         self.networkProfile = networkProfileManager.activeProfile
         loadPersistedDevices(for: effectiveProfileID())
     }
@@ -109,6 +121,7 @@ final class DeviceDiscoveryCoordinator {
     ///   (launch scan, companion requests), so they don't trigger the review prompt (#337).
     func startScan(countsTowardReviewPrompt: Bool = true) {
         guard !isScanning else { return }
+        cancelSuggestions()
         isScanning = true
         scanProgress = 0.0
         didMergeAtEnrichmentTransition = false
@@ -198,6 +211,7 @@ final class DeviceDiscoveryCoordinator {
                 if countsTowardReviewPrompt {
                     reviewPrompt?.recordScanCompleted()
                 }
+                startSuggestions(profileID: profileID)
             } catch is CancellationError {
             } catch {
                 Logger.discovery.error("Scan error: \(error, privacy: .public)")
@@ -282,10 +296,57 @@ final class DeviceDiscoveryCoordinator {
     }
 
     func stopScan() {
+        cancelSuggestions()
         scanTask?.cancel()
         scanTask = nil
         bonjourScanner.stopDiscovery()
         isScanning = false
+    }
+
+    // MARK: - Model suggestions (#449)
+
+    /// Starts a suggestion pass over the network's rows. Not awaited by the scan.
+    func startSuggestions(profileID: UUID?) {
+        guard let suggester else { return }
+        cancelSuggestions()
+        let devices = fetchDevices(for: profileID)
+        suggestionTask = Task {
+            await suggester.suggest(for: devices)
+            guard !Task.isCancelled else { return }
+            saveSuggestions()
+        }
+    }
+
+    /// Stops the suggestion pass. Call before deleting device rows.
+    func cancelSuggestions() {
+        suggestionTask?.cancel()
+    }
+
+    func isShowingSuggestion(_ device: LocalDevice) -> Bool {
+        _ = suggestionRevision
+        return suggester?.isShowingSuggestion(device) ?? false
+    }
+
+    func suggestedType(for device: LocalDevice) -> DeviceType? {
+        _ = suggestionRevision
+        return suggester?.suggestedType(for: device)
+    }
+
+    func acceptSuggestion(for device: LocalDevice) {
+        suggester?.accept(device)
+        saveSuggestions()
+    }
+
+    func dismissSuggestion(for device: LocalDevice) {
+        suggester?.dismiss(device)
+        saveSuggestions()
+    }
+
+    private func saveSuggestions() {
+        do { try modelContext.save() } catch {
+            Logger.discovery.error("Failed to save suggestions: \(error, privacy: .public)")
+        }
+        suggestionRevision += 1
     }
 
     /// Merges freshly-discovered devices into persisted `LocalDevice` rows.

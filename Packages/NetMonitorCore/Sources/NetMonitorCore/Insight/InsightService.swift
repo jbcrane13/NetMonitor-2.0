@@ -34,6 +34,34 @@ public struct UnavailableInsightService: InsightServiceProtocol {
     }
 }
 
+/// Suggests the same identity for every device, for UI tests that need a suggestion on
+/// screen without the on-device model (#449). Explanations always fail.
+public struct FixedSuggestionInsightService: InsightServiceProtocol {
+    /// The suggestion the apps' UI tests expect: a printer from a maker no fixture uses.
+    public static let uiTestSuggestion = DeviceSuggestion(
+        deviceType: .printer, maker: "Brother", model: "HL-L2350DW", confidence: .high
+    )
+
+    private let suggestion: DeviceSuggestion
+
+    public init(suggestion: DeviceSuggestion = Self.uiTestSuggestion) {
+        self.suggestion = suggestion
+    }
+
+    public var isAvailable: Bool { true }
+
+    public func explain(_ request: InsightRequest) -> AsyncStream<InsightUpdate> {
+        AsyncStream { continuation in
+            continuation.yield(.failed)
+            continuation.finish()
+        }
+    }
+
+    public func suggestIdentity(_ evidence: DeviceEvidence) async -> DeviceSuggestion? {
+        suggestion
+    }
+}
+
 #if canImport(FoundationModels)
 /// Explains requests with the system language model. Everything stays on the device.
 /// Prompts carry addresses and hostnames, so nothing here is logged.

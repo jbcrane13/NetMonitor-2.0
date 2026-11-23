@@ -1,5 +1,6 @@
 import Foundation
 import NetMonitorCore
+import NetworkScanKit
 import Testing
 @preconcurrency import UserNotifications
 @testable import NetMonitor_macOS
@@ -209,6 +210,32 @@ struct MacRuleAlertsTests {
         ))
 
         #expect(poster.requests.map(\.content.title) == ["Slow printer"])
+    }
+
+    /// #449: rules act on what the device and the user said, never on a model suggestion.
+    @Test func aSuggestedMakerDoesNotMatchAMakerCondition() {
+        let home = UUID()
+        let fixture = makeFixture([AlertRule(
+            name: "Printer offline",
+            trigger: .wentOffline,
+            conditions: AlertRuleConditions(maker: "brother", networkID: home)
+        )])
+        defer { fixture.defaults.removePersistentDomain(forName: fixture.suite) }
+        let row = LocalDevice(ipAddress: "10.0.0.40", macAddress: "AA:BB:CC:00:00:40", hostname: "printer.local")
+        row.mergeIdentity(DeviceIdentity(maker: IdentityValue("Brother", source: .modelSuggestion)))
+        let known = KnownDevice(
+            macAddress: "AA:BB:CC:00:00:40", ipAddress: "10.0.0.40", name: "printer.local",
+            firstSeen: Date(), lastSeen: Date()
+        )
+
+        fixture.alerts.handle(deviceChanges: [.wentOffline(known)], devices: [row], networkID: home)
+        #expect(row.maker == "Brother")
+        #expect(fixture.poster.requests.isEmpty)
+
+        // Once the user accepts it, the maker is theirs and the rule matches.
+        row.identity.maker = IdentityValue("Brother", source: .userConfirmed)
+        fixture.alerts.handle(deviceChanges: [.wentOffline(known)], devices: [row], networkID: home)
+        #expect(fixture.poster.requests.map(\.content.title) == ["Printer offline"])
     }
 
     @Test func twoTargetsOnTheSameHostCrossIndependently() {

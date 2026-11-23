@@ -384,15 +384,136 @@ struct DeviceDetailViewModelTests {
         nameResolver: any DeviceNameResolverProtocol = MockDeviceNameResolver(hostname: nil),
         portScanner: any PortScannerServiceProtocol = MockPortScannerService(),
         bonjourService: any BonjourDiscoveryServiceProtocol = MockBonjourDiscoveryService(),
-        deviceDiscoveryService: any DeviceDiscoveryServiceProtocol = MockDeviceDiscoveryService()
+        deviceDiscoveryService: any DeviceDiscoveryServiceProtocol = MockDeviceDiscoveryService(),
+        insight: MockInsightService = MockInsightService(isAvailable: false),
+        suggestionDefaults: UserDefaults = UserDefaults(suiteName: "DeviceDetailViewModelTests.\(UUID().uuidString)") ?? UserDefaults()
     ) -> DeviceDetailViewModel {
         DeviceDetailViewModel(
             macLookupService: macLookupService,
             nameResolver: nameResolver,
             portScanner: portScanner,
             bonjourService: bonjourService,
-            deviceDiscoveryService: deviceDiscoveryService
+            deviceDiscoveryService: deviceDiscoveryService,
+            suggester: DeviceSuggester(service: insight, store: DeviceSuggestionStore(defaults: suggestionDefaults))
         )
+    }
+
+    // MARK: - Identity suggestion (#449)
+
+    private func suggestingViewModel(
+        _ insight: MockInsightService,
+        discovery: MockDeviceDiscoveryService = MockDeviceDiscoveryService()
+    ) -> DeviceDetailViewModel {
+        makeViewModel(deviceDiscoveryService: discovery, insight: insight)
+    }
+
+    @Test func suggestionIsAppliedAfterLoad() async throws {
+        let (container, context) = try makeInMemoryStore()
+        defer { withExtendedLifetime(container) {} }
+        let insight = MockInsightService(suggestion: DeviceSuggestion(deviceType: .tv, maker: "Samsung", model: "Q80", confidence: .high))
+        let discovery = MockDeviceDiscoveryService()
+        discovery.discoveredDevices = [scannedNamed("192.168.1.90")]
+        let viewModel = suggestingViewModel(insight, discovery: discovery)
+
+        viewModel.loadDevice(ipAddress: "192.168.1.90", context: context)
+        await viewModel.suggestionTask?.value
+
+        #expect(insight.suggestionRequests.count == 1)
+        #expect(viewModel.isShowingSuggestion)
+        #expect(viewModel.suggestedType == .tv)
+        #expect(viewModel.device?.maker == "Samsung")
+        #expect(viewModel.device?.identity.maker?.source == .modelSuggestion)
+        // The type is held aside until the user accepts it.
+        #expect(viewModel.device?.deviceType == .unknown)
+    }
+
+    @Test func unavailableModelMakesNoCallAndShowsNothing() async throws {
+        let (container, context) = try makeInMemoryStore()
+        defer { withExtendedLifetime(container) {} }
+        let insight = MockInsightService(isAvailable: false, suggestion: DeviceSuggestion(maker: "Samsung", confidence: .high))
+        let discovery = MockDeviceDiscoveryService()
+        discovery.discoveredDevices = [scannedNamed("192.168.1.90")]
+        let viewModel = suggestingViewModel(insight, discovery: discovery)
+
+        viewModel.loadDevice(ipAddress: "192.168.1.90", context: context)
+        await viewModel.suggestionTask?.value
+
+        #expect(insight.suggestionRequests.isEmpty)
+        #expect(!viewModel.isShowingSuggestion)
+        #expect(viewModel.suggestedType == nil)
+    }
+
+    @Test func acceptStampsValuesAsUserConfirmedAndSetsType() async throws {
+        let (container, context) = try makeInMemoryStore()
+        defer { withExtendedLifetime(container) {} }
+        let insight = MockInsightService(suggestion: DeviceSuggestion(deviceType: .tv, maker: "Samsung", model: "Q80", confidence: .high))
+        let discovery = MockDeviceDiscoveryService()
+        discovery.discoveredDevices = [scannedNamed("192.168.1.90")]
+        let viewModel = suggestingViewModel(insight, discovery: discovery)
+        viewModel.loadDevice(ipAddress: "192.168.1.90", context: context)
+        await viewModel.suggestionTask?.value
+
+        viewModel.acceptSuggestion()
+
+        #expect(viewModel.device?.identity.maker == IdentityValue("Samsung", source: .userConfirmed))
+        #expect(viewModel.device?.identity.model == IdentityValue("Q80", source: .userConfirmed))
+        #expect(viewModel.device?.deviceType == .tv)
+        #expect(!viewModel.isShowingSuggestion)
+        #expect(viewModel.suggestedType == nil)
+    }
+
+    @Test func dismissRemovesSuggestionAndItStaysGoneOnNextLoad() async throws {
+        let (container, context) = try makeInMemoryStore()
+        defer { withExtendedLifetime(container) {} }
+        let insight = MockInsightService(suggestion: DeviceSuggestion(deviceType: .tv, maker: "Samsung", model: "Q80", confidence: .high))
+        let discovery = MockDeviceDiscoveryService()
+        discovery.discoveredDevices = [scannedNamed("192.168.1.90")]
+        let viewModel = suggestingViewModel(insight, discovery: discovery)
+        viewModel.loadDevice(ipAddress: "192.168.1.90", context: context)
+        await viewModel.suggestionTask?.value
+
+        viewModel.dismissSuggestion()
+        #expect(!viewModel.isShowingSuggestion)
+        #expect(viewModel.device?.maker == nil)
+        #expect(viewModel.device?.modelName == nil)
+
+        viewModel.loadDevice(ipAddress: "192.168.1.90", context: context)
+        await viewModel.suggestionTask?.value
+
+        #expect(insight.suggestionRequests.count == 1)
+        #expect(!viewModel.isShowingSuggestion)
+        #expect(viewModel.device?.maker == nil)
+        #expect(viewModel.suggestedType == nil)
+    }
+
+    @Test func scanValueFromHigherSourceReplacesSuggestion() async throws {
+        let (container, context) = try makeInMemoryStore()
+        defer { withExtendedLifetime(container) {} }
+        let insight = MockInsightService(suggestion: DeviceSuggestion(maker: "Samsung", model: "Q80", confidence: .high))
+        let discovery = MockDeviceDiscoveryService()
+        discovery.discoveredDevices = [scannedNamed("192.168.1.90")]
+        let viewModel = suggestingViewModel(insight, discovery: discovery)
+        viewModel.loadDevice(ipAddress: "192.168.1.90", context: context)
+        await viewModel.suggestionTask?.value
+        #expect(viewModel.device?.maker == "Samsung")
+
+        discovery.discoveredDevices = [
+            DiscoveredDevice(
+                ipAddress: "192.168.1.90", hostname: "livingroom-tv", vendor: nil, macAddress: nil,
+                latency: nil, discoveredAt: Date(), source: .local,
+                identity: DeviceIdentity(maker: IdentityValue("LG", source: .upnp), model: IdentityValue("OLED55", source: .upnp))
+            )
+        ]
+        viewModel.loadDevice(ipAddress: "192.168.1.90", context: context)
+        await viewModel.suggestionTask?.value
+
+        #expect(viewModel.device?.identity.maker == IdentityValue("LG", source: .upnp))
+        #expect(viewModel.device?.identity.model == IdentityValue("OLED55", source: .upnp))
+        #expect(!viewModel.isShowingSuggestion)
+    }
+
+    private func scannedNamed(_ ip: String) -> DiscoveredDevice {
+        DiscoveredDevice(ipAddress: ip, hostname: "livingroom-tv", vendor: nil, macAddress: nil, latency: nil, discoveredAt: Date(), source: .local)
     }
 
     private func makeInMemoryStore() throws -> (ModelContainer, ModelContext) {

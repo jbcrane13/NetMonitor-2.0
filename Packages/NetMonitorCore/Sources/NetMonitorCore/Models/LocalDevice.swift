@@ -138,6 +138,16 @@ public final class LocalDevice {
         identity.withoutSuggestions.resolvedMaker(macPrefixMaker: vendor)
     }
 
+    /// Whether the shown ``maker`` came from the on-device model (#449).
+    public var isMakerSuggested: Bool {
+        identity.winningMaker(macPrefixMaker: vendor)?.source == .modelSuggestion
+    }
+
+    /// Whether the shown model came from the on-device model (#449).
+    public var isModelSuggested: Bool {
+        identity.model?.source == .modelSuggestion
+    }
+
     public var formattedMacAddress: String {
         macAddress.uppercased()
     }

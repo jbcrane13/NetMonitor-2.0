@@ -287,7 +287,12 @@ private extension ProDeviceDetailView {
                 detailRow("Resolved", resolved, mono: true)
             }
             if let model = device.modelName, !model.isEmpty {
-                detailRow("Model", model, mono: true)
+                HStack(spacing: 4) {
+                    detailRow("Model", model, mono: true)
+                    if device.isModelSuggested {
+                        SuggestedMarker()
+                    }
+                }
             }
 
             Divider().padding(.vertical, 2)
@@ -305,13 +310,26 @@ private extension ProDeviceDetailView {
         VStack(alignment: .leading, spacing: 10) {
             sectionHeader("Hardware", icon: "cpu", loading: isLoadingVendor)
 
-            detailRow("Manufacturer", device.maker ?? "Unknown")
+            HStack(spacing: 4) {
+                detailRow("Manufacturer", device.maker ?? "Unknown")
+                if device.isMakerSuggested {
+                    SuggestedMarker()
+                }
+            }
             // The MAC prefix names the network chip's maker (Espressif, Murata), often not the
             // brand on the device (ADR-022).
             if let chipMaker = device.vendor, !chipMaker.isEmpty, chipMaker != device.maker {
                 detailRow("Network Chip", chipMaker)
             }
-            detailRow("Device Type", device.deviceType.rawValue.capitalized)
+            // A suggested type is shown, not written, until the user accepts it (#449).
+            if let suggestedType = coordinator?.suggestedType(for: device) {
+                HStack(spacing: 4) {
+                    detailRow("Device Type", suggestedType.rawValue.capitalized)
+                    SuggestedMarker()
+                }
+            } else {
+                detailRow("Device Type", device.deviceType.rawValue.capitalized)
+            }
 
             if !device.macAddress.isEmpty {
                 detailRow("OUI", String(device.macAddress.replacingOccurrences(of: ":", with: "").prefix(6)), mono: true)
@@ -319,6 +337,14 @@ private extension ProDeviceDetailView {
 
             detailRow("Wake-on-LAN", device.supportsWakeOnLan ? "Supported" : "No",
                        valueColor: device.supportsWakeOnLan ? MacTheme.Colors.success : MacTheme.Colors.labelSecondary)
+
+            // Hidden while editing: Done writes the picker's type over an accepted one.
+            if !isEditing, let coordinator, coordinator.isShowingSuggestion(device) {
+                DeviceSuggestionBar(
+                    onAccept: { coordinator.acceptSuggestion(for: device) },
+                    onDismiss: { coordinator.dismissSuggestion(for: device) }
+                )
+            }
 
             Divider().padding(.vertical, 2)
 
