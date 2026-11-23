@@ -91,11 +91,12 @@ struct SSLCertificateServiceIntegrationTests {
     @Test("issuer is the issuing CA's name, not 'Unknown'", .tags(.integration))
     func issuerIsExtracted() async throws {
         // The DER walker reads the issuer Name (CN, falling back to O); #468.
-        // Apple's exact CA name can change, so assert an Apple issuer rather than a fixed string.
+        // The live CA name can change, so only assert that one was parsed;
+        // SSLCertificateIssuerParsingTests checks exact names from fixtures.
         let service = SSLCertificateService()
         let info = try await service.checkCertificate(domain: "apple.com")
         #expect(info.issuer != "Unknown", "Issuer should be extracted, got '\(info.issuer)'")
-        #expect(info.issuer.contains("Apple"), "Expected an Apple CA issuer, got '\(info.issuer)'")
+        #expect(!info.issuer.isEmpty, "Issuer should not be empty")
     }
 
     // MARK: - Concurrent requests

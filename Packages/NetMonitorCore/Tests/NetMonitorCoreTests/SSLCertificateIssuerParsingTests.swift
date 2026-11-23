@@ -1,5 +1,5 @@
-import Foundation
 import Testing
+import Foundation
 @testable import NetMonitorCore
 
 /// Issuer extraction from real certificate DER bytes (#468).
