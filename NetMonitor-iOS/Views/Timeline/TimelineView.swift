@@ -72,6 +72,11 @@ struct TimelineView: View {
             LazyVStack(spacing: 0, pinnedViews: .sectionHeaders) {
                 ForEach(viewModel.groupedEvents, id: \.label) { group in
                     Section {
+                        if let summary = viewModel.summary(for: group.label) {
+                            TimelineDaySummary(summary: summary, label: group.label)
+                                .padding(.horizontal, Theme.Layout.screenPadding)
+                                .padding(.bottom, Theme.Layout.itemSpacing)
+                        }
                         VStack(spacing: 1) {
                             ForEach(group.events) { event in
                                 TimelineEventRow(event: event)
@@ -81,14 +86,7 @@ struct TimelineView: View {
                         .padding(.horizontal, Theme.Layout.screenPadding)
                         .padding(.bottom, Theme.Layout.itemSpacing)
                     } header: {
-                        Text(group.label)
-                            .font(.caption)
-                            .fontWeight(.semibold)
-                            .foregroundStyle(Theme.Colors.textSecondary)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal, Theme.Layout.screenPadding)
-                            .padding(.vertical, 6)
-                            .liquidGlassBackground()
+                        sectionHeader(group.label)
                     }
                 }
             }
@@ -96,6 +94,29 @@ struct TimelineView: View {
             .padding(.bottom, Theme.Layout.sectionSpacing)
         }
         .accessibilityIdentifier("timeline_list_events")
+    }
+
+    private func sectionHeader(_ label: String) -> some View {
+        HStack {
+            Text(label)
+                .font(.caption)
+                .fontWeight(.semibold)
+                .foregroundStyle(Theme.Colors.textSecondary)
+            Spacer()
+            // Hidden where the on-device model is unavailable, and while a summary is on its way.
+            if viewModel.canSummarize, viewModel.summary(for: label) != .loading {
+                Button {
+                    Task { await viewModel.summarize(label) }
+                } label: {
+                    Label("Summarize", systemImage: "sparkles")
+                        .font(.caption.weight(.semibold))
+                }
+                .accessibilityIdentifier("timeline_button_summarize_\(label)")
+            }
+        }
+        .padding(.horizontal, Theme.Layout.screenPadding)
+        .padding(.vertical, 6)
+        .liquidGlassBackground()
     }
 
     private var emptyState: some View {
@@ -115,6 +136,40 @@ struct TimelineView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .accessibilityIdentifier("timeline_label_emptyState")
+    }
+}
+
+// MARK: - Day Summary (#453)
+
+private struct TimelineDaySummary: View {
+    let summary: TimelineViewModel.DaySummary
+    let label: String
+
+    var body: some View {
+        Group {
+            switch summary {
+            case .loading:
+                HStack(spacing: 8) {
+                    ProgressView().controlSize(.small)
+                    Text("Summarizing…")
+                        .font(.subheadline)
+                        .foregroundStyle(Theme.Colors.textSecondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityIdentifier("timeline_progress_summary_\(label)")
+            case let .finished(result):
+                ChangeSummaryView(summary: result, idPrefix: "timeline_summary_\(label)")
+            case .unavailable:
+                Text("Summary unavailable")
+                    .font(.subheadline)
+                    .foregroundStyle(Theme.Colors.textSecondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityIdentifier("timeline_label_summaryUnavailable_\(label)")
+            }
+        }
+        .glassCard()
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("timeline_card_summary_\(label)")
     }
 }
 

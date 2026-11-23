@@ -8,6 +8,9 @@ struct DashboardView: View {
     @State private var viewModel: DashboardViewModel
     @State private var healthViewModel = NetworkHealthScoreViewModel()
     @State private var lastHealthRefresh: Date?
+    @State private var changeBrief = ChangeBriefViewModel.dashboard
+    @Query(Self.savedDevicesDescriptor) private var savedDevices: [LocalDevice]
+    @Query(Self.recentSpeedTestsDescriptor) private var recentSpeedTests: [SpeedTestResult]
     // periphery:ignore
     @State private var isAddNetworkSheetPresented = false
 
@@ -73,6 +76,18 @@ struct DashboardView: View {
                         refreshHealthIfNeeded()
                     }
                 }
+                .task {
+                    await refreshChangeBrief()
+                }
+                .onChange(of: viewModel.isScanning) { wasScanning, isScanning in
+                    guard wasScanning, !isScanning else { return }
+                    Task {
+                        // EventListenerService logs the scan's joined and left devices on this
+                        // same change, from its own task; let it finish first.
+                        try? await Task.sleep(for: .seconds(1))
+                        await refreshChangeBrief()
+                    }
+                }
                 .onDisappear {
                     viewModel.stopAutoRefresh()
                 }
@@ -97,6 +112,36 @@ struct DashboardView: View {
         ))
     }
 
+    // MARK: - Since-yesterday brief (#453)
+
+    private static var savedDevicesDescriptor: FetchDescriptor<LocalDevice> {
+        var descriptor = FetchDescriptor<LocalDevice>()
+        descriptor.fetchLimit = 500
+        return descriptor
+    }
+
+    /// The brief compares the latest test with the one before it.
+    private static var recentSpeedTestsDescriptor: FetchDescriptor<SpeedTestResult> {
+        var descriptor = FetchDescriptor<SpeedTestResult>(sortBy: [SortDescriptor(\SpeedTestResult.timestamp, order: .reverse)])
+        descriptor.fetchLimit = 2
+        return descriptor
+    }
+
+    private func refreshChangeBrief() async {
+        let found = viewModel.discoveredDevices.filter { !$0.isCached }
+        let foundIPs = Set(found.map(\.ipAddress))
+        // Saved rows of other networks are neither found nor missing here.
+        let profileID = viewModel.activeNetwork?.id
+        let saved = savedDevices.filter { $0.networkProfileID == nil || $0.networkProfileID == profileID }
+        let names = Dictionary(saved.map { ($0.ipAddress, $0.displayName) }, uniquingKeysWith: { first, _ in first })
+        await changeBrief.refresh(
+            deviceNames: names,
+            speedTests: recentSpeedTests,
+            counts: ChangeDigestCounts(found: found.count, notFound: saved.count { !foundIPs.contains($0.ipAddress) }),
+            isScanning: viewModel.isScanning
+        )
+    }
+
     private func dashboardContent(width: CGFloat) -> some View {
         VStack(spacing: Theme.Layout.itemSpacing) {
             if !viewModel.isConnected {
@@ -104,6 +149,10 @@ struct DashboardView: View {
             }
 
             TacticalHUDHeader(viewModel: viewModel)
+
+            if let brief = changeBrief.brief {
+                ChangeBriefCard(brief: brief)
+            }
 
             if width > 900 {
                 // Wide: 3-column grid for metric cards
