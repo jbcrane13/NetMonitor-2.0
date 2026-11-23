@@ -41,11 +41,11 @@ struct SystemInsightService: InsightServiceProtocol {
         AsyncStream { continuation in
             let task = Task {
                 do {
-                    let session = LanguageModelSession(instructions: InsightRequest.instructions)
+                    let session = LanguageModelSession(instructions: request.kind.instructions)
                     var text = ""
                     // Greedy sampling: the same result gets the same explanation, and the model
                     // stays closest to the facts it was given.
-                    let options = GenerationOptions(sampling: .greedy, maximumResponseTokens: 220)
+                    let options = GenerationOptions(sampling: .greedy, maximumResponseTokens: request.kind.responseTokenLimit)
                     for try await snapshot in session.streamResponse(to: request.prompt, options: options) {
                         text = snapshot.content
                         continuation.yield(.partial(text))

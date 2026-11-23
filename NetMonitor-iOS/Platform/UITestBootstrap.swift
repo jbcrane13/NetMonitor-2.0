@@ -1,5 +1,8 @@
 import Foundation
 import NetMonitorCore
+import PDFKit
+import SwiftData
+import UIKit
 
 @MainActor
 enum UITestBootstrap {
@@ -74,5 +77,56 @@ enum UITestBootstrap {
         defaults.set(true, forKey: AppSettings.Keys.newDeviceAlertEnabled)
         defaults.set("dark", forKey: AppSettings.Keys.selectedTheme)
         defaults.set("cyan", forKey: AppSettings.Keys.selectedAccentColor)
+    }
+
+    // MARK: - PDF report fixtures (#453)
+
+    /// The insight service a UI test picks with `UITEST_INSIGHT`: "answer" answers every
+    /// request at once with `reportSummaryAnswer`, "unavailable" is never available. Nil
+    /// (use the real service) otherwise and outside UI tests.
+    static var insightService: (any InsightServiceProtocol)? {
+        guard isUITesting else { return nil }
+        switch ProcessInfo.processInfo.environment["UITEST_INSIGHT"] {
+        case "answer": return FixedAnswerInsightService(answer: reportSummaryAnswer)
+        case "unavailable": return UnavailableInsightService()
+        default: return nil
+        }
+    }
+
+    /// States no number, so it stays grounded whatever the seeded devices' status becomes.
+    static let reportSummaryAnswer = "The app recorded the devices on this network; the key points above say what needs attention."
+
+    /// With `UITEST_SEED_REPORT=1`, adds devices to the (in-memory) UI-test store so the
+    /// report has something to summarize; one is offline, which gives a key point.
+    static func seedReportDataIfNeeded(in context: ModelContext) {
+        guard isUITesting, ProcessInfo.processInfo.environment["UITEST_SEED_REPORT"] == "1", !hasSeededReport else { return }
+        hasSeededReport = true
+        context.insert(LocalDevice(ipAddress: "192.168.1.1", macAddress: "AA:BB:CC:00:00:01", customName: "UITest Router", isGateway: true))
+        context.insert(LocalDevice(ipAddress: "192.168.1.20", macAddress: "AA:BB:CC:00:00:02", customName: "UITest Laptop"))
+        context.insert(LocalDevice(ipAddress: "192.168.1.30", macAddress: "AA:BB:CC:00:00:03", customName: "UITest Printer", status: .offline))
+        try? context.save()
+    }
+
+    private static var hasSeededReport = false
+
+    /// The first page of an exported report, as an image and its text, for the UI-test
+    /// preview in Settings: the share sheet doesn't show the PDF's pages.
+    static func reportPreview(of data: Data) -> (image: UIImage, text: String, pageCount: Int)? {
+        guard isUITesting, let document = PDFDocument(data: data), let page = document.page(at: 0) else { return nil }
+        let image = page.thumbnail(of: CGSize(width: 612, height: 792), for: .mediaBox)
+        return (image, page.string ?? "", document.pageCount)
+    }
+}
+
+/// Answers every request at once with a fixed text (UI tests only).
+private struct FixedAnswerInsightService: InsightServiceProtocol {
+    let answer: String
+    var isAvailable: Bool { true }
+
+    func explain(_ request: InsightRequest) -> AsyncStream<InsightUpdate> {
+        AsyncStream { continuation in
+            continuation.yield(.finished(answer))
+            continuation.finish()
+        }
     }
 }

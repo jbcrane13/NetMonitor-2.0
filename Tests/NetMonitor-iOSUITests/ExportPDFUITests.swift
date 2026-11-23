@@ -3,23 +3,6 @@ import XCTest
 @MainActor
 final class ExportPDFUITests: IOSUITestCase {
 
-    private func openSettings() {
-        requireExists(
-            app.tabBars.buttons["Dashboard"],
-            message: "Dashboard tab should exist"
-        ).tap()
-
-        let settingsButton = app.buttons["dashboard_button_settings"]
-        if settingsButton.waitForExistence(timeout: 3) {
-            settingsButton.tap()
-        } else {
-            // Fallback for nav button label mismatch across OS versions.
-            requireExists(app.navigationBars.buttons.firstMatch, message: "A navigation bar button should exist for settings").tap()
-        }
-
-        requireExists(ui("screen_settings"), timeout: 8, message: "Settings screen should open")
-    }
-
     func testPDFExportButtonExistsInSettings() {
         openSettings()
 
@@ -58,7 +41,7 @@ final class ExportPDFUITests: IOSUITestCase {
         // We accept any of these as a valid success outcome; if none appear the app must at
         // minimum remain on the settings screen without crashing.
         let shareSheetAppeared =
-            app.otherElements["ActivityListView"].waitForExistence(timeout: 5) ||
+            app.otherElements["ActivityListView"].waitForExistence(timeout: 25) ||
             app.sheets.firstMatch.waitForExistence(timeout: 3) ||
             app.navigationBars["sharing"].waitForExistence(timeout: 3)
 
@@ -89,7 +72,7 @@ final class ExportPDFUITests: IOSUITestCase {
 
         // Dismiss share sheet if one appeared
         let shareSheetAppeared =
-            app.otherElements["ActivityListView"].waitForExistence(timeout: 5) ||
+            app.otherElements["ActivityListView"].waitForExistence(timeout: 25) ||
             app.sheets.firstMatch.waitForExistence(timeout: 3)
 
         if shareSheetAppeared {
@@ -107,10 +90,113 @@ final class ExportPDFUITests: IOSUITestCase {
             "PDF export button should still exist after share sheet is dismissed"
         )
     }
+}
 
-    // MARK: - Helpers
+// MARK: - Shared steps
 
-    private func ui(_ id: String) -> XCUIElement {
+private extension IOSUITestCase {
+    func openSettings() {
+        requireExists(
+            app.tabBars.buttons["Dashboard"],
+            message: "Dashboard tab should exist"
+        ).tap()
+
+        let settingsButton = app.buttons["dashboard_button_settings"]
+        if settingsButton.waitForExistence(timeout: 3) {
+            settingsButton.tap()
+        } else {
+            // Fallback for nav button label mismatch across OS versions.
+            requireExists(app.navigationBars.buttons.firstMatch, message: "A navigation bar button should exist for settings").tap()
+        }
+
+        requireExists(ui("screen_settings"), timeout: 8, message: "Settings screen should open")
+    }
+
+    func ui(_ id: String) -> XCUIElement {
         app.descendants(matching: .any)[id]
+    }
+
+    /// Taps Export Full Report as PDF, waits for the share sheet (the summary may take up to
+    /// 20 s), attaches a screenshot of it and dismisses it.
+    func exportReportAndDismissShareSheet() {
+        let button = ui("export_button_pdf")
+        scrollToElement(button)
+        requireExists(button, timeout: 8, message: "PDF export button should exist").tap()
+
+        let shareSheet = app.otherElements["ActivityListView"]
+        requireExists(shareSheet, timeout: 30, message: "The share sheet should open with the exported report")
+        // Let the sheet finish presenting before it is screenshotted or dismissed.
+        _ = app.buttons["Close"].waitForExistence(timeout: 3)
+        keepScreenshot(app.screenshot(), named: "share-sheet")
+        for _ in 0 ..< 3 where shareSheet.exists {
+            if app.buttons["Close"].exists {
+                app.buttons["Close"].tap()
+            } else {
+                shareSheet.swipeDown(velocity: .fast)
+            }
+            _ = waitForDisappearance(shareSheet, timeout: 3)
+        }
+        XCTAssertFalse(shareSheet.exists, "The share sheet should close")
+    }
+
+    /// The exported report's first page, shown in Settings in UI tests only.
+    func reportFirstPage() -> XCUIElement {
+        let preview = ui("settings_debug_reportFirstPage")
+        scrollToElement(preview, maxSwipes: 8)
+        requireExists(preview, timeout: 5, message: "Settings should show the exported report's first page")
+        // Scroll the whole page clear of the floating tab bar, so its screenshot is readable.
+        let tabBar = app.tabBars.firstMatch
+        for _ in 0 ..< 4 where tabBar.exists && preview.frame.maxY > tabBar.frame.minY {
+            app.collectionViews.firstMatch.swipeUp(velocity: .slow)
+        }
+        return preview
+    }
+
+    func keepScreenshot(_ screenshot: XCUIScreenshot, named name: String) {
+        let attachment = XCTAttachment(screenshot: screenshot)
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+}
+
+// MARK: - Executive summary (#453)
+
+/// The model answers: the exported report opens with the Executive Summary page.
+@MainActor
+final class ExportPDFSummaryUITests: IOSUITestCase {
+    override var additionalLaunchEnvironment: [String: String] {
+        ["UITEST_INSIGHT": "answer", "UITEST_SEED_REPORT": "1"]
+    }
+
+    func testExportedReportStartsWithTheExecutiveSummary() {
+        openSettings()
+        exportReportAndDismissShareSheet()
+
+        let page = reportFirstPage()
+        keepScreenshot(page.screenshot(), named: "executive-summary-page")
+        XCTAssertTrue(page.label.contains("Executive Summary"), "First page: \(page.label)")
+        XCTAssertTrue(page.label.contains("Written by the on-device model"), "First page: \(page.label)")
+        XCTAssertTrue(page.label.contains("the key points above say what needs attention"), "First page: \(page.label)")
+        XCTAssertTrue(page.label.contains("device is offline") || page.label.contains("devices are offline"), "First page: \(page.label)")
+    }
+}
+
+/// The model is unavailable: the export still succeeds, without a summary page.
+@MainActor
+final class ExportPDFNoModelUITests: IOSUITestCase {
+    override var additionalLaunchEnvironment: [String: String] {
+        ["UITEST_INSIGHT": "unavailable", "UITEST_SEED_REPORT": "1"]
+    }
+
+    func testExportWithoutTheModelHasNoSummaryPage() {
+        openSettings()
+        exportReportAndDismissShareSheet()
+
+        let page = reportFirstPage()
+        keepScreenshot(page.screenshot(), named: "report-first-page-no-model")
+        XCTAssertFalse(page.label.contains("Executive Summary"), "First page: \(page.label)")
+        XCTAssertTrue(page.label.contains("Discovered Devices"), "First page: \(page.label)")
+        XCTAssertTrue(page.label.contains("UITest Printer") || page.label.contains("192.168.1.30"), "First page: \(page.label)")
     }
 }

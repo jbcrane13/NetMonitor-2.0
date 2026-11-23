@@ -19,17 +19,39 @@ public enum PDFReportGenerator {
 
     // MARK: - Public API
 
+    /// The model-written summary that opens a report, and the app's key points it was
+    /// written from (#453).
+    public struct ExecutiveSummary: Equatable, Sendable {
+        /// The generated paragraph.
+        public let text: String
+        /// The judgements the app computed, shown word for word above the paragraph.
+        public let keyPoints: [String]
+
+        public init(text: String, keyPoints: [String]) {
+            self.text = text
+            self.keyPoints = keyPoints
+        }
+    }
+
     /// Generates a full network PDF report from provided data arrays.
+    /// - Parameter executiveSummary: when given, an Executive Summary page comes first;
+    ///   without it the report has no such page.
     /// - Returns: PDF data, or nil if rendering fails.
     public static func generateNetworkReport(
         devices: [LocalDevice],
         toolResults: [ToolResult],
-        speedTests: [SpeedTestResult]
+        speedTests: [SpeedTestResult],
+        executiveSummary: ExecutiveSummary? = nil
     ) -> Data? {
         let bounds = CGRect(x: 0, y: 0, width: pageWidth, height: pageHeight)
         let renderer = UIGraphicsPDFRenderer(bounds: bounds)
 
         return renderer.pdfData { ctx in
+            if let executiveSummary {
+                ctx.beginPage()
+                drawExecutiveSummary(executiveSummary, y: drawHeader())
+                drawFooter()
+            }
             ctx.beginPage()
             var y = drawHeader()
             y = drawSummary(devices: devices, speedTests: speedTests, y: y)
@@ -83,6 +105,45 @@ public enum PDFReportGenerator {
             at: CGPoint(x: margin, y: pageHeight - 28),
             withAttributes: attrs
         )
+    }
+
+    // MARK: - Executive Summary Page
+
+    private static func drawExecutiveSummary(_ summary: ExecutiveSummary, y: CGFloat) {
+        var cursor = drawSectionTitle("Executive Summary", y: y)
+        let bodyAttrs: [NSAttributedString.Key: Any] = [
+            .font: UIFont.systemFont(ofSize: 11),
+            .foregroundColor: UIColor.black
+        ]
+        for point in summary.keyPoints {
+            "•".draw(at: CGPoint(x: margin, y: cursor), withAttributes: bodyAttrs)
+            cursor = drawWrapped(point, x: margin + 14, y: cursor, width: contentWidth - 14, attributes: bodyAttrs) + 4
+        }
+        if !summary.keyPoints.isEmpty {
+            cursor += sectionGap - 4
+        }
+
+        let noteAttrs: [NSAttributedString.Key: Any] = [
+            .font: UIFont.italicSystemFont(ofSize: 8),
+            .foregroundColor: UIColor.gray
+        ]
+        let note = "Written by the on-device model from the figures in this report"
+        cursor = drawWrapped(note, x: margin, y: cursor, width: contentWidth, attributes: noteAttrs) + 4
+        _ = drawWrapped(summary.text, x: margin, y: cursor, width: contentWidth, attributes: bodyAttrs)
+    }
+
+    /// Draws `text` wrapped to `width` and returns the y below it.
+    private static func drawWrapped(_ text: String, x: CGFloat, y: CGFloat, width: CGFloat, attributes: [NSAttributedString.Key: Any]) -> CGFloat {
+        let options: NSStringDrawingOptions = [.usesLineFragmentOrigin, .usesFontLeading]
+        let size = (text as NSString).boundingRect(
+            with: CGSize(width: width, height: .greatestFiniteMagnitude),
+            options: options,
+            attributes: attributes,
+            context: nil
+        ).size
+        let height = ceil(size.height)
+        (text as NSString).draw(with: CGRect(x: x, y: y, width: width, height: height), options: options, attributes: attributes, context: nil)
+        return y + height
     }
 
     // MARK: - Summary Section
@@ -236,7 +297,9 @@ public enum PDFReportGenerator {
         while !result.isEmpty, (result as NSString).size(withAttributes: attrs).width > maxWidth {
             result = String(result.dropLast())
         }
-        if result.count < string.count { result += "…" }
+        if result.count < string.count {
+            result += "…"
+        }
         return result
     }
 
