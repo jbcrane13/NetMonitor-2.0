@@ -129,6 +129,25 @@ struct ChangeBriefViewModelTests {
         #expect(viewModel.brief?.text == "A camera joined the network.")
     }
 
+    @Test func aNewSpeedTestAsksAgain() async {
+        let insight = MockInsightService()
+        let viewModel = makeViewModel(insight)
+        let earlier = SpeedTestResult(downloadSpeed: 300, uploadSpeed: 20, latency: 12)
+        earlier.timestamp = Date().addingTimeInterval(-3600)
+        let first = Task { await viewModel.refresh(deviceNames: [:], speedTests: [earlier], counts: counts, isScanning: false) }
+        await waitUntil { insight.requests.count == 1 }
+        insight.send(.finished("The download speed was 300 Mbps."))
+        await first.value
+        let latest = SpeedTestResult(downloadSpeed: 80, uploadSpeed: 10, latency: 12)
+
+        let second = Task { await viewModel.refresh(deviceNames: [:], speedTests: [latest, earlier], counts: counts, isScanning: false) }
+        await waitUntil { insight.requests.count == 2 }
+        insight.send(.finished("The download speed fell."), to: 1)
+        await second.value
+
+        #expect(insight.requests.count == 2)
+    }
+
     @Test func noChangesAsksNothing() async {
         let insight = MockInsightService()
         let viewModel = makeViewModel(insight)

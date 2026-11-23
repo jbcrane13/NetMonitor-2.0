@@ -61,7 +61,8 @@ struct DashboardView: View {
                 }
                 .refreshable {
                     await viewModel.refresh(forceIP: true)
-                    await refreshChangeBrief()
+                    // Not awaited: the spinner shouldn't wait for the model.
+                    Task { await refreshChangeBrief() }
                 }
                 .task {
                     viewModel.refreshAvailableNetworks()
