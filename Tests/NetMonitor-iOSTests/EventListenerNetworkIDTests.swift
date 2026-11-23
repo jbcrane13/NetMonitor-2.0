@@ -65,8 +65,8 @@ struct SavedDeviceLookupTests {
         context.insert(row)
         try context.save()
 
-        let found = SavedDeviceLookup(context: context).row(
-            for: scanned("192.168.1.10", mac: "AA:BB:CC:DD:EE:00", hostname: "uitest-device-0"), networkProfileID: networkA
+        let found = SavedDeviceLookup(context: context).snapshot(networkProfileID: networkA).row(
+            for: scanned("192.168.1.10", mac: "AA:BB:CC:DD:EE:00", hostname: "uitest-device-0")
         )
 
         #expect(found?.id == row.id)
