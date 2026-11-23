@@ -4,7 +4,7 @@ import Testing
 import NetMonitorCore
 
 /// An event log over a plain array, so a 20,000-event set loads without 20,000 `log` calls.
-private final class ArrayEventService: NetworkEventServiceProtocol, @unchecked Sendable {
+private final class MockArrayEventService: NetworkEventServiceProtocol, @unchecked Sendable {
     var stored: [NetworkEvent]
     private(set) var rangeQueries: [(Date, Date)] = []
     init(_ events: [NetworkEvent] = []) { stored = events }
@@ -39,13 +39,13 @@ struct TimelineMacViewModelTests {
 
     private var now: Date { date(11, 23, 10) }
 
-    private func makeVM(_ service: ArrayEventService) -> TimelineMacViewModel {
+    private func makeVM(_ service: MockArrayEventService) -> TimelineMacViewModel {
         let now = now
         return TimelineMacViewModel(service: service, calendar: calendar, now: { now })
     }
 
-    private func seeded() -> ArrayEventService {
-        ArrayEventService([
+    private func seeded() -> MockArrayEventService {
+        MockArrayEventService([
             NetworkEvent(type: .deviceJoined, timestamp: date(11, 23, 9), title: "Joined today"),
             NetworkEvent(type: .scanComplete, timestamp: date(11, 23, 8), title: "Scan today"),
             NetworkEvent(type: .deviceJoined, timestamp: date(11, 20), title: "Joined 3 days ago"),
@@ -132,7 +132,7 @@ struct TimelineMacViewModelTests {
 
     @Test("Clear All stays offered while the log has events outside the range")
     func logHasEventsOutsideTheRange() {
-        let vm = makeVM(ArrayEventService([
+        let vm = makeVM(MockArrayEventService([
             NetworkEvent(type: .deviceLeft, timestamp: date(11, 13), title: "Left 10 days ago")
         ]))
         vm.selectedRange = .today
@@ -156,7 +156,7 @@ struct TimelineMacViewModelTests {
     @Test("20,000 events load and group within the bound")
     func twentyThousandEvents() {
         let now = now
-        let service = ArrayEventService((0 ..< 20_000).map { index in
+        let service = MockArrayEventService((0 ..< 20_000).map { index in
             NetworkEvent(type: .deviceJoined, timestamp: now.addingTimeInterval(-Double(index) * 60), title: "e\(index)")
         })
         let vm = makeVM(service)

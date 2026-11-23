@@ -69,4 +69,7 @@ expect "$("$AX" notext "Delete all network events?" 5)" "no text" "Cancel didn't
 "$AX" pressin timeline_picker_range All
 expect "$("$AX" text "UITest Event 10 Days Ago" 5)" "found text" "Cancel lost the event outside the range"
 expect "$("$AX" text "Device Joined: uitest-printer" 3)" "found text" "Cancel lost the scan's join"
+for shot in today all after-scan clear-confirm; do
+  [[ -s $OUT/s3-timeline-$shot.png ]] || fail "screenshot s3-timeline-$shot.png was not written"
+done
 echo PASS

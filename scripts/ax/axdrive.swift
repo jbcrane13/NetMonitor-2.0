@@ -278,8 +278,10 @@ case "capture-in":
         exit(1)
     }
     CGImageDestinationAddImage(dest, cropped, nil)
-    CGImageDestinationFinalize(dest)
     try? FileManager.default.removeItem(atPath: full)
+    guard CGImageDestinationFinalize(dest) else { print("NOWRITE \(args[3])")
+        exit(1)
+    }
     print("captured \(args[2]) to \(args[3])")
 case "ids":
     print(allIDs().joined(separator: "\n"))
