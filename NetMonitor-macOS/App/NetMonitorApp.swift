@@ -304,9 +304,7 @@ struct NetMonitorApp: App {
         let httpService = HTTPMonitorService()
         let icmpService = ICMPMonitorService()
         let tcpService = TCPMonitorService()
-        let profileManager = NetworkProfileManager(
-            userDefaults: NetworkProfileDefaults.make(arguments: ProcessInfo.processInfo.arguments)
-        )
+        let profileManager = NetworkProfileManager(userDefaults: NetworkProfileDefaults.launchDefaults)
         networkProfileManager = profileManager
         monitoringSession = MonitoringSession(
             modelContext: context,
@@ -385,6 +383,10 @@ struct NetMonitorApp: App {
 /// every launch, so networks a UI test adds never reach the user's list or the next launch.
 enum NetworkProfileDefaults {
     static let uiTestSuite = "netmonitor.uitest.networkProfiles"
+
+    /// This launch's defaults, made once per process. Setup reruns when the main window is
+    /// recreated, and that must not empty the suite again mid-launch.
+    @MainActor static let launchDefaults = make(arguments: ProcessInfo.processInfo.arguments)
 
     static func make(arguments: [String], uiTestSuite: String = Self.uiTestSuite) -> UserDefaults {
         guard arguments.contains("--uitesting") else { return .standard }

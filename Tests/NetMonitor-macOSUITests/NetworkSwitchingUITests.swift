@@ -170,6 +170,13 @@ final class NetworkSwitchingUITests: MacOSUITestCase {
     /// #346: UI-test launches keep networks in their own suite, emptied at launch, so a network
     /// added in one launch is gone after a relaunch and only the local network is listed.
     func testAddedNetworkDoesNotSurviveRelaunch() {
+        let rows = app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier BEGINSWITH 'sidebar_row_network'")
+        )
+        XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: 5),
+                      "Networks section should list the local network before adding one")
+        let localCount = rows.count
+
         addNetwork(gateway: "10.34.6.1", subnet: "10.34.6.0/24", name: "Relaunch Test Network")
         XCTAssertTrue(sidebarRow(named: "Relaunch Test Network").waitForExistence(timeout: 3),
                       "New network should appear in sidebar")
@@ -179,11 +186,12 @@ final class NetworkSwitchingUITests: MacOSUITestCase {
         XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 10),
                       "App main window should appear after relaunch")
 
-        let rows = app.descendants(matching: .any).matching(
-            NSPredicate(format: "identifier BEGINSWITH 'sidebar_row_network'")
-        )
         XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: 5),
                       "Networks section should list the local network after relaunch")
+        // Exactly the launch's local networks: no stale ones, and the local one still there.
+        XCTAssertEqual(rows.count, localCount, "Only the local network should be listed after relaunch")
+        let activeBadge = rows.matching(NSPredicate(format: "label == 'ACTIVE' OR value == 'ACTIVE'")).firstMatch
+        XCTAssertTrue(activeBadge.exists, "The local network should be listed and ACTIVE after relaunch")
         XCTAssertFalse(sidebarRow(named: "Relaunch Test Network").exists,
                        "A network added before relaunch should not come back")
         captureScreenshot(named: "346-sidebar-after-relaunch")
