@@ -26,12 +26,15 @@ final class DeviceIdentitySuggestionUITests: IOSUITestCase {
         let accept = element("deviceDetail_button_acceptSuggestion")
         scrollToElement(accept)
         accept.tap()
+        captureScreenshot(named: "DeviceDetail_IdentitySuggestion_AfterAcceptTap")
+        XCTAssertEqual(app.state, .runningForeground, "Accepting should keep the app in front")
 
         XCTAssertTrue(waitForDisappearance(badge, timeout: 5), "Accepting should remove the suggestion mark")
         XCTAssertTrue(app.staticTexts["Brother"].exists, "The accepted maker should stay")
         XCTAssertTrue(app.staticTexts["HL-L2350DW"].exists, "The accepted model should stay")
         XCTAssertTrue(app.staticTexts["Printer"].exists, "The accepted type should become the device's type")
         XCTAssertFalse(element("deviceDetail_button_acceptSuggestion").exists)
+        XCTAssertEqual(app.state, .runningForeground, "The app should still be in front")
         captureScreenshot(named: "DeviceDetail_IdentitySuggestion_Accepted")
     }
 

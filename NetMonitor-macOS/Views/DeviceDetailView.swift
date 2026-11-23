@@ -311,6 +311,8 @@ struct DeviceDetailView: View {
             }
         }
         .macGlassCard(cornerRadius: MacTheme.Layout.cardCornerRadius)
+        // Keeps the suggestion controls' own identifiers (#449).
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("deviceDetail_card_hardware")
     }
 
