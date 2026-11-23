@@ -13,6 +13,8 @@ struct SettingsView: View {
     @State private var exportFileURL: URL?
     /// True while the PDF report, and its model-written summary, are being prepared.
     @State private var isPreparingReport = false
+    /// UI tests only: the exported report's first page, which the share sheet doesn't show.
+    @State private var uiTestReportPreview: (image: UIImage, text: String, pageCount: Int)?
     // periphery:ignore
     @State private var showingPDFExport = false
     @State private var showingPairingSheet = false
@@ -253,6 +255,16 @@ struct SettingsView: View {
                     .accessibilityElement(children: .combine)
                     .accessibilityIdentifier("settings_progress_exportReport")
                 }
+
+                if let preview = uiTestReportPreview {
+                    Image(uiImage: preview.image)
+                        .resizable()
+                        .scaledToFit()
+                        .accessibilityElement()
+                        .accessibilityLabel(Text(preview.text))
+                        .accessibilityValue(Text("\(preview.pageCount) pages"))
+                        .accessibilityIdentifier("settings_debug_reportFirstPage")
+                }
             } header: {
                 Text("Data Export")
                     .foregroundStyle(Theme.Colors.textSecondary)
@@ -434,9 +446,11 @@ struct SettingsView: View {
         guard let data = await DataExportService.exportFullReportAsPDF(
             devices: devices,
             toolResults: toolResults,
-            speedTests: speedTestResults
+            speedTests: speedTestResults,
+            insightService: UITestBootstrap.insightService ?? InsightService.shared
         ),
         let url = DataExportService.writeToTempFile(data: data, name: "netmonitor-report", ext: "pdf") else { return }
+        uiTestReportPreview = UITestBootstrap.reportPreview(of: data)
         exportFileURL = url
         showingExportSheet = true
     }

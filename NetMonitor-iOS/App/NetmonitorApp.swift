@@ -97,6 +97,7 @@ struct NetmonitorApp: App {
                 }
                 .onAppear {
                     UITestBootstrap.configureIfNeeded()
+                    UITestBootstrap.seedReportDataIfNeeded(in: sharedModelContainer.mainContext)
 
                     if Self.isUITesting || Self.persistenceOutcome.isDegraded {
                         return
