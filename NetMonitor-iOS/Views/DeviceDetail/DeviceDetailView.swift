@@ -330,7 +330,11 @@ struct DeviceDetailView: View {
         .glassCard()
         .accessibilityIdentifier("deviceDetail_section_services")
     }
+}
 
+// MARK: - Status, Actions and Notes
+
+extension DeviceDetailView {
     // MARK: - Status Section
 
     private func statusSection(_ device: LocalDevice) -> some View {
