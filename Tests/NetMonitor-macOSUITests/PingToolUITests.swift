@@ -6,7 +6,7 @@ final class PingToolUITests: MacOSUITestCase {
     override func setUpWithError() throws {
         try super.setUpWithError()
         navigateToSidebar("tools")
-        let card = app.otherElements["tools_card_ping"]
+        let card = ui("tools_card_ping").firstMatch
         requireExists(card, timeout: 3, message: "Ping tool card should exist")
         card.click()
     }
@@ -51,9 +51,10 @@ final class PingToolUITests: MacOSUITestCase {
         let closeButton = app.buttons["ping_button_close"]
         XCTAssertTrue(closeButton.waitForExistence(timeout: 3))
         closeButton.click()
+        XCTAssertTrue(waitForDisappearance(closeButton), "Sheet should close")
 
         // Sheet should dismiss, tool cards should be visible again
-        XCTAssertTrue(app.otherElements["tools_card_ping"].waitForExistence(timeout: 3))
+        XCTAssertTrue(ui("tools_card_ping").firstMatch.waitForExistence(timeout: 3))
     }
 
     func testTypeHostAndRun() {
@@ -167,9 +168,10 @@ final class PingToolUITests: MacOSUITestCase {
         let closeButton = app.buttons["ping_button_close"]
         XCTAssertTrue(closeButton.waitForExistence(timeout: 3))
         closeButton.click()
+        XCTAssertTrue(waitForDisappearance(closeButton), "Sheet should close")
 
         // After closing, the tools card list should be visible again
-        let pingCard = app.otherElements["tools_card_ping"]
+        let pingCard = ui("tools_card_ping").firstMatch
         XCTAssertTrue(pingCard.waitForExistence(timeout: 5),
                       "Tool card list should be visible after closing ping sheet")
     }

@@ -6,7 +6,7 @@ final class WHOISToolUITests: MacOSUITestCase {
     override func setUpWithError() throws {
         try super.setUpWithError()
         navigateToSidebar("tools")
-        let card = app.otherElements["tools_card_whois"]
+        let card = ui("tools_card_whois").firstMatch
         requireExists(card, timeout: 3, message: "WHOIS tool card should exist")
         card.click()
     }
@@ -44,7 +44,8 @@ final class WHOISToolUITests: MacOSUITestCase {
 
     func testCloseButtonDismissesSheet() {
         app.buttons["whois_button_close"].click()
-        XCTAssertTrue(app.otherElements["tools_card_whois"].waitForExistence(timeout: 3))
+        XCTAssertTrue(waitForDisappearance(app.buttons["whois_button_close"]), "Sheet should close")
+        XCTAssertTrue(ui("tools_card_whois").firstMatch.waitForExistence(timeout: 3))
     }
 
     func testPerformWHOISLookup() {

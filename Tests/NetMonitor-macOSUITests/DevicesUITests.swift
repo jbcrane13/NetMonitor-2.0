@@ -11,7 +11,7 @@ final class DevicesUITests: MacOSUITestCase {
     // MARK: - Detail Pane
 
     func testDevicesDetailExists() {
-        requireExists(app.otherElements["contentView_nav_devices"], timeout: 3,
+        requireExists(ui("contentView_nav_devices").firstMatch, timeout: 3,
                       message: "Devices detail pane should exist")
     }
 
@@ -129,19 +129,19 @@ final class DevicesUITests: MacOSUITestCase {
     // MARK: - Search
 
     func testSearchFieldExists() {
-        requireExists(app.otherElements["contentView_nav_devices"], timeout: 3,
+        requireExists(ui("contentView_nav_devices").firstMatch, timeout: 3,
                       message: "Devices detail pane should exist (search field is inside it)")
     }
 
     // MARK: - Empty State
 
     func testEmptyStateOrDeviceListShown() {
-        requireExists(app.otherElements["contentView_nav_devices"], timeout: 3,
+        requireExists(ui("contentView_nav_devices").firstMatch, timeout: 3,
                       message: "Devices detail pane should be visible")
     }
 
     func testSelectDevicePlaceholderExists() {
-        requireExists(app.otherElements["contentView_nav_devices"], timeout: 3,
+        requireExists(ui("contentView_nav_devices").firstMatch, timeout: 3,
                       message: "Devices detail pane should be visible")
     }
 }

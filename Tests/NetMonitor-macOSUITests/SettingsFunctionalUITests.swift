@@ -307,7 +307,7 @@ final class SettingsFunctionalUITests: MacOSUITestCase {
         }
 
         // Settings should still be visible
-        requireExists(app.otherElements["contentView_nav_settings"], timeout: 3,
+        requireExists(ui("contentView_nav_settings").firstMatch, timeout: 3,
                       message: "Settings detail should remain after cancelling Clear Data")
 
         captureScreenshot(named: "MacSettings_ClearDataConfirm")
@@ -423,7 +423,7 @@ final class SettingsFunctionalUITests: MacOSUITestCase {
         }
 
         // Settings should remain visible
-        requireExists(app.otherElements["contentView_nav_settings"], timeout: 3,
+        requireExists(ui("contentView_nav_settings").firstMatch, timeout: 3,
                       message: "Settings should remain visible after export interaction")
 
         captureScreenshot(named: "MacSettings_Export")

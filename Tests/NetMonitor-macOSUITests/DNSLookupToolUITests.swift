@@ -50,8 +50,9 @@ final class DNSLookupToolUITests: MacOSUITestCase {
     func testCloseButtonDismissesSheet() {
         openDNSLookup()
         app.buttons["dns_button_close"].click()
+        XCTAssertTrue(waitForDisappearance(app.buttons["dns_button_close"]), "Sheet should close")
         requireExists(
-            app.otherElements["tools_card_dns_lookup"],
+            ui("tools_card_dns_lookup").firstMatch,
             message: "Tool card should reappear after closing sheet"
         )
     }

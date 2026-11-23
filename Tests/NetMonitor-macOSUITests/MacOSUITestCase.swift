@@ -102,7 +102,7 @@ class MacOSUITestCase: XCTestCase {
         requireExists(sidebarItem, timeout: 5,
                       message: "Sidebar item sidebar_nav_\(section) should exist")
         sidebarItem.click()
-        requireExists(app.otherElements["contentView_nav_\(section)"], timeout: 5,
+        requireExists(ui("contentView_nav_\(section)").firstMatch, timeout: 5,
                       message: "Detail pane contentView_nav_\(section) should appear after selecting sidebar_\(section)")
     }
 
@@ -110,7 +110,7 @@ class MacOSUITestCase: XCTestCase {
     /// sheet opens by checking for a known element inside the sheet.
     func openTool(cardID: String, sheetElement: String) {
         navigateToSidebar("tools")
-        let card = app.otherElements[cardID]
+        let card = ui(cardID).firstMatch
         requireExists(card, timeout: 5, message: "Tool card \(cardID) should exist")
         card.click()
         requireExists(ui(sheetElement), timeout: 5,
@@ -123,7 +123,8 @@ class MacOSUITestCase: XCTestCase {
         let closeButton = app.buttons[closeButtonID]
         requireExists(closeButton, message: "Close button \(closeButtonID) should exist")
         closeButton.click()
-        requireExists(app.otherElements[cardID], timeout: 5,
+        XCTAssertTrue(waitForDisappearance(closeButton), "Sheet should close")
+        requireExists(ui(cardID).firstMatch, timeout: 5,
                       message: "Tool card \(cardID) should reappear after closing sheet")
     }
 }

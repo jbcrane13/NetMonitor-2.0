@@ -11,7 +11,7 @@ final class SettingsUITests: MacOSUITestCase {
     // MARK: - Settings Detail Pane
 
     func testSettingsDetailExists() {
-        requireExists(app.otherElements["contentView_nav_settings"], timeout: 3,
+        requireExists(ui("contentView_nav_settings").firstMatch, timeout: 3,
                       message: "Settings detail pane should exist")
     }
 
