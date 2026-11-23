@@ -5,12 +5,11 @@ import Testing
 @Suite("NetworkEventService persistence ordering")
 struct NetworkEventServicePersistenceTests {
     /// Concurrent log and prune calls must leave the saved list equal to the in-memory one, so a
-    /// newer event is never overwritten by an older snapshot (#395 review).
+    /// newer event is never overwritten by an older snapshot (#395 review, file store since #491).
     @Test func concurrentLogAndPruneKeepEveryNewEventPersisted() throws {
-        let suite = "NetworkEventServicePersistenceTests.\(UUID().uuidString)"
-        let storage = try #require(UserDefaults(suiteName: suite))
-        defer { storage.removePersistentDomain(forName: suite) }
-        let service = NetworkEventService(storage: storage)
+        let fixture = EventFileFixture()
+        defer { fixture.cleanUp() }
+        let service = NetworkEventService(fileURL: fixture.fileURL, debounce: 0.01)
         let now = Date()
         for index in 0..<50 {
             service.log(NetworkEvent(type: .deviceLeft, timestamp: now.addingTimeInterval(-30 * 86400), title: "old \(index)"))
@@ -24,9 +23,9 @@ struct NetworkEventServicePersistenceTests {
             }
         }
         service.removeEvents(olderThan: now.addingTimeInterval(-7 * 86400))
+        service.flush()
 
-        let data = try #require(storage.data(forKey: "com.netmonitor.networkEvents"))
-        let persisted = try JSONDecoder().decode([NetworkEvent].self, from: data)
+        let persisted = try JSONDecoder().decode([NetworkEvent].self, from: Data(contentsOf: fixture.fileURL))
         #expect(persisted.map(\.id) == service.events.map(\.id))
         #expect(Set(persisted.map(\.id)) == Set(newEvents.map(\.id)))
     }

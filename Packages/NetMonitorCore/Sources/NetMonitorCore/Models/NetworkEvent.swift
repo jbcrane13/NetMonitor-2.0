@@ -63,6 +63,12 @@ public struct NetworkEvent: Identifiable, Codable, Sendable {
     public let title: String
     public let details: String?
     public let severity: NetworkEventSeverity
+    /// The `LocalDevice.id` the event is about, when it maps to one (#491). Nil in events
+    /// written before #491 and for events that aren't about a device.
+    public let deviceID: UUID?
+    /// The `NetworkProfile.id` of the network the event happened on (#491). Nil in events
+    /// written before #491.
+    public let networkProfileID: UUID?
 
     public init(
         id: UUID = UUID(),
@@ -70,7 +76,9 @@ public struct NetworkEvent: Identifiable, Codable, Sendable {
         timestamp: Date = Date(),
         title: String,
         details: String? = nil,
-        severity: NetworkEventSeverity = .info
+        severity: NetworkEventSeverity = .info,
+        deviceID: UUID? = nil,
+        networkProfileID: UUID? = nil
     ) {
         self.id = id
         self.type = type
@@ -78,5 +86,7 @@ public struct NetworkEvent: Identifiable, Codable, Sendable {
         self.title = title
         self.details = details
         self.severity = severity
+        self.deviceID = deviceID
+        self.networkProfileID = networkProfileID
     }
 }
