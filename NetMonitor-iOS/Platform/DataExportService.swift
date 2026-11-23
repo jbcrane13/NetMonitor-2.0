@@ -28,15 +28,28 @@ enum DataExportService {
     // MARK: - PDF Report Export
 
     /// Generates a full-network PDF report combining devices, tool results, and speed tests.
+    /// Where the on-device model is available it first writes an executive summary from the
+    /// app's digest of the same records (#453); when it is unavailable, fails, takes longer
+    /// than `summaryTimeout` or states a number not in the digest, the report has no summary page.
+    @MainActor
     static func exportFullReportAsPDF(
         devices: [LocalDevice],
         toolResults: [ToolResult],
-        speedTests: [SpeedTestResult]
-    ) -> Data? {
-        PDFReportGenerator.generateNetworkReport(
+        speedTests: [SpeedTestResult],
+        insightService: any InsightServiceProtocol = InsightService.shared,
+        summaryTimeout: Duration = .seconds(20),
+        now: Date = Date()
+    ) async -> Data? {
+        var executiveSummary: PDFReportGenerator.ExecutiveSummary?
+        if let request = ReportSummaryBuilder.request(devices: devices, toolResults: toolResults, speedTests: speedTests, now: now),
+           let text = await InsightSummarizer.summary(for: request, service: insightService, timeout: summaryTimeout) {
+            executiveSummary = PDFReportGenerator.ExecutiveSummary(text: text, keyPoints: request.observations)
+        }
+        return PDFReportGenerator.generateNetworkReport(
             devices: devices,
             toolResults: toolResults,
-            speedTests: speedTests
+            speedTests: speedTests,
+            executiveSummary: executiveSummary
         )
     }
 

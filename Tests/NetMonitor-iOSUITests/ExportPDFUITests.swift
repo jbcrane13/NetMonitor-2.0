@@ -58,7 +58,7 @@ final class ExportPDFUITests: IOSUITestCase {
         // We accept any of these as a valid success outcome; if none appear the app must at
         // minimum remain on the settings screen without crashing.
         let shareSheetAppeared =
-            app.otherElements["ActivityListView"].waitForExistence(timeout: 5) ||
+            app.otherElements["ActivityListView"].waitForExistence(timeout: 25) ||
             app.sheets.firstMatch.waitForExistence(timeout: 3) ||
             app.navigationBars["sharing"].waitForExistence(timeout: 3)
 
@@ -89,7 +89,7 @@ final class ExportPDFUITests: IOSUITestCase {
 
         // Dismiss share sheet if one appeared
         let shareSheetAppeared =
-            app.otherElements["ActivityListView"].waitForExistence(timeout: 5) ||
+            app.otherElements["ActivityListView"].waitForExistence(timeout: 25) ||
             app.sheets.firstMatch.waitForExistence(timeout: 3)
 
         if shareSheetAppeared {

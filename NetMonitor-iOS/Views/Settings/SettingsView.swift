@@ -11,6 +11,8 @@ struct SettingsView: View {
     @State private var showingClearCacheAlert = false
     @State private var showingExportSheet = false
     @State private var exportFileURL: URL?
+    /// True while the PDF report, and its model-written summary, are being prepared.
+    @State private var isPreparingReport = false
     // periphery:ignore
     @State private var showingPDFExport = false
     @State private var showingPairingSheet = false
@@ -222,7 +224,7 @@ struct SettingsView: View {
                 }
 
                 Button {
-                    exportFullReportAsPDF()
+                    Task { await exportFullReportAsPDF() }
                 } label: {
                     HStack {
                         Label("Export Full Report as PDF", systemImage: "arrow.up.doc.fill")
@@ -238,7 +240,19 @@ struct SettingsView: View {
                             .clipShape(Capsule())
                     }
                 }
+                .disabled(isPreparingReport)
                 .accessibilityIdentifier("export_button_pdf")
+
+                if isPreparingReport {
+                    HStack(spacing: 8) {
+                        ProgressView()
+                        Text("Preparing report…")
+                            .font(.caption)
+                            .foregroundStyle(Theme.Colors.textSecondary)
+                    }
+                    .accessibilityElement(children: .combine)
+                    .accessibilityIdentifier("settings_progress_exportReport")
+                }
             } header: {
                 Text("Data Export")
                     .foregroundStyle(Theme.Colors.textSecondary)
@@ -410,11 +424,14 @@ struct SettingsView: View {
         .accessibilityIdentifier("screen_settings")
     }
 
-    private func exportFullReportAsPDF() {
+    private func exportFullReportAsPDF() async {
+        guard !isPreparingReport else { return }
+        isPreparingReport = true
+        defer { isPreparingReport = false }
         let devices = (try? modelContext.fetch(FetchDescriptor<LocalDevice>())) ?? []
         let toolResults = (try? modelContext.fetch(FetchDescriptor<ToolResult>())) ?? []
         let speedTestResults = (try? modelContext.fetch(FetchDescriptor<SpeedTestResult>())) ?? []
-        guard let data = DataExportService.exportFullReportAsPDF(
+        guard let data = await DataExportService.exportFullReportAsPDF(
             devices: devices,
             toolResults: toolResults,
             speedTests: speedTestResults
