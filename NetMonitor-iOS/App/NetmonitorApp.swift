@@ -10,7 +10,7 @@ struct NetmonitorApp: App {
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
     @State private var showOnboarding = false
     @State private var deepLinkRouter = DeepLinkRouter()
-    @State private var environment: AppEnvironment = .live()
+    @State private var environment: AppEnvironment
     @State private var speedTestScheduler: ScheduledSpeedTestRunner?
     @State private var networkChangeMonitor: LocalNetworkChangeMonitor?
     @Environment(\.scenePhase) private var scenePhase
@@ -63,9 +63,14 @@ struct NetmonitorApp: App {
     private var sharedModelContainer: ModelContainer { Self.persistenceOutcome.store }
 
     init() {
+        // Before `.live()` first loads `NetworkEventService.shared`, so a UI test's legacy
+        // events are in place to migrate (#491).
+        UITestBootstrap.prepareEventHistoryIfNeeded()
+        _environment = State(initialValue: .live())
         guard !Self.isUITesting else {
             // Before any view loads, so the dashboard's first brief sees the seeded events.
             UITestBootstrap.seedEventsIfNeeded()
+            UITestBootstrap.logTestEventIfRequested()
             return
         }
         BackgroundTaskService.shared.registerTasks()
@@ -155,6 +160,10 @@ struct NetmonitorApp: App {
                     // monitor, so check again whenever the app comes back.
                     if phase == .active {
                         networkChangeMonitor?.checkNow()
+                    }
+                    // Save events still waiting for the write debounce before iOS suspends the app (#491).
+                    if phase == .background {
+                        NetworkEventService.shared.flush()
                     }
                 }
         }

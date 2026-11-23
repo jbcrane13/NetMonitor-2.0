@@ -169,6 +169,43 @@ enum UITestBootstrap {
 
     private static var hasSeededEvents = false
 
+    // MARK: - Event history migration fixtures (#491)
+
+    /// Titles of the two valid events in the `--seed-legacy-events` blob, newest first.
+    static let legacySeedTitles = ["Legacy: Device Joined: Old Printer", "Legacy: Scan Complete"]
+    /// Title of the blob's element that doesn't decode as an event; it must not appear.
+    static let legacyCorruptTitle = "Legacy: Corrupt element"
+
+    /// Runs before `NetworkEventService.shared` loads. A history reset also drops the legacy
+    /// UserDefaults events, so later UI tests don't migrate an earlier test's seed again.
+    /// `--seed-legacy-events` then stores the blob builds before #491 wrote: two events around
+    /// one corrupt element, for the migration test.
+    static func prepareEventHistoryIfNeeded() {
+        guard isUITesting else { return }
+        let defaults = UserDefaults.standard
+        let key = NetworkEventService.legacyDefaultsKey
+        if HistoryFileLocation.current.resetRequested {
+            defaults.removeObject(forKey: key)
+        }
+        guard ProcessInfo.processInfo.arguments.contains("--seed-legacy-events") else { return }
+        let now = Date().timeIntervalSinceReferenceDate
+        let blob = """
+        [{"id":"\(UUID())","type":"deviceJoined","timestamp":\(now - 120),"title":"\(legacySeedTitles[0])","severity":"success"},
+        {"id":"not-a-uuid","type":"deviceJoined","title":"\(legacyCorruptTitle)"},
+        {"id":"\(UUID())","type":"scanComplete","timestamp":\(now - 180),"title":"\(legacySeedTitles[1])","severity":"info"}]
+        """
+        defaults.set(Data(blob.utf8), forKey: key)
+    }
+
+    /// `--log-test-event "<title>"` logs one event at launch and saves it at once, so a relaunch
+    /// can check it was kept.
+    static func logTestEventIfRequested() {
+        let args = ProcessInfo.processInfo.arguments
+        guard isUITesting, let flag = args.firstIndex(of: "--log-test-event"), args.indices.contains(flag + 1) else { return }
+        NetworkEventService.shared.log(type: .toolRun, title: args[flag + 1])
+        NetworkEventService.shared.flush()
+    }
+
     /// The first page of an exported report, as an image and its text, for the UI-test
     /// preview in Settings: the share sheet doesn't show the PDF's pages.
     static func reportPreview(of data: Data) -> (image: UIImage, text: String, pageCount: Int)? {

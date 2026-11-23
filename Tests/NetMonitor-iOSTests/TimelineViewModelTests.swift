@@ -25,6 +25,10 @@ private final class MockNetworkEventService: NetworkEventServiceProtocol, @unche
         mockEvents.filter { $0.timestamp >= start && $0.timestamp <= end }
     }
 
+    func removeEvents(olderThan cutoff: Date) {
+        mockEvents.removeAll { $0.timestamp < cutoff }
+    }
+
     func clearAll() {
         clearCallCount += 1
         mockEvents.removeAll()

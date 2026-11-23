@@ -29,6 +29,10 @@ final class SpyNetworkEventService: NetworkEventServiceProtocol, @unchecked Send
         loggedEvents.filter { $0.timestamp >= start && $0.timestamp <= end }
     }
 
+    func removeEvents(olderThan cutoff: Date) {
+        lock.withLock { _loggedEvents.removeAll { $0.timestamp < cutoff } }
+    }
+
     func clearAll() {
         lock.withLock { _loggedEvents.removeAll() }
     }

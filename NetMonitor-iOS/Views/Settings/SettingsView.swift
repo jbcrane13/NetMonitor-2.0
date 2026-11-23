@@ -323,6 +323,10 @@ struct SettingsView: View {
             } header: {
                 Text("Data & Privacy")
                     .foregroundStyle(Theme.Colors.textSecondary)
+            } footer: {
+                Text("Event history keeps up to the newest 20,000 events.")
+                    .foregroundStyle(Theme.Colors.textSecondary)
+                    .accessibilityIdentifier("settings_label_eventHistoryCeiling")
             }
             .listRowBackground(Theme.Colors.glassBackground)
 
