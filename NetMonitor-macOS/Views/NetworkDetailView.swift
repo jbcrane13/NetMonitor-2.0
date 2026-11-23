@@ -16,8 +16,6 @@ struct NetworkDetailView: View {
 
     @Query private var targets: [NetworkTarget]
 
-    /// Persists connectivity transitions and latency samples for this profile.
-    @State private var connectivityMonitor: ConnectivityMonitor?
     /// Computes uptime statistics from persisted records for display in ISPHealthCard.
     @State private var uptimeViewModel: UptimeViewModel?
     /// Shared by the health gauge and the Health Checks card so one refresh feeds both.
@@ -263,16 +261,8 @@ struct NetworkDetailView: View {
             }
         }
         .onAppear {
-            // Initialize connectivity monitoring and uptime stats if not yet set up.
-            // Only for the local network: pinging another network's gateway from here
-            // would record this Mac's connection under that network's history.
-            if connectivityMonitor == nil, Self.showsLiveDiagnostics(for: profile) {
-                let monitor = ConnectivityMonitor(
-                    profileID: profile.id,
-                    gatewayIP: profile.gatewayIP,
-                    modelContext: modelContext
-                )
-                connectivityMonitor = monitor
+            // Uptime stats for the local network. The app records its connectivity (#491 D8).
+            if uptimeViewModel == nil, Self.showsLiveDiagnostics(for: profile) {
                 let vm = UptimeViewModel(profileID: profile.id, modelContext: modelContext)
                 vm.load()
                 uptimeViewModel = vm
@@ -281,15 +271,6 @@ struct NetworkDetailView: View {
             if let session, !session.isMonitoring {
                 session.startMonitoring()
             }
-        }
-        .task(priority: .utility) {
-            // Starts NWPathMonitor and periodic latency sampling.
-            // Automatically cancelled when the view disappears.
-            await connectivityMonitor?.start()
-        }
-        .onDisappear {
-            // The path monitor outlives the cancelled task; stop it with the view.
-            connectivityMonitor?.stop()
         }
     }
 }

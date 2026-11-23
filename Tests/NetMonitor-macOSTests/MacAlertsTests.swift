@@ -298,7 +298,7 @@ struct DeviceDiscoveryNewDeviceHookTests {
         defer { defaults.removePersistentDomain(forName: suite) }
         coordinator.changeTracker = DeviceChangeTracker(defaults: defaults)
         var reported: [[String]] = []
-        coordinator.onDeviceChanges = { events in
+        coordinator.addDeviceChangeHandler { events, _ in
             let firstSeen = events.compactMap { event -> String? in
                 if case let .firstSeen(device) = event {
                     return device.ipAddress
@@ -374,7 +374,7 @@ struct DeviceDiscoveryNewDeviceHookTests {
         defer { defaults.removePersistentDomain(forName: suite) }
         coordinator.changeTracker = DeviceChangeTracker(defaults: defaults)
         var events: [DeviceChangeEvent] = []
-        coordinator.onDeviceChanges = { events += $0 }
+        coordinator.addDeviceChangeHandler { changes, _ in events += changes }
 
         coordinator.startScan()
         await waitUntil { !coordinator.isScanning }

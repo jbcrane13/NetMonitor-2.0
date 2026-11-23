@@ -22,7 +22,6 @@ import NetMonitorCore
 //        • NetworkProfileManager.profiles being updated propagates via
 //          first(where:) profile lookup — the lookup returns the updated value
 //        • UptimeViewModel starts in isLoading=true, then isLoading=false after load()
-//        • ConnectivityMonitor.isOnline defaults to true at init (before start())
 //
 // NOTE: NetworkDetailView.gatewayLatencyHistory is a private computed property.
 // The fallback chain is exercised by constructing the same conditions the view
@@ -395,70 +394,6 @@ struct NetworkDetailViewLifecycleTests {
                 "onAppear must not reset startTime when session is already monitoring")
 
         session.stopMonitoring()
-    }
-
-    // MARK: - onAppear: ConnectivityMonitor initialisation
-
-    @Test("onAppear initialises ConnectivityMonitor with correct profileID and gatewayIP")
-    func onAppearInitialisesConnectivityMonitor() throws {
-        let (container, context) = try makeStore()
-        _ = container
-
-        let profileID = UUID()
-        let profile = makeProfile(id: profileID, gatewayIP: "10.0.0.1")
-
-        // Simulate the .onAppear guard:
-        // if connectivityMonitor == nil { ... }
-        var connectivityMonitor: ConnectivityMonitor? = nil
-        if connectivityMonitor == nil {
-            connectivityMonitor = ConnectivityMonitor(
-                profileID: profile.id,
-                gatewayIP: profile.gatewayIP ?? "",
-                modelContext: context
-            )
-        }
-
-        let monitor = try #require(connectivityMonitor)
-        #expect(monitor.profileID == profileID,
-                "ConnectivityMonitor must be initialised with the correct profileID")
-        #expect(monitor.gatewayIP == "10.0.0.1",
-                "ConnectivityMonitor must be initialised with the profile's gatewayIP")
-        #expect(monitor.isOnline == true,
-                "ConnectivityMonitor defaults to isOnline=true before start() is called")
-    }
-
-    @Test("onAppear does not re-create ConnectivityMonitor on subsequent appears")
-    func onAppearConnectivityMonitorIsCreatedOnlyOnce() throws {
-        let (container, context) = try makeStore()
-        _ = container
-
-        let profile = makeProfile()
-        var connectivityMonitor: ConnectivityMonitor? = nil
-
-        // First appear
-        if connectivityMonitor == nil {
-            connectivityMonitor = ConnectivityMonitor(
-                profileID: profile.id,
-                gatewayIP: profile.gatewayIP ?? "",
-                modelContext: context
-            )
-        }
-        let firstInstance = connectivityMonitor
-
-        // Second appear (tab switch back, same view)
-        if connectivityMonitor == nil {
-            connectivityMonitor = ConnectivityMonitor(
-                profileID: profile.id,
-                gatewayIP: profile.gatewayIP ?? "",
-                modelContext: context
-            )
-        }
-
-        // ObjectIdentifier comparison — same object means the guard prevented re-creation.
-        let currentID = connectivityMonitor.map { ObjectIdentifier($0) }
-        let firstID = firstInstance.map { ObjectIdentifier($0) }
-        #expect(currentID == firstID,
-                "ConnectivityMonitor must not be re-created on subsequent onAppear calls")
     }
 
     // MARK: - onAppear: UptimeViewModel initialisation and load state

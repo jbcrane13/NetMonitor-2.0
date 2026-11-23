@@ -147,19 +147,22 @@ struct MacAlertDispatcherTests {
         )
         defer { withExtendedLifetime(container) {} }
         #expect(session.onTargetDown == nil)
-        #expect(coordinator.onDeviceChanges == nil)
+        #expect(coordinator.deviceChangeHandlers.isEmpty)
 
         fixture.dispatcher.attach(to: session, discovery: coordinator)
         session.onTargetDown?("Router", "192.0.2.1")
         session.onTargetResult?(fixture.outcome(up: true))
-        coordinator.onDeviceChanges?([fixture.newDevice])
+        // Alerts carry the scanned network's ID (the scan's effective profile), not whatever
+        // `networkProfile` is when the handler runs (#491).
+        let scannedNetwork = UUID()
+        coordinator.notifyDeviceChanges([fixture.newDevice], profileID: scannedNetwork)
 
         #expect(fixture.poster.categories == [
             NotificationService.targetDownCategory,
             NotificationService.targetRecoveredCategory,
             NotificationService.newDeviceCategory
         ])
-        #expect(fixture.poster.requests.last?.content.userInfo["networkID"] as? String == coordinator.networkProfile?.id.uuidString)
+        #expect(fixture.poster.requests.last?.content.userInfo["networkID"] as? String == scannedNetwork.uuidString)
     }
 
     @Test func attachMigratesTheLegacyTargetDownToggle() {
