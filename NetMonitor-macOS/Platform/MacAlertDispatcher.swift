@@ -14,11 +14,23 @@ final class MacAlertDispatcher {
     /// The coordinator whose devices and network ID each alert carries.
     private weak var discovery: DeviceDiscoveryCoordinator?
 
-    init(service: NotificationService, store: AlertRuleStore, defaults: UserDefaults = .standard) {
+    /// With `insightService`, alert bodies are worded by the on-device model (#453); rule
+    /// alerts keep the user's own text.
+    init(
+        service: NotificationService,
+        store: AlertRuleStore,
+        defaults: UserDefaults = .standard,
+        insightService: (any InsightServiceProtocol)? = nil
+    ) {
         self.defaults = defaults
         notifier = MacAlertNotifier(service: service, defaults: defaults)
         rules = MacRuleAlerts(store: store, service: service, defaults: defaults) { [weak self] in
             (self?.discovery?.discoveredDevices ?? [], self?.discovery?.networkProfile?.id)
+        }
+        if let insightService {
+            notifier.writer = NotificationTextWriter(service: insightService) { [weak self] in
+                self?.discovery?.isScanning ?? false
+            }
         }
     }
 
@@ -44,7 +56,7 @@ final class MacAlertDispatcher {
     }
 
     func devicesChanged(_ events: [DeviceChangeEvent], devices: [LocalDevice], networkID: UUID?) {
-        notifier.devicesChanged(events, networkID: networkID)
+        notifier.devicesChanged(events, devices: devices, networkID: networkID)
         rules?.handle(deviceChanges: events, devices: devices, networkID: networkID)
     }
 }

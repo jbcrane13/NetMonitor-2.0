@@ -275,7 +275,7 @@ struct NetMonitorApp: App {
                 }
             }
             // Target-down, recovery, latency, new-device and rule alerts (#403, #394, #486).
-            let dispatcher = MacAlertDispatcher(service: service, store: alertRuleStore)
+            let dispatcher = MacAlertDispatcher(service: service, store: alertRuleStore, insightService: InsightService.shared)
             alertDispatcher = dispatcher
             dispatcher.attach(to: monitoringSession, discovery: deviceDiscovery)
         }

@@ -24,6 +24,8 @@ private final class ReportInsightService: InsightServiceProtocol, @unchecked Sen
             continuation.finish()
         }
     }
+
+    func suggestIdentity(_ evidence: DeviceEvidence) async -> DeviceSuggestion? { nil }
 }
 
 /// Tests for PDFReportGenerator — verifies PDF output format and non-nil generation.
@@ -63,16 +65,14 @@ final class PDFReportGeneratorTests: XCTestCase {
         XCTAssertGreaterThan(data?.count ?? 0, 100, "PDF should have non-trivial size")
     }
 
-    func testGenerateReport_calledMultipleTimes_producesConsistentOutput() {
+    func testGenerateReport_calledMultipleTimes_producesConsistentOutput() throws {
         // Verify the generator is stateless (same input → same structure)
         let data1 = PDFReportGenerator.generateNetworkReport(devices: [], toolResults: [], speedTests: [])
         let data2 = PDFReportGenerator.generateNetworkReport(devices: [], toolResults: [], speedTests: [])
 
-        XCTAssertNotNil(data1)
-        XCTAssertNotNil(data2)
         // Both should be valid PDFs
-        let h1 = String(data: data1!.prefix(4), encoding: .ascii)
-        let h2 = String(data: data2!.prefix(4), encoding: .ascii)
+        let h1 = try String(data: XCTUnwrap(data1).prefix(4), encoding: .ascii)
+        let h2 = try String(data: XCTUnwrap(data2).prefix(4), encoding: .ascii)
         XCTAssertEqual(h1, "%PDF")
         XCTAssertEqual(h2, "%PDF")
     }

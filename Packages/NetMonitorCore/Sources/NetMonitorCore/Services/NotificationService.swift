@@ -72,6 +72,31 @@ public final class NotificationService {
         defaults.object(forKey: Keys.newDeviceAlertEnabled) as? Bool ?? true
     }
 
+    /// Whether each alert would be sent, so a caller words a body only for alerts that go out (#453).
+    public var isTargetDownAlertEnabled: Bool { Self.isTargetDownAlertEnabled(in: defaults) }
+    public var isNewDeviceAlertEnabled: Bool { Self.isNewDeviceAlertEnabled(in: defaults) }
+    public var isTargetRecoveryAlertEnabled: Bool { defaults.object(forKey: Self.targetRecoveryAlertKey) as? Bool ?? true }
+
+    /// The threshold `notifyHighLatency` alerts above, or nil when that alert is off.
+    public var highLatencyAlertThreshold: Int? {
+        guard defaults.object(forKey: Keys.highLatencyAlertEnabled) as? Bool ?? false else { return nil }
+        let threshold = defaults.integer(forKey: Keys.highLatencyThreshold)
+        return threshold > 0 ? threshold : 100
+    }
+
+    // MARK: - Generated text
+
+    /// The subtitle on an alert whose body the on-device model wrote (#453). The title stays
+    /// the app's own text.
+    nonisolated public static let generatedSubtitle = "Written on device"
+
+    /// Uses `generatedBody` instead of the fixed body, when there is one, and marks it.
+    private static func apply(_ generatedBody: String?, to content: UNMutableNotificationContent) {
+        guard let generatedBody else { return }
+        content.body = generatedBody
+        content.subtitle = generatedSubtitle
+    }
+
     // MARK: - Categories
 
     nonisolated public static let targetDownCategory  = "TARGET_DOWN"
@@ -145,12 +170,14 @@ public final class NotificationService {
 
     // MARK: - Target Down Alert
 
-    public func notifyTargetDown(name: String, host: String) {
+    /// `generatedBody` replaces the fixed body when the model wrote one (#453).
+    public func notifyTargetDown(name: String, host: String, generatedBody: String? = nil) {
         guard Self.isTargetDownAlertEnabled(in: defaults) else { return }
 
         let content = UNMutableNotificationContent()
         content.title = "Target Down"
         content.body = "\(name) (\(host)) is not responding"
+        Self.apply(generatedBody, to: content)
         content.sound = .default
         content.categoryIdentifier = Self.targetDownCategory
         content.userInfo = ["host": host, "name": name]
@@ -167,11 +194,12 @@ public final class NotificationService {
     // MARK: - Target Recovered Alert
 
     /// A monitored target answers again after being down (#445).
-    public func notifyTargetRecovered(name: String, host: String) {
-        guard defaults.object(forKey: Self.targetRecoveryAlertKey) as? Bool ?? true else { return }
+    public func notifyTargetRecovered(name: String, host: String, generatedBody: String? = nil) {
+        guard isTargetRecoveryAlertEnabled else { return }
         let content = UNMutableNotificationContent()
         content.title = "Target Recovered"
         content.body = "\(name) (\(host)) is responding again"
+        Self.apply(generatedBody, to: content)
         content.sound = .default
         content.categoryIdentifier = Self.targetRecoveredCategory
         content.userInfo = ["host": host, "name": name]
@@ -180,10 +208,11 @@ public final class NotificationService {
 
     /// A monitored target's latency rose above the Mac's threshold (#445). The caller decides
     /// when it crossed; this posts unconditionally.
-    public func notifyTargetLatency(name: String, host: String, latency: Double, thresholdMs: Int) {
+    public func notifyTargetLatency(name: String, host: String, latency: Double, thresholdMs: Int, generatedBody: String? = nil) {
         let content = UNMutableNotificationContent()
         content.title = "High Latency Detected"
         content.body = String(format: "%@ (%@) latency is %.0f ms (threshold: %d ms)", name, host, latency, thresholdMs)
+        Self.apply(generatedBody, to: content)
         content.sound = .default
         content.categoryIdentifier = Self.highLatencyCategory
         content.userInfo = ["host": host, "latency": latency]
@@ -192,17 +221,13 @@ public final class NotificationService {
 
     // MARK: - High Latency Alert
 
-    public func notifyHighLatency(host: String, latency: Double) {
-        guard defaults.object(forKey: Keys.highLatencyAlertEnabled) as? Bool ?? false else { return }
-
-        let threshold = defaults.integer(forKey: Keys.highLatencyThreshold)
-        let effectiveThreshold = threshold > 0 ? threshold : 100
-
-        guard latency > Double(effectiveThreshold) else { return }
+    public func notifyHighLatency(host: String, latency: Double, generatedBody: String? = nil) {
+        guard let effectiveThreshold = highLatencyAlertThreshold, latency > Double(effectiveThreshold) else { return }
 
         let content = UNMutableNotificationContent()
         content.title = "High Latency Detected"
         content.body = String(format: "%@ latency is %.0f ms (threshold: %d ms)", host, latency, effectiveThreshold)
+        Self.apply(generatedBody, to: content)
         content.sound = .default
         content.categoryIdentifier = Self.highLatencyCategory
         content.userInfo = ["host": host, "latency": latency]
@@ -219,7 +244,7 @@ public final class NotificationService {
     // MARK: - New Device Alert
 
     /// `networkID` is the network the device joined, for View Details (#478).
-    public func notifyNewDevice(ipAddress: String, hostname: String?, networkID: UUID? = nil) {
+    public func notifyNewDevice(ipAddress: String, hostname: String?, networkID: UUID? = nil, generatedBody: String? = nil) {
         guard Self.isNewDeviceAlertEnabled(in: defaults) else { return }
 
         let content = UNMutableNotificationContent()
@@ -229,6 +254,7 @@ public final class NotificationService {
         } else {
             content.body = "\(ipAddress) joined the network"
         }
+        Self.apply(generatedBody, to: content)
         content.sound = .default
         content.categoryIdentifier = Self.newDeviceCategory
         content.userInfo = Self.deviceUserInfo(ipAddress: ipAddress, networkID: networkID)

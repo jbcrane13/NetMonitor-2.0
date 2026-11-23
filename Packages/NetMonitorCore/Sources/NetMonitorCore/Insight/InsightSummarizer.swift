@@ -5,7 +5,8 @@ import Foundation
 public enum InsightSummarizer {
     /// The model's answer to `request`, or nil when it can't be used: the model is
     /// unavailable, fails, answers with nothing or with a cut-off sentence, takes longer than
-    /// `timeout`, or states a number that isn't in the request (`InsightGrounding`). Callers
+    /// `timeout`, states a number that isn't in the request (`InsightGrounding`), or contains a
+    /// link, email address, phone number or unstated domain (`InsightTextFilter`). Callers
     /// omit the summary on nil.
     /// A timed-out answer is cancelled.
     public static func summary(
@@ -36,11 +37,22 @@ public enum InsightSummarizer {
             return first
         }
         // An answer cut off by the token cap ends mid-sentence; it is dropped like any other.
-        guard let text = answer?.trimmingCharacters(in: .whitespacesAndNewlines),
+        guard let text = answer.map({ usable($0, for: request.kind) }),
               let last = text.last, ".!?".contains(last),
-              InsightGrounding.isGrounded(text, in: request)
+              InsightGrounding.isGrounded(text, in: request),
+              InsightTextFilter.isClean(text, in: request)
         else {
             return nil
+        }
+        return text
+    }
+
+    /// The part of `answer` that is checked and used. A notification body is one line: the
+    /// model sometimes goes on to recite its facts on further lines, and those are dropped.
+    static func usable(_ answer: String, for kind: InsightRequest.Kind) -> String {
+        var text = answer.trimmingCharacters(in: .whitespacesAndNewlines)
+        if kind == .notification, let firstLine = text.split(whereSeparator: \.isNewline).first {
+            text = firstLine.trimmingCharacters(in: .whitespaces)
         }
         return text
     }

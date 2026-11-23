@@ -177,12 +177,7 @@ final class MacRuleAlerts {
     private func subject(
         _ ip: String, _ mac: String?, _ name: String?, _ devices: [LocalDevice], _ networkID: UUID?
     ) -> AlertRuleSubject {
-        // A MAC identifies the row exactly; the IP is only a fallback for an event without one.
-        let row: LocalDevice? = if let mac, !mac.isEmpty {
-            devices.first { $0.macAddress.caseInsensitiveCompare(mac) == .orderedSame }
-        } else {
-            devices.first { $0.ipAddress == ip }
-        }
+        let row = Self.row(ip: ip, mac: mac, in: devices)
         return AlertRuleSubject(
             name: row?.displayName ?? name,
             ipAddress: ip,
@@ -191,6 +186,16 @@ final class MacRuleAlerts {
             maker: row?.makerExcludingSuggestions,
             networkID: networkID
         )
+    }
+
+    /// The network's row for an event's device, for display. A MAC identifies the row
+    /// exactly; the IP is only a fallback for an event without one.
+    static func row(ip: String, mac: String?, in devices: [LocalDevice]) -> LocalDevice? {
+        if let mac, !mac.isEmpty {
+            devices.first { $0.macAddress.caseInsensitiveCompare(mac) == .orderedSame }
+        } else {
+            devices.first { $0.ipAddress == ip }
+        }
     }
 
     static func detail(for event: AlertRuleEvent) -> String {
