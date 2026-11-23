@@ -41,10 +41,10 @@ public enum NotificationSummaryBuilder {
         let time = "Time: \(shortTime(now, calendar))"
         switch event {
         case let .newDevice(device):
-            let name = ReportSummaryBuilder.name(device.name)
+            let name = Self.name(device.name)
             var facts = ["Event: joined the network for the first time", "Device name: \(name)"]
             if let maker = device.maker, !maker.isEmpty {
-                facts.append("Maker: \(ReportSummaryBuilder.name(maker))")
+                facts.append("Maker: \(Self.name(maker))")
             }
             if let type = device.deviceType, type != .unknown {
                 facts.append("Device type: \(type.displayName)")
@@ -57,7 +57,7 @@ public enum NotificationSummaryBuilder {
                 kind: .notification
             )
         case let .targetDown(name, host):
-            let name = ReportSummaryBuilder.name(name)
+            let name = Self.name(name)
             return InsightRequest(
                 subject: "Not responding alert",
                 facts: ["Event: stopped responding", "Name: \(name)", "Address: \(host)", time],
@@ -65,7 +65,7 @@ public enum NotificationSummaryBuilder {
                 kind: .notification
             )
         case let .targetRecovered(name, host):
-            let name = ReportSummaryBuilder.name(name)
+            let name = Self.name(name)
             return InsightRequest(
                 subject: "Recovered alert",
                 facts: ["Event: responding again after not responding", "Name: \(name)", "Address: \(host)", time],
@@ -78,7 +78,7 @@ public enum NotificationSummaryBuilder {
             var facts = ["Event: latency above the alert threshold"]
             var label = host
             if let name {
-                let name = ReportSummaryBuilder.name(name)
+                let name = Self.name(name)
                 facts.append("Name: \(name)")
                 label = "\(name) (\(host))"
             }
@@ -90,6 +90,15 @@ public enum NotificationSummaryBuilder {
                 kind: .notification
             )
         }
+    }
+
+    /// Longest name or maker a request carries, so one value can't crowd out the rest.
+    static let nameLengthLimit = 40
+
+    /// A name on one line, capped.
+    static func name(_ text: String) -> String {
+        let flat = text.components(separatedBy: .newlines).joined(separator: " ")
+        return flat.count > nameLengthLimit ? flat.prefix(nameLengthLimit) + "…" : flat
     }
 
     static func shortTime(_ date: Date, _ calendar: Calendar) -> String {
