@@ -173,3 +173,136 @@ struct MacAlertDispatcherTests {
         #expect(fixture.poster.requests.isEmpty)
     }
 }
+
+// MARK: - Model-worded alert text (#453)
+
+/// Answers each request with its first key point, which is always grounded, and records it.
+private final class EchoInsightService: InsightServiceProtocol, @unchecked Sendable {
+    private let lock = NSLock()
+    private var received: [InsightRequest] = []
+    let isAvailable: Bool
+
+    init(isAvailable: Bool = true) {
+        self.isAvailable = isAvailable
+    }
+
+    var requests: [InsightRequest] { lock.withLock { received } }
+
+    func explain(_ request: InsightRequest) -> AsyncStream<InsightUpdate> {
+        lock.withLock { received.append(request) }
+        return AsyncStream { continuation in
+            continuation.yield(.finished("Model: " + (request.observations.first ?? "")))
+            continuation.finish()
+        }
+    }
+}
+
+@Suite("Mac alert text from the on-device model (#453)")
+@MainActor
+struct MacAlertTextTests {
+    let suite = "MacAlertTextTests.\(UUID().uuidString)"
+    var defaults: UserDefaults { UserDefaults(suiteName: suite) ?? .standard }
+
+    private func makeNotifier(_ insight: EchoInsightService, scanning: Bool = false) -> (MacAlertNotifier, RecordingPoster) {
+        let poster = RecordingPoster()
+        let writer = NotificationTextWriter(service: insight) { scanning }
+        return (MacAlertNotifier(service: NotificationService(poster: poster, defaults: defaults), defaults: defaults, writer: writer), poster)
+    }
+
+    func until(_ condition: () -> Bool) async {
+        for _ in 0 ..< 2000 where !condition() {
+            await Task.yield()
+        }
+    }
+
+    @Test func targetDownGetsModelBodyUnderTheFixedTitle() async {
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let (notifier, poster) = makeNotifier(EchoInsightService())
+
+        notifier.targetWentDown(name: "Router", host: "192.0.2.1")
+        await until { !poster.requests.isEmpty }
+
+        let content = poster.requests.first?.content
+        #expect(content?.title == "Target Down")
+        #expect(content?.subtitle == NotificationService.generatedSubtitle)
+        #expect(content?.body == "Model: Router (192.0.2.1) is not responding.")
+    }
+
+    @Test func unavailableModelKeepsFixedText() async {
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let insight = EchoInsightService(isAvailable: false)
+        let (notifier, poster) = makeNotifier(insight)
+
+        notifier.targetWentDown(name: "Router", host: "192.0.2.1")
+        await until { !poster.requests.isEmpty }
+
+        #expect(poster.requests.first?.content.body == "Router (192.0.2.1) is not responding")
+        #expect(poster.requests.first?.content.subtitle.isEmpty == true)
+        #expect(insight.requests.isEmpty)
+    }
+
+    @Test func midScanEventsKeepFixedText() async {
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let insight = EchoInsightService()
+        let (notifier, poster) = makeNotifier(insight, scanning: true)
+
+        notifier.targetWentDown(name: "Router", host: "192.0.2.1")
+        await until { !poster.requests.isEmpty }
+
+        #expect(poster.requests.first?.content.body == "Router (192.0.2.1) is not responding")
+        #expect(insight.requests.isEmpty)
+    }
+
+    @Test func newDeviceFactsComeFromTheNetworksRow() async {
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let insight = EchoInsightService()
+        let (notifier, poster) = makeNotifier(insight)
+        let row = LocalDevice(ipAddress: "192.0.2.9", macAddress: "AA:BB:CC:DD:EE:FF", hostname: "tv-1234", vendor: "Samsung", deviceType: .tv)
+        row.customName = "Living Room TV"
+
+        notifier.devicesChanged(
+            [.firstSeen(DeviceObservation(ipAddress: "192.0.2.9", macAddress: "aa:bb:cc:dd:ee:ff", name: "tv-1234"))],
+            devices: [row]
+        )
+        await until { !poster.requests.isEmpty }
+
+        let facts = insight.requests.first?.facts ?? []
+        #expect(facts.contains("Device name: Living Room TV"))
+        #expect(facts.contains("Maker: Samsung"))
+        #expect(facts.contains("Device type: TV"))
+        #expect(facts.contains("IP address: 192.0.2.9"))
+        #expect(poster.requests.first?.content.body == "Model: Living Room TV joined the network for the first time.")
+        #expect(poster.requests.first?.content.title == "New Device Detected")
+    }
+
+    @Test func aBurstOfNewDevicesWordsOnlyTheFirstThree() async {
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let insight = EchoInsightService()
+        let (notifier, poster) = makeNotifier(insight)
+        let events = (1 ... 5).map { DeviceChangeEvent.firstSeen(DeviceObservation(ipAddress: "192.0.2.\($0)", macAddress: nil, name: "dev\($0)")) }
+
+        notifier.devicesChanged(events)
+        await until { poster.requests.count == 5 }
+
+        #expect(insight.requests.count == NotificationTextWriter.burstLimit)
+        #expect(poster.requests.map(\.content.subtitle) == [
+            NotificationService.generatedSubtitle, NotificationService.generatedSubtitle, NotificationService.generatedSubtitle, "", ""
+        ])
+        #expect(poster.requests[3].content.body == "dev4 (192.0.2.4) joined the network")
+    }
+
+    @Test func disabledAlertNeverAsksTheModel() async {
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let insight = EchoInsightService()
+        let (notifier, poster) = makeNotifier(insight)
+        defaults.set(false, forKey: NotificationService.targetDownAlertKey)
+        defaults.set(false, forKey: NotificationService.newDeviceAlertKey)
+
+        notifier.targetWentDown(name: "Router", host: "192.0.2.1")
+        notifier.devicesChanged([.firstSeen(DeviceObservation(ipAddress: "192.0.2.9", macAddress: nil, name: "tv"))])
+        for _ in 0 ..< 100 { await Task.yield() }
+
+        #expect(poster.requests.isEmpty)
+        #expect(insight.requests.isEmpty)
+    }
+}

@@ -1,6 +1,9 @@
 import BackgroundTasks
 import Foundation
+import NetMonitorCore
+import NetworkScanKit
 import Testing
+@preconcurrency import UserNotifications
 @testable import NetMonitor_iOS
 
 // BGTaskScheduler itself is never exercised here: `submit` for an identifier with no registered
@@ -85,6 +88,93 @@ struct BackgroundTaskServiceTests {
 
         #expect(recorder.submitted.isEmpty, "submit must be refused until tasks are registered")
         #expect(recorder.cancelled.isEmpty)
+    }
+}
+
+// MARK: - Model-worded scan alerts (#453)
+
+@MainActor
+private final class ScanAlertPoster: NotificationRequestPosting {
+    private(set) var requests: [UNNotificationRequest] = []
+    func post(_ request: UNNotificationRequest) { requests.append(request) }
+}
+
+/// Answers every request with its first key point, prefixed, and counts requests.
+private final class KeyPointInsightService: InsightServiceProtocol, @unchecked Sendable {
+    private let lock = NSLock()
+    private var count = 0
+    let isAvailable: Bool
+    init(isAvailable: Bool) { self.isAvailable = isAvailable }
+    var requestCount: Int { lock.withLock { count } }
+
+    func explain(_ request: InsightRequest) -> AsyncStream<InsightUpdate> {
+        lock.withLock { count += 1 }
+        return AsyncStream { continuation in
+            continuation.yield(.finished("Model: " + (request.observations.first ?? "")))
+            continuation.finish()
+        }
+    }
+}
+
+@Suite("Scheduled scan alerts worded on device (#453)", .serialized)
+@MainActor
+struct ScheduledScanAlertTextTests {
+    let missing = DiscoveredDevice(
+        ipAddress: "192.168.1.41", hostname: "Garage Camera", vendor: nil, macAddress: nil,
+        latency: nil, discoveredAt: Date(), source: .local
+    )
+    let joined = DiscoveredDevice(
+        ipAddress: "192.168.1.57", hostname: "Pixel-8", vendor: "Google", macAddress: nil,
+        latency: nil, discoveredAt: Date(), source: .local
+    )
+
+    private func run(available: Bool, scanning: Bool = false) async -> ([UNNotificationRequest], Int) {
+        let keys = ["scheduledScan_notifyNew", "scheduledScan_notifyMissing"]
+        let originals = keys.map { UserDefaults.standard.object(forKey: $0) }
+        keys.forEach { UserDefaults.standard.set(true, forKey: $0) }
+        defer { zip(keys, originals).forEach { restoreDefault(.standard, key: $0, to: $1) } }
+        let suite = "ScheduledScanAlertTextTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite) ?? .standard
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        let poster = ScanAlertPoster()
+        let insight = KeyPointInsightService(isAvailable: available)
+        let service = BackgroundTaskService(
+            registerTask: { _, _, _ in false },
+            notifications: NotificationService(poster: poster, defaults: defaults),
+            insightService: insight,
+            isScanning: { scanning }
+        )
+        await service.notifyScanChanges(ScanDiff(newDevices: [joined], removedDevices: [missing], changedDevices: []))
+        return (poster.requests, insight.requestCount)
+    }
+
+    @Test func newAndMissingDevicesGetModelBodiesUnderFixedTitles() async {
+        let (requests, asked) = await run(available: true)
+        #expect(asked == 2)
+        #expect(requests.map(\.content.title) == ["New Device Detected", "Target Down"])
+        #expect(requests.map(\.content.body) == [
+            "Model: Pixel-8 joined the network for the first time.",
+            "Model: Garage Camera (192.168.1.41) is not responding."
+        ])
+        #expect(requests.allSatisfy { $0.content.subtitle == NotificationService.generatedSubtitle })
+    }
+
+    @Test func unavailableModelSendsTodaysText() async {
+        let (requests, asked) = await run(available: false)
+        #expect(asked == 0)
+        #expect(requests.map(\.content.body) == [
+            "Pixel-8 (192.168.1.57) joined the network",
+            "Garage Camera (192.168.1.41) is not responding"
+        ])
+        #expect(requests.allSatisfy { $0.content.subtitle.isEmpty })
+    }
+
+    @Test func noInferenceWhileAScanRuns() async {
+        let (requests, asked) = await run(available: true, scanning: true)
+        #expect(asked == 0)
+        #expect(requests.count == 2)
+        #expect(requests.allSatisfy { $0.content.subtitle.isEmpty })
     }
 }
 

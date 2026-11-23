@@ -25,6 +25,9 @@ final class BackgroundTaskService {
     private let submitTask: TaskSubmission
     private let cancelTask: TaskCancellation
     private var hasRegisteredTasks = false
+    private let notifications: NotificationService
+    /// Words alert bodies with the on-device model, or leaves them fixed (#453).
+    private let notificationWriter: NotificationTextWriter
 
     init(
         registerTask: @escaping TaskRegistration = { identifier, queue, launchHandler in
@@ -35,11 +38,32 @@ final class BackgroundTaskService {
             )
         },
         submitTask: @escaping TaskSubmission = { try BGTaskScheduler.shared.submit($0) },
-        cancelTask: @escaping TaskCancellation = { BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: $0) }
+        cancelTask: @escaping TaskCancellation = { BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: $0) },
+        notifications: NotificationService = .shared,
+        insightService: any InsightServiceProtocol = InsightService.shared,
+        isScanning: @escaping @MainActor () -> Bool = { DeviceDiscoveryService.shared.isScanning }
     ) {
         self.registerTask = registerTask
         self.submitTask = submitTask
         self.cancelTask = cancelTask
+        self.notifications = notifications
+        notificationWriter = NotificationTextWriter(service: insightService, isScanning: isScanning)
+    }
+
+    /// One alert waiting for its body: the event the model words, and how to post it.
+    typealias PendingAlert = (event: NotificationEvent, post: @MainActor (_ generatedBody: String?) -> Void)
+
+    /// Posts `alerts`, awaited so a background task doesn't end before they are sent. Bodies are
+    /// worded first (at most `NotificationTextWriter.timeout`) unless `wordBodies` is false,
+    /// as when the task is being cancelled.
+    func post(_ alerts: [PendingAlert], wordBodies: Bool = true) async {
+        guard !alerts.isEmpty else { return }
+        let bodies = wordBodies
+            ? await notificationWriter.bodies(for: alerts.map(\.event))
+            : Array(repeating: nil, count: alerts.count)
+        for (alert, body) in zip(alerts, bodies) {
+            alert.post(body)
+        }
     }
 
     /// Submits a request only once `registerTasks()` has run in this process.
@@ -200,8 +224,11 @@ final class BackgroundTaskService {
             Self.logger.debug("Gateway detected: \(gateway.ipAddress)")
 
             // Trigger high latency notification if above threshold
-            if let latency = gateway.latency {
-                NotificationService.shared.notifyHighLatency(host: gateway.ipAddress, latency: latency)
+            if let latency = gateway.latency, let threshold = notifications.highLatencyAlertThreshold, latency > Double(threshold) {
+                let host = gateway.ipAddress
+                await post([(.highLatency(name: nil, host: host, latencyMs: latency, thresholdMs: threshold), { [notifications] body in
+                    notifications.notifyHighLatency(host: host, latency: latency, generatedBody: body)
+                })], wordBodies: !taskCancelled)
             }
         } else {
             Self.logger.debug("No gateway detected")
@@ -336,6 +363,7 @@ final class BackgroundTaskService {
 
         Self.logger.info("Checking \(targets.count) monitoring target(s)")
 
+        var alerts: [PendingAlert] = []
         for target in targets {
             let wasOnline = target.isOnline
             let checkResult = await checkTarget(target)
@@ -344,17 +372,28 @@ final class BackgroundTaskService {
                 target.recordSuccess(latency: latency)
 
                 // Check for high latency
-                NotificationService.shared.notifyHighLatency(host: target.host, latency: latency)
+                if let threshold = notifications.highLatencyAlertThreshold, latency > Double(threshold) {
+                    let (name, host) = (target.name, target.host)
+                    alerts.append((.highLatency(name: name, host: host, latencyMs: latency, thresholdMs: threshold), { [notifications] body in
+                        notifications.notifyHighLatency(host: host, latency: latency, generatedBody: body)
+                    }))
+                }
             } else {
                 target.recordFailure()
 
                 // Notify if target just went down
                 if wasOnline && !target.isOnline {
                     Self.logger.warning("Target went down: \(target.name) (\(target.host))")
-                    NotificationService.shared.notifyTargetDown(name: target.name, host: target.host)
+                    if notifications.isTargetDownAlertEnabled {
+                        let (name, host) = (target.name, target.host)
+                        alerts.append((.targetDown(name: name, host: host), { [notifications] body in
+                            notifications.notifyTargetDown(name: name, host: host, generatedBody: body)
+                        }))
+                    }
                 }
             }
         }
+        await post(alerts)
 
         // Save context
         do {
@@ -511,19 +550,34 @@ final class BackgroundTaskService {
         let diff = ScanSchedulerService.shared.computeDiff(current: devices)
         Self.logger.info("Scan diff: \(diff.newDevices.count) new, \(diff.removedDevices.count) removed")
 
+        await notifyScanChanges(diff, wordBodies: !taskCancelled)
+    }
+
+    /// Alerts for a scheduled scan's new and missing devices, with the user's toggles applied.
+    /// The UI-test notification demo calls this too.
+    func notifyScanChanges(_ diff: ScanDiff, wordBodies: Bool = true) async {
         let notifyNew     = (UserDefaults.standard.object(forKey: "scheduledScan_notifyNew") as? Bool) ?? true
         let notifyMissing = (UserDefaults.standard.object(forKey: "scheduledScan_notifyMissing") as? Bool) ?? true
 
-        if notifyNew {
-            for device in diff.newDevices {
-                NotificationService.shared.notifyNewDevice(ipAddress: device.ipAddress, hostname: device.hostname)
+        var alerts: [PendingAlert] = []
+        if notifyNew, notifications.isNewDeviceAlertEnabled {
+            alerts += diff.newDevices.map { device in
+                let event = NotificationEvent.newDevice(
+                    NotificationDevice(name: device.displayName, ipAddress: device.ipAddress, maker: device.maker)
+                )
+                return (event, { [notifications] body in
+                    notifications.notifyNewDevice(ipAddress: device.ipAddress, hostname: device.hostname, generatedBody: body)
+                })
             }
         }
-        if notifyMissing {
-            for device in diff.removedDevices {
-                NotificationService.shared.notifyTargetDown(name: device.displayName, host: device.ipAddress)
+        if notifyMissing, notifications.isTargetDownAlertEnabled {
+            alerts += diff.removedDevices.map { device in
+                (.targetDown(name: device.displayName, host: device.ipAddress), { [notifications] body in
+                    notifications.notifyTargetDown(name: device.displayName, host: device.ipAddress, generatedBody: body)
+                })
             }
         }
+        await post(alerts, wordBodies: wordBodies)
     }
 
     private func httpCheck(target: MonitoringTarget) async -> Bool {

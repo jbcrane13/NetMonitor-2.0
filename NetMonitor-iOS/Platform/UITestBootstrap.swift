@@ -1,5 +1,6 @@
 import Foundation
 import NetMonitorCore
+import NetworkScanKit
 import PDFKit
 import SwiftData
 import UIKit
@@ -19,6 +20,7 @@ enum UITestBootstrap {
         applyDeterministicDefaults()
         TargetManager.shared.clearSelection()
         ToolActivityLog.shared.clear()
+        startNotificationDemoIfRequested()
     }
 
     static var isUITesting: Bool {
@@ -78,6 +80,38 @@ enum UITestBootstrap {
         defaults.set(true, forKey: AppSettings.Keys.newDeviceAlertEnabled)
         defaults.set("dark", forKey: AppSettings.Keys.selectedTheme)
         defaults.set("cyan", forKey: AppSettings.Keys.selectedAccentColor)
+    }
+
+    // MARK: - Notification demo (#453)
+
+    /// The device the notification demo reports missing.
+    static let demoDevice = DiscoveredDevice(
+        ipAddress: "192.168.1.41", hostname: "Garage Camera", vendor: nil, macAddress: nil,
+        latency: nil, discoveredAt: Date(), source: .local
+    )
+    /// What the demo's stand-in model writes for it: grounded in the alert's facts.
+    static let demoModelText = "Garage Camera (192.168.1.41) dropped off your network and is not answering."
+
+    /// `--uitesting-notification-demo`: asks for notification permission, then, once the app is
+    /// in the background, sends a scheduled scan's "device missing" alert through
+    /// `BackgroundTaskService.notifyScanChanges`, the path a real scan uses. A stand-in model
+    /// answers with `demoModelText`; `--uitesting-model-unavailable` makes it unavailable.
+    private static func startNotificationDemoIfRequested() {
+        let args = ProcessInfo.processInfo.arguments
+        guard args.contains("--uitesting-notification-demo") else { return }
+        let insight: any InsightServiceProtocol = args.contains("--uitesting-model-unavailable")
+            ? UnavailableInsightService()
+            : FixedAnswerInsightService(answer: demoModelText)
+        Task {
+            guard await NotificationService.shared.requestAuthorization() else { return }
+            while UIApplication.shared.applicationState != .background {
+                try? await Task.sleep(for: .milliseconds(200))
+            }
+            let backgroundTask = UIApplication.shared.beginBackgroundTask()
+            let service = BackgroundTaskService(registerTask: { _, _, _ in false }, insightService: insight, isScanning: { false })
+            await service.notifyScanChanges(ScanDiff(newDevices: [], removedDevices: [demoDevice], changedDevices: []))
+            UIApplication.shared.endBackgroundTask(backgroundTask)
+        }
     }
 
     // MARK: - PDF report fixtures (#453)
