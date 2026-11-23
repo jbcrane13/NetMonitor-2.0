@@ -61,6 +61,7 @@ struct DashboardView: View {
                 }
                 .refreshable {
                     await viewModel.refresh(forceIP: true)
+                    await refreshChangeBrief()
                 }
                 .task {
                     viewModel.refreshAvailableNetworks()
@@ -76,7 +77,8 @@ struct DashboardView: View {
                         refreshHealthIfNeeded()
                     }
                 }
-                .task {
+                // Also runs when a speed test is saved, such as a scheduled one.
+                .task(id: recentSpeedTests.first?.timestamp) {
                     await refreshChangeBrief()
                 }
                 .onChange(of: viewModel.isScanning) { wasScanning, isScanning in

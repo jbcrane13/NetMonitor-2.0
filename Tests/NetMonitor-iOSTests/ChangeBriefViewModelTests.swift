@@ -114,6 +114,21 @@ struct ChangeBriefViewModelTests {
         #expect(insight.requests.count == 1)
     }
 
+    @Test func aRequestCancelledByLeavingTheDashboardIsAskedAgain() async {
+        let insight = MockInsightService()
+        let viewModel = makeViewModel(insight)
+        logJoin("Camera")
+        let first = Task { await viewModel.refresh(deviceNames: [:], speedTests: [], counts: counts, isScanning: false) }
+        await waitUntil { insight.requests.count == 1 }
+        first.cancel()
+        await first.value
+
+        await refreshAnswering(viewModel, insight, with: .finished("A camera joined the network."), index: 1)
+
+        #expect(insight.requests.count == 2)
+        #expect(viewModel.brief?.text == "A camera joined the network.")
+    }
+
     @Test func noChangesAsksNothing() async {
         let insight = MockInsightService()
         let viewModel = makeViewModel(insight)

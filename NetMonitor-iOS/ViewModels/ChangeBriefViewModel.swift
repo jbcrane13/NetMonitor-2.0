@@ -78,6 +78,13 @@ final class ChangeBriefViewModel {
             return
         }
         let text = await InsightSummarizer.summary(for: request, service: service, timeout: timeout)
+        // Leaving the dashboard cancels its task; that is not an answer, so ask again next time.
+        if Task.isCancelled {
+            if lastRequest == .some(request) {
+                lastRequest = nil
+            }
+            return
+        }
         // A newer digest was asked about meanwhile; its answer decides.
         guard lastRequest == .some(request) else { return }
         brief = text.map { ChangeSummary(keyPoints: request.observations, text: $0) }
