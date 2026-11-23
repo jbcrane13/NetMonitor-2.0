@@ -20,11 +20,18 @@ struct NetworkDetailView: View {
     @State private var uptimeViewModel: UptimeViewModel?
     /// Shared by the health gauge and the Health Checks card so one refresh feeds both.
     @State private var healthViewModel = NetworkHealthScoreMacViewModel()
+    /// The "since yesterday" brief, shared so navigation keeps its cache (#491 S6). Not view state:
+    /// the app owns it, and the view only reads it.
+    private var changeBrief: ChangeBriefMacViewModel { ChangeBriefMacViewModel.dashboard }
 
     /// Shared diagnostics card stack used across all layout modes.
     /// WiFi Signal is 2nd so the live sparkline is visible without scrolling.
     private func diagnosticsStack(gap: CGFloat) -> some View {
         VStack(spacing: gap) {
+            if let brief = changeBrief.brief {
+                ChangeBriefCard(brief: brief)
+            }
+
             LatencyAnalysisCard(
                 session: session,
                 gatewayLatencyHistory: gatewayLatencyHistory
@@ -99,6 +106,14 @@ struct NetworkDetailView: View {
     private struct HealthRefreshKey: Equatable {
         let profileID: UUID
         let lastScanTime: Date?
+    }
+
+    /// What the brief depends on: the network, a finished scan (its events are recorded by then),
+    /// and the scan state, so a scan in progress asks nothing and its end asks again.
+    private struct BriefRefreshKey: Equatable {
+        let profileID: UUID
+        let lastScanTime: Date?
+        let isScanning: Bool
     }
 
     /// Gathers the Mac's own Wi-Fi and device readings, then refreshes the health score and checks.
@@ -196,6 +211,17 @@ struct NetworkDetailView: View {
         // device count, router and Wi-Fi rows don't go stale.
         .task(id: HealthRefreshKey(profileID: profile.id, lastScanTime: deviceDiscovery?.lastScanTime)) {
             await refreshHealth()
+        }
+        // On appear and after each scan. Scan-completed handlers, which record the scan's events, run
+        // before the coordinator publishes the end of the scan, so this sees them without waiting.
+        .task(id: BriefRefreshKey(
+            profileID: profile.id, lastScanTime: deviceDiscovery?.lastScanTime, isScanning: deviceDiscovery?.isScanning ?? false
+        )) {
+            await changeBrief.refresh(
+                devices: deviceDiscovery?.discoveredDevices ?? [],
+                networkProfileID: profile.id,
+                isScanning: deviceDiscovery?.isScanning ?? false
+            )
         }
     }
 

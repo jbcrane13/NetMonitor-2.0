@@ -155,6 +155,7 @@
 		4321BBA9DE3C8EC1C0F854F7 /* BackgroundTaskServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E0DC133D9C02DE0CEB0FF68 /* BackgroundTaskServiceTests.swift */; };
 		43224005F1DAA6CA62DC7826 /* PortScannerToolViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA00C4C5EBE0D3D8E1D9B806 /* PortScannerToolViewModelTests.swift */; };
 		43DA7BD66C476975075AFE97 /* PublicIPServiceContractTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46FE9035EA99D6AD179D894A /* PublicIPServiceContractTests.swift */; };
+		43E2D326FCE507F647A3292A /* ChangeBriefCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3A903EB33B5EF737899EA36 /* ChangeBriefCard.swift */; };
 		43F16FCFD10E6977A34D2DD3 /* DeviceDetailUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECD70966010AC545CDD84A3E /* DeviceDetailUITests.swift */; };
 		440037C2034642687BC2008D /* ToolSheetContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48BCFA31621CBE1AB7043B1E /* ToolSheetContainer.swift */; };
 		443BBA7B98165E5ADF205569 /* PortScannerToolViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83FE883399BD31C021DC7BEF /* PortScannerToolViewModel.swift */; };
@@ -297,6 +298,7 @@
 		8231D5C1C5D84A46D733F959 /* HeatmapSurveyViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CEF3108C4649D9983D9F89C0 /* HeatmapSurveyViewModelTests.swift */; };
 		82E49E2982B37766858F2A1D /* ShortcutsUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86ED939D42AAE689A270FBC7 /* ShortcutsUITests.swift */; };
 		8410DD01ADA2702E9FA8226E /* MacEventRecorderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF35F10CEFEBD5AC41580903 /* MacEventRecorderTests.swift */; };
+		84632F7B0F24000B2F302BDA /* ChangeBriefMacViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B665D8ABF36658786B122CE /* ChangeBriefMacViewModel.swift */; };
 		85EE6279FE466C8293D9C413 /* DeviceDetailViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91D34A17E8BFC3829CC161AA /* DeviceDetailViewModel.swift */; };
 		86BABB12476B7BDFBBFBCF1D /* LiveActivityManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C420F52BE76942C60D4925B /* LiveActivityManagerTests.swift */; };
 		86FE8D18DBF34FA6E7E7D5CD /* HistoryRetentionPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF72BEAB016437882E8467F2 /* HistoryRetentionPolicyTests.swift */; };
@@ -440,7 +442,6 @@
 		CB3F298A4E780DFE85570206 /* SubnetCalculatorToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 826B9ED849E6264EAE6F6B7D /* SubnetCalculatorToolView.swift */; };
 		CB722CCFB866BD5DC1E3B088 /* NotificationTextUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30E25954ACBF82046921BA3E /* NotificationTextUITests.swift */; };
 		CBE993278E07EF390593C763 /* IOSHeatmapServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 550E492206D0CFF70157703C /* IOSHeatmapServiceTests.swift */; };
-		CC17660F1339EE4D1DF1A17E /* ChangeSummary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52F725ED23861FF15EDFE384 /* ChangeSummary.swift */; };
 		CD3296C39EEED39B4AEF5FE1 /* EmptyStateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2318C9AFCEE31C60D3E14516 /* EmptyStateView.swift */; };
 		CD640A910ED328636DA0E7C4 /* ReadableFontSizeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62D5F38BA4C617E501C2DCB6 /* ReadableFontSizeTests.swift */; };
 		CEFD08671D1E06FEBD714AD1 /* HeatmapSurveyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EE6DAA8D618B3A85832866F /* HeatmapSurveyView.swift */; };
@@ -472,6 +473,7 @@
 		D7045D880D0EEAB388B04132 /* WorldPingToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCD97CE135CA42D41D9F1A8F /* WorldPingToolView.swift */; };
 		D742598F228AD6ABC3CE3519 /* WHOISToolViewModelExtendedTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E887E0CE88F2010495521830 /* WHOISToolViewModelExtendedTests.swift */; };
 		D7B92136748D0EA0AC447F41 /* EdgeCasesAndErrorStatesUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6EF38CEF0231AAE6BBD44A3 /* EdgeCasesAndErrorStatesUITests.swift */; };
+		D8337417D51CC3729B118318 /* ChangeBriefMacViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E0B6AC53AC984AD3B6FF1B6 /* ChangeBriefMacViewModelTests.swift */; };
 		D8A91810D82F55947DB6AE0B /* SchemaV2.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA267E28ED78FF7DAB435732 /* SchemaV2.swift */; };
 		D9024C06D6869E86C24C854E /* MacPairingUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA3B15479F5CBB23DFFDC05E /* MacPairingUITests.swift */; };
 		D958E2D0E1D99521492335B0 /* DNSLookupToolViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E26C9F931AD96DF31EB44C9A /* DNSLookupToolViewModel.swift */; };
@@ -777,6 +779,7 @@
 		4C420F52BE76942C60D4925B /* LiveActivityManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveActivityManagerTests.swift; sourceTree = "<group>"; };
 		4C4CBE5ECFC54F682779DB3A /* NetworkDetailViewUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkDetailViewUITests.swift; sourceTree = "<group>"; };
 		4D68137F84B2B0289094DB01 /* NetworkHealthScoreUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkHealthScoreUITests.swift; sourceTree = "<group>"; };
+		4E0B6AC53AC984AD3B6FF1B6 /* ChangeBriefMacViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChangeBriefMacViewModelTests.swift; sourceTree = "<group>"; };
 		4E608F81DA0D4B9CBDB79D37 /* WiFiReadingBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WiFiReadingBridge.swift; sourceTree = "<group>"; };
 		4E749A11BACE7815A3E1642E /* AlertRuleStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlertRuleStore.swift; sourceTree = "<group>"; };
 		4E9283B241BBF265DC019B4B /* DeviceCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceCardView.swift; sourceTree = "<group>"; };
@@ -791,7 +794,6 @@
 		51478B9F5A8A7517976C7AFA /* Logging.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Logging.swift; sourceTree = "<group>"; };
 		51B3599D2C2AFE8A2006E258 /* ISPCardViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ISPCardViewModelTests.swift; sourceTree = "<group>"; };
 		524CA21C98FB92D1F06ED1B2 /* ScanChangeAlertView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanChangeAlertView.swift; sourceTree = "<group>"; };
-		52F725ED23861FF15EDFE384 /* ChangeSummary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChangeSummary.swift; sourceTree = "<group>"; };
 		538520BBD9730D26FAD65479 /* PeriodicScanScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PeriodicScanScheduler.swift; sourceTree = "<group>"; };
 		53DCA7226E72436E142DB0FE /* ToolOutcomeUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolOutcomeUITests.swift; sourceTree = "<group>"; };
 		5464A172BCA9FDBB6E85362B /* GeoTraceUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeoTraceUITests.swift; sourceTree = "<group>"; };
@@ -802,6 +804,7 @@
 		5A15E0F456BE26E3DEA6E7B9 /* ToolInsightStrip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolInsightStrip.swift; sourceTree = "<group>"; };
 		5A25C5D0780F206AB35BE558 /* SidebarNavigationUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarNavigationUITests.swift; sourceTree = "<group>"; };
 		5AE1D8C5F900E64248573737 /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
+		5B665D8ABF36658786B122CE /* ChangeBriefMacViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChangeBriefMacViewModel.swift; sourceTree = "<group>"; };
 		5BF606A46526A7E9A6CBF658 /* WHOISToolUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WHOISToolUITests.swift; sourceTree = "<group>"; };
 		5D120A76A37530C1E2F3D67A /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
 		5D2F72063835C66822FD3B5F /* IOSScheduledSpeedTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSScheduledSpeedTest.swift; sourceTree = "<group>"; };
@@ -988,6 +991,7 @@
 		B2820EFAB1D56596F693468B /* TimelineSummaryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineSummaryTests.swift; sourceTree = "<group>"; };
 		B301F7F03474A826032059DB /* WorldPingToolViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorldPingToolViewModelTests.swift; sourceTree = "<group>"; };
 		B36F41C60900EB945E888E23 /* TracerouteToolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TracerouteToolView.swift; sourceTree = "<group>"; };
+		B3A903EB33B5EF737899EA36 /* ChangeBriefCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChangeBriefCard.swift; sourceTree = "<group>"; };
 		B41847F6534432C141EBCB89 /* GatewayLatencyFallbackTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GatewayLatencyFallbackTests.swift; sourceTree = "<group>"; };
 		B492B6D206C4A83BE984640B /* ConnectivityMonitorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectivityMonitorTests.swift; sourceTree = "<group>"; };
 		B4C66593DA429DA1FB792D1B /* IOSHeatmapService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSHeatmapService.swift; sourceTree = "<group>"; };
@@ -1287,7 +1291,6 @@
 				BDDA6904D162A74575EE323F /* BlueprintBuilder.swift */,
 				C5BC316F3DB96C6B180E0814 /* BonjourDiscoveryToolViewModel.swift */,
 				A5C85599B4C0D70201382408 /* ChangeBriefViewModel.swift */,
-				52F725ED23861FF15EDFE384 /* ChangeSummary.swift */,
 				7F7EC6402D2DF48B18A56FB6 /* DashboardViewModel.swift */,
 				91D34A17E8BFC3829CC161AA /* DeviceDetailViewModel.swift */,
 				E26C9F931AD96DF31EB44C9A /* DNSLookupToolViewModel.swift */,
@@ -1395,6 +1398,7 @@
 		2E63D37E9C6B73B603333623 /* ViewModels */ = {
 			isa = PBXGroup;
 			children = (
+				5B665D8ABF36658786B122CE /* ChangeBriefMacViewModel.swift */,
 				C3BCE242373C1C9239B66573 /* ConnectivityCardViewModel.swift */,
 				07117749C88319DCD01089B9 /* ISPCardViewModel.swift */,
 				926AB2C0DCBFD54EFD5480B8 /* UptimeViewModel.swift */,
@@ -1602,6 +1606,7 @@
 		81FA8CDA1031DD565B47AEBC /* Dashboard */ = {
 			isa = PBXGroup;
 			children = (
+				B3A903EB33B5EF737899EA36 /* ChangeBriefCard.swift */,
 				3F6D2120C3C1F97E4FB231D8 /* ConnectivityCard.swift */,
 				60506054E3B6091A343F09A1 /* DashboardModels.swift */,
 				4C1E13C18C3F7000692EBFC3 /* HealthChecklistCard.swift */,
@@ -2015,6 +2020,7 @@
 				BA99B879D32BE1A79C557AA6 /* AppearanceModeTests.swift */,
 				ED714BFBF69259A62EF490EA /* BandwidthMonitorServiceTests.swift */,
 				73097F8F710C2A27FD573CC4 /* BonjourDiscoveryServiceTests.swift */,
+				4E0B6AC53AC984AD3B6FF1B6 /* ChangeBriefMacViewModelTests.swift */,
 				902E1E2A42E01B90226266F6 /* CompanionMessageContractTests.swift */,
 				E072D9E2E408F809917169C0 /* CompanionMessageHandlerExtendedTests.swift */,
 				6AC7F633EA592CA1A5D2F95C /* CompanionMessageHandlerTests.swift */,
@@ -2483,6 +2489,8 @@
 				13DBA598522F97165DC48C0C /* BandwidthMonitorService.swift in Sources */,
 				699CF6B268AB30284754AF82 /* BonjourBrowserToolView.swift in Sources */,
 				8B0D11EA929C48359C321CA2 /* CardStateViews.swift in Sources */,
+				43E2D326FCE507F647A3292A /* ChangeBriefCard.swift in Sources */,
+				84632F7B0F24000B2F302BDA /* ChangeBriefMacViewModel.swift in Sources */,
 				A1B492604C75831BE7DA7BA0 /* CheckRetryPolicy.swift in Sources */,
 				9FF84B2FC67682AE1B9D9E52 /* CompanionMessageHandler.swift in Sources */,
 				DBF706693023362544495469 /* CompanionService.swift in Sources */,
@@ -2719,7 +2727,6 @@
 				87073AF5E1F7C32B62C3286E /* BonjourDiscoveryToolViewModel.swift in Sources */,
 				C58994DECC53CFC97CB9E3C5 /* ChangeBriefCard.swift in Sources */,
 				3B9E6CBCED4062BDD9098DDB /* ChangeBriefViewModel.swift in Sources */,
-				CC17660F1339EE4D1DF1A17E /* ChangeSummary.swift in Sources */,
 				3079EAFFA9DD213C9AE36CBA /* ChangeSummaryView.swift in Sources */,
 				0339F8A0415336098C06AF55 /* ConnectionSettingsSection.swift in Sources */,
 				34402C29A62FFE42C44A8B1D /* ContentView.swift in Sources */,
@@ -2845,6 +2852,7 @@
 				72542CEA548526C8566483DA /* AppearanceModeTests.swift in Sources */,
 				8DEBD7188452657834F7EFFF /* BandwidthMonitorServiceTests.swift in Sources */,
 				6FD68CF42F70560753F07042 /* BonjourDiscoveryServiceTests.swift in Sources */,
+				D8337417D51CC3729B118318 /* ChangeBriefMacViewModelTests.swift in Sources */,
 				FCC5D14634F9297C431DD2F7 /* CompanionMessageContractTests.swift in Sources */,
 				2490EF6A85B3B4EFE90C049F /* CompanionMessageHandlerExtendedTests.swift in Sources */,
 				2C31B4618B1DE11C3B4A5A96 /* CompanionMessageHandlerTests.swift in Sources */,

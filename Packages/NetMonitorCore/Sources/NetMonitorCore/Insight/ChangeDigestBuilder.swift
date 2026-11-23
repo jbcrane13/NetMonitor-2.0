@@ -34,12 +34,15 @@ public enum ChangeDigestBuilder {
     ///   - deviceNames: each saved device's name through the identity seam
     ///     (`LocalDevice.displayName`), by IP address. Events record only an IP or the label
     ///     the scan gave the device, so a device without a saved row keeps that label.
+    ///   - deviceNamesByID: the same names by `LocalDevice.id`, for events that carry a
+    ///     `deviceID` (#491). They win over `deviceNames`, and one ID counts as one device.
     public static func request(
         events: [NetworkEvent],
         from: Date,
         to: Date,
         filter: NetworkEventType? = nil,
         deviceNames: [String: String] = [:],
+        deviceNamesByID: [UUID: String] = [:],
         speedTests: [SpeedTestResult] = [],
         counts: ChangeDigestCounts? = nil,
         subject: String = "Network changes in the last 24 hours"
@@ -53,8 +56,12 @@ public enum ChangeDigestBuilder {
         guard !changes.isEmpty || speed != nil else { return nil }
         var facts: [String] = []
         var observations: [String] = []
-        addDevices(changes, type: .deviceJoined, names: deviceNames, facts: &facts, observations: &observations)
-        addDevices(changes, type: .deviceLeft, names: deviceNames, facts: &facts, observations: &observations)
+        let names = DeviceNames(byAddress: deviceNames, byID: deviceNamesByID)
+        let joins = changes.filter { $0.type == .deviceJoined }
+        let backOnline = joins.filter { $0.title.hasPrefix(backOnlinePrefix) }
+        addDevices(joins.filter { !$0.title.hasPrefix(backOnlinePrefix) }, kind: .joined, names: names, facts: &facts, observations: &observations)
+        addDevices(backOnline, kind: .backOnline, names: names, facts: &facts, observations: &observations)
+        addDevices(changes.filter { $0.type == .deviceLeft }, kind: .left, names: names, facts: &facts, observations: &observations)
         for type in listedTypes {
             addListed(changes, type: type, facts: &facts, observations: &observations)
         }
@@ -72,6 +79,12 @@ public enum ChangeDigestBuilder {
     /// address, for `request(deviceNames:)`. Where two rows share an address the first wins.
     public static func deviceNames(_ devices: [LocalDevice]) -> [String: String] {
         Dictionary(devices.map { ($0.ipAddress, $0.displayName) }, uniquingKeysWith: { first, _ in first })
+    }
+
+    /// Each saved device's name through the identity seam, by `LocalDevice.id`, for
+    /// `request(deviceNamesByID:)`.
+    public static func deviceNamesByID(_ devices: [LocalDevice]) -> [UUID: String] {
+        Dictionary(devices.map { ($0.id, $0.displayName) }, uniquingKeysWith: { first, _ in first })
     }
 
     /// The subject of a one-day digest, such as "Network events on November 22, 2026".
@@ -142,32 +155,63 @@ public enum ChangeDigestBuilder {
 
     // MARK: - Devices
 
+    /// The title the Mac gives a known device that answers again (#491 S2): a join event,
+    /// stated on its own rather than as a new device.
+    static let backOnlinePrefix = "Device Back Online: "
+
+    private struct DeviceNames {
+        let byAddress: [String: String]
+        let byID: [UUID: String]
+    }
+
+    private enum DeviceKind {
+        case joined, backOnline, left
+
+        /// The count fact, each name's label, and the observation's verb phrase.
+        var labels: (count: String, item: String, verb: String) {
+            switch self {
+            case .joined: ("Devices joined", "Joined", "joined the network")
+            case .backOnline: ("Devices back online", "Back online", "came back online")
+            case .left: ("Devices left", "Left", "left the network")
+            }
+        }
+    }
+
     private static func addDevices(
         _ events: [NetworkEvent],
-        type: NetworkEventType,
-        names: [String: String],
+        kind: DeviceKind,
+        names: DeviceNames,
         facts: inout [String],
         observations: inout [String]
     ) {
-        let joined = type == .deviceJoined
-        // The same device can join or leave more than once in a window; it counts once.
+        // The same device can join or leave more than once in a window; it counts once, whether an
+        // event names it by its saved row's ID, its address, or both.
         var seen = Set<String>()
-        let devices = events.filter { $0.type == type }.compactMap { event -> String? in
+        let devices = events.compactMap { event -> String? in
             let label = Self.label(of: event)
-            let address = joined ? (event.details ?? label) : label
-            guard seen.insert(address).inserted else { return nil }
-            return NotificationSummaryBuilder.name(names[address] ?? label)
+            let address = kind == .left ? label : (event.details ?? label)
+            let id = event.deviceID.flatMap { names.byID[$0] == nil ? nil : $0 }
+            var keys = ["address:\(address)"]
+            if let id {
+                keys.append("id:\(id.uuidString)")
+                // Mac events with an ID also carry the IP, which an ID-less event of the device may use.
+                if let details = event.details {
+                    keys.append("address:\(details)")
+                }
+            }
+            guard seen.isDisjoint(with: keys) else { return nil }
+            seen.formUnion(keys)
+            return NotificationSummaryBuilder.name(id.flatMap { names.byID[$0] } ?? names.byAddress[address] ?? label)
         }
         guard !devices.isEmpty else { return }
-        facts.append("\(joined ? "Devices joined" : "Devices left"): \(devices.count)")
+        let labels = kind.labels
+        facts.append("\(labels.count): \(devices.count)")
         // One fact per name: a name that is a domain is only allowed as a whole fact value.
-        let label = joined ? "Joined" : "Left"
-        facts += devices.prefix(nameLimit).map { "\(label): \($0)" }
+        facts += devices.prefix(nameLimit).map { "\(labels.item): \($0)" }
         if devices.count > nameLimit {
-            facts.append("\(label): and \(devices.count - nameLimit) more")
+            facts.append("\(labels.item): and \(devices.count - nameLimit) more")
         }
-        let verb = joined ? "joined" : "left"
-        observations.append("\(ToolInsightBuilder.plural(devices.count, "device")) \(verb) the network.")
+        observations.append("\(ToolInsightBuilder.plural(devices.count, "device")) \(labels.verb).")
     }
 
     /// The event's title after its "Device Joined: " style prefix.

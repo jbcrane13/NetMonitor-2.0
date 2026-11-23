@@ -1,3 +1,4 @@
+import NetMonitorCore
 import SwiftUI
 
 /// The dashboard's "since yesterday" brief (#453). Shows only a finished brief; the

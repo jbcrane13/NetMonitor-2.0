@@ -5,20 +5,20 @@ import NetworkScanKit
 /// The dashboard's "since yesterday" brief (#453): what changed in the last 24 hours, worded
 /// by the on-device model from `ChangeDigestBuilder`'s digest.
 ///
-/// The model is asked at most once per digest. Re-appearing with the same events, names,
-/// speed tests and counts reuses the last outcome, including a failed one, and a request
-/// already running is not sent again. Nothing is asked during a scan.
+/// The model is asked at most once per digest (`ChangeBriefState`, shared with the Mac). Re-appearing
+/// with the same events, names, speed tests and counts reuses the last outcome, including a failed
+/// one, and a request already running is not sent again. Nothing is asked during a scan.
 @MainActor
 @Observable
 final class ChangeBriefViewModel {
     /// The brief to show, or nil when the card is hidden: nothing changed, the model is
     /// unavailable, or its answer failed `InsightSummarizer`'s checks.
-    private(set) var brief: ChangeSummary?
+    var brief: ChangeSummary? { state.brief }
 
     /// The digest covers this much time before now.
     static let window: TimeInterval = 24 * 60 * 60
     /// Not on a critical path, so the model gets nearly as long as the PDF summary's 20 s.
-    static let timeout: Duration = .seconds(15)
+    static let timeout = ChangeBriefState.timeout
 
     /// The dashboard's brief. Shared so that a dashboard rebuilt by navigation keeps its cache.
     static let dashboard = ChangeBriefViewModel(
@@ -26,12 +26,9 @@ final class ChangeBriefViewModel {
         eventService: NetworkEventService.shared
     )
 
-    private let service: any InsightServiceProtocol
+    private let state: ChangeBriefState
     private let eventService: any NetworkEventServiceProtocol
-    private let timeout: Duration
     private let now: @MainActor () -> Date
-    /// The digest last asked about, or being asked about; `.some(nil)` when there was none.
-    private var lastRequest: InsightRequest??
 
     init(
         service: any InsightServiceProtocol,
@@ -39,9 +36,8 @@ final class ChangeBriefViewModel {
         timeout: Duration = ChangeBriefViewModel.timeout,
         now: @escaping @MainActor () -> Date = Date.init
     ) {
-        self.service = service
+        state = ChangeBriefState(service: service, timeout: timeout)
         self.eventService = eventService
-        self.timeout = timeout
         self.now = now
     }
 
@@ -59,9 +55,11 @@ final class ChangeBriefViewModel {
         speedTests: [SpeedTestResult],
         isScanning: Bool
     ) async {
+        // Another network's brief never stays on screen, even while a scan holds back the new one.
+        state.keepOnly(network: networkProfileID)
         guard !isScanning else { return }
-        guard service.isAvailable else {
-            brief = nil
+        guard state.isAvailable else {
+            state.hide()
             return
         }
         let found = Set(scanned.filter { !$0.isCached }.map(\.ipAddress))
@@ -76,22 +74,6 @@ final class ChangeBriefViewModel {
             speedTests: speedTests,
             counts: ChangeDigestCounts(found: found.count, notFound: network.count { !found.contains($0.ipAddress) })
         )
-        guard lastRequest != .some(request) else { return }
-        lastRequest = .some(request)
-        guard let request else {
-            brief = nil
-            return
-        }
-        let text = await InsightSummarizer.summary(for: request, service: service, timeout: timeout)
-        // Leaving the dashboard cancels its task; that is not an answer, so ask again next time.
-        if Task.isCancelled {
-            if lastRequest == .some(request) {
-                lastRequest = nil
-            }
-            return
-        }
-        // A newer digest was asked about meanwhile; its answer decides.
-        guard lastRequest == .some(request) else { return }
-        brief = text.map { ChangeSummary(keyPoints: request.observations, text: $0) }
+        await state.ask(request, network: networkProfileID)
     }
 }
