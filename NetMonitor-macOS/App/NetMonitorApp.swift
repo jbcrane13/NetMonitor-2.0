@@ -304,7 +304,9 @@ struct NetMonitorApp: App {
         let httpService = HTTPMonitorService()
         let icmpService = ICMPMonitorService()
         let tcpService = TCPMonitorService()
-        let profileManager = NetworkProfileManager()
+        let profileManager = NetworkProfileManager(
+            userDefaults: NetworkProfileDefaults.make(arguments: ProcessInfo.processInfo.arguments)
+        )
         networkProfileManager = profileManager
         monitoringSession = MonitoringSession(
             modelContext: context,
@@ -376,6 +378,17 @@ struct NetMonitorApp: App {
 }
 
 // swiftlint:enable function_body_length
+
+// MARK: - Network profile defaults
+
+/// Where the network list is saved (#346).
+enum NetworkProfileDefaults {
+    static let uiTestSuite = "netmonitor.uitest.networkProfiles"
+
+    static func make(arguments: [String], uiTestSuite: String = Self.uiTestSuite) -> UserDefaults {
+        .standard
+    }
+}
 
 // MARK: - UI-test scan fixture
 
