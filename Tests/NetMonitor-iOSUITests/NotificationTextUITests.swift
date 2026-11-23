@@ -21,19 +21,21 @@ final class NotificationTextUITests: XCTestCase {
         }
         app.launch()
 
-        // The permission prompt appears on the first run after a fresh install only. The app
-        // asks once its first screen is up, which can take several seconds, so wait for the
-        // prompt long enough not to leave before it shows.
+        // The app asks for permission once its first screen is up, which can take several
+        // seconds; the prompt appears on the first run after a fresh install only.
+        XCTAssertTrue(app.tabBars.buttons["Dashboard"].waitForExistence(timeout: 30), "The app's first screen should appear")
         let allow = springboard.alerts.buttons["Allow"]
-        if allow.waitForExistence(timeout: 15) {
+        if allow.waitForExistence(timeout: 5) {
             allow.tap()
         }
         sleep(1)
         XCUIDevice.shared.press(.home)
 
+        // The banner, on screen: not an entry in the notification history.
         let alert = springboard.descendants(matching: .any)
             .matching(NSPredicate(format: "label CONTAINS %@", expected)).firstMatch
-        XCTAssertTrue(alert.waitForExistence(timeout: 20), "The missing-device alert should appear on the Home Screen")
+        let onScreen = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == true AND hittable == true"), object: alert)
+        XCTAssertEqual(XCTWaiter().wait(for: [onScreen], timeout: 20), .completed, "The missing-device alert should show as a banner")
         return alert
     }
 
