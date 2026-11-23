@@ -166,7 +166,10 @@ struct SettingsView: View {
                 Text("Speed Test")
                     .foregroundStyle(Theme.Colors.textSecondary)
             } footer: {
-                Text("Runs while NetMonitor is open. Scheduled tests skip cellular, hotspots and Low Data Mode unless allowed. Results show as a 7-day trend in the Speed Test tool.")
+                Text(
+                    "Runs while NetMonitor is open. Scheduled tests skip cellular, hotspots and Low Data Mode unless allowed. "
+                        + "Results show as a 7-day trend in the Speed Test tool."
+                )
                     .foregroundStyle(Theme.Colors.textTertiary)
             }
             .listRowBackground(Theme.Colors.glassBackground)
@@ -203,132 +206,9 @@ struct SettingsView: View {
             }
             .listRowBackground(Theme.Colors.glassBackground)
 
-            // MARK: - Data Export Section
-            Section {
-                ForEach(ExportOption.allCases) { option in
-                    Menu {
-                        Button("Export as JSON") {
-                            exportData(option: option, format: .json)
-                        }
-                        Button("Export as CSV") {
-                            exportData(option: option, format: .csv)
-                        }
-                    } label: {
-                        HStack {
-                            Label(option.label, systemImage: option.icon)
-                                .foregroundStyle(Theme.Colors.textPrimary)
-                            Spacer()
-                            Image(systemName: "square.and.arrow.up")
-                                .foregroundStyle(Theme.Colors.accent)
-                        }
-                    }
-                    .accessibilityIdentifier("settings_button_export\(option.rawValue)")
-                }
+            dataExportSection
 
-                Button {
-                    Task { await exportFullReportAsPDF() }
-                } label: {
-                    HStack {
-                        Label("Export Full Report as PDF", systemImage: "arrow.up.doc.fill")
-                            .foregroundStyle(Theme.Colors.textPrimary)
-                        Spacer()
-                        Text("PDF")
-                            .font(.caption)
-                            .fontWeight(.semibold)
-                            .foregroundStyle(Theme.Colors.textStrong)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 3)
-                            .background(Theme.Colors.error.opacity(0.8))
-                            .clipShape(Capsule())
-                    }
-                }
-                .disabled(isPreparingReport)
-                .accessibilityIdentifier("export_button_pdf")
-
-                if isPreparingReport {
-                    HStack(spacing: 8) {
-                        ProgressView()
-                        Text("Preparing report…")
-                            .font(.caption)
-                            .foregroundStyle(Theme.Colors.textSecondary)
-                    }
-                    .accessibilityElement(children: .combine)
-                    .accessibilityIdentifier("settings_progress_exportReport")
-                }
-
-                if let preview = uiTestReportPreview {
-                    Image(uiImage: preview.image)
-                        .resizable()
-                        .scaledToFit()
-                        .accessibilityElement()
-                        .accessibilityLabel(Text(preview.text))
-                        .accessibilityValue(Text("\(preview.pageCount) pages"))
-                        .accessibilityIdentifier("settings_debug_reportFirstPage")
-                }
-            } header: {
-                Text("Data Export")
-                    .foregroundStyle(Theme.Colors.textSecondary)
-            }
-            .listRowBackground(Theme.Colors.glassBackground)
-
-            // MARK: - Data & Privacy Section
-            Section {
-                Picker("Data Retention", selection: $viewModel.dataRetentionDays) {
-                    Text("7 days").tag(7)
-                    Text("14 days").tag(14)
-                    Text("30 days").tag(30)
-                    Text("90 days").tag(90)
-                }
-                .foregroundStyle(Theme.Colors.textPrimary)
-                .accessibilityIdentifier("settings_picker_dataRetention")
-
-                Toggle(isOn: $viewModel.showDetailedResults) {
-                    Text("Show Detailed Results")
-                        .foregroundStyle(Theme.Colors.textPrimary)
-                }
-                .tint(Theme.Colors.accent)
-                .accessibilityIdentifier("settings_toggle_showDetailedResults")
-
-                Button {
-                    showingClearHistoryAlert = true
-                } label: {
-                    HStack {
-                        Text("Clear History")
-                            .foregroundStyle(Theme.Colors.error)
-                        Spacer()
-                        Image(systemName: "trash")
-                            .foregroundStyle(Theme.Colors.error)
-                    }
-                }
-                // The report holds these records while the model writes its summary (#495 review).
-                .disabled(isPreparingReport)
-                .accessibilityIdentifier("settings_button_clearHistory")
-
-                Button {
-                    showingClearCacheAlert = true
-                } label: {
-                    HStack {
-                        Text("Clear All Cached Data")
-                            .foregroundStyle(Theme.Colors.error)
-                        Spacer()
-                        Text(viewModel.cacheSize)
-                            .foregroundStyle(Theme.Colors.textSecondary)
-                            .font(.caption)
-                        Image(systemName: "xmark.bin")
-                            .foregroundStyle(Theme.Colors.error)
-                    }
-                }
-                .disabled(isPreparingReport)
-                .accessibilityIdentifier("settings_button_clearCache")
-            } header: {
-                Text("Data & Privacy")
-                    .foregroundStyle(Theme.Colors.textSecondary)
-            } footer: {
-                Text("Event history keeps up to the newest \(NetworkEventService.eventCeiling.formatted()) events.")
-                    .foregroundStyle(Theme.Colors.textSecondary)
-                    .accessibilityIdentifier("settings_label_eventHistoryCeiling")
-            }
-            .listRowBackground(Theme.Colors.glassBackground)
+            dataPrivacySection
 
             // MARK: - About Section
             Section {
@@ -419,7 +299,10 @@ struct SettingsView: View {
                 Task { await viewModel.clearAllCachedData(modelContext: modelContext) }
             }
         } message: {
-            Text("This will delete all stored data including tool results, speed tests, discovered devices, monitoring targets, and file caches. This action cannot be undone.")
+            Text(
+                "This will delete all stored data including tool results, speed tests, discovered devices, monitoring targets, "
+                    + "and file caches. This action cannot be undone."
+            )
         }
         .sheet(isPresented: $showingExportSheet) {
             if let url = exportFileURL {
@@ -486,6 +369,144 @@ struct SettingsView: View {
 
         exportFileURL = url
         showingExportSheet = true
+    }
+}
+
+// MARK: - Data sections
+
+// Kept out of the struct body to stay under SwiftLint's type_body_length.
+extension SettingsView {
+    // MARK: Data Export
+
+    var dataExportSection: some View {
+        Section {
+            ForEach(ExportOption.allCases) { option in
+                Menu {
+                    Button("Export as JSON") {
+                        exportData(option: option, format: .json)
+                    }
+                    Button("Export as CSV") {
+                        exportData(option: option, format: .csv)
+                    }
+                } label: {
+                    HStack {
+                        Label(option.label, systemImage: option.icon)
+                            .foregroundStyle(Theme.Colors.textPrimary)
+                        Spacer()
+                        Image(systemName: "square.and.arrow.up")
+                            .foregroundStyle(Theme.Colors.accent)
+                    }
+                }
+                .accessibilityIdentifier("settings_button_export\(option.rawValue)")
+            }
+
+            Button {
+                Task { await exportFullReportAsPDF() }
+            } label: {
+                HStack {
+                    Label("Export Full Report as PDF", systemImage: "arrow.up.doc.fill")
+                        .foregroundStyle(Theme.Colors.textPrimary)
+                    Spacer()
+                    Text("PDF")
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(Theme.Colors.textStrong)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(Theme.Colors.error.opacity(0.8))
+                        .clipShape(Capsule())
+                }
+            }
+            .disabled(isPreparingReport)
+            .accessibilityIdentifier("export_button_pdf")
+
+            if isPreparingReport {
+                HStack(spacing: 8) {
+                    ProgressView()
+                    Text("Preparing report…")
+                        .font(.caption)
+                        .foregroundStyle(Theme.Colors.textSecondary)
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityIdentifier("settings_progress_exportReport")
+            }
+
+            if let preview = uiTestReportPreview {
+                Image(uiImage: preview.image)
+                    .resizable()
+                    .scaledToFit()
+                    .accessibilityElement()
+                    .accessibilityLabel(Text(preview.text))
+                    .accessibilityValue(Text("\(preview.pageCount) pages"))
+                    .accessibilityIdentifier("settings_debug_reportFirstPage")
+            }
+        } header: {
+            Text("Data Export")
+                .foregroundStyle(Theme.Colors.textSecondary)
+        }
+        .listRowBackground(Theme.Colors.glassBackground)
+    }
+
+    // MARK: Data & Privacy
+
+    var dataPrivacySection: some View {
+        Section {
+            Picker("Data Retention", selection: $viewModel.dataRetentionDays) {
+                Text("7 days").tag(7)
+                Text("14 days").tag(14)
+                Text("30 days").tag(30)
+                Text("90 days").tag(90)
+            }
+            .foregroundStyle(Theme.Colors.textPrimary)
+            .accessibilityIdentifier("settings_picker_dataRetention")
+
+            Toggle(isOn: $viewModel.showDetailedResults) {
+                Text("Show Detailed Results")
+                    .foregroundStyle(Theme.Colors.textPrimary)
+            }
+            .tint(Theme.Colors.accent)
+            .accessibilityIdentifier("settings_toggle_showDetailedResults")
+
+            Button {
+                showingClearHistoryAlert = true
+            } label: {
+                HStack {
+                    Text("Clear History")
+                        .foregroundStyle(Theme.Colors.error)
+                    Spacer()
+                    Image(systemName: "trash")
+                        .foregroundStyle(Theme.Colors.error)
+                }
+            }
+            // The report holds these records while the model writes its summary (#495 review).
+            .disabled(isPreparingReport)
+            .accessibilityIdentifier("settings_button_clearHistory")
+
+            Button {
+                showingClearCacheAlert = true
+            } label: {
+                HStack {
+                    Text("Clear All Cached Data")
+                        .foregroundStyle(Theme.Colors.error)
+                    Spacer()
+                    Text(viewModel.cacheSize)
+                        .foregroundStyle(Theme.Colors.textSecondary)
+                        .font(.caption)
+                    Image(systemName: "xmark.bin")
+                        .foregroundStyle(Theme.Colors.error)
+                }
+            }
+            .disabled(isPreparingReport)
+            .accessibilityIdentifier("settings_button_clearCache")
+        } header: {
+            Text("Data & Privacy")
+                .foregroundStyle(Theme.Colors.textSecondary)
+        } footer: {
+            Text("Event history keeps up to the newest \(NetworkEventService.eventCeiling.formatted()) events.")
+                .foregroundStyle(Theme.Colors.textSecondary)
+                .accessibilityIdentifier("settings_label_eventHistoryCeiling")
+        }
+        .listRowBackground(Theme.Colors.glassBackground)
     }
 }
 
