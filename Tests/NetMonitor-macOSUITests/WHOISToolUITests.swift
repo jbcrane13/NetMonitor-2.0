@@ -1,24 +1,15 @@
 import XCTest
 
 @MainActor
-final class WHOISToolUITests: XCTestCase {
-    var app: XCUIApplication!
+final class WHOISToolUITests: MacOSUITestCase {
 
     override func setUpWithError() throws {
-        continueAfterFailure = false
-        app = XCUIApplication()
-        app.launch()
-        // Navigate to Tools
-        let sidebar = app.descendants(matching: .any)["sidebar_tools"]
-        XCTAssertTrue(sidebar.waitForExistence(timeout: 5))
-        sidebar.tap()
-        // Open WHOIS tool
+        try super.setUpWithError()
+        navigateToSidebar("tools")
         let card = app.otherElements["tools_card_whois"]
-        XCTAssertTrue(card.waitForExistence(timeout: 3))
-        card.tap()
+        requireExists(card, timeout: 3, message: "WHOIS tool card should exist")
+        card.click()
     }
-
-    // tearDownWithError: handled by MacOSUITestCase (terminates app + nils ref)
 
     // MARK: - Element Existence
 
@@ -45,24 +36,24 @@ final class WHOISToolUITests: XCTestCase {
     func testLookupButtonEnabledAfterTypingDomain() {
         let domainField = app.textFields["whois_textfield_domain"]
         XCTAssertTrue(domainField.waitForExistence(timeout: 3))
-        domainField.tap()
+        domainField.click()
         domainField.typeText("example.com")
 
         XCTAssertTrue(app.buttons["whois_button_lookup"].isEnabled)
     }
 
     func testCloseButtonDismissesSheet() {
-        app.buttons["whois_button_close"].tap()
+        app.buttons["whois_button_close"].click()
         XCTAssertTrue(app.otherElements["tools_card_whois"].waitForExistence(timeout: 3))
     }
 
     func testPerformWHOISLookup() {
         let domainField = app.textFields["whois_textfield_domain"]
         XCTAssertTrue(domainField.waitForExistence(timeout: 3))
-        domainField.tap()
+        domainField.click()
         domainField.typeText("example.com")
 
-        app.buttons["whois_button_lookup"].tap()
+        app.buttons["whois_button_lookup"].click()
 
         // Verify parsed result DATA renders — `whois_picker_viewmode` is gated
         // on `result != nil`, and `whois_section_parsed` is the parsed view
@@ -74,15 +65,16 @@ final class WHOISToolUITests: XCTestCase {
                 || parsedSection.waitForExistence(timeout: 5),
             "WHOIS should render parsed result data for example.com"
         )
+        captureScreenshot(named: "WHOIS_Result")
     }
 
     func testClearButtonAfterLookup() {
         let domainField = app.textFields["whois_textfield_domain"]
         XCTAssertTrue(domainField.waitForExistence(timeout: 3))
-        domainField.tap()
+        domainField.click()
         domainField.typeText("example.com")
 
-        app.buttons["whois_button_lookup"].tap()
+        app.buttons["whois_button_lookup"].click()
 
         let clearButton = app.buttons["whois_button_clear"]
         XCTAssertTrue(
@@ -97,7 +89,7 @@ final class WHOISToolUITests: XCTestCase {
             "View mode picker should be present alongside results"
         )
 
-        clearButton.tap()
+        clearButton.click()
 
         XCTAssertFalse(clearButton.waitForExistence(timeout: 2))
         XCTAssertFalse(

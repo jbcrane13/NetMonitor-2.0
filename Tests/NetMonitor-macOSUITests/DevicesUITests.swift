@@ -11,7 +11,7 @@ final class DevicesUITests: MacOSUITestCase {
     // MARK: - Detail Pane
 
     func testDevicesDetailExists() {
-        requireExists(app.otherElements["detail_devices"], timeout: 3,
+        requireExists(app.otherElements["contentView_nav_devices"], timeout: 3,
                       message: "Devices detail pane should exist")
     }
 
@@ -54,7 +54,7 @@ final class DevicesUITests: MacOSUITestCase {
         )
         XCTAssertTrue(scanButton.isEnabled, "Scan button should be enabled before tapping")
 
-        scanButton.tap()
+        scanButton.click()
 
         XCTAssertTrue(
             waitForEither(
@@ -69,7 +69,7 @@ final class DevicesUITests: MacOSUITestCase {
 
         let stopButton = app.buttons["devices_button_stopScan"]
         if stopButton.exists && stopButton.isEnabled {
-            stopButton.tap()
+            stopButton.click()
         }
     }
 
@@ -82,7 +82,7 @@ final class DevicesUITests: MacOSUITestCase {
         )
         XCTAssertTrue(sortMenu.isEnabled, "Sort menu should be enabled")
 
-        sortMenu.tap()
+        sortMenu.click()
 
         XCTAssertTrue(
             waitForEither(
@@ -91,6 +91,7 @@ final class DevicesUITests: MacOSUITestCase {
             ),
             "Sort menu should open and show at least one menu item"
         )
+        captureScreenshot(named: "Devices_SortMenu")
 
         app.typeKey(.escape, modifierFlags: [])
     }
@@ -104,7 +105,7 @@ final class DevicesUITests: MacOSUITestCase {
         XCTAssertTrue(toggle.isEnabled, "Online-only toggle should be enabled")
         let valueBefore = toggle.value as? String
 
-        toggle.tap()
+        toggle.click()
 
         let valueAfter = toggle.value as? String
         if let before = valueBefore, let after = valueAfter {
@@ -112,7 +113,7 @@ final class DevicesUITests: MacOSUITestCase {
                               "Online-only toggle value should change after tapping")
         }
 
-        toggle.tap()
+        toggle.click()
     }
 
     // MARK: - Functional: Clear Button
@@ -128,19 +129,19 @@ final class DevicesUITests: MacOSUITestCase {
     // MARK: - Search
 
     func testSearchFieldExists() {
-        requireExists(app.otherElements["detail_devices"], timeout: 3,
+        requireExists(app.otherElements["contentView_nav_devices"], timeout: 3,
                       message: "Devices detail pane should exist (search field is inside it)")
     }
 
     // MARK: - Empty State
 
     func testEmptyStateOrDeviceListShown() {
-        requireExists(app.otherElements["detail_devices"], timeout: 3,
+        requireExists(app.otherElements["contentView_nav_devices"], timeout: 3,
                       message: "Devices detail pane should be visible")
     }
 
     func testSelectDevicePlaceholderExists() {
-        requireExists(app.otherElements["detail_devices"], timeout: 3,
+        requireExists(app.otherElements["contentView_nav_devices"], timeout: 3,
                       message: "Devices detail pane should be visible")
     }
 }

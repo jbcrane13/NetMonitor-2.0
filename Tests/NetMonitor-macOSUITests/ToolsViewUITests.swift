@@ -11,7 +11,7 @@ final class ToolsViewUITests: MacOSUITestCase {
     // MARK: - Detail Pane
 
     func testToolsDetailExists() {
-        requireExists(app.otherElements["detail_tools"], timeout: 3,
+        requireExists(app.otherElements["contentView_nav_tools"], timeout: 3,
                       message: "Tools detail pane should exist")
     }
 
@@ -100,15 +100,16 @@ final class ToolsViewUITests: MacOSUITestCase {
     func testPingCardOpensSheet() {
         let card = requireExists(app.otherElements["tools_card_ping"], timeout: 3,
                                  message: "Ping card should exist")
-        card.tap()
+        card.click()
         requireExists(app.textFields["ping_textfield_host"], timeout: 5,
                       message: "Ping host field should appear after opening ping card")
+        captureScreenshot(named: "ToolsView_PingSheet")
     }
 
     func testTracerouteCardOpensSheet() {
         let card = requireExists(app.otherElements["tools_card_traceroute"], timeout: 3,
                                  message: "Traceroute card should exist")
-        card.tap()
+        card.click()
         requireExists(app.textFields["traceroute_textfield_host"], timeout: 5,
                       message: "Traceroute host field should appear after opening traceroute card")
     }
@@ -116,7 +117,7 @@ final class ToolsViewUITests: MacOSUITestCase {
     func testDNSLookupCardOpensSheet() {
         let card = requireExists(app.otherElements["tools_card_dns_lookup"], timeout: 3,
                                  message: "DNS lookup card should exist")
-        card.tap()
+        card.click()
         requireExists(app.textFields["dns_textfield_hostname"], timeout: 5,
                       message: "DNS hostname field should appear after opening DNS lookup card")
     }
@@ -124,7 +125,7 @@ final class ToolsViewUITests: MacOSUITestCase {
     func testWHOISCardOpensSheet() {
         let card = requireExists(app.otherElements["tools_card_whois"], timeout: 3,
                                  message: "WHOIS card should exist")
-        card.tap()
+        card.click()
         requireExists(app.textFields["whois_textfield_domain"], timeout: 5,
                       message: "WHOIS domain field should appear after opening WHOIS card")
     }
@@ -132,7 +133,7 @@ final class ToolsViewUITests: MacOSUITestCase {
     func testSpeedTestCardOpensSheet() {
         let card = requireExists(app.otherElements["tools_card_speed_test"], timeout: 3,
                                  message: "Speed test card should exist")
-        card.tap()
+        card.click()
         requireExists(app.buttons["speedtest_button_start"], timeout: 5,
                       message: "Speed test start button should appear after opening speed test card")
     }
@@ -140,7 +141,7 @@ final class ToolsViewUITests: MacOSUITestCase {
     func testPortScannerCardOpensSheet() {
         let card = requireExists(app.otherElements["tools_card_port_scanner"], timeout: 3,
                                  message: "Port scanner card should exist")
-        card.tap()
+        card.click()
         requireExists(app.textFields["portscan_textfield_host"], timeout: 5,
                       message: "Port scanner host field should appear after opening port scanner card")
     }
@@ -148,7 +149,7 @@ final class ToolsViewUITests: MacOSUITestCase {
     func testBonjourBrowserCardOpensSheet() {
         let card = requireExists(app.otherElements["tools_card_bonjour_browser"], timeout: 3,
                                  message: "Bonjour browser card should exist")
-        card.tap()
+        card.click()
         requireExists(app.buttons["bonjour_button_close"], timeout: 5,
                       message: "Bonjour close button should appear after opening bonjour browser card")
     }
@@ -156,7 +157,7 @@ final class ToolsViewUITests: MacOSUITestCase {
     func testWakeOnLanCardOpensSheet() {
         let card = requireExists(app.otherElements["tools_card_wake_on_lan"], timeout: 3,
                                  message: "Wake on LAN card should exist")
-        card.tap()
+        card.click()
         requireExists(app.textFields["wol_textfield_mac"], timeout: 5,
                       message: "WoL MAC field should appear after opening wake on LAN card")
     }
@@ -166,10 +167,10 @@ final class ToolsViewUITests: MacOSUITestCase {
     func testOpenAndClosePingTool() {
         let card = requireExists(app.otherElements["tools_card_ping"], timeout: 3,
                                  message: "Ping card should exist")
-        card.tap()
+        card.click()
         let closeButton = requireExists(app.buttons["ping_button_close"], timeout: 5,
                                         message: "Ping close button should appear")
-        closeButton.tap()
+        closeButton.click()
         requireExists(app.otherElements["tools_card_ping"], timeout: 5,
                       message: "Ping card should reappear after closing sheet")
     }
@@ -183,14 +184,14 @@ final class ToolsViewUITests: MacOSUITestCase {
         for tool in tools {
             let card = requireExists(app.otherElements[tool.card], timeout: 5,
                                      message: "\(tool.card) should exist")
-            card.tap()
+            card.click()
 
             requireExists(ui(tool.sheetElement), timeout: 5,
                           message: "\(tool.sheetElement) should appear after opening \(tool.card)")
 
             let closeButton = requireExists(app.buttons[tool.close], timeout: 3,
                                             message: "\(tool.close) should exist")
-            closeButton.tap()
+            closeButton.click()
 
             requireExists(card, timeout: 5,
                           message: "\(tool.card) should reappear after closing sheet")
