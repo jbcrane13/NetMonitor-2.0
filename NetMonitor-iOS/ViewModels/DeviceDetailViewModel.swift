@@ -26,6 +26,8 @@ final class DeviceDetailViewModel {
     /// The running suggestion. Cancelled on reload and when the view model goes away, so it
     /// never writes to a row that has been replaced or deleted.
     nonisolated(unsafe) private(set) var suggestionTask: Task<Void, Never>?
+    /// Fingerprint of the evidence the running or last suggestion pass was started with.
+    private var suggestionFingerprint: String?
     private let maxServiceResolves = 80
     private let maxServiceResolveConcurrency = 8
 
@@ -62,6 +64,7 @@ final class DeviceDetailViewModel {
     func loadDevice(ipAddress: String, networkID: UUID? = nil, macAddress: String? = nil, context: ModelContext) {
         suggestionTask?.cancel()
         suggestionTask = nil
+        suggestionFingerprint = nil
         modelContext = context
         // Under the UI-test fixture the dashboard lists fake devices; detail sees them too.
         let live = deviceDiscoveryService.discoveredDevices
@@ -97,12 +100,20 @@ final class DeviceDetailViewModel {
 
     // MARK: - Identity suggestion (#449)
 
-    /// Asks the on-device model about the loaded row without blocking the load.
+    /// Asks the on-device model about the loaded row without blocking the load. Called again
+    /// when enrichment, a port scan or service discovery changes the evidence; a pass already
+    /// started on the same evidence keeps running.
     private func startSuggestion() {
         refreshSuggestionState()
         guard let device else {
             return
         }
+        let fingerprint = DeviceEvidence(device: device).fingerprint
+        guard fingerprint != suggestionFingerprint else {
+            return
+        }
+        suggestionFingerprint = fingerprint
+        suggestionTask?.cancel()
         suggestionTask = Task { [weak self, suggester] in
             await suggester.suggest(for: [device])
             guard !Task.isCancelled, let self else {
@@ -238,6 +249,8 @@ final class DeviceDetailViewModel {
                 device.resolvedHostname = hostname
             }
         }
+        guard !Task.isCancelled else { return }
+        startSuggestion()
     }
 
     /// Scan common ports on the device
@@ -255,6 +268,7 @@ final class DeviceDetailViewModel {
         }
 
         device.openPorts = openPorts.sorted()
+        startSuggestion()
     }
 
     /// Discover Bonjour services matching this device's IP
@@ -319,6 +333,7 @@ final class DeviceDetailViewModel {
         }
 
         device.discoveredServices = discoveredServiceNames
+        startSuggestion()
     }
 
     private func uniqueServices(from services: [BonjourService]) -> [BonjourService] {

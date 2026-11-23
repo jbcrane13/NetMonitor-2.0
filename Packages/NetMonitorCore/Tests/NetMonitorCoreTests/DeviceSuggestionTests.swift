@@ -255,6 +255,31 @@ struct DeviceSuggesterTests {
         #expect(service.suggestionRequests.isEmpty)
     }
 
+    @Test("A dismissal while the model is answering is kept")
+    func dismissalDuringRequestIsKept() async {
+        let service = ActingInsightService(answer: lutron)
+        let suggester = DeviceSuggester(service: service, store: store)
+        let device = bridge()
+        await suggester.suggest(for: [device])
+        #expect(suggester.suggestedType(for: device) == .iot)
+
+        // New evidence asks again; the user dismisses the shown type before the answer arrives.
+        device.customName = "Hall bridge"
+        service.during = { suggester.dismiss(device) }
+        await suggester.suggest(for: [device])
+
+        #expect(service.requestCount == 2)
+        #expect(device.identity.maker == nil)
+        #expect(device.identity.model == nil)
+        #expect(suggester.suggestedType(for: device) == nil)
+        #expect(!suggester.isShowingSuggestion(device))
+
+        service.during = nil
+        await suggester.suggest(for: [device])
+        #expect(service.requestCount == 2)
+        #expect(!suggester.isShowingSuggestion(device))
+    }
+
     @Test("Asking stops when the task is cancelled")
     func stopsOnCancel() async {
         let service = MockInsightService(suggestion: lutron)
@@ -332,5 +357,31 @@ struct DeviceSuggesterTests {
         #expect(device.manufacturer == nil)
         #expect(device.maker == "Apple, Inc.")
         #expect(device.identity.model?.source == .userConfirmed)
+    }
+}
+
+/// Answers every suggestion after running ``during`` on the main actor, as a user acting on
+/// the screen while the model is answering would.
+private final class ActingInsightService: InsightServiceProtocol, @unchecked Sendable {
+    let answer: DeviceSuggestion
+    @MainActor var during: (@MainActor () -> Void)?
+    @MainActor private(set) var requestCount = 0
+
+    init(answer: DeviceSuggestion) {
+        self.answer = answer
+    }
+
+    var isAvailable: Bool { true }
+
+    func explain(_: InsightRequest) -> AsyncStream<InsightUpdate> {
+        AsyncStream { $0.finish() }
+    }
+
+    func suggestIdentity(_: DeviceEvidence) async -> DeviceSuggestion? {
+        await MainActor.run {
+            requestCount += 1
+            during?()
+        }
+        return answer
     }
 }

@@ -104,7 +104,11 @@ final class SettingsViewModel {
 
     // MARK: - Init
 
-    init() {
+    /// Identity suggestions (#449), cleared with the device rows they describe.
+    private let suggestionStore: DeviceSuggestionStore
+
+    init(suggestionStore: DeviceSuggestionStore = DeviceSuggestionStore()) {
+        self.suggestionStore = suggestionStore
         let defaults = UserDefaults.standard
         defaultPingCount = defaults.object(forKey: AppSettings.Keys.defaultPingCount) as? Int ?? 4
         pingTimeout = defaults.object(forKey: AppSettings.Keys.pingTimeout) as? Double ?? 5.0
@@ -175,6 +179,7 @@ final class SettingsViewModel {
         } catch {
             Logger.app.error("Failed to save after clearing data: \(error)")
         }
+        suggestionStore.clearAll()
 
         // URLCache + file-system sweeps run on a background executor — they're
         // sync I/O and can take noticeable time on a populated cache.

@@ -80,9 +80,20 @@ public final class DeviceSuggester {
             guard evidence.needsSuggestion, store.record(for: device.id)?.fingerprint != evidence.fingerprint else { continue }
 
             removeSuggestedValues(from: device)
+            let asked = store.record(for: device.id)
             let answer = await service.suggestIdentity(evidence)
             if Task.isCancelled {
                 return
+            }
+            // The user accepted or dismissed while the model was answering: keep their
+            // decision, and a dismissal covers the evidence the model was just shown.
+            let decided = store.record(for: device.id)
+            if decided != asked {
+                if var decided, decided.dismissed {
+                    decided.fingerprint = evidence.fingerprint
+                    store.setRecord(decided, for: device.id)
+                }
+                continue
             }
             let suggestion = answer.map { $0.checked(against: evidence) }
                 .flatMap { $0.confidence == .low || $0.isEmpty ? nil : $0 }

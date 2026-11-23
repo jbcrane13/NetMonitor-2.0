@@ -462,6 +462,46 @@ struct DeviceDetailViewModelTests {
         #expect(viewModel.suggestedType == nil)
     }
 
+    @Test func enrichmentThatFindsAHostnameAsksForASuggestion() async throws {
+        let (container, context) = try makeInMemoryStore()
+        defer { withExtendedLifetime(container) {} }
+        let insight = MockInsightService(suggestion: DeviceSuggestion(deviceType: .tv, maker: "Samsung", confidence: .high))
+        let viewModel = makeViewModel(nameResolver: MockDeviceNameResolver(hostname: "samsung-tv.lan"), insight: insight)
+
+        // A row with no name or service: nothing to ask about yet.
+        viewModel.loadDevice(ipAddress: "192.168.1.91", context: context)
+        await viewModel.suggestionTask?.value
+        #expect(insight.suggestionRequests.isEmpty)
+
+        await viewModel.enrichDevice(bonjourServices: [])
+        await viewModel.suggestionTask?.value
+
+        #expect(insight.suggestionRequests.count == 1)
+        #expect(insight.suggestionRequests.first?.resolvedHostname == "samsung-tv.lan")
+        #expect(viewModel.suggestedType == .tv)
+        #expect(viewModel.isShowingSuggestion)
+    }
+
+    @Test func portScanThatChangesTheEvidenceAsksAgain() async throws {
+        let (container, context) = try makeInMemoryStore()
+        defer { withExtendedLifetime(container) {} }
+        let insight = MockInsightService(suggestion: DeviceSuggestion(deviceType: .tv, maker: "Samsung", confidence: .high))
+        let discovery = MockDeviceDiscoveryService()
+        discovery.discoveredDevices = [scannedNamed("192.168.1.90")]
+        let scanner = MockPortScannerService()
+        scanner.mockResults = [PortScanResult(port: 8080, state: .open)]
+        let viewModel = makeViewModel(portScanner: scanner, deviceDiscoveryService: discovery, insight: insight)
+        viewModel.loadDevice(ipAddress: "192.168.1.90", context: context)
+        await viewModel.suggestionTask?.value
+        #expect(insight.suggestionRequests.count == 1)
+
+        await viewModel.scanPorts()
+        await viewModel.suggestionTask?.value
+
+        #expect(insight.suggestionRequests.count == 2)
+        #expect(insight.suggestionRequests.last?.openPorts == [8080])
+    }
+
     @Test func dismissRemovesSuggestionAndItStaysGoneOnNextLoad() async throws {
         let (container, context) = try makeInMemoryStore()
         defer { withExtendedLifetime(container) {} }

@@ -274,6 +274,24 @@ struct SettingsViewModelDataManagementTests {
         #expect(try context.fetch(FetchDescriptor<LocalDevice>()).isEmpty)
     }
 
+    @Test func clearAllCachedDataClearsIdentitySuggestions() async throws {
+        let (container, context) = try makeInMemoryStore()
+        defer { withExtendedLifetime(container) {} }
+        let suite = "SettingsViewModelTests.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = DeviceSuggestionStore(defaults: defaults)
+        let deviceID = UUID()
+        store.setRecord(
+            DeviceSuggestionStore.Record(fingerprint: "f", suggestion: DeviceSuggestion(maker: "Samsung", confidence: .high)),
+            for: deviceID
+        )
+
+        await SettingsViewModel(suggestionStore: store).clearAllCachedData(modelContext: context)
+
+        #expect(store.record(for: deviceID) == nil)
+    }
+
     @Test func pruneExpiredDataDoesNotCrash() throws {
         let (container, context) = try makeInMemoryStore()
         // Keep the container alive for the whole test: `mainContext` does not retain it,
