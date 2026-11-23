@@ -146,3 +146,20 @@ class IOSUITestCase: XCTestCase {
         return false
     }
 }
+
+extension XCUIElement {
+    /// Flips a `Toggle`. On iOS 26+ the identified `Switch` is the full-width row, so a tap at its centre
+    /// lands on the label and changes nothing; the unnamed `Switch` inside it is the control. Waits for
+    /// the value to change.
+    func flipSwitch() {
+        let before = value as? String
+        let control = switches.firstMatch
+        if control.exists {
+            control.tap()
+        } else {
+            coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
+        }
+        let changed = NSPredicate(format: "value != %@", before ?? "")
+        _ = XCTWaiter().wait(for: [XCTNSPredicateExpectation(predicate: changed, object: self)], timeout: 3)
+    }
+}
