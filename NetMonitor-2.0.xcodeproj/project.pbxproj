@@ -298,6 +298,7 @@
 		883A031767649B8D3B9142C1 /* ToolsGridLayoutUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1268AE7B610824F778D376F6 /* ToolsGridLayoutUITests.swift */; };
 		88972A34C3E66281CF1A0CD3 /* SSLCertificateMonitorUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4D1CAE1F08AF8C7C2450636 /* SSLCertificateMonitorUITests.swift */; };
 		88CA4E319D8AC8D6C5F4F83A /* MacTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92BF0C346E28EDB80D9A26AB /* MacTheme.swift */; };
+		8920FD6896291B3F05978274 /* EventHistoryMigrationUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2633A89F5EDD7827E6D2D52D /* EventHistoryMigrationUITests.swift */; };
 		8942A94C0CA1A6F0DFB6E087 /* WHOISToolUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6DBA0C16A1DE7F77F218E6A /* WHOISToolUITests.swift */; };
 		897C5DA9F1315D605ADE8B18 /* TracerouteToolUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB84885DADC6FEC24984A6BE /* TracerouteToolUITests.swift */; };
 		8A05FC84D8DE655C0A4DD50C /* DNSLookupToolViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D2CF1E0E2108306BD4F4953 /* DNSLookupToolViewModelTests.swift */; };
@@ -676,6 +677,7 @@
 		2318C9AFCEE31C60D3E14516 /* EmptyStateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmptyStateView.swift; sourceTree = "<group>"; };
 		247C2718CDBD3187540F4A47 /* SpeedTestIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeedTestIntent.swift; sourceTree = "<group>"; };
 		26335B5AC0E45923FD2B40C7 /* RSSIQuality+NSColor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RSSIQuality+NSColor.swift"; sourceTree = "<group>"; };
+		2633A89F5EDD7827E6D2D52D /* EventHistoryMigrationUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventHistoryMigrationUITests.swift; sourceTree = "<group>"; };
 		26FFF6381D7E42259F577B42 /* MacOSToolSmokeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacOSToolSmokeTests.swift; sourceTree = "<group>"; };
 		273DFEA060BE77C6F58BE72B /* AppIntentsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppIntentsTests.swift; sourceTree = "<group>"; };
 		2746D96C15673D48AAA752C2 /* NetworkScanActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkScanActivity.swift; sourceTree = "<group>"; };
@@ -1834,6 +1836,7 @@
 				ECD70966010AC545CDD84A3E /* DeviceDetailUITests.swift */,
 				D48E53028D020F88B20967C7 /* DeviceIdentitySuggestionUITests.swift */,
 				E6A543B7D3C0991842ACBCF5 /* DNSLookupToolUITests.swift */,
+				2633A89F5EDD7827E6D2D52D /* EventHistoryMigrationUITests.swift */,
 				2C7966052F5A865065D57EED /* ExportPDFUITests.swift */,
 				2926D7C25A7E15A889609FFE /* FunctionalSmokeTests.swift */,
 				4F942F3EB24C228A07F303EA /* GeoFenceSettingsUITests.swift */,
@@ -2906,6 +2909,7 @@
 				54286149DED9B16C7EE3EF0B /* DashboardUITests.swift in Sources */,
 				43F16FCFD10E6977A34D2DD3 /* DeviceDetailUITests.swift in Sources */,
 				959693901BB91D0846391BE1 /* DeviceIdentitySuggestionUITests.swift in Sources */,
+				8920FD6896291B3F05978274 /* EventHistoryMigrationUITests.swift in Sources */,
 				5B717313F69059A0EE708968 /* ExportPDFUITests.swift in Sources */,
 				649AF90BFF963A05B7E1CE05 /* FunctionalSmokeTests.swift in Sources */,
 				B59FE87FA927961BCB358956 /* GeoFenceSettingsUITests.swift in Sources */,

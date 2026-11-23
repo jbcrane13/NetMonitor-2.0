@@ -32,7 +32,11 @@ struct DataSettingsView: View {
             } header: {
                 Text("History")
             } footer: {
-                Text("Older measurements, monitoring sessions and timeline events will be automatically deleted to save space.")
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Older measurements, monitoring sessions and timeline events will be automatically deleted to save space.")
+                    Text("Event history keeps up to the newest \(NetworkEventService.eventCeiling.formatted()) events.")
+                        .accessibilityIdentifier("settings_label_eventHistoryCeiling")
+                }
             }
 
             SwiftUI.Section {

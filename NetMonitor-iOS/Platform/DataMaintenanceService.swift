@@ -14,7 +14,7 @@ final class DataMaintenanceService {
     static func pruneExpiredData(
         modelContext: ModelContext,
         defaults: UserDefaults = .standard,
-        eventService: NetworkEventService = .shared,
+        eventService: any NetworkEventServiceProtocol = NetworkEventService.shared,
         now: Date = Date()
     ) {
         let retentionDays = defaults.object(forKey: AppSettings.Keys.dataRetentionDays) as? Int ?? 30

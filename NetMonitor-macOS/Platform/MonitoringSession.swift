@@ -314,7 +314,7 @@ final class MonitoringSession {
     /// measurements, stopped monitoring sessions and timeline events (#395).
     @MainActor
     func pruneOldMeasurements(
-        eventService: NetworkEventService = .shared,
+        eventService: any NetworkEventServiceProtocol = NetworkEventService.shared,
         now: Date = Date()
     ) {
         guard let cutoffDate = HistoryRetention.current(in: defaults).cutoff(now: now) else { return }

@@ -16,17 +16,16 @@ final class SpyNetworkEventService: NetworkEventServiceProtocol, @unchecked Send
         lock.withLock { _loggedEvents.append(event) }
     }
 
-    func log(type: NetworkEventType, title: String, details: String?, severity: NetworkEventSeverity) {
-        let event = NetworkEvent(type: type, title: title, details: details, severity: severity)
-        lock.withLock { _loggedEvents.append(event) }
-    }
-
     func events(ofType type: NetworkEventType) -> [NetworkEvent] {
         loggedEvents.filter { $0.type == type }
     }
 
     func events(from start: Date, to end: Date) -> [NetworkEvent] {
         loggedEvents.filter { $0.timestamp >= start && $0.timestamp <= end }
+    }
+
+    func removeEvents(olderThan cutoff: Date) {
+        lock.withLock { _loggedEvents.removeAll { $0.timestamp < cutoff } }
     }
 
     func clearAll() {

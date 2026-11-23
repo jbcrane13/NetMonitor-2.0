@@ -10,11 +10,6 @@ import NetMonitorCore
 
 struct NetworkEventServiceTests {
 
-    init() {
-        // Clear UserDefaults storage so each test starts with a fresh NetworkEventService
-        NetworkEventService.shared.clearAll()
-    }
-
     // MARK: - Event Emission
 
     @Test func loggedEventAppearsInEvents() {

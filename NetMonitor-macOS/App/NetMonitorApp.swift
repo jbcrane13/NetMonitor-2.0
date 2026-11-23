@@ -28,6 +28,13 @@ struct NetMonitorApp: App {
     @AppStorage("netmonitor.appearance.compactMode") private var compactMode = false
     @AppStorage("netmonitor.appearance.theme") private var appearanceRaw = AppearanceMode.system.rawValue
 
+    init() {
+        // Save events still waiting for the write debounce (#491).
+        NotificationCenter.default.addObserver(forName: NSApplication.willTerminateNotification, object: nil, queue: nil) { _ in
+            NetworkEventService.shared.flush()
+        }
+    }
+
     private var colorSchemeOverride: ColorScheme? {
         switch AppearanceMode(rawValue: appearanceRaw) ?? .system {
         case .system: nil

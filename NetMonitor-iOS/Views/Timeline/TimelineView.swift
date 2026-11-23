@@ -76,6 +76,8 @@ struct TimelineView: View {
             .sheet(isPresented: $showingFilterSheet) {
                 TimelineFilterSheet(viewModel: viewModel)
             }
+            // Keeps the empty state's and the list's own identifiers on iOS 26+.
+            .accessibilityElement(children: .contain)
             .accessibilityIdentifier("screen_networkTimeline")
         }
         .sheet(isPresented: $showingFilterSheet) {
@@ -144,6 +146,8 @@ struct TimelineView: View {
                 .font(.title3)
                 .fontWeight(.semibold)
                 .foregroundStyle(Theme.Colors.textPrimary)
+                // On the text: iOS 26+ gives the stack no element of its own to carry it.
+                .accessibilityIdentifier("timeline_label_emptyState")
             Text("Network events will appear here as they occur.")
                 .font(.caption)
                 .foregroundStyle(Theme.Colors.textSecondary)
@@ -151,7 +155,6 @@ struct TimelineView: View {
                 .padding(.horizontal, 40)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .accessibilityIdentifier("timeline_label_emptyState")
     }
 }
 
