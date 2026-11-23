@@ -363,7 +363,13 @@ final class BackgroundTaskService {
 
         Self.logger.info("Checking \(targets.count) monitoring target(s)")
 
-        var alerts: [PendingAlert] = []
+        // Each alert is posted as soon as its target is checked, so a slow probe later in the
+        // list can't hold back an outage already found. Past the burst limit, fixed text.
+        var postedAlerts = 0
+        func postNow(_ alert: PendingAlert) async {
+            await post([alert], wordBodies: postedAlerts < NotificationTextWriter.burstLimit)
+            postedAlerts += 1
+        }
         for target in targets {
             let wasOnline = target.isOnline
             let checkResult = await checkTarget(target)
@@ -374,7 +380,7 @@ final class BackgroundTaskService {
                 // Check for high latency
                 if let threshold = notifications.highLatencyAlertThreshold, latency > Double(threshold) {
                     let (name, host) = (target.name, target.host)
-                    alerts.append((.highLatency(name: name, host: host, latencyMs: latency, thresholdMs: threshold), { [notifications] body in
+                    await postNow((.highLatency(name: name, host: host, latencyMs: latency, thresholdMs: threshold), { [notifications] body in
                         notifications.notifyHighLatency(host: host, latency: latency, generatedBody: body)
                     }))
                 }
@@ -386,14 +392,13 @@ final class BackgroundTaskService {
                     Self.logger.warning("Target went down: \(target.name) (\(target.host))")
                     if notifications.isTargetDownAlertEnabled {
                         let (name, host) = (target.name, target.host)
-                        alerts.append((.targetDown(name: name, host: host), { [notifications] body in
+                        await postNow((.targetDown(name: name, host: host), { [notifications] body in
                             notifications.notifyTargetDown(name: name, host: host, generatedBody: body)
                         }))
                     }
                 }
             }
         }
-        await post(alerts)
 
         // Save context
         do {
