@@ -44,6 +44,9 @@ final class AppEnvironment {
     /// The network the device is on, for events and samples (#491 D9): the local profile, else
     /// the active one. Under `UITEST_FAKE_DEVICES`, the UI-test network.
     let currentNetworkProfileID: @MainActor () -> UUID?
+    /// The network health samples belong to (#491 S5): the local network only while it is
+    /// connected, never the active profile. Under `UITEST_FAKE_DEVICES`, the UI-test network.
+    let connectedNetworkProfileID: @MainActor () -> UUID?
 
     // MARK: - Init
 
@@ -58,7 +61,8 @@ final class AppEnvironment {
         eventService: NetworkEventService,
         scanScheduler: any ScanSchedulerServiceProtocol,
         networkProfiles: NetworkProfileManager,
-        currentNetworkProfileID: @escaping @MainActor () -> UUID? = { nil }
+        currentNetworkProfileID: @escaping @MainActor () -> UUID? = { nil },
+        connectedNetworkProfileID: @escaping @MainActor () -> UUID? = { nil }
     ) {
         self.networkMonitor = networkMonitor
         self.deviceDiscovery = deviceDiscovery
@@ -71,6 +75,7 @@ final class AppEnvironment {
         self.scanScheduler = scanScheduler
         self.networkProfiles = networkProfiles
         self.currentNetworkProfileID = currentNetworkProfileID
+        self.connectedNetworkProfileID = connectedNetworkProfileID
     }
 
     // MARK: - Factories
@@ -85,11 +90,14 @@ final class AppEnvironment {
         let fake = UITestFakeDeviceFeed.isEnabled
         let profiles = NetworkProfileManager()
         let networkID: @MainActor () -> UUID?
+        let connectedNetworkID: @MainActor () -> UUID?
         if fake {
             networkID = { UITestBootstrap.networkProfileID }
+            connectedNetworkID = { UITestBootstrap.networkProfileID }
         } else {
             // Read only: the network-change monitor re-detects into this same manager.
             networkID = { [weak profiles] in profiles?.localProfile?.id ?? profiles?.activeProfile?.id }
+            connectedNetworkID = { [weak profiles] in profiles.flatMap { HealthSampleProbe.localNetworkProfileID(in: $0) } }
         }
         return AppEnvironment(
             networkMonitor: NetworkMonitorService.shared,
@@ -102,7 +110,8 @@ final class AppEnvironment {
             eventService: NetworkEventService.shared,
             scanScheduler: ScanSchedulerService.shared,
             networkProfiles: profiles,
-            currentNetworkProfileID: networkID
+            currentNetworkProfileID: networkID,
+            connectedNetworkProfileID: connectedNetworkID
         )
     }
 }

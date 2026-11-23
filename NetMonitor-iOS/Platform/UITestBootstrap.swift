@@ -212,11 +212,13 @@ enum UITestBootstrap {
     // MARK: - Health history fixtures (#491 S5)
 
     /// With `UITEST_SEED_HEALTH_SAMPLES=<n>`, replaces the health history with `n` samples for
-    /// this device's network (`HealthScoreHistoryStore.seedForUITests`).
+    /// this device's network (`HealthScoreHistoryStore.seedForUITests`); under `UITEST_FAKE_DEVICES`,
+    /// the UI-test network, which the dashboard then reads (#491 S4).
     private static func seedHealthSamplesIfNeeded() {
         guard isUITesting,
               let count = ProcessInfo.processInfo.environment["UITEST_SEED_HEALTH_SAMPLES"].flatMap(Int.init),
-              let network = HealthSampleProbe.localNetworkProfileID() else { return }
+              let network = UITestFakeDeviceFeed.isEnabled ? networkProfileID : HealthSampleProbe.localNetworkProfileID()
+        else { return }
         HealthScoreHistoryStore.shared.seedForUITests(count: count, networkProfileID: network)
     }
 
