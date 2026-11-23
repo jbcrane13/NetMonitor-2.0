@@ -37,7 +37,7 @@ final class TargetsUITests: MacOSUITestCase {
     func testAddTargetSheetOpens() {
         let addButton = requireExists(app.buttons["targets_button_add"], timeout: 3,
                                       message: "Add target button should exist")
-        addButton.click()
+        addButton.tap()
 
         requireExists(app.textFields["add_target_field_name"], timeout: 3,
                       message: "Name field should appear in add-target sheet")
@@ -46,7 +46,7 @@ final class TargetsUITests: MacOSUITestCase {
     }
 
     func testAddTargetSheetHasAllFields() {
-        app.buttons["targets_button_add"].click()
+        app.buttons["targets_button_add"].tap()
 
         requireExists(app.textFields["add_target_field_name"], timeout: 3,
                       message: "Name field should exist in add-target sheet")
@@ -58,22 +58,21 @@ final class TargetsUITests: MacOSUITestCase {
                       "Cancel button should exist")
         XCTAssertTrue(app.buttons["add_target_button_add"].exists,
                       "Add button should exist")
-        captureScreenshot(named: "Targets_AddSheet")
     }
 
     func testAddTargetSheetCancel() {
-        app.buttons["targets_button_add"].click()
+        app.buttons["targets_button_add"].tap()
 
         let cancelButton = requireExists(app.buttons["add_target_button_cancel"], timeout: 3,
                                          message: "Cancel button should exist in add-target sheet")
-        cancelButton.click()
+        cancelButton.tap()
 
         XCTAssertFalse(app.textFields["add_target_field_name"].waitForExistence(timeout: 2),
                        "Add-target sheet should dismiss after cancelling")
     }
 
     func testAddTargetSheetFillFields() {
-        app.buttons["targets_button_add"].click()
+        app.buttons["targets_button_add"].tap()
 
         let nameField = requireExists(app.textFields["add_target_field_name"], timeout: 3,
                                       message: "Name field should exist")
@@ -84,13 +83,13 @@ final class TargetsUITests: MacOSUITestCase {
             clearAndTypeText("8.8.8.8", into: hostField)
         }
 
-        app.buttons["add_target_button_cancel"].click()
+        app.buttons["add_target_button_cancel"].tap()
     }
 
     // MARK: - Functional: Add Target Validation
 
     func testAddTargetValidationRequiresFields() {
-        app.buttons["targets_button_add"].click()
+        app.buttons["targets_button_add"].tap()
 
         let addButton = requireExists(
             app.buttons["add_target_button_add"], timeout: 5,
@@ -99,11 +98,11 @@ final class TargetsUITests: MacOSUITestCase {
 
         XCTAssertTrue(addButton.exists, "Add button should be present without filling fields")
 
-        app.buttons["add_target_button_cancel"].click()
+        app.buttons["add_target_button_cancel"].tap()
     }
 
     func testAddTargetWithValidFieldsShowsAddButton() {
-        app.buttons["targets_button_add"].click()
+        app.buttons["targets_button_add"].tap()
 
         let nameField = requireExists(app.textFields["add_target_field_name"], timeout: 5,
                                       message: "Name field should appear in add-target sheet")
@@ -120,7 +119,7 @@ final class TargetsUITests: MacOSUITestCase {
         )
         XCTAssertTrue(addButton.exists, "Add button should remain visible after filling fields")
 
-        app.buttons["add_target_button_cancel"].click()
+        app.buttons["add_target_button_cancel"].tap()
     }
 
     // MARK: - Functional: Sort Menu
@@ -132,7 +131,7 @@ final class TargetsUITests: MacOSUITestCase {
         )
         XCTAssertTrue(sortMenu.isEnabled, "Sort menu should be enabled")
 
-        sortMenu.click()
+        sortMenu.tap()
 
         XCTAssertTrue(
             waitForEither(
