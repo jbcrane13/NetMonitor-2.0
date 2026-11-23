@@ -16,12 +16,16 @@ final class DeviceDiscoveryCoordinator {
     private(set) var lastScanTime: Date?
     private(set) var scanProgress: Double = 0.0
     private(set) var networkProfile: NetworkProfile?
-    /// Called after a completed scan with what changed against every device seen before on
-    /// this network, with a grace period (#393): first seen, came online, went offline,
-    /// changed. Only reports; device rows and their status are still set by the merge and
+    /// Receives what a completed scan changed against every device seen before on its network,
+    /// with a grace period (#393): first seen, came online, went offline, changed. Also gets the
+    /// scanned network's ID. Only reports; rows and their status are set by the merge and
     /// `markOfflineDevices`.
-    var onDeviceChanges: (@MainActor ([DeviceChangeEvent]) -> Void)?
-    /// Remembers devices between scans for `onDeviceChanges`. Tests inject one with fresh defaults.
+    typealias DeviceChangeHandler = @MainActor (_ changes: [DeviceChangeEvent], _ profileID: UUID?) -> Void
+    /// Every subscriber gets each change: the alert dispatcher and the event recorder (#491).
+    private(set) var deviceChangeHandlers: [DeviceChangeHandler] = []
+    /// Called when a scan completes, with its network and how many devices it found (#491).
+    var onScanCompleted: (@MainActor (_ profileID: UUID?, _ deviceCount: Int) -> Void)?
+    /// Remembers devices between scans for the device change handlers. Tests inject one with fresh defaults.
     var changeTracker = DeviceChangeTracker()
     /// Asks the on-device model what this network's devices are after each completed scan
     /// (#449). Nil, the default, turns suggestions off: only the app passes one, so tests
@@ -193,19 +197,10 @@ final class DeviceDiscoveryCoordinator {
                 Logger.discovery.notice("Scan finished: \(allDiscovered.count, privacy: .public) devices")
                 scanProgress = 1.0
                 lastScanTime = Date()
+                onScanCompleted?(profileID, allDiscovered.count)
 
                 if let profileID {
-                    let gatewayIP = networkProfile?.gatewayIP
-                        ?? networkProfileManager.profiles.first(where: { $0.id == profileID })?.gatewayIP
-                    let gatewayReachable = gatewayIP.map { gateway in
-                        allDiscovered.contains(where: { $0.ipAddress == gateway })
-                    }
-                    networkProfileManager.updateProfileScanInfo(
-                        id: profileID,
-                        lastScanned: Date(),
-                        deviceCount: discoveredDevices.count,
-                        gatewayReachable: gatewayReachable
-                    )
+                    updateProfileScanInfo(profileID: profileID, discovered: allDiscovered)
                 }
 
                 if countsTowardReviewPrompt {
@@ -217,6 +212,21 @@ final class DeviceDiscoveryCoordinator {
                 Logger.discovery.error("Scan error: \(error, privacy: .public)")
             }
         }
+    }
+
+    /// Saves the scan's time, device count and whether the gateway answered on its profile.
+    private func updateProfileScanInfo(profileID: UUID, discovered: [LocalDiscoveredDevice]) {
+        let gatewayIP = networkProfile?.gatewayIP
+            ?? networkProfileManager.profiles.first(where: { $0.id == profileID })?.gatewayIP
+        let gatewayReachable = gatewayIP.map { gateway in
+            discovered.contains(where: { $0.ipAddress == gateway })
+        }
+        networkProfileManager.updateProfileScanInfo(
+            id: profileID,
+            lastScanned: Date(),
+            deviceCount: discoveredDevices.count,
+            gatewayReachable: gatewayReachable
+        )
     }
 
     /// Handles one `ScanEngine` progress callback: updates `scanProgress` (E10 — the engine
@@ -724,8 +734,19 @@ final class DeviceDiscoveryCoordinator {
             knownScopes: Set(networkProfileManager.profiles.map(\.id.uuidString)),
             seed: { seed }
         )
-        if !changes.isEmpty {
-            onDeviceChanges?(changes)
+        notifyDeviceChanges(changes, profileID: profileID)
+    }
+
+    /// Subscribes `handler` to every later scan's device changes.
+    func addDeviceChangeHandler(_ handler: @escaping DeviceChangeHandler) {
+        deviceChangeHandlers.append(handler)
+    }
+
+    /// Hands `changes` to every subscriber; nothing when there are none.
+    func notifyDeviceChanges(_ changes: [DeviceChangeEvent], profileID: UUID?) {
+        guard !changes.isEmpty else { return }
+        for handler in deviceChangeHandlers {
+            handler(changes, profileID)
         }
     }
 

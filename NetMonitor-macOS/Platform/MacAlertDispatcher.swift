@@ -41,8 +41,8 @@ final class MacAlertDispatcher {
         self.discovery = discovery
         session?.onTargetDown = { [weak self] name, host in self?.targetWentDown(name: name, host: host) }
         session?.onTargetResult = { [weak self] result in self?.targetChecked(result) }
-        discovery?.onDeviceChanges = { [weak self, weak discovery] events in
-            self?.devicesChanged(events, devices: discovery?.discoveredDevices ?? [], networkID: discovery?.networkProfile?.id)
+        discovery?.addDeviceChangeHandler { [weak self, weak discovery] events, profileID in
+            self?.devicesChanged(events, devices: discovery?.discoveredDevices ?? [], networkID: profileID)
         }
     }
 

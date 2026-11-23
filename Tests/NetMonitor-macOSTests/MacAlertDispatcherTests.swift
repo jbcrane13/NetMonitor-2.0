@@ -147,12 +147,12 @@ struct MacAlertDispatcherTests {
         )
         defer { withExtendedLifetime(container) {} }
         #expect(session.onTargetDown == nil)
-        #expect(coordinator.onDeviceChanges == nil)
+        #expect(coordinator.deviceChangeHandlers.isEmpty)
 
         fixture.dispatcher.attach(to: session, discovery: coordinator)
         session.onTargetDown?("Router", "192.0.2.1")
         session.onTargetResult?(fixture.outcome(up: true))
-        coordinator.onDeviceChanges?([fixture.newDevice])
+        coordinator.notifyDeviceChanges([fixture.newDevice], profileID: coordinator.networkProfile?.id)
 
         #expect(fixture.poster.categories == [
             NotificationService.targetDownCategory,

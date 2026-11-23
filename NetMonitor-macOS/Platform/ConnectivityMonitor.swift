@@ -22,6 +22,8 @@ final class ConnectivityMonitor {
 
     /// How often to write latency samples while online (default 5 minutes).
     let sampleInterval: TimeInterval
+    /// Called after each recorded online/offline transition, with this monitor's network (#491).
+    var onTransition: (@MainActor (_ isOnline: Bool, _ profileID: UUID) -> Void)?
 
     // MARK: - Private
 
@@ -44,7 +46,7 @@ final class ConnectivityMonitor {
 
     // MARK: - Lifecycle
 
-    /// Start monitoring. Call from .task modifier; cancelled when view disappears.
+    /// Starts monitoring and runs the sample loop until the calling task is cancelled.
     func start() async {
         startPathMonitor()
         await runSampleLoop()
@@ -64,19 +66,22 @@ final class ConnectivityMonitor {
         monitor.pathUpdateHandler = { [weak self] path in
             // NWPathMonitor delivers updates on its queue; hop back to @MainActor.
             Task { @MainActor [weak self] in
-                guard let self else { return }
-                let online = path.status == .satisfied
-                if online != self.isOnline {
-                    self.isOnline = online
-                    self.writeTransition(isOnline: online)
-                    Logger.monitoring.info("Connectivity changed: \(online ? "online" : "offline")")
-                }
+                self?.pathChanged(online: path.status == .satisfied)
             }
         }
 
         // NWPathMonitor.start(queue:) is an Apple API that requires a DispatchQueue.
         // The update handler hops back to @MainActor via Task { @MainActor in ... }.
         monitor.start(queue: DispatchQueue(label: "com.netmonitor.pathmonitor", qos: .utility))
+    }
+
+    /// Records a transition when `online` differs from the current state.
+    func pathChanged(online: Bool) {
+        guard online != isOnline else { return }
+        isOnline = online
+        writeTransition(isOnline: online)
+        onTransition?(online, profileID)
+        Logger.monitoring.info("Connectivity changed: \(online ? "online" : "offline")")
     }
 
     // MARK: - Periodic Sampling
@@ -156,5 +161,45 @@ final class ConnectivityMonitor {
         } catch {
             Logger.monitoring.error("Failed to prune old ConnectivityRecords: \(error, privacy: .public)")
         }
+    }
+}
+
+// MARK: - App scope
+
+/// The app's connectivity monitor for the local network (#491 D8). Owned by the app rather than
+/// the dashboard, so connectivity events and Uptime History record whichever screen is showing.
+/// `run(for:)` replaces the monitor when the local network or its gateway changes.
+@MainActor
+final class AppConnectivityMonitor {
+    private(set) var monitor: ConnectivityMonitor?
+    private var task: Task<Void, Never>?
+    private let modelContext: ModelContext
+    private let onTransition: (@MainActor (_ isOnline: Bool, _ profileID: UUID) -> Void)?
+
+    init(modelContext: ModelContext, onTransition: (@MainActor (_ isOnline: Bool, _ profileID: UUID) -> Void)? = nil) {
+        self.modelContext = modelContext
+        self.onTransition = onTransition
+    }
+
+    /// Monitors `profile`, the local network, or nothing when it is nil. The same network and
+    /// gateway keep the running monitor.
+    func run(for profile: NetworkProfile?) {
+        if let monitor, let profile, monitor.profileID == profile.id, monitor.gatewayIP == profile.gatewayIP {
+            return
+        }
+        stop()
+        guard let profile else { return }
+        let monitor = ConnectivityMonitor(profileID: profile.id, gatewayIP: profile.gatewayIP, modelContext: modelContext)
+        monitor.onTransition = onTransition
+        self.monitor = monitor
+        task = Task { await monitor.start() }
+    }
+
+    func stop() {
+        task?.cancel()
+        task = nil
+        // The path monitor outlives the cancelled task; stop it too.
+        monitor?.stop()
+        monitor = nil
     }
 }

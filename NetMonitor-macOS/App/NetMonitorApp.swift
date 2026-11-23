@@ -3,6 +3,7 @@ import SwiftUI
 import UserNotifications
 import SwiftData
 import NetMonitorCore
+import NetworkScanKit
 import os
 
 @main
@@ -22,6 +23,10 @@ struct NetMonitorApp: App {
     @State private var notificationPresenter: MacNotificationPresenter?
     @State private var alertDispatcher: MacAlertDispatcher?
     @State private var networkProfileManager: NetworkProfileManager?
+    /// Writes the Mac's network events (#491).
+    @State private var eventRecorder: MacEventRecorder?
+    /// Records connectivity for the local network whichever screen is showing (#491 D8).
+    @State private var connectivityMonitor: AppConnectivityMonitor?
 
     @AppStorage("autoStartMonitoring") private var autoStartMonitoring = false
     @AppStorage("netmonitor.appearance.accentColor") private var accentColorHex = "#06B6D4"
@@ -162,32 +167,7 @@ struct NetMonitorApp: App {
         if isUITesting {
             try? await Task.sleep(nanoseconds: 1_000_000_000)
             UserDefaults.standard.set(false, forKey: "autoStartMonitoring")
-        }
-
-        if isUITesting {
-            let httpService = HTTPMonitorService()
-            let icmpService = ICMPMonitorService()
-            let tcpService = TCPMonitorService()
-            let profileManager = NetworkProfileManager()
-            networkProfileManager = profileManager
-            monitoringSession = MonitoringSession(
-                modelContext: context,
-                httpService: httpService,
-                icmpService: icmpService,
-                tcpService: tcpService
-            )
-            let discovery = DeviceDiscoveryCoordinator(
-                modelContext: context,
-                bonjourScanner: BonjourDiscoveryService(),
-                networkProfileManager: profileManager,
-                suggester: Self.uiTestSuggester
-            )
-            deviceDiscovery = discovery
-            if ProcessInfo.processInfo.arguments.contains("--seed-test-device") {
-                seedUITestDevice(into: context, profileManager: profileManager)
-                // UI tests don't scan, so ask about the seeded device directly (#449).
-                discovery.startSuggestions(profileID: profileManager.activeProfile?.id)
-            }
+            setupUITestServices(context: context)
             return
         }
 
@@ -223,10 +203,23 @@ struct NetMonitorApp: App {
                 suggester: DeviceSuggester(service: InsightService.shared, store: DeviceSuggestionStore())
             )
             deviceDiscovery = discovery
+            // Network events and app-scope connectivity, before the first scan (#491).
+            let recorder = MacEventRecorder()
+            recorder.attach(to: discovery)
+            recorder.localNetworkObserved(profileManager.localProfile)
+            eventRecorder = recorder
+            let connectivity = AppConnectivityMonitor(modelContext: context) { [weak recorder] isOnline, profileID in
+                recorder?.connectivityChanged(isOnline: isOnline, profileID: profileID)
+            }
+            connectivity.run(for: profileManager.localProfile)
+            connectivityMonitor = connectivity
             // Fill the dashboard without waiting for the user to press Scan (#358).
             discovery.rescan(.launch)
             // Rescan when the Mac moves to a different network while the app is open (#359).
-            let watcher = LocalNetworkChangeMonitor.rescanning(discovery, profileManager: profileManager)
+            let watcher = LocalNetworkChangeMonitor.rescanning(discovery, profileManager: profileManager) { [weak recorder] local in
+                recorder?.localNetworkObserved(local)
+                connectivity.run(for: local)
+            }
             watcher.start()
             networkChangeWatcher = watcher
             // Rescan at the user's chosen scan frequency while the app runs (#392).
@@ -293,6 +286,49 @@ struct NetMonitorApp: App {
         }
     }
 
+    /// Services for UI tests: no monitoring, alerts or LAN scans (#449, #491).
+    @MainActor
+    private func setupUITestServices(context: ModelContext) {
+        let httpService = HTTPMonitorService()
+        let icmpService = ICMPMonitorService()
+        let tcpService = TCPMonitorService()
+        let profileManager = NetworkProfileManager()
+        networkProfileManager = profileManager
+        monitoringSession = MonitoringSession(
+            modelContext: context,
+            httpService: httpService,
+            icmpService: icmpService,
+            tcpService: tcpService
+        )
+        // Scans see fixed devices, never the LAN, and remember them apart from the user's (#491).
+        let discovery = DeviceDiscoveryCoordinator(
+            modelContext: context,
+            bonjourScanner: BonjourDiscoveryService(),
+            networkProfileManager: profileManager,
+            pipelineFactory: UITestScanFixture.pipelineFactory,
+            suggester: Self.uiTestSuggester
+        )
+        discovery.changeTracker = UITestScanFixture.changeTracker(reset: HistoryFileLocation.current.resetRequested)
+        deviceDiscovery = discovery
+        let arguments = ProcessInfo.processInfo.arguments
+        if arguments.contains("--seed-test-device") {
+            UITestScanFixture.seedDevice(
+                into: context,
+                profileID: profileManager.activeProfile?.id,
+                deviceType: ProcessInfo.processInfo.environment["UITEST_FAKE_SUGGESTION"] == "1" ? .unknown : .computer
+            )
+            // UI tests don't scan, so ask about the seeded device directly (#449).
+            discovery.startSuggestions(profileID: profileManager.activeProfile?.id)
+        }
+        // UI-test scans write events too; there is no alert dispatcher here (#491).
+        let recorder = MacEventRecorder()
+        recorder.attach(to: discovery)
+        eventRecorder = recorder
+        if arguments.contains("--seed-test-events") {
+            UITestScanFixture.seedEvents(into: NetworkEventService.shared, profileID: profileManager.activeProfile?.id)
+        }
+    }
+
     /// Optional scheduled speed tests while the app runs, off by default (#398).
     private func startSpeedTestSchedulerIfNeeded() {
         if speedTestMaintenance == nil {
@@ -315,30 +351,93 @@ struct NetMonitorApp: App {
         defaults.removePersistentDomain(forName: "netmonitor.uitest.suggestions")
         return DeviceSuggester(service: FixedSuggestionInsightService(), store: DeviceSuggestionStore(defaults: defaults))
     }
-
-    /// Seeds a deterministic `LocalDevice` for UI tests that need a
-    /// non-empty devices list (e.g. context-menu verification). Idempotent.
-    /// Tags the device with the manager's active profile so the list view's
-    /// per-profile filter includes it.
-    @MainActor
-    private func seedUITestDevice(into context: ModelContext, profileManager: NetworkProfileManager) {
-        let fetch = FetchDescriptor<LocalDevice>()
-        if let existing = try? context.fetch(fetch), !existing.isEmpty {
-            return
-        }
-        let device = LocalDevice(
-            ipAddress: "192.168.77.77",
-            macAddress: "AA:BB:CC:DD:EE:FF",
-            hostname: "uitest-device",
-            // Unknown under the suggestion fixture, so the suggested type shows (#449).
-            deviceType: ProcessInfo.processInfo.environment["UITEST_FAKE_SUGGESTION"] == "1" ? .unknown : .computer,
-            status: .online,
-            lastLatency: 5.0,
-            networkProfileID: profileManager.activeProfile?.id
-        )
-        context.insert(device)
-        try? context.save()
-    }
 }
 
 // swiftlint:enable function_body_length
+
+// MARK: - UI-test scan fixture
+
+/// What `--uitesting` scans instead of the LAN (#491 D7): the `--seed-test-device` row's device
+/// and a printer it has never seen. The seeded row is the network's baseline, so a scan reports
+/// the printer, and only the printer, as first seen.
+enum UITestScanFixture {
+    /// The device tracker's own suite, so UI-test scans never touch the user's registry.
+    static let trackerSuite = "netmonitor.uitest"
+    static let seedIP = "192.168.77.77"
+    static let seedMAC = "AA:BB:CC:DD:EE:FF"
+    static let seedHostname = "uitest-device"
+    static let printerIP = "192.168.77.20"
+    static let printerMAC = "00:1B:A9:77:00:20"
+    static let printerHostname = "uitest-printer"
+
+    static var devices: [DiscoveredDevice] {
+        [
+            DiscoveredDevice(
+                ipAddress: seedIP, hostname: seedHostname, vendor: nil, macAddress: seedMAC,
+                latency: 5, discoveredAt: Date(), source: .local
+            ),
+            DiscoveredDevice(
+                ipAddress: printerIP, hostname: printerHostname, vendor: nil, macAddress: printerMAC,
+                latency: 4, discoveredAt: Date(), source: .local
+            )
+        ]
+    }
+
+    static let pipelineFactory: @Sendable (ScanPipelineInputs) -> ScanPipeline = { _ in
+        ScanPipeline(steps: [ScanPipeline.Step(phases: [FixturePhase()], concurrent: false)])
+    }
+
+    /// The UI-test tracker, emptied first when `reset` (`--reset-history-files`) is set.
+    @MainActor
+    static func changeTracker(reset: Bool) -> DeviceChangeTracker {
+        let defaults = UserDefaults(suiteName: trackerSuite) ?? .standard
+        if reset {
+            defaults.removePersistentDomain(forName: trackerSuite)
+        }
+        return DeviceChangeTracker(defaults: defaults)
+    }
+
+    /// Seeds the baseline `LocalDevice` on `profileID`, for UI tests that need a non-empty
+    /// devices list. Idempotent: does nothing when any device exists.
+    @MainActor
+    static func seedDevice(into context: ModelContext, profileID: UUID?, deviceType: DeviceType = .computer) {
+        if let existing = try? context.fetch(FetchDescriptor<LocalDevice>()), !existing.isEmpty {
+            return
+        }
+        context.insert(LocalDevice(
+            ipAddress: seedIP,
+            macAddress: seedMAC,
+            hostname: seedHostname,
+            deviceType: deviceType,
+            status: .online,
+            lastLatency: 5.0,
+            networkProfileID: profileID
+        ))
+        try? context.save()
+    }
+
+    /// `--seed-test-events`: one event today and one ten days ago, for the Timeline's ranges.
+    static func seedEvents(into eventService: any NetworkEventServiceProtocol, profileID: UUID?, now: Date = Date()) {
+        eventService.log(NetworkEvent(
+            type: .connectivityChange, timestamp: now.addingTimeInterval(-10 * 86400),
+            title: "UITest Event 10 Days Ago", networkProfileID: profileID
+        ))
+        eventService.log(NetworkEvent(
+            type: .connectivityChange, timestamp: now.addingTimeInterval(-60),
+            title: "UITest Event Today", networkProfileID: profileID
+        ))
+    }
+
+    private struct FixturePhase: ScanPhase, Sendable {
+        let id: ScanPhaseID = "uiTestFixture"
+        let displayName = "UI-test fixture"
+        let weight: Double = 1.0
+
+        func execute(context: ScanContext, accumulator: ScanAccumulator, onProgress: @Sendable (Double) async -> Void) async {
+            for device in UITestScanFixture.devices {
+                await accumulator.upsert(device)
+            }
+            await onProgress(1.0)
+        }
+    }
+}
