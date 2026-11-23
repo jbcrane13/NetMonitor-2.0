@@ -24,5 +24,13 @@ for id in networkDetail_row_health healthGauge_chart_history; do
     [[ "$result" == found* ]] || { echo "FAIL: $id did not appear"; exit 1; }
 done
 echo "chart value: $("$DRIVER" value healthGauge_chart_history)"
-sleep 2
+# Capture once the live refresh has scored (the gauge shows digits, not "…").
+for _ in $(seq 1 60); do
+    score=$("$DRIVER" value healthGauge_label_score)
+    [[ "$score" =~ ^[0-9]+$ ]] && break
+    sleep 1
+done
+echo "score: $score"
+[[ "$score" =~ ^[0-9]+$ ]] || { echo "FAIL: the gauge never scored"; exit 1; }
+sleep 1
 "$DRIVER" capture "$OUT/macos-health-history.png"
