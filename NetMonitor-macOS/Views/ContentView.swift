@@ -193,6 +193,7 @@ struct ContentView: View {
             case .sslMonitor: SSLCertificateMonitorView()
             case .wifiHeatmap: WiFiHeatmapView(pendingSurveyURL: pendingSurveyURL)
             case .portForwards: PortForwardsToolView()
+            case .timeline: TimelineView()
             }
         }
         .toolbar {

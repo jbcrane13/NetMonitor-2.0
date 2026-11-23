@@ -104,6 +104,49 @@ struct TimelineSummaryTests {
         #expect(request.facts.contains("Previous download: 300.0 Mbps"))
     }
 
+    @Test func summarizingTodayStillWorksInsideTheTodayRange() async {
+        let insight = MockInsightService()
+        let viewModel = makeViewModel(insight)
+        viewModel.selectedRange = .today
+        let task = Task { await viewModel.summarize("Today", savedDevices: [], speedTests: []) }
+        await waitUntil { insight.requests.count == 1 }
+        insight.send(.finished("A camera joined and a device left."))
+        await task.value
+
+        #expect(insight.requests.first?.observations == ["1 device joined the network.", "1 device left the network."])
+        #expect(viewModel.summary(for: "Today") == .finished(ChangeSummary(
+            keyPoints: ["1 device joined the network.", "1 device left the network."],
+            text: "A camera joined and a device left."
+        )))
+    }
+
+    /// The scanning state comes from the environment's discovery service, so it follows the
+    /// UI-test fake under `UITEST_FAKE_DEVICES` (#507 note from S4).
+    @Test func theEnvironmentsScanBlocksSummaries() async {
+        let discovery = MockDeviceDiscoveryService()
+        discovery.isScanning = true
+        let env = AppEnvironment(
+            networkMonitor: MockNetworkMonitorService(), deviceDiscovery: discovery,
+            macConnection: MockMacConnectionService(), publicIP: MockPublicIPService(), wifiInfo: MockWiFiInfoService(),
+            targetManager: .shared, activityLog: .shared, eventService: events, scanScheduler: ScanSchedulerService.shared
+        )
+        let insight = MockInsightService()
+        let viewModel = TimelineViewModel(env: env, insightService: insight)
+        events.log(type: .deviceJoined, title: "Device Joined: Camera", severity: .success)
+        viewModel.load()
+
+        await viewModel.summarize("Today", savedDevices: [], speedTests: [])
+        #expect(insight.requests.isEmpty)
+        #expect(viewModel.summary(for: "Today") == .unavailable)
+
+        discovery.isScanning = false
+        let task = Task { await viewModel.summarize("Today", savedDevices: [], speedTests: []) }
+        await waitUntil { insight.requests.count == 1 }
+        insight.send(.finished("A camera joined."))
+        await task.value
+        #expect(viewModel.summary(for: "Today") == .finished(ChangeSummary(keyPoints: ["1 device joined the network."], text: "A camera joined.")))
+    }
+
     @Test func theActionIsHiddenForRoutineEventFilters() {
         let viewModel = makeViewModel(MockInsightService())
         viewModel.applyFilter(.scanComplete)

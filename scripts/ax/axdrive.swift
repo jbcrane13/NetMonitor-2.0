@@ -7,6 +7,8 @@ import ApplicationServices
 //   axdrive capture <file.png> | ids | value <id> | menu <menu item title>
 //   axdrive text <substring> <seconds> | notext <substring> <seconds>  (any element's value, title or description)
 //   axdrive capture-element <id> <file.png>  (only that element's frame on screen)
+//   axdrive pressin <id> <title>  (presses the descendant of <id> titled <title>, such as a picker segment)
+//   axdrive capture-in <id> <file.png>  (the app window only, cropped to that element; no other window shows)
 let args = CommandLine.arguments
 guard args.count >= 2 else { print("usage")
 exit(2)
@@ -105,6 +107,19 @@ func waitForText(_ text: String, _ seconds: Double, present: Bool) -> Bool {
         usleep(300_000)
     }
     return false
+}
+
+/// The first descendant of `root` whose title, value or description is exactly `title`.
+func descendant(of root: AXUIElement, titled title: String) -> AXUIElement? {
+    var queue = attr(root, kAXChildrenAttribute) as? [AXUIElement] ?? []
+    while !queue.isEmpty {
+        let el = queue.removeFirst()
+        for name in [kAXTitleAttribute, kAXValueAttribute, kAXDescriptionAttribute] where attr(el, name) as? String == title {
+            return el
+        }
+        queue += attr(el, kAXChildrenAttribute) as? [AXUIElement] ?? []
+    }
+    return nil
 }
 
 func center(_ el: AXUIElement) -> CGPoint? {
@@ -221,6 +236,50 @@ case "capture-element":
     task.arguments = ["-x", "-R\(Int(pos.x)),\(Int(pos.y)),\(Int(size.width)),\(Int(size.height))", args[3]]
     try task.run()
     task.waitUntilExit()
+    print("captured \(args[2]) to \(args[3])")
+case "pressin":
+    guard let root = find(args[2]), let el = descendant(of: root, titled: args[3]) else {
+        print("NOTFOUND \(args[3]) in \(args[2])")
+        exit(1)
+    }
+    if AXUIElementPerformAction(el, kAXPressAction as CFString) != .success, let point = center(el) {
+        mouseClick(point)
+    }
+    print("pressed \(args[3]) in \(args[2])")
+case "capture-in":
+    guard let el = find(args[2]), let posValue = attr(el, kAXPositionAttribute), let sizeValue = attr(el, kAXSizeAttribute),
+          CFGetTypeID(posValue) == AXValueGetTypeID(), CFGetTypeID(sizeValue) == AXValueGetTypeID(), let wid = windowID(),
+          let info = (CGWindowListCopyWindowInfo([.optionIncludingWindow], wid) as? [[String: Any]])?.first,
+          let bounds = info[kCGWindowBounds as String] as? [String: CGFloat]
+    else { print("NOTFOUND \(args[2])")
+        exit(1)
+    }
+    var pos = CGPoint.zero, size = CGSize.zero
+    // swiftlint:disable force_cast
+    AXValueGetValue(posValue as! AXValue, .cgPoint, &pos)
+    AXValueGetValue(sizeValue as! AXValue, .cgSize, &size)
+    // swiftlint:enable force_cast
+    let full = args[3] + ".window.png"
+    let task = Process()
+    task.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
+    task.arguments = ["-x", "-o", "-l\(wid)", full]
+    try task.run()
+    task.waitUntilExit()
+    guard let source = CGImageSourceCreateWithURL(URL(fileURLWithPath: full) as CFURL, nil),
+          let image = CGImageSourceCreateImageAtIndex(source, 0, nil) else { print("NOIMAGE")
+        exit(1)
+    }
+    let scale = CGFloat(image.width) / (bounds["Width"] ?? 1)
+    let rect = CGRect(x: (pos.x - (bounds["X"] ?? 0)) * scale, y: (pos.y - (bounds["Y"] ?? 0)) * scale,
+                      width: size.width * scale, height: size.height * scale)
+    guard let cropped = image.cropping(to: rect),
+          let dest = CGImageDestinationCreateWithURL(URL(fileURLWithPath: args[3]) as CFURL, "public.png" as CFString, 1, nil)
+    else { print("NOCROP")
+        exit(1)
+    }
+    CGImageDestinationAddImage(dest, cropped, nil)
+    CGImageDestinationFinalize(dest)
+    try? FileManager.default.removeItem(atPath: full)
     print("captured \(args[2]) to \(args[3])")
 case "ids":
     print(allIDs().joined(separator: "\n"))

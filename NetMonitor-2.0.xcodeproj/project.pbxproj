@@ -75,6 +75,7 @@
 		1C819F0E94B6B3C33901A8B9 /* PostScanRefinementTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 884331E906096344FF4F5D46 /* PostScanRefinementTests.swift */; };
 		1D97DE9D80C8A558319C7674 /* WebBrowserToolUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CC9403AD0B1B08EAF0A4CEA /* WebBrowserToolUITests.swift */; };
 		1E39D7579A3492D6C0DB83A1 /* MacAlertDispatcherTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E9C652B7C4CCD58817A5041 /* MacAlertDispatcherTests.swift */; };
+		1E461683DE6451BB2236C690 /* TimelineMacViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10B79EF965279290E1410623 /* TimelineMacViewModelTests.swift */; };
 		1E62FB0CDA67B6BC1286F57F /* HealthChecklistCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E2C74B8A0C127BA8E6239E5 /* HealthChecklistCard.swift */; };
 		1EE0D8CAC8AE9FF934E8C014 /* NotificationRouteTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82E8DBAC9087C85AAE3E698B /* NotificationRouteTests.swift */; };
 		1F9D709801579A90BF11B932 /* MonitoringActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 695AA592F01C6645F07F312F /* MonitoringActivity.swift */; };
@@ -646,6 +647,7 @@
 		0FCE51303E1119E639A5B8C2 /* AGENTS.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = AGENTS.md; sourceTree = "<group>"; };
 		101EF594B6858D3F18BCD641 /* DashboardUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardUITests.swift; sourceTree = "<group>"; };
 		101F26E4BECFFBFB3797E920 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		10B79EF965279290E1410623 /* TimelineMacViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineMacViewModelTests.swift; sourceTree = "<group>"; };
 		10D424BA72E570FE8CB63CA4 /* ToolInsightRequestTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolInsightRequestTests.swift; sourceTree = "<group>"; };
 		113F54C8B77279EBFE7FBF0D /* IOSUITestCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSUITestCase.swift; sourceTree = "<group>"; };
 		11ECEB0143FB17F5EE8C4EB4 /* GatewayService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GatewayService.swift; sourceTree = "<group>"; };
@@ -2094,6 +2096,7 @@
 				FFB0833130BA6A90208D0613 /* TargetAlertSettingsTests.swift */,
 				34CAA702CF1D6A96FE8D8D30 /* TCPMonitorServiceTests.swift */,
 				22C146A39287FFF5DD38F8C3 /* TestHelpers.swift */,
+				10B79EF965279290E1410623 /* TimelineMacViewModelTests.swift */,
 				CBD3320C778ECC2044DE3861 /* TracerouteServiceErrorSurfacingTests.swift */,
 				DCB8A489F66E21E8EDEB20EA /* UptimeViewModelTests.swift */,
 				7FEBEA87C402A3FB6AB1C6C5 /* WakeOnLanActionTests.swift */,
@@ -2929,6 +2932,7 @@
 				FC06ACBC99F5A904C2F8F4FD /* TCPMonitorServiceTests.swift in Sources */,
 				662112E8EFF96F36EA1845C3 /* TargetAlertSettingsTests.swift in Sources */,
 				206584B8ACCF8ED6A773C4FE /* TestHelpers.swift in Sources */,
+				1E461683DE6451BB2236C690 /* TimelineMacViewModelTests.swift in Sources */,
 				ADAEC21F40EB1CAF91790F00 /* TracerouteServiceErrorSurfacingTests.swift in Sources */,
 				638EF79203E19CF5F4912F54 /* UptimeViewModelTests.swift in Sources */,
 				A5722676B309E4D7FDB7BF60 /* WHOISServiceTests.swift in Sources */,

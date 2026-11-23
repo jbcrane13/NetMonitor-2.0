@@ -22,12 +22,13 @@ struct TimelineView: View {
     }
 
     init(env: AppEnvironment) {
-        _viewModel = State(initialValue: TimelineViewModel(service: env.eventService))
+        _viewModel = State(initialValue: TimelineViewModel(env: env))
     }
 
     var body: some View {
         NavigationStack {
-            ZStack {
+            VStack(spacing: 0) {
+                rangePicker
                 if viewModel.hasEvents {
                     eventList
                 } else {
@@ -88,14 +89,15 @@ struct TimelineView: View {
     private var eventList: some View {
         ScrollView {
             LazyVStack(spacing: 0, pinnedViews: .sectionHeaders) {
-                ForEach(viewModel.groupedEvents, id: \.label) { group in
+                ForEach(viewModel.groupedEvents, id: \.day) { group in
                     Section {
                         if let summary = viewModel.summary(for: group.label) {
                             TimelineDaySummary(summary: summary, label: group.label)
                                 .padding(.horizontal, Theme.Layout.screenPadding)
                                 .padding(.bottom, Theme.Layout.itemSpacing)
                         }
-                        VStack(spacing: 1) {
+                        // Lazy too, so a day of thousands of events stays smooth (#491 D3).
+                        LazyVStack(spacing: 1) {
                             ForEach(group.events) { event in
                                 TimelineEventRow(event: event)
                             }
@@ -112,6 +114,18 @@ struct TimelineView: View {
             .padding(.bottom, Theme.Layout.sectionSpacing)
         }
         .accessibilityIdentifier("timeline_list_events")
+    }
+
+    private var rangePicker: some View {
+        Picker("Range", selection: $viewModel.selectedRange) {
+            ForEach(TimelineRange.allCases) { range in
+                Text(range.title).tag(range)
+            }
+        }
+        .pickerStyle(.segmented)
+        .padding(.horizontal, Theme.Layout.screenPadding)
+        .padding(.vertical, Theme.Layout.smallCornerRadius)
+        .accessibilityIdentifier("timeline_picker_range")
     }
 
     private func sectionHeader(_ label: String) -> some View {

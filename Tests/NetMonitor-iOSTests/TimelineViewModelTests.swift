@@ -142,6 +142,90 @@ struct TimelineViewModelTests {
     }
 }
 
+// MARK: - Ranges and day order (#491 S3)
+
+@Suite("TimelineViewModel ranges")
+@MainActor
+struct TimelineViewModelRangeTests {
+    private let calendar: Calendar = {
+        var calendar = Calendar(identifier: .gregorian)
+        // swiftlint:disable:next force_unwrapping
+        calendar.timeZone = TimeZone(identifier: "Europe/Berlin")!
+        calendar.locale = Locale(identifier: "en_US")
+        return calendar
+    }()
+
+    private func date(_ month: Int, _ day: Int, _ hour: Int = 12, year: Int = 2027) -> Date {
+        // swiftlint:disable:next force_unwrapping
+        calendar.date(from: DateComponents(year: year, month: month, day: day, hour: hour))!
+    }
+
+    /// 2027-01-03 10:00 in Berlin, so the ranges cross the year boundary.
+    private func makeVM() -> (TimelineViewModel, MockNetworkEventService) {
+        let mock = MockNetworkEventService()
+        mock.mockEvents = [
+            NetworkEvent(type: .deviceJoined, timestamp: date(1, 3, 9), title: "Joined today"),
+            NetworkEvent(type: .deviceLeft, timestamp: date(1, 3, 1), title: "Left today"),
+            NetworkEvent(type: .deviceJoined, timestamp: date(1, 2, 23), title: "Joined yesterday"),
+            NetworkEvent(type: .deviceJoined, timestamp: date(12, 28, 0, year: 2026), title: "Joined at the start of 7 days"),
+            NetworkEvent(type: .deviceLeft, timestamp: date(1, 3, 0).addingTimeInterval(-6 * 86400 - 1), title: "Left just before 7 days"),
+            NetworkEvent(type: .deviceJoined, timestamp: date(11, 5, year: 2026), title: "Joined in November")
+        ]
+        let now = date(1, 3, 10)
+        return (TimelineViewModel(service: mock, calendar: calendar, now: { now }), mock)
+    }
+
+    private func titles(_ vm: TimelineViewModel) -> [String] {
+        vm.groupedEvents.flatMap { $0.events.map(\.title) }
+    }
+
+    @Test func allIsTheDefault() {
+        let (vm, _) = makeVM()
+        vm.load()
+        #expect(vm.selectedRange == .all)
+        #expect(titles(vm).count == 6)
+    }
+
+    @Test func todayStartsAtLocalMidnight() {
+        let (vm, _) = makeVM()
+        vm.selectedRange = .today
+        #expect(titles(vm) == ["Joined today", "Left today"])
+    }
+
+    @Test func sevenDaysStartsAtMidnightSixDaysAgoAcrossTheYear() {
+        let (vm, _) = makeVM()
+        vm.selectedRange = .sevenDays
+        #expect(titles(vm) == ["Joined today", "Left today", "Joined yesterday", "Joined at the start of 7 days"])
+        #expect(vm.groupedEvents.last?.label == "Dec 28, 2026")
+    }
+
+    @Test func theTypeFilterAppliesInsideTheRange() {
+        let (vm, _) = makeVM()
+        vm.selectedRange = .thirtyDays
+        vm.applyFilter(.deviceLeft)
+        #expect(titles(vm) == ["Left today", "Left just before 7 days"])
+        vm.selectedRange = .today
+        #expect(titles(vm) == ["Left today"])
+        vm.applyFilter(.scanComplete)
+        #expect(!vm.hasEvents)
+    }
+
+    @Test func olderDaysAreInDateOrderNotLabelOrder() {
+        let (vm, _) = makeVM()
+        vm.load()
+        // Alphabetically "Nov 5, 2026" sorts before "Dec 27, 2026"; by date it is last.
+        #expect(vm.groupedEvents.map(\.label) == ["Today", "Yesterday", "Dec 28, 2026", "Dec 27, 2026", "Nov 5, 2026"])
+    }
+
+    @Test func aNewEventShowsOnRefreshWithinTheRange() {
+        let (vm, mock) = makeVM()
+        vm.selectedRange = .today
+        mock.log(NetworkEvent(type: .scanComplete, timestamp: date(1, 3, 9), title: "Scan Complete"))
+        vm.refresh()
+        #expect(titles(vm).contains("Scan Complete"))
+    }
+}
+
 // MARK: - NetworkEvent Model Tests
 
 struct NetworkEventTests {
@@ -155,9 +239,9 @@ struct NetworkEventTests {
     }
 
     @Test func idIsUniquePerInstance() {
-        let a = NetworkEvent(type: .toolRun, title: "A")
-        let b = NetworkEvent(type: .toolRun, title: "B")
-        #expect(a.id != b.id)
+        let first = NetworkEvent(type: .toolRun, title: "A")
+        let second = NetworkEvent(type: .toolRun, title: "B")
+        #expect(first.id != second.id)
     }
 
     @Test func typeDisplayNamesAreNonEmpty() {
