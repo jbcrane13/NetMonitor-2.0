@@ -4,6 +4,7 @@ import NetworkScanKit
 import PDFKit
 import SwiftData
 import UIKit
+import os
 
 @MainActor
 enum UITestBootstrap {
@@ -211,11 +212,13 @@ enum UITestBootstrap {
     // MARK: - Health history fixtures (#491 S5)
 
     /// With `UITEST_SEED_HEALTH_SAMPLES=<n>`, replaces the health history with `n` samples for
-    /// this device's network (`HealthScoreHistoryStore.seedForUITests`).
+    /// this device's network (`HealthScoreHistoryStore.seedForUITests`); under `UITEST_FAKE_DEVICES`,
+    /// the UI-test network, which the dashboard then reads (#491 S4).
     private static func seedHealthSamplesIfNeeded() {
         guard isUITesting,
               let count = ProcessInfo.processInfo.environment["UITEST_SEED_HEALTH_SAMPLES"].flatMap(Int.init),
-              let network = HealthSampleProbe.localNetworkProfileID() else { return }
+              let network = UITestFakeDeviceFeed.isEnabled ? networkProfileID : HealthSampleProbe.localNetworkProfileID()
+        else { return }
         HealthScoreHistoryStore.shared.seedForUITests(count: count, networkProfileID: network)
     }
 
@@ -241,4 +244,68 @@ private struct FixedAnswerInsightService: InsightServiceProtocol {
     }
 
     func suggestIdentity(_ evidence: DeviceEvidence) async -> DeviceSuggestion? { nil }
+}
+
+// MARK: - Event IDs fixtures (#491 S4)
+
+extension UITestBootstrap {
+    // The UI-test network (#491 D9). Under `UITEST_FAKE_DEVICES` it is the current network,
+    // the fake discovery service stamps it on the fixture devices, and seeds use it.
+    // swiftlint:disable:next force_unwrapping
+    static let networkProfileID = UUID(uuidString: "00000491-0000-4000-8000-0000000000A4")!
+
+    /// The custom name `--seed-timeline-device` gives the first fixture device's saved row.
+    static let timelineDeviceName = "UITest Office Printer"
+
+    /// `--uitesting-events`: run the event listener in a UI test, which otherwise doesn't.
+    static var recordsEvents: Bool {
+        isUITesting && ProcessInfo.processInfo.arguments.contains("--uitesting-events")
+    }
+
+    /// `--seed-timeline-device`: saves the first fixture device (its IP and MAC) on the UI-test
+    /// network as "UITest Office Printer", so its events are named by the custom name.
+    static func seedTimelineDeviceIfNeeded(in context: ModelContext) {
+        guard isUITesting, ProcessInfo.processInfo.arguments.contains("--seed-timeline-device"), !hasSeededTimelineDevice else { return }
+        hasSeededTimelineDevice = true
+        guard let fixture = UITestFakeDeviceFeed().devices.first else { return }
+        context.insert(LocalDevice(
+            ipAddress: fixture.ipAddress,
+            macAddress: fixture.macAddress ?? "",
+            hostname: fixture.hostname,
+            customName: timelineDeviceName,
+            networkProfileID: networkProfileID
+        ))
+        do {
+            try context.save()
+        } catch {
+            Logger.data.error("UI-test timeline device seed failed to save: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    private static var hasSeededTimelineDevice = false
+
+    static let rangeEventTitles = (today: "UITest Event Today", tenDaysAgo: "UITest Event 10 Days Ago")
+
+    /// `--seed-test-events`: one event today and one ten days ago on the UI-test network, for the
+    /// Timeline's ranges (S3). Idempotent: never again into a history that already has them (the
+    /// UI-test history survives a relaunch without a reset).
+    static func seedRangeEventsIfNeeded(
+        into eventService: any NetworkEventServiceProtocol = NetworkEventService.shared,
+        arguments: [String] = ProcessInfo.processInfo.arguments,
+        now: Date = Date()
+    ) {
+        guard isUITesting, arguments.contains("--seed-test-events"),
+              !eventService.events.contains(where: { $0.title == rangeEventTitles.today }) else { return }
+        eventService.log(NetworkEvent(
+            type: .connectivityChange, timestamp: now.addingTimeInterval(-10 * 86400),
+            title: rangeEventTitles.tenDaysAgo, networkProfileID: networkProfileID
+        ))
+        // A minute ago, but never before today's midnight, so it is always "Today".
+        let today = max(now.addingTimeInterval(-60), Calendar.current.startOfDay(for: now))
+        eventService.log(NetworkEvent(
+            type: .connectivityChange, timestamp: today,
+            title: rangeEventTitles.today, networkProfileID: networkProfileID
+        ))
+    }
+
 }

@@ -13,6 +13,8 @@ struct NetmonitorApp: App {
     @State private var environment: AppEnvironment
     @State private var speedTestScheduler: ScheduledSpeedTestRunner?
     @State private var networkChangeMonitor: LocalNetworkChangeMonitor?
+    /// Logs connectivity and device changes for the Timeline.
+    @State private var eventListener: EventListenerService?
     @Environment(\.scenePhase) private var scenePhase
 
     private static var isUITesting: Bool {
@@ -70,10 +72,25 @@ struct NetmonitorApp: App {
         guard !Self.isUITesting else {
             // Before any view loads, so the dashboard's first brief sees the seeded events.
             UITestBootstrap.seedEventsIfNeeded()
+            UITestBootstrap.seedRangeEventsIfNeeded()
             UITestBootstrap.logTestEventIfRequested()
             return
         }
         BackgroundTaskService.shared.registerTasks()
+    }
+
+    /// Starts the Timeline's event listener once, on the environment's discovery service and
+    /// network, naming devices from the saved rows (#491 D9).
+    private func startEventListener() {
+        guard eventListener == nil else { return }
+        let listener = EventListenerService(
+            eventService: environment.eventService,
+            discoveryService: environment.deviceDiscovery,
+            currentNetworkProfileID: environment.currentNetworkProfileID,
+            savedDevices: SavedDeviceLookup(context: sharedModelContainer.mainContext)
+        )
+        listener.start()
+        eventListener = listener
     }
 
     // Respect user's appearance preference (light/dark/system)
@@ -107,6 +124,10 @@ struct NetmonitorApp: App {
                 .onAppear {
                     UITestBootstrap.configureIfNeeded()
                     UITestBootstrap.seedReportDataIfNeeded(in: sharedModelContainer.mainContext)
+                    UITestBootstrap.seedTimelineDeviceIfNeeded(in: sharedModelContainer.mainContext)
+                    if UITestBootstrap.recordsEvents {
+                        startEventListener()
+                    }
 
                     if Self.isUITesting || Self.persistenceOutcome.isDegraded {
                         return
@@ -125,7 +146,7 @@ struct NetmonitorApp: App {
                     _ = NetworkMonitorService.shared
 
                     // Start event listener to log connectivity/device changes for Timeline.
-                    EventListenerService.shared.start()
+                    startEventListener()
 
                     BackgroundTaskService.shared.scheduleRefreshTask()
                     BackgroundTaskService.shared.scheduleSyncTask()

@@ -22,7 +22,7 @@ public final class NetworkProfileManager {
     private let userDefaults: UserDefaults
     private let activeProfilesProvider: @Sendable () -> [NetworkProfile]
 
-    private static let storageKey = "netmonitor.networkProfiles"
+    nonisolated private static let storageKey = "netmonitor.networkProfiles"
 
     public init(
         userDefaults: UserDefaults = .standard,
@@ -122,9 +122,7 @@ public final class NetworkProfileManager {
         let normalizedInterface = interfaceName?
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
-        let resolvedInterface = (normalizedInterface?.isEmpty == false)
-            ? normalizedInterface!
-            : "companion-\(gateway)"
+        let resolvedInterface = normalizedInterface.flatMap { $0.isEmpty ? nil : $0 } ?? "companion-\(gateway)"
         let resolvedName = name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             ? "Companion \(cidr.cidr)"
             : name.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -323,69 +321,6 @@ public final class NetworkProfileManager {
         detectActiveProfiles().first
     }
 
-    // MARK: - Persistence
-
-    private func loadProfiles() {
-        guard let data = userDefaults.data(forKey: Self.storageKey), let decoded = try? JSONDecoder().decode([NetworkProfile].self, from: data) else { return }
-        profiles = decoded
-        activeProfile = Self.primaryProfile(from: decoded)
-    }
-
-    private func persistProfiles() {
-        guard let encoded = try? JSONEncoder().encode(profiles) else { return }
-        userDefaults.set(encoded, forKey: Self.storageKey)
-    }
-
-    // MARK: - Per-network ids
-
-    /// "interface|subnet" → profile id, for every local network this device has been on.
-    private static let knownLocalNetworksKey = "netmonitor.knownLocalNetworkIDs"
-
-    nonisolated static func localNetworkKey(interface: String, subnet: String) -> String {
-        "\(interface)|\(subnet)"
-    }
-
-    /// The id the detected network goes by. Before this, a detected network's id was its
-    /// interface's `stableID`, so the home network and any other Wi-Fi shared one id and
-    /// each one showed the other's devices. Now:
-    /// - a network seen before keeps the id it had, so its devices come back;
-    /// - the first network seen on an interface keeps the interface's `stableID`, which is
-    ///   what every existing install already stored its devices under;
-    /// - any other network on that interface gets an id derived from interface and subnet.
-    /// Read from and written to `userDefaults` on every call, because each view model owns
-    /// its own manager and they must all agree on the id.
-    private func resolveLocalNetworkID(for detected: NetworkProfile) -> UUID {
-        let stored = userDefaults.dictionary(forKey: Self.knownLocalNetworksKey) as? [String: String] ?? [:]
-        var known = stored.compactMapValues(UUID.init(uuidString:))
-        let before = known
-
-        // Seed with the local profile persisted before this map existed, so an update keeps
-        // the current network's devices under the id they were saved with.
-        for profile in profiles where profile.isLocal && profile.discoveryMethod == .auto {
-            let key = Self.localNetworkKey(interface: profile.interfaceName, subnet: profile.subnet)
-            if known[key] == nil, !known.values.contains(profile.id) {
-                known[key] = profile.id
-            }
-        }
-
-        let key = Self.localNetworkKey(interface: detected.interfaceName, subnet: detected.subnet)
-        let id: UUID
-        if let existing = known[key] {
-            id = existing
-        } else if known.values.contains(detected.id) {
-            id = NetworkProfile.networkID(forKey: key)
-            known[key] = id
-        } else {
-            id = detected.id
-            known[key] = id
-        }
-
-        if known != before {
-            userDefaults.set(known.mapValues(\.uuidString), forKey: Self.knownLocalNetworksKey)
-        }
-        return id
-    }
-
     // MARK: - Helpers
 
     private struct CIDRDescriptor {
@@ -472,5 +407,87 @@ public final class NetworkProfileManager {
             }
             persistProfiles()
         }
+    }
+}
+
+// MARK: - Persistence and per-network ids
+
+extension NetworkProfileManager {
+    // MARK: - Persistence
+
+    /// The profiles saved in `userDefaults`, read without detecting or writing (#491). For code
+    /// that only needs the current network: a manager of its own would save its startup copy of
+    /// the list over networks other managers added since.
+    nonisolated public static func savedProfiles(in userDefaults: UserDefaults = .standard) -> [NetworkProfile] {
+        guard let data = userDefaults.data(forKey: storageKey) else { return [] }
+        return (try? JSONDecoder().decode([NetworkProfile].self, from: data)) ?? []
+    }
+
+    /// The saved local network, chosen as ``localProfile`` chooses it. Read only.
+    nonisolated public static func savedLocalProfile(in userDefaults: UserDefaults = .standard) -> NetworkProfile? {
+        let saved = savedProfiles(in: userDefaults)
+        return saved.first { $0.isLocal && $0.discoveryMethod == .auto } ?? saved.first(where: \.isLocal)
+    }
+
+    private func loadProfiles() {
+        let decoded = Self.savedProfiles(in: userDefaults)
+        guard !decoded.isEmpty else { return }
+        profiles = decoded
+        activeProfile = Self.primaryProfile(from: decoded)
+    }
+
+    private func persistProfiles() {
+        guard let encoded = try? JSONEncoder().encode(profiles) else { return }
+        userDefaults.set(encoded, forKey: Self.storageKey)
+    }
+
+    // MARK: - Per-network ids
+
+    /// "interface|subnet" → profile id, for every local network this device has been on.
+    private static let knownLocalNetworksKey = "netmonitor.knownLocalNetworkIDs"
+
+    nonisolated static func localNetworkKey(interface: String, subnet: String) -> String {
+        "\(interface)|\(subnet)"
+    }
+
+    /// The id the detected network goes by. Before this, a detected network's id was its
+    /// interface's `stableID`, so the home network and any other Wi-Fi shared one id and
+    /// each one showed the other's devices. Now:
+    /// - a network seen before keeps the id it had, so its devices come back;
+    /// - the first network seen on an interface keeps the interface's `stableID`, which is
+    ///   what every existing install already stored its devices under;
+    /// - any other network on that interface gets an id derived from interface and subnet.
+    /// Read from and written to `userDefaults` on every call, because each view model owns
+    /// its own manager and they must all agree on the id.
+    private func resolveLocalNetworkID(for detected: NetworkProfile) -> UUID {
+        let stored = userDefaults.dictionary(forKey: Self.knownLocalNetworksKey) as? [String: String] ?? [:]
+        var known = stored.compactMapValues(UUID.init(uuidString:))
+        let before = known
+
+        // Seed with the local profile persisted before this map existed, so an update keeps
+        // the current network's devices under the id they were saved with.
+        for profile in profiles where profile.isLocal && profile.discoveryMethod == .auto {
+            let key = Self.localNetworkKey(interface: profile.interfaceName, subnet: profile.subnet)
+            if known[key] == nil, !known.values.contains(profile.id) {
+                known[key] = profile.id
+            }
+        }
+
+        let key = Self.localNetworkKey(interface: detected.interfaceName, subnet: detected.subnet)
+        let id: UUID
+        if let existing = known[key] {
+            id = existing
+        } else if known.values.contains(detected.id) {
+            id = NetworkProfile.networkID(forKey: key)
+            known[key] = id
+        } else {
+            id = detected.id
+            known[key] = id
+        }
+
+        if known != before {
+            userDefaults.set(known.mapValues(\.uuidString), forKey: Self.knownLocalNetworksKey)
+        }
+        return id
     }
 }

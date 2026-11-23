@@ -7,7 +7,7 @@ import SwiftData
 
 struct DashboardView: View {
     @State private var viewModel: DashboardViewModel
-    @State private var healthViewModel = NetworkHealthScoreViewModel(currentNetworkProfileID: { HealthSampleProbe.localNetworkProfileID() })
+    @State private var healthViewModel: NetworkHealthScoreViewModel
     @State private var lastHealthRefresh: Date?
     @State private var changeBrief = ChangeBriefViewModel.dashboard
     @Query(Self.savedDevicesDescriptor) private var savedDevices: [LocalDevice]
@@ -24,6 +24,7 @@ struct DashboardView: View {
             macConnectionService: env.macConnection,
             reviewPrompt: RateAppService.reviewPrompt
         ))
+        _healthViewModel = State(initialValue: NetworkHealthScoreViewModel(currentNetworkProfileID: env.connectedNetworkProfileID))
     }
 
     var body: some View {

@@ -148,6 +148,7 @@ fixes Uptime History (ConnectivityRecord), which today only records while that v
   - **The UI-test network** is a constant, `UITestBootstrap.networkProfileID` (a fixed UUID). Under
     `UITEST_FAKE_DEVICES`, the `currentNetworkProfileID` provider returns it, the fake service stamps it on the
     fixture devices, and seeds put it on `LocalDevice` rows. The lookup is scoped by **the provider's ID**.
+  - **Amended in S4 (lead decision):** a device event uses the device's own `networkProfileID` (the network it was scanned on) when it has one; the provider's ID is the fallback, and the only source for connectivity events. Rows saved with no network match only by an identical MAC.
   - **The fake service** is `@Observable`. `scanNetwork` sets `isScanning = true`, sleeps 300 ms, then publishes
     the devices and sets `isScanning = false`, so the listener's observation loop sees both states. A unit test
     runs a fake scan through `EventListenerService` and expects Joined and Scan Complete events.

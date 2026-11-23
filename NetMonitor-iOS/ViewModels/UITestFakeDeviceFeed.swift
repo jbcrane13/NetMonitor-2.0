@@ -63,3 +63,72 @@ final class UITestFakeDeviceFeed {
         }
     }
 }
+
+// MARK: - UI-test discovery
+
+/// The discovery service UI tests get with `UITEST_FAKE_DEVICES=1` (#491 D9). A scan sets
+/// `isScanning`, holds it for `hold` so observers see both states, then publishes the fixture
+/// devices stamped with `UITestBootstrap.networkProfileID` and clears `isScanning`.
+@MainActor
+@Observable
+final class UITestFakeDiscoveryService: DeviceDiscoveryServiceProtocol {
+    private(set) var discoveredDevices: [DiscoveredDevice] = []
+    private(set) var isScanning = false
+    private(set) var scanProgress: Double = 0
+    private(set) var scanPhase: ScanDisplayPhase = .idle
+    private(set) var lastScanDate: Date?
+    private let devices: @MainActor () -> [DiscoveredDevice]
+    private let hold: Duration
+
+    init(devices: @escaping @MainActor () -> [DiscoveredDevice] = UITestFakeDiscoveryService.fixtureDevices, hold: Duration = .milliseconds(300)) {
+        self.devices = devices
+        self.hold = hold
+    }
+
+    /// The UI-test feed's devices on the UI-test network.
+    static func fixtureDevices() -> [DiscoveredDevice] {
+        UITestFakeDeviceFeed().devices.map { device in
+            DiscoveredDevice(
+                id: device.id,
+                ipAddress: device.ipAddress,
+                hostname: device.hostname,
+                vendor: device.vendor,
+                macAddress: device.macAddress,
+                latency: device.latency,
+                discoveredAt: device.discoveredAt,
+                source: device.source,
+                networkProfileID: UITestBootstrap.networkProfileID
+            )
+        }
+    }
+
+    func cachedDevices(for profile: NetworkProfile?) -> [DiscoveredDevice] {
+        discoveredDevices
+    }
+
+    func scanNetwork(subnet: String? = nil) async {
+        await scan()
+    }
+
+    func scanNetwork(profile: NetworkProfile?) async {
+        await scan()
+    }
+
+    func stopScan() {
+        isScanning = false
+        scanPhase = .idle
+    }
+
+    private func scan() async {
+        guard !isScanning else { return }
+        isScanning = true
+        scanPhase = .arpScan
+        scanProgress = 0
+        try? await Task.sleep(for: hold)
+        discoveredDevices = devices()
+        lastScanDate = Date()
+        scanProgress = 1
+        scanPhase = .idle
+        isScanning = false
+    }
+}
