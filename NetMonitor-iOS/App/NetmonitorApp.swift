@@ -63,7 +63,11 @@ struct NetmonitorApp: App {
     private var sharedModelContainer: ModelContainer { Self.persistenceOutcome.store }
 
     init() {
-        guard !Self.isUITesting else { return }
+        guard !Self.isUITesting else {
+            // Before any view loads, so the dashboard's first brief sees the seeded events.
+            UITestBootstrap.seedEventsIfNeeded()
+            return
+        }
         BackgroundTaskService.shared.registerTasks()
     }
 

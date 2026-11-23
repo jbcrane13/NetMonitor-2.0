@@ -8,6 +8,9 @@ struct DashboardView: View {
     @State private var viewModel: DashboardViewModel
     @State private var healthViewModel = NetworkHealthScoreViewModel()
     @State private var lastHealthRefresh: Date?
+    @State private var changeBrief = ChangeBriefViewModel.dashboard
+    @Query(Self.savedDevicesDescriptor) private var savedDevices: [LocalDevice]
+    @Query(Self.recentSpeedTestsDescriptor) private var recentSpeedTests: [SpeedTestResult]
     // periphery:ignore
     @State private var isAddNetworkSheetPresented = false
 
@@ -58,6 +61,8 @@ struct DashboardView: View {
                 }
                 .refreshable {
                     await viewModel.refresh(forceIP: true)
+                    // Not awaited: the spinner shouldn't wait for the model.
+                    Task { await refreshChangeBrief() }
                 }
                 .task {
                     viewModel.refreshAvailableNetworks()
@@ -71,6 +76,19 @@ struct DashboardView: View {
                 .onChange(of: viewModel.isRefreshing) { _, isRefreshing in
                     if !isRefreshing {
                         refreshHealthIfNeeded()
+                    }
+                }
+                // Also runs when a speed test is saved, such as a scheduled one.
+                .task(id: recentSpeedTests.first?.timestamp) {
+                    await refreshChangeBrief()
+                }
+                .onChange(of: viewModel.isScanning) { wasScanning, isScanning in
+                    guard wasScanning, !isScanning else { return }
+                    Task {
+                        // EventListenerService logs the scan's joined and left devices on this
+                        // same change, from its own task; let it finish first.
+                        try? await Task.sleep(for: .seconds(1))
+                        await refreshChangeBrief()
                     }
                 }
                 .onDisappear {
@@ -97,6 +115,31 @@ struct DashboardView: View {
         ))
     }
 
+    // MARK: - Since-yesterday brief (#453)
+
+    private static var savedDevicesDescriptor: FetchDescriptor<LocalDevice> {
+        var descriptor = FetchDescriptor<LocalDevice>()
+        descriptor.fetchLimit = 500
+        return descriptor
+    }
+
+    /// The brief compares the latest test with the one before it.
+    private static var recentSpeedTestsDescriptor: FetchDescriptor<SpeedTestResult> {
+        var descriptor = FetchDescriptor<SpeedTestResult>(sortBy: [SortDescriptor(\SpeedTestResult.timestamp, order: .reverse)])
+        descriptor.fetchLimit = 2
+        return descriptor
+    }
+
+    private func refreshChangeBrief() async {
+        await changeBrief.refresh(
+            scanned: viewModel.discoveredDevices,
+            saved: savedDevices,
+            networkProfileID: viewModel.activeNetwork?.id,
+            speedTests: recentSpeedTests,
+            isScanning: viewModel.isScanning
+        )
+    }
+
     private func dashboardContent(width: CGFloat) -> some View {
         VStack(spacing: Theme.Layout.itemSpacing) {
             if !viewModel.isConnected {
@@ -104,6 +147,10 @@ struct DashboardView: View {
             }
 
             TacticalHUDHeader(viewModel: viewModel)
+
+            if let brief = changeBrief.brief {
+                ChangeBriefCard(brief: brief)
+            }
 
             if width > 900 {
                 // Wide: 3-column grid for metric cards

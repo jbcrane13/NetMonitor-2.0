@@ -144,6 +144,31 @@ enum UITestBootstrap {
 
     private static var hasSeededReport = false
 
+    // MARK: - Timeline event fixtures (#453)
+
+    /// With `UITEST_SEED_EVENTS=1`, replaces the saved Timeline events with two devices that
+    /// joined and one that left, seconds ago, for the dashboard brief and the Timeline
+    /// summary. Events persist across launches, so the old ones are cleared first.
+    static func seedEventsIfNeeded() {
+        guard isUITesting, ProcessInfo.processInfo.environment["UITEST_SEED_EVENTS"] == "1", !hasSeededEvents else { return }
+        hasSeededEvents = true
+        let events = NetworkEventService.shared
+        events.clearAll()
+        let now = Date()
+        // Seconds before now, so they fall under "Today" whatever time the test runs.
+        let seeded: [(NetworkEventType, String, String?, TimeInterval)] = [
+            (.deviceJoined, "Device Joined: UITest Camera", "192.168.1.50", 30),
+            (.deviceJoined, "Device Joined: UITest Speaker", "192.168.1.51", 20),
+            (.deviceLeft, "Device Left: 192.168.1.30", nil, 10)
+        ]
+        for (type, title, details, secondsAgo) in seeded {
+            let severity: NetworkEventSeverity = type == .deviceLeft ? .warning : .success
+            events.log(NetworkEvent(type: type, timestamp: now.addingTimeInterval(-secondsAgo), title: title, details: details, severity: severity))
+        }
+    }
+
+    private static var hasSeededEvents = false
+
     /// The first page of an exported report, as an image and its text, for the UI-test
     /// preview in Settings: the share sheet doesn't show the PDF's pages.
     static func reportPreview(of data: Data) -> (image: UIImage, text: String, pageCount: Int)? {
