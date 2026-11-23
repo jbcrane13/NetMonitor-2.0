@@ -1,4 +1,5 @@
 import SwiftUI
+import Charts
 import NetMonitorCore
 
 /// Row A (right): Compact circular health gauge for the dashboard no-scroll layout.
@@ -8,8 +9,8 @@ struct HealthGaugeCard: View {
 
     var body: some View {
         GeometryReader { geo in
-            // Circle scales between 70–130pt based on available height
-            let circleSize = min(130, max(70, geo.size.height * 0.45))
+            // Circle scales between 70–130pt based on available height; smaller with the history chart
+            let circleSize = min(130, max(70, geo.size.height * (viewModel.showsHistoryChart ? 0.3 : 0.45)))
             let lineW = circleSize / 9.4  // keep stroke proportional
             let scoreFontSize = circleSize * 0.3
             let gradeFontSize = max(7, circleSize * 0.1)
@@ -59,6 +60,10 @@ struct HealthGaugeCard: View {
 
                 Spacer(minLength: 4)
 
+                if viewModel.showsHistoryChart {
+                    historyChart
+                }
+
                 // Score breakdown bars
                 if let score = viewModel.currentScore {
                     VStack(spacing: 3) {
@@ -107,6 +112,23 @@ struct HealthGaugeCard: View {
     }
 
     // MARK: Sub-view
+
+    /// The current network's saved scores over the retention window (#491 D10).
+    private var historyChart: some View {
+        Chart(viewModel.history) { sample in
+            LineMark(x: .value("Time", sample.timestamp), y: .value("Score", sample.score))
+                .interpolationMethod(.monotone)
+                .foregroundStyle(MacTheme.Colors.info)
+        }
+        .chartYScale(domain: HealthScoreSample.chartDomain(viewModel.history))
+        .chartXAxis(.hidden)
+        .chartYAxis(.hidden)
+        .frame(height: 18)
+        .accessibilityElement()
+        .accessibilityLabel("Health score history")
+        .accessibilityValue("\(viewModel.history.count) samples")
+        .accessibilityIdentifier("healthGauge_chart_history")
+    }
 
     private func scoreBar(label: String, pct: Double, color: Color) -> some View {
         HStack(spacing: 6) {

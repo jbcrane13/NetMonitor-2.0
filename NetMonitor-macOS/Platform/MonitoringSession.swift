@@ -315,6 +315,7 @@ final class MonitoringSession {
     @MainActor
     func pruneOldMeasurements(
         eventService: any NetworkEventServiceProtocol = NetworkEventService.shared,
+        healthHistory: HealthScoreHistoryStore = .shared,
         now: Date = Date()
     ) {
         guard let cutoffDate = HistoryRetention.current(in: defaults).cutoff(now: now) else { return }
@@ -346,5 +347,6 @@ final class MonitoringSession {
             Logger.data.error("Failed to prune sessions: \(error)")
         }
         eventService.removeEvents(olderThan: cutoffDate)
+        healthHistory.removeSamples(olderThan: cutoffDate)
     }
 }

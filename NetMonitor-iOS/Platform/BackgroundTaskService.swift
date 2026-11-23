@@ -225,6 +225,7 @@ final class BackgroundTaskService {
         }
         Self.logger.debug("Checking monitoring targets...")
         await checkMonitoringTargets()
+        await recordHealthSample(isCancelled: { taskCancelled })
 
         guard !taskCancelled else {
             Self.logger.info("Task cancelled before widget reload")

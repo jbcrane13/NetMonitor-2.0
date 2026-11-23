@@ -1,12 +1,13 @@
 // swiftlint:disable file_length
 import SwiftUI
+import Charts
 import NetMonitorCore
 import NetworkScanKit
 import SwiftData
 
 struct DashboardView: View {
     @State private var viewModel: DashboardViewModel
-    @State private var healthViewModel = NetworkHealthScoreViewModel()
+    @State private var healthViewModel = NetworkHealthScoreViewModel(currentNetworkProfileID: { HealthSampleProbe.localNetworkProfileID() })
     @State private var lastHealthRefresh: Date?
     @State private var changeBrief = ChangeBriefViewModel.dashboard
     @Query(Self.savedDevicesDescriptor) private var savedDevices: [LocalDevice]
@@ -417,9 +418,36 @@ struct RefinedNetworkHealthCard: View {
                             .lineSpacing(1)
                     }
                 }
+
+                if healthViewModel.showsHistoryChart {
+                    historySparkline(healthViewModel.history)
+                }
             }
         }
         .accessibilityIdentifier("dashboard_card_healthScore")
+    }
+
+    /// The current network's saved scores over the retention window (#491 D10).
+    private func historySparkline(_ samples: [HealthScoreSample]) -> some View {
+        HStack(spacing: 8) {
+            Text("TREND")
+                .font(.system(.caption2, weight: .heavy))
+                .foregroundStyle(Theme.Colors.textTertiary)
+                .tracking(1.5)
+            Chart(samples) { sample in
+                LineMark(x: .value("Time", sample.timestamp), y: .value("Score", sample.score))
+                    .interpolationMethod(.monotone)
+                    .foregroundStyle(Theme.Colors.info)
+            }
+            .chartYScale(domain: HealthScoreSample.chartDomain(samples))
+            .chartXAxis(.hidden)
+            .chartYAxis(.hidden)
+            .frame(height: 28)
+            .accessibilityElement()
+            .accessibilityLabel("Health score history")
+            .accessibilityValue("\(samples.count) samples")
+            .accessibilityIdentifier("dashboard_chart_healthHistory")
+        }
     }
 
     private var healthStatusTitle: String {

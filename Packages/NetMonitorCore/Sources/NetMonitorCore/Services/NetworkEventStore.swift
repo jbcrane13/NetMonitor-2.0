@@ -76,31 +76,25 @@ public struct HistoryFileLocation: Sendable, Equatable {
 
 // MARK: - NetworkEventStore
 
-/// The JSON file behind `NetworkEventService.shared` (#491 D2): a newest-first array of events.
-///
-/// Reads skip elements that don't decode instead of dropping the whole log. A file that can't be
-/// read, or isn't a JSON array, is moved aside to `network-events.corrupt-<time>.json` (only the
-/// latest is kept) rather than overwritten. Writes are coalesced: `scheduleWrite` keeps only the
-/// latest snapshot and writes it on a private serial queue after `debounce` seconds; `flush()`
-/// writes it now. Every write is atomic. A snapshot whose write fails is kept for the next flush
-/// unless a newer one replaces it.
+/// The JSON file behind `NetworkEventService.shared` (#491 D2): a newest-first array of events,
+/// stored with the `JSONHistoryFile` contract (lossy decode, unreadable file moved aside,
+/// debounced atomic writes, `flush()`).
 ///
 /// Up to `debounce` (1 s in the app) of events can be lost when the app crashes or is killed
 /// before the write; the apps flush when they go to the background or quit (#491, accepted risk).
-final class NetworkEventStore: @unchecked Sendable {
+final class NetworkEventStore: Sendable {
     static let fileName = "network-events.json"
     private static let logger = Logger(subsystem: "com.netmonitor", category: "NetworkEventStore")
 
-    let fileURL: URL
-    private let debounce: TimeInterval
-    private let queue = DispatchQueue(label: "com.netmonitor.NetworkEventStore", qos: .utility)
-    private let lock = NSLock()
-    private var pending: [NetworkEvent]?
-    private var isWriteScheduled = false
+    private let file: JSONHistoryFile<NetworkEvent>
+
+    var fileURL: URL { file.fileURL }
 
     init(fileURL: URL, debounce: TimeInterval) {
-        self.fileURL = fileURL
-        self.debounce = debounce
+        file = JSONHistoryFile(
+            fileURL: fileURL, debounce: debounce, kind: "event",
+            logger: Self.logger, queueLabel: "com.netmonitor.NetworkEventStore"
+        )
     }
 
     // MARK: Loading
@@ -109,23 +103,19 @@ final class NetworkEventStore: @unchecked Sendable {
     /// the same lossy way, written to the file at once, and left in place, so an older build
     /// still finds it and a failed write is retried at the next launch.
     func load(legacyDefaults: UserDefaults?, legacyKey: String) -> [NetworkEvent] {
-        if FileManager.default.fileExists(atPath: fileURL.path) {
-            if let data = try? Data(contentsOf: fileURL), let events = Self.decodeLossily(data) {
-                return events
-            }
-            moveAsideUnreadableFile()
-            return []
+        if file.exists {
+            return file.read(using: Self.decodeLossily)
         }
         guard let legacy = legacyDefaults?.data(forKey: legacyKey) else { return [] }
         let migrated = Self.decodeLossily(legacy) ?? []
-        if write(migrated) {
+        if file.write(migrated) {
             Self.logger.info("Migrated \(migrated.count) events from UserDefaults")
         }
         return migrated
     }
 
     /// Decodes a JSON array element by element, skipping the elements that fail. Nil when the
-    /// data isn't a JSON array at all.
+    /// data isn't a JSON array at all. Types this build doesn't know are logged once.
     static func decodeLossily(_ data: Data) -> [NetworkEvent]? {
         guard let elements = try? JSONDecoder().decode([LossyEvent].self, from: data) else { return nil }
         let unknownTypes = Set(elements.compactMap(\.unknownType))
@@ -135,68 +125,16 @@ final class NetworkEventStore: @unchecked Sendable {
         return elements.compactMap(\.event)
     }
 
-    /// Keeps an unreadable file for inspection instead of overwriting it at the next write,
-    /// replacing any earlier one.
-    private func moveAsideUnreadableFile() {
-        let manager = FileManager.default
-        let directory = fileURL.deletingLastPathComponent()
-        let prefix = fileURL.deletingPathExtension().lastPathComponent + ".corrupt-"
-        for name in (try? manager.contentsOfDirectory(atPath: directory.path)) ?? [] where name.hasPrefix(prefix) {
-            try? manager.removeItem(at: directory.appending(path: name))
-        }
-        let aside = directory.appending(path: "\(prefix)\(Int(Date().timeIntervalSince1970)).json")
-        do {
-            try manager.moveItem(at: fileURL, to: aside)
-            Self.logger.error("The event file could not be read; moved it aside and started empty")
-        } catch {
-            Self.logger.error("The event file could not be read or moved aside: \(error.localizedDescription)")
-        }
-    }
-
     // MARK: Writing
 
     /// Saves `events` after the debounce, replacing any snapshot still waiting.
     func scheduleWrite(_ events: [NetworkEvent]) {
-        let shouldSchedule = lock.withLock {
-            pending = events
-            defer { isWriteScheduled = true }
-            return !isWriteScheduled
-        }
-        guard shouldSchedule else { return }
-        queue.asyncAfter(deadline: .now() + debounce) { [weak self] in self?.writePending() }
+        file.scheduleWrite(events)
     }
 
-    /// Writes the waiting snapshot now, on the store's queue, and returns when it is on disk.
+    /// Writes the waiting snapshot now, and returns when it is on disk.
     func flush() {
-        queue.sync { writePending() }
-    }
-
-    private func writePending() {
-        let snapshot: [NetworkEvent]? = lock.withLock {
-            defer {
-                pending = nil
-                isWriteScheduled = false
-            }
-            return pending
-        }
-        guard let snapshot, !write(snapshot) else { return }
-        // Keep it for the next flush, unless a newer change has replaced it meanwhile.
-        lock.withLock {
-            if pending == nil {
-                pending = snapshot
-            }
-        }
-    }
-
-    private func write(_ events: [NetworkEvent]) -> Bool {
-        do {
-            try FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-            try JSONEncoder().encode(events).write(to: fileURL, options: .atomic)
-            return true
-        } catch {
-            Self.logger.error("Could not write the event file: \(error.localizedDescription)")
-            return false
-        }
+        file.flush()
     }
 }
 

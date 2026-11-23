@@ -17,12 +17,14 @@ final class NetworkHealthScoreViewModel {
     /// Per-server DNS timings from the last comparison (#399).
     private(set) var dnsResults: [DNSBenchmarkResult] = []
     private(set) var isComparingDNS = false
+    /// The current network's saved scores, oldest first (#491 D10).
+    private(set) var history: [HealthScoreSample] = []
 
     // MARK: - Dependencies
 
-    private let service: any NetworkHealthScoreServiceProtocol
-    private let pingService: any PingServiceProtocol
-    private let networkMonitor: any NetworkMonitorServiceProtocol
+    private let probe: HealthSampleProbe
+    private let historyStore: HealthScoreHistoryStore
+    private let currentNetworkProfileID: @MainActor () -> UUID?
     private let vpnService: any VPNDetectionServiceProtocol
     private let readDNSServers: @Sendable () -> HealthCheckInputs.DNSServers
     private let dnsBenchmark: DNSServerBenchmark
@@ -34,11 +36,13 @@ final class NetworkHealthScoreViewModel {
         networkMonitor: any NetworkMonitorServiceProtocol = NetworkMonitorService(),
         vpnService: any VPNDetectionServiceProtocol = VPNDetectionService(),
         readDNSServers: @escaping @Sendable () -> HealthCheckInputs.DNSServers = { SystemDNSConfiguration.current() },
-        dnsBenchmark: DNSServerBenchmark = DNSServerBenchmark()
+        dnsBenchmark: DNSServerBenchmark = DNSServerBenchmark(),
+        historyStore: HealthScoreHistoryStore = .shared,
+        currentNetworkProfileID: @escaping @MainActor () -> UUID? = { nil }
     ) {
-        self.service = service
-        self.pingService = pingService
-        self.networkMonitor = networkMonitor
+        probe = HealthSampleProbe(service: service, pingService: pingService, networkMonitor: networkMonitor)
+        self.historyStore = historyStore
+        self.currentNetworkProfileID = currentNetworkProfileID
         self.vpnService = vpnService
         self.readDNSServers = readDNSServers
         self.dnsBenchmark = dnsBenchmark
@@ -66,6 +70,9 @@ final class NetworkHealthScoreViewModel {
     }
 
     var fastestDNS: DNSBenchmarkResult? { DNSServerBenchmark.fastest(dnsResults) }
+
+    /// The history chart needs a line: at least two samples.
+    var showsHistoryChart: Bool { history.count >= 2 }
 
     // MARK: - Actions
 
@@ -115,46 +122,26 @@ final class NetworkHealthScoreViewModel {
         errorMessage = nil
         defer { isCalculating = false }
 
-        var latencyMs: Double? = nil
-        var packetLoss: Double? = nil
-
-        let stream = await pingService.ping(host: "8.8.8.8", count: 5, timeout: 3)
-        var results: [PingResult] = []
-        for await result in stream {
-            guard !Task.isCancelled else { break }
-            results.append(result)
-        }
-
-        if !results.isEmpty {
-            let successful = results.filter { !$0.isTimeout }
-            latencyMs = successful.isEmpty ? nil : successful.map(\.time).reduce(0, +) / Double(successful.count)
-            packetLoss = Double(results.count - successful.count) / Double(results.count)
-        }
-
-        service.update(
-            latencyMs: latencyMs,
-            packetLoss: packetLoss,
-            dnsResponseMs: nil,
-            deviceCount: nil,
-            typicalDeviceCount: nil,
-            isConnected: networkMonitor.isConnected
-        )
-
-        let score = await service.calculateScore()
+        let networkID = currentNetworkProfileID()
+        loadHistory(networkID)
+        let reading = await probe.measure()
+        let score = reading.score
         currentScore = score
         lastUpdated = Date()
+        // Saved at once: at most one sample per 15 minutes, and iOS may suspend the app any time.
+        if let networkID, historyStore.record(score, networkProfileID: networkID) {
+            historyStore.flush()
+        }
+        loadHistory(networkID)
 
         var inputs = localInputs
-        inputs.internetReachable = results.isEmpty ? nil : latencyMs != nil
+        inputs.internetReachable = reading.internetReachable
         inputs.dnsServers = readDNSServers()
         inputs.vpnActive = vpnService.status.isActive
         checks = NetworkHealthChecklist.evaluate(inputs)
+    }
 
-        NetworkEventService.shared.log(
-            type: .toolRun,
-            title: "Health Score: \(score.grade) (\(score.score))",
-            details: score.details["latency"].map { "Latency: \($0)" },
-            severity: score.score >= 70 ? .success : (score.score >= 40 ? .warning : .error)
-        )
+    private func loadHistory(_ networkID: UUID?) {
+        history = networkID.map(historyStore.samples(for:)) ?? []
     }
 }

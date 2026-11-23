@@ -112,7 +112,8 @@ struct NetworkDetailView: View {
                 wifiRSSI: isWiFi ? connection?.signalStrength : nil,
                 deviceCount: deviceCount,
                 linkSpeedMbps: connection?.linkSpeed.map(Double.init)
-            )
+            ),
+            networkProfileID: profileManager?.localProfile?.id
         )
     }
 
