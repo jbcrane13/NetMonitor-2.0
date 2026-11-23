@@ -114,6 +114,8 @@ private final class KeyPointInsightService: InsightServiceProtocol, @unchecked S
             continuation.finish()
         }
     }
+
+    func suggestIdentity(_ evidence: DeviceEvidence) async -> DeviceSuggestion? { nil }
 }
 
 @Suite("Scheduled scan alerts worded on device (#453)", .serialized)

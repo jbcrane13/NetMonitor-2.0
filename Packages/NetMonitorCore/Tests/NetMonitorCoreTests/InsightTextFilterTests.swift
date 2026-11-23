@@ -12,6 +12,8 @@ private struct FixedTextInsightService: InsightServiceProtocol {
             continuation.finish()
         }
     }
+
+    func suggestIdentity(_ evidence: DeviceEvidence) async -> DeviceSuggestion? { nil }
 }
 
 @Suite("InsightTextFilter")

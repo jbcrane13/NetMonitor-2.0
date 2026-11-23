@@ -19,6 +19,8 @@ private final class HangingInsightService: InsightServiceProtocol, @unchecked Se
             }
         }
     }
+
+    func suggestIdentity(_ evidence: DeviceEvidence) async -> DeviceSuggestion? { nil }
 }
 
 /// Answers every request at once with `text`.
@@ -32,6 +34,8 @@ private struct AnsweringInsightService: InsightServiceProtocol {
             continuation.finish()
         }
     }
+
+    func suggestIdentity(_ evidence: DeviceEvidence) async -> DeviceSuggestion? { nil }
 }
 
 /// Fails every request at once.
@@ -43,6 +47,8 @@ private struct FailingInsightService: InsightServiceProtocol {
             continuation.finish()
         }
     }
+
+    func suggestIdentity(_ evidence: DeviceEvidence) async -> DeviceSuggestion? { nil }
 }
 
 // MARK: - Summary requests

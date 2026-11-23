@@ -195,6 +195,8 @@ private final class EchoInsightService: InsightServiceProtocol, @unchecked Senda
             continuation.finish()
         }
     }
+
+    func suggestIdentity(_ evidence: DeviceEvidence) async -> DeviceSuggestion? { nil }
 }
 
 @Suite("Mac alert text from the on-device model (#453)")

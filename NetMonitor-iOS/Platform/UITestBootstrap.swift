@@ -164,4 +164,6 @@ private struct FixedAnswerInsightService: InsightServiceProtocol {
             continuation.finish()
         }
     }
+
+    func suggestIdentity(_ evidence: DeviceEvidence) async -> DeviceSuggestion? { nil }
 }
