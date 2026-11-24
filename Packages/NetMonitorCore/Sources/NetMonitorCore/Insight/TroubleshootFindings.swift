@@ -42,7 +42,7 @@ public struct TroubleshootFinding: Equatable, Sendable, Identifiable {
 /// | unstable connection to the router | router pings averaged over 100 ms, or jitter (mean change between consecutive replies) over 30 ms: calls and games stutter well before pings are lost |
 /// | DNS failed / slow | a lookup didn't resolve, or took over 300 ms |
 /// | device offline or asleep | the device answered no ping and no known port, while the router answered with under 5% loss. With the router unmeasured, the device "isn't answering" and the router is named as unverified. A device whose known-port check didn't finish is not a finding |
-/// | website not answering | the site's name resolved and port 443 didn't answer, while the router is healthy or unmeasured (then named as unverified) |
+/// | website not answering | port 443 didn't answer and the site's name resolved or its lookup measured nothing, while the router is healthy or unmeasured (then named as unverified) |
 /// | slower than usual | download under 25% of the last saved speed test |
 /// | no problem found | the script finished, measured something, and nothing above fired |
 ///
@@ -201,19 +201,23 @@ public enum TroubleshootRules {
 
     /// Sites whose name resolved but which didn't answer on 443. Asked while the router is healthy, or unmeasured.
     private static func silentSites(in results: [TroubleshootResult], routerUnverified: Bool) -> [TroubleshootFinding] {
-        let resolved = Set(results.compactMap { result -> String? in
-            if case let .dns(host, milliseconds?) = result, milliseconds >= 0 {
-                host
-            } else {
-                nil
+        var looked = Set<String>(), resolved = Set<String>()
+        for case let .dns(host, milliseconds) in results {
+            looked.insert(host)
+            if milliseconds != nil {
+                resolved.insert(host)
             }
-        })
+        }
         return results.compactMap { result in
-            guard case let .ports(host, open, closed) = result, open.isEmpty, closed == [443], resolved.contains(host) else { return nil }
+            // A name that failed to resolve is the DNS finding's; an unmeasured lookup still lets
+            // the silent port speak (#451 review).
+            guard case let .ports(host, open, closed) = result, open.isEmpty, closed == [443],
+                  resolved.contains(host) || !looked.contains(host) else { return nil }
+            let opening = resolved.contains(host) ? "\(host) resolved, but didn't answer on port 443" : "\(host) didn't answer on port 443"
             return TroubleshootFinding(
                 kind: .siteNotAnswering,
                 title: "\(host) isn't answering",
-                detail: "\(host) resolved, but didn't answer on port 443" + (routerUnverified ? "." + routerUnverifiedNote : ", while your router answered."),
+                detail: opening + (routerUnverified ? "." + routerUnverifiedNote : ", while your router answered."),
                 nextStep: "The site may be down; try again later or from another network.",
                 subject: host
             )

@@ -54,6 +54,40 @@ struct MacSpeedTestHistoryTests {
         #expect(MacSpeedTestHistory.isTestRunning == false)
     }
 
+    // MARK: - Connection claim (#451 review)
+
+    @Test func theClaimIsExclusiveSoTheToolAndTroubleshooterNeverOverlap() {
+        #expect(MacSpeedTestHistory.testsRunning == 0)
+        defer { while MacSpeedTestHistory.testsRunning > 0 { MacSpeedTestHistory.release() } }
+        // The Speed Test tool claims: the troubleshooter (and a second claim of any kind) is refused.
+        #expect(MacSpeedTestHistory.claim())
+        #expect(!MacSpeedTestHistory.claim())
+        #expect(MacSpeedTestHistory.isTestRunning)
+        MacSpeedTestHistory.release()
+        // The troubleshooter claims: the tool is refused until it releases.
+        #expect(MacSpeedTestHistory.claim())
+        #expect(!MacSpeedTestHistory.claim())
+        MacSpeedTestHistory.release()
+        #expect(MacSpeedTestHistory.claim())
+    }
+
+    @Test func releasingWithoutAClaimLeavesNothingNegative() {
+        MacSpeedTestHistory.release()
+        #expect(MacSpeedTestHistory.testsRunning == 0)
+        #expect(!MacSpeedTestHistory.isTestRunning)
+    }
+
+    @Test func aScheduledRunIsRefusedWhileAnotherTestHoldsTheClaim() async {
+        let store = makeStore()
+        #expect(MacSpeedTestHistory.claim())
+        await MacSpeedTestHistory.runScheduledTest(service: NoOpSpeedTestService(), store: store)
+        #expect(store.entries().isEmpty)
+        // A refused run must not release the holder's claim.
+        #expect(MacSpeedTestHistory.isTestRunning)
+        MacSpeedTestHistory.release()
+        #expect(!MacSpeedTestHistory.isTestRunning)
+    }
+
     // MARK: - Maintenance (#395 cleanup)
 
     private func waitUntil(_ condition: () -> Bool) async {

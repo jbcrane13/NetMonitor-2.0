@@ -293,6 +293,7 @@ struct SpeedTestToolViewModelStartTestTests {
         let mock = MockSpeedTestService()
         mock.mockResult = SpeedTestData(downloadSpeed: 150, uploadSpeed: 60, latency: 18)
         let vm = SpeedTestToolViewModel(service: mock)
+        // The refusal is synchronous: nothing to wait for.
         vm.startTest(modelContext: store.1)
 
         // The refusal is synchronous: nothing to wait for.
@@ -300,6 +301,47 @@ struct SpeedTestToolViewModelStartTestTests {
         #expect(vm.errorMessage == SpeedTestToolViewModel.busyMessage)
         #expect(vm.downloadSpeed == 0)
         #expect(IOSScheduledSpeedTest.manualTestsRunning == 1)
+        withExtendedLifetime(store.0) {}
+    }
+
+    @Test func aQuickStartAfterStopIsNotRefused() async throws {
+        // (#451 review) Stop releases the claim at once, not when the cancelled task unwinds.
+        let store = try makeInMemoryStore()
+        let manual = IOSScheduledSpeedTest.manualTestsRunning
+        let scheduled = IOSScheduledSpeedTest.isTestRunning
+        defer {
+            IOSScheduledSpeedTest.manualTestsRunning = manual
+            IOSScheduledSpeedTest.isTestRunning = scheduled
+        }
+        IOSScheduledSpeedTest.isTestRunning = false
+        IOSScheduledSpeedTest.manualTestsRunning = 0
+        let vm = SpeedTestToolViewModel(service: MockSpeedTestService())
+
+        vm.startTest(modelContext: store.1)
+        vm.stopTest()
+        #expect(IOSScheduledSpeedTest.manualTestsRunning == 0)
+        // The first test's task hasn't even run yet.
+        vm.startTest(modelContext: store.1)
+        #expect(vm.errorMessage == nil)
+        #expect(vm.isRunning)
+        #expect(IOSScheduledSpeedTest.manualTestsRunning == 1)
+
+        // The stopped run's late cleanup doesn't release the new run's claim twice.
+        await waitUntil { IOSScheduledSpeedTest.manualTestsRunning == 0 }
+        #expect(IOSScheduledSpeedTest.manualTestsRunning == 0)
+        withExtendedLifetime(store.0) {}
+    }
+
+    @Test func stopTwiceReleasesOnce() throws {
+        let store = try makeInMemoryStore()
+        let manual = IOSScheduledSpeedTest.manualTestsRunning
+        defer { IOSScheduledSpeedTest.manualTestsRunning = manual }
+        IOSScheduledSpeedTest.manualTestsRunning = 0
+        let vm = SpeedTestToolViewModel(service: MockSpeedTestService())
+        vm.startTest(modelContext: store.1)
+        vm.stopTest()
+        vm.stopTest()
+        #expect(IOSScheduledSpeedTest.manualTestsRunning == 0)
         withExtendedLifetime(store.0) {}
     }
 

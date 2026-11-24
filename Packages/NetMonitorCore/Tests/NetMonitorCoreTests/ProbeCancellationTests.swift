@@ -2,12 +2,13 @@ import Testing
 import Foundation
 @testable import NetMonitorCore
 
-/// (#451 review) Cancelling a ping or port scan must end that run even when the cancel lands
-/// before the service has registered it: the stream's own termination ends its run.
+/// (#451 review) Cancelling a ping or port scan ends that run, even when the cancel lands before
+/// the service starts it: the stream's own termination ends its run.
+///
+/// 192.0.2.1 is a documentation address (RFC 5737): nothing answers, so every ping waits out its
+/// timeout and an uncancelled run lasts count × timeout.
 @Suite("Probe cancellation", .serialized)
 struct ProbeCancellationTests {
-    /// 192.0.2.1 is a documentation address (RFC 5737): nothing answers, so every ping waits out
-    /// its timeout and an uncancelled run lasts count × timeout.
     @Test func aPingCancelledBeforeItIsReadEndsItsRun() async {
         let service = PingService()
         let consumer = Task {
@@ -16,7 +17,8 @@ struct ProbeCancellationTests {
             for await _ in stream {}
         }
         await consumer.value
-        #expect(await waitUntilIdle { await service.hasActiveRun })
+        await waitUntil { await !service.hasActiveRun }
+        #expect(await !service.hasActiveRun)
     }
 
     @Test func aPortScanCancelledBeforeItIsReadEndsItsRun() async {
@@ -27,32 +29,52 @@ struct ProbeCancellationTests {
             for await _ in stream {}
         }
         await consumer.value
-        #expect(await waitUntilIdle { await service.hasActiveRun })
+        await waitUntil { await !service.hasActiveRun }
+        #expect(await !service.hasActiveRun)
     }
 
-    @Test func stopBeforeTheRunStartsStillStopsIt() async {
-        // The probe's cancel handler calls stop(); stop() first, then the run is asked for: it
-        // must not outlive a consumer that is already cancelled.
+    @Test func stopEndsARunThatHasStarted() async {
         let service = PingService()
-        await service.stop()
+        let stream = await service.ping(host: "192.0.2.1", count: 30, timeout: 1)
         let consumer = Task {
-            withUnsafeCurrentTask { $0?.cancel() }
-            let stream = await service.ping(host: "192.0.2.1", count: 30, timeout: 1)
-            for await _ in stream {}
+            var results = 0
+            for await _ in stream {
+                results += 1
+            }
+            return results
         }
-        await consumer.value
-        #expect(await waitUntilIdle { await service.hasActiveRun })
+        await waitUntil { await service.hasActiveRun }
+        await service.stop()
+        // The stream finishes well before the 30 pings an uncancelled run would send.
+        let results = await consumer.value
+        #expect(results < 30)
+        await waitUntil { await !service.hasActiveRun }
+        #expect(await !service.hasActiveRun)
     }
 
-    /// True when `isActive` turns false within 3 s; an uncancelled run lasts 30 s or more.
-    private func waitUntilIdle(_ isActive: () async -> Bool) async -> Bool {
-        let deadline = ContinuousClock.now + .seconds(3)
-        while ContinuousClock.now < deadline {
-            if await !isActive() {
-                return true
+    @Test func aCancelledConsumerGetsNoMoreResultsAndItsStreamFinishes() async {
+        let service = PingService()
+        let stream = await service.ping(host: "192.0.2.1", count: 30, timeout: 1)
+        let consumer = Task {
+            var results = 0
+            for await _ in stream {
+                results += 1
             }
-            try? await Task.sleep(for: .milliseconds(50))
+            return results
         }
-        return false
+        consumer.cancel()
+        // `value` returns only once the loop has ended: the stream finished for this consumer.
+        let results = await consumer.value
+        #expect(results == 0)
+        await waitUntil { await !service.hasActiveRun }
+        #expect(await !service.hasActiveRun)
+    }
+}
+
+/// Waits up to `timeout` for `condition`; an uncancelled run lasts 30 s or more.
+private func waitUntil(timeout: Duration = .seconds(5), _ condition: () async -> Bool) async {
+    let deadline = ContinuousClock.now + timeout
+    while await !condition(), ContinuousClock.now < deadline {
+        try? await Task.sleep(for: .milliseconds(10))
     }
 }

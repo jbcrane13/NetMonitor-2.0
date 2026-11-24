@@ -1,7 +1,7 @@
 import Foundation
 
 /// The troubleshooter's checks over the app's existing services (#451). Cancelling the task that
-/// awaits a check stops the service it runs on.
+/// awaits a ping or port scan ends that run through its stream; the speed test is stopped.
 @MainActor
 public final class ServiceTroubleshootProbes: TroubleshootProbing {
     /// How long each ping and port connect waits, in seconds.
@@ -45,17 +45,14 @@ public final class ServiceTroubleshootProbes: TroubleshootProbing {
         await gateway()
     }
 
+    /// Cancelling the caller ends the stream, which ends this run alone: the service is shared
+    /// (the Ping tool may be running), so nothing here calls `stop()`.
     public func ping(_ host: String, count: Int) async -> [Double] {
-        let service = pingService
-        return await withTaskCancellationHandler {
-            var times: [Double] = []
-            for await result in await service.ping(host: host, count: count, timeout: Self.timeout) where !result.isTimeout {
-                times.append(result.time)
-            }
-            return times
-        } onCancel: {
-            Task { await service.stop() }
+        var times: [Double] = []
+        for await result in await pingService.ping(host: host, count: count, timeout: Self.timeout) where !result.isTimeout {
+            times.append(result.time)
         }
+        return times
     }
 
     /// The time of the first family that answers: IPv4, then IPv6 for a name with no A record.
@@ -88,16 +85,12 @@ public final class ServiceTroubleshootProbes: TroubleshootProbing {
         return .measured(downloadMbps: data.downloadSpeed)
     }
 
+    /// Like `ping`, cancelling ends this scan's stream and so its run; no shared `stop()`.
     public func openPorts(on host: String, among ports: [Int]) async -> [Int] {
-        let scanner = portScanner
-        return await withTaskCancellationHandler {
-            var open: [Int] = []
-            for await result in await scanner.scan(host: host, ports: ports, timeout: Self.timeout) where result.state == .open {
-                open.append(result.port)
-            }
-            return open.sorted()
-        } onCancel: {
-            Task { await scanner.stop() }
+        var open: [Int] = []
+        for await result in await portScanner.scan(host: host, ports: ports, timeout: Self.timeout) where result.state == .open {
+            open.append(result.port)
         }
+        return open.sorted()
     }
 }

@@ -31,15 +31,58 @@ struct TroubleshootReportBuilderTests {
         ))
     }
 
+    static let lossy = TroubleshootRules.findings(for: [
+        .ping(PingSummary(target: .gateway, sent: 10, received: 8, averageMs: 4, jitterMs: 1))
+    ], completed: true)
+    static let printerOffline = TroubleshootRules.findings(for: [
+        .ping(PingSummary(target: .device("Office Printer", "10.0.0.3"), sent: 5, received: 0, averageMs: nil, jitterMs: nil)),
+        .ping(PingSummary(target: .gateway, sent: 5, received: 5, averageMs: 3, jitterMs: 1))
+    ], completed: true)
+    static let allClear = TroubleshootRules.findings(for: [.wifi([WiFiReading(rssi: -50, noise: nil)])], completed: true)
+
+    func report(_ kind: SymptomKind, _ findings: [TroubleshootFinding]) throws -> TroubleshootReport {
+        try #require(TroubleshootReportBuilder.report(for: kind, findings: findings))
+    }
+
     @Test(arguments: [
         "Your Wi-Fi signal looks fine, so the router is the likely cause.",
         "The signal is not weak; restart the router.",
-        "Signal strength is good. Packet loss to your router is the problem.",
+        "Your signal is strong. Packet loss to your router is the problem.",
         "There is no signal problem here."
     ])
-    func anAnswerThatDeniesTheTopCauseIsDropped(answer: String) throws {
-        let report = try #require(TroubleshootReportBuilder.report(for: .slowOrUnstableInternet, findings: Self.weakAndLossy))
-        #expect(!report.accepts(answer))
+    func anAnswerThatDeniesWeakSignalIsDropped(answer: String) throws {
+        #expect(try !report(.slowOrUnstableInternet, Self.weakAndLossy).accepts(answer))
+    }
+
+    @Test(arguments: [
+        "Packet loss was negligible, so the router link is healthy.",
+        "Packet loss was minimal during the test.",
+        "The test showed 0% packet loss to your router."
+    ])
+    func paraphrasesThatDenyPacketLossAreDropped(answer: String) throws {
+        #expect(try !report(.slowOrUnstableInternet, Self.lossy).accepts(answer))
+    }
+
+    @Test(arguments: [
+        "The Office Printer is connected, so the problem is the app.",
+        "The Office Printer is awake and on the network."
+    ])
+    func paraphrasesThatDenyTheDeviceIsOfflineAreDropped(answer: String) throws {
+        #expect(try !report(.deviceUnreachable, Self.printerOffline).accepts(answer))
+    }
+
+    @Test func anAllClearFollowedByAProblemIsDropped() throws {
+        #expect(try !report(.weakWiFi, Self.allClear).accepts("No problem found, but your signal is weak."))
+    }
+
+    @Test func correctAnswersThatUsePositiveWordsElsewherePass() throws {
+        #expect(try report(.slowOrUnstableInternet, Self.weakAndLossy)
+            .accepts("Your Wi-Fi signal is weak. Move closer to the router to get a good signal."))
+        #expect(try report(.deviceUnreachable, Self.printerOffline)
+            .accepts("The Office Printer is offline. Check the Office Printer is powered on and working."))
+        #expect(try report(.deviceUnreachable, Self.printerOffline).accepts("The Office Printer stopped responding."))
+        #expect(try report(.slowOrUnstableInternet, Self.lossy)
+            .accepts("Packet loss is not from your ISP but your Wi-Fi, so move closer to the router."))
     }
 
     @Test func realModelAnswersStillPass() throws {

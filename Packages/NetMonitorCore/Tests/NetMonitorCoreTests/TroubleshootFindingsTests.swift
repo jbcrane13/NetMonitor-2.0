@@ -140,6 +140,16 @@ struct TroubleshootFindingsTests {
             == "github.com resolved, but didn't answer on port 443. Your router couldn't be checked, so the network may be the cause.")
     }
 
+    @Test func aSiteSilentOn443WithItsLookupUnmeasuredIsNotAnAllClear() {
+        // (#451 review) The name lookup step measured nothing; 443 still went unanswered.
+        let findings = TroubleshootRules.findings(for: [
+            .unavailable("Lookup skipped"), ping(.host("github.com"), sent: 5, received: 0),
+            .ports(host: "github.com", open: [], closed: [443]), ping(.gateway, sent: 5, received: 5)
+        ], completed: true)
+        #expect(findings.map(\.kind) == [.siteNotAnswering])
+        #expect(findings.first?.detail == "github.com didn't answer on port 443, while your router answered.")
+    }
+
     @Test func routerJitterOverThirtyMillisecondsIsAnUnstableLink() {
         #expect(kinds([ping(.gateway, sent: 10, received: 10, avg: 20, jitter: 31)]) == [.unstableRouterLink])
         #expect(kinds([ping(.gateway, sent: 10, received: 10, avg: 20, jitter: 30)]) == [.noProblem])

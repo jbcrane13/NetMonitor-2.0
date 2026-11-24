@@ -31,12 +31,8 @@ final class TroubleshootMacViewModel {
             probes: ServiceTroubleshootProbes(
                 wifiService: MacWiFiInfoService(),
                 // Marked as running, so a scheduled test won't start meanwhile.
-                canRunSpeedTest: {
-                    guard !MacSpeedTestHistory.isTestRunning else { return false }
-                    MacSpeedTestHistory.isTestRunning = true
-                    return true
-                },
-                speedTestFinished: { MacSpeedTestHistory.isTestRunning = false }
+                canRunSpeedTest: { MacSpeedTestHistory.claim() },
+                speedTestFinished: { MacSpeedTestHistory.release() }
             ),
             classifier: SymptomClassifier.shared,
             insight: InsightService.shared,
