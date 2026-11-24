@@ -66,11 +66,33 @@ struct PlainRuleTests {
         #expect(!duration(300, "the NAS for 5 minutes").durationWasDropped)
     }
 
+    /// A correct model answer must survive: a dropped duration saves a rule that alerts at once.
+    @Test func aDurationInLessCommonWordsDecimalsOrTwoPartsIsKept() {
+        func duration(_ seconds: Int, _ input: String) -> Int? {
+            RuleIntent.normalized(kind: "deviceOffline", device: "NAS", thresholdMilliseconds: nil, durationSeconds: seconds,
+                                  portPreset: nil, input: input).durationSeconds
+        }
+        #expect(duration(780, "alert if the NAS is offline for thirteen minutes") == 780)
+        #expect(duration(4200, "alert if the NAS is offline for seventy minutes") == 4200)
+        #expect(duration(5400, "alert me if the NAS is down for 1.5 hours") == 5400)
+        #expect(duration(5400, "alert me if the NAS is down for 1 hour and 30 minutes") == 5400)
+        #expect(duration(18000, "alert me if the NAS is down for 1.5 hours") == nil, "Not 5 hours")
+        #expect(duration(1800, "alert me if the NAS is down for 1 hour and 30 minutes") == nil, "Part of the duration isn't it")
+    }
+
     @Test func spokenDurationsReadDigitsWordsAndUnits() {
         #expect(SpokenDuration.seconds(in: "down 5min or 90s") == [300, 90])
         #expect(SpokenDuration.seconds(in: "half a minute") == [30])
         #expect(SpokenDuration.seconds(in: "250 ms for 2 minutes") == [120])
         #expect(SpokenDuration.seconds(in: "every minute").isEmpty)
+        for (word, minutes) in [("thirteen", 13), ("fourteen", 14), ("sixteen", 16), ("seventeen", 17), ("nineteen", 19),
+                                ("seventy", 70), ("eighty two", 82)] {
+            #expect(SpokenDuration.seconds(in: "offline for \(word) minutes") == [minutes * 60])
+        }
+        #expect(SpokenDuration.seconds(in: "down for 1.5 hours.") == [5400])
+        #expect(SpokenDuration.seconds(in: "down 2 hours 15 minutes") == [8100])
+        #expect(SpokenDuration.seconds(in: "above 5 seconds for 2 minutes") == [5, 120], "Not adjacent: two durations")
+        #expect(SpokenDuration.seconds(in: "ping 192.168.1.40 for 5 minutes") == [300])
     }
 
     @Test func aPortScanWithoutAKnownPresetUsesCommonPorts() {
