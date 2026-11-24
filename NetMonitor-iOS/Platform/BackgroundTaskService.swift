@@ -392,6 +392,7 @@ final class BackgroundTaskService {
 
         let devices = DeviceDiscoveryService.shared.discoveredDevices
         Self.logger.info("Network scan found \(devices.count) device(s)")
+        reconcileSavedDevices(devices, scanDate: DeviceDiscoveryService.shared.lastScanDate ?? Date())
 
         let diff = ScanSchedulerService.shared.computeDiff(current: devices)
         Self.logger.info("Scan diff: \(diff.newDevices.count) new, \(diff.removedDevices.count) removed")
@@ -399,6 +400,25 @@ final class BackgroundTaskService {
         await notifyScanChanges(diff, wordBodies: !taskCancelled)
     }
 
+}
+
+// MARK: - Saved devices (#582)
+
+extension BackgroundTaskService {
+    /// Puts a background scan into the saved device rows, as the foreground updater does, so the
+    /// next look at a device shows this scan. The foreground updater skips the same scan.
+    func reconcileSavedDevices(_ devices: [DiscoveredDevice], scanDate: Date) {
+        let schema = Schema([PairedMac.self, LocalDevice.self, MonitoringTarget.self, ToolResult.self, SpeedTestResult.self])
+        guard let container = try? ModelContainer(for: schema, configurations: [ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)])
+        else {
+            Self.logger.error("Failed to open the store to save scanned devices")
+            return
+        }
+        DeviceRecordUpdater.reconcile(
+            devices, scanDate: scanDate, network: NetworkProfileManager.savedLocalProfile()?.id,
+            with: ScanReconciler(context: ModelContext(container)), now: Date()
+        )
+    }
 }
 
 // MARK: - Alerts (#453)

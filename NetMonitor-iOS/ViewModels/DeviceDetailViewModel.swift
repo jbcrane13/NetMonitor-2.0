@@ -433,3 +433,30 @@ final class DeviceDetailViewModel {
         }
     }
 }
+
+// MARK: - Opening by ID (#584)
+
+extension DeviceDetailViewModel {
+    /// Loads the saved row with `id`, for links that carry `LocalDevice.id` (Ask citations, rule
+    /// targets, Timeline events; #584). Never matches by IP: when DHCP gave the device's address
+    /// to another device, the link still opens this one. The latest scan's identity is merged only
+    /// from the scanned device with the row's MAC. A row that no longer exists loads nothing.
+    func loadDevice(id: UUID, context: ModelContext) {
+        suggestionTask?.cancel()
+        suggestionTask = nil
+        suggestionFingerprint = nil
+        modelContext = context
+        var descriptor = FetchDescriptor<LocalDevice>(predicate: #Predicate { $0.id == id })
+        descriptor.fetchLimit = 1
+        device = (try? context.fetch(descriptor))?.first
+        defer { startSuggestion() }
+        guard let device, !device.macAddress.isEmpty else { return }
+        let scanned = Self.liveScan(deviceDiscoveryService).first { scanned in
+            scanned.networkProfileID == device.networkProfileID
+                && scanned.macAddress?.caseInsensitiveCompare(device.macAddress) == .orderedSame
+        }
+        if let scanned {
+            Self.adopt(scanned, into: device)
+        }
+    }
+}

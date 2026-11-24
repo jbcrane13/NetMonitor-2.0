@@ -15,6 +15,8 @@ struct NetmonitorApp: App {
     @State private var networkChangeMonitor: LocalNetworkChangeMonitor?
     /// Logs connectivity and device changes for the Timeline.
     @State private var eventListener: EventListenerService?
+    /// Puts every finished scan into the saved device rows (#582).
+    @State private var deviceRecordUpdater: DeviceRecordUpdater?
     @Environment(\.scenePhase) private var scenePhase
 
     private static var isUITesting: Bool {
@@ -93,6 +95,19 @@ struct NetmonitorApp: App {
         eventListener = listener
     }
 
+    /// Starts keeping the saved device rows current after each scan, once (#582).
+    private func startDeviceRecordUpdater() {
+        guard deviceRecordUpdater == nil else { return }
+        let updater = DeviceRecordUpdater(
+            discoveryService: environment.deviceDiscovery,
+            reconciler: ScanReconciler(context: sharedModelContainer.mainContext),
+            currentNetworkProfileID: environment.currentNetworkProfileID,
+            clock: UITestBootstrap.scanClock ?? Date.init
+        )
+        updater.start()
+        deviceRecordUpdater = updater
+    }
+
     // Respect user's appearance preference (light/dark/system)
     private var resolvedColorScheme: ColorScheme? {
         switch selectedTheme {
@@ -129,6 +144,8 @@ struct NetmonitorApp: App {
                     if UITestBootstrap.recordsEvents {
                         startEventListener()
                     }
+                    // Saved device rows follow every scan, in UI tests too (#582).
+                    startDeviceRecordUpdater()
 
                     if Self.isUITesting || Self.persistenceOutcome.isDegraded {
                         return

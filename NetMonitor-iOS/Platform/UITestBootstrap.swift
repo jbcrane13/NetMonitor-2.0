@@ -470,3 +470,31 @@ extension UITestBootstrap {
         #endif
     }
 }
+
+// MARK: - Saved devices follow scans (#582)
+
+extension UITestBootstrap {
+    /// With `UITEST_SCAN_CLOCK=1`: the clock the device-record updater stamps scans with. The first
+    /// scan is at 08:00 on 2026-11-20 (local time), each later one 10 minutes after the previous,
+    /// so a test sees "last seen" at a known time and the grace interval pass without waiting.
+    static var scanClock: (@MainActor () -> Date)? {
+        #if DEBUG
+        guard isUITesting, ProcessInfo.processInfo.environment["UITEST_SCAN_CLOCK"] == "1" else { return nil }
+        return {
+            defer { scanClockTicks += 1 }
+            return scanClockStart.addingTimeInterval(Double(scanClockTicks) * 600)
+        }
+        #else
+        return nil
+        #endif
+    }
+
+    // swiftlint:disable:next force_unwrapping
+    static let scanClockStart = Calendar.current.date(from: DateComponents(year: 2026, month: 11, day: 20, hour: 8))!
+    private static var scanClockTicks = 0
+
+    /// With `UITEST_SCAN_DROP_LAST=1`: scans after the first no longer find uitest-device-4.
+    static var dropsLastDeviceAfterFirstScan: Bool {
+        isUITesting && ProcessInfo.processInfo.environment["UITEST_SCAN_DROP_LAST"] == "1"
+    }
+}

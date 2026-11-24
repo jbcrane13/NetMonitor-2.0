@@ -3,15 +3,47 @@ import NetMonitorCore
 import SwiftData
 
 struct DeviceDetailView: View {
-    let ipAddress: String
-    /// The network the device was found on; nil when opened without one.
-    var networkID: UUID?
-    /// The MAC the list showed, which matters for a cached result the live scan lacks.
-    var macAddress: String?
+    /// How detail finds its saved row.
+    enum Entry: Hashable {
+        /// A scan's list entry: the row the device match finds for this address on `networkID`
+        /// (nil when opened without one); `macAddress` is the MAC the list showed, which matters
+        /// for a cached result the live scan lacks.
+        case scanned(ipAddress: String, networkID: UUID?, macAddress: String?)
+        /// A link that carries `LocalDevice.id` (#584): that row, whatever device has its IP now.
+        case saved(id: UUID)
+    }
+
+    let entry: Entry
     @State private var viewModel = DeviceDetailViewModel()
     @State private var showsLabelCapture = false
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+
+    init(ipAddress: String, networkID: UUID? = nil, macAddress: String? = nil) {
+        entry = .scanned(ipAddress: ipAddress, networkID: networkID, macAddress: macAddress)
+    }
+
+    /// Opens the saved row with this `LocalDevice.id` (#584).
+    init(deviceID: UUID) {
+        entry = .saved(id: deviceID)
+    }
+
+    /// The address the entry names, for the title and "not found" while nothing is loaded.
+    private var enteredAddress: String {
+        switch entry {
+        case let .scanned(ipAddress, _, _): ipAddress
+        case .saved: "this saved device"
+        }
+    }
+
+    private func load() {
+        switch entry {
+        case let .scanned(ipAddress, networkID, macAddress):
+            viewModel.loadDevice(ipAddress: ipAddress, networkID: networkID, macAddress: macAddress, context: modelContext)
+        case let .saved(id):
+            viewModel.loadDevice(id: id, context: modelContext)
+        }
+    }
 
     var body: some View {
         ScrollView {
@@ -34,13 +66,13 @@ struct DeviceDetailView: View {
                 ContentUnavailableView(
                     "Device Not Found",
                     systemImage: "questionmark.circle",
-                    description: Text("No device found at \(ipAddress)")
+                    description: Text("No device found at \(enteredAddress)")
                 )
                 .accessibilityIdentifier("deviceDetail_label_notFound")
             }
         }
         .themedBackground()
-        .navigationTitle(viewModel.device?.displayName ?? ipAddress)
+        .navigationTitle(viewModel.device?.displayName ?? enteredAddress)
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
         .toolbarColorScheme(.dark, for: .navigationBar)
@@ -87,8 +119,8 @@ struct DeviceDetailView: View {
                 .accessibilityIdentifier("deviceDetail_button_actions")
             }
         }
-        .task(id: ipAddress) {
-            viewModel.loadDevice(ipAddress: ipAddress, networkID: networkID, macAddress: macAddress, context: modelContext)
+        .task(id: entry) {
+            load()
             guard !Task.isCancelled else { return }
             await viewModel.enrichDevice(bonjourServices: [])
         }
@@ -96,7 +128,7 @@ struct DeviceDetailView: View {
             if let device = viewModel.device {
                 LabelCaptureView(device: device) {
                     // The saved values replace what the detail shows, suggestions included.
-                    viewModel.loadDevice(ipAddress: ipAddress, networkID: networkID, macAddress: macAddress, context: modelContext)
+                    load()
                 }
             }
         }
