@@ -26,8 +26,10 @@ public struct TroubleshootFinding: Equatable, Sendable, Identifiable {
     /// The measured values and the threshold they crossed.
     public let detail: String
     public let nextStep: String
+    /// The device name, website or looked-up name a finding is about.
+    public var subject: String?
 
-    public var id: String { kind.rawValue }
+    public var id: String { kind.rawValue + (subject.map { ":" + $0 } ?? "") }
 }
 
 /// Turns step results into ranked findings (#451). Pure: every threshold is here.
@@ -97,7 +99,8 @@ public enum TroubleshootRules {
                         kind: .dnsSlow,
                         title: "Slow DNS",
                         detail: "Looking up \(host) took \(Int(milliseconds.rounded())) ms; over \(Int(slowDNSMilliseconds)) ms is slow.",
-                        nextStep: "Restart the router, or set a different DNS server on it."
+                        nextStep: "Restart the router, or set a different DNS server on it.",
+                        subject: host
                     ))
                 }
             } else {
@@ -105,7 +108,8 @@ public enum TroubleshootRules {
                     kind: .dnsFailed,
                     title: "DNS lookup failed",
                     detail: "\(host) didn't resolve to an address.",
-                    nextStep: "Check the address is spelled right; if other sites fail too, restart the router or set a different DNS server on it."
+                    nextStep: "Check the address is spelled right; if other sites fail too, restart the router or set a different DNS server on it.",
+                    subject: host
                 ))
             }
         }
@@ -120,7 +124,8 @@ public enum TroubleshootRules {
                 kind: .deviceOffline,
                 title: "\(name) is offline or asleep",
                 detail: "\(name) answered none of \(summary.sent) pings or its known ports, while your router answered.",
-                nextStep: "Check that \(name) is powered on and connected to the network, or wake it."
+                nextStep: "Check that \(name) is powered on and connected to the network, or wake it.",
+                subject: name
             ))
         }
 
@@ -131,7 +136,8 @@ public enum TroubleshootRules {
                 kind: .siteNotAnswering,
                 title: "\(host) isn't answering",
                 detail: "\(host) resolved, but didn't answer on port 443, while your router answered.",
-                nextStep: "The site may be down; try again later or from another network."
+                nextStep: "The site may be down; try again later or from another network.",
+                subject: host
             ))
         }
 
