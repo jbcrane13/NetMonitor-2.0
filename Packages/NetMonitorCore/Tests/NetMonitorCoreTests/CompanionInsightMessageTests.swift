@@ -16,15 +16,10 @@ struct CompanionInsightMessageTests {
         return try CompanionMessage.decode(from: framed.dropFirst(4))
     }
 
-    @Test("an insight request survives the wire with its request, devices and id")
+    @Test("an insight request survives the wire with its request and id")
     func insightRequestRoundTrip() throws {
         let id = try #require(UUID(uuidString: "6B1B5E36-2C0C-4E57-9C1D-3D4A0F5E7A11"))
-        let deviceID = try #require(UUID(uuidString: "0F0E7C4D-5B7A-4A55-8C36-0E2A47C6E2B9"))
-        let payload = InsightRequestPayload(
-            requestID: id,
-            request: Self.request,
-            devices: [InsightDeviceReference(id: deviceID, displayName: "Garage Camera")]
-        )
+        let payload = InsightRequestPayload(requestID: id, request: Self.request)
 
         guard case let .insightRequest(decoded) = try Self.roundTrip(.insightRequest(payload)) else {
             Issue.record("expected an insight request")
@@ -32,7 +27,6 @@ struct CompanionInsightMessageTests {
         }
         #expect(decoded.requestID == id)
         #expect(decoded.request == Self.request)
-        #expect(decoded.devices == [InsightDeviceReference(id: deviceID, displayName: "Garage Camera")])
     }
 
     @Test("every request kind keeps its kind on the wire", arguments: [
@@ -59,13 +53,12 @@ struct CompanionInsightMessageTests {
             return
         }
         #expect(decoded.request == nil)
-        #expect(decoded.devices == nil)
     }
 
     @Test("a message's log name is its type, with nothing of the prompt or the answer")
     func logNameLeavesOutThePayload() {
         let request = InsightRequest(subject: "Port scan of 192.168.1.20", facts: ["Host: nas.local"], observations: ["SSH is open"])
-        let asked = CompanionMessage.insightRequest(InsightRequestPayload(requestID: UUID(), request: request, devices: nil))
+        let asked = CompanionMessage.insightRequest(InsightRequestPayload(requestID: UUID(), request: request))
         let answered = CompanionMessage.insightResponse(InsightResponsePayload(requestID: UUID(), answer: "nas.local has SSH open."))
 
         #expect(asked.logName == "insightRequest")

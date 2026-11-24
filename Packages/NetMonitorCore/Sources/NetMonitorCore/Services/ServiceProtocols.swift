@@ -553,6 +553,9 @@ public enum InsightUpdate: Sendable, Equatable {
     case finished(String)
     /// The model refused, was interrupted, or stopped being available.
     case failed
+    /// The model couldn't be reached just now, such as a Mac that was busy, timed out or went
+    /// away (#457). Unlike `.failed` this says nothing about the request: ask again later.
+    case unreachable
 }
 
 /// Explains measured results in plain language with the on-device language model (#448).

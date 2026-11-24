@@ -139,7 +139,7 @@ public final class TroubleshootState {
     private var runTask: Task<Void, Never>?
     private var stepTask: Task<TroubleshootResult, Never>?
     private var classifyTask: Task<SymptomIntent?, Never>?
-    private var explainTask: Task<String?, Never>?
+    private var explainTask: Task<InsightAnswer?, Never>?
     /// Goes up when a run is cleared or its classification is cancelled; model work started
     /// under an earlier value is discarded when it returns.
     private var runID = 0
@@ -419,18 +419,17 @@ public final class TroubleshootState {
         guard insight.isAvailable, !isScanning(), let report = TroubleshootReportBuilder.report(for: kind, findings: findings) else { return }
         let run = runID
         isExplaining = true
-        let source = InsightService.source(of: insight)
         let task = Task { [insight, timeout] in
-            await InsightSummarizer.summary(for: report.request, service: insight, timeout: timeout)
+            await InsightSummarizer.outcome(for: report.request, service: insight, timeout: timeout).answer
         }
         explainTask = task
-        let text = await task.value
+        let answer = await task.value
         // Another run replaced this one while the model was writing: its findings aren't these.
         guard run == runID else { return }
         explainTask = nil
         isExplaining = false
-        explanation = text.flatMap { report.accepts($0) ? $0 : nil }
-        explanationSource = source
+        explanation = answer.flatMap { report.accepts($0.text) ? $0.text : nil }
+        explanationSource = answer?.source ?? .device
     }
 
     /// The host in what the user typed: "https://GitHub.com:8443/login" → "github.com". Nil when it

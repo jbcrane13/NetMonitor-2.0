@@ -28,10 +28,11 @@ public actor CompanionInsightResponder {
         self.isScanning = isScanning
     }
 
-    /// The capabilities a Mac heartbeat advertises: insight only while the model can be used
-    /// and the user lets the Mac answer. Nil keeps the field out of the heartbeat.
-    nonisolated public func capabilities(allowed: Bool) -> [String]? {
-        allowed && service.isAvailable ? [CompanionCapability.insight] : nil
+    /// The capabilities a Mac heartbeat advertises: insight only while the model can be used,
+    /// the user lets the Mac answer and the Mac isn't scanning. Nil keeps the field out of the
+    /// heartbeat.
+    nonisolated public func capabilities(allowed: Bool, isScanning: Bool = false) -> [String]? {
+        allowed && !isScanning && service.isAvailable ? [CompanionCapability.insight] : nil
     }
 
     /// The reply to `payload`: the checked answer, or why there is none.

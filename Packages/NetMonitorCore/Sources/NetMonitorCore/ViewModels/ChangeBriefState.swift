@@ -76,8 +76,7 @@ public final class ChangeBriefState {
             lastRequest = nil
             return
         }
-        let source = InsightService.source(of: service)
-        let text = await InsightSummarizer.summary(for: request, service: service, timeout: timeout)
+        let outcome = await InsightSummarizer.outcome(for: request, service: service, timeout: timeout)
         // Leaving the dashboard cancels its task; that is not an answer, so ask again next time.
         if Task.isCancelled {
             if lastRequest == .some(request) {
@@ -87,7 +86,11 @@ public final class ChangeBriefState {
         }
         // A newer digest was asked about meanwhile; its answer decides.
         guard lastRequest == .some(request) else { return }
-        brief = text.map { ChangeSummary(keyPoints: request.observations, text: $0, source: source) }
+        // A Mac that was busy, timed out or went away isn't an answer either (#457).
+        if outcome == .tryLater {
+            lastRequest = nil
+        }
+        brief = outcome.answer.map { ChangeSummary(keyPoints: request.observations, text: $0.text, source: $0.source) }
         briefNetwork = network
     }
 }

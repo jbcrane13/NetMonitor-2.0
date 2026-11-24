@@ -11,24 +11,28 @@ struct ToolInsightCard: View {
     let request: InsightRequest?
     /// True inside another card, which already supplies the glass background.
     let isEmbedded: Bool
+    /// This device's model, else a connected Mac once the user agreed (#457).
+    let routed: RoutedInsightService
     @State private var state: ToolInsightState
+    @State private var isAskingForMac = false
 
     init(
         screen: String,
         request: InsightRequest?,
         isEmbedded: Bool = false,
-        service: any InsightServiceProtocol = PhoneInsight.shared
+        routed: RoutedInsightService = PhoneInsight.routed
     ) {
         self.screen = screen
         self.request = request
         self.isEmbedded = isEmbedded
-        _state = State(initialValue: ToolInsightState(service: service))
+        self.routed = routed
+        _state = State(initialValue: ToolInsightState(service: routed))
     }
 
     var body: some View {
         // A request that ended stays on screen even if the model went away meanwhile, such as
         // a Mac that disconnected mid-request (#457), so the reader sees it failed.
-        if let request, state.isAvailable || state.phase(for: request) != .idle {
+        if let request, routed.availability != .unavailable || state.phase(for: request) != .idle {
             Group {
                 if isEmbedded {
                     stack(for: request)
@@ -40,6 +44,9 @@ struct ToolInsightCard: View {
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("\(screen)_insight_card")
             .onDisappear { state.reset() }
+            .modifier(MacInsightConsentAlert(isPresented: $isAskingForMac, consent: routed.consent) {
+                state.explain(request)
+            })
         }
     }
 
@@ -55,7 +62,12 @@ struct ToolInsightCard: View {
         switch state.phase(for: request) {
         case .idle:
             Button {
-                state.explain(request)
+                // A Mac could write it but the user hasn't said yes: ask first (#457).
+                if routed.availability == .needsConsent {
+                    isAskingForMac = true
+                } else {
+                    state.explain(request)
+                }
             } label: {
                 Label("Explain this result", systemImage: "sparkles")
                     .font(.subheadline.weight(.semibold))

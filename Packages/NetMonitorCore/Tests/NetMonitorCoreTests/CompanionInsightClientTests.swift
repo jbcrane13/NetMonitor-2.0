@@ -30,7 +30,7 @@ struct CompanionInsightClientTests {
         client.received(heartbeat: HeartbeatPayload())
 
         #expect(!client.isAvailable)
-        #expect(await Self.updates(client.explain(Self.request)) == [.failed])
+        #expect(await Self.updates(client.explain(Self.request)) == [.unreachable])
         #expect(link.sent.isEmpty)
     }
 
@@ -44,7 +44,7 @@ struct CompanionInsightClientTests {
         client.received(heartbeat: HeartbeatPayload())
 
         #expect(!client.isAvailable)
-        #expect(await Self.updates(client.explain(Self.request)) == [.failed])
+        #expect(await Self.updates(client.explain(Self.request)) == [.unreachable])
         #expect(link.sent.isEmpty)
     }
 
@@ -78,7 +78,17 @@ struct CompanionInsightClientTests {
         let sent = try #require(link.sentRequests.first)
         client.received(InsightResponsePayload(requestID: sent.requestID, failure: .busy))
 
-        #expect(await collected.value == [.failed])
+        #expect(await collected.value == [.unreachable])
+    }
+
+    @Test("a refused or too-large reply is a lasting failure; busy, timeout and unavailable are for now")
+    func failureReasonsClassified() {
+        let id = UUID()
+        #expect(CompanionInsightClient.update(for: InsightResponsePayload(requestID: id, failure: .refused)) == .failed)
+        #expect(CompanionInsightClient.update(for: InsightResponsePayload(requestID: id, failure: .tooLarge)) == .failed)
+        #expect(CompanionInsightClient.update(for: InsightResponsePayload(requestID: id, failure: .busy)) == .unreachable)
+        #expect(CompanionInsightClient.update(for: InsightResponsePayload(requestID: id, failure: .timeout)) == .unreachable)
+        #expect(CompanionInsightClient.update(for: InsightResponsePayload(requestID: id, failure: .unavailable)) == .unreachable)
     }
 
     @Test("a disconnect mid-request fails it at once and withdraws the Mac")
@@ -91,7 +101,7 @@ struct CompanionInsightClientTests {
         await waitUntil { link.sent.count == 1 }
         client.disconnected()
 
-        #expect(await collected.value == [.failed])
+        #expect(await collected.value == [.unreachable])
         #expect(!client.isAvailable)
     }
 
@@ -101,7 +111,7 @@ struct CompanionInsightClientTests {
         let client = CompanionInsightClient(send: link.send, timeout: .milliseconds(50))
         client.received(heartbeat: Self.insightHeartbeat)
 
-        #expect(await Self.updates(client.explain(Self.request)) == [.failed])
+        #expect(await Self.updates(client.explain(Self.request)) == [.unreachable])
         #expect(link.sent.count == 1)
     }
 
@@ -115,7 +125,7 @@ struct CompanionInsightClientTests {
         }, timeout: .milliseconds(50))
         client.received(heartbeat: Self.insightHeartbeat)
 
-        #expect(await Self.updates(client.explain(Self.request)) == [.failed])
+        #expect(await Self.updates(client.explain(Self.request)) == [.unreachable])
         stalled.withLock { $0 }?.resume()
     }
 
@@ -125,7 +135,7 @@ struct CompanionInsightClientTests {
         let client = CompanionInsightClient(send: link.send, timeout: .seconds(60))
         client.received(heartbeat: Self.insightHeartbeat)
 
-        #expect(await Self.updates(client.explain(Self.request)) == [.failed])
+        #expect(await Self.updates(client.explain(Self.request)) == [.unreachable])
     }
 
     @Test("a request over the size cap is rejected on the phone and never sent")
@@ -146,7 +156,7 @@ struct CompanionInsightClientTests {
         let link = FakeLink()
         let client = CompanionInsightClient(send: link.send)
         client.received(heartbeat: Self.insightHeartbeat)
-        let routed = RoutedInsightService(local: FixedAnswerInsightService(answer: "Local answer."), mac: client)
+        let routed = RoutedInsightService(local: FixedAnswerInsightService(answer: "Local answer."), mac: client, consent: .agreedInMemory)
 
         #expect(routed.isAvailable)
         #expect(routed.answerSource == .device)
@@ -159,7 +169,7 @@ struct CompanionInsightClientTests {
         let link = FakeLink()
         let client = CompanionInsightClient(send: link.send)
         client.received(heartbeat: Self.insightHeartbeat)
-        let routed = RoutedInsightService(local: UnavailableInsightService(), mac: client)
+        let routed = RoutedInsightService(local: UnavailableInsightService(), mac: client, consent: .agreedInMemory)
 
         #expect(routed.isAvailable)
         #expect(routed.answerSource == .mac)
@@ -174,10 +184,10 @@ struct CompanionInsightClientTests {
     @Test("with neither the local model nor a capable Mac, nothing is available")
     func routesToNone() async {
         let client = CompanionInsightClient(send: FakeLink().send)
-        let routed = RoutedInsightService(local: UnavailableInsightService(), mac: client)
+        let routed = RoutedInsightService(local: UnavailableInsightService(), mac: client, consent: .agreedInMemory)
 
         #expect(!routed.isAvailable)
-        #expect(await Self.updates(routed.explain(Self.request)) == [.failed])
+        #expect(await Self.updates(routed.explain(Self.request)) == [.unreachable])
         #expect(await routed.suggestIdentity(DeviceEvidence(hostname: "printer")) == nil)
     }
 
@@ -221,4 +231,9 @@ private func waitUntil(timeout: Duration = .seconds(5), _ condition: () -> Bool)
     while !condition(), ContinuousClock.now < deadline {
         try? await Task.sleep(for: .milliseconds(10))
     }
+}
+
+extension MacInsightConsent {
+    /// An answer of yes, kept in memory, for tests of what a Mac answers once the user agreed.
+    static var agreedInMemory: MacInsightConsent { MacInsightConsent(defaults: nil, decision: true) }
 }

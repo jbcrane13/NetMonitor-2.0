@@ -165,9 +165,15 @@ final class TimelineViewModel {
             return
         }
         summaries[key] = .loading
-        let source = InsightService.source(of: insightService)
-        let text = await InsightSummarizer.summary(for: request, service: insightService, timeout: ChangeBriefViewModel.timeout)
-        summaries[key] = text.map { .finished(ChangeSummary(keyPoints: request.observations, text: $0, source: source)) } ?? .unavailable
+        switch await InsightSummarizer.outcome(for: request, service: insightService, timeout: ChangeBriefViewModel.timeout) {
+        case let .answer(answer):
+            summaries[key] = .finished(ChangeSummary(keyPoints: request.observations, text: answer.text, source: answer.source))
+        case .refused:
+            summaries[key] = .unavailable
+        case .tryLater:
+            // A Mac that was busy or went away (#457): forget the day, so Summarize asks again.
+            summaries[key] = nil
+        }
     }
 
     /// The shown day section labelled `label`, its start and its newest event.

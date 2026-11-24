@@ -41,10 +41,9 @@ enum DataExportService {
         now: Date = Date()
     ) async -> Data? {
         var executiveSummary: PDFReportGenerator.ExecutiveSummary?
-        let source = InsightService.source(of: insightService)
         if let request = ReportSummaryBuilder.request(devices: devices, toolResults: toolResults, speedTests: speedTests, now: now),
-           let text = await InsightSummarizer.summary(for: request, service: insightService, timeout: summaryTimeout) {
-            executiveSummary = PDFReportGenerator.ExecutiveSummary(text: text, keyPoints: request.observations, source: source)
+           let answer = await InsightSummarizer.outcome(for: request, service: insightService, timeout: summaryTimeout).answer {
+            executiveSummary = PDFReportGenerator.ExecutiveSummary(text: answer.text, keyPoints: request.observations, source: answer.source)
         }
         return PDFReportGenerator.generateNetworkReport(
             devices: devices,

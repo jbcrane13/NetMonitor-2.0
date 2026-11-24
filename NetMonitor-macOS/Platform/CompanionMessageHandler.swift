@@ -77,7 +77,24 @@ final class CompanionMessageHandler {
     /// This Mac's heartbeat, advertising insight while its model can answer and the user
     /// allows it (#457). An iPhone sends insight requests only after seeing it.
     func heartbeat() -> HeartbeatPayload {
-        HeartbeatPayload(capabilities: insightResponder.capabilities(allowed: Self.answersInsight))
+        HeartbeatPayload(capabilities: insightResponder.capabilities(
+            allowed: Self.answersInsight, isScanning: deviceDiscovery.isScanning
+        ))
+    }
+
+    /// Calls `send` with a fresh heartbeat whenever a scan starts or ends, so a phone stops
+    /// asking while the Mac scans and starts again after (#457).
+    func onScanningChange(_ send: @escaping @MainActor (HeartbeatPayload) -> Void) {
+        withObservationTracking {
+            _ = deviceDiscovery.isScanning
+        } onChange: { [weak self] in
+            // Fires before the change, off the main actor: hop over, then read the new value.
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                send(self.heartbeat())
+                self.onScanningChange(send)
+            }
+        }
     }
 
     /// Generate current status update message

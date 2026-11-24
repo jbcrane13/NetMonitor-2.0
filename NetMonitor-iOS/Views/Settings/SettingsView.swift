@@ -37,6 +37,8 @@ struct SettingsView: View {
                     connectionService.disconnect()
                 }
             )
+            // "Use your Mac for on-device AI" (#457).
+            Section { MacInsightSettingsRow(routed: PhoneInsight.routed) }
 
             // MARK: - Network Tools Section
             Section {

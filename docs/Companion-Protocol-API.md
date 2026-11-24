@@ -414,7 +414,6 @@ Asks the Mac's on-device model to word an insight for a phone that can't run the
 | `subject` | String | What was measured |
 | `facts` | [String] | The measured values |
 | `observations` | [String] | The app's computed key points |
-| `devices` | [{`id`: UUID, `displayName`: String}]? | Optional. Devices the request mentions, by stable identity with the phone's display names. The Mac uses these names as given and never re-resolves them. |
 
 The encoded payload is capped at 64 KiB (`InsightRequestPayload.maximumEncodedSize`). The phone doesn't send a larger request, and the Mac answers one with `tooLarge`.
 
@@ -430,9 +429,11 @@ The Mac's whole answer to one `insightRequest`, after its own grounding and text
 |-------|------|-------------|
 | `requestID` | UUID | The request answered |
 | `answer` | String? | The checked answer; absent on failure |
-| `failure` | String? | `unavailable`, `refused`, `timeout`, `tooLarge` or `busy`. A reason the phone doesn't know reads as `refused`. |
+| `failure` | String? | `unavailable`, `refused`, `timeout`, `tooLarge` or `busy`. A reason the phone doesn't know reads as `refused`. `refused` and `tooLarge` are lasting for that request; `unavailable`, `timeout` and `busy` are for now, and the phone asks again later instead of remembering the failure. |
 
-The Mac answers one request at a time (`busy` for another one meanwhile, and during a Mac scan) and gives the model 20 s. The phone gives up after 25 s, and at once when the link drops; the feature then falls back to its path without the model.
+The Mac answers one request at a time (`busy` for another one meanwhile, and during a Mac scan) and gives the model 20 s. While it scans it also stops listing `insight.v1` and sends a heartbeat without it, and another when the scan ends. The phone gives up after 25 s, and at once when the link drops; the feature then falls back to its path without the model. Phone features that wait for a summary wait at least 27 s when the Mac writes it; notification bodies keep their 2 s budget.
+
+The phone sends requests only after the user agrees, once, to "Use your Mac for on-device AI?"; a Settings switch changes the answer.
 
 ---
 

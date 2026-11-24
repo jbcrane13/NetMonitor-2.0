@@ -262,6 +262,16 @@ actor CompanionService {
             // The type only: payloads carry addresses, hostnames and insight prompts.
             Logger.companion.debug("Received \(message.logName, privacy: .public) from \(clientID)")
 
+            // A model request can take 20 s: answer it on its own, so the frames behind it,
+            // such as heartbeats, are handled meanwhile (#457).
+            if Self.answersOffBatch(message) {
+                Task {
+                    if let response = await messageHandler?(message, clientID) {
+                        await send(response, to: clientID)
+                    }
+                }
+                continue
+            }
             if let response = await messageHandler?(message, clientID) {
                 await send(response, to: clientID)
             }
@@ -287,6 +297,14 @@ actor CompanionService {
                 Logger.companion.error("Send error to \(capturedClientID): \(error, privacy: .public)")
             }
         })
+    }
+
+    /// Whether `message` is handled on its own instead of in its batch's order.
+    static func answersOffBatch(_ message: CompanionMessage) -> Bool {
+        if case .insightRequest = message {
+            return true
+        }
+        return false
     }
 
     // MARK: - Testing Support

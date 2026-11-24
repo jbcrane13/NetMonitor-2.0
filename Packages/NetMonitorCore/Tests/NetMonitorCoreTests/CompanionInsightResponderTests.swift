@@ -42,6 +42,13 @@ struct CompanionInsightResponderTests {
         #expect(responder.capabilities(allowed: true) == nil)
     }
 
+    @Test("a scanning Mac offers no insight capability")
+    func noCapabilityWhileScanning() {
+        let responder = CompanionInsightResponder(service: FixedAnswerInsightService(answer: "SSH is open."))
+        #expect(responder.capabilities(allowed: true, isScanning: true) == nil)
+        #expect(responder.capabilities(allowed: true, isScanning: false) == ["insight.v1"])
+    }
+
     @Test("with answering turned off the reply is unavailable, and no capability is offered")
     func answeringTurnedOff() async {
         let responder = CompanionInsightResponder(service: FixedAnswerInsightService(answer: "SSH is open."), isAllowed: { false })

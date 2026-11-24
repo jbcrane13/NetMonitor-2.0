@@ -6,7 +6,7 @@ import Foundation
 /// the model to tell the reader to visit a site or call a number. The model is told not to
 /// follow such instructions; this check enforces it on the answer. An answer is rejected,
 /// and the caller falls back to fixed text or omits the summary, when it contains:
-/// - a URL (a scheme such as `https://`, or `www.`),
+/// - a URL (a scheme such as `https://`), or a `www.` name the app didn't state whole,
 /// - an email address,
 /// - a phone-number-like run of digits, or
 /// - a domain-like token (`example.com`) that isn't a whole value the app gave the model.
@@ -22,12 +22,17 @@ public enum InsightTextFilter {
             return false
         }
         let allowed = allowedDomains(in: request)
+        // A `www.` name is refused unless it is one the app stated whole, such as the name a
+        // DNS lookup asked about (#457).
+        guard wwwNames(in: text).allSatisfy({ allowed.contains($0.lowercased()) }) else { return false }
         return domains(in: text).allSatisfy { allowed.contains($0.lowercased()) }
     }
 
     // MARK: - Patterns
 
-    private static let urlPattern = #"(?i)\b[a-z][a-z0-9+.-]*://|\bwww\."#
+    private static let urlPattern = #"(?i)\b[a-z][a-z0-9+.-]*://"#
+    /// A `www.` name up to the next space, without trailing punctuation.
+    private static let wwwPattern = #"(?i)\bwww\.[^\s]*?(?=[.,;:!?)]*(\s|$))"#
     private static let emailPattern = #"[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}"#
     /// Grouped like a phone number ("555-123-4567", "(555) 123 4567", "+1 555 123 4567") or
     /// seven or more digits in a row. Dotted runs are left alone so IP addresses never match,
@@ -40,6 +45,12 @@ public enum InsightTextFilter {
 
     private static func matches(_ pattern: String, in text: String) -> Bool {
         text.range(of: pattern, options: .regularExpression) != nil
+    }
+
+    static func wwwNames(in text: String) -> [String] {
+        guard let regex = try? NSRegularExpression(pattern: wwwPattern) else { return [] }
+        let range = NSRange(text.startIndex..., in: text)
+        return regex.matches(in: text, range: range).compactMap { Range($0.range, in: text).map { String(text[$0]) } }
     }
 
     static func domains(in text: String) -> [String] {

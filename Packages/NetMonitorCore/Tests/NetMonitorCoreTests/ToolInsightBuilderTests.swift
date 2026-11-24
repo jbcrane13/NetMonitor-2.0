@@ -137,12 +137,28 @@ struct ToolInsightBuilderTests {
 
         #expect(request.subject == "DNS lookup of MX records for example.com")
         #expect(request.facts == [
+            "Name looked up: example.com",
             "DNS server: 192.168.2.1",
             "Query time: 38.0 ms",
-            "MX mx1.example.com, priority 10, TTL 300 s",
-            "MX mx2.example.com, priority 20, TTL 300 s"
+            "MX record, priority 10, TTL 300 s: mx1.example.com",
+            "MX record, priority 20, TTL 300 s: mx2.example.com"
         ])
         #expect(request.observations.isEmpty)
+    }
+
+    @Test("an answer may name the domain looked up and the names in its records, as stated (#457)")
+    func dnsNamesPassTheTextFilter() {
+        let result = DNSQueryResult(
+            domain: "example.com", server: "192.168.2.1", queryType: .mx,
+            records: [DNSRecord(name: "example.com", type: .mx, value: "mx1.example.com", ttl: 300, priority: 10)],
+            queryTime: 38
+        )
+        let lookup = ToolInsightBuilder.dnsLookup(result)
+        #expect(InsightTextFilter.isClean("The MX record for example.com points to mx1.example.com.", in: lookup))
+        #expect(!InsightTextFilter.isClean("Visit fix-net.com for help.", in: lookup))
+
+        let answers = ToolInsightBuilder.dnsAnswers(domain: "example.com", recordType: .cname, answers: ["edge.example.net"])
+        #expect(InsightTextFilter.isClean("example.com is an alias of edge.example.net.", in: answers))
     }
 
     @Test func dnsLookupWithNoRecordsAndASlowAnswerSaysBoth() {
@@ -250,7 +266,12 @@ struct ToolInsightBuilderTests {
     @Test func dnsAnswersWithoutTimingsListsOnlyTheAnswers() {
         let request = ToolInsightBuilder.dnsAnswers(domain: "example.com", recordType: .a, answers: ["93.184.216.34", "93.184.216.35"])
         #expect(request.subject == "DNS lookup of A records for example.com")
-        #expect(request.facts == ["Answers (2): 93.184.216.34, 93.184.216.35"])
+        #expect(request.facts == [
+            "Name looked up: example.com",
+            "Number of answers: 2",
+            "Answer: 93.184.216.34",
+            "Answer: 93.184.216.35"
+        ])
         #expect(request.observations.isEmpty)
     }
 
@@ -297,8 +318,8 @@ struct ToolInsightBuilderTests {
             records: [DNSRecord(name: "example.com", type: .txt, value: String(repeating: "x", count: 500), ttl: 60)],
             queryTime: 10
         )
-        let line = ToolInsightBuilder.dnsLookup(result).facts[2]
-        #expect(line == "TXT " + String(repeating: "x", count: 120) + "…, TTL 60 s")
+        let line = ToolInsightBuilder.dnsLookup(result).facts[3]
+        #expect(line == "TXT record, TTL 60 s: " + String(repeating: "x", count: 120) + "…")
     }
 
     @Test func healthScoreLeavesOutSpeedsTheCardDoesNotShow() {

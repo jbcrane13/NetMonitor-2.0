@@ -32,7 +32,7 @@ private extension IOSUITestCase {
         app.buttons["portScanner_button_run"].tap()
 
         let explain = ui("portScanner_insight_button_explain")
-        requireExists(explain, timeout: 60, message: "Explain this result should show once the scan ends, answered by the Mac")
+        requireExists(explain, timeout: 60, message: "Explain this result should show once the scan ends, with a Mac that could answer")
         for _ in 0 ..< 4 where !explain.isHittable {
             app.swipeUp()
         }
@@ -54,17 +54,43 @@ private extension IOSUITestCase {
         attachment.lifetime = .keepAlways
         add(attachment)
     }
+
+    /// The one-time "Use your Mac for on-device AI?" prompt, once it shows.
+    func requireMacPrompt() -> XCUIElement {
+        let alert = app.alerts["Use your Mac for on-device AI?"]
+        requireExists(alert, timeout: 10, message: "The phone should ask before sending anything to the Mac")
+        XCTAssertTrue(alert.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "over your local network")).firstMatch.exists,
+                      "The prompt should say requests go to the Mac over the local network")
+        return alert
+    }
+
+    /// Opens Settings from the dashboard.
+    func openSettings() {
+        requireExists(app.tabBars.buttons["Dashboard"], message: "Dashboard tab should exist").tap()
+        let settingsButton = app.buttons["dashboard_button_settings"]
+        if settingsButton.waitForExistence(timeout: 3) {
+            settingsButton.tap()
+        } else {
+            requireExists(app.navigationBars.buttons.firstMatch, message: "A navigation bar button should exist for settings").tap()
+        }
+        requireExists(ui("screen_settings"), timeout: 8, message: "Settings screen should open")
+    }
 }
 
 @MainActor
 final class MacInsightAnswerUITests: IOSUITestCase {
+    // Not asked yet: the first "Explain this" asks, and agreeing sends it to the Mac.
     override var additionalLaunchEnvironment: [String: String] { ["UITEST_MAC_INSIGHT": "answer"] }
 
-    func testMacAnswersExplainThisWithMacMarker() throws {
+    func testAgreeingToUseTheMacAnswersExplainThisWithMacMarker() throws {
         scanAndAskForExplanation()
 
+        let alert = requireMacPrompt()
+        keepCropped([alert], named: "MacInsight_Prompt")
+        alert.buttons["Use My Mac"].tap()
+
         let text = ui("portScanner_insight_label_text")
-        requireExists(text, timeout: 15, message: "The Mac's explanation should appear")
+        requireExists(text, timeout: 15, message: "The Mac's explanation should appear once the user agrees")
         XCTAssertEqual(
             text.label,
             "None of the mail services on this device answered, so nothing here is accepting mail."
@@ -78,12 +104,42 @@ final class MacInsightAnswerUITests: IOSUITestCase {
 }
 
 @MainActor
+final class MacInsightDeclineUITests: IOSUITestCase {
+    override var additionalLaunchEnvironment: [String: String] { ["UITEST_MAC_INSIGHT": "answer"] }
+
+    func testDecliningKeepsTheFallbackAndOffersTheSettingsSwitch() throws {
+        scanAndAskForExplanation()
+
+        requireMacPrompt().buttons["Don't Use Mac"].tap()
+
+        // Nothing goes to the Mac: the card goes away and the tool stays as it was without a model.
+        XCTAssertTrue(waitForDisappearance(ui("portScanner_insight_button_explain"), timeout: 5), "Explain this should go away")
+        XCTAssertFalse(ui("portScanner_insight_label_text").exists, "No generated text should show")
+        XCTAssertFalse(app.alerts.firstMatch.exists, "The prompt shouldn't come back")
+        XCTAssertTrue(app.buttons["portScanner_button_run"].isEnabled, "The scan can run again")
+        keepCropped([ui("screen_portScannerTool")], named: "MacInsight_DeclinedFallback")
+
+        openSettings()
+        let toggle = ui("settings_toggle_macInsight")
+        for _ in 0 ..< 4 where !toggle.isHittable {
+            app.swipeUp()
+        }
+        requireExists(toggle, message: "Settings should offer the switch after the user answered")
+        XCTAssertEqual(toggle.value as? String, "0", "The switch should be off after declining")
+        keepCropped([toggle], named: "MacInsight_SettingsSwitchOff")
+    }
+}
+
+@MainActor
 final class MacInsightDisconnectUITests: IOSUITestCase {
-    override var additionalLaunchEnvironment: [String: String] { ["UITEST_MAC_INSIGHT": "disconnect"] }
+    override var additionalLaunchEnvironment: [String: String] {
+        ["UITEST_MAC_INSIGHT": "disconnect", "UITEST_MAC_CONSENT": "agreed"]
+    }
 
     func testMacDisconnectMidRequestShowsFallback() throws {
         scanAndAskForExplanation()
 
+        XCTAssertFalse(app.alerts.firstMatch.waitForExistence(timeout: 2), "An answer already given isn't asked again")
         let failed = app.staticTexts["This result couldn't be explained."]
         requireExists(failed, timeout: 15, message: "A Mac that drops mid-request should leave the non-model fallback")
         XCTAssertFalse(ui("portScanner_insight_label_text").exists, "No generated text should show")

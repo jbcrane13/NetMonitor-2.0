@@ -58,7 +58,8 @@ public final class ToolInsightState {
                 case let .partial(text): self.phase = .generating(text)
                 case let .finished(text): self.phase = .finished(text)
                     ended = true
-                case .failed: self.phase = .failed
+                // A Mac that was busy or went away (#457) also ends here: Try Again asks anew.
+                case .failed, .unreachable: self.phase = .failed
                     ended = true
                 }
             }

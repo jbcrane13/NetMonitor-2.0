@@ -22,7 +22,7 @@ struct ToolInsightStateTests {
     @Test("a view reading the affordance hears when a Mac starts or stops offering insight (#457)")
     func availabilityChangesAreObserved() {
         let client = CompanionInsightClient(send: { _ in true })
-        let state = ToolInsightState(service: RoutedInsightService(local: UnavailableInsightService(), mac: client))
+        let state = ToolInsightState(service: RoutedInsightService(local: UnavailableInsightService(), mac: client, consent: .agreedInMemory))
         let insight = HeartbeatPayload(capabilities: [CompanionCapability.insight])
         let changes = ChangeCounter()
         func track() {
@@ -53,7 +53,7 @@ struct ToolInsightStateTests {
     func explanationRecordsItsSource() async {
         let client = CompanionInsightClient(send: { _ in true })
         client.received(heartbeat: HeartbeatPayload(capabilities: [CompanionCapability.insight]))
-        let viaMac = ToolInsightState(service: RoutedInsightService(local: UnavailableInsightService(), mac: client))
+        let viaMac = ToolInsightState(service: RoutedInsightService(local: UnavailableInsightService(), mac: client, consent: .agreedInMemory))
         viaMac.explain(request)
         #expect(viaMac.source == .mac)
         client.disconnected()

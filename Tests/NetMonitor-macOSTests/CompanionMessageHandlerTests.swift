@@ -211,6 +211,35 @@ struct CompanionMessageHandlerTests {
         #expect(plain.capabilities == nil)
     }
 
+    @Test("while the Mac scans its heartbeat drops insight.v1, and a fresh heartbeat goes out when a scan starts and ends")
+    func scanWithdrawsInsight() async throws {
+        let (container, _, handler, discovery, _) = try makeFixture(insightService: FixedAnswerInsightService(answer: "SSH is open."))
+        _ = container
+        var sent: [HeartbeatPayload] = []
+        handler.onScanningChange { sent.append($0) }
+
+        discovery.setScanningForTesting(true)
+        try await waitUntil { sent.count == 1 }
+        #expect(handler.heartbeat().capabilities == nil)
+        #expect(sent.last?.capabilities == nil)
+        guard case let .insightResponse(response)? = await handler.handle(.insightRequest(Self.insightRequest), from: UUID()) else {
+            Issue.record("expected an insight response")
+            return
+        }
+        #expect(response.failureReason == .busy)
+
+        discovery.setScanningForTesting(false)
+        try await waitUntil { sent.count == 2 }
+        #expect(sent.last?.capabilities == ["insight.v1"])
+    }
+
+    @Test("an insight request is handled apart from its batch; other messages keep their order")
+    func insightRequestsRunOffBatch() {
+        #expect(CompanionService.answersOffBatch(.insightRequest(Self.insightRequest)))
+        #expect(!CompanionService.answersOffBatch(.heartbeat(HeartbeatPayload())))
+        #expect(!CompanionService.answersOffBatch(.command(CommandPayload(action: .refreshDevices))))
+    }
+
     @Test("an insight request is answered by the model, under the request's id")
     func insightRequestAnswered() async throws {
         let (container, _, handler, _, _) = try makeFixture(insightService: FixedAnswerInsightService(answer: "SSH is open on this device."))
@@ -288,5 +317,13 @@ struct CompanionMessageHandlerTests {
         )
 
         return (container, context, handler, deviceDiscovery, monitoringSession)
+    }
+}
+
+@MainActor
+private func waitUntil(timeout: Duration = .seconds(5), _ condition: () -> Bool) async throws {
+    let deadline = ContinuousClock.now + timeout
+    while !condition(), ContinuousClock.now < deadline {
+        try await Task.sleep(for: .milliseconds(10))
     }
 }

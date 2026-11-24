@@ -25,7 +25,7 @@ final class MacConnectionService: MacConnectionServiceProtocol {
 
     // MARK: - Shared Instance
 
-    static let shared = MacConnectionService()
+    static let shared: MacConnectionService = .init(insightClient: PhoneInsight.linkClient)
     private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "com.blakemiller.netmonitor", category: "MacConnectionService")
 
     // MARK: - Public State
@@ -63,7 +63,11 @@ final class MacConnectionService: MacConnectionServiceProtocol {
     private static let heartbeatInterval: TimeInterval = 15
     private static let heartbeatVersion = "1.0"
 
-    private init(networkProfileManager: NetworkProfileManager = NetworkProfileManager()) {
+    /// Fed with the Mac's heartbeats and insight replies, and told when the link ends (#457).
+    private let insightClient: CompanionInsightClient
+
+    private init(insightClient: CompanionInsightClient, networkProfileManager: NetworkProfileManager = NetworkProfileManager()) {
+        self.insightClient = insightClient
         self.networkProfileManager = networkProfileManager
     }
 
@@ -178,19 +182,25 @@ final class MacConnectionService: MacConnectionServiceProtocol {
         connectionGeneration = UUID()
         shouldAutoReconnect = false
         linkSession.reset()
-        heartbeatTask?.cancel()
-        heartbeatTask = nil
         reconnectTask?.cancel()
         reconnectTask = nil
         connection?.cancel()
         connection = nil
         connectionState = .disconnected
-        connectedMacName = nil
-        PhoneInsight.mac.disconnected()
+        tearDownLink()
         frameDecoder = CompanionFrameDecoder()
         lastStatusUpdate = nil
         lastTargetList = nil
         lastDeviceList = nil
+    }
+
+    /// Ends what a link carried: its heartbeat, the Mac's name, and the Mac's model, whose
+    /// requests in flight fail (#457). Every path that drops or replaces a link calls it.
+    private func tearDownLink() {
+        heartbeatTask?.cancel()
+        heartbeatTask = nil
+        connectedMacName = nil
+        insightClient.disconnected()
     }
 
     private func setupConnection(_ conn: NWConnection, macName: String) {
@@ -198,7 +208,7 @@ final class MacConnectionService: MacConnectionServiceProtocol {
         connectionGeneration = generation
         connection = conn
         // A new link: the Mac advertises insight again in its first heartbeat.
-        PhoneInsight.mac.disconnected()
+        tearDownLink()
 
         conn.stateUpdateHandler = { [weak self] state in
             Task { @MainActor [weak self] in
@@ -237,14 +247,11 @@ final class MacConnectionService: MacConnectionServiceProtocol {
         case .failed(let error):
             self.connection = nil
             connectionState = .error(error.localizedDescription)
-            connectedMacName = nil
-            PhoneInsight.mac.disconnected()
-            heartbeatTask?.cancel()
-            heartbeatTask = nil
+            tearDownLink()
             scheduleReconnect(generation: generation)
 
         case .cancelled:
-            PhoneInsight.mac.disconnected()
+            tearDownLink()
             if shouldAutoReconnect {
                 self.connection = nil
                 connectionState = .disconnected
@@ -293,11 +300,8 @@ final class MacConnectionService: MacConnectionServiceProtocol {
 
     private func handleReceiveTermination(error: NWError?, generation: UUID) {
         guard connectionGeneration == generation else { return }
-        heartbeatTask?.cancel()
-        heartbeatTask = nil
         connection = nil
-        connectedMacName = nil
-        PhoneInsight.mac.disconnected()
+        tearDownLink()
         if let error {
             connectionState = .error(error.localizedDescription)
         } else {
@@ -337,9 +341,9 @@ final class MacConnectionService: MacConnectionServiceProtocol {
             Self.logger.error("Error from Mac: code=\(payload.code, privacy: .public)")
         case .heartbeat(let payload):
             Self.logger.debug("Heartbeat received")
-            PhoneInsight.mac.received(heartbeat: payload)
+            insightClient.received(heartbeat: payload)
         case .insightResponse(let payload):
-            PhoneInsight.mac.received(payload)
+            insightClient.received(payload)
         case .command, .insightRequest:
             // Outbound only from iOS; ignore if received
             break
@@ -438,7 +442,7 @@ extension MacConnectionService {
         await sendMessage(message)
     }
 
-    /// Sends an insight request for `PhoneInsight.mac`; false when there is no link (#457).
+    /// Sends an insight request for the injected insight client; false when there is no link (#457).
     func sendInsight(_ message: CompanionMessage) async -> Bool {
         await sendMessage(message)
     }

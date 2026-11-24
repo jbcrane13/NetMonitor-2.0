@@ -15,6 +15,18 @@ enum UITestFakeMacInsight {
     /// States no number, so it stays grounded whatever the scan finds.
     static let answer = "None of the mail services on this device answered, so nothing here is accepting mail."
 
+    /// An answer kept in memory, seeded by `UITEST_MAC_CONSENT` ("agreed" or "declined"; unset
+    /// means not asked yet); nil outside insight UI tests.
+    static let consent: MacInsightConsent? = {
+        guard client != nil else { return nil }
+        let seeded: Bool? = switch ProcessInfo.processInfo.environment["UITEST_MAC_CONSENT"] {
+        case "agreed": true
+        case "declined": false
+        default: nil
+        }
+        return MacInsightConsent(defaults: nil, decision: seeded)
+    }()
+
     /// The scripted Mac's client; nil outside insight UI tests.
     static let client: CompanionInsightClient? = {
         guard ProcessInfo.processInfo.arguments.contains("--uitesting"),

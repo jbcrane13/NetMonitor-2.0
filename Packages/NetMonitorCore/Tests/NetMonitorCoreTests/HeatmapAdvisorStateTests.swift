@@ -62,7 +62,7 @@ struct HeatmapAdvisorStateTests {
     func theSameSurveyGetsItsTextOnceTheMacConnects() async throws {
         let link = FakeLink()
         let mac = CompanionInsightClient(send: link.send)
-        let advisor = state(RoutedInsightService(local: UnavailableInsightService(), mac: mac))
+        let advisor = state(RoutedInsightService(local: UnavailableInsightService(), mac: mac, consent: .agreedInMemory))
         let input = HeatmapAdvisorState.Input(points: Self.weakCorner, floorPlan: Self.plan, isSurveying: false)
         await advisor.refresh(input)
         #expect(advisor.phase == .advice(keyPoints: keyPoints(advisor), text: nil))

@@ -2,18 +2,6 @@ import Foundation
 
 // MARK: - Insight over the companion link (#457)
 
-/// A device an insight request mentions: its stable identity and the name the phone shows.
-/// The Mac uses the phone's name as given and never re-resolves it.
-public struct InsightDeviceReference: Codable, Sendable, Equatable {
-    public let id: UUID
-    public let displayName: String
-
-    public init(id: UUID, displayName: String) {
-        self.id = id
-        self.displayName = displayName
-    }
-}
-
 /// iPhone → Mac: an `InsightRequest` for the Mac's model to word. Only the app-built request
 /// travels: the Mac takes the instructions from `kind`, never from the wire.
 public struct InsightRequestPayload: Codable, Sendable, Equatable {
@@ -24,17 +12,13 @@ public struct InsightRequestPayload: Codable, Sendable, Equatable {
     public let subject: String
     public let facts: [String]
     public let observations: [String]
-    /// Devices the request mentions, by stable identity with the phone's names (#427). Their
-    /// names are already in the facts; nil from a sender that lists none.
-    public let devices: [InsightDeviceReference]?
 
-    public init(requestID: UUID, request: InsightRequest, devices: [InsightDeviceReference]? = nil) {
+    public init(requestID: UUID, request: InsightRequest) {
         self.requestID = requestID
         kind = request.kind.wireName
         subject = request.subject
         facts = request.facts
         observations = request.observations
-        self.devices = devices
     }
 
     /// The request to answer, or nil when `kind` is one this build doesn't know.
