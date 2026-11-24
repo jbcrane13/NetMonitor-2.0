@@ -22,6 +22,7 @@ enum UITestBootstrap {
         TargetManager.shared.clearSelection()
         ToolActivityLog.shared.clear()
         startNotificationDemoIfRequested()
+        seedHeatmapSurveyIfNeeded()
     }
 
     static var isUITesting: Bool {
@@ -293,4 +294,29 @@ extension UITestBootstrap {
         ))
     }
 
+}
+
+// MARK: - Heatmap advisor fixtures (#455)
+
+extension UITestBootstrap {
+    /// The heatmap advisor's insight service under `UITEST_INSIGHT`: "answer" answers with
+    /// `HeatmapAdvisorFixture.answer`, "unavailable" is never available. Nil otherwise.
+    static var heatmapInsightService: (any InsightServiceProtocol)? {
+        guard isUITesting else { return nil }
+        switch ProcessInfo.processInfo.environment["UITEST_INSIGHT"] {
+        case "answer": return FixedAnswerInsightService(answer: HeatmapAdvisorFixture.answer)
+        case "unavailable": return UnavailableInsightService()
+        default: return nil
+        }
+    }
+
+    /// With `UITEST_SEED_HEATMAP=1`, saves the finished weak-corner survey to Documents, where
+    /// Open Survey lists it.
+    static func seedHeatmapSurveyIfNeeded() {
+        guard isUITesting, ProcessInfo.processInfo.environment["UITEST_SEED_HEATMAP"] == "1" else { return }
+        let project = HeatmapAdvisorFixture.project()
+        guard let url = HeatmapFileManager().autoSaveURL(for: project.name) else { return }
+        try? FileManager.default.removeItem(at: url)
+        try? HeatmapFileManager().save(project: project, to: url)
+    }
 }

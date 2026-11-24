@@ -54,6 +54,12 @@ final class WiFiHeatmapViewModel {
     var showPhotoPicker: Bool = false
     var isHeatmapGenerated: Bool = false
 
+    // MARK: - Advisor (#455)
+
+    /// The advisor in the Analyze sidebar: key points about the finished survey and the
+    /// on-device model's wording of them.
+    let advisor: HeatmapAdvisorState
+
     // MARK: - Services
 
     private let heatmapService: any MacWiFiSignalProviding
@@ -63,8 +69,14 @@ final class WiFiHeatmapViewModel {
 
     // MARK: - Init
 
-    init(heatmapService: any MacWiFiSignalProviding = WiFiHeatmapService()) {
+    init(
+        heatmapService: any MacWiFiSignalProviding = WiFiHeatmapService(),
+        insightService: any InsightServiceProtocol = WiFiHeatmapViewModel.advisorInsightService(
+            arguments: ProcessInfo.processInfo.arguments
+        )
+    ) {
         self.state = HeatmapSurveyState()
+        advisor = HeatmapAdvisorState(service: insightService)
         self.heatmapService = heatmapService
         renderer = HeatmapRenderer()
         setupEngine()
@@ -233,7 +245,9 @@ final class WiFiHeatmapViewModel {
             while !Task.isCancelled {
                 guard let self else { return }
                 try? await Task.sleep(for: .seconds(self.continuousScanInterval))
-                if Task.isCancelled { return }
+                if Task.isCancelled {
+                    return
+                }
                 guard self.isSurveying, let loc = self.liveCursorLocation else { continue }
                 await self.takeMeasurement(at: loc)
             }
@@ -408,12 +422,16 @@ final class WiFiHeatmapViewModel {
 
     func undo() {
         state.undo()
-        if isHeatmapGenerated { generateHeatmap() }
+        if isHeatmapGenerated {
+            generateHeatmap()
+        }
     }
 
     func deletePoint(id: UUID) {
         state.deleteMeasurement(id: id)
-        if isHeatmapGenerated { generateHeatmap() }
+        if isHeatmapGenerated {
+            generateHeatmap()
+        }
     }
 
     func clearMeasurements() {

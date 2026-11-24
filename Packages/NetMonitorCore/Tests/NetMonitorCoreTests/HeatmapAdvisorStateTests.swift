@@ -130,3 +130,23 @@ private func waitUntil(timeout: Duration = .seconds(5), _ condition: () -> Bool)
         try? await Task.sleep(for: .milliseconds(10))
     }
 }
+
+/// The survey and answer the apps' UI tests show (#455).
+@Suite("HeatmapAdvisorFixture")
+@MainActor
+struct HeatmapAdvisorFixtureTests {
+    @Test func theFixtureShowsAWeakNorthEastCornerAndTheStandInAnswer() async {
+        let project = HeatmapAdvisorFixture.project()
+        let advisor = HeatmapAdvisorState(service: FixedAnswerInsightService(answer: HeatmapAdvisorFixture.answer))
+
+        await advisor.refresh(points: project.measurementPoints, floorPlan: project.floorPlan, isSurveying: false)
+
+        guard case let .advice(keyPoints, text) = advisor.phase else {
+            Issue.record("expected advice, got \(advisor.phase)")
+            return
+        }
+        #expect(keyPoints.first?.hasPrefix("The north-east corner is weak (") == true)
+        #expect(text == HeatmapAdvisorFixture.answer)
+        #expect(project.floorPlan.imageData.starts(with: [0x89, 0x50, 0x4E, 0x47]))
+    }
+}

@@ -22,6 +22,9 @@ struct HeatmapSidebarSheet: View {
                 .onTapGesture { isExpanded.toggle() }
 
             VStack(spacing: 12) {
+                // The finished survey's advice (#455); hidden while surveying.
+                HeatmapAdvisorCard(phase: viewModel.advisor.phase)
+
                 // Survey start/stop + mode toggle
                 surveyControlsRow
 
