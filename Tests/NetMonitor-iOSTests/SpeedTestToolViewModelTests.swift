@@ -332,15 +332,27 @@ struct SpeedTestToolViewModelStartTestTests {
         withExtendedLifetime(store.0) {}
     }
 
-    @Test func stopTwiceReleasesOnce() throws {
+    @Test func stopTwiceAndTheLateCleanupReleaseOnce() async throws {
         let store = try makeInMemoryStore()
         let manual = IOSScheduledSpeedTest.manualTestsRunning
-        defer { IOSScheduledSpeedTest.manualTestsRunning = manual }
+        let scheduled = IOSScheduledSpeedTest.isTestRunning
+        defer {
+            IOSScheduledSpeedTest.manualTestsRunning = manual
+            IOSScheduledSpeedTest.isTestRunning = scheduled
+        }
+        IOSScheduledSpeedTest.isTestRunning = false
         IOSScheduledSpeedTest.manualTestsRunning = 0
-        let vm = SpeedTestToolViewModel(service: MockSpeedTestService())
+        // The stopped run still finishes later; failing, it reports an error and saves nothing.
+        let mock = MockSpeedTestService()
+        mock.shouldThrow = true
+        let vm = SpeedTestToolViewModel(service: mock)
         vm.startTest(modelContext: store.1)
         vm.stopTest()
         vm.stopTest()
+        #expect(IOSScheduledSpeedTest.manualTestsRunning == 0)
+        // Wait for the stopped run's own cleanup: it must not release a second time.
+        await waitUntil { vm.errorMessage != nil }
+        #expect(vm.errorMessage != nil)
         #expect(IOSScheduledSpeedTest.manualTestsRunning == 0)
         withExtendedLifetime(store.0) {}
     }
