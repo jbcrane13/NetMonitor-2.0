@@ -93,6 +93,7 @@ struct PlainRuleTests {
         #expect(SpokenDuration.seconds(in: "down 2 hours 15 minutes") == [8100])
         #expect(SpokenDuration.seconds(in: "above 5 seconds for 2 minutes") == [5, 120], "Not adjacent: two durations")
         #expect(SpokenDuration.seconds(in: "ping 192.168.1.40 for 5 minutes") == [300])
+        #expect(SpokenDuration.seconds(in: "down for 5 minutes and a second device joins") == [300, 1])
     }
 
     @Test func aPortScanWithoutAKnownPresetUsesCommonPorts() {

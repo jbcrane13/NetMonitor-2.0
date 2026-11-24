@@ -112,8 +112,9 @@ enum SpokenDuration {
                 index += 1
                 continue
             }
+            // "a"/"an" doesn't continue a duration: "for 5 minutes and a second device joins".
             while let (more, smaller, after) = term(in: words, at: next < words.count && words[next] == "and" ? next + 1 : next),
-                  smaller < unit {
+                  smaller < unit, !["a", "an"].contains(words[after - 2]) {
                 (total, unit, next) = (total + more, smaller, after)
             }
             found.insert(Int(total.rounded()))
