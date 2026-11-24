@@ -55,7 +55,7 @@ final class TimelineViewModel {
     ///   - now: the clock the ranges are measured from.
     init(
         service: any NetworkEventServiceProtocol = NetworkEventService.shared,
-        insightService: any InsightServiceProtocol = UITestBootstrap.insightService ?? InsightService.shared,
+        insightService: any InsightServiceProtocol = UITestBootstrap.insightService ?? PhoneInsight.shared,
         isScanning: @escaping @MainActor () -> Bool = { DeviceDiscoveryService.shared.isScanning },
         calendar: Calendar = .autoupdatingCurrent,
         now: @escaping () -> Date = Date.init
@@ -71,7 +71,7 @@ final class TimelineViewModel {
     /// scanning state, so the UI-test fake's scans count too.
     convenience init(
         env: AppEnvironment,
-        insightService: any InsightServiceProtocol = UITestBootstrap.insightService ?? InsightService.shared
+        insightService: any InsightServiceProtocol = UITestBootstrap.insightService ?? PhoneInsight.shared
     ) {
         let discovery = env.deviceDiscovery
         self.init(service: env.eventService, insightService: insightService, isScanning: { discovery.isScanning })
@@ -165,8 +165,9 @@ final class TimelineViewModel {
             return
         }
         summaries[key] = .loading
+        let source = InsightService.source(of: insightService)
         let text = await InsightSummarizer.summary(for: request, service: insightService, timeout: ChangeBriefViewModel.timeout)
-        summaries[key] = text.map { .finished(ChangeSummary(keyPoints: request.observations, text: $0)) } ?? .unavailable
+        summaries[key] = text.map { .finished(ChangeSummary(keyPoints: request.observations, text: $0, source: source)) } ?? .unavailable
     }
 
     /// The shown day section labelled `label`, its start and its newest event.

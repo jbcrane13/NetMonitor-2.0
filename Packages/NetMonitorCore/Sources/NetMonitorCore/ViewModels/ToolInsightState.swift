@@ -13,6 +13,8 @@ public final class ToolInsightState {
     }
 
     public private(set) var phase: Phase = .idle
+    /// Who writes the current explanation: this device, or the connected Mac (#457).
+    public private(set) var source: InsightSource = .device
 
     private let service: any InsightServiceProtocol
     private var task: Task<Void, Never>?
@@ -44,6 +46,7 @@ public final class ToolInsightState {
             return Task {}
         }
         phase = .generating("")
+        source = InsightService.source(of: service)
         explained = request
         let current = generation
         let service = service

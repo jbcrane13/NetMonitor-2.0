@@ -105,7 +105,7 @@ final class HeatmapSurveyViewModel {
         service: any HeatmapServiceProtocol,
         fileManager: HeatmapFileManager = HeatmapFileManager(),
         exporter: HeatmapExporter = HeatmapExporter(),
-        insightService: any InsightServiceProtocol = UITestBootstrap.heatmapInsightService ?? InsightService.shared
+        insightService: any InsightServiceProtocol = UITestBootstrap.heatmapInsightService ?? PhoneInsight.shared
     ) {
         self.state = HeatmapSurveyState()
         advisor = HeatmapAdvisorState(service: insightService)

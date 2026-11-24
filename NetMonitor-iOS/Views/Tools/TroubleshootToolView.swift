@@ -299,7 +299,7 @@ struct TroubleshootToolView: View {
                     .textSelection(.enabled)
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityIdentifier("troubleshoot_label_explanation")
-                Text("Written by the on-device model from the likely causes above. Check it against them.")
+                Text("Written by \(state.explanationSource.modelName) from the likely causes above. Check it against them.")
                     .font(.caption2)
                     .foregroundStyle(Theme.Colors.textSecondary)
                     .accessibilityIdentifier("troubleshoot_label_generated")

@@ -124,6 +124,8 @@ public final class TroubleshootState {
     public private(set) var findings: [TroubleshootFinding] = []
     /// The model's wording of the findings, or nil.
     public private(set) var explanation: String?
+    /// Who wrote `explanation`: this device or the connected Mac (#457).
+    public private(set) var explanationSource: InsightSource = .device
     public private(set) var isExplaining = false
 
     private let probes: any TroubleshootProbing
@@ -417,6 +419,7 @@ public final class TroubleshootState {
         guard insight.isAvailable, !isScanning(), let report = TroubleshootReportBuilder.report(for: kind, findings: findings) else { return }
         let run = runID
         isExplaining = true
+        let source = InsightService.source(of: insight)
         let task = Task { [insight, timeout] in
             await InsightSummarizer.summary(for: report.request, service: insight, timeout: timeout)
         }
@@ -427,6 +430,7 @@ public final class TroubleshootState {
         explainTask = nil
         isExplaining = false
         explanation = text.flatMap { report.accepts($0) ? $0 : nil }
+        explanationSource = source
     }
 
     /// The host in what the user typed: "https://GitHub.com:8443/login" → "github.com". Nil when it

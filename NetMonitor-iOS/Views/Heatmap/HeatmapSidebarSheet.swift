@@ -23,7 +23,7 @@ struct HeatmapSidebarSheet: View {
 
             VStack(spacing: 12) {
                 // The finished survey's advice (#455); hidden while surveying.
-                HeatmapAdvisorView(phase: viewModel.advisor.phase)
+                HeatmapAdvisorView(phase: viewModel.advisor.phase, source: viewModel.advisor.source)
 
                 // Survey start/stop + mode toggle
                 surveyControlsRow

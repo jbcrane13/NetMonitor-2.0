@@ -36,14 +36,15 @@ enum DataExportService {
         devices: [LocalDevice],
         toolResults: [ToolResult],
         speedTests: [SpeedTestResult],
-        insightService: any InsightServiceProtocol = InsightService.shared,
+        insightService: any InsightServiceProtocol = PhoneInsight.shared,
         summaryTimeout: Duration = .seconds(20),
         now: Date = Date()
     ) async -> Data? {
         var executiveSummary: PDFReportGenerator.ExecutiveSummary?
+        let source = InsightService.source(of: insightService)
         if let request = ReportSummaryBuilder.request(devices: devices, toolResults: toolResults, speedTests: speedTests, now: now),
            let text = await InsightSummarizer.summary(for: request, service: insightService, timeout: summaryTimeout) {
-            executiveSummary = PDFReportGenerator.ExecutiveSummary(text: text, keyPoints: request.observations)
+            executiveSummary = PDFReportGenerator.ExecutiveSummary(text: text, keyPoints: request.observations, source: source)
         }
         return PDFReportGenerator.generateNetworkReport(
             devices: devices,
@@ -67,17 +68,17 @@ enum DataExportService {
     }
 
     private static func exportToolResultsJSON(_ results: [ToolResult]) -> Data? {
-        let items = results.map { r in
+        let items = results.map { result in
             [
-                "id": r.id.uuidString,
-                "toolType": r.toolType.rawValue,
-                "target": r.target,
-                "timestamp": ISO8601DateFormatter().string(from: r.timestamp),
-                "duration": String(r.duration),
-                "success": String(r.success),
-                "summary": r.summary,
-                "details": r.details,
-                "errorMessage": r.errorMessage ?? ""
+                "id": result.id.uuidString,
+                "toolType": result.toolType.rawValue,
+                "target": result.target,
+                "timestamp": ISO8601DateFormatter().string(from: result.timestamp),
+                "duration": String(result.duration),
+                "success": String(result.success),
+                "summary": result.summary,
+                "details": result.details,
+                "errorMessage": result.errorMessage ?? ""
             ]
         }
         return try? JSONSerialization.data(withJSONObject: items, options: [.prettyPrinted, .sortedKeys])
@@ -86,10 +87,10 @@ enum DataExportService {
     private static func exportToolResultsCSV(_ results: [ToolResult]) -> Data? {
         var csv = "id,toolType,target,timestamp,duration,success,summary,details,errorMessage\n"
         let formatter = ISO8601DateFormatter()
-        for r in results {
-            csv += "\(csvEscape(r.id.uuidString)),\(csvEscape(r.toolType.rawValue)),\(csvEscape(r.target)),"
-            csv += "\(csvEscape(formatter.string(from: r.timestamp))),\(r.duration),\(r.success),"
-            csv += "\(csvEscape(r.summary)),\(csvEscape(r.details)),\(csvEscape(r.errorMessage ?? ""))\n"
+        for result in results {
+            csv += "\(csvEscape(result.id.uuidString)),\(csvEscape(result.toolType.rawValue)),\(csvEscape(result.target)),"
+            csv += "\(csvEscape(formatter.string(from: result.timestamp))),\(result.duration),\(result.success),"
+            csv += "\(csvEscape(result.summary)),\(csvEscape(result.details)),\(csvEscape(result.errorMessage ?? ""))\n"
         }
         return csv.data(using: .utf8)
     }
@@ -108,17 +109,17 @@ enum DataExportService {
     }
 
     private static func exportSpeedTestsJSON(_ results: [SpeedTestResult]) -> Data? {
-        let items = results.map { r in
+        let items = results.map { result in
             [
-                "id": r.id.uuidString,
-                "timestamp": ISO8601DateFormatter().string(from: r.timestamp),
-                "downloadSpeed": String(r.downloadSpeed),
-                "uploadSpeed": String(r.uploadSpeed),
-                "latency": String(r.latency),
-                "jitter": r.jitter.map { String($0) } ?? "",
-                "serverName": r.serverName ?? "",
-                "connectionType": r.connectionType.rawValue,
-                "success": String(r.success)
+                "id": result.id.uuidString,
+                "timestamp": ISO8601DateFormatter().string(from: result.timestamp),
+                "downloadSpeed": String(result.downloadSpeed),
+                "uploadSpeed": String(result.uploadSpeed),
+                "latency": String(result.latency),
+                "jitter": result.jitter.map { String($0) } ?? "",
+                "serverName": result.serverName ?? "",
+                "connectionType": result.connectionType.rawValue,
+                "success": String(result.success)
             ]
         }
         return try? JSONSerialization.data(withJSONObject: items, options: [.prettyPrinted, .sortedKeys])
@@ -127,11 +128,11 @@ enum DataExportService {
     private static func exportSpeedTestsCSV(_ results: [SpeedTestResult]) -> Data? {
         var csv = "id,timestamp,downloadSpeed,uploadSpeed,latency,jitter,serverName,connectionType,success\n"
         let formatter = ISO8601DateFormatter()
-        for r in results {
-            csv += "\(csvEscape(r.id.uuidString)),\(csvEscape(formatter.string(from: r.timestamp))),"
-            csv += "\(r.downloadSpeed),\(r.uploadSpeed),\(r.latency),"
-            csv += "\(r.jitter.map { String($0) } ?? ""),\(csvEscape(r.serverName ?? "")),"
-            csv += "\(csvEscape(r.connectionType.rawValue)),\(r.success)\n"
+        for result in results {
+            csv += "\(csvEscape(result.id.uuidString)),\(csvEscape(formatter.string(from: result.timestamp))),"
+            csv += "\(result.downloadSpeed),\(result.uploadSpeed),\(result.latency),"
+            csv += "\(result.jitter.map { String($0) } ?? ""),\(csvEscape(result.serverName ?? "")),"
+            csv += "\(csvEscape(result.connectionType.rawValue)),\(result.success)\n"
         }
         return csv.data(using: .utf8)
     }
@@ -161,20 +162,20 @@ enum DataExportService {
     }
 
     private static func exportDevicesJSON(_ devices: [LocalDevice]) -> Data? {
-        let items = devices.map { d in
+        let items = devices.map { device in
             [
-                "id": d.id.uuidString,
-                "ipAddress": d.ipAddress,
-                "macAddress": d.macAddress,
-                "hostname": exportedHostname(d),
-                "vendor": exportedVendor(d),
-                "deviceType": d.deviceType.rawValue,
-                "customName": d.customName ?? "",
-                "status": d.status.rawValue,
-                "lastLatency": d.lastLatency.map { String($0) } ?? "",
-                "isGateway": String(d.isGateway),
-                "firstSeen": ISO8601DateFormatter().string(from: d.firstSeen),
-                "lastSeen": ISO8601DateFormatter().string(from: d.lastSeen)
+                "id": device.id.uuidString,
+                "ipAddress": device.ipAddress,
+                "macAddress": device.macAddress,
+                "hostname": exportedHostname(device),
+                "vendor": exportedVendor(device),
+                "deviceType": device.deviceType.rawValue,
+                "customName": device.customName ?? "",
+                "status": device.status.rawValue,
+                "lastLatency": device.lastLatency.map { String($0) } ?? "",
+                "isGateway": String(device.isGateway),
+                "firstSeen": ISO8601DateFormatter().string(from: device.firstSeen),
+                "lastSeen": ISO8601DateFormatter().string(from: device.lastSeen)
             ]
         }
         return try? JSONSerialization.data(withJSONObject: items, options: [.prettyPrinted, .sortedKeys])
@@ -183,12 +184,12 @@ enum DataExportService {
     private static func exportDevicesCSV(_ devices: [LocalDevice]) -> Data? {
         var csv = "id,ipAddress,macAddress,hostname,vendor,deviceType,customName,status,lastLatency,isGateway,firstSeen,lastSeen\n"
         let formatter = ISO8601DateFormatter()
-        for d in devices {
-            csv += "\(csvEscape(d.id.uuidString)),\(csvEscape(d.ipAddress)),\(csvEscape(d.macAddress)),"
-            csv += "\(csvEscape(exportedHostname(d))),\(csvEscape(exportedVendor(d))),\(csvEscape(d.deviceType.rawValue)),"
-            csv += "\(csvEscape(d.customName ?? "")),\(csvEscape(d.status.rawValue)),"
-            csv += "\(d.lastLatency.map { String($0) } ?? ""),\(d.isGateway),"
-            csv += "\(csvEscape(formatter.string(from: d.firstSeen))),\(csvEscape(formatter.string(from: d.lastSeen)))\n"
+        for device in devices {
+            csv += "\(csvEscape(device.id.uuidString)),\(csvEscape(device.ipAddress)),\(csvEscape(device.macAddress)),"
+            csv += "\(csvEscape(exportedHostname(device))),\(csvEscape(exportedVendor(device))),\(csvEscape(device.deviceType.rawValue)),"
+            csv += "\(csvEscape(device.customName ?? "")),\(csvEscape(device.status.rawValue)),"
+            csv += "\(device.lastLatency.map { String($0) } ?? ""),\(device.isGateway),"
+            csv += "\(csvEscape(formatter.string(from: device.firstSeen))),\(csvEscape(formatter.string(from: device.lastSeen)))\n"
         }
         return csv.data(using: .utf8)
     }

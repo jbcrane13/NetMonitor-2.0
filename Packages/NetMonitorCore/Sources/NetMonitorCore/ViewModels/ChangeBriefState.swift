@@ -6,10 +6,13 @@ import Observation
 public struct ChangeSummary: Equatable, Sendable {
     public let keyPoints: [String]
     public let text: String
+    /// Who wrote `text`: this device or the connected Mac (#457).
+    public let source: InsightSource
 
-    public init(keyPoints: [String], text: String) {
+    public init(keyPoints: [String], text: String, source: InsightSource = .device) {
         self.keyPoints = keyPoints
         self.text = text
+        self.source = source
     }
 }
 
@@ -64,6 +67,7 @@ public final class ChangeBriefState {
         lastRequest = .some(request)
         brief = nil
         guard let request else { return }
+        let source = InsightService.source(of: service)
         let text = await InsightSummarizer.summary(for: request, service: service, timeout: timeout)
         // Leaving the dashboard cancels its task; that is not an answer, so ask again next time.
         if Task.isCancelled {
@@ -74,7 +78,7 @@ public final class ChangeBriefState {
         }
         // A newer digest was asked about meanwhile; its answer decides.
         guard lastRequest == .some(request) else { return }
-        brief = text.map { ChangeSummary(keyPoints: request.observations, text: $0) }
+        brief = text.map { ChangeSummary(keyPoints: request.observations, text: $0, source: source) }
         briefNetwork = network
     }
 }

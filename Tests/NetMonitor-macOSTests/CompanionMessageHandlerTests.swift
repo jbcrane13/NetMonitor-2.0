@@ -188,7 +188,71 @@ struct CompanionMessageHandlerTests {
         #expect(vendors["192.168.1.47"] == "Globex")
     }
 
-    private func makeFixture() throws -> (
+    // MARK: - Insight for the iPhone (#457)
+
+    private static let insightRequest = InsightRequestPayload(
+        requestID: UUID(),
+        request: InsightRequest(subject: "Port scan of 192.168.1.20", facts: ["Open ports (1): 22 (SSH)"], observations: ["SSH is open"])
+    )
+
+    @Test("the heartbeat reply advertises insight.v1 only while this Mac's model can answer")
+    func heartbeatAdvertisesInsightWithModel() async throws {
+        let (container, _, withModel, _, _) = try makeFixture(insightService: FixedAnswerInsightService(answer: "SSH is open."))
+        let (otherContainer, _, withoutModel, _, _) = try makeFixture()
+        _ = (container, otherContainer)
+
+        guard case let .heartbeat(offered)? = await withModel.handle(.heartbeat(HeartbeatPayload()), from: UUID()),
+              case let .heartbeat(plain)? = await withoutModel.handle(.heartbeat(HeartbeatPayload()), from: UUID())
+        else {
+            Issue.record("expected heartbeat replies")
+            return
+        }
+        #expect(offered.capabilities == ["insight.v1"])
+        #expect(plain.capabilities == nil)
+    }
+
+    @Test("an insight request is answered by the model, under the request's id")
+    func insightRequestAnswered() async throws {
+        let (container, _, handler, _, _) = try makeFixture(insightService: FixedAnswerInsightService(answer: "SSH is open on this device."))
+        _ = container
+
+        guard case let .insightResponse(response)? = await handler.handle(.insightRequest(Self.insightRequest), from: UUID()) else {
+            Issue.record("expected an insight response")
+            return
+        }
+        #expect(response.requestID == Self.insightRequest.requestID)
+        #expect(response.answer == "SSH is open on this device.")
+    }
+
+    @Test("with the model unavailable an insight request is answered unavailable")
+    func insightRequestModelUnavailable() async throws {
+        let (container, _, handler, _, _) = try makeFixture()
+        _ = container
+
+        guard case let .insightResponse(response)? = await handler.handle(.insightRequest(Self.insightRequest), from: UUID()) else {
+            Issue.record("expected an insight response")
+            return
+        }
+        #expect(response.failureReason == .unavailable)
+    }
+
+    @Test("with answering turned off in Settings, no capability is offered and requests are unavailable")
+    func insightTurnedOff() async throws {
+        UserDefaults.standard.set(false, forKey: CompanionMessageHandler.answersInsightKey)
+        defer { UserDefaults.standard.removeObject(forKey: CompanionMessageHandler.answersInsightKey) }
+        let (container, _, handler, _, _) = try makeFixture(insightService: FixedAnswerInsightService(answer: "SSH is open."))
+        _ = container
+
+        #expect(handler.heartbeat().capabilities == nil)
+        guard case let .insightResponse(response)? = await handler.handle(.insightRequest(Self.insightRequest), from: UUID()) else {
+            Issue.record("expected an insight response")
+            return
+        }
+        #expect(response.failureReason == .unavailable)
+    }
+
+    // swiftlint:disable:next large_tuple
+    private func makeFixture(insightService: any InsightServiceProtocol = UnavailableInsightService()) throws -> (
         ModelContainer,
         ModelContext,
         CompanionMessageHandler,
@@ -219,7 +283,8 @@ struct CompanionMessageHandlerTests {
             deviceDiscovery: deviceDiscovery,
             wakeOnLanService: WakeOnLANService(),
             icmpService: ICMPMonitorService(),
-            networkProfileManager: networkProfileManager
+            networkProfileManager: networkProfileManager,
+            insightService: insightService
         )
 
         return (container, context, handler, deviceDiscovery, monitoringSession)

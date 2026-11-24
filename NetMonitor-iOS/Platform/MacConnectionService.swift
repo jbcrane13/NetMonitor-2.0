@@ -164,6 +164,7 @@ final class MacConnectionService: MacConnectionServiceProtocol {
         connectionState = .connecting
         shouldAutoReconnect = true
 
+        // swiftlint:disable:next force_unwrapping
         let endpoint = NWEndpoint.hostPort(host: .init(host), port: .init(rawValue: port)!)
         pendingEndpoint = endpoint
         pendingMacName = host
@@ -185,6 +186,7 @@ final class MacConnectionService: MacConnectionServiceProtocol {
         connection = nil
         connectionState = .disconnected
         connectedMacName = nil
+        PhoneInsight.mac.disconnected()
         frameDecoder = CompanionFrameDecoder()
         lastStatusUpdate = nil
         lastTargetList = nil
@@ -195,6 +197,8 @@ final class MacConnectionService: MacConnectionServiceProtocol {
         let generation = UUID()
         connectionGeneration = generation
         connection = conn
+        // A new link: the Mac advertises insight again in its first heartbeat.
+        PhoneInsight.mac.disconnected()
 
         conn.stateUpdateHandler = { [weak self] state in
             Task { @MainActor [weak self] in
@@ -234,11 +238,13 @@ final class MacConnectionService: MacConnectionServiceProtocol {
             self.connection = nil
             connectionState = .error(error.localizedDescription)
             connectedMacName = nil
+            PhoneInsight.mac.disconnected()
             heartbeatTask?.cancel()
             heartbeatTask = nil
             scheduleReconnect(generation: generation)
 
         case .cancelled:
+            PhoneInsight.mac.disconnected()
             if shouldAutoReconnect {
                 self.connection = nil
                 connectionState = .disconnected
@@ -250,33 +256,6 @@ final class MacConnectionService: MacConnectionServiceProtocol {
 
         default:
             break
-        }
-    }
-
-    // MARK: - Send
-
-    func send(command: CommandPayload) async {
-        let message = CompanionMessage.command(command)
-        await sendMessage(message)
-    }
-
-    /// Send a CompanionMessage with 4-byte big-endian length prefix + JSON payload.
-    /// Matches the macOS CompanionService wire format.
-    private func sendMessage(_ message: CompanionMessage) async {
-        do {
-            let data = try message.encodeLengthPrefixed()
-            guard let conn = connection else { return }
-            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-                conn.send(content: data, completion: .contentProcessed { error in
-                    if let error {
-                        continuation.resume(throwing: error)
-                    } else {
-                        continuation.resume()
-                    }
-                })
-            }
-        } catch {
-            Self.logger.error("Send error: \(error)")
         }
     }
 
@@ -318,6 +297,7 @@ final class MacConnectionService: MacConnectionServiceProtocol {
         heartbeatTask = nil
         connection = nil
         connectedMacName = nil
+        PhoneInsight.mac.disconnected()
         if let error {
             connectionState = .error(error.localizedDescription)
         } else {
@@ -355,10 +335,13 @@ final class MacConnectionService: MacConnectionServiceProtocol {
             Self.logger.info("Tool result: \(payload.tool) - \(payload.success)")
         case .error(let payload):
             Self.logger.error("Error from Mac: code=\(payload.code, privacy: .public)")
-        case .heartbeat:
+        case .heartbeat(let payload):
             Self.logger.debug("Heartbeat received")
-        case .command:
-            // Commands are outbound only from iOS; ignore if received
+            PhoneInsight.mac.received(heartbeat: payload)
+        case .insightResponse(let payload):
+            PhoneInsight.mac.received(payload)
+        case .command, .insightRequest:
+            // Outbound only from iOS; ignore if received
             break
         }
     }
@@ -446,6 +429,44 @@ final class MacConnectionService: MacConnectionServiceProtocol {
     }
 }
 
+// MARK: - Send
+
+extension MacConnectionService {
+
+    func send(command: CommandPayload) async {
+        let message = CompanionMessage.command(command)
+        await sendMessage(message)
+    }
+
+    /// Sends an insight request for `PhoneInsight.mac`; false when there is no link (#457).
+    func sendInsight(_ message: CompanionMessage) async -> Bool {
+        await sendMessage(message)
+    }
+
+    /// Send a CompanionMessage with 4-byte big-endian length prefix + JSON payload.
+    /// Matches the macOS CompanionService wire format. Returns whether it was sent.
+    @discardableResult
+    private func sendMessage(_ message: CompanionMessage) async -> Bool {
+        do {
+            let data = try message.encodeLengthPrefixed()
+            guard let conn = connection else { return false }
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                conn.send(content: data, completion: .contentProcessed { error in
+                    if let error {
+                        continuation.resume(throwing: error)
+                    } else {
+                        continuation.resume()
+                    }
+                })
+            }
+            return true
+        } catch {
+            Self.logger.error("Send error: \(error)")
+            return false
+        }
+    }
+}
+
 // MARK: - Testing Support
 
 extension MacConnectionService {
@@ -472,6 +493,8 @@ private extension CompanionMessage {
         case .toolResult: "toolResult"
         case .error: "error"
         case .heartbeat: "heartbeat"
+        case .insightRequest: "insightRequest"
+        case .insightResponse: "insightResponse"
         }
     }
 }

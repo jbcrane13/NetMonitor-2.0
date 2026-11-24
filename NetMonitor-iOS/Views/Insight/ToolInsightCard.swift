@@ -17,7 +17,7 @@ struct ToolInsightCard: View {
         screen: String,
         request: InsightRequest?,
         isEmbedded: Bool = false,
-        service: any InsightServiceProtocol = InsightService.shared
+        service: any InsightServiceProtocol = PhoneInsight.shared
     ) {
         self.screen = screen
         self.request = request
@@ -26,7 +26,9 @@ struct ToolInsightCard: View {
     }
 
     var body: some View {
-        if let request, state.isAvailable {
+        // A request that ended stays on screen even if the model went away meanwhile, such as
+        // a Mac that disconnected mid-request (#457), so the reader sees it failed.
+        if let request, state.isAvailable || state.phase(for: request) != .idle {
             Group {
                 if isEmbedded {
                     stack(for: request)
@@ -34,6 +36,8 @@ struct ToolInsightCard: View {
                     stack(for: request).glassCard()
                 }
             }
+            // Without `.contain` the card's identifier replaces its button's and texts' (#457).
+            .accessibilityElement(children: .contain)
             .accessibilityIdentifier("\(screen)_insight_card")
             .onDisappear { state.reset() }
         }
@@ -101,7 +105,9 @@ struct ToolInsightCard: View {
     }
 
     private var generatedNote: some View {
-            Text("Summary generated on this device. Check it against the key points and the result.")
+        Text(state.source == .mac
+            ? "Written by the on-device model on your Mac. Check it against the key points and the result."
+            : "Summary generated on this device. Check it against the key points and the result.")
             .font(.caption2)
             .foregroundStyle(Theme.Colors.textSecondary)
             .accessibilityIdentifier("\(screen)_insight_label_generated")

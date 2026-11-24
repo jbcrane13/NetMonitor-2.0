@@ -16,6 +16,11 @@ public enum CompanionMessage: Codable, Sendable {
     case toolResult(ToolResultPayload)
     case error(ErrorPayload)
     case heartbeat(HeartbeatPayload)
+    /// iPhone → Mac: word an insight with the Mac's model. Sent only to a Mac whose heartbeat
+    /// offers `CompanionCapability.insight` (#457).
+    case insightRequest(InsightRequestPayload)
+    /// Mac → iPhone: the answer to one `insightRequest`, never sent unprompted (#457).
+    case insightResponse(InsightResponsePayload)
 
     // MARK: Coding Keys
 
@@ -34,6 +39,8 @@ public enum CompanionMessage: Codable, Sendable {
         case toolResult
         case error
         case heartbeat
+        case insightRequest
+        case insightResponse
     }
 
     // MARK: Decodable
@@ -66,6 +73,10 @@ public enum CompanionMessage: Codable, Sendable {
             self = try .error(container.decode(ErrorPayload.self, forKey: .payload))
         case .heartbeat:
             self = try .heartbeat(container.decode(HeartbeatPayload.self, forKey: .payload))
+        case .insightRequest:
+            self = try .insightRequest(container.decode(InsightRequestPayload.self, forKey: .payload))
+        case .insightResponse:
+            self = try .insightResponse(container.decode(InsightResponsePayload.self, forKey: .payload))
         }
     }
 
@@ -99,6 +110,12 @@ public enum CompanionMessage: Codable, Sendable {
             try container.encode(payload, forKey: .payload)
         case .heartbeat(let payload):
             try container.encode(MessageType.heartbeat, forKey: .type)
+            try container.encode(payload, forKey: .payload)
+        case .insightRequest(let payload):
+            try container.encode(MessageType.insightRequest, forKey: .type)
+            try container.encode(payload, forKey: .payload)
+        case .insightResponse(let payload):
+            try container.encode(MessageType.insightResponse, forKey: .type)
             try container.encode(payload, forKey: .payload)
         }
     }
@@ -288,11 +305,25 @@ public struct ErrorPayload: Codable, Sendable {
 public struct HeartbeatPayload: Codable, Sendable {
     public let timestamp: Date
     public let version: String
+    /// What the sender can do beyond the base protocol, such as `CompanionCapability.insight`.
+    /// Optional, so older builds ignore it and their heartbeats, which lack it, still decode.
+    public let capabilities: [String]?
 
-    public init(timestamp: Date = Date(), version: String = "1.0") {
+    public init(timestamp: Date = Date(), version: String = "1.0", capabilities: [String]? = nil) {
         self.timestamp = timestamp
         self.version = version
+        self.capabilities = capabilities
     }
+
+    /// Whether the sender answers `insightRequest`s.
+    public var offersInsight: Bool { capabilities?.contains(CompanionCapability.insight) == true }
+}
+
+/// Capabilities a peer advertises in `HeartbeatPayload.capabilities`. New message types are
+/// sent only to a peer that advertised them, so the protocol version never has to change.
+public enum CompanionCapability {
+    /// The Mac answers `insightRequest` with its on-device model (#457).
+    public static let insight = "insight.v1"
 }
 
 // MARK: - JSON Encoder/Decoder Configuration

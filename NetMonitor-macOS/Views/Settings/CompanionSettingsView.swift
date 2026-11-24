@@ -10,6 +10,7 @@ import SwiftUI
 struct CompanionSettingsView: View {
     @AppStorage("netmonitor.companion.enabled") private var companionEnabled = true
     @AppStorage("netmonitor.companion.port") private var servicePort = "8849"
+    @AppStorage(CompanionMessageHandler.answersInsightKey) private var answersInsight = true
 
     @Environment(\.companionService) private var companionService
     @State private var connectedDevices: [ConnectedDevice] = []
@@ -30,6 +31,10 @@ struct CompanionSettingsView: View {
                             .multilineTextAlignment(.trailing)
                             .accessibilityIdentifier("settings_textfield_servicePort")
                     }
+                    // The Mac's on-device model words "Explain this" and summaries for an
+                    // iPhone that can't run one (#457).
+                    Toggle("Answer model requests from iPhone", isOn: $answersInsight)
+                        .accessibilityIdentifier("settings_toggle_answersInsight")
                 }
             } header: {
                 Text("Service")

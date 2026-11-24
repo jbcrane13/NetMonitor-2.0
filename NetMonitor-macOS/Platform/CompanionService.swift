@@ -53,6 +53,8 @@ actor CompanionService {
 
     private var listener: NWListener?
     private var messageHandler: ((CompanionMessage, UUID) async -> CompanionMessage?)?
+    /// The heartbeat sent when a client connects, carrying this Mac's capabilities (#457).
+    private var heartbeat: @Sendable () async -> HeartbeatPayload = { HeartbeatPayload() }
 
     /// Per-client frame decoders for length-prefixed reassembly.
     /// Framing itself (4-byte big-endian length prefix + JSON payload, 1 MiB cap)
@@ -60,7 +62,10 @@ actor CompanionService {
     private var decoders: [UUID: CompanionFrameDecoder] = [:]
 
     /// Start the Bonjour service
-    func start(messageHandler: @escaping (CompanionMessage, UUID) async -> CompanionMessage?) throws {
+    func start(
+        heartbeat: @escaping @Sendable () async -> HeartbeatPayload = { HeartbeatPayload() },
+        messageHandler: @escaping (CompanionMessage, UUID) async -> CompanionMessage?
+    ) throws {
         guard !isRunning else { return }
 
         // Create listener — plain TCP, no custom framer.
@@ -73,6 +78,7 @@ actor CompanionService {
         let newListener = try NWListener(using: parameters, on: NWEndpoint.Port(rawValue: port)!)
 
         self.messageHandler = messageHandler
+        self.heartbeat = heartbeat
         listener = newListener
 
         // Advertise via Bonjour
@@ -186,10 +192,7 @@ actor CompanionService {
             Logger.companion.info("Client \(clientID) connected")
             // Send initial heartbeat
             Task {
-                await send(
-                    .heartbeat(HeartbeatPayload()),
-                    to: clientID
-                )
+                await send(.heartbeat(heartbeat()), to: clientID)
             }
         case .waiting(let error):
             Logger.companion.warning("Client \(clientID) waiting: \(error, privacy: .public)")

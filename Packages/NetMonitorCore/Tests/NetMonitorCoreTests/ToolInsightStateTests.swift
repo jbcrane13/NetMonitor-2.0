@@ -19,6 +19,20 @@ struct ToolInsightStateTests {
         #expect(!ToolInsightState(service: MockInsightService(isAvailable: false)).isAvailable)
     }
 
+    @Test("an explanation the Mac writes is marked as the Mac's; a local one as this device's (#457)")
+    func explanationRecordsItsSource() async {
+        let client = CompanionInsightClient(send: { _ in true })
+        client.received(heartbeat: HeartbeatPayload(capabilities: [CompanionCapability.insight]))
+        let viaMac = ToolInsightState(service: RoutedInsightService(local: UnavailableInsightService(), mac: client))
+        viaMac.explain(request)
+        #expect(viaMac.source == .mac)
+        client.disconnected()
+
+        let local = ToolInsightState(service: FixedAnswerInsightService(answer: "Your download is fast."))
+        await local.explain(request).value
+        #expect(local.source == .device)
+    }
+
     @Test func explainingShowsTextAsItArrivesThenTheFinishedText() async {
         let service = MockInsightService()
         let state = ToolInsightState(service: service)
