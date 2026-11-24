@@ -1,0 +1,65 @@
+model available: true
+
+=== weak north-east corner
+Wi-Fi heatmap survey.
+Key points, which you must state:
+- The north-east corner is weak (5% of the area, worst -84 dBm).
+- Try moving the access point toward the north-east corner.
+Facts:
+- Measured points: 25
+- Area with good signal (-67 dBm or better): 87%
+- Area with fair signal (-75 to -67 dBm): 6%
+- Area with weak signal (below -75 dBm): 7%
+- Weak areas: 2
+- Weak area 1: the north-east corner, 5% of the area, worst -84 dBm, average -78 dBm
+- Weak area 2: the north-east corner, 2% of the area, worst -84 dBm, average -78 dBm
+- Signal falls off toward the north-east
+- Access points: 1
+- Living Room AP: strongest at 100% of points
+Summarize this for the reader.
+--- raw model text:
+The north-east corner has the weakest signal, with 5% of the area affected and the worst -84 dBm, while 87% of the area has good signal and 6% has fair signal. There are 2 weak areas, both in the north-east corner, with the first at 5% of the area and the second at 2% of the area. The strongest signal comes from the Living Room AP.
+grounded: true, clean: true
+summarizer: PASS
+
+=== weak south, rooms, two APs
+Wi-Fi heatmap survey.
+Key points, which you must state:
+- The Garage is weak (32% of the area, worst -82 dBm).
+- Living Room AP was the strongest access point at 80% of points.
+- Add an access point or mesh node near the Garage.
+Facts:
+- Measured points: 25
+- Area with good signal (-67 dBm or better): 60%
+- Area with fair signal (-75 to -67 dBm): 8%
+- Area with weak signal (below -75 dBm): 32%
+- Weak areas: 1
+- Weak area 1: the Garage, 32% of the area, worst -82 dBm, average -79 dBm
+- Signal falls off toward the south
+- Access points: 2
+- Living Room AP: strongest at 80% of points
+- access point ending :2F: strongest at 20% of points
+Summarize this for the reader.
+--- raw model text:
+The Garage has the weakest signal, covering 32% of the area and reaching the worst -82 dBm, with an average of -79 dBm. The Living Room access point was the strongest at 80% of points. The signal drops toward the south.
+grounded: true, clean: true
+summarizer: PASS
+
+=== good everywhere
+Wi-Fi heatmap survey.
+Key points, which you must state:
+- Coverage is good across the surveyed area, so no change is needed.
+Facts:
+- Measured points: 25
+- Area with good signal (-67 dBm or better): 100%
+- Area with fair signal (-75 to -67 dBm): 0%
+- Area with weak signal (below -75 dBm): 0%
+- Weak areas: 0
+- Signal falls off toward the south-east
+- Access points: 1
+- Living Room AP: strongest at 100% of points
+Summarize this for the reader.
+--- raw model text:
+The Wi-Fi heatmap survey shows good coverage across the surveyed area with 25 measured points, and 100% of the area had a signal of -67 dBm or better. The strongest signal was in the Living Room AP at 100% of points, with only 1 access point in total. Weak areas are reported as 0, and the signal drops toward the south-east.
+grounded: true, clean: true
+summarizer: PASS
