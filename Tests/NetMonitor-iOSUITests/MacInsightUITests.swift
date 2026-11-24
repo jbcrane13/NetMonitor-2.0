@@ -24,6 +24,11 @@ private extension IOSUITestCase {
         requireExists(ui("screen_portScannerTool"), timeout: 8, message: "Port scanner should open")
 
         clearAndTypeText("127.0.0.1", into: app.textFields["portScanner_input_host"])
+        // The keyboard would cover the tab bar later on.
+        let returnKey = app.keyboards.buttons["Return"].firstMatch
+        if returnKey.exists {
+            returnKey.tap()
+        }
         let picker = app.buttons["portScanner_picker_range"].exists
             ? app.buttons["portScanner_picker_range"]
             : app.otherElements["portScanner_picker_range"]
@@ -87,7 +92,7 @@ final class MacInsightAnswerUITests: IOSUITestCase {
 
         let alert = requireMacPrompt()
         keepCropped([alert], named: "MacInsight_Prompt")
-        alert.buttons["Use My Mac"].tap()
+        alert.buttons["Use My Mac"].firstMatch.tap()
 
         let text = ui("portScanner_insight_label_text")
         requireExists(text, timeout: 15, message: "The Mac's explanation should appear once the user agrees")
@@ -110,7 +115,7 @@ final class MacInsightDeclineUITests: IOSUITestCase {
     func testDecliningKeepsTheFallbackAndOffersTheSettingsSwitch() throws {
         scanAndAskForExplanation()
 
-        requireMacPrompt().buttons["Don't Use Mac"].tap()
+        requireMacPrompt().buttons["Don't Use Mac"].firstMatch.tap()
 
         // Nothing goes to the Mac: the card goes away and the tool stays as it was without a model.
         XCTAssertTrue(waitForDisappearance(ui("portScanner_insight_button_explain"), timeout: 5), "Explain this should go away")

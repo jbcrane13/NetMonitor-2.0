@@ -61,7 +61,7 @@ struct MacConnectionServiceInsightTests {
         for await update in PhoneInsight.mac.explain(InsightRequest(subject: "s", facts: ["f"])) {
             updates.append(update)
         }
-        #expect(updates == [.failed])
+        #expect(updates == [.unreachable])
     }
 
     @Test("with a Mac advertising insight but no link to send on, a request fails rather than waiting")
@@ -77,6 +77,6 @@ struct MacConnectionServiceInsightTests {
         for await update in PhoneInsight.mac.explain(InsightRequest(subject: "s", facts: ["f"])) {
             updates.append(update)
         }
-        #expect(updates == [.failed])
+        #expect(updates == [.unreachable])
     }
 }
