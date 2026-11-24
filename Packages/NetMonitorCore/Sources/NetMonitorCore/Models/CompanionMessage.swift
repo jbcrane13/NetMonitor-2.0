@@ -326,6 +326,27 @@ public enum CompanionCapability {
     public static let insight = "insight.v1"
 }
 
+// MARK: - Logging
+
+extension CompanionMessage {
+    /// The message's type and nothing of its payload, for logs: payloads carry addresses,
+    /// hostnames and, in insight requests, whole prompts.
+    public var logName: String {
+        switch self {
+        case .statusUpdate: "statusUpdate"
+        case .targetList: "targetList"
+        case .deviceList: "deviceList"
+        case .networkProfile: "networkProfile"
+        case .command: "command"
+        case .toolResult: "toolResult"
+        case .error: "error"
+        case .heartbeat: "heartbeat"
+        case .insightRequest: "insightRequest"
+        case .insightResponse: "insightResponse"
+        }
+    }
+}
+
 // MARK: - JSON Encoder/Decoder Configuration
 
 extension CompanionMessage {

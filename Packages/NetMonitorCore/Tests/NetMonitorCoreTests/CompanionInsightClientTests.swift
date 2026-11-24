@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 import Testing
 @testable import NetMonitorCore
 
@@ -102,6 +103,20 @@ struct CompanionInsightClientTests {
 
         #expect(await Self.updates(client.explain(Self.request)) == [.failed])
         #expect(link.sent.count == 1)
+    }
+
+    @Test("a send that never completes still times the request out")
+    func stalledSendTimesOut() async {
+        // Like `NWConnection.send`, this ignores cancellation: it returns only when resumed.
+        let stalled = Mutex<CheckedContinuation<Void, Never>?>(nil)
+        let client = CompanionInsightClient(send: { _ in
+            await withCheckedContinuation { continuation in stalled.withLock { $0 = continuation } }
+            return true
+        }, timeout: .milliseconds(50))
+        client.received(heartbeat: Self.insightHeartbeat)
+
+        #expect(await Self.updates(client.explain(Self.request)) == [.failed])
+        stalled.withLock { $0 }?.resume()
     }
 
     @Test("a send that fails fails the request")

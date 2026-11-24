@@ -1,4 +1,5 @@
 import Foundation
+import Observation
 import Synchronization
 
 /// The iPhone's side of insight over the companion link (#457): sends an `InsightRequest` to a
@@ -9,7 +10,10 @@ import Synchronization
 /// advertised the capability, the request is too large, the send fails, the Mac replies with a
 /// failure, the link drops, or no answer comes within `timeout`: callers fall back to their
 /// path without the model. Requests carry addresses and hostnames, so nothing is logged.
-public final class CompanionInsightClient: Sendable {
+///
+/// `isAvailable` is observable, so a view that reads it, directly or through
+/// `RoutedInsightService`, redraws when a capable Mac connects or goes away.
+public final class CompanionInsightClient: Sendable, Observable {
     /// Sends one message to the Mac; false when it couldn't be sent.
     public typealias Send = @Sendable (CompanionMessage) async -> Bool
 
@@ -26,6 +30,7 @@ public final class CompanionInsightClient: Sendable {
     private let send: Send
     private let timeout: Duration
     private let state = Mutex(State())
+    private let registrar = ObservationRegistrar()
 
     public init(send: @escaping Send, timeout: Duration = defaultTimeout) {
         self.send = send
@@ -33,11 +38,22 @@ public final class CompanionInsightClient: Sendable {
     }
 
     /// Whether the connected Mac answers insight requests now.
-    public var isAvailable: Bool { state.withLock { $0.macOffersInsight } }
+    public var isAvailable: Bool {
+        registrar.access(self, keyPath: \.isAvailable)
+        return state.withLock { $0.macOffersInsight }
+    }
 
     /// Records the capabilities in a heartbeat from the Mac.
     public func received(heartbeat: HeartbeatPayload) {
-        state.withLock { $0.macOffersInsight = heartbeat.offersInsight }
+        setAvailable(heartbeat.offersInsight)
+    }
+
+    /// Observers hear only of a change: heartbeats repeat the same capabilities.
+    private func setAvailable(_ offersInsight: Bool) {
+        guard state.withLock({ $0.macOffersInsight != offersInsight }) else { return }
+        registrar.withMutation(of: self, keyPath: \.isAvailable) {
+            state.withLock { $0.macOffersInsight = offersInsight }
+        }
     }
 
     /// Ends the request `response` answers. A response to no pending request is ignored.
@@ -47,8 +63,9 @@ public final class CompanionInsightClient: Sendable {
 
     /// The link ended: the Mac no longer counts as available and every request in flight fails.
     public func disconnected() {
+        // Unavailable first, so no request can start between this and failing those in flight.
+        setAvailable(false)
         let pending = state.withLock {
-            $0.macOffersInsight = false
             defer { $0.pending.removeAll() }
             return Array($0.pending.values)
         }
@@ -78,16 +95,20 @@ public final class CompanionInsightClient: Sendable {
             }
             let send = send
             let timeout = timeout
-            let task = Task { [weak self] in
-                guard await send(.insightRequest(payload)) else {
-                    self?.finish(id, with: .failed)
-                    return
-                }
+            // The deadline runs from now, not from the end of the send: a send that stalls on
+            // the link must not hold the request open.
+            let deadline = Task { [weak self] in
                 try? await Task.sleep(for: timeout)
                 self?.finish(id, with: .failed)
             }
+            let sending = Task { [weak self] in
+                if await !send(.insightRequest(payload)) {
+                    self?.finish(id, with: .failed)
+                }
+            }
             continuation.onTermination = { [weak self] _ in
-                task.cancel()
+                deadline.cancel()
+                sending.cancel()
                 self?.state.withLock { _ = $0.pending.removeValue(forKey: id) }
             }
         }

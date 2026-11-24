@@ -481,20 +481,3 @@ extension MacConnectionService {
         }
     }
 }
-
-private extension CompanionMessage {
-    var logName: String {
-        switch self {
-        case .statusUpdate: "statusUpdate"
-        case .targetList: "targetList"
-        case .deviceList: "deviceList"
-        case .networkProfile: "networkProfile"
-        case .command: "command"
-        case .toolResult: "toolResult"
-        case .error: "error"
-        case .heartbeat: "heartbeat"
-        case .insightRequest: "insightRequest"
-        case .insightResponse: "insightResponse"
-        }
-    }
-}

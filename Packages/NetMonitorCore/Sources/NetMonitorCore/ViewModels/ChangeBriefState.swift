@@ -21,8 +21,10 @@ public struct ChangeSummary: Equatable, Sendable {
 ///
 /// Asking again about the same digest reuses the last outcome, including a failed one, and
 /// a request already running is not sent again. A cancelled ask is not an answer, so the
-/// next ask about that digest goes to the model. A brief never outlives its digest: asking
-/// about a different one hides it until the new answer, and so does showing another network.
+/// next ask about that digest goes to the model. Neither is an ask with no model to answer
+/// it, such as before a Mac that offers insight connects (#457). A brief never outlives its
+/// digest: asking about a different one hides it until the new answer, and so does showing
+/// another network.
 @MainActor
 @Observable
 public final class ChangeBriefState {
@@ -47,9 +49,11 @@ public final class ChangeBriefState {
 
     public var isAvailable: Bool { service.isAvailable }
 
-    /// Hides the brief, keeping what was asked: the model became unavailable.
+    /// Hides the brief and forgets what was asked: the model became unavailable, so the next
+    /// ask, once it is back, goes to the model.
     public func hide() {
         brief = nil
+        lastRequest = nil
     }
 
     /// Hides a brief about any network but `network`, such as while a scan of a newly joined
@@ -67,6 +71,11 @@ public final class ChangeBriefState {
         lastRequest = .some(request)
         brief = nil
         guard let request else { return }
+        // With no model to ask there is no outcome to reuse: ask again once there is one.
+        guard service.isAvailable else {
+            lastRequest = nil
+            return
+        }
         let source = InsightService.source(of: service)
         let text = await InsightSummarizer.summary(for: request, service: service, timeout: timeout)
         // Leaving the dashboard cancels its task; that is not an answer, so ask again next time.

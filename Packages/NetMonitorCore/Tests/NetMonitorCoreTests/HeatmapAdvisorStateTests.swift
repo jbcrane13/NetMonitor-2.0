@@ -58,6 +58,29 @@ struct HeatmapAdvisorStateTests {
         #expect(insight.requests.isEmpty)
     }
 
+    @Test("a survey first shown with no model gets its text on a refresh once a Mac offers insight (#457)")
+    func theSameSurveyGetsItsTextOnceTheMacConnects() async throws {
+        let link = FakeLink()
+        let mac = CompanionInsightClient(send: link.send)
+        let advisor = state(RoutedInsightService(local: UnavailableInsightService(), mac: mac))
+        let input = HeatmapAdvisorState.Input(points: Self.weakCorner, floorPlan: Self.plan, isSurveying: false)
+        await advisor.refresh(input)
+        #expect(advisor.phase == .advice(keyPoints: keyPoints(advisor), text: nil))
+        #expect(link.sent.isEmpty)
+
+        mac.received(heartbeat: HeartbeatPayload(capabilities: [CompanionCapability.insight]))
+        let refreshed = Task { await advisor.refresh(input) }
+        for _ in 0 ..< 500 where link.sent.isEmpty {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        let sent = try #require(link.sentRequests.first)
+        mac.received(InsightResponsePayload(requestID: sent.requestID, answer: Self.answer))
+        await refreshed.value
+
+        #expect(advisor.phase == .advice(keyPoints: keyPoints(advisor), text: Self.answer))
+        #expect(advisor.source == .mac)
+    }
+
     @Test func anUngroundedAnswerIsDroppedButTheKeyPointsStay() async {
         let advisor = state(FixedAnswerInsightService(answer: "About 40% of the house is weak."))
 

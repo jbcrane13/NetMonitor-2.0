@@ -24,7 +24,8 @@ enum UITestFakeMacInsight {
         let client = CompanionInsightClient(send: { message in
             guard case let .insightRequest(request) = message,
                   let client = box.withLock({ $0 }) else { return false }
-            Task {
+            // On the main actor, as `MacConnectionService` reports to the real client.
+            Task { @MainActor in
                 // Long enough for the test to see the request in flight.
                 try? await Task.sleep(for: .seconds(1))
                 switch mode {

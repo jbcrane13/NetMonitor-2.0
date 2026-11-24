@@ -259,7 +259,8 @@ actor CompanionService {
         let batch = await decoder(for: clientID).append(data)
 
         for message in batch.messages {
-            Logger.companion.debug("Received \(String(describing: message)) from \(clientID)")
+            // The type only: payloads carry addresses, hostnames and insight prompts.
+            Logger.companion.debug("Received \(message.logName, privacy: .public) from \(clientID)")
 
             if let response = await messageHandler?(message, clientID) {
                 await send(response, to: clientID)

@@ -62,6 +62,16 @@ struct CompanionInsightMessageTests {
         #expect(decoded.devices == nil)
     }
 
+    @Test("a message's log name is its type, with nothing of the prompt or the answer")
+    func logNameLeavesOutThePayload() {
+        let request = InsightRequest(subject: "Port scan of 192.168.1.20", facts: ["Host: nas.local"], observations: ["SSH is open"])
+        let asked = CompanionMessage.insightRequest(InsightRequestPayload(requestID: UUID(), request: request, devices: nil))
+        let answered = CompanionMessage.insightResponse(InsightResponsePayload(requestID: UUID(), answer: "nas.local has SSH open."))
+
+        #expect(asked.logName == "insightRequest")
+        #expect(answered.logName == "insightResponse")
+    }
+
     @Test("an answer and each failure reason survive the wire")
     func insightResponseRoundTrip() throws {
         let id = UUID()
