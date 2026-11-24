@@ -132,3 +132,15 @@ Project-specific notes for agents. Global lessons live in `~/.claude/lessons-lea
 - **Saving every scanned device changes who the rule resolver finds.** Rows saved as `.unknown` hid the scan's inferred printer from #571's "the printer". The reconciler infers types as the Mac does.
 - **The iOS app scans on its own at launch under `UITEST_FAKE_DEVICES`,** so a UI test can't assume which tick of an injected clock its first scan gets. Assert relative times.
 - **An iOS info row's label and value are two texts sharing one identifier;** query the value with `label != "<title>"`.
+- **Codex adversarial review keeps finding real ordering bugs in persistence code; budget rounds and file the out-of-diff ones.** Five rounds on #589 found:
+  - a retry re-reading a live list;
+  - a stale retry overwriting a newer scan;
+  - duplicate MAC aliases;
+  - probes of unconfirmed addresses;
+  - cancelled scans publishing;
+  - progress lists posing as results;
+  - stale companion data (#598).
+
+  Each fix was small once found. Stop gates before editing; a run that overlaps edits proves nothing.
+- **Keep a scan's finished list apart from its progress list.** `discoveredDevices` is presentation (progress snapshots drop cached flags; a stopped scan leaves its partial list). Anything that persists presence or confirms identity reads `completedScanDevices`, set only with `lastScanDate`.
+- **Blake's rule for devices without a MAC (2026-11-24):** an address alone never identifies a device; it needs agreeing names (both missing agree). `PresenceMatch` holds it for the reconciler and detail's list entry; the Mac still differs (#596).
