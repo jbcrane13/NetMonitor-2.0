@@ -1,9 +1,9 @@
+import Testing
+@testable import NetMonitor_iOS
 import Foundation
 import NetMonitorCore
 import NetworkScanKit
 import SwiftData
-import Testing
-@testable import NetMonitor_iOS
 
 /// #571: a described rule can name a device the latest scan saw but nobody opened; a target draft
 /// saves its row the way device detail does, so the rule keeps a stable ID.

@@ -1,7 +1,7 @@
-import Foundation
-import NetMonitorCore
 import Testing
 @testable import NetMonitor_iOS
+import Foundation
+import NetMonitorCore
 
 /// The ports a stub device answers on; records every port asked.
 private final class StubDevice: @unchecked Sendable {
