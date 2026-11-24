@@ -192,7 +192,7 @@ struct AskToolboxTests {
     @Test func thisSessionsSpikesDoNotMakeADeviceFlakyYesterday() {
         // The doorbell dropped once yesterday; its two spikes are this session's and carry no times.
         #expect(Fix.toolbox().flakyDevices("yesterday")
-            == "No device was flaky yesterday (2026-11-22): none went offline twice or had latency spikes.")
+            == "No device was flaky yesterday (2026-11-22): none went offline twice. Latency is not kept for past days.")
         let twice = Fix.events + [Fix.event(.deviceLeft, "Device Left: Ring Doorbell", at: Fix.date(22, 3), device: Fix.doorbell)]
         let toolbox = AskToolbox(snapshot: AskSnapshot(devices: Fix.devices, events: twice, now: Fix.now, calendar: Fix.calendar))
         #expect(toolbox.flakyDevices("yesterday") == """

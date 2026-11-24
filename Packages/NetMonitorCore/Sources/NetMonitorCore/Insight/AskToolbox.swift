@@ -160,7 +160,12 @@ public final class AskToolbox: Sendable {
             let range = AskRange.named(range)
             let ranked = AskFlakiness.rank(snapshot.devices, in: range, snapshot: snapshot)
             guard !ranked.isEmpty else {
-                return ([], "No device was flaky \(range.label(in: snapshot)): none went offline twice or had latency spikes.")
+                // Latency samples are this session's: a range that ended before now has none to report.
+                let coversSession = range.interval(now: snapshot.now, calendar: snapshot.calendar).contains(snapshot.now)
+                let reason = coversSession
+                    ? "none went offline twice or had latency spikes."
+                    : "none went offline twice. Latency is not kept for past days."
+                return ([], "No device was flaky \(range.label(in: snapshot)): \(reason)")
             }
             let shown = Array(ranked.prefix(10))
             let header = "\(ranked.count) flaky device\(ranked.count == 1 ? "" : "s") \(range.label(in: snapshot)), most first:"
