@@ -78,6 +78,21 @@ struct AlertRuleIdentityTests {
         #expect(fired == [0, 0, 0, 0, 0, 1])
     }
 
+    /// A failed HTTP check (a 503) is unreachable and still has a latency.
+    @Test func aLatencyReadingFromAFailedCheckDoesNotRestartTheOfflineClock() {
+        var evaluator = AlertRuleEvaluator()
+        let rule = AlertRule(name: "Down 5 min", trigger: .wentOffline, minimumDuration: 300)
+        let subject = nas(named: "NAS")
+        let checks: [(AlertRuleEvent.Kind, TimeInterval)] = [(.wentOffline, 0), (.stillOffline, 150), (.stillOffline, 300), (.stillOffline, 450)]
+        let fired = checks.map { kind, time in
+            evaluator.evaluate(
+                [AlertRuleEvent(kind: kind, subject: subject), AlertRuleEvent(kind: .latency(milliseconds: 40), subject: subject)],
+                rules: [rule], now: at(time)
+            ).count
+        }
+        #expect(fired == [0, 0, 1, 0])
+    }
+
     @Test func aScanThatReportsADeviceOfflineCountsFromWhenItWasLastSeen() {
         var evaluator = AlertRuleEvaluator()
         let rule = AlertRule(name: "Down 5 min", trigger: .wentOffline, minimumDuration: 300)

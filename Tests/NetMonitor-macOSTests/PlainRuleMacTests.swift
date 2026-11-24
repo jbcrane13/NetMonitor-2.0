@@ -145,6 +145,40 @@ struct PlainRuleMacTests {
         #expect(poster.requests.isEmpty, "Not down for five minutes yet")
     }
 
+    /// An HTTP target answering 503 is unreachable and still reports a latency on every check.
+    /// The rule's clock must run through those checks and stop only when the target recovers.
+    @Test func aTargetFailingWithALatencyFiresItsDurationRuleOnceTheTimeIsUp() throws {
+        let (defaults, suite) = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = AlertRuleStore(defaults: defaults)
+        let device = nas()
+        store.add(AlertRule(name: "Offline briefly", trigger: .wentOffline,
+                            conditions: AlertRuleConditions(deviceID: device.id), minimumDuration: 0.2))
+        let poster = PlainRulePoster()
+        let alerts = MacRuleAlerts(store: store, service: NotificationService(poster: poster, defaults: defaults), defaults: defaults) {
+            ([device], nil)
+        }
+        let target = UUID()
+        func check(reachable: Bool = false, wentDown: Bool = false, cameUp: Bool = false) {
+            alerts.handle(targetResult: TargetCheckOutcome(
+                targetID: target, name: "NAS", host: "192.168.77.40", isReachable: reachable, latency: 35, wentDown: wentDown, cameUp: cameUp
+            ))
+        }
+
+        check(wentDown: true)
+        check()
+        #expect(poster.requests.isEmpty, "Not down long enough yet")
+        Thread.sleep(forTimeInterval: 0.3)
+        check()
+        #expect(poster.requests.map(\.content.title) == ["Offline briefly"])
+        check()
+        #expect(poster.requests.count == 1, "Once per outage")
+
+        check(reachable: true, cameUp: true)
+        check(wentDown: true)
+        #expect(poster.requests.count == 1, "A new outage starts a new clock")
+    }
+
     @Test func aScanThatReportsTheDeviceOfflineFiresItsDurationRuleByIdentity() {
         let (defaults, suite) = makeDefaults()
         defer { defaults.removePersistentDomain(forName: suite) }

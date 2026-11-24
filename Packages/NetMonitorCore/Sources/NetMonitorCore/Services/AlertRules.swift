@@ -266,8 +266,11 @@ public struct AlertRuleEvaluator: Sendable {
             firedEpisodes.remove(key)
         case (.wentOffline, .stillOffline):
             conditionSince[key] = conditionSince[key] ?? now
-        case (.wentOffline, .cameOnline), (.wentOffline, .latency):
+        case (.wentOffline, .cameOnline):
             endEpisode(key)
+            return false
+        case (.wentOffline, .latency):
+            // Not a recovery: a failed HTTP check (4xx/5xx) still reports a latency.
             return false
         case let (.latencyAbove(threshold), .latency(milliseconds)):
             guard milliseconds > threshold else {
