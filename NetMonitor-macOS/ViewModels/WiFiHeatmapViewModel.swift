@@ -284,12 +284,12 @@ final class WiFiHeatmapViewModel {
             point = await wifiEngine?.takeActiveMeasurement(
                 at: normalizedPoint.x,
                 floorPlanY: normalizedPoint.y
-            ) ?? MeasurementPoint(floorPlanX: normalizedPoint.x, floorPlanY: normalizedPoint.y)
+            ) ?? MeasurementPoint(floorPlanX: normalizedPoint.x, floorPlanY: normalizedPoint.y, rssiUnavailable: true)
         } else {
             point = await wifiEngine?.takeMeasurement(
                 at: normalizedPoint.x,
                 floorPlanY: normalizedPoint.y
-            ) ?? MeasurementPoint(floorPlanX: normalizedPoint.x, floorPlanY: normalizedPoint.y)
+            ) ?? MeasurementPoint(floorPlanX: normalizedPoint.x, floorPlanY: normalizedPoint.y, rssiUnavailable: true)
         }
 
         state.recordMeasurement(point)

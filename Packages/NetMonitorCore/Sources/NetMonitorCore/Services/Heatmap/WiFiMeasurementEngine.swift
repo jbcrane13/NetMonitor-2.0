@@ -68,7 +68,9 @@ public actor WiFiMeasurementEngine: HeatmapServiceProtocol {
         continuousTask = Task {
             while !Task.isCancelled {
                 let point = await engine.takeMeasurement(at: 0, floorPlanY: 0)
-                if Task.isCancelled { break }
+                if Task.isCancelled {
+                    break
+                }
                 continuation.yield(point)
                 try? await Task.sleep(for: .seconds(interval))
             }
@@ -121,7 +123,11 @@ public actor WiFiMeasurementEngine: HeatmapServiceProtocol {
     ) -> MeasurementPoint {
         let rssi = wifi?.signalDBm ?? -100
         let noiseFloor = wifi?.noiseLevel
-        let snr: Int? = if let noise = noiseFloor { rssi - noise } else { nil }
+        let snr: Int? = if let noise = noiseFloor {
+            rssi - noise
+        } else {
+            nil
+        }
         let linkSpeed: Int? = wifi?.linkSpeed.map { Int($0) }
         let frequency = parseFrequency(wifi?.frequency)
 
@@ -139,7 +145,8 @@ public actor WiFiMeasurementEngine: HeatmapServiceProtocol {
             linkSpeed: linkSpeed,
             downloadSpeed: download,
             uploadSpeed: upload,
-            latency: latency
+            latency: latency,
+            rssiUnavailable: wifi?.signalDBm == nil ? true : nil
         )
     }
 

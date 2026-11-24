@@ -68,7 +68,8 @@ public enum HeatmapAdvisorBuilder {
     /// Fewest different spots with a signal reading a survey needs before it gets advice.
     public static let minimumPoints = 10
     /// What both apps record as the RSSI when a measurement had no signal reading (no Wi-Fi
-    /// Shortcut on iOS, not associated on the Mac). Such points say nothing about coverage.
+    /// Shortcut on iOS, not associated on the Mac), alongside `MeasurementPoint.rssiUnavailable`.
+    /// Such points say nothing about coverage.
     public static let noReadingRSSI = -100
     /// Under this share of weak area, in percent, no change is suggested.
     public static let negligibleWeakPercent = 5
@@ -91,7 +92,8 @@ public enum HeatmapAdvisorBuilder {
         guard let floorPlan else {
             return .sparse(hint: "Load a floor plan and survey at least \(minimumPoints) different spots with a Wi-Fi signal reading to get advice.")
         }
-        let readings = points.filter { $0.rssi > noReadingRSSI }
+        // Flagged at capture since #455; surveys saved before carry only the -100 placeholder.
+        let readings = points.filter { $0.rssiUnavailable != true && $0.rssi > noReadingRSSI }
         // Continuous capture can record one spot many times; a spot counts once.
         let spots = Set(readings.map { [Int(($0.floorPlanX * 100).rounded()), Int(($0.floorPlanY * 100).rounded())] }).count
         guard spots >= minimumPoints else {

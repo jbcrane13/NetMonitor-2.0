@@ -237,6 +237,15 @@ struct HeatmapAdvisorBuilderTests {
         #expect(advice.request.facts.contains("Area with weak signal (below -75 dBm): 0%"))
     }
 
+    @Test func pointsFlaggedWithoutAReadingAreLeftOut() {
+        // Captured since the flag existed: rssiUnavailable says the -60 is not a reading.
+        let readings = (0 ..< 6).map { MeasurementPoint(floorPlanX: Double($0) / 5, floorPlanY: 0.5, rssi: -55) }
+        let flagged = (0 ..< 6).map { MeasurementPoint(floorPlanX: Double($0) / 5, floorPlanY: 0.1, rssi: -60, rssiUnavailable: true) }
+
+        #expect(HeatmapAdvisorBuilder.advice(points: readings + flagged, floorPlan: Self.plan)
+            == .sparse(hint: "Survey at least 10 different spots with a Wi-Fi signal reading to get advice. This survey has 6."))
+    }
+
     @Test func tooFewReadingsGetTheHint() {
         let readings = (0 ..< 4).map { MeasurementPoint(floorPlanX: Double($0) / 4, floorPlanY: 0.5, rssi: -55) }
         let placeholders = (0 ..< 8).map { MeasurementPoint(floorPlanX: Double($0) / 8, floorPlanY: 0.1, rssi: -100) }
