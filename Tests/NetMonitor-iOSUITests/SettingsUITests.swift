@@ -151,6 +151,10 @@ final class SettingsUITests: XCTestCase {
             thresholdStepper.waitForExistence(timeout: 3),
             "High latency threshold stepper should appear when toggle is ON"
         )
+        // Restore
+        if wasOff {
+            toggle.flipSwitch()
+        }
     }
 
     // MARK: - Appearance Section
@@ -392,6 +396,10 @@ final class SettingsUITests: XCTestCase {
             stepper.waitForExistence(timeout: 3),
             "High latency threshold stepper should appear when toggle is ON"
         )
+        // Restore
+        if wasOff {
+            toggle.flipSwitch()
+        }
     }
 
     func testPingCountStepperChangesValue() throws {
