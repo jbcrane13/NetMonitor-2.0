@@ -1,3 +1,4 @@
+import CoreGraphics
 import CoreLocation
 import Foundation
 import NetworkScanKit
@@ -227,7 +228,16 @@ public struct SubnetInfo: Sendable {
     public let usableHosts: Int
     public let prefixLength: Int
 
-    public init(cidr: String, networkAddress: String, broadcastAddress: String, subnetMask: String, firstHost: String, lastHost: String, usableHosts: Int, prefixLength: Int) {
+    public init(
+        cidr: String,
+        networkAddress: String,
+        broadcastAddress: String,
+        subnetMask: String,
+        firstHost: String,
+        lastHost: String,
+        usableHosts: Int,
+        prefixLength: Int
+    ) {
         self.cidr = cidr
         self.networkAddress = networkAddress
         self.broadcastAddress = broadcastAddress
@@ -281,7 +291,16 @@ public struct GeoLocation: Sendable {
     public let longitude: Double
     public let isp: String?
 
-    public init(ip: String, country: String, countryCode: String, region: String, city: String, latitude: Double, longitude: Double, isp: String? = nil) {
+    public init(
+        ip: String,
+        country: String,
+        countryCode: String,
+        region: String,
+        city: String,
+        latitude: Double,
+        longitude: Double,
+        isp: String? = nil
+    ) {
         self.ip = ip
         self.country = country
         self.countryCode = countryCode
@@ -324,7 +343,15 @@ public struct NetworkHealthScore: Sendable {
     public let uploadSpeed: Double?
     public let details: [String: String]
 
-    public init(score: Int, grade: String, latencyMs: Double? = nil, packetLoss: Double? = nil, downloadSpeed: Double? = nil, uploadSpeed: Double? = nil, details: [String: String] = [:]) {
+    public init(
+        score: Int,
+        grade: String,
+        latencyMs: Double? = nil,
+        packetLoss: Double? = nil,
+        downloadSpeed: Double? = nil,
+        uploadSpeed: Double? = nil,
+        details: [String: String] = [:]
+    ) {
         self.score = score
         self.grade = grade
         self.latencyMs = latencyMs
@@ -539,4 +566,20 @@ public protocol InsightServiceProtocol: Sendable {
     /// Suggests a device's type, maker and model from `evidence` (#449), or nil when the
     /// model can't answer.
     func suggestIdentity(_ evidence: DeviceEvidence) async -> DeviceSuggestion?
+}
+
+// MARK: - Label capture (#456)
+
+/// Reads the text in a photo (#456). The app uses ``VisionLabelTextRecognizer``.
+public protocol LabelTextRecognizerProtocol: Sendable {
+    /// Loads the recognizer so the first photo doesn't wait for it (about 27 s cold on macOS 27.2).
+    func prewarm() async
+    /// The lines of text in `image`, top to bottom; empty when there is none.
+    func recognizeText(in image: CGImage) async -> [String]
+}
+
+/// Fills ``LabelFields`` from a label's text with the on-device model (#456).
+public protocol LabelFieldExtractorProtocol: Sendable {
+    /// The fields the model read from `lines`, or nil when it can't answer.
+    func extractFields(from lines: [String]) async -> LabelFields?
 }

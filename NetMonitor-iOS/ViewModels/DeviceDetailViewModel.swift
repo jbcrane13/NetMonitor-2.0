@@ -66,9 +66,7 @@ final class DeviceDetailViewModel {
         suggestionTask = nil
         suggestionFingerprint = nil
         modelContext = context
-        // Under the UI-test fixture the dashboard lists fake devices; detail sees them too.
-        let live = deviceDiscoveryService.discoveredDevices
-            + (UITestFakeDeviceFeed.suggestsIdentity ? UITestFakeDeviceFeed().devices : [])
+        let live = Self.liveScan(deviceDiscoveryService)
         let scanned = live.first { $0.ipAddress == ipAddress && (networkID == nil || $0.networkProfileID == networkID) }
         let network = networkID ?? scanned?.networkProfileID
         device = Self.savedRow(
@@ -96,6 +94,13 @@ final class DeviceDetailViewModel {
         if device.hostname?.isEmpty ?? true, let name = scanned.hostname, !name.isEmpty {
             device.hostname = name
         }
+    }
+
+    /// The latest scan, as device detail matches rows against it. Under the UI-test fixture
+    /// the dashboard lists fake devices; detail sees them too. The label sheet's duplicate-MAC
+    /// check uses the same list (#456).
+    static func liveScan(_ service: any DeviceDiscoveryServiceProtocol = DeviceDiscoveryService.shared) -> [DiscoveredDevice] {
+        service.discoveredDevices + (UITestFakeDeviceFeed.suggestsIdentity ? UITestFakeDeviceFeed().devices : [])
     }
 
     // MARK: - Identity suggestion (#449)
@@ -261,10 +266,8 @@ final class DeviceDetailViewModel {
 
         var openPorts: [Int] = []
 
-        for await result in await portScanner.scan(host: device.ipAddress, ports: commonPorts, timeout: 1.5) {
-            if result.state == .open {
-                openPorts.append(result.port)
-            }
+        for await result in await portScanner.scan(host: device.ipAddress, ports: commonPorts, timeout: 1.5) where result.state == .open {
+            openPorts.append(result.port)
         }
 
         device.openPorts = openPorts.sorted()
@@ -411,7 +414,7 @@ final class DeviceDetailViewModel {
 
                 let length = strnlen(hostname, hostname.count)
                 let bytes = hostname.prefix(length).map { UInt8(bitPattern: $0) }
-                let ip = String(decoding: bytes, as: UTF8.self)
+                guard let ip = String(bytes: bytes, encoding: .utf8) else { continue }
 
                 if isIPv4Address(ip) {
                     resolved.insert(ip)

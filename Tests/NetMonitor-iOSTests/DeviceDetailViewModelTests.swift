@@ -261,6 +261,11 @@ struct DeviceDetailViewModelTests {
         #expect(viewModel.isDiscovering == false)
     }
 
+}
+
+// MARK: - Row matching, label capture and suggestions
+
+extension DeviceDetailViewModelTests {
     // MARK: - #463: the row is found by device match within its network
 
     private func scanned(_ ip: String, mac: String?, network: UUID, hostname: String? = nil) -> DiscoveredDevice {
@@ -290,6 +295,40 @@ struct DeviceDetailViewModelTests {
         viewModel.loadDevice(ipAddress: "192.168.1.10", context: context)
         #expect(viewModel.device?.notes == "home printer")
         #expect(try context.fetch(FetchDescriptor<LocalDevice>()).count == 2)
+    }
+
+    /// #456: the label's MAC belongs to a device the scan sees but that has no saved row yet.
+    /// Writing it to the open device's row would hand that row, notes and all, to the other
+    /// device at the next load, since the match goes by MAC before IP. (Test shape from the PR
+    /// agent's fix on #560.)
+    @Test func labelMACOfAnUnsavedScannedDeviceDoesNotMoveTheRow() throws {
+        let (container, context) = try makeInMemoryStore()
+        defer { withExtendedLifetime(container) {} }
+        let home = UUID()
+        let discovery = MockDeviceDiscoveryService()
+        discovery.discoveredDevices = [
+            scanned("192.168.1.10", mac: nil, network: home),
+            scanned("192.168.1.11", mac: "3C:22:FB:0A:1B:2C", network: home)
+        ]
+        let viewModel = makeViewModel(deviceDiscoveryService: discovery)
+        viewModel.loadDevice(ipAddress: "192.168.1.10", context: context)
+        let row = try #require(viewModel.device)
+        row.notes = "hall closet"
+
+        let rows = try context.fetch(FetchDescriptor<LocalDevice>())
+        let scan = DeviceDetailViewModel.liveScan(discovery).filter { $0.networkProfileID == row.networkProfileID }
+        let values = LabelValues(model: "NW-AC1200", mac: "3C:22:FB:0A:1B:2C")
+        let outcome = LabelCapture.save(values, to: row, among: rows, scanned: scan)
+        #expect(outcome == .belongsTo(.scanned(ipAddress: "192.168.1.11")))
+        #expect(row.macAddress.isEmpty)
+
+        viewModel.loadDevice(ipAddress: "192.168.1.10", context: context)
+        #expect(viewModel.device === row, "The device keeps its own row")
+        #expect(viewModel.device?.modelName == "NW-AC1200")
+        viewModel.loadDevice(ipAddress: "192.168.1.11", context: context)
+        #expect(viewModel.device !== row)
+        #expect(viewModel.device?.notes == nil, "The other device doesn't get this device's notes")
+        #expect(viewModel.device?.modelName == nil)
     }
 
     @Test func aRowSavedWithoutANetworkIsAdoptedByTheFirstNetworkThatOpensIt() throws {
