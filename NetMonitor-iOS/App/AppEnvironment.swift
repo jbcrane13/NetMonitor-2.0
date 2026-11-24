@@ -39,6 +39,8 @@ final class AppEnvironment {
     let activityLog: ToolActivityLog
     let eventService: NetworkEventService
     let scanScheduler: any ScanSchedulerServiceProtocol
+    /// Explanations and summaries: this device's model, else a Mac the user agreed to (#457).
+    let insight: RoutedInsightService
     /// The network the device is on, for events (#491 D9): the saved local profile, read without
     /// writing. Under `UITEST_FAKE_DEVICES`, the UI-test network.
     let currentNetworkProfileID: @MainActor () -> UUID?
@@ -58,6 +60,7 @@ final class AppEnvironment {
         activityLog: ToolActivityLog,
         eventService: NetworkEventService,
         scanScheduler: any ScanSchedulerServiceProtocol,
+        insight: RoutedInsightService = PhoneInsight.routed,
         currentNetworkProfileID: @escaping @MainActor () -> UUID? = { nil },
         connectedNetworkProfileID: @escaping @MainActor () -> UUID? = { nil }
     ) {
@@ -70,6 +73,7 @@ final class AppEnvironment {
         self.activityLog = activityLog
         self.eventService = eventService
         self.scanScheduler = scanScheduler
+        self.insight = insight
         self.currentNetworkProfileID = currentNetworkProfileID
         self.connectedNetworkProfileID = connectedNetworkProfileID
     }

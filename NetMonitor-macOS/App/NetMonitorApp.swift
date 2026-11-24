@@ -259,9 +259,17 @@ struct NetMonitorApp: App {
             companionService = CompanionService()
             let handler = companionHandler
             do {
-                try await companionService?.start { @Sendable message, clientID in
-                    return await handler?.handle(message, from: clientID)
+                // While a scan runs the Mac stops offering insight; tell connected phones (#457).
+                let service = companionService
+                handler?.onScanningChange { heartbeat in
+                    Task { await service?.broadcast(.heartbeat(heartbeat)) }
                 }
+                try await companionService?.start(
+                    heartbeat: { await handler?.heartbeat() ?? HeartbeatPayload() },
+                    messageHandler: { @Sendable message, clientID in
+                        await handler?.handle(message, from: clientID)
+                    }
+                )
             } catch {
                 Logger.app.error("Failed to start companion service: \(error)")
             }

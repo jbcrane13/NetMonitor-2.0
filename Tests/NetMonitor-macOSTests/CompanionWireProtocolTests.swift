@@ -35,11 +35,11 @@ struct CompanionWireProtocolFramingTests {
 
         // Decode from raw JSON (not from framed data — the decoder works on the payload only)
         let decoded = try CompanionMessage.decode(from: jsonData)
-        guard case .heartbeat(let p) = decoded else {
+        guard case .heartbeat(let received) = decoded else {
             Issue.record("Expected .heartbeat after length-prefixed round-trip")
             return
         }
-        #expect(p.version == "2.0")
+        #expect(received.version == "2.0")
     }
 
     @Test("statusUpdate survives full length-prefixed encode/decode round-trip")
@@ -58,14 +58,14 @@ struct CompanionWireProtocolFramingTests {
         #expect(jsonData.count == Int(length))
 
         let decoded = try CompanionMessage.decode(from: jsonData)
-        guard case .statusUpdate(let p) = decoded else {
+        guard case .statusUpdate(let received) = decoded else {
             Issue.record("Expected .statusUpdate after length-prefixed round-trip")
             return
         }
-        #expect(p.isMonitoring == true)
-        #expect(p.onlineTargets == 3)
-        #expect(p.offlineTargets == 1)
-        #expect(p.averageLatency == 15.5)
+        #expect(received.isMonitoring == true)
+        #expect(received.onlineTargets == 3)
+        #expect(received.offlineTargets == 1)
+        #expect(received.averageLatency == 15.5)
     }
 
     @Test("deviceList survives full length-prefixed encode/decode round-trip")
@@ -82,13 +82,13 @@ struct CompanionWireProtocolFramingTests {
 
         let jsonData = Data(framed.dropFirst(4))
         let decoded = try CompanionMessage.decode(from: jsonData)
-        guard case .deviceList(let p) = decoded else {
+        guard case .deviceList(let received) = decoded else {
             Issue.record("Expected .deviceList after length-prefixed round-trip")
             return
         }
-        #expect(p.devices.count == 1)
-        #expect(p.devices[0].ipAddress == "192.168.1.50")
-        #expect(p.devices[0].vendor == "TestCorp")
+        #expect(received.devices.count == 1)
+        #expect(received.devices[0].ipAddress == "192.168.1.50")
+        #expect(received.devices[0].vendor == "TestCorp")
     }
 
     @Test("command survives full length-prefixed encode/decode round-trip")
@@ -99,13 +99,13 @@ struct CompanionWireProtocolFramingTests {
 
         let jsonData = Data(framed.dropFirst(4))
         let decoded = try CompanionMessage.decode(from: jsonData)
-        guard case .command(let p) = decoded else {
+        guard case .command(let received) = decoded else {
             Issue.record("Expected .command after length-prefixed round-trip")
             return
         }
-        #expect(p.action == .ping)
-        #expect(p.parameters?["host"] == "8.8.8.8")
-        #expect(p.parameters?["count"] == "4")
+        #expect(received.action == .ping)
+        #expect(received.parameters?["host"] == "8.8.8.8")
+        #expect(received.parameters?["count"] == "4")
     }
 
     // MARK: - Length prefix correctness for all message types
@@ -198,8 +198,8 @@ struct CompanionWireProtocolFramingTests {
 
             let json = Data(stream[payloadStart..<payloadEnd])
             let decoded = try CompanionMessage.decode(from: json)
-            if case .command(let p) = decoded {
-                decodedActions.append(p.action)
+            if case .command(let received) = decoded {
+                decodedActions.append(received.action)
             }
             offset = payloadEnd
         }
@@ -262,11 +262,11 @@ struct CompanionWireProtocolFramingTests {
 
         let jsonData = Data(framed.dropFirst(4))
         let decoded = try CompanionMessage.decode(from: jsonData)
-        guard case .toolResult(let p) = decoded else {
+        guard case .toolResult(let received) = decoded else {
             Issue.record("Expected .toolResult after round-trip with embedded newlines")
             return
         }
-        #expect(p.result == multilineResult,
+        #expect(received.result == multilineResult,
                 "Embedded newlines must survive the JSON encode/decode layer")
     }
 
@@ -279,12 +279,12 @@ struct CompanionWireProtocolFramingTests {
 
         let jsonData = Data(framed.dropFirst(4))
         let decoded = try CompanionMessage.decode(from: jsonData)
-        guard case .error(let p) = decoded else {
+        guard case .error(let received) = decoded else {
             Issue.record("Expected .error after round-trip with special characters")
             return
         }
-        #expect(p.message == specialMessage)
-        #expect(p.code == "CONN_REFUSED")
+        #expect(received.message == specialMessage)
+        #expect(received.code == "CONN_REFUSED")
     }
 
     @Test("networkProfile with unicode device name encodes and decodes correctly")
@@ -302,11 +302,11 @@ struct CompanionWireProtocolFramingTests {
 
         let jsonData = Data(framed.dropFirst(4))
         let decoded = try CompanionMessage.decode(from: jsonData)
-        guard case .networkProfile(let p) = decoded else {
+        guard case .networkProfile(let received) = decoded else {
             Issue.record("Expected .networkProfile after round-trip with unicode name")
             return
         }
-        #expect(p.sourceDeviceName == unicodeName)
+        #expect(received.sourceDeviceName == unicodeName)
     }
 
     // MARK: - Frame size properties
@@ -352,7 +352,9 @@ struct CompanionMessageJSONWireShapeTests {
         let fixedDate = Date(timeIntervalSinceReferenceDate: 1_000_000.0)
         let cases: [(CompanionMessage, String)] = [
             (.heartbeat(HeartbeatPayload(timestamp: fixedDate, version: "1.0")), "heartbeat"),
-            (.statusUpdate(StatusUpdatePayload(isMonitoring: false, onlineTargets: 0, offlineTargets: 0, averageLatency: nil, timestamp: fixedDate)), "statusUpdate"),
+            (.statusUpdate(StatusUpdatePayload(
+                isMonitoring: false, onlineTargets: 0, offlineTargets: 0, averageLatency: nil, timestamp: fixedDate
+            )), "statusUpdate"),
             (.targetList(TargetListPayload(targets: [])), "targetList"),
             (.deviceList(DeviceListPayload(devices: [])), "deviceList"),
             (.networkProfile(NetworkProfilePayload(name: "N", gatewayIP: "1.1.1.1", subnet: "1.1.1.0/24", interfaceName: "en0")), "networkProfile"),
@@ -403,12 +405,14 @@ struct CompanionMessageJSONWireShapeTests {
         #expect(success == false, "toolResult.success must be encoded as a JSON boolean")
     }
 
-    @Test("unknown JSON type string throws decoding error")
-    func unknownTypeStringThrowsDecodingError() {
-        let badJSON = Data(#"{"type":"unknownXYZ","payload":{}}"#.utf8)
-        #expect(throws: (any Error).self) {
-            _ = try CompanionMessage.decode(from: badJSON)
+    @Test("unknown JSON type string decodes as .unknown")
+    func unknownTypeStringDecodesAsUnknown() throws {
+        let json = Data(#"{"type":"unknownXYZ","payload":{}}"#.utf8)
+        guard case let .unknown(type) = try CompanionMessage.decode(from: json) else {
+            Issue.record("expected .unknown")
+            return
         }
+        #expect(type == "unknownXYZ")
     }
 
     @Test("valid type with missing payload key throws decoding error")

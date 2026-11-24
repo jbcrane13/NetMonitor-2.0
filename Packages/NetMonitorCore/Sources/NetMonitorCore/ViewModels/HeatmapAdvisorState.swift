@@ -60,6 +60,8 @@ public final class HeatmapAdvisorState {
     }
 
     public private(set) var phase: Phase = .hidden
+    /// Who wrote the advice text: this device or the connected Mac (#457).
+    public private(set) var source: InsightSource = .device
 
     private let brief: ChangeBriefState
     private let configuration: HeatmapRenderer.Configuration
@@ -106,6 +108,7 @@ public final class HeatmapAdvisorState {
             await brief.ask(advisor.request)
             guard current == generation else { return }
             let text = brief.brief.flatMap { advisor.accepts($0.text) ? $0.text : nil }
+            source = brief.brief?.source ?? .device
             phase = .advice(keyPoints: advisor.keyPoints, text: text)
         }
     }

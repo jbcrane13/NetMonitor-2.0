@@ -14,12 +14,12 @@ struct CompanionMessageCodableTests {
         let msg = CompanionMessage.heartbeat(payload)
         let data = try CompanionMessage.jsonEncoder.encode(msg)
         let decoded = try CompanionMessage.decode(from: data)
-        guard case .heartbeat(let p) = decoded else {
+        guard case .heartbeat(let received) = decoded else {
             Issue.record("Expected .heartbeat, got different case")
             return
         }
-        #expect(p.version == "2.0")
-        #expect(abs(p.timestamp.timeIntervalSince(fixedDate)) < 0.001)
+        #expect(received.version == "2.0")
+        #expect(abs(received.timestamp.timeIntervalSince(fixedDate)) < 0.001)
     }
 
     @Test func statusUpdateRoundTrip() throws {
@@ -33,14 +33,14 @@ struct CompanionMessageCodableTests {
         let msg = CompanionMessage.statusUpdate(payload)
         let data = try CompanionMessage.jsonEncoder.encode(msg)
         let decoded = try CompanionMessage.decode(from: data)
-        guard case .statusUpdate(let p) = decoded else {
+        guard case .statusUpdate(let received) = decoded else {
             Issue.record("Expected .statusUpdate")
             return
         }
-        #expect(p.isMonitoring == true)
-        #expect(p.onlineTargets == 5)
-        #expect(p.offlineTargets == 2)
-        #expect(p.averageLatency == 42.5)
+        #expect(received.isMonitoring == true)
+        #expect(received.onlineTargets == 5)
+        #expect(received.offlineTargets == 2)
+        #expect(received.averageLatency == 42.5)
     }
 
     @Test func statusUpdateWithNilLatencyRoundTrip() throws {
@@ -54,12 +54,12 @@ struct CompanionMessageCodableTests {
         let msg = CompanionMessage.statusUpdate(payload)
         let data = try CompanionMessage.jsonEncoder.encode(msg)
         let decoded = try CompanionMessage.decode(from: data)
-        guard case .statusUpdate(let p) = decoded else {
+        guard case .statusUpdate(let received) = decoded else {
             Issue.record("Expected .statusUpdate")
             return
         }
-        #expect(p.averageLatency == nil)
-        #expect(p.isMonitoring == false)
+        #expect(received.averageLatency == nil)
+        #expect(received.isMonitoring == false)
     }
 
     @Test func targetListRoundTrip() throws {
@@ -77,17 +77,17 @@ struct CompanionMessageCodableTests {
         let msg = CompanionMessage.targetList(payload)
         let data = try CompanionMessage.jsonEncoder.encode(msg)
         let decoded = try CompanionMessage.decode(from: data)
-        guard case .targetList(let p) = decoded else {
+        guard case .targetList(let received) = decoded else {
             Issue.record("Expected .targetList")
             return
         }
-        #expect(p.targets.count == 1)
-        #expect(p.targets[0].name == "Google DNS")
-        #expect(p.targets[0].host == "8.8.8.8")
-        #expect(p.targets[0].port == nil)
-        #expect(p.targets[0].isEnabled == true)
-        #expect(p.targets[0].isReachable == true)
-        #expect(p.targets[0].latency == 12.3)
+        #expect(received.targets.count == 1)
+        #expect(received.targets[0].name == "Google DNS")
+        #expect(received.targets[0].host == "8.8.8.8")
+        #expect(received.targets[0].port == nil)
+        #expect(received.targets[0].isEnabled == true)
+        #expect(received.targets[0].isReachable == true)
+        #expect(received.targets[0].latency == 12.3)
     }
 
     @Test func deviceListRoundTrip() throws {
@@ -104,16 +104,16 @@ struct CompanionMessageCodableTests {
         let msg = CompanionMessage.deviceList(payload)
         let data = try CompanionMessage.jsonEncoder.encode(msg)
         let decoded = try CompanionMessage.decode(from: data)
-        guard case .deviceList(let p) = decoded else {
+        guard case .deviceList(let received) = decoded else {
             Issue.record("Expected .deviceList")
             return
         }
-        #expect(p.devices.count == 1)
-        #expect(p.devices[0].ipAddress == "192.168.1.100")
-        #expect(p.devices[0].macAddress == "aa:bb:cc:dd:ee:ff")
-        #expect(p.devices[0].hostname == "myphone")
-        #expect(p.devices[0].vendor == "Apple")
-        #expect(p.devices[0].isOnline == true)
+        #expect(received.devices.count == 1)
+        #expect(received.devices[0].ipAddress == "192.168.1.100")
+        #expect(received.devices[0].macAddress == "aa:bb:cc:dd:ee:ff")
+        #expect(received.devices[0].hostname == "myphone")
+        #expect(received.devices[0].vendor == "Apple")
+        #expect(received.devices[0].isOnline == true)
     }
 
     @Test func networkProfileRoundTrip() throws {
@@ -127,15 +127,15 @@ struct CompanionMessageCodableTests {
         let msg = CompanionMessage.networkProfile(payload)
         let data = try CompanionMessage.jsonEncoder.encode(msg)
         let decoded = try CompanionMessage.decode(from: data)
-        guard case .networkProfile(let p) = decoded else {
+        guard case .networkProfile(let received) = decoded else {
             Issue.record("Expected .networkProfile")
             return
         }
-        #expect(p.name == "Office LAN")
-        #expect(p.gatewayIP == "10.10.0.1")
-        #expect(p.subnet == "10.10.0.0/24")
-        #expect(p.interfaceName == "en0")
-        #expect(p.sourceDeviceName == "Blake's MacBook Pro")
+        #expect(received.name == "Office LAN")
+        #expect(received.gatewayIP == "10.10.0.1")
+        #expect(received.subnet == "10.10.0.0/24")
+        #expect(received.interfaceName == "en0")
+        #expect(received.sourceDeviceName == "Blake's MacBook Pro")
     }
 
     @Test func commandRoundTrip() throws {
@@ -143,12 +143,12 @@ struct CompanionMessageCodableTests {
         let msg = CompanionMessage.command(payload)
         let data = try CompanionMessage.jsonEncoder.encode(msg)
         let decoded = try CompanionMessage.decode(from: data)
-        guard case .command(let p) = decoded else {
+        guard case .command(let received) = decoded else {
             Issue.record("Expected .command")
             return
         }
-        #expect(p.action == .scanDevices)
-        #expect(p.parameters?["subnet"] == "192.168.1.0/24")
+        #expect(received.action == .scanDevices)
+        #expect(received.parameters?["subnet"] == "192.168.1.0/24")
     }
 
     @Test func commandWithNilParametersRoundTrip() throws {
@@ -156,12 +156,12 @@ struct CompanionMessageCodableTests {
         let msg = CompanionMessage.command(payload)
         let data = try CompanionMessage.jsonEncoder.encode(msg)
         let decoded = try CompanionMessage.decode(from: data)
-        guard case .command(let p) = decoded else {
+        guard case .command(let received) = decoded else {
             Issue.record("Expected .command")
             return
         }
-        #expect(p.action == .startMonitoring)
-        #expect(p.parameters == nil)
+        #expect(received.action == .startMonitoring)
+        #expect(received.parameters == nil)
     }
 
     @Test func toolResultRoundTrip() throws {
@@ -169,13 +169,13 @@ struct CompanionMessageCodableTests {
         let msg = CompanionMessage.toolResult(payload)
         let data = try CompanionMessage.jsonEncoder.encode(msg)
         let decoded = try CompanionMessage.decode(from: data)
-        guard case .toolResult(let p) = decoded else {
+        guard case .toolResult(let received) = decoded else {
             Issue.record("Expected .toolResult")
             return
         }
-        #expect(p.tool == "ping")
-        #expect(p.success == true)
-        #expect(p.result == "64 bytes from 8.8.8.8")
+        #expect(received.tool == "ping")
+        #expect(received.success == true)
+        #expect(received.result == "64 bytes from 8.8.8.8")
     }
 
     @Test func errorRoundTrip() throws {
@@ -183,12 +183,12 @@ struct CompanionMessageCodableTests {
         let msg = CompanionMessage.error(payload)
         let data = try CompanionMessage.jsonEncoder.encode(msg)
         let decoded = try CompanionMessage.decode(from: data)
-        guard case .error(let p) = decoded else {
+        guard case .error(let received) = decoded else {
             Issue.record("Expected .error")
             return
         }
-        #expect(p.code == "ERR_001")
-        #expect(p.message == "Something went wrong")
+        #expect(received.code == "ERR_001")
+        #expect(received.message == "Something went wrong")
     }
 }
 
@@ -221,11 +221,11 @@ struct CompanionMessageLengthPrefixedTests {
 
         let jsonData = framed.dropFirst(4)
         let decoded = try CompanionMessage.decode(from: Data(jsonData))
-        guard case .heartbeat(let p) = decoded else {
+        guard case .heartbeat(let received) = decoded else {
             Issue.record("Expected .heartbeat")
             return
         }
-        #expect(p.version == "1.0")
+        #expect(received.version == "1.0")
     }
 
     @Test func differentMessagesProduceDifferentLengths() throws {
@@ -254,11 +254,11 @@ struct CommandActionTests {
             let msg = CompanionMessage.command(payload)
             let data = try CompanionMessage.jsonEncoder.encode(msg)
             let decoded = try CompanionMessage.decode(from: data)
-            guard case .command(let p) = decoded else {
+            guard case .command(let received) = decoded else {
                 Issue.record("Expected .command for action \(action)")
                 continue
             }
-            #expect(p.action == action)
+            #expect(received.action == action)
         }
     }
 }
@@ -276,14 +276,14 @@ struct CompanionMessageAdditionalCasesTests {
         let msg = CompanionMessage.toolResult(payload)
         let data = try CompanionMessage.jsonEncoder.encode(msg)
         let decoded = try CompanionMessage.decode(from: data)
-        guard case .toolResult(let p) = decoded else {
+        guard case .toolResult(let received) = decoded else {
             Issue.record("Expected .toolResult")
             return
         }
-        #expect(p.tool == "traceroute")
-        #expect(p.success == false)
-        #expect(p.result == "Timeout")
-        #expect(abs(p.timestamp.timeIntervalSince(fixedDate)) < 0.001)
+        #expect(received.tool == "traceroute")
+        #expect(received.success == false)
+        #expect(received.result == "Timeout")
+        #expect(abs(received.timestamp.timeIntervalSince(fixedDate)) < 0.001)
     }
 
     // MARK: - Error Payload
@@ -293,12 +293,12 @@ struct CompanionMessageAdditionalCasesTests {
         let msg = CompanionMessage.error(payload)
         let data = try CompanionMessage.jsonEncoder.encode(msg)
         let decoded = try CompanionMessage.decode(from: data)
-        guard case .error(let p) = decoded else {
+        guard case .error(let received) = decoded else {
             Issue.record("Expected .error")
             return
         }
-        #expect(p.code == "MISSING_PARAMETER")
-        #expect(p.message == "host is required")
+        #expect(received.code == "MISSING_PARAMETER")
+        #expect(received.message == "host is required")
     }
 
     // MARK: - NetworkProfile Payload
@@ -314,15 +314,15 @@ struct CompanionMessageAdditionalCasesTests {
         let msg = CompanionMessage.networkProfile(payload)
         let data = try CompanionMessage.jsonEncoder.encode(msg)
         let decoded = try CompanionMessage.decode(from: data)
-        guard case .networkProfile(let p) = decoded else {
+        guard case .networkProfile(let received) = decoded else {
             Issue.record("Expected .networkProfile")
             return
         }
-        #expect(p.name == "Home Network")
-        #expect(p.gatewayIP == "192.168.0.1")
-        #expect(p.subnet == "192.168.0.0/24")
-        #expect(p.interfaceName == "en1")
-        #expect(p.sourceDeviceName == nil)
+        #expect(received.name == "Home Network")
+        #expect(received.gatewayIP == "192.168.0.1")
+        #expect(received.subnet == "192.168.0.0/24")
+        #expect(received.interfaceName == "en1")
+        #expect(received.sourceDeviceName == nil)
     }
 
     // MARK: - TargetList with multiple targets
@@ -337,12 +337,12 @@ struct CompanionMessageAdditionalCasesTests {
         let msg = CompanionMessage.targetList(TargetListPayload(targets: targets))
         let data = try CompanionMessage.jsonEncoder.encode(msg)
         let decoded = try CompanionMessage.decode(from: data)
-        guard case .targetList(let p) = decoded else {
+        guard case .targetList(let received) = decoded else {
             Issue.record("Expected .targetList")
             return
         }
-        #expect(p.targets.count == 2)
-        let http = p.targets.first { $0.name == "HTTP" }
+        #expect(received.targets.count == 2)
+        let http = received.targets.first { $0.name == "HTTP" }
         #expect(http?.port == 80)
         #expect(http?.isEnabled == false)
         #expect(http?.isReachable == nil)
@@ -364,14 +364,14 @@ struct CompanionMessageAdditionalCasesTests {
         let msg = CompanionMessage.deviceList(DeviceListPayload(devices: [device]))
         let data = try CompanionMessage.jsonEncoder.encode(msg)
         let decoded = try CompanionMessage.decode(from: data)
-        guard case .deviceList(let p) = decoded else {
+        guard case .deviceList(let received) = decoded else {
             Issue.record("Expected .deviceList")
             return
         }
-        #expect(p.devices.count == 1)
-        #expect(p.devices[0].hostname == nil)
-        #expect(p.devices[0].vendor == nil)
-        #expect(p.devices[0].ipAddress == "10.0.0.5")
+        #expect(received.devices.count == 1)
+        #expect(received.devices[0].hostname == nil)
+        #expect(received.devices[0].vendor == nil)
+        #expect(received.devices[0].ipAddress == "10.0.0.5")
     }
 
     // MARK: - Protocol Version
@@ -404,10 +404,20 @@ struct CompanionMessageAdditionalCasesTests {
     // MARK: - Malformed JSON
 
     @Test func malformedJsonThrowsDecodingError() {
-        let badData = Data("{ \"type\": \"unknownType\", \"payload\": {} }".utf8)
+        let badData = Data("{ \"payload\": {} ".utf8)
         #expect(throws: (any Error).self) {
             _ = try CompanionMessage.decode(from: badData)
         }
+    }
+
+    /// A type from a newer peer is kept as `.unknown`, not a decode error (Models/AGENTS.md, #457).
+    @Test func unknownTypeDecodesAsUnknown() throws {
+        let data = Data("{ \"type\": \"unknownType\", \"payload\": {} }".utf8)
+        guard case let .unknown(type) = try CompanionMessage.decode(from: data) else {
+            Issue.record("expected .unknown")
+            return
+        }
+        #expect(type == "unknownType")
     }
 
     @Test func emptyJsonObjectThrowsDecodingError() {

@@ -55,7 +55,7 @@ final class TimelineViewModel {
     ///   - now: the clock the ranges are measured from.
     init(
         service: any NetworkEventServiceProtocol = NetworkEventService.shared,
-        insightService: any InsightServiceProtocol = UITestBootstrap.insightService ?? InsightService.shared,
+        insightService: any InsightServiceProtocol = UITestBootstrap.insightService ?? PhoneInsight.shared,
         isScanning: @escaping @MainActor () -> Bool = { DeviceDiscoveryService.shared.isScanning },
         calendar: Calendar = .autoupdatingCurrent,
         now: @escaping () -> Date = Date.init
@@ -71,7 +71,7 @@ final class TimelineViewModel {
     /// scanning state, so the UI-test fake's scans count too.
     convenience init(
         env: AppEnvironment,
-        insightService: any InsightServiceProtocol = UITestBootstrap.insightService ?? InsightService.shared
+        insightService: any InsightServiceProtocol = UITestBootstrap.insightService ?? PhoneInsight.shared
     ) {
         let discovery = env.deviceDiscovery
         self.init(service: env.eventService, insightService: insightService, isScanning: { discovery.isScanning })
@@ -165,8 +165,15 @@ final class TimelineViewModel {
             return
         }
         summaries[key] = .loading
-        let text = await InsightSummarizer.summary(for: request, service: insightService, timeout: ChangeBriefViewModel.timeout)
-        summaries[key] = text.map { .finished(ChangeSummary(keyPoints: request.observations, text: $0)) } ?? .unavailable
+        switch await InsightSummarizer.outcome(for: request, service: insightService, timeout: ChangeBriefViewModel.timeout) {
+        case let .answer(answer):
+            summaries[key] = .finished(ChangeSummary(keyPoints: request.observations, text: answer.text, source: answer.source))
+        case .refused:
+            summaries[key] = .unavailable
+        case .tryLater:
+            // A Mac that was busy or went away (#457): forget the day, so Summarize asks again.
+            summaries[key] = nil
+        }
     }
 
     /// The shown day section labelled `label`, its start and its newest event.

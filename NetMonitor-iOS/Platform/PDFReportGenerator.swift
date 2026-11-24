@@ -26,10 +26,13 @@ public enum PDFReportGenerator {
         public let text: String
         /// The judgements the app computed, shown word for word above the paragraph.
         public let keyPoints: [String]
+        /// Who wrote `text`: this device or the connected Mac (#457).
+        public let source: InsightSource
 
-        public init(text: String, keyPoints: [String]) {
+        public init(text: String, keyPoints: [String], source: InsightSource = .device) {
             self.text = text
             self.keyPoints = keyPoints
+            self.source = source
         }
     }
 
@@ -127,7 +130,7 @@ public enum PDFReportGenerator {
             .font: UIFont.italicSystemFont(ofSize: 8),
             .foregroundColor: UIColor.gray
         ]
-        let note = "Written by the on-device model from the figures in this report"
+        let note = "Written by \(summary.source.modelName) from the figures in this report"
         cursor = drawWrapped(note, x: margin, y: cursor, width: contentWidth, attributes: noteAttrs) + 4
         _ = drawWrapped(summary.text, x: margin, y: cursor, width: contentWidth, attributes: bodyAttrs)
     }
@@ -320,9 +323,9 @@ public enum PDFReportGenerator {
     }
 
     private static func makeDateFormatter() -> DateFormatter {
-        let f = DateFormatter()
-        f.dateStyle = .short
-        f.timeStyle = .short
-        return f
+        let formatter = DateFormatter()
+        formatter.dateStyle = .short
+        formatter.timeStyle = .short
+        return formatter
     }
 }

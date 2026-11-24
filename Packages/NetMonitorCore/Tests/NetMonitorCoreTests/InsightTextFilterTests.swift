@@ -94,4 +94,13 @@ struct InsightTextFilterTests {
         let text = await InsightSummarizer.summary(for: request, service: FixedTextInsightService(text: answer), timeout: .seconds(2))
         #expect(text == nil)
     }
+
+    @Test("a www name the app stated whole may be repeated; any other www site is still refused (#457)")
+    func statedWWWNameIsAllowed() {
+        let request = InsightRequest(subject: "DNS lookup of CNAME records for www.example.com", facts: ["Name looked up: www.example.com"])
+        #expect(InsightTextFilter.isClean("www.example.com points to another name.", in: request))
+        #expect(!InsightTextFilter.isClean("Visit www.fix-net.com for help.", in: request))
+        #expect(!InsightTextFilter.isClean("Go to www.fix-net for help.", in: request))
+        #expect(!InsightTextFilter.isClean("See https://www.example.com for more.", in: request))
+    }
 }

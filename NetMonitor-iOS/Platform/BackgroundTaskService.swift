@@ -44,7 +44,7 @@ final class BackgroundTaskService {
         submitTask: @escaping TaskSubmission = { try BGTaskScheduler.shared.submit($0) },
         cancelTask: @escaping TaskCancellation = { BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: $0) },
         notifications: NotificationService = .shared,
-        insightService: any InsightServiceProtocol = InsightService.shared,
+        insightService: any InsightServiceProtocol = PhoneInsight.shared,
         isScanning: @escaping @MainActor () -> Bool = { DeviceDiscoveryService.shared.isScanning },
         probe: MonitoringTargetProbe = BackgroundTaskService.liveProbe
     ) {

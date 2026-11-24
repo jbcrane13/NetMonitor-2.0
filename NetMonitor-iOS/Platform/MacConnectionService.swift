@@ -25,7 +25,7 @@ final class MacConnectionService: MacConnectionServiceProtocol {
 
     // MARK: - Shared Instance
 
-    static let shared = MacConnectionService()
+    static let shared: MacConnectionService = .init(insightClient: PhoneInsight.linkClient)
     private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "com.blakemiller.netmonitor", category: "MacConnectionService")
 
     // MARK: - Public State
@@ -63,7 +63,11 @@ final class MacConnectionService: MacConnectionServiceProtocol {
     private static let heartbeatInterval: TimeInterval = 15
     private static let heartbeatVersion = "1.0"
 
-    private init(networkProfileManager: NetworkProfileManager = NetworkProfileManager()) {
+    /// Fed with the Mac's heartbeats and insight replies, and told when the link ends (#457).
+    private let insightClient: CompanionInsightClient
+
+    private init(insightClient: CompanionInsightClient, networkProfileManager: NetworkProfileManager = NetworkProfileManager()) {
+        self.insightClient = insightClient
         self.networkProfileManager = networkProfileManager
     }
 
@@ -164,6 +168,7 @@ final class MacConnectionService: MacConnectionServiceProtocol {
         connectionState = .connecting
         shouldAutoReconnect = true
 
+        // swiftlint:disable:next force_unwrapping
         let endpoint = NWEndpoint.hostPort(host: .init(host), port: .init(rawValue: port)!)
         pendingEndpoint = endpoint
         pendingMacName = host
@@ -177,24 +182,33 @@ final class MacConnectionService: MacConnectionServiceProtocol {
         connectionGeneration = UUID()
         shouldAutoReconnect = false
         linkSession.reset()
-        heartbeatTask?.cancel()
-        heartbeatTask = nil
         reconnectTask?.cancel()
         reconnectTask = nil
         connection?.cancel()
         connection = nil
         connectionState = .disconnected
-        connectedMacName = nil
+        tearDownLink()
         frameDecoder = CompanionFrameDecoder()
         lastStatusUpdate = nil
         lastTargetList = nil
         lastDeviceList = nil
     }
 
+    /// Ends what a link carried: its heartbeat, the Mac's name, and the Mac's model, whose
+    /// requests in flight fail (#457). Every path that drops or replaces a link calls it.
+    private func tearDownLink() {
+        heartbeatTask?.cancel()
+        heartbeatTask = nil
+        connectedMacName = nil
+        insightClient.disconnected()
+    }
+
     private func setupConnection(_ conn: NWConnection, macName: String) {
         let generation = UUID()
         connectionGeneration = generation
         connection = conn
+        // A new link: the Mac advertises insight again in its first heartbeat.
+        tearDownLink()
 
         conn.stateUpdateHandler = { [weak self] state in
             Task { @MainActor [weak self] in
@@ -233,12 +247,11 @@ final class MacConnectionService: MacConnectionServiceProtocol {
         case .failed(let error):
             self.connection = nil
             connectionState = .error(error.localizedDescription)
-            connectedMacName = nil
-            heartbeatTask?.cancel()
-            heartbeatTask = nil
+            tearDownLink()
             scheduleReconnect(generation: generation)
 
         case .cancelled:
+            tearDownLink()
             if shouldAutoReconnect {
                 self.connection = nil
                 connectionState = .disconnected
@@ -250,33 +263,6 @@ final class MacConnectionService: MacConnectionServiceProtocol {
 
         default:
             break
-        }
-    }
-
-    // MARK: - Send
-
-    func send(command: CommandPayload) async {
-        let message = CompanionMessage.command(command)
-        await sendMessage(message)
-    }
-
-    /// Send a CompanionMessage with 4-byte big-endian length prefix + JSON payload.
-    /// Matches the macOS CompanionService wire format.
-    private func sendMessage(_ message: CompanionMessage) async {
-        do {
-            let data = try message.encodeLengthPrefixed()
-            guard let conn = connection else { return }
-            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-                conn.send(content: data, completion: .contentProcessed { error in
-                    if let error {
-                        continuation.resume(throwing: error)
-                    } else {
-                        continuation.resume()
-                    }
-                })
-            }
-        } catch {
-            Self.logger.error("Send error: \(error)")
         }
     }
 
@@ -314,10 +300,8 @@ final class MacConnectionService: MacConnectionServiceProtocol {
 
     private func handleReceiveTermination(error: NWError?, generation: UUID) {
         guard connectionGeneration == generation else { return }
-        heartbeatTask?.cancel()
-        heartbeatTask = nil
         connection = nil
-        connectedMacName = nil
+        tearDownLink()
         if let error {
             connectionState = .error(error.localizedDescription)
         } else {
@@ -355,10 +339,16 @@ final class MacConnectionService: MacConnectionServiceProtocol {
             Self.logger.info("Tool result: \(payload.tool) - \(payload.success)")
         case .error(let payload):
             Self.logger.error("Error from Mac: code=\(payload.code, privacy: .public)")
-        case .heartbeat:
+        case .heartbeat(let payload):
             Self.logger.debug("Heartbeat received")
-        case .command:
-            // Commands are outbound only from iOS; ignore if received
+            insightClient.received(heartbeat: payload)
+        case .insightResponse(let payload):
+            insightClient.received(payload)
+        case .command, .insightRequest:
+            // Outbound only from iOS; ignore if received
+            break
+        case .unknown:
+            // A newer Mac's message type: ignored, and the link stays up.
             break
         }
     }
@@ -446,6 +436,44 @@ final class MacConnectionService: MacConnectionServiceProtocol {
     }
 }
 
+// MARK: - Send
+
+extension MacConnectionService {
+
+    func send(command: CommandPayload) async {
+        let message = CompanionMessage.command(command)
+        await sendMessage(message)
+    }
+
+    /// Sends an insight request for the injected insight client; false when there is no link (#457).
+    func sendInsight(_ message: CompanionMessage) async -> Bool {
+        await sendMessage(message)
+    }
+
+    /// Send a CompanionMessage with 4-byte big-endian length prefix + JSON payload.
+    /// Matches the macOS CompanionService wire format. Returns whether it was sent.
+    @discardableResult
+    private func sendMessage(_ message: CompanionMessage) async -> Bool {
+        do {
+            let data = try message.encodeLengthPrefixed()
+            guard let conn = connection else { return false }
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                conn.send(content: data, completion: .contentProcessed { error in
+                    if let error {
+                        continuation.resume(throwing: error)
+                    } else {
+                        continuation.resume()
+                    }
+                })
+            }
+            return true
+        } catch {
+            Self.logger.error("Send error: \(error)")
+            return false
+        }
+    }
+}
+
 // MARK: - Testing Support
 
 extension MacConnectionService {
@@ -457,21 +485,6 @@ extension MacConnectionService {
         let batch = await frameDecoder.append(data)
         for message in batch.messages {
             handleMessage(message)
-        }
-    }
-}
-
-private extension CompanionMessage {
-    var logName: String {
-        switch self {
-        case .statusUpdate: "statusUpdate"
-        case .targetList: "targetList"
-        case .deviceList: "deviceList"
-        case .networkProfile: "networkProfile"
-        case .command: "command"
-        case .toolResult: "toolResult"
-        case .error: "error"
-        case .heartbeat: "heartbeat"
         }
     }
 }

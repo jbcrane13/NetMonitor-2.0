@@ -125,3 +125,11 @@ Project-specific notes for agents. Global lessons live in `~/.claude/lessons-lea
 - **A `.sheet` on a `Section` inside an iOS `List` is applied to every row,** so it is dismissed as soon as a row changes. Present from the screen and pass a binding down.
 - **A `ModelContext` whose `ModelContainer` was released crashes the test host** ("Restarting after unexpected exit"). Have helpers return the container.
 - **macOS 27 stamps a card's identifier over its text field** (device detail's name field reads as `deviceDetail_card_header`). `axdrive typefield <id> <text>` types into the first text field that has the identifier or sits inside it.
+
+## 2026-11-24 — Mac answers model requests for the iPhone (#457)
+- **Add companion message types behind an advertised capability, not a protocol bump.** An unknown `type` already fails to decode and is dropped without closing the link (the Mac replies `DECODE_ERROR`), but old builds still shouldn't receive new types. The Mac lists `insight.v1` in the optional `HeartbeatPayload.capabilities`, and the phone sends only to a Mac that listed it. Heartbeats suit this: the Mac sends one on connect and in reply to every phone heartbeat.
+- **On iOS, the `ToolInsightCard` identifier hid its button's.** The tree showed a Button with identifier `portScanner_insight_card`, so `*_insight_button_explain` was never found. `.accessibilityElement(children: .contain)` before the card's identifier fixed it, as on macOS (#449).
+- **A loopback probe must treat end-of-stream as a disconnect.** A peer's `cancel()` doesn't move the other `NWConnection` to `.cancelled`: its receive just completes. The app's `scheduleReceive` handles this; a probe that ignored it waited 26 s for the request timeout.
+- **A SwiftUI `.alert` button shows up twice in XCUITest on iOS 27** (nested, same frame), so `alert.buttons["X"].tap()` fails with "multiple matching elements". Use `.firstMatch`. Don't name an in-app decline button "Not Now": `IOSUITestCase`'s interruption monitor taps that label on any alert.
+- **A text field's keyboard covers the tab bar**, so a later `tabBars.buttons[...]` tap misses and a fallback tapped Back instead. Tap the keyboard's Return after typing.
+- **`InsightTextFilter` rejected every `www.` name**, even one the app stated whole, which refused all CNAME explanations. A stated `www.` name is now allowed.
