@@ -20,6 +20,7 @@ Network diagnostic tool views. Each tool has its own view and corresponding View
 | `SpeedTestToolView.swift` | Network speed test interface with download/upload metrics |
 | `WebBrowserToolView.swift` | Network-related web browsing with quick bookmarks |
 | `PortForwardsToolView.swift` | Read-only list of the router's UPnP port forwards (#400); state from Core `PortForwardsState`. Needs the multicast entitlement (#381) to find the router |
+| `TroubleshootToolView.swift` | Guided troubleshooter (#451); state from Core `TroubleshootState` via `TroubleshootToolViewModel`. UI tests: `UITEST_TROUBLESHOOT=answer|hold|unavailable` (`Shared/UITest/TroubleshootUITestFixture.swift`) |
 
 ## For AI Agents
 

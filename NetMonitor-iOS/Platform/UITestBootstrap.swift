@@ -389,43 +389,17 @@ extension UITestBootstrap {
     }
 }
 
-// MARK: - Plain-English rules (#450)
+// MARK: - Troubleshooter fixtures (#451)
 
 extension UITestBootstrap {
-    /// The rule parser under `UITEST_INSIGHT`: "answer" reads rules from the real model's recorded
-    /// answers (`FixedRuleIntentParser.uiTest`), "unavailable" is never available. Nil otherwise,
-    /// and always in release builds.
-    static var ruleParser: (any RuleIntentParsing)? {
+    /// `UITEST_TROUBLESHOOT` under a UI test: "answer", "hold" or "unavailable"
+    /// (`TroubleshootUITestFixture.Mode`). Nil otherwise, and always in release builds.
+    static var troubleshootMode: String? {
         #if DEBUG
         guard isUITesting else { return nil }
-        switch ProcessInfo.processInfo.environment["UITEST_INSIGHT"] {
-        case "answer": return FixedRuleIntentParser.uiTest
-        case "unavailable": return UnavailableRuleIntentParser()
-        default: return nil
-        }
+        return ProcessInfo.processInfo.environment["UITEST_TROUBLESHOOT"]
         #else
         return nil
-        #endif
-    }
-
-    static let rulePrinter = (name: "uitest-printer", ip: "192.168.77.20")
-
-    /// With `UITEST_SEED_RULE_DEVICES=1` (Debug builds): a printer and a NAS on the UI-test
-    /// network, for describing rules about "the printer". Never twice.
-    static func seedRuleDevicesIfNeeded(in context: ModelContext) {
-        #if DEBUG
-        guard isUITesting, ProcessInfo.processInfo.environment["UITEST_SEED_RULE_DEVICES"] == "1",
-              !((try? context.fetch(FetchDescriptor<LocalDevice>()))?.contains { $0.ipAddress == rulePrinter.ip } ?? false)
-        else { return }
-        context.insert(LocalDevice(
-            ipAddress: rulePrinter.ip, macAddress: "02:00:00:77:00:20", hostname: rulePrinter.name,
-            deviceType: .printer, networkProfileID: networkProfileID
-        ))
-        context.insert(LocalDevice(
-            ipAddress: "192.168.77.40", macAddress: "02:00:00:77:00:40", hostname: "uitest-nas",
-            deviceType: .storage, networkProfileID: networkProfileID
-        ))
-        try? context.save()
         #endif
     }
 }

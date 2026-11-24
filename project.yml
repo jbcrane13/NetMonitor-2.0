@@ -27,6 +27,8 @@ targets:
           - "Views/Devices/ProDeviceDetailView.swift"
       # UI-test fixture shared with the iOS app (#455); its code is Debug-only.
       - path: Shared/UITest/HeatmapAdvisorUITestFixture.swift
+      # Troubleshooter UI-test fixture (#451); Debug-only like the one above.
+      - path: Shared/UITest/TroubleshootUITestFixture.swift
       - path: NetMonitor-macOS/Resources/Assets.xcassets
     info:
       path: NetMonitor-macOS/Resources/Info.plist
@@ -139,6 +141,8 @@ targets:
           - "Widget/**"
       # UI-test fixture shared with the macOS app (#455); its code is Debug-only.
       - path: Shared/UITest/HeatmapAdvisorUITestFixture.swift
+      # Troubleshooter UI-test fixture (#451); Debug-only like the one above.
+      - path: Shared/UITest/TroubleshootUITestFixture.swift
       - path: NetMonitor-iOS/Resources/Assets.xcassets
     entitlements:
       path: NetMonitor-iOS/Resources/NetMonitor-iOS.entitlements

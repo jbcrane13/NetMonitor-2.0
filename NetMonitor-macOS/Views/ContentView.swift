@@ -199,6 +199,7 @@ struct ContentView: View {
             case .portForwards: PortForwardsToolView()
             case .timeline: TimelineView()
             case .securityReadout: SecurityReadoutView()
+            case .troubleshoot: TroubleshootToolView()
             }
         }
         .toolbar {

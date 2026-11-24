@@ -57,6 +57,8 @@ enum ToolDestination: Hashable {
     case roomScanner
     case wifiHeatmap
     case portForwards
+    // Guided troubleshooter (#451)
+    case troubleshoot
     @ViewBuilder
     @MainActor
     func view(env: AppEnvironment) -> some View {
@@ -96,6 +98,9 @@ enum ToolDestination: Hashable {
             HeatmapSurveyView()
         case .portForwards:
             PortForwardsToolView(env: env)
+        // Guided troubleshooter (#451)
+        case .troubleshoot:
+            TroubleshootToolView(env: env)
         }
     }
 }
@@ -386,28 +391,39 @@ enum IOSToolCategory: String, CaseIterable, Identifiable {
 struct ToolsGridSection: View {
     private let categorizedTools: [(category: IOSToolCategory, tools: [ToolItem])] = [
         (.diagnostics, [
-            ToolItem(name: "Ping", icon: "arrow.up.arrow.down", color: Theme.Colors.accent, description: "Test host reachability", destination: .ping),
-            ToolItem(name: "Traceroute", icon: "point.topleft.down.to.point.bottomright.curvepath", color: Theme.Colors.info, description: "Trace network path", destination: .traceroute),
+            ToolItem(name: "Ping", icon: "arrow.up.arrow.down", color: Theme.Colors.accent,
+                     description: "Test host reachability", destination: .ping),
+            ToolItem(name: "Traceroute", icon: "point.topleft.down.to.point.bottomright.curvepath", color: Theme.Colors.info,
+                     description: "Trace network path", destination: .traceroute),
             ToolItem(name: "DNS Lookup", icon: "globe", color: Theme.Colors.success, description: "Query DNS records", destination: .dnsLookup),
-            ToolItem(name: "WHOIS", icon: "doc.text.magnifyingglass", color: Theme.Colors.info, description: "Domain information", destination: .whois),
+            ToolItem(name: "WHOIS", icon: "doc.text.magnifyingglass", color: Theme.Colors.info,
+                     description: "Domain information", destination: .whois),
+            // Guided troubleshooter (#451)
+            ToolItem(name: "Troubleshoot", icon: "stethoscope", color: Theme.Colors.warning,
+                     description: "Find what's wrong", destination: .troubleshoot),
         ]),
         (.discovery, [
-            ToolItem(name: "Port Scanner", icon: "door.left.hand.open", color: Theme.Colors.warning, description: "Scan open ports", destination: .portScanner),
+            ToolItem(name: "Port Scanner", icon: "door.left.hand.open", color: Theme.Colors.warning,
+                     description: "Scan open ports", destination: .portScanner),
             ToolItem(name: "Bonjour", icon: "bonjour", color: Theme.Colors.accent, description: "Discover services", destination: .bonjour),
-            ToolItem(name: "Subnet Calc", icon: "square.split.bottomrightquarter", color: .purple, description: "Calculate subnet ranges", destination: .subnetCalculator),
-            ToolItem(name: "Port Forwards", icon: "arrow.left.arrow.right.circle", color: Theme.Colors.warning, description: "Router UPnP forwards", destination: .portForwards),
+            ToolItem(name: "Subnet Calc", icon: "square.split.bottomrightquarter", color: .purple,
+                     description: "Calculate subnet ranges", destination: .subnetCalculator),
+            ToolItem(name: "Port Forwards", icon: "arrow.left.arrow.right.circle", color: Theme.Colors.warning,
+                     description: "Router UPnP forwards", destination: .portForwards),
         ]),
         (.monitoring, [
             ToolItem(name: "Speed Test", icon: "speedometer", color: Theme.Colors.success, description: "Test bandwidth", destination: .speedTest),
             ToolItem(name: "World Ping", icon: "globe.americas", color: .teal, description: "Global latency check", destination: .worldPing),
             ToolItem(name: "SSL Monitor", icon: "lock.shield", color: .green, description: "Certificate expiry check", destination: .sslMonitor),
             ToolItem(name: "Wi-Fi Heatmap", icon: "wifi.circle", color: .cyan, description: "Map signal strength", destination: .wifiHeatmap),
-            ToolItem(name: "Room Scanner", icon: "cube.transparent", color: .indigo, description: "3D room scan for heatmap", destination: .roomScanner),
+            ToolItem(name: "Room Scanner", icon: "cube.transparent", color: .indigo,
+                     description: "3D room scan for heatmap", destination: .roomScanner),
         ]),
         (.actions, [
             ToolItem(name: "Wake on LAN", icon: "power", color: Theme.Colors.error, description: "Wake devices remotely", destination: .wakeOnLAN),
             ToolItem(name: "Geo Trace", icon: "map", color: .mint, description: "Visual route on map", destination: .geoTrace),
-            ToolItem(name: "Web Browser", icon: "safari.fill", color: Theme.Colors.info, description: "Browse network sites", destination: .webBrowser),
+            ToolItem(name: "Web Browser", icon: "safari.fill", color: Theme.Colors.info,
+                     description: "Browse network sites", destination: .webBrowser),
         ]),
     ]
 
