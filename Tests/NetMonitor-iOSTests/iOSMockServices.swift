@@ -123,9 +123,12 @@ final class MockPortScannerService: PortScannerServiceProtocol, @unchecked Senda
     var stopCallCount = 0
     /// The ports the last scan was asked to probe.
     private(set) var scannedPorts: [Int] = []
+    /// Every host a scan was asked to probe, in order.
+    private(set) var scannedHosts: [String] = []
 
     func scan(host: String, ports: [Int], timeout: TimeInterval) async -> AsyncStream<PortScanResult> {
         scannedPorts = ports
+        scannedHosts.append(host)
         let results = mockResults
         return AsyncStream { continuation in
             for result in results { continuation.yield(result) }

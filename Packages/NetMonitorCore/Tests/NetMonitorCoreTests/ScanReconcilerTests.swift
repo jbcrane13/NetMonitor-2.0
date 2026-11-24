@@ -524,4 +524,19 @@ extension ScanReconcilerTests {
         #expect(!history.contains(scan: start, for: home))
         #expect(defaults.data(forKey: ScanHistory.storageKey) == nil)
     }
+
+    /// Codex on #589: foreground scan A failed to save; background scan B saved; A's retry must not
+    /// put A's older address and presence back.
+    @Test func aScanOlderThanOneAlreadySavedIsSkipped() throws {
+        let (container, context) = try makeContext()
+        _ = container
+        let reconciler = try makeReconciler(context)
+        try reconciler.reconcile([scanned(0, ip: "192.168.7.24")], networkProfileID: home, scanDate: minutes(10), now: minutes(10))
+        let outcome = try reconciler.reconcile([scanned(0, ip: "192.168.7.90")], networkProfileID: home, scanDate: minutes(5), now: minutes(11))
+        #expect(outcome == .skipped)
+        let saved = try rows(context)
+        #expect(saved.count == 1)
+        #expect(saved[0].ipAddress == "192.168.7.24")
+        #expect(saved[0].lastSeen == minutes(10))
+    }
 }

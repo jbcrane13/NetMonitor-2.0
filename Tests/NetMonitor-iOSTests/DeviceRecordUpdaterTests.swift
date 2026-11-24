@@ -348,4 +348,29 @@ final class DeviceRecordUpdaterTests {
         #expect(saved.map(\.hostname) == ["host-0"])
         #expect(saved.first?.lastSeen == start)
     }
+
+    /// Codex on #589: a printer answers at .24 while the ARP cache still lists it at .90. Opening
+    /// either list entry opens its one saved row, at .24, in either order.
+    @Test func bothListEntriesOfADeviceSeenAtTwoAddressesOpenItsOneRow() throws {
+        let (container, context) = try makeStore()
+        defer { withExtendedLifetime(container) {} }
+        func printer(_ ip: String, cached: Bool) -> DiscoveredDevice {
+            DiscoveredDevice(ipAddress: ip, hostname: "printer", vendor: nil, macAddress: "AA:00:00:00:09:24", latency: 2,
+                             discoveredAt: start, source: .local, networkProfileID: home, isCached: cached)
+        }
+        let answered = printer("192.168.9.24", cached: false)
+        let stale = printer("192.168.9.90", cached: true)
+        try DeviceRecordUpdater.reconcile([answered, stale], scanDate: start, network: home, with: makeReconciler(context), now: start)
+        let row = try #require(try rows(context).first)
+        for scan in [[answered, stale], [stale, answered]] {
+            for entry in scan {
+                let opened = DeviceDetailViewModel.savedRow(
+                    ipAddress: entry.ipAddress, scanned: entry, macAddress: entry.macAddress, networkID: home, scan: scan, in: context
+                )
+                #expect(opened.id == row.id)
+                #expect(opened.ipAddress == "192.168.9.24")
+            }
+        }
+        #expect(try rows(context).count == 1)
+    }
 }

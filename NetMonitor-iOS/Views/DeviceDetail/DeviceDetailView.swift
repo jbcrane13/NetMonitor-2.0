@@ -94,7 +94,7 @@ struct DeviceDetailView: View {
                     } label: {
                         Label(viewModel.isScanning ? "Scanning Ports..." : "Scan Ports", systemImage: "network")
                     }
-                    .disabled(viewModel.isScanning)
+                    .disabled(viewModel.isScanning || viewModel.probeAddress == nil)
                     .accessibilityIdentifier("deviceDetail_menu_scanPorts")
 
                     Button {
@@ -104,7 +104,7 @@ struct DeviceDetailView: View {
                     } label: {
                         Label(viewModel.isDiscovering ? "Discovering..." : "Discover Services", systemImage: "bonjour")
                     }
-                    .disabled(viewModel.isDiscovering)
+                    .disabled(viewModel.isDiscovering || viewModel.probeAddress == nil)
                     .accessibilityIdentifier("deviceDetail_menu_discoverServices")
                 } label: {
                     if viewModel.isScanning || viewModel.isDiscovering {
@@ -351,7 +351,7 @@ extension DeviceDetailView {
                 .background(Theme.Colors.glassBackground)
                 .cornerRadius(Theme.Layout.buttonCornerRadius)
             }
-            .disabled(viewModel.isScanning)
+            .disabled(viewModel.isScanning || viewModel.probeAddress == nil)
             .accessibilityIdentifier("deviceDetail_button_scanPorts")
 
             Button {
@@ -377,7 +377,7 @@ extension DeviceDetailView {
                 .background(Theme.Colors.glassBackground)
                 .cornerRadius(Theme.Layout.buttonCornerRadius)
             }
-            .disabled(viewModel.isDiscovering)
+            .disabled(viewModel.isDiscovering || viewModel.probeAddress == nil)
             .accessibilityIdentifier("deviceDetail_button_discoverServices")
         }
     }

@@ -198,11 +198,22 @@ final class DeviceDetailViewModel {
     ) -> LocalDevice {
         let rows = ((try? context.fetch(FetchDescriptor<LocalDevice>())) ?? []).sorted { $0.lastSeen > $1.lastSeen }
         let observation = DeviceMatchCandidate(ipAddress: ipAddress, macAddress: macAddress ?? scanned?.macAddress, name: scanned?.matchName)
-        var observed = scan.map { DeviceMatchCandidate(ipAddress: $0.ipAddress, macAddress: $0.macAddress, name: $0.matchName) }
-        let position = observed.firstIndex(of: observation) ?? {
+        // The scan as the reconciler sees it: one observation per real MAC, at the address it
+        // answered from, so a cached old address opens the same row and doesn't move it back.
+        let canonical = PresenceMatch.onePerMAC(scan)
+        var observed = canonical.map { DeviceMatchCandidate(ipAddress: $0.ipAddress, macAddress: $0.macAddress, name: $0.matchName) }
+        var address = ipAddress
+        let position: Int
+        if let mac = DeviceMatcher.normalizedMAC(observation.macAddress),
+           let index = canonical.firstIndex(where: { DeviceMatcher.normalizedMAC($0.macAddress) == mac }) {
+            position = index
+            address = canonical[index].ipAddress
+        } else if let index = observed.firstIndex(of: observation) {
+            position = index
+        } else {
             observed.append(observation)
-            return observed.count - 1
-        }()
+            position = observed.count - 1
+        }
         var pools = [rows.filter { $0.networkProfileID == networkID }]
         if networkID != nil {
             pools.append(rows.filter { $0.networkProfileID == nil })
@@ -216,7 +227,7 @@ final class DeviceDetailViewModel {
             if let mac = DeviceMatcher.normalizedMAC(observation.macAddress), DeviceMatcher.normalizedMAC(row.macAddress) != mac {
                 row.macAddress = mac
             }
-            row.ipAddress = ipAddress
+            row.ipAddress = address
             row.networkProfileID = networkID
             return row
         }
@@ -233,11 +244,7 @@ final class DeviceDetailViewModel {
 
         // Extract Sendable values before async work
         let macAddress = device.macAddress
-        let ipAddress: String? = switch nameLookup {
-        case .savedAddress: device.ipAddress
-        case let .scannedAddress(address): address
-        case .unverified: nil
-        }
+        let ipAddress = probeAddress
 
         // Look up the MAC-prefix maker (`vendor`, ADR-022); skip without a MAC
         if device.vendor?.isEmpty ?? true, !macAddress.isEmpty {
@@ -282,25 +289,9 @@ final class DeviceDetailViewModel {
         startSuggestion()
     }
 
-    /// Scan common ports on the device
-    func scanPorts() async {
-        guard let device = device else { return }
-        isScanning = true
-        defer { isScanning = false }
-
-        var openPorts: [Int] = []
-
-        for await result in await portScanner.scan(host: device.ipAddress, ports: commonPorts, timeout: 1.5) where result.state == .open {
-            openPorts.append(result.port)
-        }
-
-        device.openPorts = openPorts.sorted()
-        startSuggestion()
-    }
-
-    /// Discover Bonjour services matching this device's IP
+    /// Discover Bonjour services at ``probeAddress``.
     func discoverServices() async {
-        guard let device = device else { return }
+        guard let device, let deviceIP = probeAddress else { return }
         isDiscovering = true
         defer { isDiscovering = false }
 
@@ -319,7 +310,6 @@ final class DeviceDetailViewModel {
         timeoutTask.cancel()
 
         // Phase 2: Resolve and match services (bounded concurrency)
-        let deviceIP = device.ipAddress
         var discoveredServiceNames: [String] = []
         let servicesToResolve = Array(uniqueServices(from: collectedServices).prefix(maxServiceResolves))
 
@@ -482,5 +472,34 @@ extension DeviceDetailViewModel {
             nameLookup = .scannedAddress(scanned.ipAddress)
             Self.adopt(scanned, into: device)
         }
+    }
+
+    /// The address DNS, the port scan and service discovery may probe for the loaded device, and
+    /// write what they find onto its row: where it was opened from the list, or, opened by ID,
+    /// where the latest scan confirmed its real MAC. Nil when that can't be established (DHCP may
+    /// have given the saved address to another device); the views disable those actions then.
+    var probeAddress: String? {
+        guard let device else { return nil }
+        return switch nameLookup {
+        case .savedAddress: device.ipAddress
+        case let .scannedAddress(address): address
+        case .unverified: nil
+        }
+    }
+
+    /// Scan common ports on the device, at ``probeAddress``.
+    func scanPorts() async {
+        guard let device, let address = probeAddress else { return }
+        isScanning = true
+        defer { isScanning = false }
+
+        var openPorts: [Int] = []
+
+        for await result in await portScanner.scan(host: address, ports: commonPorts, timeout: 1.5) where result.state == .open {
+            openPorts.append(result.port)
+        }
+
+        device.openPorts = openPorts.sorted()
+        startSuggestion()
     }
 }

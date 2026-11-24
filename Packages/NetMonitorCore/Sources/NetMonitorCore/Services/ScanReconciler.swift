@@ -44,6 +44,11 @@ public struct ScanHistory {
         defaults.set(try? JSONEncoder().encode(all), forKey: Self.storageKey)
     }
 
+    /// The latest scan recorded for the network.
+    func newestScan(for network: UUID?) -> Date? {
+        (load()[Self.key(network)] ?? []).map(\.scan).max()
+    }
+
     /// Forgets every network's scans, as when the saved devices are deleted.
     public func clearAll() {
         defaults.removeObject(forKey: Self.storageKey)
@@ -81,6 +86,8 @@ public struct ScanHistory {
 /// - **Rows saved without a network** (before rows had one) are adopted only by an identical, real
 ///   MAC that one such row has. One at the device's address without a MAC whose name agrees is left
 ///   for device detail to adopt when opened; the scan makes no second row that would hide its notes.
+/// - **Order:** a scan older than one already recorded for the network is skipped, so a late retry
+///   never puts older presence back over a newer scan.
 /// - **Writes:** rows are saved first and the scan is recorded in `ScanHistory` only after the save
 ///   succeeds, so a failed fetch or save throws and the same scan can be reconciled again; a scan
 ///   already recorded is skipped. UserDefaults and SwiftData can't share a transaction, so a crash
@@ -117,8 +124,12 @@ public struct ScanReconciler {
     /// rows can't be read or saved; the scan is then not recorded, so it can be tried again.
     @discardableResult
     public func reconcile(_ scan: [DiscoveredDevice], networkProfileID: UUID?, scanDate: Date, now: Date = Date()) throws -> Outcome {
-        let scan = Self.onePerMAC(scan)
-        guard scan.contains(where: { !$0.isCached }), !history.contains(scan: scanDate, for: networkProfileID) else { return .skipped }
+        let scan = PresenceMatch.onePerMAC(scan)
+        guard scan.contains(where: { !$0.isCached }), !history.contains(scan: scanDate, for: networkProfileID),
+              // A scan older than one already saved for this network (a retry that lost the race to
+              // a background scan) would put older addresses and presence back.
+              history.newestScan(for: networkProfileID).map({ scanDate > $0 }) ?? true
+        else { return .skipped }
         do {
             try apply(scan, networkProfileID: networkProfileID, now: now)
             try save(context)
@@ -230,27 +241,6 @@ public struct ScanReconciler {
             DeviceMatcher.normalizedMAC(row.macAddress) == nil && row.ipAddress == device.ipAddress
                 && PresenceMatch.namesAgree(row.matchName, device.matchName)
         }
-    }
-
-    /// One observation per real MAC, in scan order: the one that answered, else the first.
-    private static func onePerMAC(_ scan: [DiscoveredDevice]) -> [DiscoveredDevice] {
-        var indexByMAC: [String: Int] = [:]
-        var kept: [DiscoveredDevice] = []
-        for device in scan {
-            guard let mac = DeviceMatcher.normalizedMAC(device.macAddress) else {
-                kept.append(device)
-                continue
-            }
-            if let index = indexByMAC[mac] {
-                if kept[index].isCached, !device.isCached {
-                    kept[index] = device
-                }
-            } else {
-                indexByMAC[mac] = kept.count
-                kept.append(device)
-            }
-        }
-        return kept
     }
 
     private static func candidate(_ row: LocalDevice) -> DeviceMatchCandidate {

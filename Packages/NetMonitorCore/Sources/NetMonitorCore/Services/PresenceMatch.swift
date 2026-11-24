@@ -1,4 +1,5 @@
 import Foundation
+import NetworkScanKit
 
 /// Which saved device each observation of a scan is, for the iPhone's saved rows (#582): the rule
 /// `ScanReconciler` and device detail's list entry share, so both open and update the same row.
@@ -66,5 +67,28 @@ public enum PresenceMatch {
             taken.insert(row)
         }
         return result
+    }
+
+    /// One observation per real MAC, in scan order: the one that answered, else the first. A MAC
+    /// seen at two addresses (the ARP cache still lists the old one) is one device, at the address
+    /// it answered from. Observations without a real MAC are all kept.
+    public static func onePerMAC(_ scan: [DiscoveredDevice]) -> [DiscoveredDevice] {
+        var indexByMAC: [String: Int] = [:]
+        var kept: [DiscoveredDevice] = []
+        for device in scan {
+            guard let mac = DeviceMatcher.normalizedMAC(device.macAddress) else {
+                kept.append(device)
+                continue
+            }
+            if let index = indexByMAC[mac] {
+                if kept[index].isCached, !device.isCached {
+                    kept[index] = device
+                }
+            } else {
+                indexByMAC[mac] = kept.count
+                kept.append(device)
+            }
+        }
+        return kept
     }
 }
