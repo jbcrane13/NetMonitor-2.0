@@ -197,6 +197,22 @@ struct AlertRuleIdentityTests {
         #expect(evaluator.evaluate([report], rules: [rule], now: at(1000)).count == 1)
     }
 
+    /// A rule that names the device by text matches the scan's device name but not a target with
+    /// another name. No target times that rule, so the scan's report must still fire it.
+    @Test func aTargetThatDoesNotMatchARuleLeavesItsScanReportsAlone() {
+        var evaluator = AlertRuleEvaluator()
+        let byName = AlertRule(name: "Down 5 min", trigger: .wentOffline, conditions: AlertRuleConditions(device: "Office NAS"),
+                               minimumDuration: 300)
+        let byID = AlertRule(name: "Down 5 min by ID", trigger: .wentOffline, conditions: AlertRuleConditions(deviceID: nasID),
+                             minimumDuration: 300)
+        var target = targetSubject(UUID())
+        target.name = "NAS ping"
+        _ = evaluator.evaluate([AlertRuleEvent(kind: .wentOffline, subject: target)], rules: [byName, byID], now: at(0))
+        let report = AlertRuleEvent(kind: .wentOffline, subject: nas(named: "Office NAS"), offlineSince: at(0))
+        let fired = evaluator.evaluate([report], rules: [byName, byID], now: at(900))
+        #expect(fired.map(\.rule.name) == ["Down 5 min"], "The target times only the rule it matches")
+    }
+
     /// Ping and HTTP targets on one device keep their own clocks: one recovering doesn't end the other's outage.
     @Test func twoTargetsOnOneDeviceKeepSeparateOutages() {
         var evaluator = AlertRuleEvaluator()

@@ -222,9 +222,16 @@ public struct AlertRuleEvaluator: Sendable {
     private var conditionSince: [StateKey: Date] = [:]
     /// Duration rules that already fired for the current episode, per subject.
     private var firedEpisodes: Set<StateKey> = []
-    /// Devices a monitoring target is checking. While one is, the target times their outages
-    /// and scan reports about them are ignored, so one outage alerts once.
-    private var targetCheckedDevices: Set<UUID> = []
+    /// The rules a monitoring target's checks match, with the device it checks. While one does,
+    /// the target times that device's outages for that rule and scan reports about it are
+    /// ignored, so one outage alerts once.
+    private var targetTimed: Set<TargetTimed> = []
+
+    private struct TargetTimed: Hashable {
+        var rule: UUID
+        var device: UUID
+    }
+
     /// Each rule's trigger and conditions when its state was recorded; a change clears it.
     private var definitions: [UUID: Definition] = [:]
 
@@ -239,8 +246,9 @@ public struct AlertRuleEvaluator: Sendable {
     public mutating func evaluate(_ events: [AlertRuleEvent], rules: [AlertRule], now: Date = Date()) -> [Match] {
         resetChangedRules(rules)
         for event in events {
-            if event.subject.monitoredTargetID != nil, let device = event.subject.deviceID {
-                targetCheckedDevices.insert(device)
+            guard event.subject.monitoredTargetID != nil, let device = event.subject.deviceID else { continue }
+            for rule in rules where rule.isEnabled && AlertRuleEngine.conditionsMatch(rule.conditions, event.subject) {
+                targetTimed.insert(TargetTimed(rule: rule.id, device: device))
             }
         }
         var matches: [Match] = []
@@ -259,7 +267,7 @@ public struct AlertRuleEvaluator: Sendable {
     public mutating func endMonitoredTargetEpisodes() {
         conditionSince = conditionSince.filter { $0.key.target == nil }
         firedEpisodes = firedEpisodes.filter { $0.target == nil }
-        targetCheckedDevices = []
+        targetTimed = []
     }
 
     /// Forgets crossing and duration state for rules whose definition changed, or that were deleted.
@@ -273,6 +281,7 @@ public struct AlertRuleEvaluator: Sendable {
             aboveThreshold = aboveThreshold.filter { !changed.contains($0.rule) }
             conditionSince = conditionSince.filter { !changed.contains($0.key.rule) }
             firedEpisodes = firedEpisodes.filter { !changed.contains($0.rule) }
+            targetTimed = targetTimed.filter { !changed.contains($0.rule) }
         }
         definitions = current
     }
@@ -296,9 +305,10 @@ public struct AlertRuleEvaluator: Sendable {
     private mutating func durationRuleFires(
         _ trigger: AlertRuleTrigger, duration: TimeInterval, event: AlertRuleEvent, key: StateKey, now: Date
     ) -> Bool {
-        // A target checking this device times its outages; the scan's report is the same outage.
+        // A target whose checks match this rule times the device's outages; the scan's report is
+        // the same outage.
         if trigger == .wentOffline, event.subject.monitoredTargetID == nil,
-           let device = event.subject.deviceID, targetCheckedDevices.contains(device) {
+           let device = event.subject.deviceID, targetTimed.contains(TargetTimed(rule: key.rule, device: device)) {
             return false
         }
         switch (trigger, event.kind) {
