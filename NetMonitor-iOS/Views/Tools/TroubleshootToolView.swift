@@ -192,6 +192,13 @@ struct TroubleshootToolView: View {
             ForEach(state.steps) { step in
                 stepRow(step)
             }
+            if let note = state.kind.flatMap(TroubleshootScript.note(for:)) {
+                Label(note, systemImage: "wifi")
+                    .font(.caption)
+                    .foregroundStyle(Theme.Colors.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("troubleshoot_label_note")
+            }
         }
         .glassCard()
     }

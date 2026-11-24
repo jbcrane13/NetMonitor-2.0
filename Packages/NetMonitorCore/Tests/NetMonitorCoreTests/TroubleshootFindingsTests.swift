@@ -34,6 +34,11 @@ struct TroubleshootFindingsTests {
         ])
     }
 
+    @Test func weakWiFiAlwaysSuggestsTheHeatmap() {
+        #expect(TroubleshootScript.note(for: .weakWiFi) == "To see where the signal drops room by room, survey it with the Wi-Fi Heatmap tool.")
+        #expect(TroubleshootScript.note(for: .slowOrUnstableInternet) == nil)
+    }
+
     @Test func everyScriptIsAtMostSixSteps() {
         let longest = TroubleshootDevice(id: UUID(), displayName: "x", deviceType: .unknown, maker: nil, ipAddress: "10.0.0.2",
                                          openPorts: Array(1...40))

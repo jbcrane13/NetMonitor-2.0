@@ -17,7 +17,7 @@ public struct TroubleshootFinding: Equatable, Sendable, Identifiable {
         case noProblem
 
         public static func < (lhs: Kind, rhs: Kind) -> Bool {
-            allCases.firstIndex(of: lhs)! < allCases.firstIndex(of: rhs)! // swiftlint:disable:this force_unwrapping
+            (allCases.firstIndex(of: lhs) ?? 0) < (allCases.firstIndex(of: rhs) ?? 0)
         }
     }
 

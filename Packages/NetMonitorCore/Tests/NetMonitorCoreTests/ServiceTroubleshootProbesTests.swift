@@ -3,7 +3,7 @@ import Foundation
 import CoreLocation
 @testable import NetMonitorCore
 
-private final class StubPing: PingServiceProtocol, @unchecked Sendable {
+private final class MockTroubleshootPing: PingServiceProtocol, @unchecked Sendable {
     var results: [PingResult] = []
     var stopped = false
     func ping(host: String, count: Int, timeout: TimeInterval) async -> AsyncStream<PingResult> {
@@ -18,7 +18,7 @@ private final class StubPing: PingServiceProtocol, @unchecked Sendable {
     func calculateStatistics(_ results: [PingResult], requestedCount: Int?) async -> PingStatistics? { nil }
 }
 
-private final class StubPorts: PortScannerServiceProtocol, @unchecked Sendable {
+private final class MockTroubleshootPorts: PortScannerServiceProtocol, @unchecked Sendable {
     func scan(host: String, ports: [Int], timeout: TimeInterval) async -> AsyncStream<PortScanResult> {
         AsyncStream { continuation in
             for port in ports {
@@ -32,7 +32,7 @@ private final class StubPorts: PortScannerServiceProtocol, @unchecked Sendable {
 }
 
 @MainActor
-private final class StubDNS: DNSLookupServiceProtocol, @unchecked Sendable {
+private final class MockTroubleshootDNS: DNSLookupServiceProtocol, @unchecked Sendable {
     var result: DNSQueryResult?
     var isLoading = false
     var lastError: String?
@@ -41,7 +41,7 @@ private final class StubDNS: DNSLookupServiceProtocol, @unchecked Sendable {
 }
 
 @MainActor
-private final class StubWiFi: WiFiInfoServiceProtocol, @unchecked Sendable {
+private final class MockTroubleshootWiFi: WiFiInfoServiceProtocol, @unchecked Sendable {
     var info: WiFiInfo?
     var currentWiFi: WiFiInfo? { info }
     var isLocationAuthorized = true
@@ -55,10 +55,10 @@ private final class StubWiFi: WiFiInfoServiceProtocol, @unchecked Sendable {
 @Suite("ServiceTroubleshootProbes")
 @MainActor
 struct ServiceTroubleshootProbesTests {
-    private func probes(ping: StubPing = StubPing(), dns: StubDNS? = nil, wifi: StubWiFi? = nil,
+    private func probes(ping: MockTroubleshootPing = MockTroubleshootPing(), dns: MockTroubleshootDNS? = nil, wifi: MockTroubleshootWiFi? = nil,
                         canRunSpeedTest: Bool = true) -> ServiceTroubleshootProbes {
         ServiceTroubleshootProbes(
-            pingService: ping, portScanner: StubPorts(), dnsService: dns ?? StubDNS(), wifiService: wifi ?? StubWiFi(),
+            pingService: ping, portScanner: MockTroubleshootPorts(), dnsService: dns ?? MockTroubleshootDNS(), wifiService: wifi ?? MockTroubleshootWiFi(),
             gateway: { "10.0.0.1" }, canRunSpeedTest: { canRunSpeedTest }
         )
     }
@@ -68,13 +68,13 @@ struct ServiceTroubleshootProbesTests {
     }
 
     @Test func pingKeepsTheRepliesRoundTrips() async {
-        let ping = StubPing()
+        let ping = MockTroubleshootPing()
         ping.results = [result(1, 3.5), result(2, 0, timeout: true), result(3, 4.5)]
         #expect(await probes(ping: ping).ping("10.0.0.1", count: 3) == [3.5, 4.5])
     }
 
     @Test func aLookupWithoutRecordsDidNotResolve() async {
-        let dns = StubDNS()
+        let dns = MockTroubleshootDNS()
         dns.result = DNSQueryResult(domain: "a.com", server: "1.1.1.1", queryType: .a, records: [], queryTime: 12)
         #expect(await probes(dns: dns).lookup("a.com") == nil)
         dns.result = DNSQueryResult(domain: "a.com", server: "1.1.1.1", queryType: .a,
@@ -83,7 +83,7 @@ struct ServiceTroubleshootProbesTests {
     }
 
     @Test func placeholderSignalValuesAreNoReading() async {
-        let wifi = StubWiFi()
+        let wifi = MockTroubleshootWiFi()
         wifi.info = WiFiInfo(ssid: "Home", signalDBm: -100)
         #expect(await probes(wifi: wifi).wifiReading() == nil)
         wifi.info = WiFiInfo(ssid: "Home", signalDBm: -67, noiseLevel: -91)

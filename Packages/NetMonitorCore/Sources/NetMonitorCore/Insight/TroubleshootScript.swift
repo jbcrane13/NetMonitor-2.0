@@ -63,6 +63,12 @@ public enum TroubleshootScript {
     /// The name timed to judge DNS: well known and served from many places.
     public static let dnsProbeHost = "apple.com"
 
+    /// A fixed suggestion shown with `kind`'s steps, whatever they measure: weak Wi-Fi points to
+    /// the heatmap, which maps the signal room by room.
+    public static func note(for kind: SymptomKind) -> String? {
+        kind == .weakWiFi ? "To see where the signal drops room by room, survey it with the Wi-Fi Heatmap tool." : nil
+    }
+
     /// The checks for `kind`. `device` is needed for `deviceUnreachable` and `host` for
     /// `websiteNotLoading`; without them those scripts are empty.
     public static func checks(for kind: SymptomKind, device: TroubleshootDevice? = nil, host: String? = nil) -> [TroubleshootCheck] {

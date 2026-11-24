@@ -199,6 +199,12 @@ struct TroubleshootToolView: View {
                 .accessibilityElement(children: .combine)
                 .accessibilityIdentifier("troubleshoot_step_\(step.id)")
             }
+            if let note = state.kind.flatMap(TroubleshootScript.note(for:)) {
+                Label(note, systemImage: "wifi")
+                    .font(.system(size: 11))
+                    .foregroundStyle(MacTheme.Colors.labelSecondary)
+                    .accessibilityIdentifier("troubleshoot_label_note")
+            }
         }
         .macGlassCard(cornerRadius: 12, padding: 10)
         .accessibilityElement(children: .contain)
