@@ -96,8 +96,7 @@ struct ContentView: View {
         }
         .onAppear {
             // UI tests of the heatmap advisor (#455) launch into the seeded survey.
-            let arguments = ProcessInfo.processInfo.arguments
-            if selectedSection == nil, arguments.contains("--uitesting"), arguments.contains("--seed-heatmap-survey") {
+            if selectedSection == nil, UITestHeatmapAdvisor.opensHeatmap {
                 selectedSection = .tool(.wifiHeatmap)
             }
             // Launch into the active (local) network dashboard

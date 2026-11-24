@@ -72,6 +72,7 @@ struct HeatmapSurveyStatisticsTests {
         #expect(stats.weakRegions.map(\.areaPercent) == [6, 4, 2])
         #expect(stats.weakRegions.map(\.location) == [.compass(.southEast), .compass(.northWest), .compass(.east)])
         #expect(stats.weakRegions.map(\.worstRSSI) == [-90, -80, -78])
+        #expect(stats.weakRegionCount == 4)
         #expect(stats.coverage.weak == 13)
     }
 
@@ -111,6 +112,54 @@ struct HeatmapSurveyStatisticsTests {
         let stats = HeatmapSurveyStatistics(grid: grid, pointCount: 12)
 
         #expect(stats.falloff == .northEast)
+    }
+
+    @Test func weakSidesAroundAStrongMiddleHaveNoFalloff() {
+        // Both outer columns weak, the middle strong: the two centroids coincide.
+        let grid: [[Double?]] = (0 ..< 10).map { _ in (0 ..< 10).map { col in col == 0 || col == 9 ? -82 : -55 } }
+
+        #expect(HeatmapSurveyStatistics(grid: grid, pointCount: 12).falloff == nil)
+    }
+
+    @Test func extremesWithinACellHaveNoFalloff() {
+        var grid = Self.grid(-60)
+        grid[4][4] = -40
+        grid[5][5] = -88
+
+        #expect(HeatmapSurveyStatistics(grid: grid, pointCount: 12).falloff == nil)
+    }
+
+    @Test func falloffIsMeasuredOnThePlansAxes() {
+        // 10 rows × 40 columns: from the bottom-left cell to the cell 9 columns and 9 rows away.
+        // 9 of 39 columns is a quarter of the width, 9 of 9 rows is the full height: north.
+        var grid: [[Double?]] = Array(repeating: Array(repeating: -60, count: 40), count: 10)
+        grid[9][0] = -40
+        grid[0][9] = -88
+
+        #expect(HeatmapSurveyStatistics(grid: grid, pointCount: 12).falloff == .north)
+    }
+
+    @Test func roomsAreNearestInMetresOnARectangularPlan() {
+        // A 20 m × 5 m plan; weak cells top-middle at (0.5, 0). The Hall label is 4 m away (0.8 of
+        // the 5 m height); the Study label is 0.22 of the width away, which is 4.4 m.
+        var grid = Self.grid()
+        grid[0][4] = -85
+        grid[0][5] = -85
+        let rooms = [RoomLabel(text: "Hall", normalizedX: 0.5, normalizedY: 0.8),
+                     RoomLabel(text: "Study", normalizedX: 0.72, normalizedY: 0)]
+
+        let stats = HeatmapSurveyStatistics(grid: grid, pointCount: 12, roomLabels: rooms, planWidth: 20, planHeight: 5)
+
+        #expect(stats.weakRegions.map(\.location) == [.room("Hall")])
+    }
+
+    @Test func aGridWithNoSurveyedCellIsEmpty() {
+        let stats = HeatmapSurveyStatistics(grid: [[nil, nil], [nil, nil]], pointCount: 12)
+
+        #expect(stats.surveyedCells == 0)
+        #expect(stats.coverage == HeatmapSurveyStatistics.Coverage(good: 0, fair: 0, weak: 0))
+        #expect(stats.weakRegions.isEmpty)
+        #expect(stats.falloff == nil)
     }
 
     @Test func anEvenGridHasNoFalloff() {

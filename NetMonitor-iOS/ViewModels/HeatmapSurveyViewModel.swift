@@ -454,20 +454,6 @@ final class HeatmapSurveyViewModel {
         }
     }
 
-    // MARK: - Advisor
-
-    /// Recomputes the advisor for the current survey; hidden, and nothing asked, while a survey
-    /// runs or a point is being measured.
-    /// - Parameter accessPointNames: device display names by normalized MAC.
-    func refreshAdvisor(accessPointNames: [String: String] = [:]) async {
-        await advisor.refresh(
-            points: state.measurementPoints,
-            floorPlan: state.surveyProject?.floorPlan,
-            accessPointNames: accessPointNames,
-            isSurveying: state.isSurveying || state.isMeasuring
-        )
-    }
-
     // MARK: - Project Save/Load
 
     func saveProject(to url: URL) throws {

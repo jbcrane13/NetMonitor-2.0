@@ -245,7 +245,7 @@ struct HeatmapSidebarView: View {
     @ViewBuilder
     private var analyzeContent: some View {
         // The finished survey's advice (#455); hidden while surveying.
-        HeatmapAdvisorCard(phase: viewModel.advisor.phase)
+        HeatmapAdvisorView(phase: viewModel.advisor.phase)
 
         VStack(alignment: .leading, spacing: 4) {
             sectionHeader("Visualization")

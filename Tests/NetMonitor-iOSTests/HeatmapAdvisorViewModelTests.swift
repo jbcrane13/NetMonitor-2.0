@@ -4,13 +4,13 @@ import Testing
 import NetMonitorCore
 
 /// Answers every request with `answer` and counts them.
-private final class CountingInsightService: InsightServiceProtocol, @unchecked Sendable {
+private final class MockCountingInsightService: InsightServiceProtocol, @unchecked Sendable {
     private let lock = NSLock()
     private var count = 0
     let isAvailable: Bool
     let answer: String
 
-    init(isAvailable: Bool = true, answer: String = HeatmapAdvisorFixture.answer) {
+    init(isAvailable: Bool = true, answer: String = HeatmapAdvisorUITestFixture.answer) {
         self.isAvailable = isAvailable
         self.answer = answer
     }
@@ -32,52 +32,52 @@ private final class CountingInsightService: InsightServiceProtocol, @unchecked S
 @Suite("HeatmapSurveyViewModel advisor")
 @MainActor
 struct HeatmapAdvisorViewModelTests {
-    private func makeVM(_ insight: CountingInsightService) -> HeatmapSurveyViewModel {
+    private func makeVM(_ insight: MockCountingInsightService) -> HeatmapSurveyViewModel {
         let vm = HeatmapSurveyViewModel(service: MockHeatmapService(), insightService: insight)
-        vm.state.setProject(HeatmapAdvisorFixture.project())
+        vm.state.setProject(HeatmapAdvisorUITestFixture.project())
         return vm
     }
 
     @Test func aFinishedSurveyShowsTheKeyPointsAndTheModelsText() async {
-        let vm = makeVM(CountingInsightService())
+        let vm = makeVM(MockCountingInsightService())
 
-        await vm.refreshAdvisor()
+        await vm.advisor.refresh(.init(survey: vm.state))
 
         guard case let .advice(keyPoints, text) = vm.advisor.phase else {
             Issue.record("expected advice, got \(vm.advisor.phase)")
             return
         }
         #expect(keyPoints.first?.hasPrefix("The north-east corner is weak (") == true)
-        #expect(text == HeatmapAdvisorFixture.answer)
+        #expect(text == HeatmapAdvisorUITestFixture.answer)
     }
 
     @Test func nothingIsAskedWhileSurveying() async {
-        let insight = CountingInsightService()
+        let insight = MockCountingInsightService()
         let vm = makeVM(insight)
         vm.isSurveying = true
 
-        await vm.refreshAdvisor()
+        await vm.advisor.refresh(.init(survey: vm.state))
 
         #expect(vm.advisor.phase == .hidden)
         #expect(insight.requests == 0)
     }
 
     @Test func nothingIsAskedWhileAPointIsBeingMeasured() async {
-        let insight = CountingInsightService()
+        let insight = MockCountingInsightService()
         let vm = makeVM(insight)
         vm.isMeasuring = true
 
-        await vm.refreshAdvisor()
+        await vm.advisor.refresh(.init(survey: vm.state))
 
         #expect(vm.advisor.phase == .hidden)
         #expect(insight.requests == 0)
     }
 
     @Test func anUnavailableModelShowsOnlyTheKeyPoints() async {
-        let insight = CountingInsightService(isAvailable: false)
+        let insight = MockCountingInsightService(isAvailable: false)
         let vm = makeVM(insight)
 
-        await vm.refreshAdvisor()
+        await vm.advisor.refresh(.init(survey: vm.state))
 
         guard case let .advice(keyPoints, text) = vm.advisor.phase else {
             Issue.record("expected advice, got \(vm.advisor.phase)")
@@ -89,11 +89,11 @@ struct HeatmapAdvisorViewModelTests {
     }
 
     @Test func theSameSurveyIsAskedOnce() async {
-        let insight = CountingInsightService()
+        let insight = MockCountingInsightService()
         let vm = makeVM(insight)
 
-        await vm.refreshAdvisor()
-        await vm.refreshAdvisor()
+        await vm.advisor.refresh(.init(survey: vm.state))
+        await vm.advisor.refresh(.init(survey: vm.state))
 
         #expect(insight.requests == 1)
     }

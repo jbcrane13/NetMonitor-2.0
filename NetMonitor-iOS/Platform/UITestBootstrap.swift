@@ -300,23 +300,30 @@ extension UITestBootstrap {
 
 extension UITestBootstrap {
     /// The heatmap advisor's insight service under `UITEST_INSIGHT`: "answer" answers with
-    /// `HeatmapAdvisorFixture.answer`, "unavailable" is never available. Nil otherwise.
+    /// `HeatmapAdvisorUITestFixture.answer`, "unavailable" is never available. Nil otherwise, and
+    /// always in release builds.
     static var heatmapInsightService: (any InsightServiceProtocol)? {
+        #if DEBUG
         guard isUITesting else { return nil }
         switch ProcessInfo.processInfo.environment["UITEST_INSIGHT"] {
-        case "answer": return FixedAnswerInsightService(answer: HeatmapAdvisorFixture.answer)
+        case "answer": return FixedAnswerInsightService(answer: HeatmapAdvisorUITestFixture.answer)
         case "unavailable": return UnavailableInsightService()
         default: return nil
         }
+        #else
+        return nil
+        #endif
     }
 
-    /// With `UITEST_SEED_HEATMAP=1`, saves the finished weak-corner survey to Documents, where
-    /// Open Survey lists it.
+    /// With `UITEST_SEED_HEATMAP=1` (Debug builds), saves the finished weak-corner survey to
+    /// Documents, where Open Survey lists it.
     static func seedHeatmapSurveyIfNeeded() {
+        #if DEBUG
         guard isUITesting, ProcessInfo.processInfo.environment["UITEST_SEED_HEATMAP"] == "1" else { return }
-        let project = HeatmapAdvisorFixture.project()
+        let project = HeatmapAdvisorUITestFixture.project()
         guard let url = HeatmapFileManager().autoSaveURL(for: project.name) else { return }
         try? FileManager.default.removeItem(at: url)
         try? HeatmapFileManager().save(project: project, to: url)
+        #endif
     }
 }

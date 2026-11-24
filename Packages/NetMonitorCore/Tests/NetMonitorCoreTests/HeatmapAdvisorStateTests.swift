@@ -32,7 +32,7 @@ struct HeatmapAdvisorStateTests {
     @Test func aFinishedSurveyShowsTheKeyPointsAndTheModelsText() async {
         let advisor = state(FixedAnswerInsightService(answer: Self.answer))
 
-        await advisor.refresh(points: Self.weakCorner, floorPlan: Self.plan, isSurveying: false)
+        await advisor.refresh(.init(points: Self.weakCorner, floorPlan: Self.plan, isSurveying: false))
 
         guard case let .advice(keyPoints, text) = advisor.phase else {
             Issue.record("expected advice, got \(advisor.phase)")
@@ -47,7 +47,7 @@ struct HeatmapAdvisorStateTests {
         let insight = MockInsightService(isAvailable: false)
         let advisor = state(insight)
 
-        await advisor.refresh(points: Self.weakCorner, floorPlan: Self.plan, isSurveying: false)
+        await advisor.refresh(.init(points: Self.weakCorner, floorPlan: Self.plan, isSurveying: false))
 
         guard case let .advice(keyPoints, text) = advisor.phase else {
             Issue.record("expected advice, got \(advisor.phase)")
@@ -61,21 +61,51 @@ struct HeatmapAdvisorStateTests {
     @Test func anUngroundedAnswerIsDroppedButTheKeyPointsStay() async {
         let advisor = state(FixedAnswerInsightService(answer: "About 40% of the house is weak."))
 
-        await advisor.refresh(points: Self.weakCorner, floorPlan: Self.plan, isSurveying: false)
+        await advisor.refresh(.init(points: Self.weakCorner, floorPlan: Self.plan, isSurveying: false))
 
         #expect(!keyPoints(advisor).isEmpty)
         #expect(advisor.phase == .advice(keyPoints: keyPoints(advisor), text: nil))
     }
 
+    @Test(arguments: [
+        // A value of the corner's own key point, which the model is never given.
+        "The north-east corner is weak at -84 dBm, so try moving the access point toward it.",
+        // A place the app didn't compute.
+        "The south-west corner is weak, so try moving the access point toward it.",
+        // Another action than the app's.
+        "The north-east corner is weak, so add a mesh node there."
+    ])
+    func anAnswerThatPairsOrNamesWhatTheAppDidNotIsDropped(answer: String) async {
+        let advisor = state(FixedAnswerInsightService(answer: answer))
+
+        await advisor.refresh(.init(points: Self.weakCorner, floorPlan: Self.plan, isSurveying: false))
+
+        #expect(!keyPoints(advisor).isEmpty)
+        #expect(advisor.phase == .advice(keyPoints: keyPoints(advisor), text: nil))
+    }
+
+    @Test func theSurveyInputReadsTheSurveyState() {
+        let survey = HeatmapSurveyState()
+        survey.setProject(SurveyProject(name: "Home", floorPlan: Self.plan, measurementPoints: Self.weakCorner))
+        survey.isMeasuring = true
+
+        let input = HeatmapAdvisorState.Input(survey: survey, accessPointNames: ["AA:BB:CC:00:00:01": "Router"])
+
+        #expect(input.points == Self.weakCorner)
+        #expect(input.floorPlan?.id == Self.plan.id)
+        #expect(input.isSurveying)
+        #expect(input.accessPointNames == ["AA:BB:CC:00:00:01": "Router"])
+    }
+
     @Test func theSameSurveyIsAskedOnce() async {
         let insight = MockInsightService()
         let advisor = state(insight)
-        let first = Task { await advisor.refresh(points: Self.weakCorner, floorPlan: Self.plan, isSurveying: false) }
+        let first = Task { await advisor.refresh(.init(points: Self.weakCorner, floorPlan: Self.plan, isSurveying: false)) }
         await waitUntil { insight.requests.count == 1 }
         insight.send(.finished(Self.answer))
         await first.value
 
-        await advisor.refresh(points: Self.weakCorner, floorPlan: Self.plan, isSurveying: false)
+        await advisor.refresh(.init(points: Self.weakCorner, floorPlan: Self.plan, isSurveying: false))
 
         #expect(insight.requests.count == 1)
         if case let .advice(_, text) = advisor.phase {
@@ -89,7 +119,7 @@ struct HeatmapAdvisorStateTests {
         let insight = MockInsightService()
         let advisor = state(insight)
 
-        await advisor.refresh(points: Self.weakCorner, floorPlan: Self.plan, isSurveying: true)
+        await advisor.refresh(.init(points: Self.weakCorner, floorPlan: Self.plan, isSurveying: true))
 
         #expect(advisor.phase == .hidden)
         #expect(insight.requests.isEmpty)
@@ -97,9 +127,9 @@ struct HeatmapAdvisorStateTests {
 
     @Test func resumingASurveyHidesTheAdvice() async {
         let advisor = state(FixedAnswerInsightService(answer: Self.answer))
-        await advisor.refresh(points: Self.weakCorner, floorPlan: Self.plan, isSurveying: false)
+        await advisor.refresh(.init(points: Self.weakCorner, floorPlan: Self.plan, isSurveying: false))
 
-        await advisor.refresh(points: Self.weakCorner, floorPlan: Self.plan, isSurveying: true)
+        await advisor.refresh(.init(points: Self.weakCorner, floorPlan: Self.plan, isSurveying: true))
 
         #expect(advisor.phase == .hidden)
     }
@@ -108,16 +138,16 @@ struct HeatmapAdvisorStateTests {
         let insight = MockInsightService()
         let advisor = state(insight)
 
-        await advisor.refresh(points: Array(Self.weakCorner.prefix(6)), floorPlan: Self.plan, isSurveying: false)
+        await advisor.refresh(.init(points: Array(Self.weakCorner.prefix(6)), floorPlan: Self.plan, isSurveying: false))
 
-        #expect(advisor.phase == .sparse(hint: "Survey at least 10 points with a Wi-Fi signal reading to get advice. This survey has 6."))
+        #expect(advisor.phase == .sparse(hint: "Survey at least 10 different spots with a Wi-Fi signal reading to get advice. This survey has 6."))
         #expect(insight.requests.isEmpty)
     }
 
     @Test func noMeasurementsShowNothing() async {
         let advisor = state(MockInsightService())
 
-        await advisor.refresh(points: [], floorPlan: Self.plan, isSurveying: false)
+        await advisor.refresh(.init(points: [], floorPlan: Self.plan, isSurveying: false))
 
         #expect(advisor.phase == .hidden)
     }
@@ -128,25 +158,5 @@ private func waitUntil(timeout: Duration = .seconds(5), _ condition: () -> Bool)
     let deadline = ContinuousClock.now + timeout
     while !condition(), ContinuousClock.now < deadline {
         try? await Task.sleep(for: .milliseconds(10))
-    }
-}
-
-/// The survey and answer the apps' UI tests show (#455).
-@Suite("HeatmapAdvisorFixture")
-@MainActor
-struct HeatmapAdvisorFixtureTests {
-    @Test func theFixtureShowsAWeakNorthEastCornerAndTheStandInAnswer() async {
-        let project = HeatmapAdvisorFixture.project()
-        let advisor = HeatmapAdvisorState(service: FixedAnswerInsightService(answer: HeatmapAdvisorFixture.answer))
-
-        await advisor.refresh(points: project.measurementPoints, floorPlan: project.floorPlan, isSurveying: false)
-
-        guard case let .advice(keyPoints, text) = advisor.phase else {
-            Issue.record("expected advice, got \(advisor.phase)")
-            return
-        }
-        #expect(keyPoints.first?.hasPrefix("The north-east corner is weak (") == true)
-        #expect(text == HeatmapAdvisorFixture.answer)
-        #expect(project.floorPlan.imageData.starts(with: [0x89, 0x50, 0x4E, 0x47]))
     }
 }

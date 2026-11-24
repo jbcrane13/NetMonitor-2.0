@@ -76,7 +76,7 @@ final class HeatmapAdvisorUITests: IOSUITestCase {
         let card = requireAdvisorKeyPoints()
         let text = ui("heatmap_label_advisorText")
         requireExists(text, timeout: 20, message: "The advisor should show the model's text")
-        XCTAssertTrue(text.label.contains("moving the access point toward it should help"), "Advisor text: \(text.label)")
+        XCTAssertTrue(text.label.contains("where the signal is weak"), "Advisor text: \(text.label)")
         let marker = ui("heatmap_label_advisorGenerated")
         requireExists(marker, message: "The advisor text should be marked as generated")
         XCTAssertTrue(marker.label.contains("Written by the on-device model"), "Marker: \(marker.label)")

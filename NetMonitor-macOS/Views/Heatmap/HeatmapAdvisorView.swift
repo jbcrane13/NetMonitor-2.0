@@ -1,12 +1,12 @@
 import NetMonitorCore
 import SwiftUI
 
-// MARK: - HeatmapAdvisorCard
+// MARK: - HeatmapAdvisorView
 
 /// The heatmap advisor in the Analyze sidebar (#455): the app's key points about the finished
 /// survey word for word, then the on-device model's wording of them with the generated marker.
 /// Without the model the key points still show; a sparse survey shows the app's hint.
-struct HeatmapAdvisorCard: View {
+struct HeatmapAdvisorView: View {
     let phase: HeatmapAdvisorState.Phase
 
     var body: some View {
@@ -69,10 +69,10 @@ struct HeatmapAdvisorCard: View {
 
 #if DEBUG
 #Preview {
-    HeatmapAdvisorCard(phase: .advice(
+    HeatmapAdvisorView(phase: .advice(
         keyPoints: ["The north-east corner is weak (5% of the area, worst -84 dBm).",
                     "Try moving the access point toward the north-east corner."],
-        text: HeatmapAdvisorFixture.answer
+        text: "Try moving the access point toward the north-east corner, where the signal is weak."
     ))
     .frame(width: 220)
     .padding()

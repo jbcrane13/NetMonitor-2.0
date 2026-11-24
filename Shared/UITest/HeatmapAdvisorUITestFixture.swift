@@ -1,20 +1,23 @@
+#if DEBUG
 import CoreGraphics
 import Foundation
 import ImageIO
+import NetMonitorCore
 import UniformTypeIdentifiers
 
 /// The finished survey both apps' UI tests open to see the heatmap advisor (#455): 25 points on a
-/// plain plan, strong everywhere but the north-east corner.
-public enum HeatmapAdvisorFixture {
+/// plain plan, strong everywhere but the north-east corner. Compiled into both app targets, Debug
+/// builds only (project.yml), so it never ships in the Core library or a release.
+enum HeatmapAdvisorUITestFixture {
     /// The seeded survey's name; iOS saves it as "<name>.netmonsurvey".
-    public static let projectName = "UITest Weak Corner"
+    static let projectName = "UITest Weak Corner"
 
-    /// What the UI tests' stand-in model answers. It states no number, so it passes
-    /// `InsightSummarizer`'s checks for the fixture's request.
-    public static let answer = "The north-east corner has weak signal, so moving the access point toward it should help."
+    /// What the UI tests' stand-in model answers. It states the fixture's action and place and
+    /// no number, so it passes `InsightSummarizer`'s checks and `HeatmapAdvisorRequest.accepts`.
+    static let answer = "Try moving the access point toward the north-east corner, where the signal is weak."
 
     /// The fixture survey, on a light grey 400 × 300 plan.
-    public static func project() -> SurveyProject {
+    static func project() -> SurveyProject {
         let points = stride(from: 0.0, through: 1.0, by: 0.25).flatMap { y in
             stride(from: 0.0, through: 1.0, by: 0.25).map { x in
                 MeasurementPoint(
@@ -38,7 +41,7 @@ public enum HeatmapAdvisorFixture {
     }
 
     /// A PNG of a plain grey plan with a darker outline.
-    static func planImage(width: Int, height: Int) -> Data {
+    private static func planImage(width: Int, height: Int) -> Data {
         guard let context = CGContext(
             data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
             space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
@@ -56,3 +59,4 @@ public enum HeatmapAdvisorFixture {
         return CGImageDestinationFinalize(destination) ? data as Data : Data()
     }
 }
+#endif

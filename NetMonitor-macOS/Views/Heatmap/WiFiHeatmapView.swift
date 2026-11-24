@@ -9,7 +9,8 @@ import UniformTypeIdentifiers
 struct WiFiHeatmapView: View {
     var pendingSurveyURL: URL? = nil
 
-    @Environment(\.modelContext) private var modelContext
+    /// Names access points in the heatmap advisor; a renamed device refreshes it.
+    @Query private var devices: [LocalDevice]
     @State private var viewModel = WiFiHeatmapViewModel()
     @State private var selectedPhotoItem: PhotosPickerItem?
     @State private var showImportOptions = false
@@ -107,17 +108,17 @@ struct WiFiHeatmapView: View {
                     viewModel.errorMessage = error.localizedDescription
                 }
             }
-            viewModel.seedForUITests(arguments: ProcessInfo.processInfo.arguments)
             viewModel.onAppear()
         }
         // Each finished survey state gets advice; measuring or surveying hides it (#455).
-        .task(id: AdvisorInput(
-            points: viewModel.measurementPoints,
-            planID: viewModel.surveyProject?.floorPlan.id,
-            isBusy: viewModel.isSurveying || viewModel.isMeasuring
+        .task(id: HeatmapAdvisorState.Input(
+            survey: viewModel.state,
+            accessPointNames: HeatmapSurveyStatistics.accessPointNames(devices)
         )) {
-            let devices = (try? modelContext.fetch(FetchDescriptor<LocalDevice>())) ?? []
-            await viewModel.refreshAdvisor(accessPointNames: HeatmapSurveyStatistics.accessPointNames(devices))
+            await viewModel.advisor.refresh(.init(
+                survey: viewModel.state,
+                accessPointNames: HeatmapSurveyStatistics.accessPointNames(devices)
+            ))
         }
         .alert("Error", isPresented: Binding(
             get: { viewModel.errorMessage != nil },
@@ -453,13 +454,6 @@ extension WiFiHeatmapView {
 }
 
 // MARK: - CalibrationSheet
-
-/// What the heatmap advisor is refreshed for.
-private struct AdvisorInput: Equatable {
-    let points: [MeasurementPoint]
-    let planID: UUID?
-    let isBusy: Bool
-}
 
 struct CalibrationSheet: View {
     @Bindable var viewModel: WiFiHeatmapViewModel

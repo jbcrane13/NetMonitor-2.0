@@ -71,15 +71,20 @@ final class WiFiHeatmapViewModel {
 
     init(
         heatmapService: any MacWiFiSignalProviding = WiFiHeatmapService(),
-        insightService: any InsightServiceProtocol = WiFiHeatmapViewModel.advisorInsightService(
-            arguments: ProcessInfo.processInfo.arguments
-        )
+        insightService: any InsightServiceProtocol = UITestHeatmapAdvisor.insightService ?? InsightService.shared,
+        seededSurvey: SurveyProject? = UITestHeatmapAdvisor.takeSeededSurvey()
     ) {
         self.state = HeatmapSurveyState()
         advisor = HeatmapAdvisorState(service: insightService)
         self.heatmapService = heatmapService
         renderer = HeatmapRenderer()
         setupEngine()
+        // A UI test's finished survey opens on the Analyze sidebar, where the advisor shows (#455).
+        if let seededSurvey {
+            state.setProject(seededSurvey)
+            sidebarMode = .analyze
+            generateHeatmap()
+        }
     }
 
     private func setupEngine() {

@@ -4,13 +4,13 @@ import Testing
 import NetMonitorCore
 
 /// Answers every request with `answer` and counts them.
-private final class CountingInsightService: InsightServiceProtocol, @unchecked Sendable {
+private final class MockCountingInsightService: InsightServiceProtocol, @unchecked Sendable {
     private let lock = NSLock()
     private var count = 0
     let isAvailable: Bool
     let answer: String
 
-    init(isAvailable: Bool = true, answer: String = HeatmapAdvisorFixture.answer) {
+    init(isAvailable: Bool = true, answer: String = HeatmapAdvisorUITestFixture.answer) {
         self.isAvailable = isAvailable
         self.answer = answer
     }
@@ -32,52 +32,52 @@ private final class CountingInsightService: InsightServiceProtocol, @unchecked S
 @Suite("WiFiHeatmapViewModel advisor")
 @MainActor
 struct HeatmapAdvisorViewModelTests {
-    private func makeVM(_ insight: CountingInsightService) -> WiFiHeatmapViewModel {
-        let vm = WiFiHeatmapViewModel(insightService: insight)
-        vm.state.setProject(HeatmapAdvisorFixture.project())
+    private func makeVM(_ insight: MockCountingInsightService) -> WiFiHeatmapViewModel {
+        let vm = WiFiHeatmapViewModel(insightService: insight, seededSurvey: nil)
+        vm.state.setProject(HeatmapAdvisorUITestFixture.project())
         return vm
     }
 
     @Test func aFinishedSurveyShowsTheKeyPointsAndTheModelsText() async {
-        let vm = makeVM(CountingInsightService())
+        let vm = makeVM(MockCountingInsightService())
 
-        await vm.refreshAdvisor()
+        await vm.advisor.refresh(.init(survey: vm.state))
 
         guard case let .advice(keyPoints, text) = vm.advisor.phase else {
             Issue.record("expected advice, got \(vm.advisor.phase)")
             return
         }
         #expect(keyPoints.first?.hasPrefix("The north-east corner is weak (") == true)
-        #expect(text == HeatmapAdvisorFixture.answer)
+        #expect(text == HeatmapAdvisorUITestFixture.answer)
     }
 
     @Test func nothingIsAskedWhileSurveying() async {
-        let insight = CountingInsightService()
+        let insight = MockCountingInsightService()
         let vm = makeVM(insight)
         vm.isSurveying = true
 
-        await vm.refreshAdvisor()
+        await vm.advisor.refresh(.init(survey: vm.state))
 
         #expect(vm.advisor.phase == .hidden)
         #expect(insight.requests == 0)
     }
 
     @Test func nothingIsAskedWhileAPointIsBeingMeasured() async {
-        let insight = CountingInsightService()
+        let insight = MockCountingInsightService()
         let vm = makeVM(insight)
         vm.isMeasuring = true
 
-        await vm.refreshAdvisor()
+        await vm.advisor.refresh(.init(survey: vm.state))
 
         #expect(vm.advisor.phase == .hidden)
         #expect(insight.requests == 0)
     }
 
     @Test func anUnavailableModelShowsOnlyTheKeyPoints() async {
-        let insight = CountingInsightService(isAvailable: false)
+        let insight = MockCountingInsightService(isAvailable: false)
         let vm = makeVM(insight)
 
-        await vm.refreshAdvisor()
+        await vm.advisor.refresh(.init(survey: vm.state))
 
         guard case let .advice(keyPoints, text) = vm.advisor.phase else {
             Issue.record("expected advice, got \(vm.advisor.phase)")
@@ -89,41 +89,48 @@ struct HeatmapAdvisorViewModelTests {
     }
 
     @Test func theSameSurveyIsAskedOnce() async {
-        let insight = CountingInsightService()
+        let insight = MockCountingInsightService()
         let vm = makeVM(insight)
 
-        await vm.refreshAdvisor()
-        await vm.refreshAdvisor()
+        await vm.advisor.refresh(.init(survey: vm.state))
+        await vm.advisor.refresh(.init(survey: vm.state))
 
         #expect(insight.requests == 1)
     }
 }
 
-/// The macOS UI-test path (#455): `--seed-heatmap-survey` and `--uitest-insight`.
-@Suite("Heatmap advisor UI-test seed")
+/// The macOS UI-test seam (#455): `--seed-heatmap-survey` and `--uitest-insight`.
+@Suite("UITestHeatmapAdvisor", .serialized)
 @MainActor
-struct HeatmapAdvisorUITestSeedTests {
-    @Test func theSeedLoadsTheFinishedSurveyOnTheAnalyzeSidebar() {
-        let vm = WiFiHeatmapViewModel(insightService: UnavailableInsightService())
+struct UITestHeatmapAdvisorTests {
+    @Test func aSeededSurveyOpensOnTheAnalyzeSidebar() {
+        let vm = WiFiHeatmapViewModel(insightService: UnavailableInsightService(), seededSurvey: HeatmapAdvisorUITestFixture.project())
 
-        vm.seedForUITests(arguments: ["--uitesting", "--seed-heatmap-survey"])
-
-        #expect(vm.surveyProject?.name == HeatmapAdvisorFixture.projectName)
+        #expect(vm.surveyProject?.name == HeatmapAdvisorUITestFixture.projectName)
         #expect(vm.measurementPoints.count == 25)
         #expect(vm.isCalibrated)
         #expect(vm.sidebarMode == .analyze)
     }
 
-    @Test func withoutTheFlagNothingIsSeeded() {
-        let vm = WiFiHeatmapViewModel(insightService: UnavailableInsightService())
+    @Test func theSeedIsHandedOutOnceAndOnlyWithItsFlags() {
+        defer { UITestHeatmapAdvisor.reset(arguments: ProcessInfo.processInfo.arguments) }
+        UITestHeatmapAdvisor.reset(arguments: ["--uitesting"])
+        #expect(!UITestHeatmapAdvisor.opensHeatmap)
+        #expect(UITestHeatmapAdvisor.takeSeededSurvey() == nil)
 
-        vm.seedForUITests(arguments: ["--uitesting"])
-
-        #expect(vm.surveyProject == nil)
+        UITestHeatmapAdvisor.reset(arguments: ["--uitesting", "--seed-heatmap-survey"])
+        #expect(UITestHeatmapAdvisor.opensHeatmap)
+        #expect(UITestHeatmapAdvisor.takeSeededSurvey()?.name == HeatmapAdvisorUITestFixture.projectName)
+        #expect(UITestHeatmapAdvisor.takeSeededSurvey() == nil)
     }
 
     @Test func theInsightArgumentPicksTheStandInModel() {
-        #expect(WiFiHeatmapViewModel.advisorInsightService(arguments: ["--uitesting", "--uitest-insight=answer"]).isAvailable)
-        #expect(!WiFiHeatmapViewModel.advisorInsightService(arguments: ["--uitesting", "--uitest-insight=unavailable"]).isAvailable)
+        defer { UITestHeatmapAdvisor.reset(arguments: ProcessInfo.processInfo.arguments) }
+        UITestHeatmapAdvisor.reset(arguments: ["--uitesting", "--uitest-insight=answer"])
+        #expect(UITestHeatmapAdvisor.insightService?.isAvailable == true)
+        UITestHeatmapAdvisor.reset(arguments: ["--uitesting", "--uitest-insight=unavailable"])
+        #expect(UITestHeatmapAdvisor.insightService?.isAvailable == false)
+        UITestHeatmapAdvisor.reset(arguments: ["--uitest-insight=answer"])
+        #expect(UITestHeatmapAdvisor.insightService == nil)
     }
 }

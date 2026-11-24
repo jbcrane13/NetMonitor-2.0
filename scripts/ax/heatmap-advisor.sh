@@ -26,7 +26,7 @@ trap 'kill $PID 2>/dev/null || true' EXIT
 export AX_PID=$PID
 
 KEY_POINTS=("The north-east corner is weak (" "Try moving the access point toward the north-east corner.")
-MODEL_TEXT="moving the access point toward it should help"
+MODEL_TEXT="where the signal is weak"
 MARKER="Written by the on-device model from the survey's statistics"
 
 result=$("$AX" text "SURVEY ADVICE" 40)

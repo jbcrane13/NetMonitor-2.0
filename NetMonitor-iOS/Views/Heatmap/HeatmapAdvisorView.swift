@@ -1,12 +1,12 @@
 import NetMonitorCore
 import SwiftUI
 
-// MARK: - HeatmapAdvisorCard
+// MARK: - HeatmapAdvisorView
 
 /// The heatmap advisor on the survey result (#455): the app's key points about the finished
 /// survey word for word, then the on-device model's wording of them with the generated marker.
 /// Without the model the key points still show; a sparse survey shows the app's hint.
-struct HeatmapAdvisorCard: View {
+struct HeatmapAdvisorView: View {
     let phase: HeatmapAdvisorState.Phase
 
     var body: some View {

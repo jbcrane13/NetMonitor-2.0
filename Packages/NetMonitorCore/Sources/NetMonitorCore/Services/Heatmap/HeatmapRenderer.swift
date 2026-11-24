@@ -129,7 +129,6 @@ public struct HeatmapRenderer: Sendable {
             guard visualization.extractValue(from: point) != nil else { return nil }
             return (x: point.floorPlanX, y: point.floorPlanY)
         }
-        let falloffRadius = Self.falloffRadius
 
         var pixelData = [UInt8](repeating: 0, count: gridW * gridH * 4)
 
@@ -148,10 +147,10 @@ public struct HeatmapRenderer: Sendable {
                 }
 
                 // Fade alpha based on distance from nearest point
-                if minDist > falloffRadius {
+                if minDist > Self.falloffRadius {
                     color.a = 0
-                } else if minDist > falloffRadius * 0.5 {
-                    let fadeT = (minDist - falloffRadius * 0.5) / (falloffRadius * 0.5)
+                } else if minDist > Self.falloffRadius * 0.5 {
+                    let fadeT = (minDist - Self.falloffRadius * 0.5) / (Self.falloffRadius * 0.5)
                     color.a = UInt8(Double(color.a) * (1.0 - fadeT))
                 }
 
