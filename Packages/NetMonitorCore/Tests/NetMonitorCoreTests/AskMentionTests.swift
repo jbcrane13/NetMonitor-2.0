@@ -20,6 +20,13 @@ struct AskMentionTests {
         #expect(AskMention.ambiguous(in: "is my Apple device online", among: Fix.devices)?.devices == [Fix.appleTV, Fix.macBook, Fix.iPad])
     }
 
+    @Test func aQuestionAboutTheGroupIsNotAPicker() {
+        #expect(AskMention.ambiguous(in: "Which Apple devices are offline?", among: Fix.devices) == nil)
+        #expect(AskMention.ambiguous(in: "How many of my Apple devices are online?", among: Fix.devices) == nil)
+        #expect(AskMention.ambiguous(in: "Is every printer up?", among: Self.twoPrinters) == nil)
+        #expect(AskMention.ambiguous(in: "Are all the Brother printer queues up?", among: Self.twoPrinters) == nil)
+    }
+
     @Test func oneFitIsNotAmbiguous() {
         #expect(AskMention.ambiguous(in: "Is the printer up?", among: Fix.devices) == nil)
         #expect(AskMention.ambiguous(in: "How has the NAS latency been today?", among: Fix.devices) == nil)

@@ -27,6 +27,12 @@ struct AskToolboxTests {
         #expect(toolbox.record.deviceIDs == [Fix.appleTV.id, Fix.macBook.id, Fix.iPad.id])
     }
 
+    @Test func aPluralPhraseReturnsEveryDeviceThatFits() {
+        let toolbox = Fix.toolbox()
+        #expect(toolbox.findDevices("Apple devices").hasPrefix("3 devices match \"Apple devices\":"))
+        #expect(toolbox.record.deviceIDs == [Fix.appleTV.id, Fix.macBook.id, Fix.iPad.id])
+    }
+
     @Test func aPinnedDeviceWinsWhenThePhraseFitsSeveral() {
         let toolbox = Fix.toolbox(pinned: Fix.macBook.id)
         _ = toolbox.findDevices("Apple")

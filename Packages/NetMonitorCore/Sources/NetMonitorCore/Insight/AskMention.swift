@@ -6,7 +6,8 @@ import Foundation
 /// Runs of up to four words are tried longest first with `DevicePhraseResolver`; a run that fits
 /// one device settles its words. A run that fits several is ambiguous only when it names a kind
 /// ("printer") or a maker ("Apple"): a room word shared by device names ("living room") is left
-/// to the tools, which list every fit.
+/// to the tools, which list every fit. So is a phrase that asks about the group: "Apple devices",
+/// "all my printers".
 public struct AskMention: Equatable, Sendable {
     /// The user's words for the device, such as "printer".
     public let phrase: String
@@ -28,7 +29,11 @@ public struct AskMention: Equatable, Sendable {
                     settled.formUnion(span)
                 case let .several(fits):
                     let lowered = trimmed.map { words[$0].text }
-                    if names(kindOrMaker: lowered, of: fits) {
+                    guard names(kindOrMaker: lowered, of: fits) else { continue }
+                    if meansSeveral(trimmed, words) {
+                        // Its shorter runs ask about the group too.
+                        settled.formUnion(span)
+                    } else {
                         return AskMention(phrase: phrase, devices: fits, question: question, range: range)
                     }
                 case .none:
@@ -78,6 +83,21 @@ public struct AskMention: Equatable, Sendable {
             span.removeLast()
         }
         return span.isEmpty ? nil : span
+    }
+
+    private static let quantifiers: Set<String> = ["all", "every", "any", "each"]
+
+    /// Whether the span is followed by "devices" or led by "all", "every", "any" or "each"
+    /// (past "the", "my" …): the question is about every fit, not one of them.
+    private static func meansSeveral(_ span: [Int], _ words: [Word]) -> Bool {
+        if let last = span.last, last + 1 < words.count, words[last + 1].text == "devices" {
+            return true
+        }
+        var before = (span.first ?? 0) - 1
+        while before >= 0, DevicePhraseResolver.fillerWords.contains(words[before].text) {
+            before -= 1
+        }
+        return before >= 0 && quantifiers.contains(words[before].text)
     }
 
     private static func names(kindOrMaker words: [String], of devices: [AskDevice]) -> Bool {

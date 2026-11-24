@@ -254,7 +254,11 @@ public final class AskToolbox: Sendable {
         if !atAddress.isEmpty {
             return atAddress
         }
-        switch DevicePhraseResolver.resolve(phrase, among: snapshot.devices) {
+        // "Apple devices" means the devices that fit "Apple": the plural is in no device's name.
+        let singular = phrase.split(whereSeparator: \.isWhitespace)
+            .filter { $0.lowercased().trimmingCharacters(in: .punctuationCharacters) != "devices" }
+            .joined(separator: " ")
+        switch DevicePhraseResolver.resolve(singular, among: snapshot.devices) {
         case let .one(device): return [device]
         case let .several(devices):
             if let pinned = devices.first(where: { $0.id == pinnedDeviceID }) {
