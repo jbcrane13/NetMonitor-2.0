@@ -87,9 +87,17 @@ enum MacTheme {
 
         // MARK: — Semantic colors (adaptive)
 
-        static let success = Color(hex: "10B981")     // emerald-500
+        /// Dark: emerald-500 #10B981. Light: emerald-700 #047857, which meets 3:1 on backgroundBase (#361).
+        static let success = Color(nsColor: macColor(
+            dark: NSColor(red: 16/255, green: 185/255, blue: 129/255, alpha: 1),
+            light: NSColor(red: 4/255, green: 120/255, blue: 87/255, alpha: 1)
+        ))
         static let warning = Color(hex: "F59E0B")     // amber-500
-        static let error = Color(hex: "EF4444")       // red-500
+        /// Dark: red-500 #EF4444. Light: red-600 #DC2626, which meets 3:1 on backgroundBase (#361).
+        static let error = Color(nsColor: macColor(
+            dark: NSColor(red: 239/255, green: 68/255, blue: 68/255, alpha: 1),
+            light: NSColor(red: 220/255, green: 38/255, blue: 38/255, alpha: 1)
+        ))
         static let info = Color(hex: "3B82F6")        // blue-500
 
         // MARK: — Text colors (adaptive)
@@ -261,9 +269,10 @@ enum MacTheme {
             light: NSColor(red: 215/255, green: 217/255, blue: 222/255, alpha: 1)
         ))
 
+        /// Light: opaque cyan-700 #0E7490, which meets 3:1 on backgroundBase (#361).
         static let sidebarActiveBorder = Color(nsColor: macColor(
             dark: NSColor(red: 6/255, green: 182/255, blue: 212/255, alpha: 1),
-            light: NSColor(red: 6/255, green: 182/255, blue: 212/255, alpha: 0.8)
+            light: NSColor(red: 14/255, green: 116/255, blue: 144/255, alpha: 1)
         ))
 
         static let sidebarTextPrimary = Color(nsColor: macColor(

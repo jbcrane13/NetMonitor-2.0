@@ -4,6 +4,10 @@ import Foundation
 
 // Tag already declared in CompanionWireProtocolTests.swift
 
+/// Runs real speed tests against Cloudflare, so results depend on the network and
+/// host load (#489). Opt in with `NETMONITOR_LIVE_TESTS=1` (see `LiveTestGate`);
+/// `SpeedTestLatencyErrorTests` covers the same paths with mocked responses.
+@Suite(.enabled(if: LiveTestGate.isEnabled))
 struct SpeedTestServiceIntegrationTests {
 
     // MARK: - Real Speed Test

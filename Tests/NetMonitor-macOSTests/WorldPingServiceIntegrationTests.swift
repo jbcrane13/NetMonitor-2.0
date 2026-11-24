@@ -2,6 +2,10 @@ import Testing
 import Foundation
 @testable import NetMonitorCore
 
+/// Calls the real Globalping.io API, so results depend on the network and the
+/// service (#419). Opt in with `NETMONITOR_LIVE_TESTS=1` (see `LiveTestGate`);
+/// `WorldPingServiceErrorSurfacingTests` covers the same paths with mocked responses.
+@Suite(.enabled(if: LiveTestGate.isEnabled))
 struct WorldPingServiceIntegrationTests {
 
     // MARK: - Real Globalping.io API

@@ -99,3 +99,14 @@ Project-specific notes for agents. Global lessons live in `~/.claude/lessons-lea
 - **Event and health history live in JSON files** (`JSONHistoryFile`), not SwiftData. Under `--uitesting` they go to `<tmp>/netmonitor-uitest-history/` (fixed, survives relaunch); either reset flag (`--reset-history-files` or `--uitesting-reset`) deletes the files. On iOS UI-test launches either flag also clears the legacy key (and `--seed-legacy-events` then writes a fresh fixture); on macOS nothing clears it, so legacy events still in the test defaults migrate back on load. The legacy UserDefaults key `com.netmonitor.networkEvents` is kept for one release (#514).
 - **macOS UI-test scans use a fixture pipeline and an isolated `DeviceChangeTracker` suite** (`netmonitor.uitest`). The first confirmed scan of a scope is a baseline that reports nothing new, so launch with `--seed-test-device` before asserting a `firstSeen`.
 - **The repo is public.** Evidence screenshots from the live Mac dashboard show the WAN IP and DNS servers: crop to the element or black them out before pushing to `pr-evidence/*`.
+
+## 2026-11-23 — Security readout (#454)
+- **Only the macOS quick scan and the device-detail enrichment write `LocalDevice.openPorts`.** The Port Scanner tool persists nothing. A feature that reads ports must add them to `QuickPortScanPhase.commonPorts`; otherwise they are never measured (#549 tracks the enrichment's stale list).
+- **`openPorts` is a union that never forgets** (#548). A finding based on it says "found open", not "is open now".
+- **Every Mac listens on TCP 5000** (Control Center, AirPlay Receiver). Gate any port-5000 rule by device type.
+- **The model can misattribute while passing grounding.** Asked about five findings, it put SMB on the router; every number was in the facts. Render the app's list; the model only writes an overview.
+
+## 2026-11-23 — Label capture from a photo (#456)
+- **Vision OCR can return Cyrillic look-alikes for printed Latin text.** With `usesLanguageCorrection = false`, `VNRecognizeTextRequest` read "MAC: 00:1E:…" as Cyrillic "МАС: 00:1Е:…" on macOS 27.2, so no MAC regex matched. `recognitionLanguages = ["en-US"]` did not change it. `LabelTextScanner.latin` folds Cyrillic/Greek look-alikes to Latin before any check.
+- **Check model-extracted values against the OCR text, not just their format.** Keep a field only when its letters and digits appear in the OCR text; when the model's value is dropped, fill the MAC and serial from the app's own regex. That way a wrong model answer degrades to the code's reading rather than to nothing.
+- **Real OCR works in the iOS simulator**, so the UI test draws a label at launch (`UITEST_LABEL_IMAGE=1`) and stubs only the model (`UITEST_LABEL_MODEL`). The cold OCR start was about 28 s on the Mac and under 20 s in the simulator; allow 90 s for the first sheet.

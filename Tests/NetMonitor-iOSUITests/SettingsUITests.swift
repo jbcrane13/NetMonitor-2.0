@@ -10,8 +10,8 @@ final class SettingsUITests: XCTestCase {
         app.launch()
         // Navigate to Settings via Dashboard gear button
         let settingsButton = app.buttons["dashboard_button_settings"]
-        // On iOS 26+ the settings screen is a CollectionView, not an Other.
-        let settingsScreen = app.collectionViews["screen_settings"]
+        // On iOS 26+ the settings screen is a CollectionView, not an Other; match any type so older trees work too.
+        let settingsScreen = element("screen_settings")
         if settingsButton.waitForExistence(timeout: 5) {
             settingsButton.tap()
             // The first tap after a fresh launch can miss (hit point {-1, -1}); retry once.
@@ -143,6 +143,8 @@ final class SettingsUITests: XCTestCase {
         let wasOff = (toggle.value as? String) == "0"
         if wasOff {
             toggle.flipSwitch()
+            // Restore even when the assertion below fails and stops the test.
+            addTeardownBlock { toggle.flipSwitch() }
         }
         let thresholdStepper = app.steppers["settings_stepper_highLatencyThreshold"]
         XCTAssertTrue(
@@ -384,6 +386,8 @@ final class SettingsUITests: XCTestCase {
         let wasOff = (toggle.value as? String) == "0"
         if wasOff {
             toggle.flipSwitch()
+            // Restore even when the assertion below fails and stops the test.
+            addTeardownBlock { toggle.flipSwitch() }
         }
 
         // FUNCTIONAL: threshold stepper should now be visible
@@ -481,11 +485,14 @@ final class SettingsUITests: XCTestCase {
     /// Scrolls the settings list until the element is on screen. Rows below the fold aren't in the tree
     /// until the lazy list renders them.
     private func scrollTo(_ target: XCUIElement, maxSwipes: Int = 8) {
-        let list = app.collectionViews["screen_settings"]
+        let list = element("screen_settings")
         for _ in 0..<maxSwipes where !(target.exists && target.isHittable) {
             list.swipeUp(velocity: .slow)
         }
-        XCTAssertTrue(target.waitForExistence(timeout: 3), "\(target) should be on screen after scrolling")
+        XCTAssertTrue(
+            target.waitForExistence(timeout: 3) && target.isHittable,
+            "\(target) should be on screen and hittable after scrolling"
+        )
     }
 
     private func clearAndTypeText(_ text: String, into element: XCUIElement) {

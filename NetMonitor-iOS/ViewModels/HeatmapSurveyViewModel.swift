@@ -86,6 +86,12 @@ final class HeatmapSurveyViewModel {
     var lastSaveDate: Date?
     private var measurementsSinceLastSave: Int = 0
 
+    // MARK: - Advisor (#455)
+
+    /// The advisor card on the survey result: key points about the finished survey and the
+    /// on-device model's wording of them.
+    let advisor: HeatmapAdvisorState
+
     // MARK: - Dependencies
 
     private let renderer: HeatmapRenderer
@@ -98,9 +104,11 @@ final class HeatmapSurveyViewModel {
     init(
         service: any HeatmapServiceProtocol,
         fileManager: HeatmapFileManager = HeatmapFileManager(),
-        exporter: HeatmapExporter = HeatmapExporter()
+        exporter: HeatmapExporter = HeatmapExporter(),
+        insightService: any InsightServiceProtocol = UITestBootstrap.heatmapInsightService ?? InsightService.shared
     ) {
         self.state = HeatmapSurveyState()
+        advisor = HeatmapAdvisorState(service: insightService)
         self.heatmapService = service
         self.fileManager = fileManager
         self.exporter = exporter
@@ -338,7 +346,9 @@ final class HeatmapSurveyViewModel {
             while !Task.isCancelled {
                 guard let self else { return }
                 try? await Task.sleep(for: .seconds(self.continuousScanInterval))
-                if Task.isCancelled { return }
+                if Task.isCancelled {
+                    return
+                }
                 guard self.isSurveying, let loc = self.pendingMeasurementLocation else { continue }
                 await self.takeMeasurement(at: loc)
             }
@@ -396,7 +406,9 @@ final class HeatmapSurveyViewModel {
 
     func deleteMeasurement(id: UUID) {
         state.deleteMeasurement(id: id)
-        if isHeatmapGenerated { updateHeatmap() }
+        if isHeatmapGenerated {
+            updateHeatmap()
+        }
     }
 
     func clearMeasurements() {
@@ -409,7 +421,9 @@ final class HeatmapSurveyViewModel {
 
     func undo() {
         state.undo()
-        if isHeatmapGenerated { updateHeatmap() }
+        if isHeatmapGenerated {
+            updateHeatmap()
+        }
     }
 
     // MARK: - Heatmap Generation

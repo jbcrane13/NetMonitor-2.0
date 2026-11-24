@@ -202,4 +202,35 @@ struct WorldPingServiceErrorSurfacingTests {
         #expect(results.isEmpty, "Poll failure should yield zero results")
         #expect(service.lastError != nil, "Poll HTTP error should surface via lastError")
     }
+
+    // MARK: - Result Ordering
+
+    @Test("Finished results are sorted by ascending latency with failed probes last")
+    func finishedResultsSortedByLatency() async throws {
+        func probe(_ city: String, _ total: Double?) -> [String: Any] {
+            var result: [String: Any] = ["status": total == nil ? "failed" : "finished"]
+            if let total {
+                result["timings"] = ["total": total]
+            }
+            return ["probe": ["city": city, "country": "XX", "continent": "EU"], "result": result]
+        }
+        let submitBody = try JSONSerialization.data(withJSONObject: ["id": "m-1"])
+        let pollBody = try JSONSerialization.data(withJSONObject: [
+            "status": "finished",
+            "results": [probe("Slow", 120), probe("Down", nil), probe("Fast", 15), probe("Mid", 60)]
+        ])
+        let session = MockURLProtocol.makeSession { request in
+            guard let url = request.url,
+                  let response = HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil) else {
+                throw URLError(.badServerResponse)
+            }
+            return (response, request.httpMethod == "POST" ? submitBody : pollBody)
+        }
+        let service = WorldPingService(session: session)
+
+        let results = await collect(service.ping(host: "example.com", maxNodes: 4))
+
+        #expect(service.lastError == nil)
+        #expect(results.map(\.city) == ["Fast", "Mid", "Slow", "Down"])
+    }
 }

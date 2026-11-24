@@ -25,6 +25,8 @@ targets:
           - "**/*.swift"
           - "Views/Components/FlowLayout.swift"
           - "Views/Devices/ProDeviceDetailView.swift"
+      # UI-test fixture shared with the iOS app (#455); its code is Debug-only.
+      - path: Shared/UITest/HeatmapAdvisorUITestFixture.swift
       - path: NetMonitor-macOS/Resources/Assets.xcassets
     info:
       path: NetMonitor-macOS/Resources/Info.plist
@@ -135,6 +137,8 @@ targets:
           - "**/*.swift"
         excludes:
           - "Widget/**"
+      # UI-test fixture shared with the macOS app (#455); its code is Debug-only.
+      - path: Shared/UITest/HeatmapAdvisorUITestFixture.swift
       - path: NetMonitor-iOS/Resources/Assets.xcassets
     entitlements:
       path: NetMonitor-iOS/Resources/NetMonitor-iOS.entitlements
@@ -150,7 +154,7 @@ targets:
         CFBundleShortVersionString: "2.2.3"
         CFBundleVersion: "25"
         CFBundleIconName: AppIcon
-        NSCameraUsageDescription: "NetMonitor uses the camera for AR-assisted room scanning to create floor plans for Wi-Fi coverage surveys."
+        NSCameraUsageDescription: "NetMonitor uses the camera for AR-assisted room scanning to create floor plans for Wi-Fi coverage surveys, and to read the model, serial number and MAC address from a device's label."
         NSLocationWhenInUseUsageDescription: "NetMonitor uses your location to display WiFi network information and monitor GeoFence zones."
         NSLocationAlwaysAndWhenInUseUsageDescription: "NetMonitor uses your location in the background to trigger GeoFence alerts when you enter or exit defined zones."
         NSBonjourServices:

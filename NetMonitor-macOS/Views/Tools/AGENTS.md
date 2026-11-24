@@ -20,6 +20,7 @@ Network diagnostic tool views for macOS. Each tool is presented as a sheet from 
 | `WakeOnLanToolView.swift` | Magic packet sender with MAC address input |
 | `SpeedTestToolView.swift` | Download/upload speed test with gauge display |
 | `PortForwardsToolView.swift` | Read-only table of the router's UPnP port forwards (#400); state from Core `PortForwardsState` |
+| `SecurityReadoutView.swift` | Ranked risks from measured open ports (#454); findings from Core `SecurityRuleTable`, optional model overview via `SecurityReadoutMacViewModel` |
 
 ## For AI Agents
 

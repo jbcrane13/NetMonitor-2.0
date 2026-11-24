@@ -109,6 +109,8 @@ public struct FloorPlan: Sendable, Codable, Identifiable, Equatable {
     public var origin: FloorPlanOrigin
     public var calibrationPoints: [CalibrationPoint]?
     public var walls: [WallSegment]?
+    /// Rooms labelled on a RoomPlan or blueprint plan; nil for an imported image (#455).
+    public var roomLabels: [RoomLabel]?
 
     public init(
         id: UUID = UUID(),
@@ -119,7 +121,8 @@ public struct FloorPlan: Sendable, Codable, Identifiable, Equatable {
         pixelHeight: Int,
         origin: FloorPlanOrigin = .imported,
         calibrationPoints: [CalibrationPoint]? = nil,
-        walls: [WallSegment]? = nil
+        walls: [WallSegment]? = nil,
+        roomLabels: [RoomLabel]? = nil
     ) {
         self.id = id
         self.imageData = imageData
@@ -130,6 +133,7 @@ public struct FloorPlan: Sendable, Codable, Identifiable, Equatable {
         self.origin = origin
         self.calibrationPoints = calibrationPoints
         self.walls = walls
+        self.roomLabels = roomLabels
     }
 
     public var metersPerPixelX: Double {
@@ -163,6 +167,9 @@ public struct MeasurementPoint: Sendable, Codable, Identifiable, Equatable {
     public var uploadSpeed: Double?
     public var latency: Double?
     public var connectedAPName: String?
+    /// True when no signal strength was read and `rssi` is only a placeholder; nil for a measured
+    /// reading, including every point saved before this field existed (#455).
+    public var rssiUnavailable: Bool?
 
     public init(
         id: UUID = UUID(),
@@ -181,7 +188,8 @@ public struct MeasurementPoint: Sendable, Codable, Identifiable, Equatable {
         downloadSpeed: Double? = nil,
         uploadSpeed: Double? = nil,
         latency: Double? = nil,
-        connectedAPName: String? = nil
+        connectedAPName: String? = nil,
+        rssiUnavailable: Bool? = nil
     ) {
         self.id = id
         self.timestamp = timestamp
@@ -200,6 +208,7 @@ public struct MeasurementPoint: Sendable, Codable, Identifiable, Equatable {
         self.uploadSpeed = uploadSpeed
         self.latency = latency
         self.connectedAPName = connectedAPName
+        self.rssiUnavailable = rssiUnavailable
     }
 }
 

@@ -356,6 +356,7 @@ struct MacWorldPingToolViewModelEdgeCaseTests {
         await waitUntilMainActor { vm.isRunning == false }
 
         // Results with latencies should come before those with nil
+        try #require(vm.results.count == 3)
         let firstLatency = vm.results[0].latencyMs
         let secondLatency = vm.results[1].latencyMs
         #expect(firstLatency == 30)
@@ -365,10 +366,11 @@ struct MacWorldPingToolViewModelEdgeCaseTests {
 
 // MARK: - Helper
 
+/// The deadline only bounds a real failure; 2 s failed on a loaded host (#524).
 @MainActor
 private func waitUntilMainActor(
     _ condition: @MainActor () -> Bool,
-    timeout: Duration = .seconds(2)
+    timeout: Duration = .seconds(10)
 ) async {
     let deadline = ContinuousClock.now.advanced(by: timeout)
     while !condition() {

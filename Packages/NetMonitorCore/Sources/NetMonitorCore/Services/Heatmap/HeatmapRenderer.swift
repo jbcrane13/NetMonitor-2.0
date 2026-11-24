@@ -28,6 +28,10 @@ public struct HeatmapRenderer: Sendable {
 
     public let configuration: Configuration
 
+    /// Reach of a measurement in normalized plan coordinates: cells farther than this from every
+    /// point are drawn transparent, and are outside the surveyed area (#455).
+    public static let falloffRadius = 0.15
+
     public init(configuration: Configuration = Configuration()) {
         self.configuration = configuration
     }
@@ -121,12 +125,10 @@ public struct HeatmapRenderer: Sendable {
         guard gridW > 0, gridH > 0 else { return nil }
 
         // Pre-compute point positions for distance-based alpha falloff
-        let pointPositions = points.compactMap { p -> (x: Double, y: Double)? in
-            guard visualization.extractValue(from: p) != nil else { return nil }
-            return (x: p.floorPlanX, y: p.floorPlanY)
+        let pointPositions = points.compactMap { point -> (x: Double, y: Double)? in
+            guard visualization.extractValue(from: point) != nil else { return nil }
+            return (x: point.floorPlanX, y: point.floorPlanY)
         }
-        // Falloff radius in normalized coordinates — pixels beyond this distance are transparent
-        let falloffRadius = 0.15
 
         var pixelData = [UInt8](repeating: 0, count: gridW * gridH * 4)
 
@@ -145,10 +147,10 @@ public struct HeatmapRenderer: Sendable {
                 }
 
                 // Fade alpha based on distance from nearest point
-                if minDist > falloffRadius {
+                if minDist > Self.falloffRadius {
                     color.a = 0
-                } else if minDist > falloffRadius * 0.5 {
-                    let fadeT = (minDist - falloffRadius * 0.5) / (falloffRadius * 0.5)
+                } else if minDist > Self.falloffRadius * 0.5 {
+                    let fadeT = (minDist - Self.falloffRadius * 0.5) / (Self.falloffRadius * 0.5)
                     color.a = UInt8(Double(color.a) * (1.0 - fadeT))
                 }
 
@@ -181,10 +183,10 @@ public struct HeatmapRenderer: Sendable {
     /// Smooth S-curve that steepens transitions in the 0.3-0.7 range so
     /// nearby signal values map to visually distinct colors.
     /// Keeps 0->0 and 1->1 but spreads the mid-range across more of the gradient.
-    private func contrastCurve(_ t: Double) -> Double {
+    private func contrastCurve(_ fraction: Double) -> Double {
         // Logistic sigmoid centered at 0.5
         let k = 5.0  // steepness — higher = more contrast in the mid-range
-        let raw = 1.0 / (1.0 + exp(-k * (t - 0.5)))
+        let raw = 1.0 / (1.0 + exp(-k * (fraction - 0.5)))
         // Normalize so f(0)=0 and f(1)=1
         let low = 1.0 / (1.0 + exp(-k * (0.0 - 0.5)))
         let high = 1.0 / (1.0 + exp(-k * (1.0 - 0.5)))
@@ -225,121 +227,121 @@ public struct HeatmapRenderer: Sendable {
 
     /// Thermal: Blue → Cyan → Green → Yellow → Red
     /// Standard network heatmap gradient used by NetSpot and similar tools.
-    private func thermalGradient(t: Double, alpha: UInt8) -> (r: UInt8, g: UInt8, b: UInt8, a: UInt8) {
-        let c = min(max(t, 0), 1)
-        let r: Double
-        let g: Double
-        let b: Double
+    private func thermalGradient(t fraction: Double, alpha: UInt8) -> (r: UInt8, g: UInt8, b: UInt8, a: UInt8) {
+        let clamped = min(max(fraction, 0), 1)
+        let red: Double
+        let green: Double
+        let blue: Double
 
-        if c < 0.25 {
+        if clamped < 0.25 {
             // Blue → Cyan
-            let local = c / 0.25
-            r = 0
-            g = local
-            b = 1.0
-        } else if c < 0.5 {
+            let local = clamped / 0.25
+            red = 0
+            green = local
+            blue = 1.0
+        } else if clamped < 0.5 {
             // Cyan → Green
-            let local = (c - 0.25) / 0.25
-            r = 0
-            g = 1.0
-            b = 1.0 - local
-        } else if c < 0.75 {
+            let local = (clamped - 0.25) / 0.25
+            red = 0
+            green = 1.0
+            blue = 1.0 - local
+        } else if clamped < 0.75 {
             // Green → Yellow
-            let local = (c - 0.5) / 0.25
-            r = local
-            g = 1.0
-            b = 0
+            let local = (clamped - 0.5) / 0.25
+            red = local
+            green = 1.0
+            blue = 0
         } else {
             // Yellow → Red
-            let local = (c - 0.75) / 0.25
-            r = 1.0
-            g = 1.0 - local
-            b = 0
+            let local = (clamped - 0.75) / 0.25
+            red = 1.0
+            green = 1.0 - local
+            blue = 0
         }
 
-        return (r: UInt8(r * 255), g: UInt8(g * 255), b: UInt8(b * 255), a: alpha)
+        return (r: UInt8(red * 255), g: UInt8(green * 255), b: UInt8(blue * 255), a: alpha)
     }
 
     /// Stoplight: Red → Orange → Yellow → Green
     /// Intuitive traffic-light gradient.
-    private func stoplightGradient(t: Double, alpha: UInt8) -> (r: UInt8, g: UInt8, b: UInt8, a: UInt8) {
-        let c = min(max(t, 0), 1)
-        let r: Double
-        let g: Double
-        let b: Double = 0
+    private func stoplightGradient(t fraction: Double, alpha: UInt8) -> (r: UInt8, g: UInt8, b: UInt8, a: UInt8) {
+        let clamped = min(max(fraction, 0), 1)
+        let red: Double
+        let green: Double
+        let blue: Double = 0
 
-        if c < 0.33 {
+        if clamped < 0.33 {
             // Red → Orange
-            let local = c / 0.33
-            r = 1.0
-            g = 0.4 * local
-        } else if c < 0.66 {
+            let local = clamped / 0.33
+            red = 1.0
+            green = 0.4 * local
+        } else if clamped < 0.66 {
             // Orange → Yellow
-            let local = (c - 0.33) / 0.33
-            r = 1.0
-            g = 0.4 + 0.6 * local
+            let local = (clamped - 0.33) / 0.33
+            red = 1.0
+            green = 0.4 + 0.6 * local
         } else {
             // Yellow → Green
-            let local = (c - 0.66) / 0.34
-            r = 1.0 - local
-            g = 0.6 + 0.4 * local
+            let local = (clamped - 0.66) / 0.34
+            red = 1.0 - local
+            green = 0.6 + 0.4 * local
         }
 
-        return (r: UInt8(r * 255), g: UInt8(g * 255), b: UInt8(b * 255), a: alpha)
+        return (r: UInt8(red * 255), g: UInt8(green * 255), b: UInt8(blue * 255), a: alpha)
     }
 
     /// Plasma: Indigo → Purple → Red → Orange → Yellow
     /// Scientific color map with high perceptual contrast.
-    private func plasmaGradient(t: Double, alpha: UInt8) -> (r: UInt8, g: UInt8, b: UInt8, a: UInt8) {
-        let c = min(max(t, 0), 1)
-        let r: Double
-        let g: Double
-        let b: Double
+    private func plasmaGradient(t fraction: Double, alpha: UInt8) -> (r: UInt8, g: UInt8, b: UInt8, a: UInt8) {
+        let clamped = min(max(fraction, 0), 1)
+        let red: Double
+        let green: Double
+        let blue: Double
 
-        if c < 0.25 {
+        if clamped < 0.25 {
             // Dark indigo → Purple
-            let local = c / 0.25
-            r = 0.05 + 0.35 * local
-            g = 0.01 + 0.01 * local
-            b = 0.2 + 0.3 * local
-        } else if c < 0.5 {
+            let local = clamped / 0.25
+            red = 0.05 + 0.35 * local
+            green = 0.01 + 0.01 * local
+            blue = 0.2 + 0.3 * local
+        } else if clamped < 0.5 {
             // Purple → Red
-            let local = (c - 0.25) / 0.25
-            r = 0.4 + 0.55 * local
-            g = 0.02 + 0.08 * local
-            b = 0.5 - 0.45 * local
-        } else if c < 0.75 {
+            let local = (clamped - 0.25) / 0.25
+            red = 0.4 + 0.55 * local
+            green = 0.02 + 0.08 * local
+            blue = 0.5 - 0.45 * local
+        } else if clamped < 0.75 {
             // Red → Orange
-            let local = (c - 0.5) / 0.25
-            r = 0.95 + 0.05 * local
-            g = 0.1 + 0.4 * local
-            b = 0.05 - 0.05 * local
+            let local = (clamped - 0.5) / 0.25
+            red = 0.95 + 0.05 * local
+            green = 0.1 + 0.4 * local
+            blue = 0.05 - 0.05 * local
         } else {
             // Orange → Yellow
-            let local = (c - 0.75) / 0.25
-            r = 1.0
-            g = 0.5 + 0.5 * local
-            b = local * 0.1
+            let local = (clamped - 0.75) / 0.25
+            red = 1.0
+            green = 0.5 + 0.5 * local
+            blue = local * 0.1
         }
 
-        return (r: UInt8(r * 255), g: UInt8(g * 255), b: UInt8(b * 255), a: alpha)
+        return (r: UInt8(red * 255), g: UInt8(green * 255), b: UInt8(blue * 255), a: alpha)
     }
 
     /// WiFiman-style gradient: green (t=1, strong signal) → yellow → red (t=0, weak signal).
-    private func wifimanGradient(t: Double, alpha: UInt8) -> (r: UInt8, g: UInt8, b: UInt8, a: UInt8) {
-        let c = min(max(t, 0), 1)
-        let r: Double
-        let g: Double
-        if c < 0.5 {
+    private func wifimanGradient(t fraction: Double, alpha: UInt8) -> (r: UInt8, g: UInt8, b: UInt8, a: UInt8) {
+        let clamped = min(max(fraction, 0), 1)
+        let red: Double
+        let green: Double
+        if clamped < 0.5 {
             // Red → Yellow (t: 0→0.5)
-            r = 1.0
-            g = c * 2.0
+            red = 1.0
+            green = clamped * 2.0
         } else {
             // Yellow → Green (t: 0.5→1.0)
-            r = 1.0 - (c - 0.5) * 2.0
-            g = 1.0
+            red = 1.0 - (clamped - 0.5) * 2.0
+            green = 1.0
         }
-        return (r: UInt8(r * 255), g: UInt8(g * 255), b: 0, a: alpha)
+        return (r: UInt8(red * 255), g: UInt8(green * 255), b: 0, a: alpha)
     }
 
     // MARK: - Static Convenience

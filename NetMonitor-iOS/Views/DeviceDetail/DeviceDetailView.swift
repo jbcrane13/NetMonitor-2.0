@@ -9,6 +9,7 @@ struct DeviceDetailView: View {
     /// The MAC the list showed, which matters for a cached result the live scan lacks.
     var macAddress: String?
     @State private var viewModel = DeviceDetailViewModel()
+    @State private var showsLabelCapture = false
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
 
@@ -90,6 +91,14 @@ struct DeviceDetailView: View {
             viewModel.loadDevice(ipAddress: ipAddress, networkID: networkID, macAddress: macAddress, context: modelContext)
             guard !Task.isCancelled else { return }
             await viewModel.enrichDevice(bonjourServices: [])
+        }
+        .sheet(isPresented: $showsLabelCapture) {
+            if let device = viewModel.device {
+                LabelCaptureView(device: device) {
+                    // The saved values replace what the detail shows, suggestions included.
+                    viewModel.loadDevice(ipAddress: ipAddress, networkID: networkID, macAddress: macAddress, context: modelContext)
+                }
+            }
         }
         .accessibilityIdentifier("screen_deviceDetail")
     }
@@ -178,6 +187,8 @@ struct DeviceDetailView: View {
                 if viewModel.isShowingSuggestion {
                     suggestionRow
                 }
+
+                scanLabelButton
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -234,7 +245,7 @@ struct DeviceDetailView: View {
 
                 // Discovered Services
                 if let services = device.discoveredServices, !services.isEmpty {
-                    if device.openPorts != nil && !device.openPorts!.isEmpty {
+                    if !(device.openPorts?.isEmpty ?? true) {
                         Divider().background(Theme.Colors.glassBorder)
                     }
 
@@ -259,8 +270,7 @@ struct DeviceDetailView: View {
                 }
 
                 // Empty state or action buttons
-                if (device.openPorts == nil || device.openPorts!.isEmpty) &&
-                   (device.discoveredServices == nil || device.discoveredServices!.isEmpty) {
+                if device.openPorts?.isEmpty ?? true, device.discoveredServices?.isEmpty ?? true {
                     Text("No services or ports discovered yet")
                         .foregroundStyle(Theme.Colors.textTertiary)
                         .font(.subheadline)
@@ -271,64 +281,73 @@ struct DeviceDetailView: View {
                 // Action buttons
                 Divider().background(Theme.Colors.glassBorder)
 
-                HStack(spacing: Theme.Layout.itemSpacing) {
-                    Button {
-                        Task {
-                            await viewModel.scanPorts()
-                        }
-                    } label: {
-                        HStack {
-                            if viewModel.isScanning {
-                                ProgressView()
-                                    .controlSize(.small)
-                                    .tint(Theme.Colors.accent)
-                            } else {
-                                Image(systemName: "network")
-                                    .foregroundStyle(Theme.Colors.accent)
-                            }
-                            Text(viewModel.isScanning ? "Scanning..." : "Scan Ports")
-                                .foregroundStyle(Theme.Colors.textPrimary)
-                                .font(.subheadline)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                        .background(Theme.Colors.glassBackground)
-                        .cornerRadius(Theme.Layout.buttonCornerRadius)
-                    }
-                    .disabled(viewModel.isScanning)
-                    .accessibilityIdentifier("deviceDetail_button_scanPorts")
-
-                    Button {
-                        Task {
-                            await viewModel.discoverServices()
-                        }
-                    } label: {
-                        HStack {
-                            if viewModel.isDiscovering {
-                                ProgressView()
-                                    .controlSize(.small)
-                                    .tint(Theme.Colors.accent)
-                            } else {
-                                Image(systemName: "bonjour")
-                                    .foregroundStyle(Theme.Colors.accent)
-                            }
-                            Text(viewModel.isDiscovering ? "Discovering..." : "Discover Services")
-                                .foregroundStyle(Theme.Colors.textPrimary)
-                                .font(.subheadline)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                        .background(Theme.Colors.glassBackground)
-                        .cornerRadius(Theme.Layout.buttonCornerRadius)
-                    }
-                    .disabled(viewModel.isDiscovering)
-                    .accessibilityIdentifier("deviceDetail_button_discoverServices")
-                }
+                servicesActionButtons
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .glassCard()
         .accessibilityIdentifier("deviceDetail_section_services")
+    }
+}
+
+// MARK: - Services Actions
+
+extension DeviceDetailView {
+    /// Scan Ports and Discover Services, under the services list.
+    private var servicesActionButtons: some View {
+        HStack(spacing: Theme.Layout.itemSpacing) {
+            Button {
+                Task {
+                    await viewModel.scanPorts()
+                }
+            } label: {
+                HStack {
+                    if viewModel.isScanning {
+                        ProgressView()
+                            .controlSize(.small)
+                            .tint(Theme.Colors.accent)
+                    } else {
+                        Image(systemName: "network")
+                            .foregroundStyle(Theme.Colors.accent)
+                    }
+                    Text(viewModel.isScanning ? "Scanning..." : "Scan Ports")
+                        .foregroundStyle(Theme.Colors.textPrimary)
+                        .font(.subheadline)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 10)
+                .background(Theme.Colors.glassBackground)
+                .cornerRadius(Theme.Layout.buttonCornerRadius)
+            }
+            .disabled(viewModel.isScanning)
+            .accessibilityIdentifier("deviceDetail_button_scanPorts")
+
+            Button {
+                Task {
+                    await viewModel.discoverServices()
+                }
+            } label: {
+                HStack {
+                    if viewModel.isDiscovering {
+                        ProgressView()
+                            .controlSize(.small)
+                            .tint(Theme.Colors.accent)
+                    } else {
+                        Image(systemName: "bonjour")
+                            .foregroundStyle(Theme.Colors.accent)
+                    }
+                    Text(viewModel.isDiscovering ? "Discovering..." : "Discover Services")
+                        .foregroundStyle(Theme.Colors.textPrimary)
+                        .font(.subheadline)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 10)
+                .background(Theme.Colors.glassBackground)
+                .cornerRadius(Theme.Layout.buttonCornerRadius)
+            }
+            .disabled(viewModel.isDiscovering)
+            .accessibilityIdentifier("deviceDetail_button_discoverServices")
+        }
     }
 }
 
@@ -633,5 +652,25 @@ extension DeviceDetailView {
             }
             .controlSize(.small)
         }
+    }
+}
+
+// MARK: - Label Capture (#456)
+
+extension DeviceDetailView {
+    /// Opens the label sheet: read the maker, model, serial and MAC from a photo of the label.
+    private var scanLabelButton: some View {
+        Button {
+            showsLabelCapture = true
+        } label: {
+            Label("Scan Label", systemImage: "text.viewfinder")
+                .font(.subheadline)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 10)
+                .background(Theme.Colors.glassBackground)
+                .cornerRadius(Theme.Layout.buttonCornerRadius)
+        }
+        .foregroundStyle(Theme.Colors.textPrimary)
+        .accessibilityIdentifier("deviceDetail_button_scanLabel")
     }
 }

@@ -77,6 +77,17 @@ final class PDFReportGeneratorTests: XCTestCase {
         XCTAssertEqual(h2, "%PDF")
     }
 
+    // MARK: - Device table names (#492)
+
+    func testDeviceTableNamesADeviceByItsDisplayName() {
+        let device = LocalDevice(ipAddress: "192.168.1.77", macAddress: "", customName: "Den TV")
+        XCTAssertNil(device.hostname)
+
+        let report = text(PDFReportGenerator.generateNetworkReport(devices: [device], toolResults: [], speedTests: []))
+
+        XCTAssertTrue(report.contains("Den TV"), "The device table should name the device by displayName")
+    }
+
     // MARK: - Executive summary (#453)
 
     private func pages(_ data: Data?) -> Int {
@@ -162,5 +173,54 @@ final class PDFReportGeneratorTests: XCTestCase {
         )
         XCTAssertEqual(service.requests.count, 1)
         XCTAssertFalse(text(data).contains("Executive Summary"))
+    }
+
+    // MARK: - Capped tables (#493)
+
+    /// 36 records of each kind, oldest first, so the newest is last in fetch order.
+    private func oversizeStore() -> ([LocalDevice], [ToolResult], [SpeedTestResult]) {
+        let base = Date(timeIntervalSince1970: 1_800_000_000)
+        let devices = (1 ... 36).map { i in
+            let device = LocalDevice(ipAddress: "10.0.0.\(i)", macAddress: "", customName: String(format: "dev-%02d", i))
+            device.lastSeen = base.addingTimeInterval(Double(i) * 60)
+            return device
+        }
+        let results = (1 ... 36).map { i in
+            let result = ToolResult(toolType: .ping, target: String(format: "host-%02d", i), success: true, summary: "ok")
+            result.timestamp = base.addingTimeInterval(Double(i) * 60)
+            return result
+        }
+        let tests = (1 ... 36).map { i in
+            let test = SpeedTestResult(downloadSpeed: 100, uploadSpeed: 10, latency: Double(100 + i))
+            test.timestamp = base.addingTimeInterval(Double(i) * 60)
+            return test
+        }
+        return (devices, results, tests)
+    }
+
+    func testCappedTablesShowTheNewestRowsAndSayHowManyOfTheTotal() {
+        let (devices, results, tests) = oversizeStore()
+        let report = text(PDFReportGenerator.generateNetworkReport(devices: devices, toolResults: results, speedTests: tests))
+
+        XCTAssertTrue(report.contains("Discovered Devices (35 of 36)"))
+        XCTAssertTrue(report.contains("dev-36"), "the most recently seen device is shown")
+        XCTAssertFalse(report.contains("dev-01"), "the least recently seen device is the one left out")
+
+        XCTAssertTrue(report.contains("Tool Results (25 of 36)"))
+        XCTAssertTrue(report.contains("host-36"), "the latest tool run is shown")
+        XCTAssertFalse(report.contains("host-11"), "the 11 oldest tool runs are left out")
+
+        XCTAssertTrue(report.contains("Speed Test History (25 of 36)"))
+        XCTAssertTrue(report.contains("136 ms"), "the latest speed test is shown")
+        XCTAssertFalse(report.contains("111 ms"), "the 11 oldest speed tests are left out")
+    }
+
+    func testUncappedTablesShowTheirCountAlone() {
+        let (devices, results, tests) = records()
+        let report = text(PDFReportGenerator.generateNetworkReport(devices: devices, toolResults: results, speedTests: tests))
+
+        XCTAssertTrue(report.contains("Discovered Devices (2)"))
+        XCTAssertTrue(report.contains("Tool Results (1)"))
+        XCTAssertTrue(report.contains("Speed Test History (1)"))
     }
 }
