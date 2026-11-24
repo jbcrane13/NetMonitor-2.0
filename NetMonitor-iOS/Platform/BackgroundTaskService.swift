@@ -384,6 +384,7 @@ final class BackgroundTaskService {
         }
 
         Self.logger.debug("Starting network scan...")
+        let scanBefore = DeviceDiscoveryService.shared.lastScanDate
         await DeviceDiscoveryService.shared.scanNetwork(subnet: nil)
         guard !taskCancelled else {
             Self.logger.info("Task cancelled after network scan")
@@ -392,7 +393,10 @@ final class BackgroundTaskService {
 
         let devices = DeviceDiscoveryService.shared.discoveredDevices
         Self.logger.info("Network scan found \(devices.count) device(s)")
-        reconcileSavedDevices(devices, scanDate: DeviceDiscoveryService.shared.lastScanDate ?? Date())
+        // Only a scan that finished during this task; `lastScanDate` moves when one does.
+        if let scanDate = DeviceDiscoveryService.shared.lastScanDate, scanDate != scanBefore {
+            reconcileSavedDevices(devices, scanDate: scanDate)
+        }
 
         let diff = ScanSchedulerService.shared.computeDiff(current: devices)
         Self.logger.info("Scan diff: \(diff.newDevices.count) new, \(diff.removedDevices.count) removed")

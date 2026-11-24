@@ -28,6 +28,17 @@ final class DeviceDetailViewModel {
     nonisolated(unsafe) private(set) var suggestionTask: Task<Void, Never>?
     /// Fingerprint of the evidence the running or last suggestion pass was started with.
     private var suggestionFingerprint: String?
+    /// Which address DNS is asked about for the loaded device's name.
+    private enum NameLookup {
+        /// The row's own address: detail was opened on it.
+        case savedAddress
+        /// Where the latest scan saw the row's MAC, for a row opened by ID (#584).
+        case scannedAddress(String)
+        /// Opened by ID and not in the latest scan: another device may hold the saved address.
+        case unverified
+    }
+
+    private var nameLookup = NameLookup.savedAddress
     private let maxServiceResolves = 80
     private let maxServiceResolveConcurrency = 8
 
@@ -67,6 +78,7 @@ final class DeviceDetailViewModel {
         suggestionTask = nil
         suggestionFingerprint = nil
         modelContext = context
+        nameLookup = .savedAddress
         let live = Self.liveScan(deviceDiscoveryService)
         let scanned = live.first { $0.ipAddress == ipAddress && (networkID == nil || $0.networkProfileID == networkID) }
         let network = networkID ?? scanned?.networkProfileID
@@ -221,7 +233,11 @@ final class DeviceDetailViewModel {
 
         // Extract Sendable values before async work
         let macAddress = device.macAddress
-        let ipAddress = device.ipAddress
+        let ipAddress: String? = switch nameLookup {
+        case .savedAddress: device.ipAddress
+        case let .scannedAddress(address): address
+        case .unverified: nil
+        }
 
         // Look up the MAC-prefix maker (`vendor`, ADR-022); skip without a MAC
         if device.vendor?.isEmpty ?? true, !macAddress.isEmpty {
@@ -245,7 +261,7 @@ final class DeviceDetailViewModel {
         guard !Task.isCancelled else { return }
 
         // Resolve hostname with timeout to prevent hanging on DNS
-        if device.resolvedHostname == nil {
+        if device.resolvedHostname == nil, let ipAddress {
             let hostname: String? = await withTaskGroup(of: String?.self) { group in
                 group.addTask {
                     await self.nameResolver.resolve(ipAddress: ipAddress)
@@ -440,7 +456,8 @@ extension DeviceDetailViewModel {
     /// Loads the saved row with `id`, for links that carry `LocalDevice.id` (Ask citations, rule
     /// targets, Timeline events; #584). Never matches by IP: when DHCP gave the device's address
     /// to another device, the link still opens this one. The latest scan's identity is merged only
-    /// from the scanned device with the row's MAC. A row that no longer exists loads nothing.
+    /// from the scanned device with the row's MAC, and DNS is asked for a name only at the address
+    /// that device was scanned at. A row that no longer exists loads nothing.
     func loadDevice(id: UUID, context: ModelContext) {
         suggestionTask?.cancel()
         suggestionTask = nil
@@ -449,13 +466,17 @@ extension DeviceDetailViewModel {
         var descriptor = FetchDescriptor<LocalDevice>(predicate: #Predicate { $0.id == id })
         descriptor.fetchLimit = 1
         device = (try? context.fetch(descriptor))?.first
+        // A row without a MAC is known by its address alone.
+        nameLookup = .savedAddress
         defer { startSuggestion() }
         guard let device, !device.macAddress.isEmpty else { return }
+        nameLookup = .unverified
         let scanned = Self.liveScan(deviceDiscoveryService).first { scanned in
             scanned.networkProfileID == device.networkProfileID
                 && scanned.macAddress?.caseInsensitiveCompare(device.macAddress) == .orderedSame
         }
         if let scanned {
+            nameLookup = .scannedAddress(scanned.ipAddress)
             Self.adopt(scanned, into: device)
         }
     }

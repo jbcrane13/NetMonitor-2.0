@@ -160,6 +160,67 @@ struct ScanReconcilerTests {
         #expect(saved[0].displayName == "Printer")
     }
 
+    @Test func aRowAdoptedByItsMACGetsATypeFromTheScan() throws {
+        let (container, context) = try makeContext()
+        _ = container
+        let old = LocalDevice(ipAddress: "10.0.0.5", macAddress: "AA:BB:CC:00:00:30")
+        context.insert(old)
+        let printer = DiscoveredDevice(
+            ipAddress: "192.168.7.30", hostname: "office-laser", vendor: nil, macAddress: "AA:BB:CC:00:00:30", latency: 3,
+            discoveredAt: start, source: .local, networkProfileID: home, openPorts: [631, 9100]
+        )
+        makeReconciler(context).reconcile([printer], networkProfileID: home, scanDate: start, now: start)
+        #expect(old.networkProfileID == home)
+        #expect(old.deviceType == .printer)
+    }
+
+    /// Most rows an older iPhone build saved have no network and no MAC. A scan must not save a
+    /// second row at that address: device detail would open it and hide the name and notes.
+    @Test func aScanLeavesAnAddressOnlyRowSavedWithoutANetworkForDetailToAdopt() throws {
+        let (container, context) = try makeContext()
+        _ = container
+        let nas = LocalDevice(ipAddress: "192.168.7.10", macAddress: "", customName: "NAS")
+        nas.notes = "Backups"
+        context.insert(nas)
+        let noMAC = DiscoveredDevice(
+            ipAddress: "192.168.7.10", hostname: nil, vendor: nil, macAddress: nil, latency: 4,
+            discoveredAt: start, source: .local, networkProfileID: home
+        )
+        makeReconciler(context).reconcile([noMAC, scanned(1)], networkProfileID: home, scanDate: start, now: start)
+        let saved = try rows(context)
+        #expect(saved.map(\.ipAddress) == ["192.168.7.10", "192.168.7.11"])
+        #expect(saved[0].id == nas.id)
+        #expect(saved[0].networkProfileID == nil)
+        #expect(saved[0].notes == "Backups")
+        #expect(saved[1].networkProfileID == home)
+    }
+
+    /// A printer moved from .90 to .24 and answers there; the ARP cache still lists .90.
+    @Test func aCachedOldAddressDoesNotReplaceTheAddressADeviceAnsweredAt() throws {
+        let (container, context) = try makeContext()
+        _ = container
+        let reconciler = makeReconciler(context)
+        reconciler.reconcile([scanned(0, ip: "192.168.7.90")], networkProfileID: home, scanDate: start, now: start)
+        let later = start.addingTimeInterval(600)
+        let answered = scanned(0, ip: "192.168.7.24")
+        let stale = scanned(0, ip: "192.168.7.90").withCached(true)
+        reconciler.reconcile([answered, stale], networkProfileID: home, scanDate: later, now: later)
+        var saved = try rows(context)
+        #expect(saved.count == 1)
+        #expect(saved[0].ipAddress == "192.168.7.24")
+        #expect(saved[0].status == .online)
+        #expect(saved[0].lastSeen == later)
+
+        // In either order.
+        let last = later.addingTimeInterval(600)
+        reconciler.reconcile([stale, answered], networkProfileID: home, scanDate: last, now: last)
+        saved = try rows(context)
+        #expect(saved.count == 1)
+        #expect(saved[0].ipAddress == "192.168.7.24")
+        #expect(saved[0].status == .online)
+        #expect(saved[0].lastSeen == last)
+    }
+
     @Test func missesAreCountedOnTheReconcilersClockNotTheScanDate() throws {
         let (container, context) = try makeContext()
         _ = container

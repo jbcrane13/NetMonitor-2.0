@@ -115,6 +115,54 @@ struct DeviceRecordUpdaterTests {
         #expect(try rows(context).first?.lastSeen == start)
     }
 
+    /// The user stopped the scan, or a Wi-Fi switch cancelled it: its partial list is not a result.
+    @Test func aStoppedScanSavesNothing() throws {
+        let (container, context) = try makeStore()
+        defer { withExtendedLifetime(container) {} }
+        let discovery = MockDeviceDiscoveryService()
+        let clock = Clock(start)
+        let updater = makeUpdater(discovery, context, clock: clock)
+        finishScan([device(0)], on: discovery, updater: updater, clock: clock)
+
+        clock.now = start.addingTimeInterval(1800)
+        discovery.isScanning = true
+        updater.handleScanChange()
+        discovery.discoveredDevices = [device(0), device(1)]
+        discovery.isScanning = false
+        updater.handleScanChange()
+
+        let saved = try rows(context)
+        #expect(saved.count == 1)
+        #expect(saved[0].lastSeen == start)
+    }
+
+    /// Upgrade: a scan is saved before the user opens a device an older build saved without a
+    /// network or MAC. Detail still opens that row, with its name and notes.
+    @Test func aDeviceSavedByAnOlderBuildStillOpensItsRowAfterAScan() throws {
+        let (container, context) = try makeStore()
+        defer { withExtendedLifetime(container) {} }
+        let legacy = LocalDevice(ipAddress: "192.168.9.10", macAddress: "", customName: "NAS")
+        legacy.notes = "Backups"
+        context.insert(legacy)
+        let discovery = MockDeviceDiscoveryService()
+        let clock = Clock(start)
+        let seen = DiscoveredDevice(
+            ipAddress: "192.168.9.10", hostname: nil, vendor: nil, macAddress: nil,
+            latency: 5, discoveredAt: start, source: .local, networkProfileID: home
+        )
+        finishScan([seen, device(1)], on: discovery, updater: makeUpdater(discovery, context, clock: clock), clock: clock)
+
+        let opened = DeviceDetailViewModel.savedRow(
+            ipAddress: "192.168.9.10", scanned: seen, networkID: home, scan: discovery.discoveredDevices, in: context
+        )
+
+        #expect(opened.id == legacy.id)
+        #expect(opened.customName == "NAS")
+        #expect(opened.notes == "Backups")
+        #expect(opened.networkProfileID == home)
+        #expect(try rows(context).count == 2)
+    }
+
     @Test func nothingIsSavedWhileAScanRuns() throws {
         let (container, context) = try makeStore()
         defer { withExtendedLifetime(container) {} }

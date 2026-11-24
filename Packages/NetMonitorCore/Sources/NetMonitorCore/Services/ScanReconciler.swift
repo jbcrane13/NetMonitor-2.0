@@ -62,6 +62,10 @@ public struct ScanHistory {
 ///
 /// Rows still of unknown type get one from `DeviceTypeInferenceService`, as the Mac does.
 /// A row saved before rows carried a network is adopted by a scanned device with the same MAC.
+/// One that only shares the device's address is left for device detail to adopt when the user
+/// opens the device, and the scan saves no second row for it, which would hide its name and notes.
+/// A MAC seen at two addresses (the ARP cache still lists the old one) is one device, at the
+/// address it answered from.
 /// An empty scan says nothing and changes nothing. Reconciling a scan already reconciled (the
 /// foreground observer and a background task both seeing it) changes nothing.
 @MainActor
@@ -79,10 +83,12 @@ public struct ScanReconciler {
     /// Reconciles `scan`, finished at `scanDate`, into `networkProfileID`'s rows.
     public func reconcile(_ scan: [DiscoveredDevice], networkProfileID: UUID?, scanDate: Date, now: Date = Date()) {
         guard !scan.isEmpty, history.record(scan: scanDate, reconciled: now, for: networkProfileID) else { return }
+        let scan = Self.onePerMAC(scan)
         let all = (try? context.fetch(FetchDescriptor<LocalDevice>())) ?? []
         var rows = all.filter { $0.networkProfileID == networkProfileID }
         let unassigned = networkProfileID == nil ? [] : all.filter { $0.networkProfileID == nil }
         var matcher = DeviceMatcher(known: rows.map(Self.candidate), observed: scan.map(Self.candidate))
+        var legacy = DeviceMatcher(known: unassigned.map(Self.candidate), observed: scan.map(Self.candidate))
         var claimed = Set<UUID>()
 
         // Devices with a MAC claim their rows first, so a newcomer without one can't take the
@@ -94,10 +100,15 @@ public struct ScanReconciler {
                 if let mac = match.adoptedMAC {
                     row.macAddress = mac
                 }
-            } else if let mac = device.macAddress, Self.hasMAC(device),
-                      let old = unassigned.first(where: { $0.macAddress.caseInsensitiveCompare(mac) == .orderedSame && !claimed.contains($0.id) }) {
+            } else if let old = legacy.match(Self.candidate(device)).map({ unassigned[$0.index] }) {
+                // A row saved before rows carried a network. Only the same MAC proves it is this
+                // device; one that merely has the address waits for the user to open it.
+                guard let mac = DeviceMatcher.normalizedMAC(device.macAddress), mac == DeviceMatcher.normalizedMAC(old.macAddress)
+                else { continue }
                 row = old
                 row.networkProfileID = networkProfileID
+                rows.append(row)
+                matcher.add(Self.candidate(device))
             } else {
                 row = LocalDevice(ipAddress: device.ipAddress, macAddress: device.macAddress ?? "", networkProfileID: networkProfileID)
                 context.insert(row)
@@ -149,6 +160,27 @@ public struct ScanReconciler {
         }
         row.status = .online
         row.lastSeen = now
+    }
+
+    /// One observation per MAC, in scan order: the one that answered, else the first.
+    private static func onePerMAC(_ scan: [DiscoveredDevice]) -> [DiscoveredDevice] {
+        var indexByMAC: [String: Int] = [:]
+        var kept: [DiscoveredDevice] = []
+        for device in scan {
+            guard let mac = DeviceMatcher.normalizedMAC(device.macAddress) else {
+                kept.append(device)
+                continue
+            }
+            if let index = indexByMAC[mac] {
+                if kept[index].isCached, !device.isCached {
+                    kept[index] = device
+                }
+            } else {
+                indexByMAC[mac] = kept.count
+                kept.append(device)
+            }
+        }
+        return kept
     }
 
     private static func hasMAC(_ device: DiscoveredDevice) -> Bool {

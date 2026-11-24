@@ -53,7 +53,8 @@ final class DeviceRecordUpdater {
         }
     }
 
-    /// Reconciles a scan that finished since the last check.
+    /// Reconciles a scan that finished since the last check. `lastScanDate` moves only when a
+    /// scan runs to the end, so a stopped scan's partial list is never saved.
     func handleScanChange() {
         let isScanning = discoveryService.isScanning
         defer { wasScanning = isScanning }

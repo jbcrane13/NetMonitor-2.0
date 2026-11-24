@@ -339,6 +339,28 @@ extension DeviceDetailViewModelTests {
         #expect(viewModel.device?.hostname == "living-room")
     }
 
+    /// The phone that took the printer's address must not give the printer its DNS name.
+    @Test func aLinkByIDDoesNotNameItsRowAfterWhoeverHoldsTheAddressNow() async throws {
+        let (container, context) = try makeInMemoryStore()
+        defer { withExtendedLifetime(container) {} }
+        let home = UUID()
+        let printer = LocalDevice(ipAddress: "192.168.1.50", macAddress: "3C:22:FB:00:00:50", networkProfileID: home)
+        context.insert(printer)
+        let discovery = MockDeviceDiscoveryService()
+        discovery.discoveredDevices = [scanned("192.168.1.50", mac: "F0:99:B6:00:00:01", network: home, hostname: "phone")]
+        let nameResolver = MockDeviceNameResolver(hostname: "phone.lan")
+        let viewModel = makeViewModel(nameResolver: nameResolver, deviceDiscoveryService: discovery)
+        viewModel.loadDevice(id: printer.id, context: context)
+        await viewModel.enrichDevice(bonjourServices: [])
+        #expect(nameResolver.resolveCallCount == 0)
+        #expect(printer.resolvedHostname == nil)
+        // Once the scan sees the printer's MAC, at a new address, its name is asked for there.
+        discovery.discoveredDevices.append(scanned("192.168.1.77", mac: "3C:22:FB:00:00:50", network: home))
+        viewModel.loadDevice(id: printer.id, context: context)
+        await viewModel.enrichDevice(bonjourServices: [])
+        #expect(nameResolver.resolvedAddresses == ["192.168.1.77"])
+    }
+
     @Test func aLinkToADeletedRowFindsNothing() throws {
         let (container, context) = try makeInMemoryStore()
         defer { withExtendedLifetime(container) {} }
@@ -701,6 +723,7 @@ private final class MockMACVendorLookupService: MACVendorLookupServiceProtocol, 
 private final class MockDeviceNameResolver: DeviceNameResolverProtocol, @unchecked Sendable {
     private let hostname: String?
     private(set) var resolveCallCount = 0
+    private(set) var resolvedAddresses: [String] = []
 
     init(hostname: String?) {
         self.hostname = hostname
@@ -708,6 +731,7 @@ private final class MockDeviceNameResolver: DeviceNameResolverProtocol, @uncheck
 
     func resolve(ipAddress: String) async -> String? {
         resolveCallCount += 1
+        resolvedAddresses.append(ipAddress)
         return hostname
     }
 }

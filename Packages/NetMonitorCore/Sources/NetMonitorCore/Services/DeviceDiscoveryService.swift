@@ -177,7 +177,6 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
         defer {
             isScanning = false
             scanPhase = .idle
-            lastScanDate = Date()
         }
 
         // If paired with Mac, kick off its scan early (it runs in parallel)
@@ -254,6 +253,8 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
         persistCachedDevices()
         scanProgress = 1.0
         scanPhase = .done
+        // Only a scan that ran to the end: a stopped one leaves a partial list (#582).
+        lastScanDate = Date()
     }
 
     /// Identity after the Mac companion's devices are merged: the enrolled UniFi controller's
