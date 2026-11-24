@@ -243,11 +243,16 @@ public final class AskToolbox: Sendable {
         "\(count) time\(count == 1 ? "" : "s")"
     }
 
-    /// The devices a phrase means: a handle, else what the resolver finds, narrowed to the pinned device.
+    /// The devices a phrase means: a handle or an address, else what the resolver finds, narrowed
+    /// to the pinned device.
     private func resolve(_ phrase: String) -> [AskDevice] {
         let text = phrase.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         if let device = snapshot.devices.first(where: { handles[$0.id] == text }) {
             return [device]
+        }
+        let atAddress = snapshot.devices.filter { $0.ipAddress.lowercased() == text }
+        if !atAddress.isEmpty {
+            return atAddress
         }
         switch DevicePhraseResolver.resolve(phrase, among: snapshot.devices) {
         case let .one(device): return [device]
@@ -281,7 +286,8 @@ public final class AskToolbox: Sendable {
     ]
 
     static func meansAll(_ phrase: String) -> Bool {
-        let words = phrase.lowercased().split { !$0.isLetter }.map(String.init)
+        // Digits are words too: an address ("192.168.1.57") is not an empty phrase.
+        let words = phrase.lowercased().split { !$0.isLetter && !$0.isNumber }.map(String.init)
         return words.isEmpty || words.allSatisfy(allWords.contains) && words.contains { $0 != "the" && $0 != "my" }
     }
 

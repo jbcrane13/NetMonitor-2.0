@@ -48,6 +48,16 @@ struct AskToolboxTests {
         #expect(toolbox.record.deviceIDs.count == 8)
     }
 
+    @Test func anAddressFindsTheDeviceThere() {
+        let toolbox = Fix.toolbox()
+        let found = toolbox.findDevices("192.168.1.102")
+        #expect(found.hasPrefix("1 device matches \"192.168.1.102\":"))
+        #expect(found.contains("Office MacBook"))
+        #expect(toolbox.record.deviceIDs == [Fix.macBook.id])
+        #expect(toolbox.deviceStatus("192.168.1.57").hasPrefix("Brother HL-L2350DW is offline."))
+        #expect(toolbox.findDevices("192.168.1.250") == "No saved device matches \"192.168.1.250\". 8 devices are saved.")
+    }
+
     @Test func aLongDeviceListIsCapped() {
         let many = (1...45).map { Fix.device("Sensor \($0)", .iot, ip: "192.168.2.\($0)") }
         let toolbox = AskToolbox(snapshot: AskSnapshot(devices: many, events: [], now: Fix.now, calendar: Fix.calendar))
