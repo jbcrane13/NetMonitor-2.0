@@ -1,0 +1,83 @@
+# #451 real-model probe, mini-pro-1, macOS 27.2 (26B123), 2026-11-24 01:25 CST, branch codex/451-troubleshooter 3feaef3b
+## classify (SymptomClassifier.make(), shipped classifier)
+available: true
+PASS 1.96s | Zoom keeps freezing -> (SymptomIntent(kind: slowOrUnstableInternet, devicePhrase: nil, room: nil, host: nil))
+PASS 0.83s | the printer won't print -> (SymptomIntent(kind: deviceUnreachable, devicePhrase: ("the printer"), room: nil, host: nil))
+PASS 0.76s | is my Wi-Fi weak in the bedroom -> (SymptomIntent(kind: weakWiFi, devicePhrase: nil, room: ("bedroom"), host: nil))
+PASS 0.72s | What joined this week? -> (SymptomIntent(kind: unsupported, devicePhrase: nil, room: nil, host: nil))
+PASS 0.74s | Is the printer up? -> (SymptomIntent(kind: unsupported, devicePhrase: nil, room: nil, host: nil))
+PASS 0.69s | Which devices have been flaky? -> (SymptomIntent(kind: unsupported, devicePhrase: nil, room: nil, host: nil))
+PASS 0.71s | Why is the internet slow tonight? -> (SymptomIntent(kind: slowOrUnstableInternet, devicePhrase: nil, room: nil, host: nil))
+PASS 0.76s | Can my laptop resolve github.com? -> (SymptomIntent(kind: unsupported, devicePhrase: nil, room: nil, host: nil))
+PASS 0.69s | How has the NAS latency been today? -> (SymptomIntent(kind: unsupported, devicePhrase: nil, room: nil, host: nil))
+PASS 0.73s | Write me a haiku about routers. -> (SymptomIntent(kind: unsupported, devicePhrase: nil, room: nil, host: nil))
+PASS 0.79s | Netflix keeps buffering on the TV -> (SymptomIntent(kind: slowOrUnstableInternet, devicePhrase: nil, room: nil, host: nil))
+PASS 0.78s | can't reach the NAS from my laptop -> (SymptomIntent(kind: deviceUnreachable, devicePhrase: ("NAS"), room: nil, host: nil))
+PASS 0.82s | github.com won't load -> (SymptomIntent(kind: websiteNotLoading, devicePhrase: nil, room: nil, host: ("github.com")))
+PASS 0.74s | only one bar of wifi in the garage -> (SymptomIntent(kind: weakWiFi, devicePhrase: nil, room: ("garage"), host: nil))
+PASS 0.72s | what's the weather tomorrow? -> (SymptomIntent(kind: unsupported, devicePhrase: nil, room: nil, host: nil))
+PASS 0.74s | video calls keep dropping -> (SymptomIntent(kind: slowOrUnstableInternet, devicePhrase: nil, room: nil, host: nil))
+PASS 0.78s | my printer is offline -> (SymptomIntent(kind: deviceUnreachable, devicePhrase: ("printer"), room: nil, host: nil))
+PASS 0.75s | the wifi in the kitchen is terrible -> (SymptomIntent(kind: weakWiFi, devicePhrase: nil, room: ("kitchen"), host: nil))
+PASS 0.77s | gaming is super laggy tonight -> (SymptomIntent(kind: slowOrUnstableInternet, devicePhrase: nil, room: nil, host: nil))
+PASS 0.77s | the security camera stopped responding -> (SymptomIntent(kind: deviceUnreachable, devicePhrase: ("security camera"), room: nil, host: nil))
+PASS 0.79s | apple.com won't open -> (SymptomIntent(kind: websiteNotLoading, devicePhrase: nil, room: nil, host: ("apple.com")))
+score 21/21
+
+## explain (TroubleshootRules -> TroubleshootReportBuilder -> InsightSummarizer -> TroubleshootReport.accepts)
+available: true
+=== A: Zoom freezing, weak signal + router loss
+findings: ["Weak signal", "Packet loss to your router"]
+prompt:
+Troubleshooting check: Internet is slow or unstable.
+Key points, which you must state:
+- Most likely cause: Weak signal.
+- Next step: Move closer to the router, or survey the signal with the Wi-Fi Heatmap tool to find where it drops.
+Facts:
+- Likely cause 1 (Weak signal): Wi-Fi signal averaged -80 dBm; below -75 dBm is weak.
+- Likely cause 2 (Packet loss to your router): 10% of 10 pings to your router got no reply; 5% or more points to the local network or Wi-Fi.
+Summarize this for the reader.
+raw: The network showed a Wi-Fi signal averaging -80 dBm, which is below -75 dBm, indicating a weak signal. The test also found that 10% of 10 pings to your router got no reply, with 5% or more pointing to the local network or Wi-Fi. The next step is to move closer to the router or use the Wi-Fi Heatmap tool to find where the signal drops.
+summarizer 1.79s: The network showed a Wi-Fi signal averaging -80 dBm, which is below -75 dBm, indicating a weak signal. The test also found that 10% of 10 pings to your router got no reply, with 5% or more pointing to the local network or Wi-Fi. The next step is to move closer to the router or use the Wi-Fi Heatmap tool to find where the signal drops.
+accepts subject: true -> SHOWN: The network showed a Wi-Fi signal averaging -80 dBm, which is below -75 dBm, indicating a weak signal. The test also found that 10% of 10 pings to your router got no reply, with 5% or more pointing to the local network or Wi-Fi. The next step is to move closer to the router or use the Wi-Fi Heatmap tool to find where the signal drops.
+=== B: printer unreachable, router fine
+findings: ["Office Printer is offline or asleep"]
+prompt:
+Troubleshooting check: A device can't be reached.
+Key points, which you must state:
+- Most likely cause: Office Printer is offline or asleep.
+- Next step: Check that Office Printer is powered on and connected to the network, or wake it.
+Facts:
+- Likely cause 1 (Office Printer is offline or asleep): Office Printer answered none of 5 pings or its known ports, while your router answered.
+Summarize this for the reader.
+raw: The Office Printer is offline or asleep because it answered none of 5 pings or its known ports, while your router answered. The next step is to check that the Office Printer is powered on and connected to the network, or wake it.
+summarizer 0.96s: The Office Printer is offline or asleep because it answered none of 5 pings or its known ports, while your router answered. The next step is to check that the Office Printer is powered on and connected to the network, or wake it.
+accepts subject: true -> SHOWN: The Office Printer is offline or asleep because it answered none of 5 pings or its known ports, while your router answered. The next step is to check that the Office Printer is powered on and connected to the network, or wake it.
+=== C: slow internet, slow DNS + ISP slow
+findings: ["Slow DNS", "Internet slower than usual"]
+prompt:
+Troubleshooting check: Internet is slow or unstable.
+Key points, which you must state:
+- Most likely cause: Slow DNS.
+- Next step: Restart the router, or set a different DNS server on it.
+Facts:
+- Likely cause 1 (Slow DNS): Looking up apple.com took 640 ms; over 300 ms is slow.
+- Likely cause 2 (Internet slower than usual): Download measured 12.4 Mbps, under 25% of the last saved test (210 Mbps).
+- Name checked: apple.com
+Summarize this for the reader.
+raw: The network monitoring showed that looking up apple.com took 640 ms, which is slow, and the download speed was 12.4 Mbps, which is under 25% of the last saved test of 210 Mbps. The likely cause is slow DNS. The next step is to restart the router, or set a different DNS server on it.
+summarizer 1.54s: The network monitoring showed that looking up apple.com took 640 ms, which is slow, and the download speed was 12.4 Mbps, which is under 25% of the last saved test of 210 Mbps. The likely cause is slow DNS. The next step is to restart the router, or set a different DNS server on it.
+accepts subject: true -> SHOWN: The network monitoring showed that looking up apple.com took 640 ms, which is slow, and the download speed was 12.4 Mbps, which is under 25% of the last saved test of 210 Mbps. The likely cause is slow DNS. The next step is to restart the router, or set a different DNS server on it.
+=== D: weak Wi-Fi, nothing found
+findings: ["No problem found on this network"]
+prompt:
+Troubleshooting check: Wi-Fi is weak.
+Key points, which you must state:
+- No problem was found on this network.
+- Next step: If the problem continues, it may be with the app, website or device you were using.
+Facts:
+- Result: No problem found on this network. Every check finished within its limits.
+Summarize this for the reader.
+raw: The network check finished without finding any issues. Every check completed within its limits. If the problem continues, it may be with the app, website or device you were using.
+summarizer 0.85s: The network check finished without finding any issues. Every check completed within its limits. If the problem continues, it may be with the app, website or device you were using.
+accepts subject: true -> SHOWN: The network check finished without finding any issues. Every check completed within its limits. If the problem continues, it may be with the app, website or device you were using.
