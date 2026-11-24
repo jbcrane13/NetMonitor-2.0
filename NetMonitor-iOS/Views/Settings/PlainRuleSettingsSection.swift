@@ -178,10 +178,10 @@ struct PlainRuleSettingsSection: View {
         }
     }
 
+    /// Every target, uncapped: background refresh checks every enabled one, so each must have a
+    /// row here to remove it. The list is small (one row per monitored host).
     private static var targetsDescriptor: FetchDescriptor<MonitoringTarget> {
-        var descriptor = FetchDescriptor<MonitoringTarget>(sortBy: [SortDescriptor(\.createdAt)])
-        descriptor.fetchLimit = 200
-        return descriptor
+        FetchDescriptor<MonitoringTarget>(sortBy: [SortDescriptor(\.createdAt)])
     }
 }
 

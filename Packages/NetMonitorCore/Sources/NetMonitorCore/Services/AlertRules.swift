@@ -221,6 +221,16 @@ public struct AlertRuleEvaluator: Sendable {
     /// entries follow its latest check and end with it (`retainTargets`, monitoring stopping).
     private var targetTimed: Set<TargetTimed> = []
 
+    /// Offline rules that already alerted for a device's current outage, by rule and device. A
+    /// device's outage alerts once, whichever of a scan or a target reported it first, until the
+    /// device comes back (#574 review: a scan alert, then monitoring starts).
+    private var alertedOutages: Set<RuleDevice> = []
+
+    private struct RuleDevice: Hashable {
+        var rule: UUID
+        var device: UUID
+    }
+
     private struct TargetTimed: Hashable {
         var rule: UUID
         var device: UUID
@@ -251,8 +261,11 @@ public struct AlertRuleEvaluator: Sendable {
         }
         var matches: [Match] = []
         for event in events {
+            if event.kind == .cameOnline, let device = event.subject.deviceID {
+                alertedOutages = alertedOutages.filter { $0.device != device }
+            }
             for rule in rules where rule.isEnabled && AlertRuleEngine.conditionsMatch(rule.conditions, event.subject) {
-                if shouldFire(rule, for: event, now: now) {
+                if shouldFire(rule, for: event, now: now), isFirstAlertOfOutage(rule, event) {
                     matches.append(Match(rule: rule, event: event))
                 }
             }
@@ -288,9 +301,16 @@ public struct AlertRuleEvaluator: Sendable {
             aboveThreshold = aboveThreshold.filter { !changed.contains($0.rule) }
             conditionSince = conditionSince.filter { !changed.contains($0.key.rule) }
             firedEpisodes = firedEpisodes.filter { !changed.contains($0.rule) }
+            alertedOutages = alertedOutages.filter { !changed.contains($0.rule) }
             targetTimed = targetTimed.filter { !changed.contains($0.rule) }
         }
         definitions = current
+    }
+
+    /// False for an offline rule that already alerted for this device's outage.
+    private mutating func isFirstAlertOfOutage(_ rule: AlertRule, _ event: AlertRuleEvent) -> Bool {
+        guard rule.trigger == .wentOffline, let device = event.subject.deviceID else { return true }
+        return alertedOutages.insert(RuleDevice(rule: rule.id, device: device)).inserted
     }
 
     /// A scan's offline, still-offline or online report about a device a target covers for `rule`:

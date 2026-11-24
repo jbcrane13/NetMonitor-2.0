@@ -116,10 +116,10 @@ private struct RulesForm: View {
 }
 
 extension RulesForm {
+    /// Every target, uncapped: whether a device has a target must see all of them, and the list is
+    /// small (one per monitored host).
     private static var targetsDescriptor: FetchDescriptor<NetworkTarget> {
-        var descriptor = FetchDescriptor<NetworkTarget>()
-        descriptor.fetchLimit = 200
-        return descriptor
+        FetchDescriptor<NetworkTarget>()
     }
 
     /// Whether an enabled monitoring target checks the device, by the draft's rule.

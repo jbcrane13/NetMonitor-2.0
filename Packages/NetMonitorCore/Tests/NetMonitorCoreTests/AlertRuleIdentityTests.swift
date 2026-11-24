@@ -33,6 +33,8 @@ struct AlertRuleIdentityTests {
         var evaluator = AlertRuleEvaluator()
         let rule = AlertRule(name: "Offline", trigger: .wentOffline, conditions: AlertRuleConditions(deviceID: nasID))
         let before = evaluator.evaluate([AlertRuleEvent(kind: .wentOffline, subject: nas(named: "Synology DS920"))], rules: [rule])
+        // It comes back, is renamed, and goes down again: a new outage.
+        _ = evaluator.evaluate([AlertRuleEvent(kind: .cameOnline, subject: nas(named: "Synology DS920"))], rules: [rule])
         let after = evaluator.evaluate([AlertRuleEvent(kind: .wentOffline, subject: nas(named: "Basement NAS"))], rules: [rule])
         #expect(before.map(\.rule.id) == [rule.id])
         #expect(after.map(\.rule.id) == [rule.id])
@@ -281,5 +283,32 @@ struct AlertRuleIdentityTests {
         _ = evaluator.evaluate([AlertRuleEvent(kind: .wentOffline, subject: targetSubject(kept))], rules: [rule], now: at(0))
         evaluator.retainTargets([kept])
         #expect(evaluator.evaluate([AlertRuleEvent(kind: .stillOffline, subject: targetSubject(kept))], rules: [rule], now: at(300)).count == 1)
+    }
+
+    // MARK: - #574 Devin review
+
+    /// A scan alerts for the outage before monitoring starts; the target's first checks report the
+    /// same outage. One alert until the NAS comes back, then the next outage alerts again.
+    @Test func anOutageAlertsOnceAcrossMonitoringStarting() {
+        var evaluator = AlertRuleEvaluator()
+        let offline = AlertRule(name: "Offline", trigger: .wentOffline, conditions: AlertRuleConditions(deviceID: nasID))
+        let timed = AlertRule(name: "Down 5 min", trigger: .wentOffline, conditions: AlertRuleConditions(deviceID: nasID), minimumDuration: 300)
+        let rules = [offline, timed]
+        let target = targetSubject(UUID())
+        var fired: [String] = []
+        func run(_ kind: AlertRuleEvent.Kind, _ subject: AlertRuleSubject, at time: TimeInterval, since: Date? = nil) {
+            fired += evaluator.evaluate([AlertRuleEvent(kind: kind, subject: subject, offlineSince: since)], rules: rules, now: at(time))
+                .map { "\($0.rule.name)@\(Int(time))" }
+        }
+        run(.wentOffline, nas(named: "NAS"), at: 0, since: at(-900))
+        // Monitoring starts: the target's first check is a down.
+        run(.wentOffline, target, at: 10)
+        run(.stillOffline, target, at: 400)
+        #expect(fired == ["Offline@0", "Down 5 min@0"])
+
+        run(.cameOnline, target, at: 500)
+        run(.wentOffline, target, at: 600)
+        run(.stillOffline, target, at: 900)
+        #expect(fired == ["Offline@0", "Down 5 min@0", "Offline@600", "Down 5 min@900"])
     }
 }
