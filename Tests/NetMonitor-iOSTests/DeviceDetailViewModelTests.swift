@@ -261,6 +261,11 @@ struct DeviceDetailViewModelTests {
         #expect(viewModel.isDiscovering == false)
     }
 
+}
+
+// MARK: - Row matching, label capture and suggestions
+
+extension DeviceDetailViewModelTests {
     // MARK: - #463: the row is found by device match within its network
 
     private func scanned(_ ip: String, mac: String?, network: UUID, hostname: String? = nil) -> DiscoveredDevice {
