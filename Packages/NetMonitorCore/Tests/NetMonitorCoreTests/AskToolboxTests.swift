@@ -122,6 +122,19 @@ struct AskToolboxTests {
         #expect(toolbox.record.deviceIDs == [Fix.iPad.id, Fix.esp.id])
     }
 
+    @Test func aDeviceComingBackIsNotAJoin() {
+        // The Mac logs a recovery as a join event titled "Device Back Online".
+        let back = Fix.event(.deviceJoined, "Device Back Online: Brother HL-L2350DW", at: Fix.date(23, 10), device: Fix.printer)
+        let toolbox = AskToolbox(snapshot: AskSnapshot(devices: Fix.devices, events: Fix.events + [back], now: Fix.now, calendar: Fix.calendar))
+        #expect(toolbox.events("today", type: "deviceJoined") == "No events (Device Joined) today (2026-11-23).")
+        #expect(toolbox.record.eventIDs.isEmpty)
+        #expect(toolbox.events("today", type: "any") == """
+        2 events today (2026-11-23), newest first:
+        - 2026-11-23 10:00 AM: Device Back Online: Brother HL-L2350DW
+        - 2026-11-23 9:14 AM: Device Left: Brother HL-L2350DW
+        """)
+    }
+
     @Test func eventsOfAnyTypeAndAnEmptyRange() {
         let toolbox = Fix.toolbox()
         #expect(toolbox.events("today", type: "any").hasPrefix("1 event today (2026-11-23), newest first:"))

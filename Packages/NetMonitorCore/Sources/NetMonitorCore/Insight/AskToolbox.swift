@@ -137,6 +137,8 @@ public final class AskToolbox: Sendable {
             let interval = range.interval(now: snapshot.now, calendar: snapshot.calendar)
             let matching = snapshot.events.filter { event in
                 interval.start <= event.timestamp && event.timestamp < interval.end && (kind?.types.contains(event.type) ?? true)
+                    // "Joined" means new: the Mac logs a known device coming back under the same type.
+                    && !(kind == .joined && event.title.hasPrefix(ChangeDigestBuilder.backOnlinePrefix))
             }
             let what = kind.map { " (\($0.title))" } ?? ""
             guard !matching.isEmpty else {
@@ -221,7 +223,9 @@ public final class AskToolbox: Sendable {
     private func eventText(_ event: NetworkEvent) -> String {
         if let id = event.deviceID, let device = snapshot.devices.first(where: { $0.id == id }),
            event.type == .deviceJoined || event.type == .deviceLeft {
-            return "\(event.type.displayName): \(name(device))"
+            let prefix = event.title.hasPrefix(ChangeDigestBuilder.backOnlinePrefix)
+                ? ChangeDigestBuilder.backOnlinePrefix : "\(event.type.displayName): "
+            return prefix + name(device)
         }
         return InsightRequest.line(event.title, limit: 120)
     }
