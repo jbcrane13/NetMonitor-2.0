@@ -63,6 +63,17 @@ if mode == "explain" {
             .wifi([WiFiReading(rssi: -55, noise: -95)]),
             .speed(downloadMbps: 12.4, baselineMbps: 210)
         ]),
+        ("E: Zoom freezing, 90 ms router jitter", .slowOrUnstableInternet, [
+            .ping(PingSummary(target: .gateway, sent: 10, received: 10, averageMs: 45, jitterMs: 90)),
+            .dns(host: "apple.com", milliseconds: 30),
+            .wifi([WiFiReading(rssi: -55, noise: -92)]),
+            .speed(downloadMbps: 80, baselineMbps: 90)
+        ]),
+        ("F: printer silent, router unmeasured", .deviceUnreachable, [
+            .ping(PingSummary(target: .device("Office Printer", "192.168.1.30"), sent: 5, received: 0, averageMs: nil, jitterMs: nil)),
+            .ports(host: "192.168.1.30", open: [], closed: [631, 9100]),
+            .unavailable("No router address found")
+        ]),
         ("D: weak Wi-Fi, nothing found", .weakWiFi, [
             .wifi([WiFiReading(rssi: -58, noise: -93)]),
             .wifi([WiFiReading(rssi: -60, noise: -93), WiFiReading(rssi: -59, noise: -92), WiFiReading(rssi: -61, noise: -93)])
