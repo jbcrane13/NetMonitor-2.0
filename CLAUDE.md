@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Run `bash scripts/setup-worktree.sh` in every new NM 2.0 worktree before starting work. Configure the worktree manager to run this command automatically and wait for success before starting the agent. Absolute-path invocation also works because the script locates its own checkout.
 
-The script checks required tools and Xcode readiness, sets `.githooks` per worktree, regenerates the Xcode project, and resolves pinned Swift packages. It stops if generated files already have edits or setup introduces generated-file/lockfile drift. Review failures before proceeding, and create a `codex/<issue-or-task>` branch before committing from a detached worktree.
+The script checks required tools and Xcode readiness, sets `.githooks` per worktree, enables the codex-review gate (`~/.claude/scripts/enable-review-gate.sh`), regenerates the Xcode project, and resolves pinned Swift packages. It stops if generated files already have edits or setup introduces generated-file/lockfile drift. Review failures before proceeding, and create a `codex/<issue-or-task>` branch before committing from a detached worktree.
 
 Use this entry point instead of `.factory/init.sh`, which is Heatmap-specific and builds both apps. Worktree setup does not copy secrets, install tools, build, test, switch branches, pull, or push. Follow the test execution policy below for verification.
 

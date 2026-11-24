@@ -82,6 +82,19 @@ if ! git diff --quiet -- "${generated_paths[@]}" ||
     exit 1
 fi
 
+# The automated codex-review gate must be active in every worktree
+# (docs/agents/review-workflow.md). The shared script lives outside the repo;
+# SKIP_REVIEW_GATE=1 skips it on hosts without Codex (e.g. a test-only node).
+gate_script="$HOME/.claude/scripts/enable-review-gate.sh"
+if [[ "${SKIP_REVIEW_GATE:-0}" != 1 ]]; then
+    if [[ ! -x "$gate_script" ]]; then
+        echo "Missing $gate_script; it enables the codex-review gate for every worktree." >&2
+        echo "Restore it (see ~/.claude/CLAUDE.md), or set SKIP_REVIEW_GATE=1 on a host without Codex." >&2
+        exit 1
+    fi
+    "$gate_script" "$repo_root"
+fi
+
 if ! git symbolic-ref --quiet --short HEAD >/dev/null; then
     echo "Warning: detached HEAD. Create a codex/<issue-or-task> branch before committing."
 fi
