@@ -76,7 +76,7 @@ struct PlainRuleMacTests {
         let saved = AlertRuleStore(defaults: defaults).rules
         #expect(saved.count == 1)
         #expect(saved.first?.trigger == .wentOffline)
-        #expect(saved.first?.conditions == AlertRuleConditions(device: "uitest-nas", deviceID: device.id))
+        #expect(saved.first?.conditions == AlertRuleConditions(device: "02:00:00:77:00:40", deviceID: device.id))
         #expect(saved.first?.minimumDuration == 300)
         #expect(saved.first?.name == "Offline for 5 minutes")
         let targets = try context.fetch(FetchDescriptor<NetworkTarget>())
@@ -242,10 +242,168 @@ struct PlainRuleMacTests {
 
     @Test func theRuleListNamesTheDeviceByItsCurrentName() {
         let device = nas()
-        let rule = AlertRule(name: "Offline", trigger: .wentOffline, conditions: AlertRuleConditions(device: "uitest-nas", deviceID: device.id),
-                             minimumDuration: 300)
+        let rule = AlertRule(name: "Offline", trigger: .wentOffline,
+                             conditions: AlertRuleConditions(device: "uitest-nas", deviceID: device.id), minimumDuration: 300)
         device.customName = "Basement NAS"
         #expect(RuleDescription.summary(rule, networks: [], devices: [device]) == "Goes offline · for 5 minutes · device Basement NAS")
         #expect(RuleDescription.summary(rule, networks: [], devices: []) == "Goes offline · for 5 minutes · device a removed device")
+    }
+
+    // MARK: - #450 review
+
+    private actor ReachableService: NetMonitor_macOS.NetworkMonitorService {
+        func check(request: TargetCheckRequest) async throws -> MeasurementResult {
+            MeasurementResult(targetID: request.id, timestamp: Date(), latency: 3, isReachable: true, errorMessage: nil)
+        }
+    }
+
+    private func waitUntil(timeout: Duration = .seconds(10), _ condition: () -> Bool) async {
+        let deadline = ContinuousClock.now + timeout
+        while !condition(), ContinuousClock.now < deadline {
+            try? await Task.sleep(for: .milliseconds(20))
+        }
+    }
+
+    private func session(_ context: ModelContext) -> MonitoringSession {
+        let stub = ReachableService()
+        return MonitoringSession(modelContext: context, anyHTTPService: stub, anyICMPService: stub, anyTCPService: stub)
+    }
+
+    @Test func confirmCanStartMonitoringAfterSavingSoItChecksTheNewTarget() async throws {
+        let (defaults, suite) = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = AlertRuleStore(defaults: defaults)
+        let container = try makeContainer()
+        let context = container.mainContext
+        let monitoring = session(context)
+        let model = viewModel()
+        model.text = nasSentence
+        await model.submit(devices: [nas()], targets: [], isScanning: false)
+        #expect(model.usesTarget)
+        #expect(model.startsMonitoring, "Offered and on by default while monitoring is stopped")
+
+        model.confirm(store: store, context: context, session: monitoring, startMonitoring: true)
+
+        #expect(monitoring.isMonitoring)
+        let target = try #require(try context.fetch(FetchDescriptor<NetworkTarget>()).first)
+        await waitUntil { monitoring.latestResults[target.id] != nil }
+        #expect(monitoring.latestResults[target.id]?.isReachable == true, "The new target is checked")
+        await monitoring.stopMonitoringAndWait()
+    }
+
+    @Test func confirmWithoutStartingLeavesMonitoringStopped() async throws {
+        let (defaults, suite) = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let container = try makeContainer()
+        let monitoring = session(container.mainContext)
+        let model = viewModel()
+        model.text = nasSentence
+        await model.submit(devices: [nas()], targets: [], isScanning: false)
+        model.confirm(store: AlertRuleStore(defaults: defaults), context: container.mainContext, session: monitoring, startMonitoring: false)
+        #expect(!monitoring.isMonitoring)
+    }
+
+    @Test func theTargetARuleAddsIsLinkedToTheDevice() async throws {
+        let (defaults, suite) = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = AlertRuleStore(defaults: defaults)
+        let container = try makeContainer()
+        let device = nas()
+        let model = viewModel()
+        model.text = nasSentence
+        await model.submit(devices: [device], targets: [], isScanning: false)
+        model.confirm(store: store, context: container.mainContext, session: nil)
+        let target = try #require(try container.mainContext.fetch(FetchDescriptor<NetworkTarget>()).first)
+        #expect(store.device(forTarget: target.id) == device.id)
+        #expect(AlertRuleStore(defaults: defaults).device(forTarget: target.id) == device.id, "Saved")
+    }
+
+    /// The NAS moved to .41 and another device took its old address .40: checks of .40 are not the
+    /// NAS's, so they never alert for it, and the target is moved to .41.
+    @Test func aLinkedTargetFollowsItsDeviceAndNeverAlertsForTheOneOnItsOldAddress() {
+        let (defaults, suite) = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = AlertRuleStore(defaults: defaults)
+        let device = nas()
+        device.ipAddress = "192.168.77.41"
+        let newcomer = LocalDevice(ipAddress: "192.168.77.40", macAddress: "02:00:00:77:00:99", hostname: "newcomer", deviceType: .phone)
+        store.add(AlertRule(name: "NAS offline", trigger: .wentOffline, conditions: AlertRuleConditions(deviceID: device.id)))
+        store.add(AlertRule(name: "Phone offline", trigger: .wentOffline, conditions: AlertRuleConditions(deviceID: newcomer.id)))
+        let target = UUID()
+        store.link(target: target, to: device.id)
+        let poster = PlainRulePoster()
+        let alerts = MacRuleAlerts(store: store, service: NotificationService(poster: poster, defaults: defaults), defaults: defaults) {
+            ([device, newcomer], nil)
+        }
+        var moves: [(UUID, String)] = []
+        alerts.onLinkedTargetMoved = { moves.append(($0, $1)) }
+
+        alerts.handle(targetResult: TargetCheckOutcome(
+            targetID: target, name: "NAS", host: "192.168.77.40", isReachable: false, latency: nil, wentDown: true, cameUp: false
+        ))
+        #expect(poster.requests.isEmpty, "Neither the NAS nor the newcomer is alerted from the old address")
+        #expect(moves.map(\.0) == [target])
+        #expect(moves.map(\.1) == ["192.168.77.41"])
+
+        alerts.handle(targetResult: TargetCheckOutcome(
+            targetID: target, name: "NAS", host: "192.168.77.41", isReachable: false, latency: nil, wentDown: true, cameUp: false
+        ))
+        #expect(poster.requests.map(\.content.title) == ["NAS offline"])
+    }
+
+    @Test func movingATargetPointsItsChecksAtTheNewAddress() async throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let target = NetworkTarget(name: "NAS", host: "192.168.77.40", targetProtocol: .icmp, checkInterval: 60)
+        context.insert(target)
+        try context.save()
+        let monitoring = session(context)
+        monitoring.startMonitoring()
+        await waitUntil { monitoring.latestResults[target.id] != nil }
+
+        monitoring.moveTarget(target.id, to: "192.168.77.41")
+
+        #expect(target.host == "192.168.77.41")
+        await waitUntil { monitoring.latestResults[target.id] != nil }
+        #expect(monitoring.latestResults[target.id] != nil, "Checked again at the new address")
+        await monitoring.stopMonitoringAndWait()
+    }
+
+    /// Both paths together: the target times the outage, so the scan's later report of the same
+    /// outage doesn't alert a second time.
+    @Test func aTargetAndAScanReportingOneOutageAlertOnce() {
+        let (defaults, suite) = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = AlertRuleStore(defaults: defaults)
+        let device = nas()
+        store.add(AlertRule(name: "NAS offline", trigger: .wentOffline, conditions: AlertRuleConditions(deviceID: device.id),
+                            minimumDuration: 300))
+        let target = UUID()
+        store.link(target: target, to: device.id)
+        let poster = PlainRulePoster()
+        let alerts = MacRuleAlerts(store: store, service: NotificationService(poster: poster, defaults: defaults), defaults: defaults) {
+            ([device], nil)
+        }
+        alerts.handle(targetResult: TargetCheckOutcome(
+            targetID: target, name: "NAS", host: "192.168.77.40", isReachable: false, latency: nil, wentDown: true, cameUp: false
+        ))
+        let known = KnownDevice(macAddress: "02:00:00:77:00:40", ipAddress: "192.168.77.40", name: "uitest-nas",
+                                firstSeen: Date().addingTimeInterval(-86400), lastSeen: Date().addingTimeInterval(-900))
+        alerts.handle(deviceChanges: [.wentOffline(known)], devices: [device], networkID: nil)
+        #expect(poster.requests.isEmpty, "The scan's report is the outage the target is timing")
+
+        alerts.monitoringStopped()
+        alerts.handle(deviceChanges: [.wentOffline(known)], devices: [device], networkID: nil)
+        #expect(poster.requests.map(\.content.title) == ["NAS offline"], "With monitoring stopped, scans time it again")
+    }
+
+    @Test func theEditorWarnsWhenScansCantTimeAnOfflineDuration() {
+        let long = AlertRule(name: "Down", trigger: .wentOffline, minimumDuration: 3600)
+        #expect(RuleDescription.durationWarning(long, trigger: true, hasTarget: false)
+            == "Scans report a device offline once, after 3 missed scans and 15 minutes, so they can't time 1 hour. "
+            + "Add a monitoring target for this device.")
+        #expect(RuleDescription.durationWarning(long, trigger: true, hasTarget: true) == nil)
+        let short = AlertRule(name: "Down", trigger: .wentOffline, minimumDuration: 600)
+        #expect(RuleDescription.durationWarning(short, trigger: true, hasTarget: false) == nil)
     }
 }

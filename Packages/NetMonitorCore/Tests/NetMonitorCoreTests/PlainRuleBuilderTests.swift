@@ -9,6 +9,7 @@ struct PlainRuleBuilderTests {
     private let laserJet = RuleDevice(id: UUID(), displayName: "LaserJet", deviceType: .printer, maker: "HP", ipAddress: "10.0.0.41")
     private var devices: [RuleDevice] { [nas, printer, laserJet] }
     private let timing = RuleTiming(targetCheckInterval: 5, scanGrace: DeviceGracePolicy(missedScans: 3, interval: 900))
+    static let portNote = "Background checks connect to the device's port 80, so a device that doesn't accept connections there shows as down."
 
     private func mac(_ intent: RuleIntent, targetHosts: Set<String> = [], chosen: RuleDevice? = nil) -> PlainRuleOutcome {
         PlainRuleBuilder.outcome(for: intent, devices: devices, platform: .mac, timing: timing, targetHosts: targetHosts, chosen: chosen)
@@ -32,6 +33,38 @@ struct PlainRuleBuilderTests {
         #expect(draft.rule.name == "Offline for 5 minutes")
         #expect(draft.device == nas)
         #expect(draft.offersTarget, "No target watches the NAS yet")
+    }
+
+    @Test func theFallbackForOlderBuildsIsTheMACWhenKnown() {
+        let withMAC = RuleDevice(id: UUID(), displayName: "Basement NAS", deviceType: .storage, maker: nil, ipAddress: "10.0.0.51",
+                                 macAddress: "AA:BB:CC:00:00:51")
+        let outcome = PlainRuleBuilder.outcome(for: RuleIntent(kind: .deviceOffline, device: "Basement NAS"), devices: [withMAC],
+                                               platform: .mac, timing: timing, targetHosts: [])
+        guard case let .alert(draft) = outcome else { Issue.record("got \(outcome)")
+        return
+        }
+        #expect(draft.rule.conditions == AlertRuleConditions(device: "AA:BB:CC:00:00:51", deviceID: withMAC.id))
+    }
+
+    @Test func aDroppedDurationIsSaidOnBothPlatforms() {
+        var intent = RuleIntent(kind: .deviceOffline, device: "NAS")
+        intent.durationWasDropped = true
+        guard case var .alert(draft) = mac(intent) else { Issue.record("not an alert")
+        return
+        }
+        #expect(draft.notes(addingTarget: true, timing: timing) == [PlainRuleBuilder.droppedDurationNote])
+        draft.rule.minimumDuration = 600
+        #expect(!draft.notes(addingTarget: true, timing: timing).contains(PlainRuleBuilder.droppedDurationNote), "The user set one")
+        guard case let .target(target) = iOS(intent) else { Issue.record("not a target")
+        return
+        }
+        #expect(target.notes.last == PlainRuleBuilder.droppedDurationNote)
+    }
+
+    @Test func presetsAScannerLacksBecomeCustomPortLists() {
+        #expect(PortScanPreset.wellKnown.customPortsText == "1-1024")
+        #expect(PortScanPreset.extended.customPortsText == "1-10000")
+        #expect(PortScanPreset.mail.customPortsText == "25,110,143,465,587,993,995")
     }
 
     @Test func noTargetIsOfferedWhenOneAlreadyWatchesTheDevice() {
@@ -160,7 +193,8 @@ struct PlainRuleBuilderTests {
         let outcome = iOS(RuleIntent(kind: .deviceOffline, device: "NAS", durationSeconds: 300))
         #expect(outcome == .target(TargetDraft(name: "Synology DS920", host: "10.0.0.50", deviceID: nas.id, notes: [
             "The app checks monitoring targets during background refresh, when iOS allows it, and reports one down after 3 failed checks. "
-                + "It can't time 5 minutes."
+                + "It can't time 5 minutes.",
+            Self.portNote
         ])))
     }
 
@@ -170,7 +204,8 @@ struct PlainRuleBuilderTests {
             return
         }
         #expect(draft.notes == [
-            "High-latency alerts use one threshold for every target (Settings › Notifications), so 250 ms isn't saved with this target."
+            "High-latency alerts use one threshold for every target (Settings › Notifications), so 250 ms isn't saved with this target.",
+            Self.portNote
         ])
     }
 
@@ -230,6 +265,30 @@ struct PlainRuleComposerTests {
         #expect(composer.outcome == .message("Wait for the scan to finish, then try again."))
     }
 
+    /// Return submits even while a request runs; an empty or mid-scan submit must not leave the
+    /// field stuck "working" with Create Draft disabled.
+    @Test func aSubmitThatEndsEarlyClearsWorking() async {
+        let parser = HeldParser()
+        let composer = PlainRuleComposer(parser: parser, platform: .mac)
+        let first = Task { await composer.submit("printer down", devices: [printer], timing: timing, targetHosts: []) }
+        await parser.waitUntilAsked()
+        #expect(composer.isWorking)
+        await composer.submit("  ", devices: [printer], timing: timing, targetHosts: [])
+        #expect(!composer.isWorking)
+
+        let second = Task { await composer.submit("printer down", devices: [printer], timing: timing, targetHosts: []) }
+        await parser.waitUntilAsked(count: 2)
+        await composer.submit("printer down", devices: [printer], timing: timing, targetHosts: [], isScanning: true)
+        #expect(!composer.isWorking)
+        #expect(composer.outcome == .message("Wait for the scan to finish, then try again."))
+
+        await parser.release()
+        await first.value
+        await second.value
+        #expect(!composer.isWorking)
+        #expect(composer.outcome == .message("Wait for the scan to finish, then try again."), "Superseded answers are dropped")
+    }
+
     @Test func blankInputAsksNothingAndClearHidesTheDraft() async {
         let composer = composer(["printer down": RuleIntent(kind: .deviceOffline, device: "printer")])
         await composer.submit("   ", devices: [printer], timing: timing, targetHosts: [])
@@ -238,5 +297,30 @@ struct PlainRuleComposerTests {
         #expect(composer.outcome != nil)
         composer.clear()
         #expect(composer.outcome == nil)
+    }
+}
+
+/// Holds every parse until released.
+private actor HeldParser: RuleIntentParsing {
+    private var asked = 0
+    private var waiting: [CheckedContinuation<Void, Never>] = []
+
+    nonisolated var isAvailable: Bool { true }
+
+    func parse(_ text: String) async -> RuleIntent? {
+        asked += 1
+        await withCheckedContinuation { waiting.append($0) }
+        return RuleIntent(kind: .deviceOffline, device: "printer")
+    }
+
+    func waitUntilAsked(count: Int = 1) async {
+        while asked < count {
+            await Task.yield()
+        }
+    }
+
+    func release() {
+        waiting.forEach { $0.resume() }
+        waiting = []
     }
 }

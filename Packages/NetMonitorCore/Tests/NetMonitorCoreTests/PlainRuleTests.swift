@@ -46,6 +46,33 @@ struct PlainRuleTests {
         #expect(partial.thresholdMilliseconds == nil, "25 is not a number the user typed")
     }
 
+    @Test func aDurationIsKeptOnlyWhenTheWordsStateIt() {
+        func duration(_ seconds: Int, _ input: String) -> RuleIntent {
+            RuleIntent.normalized(kind: "deviceOffline", device: "NAS", thresholdMilliseconds: nil, durationSeconds: seconds,
+                                  portPreset: nil, input: input)
+        }
+        #expect(duration(300, "Tell me if the NAS is down for more than five minutes").durationSeconds == 300)
+        #expect(duration(1800, "If the Apple TV latency is above 80ms for half an hour, notify me").durationSeconds == 1800)
+        #expect(duration(120, "NAS down for 2 min").durationSeconds == 120)
+        #expect(duration(1500, "NAS down twenty five minutes").durationSeconds == 1500)
+        #expect(duration(3600, "the NAS is off for an hour").durationSeconds == 3600)
+        // The real model gave 60 s for "every minute" (#450 probe): no duration is stated.
+        let every = duration(60, "Ping the NAS every minute and tell me if it's slow")
+        #expect(every.durationSeconds == nil)
+        #expect(every.durationWasDropped)
+        let wrong = duration(600, "Tell me if the NAS is down for more than five minutes")
+        #expect(wrong.durationSeconds == nil, "Ten minutes isn't what the user said")
+        #expect(wrong.durationWasDropped)
+        #expect(!duration(300, "the NAS for 5 minutes").durationWasDropped)
+    }
+
+    @Test func spokenDurationsReadDigitsWordsAndUnits() {
+        #expect(SpokenDuration.seconds(in: "down 5min or 90s") == [300, 90])
+        #expect(SpokenDuration.seconds(in: "half a minute") == [30])
+        #expect(SpokenDuration.seconds(in: "250 ms for 2 minutes") == [120])
+        #expect(SpokenDuration.seconds(in: "every minute").isEmpty)
+    }
+
     @Test func aPortScanWithoutAKnownPresetUsesCommonPorts() {
         let intent = RuleIntent.normalized(kind: "portScan", device: "printer", thresholdMilliseconds: nil, durationSeconds: nil,
                                            portPreset: "custom", input: "scan the printer")
@@ -71,31 +98,31 @@ struct PlainRuleTests {
 
     @Test func aTypeWordFindsTheDeviceTheModelNeverNames() {
         // The spike: the model never maps "NAS" to "Synology DS920" by itself.
-        #expect(RuleDeviceResolver.resolve("the NAS", among: devices) == .one(nas))
+        #expect(DevicePhraseResolver.resolve("the NAS", among: devices) == .one(nas))
     }
 
     @Test func wordsMatchWholeWordsNotParts() {
-        #expect(RuleDeviceResolver.resolve("NAS", among: [jonas]) == .none, "\"nas\" is inside \"Jonas\"")
+        #expect(DevicePhraseResolver.resolve("NAS", among: [jonas]) == .none, "\"nas\" is inside \"Jonas\"")
     }
 
     @Test func aNameMakerOrTypeWordCanEachMatch() {
-        #expect(RuleDeviceResolver.resolve("Synology", among: devices) == .one(nas))
-        #expect(RuleDeviceResolver.resolve("my office printer", among: devices) == .one(printer))
-        #expect(RuleDeviceResolver.resolve("Apple TV", among: devices) == .one(appleTV))
-        #expect(RuleDeviceResolver.resolve("the Synology NAS", among: devices) == .one(nas))
+        #expect(DevicePhraseResolver.resolve("Synology", among: devices) == .one(nas))
+        #expect(DevicePhraseResolver.resolve("my office printer", among: devices) == .one(printer))
+        #expect(DevicePhraseResolver.resolve("Apple TV", among: devices) == .one(appleTV))
+        #expect(DevicePhraseResolver.resolve("the Synology NAS", among: devices) == .one(nas))
     }
 
     @Test func twoMatchesAreAmbiguous() {
-        #expect(RuleDeviceResolver.resolve("the printer", among: devices) == .several([printer, laserJet]))
+        #expect(DevicePhraseResolver.resolve("the printer", among: devices) == .several([printer, laserJet]))
     }
 
     @Test func anExactNameWinsOverOtherMatches() {
         let named = RuleDevice(id: UUID(), displayName: "Printer", deviceType: .printer, maker: nil, ipAddress: "10.0.0.42")
-        #expect(RuleDeviceResolver.resolve("the printer", among: devices + [named]) == .one(named))
+        #expect(DevicePhraseResolver.resolve("the printer", among: devices + [named]) == .one(named))
     }
 
     @Test func noMatchOrNoWordsIsNone() {
-        #expect(RuleDeviceResolver.resolve("the garage door", among: devices) == .none)
-        #expect(RuleDeviceResolver.resolve("the", among: devices) == .none)
+        #expect(DevicePhraseResolver.resolve("the garage door", among: devices) == .none)
+        #expect(DevicePhraseResolver.resolve("the", among: devices) == .none)
     }
 }

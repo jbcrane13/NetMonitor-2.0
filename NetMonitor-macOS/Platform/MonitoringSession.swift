@@ -191,6 +191,23 @@ final class MonitoringSession {
         startMonitoringTarget(target)
     }
 
+    /// Points a target at a new address, such as the new address of the device a rule linked it
+    /// to (#450), and restarts its checks there.
+    func moveTarget(_ targetID: UUID, to host: String) {
+        let descriptor = FetchDescriptor<NetworkTarget>(predicate: #Predicate { $0.id == targetID })
+        guard let target = try? modelContext.fetch(descriptor).first, target.host != host else { return }
+        target.host = host
+        latestResults[targetID] = nil
+        do {
+            try modelContext.save()
+        } catch {
+            Logger.monitoring.error("Failed to move a target: \(error, privacy: .public)")
+        }
+        if monitoringTasks[targetID] != nil {
+            startMonitoringTarget(target)
+        }
+    }
+
     func latestMeasurement(for targetID: UUID) -> TargetMeasurement? {
         latestResults[targetID]
     }

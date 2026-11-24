@@ -14,6 +14,9 @@ final class AlertRuleStore {
     static let storageKey = "netmonitor.alertRules"
     /// Where unreadable stored rules are kept, so a save can't destroy them.
     static let unreadableKey = "netmonitor.alertRules.unreadable"
+    /// Which device each monitoring target added by a described rule checks (#450). A target
+    /// stores only an address, which the device can leave or another device can take.
+    static let targetDevicesKey = "netmonitor.alertRules.targetDevices"
 
     private(set) var rules: [AlertRule] = []
     /// Set when the stored rules couldn't be read. Shown in the Rules tab.
@@ -38,6 +41,21 @@ final class AlertRuleStore {
 
     func delete(id: UUID) {
         mutate { $0.removeAll { $0.id == id } }
+    }
+
+    /// The device (`LocalDevice.id`) monitoring target `target` checks, when a rule linked them.
+    func device(forTarget target: UUID) -> UUID? {
+        targetDevices()[target.uuidString].flatMap(UUID.init(uuidString:))
+    }
+
+    func link(target: UUID, to device: UUID) {
+        var links = targetDevices()
+        links[target.uuidString] = device.uuidString
+        defaults.set(links, forKey: Self.targetDevicesKey)
+    }
+
+    private func targetDevices() -> [String: String] {
+        defaults.dictionary(forKey: Self.targetDevicesKey) as? [String: String] ?? [:]
     }
 
     /// Re-reads the saved rules. On unreadable data, keeps the last good rules.
@@ -90,6 +108,9 @@ final class MacRuleAlerts {
     /// MAC, type, maker and network from its host.
     private let currentDevices: @MainActor () -> (devices: [LocalDevice], networkID: UUID?)
     private var evaluator = AlertRuleEvaluator()
+    /// Called when a linked target's device answers at a new address, with the target's ID and
+    /// that address, so the target can follow it.
+    var onLinkedTargetMoved: (@MainActor (_ targetID: UUID, _ host: String) -> Void)?
 
     init(
         store: AlertRuleStore,
@@ -122,13 +143,26 @@ final class MacRuleAlerts {
         fire(events)
     }
 
-    /// From one monitored-target check. The target's host is looked up in the current
-    /// network's devices so device conditions can match it.
+    /// From one monitored-target check. A target a rule linked to a device is that device;
+    /// any other target's host is looked up in the current network's devices so device
+    /// conditions can match it.
     func handle(targetResult result: TargetCheckOutcome) {
         let (devices, networkID) = currentDevices()
-        let row = devices.first {
-            $0.ipAddress == result.host
-                || ($0.hostname?.caseInsensitiveCompare(result.host) == .orderedSame)
+        let linked = store.device(forTarget: result.targetID)
+        let row: LocalDevice?
+        if let linked {
+            row = devices.first { $0.id == linked }
+            // The device answers at another address now, so this check was of an address that
+            // may be another device's: drop it and move the target to the device.
+            if let row, row.ipAddress != result.host {
+                onLinkedTargetMoved?(result.targetID, row.ipAddress)
+                return
+            }
+        } else {
+            row = devices.first {
+                $0.ipAddress == result.host
+                    || ($0.hostname?.caseInsensitiveCompare(result.host) == .orderedSame)
+            }
         }
         let subject = AlertRuleSubject(
             name: result.name,
@@ -137,8 +171,8 @@ final class MacRuleAlerts {
             deviceType: row?.deviceType,
             maker: row?.makerExcludingSuggestions,
             networkID: row == nil ? nil : networkID,
-            stateKey: "\(Self.targetKeyPrefix)\(result.targetID.uuidString)",
-            deviceID: row?.id
+            deviceID: linked ?? row?.id,
+            monitoredTargetID: result.targetID
         )
         var events: [AlertRuleEvent] = []
         if result.wentDown {
@@ -159,10 +193,8 @@ final class MacRuleAlerts {
     /// Monitoring stopped: targets go unchecked from here, so their duration timers start over
     /// when it resumes. Scan-timed outages keep theirs.
     func monitoringStopped() {
-        evaluator.endEpisodes(subjectKeyPrefix: Self.targetKeyPrefix)
+        evaluator.endMonitoredTargetEpisodes()
     }
-
-    private static let targetKeyPrefix = "target:"
 
     private func fire(_ events: [AlertRuleEvent]) {
         guard !events.isEmpty else { return }

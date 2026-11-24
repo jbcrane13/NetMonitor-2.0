@@ -9,11 +9,11 @@ import SwiftUI
 /// target saved from a draft can be seen and removed. A port-scan draft sets `openPortScan`;
 /// the screen presents the scanner, because a sheet on a list section is attached to every row.
 struct PlainRuleSettingsSection: View {
-    @Binding var openPortScan: PlainRuleIOSViewModel.PortScanRequest?
+    @Binding var openPortScan: PortScanRequest?
     @Environment(\.modelContext) private var modelContext
     @Environment(AppEnvironment.self) private var env: AppEnvironment?
-    @Query private var devices: [LocalDevice]
-    @Query(sort: \MonitoringTarget.createdAt) private var targets: [MonitoringTarget]
+    @Query(Self.devicesDescriptor) private var devices: [LocalDevice]
+    @Query(Self.targetsDescriptor) private var targets: [MonitoringTarget]
     @State private var viewModel = PlainRuleIOSViewModel()
 
     var body: some View {
@@ -33,7 +33,7 @@ struct PlainRuleSettingsSection: View {
                 .accessibilityElement(children: .combine)
                 .accessibilityIdentifier("settings_row_target_\(target.host)")
             }
-            .onDelete(perform: deleteTargets)
+            .onDelete { offsets in viewModel.delete(offsets.map { targets[$0] }, context: modelContext) }
             if targets.isEmpty {
                 Text("No monitoring targets. Background refresh checks the ones you add and alerts when one goes down.")
                     .font(.caption)
@@ -80,17 +80,22 @@ struct PlainRuleSettingsSection: View {
     @ViewBuilder
     private var outcome: some View {
         switch viewModel.composer.outcome {
-        case let .target(draft):
-            draftCard(
-                summary: "Add a monitoring target for \(draft.name) (\(draft.host))",
-                notes: draft.notes,
-                confirmTitle: "Confirm"
-            ) { viewModel.confirm(context: modelContext) }
+        case .target:
+            if let draft = viewModel.targetDraft {
+                draftCard(
+                    summary: "Add a monitoring target for \(draft.name) (\(draft.host))",
+                    notes: draft.notes,
+                    confirmTitle: "Confirm",
+                    canConfirm: viewModel.canConfirmTarget,
+                    editor: targetEditor
+                ) { viewModel.confirm(context: modelContext) }
+            }
         case let .portScan(device, preset):
             draftCard(
                 summary: "Scan \(preset.displayName.lowercased()) on \(device.displayName) (\(device.ipAddress))",
                 notes: ["This opens the Port Scanner with these settings. Nothing is saved."],
-                confirmTitle: "Open Port Scanner"
+                confirmTitle: "Open Port Scanner",
+                editor: EmptyView()
             ) { openPortScan = viewModel.takePortScan() }
         case let .pickDevice(candidates):
             VStack(alignment: .leading, spacing: 8) {
@@ -113,7 +118,36 @@ struct PlainRuleSettingsSection: View {
         }
     }
 
-    private func draftCard(summary: String, notes: [String], confirmTitle: String, confirm: @escaping () -> Void) -> some View {
+    /// The target draft's name and address, editable before Confirm.
+    private var targetEditor: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            TextField("Name", text: targetBinding(\.name))
+                .textFieldStyle(.roundedBorder)
+                .accessibilityIdentifier("settings_field_ruleTargetName")
+            TextField("Address", text: targetBinding(\.host))
+                .textFieldStyle(.roundedBorder)
+                .keyboardType(.URL)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .accessibilityIdentifier("settings_field_ruleTargetHost")
+        }
+    }
+
+    private func targetBinding(_ keyPath: WritableKeyPath<TargetDraft, String>) -> Binding<String> {
+        Binding(
+            get: { viewModel.targetDraft?[keyPath: keyPath] ?? "" },
+            set: { viewModel.targetDraft?[keyPath: keyPath] = $0 }
+        )
+    }
+
+    private func draftCard(
+        summary: String,
+        notes: [String],
+        confirmTitle: String,
+        canConfirm: Bool = true,
+        editor: some View,
+        confirm: @escaping () -> Void
+    ) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Label("Drafted by the on-device model from your words", systemImage: "sparkles")
                 .font(.caption)
@@ -122,6 +156,7 @@ struct PlainRuleSettingsSection: View {
             Text(summary)
                 .foregroundStyle(Theme.Colors.textPrimary)
                 .accessibilityIdentifier("settings_label_ruleDraftSummary")
+            editor
             ForEach(notes, id: \.self) { note in
                 Text(note)
                     .font(.caption)
@@ -136,26 +171,28 @@ struct PlainRuleSettingsSection: View {
                 Button(confirmTitle, action: confirm)
                     .buttonStyle(.borderedProminent)
                     .tint(Theme.Colors.accent)
+                    .disabled(!canConfirm)
                     .accessibilityIdentifier("settings_button_confirmRuleDraft")
             }
         }
     }
 
-    private func deleteTargets(at offsets: IndexSet) {
-        for index in offsets {
-            modelContext.delete(targets[index])
-        }
-        do {
-            try modelContext.save()
-        } catch {
-            Logger.data.error("Failed to delete monitoring targets: \(error.localizedDescription, privacy: .public)")
-        }
+    private static var devicesDescriptor: FetchDescriptor<LocalDevice> {
+        var descriptor = FetchDescriptor<LocalDevice>()
+        descriptor.fetchLimit = 500
+        return descriptor
+    }
+
+    private static var targetsDescriptor: FetchDescriptor<MonitoringTarget> {
+        var descriptor = FetchDescriptor<MonitoringTarget>(sortBy: [SortDescriptor(\.createdAt)])
+        descriptor.fetchLimit = 200
+        return descriptor
     }
 }
 
 /// The Port Scanner a described port-scan preset opens, prefilled (#450).
 struct PlainRulePortScanSheet: View {
-    let request: PlainRuleIOSViewModel.PortScanRequest
+    let request: PortScanRequest
     let onDone: () -> Void
 
     var body: some View {

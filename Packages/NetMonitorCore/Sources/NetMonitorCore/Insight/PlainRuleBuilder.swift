@@ -29,12 +29,15 @@ public struct AlertRuleDraft: Sendable, Equatable {
     public var hasTarget: Bool
     /// False when the user gave no latency threshold and the default is filled in.
     public var thresholdWasGiven: Bool
+    /// The model gave a duration the user's words don't state, so the draft has none.
+    public var durationWasDropped: Bool
 
-    public init(rule: AlertRule, device: RuleDevice?, hasTarget: Bool, thresholdWasGiven: Bool) {
+    public init(rule: AlertRule, device: RuleDevice?, hasTarget: Bool, thresholdWasGiven: Bool, durationWasDropped: Bool = false) {
         self.rule = rule
         self.device = device
         self.hasTarget = hasTarget
         self.thresholdWasGiven = thresholdWasGiven
+        self.durationWasDropped = durationWasDropped
     }
 
     /// Offer to add a monitoring target for the device: only targets time an outage closely
@@ -53,6 +56,9 @@ public struct AlertRuleDraft: Sendable, Equatable {
         var notes: [String] = []
         if case .latencyAbove = rule.trigger, !thresholdWasGiven {
             notes.append("You didn't give a threshold in milliseconds, so \(PlainRuleBuilder.defaultThreshold) ms is filled in. Check it.")
+        }
+        if durationWasDropped, rule.minimumDuration == nil {
+            notes.append(PlainRuleBuilder.droppedDurationNote)
         }
         guard let device else { return notes }
         let monitored = hasTarget || addingTarget
@@ -104,6 +110,29 @@ public struct TargetDraft: Sendable, Equatable {
     }
 }
 
+/// The Port Scanner to open, prefilled, for a port-scan draft. Nothing is saved.
+public struct PortScanRequest: Identifiable, Equatable, Sendable {
+    public let host: String
+    public let preset: PortScanPreset
+    public var id: String { "\(host)|\(preset.rawValue)" }
+
+    public init(host: String, preset: PortScanPreset) {
+        self.host = host
+        self.preset = preset
+    }
+}
+
+public extension PortScanPreset {
+    /// The preset as a custom port list ("1-1024", "80,443,…"), for a scanner that lacks it.
+    var customPortsText: String {
+        switch self {
+        case .wellKnown: "1-1024"
+        case .extended: "1-10000"
+        case .common, .web, .database, .mail, .custom: ports.map(String.init).joined(separator: ",")
+        }
+    }
+}
+
 /// What a plain-English request becomes. Nothing here is saved; the user confirms a draft.
 public enum PlainRuleOutcome: Sendable, Equatable {
     case alert(AlertRuleDraft)
@@ -120,6 +149,9 @@ public enum PlainRuleOutcome: Sendable, Equatable {
 public enum PlainRuleBuilder {
     /// The latency threshold filled in when the user gave none, in milliseconds.
     public static let defaultThreshold = 200
+
+    /// Said when the model's duration isn't one the user's words state.
+    public static let droppedDurationNote = "The duration wasn't clear from your words, so the draft has none. Set one if you want it."
 
     /// - Parameters:
     ///   - devices: the devices the phrase may name.
@@ -148,7 +180,7 @@ public enum PlainRuleBuilder {
             device = chosen
         } else {
             guard let phrase = intent.device else { return .message("Say which device, for example “the NAS”.") }
-            switch RuleDeviceResolver.resolve(phrase, among: devices) {
+            switch DevicePhraseResolver.resolve(phrase, among: devices) {
             case let .one(match): device = match
             case let .several(matches): return .pickDevice(matches)
             case .none: return .message("No device on this network matches “\(phrase)”.")
@@ -188,23 +220,29 @@ public enum PlainRuleBuilder {
             name: name,
             trigger: trigger,
             // `device` is for builds before #450, which ignore `deviceID`: without it they would
-            // apply the rule to every device. This build matches on `deviceID` only.
-            conditions: AlertRuleConditions(device: device.displayName, deviceID: device.id),
+            // apply the rule to every device. The MAC, when known, because it survives a rename
+            // and an address change; else the name. This build matches on `deviceID` only.
+            conditions: AlertRuleConditions(device: device.macAddress ?? device.displayName, deviceID: device.id),
             minimumDuration: trigger == .cameOnline ? nil : duration
         )
         return AlertRuleDraft(rule: rule, device: device, hasTarget: hasTarget,
-                              thresholdWasGiven: intent.kind != .latencyAbove || intent.thresholdMilliseconds != nil)
+                              thresholdWasGiven: intent.kind != .latencyAbove || intent.thresholdMilliseconds != nil,
+                              durationWasDropped: intent.durationWasDropped)
     }
 
     private static func iOSNotes(_ intent: RuleIntent) -> [String] {
         let cantTime = intent.durationSeconds.map { " It can't time \(spoken(TimeInterval($0)))." } ?? ""
+        let dropped = intent.durationWasDropped ? [droppedDurationNote] : []
+        // BackgroundTaskService checks an ICMP target as a TCP connection to port 80 (#450 review).
+        let probe = ["Background checks connect to the device's port 80, so a device that doesn't accept connections there "
+            + "shows as down."]
         if intent.kind == .latencyAbove {
             let threshold = intent.thresholdMilliseconds.map { "\($0) ms" } ?? "a threshold"
             return ["High-latency alerts use one threshold for every target (Settings › Notifications), so \(threshold) isn't saved "
-                + "with this target.\(cantTime)"]
+                + "with this target.\(cantTime)"] + probe + dropped
         }
         return ["The app checks monitoring targets during background refresh, when iOS allows it, and reports one down after "
-            + "3 failed checks.\(cantTime)"]
+            + "3 failed checks.\(cantTime)"] + probe + dropped
     }
 
     /// "5 seconds", "5 minutes", "1 hour", "90 seconds".

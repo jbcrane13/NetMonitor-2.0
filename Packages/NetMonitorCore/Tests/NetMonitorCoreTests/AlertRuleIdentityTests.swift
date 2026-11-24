@@ -126,18 +126,20 @@ struct AlertRuleIdentityTests {
         let rule = AlertRule(name: "Slow 2 min", trigger: .latencyAbove(milliseconds: 250), minimumDuration: 120)
         let offline = AlertRule(name: "Down 5 min", trigger: .wentOffline, minimumDuration: 300)
         var target = nas(named: "NAS")
-        target.stateKey = "target:\(UUID().uuidString)"
+        target.monitoredTargetID = UUID()
         let high = AlertRuleEvent(kind: .latency(milliseconds: 300), subject: target)
+        // Another device, timed by scans: no target checks it.
+        let scanned = AlertRuleSubject(name: "Printer", ipAddress: "10.0.0.40", macAddress: "AA:BB:CC:00:00:40", deviceID: UUID())
         #expect(evaluator.evaluate([high], rules: [rule, offline], now: at(0)).isEmpty)
-        #expect(evaluator.evaluate([AlertRuleEvent(kind: .wentOffline, subject: nas(named: "NAS"))], rules: [rule, offline], now: at(0)).isEmpty)
+        #expect(evaluator.evaluate([AlertRuleEvent(kind: .wentOffline, subject: scanned)], rules: [rule, offline], now: at(0)).isEmpty)
 
-        evaluator.endEpisodes(subjectKeyPrefix: "target:")
+        evaluator.endMonitoredTargetEpisodes()
 
         // Ten unchecked minutes later, one high reading starts a new clock.
         #expect(evaluator.evaluate([high], rules: [rule, offline], now: at(600)).isEmpty)
         #expect(evaluator.evaluate([high], rules: [rule, offline], now: at(720)).map(\.rule.name) == ["Slow 2 min"])
         // The scan-timed outage kept its start.
-        let still = AlertRuleEvent(kind: .stillOffline, subject: nas(named: "NAS"))
+        let still = AlertRuleEvent(kind: .stillOffline, subject: scanned)
         #expect(evaluator.evaluate([still], rules: [rule, offline], now: at(730)).map(\.rule.name) == ["Down 5 min"])
     }
 
@@ -151,5 +153,60 @@ struct AlertRuleIdentityTests {
         #expect(evaluator.evaluate([AlertRuleEvent(kind: .stillOffline, subject: subject)], rules: [rule], now: at(400)).isEmpty)
         #expect(evaluator.evaluate([AlertRuleEvent(kind: .stillOffline, subject: subject)], rules: [rule], now: at(900)).isEmpty)
         #expect(evaluator.evaluate([AlertRuleEvent(kind: .stillOffline, subject: subject)], rules: [rule], now: at(1000)).count == 1)
+    }
+
+    // MARK: - One outage, one alert (#450 review)
+
+    private func targetSubject(_ target: UUID) -> AlertRuleSubject {
+        var subject = nas(named: "NAS")
+        subject.monitoredTargetID = target
+        return subject
+    }
+
+    @Test func aTargetAndAScanReportingTheSameOutageAlertOnce() {
+        var evaluator = AlertRuleEvaluator()
+        let rule = AlertRule(name: "Down 5 min", trigger: .wentOffline, conditions: AlertRuleConditions(deviceID: nasID), minimumDuration: 300)
+        let target = targetSubject(UUID())
+        var fired: [String] = []
+        func run(_ kind: AlertRuleEvent.Kind, _ subject: AlertRuleSubject, at time: TimeInterval, since: Date? = nil) {
+            let matches = evaluator.evaluate([AlertRuleEvent(kind: kind, subject: subject, offlineSince: since)], rules: [rule], now: at(time))
+            fired += matches.map { $0.event.subject.monitoredTargetID == nil ? "scan" : "target" }
+        }
+        run(.wentOffline, target, at: 0)
+        run(.stillOffline, target, at: 300)
+        // The scan's grace period ends later in the same outage.
+        run(.wentOffline, nas(named: "NAS"), at: 900, since: at(0))
+        run(.stillOffline, target, at: 930)
+        #expect(fired == ["target"])
+    }
+
+    @Test func withoutATargetTheScanStillTimesTheOutage() {
+        var evaluator = AlertRuleEvaluator()
+        let rule = AlertRule(name: "Down 5 min", trigger: .wentOffline, conditions: AlertRuleConditions(deviceID: nasID), minimumDuration: 300)
+        let report = AlertRuleEvent(kind: .wentOffline, subject: nas(named: "NAS"), offlineSince: at(-900))
+        #expect(evaluator.evaluate([report], rules: [rule], now: at(0)).count == 1)
+    }
+
+    @Test func onceMonitoringStopsScansTimeTheDeviceAgain() {
+        var evaluator = AlertRuleEvaluator()
+        let rule = AlertRule(name: "Down 5 min", trigger: .wentOffline, conditions: AlertRuleConditions(deviceID: nasID), minimumDuration: 300)
+        _ = evaluator.evaluate([AlertRuleEvent(kind: .latency(milliseconds: 5), subject: targetSubject(UUID()))], rules: [rule], now: at(0))
+        let report = AlertRuleEvent(kind: .wentOffline, subject: nas(named: "NAS"), offlineSince: at(100))
+        #expect(evaluator.evaluate([report], rules: [rule], now: at(1000)).isEmpty, "A target checks the NAS")
+        evaluator.endMonitoredTargetEpisodes()
+        #expect(evaluator.evaluate([report], rules: [rule], now: at(1000)).count == 1)
+    }
+
+    /// Ping and HTTP targets on one device keep their own clocks: one recovering doesn't end the other's outage.
+    @Test func twoTargetsOnOneDeviceKeepSeparateOutages() {
+        var evaluator = AlertRuleEvaluator()
+        let rule = AlertRule(name: "Down 5 min", trigger: .wentOffline, conditions: AlertRuleConditions(deviceID: nasID), minimumDuration: 300)
+        let ping = targetSubject(UUID())
+        let http = targetSubject(UUID())
+        _ = evaluator.evaluate([AlertRuleEvent(kind: .wentOffline, subject: ping), AlertRuleEvent(kind: .wentOffline, subject: http)],
+                               rules: [rule], now: at(0))
+        _ = evaluator.evaluate([AlertRuleEvent(kind: .cameOnline, subject: http)], rules: [rule], now: at(100))
+        let fired = evaluator.evaluate([AlertRuleEvent(kind: .stillOffline, subject: ping)], rules: [rule], now: at(300))
+        #expect(fired.map(\.event.subject.monitoredTargetID) == [ping.monitoredTargetID])
     }
 }

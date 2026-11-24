@@ -13,6 +13,8 @@ final class PlainRuleMacViewModel {
     var draft: AlertRuleDraft?
     /// Also add a monitoring target for the draft's device.
     var addsTarget = false
+    /// Start monitoring (every enabled target) on Confirm, offered while it is stopped.
+    var startsMonitoring = true
     /// Set by the port-scan draft's button: the Port Scanner to open, prefilled.
     var openPortScan: PortScanRequest?
     let composer: PlainRuleComposer
@@ -21,12 +23,6 @@ final class PlainRuleMacViewModel {
     private var disabledTargets: [String: NetworkTarget] = [:]
     /// How often each host's target is checked: its enabled target, or else the turned-off one.
     private var targetIntervals: [String: TimeInterval] = [:]
-
-    struct PortScanRequest: Identifiable, Equatable {
-        let host: String
-        let preset: PortScanPreset
-        var id: String { "\(host)|\(preset.rawValue)" }
-    }
 
     init(parser: any RuleIntentParsing = UITestPlainRules.parser, timing: RuleTiming = RuleTiming(targetCheckInterval: TargetDefaults.interval())) {
         composer = PlainRuleComposer(parser: parser, platform: .mac)
@@ -72,8 +68,16 @@ final class PlainRuleMacViewModel {
         adoptOutcome()
     }
 
+    /// Whether the draft relies on a monitoring target: it adds one, or its device has one.
+    var usesTarget: Bool {
+        guard let draft else { return false }
+        return (addsTarget && draft.offersTarget) || draft.hasTarget
+    }
+
     /// Saves the reviewed draft, and the monitoring target when asked, then clears the field.
-    func confirm(store: AlertRuleStore, context: ModelContext, session: MonitoringSession?) {
+    /// With `startMonitoring`, monitoring starts after everything is saved, so it checks the new
+    /// target with the others.
+    func confirm(store: AlertRuleStore, context: ModelContext, session: MonitoringSession?, startMonitoring: Bool = false) {
         guard let draft else { return }
         var rule = draft.rule
         rule.name = rule.name.trimmingCharacters(in: .whitespaces)
@@ -96,10 +100,15 @@ final class PlainRuleMacViewModel {
             }
             do {
                 try context.save()
+                // The target checks this device even if its address changes (#450 review).
+                store.link(target: target.id, to: device.id)
                 session?.monitorAddedTarget(target)
             } catch {
                 Logger.data.error("Failed to save the rule's monitoring target: \(error, privacy: .public)")
             }
+        }
+        if startMonitoring, let session, !session.isMonitoring {
+            session.startMonitoring()
         }
         cancel()
     }
@@ -108,6 +117,7 @@ final class PlainRuleMacViewModel {
         text = ""
         draft = nil
         addsTarget = false
+        startsMonitoring = true
         disabledTargets = [:]
         targetIntervals = [:]
         composer.clear()

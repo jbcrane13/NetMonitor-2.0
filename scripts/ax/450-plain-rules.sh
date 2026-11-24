@@ -5,7 +5,8 @@
 # real model's recorded answers. Alert rules go to the UI-test suite, never the user's rules.
 #   1. Settings > Rules: types "Tell me if the NAS is down for more than five minutes", sees the
 #      draft on the NAS with its five-minute duration and the generated marker, confirms, and sees
-#      the rule in the list on uitest-nas.
+#      the rule in the list on uitest-nas. Monitoring is stopped, so the draft offers to start it;
+#      Confirm with it on starts monitoring (the same sentence then drafts with no offer).
 #   2. Renames the NAS in its device detail and sees the rule still listed on it, by the new name.
 #   3. Types "what's the weather" and sees the unsupported message; no rule is drafted.
 # Screenshots are the app window cropped to the draft, the rule's row or the message: only fixture devices, never the sidebar's network name.
@@ -31,6 +32,7 @@ expect() { echo "$1"; [[ $1 == $2* ]] || fail "$3 (got: $1)"; }
 
 NAS_RULE="Goes offline · for 5 minutes · device"
 NOTE="Fires once uitest-nas has been unreachable for 5 minutes"
+START="Start monitoring when I confirm"
 UNSUPPORTED="I can create alerts for a device going offline, coming online, new devices, or high latency"
 
 open_rules() {
@@ -53,10 +55,20 @@ expect "$("$AX" text "uitest-nas (192.168.77.40)" 3)" "found text" "the draft is
 expect "$("$AX" text "For at least 5 minutes" 3)" "found text" "the draft lost the five-minute duration"
 expect "$("$AX" text "$NOTE" 3)" "found text" "the duration note is missing"
 expect "$("$AX" text "No rules yet" 1)" "found text" "a rule was saved before Confirm"
+expect "$("$AX" text "$START" 3)" "found text" "monitoring is stopped but Start monitoring isn't offered"
 "$AX" capture-in rules_draft_card "$OUT/450-draft.png"
 "$AX" press rules_button_confirm > /dev/null
 expect "$("$AX" text "$NAS_RULE uitest-nas" 10)" "found text" "the confirmed rule is not listed on uitest-nas"
 expect "$("$AX" notext "No rules yet" 2)" "no text" "the empty-list label still shows"
+
+# Confirm started monitoring: the same sentence now drafts on the NAS's target, with no offer to start it.
+"$AX" type rules_field_describe "Tell me if the NAS is down for more than five minutes" > /dev/null
+"$AX" press rules_button_parse > /dev/null
+expect "$("$AX" wait rules_draft_card 15)" found "no second draft appeared"
+expect "$("$AX" notext "$START" 2)" "no text" "Start monitoring is still offered, so Confirm didn't start it"
+expect "$("$AX" notext "Also add a monitoring target" 1)" "no text" "the NAS's new target wasn't saved"
+"$AX" capture-in rules_draft_card "$OUT/450-draft-monitoring.png"
+"$AX" press rules_draft_cancel > /dev/null
 ROW=$("$AX" ids | grep -m1 '^rules_row_' || true)
 [[ -n $ROW ]] || fail "the rule row is missing"
 "$AX" capture-in "$ROW" "$OUT/450-rule-listed.png"

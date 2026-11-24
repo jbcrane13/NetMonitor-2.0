@@ -16,8 +16,9 @@ struct RulesSettingsView: View {
     @Environment(DeviceDiscoveryCoordinator.self) private var discovery: DeviceDiscoveryCoordinator?
     @Environment(MonitoringSession.self) private var monitoringSession: MonitoringSession?
     @Environment(\.modelContext) private var modelContext
-    @Query private var devices: [LocalDevice]
-    @Query private var targets: [NetworkTarget]
+    /// Capped like the app's other device reads (#207); a rule names a device on this network.
+    @Query(Self.devicesDescriptor) private var devices: [LocalDevice]
+    @Query(Self.targetsDescriptor) private var targets: [NetworkTarget]
     @State private var editing: AlertRule?
     @State private var plainRule = PlainRuleMacViewModel()
 
@@ -30,7 +31,12 @@ struct RulesSettingsView: View {
                     targets: targets,
                     isScanning: discovery?.isScanning ?? false,
                     isMonitoring: monitoringSession?.isMonitoring ?? false,
-                    onConfirm: { plainRule.confirm(store: store, context: modelContext, session: monitoringSession) }
+                    onConfirm: {
+                        plainRule.confirm(
+                            store: store, context: modelContext, session: monitoringSession,
+                            startMonitoring: plainRule.startsMonitoring && plainRule.usesTarget
+                        )
+                    }
                 )
             }
             if let loadError = store.loadError {
@@ -81,6 +87,7 @@ struct RulesSettingsView: View {
                 rule: rule,
                 networks: profileManager?.profiles ?? [],
                 deviceName: rule.conditions.deviceID.flatMap { id in devices.first { $0.id == id }?.displayName },
+                deviceHasTarget: deviceHasTarget(rule.conditions.deviceID),
                 onSave: { saved in
                     if store.rules.contains(where: { $0.id == saved.id }) {
                         store.update(saved)
@@ -96,6 +103,25 @@ struct RulesSettingsView: View {
 }
 
 extension RulesSettingsView {
+    private static var devicesDescriptor: FetchDescriptor<LocalDevice> {
+        var descriptor = FetchDescriptor<LocalDevice>()
+        descriptor.fetchLimit = 500
+        return descriptor
+    }
+
+    private static var targetsDescriptor: FetchDescriptor<NetworkTarget> {
+        var descriptor = FetchDescriptor<NetworkTarget>()
+        descriptor.fetchLimit = 200
+        return descriptor
+    }
+
+    /// Whether an enabled monitoring target checks the device: one linked to it, or one on its address.
+    private func deviceHasTarget(_ deviceID: UUID?) -> Bool {
+        guard let deviceID else { return false }
+        let address = devices.first { $0.id == deviceID }?.ipAddress
+        return targets.contains { $0.isEnabled && (store.device(forTarget: $0.id) == deviceID || $0.host == address) }
+    }
+
     /// The devices a described rule can name: the active network's, or all without one.
     private var networkDevices: [LocalDevice] {
         guard let active = profileManager?.activeProfile?.id else { return devices }
@@ -161,6 +187,16 @@ enum RuleDescription {
         return parts.joined(separator: " · ")
     }
 
+    /// For an offline rule longer than the scans' grace period with no target on its device:
+    /// scans report an outage once, after the grace period, so they can't time it (#450 review).
+    static func durationWarning(
+        _ rule: AlertRule, trigger isOffline: Bool, hasTarget: Bool, grace: DeviceGracePolicy = DeviceGracePolicy()
+    ) -> String? {
+        guard isOffline, !hasTarget, let duration = rule.minimumDuration, duration > grace.interval else { return nil }
+        return "Scans report a device offline once, after \(grace.missedScans) missed scans and \(PlainRuleBuilder.spoken(grace.interval)), "
+            + "so they can't time \(PlainRuleBuilder.spoken(duration)). Add a monitoring target for this device."
+    }
+
     static func trigger(_ trigger: AlertRuleTrigger) -> String {
         switch trigger {
         case .cameOnline: "Comes online"
@@ -188,6 +224,8 @@ private struct RuleEditorView: View {
     let networks: [NetworkProfile]
     /// The current name of the device the rule's `deviceID` names.
     let deviceName: String?
+    /// An enabled monitoring target checks the rule's device.
+    let deviceHasTarget: Bool
     let onSave: (AlertRule) -> Void
     let onCancel: () -> Void
 
@@ -199,11 +237,13 @@ private struct RuleEditorView: View {
         rule: AlertRule,
         networks: [NetworkProfile],
         deviceName: String? = nil,
+        deviceHasTarget: Bool = false,
         onSave: @escaping (AlertRule) -> Void,
         onCancel: @escaping () -> Void
     ) {
         self.networks = networks
         self.deviceName = deviceName
+        self.deviceHasTarget = deviceHasTarget
         self.onSave = onSave
         self.onCancel = onCancel
         _rule = State(initialValue: rule)
@@ -251,6 +291,12 @@ private struct RuleEditorView: View {
                         .accessibilityIdentifier("rules_button_clearDuration")
                 }
                 .accessibilityIdentifier("rules_label_duration")
+                if let warning = RuleDescription.durationWarning(rule, trigger: triggerKind == .wentOffline, hasTarget: deviceHasTarget) {
+                    Label(warning, systemImage: "exclamationmark.triangle")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                        .accessibilityIdentifier("rules_label_durationNeedsTarget")
+                }
             }
 
             SwiftUI.Section("Only for (optional)") {

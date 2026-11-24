@@ -81,6 +81,8 @@ public struct AlertRuleSubject: Sendable, Equatable {
     public var stateKey: String?
     /// The saved device row's stable identity (`LocalDevice.id`), when the subject has one.
     public var deviceID: UUID?
+    /// The monitoring target whose check this is; nil for a scan's report (#450).
+    public var monitoredTargetID: UUID?
 
     public init(
         name: String?,
@@ -90,7 +92,8 @@ public struct AlertRuleSubject: Sendable, Equatable {
         maker: String? = nil,
         networkID: UUID? = nil,
         stateKey: String? = nil,
-        deviceID: UUID? = nil
+        deviceID: UUID? = nil,
+        monitoredTargetID: UUID? = nil
     ) {
         self.name = name
         self.ipAddress = ipAddress
@@ -100,12 +103,16 @@ public struct AlertRuleSubject: Sendable, Equatable {
         self.networkID = networkID
         self.stateKey = stateKey
         self.deviceID = deviceID
+        self.monitoredTargetID = monitoredTargetID
     }
 
     /// Identifies the subject across events, for latency crossing.
     public var key: String {
         if let stateKey {
             return stateKey
+        }
+        if let monitoredTargetID {
+            return "target:\(monitoredTargetID.uuidString)"
         }
         if let macAddress, !macAddress.isEmpty {
             return "mac:\(macAddress.uppercased())"
@@ -196,11 +203,28 @@ public struct AlertRuleEvaluator: Sendable {
         public var event: AlertRuleEvent
     }
 
-    private var aboveThreshold: Set<String> = []
+    /// One rule's state for one subject.
+    private struct StateKey: Hashable {
+        var rule: UUID
+        var subject: String
+        /// Set when the subject is a monitoring target, so its state can end with monitoring.
+        var target: UUID?
+
+        init(_ rule: AlertRule, _ subject: AlertRuleSubject) {
+            self.rule = rule.id
+            self.subject = subject.key
+            target = subject.monitoredTargetID
+        }
+    }
+
+    private var aboveThreshold: Set<StateKey> = []
     /// When each duration rule's condition started, per subject.
-    private var conditionSince: [String: Date] = [:]
+    private var conditionSince: [StateKey: Date] = [:]
     /// Duration rules that already fired for the current episode, per subject.
-    private var firedEpisodes: Set<String> = []
+    private var firedEpisodes: Set<StateKey> = []
+    /// Devices a monitoring target is checking. While one is, the target times their outages
+    /// and scan reports about them are ignored, so one outage alerts once.
+    private var targetCheckedDevices: Set<UUID> = []
     /// Each rule's trigger and conditions when its state was recorded; a change clears it.
     private var definitions: [UUID: Definition] = [:]
 
@@ -214,6 +238,11 @@ public struct AlertRuleEvaluator: Sendable {
 
     public mutating func evaluate(_ events: [AlertRuleEvent], rules: [AlertRule], now: Date = Date()) -> [Match] {
         resetChangedRules(rules)
+        for event in events {
+            if event.subject.monitoredTargetID != nil, let device = event.subject.deviceID {
+                targetCheckedDevices.insert(device)
+            }
+        }
         var matches: [Match] = []
         for event in events {
             for rule in rules where rule.isEnabled && AlertRuleEngine.conditionsMatch(rule.conditions, event.subject) {
@@ -225,13 +254,12 @@ public struct AlertRuleEvaluator: Sendable {
         return matches
     }
 
-    /// Forgets the duration timers of subjects whose key starts with `prefix`, such as monitored
-    /// targets when monitoring stops: time when nothing was checked doesn't count toward a duration.
-    public mutating func endEpisodes(subjectKeyPrefix prefix: String) {
-        // State keys are "<rule ID>|<subject key>".
-        let marker = "|\(prefix)"
-        conditionSince = conditionSince.filter { !$0.key.contains(marker) }
-        firedEpisodes = firedEpisodes.filter { !$0.contains(marker) }
+    /// Monitoring stopped: forgets the monitoring targets' duration timers, since time when
+    /// nothing was checked doesn't count toward a duration, and lets scans time outages again.
+    public mutating func endMonitoredTargetEpisodes() {
+        conditionSince = conditionSince.filter { $0.key.target == nil }
+        firedEpisodes = firedEpisodes.filter { $0.target == nil }
+        targetCheckedDevices = []
     }
 
     /// Forgets crossing and duration state for rules whose definition changed, or that were deleted.
@@ -240,18 +268,17 @@ public struct AlertRuleEvaluator: Sendable {
         for rule in rules {
             current[rule.id] = Definition(trigger: rule.trigger, conditions: rule.conditions, minimumDuration: rule.minimumDuration)
         }
-        let changed = definitions.compactMap { id, definition in current[id] == definition ? nil : id }
-        for id in changed {
-            let prefix = "\(id)|"
-            aboveThreshold = aboveThreshold.filter { !$0.hasPrefix(prefix) }
-            conditionSince = conditionSince.filter { !$0.key.hasPrefix(prefix) }
-            firedEpisodes = firedEpisodes.filter { !$0.hasPrefix(prefix) }
+        let changed = Set(definitions.compactMap { id, definition in current[id] == definition ? nil : id })
+        if !changed.isEmpty {
+            aboveThreshold = aboveThreshold.filter { !changed.contains($0.rule) }
+            conditionSince = conditionSince.filter { !changed.contains($0.key.rule) }
+            firedEpisodes = firedEpisodes.filter { !changed.contains($0.rule) }
         }
         definitions = current
     }
 
     private mutating func shouldFire(_ rule: AlertRule, for event: AlertRuleEvent, now: Date) -> Bool {
-        let stateKey = "\(rule.id)|\(event.subject.key)"
+        let stateKey = StateKey(rule, event.subject)
         if let duration = rule.minimumDuration, duration > 0 {
             return durationRuleFires(rule.trigger, duration: duration, event: event, key: stateKey, now: now)
         }
@@ -267,8 +294,13 @@ public struct AlertRuleEvaluator: Sendable {
     }
 
     private mutating func durationRuleFires(
-        _ trigger: AlertRuleTrigger, duration: TimeInterval, event: AlertRuleEvent, key: String, now: Date
+        _ trigger: AlertRuleTrigger, duration: TimeInterval, event: AlertRuleEvent, key: StateKey, now: Date
     ) -> Bool {
+        // A target checking this device times its outages; the scan's report is the same outage.
+        if trigger == .wentOffline, event.subject.monitoredTargetID == nil,
+           let device = event.subject.deviceID, targetCheckedDevices.contains(device) {
+            return false
+        }
         switch (trigger, event.kind) {
         case (.wentOffline, .wentOffline):
             conditionSince[key] = min(event.offlineSince ?? now, now)
@@ -298,7 +330,7 @@ public struct AlertRuleEvaluator: Sendable {
         return firedEpisodes.insert(key).inserted
     }
 
-    private mutating func endEpisode(_ key: String) {
+    private mutating func endEpisode(_ key: StateKey) {
         conditionSince[key] = nil
         firedEpisodes.remove(key)
     }

@@ -28,6 +28,8 @@ public struct RuleIntent: Sendable, Equatable {
     /// How long the condition must last, in seconds.
     public var durationSeconds: Int?
     public var portPreset: PortScanPreset?
+    /// The model gave a duration the user's words don't state, so it was dropped; the draft says so.
+    public var durationWasDropped = false
 
     public init(
         kind: Kind,
@@ -54,6 +56,8 @@ public struct RuleIntent: Sendable, Equatable {
     /// - each field is kept only for the kinds that use it;
     /// - a threshold is kept only when its digits appear in `input`, because it is the one
     ///   number the model copies rather than converts;
+    /// - a duration is kept only when `input` states it ("five minutes", "2 min", "half an hour");
+    ///   one it doesn't state is dropped and flagged, so the draft can say so;
     /// - a duration of zero or less means none;
     /// - an empty device phrase means none.
     public static func normalized(
@@ -75,7 +79,11 @@ public struct RuleIntent: Sendable, Equatable {
             intent.thresholdMilliseconds = threshold
         }
         if usesDuration, let duration = durationSeconds, duration > 0 {
-            intent.durationSeconds = duration
+            if SpokenDuration.seconds(in: input).contains(duration) {
+                intent.durationSeconds = duration
+            } else {
+                intent.durationWasDropped = true
+            }
         }
         if kind == .portScan {
             intent.portPreset = portPreset.flatMap(PortScanPreset.init(rawValue:)).flatMap { $0 == .custom ? nil : $0 } ?? .common
@@ -85,6 +93,95 @@ public struct RuleIntent: Sendable, Equatable {
 
     private static func digitRuns(in text: String) -> Set<String> {
         Set(text.split { !$0.isNumber }.map(String.init))
+    }
+}
+
+// MARK: - Durations in the user's words
+
+/// The durations a sentence states, in seconds: a number (digits or words, "a"/"an" for one,
+/// "half a"/"half an" for a half) followed by a unit. "for more than five minutes" → 300,
+/// "half an hour" → 1800, "2 min" → 120. "every minute" states none.
+enum SpokenDuration {
+    static func seconds(in text: String) -> Set<Int> {
+        let words = tokens(text)
+        var found: Set<Int> = []
+        var index = 0
+        while index < words.count {
+            guard let (value, next) = number(in: words, at: index) else {
+                index += 1
+                continue
+            }
+            if next < words.count, let unit = unit(words[next], afterDigits: Int(words[index]) != nil) {
+                found.insert(Int((value * unit).rounded()))
+            }
+            index = max(next, index + 1)
+        }
+        return found
+    }
+
+    private static let ones = [
+        "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9,
+        "ten": 10, "eleven": 11, "twelve": 12, "fifteen": 15, "eighteen": 18
+    ]
+    private static let tens = ["twenty": 20, "thirty": 30, "forty": 40, "fifty": 50, "sixty": 60, "ninety": 90]
+
+    /// The number starting at `index`, and the index after it.
+    private static func number(in words: [String], at index: Int) -> (Double, Int)? {
+        let word = words[index]
+        if let digits = Int(word) {
+            return (Double(digits), index + 1)
+        }
+        if word == "half", index + 1 < words.count, ["a", "an"].contains(words[index + 1]) {
+            return (0.5, index + 2)
+        }
+        if word == "a" || word == "an" {
+            return (1, index + 1)
+        }
+        if let ten = tens[word] {
+            if index + 1 < words.count, let one = ones[words[index + 1]], one < 10 {
+                return (Double(ten + one), index + 2)
+            }
+            return (Double(ten), index + 1)
+        }
+        return ones[word].map { (Double($0), index + 1) }
+    }
+
+    private static func unit(_ word: String, afterDigits: Bool) -> Double? {
+        switch word {
+        case "second", "seconds", "sec", "secs": 1
+        case "s": afterDigits ? 1 : nil
+        case "minute", "minutes", "min", "mins": 60
+        case "hour", "hours", "hr", "hrs": 3600
+        case "day", "days": 86400
+        default: nil
+        }
+    }
+
+    /// Lowercased runs of letters or of digits: "5min" → ["5", "min"].
+    private static func tokens(_ text: String) -> [String] {
+        var tokens: [String] = []
+        var current = ""
+        var currentIsDigit = false
+        for character in text.lowercased() {
+            let isDigit = character.isNumber
+            guard isDigit || character.isLetter else {
+                if !current.isEmpty {
+                    tokens.append(current)
+                }
+                current = ""
+                continue
+            }
+            if !current.isEmpty, isDigit != currentIsDigit {
+                tokens.append(current)
+                current = ""
+            }
+            current.append(character)
+            currentIsDigit = isDigit
+        }
+        if !current.isEmpty {
+            tokens.append(current)
+        }
+        return tokens
     }
 }
 
@@ -138,13 +235,16 @@ public struct FixedRuleIntentParser: RuleIntentParsing {
         text.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     }
 
+    #if DEBUG
     /// The answers the real model gave for the UI tests' sentences (see the #450 PR probe).
+    /// Debug builds only: the apps' UI-test seams use it.
     public static let uiTest = FixedRuleIntentParser(answers: [
         "Tell me if the NAS is down for more than five minutes":
             RuleIntent(kind: .deviceOffline, device: "NAS", durationSeconds: 300),
         "scan web ports on the printer":
             RuleIntent(kind: .portScan, device: "printer", portPreset: .web)
     ])
+    #endif
 }
 
 #if canImport(FoundationModels)
