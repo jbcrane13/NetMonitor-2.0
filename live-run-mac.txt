@@ -1,0 +1,24 @@
+# #451 live run on mini-pro-1 (macOS 27.2), Debug build of d94f032b-equivalent code, real services
+# (no --uitest-troubleshoot). Read with `axdrive value troubleshoot_step_<n>`; no screenshots (real network).
+
+## Internet is slow or unstable (button), speed test skipped
+step 1: 1. Ping your router × 10, 10 of 10 replies · 0% loss · avg 0.7 ms · jitter 0.1 ms
+step 2: 2. Look up apple.com, apple.com resolved in 0.8 ms
+step 3: 3. Wi-Fi signal now, Signal -46 dBm · noise -86 dBm
+step 4: 4. Speed test (about 20 s, optional), Skipped
+finding: 1. No problem found on this network, The checks that measured were within their limits; 1 step was skipped or couldn't measure.
+(wording later changed from "1 step couldn't measure" to "1 step was skipped or couldn't measure")
+
+## A website won't load → github.com
+step 1: 1. Look up github.com, github.com resolved in 31.5 ms
+step 2: 2. Ping github.com × 5, 5 of 5 replies · 0% loss · avg 30.6 ms · jitter 1.1 ms
+step 3: 3. Connect to github.com on port 443, Open: 443
+step 4: 4. Ping your router × 5, 5 of 5 replies · 0% loss · avg 0.8 ms · jitter 0.1 ms
+finding: 1. No problem found on this network, Every check finished within its limits.
+
+## Cancel during step 1 (router ping)
+returned in ≤1 s: Cancelled. The results so far are below.
+
+Notes:
+- Router ping uses ICMP here (no false loss on a healthy LAN).
+- apple.com's 0.8 ms is a cached answer: the DNS step catches failures and slow uncached resolvers, not cache-hit speed.
