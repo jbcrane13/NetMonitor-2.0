@@ -42,10 +42,10 @@ public struct TroubleshootFinding: Equatable, Sendable, Identifiable {
 /// | device offline or asleep | the device answered no ping and no known port, while the router answered with under 5% loss |
 /// | website not answering | the site's name resolved, port 443 didn't answer, and the router is healthy |
 /// | slower than usual | download under 25% of the last saved speed test |
-/// | no problem found | the script finished and nothing above fired |
+/// | no problem found | the script finished, measured something, and nothing above fired |
 ///
 /// A step that couldn't measure (no signal reading, no router address, no saved speed test,
-/// skipped) is never a finding.
+/// skipped) is never a finding, and a run that measured nothing gets no all-clear.
 public enum TroubleshootRules {
     public static let weakRSSI = -75
     public static let gatewayLossPercent = 5.0
@@ -63,11 +63,15 @@ public enum TroubleshootRules {
             findings += offlineDevices(in: results) + silentSites(in: results)
         }
         findings += ispSlowness(in: results)
-        if findings.isEmpty, completed {
+        // An all-clear needs something measured, and says when some steps couldn't measure.
+        let unmeasured = results.filter(\.isUnmeasured).count
+        if findings.isEmpty, completed, unmeasured < results.count {
             findings.append(TroubleshootFinding(
                 kind: .noProblem,
                 title: "No problem found on this network",
-                detail: "Every check finished within its limits.",
+                detail: unmeasured == 0
+                    ? "Every check finished within its limits."
+                    : "The checks that measured were within their limits; \(unmeasured) \(unmeasured == 1 ? "step was" : "steps were") skipped or couldn't measure.",
                 nextStep: "If the problem continues, it may be with the app, website or device you were using."
             ))
         }

@@ -187,6 +187,15 @@ public enum TroubleshootResult: Equatable, Sendable {
     case unavailable(String)
     case skipped
 
+    /// The step ran but measured nothing: no reading, no router address, skipped.
+    public var isUnmeasured: Bool {
+        switch self {
+        case .unavailable, .skipped: true
+        case let .wifi(readings): readings.isEmpty
+        default: false
+        }
+    }
+
     /// The raw result line.
     public var text: String {
         switch self {

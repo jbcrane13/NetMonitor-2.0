@@ -119,9 +119,23 @@ struct TroubleshootFindingsTests {
         #expect(kinds(results) == [.siteNotAnswering])
     }
 
-    @Test func missingMeasurementsAreNeverFindings() {
+    @Test func missingMeasurementsAreNeverFindingsNorAnAllClear() {
+        // Nothing measured: no cause and no "no problem found" either.
         let results: [TroubleshootResult] = [.unavailable("No gateway address"), .wifi([]), .skipped]
-        #expect(kinds(results) == [.noProblem])
+        #expect(kinds(results).isEmpty)
+    }
+
+    @Test func anAllClearWithUnmeasuredStepsSaysSo() {
+        let findings = TroubleshootRules.findings(for: [
+            .unavailable("No router address found"), .dns(host: "apple.com", milliseconds: 30), .skipped
+        ], completed: true)
+        #expect(findings.map(\.kind) == [.noProblem])
+        #expect(findings.first?.detail == "The checks that measured were within their limits; 2 steps were skipped or couldn't measure.")
+    }
+
+    @Test func anAllClearWithEveryStepMeasuredSaysEveryCheck() {
+        let findings = TroubleshootRules.findings(for: [.dns(host: "apple.com", milliseconds: 30)], completed: true)
+        #expect(findings.first?.detail == "Every check finished within its limits.")
     }
 
     @Test func noAllClearUnlessTheScriptFinished() {

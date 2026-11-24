@@ -157,6 +157,18 @@ struct TroubleshootStateTests {
         await state.choose(.slowOrUnstableInternet)
         #expect(results(state).first == .unavailable("No router address found"))
         #expect(state.findings.map(\.kind) == [.noProblem])
+        #expect(state.findings.first?.detail == "The checks that measured were within their limits; 1 step was skipped or couldn't measure.")
+    }
+
+    @Test func aRunThatMeasuredNothingSaysSoAndIsNotExplained() async {
+        // An iPhone without a dBm reading, or a Mac on Ethernet, asked about weak Wi-Fi.
+        let probes = MockTroubleshootProbes()
+        probes.readings = []
+        let state = make(probes, insight: FixedAnswerInsightService(answer: "The checks found no problem on this network."))
+        await state.choose(.weakWiFi)
+        #expect(state.phase == .stopped(TroubleshootState.nothingMeasuredMessage))
+        #expect(state.findings.isEmpty)
+        #expect(state.explanation == nil)
     }
 
     @Test func theSpeedTestIsComparedWithTheBaselineReadBeforeItRuns() async {

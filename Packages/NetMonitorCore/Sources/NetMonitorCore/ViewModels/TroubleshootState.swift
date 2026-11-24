@@ -76,6 +76,7 @@ public final class TroubleshootState {
 
     public static let scanMessage = "A device scan is running. Try again when it finishes."
     public static let cancelledMessage = "Cancelled. The results so far are below."
+    public static let nothingMeasuredMessage = "None of the checks could measure on this device or connection, so there's nothing to judge."
     public static let noDevicesMessage = "No saved devices yet. Scan the network first, then try again."
     /// Shown above the buttons when the symptom wasn't understood.
     public static let unsupportedMessage = SymptomIntent.unsupportedMessage
@@ -300,6 +301,8 @@ public final class TroubleshootState {
             stop(Self.cancelledMessage)
         } else if !completed {
             stop(Self.scanMessage)
+        } else if findings.isEmpty {
+            stop(Self.nothingMeasuredMessage)
         } else {
             phase = .finished
             await explain(kind)
