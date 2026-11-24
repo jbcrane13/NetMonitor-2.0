@@ -221,6 +221,10 @@ CI runs all four on every PR via `lint.yml` and `code-quality.yml`. Periphery an
 
 ---
 
+## Review and Merge
+
+Reviewing or merging a pull request: follow `docs/agents/review-workflow.md`. A worker's own review never replaces it.
+
 ## Reference Docs
 
 | Document | Location |

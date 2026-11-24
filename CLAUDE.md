@@ -116,6 +116,10 @@ Use GitHub Issues for jbcrane13/NetMonitor-2.0. See `docs/agents/issue-tracker.m
 
 Use a single shared context and the existing architecture records. See `docs/agents/domain.md`.
 
+### Review and merge
+
+Reviewing or merging a pull request: follow `docs/agents/review-workflow.md` (two-axis review, gates on the final code, merge checks).
+
 ## Key Enums (Enums.swift)
 
 `DeviceType`, `StatusType`, `ConnectionType`, `ToolType`, `TargetProtocol`, `DNSRecordType`, `PortScanPreset`, `ScanDisplayPhase`, `SpeedTestPhase`.
