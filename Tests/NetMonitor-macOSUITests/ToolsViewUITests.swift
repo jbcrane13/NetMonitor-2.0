@@ -134,7 +134,7 @@ final class ToolsViewUITests: MacOSUITestCase {
         let card = requireExists(ui("tools_card_speed_test").firstMatch, timeout: 3,
                                  message: "Speed test card should exist")
         card.click()
-        requireExists(app.buttons["speedtest_button_start"], timeout: 5,
+        requireExists(app.buttons["speedTest_button_start"], timeout: 5,
                       message: "Speed test start button should appear after opening speed test card")
     }
 
@@ -142,7 +142,7 @@ final class ToolsViewUITests: MacOSUITestCase {
         let card = requireExists(ui("tools_card_port_scanner").firstMatch, timeout: 3,
                                  message: "Port scanner card should exist")
         card.click()
-        requireExists(app.textFields["portscan_textfield_host"], timeout: 5,
+        requireExists(app.textFields["portScan_textfield_host"], timeout: 5,
                       message: "Port scanner host field should appear after opening port scanner card")
     }
 

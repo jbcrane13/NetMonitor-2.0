@@ -28,6 +28,8 @@ final class WHOISToolUITests: MacOSUITestCase {
     // MARK: - Interactions
 
     func testLookupButtonDisabledWhenDomainEmpty() {
+        // The field is prefilled with the last-used target, so empty it first.
+        clearText(in: app.textFields["whois_textfield_domain"])
         let lookupButton = app.buttons["whois_button_lookup"]
         XCTAssertTrue(lookupButton.waitForExistence(timeout: 3))
         XCTAssertFalse(lookupButton.isEnabled)
@@ -36,8 +38,7 @@ final class WHOISToolUITests: MacOSUITestCase {
     func testLookupButtonEnabledAfterTypingDomain() {
         let domainField = app.textFields["whois_textfield_domain"]
         XCTAssertTrue(domainField.waitForExistence(timeout: 3))
-        domainField.click()
-        domainField.typeText("example.com")
+        clearAndTypeText("example.com", into: domainField)
 
         XCTAssertTrue(app.buttons["whois_button_lookup"].isEnabled)
     }
@@ -51,8 +52,7 @@ final class WHOISToolUITests: MacOSUITestCase {
     func testPerformWHOISLookup() {
         let domainField = app.textFields["whois_textfield_domain"]
         XCTAssertTrue(domainField.waitForExistence(timeout: 3))
-        domainField.click()
-        domainField.typeText("example.com")
+        clearAndTypeText("example.com", into: domainField)
 
         app.buttons["whois_button_lookup"].click()
 
@@ -72,8 +72,7 @@ final class WHOISToolUITests: MacOSUITestCase {
     func testClearButtonAfterLookup() {
         let domainField = app.textFields["whois_textfield_domain"]
         XCTAssertTrue(domainField.waitForExistence(timeout: 3))
-        domainField.click()
-        domainField.typeText("example.com")
+        clearAndTypeText("example.com", into: domainField)
 
         app.buttons["whois_button_lookup"].click()
 

@@ -34,6 +34,8 @@ final class DNSLookupToolUITests: MacOSUITestCase {
 
     func testLookupButtonDisabledWhenHostEmpty() {
         openDNSLookup()
+        // The field is prefilled with the last-used target, so empty it first.
+        clearText(in: app.textFields["dns_textfield_hostname"])
         let lookupButton = requireExists(app.buttons["dns_button_lookup"], message: "Lookup button should exist")
         XCTAssertFalse(lookupButton.isEnabled, "Lookup button should be disabled without hostname")
     }

@@ -32,6 +32,8 @@ final class PingToolUITests: MacOSUITestCase {
     // MARK: - Interactions
 
     func testRunButtonDisabledWhenHostEmpty() {
+        // The field is prefilled with the last-used target, so empty it first.
+        clearText(in: app.textFields["ping_textfield_host"])
         let runButton = app.buttons["ping_button_run"]
         XCTAssertTrue(runButton.waitForExistence(timeout: 3))
         XCTAssertFalse(runButton.isEnabled)
@@ -40,8 +42,7 @@ final class PingToolUITests: MacOSUITestCase {
     func testRunButtonEnabledAfterTypingHost() {
         let hostField = app.textFields["ping_textfield_host"]
         XCTAssertTrue(hostField.waitForExistence(timeout: 3))
-        hostField.click()
-        hostField.typeText("8.8.8.8")
+        clearAndTypeText("8.8.8.8", into: hostField)
 
         let runButton = app.buttons["ping_button_run"]
         XCTAssertTrue(runButton.isEnabled)
@@ -60,8 +61,7 @@ final class PingToolUITests: MacOSUITestCase {
     func testTypeHostAndRun() {
         let hostField = app.textFields["ping_textfield_host"]
         XCTAssertTrue(hostField.waitForExistence(timeout: 3))
-        hostField.click()
-        hostField.typeText("127.0.0.1")
+        clearAndTypeText("127.0.0.1", into: hostField)
 
         app.buttons["ping_button_run"].click()
 
@@ -75,8 +75,7 @@ final class PingToolUITests: MacOSUITestCase {
     func testChartAppearsAfterPings() {
         let hostField = app.textFields["ping_textfield_host"]
         XCTAssertTrue(hostField.waitForExistence(timeout: 3))
-        hostField.click()
-        hostField.typeText("127.0.0.1")
+        clearAndTypeText("127.0.0.1", into: hostField)
 
         app.buttons["ping_button_run"].click()
 
@@ -91,8 +90,7 @@ final class PingToolUITests: MacOSUITestCase {
     func testStatsVisibleAfterPings() {
         let hostField = app.textFields["ping_textfield_host"]
         XCTAssertTrue(hostField.waitForExistence(timeout: 3))
-        hostField.click()
-        hostField.typeText("127.0.0.1")
+        clearAndTypeText("127.0.0.1", into: hostField)
 
         app.buttons["ping_button_run"].click()
 
@@ -123,8 +121,7 @@ final class PingToolUITests: MacOSUITestCase {
 
         let hostField = app.textFields["ping_textfield_host"]
         XCTAssertTrue(hostField.waitForExistence(timeout: 3))
-        hostField.click()
-        hostField.typeText("127.0.0.1")
+        clearAndTypeText("127.0.0.1", into: hostField)
 
         app.buttons["ping_button_run"].click()
 

@@ -67,6 +67,14 @@ class MacOSUITestCase: XCTestCase {
         }
     }
 
+    /// Empty a text field (tool fields are prefilled with the last-used target).
+    func clearText(in element: XCUIElement) {
+        requireExists(element, timeout: 5, message: "Expected text input before clearing")
+        element.click()
+        element.typeKey("a", modifierFlags: .command)
+        element.typeKey(.delete, modifierFlags: [])
+    }
+
     /// Captures a screenshot and attaches it to the test for visual review.
     func captureScreenshot(named name: String) {
         let screenshot = app.screenshot()

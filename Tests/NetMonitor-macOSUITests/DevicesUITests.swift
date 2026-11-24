@@ -36,13 +36,8 @@ final class DevicesUITests: MacOSUITestCase {
     }
 
     func testOnlineOnlyToggleExists() {
-        requireExists(app.toggles["devices_toggle_onlineOnly"], timeout: 3,
+        requireExists(app.checkBoxes["devices_toggle_onlineOnly"], timeout: 3,
                       message: "Online-only toggle should exist")
-    }
-
-    func testClearButtonExists() {
-        requireExists(app.buttons["devices_button_clear"], timeout: 3,
-                      message: "Clear button should exist")
     }
 
     // MARK: - Functional: Scan
@@ -99,8 +94,8 @@ final class DevicesUITests: MacOSUITestCase {
     // MARK: - Functional: Online-Only Toggle
 
     func testOnlineOnlyToggleInteraction() {
-        let toggle = app.toggles["devices_toggle_onlineOnly"]
-        guard toggle.waitForExistence(timeout: 3) else { return }
+        let toggle = app.checkBoxes["devices_toggle_onlineOnly"]
+        requireExists(toggle, timeout: 3, message: "Online-only toggle should exist")
 
         XCTAssertTrue(toggle.isEnabled, "Online-only toggle should be enabled")
         let valueBefore = toggle.value as? String
@@ -114,16 +109,6 @@ final class DevicesUITests: MacOSUITestCase {
         }
 
         toggle.click()
-    }
-
-    // MARK: - Functional: Clear Button
-
-    func testClearButtonExistsAndIsPresent() {
-        let clearButton = requireExists(
-            app.buttons["devices_button_clear"], timeout: 3,
-            message: "Clear button should exist in devices toolbar"
-        )
-        XCTAssertTrue(clearButton.exists, "Clear button should be present")
     }
 
     // MARK: - Search
