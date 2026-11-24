@@ -29,17 +29,21 @@ public actor PingService: PingServiceProtocol {
         count: Int = 4,
         timeout: TimeInterval = 5
     ) -> AsyncStream<PingResult> {
-        AsyncStream { continuation in
+        // Registered before the stream exists, and ended by the stream's own termination: a
+        // consumer cancelled at any point ends exactly this run, even before it started (#451).
+        let runID = beginRun()
+        return AsyncStream { continuation in
+            continuation.onTermination = { _ in
+                Task { await self.endRun(runID: runID) }
+            }
             Task {
-                let runID = self.beginRun()
                 let resolvedIP = await resolveHost(host)
 
                 // Try ICMP first; fall back to TCP if socket creation fails
                 if let socket = try? ICMPSocket() {
                     await self.pingICMP(
                         socket: socket,
-                        host: host,
-                        ip: resolvedIP,
+                        target: (host, resolvedIP),
                         count: count,
                         timeout: timeout,
                         runID: runID,
@@ -61,6 +65,9 @@ public actor PingService: PingServiceProtocol {
             }
         }
     }
+
+    /// Whether a run is in progress, for tests.
+    var hasActiveRun: Bool { !activeRunIDs.isEmpty }
 
     public func stop() async {
         activeRunIDs.removeAll()
@@ -121,15 +128,16 @@ public actor PingService: PingServiceProtocol {
 
     // MARK: - ICMP Ping (primary path)
 
+    /// - Parameter target: the host as given and its resolved address, if any.
     private func pingICMP(
         socket: ICMPSocket,
-        host: String,
-        ip: String?,
+        target: (host: String, ip: String?),
         count: Int,
         timeout: TimeInterval,
         runID: UUID,
         continuation: AsyncStream<PingResult>.Continuation
     ) async {
+        let (host, ip) = target
         let targetIP = ip ?? host
 
         for seq in 1...count {
@@ -204,7 +212,7 @@ public actor PingService: PingServiceProtocol {
     /// Measures only the TCP handshake: timestamps captured synchronously on pingQueue,
     /// before any Task spawn or actor hop.
     private func connectTest(host: String, timeout: TimeInterval) async -> (success: Bool, elapsed: TimeInterval) {
-        let ports: [NWEndpoint.Port] = [.https, .http, NWEndpoint.Port(rawValue: 22)!]
+        let ports: [NWEndpoint.Port] = [.https, .http, 22]
         let hostEndpoint = NWEndpoint.Host(host)
 
         let queue = pingQueue

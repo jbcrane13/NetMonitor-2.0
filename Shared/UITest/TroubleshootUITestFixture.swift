@@ -80,9 +80,9 @@ enum TroubleshootUITestFixture {
             return WiFiReading(rssi: -80, noise: -92)
         }
 
-        func downloadSpeed() async -> Double? {
+        func downloadSpeed() async -> SpeedTestOutcome {
             await pause()
-            return 85
+            return .measured(downloadMbps: 85)
         }
 
         func openPorts(on host: String, among ports: [Int]) async -> [Int] {

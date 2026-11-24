@@ -34,7 +34,7 @@ final class TroubleshootToolViewModel {
                 // Counted as a manual test, so a scheduled one won't start meanwhile; refused
                 // over a scheduled test or the Speed Test tool's own run.
                 canRunSpeedTest: { IOSScheduledSpeedTest.claimManualTest() },
-                speedTestFinished: { _ in IOSScheduledSpeedTest.manualTestsRunning -= 1 }
+                speedTestFinished: { IOSScheduledSpeedTest.manualTestsRunning -= 1 }
             ),
             classifier: SymptomClassifier.shared,
             insight: InsightService.shared,

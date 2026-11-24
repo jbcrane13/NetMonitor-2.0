@@ -1,7 +1,7 @@
 import Foundation
 
 /// The troubleshooter's checks over the app's existing services (#451). Cancelling the task that
-/// awaits a check stops the service it runs on.
+/// awaits a ping or port scan ends that run through its stream; the speed test is stopped.
 @MainActor
 public final class ServiceTroubleshootProbes: TroubleshootProbing {
     /// How long each ping and port connect waits, in seconds.
@@ -14,12 +14,13 @@ public final class ServiceTroubleshootProbes: TroubleshootProbing {
     private let speedTest: any SpeedTestServiceProtocol
     private let gateway: @MainActor () async -> String?
     private let canRunSpeedTest: @MainActor () -> Bool
-    private let speedTestFinished: @MainActor (SpeedTestData?) -> Void
+    private let speedTestFinished: @MainActor () -> Void
 
     /// - Parameters:
     ///   - gateway: the router's address (`NetworkUtilities.detectDefaultGateway()` by default).
-    ///   - canRunSpeedTest: false while another speed test runs, so two never overlap.
-    ///   - speedTestFinished: called after the troubleshooter's speed test, with its data or nil.
+    ///   - canRunSpeedTest: claims the connection for a speed test; false while another runs, so two
+    ///     never overlap. The result is not saved to speed test history: it's a diagnostic sample.
+    ///   - speedTestFinished: releases that claim, after the test ends however it ends.
     public init(
         pingService: any PingServiceProtocol = PingService(),
         portScanner: any PortScannerServiceProtocol = PortScannerService(),
@@ -28,7 +29,7 @@ public final class ServiceTroubleshootProbes: TroubleshootProbing {
         speedTest: any SpeedTestServiceProtocol = SpeedTestService(),
         gateway: @escaping @MainActor () async -> String? = { NetworkUtilities.detectDefaultGateway() },
         canRunSpeedTest: @escaping @MainActor () -> Bool = { true },
-        speedTestFinished: @escaping @MainActor (SpeedTestData?) -> Void = { _ in }
+        speedTestFinished: @escaping @MainActor () -> Void = {}
     ) {
         self.pingService = pingService
         self.portScanner = portScanner
@@ -44,17 +45,14 @@ public final class ServiceTroubleshootProbes: TroubleshootProbing {
         await gateway()
     }
 
+    /// Cancelling the caller ends the stream, which ends this run alone: the service is shared
+    /// (the Ping tool may be running), so nothing here calls `stop()`.
     public func ping(_ host: String, count: Int) async -> [Double] {
-        let service = pingService
-        return await withTaskCancellationHandler {
-            var times: [Double] = []
-            for await result in await service.ping(host: host, count: count, timeout: Self.timeout) where !result.isTimeout {
-                times.append(result.time)
-            }
-            return times
-        } onCancel: {
-            Task { await service.stop() }
+        var times: [Double] = []
+        for await result in await pingService.ping(host: host, count: count, timeout: Self.timeout) where !result.isTimeout {
+            times.append(result.time)
         }
+        return times
     }
 
     /// The time of the first family that answers: IPv4, then IPv6 for a name with no A record.
@@ -73,29 +71,26 @@ public final class ServiceTroubleshootProbes: TroubleshootProbing {
         return WiFiReading(rssi: rssi, noise: wifi.noiseLevel.flatMap { $0 < 0 ? $0 : nil })
     }
 
-    public func downloadSpeed() async -> Double? {
-        guard canRunSpeedTest() else { return nil }
+    public func downloadSpeed() async -> SpeedTestOutcome {
+        guard canRunSpeedTest() else { return .busy }
+        // Released whatever happens, so the scheduler and the Speed Test tool can run again.
+        defer { speedTestFinished() }
         let service = speedTest
         let data = await withTaskCancellationHandler {
             try? await service.startTest()
         } onCancel: {
             Task { @MainActor in service.stopTest() }
         }
-        let finished = Task.isCancelled ? nil : data
-        speedTestFinished(finished)
-        return finished?.downloadSpeed
+        guard !Task.isCancelled, let data else { return .failed }
+        return .measured(downloadMbps: data.downloadSpeed)
     }
 
+    /// Like `ping`, cancelling ends this scan's stream and so its run; no shared `stop()`.
     public func openPorts(on host: String, among ports: [Int]) async -> [Int] {
-        let scanner = portScanner
-        return await withTaskCancellationHandler {
-            var open: [Int] = []
-            for await result in await scanner.scan(host: host, ports: ports, timeout: Self.timeout) where result.state == .open {
-                open.append(result.port)
-            }
-            return open.sorted()
-        } onCancel: {
-            Task { await scanner.stop() }
+        var open: [Int] = []
+        for await result in await portScanner.scan(host: host, ports: ports, timeout: Self.timeout) where result.state == .open {
+            open.append(result.port)
         }
+        return open.sorted()
     }
 }

@@ -43,6 +43,9 @@ final class SpeedTestToolViewModel {
     private var service: any SpeedTestServiceProtocol
     private let activityLog: ToolActivityLog
     private var testTask: Task<Void, Never>?
+    /// The run holding the connection claim (`IOSScheduledSpeedTest.claimManualTest()`), if any.
+    /// Stop releases it at once; a stopped run's late cleanup can't release a newer run's claim.
+    private var claimRun: UUID?
 
     init(service: any SpeedTestServiceProtocol = SpeedTestService(), activityLog: ToolActivityLog = .shared) {
         self.service = service
@@ -95,10 +98,19 @@ final class SpeedTestToolViewModel {
 
     // MARK: - Actions
 
+    /// Shown when another speed test holds the connection.
+    static let busyMessage = "A speed test is already running. Try again when it finishes."
+
     func startTest(modelContext: ModelContext) {
-        // A scheduled test (#398) already using the connection would skew both results.
-        guard !isRunning, !IOSScheduledSpeedTest.isTestRunning else { return }
-        IOSScheduledSpeedTest.manualTestsRunning += 1
+        guard !isRunning else { return }
+        // A scheduled test (#398) or the troubleshooter's (#451) already using the connection
+        // would skew both results.
+        guard IOSScheduledSpeedTest.claimManualTest() else {
+            errorMessage = Self.busyMessage
+            return
+        }
+        let run = UUID()
+        claimRun = run
 
         errorMessage = nil
         isRunning = true
@@ -147,7 +159,7 @@ final class SpeedTestToolViewModel {
                 )
             }
             isRunning = false
-            IOSScheduledSpeedTest.manualTestsRunning -= 1
+            releaseClaim(run)
         }
 
         // Observe service state changes
@@ -160,11 +172,19 @@ final class SpeedTestToolViewModel {
     }
 
     func stopTest() {
+        releaseClaim(claimRun)
         service.stopTest()
         testTask?.cancel()
         testTask = nil
         isRunning = false
         phase = .idle
+    }
+
+    /// Releases `run`'s claim once, whether the test ended or was stopped.
+    private func releaseClaim(_ run: UUID?) {
+        guard let run, claimRun == run else { return }
+        claimRun = nil
+        IOSScheduledSpeedTest.manualTestsRunning -= 1
     }
 
     // MARK: - Helpers

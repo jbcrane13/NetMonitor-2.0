@@ -13,10 +13,19 @@ public protocol TroubleshootProbing: AnyObject {
     func lookup(_ host: String) async -> Double?
     /// The Wi-Fi signal now, or nil when this device or connection has no reading.
     func wifiReading() async -> WiFiReading?
-    /// The download speed in Mbps, or nil when the test didn't finish.
-    func downloadSpeed() async -> Double?
+    /// The download speed, or why there is none.
+    func downloadSpeed() async -> SpeedTestOutcome
     /// Which of `ports` accept a TCP connection on `host`.
     func openPorts(on host: String, among ports: [Int]) async -> [Int]
+}
+
+/// What a speed test step got.
+public enum SpeedTestOutcome: Equatable, Sendable {
+    case measured(downloadMbps: Double)
+    /// Another speed test (scheduled, or the Speed Test tool) is using the connection.
+    case busy
+    /// The test failed or was stopped.
+    case failed
 }
 
 /// One step of a run: its check and how far it got.
@@ -33,6 +42,30 @@ public struct TroubleshootStep: Identifiable, Equatable, Sendable {
                 true
             } else {
                 false
+            }
+        }
+
+        /// How a step looks, for both apps' icons.
+        public enum Tone: Equatable, Sendable {
+            case pending, running, measured, unmeasured, cancelled
+        }
+
+        public var tone: Tone {
+            switch self {
+            case .pending: .pending
+            case .running: .running
+            case let .done(result): result.isUnmeasured ? .unmeasured : .measured
+            case .cancelled: .cancelled
+            }
+        }
+
+        /// The line under the step's heading.
+        public var text: String {
+            switch self {
+            case .pending: "Waiting"
+            case .running: "Running…"
+            case let .done(result): result.text
+            case .cancelled: "Not run"
             }
         }
     }
@@ -296,7 +329,14 @@ public final class TroubleshootState {
             } else {
                 nil
             }
-        }, completed: completed)
+        }, completed: completed, unprobedHosts: Set(steps.compactMap { step in
+            // A port check that was cancelled or never started says nothing about the ports.
+            if case let .ports(host, _) = step.check, !step.status.isDone {
+                host
+            } else {
+                nil
+            }
+        }))
         if isCancelled {
             stop(Self.cancelledMessage)
         } else if !completed {
@@ -362,8 +402,11 @@ public final class TroubleshootState {
         case .speedTest:
             // Read first: the test about to run must not become its own baseline.
             let baseline = speedBaseline()
-            guard let download = await probes.downloadSpeed() else { return .unavailable("The speed test didn't finish") }
-            return .speed(downloadMbps: download, baselineMbps: baseline)
+            switch await probes.downloadSpeed() {
+            case let .measured(download): return .speed(downloadMbps: download, baselineMbps: baseline)
+            case .busy: return .unavailable("A speed test is already running")
+            case .failed: return .unavailable("The speed test didn't finish")
+            }
         case let .ports(host, ports):
             let open = await probes.openPorts(on: host, among: ports)
             return .ports(host: host, open: ports.filter(open.contains), closed: ports.filter { !open.contains($0) })

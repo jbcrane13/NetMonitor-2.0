@@ -17,6 +17,11 @@ struct SpeedTestToolView: View {
     @State private var selectedServer: SpeedTestServer = .autoSelect
     @State private var timerTask: Task<Void, Never>?
     @State private var trendEntries: [SpeedTestHistoryEntry] = []
+    /// The run holding this view's connection claim (`MacSpeedTestHistory.claim()`), if any. A
+    /// stopped run's late cleanup can't release a newer run's claim.
+    @State private var claimRun: UUID?
+    /// Shown when another speed test (scheduled, or the troubleshooter's) holds the connection.
+    @State private var busyMessage: String?
 
     var body: some View {
         ToolSheetContainer(
@@ -293,7 +298,13 @@ struct SpeedTestToolView: View {
 
     private var footer: some View {
         HStack {
-            if let error = service.errorMessage {
+            if let busyMessage {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange)
+                Text(busyMessage)
+                    .foregroundStyle(MacTheme.Colors.labelSecondary)
+                    .accessibilityIdentifier("speedTest_label_busy")
+            } else if let error = service.errorMessage {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .foregroundStyle(.orange)
                 Text(error)
@@ -326,8 +337,14 @@ struct SpeedTestToolView: View {
     // MARK: - Actions
 
     private func runSpeedTest() {
-        // A scheduled test is already using the connection; starting another would skew both.
-        guard !MacSpeedTestHistory.isTestRunning else { return }
+        // Another test already using the connection would skew both: claim it first, synchronously.
+        guard MacSpeedTestHistory.claim() else {
+            busyMessage = "A speed test is already running. Try again when it finishes."
+            return
+        }
+        let run = UUID()
+        claimRun = run
+        busyMessage = nil
         service.duration = testDuration
         service.selectedServer = selectedServer.isAutoSelect ? nil : selectedServer
 
@@ -343,8 +360,7 @@ struct SpeedTestToolView: View {
         }
 
         speedTestTask = Task {
-            MacSpeedTestHistory.isTestRunning = true
-            defer { MacSpeedTestHistory.isTestRunning = false }
+            defer { releaseClaim(run) }
             do {
                 let data = try await service.startTest()
                 MacSpeedTestHistory.record(data)
@@ -364,7 +380,15 @@ struct SpeedTestToolView: View {
         trendEntries = SpeedTestTrend.lastSevenDays(MacSpeedTestHistory.store.entries(), now: Date())
     }
 
+    /// Releases `run`'s claim once, whether the test ended or was stopped.
+    private func releaseClaim(_ run: UUID?) {
+        guard let run, claimRun == run else { return }
+        claimRun = nil
+        MacSpeedTestHistory.release()
+    }
+
     private func stopSpeedTest() {
+        releaseClaim(claimRun)
         speedTestTask?.cancel()
         speedTestTask = nil
         timerTask?.cancel()

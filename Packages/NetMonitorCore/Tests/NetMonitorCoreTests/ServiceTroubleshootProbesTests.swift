@@ -115,6 +115,6 @@ struct ServiceTroubleshootProbesTests {
     }
 
     @Test func noSpeedTestWhileAnotherRuns() async {
-        #expect(await probes(canRunSpeedTest: false).downloadSpeed() == nil)
+        #expect(await probes(canRunSpeedTest: false).downloadSpeed() == .busy)
     }
 }

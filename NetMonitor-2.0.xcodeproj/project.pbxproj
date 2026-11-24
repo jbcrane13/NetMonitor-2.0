@@ -1114,6 +1114,7 @@
 		CF824FD0D30FA411BA1E2998 /* ShellNameResolutionPhase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShellNameResolutionPhase.swift; sourceTree = "<group>"; };
 		CFC8262B98587BDB9B582E35 /* CheckRetryPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CheckRetryPolicy.swift; sourceTree = "<group>"; };
 		CFCF80A32B7899970DFA3C3B /* MonitoringSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonitoringSession.swift; sourceTree = "<group>"; };
+		D06BEFF5D13AB04413ED57E5 /* TroubleshootToolViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TroubleshootToolViewModelTests.swift; sourceTree = "<group>"; };
 		D1B63113D27266E541737C00 /* PlainRuleIOSViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlainRuleIOSViewModelTests.swift; sourceTree = "<group>"; };
 		D23643E8F3DE1CC6C6B2B195 /* WiFiSignalCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WiFiSignalCard.swift; sourceTree = "<group>"; };
 		D33FA8CEF889C0CD95DE23EF /* GlassButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassButton.swift; sourceTree = "<group>"; };

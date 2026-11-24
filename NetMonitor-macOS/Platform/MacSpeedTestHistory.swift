@@ -8,8 +8,25 @@ import os
 enum MacSpeedTestHistory {
     static let store = SpeedTestHistoryStore(fileURL: SpeedTestHistoryStore.defaultFileURL())
 
-    /// True while any speed test runs (manual or scheduled), so the two never overlap.
-    static var isTestRunning = false
+    /// Speed tests holding the connection: the Speed Test tool, a scheduled run or the
+    /// troubleshooter's (#451). Claimed synchronously before a test starts and released when it
+    /// ends, so none overlaps another.
+    private(set) static var testsRunning = 0
+
+    /// True while any speed test holds the connection.
+    static var isTestRunning: Bool { testsRunning > 0 }
+
+    /// Claims the connection for a test, unless another test holds it.
+    static func claim() -> Bool {
+        guard testsRunning == 0 else { return false }
+        testsRunning += 1
+        return true
+    }
+
+    /// Releases a claim. Callers release only a claim they hold.
+    static func release() {
+        testsRunning = max(0, testsRunning - 1)
+    }
 
     static func record(_ data: SpeedTestData, at date: Date = Date(), store: SpeedTestHistoryStore = store) {
         store.append(SpeedTestHistoryEntry(
@@ -32,9 +49,8 @@ enum MacSpeedTestHistory {
 
     /// Runs one scheduled test with `service` and saves the result.
     static func runScheduledTest(service: any SpeedTestServiceProtocol, store: SpeedTestHistoryStore = store) async {
-        guard !isTestRunning else { return }
-        isTestRunning = true
-        defer { isTestRunning = false }
+        guard claim() else { return }
+        defer { release() }
         do {
             let data = try await service.startTest()
             record(data, store: store)
