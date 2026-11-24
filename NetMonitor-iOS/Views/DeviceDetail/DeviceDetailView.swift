@@ -94,7 +94,7 @@ struct DeviceDetailView: View {
         }
         .sheet(isPresented: $showsLabelCapture) {
             if let device = viewModel.device {
-                LabelCaptureView(device: device) { _ in
+                LabelCaptureView(device: device) {
                     // The saved values replace what the detail shows, suggestions included.
                     viewModel.loadDevice(ipAddress: ipAddress, networkID: networkID, macAddress: macAddress, context: modelContext)
                 }

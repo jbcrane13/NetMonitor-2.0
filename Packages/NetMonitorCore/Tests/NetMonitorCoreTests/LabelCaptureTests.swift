@@ -1,15 +1,32 @@
 import Foundation
 import NetworkScanKit
+import SwiftData
 import Testing
 @testable import NetMonitorCore
 
 /// #456: saving what the user confirmed from a label photo.
+/// Devices are inserted into an in-memory store before their properties are checked
+/// (`NetMonitorCoreTests/AGENTS.md`); the suite holds the container for every test.
 @Suite("Label capture save")
+@MainActor
 struct LabelCaptureTests {
     private let network = UUID()
+    private let container: ModelContainer
+    private let context: ModelContext
+
+    init() throws {
+        container = try ModelContainer(for: LocalDevice.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        context = container.mainContext
+    }
 
     private func device(mac: String = "", network: UUID? = nil) -> LocalDevice {
-        LocalDevice(ipAddress: "192.168.4.1", macAddress: mac, networkProfileID: network ?? self.network)
+        insert(LocalDevice(ipAddress: "192.168.4.1", macAddress: mac, networkProfileID: network ?? self.network))
+    }
+
+    @discardableResult
+    private func insert(_ device: LocalDevice) -> LocalDevice {
+        context.insert(device)
+        return device
     }
 
     @Test("Save writes the maker and model as user-confirmed, over a higher-ranked scan value")
@@ -73,17 +90,52 @@ struct LabelCaptureTests {
     @Test("A MAC that belongs to another device on this network offers that device and isn't copied")
     func duplicateMAC() {
         let current = device()
-        let other = LocalDevice(ipAddress: "192.168.4.9", macAddress: "3c:22:fb:0a:1b:2c", networkProfileID: network)
-        let elsewhere = LocalDevice(ipAddress: "10.0.0.9", macAddress: "3C:22:FB:0A:1B:2C", networkProfileID: UUID())
+        let other = insert(LocalDevice(ipAddress: "192.168.4.9", macAddress: "3c:22:fb:0a:1b:2c", networkProfileID: network))
+        let elsewhere = insert(LocalDevice(ipAddress: "10.0.0.9", macAddress: "3C:22:FB:0A:1B:2C", networkProfileID: UUID()))
         let rows = [current, other, elsewhere]
         let values = LabelValues(model: "RT-AX58B0", mac: "3C:22:FB:0A:1B:2C")
-        #expect(LabelCapture.owner(of: values.mac, besides: current, among: rows) === other)
-        #expect(LabelCapture.macOutcome(for: values.mac, on: current, among: rows) == .belongsTo(other.id))
-        #expect(LabelCapture.save(values, to: current, among: rows) == .belongsTo(other.id))
+        #expect(LabelCapture.owner(of: values.mac, besides: current, among: rows) == .saved(other.id))
+        #expect(LabelCapture.macOutcome(for: values.mac, on: current, among: rows) == .belongsTo(.saved(other.id)))
+        #expect(LabelCapture.save(values, to: current, among: rows) == .belongsTo(.saved(other.id)))
         #expect(current.macAddress.isEmpty)
         // "Use that device": the same save onto the other device.
         #expect(LabelCapture.save(values, to: other, among: rows) == .unchanged)
         #expect(other.modelName == "RT-AX58B0")
+    }
+
+    @Test("A saved row with no network yet owns its MAC: the device match would adopt it")
+    func networklessOwner() {
+        let current = device()
+        let legacy = insert(LocalDevice(ipAddress: "192.168.4.9", macAddress: "3C:22:FB:0A:1B:2C"))
+        let rows = [current, legacy]
+        #expect(LabelCapture.save(LabelValues(mac: "3C:22:FB:0A:1B:2C"), to: current, among: rows) == .belongsTo(.saved(legacy.id)))
+        #expect(current.macAddress.isEmpty)
+    }
+
+    @Test("A scanned device with the MAC but no saved row owns it; this device's own observation doesn't")
+    func scannedOwner() {
+        let current = device()
+        let scan = [
+            DiscoveredDevice(ipAddress: "192.168.4.1", hostname: nil, vendor: nil, macAddress: nil, latency: nil,
+                             discoveredAt: Date(), source: .local, networkProfileID: network),
+            DiscoveredDevice(ipAddress: "192.168.4.11", hostname: nil, vendor: nil, macAddress: "3c:22:fb:0a:1b:2c", latency: nil,
+                             discoveredAt: Date(), source: .local, networkProfileID: network),
+            DiscoveredDevice(ipAddress: "10.0.0.11", hostname: nil, vendor: nil, macAddress: "00:1E:42:7A:9C:31", latency: nil,
+                             discoveredAt: Date(), source: .local, networkProfileID: UUID())
+        ]
+        #expect(LabelCapture.save(LabelValues(mac: "3C:22:FB:0A:1B:2C"), to: current, among: [current], scanned: scan)
+            == .belongsTo(.scanned(ipAddress: "192.168.4.11")))
+        #expect(current.macAddress.isEmpty)
+        // Another network's device doesn't count.
+        #expect(LabelCapture.macOutcome(for: "00:1E:42:7A:9C:31", on: current, among: [current], scanned: scan) == .written)
+    }
+
+    @Test("Text that isn't a MAC is invalid, not blank, and isn't written")
+    func invalidMAC() {
+        let device = device()
+        #expect(LabelCapture.macOutcome(for: " ", on: device, among: [device]) == .none)
+        #expect(LabelCapture.save(LabelValues(model: "X1", mac: "3C:22:FB:0A:1B:2"), to: device, among: [device]) == .invalid)
+        #expect(device.macAddress.isEmpty)
     }
 
     @Test("Nothing is written for a MAC-less, empty capture")

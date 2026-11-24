@@ -1,16 +1,15 @@
 import NetMonitorCore
-import os
 import PhotosUI
 import SwiftData
 import SwiftUI
 import UIKit
 
 /// Reads a device's label from a photo and lets the user review the fields before saving
-/// them to the device (#456). Nothing is saved without Save.
+/// them to the device (#456). Nothing is saved without Save or Use That Device.
 struct LabelCaptureView: View {
     let device: LocalDevice
-    /// Called after a save, with the device the fields were written to.
-    var onSaved: (LocalDevice) -> Void
+    /// Called after a save, so device detail shows what changed.
+    var onSaved: () -> Void
 
     @State private var viewModel = LabelCaptureViewModel()
     @State private var photoItem: PhotosPickerItem?
@@ -23,64 +22,94 @@ struct LabelCaptureView: View {
             Group {
                 switch viewModel.phase {
                 case .choosing: chooser
-                case .reading: readingView
+                case .loading: progress("Opening the photo…", id: "labelCapture_label_loading")
+                case .reading: progress("Reading the label…", id: "labelCapture_label_reading")
                 case .review: review
+                case let .savedToOther(name): savedToOther(name)
                 }
             }
+            .scrollContentBackground(.hidden)
+            .themedBackground()
             .navigationTitle("Scan Label")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                        .accessibilityIdentifier("labelCapture_button_cancel")
-                }
-                if viewModel.phase == .review {
-                    ToolbarItem(placement: .confirmationAction) {
-                        Button("Save") { save(to: device) }
-                            .accessibilityIdentifier("labelCapture_button_save")
-                    }
-                }
-            }
+            .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
+            .toolbar { toolbar }
         }
         .task {
-            await viewModel.prewarm()
-        }
-        .task {
-            if UITestBootstrap.usesTestLabelImage, let image = UITestBootstrap.testLabelImage() {
-                await viewModel.read(image)
-            }
+            viewModel.configure(device: device, context: modelContext)
+            await viewModel.start()
         }
         .onChange(of: photoItem) { _, item in
             guard let item else { return }
-            Task {
-                if let data = try? await item.loadTransferable(type: Data.self), let image = UIImage(data: data) {
-                    await read(image)
-                }
-                photoItem = nil
-            }
+            photoItem = nil
+            Task { await viewModel.readPhoto { try? await item.loadTransferable(type: Data.self) } }
         }
         .fullScreenCover(isPresented: $showsCamera) {
             CameraCapture { image in
                 showsCamera = false
-                Task { await read(image) }
+                Task { await viewModel.readCameraPhoto(image) }
             } onCancel: {
                 showsCamera = false
             }
             .ignoresSafeArea()
+        }
+        .alert("Couldn't Save", isPresented: Binding(
+            get: { viewModel.saveError != nil },
+            set: {
+                if !$0 {
+                    viewModel.dismissSaveError()
+                }
+            }
+        )) {
+            Button("OK") { viewModel.dismissSaveError() }
+        } message: {
+            Text(viewModel.saveError ?? "")
+        }
+    }
+
+    @ToolbarContentBuilder
+    private var toolbar: some ToolbarContent {
+        if case .savedToOther = viewModel.phase {
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Done") { dismiss() }
+                    .accessibilityIdentifier("labelCapture_button_done")
+            }
+        } else {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Cancel") { dismiss() }
+                    .accessibilityIdentifier("labelCapture_button_cancel")
+            }
+            if viewModel.phase == .review {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        if viewModel.save() {
+                            onSaved()
+                            dismiss()
+                        }
+                    }
+                    .disabled(!viewModel.canSave)
+                    .accessibilityIdentifier("labelCapture_button_save")
+                }
+            }
         }
     }
 
     // MARK: - Choosing a photo
 
     private var chooser: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: Theme.Layout.sectionSpacing) {
             Image(systemName: "text.viewfinder")
                 .font(.system(size: 48))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Theme.Colors.accent)
             Text("Take or choose a photo of the label on the device. The text is read on this device.")
                 .multilineTextAlignment(.center)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Theme.Colors.textSecondary)
                 .accessibilityIdentifier("labelCapture_label_instructions")
+            if let error = viewModel.photoError {
+                Text(error)
+                    .foregroundStyle(Theme.Colors.error)
+                    .accessibilityIdentifier("labelCapture_label_photoError")
+            }
             if UIImagePickerController.isSourceTypeAvailable(.camera) {
                 Button {
                     showsCamera = true
@@ -98,34 +127,34 @@ struct LabelCaptureView: View {
             .buttonStyle(.bordered)
             .accessibilityIdentifier("labelCapture_button_photoLibrary")
         }
-        .padding(24)
+        .tint(Theme.Colors.accent)
+        .padding(Theme.Layout.screenPadding)
     }
 
-    private var readingView: some View {
-        VStack(spacing: 12) {
+    private func progress(_ text: String, id: String) -> some View {
+        VStack(spacing: Theme.Layout.itemSpacing) {
             ProgressView()
-            Text("Reading the label…")
-                .foregroundStyle(.secondary)
+                .tint(Theme.Colors.accent)
+            Text(text)
+                .foregroundStyle(Theme.Colors.textSecondary)
+                .accessibilityIdentifier(id)
         }
-        .accessibilityElement(children: .combine)
-        .accessibilityIdentifier("labelCapture_label_reading")
     }
 
     // MARK: - Review
 
     private var review: some View {
-        let rows = savedRows()
-        return Form {
+        Form {
             if viewModel.reading?.isLabel == false {
                 Section {
                     Text("This doesn't look like a device label. You can still type the details.")
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Theme.Colors.textSecondary)
                         .accessibilityIdentifier("labelCapture_label_notALabel")
                 }
             } else if viewModel.reading?.isEmpty == true {
                 Section {
                     Text("No details were found on the label. You can type them.")
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Theme.Colors.textSecondary)
                         .accessibilityIdentifier("labelCapture_label_nothingFound")
                 }
             }
@@ -140,7 +169,7 @@ struct LabelCaptureView: View {
                         .accessibilityIdentifier("labelCapture_label_generatedNote")
                 }
             }
-            macSection(rows: rows)
+            macSection
             Section {
                 Button("Retake Photo") { viewModel.retake() }
                     .accessibilityIdentifier("labelCapture_button_retake")
@@ -151,7 +180,7 @@ struct LabelCaptureView: View {
     private func field(_ title: String, text: Binding<String>, field: LabelReading.Field, id: String) -> some View {
         HStack {
             Text(title)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Theme.Colors.textSecondary)
                 .frame(width: 110, alignment: .leading)
             TextField(title, text: text)
                 .textInputAutocapitalization(field == .maker ? .words : .characters)
@@ -167,65 +196,46 @@ struct LabelCaptureView: View {
     }
 
     @ViewBuilder
-    private func macSection(rows: [LocalDevice]) -> some View {
-        switch viewModel.macOutcome(on: device, among: rows) {
-        case let .belongsTo(id):
-            if let owner = rows.first(where: { $0.id == id }) {
-                Section {
-                    Text("\(owner.displayName) already has this MAC address, so it isn't copied to this device.")
-                        .accessibilityIdentifier("labelCapture_label_macConflict")
-                    Button("Use That Device") { save(to: owner) }
-                        .accessibilityIdentifier("labelCapture_button_useOtherDevice")
-                }
+    private var macSection: some View {
+        switch viewModel.macOutcome {
+        case .belongsTo:
+            Section {
+                Text("\(viewModel.ownerName ?? "Another device") already has this MAC address, so it isn't copied to this device. "
+                    + "Use That Device saves these details to it instead.")
+                    .accessibilityIdentifier("labelCapture_label_macConflict")
+                Button("Use That Device") { viewModel.saveToOwner() }
+                    .accessibilityIdentifier("labelCapture_button_useOtherDevice")
             }
         case let .kept(existing):
             Section {
                 Text("This device keeps the MAC address the network reports (\(existing)).")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Theme.Colors.textSecondary)
                     .accessibilityIdentifier("labelCapture_label_macKept")
+            }
+        case .invalid:
+            Section {
+                Text("That isn't a MAC address. Use six pairs like 3C:22:FB:0A:1B:2C, or clear the field.")
+                    .foregroundStyle(Theme.Colors.error)
+                    .accessibilityIdentifier("labelCapture_label_macInvalid")
             }
         case .none, .unchanged, .written:
             EmptyView()
         }
     }
 
-    // MARK: - Actions
-
-    private func read(_ image: UIImage) async {
-        guard let cgImage = LabelPhoto.upright(image) else { return }
-        await viewModel.read(cgImage)
-    }
-
-    private func save(to target: LocalDevice) {
-        viewModel.save(to: target, among: savedRows())
-        do {
-            try modelContext.save()
-        } catch {
-            Logger.data.error("Label capture save failed: \(error.localizedDescription, privacy: .public)")
+    private func savedToOther(_ name: String) -> some View {
+        VStack(spacing: Theme.Layout.itemSpacing) {
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 48))
+                .foregroundStyle(Theme.Colors.success)
+            Text("Saved to \(name)")
+                .font(.headline)
+                .foregroundStyle(Theme.Colors.textPrimary)
+                .accessibilityIdentifier("labelCapture_label_savedToOther")
+            Text("This device wasn't changed.")
+                .foregroundStyle(Theme.Colors.textSecondary)
         }
-        onSaved(target)
-        dismiss()
-    }
-
-    private func savedRows() -> [LocalDevice] {
-        (try? modelContext.fetch(FetchDescriptor<LocalDevice>())) ?? []
-    }
-}
-
-// MARK: - Photo input
-
-/// Photos as Vision should see them: upright, and no larger than it needs.
-enum LabelPhoto {
-    static let maxDimension: CGFloat = 2048
-
-    static func upright(_ image: UIImage) -> CGImage? {
-        let scale = min(1, maxDimension / max(image.size.width, image.size.height, 1))
-        let size = CGSize(width: image.size.width * scale, height: image.size.height * scale)
-        let format = UIGraphicsImageRendererFormat()
-        format.scale = 1
-        return UIGraphicsImageRenderer(size: size, format: format).image { _ in
-            image.draw(in: CGRect(origin: .zero, size: size))
-        }.cgImage
+        .padding(Theme.Layout.screenPadding)
     }
 }
 

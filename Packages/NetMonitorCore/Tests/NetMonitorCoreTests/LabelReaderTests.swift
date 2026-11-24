@@ -22,7 +22,8 @@ struct LabelReaderTests {
     private func read(
         _ lines: [String],
         model answer: LabelFields?,
-        available: Bool = true
+        available: Bool = true,
+        allowModel: Bool = true
     ) async -> (LabelReading, StubLabelExtractor) {
         let extractor = StubLabelExtractor(answer: answer)
         let reader = LabelReader(
@@ -30,7 +31,7 @@ struct LabelReaderTests {
             extractor: extractor,
             insight: available ? FixedSuggestionInsightService() : UnavailableInsightService()
         )
-        return await (reader.read(Self.blankImage), extractor)
+        return await (reader.read(Self.blankImage, allowModel: allowModel), extractor)
     }
 
     @Test("The model's fields are kept when the label text shows them, and marked as generated")
@@ -122,6 +123,68 @@ struct LabelReaderTests {
         // What Vision returned for a printed "MAC: 00:1E:42:7A:9C:31" on macOS 27.2.
         let (reading, _) = await read(["Model: NW-AC1200", "\u{41C}\u{410}\u{421}: 00:1\u{415}:42:7A:9C:31"], model: nil, available: false)
         #expect(reading.mac == "00:1E:42:7A:9C:31")
+    }
+
+    @Test("A serial heading's own words are never the serial; a value on the next line is read", arguments: [
+        (["Serial Number"], nil),
+        (["Serial No."], nil),
+        (["Serial Number", "X7991234"], "X7991234"),
+        (["S/N:", "NW12K4471093"], "NW12K4471093"),
+        (["Serial Number", "MODEL"], nil),
+        (["Serial No.", "MAC: 3C:22:FB:0A:1B:2C"], nil),
+        (["Serial NOX12345"], "NOX12345")
+    ] as [([String], String?)])
+    func serialHeadings(_ lines: [String], serial: String?) {
+        #expect(LabelTextScanner.fields(in: lines).serial == serial)
+    }
+
+    @Test("Longer hex runs don't yield a MAC from their last six groups", arguments: [
+        "EUI-64: 00:1E:42:7A:9C:31:AB:CD",
+        "WWN 50:01:43:80:12:34:56:78",
+        "IPv6 2001:0:3C:22:FB:0A:1B:2C",
+        "fe80::21e:42ff:fe7a:9c31"
+    ])
+    func noMACFromLongerRuns(_ line: String) {
+        #expect(LabelTextScanner.fields(in: [line]).mac == nil)
+    }
+
+    @Test("A model value must be whole words on one line of the label, at least 3 characters", arguments: [
+        ("AC", false),
+        ("1", false),
+        ("NW", false),
+        ("NW-AC1200", true),
+        ("nw-ac1200", true),
+        ("Northwind Networks", true),
+        ("Networks Model", false),
+        ("Northwind NW-AC1200", false),
+        ("NW12K4471093", true)
+    ])
+    func wholeWordGrounding(_ value: String, kept: Bool) {
+        let lines = ["Northwind Networks", "Model: NW-AC1200", "S/N:NW12K4471093"]
+        #expect(LabelTextScanner.isPrinted(value, in: lines) == kept)
+    }
+
+    @Test("A fragment the model returns is dropped, and the code's reading stands")
+    func dropsFragments() async {
+        let (reading, _) = await read(Self.routerLabel, model: LabelFields(status: .found, maker: "Aero", model: "AX", serial: "8B0"))
+        #expect(reading.maker == nil)
+        #expect(reading.model == nil)
+        #expect(reading.serial == "8B0DI15S0072")
+        #expect(!reading.generated.contains(.serial))
+    }
+
+    @Test("During a scan the model isn't asked; the code's reading is used")
+    func noModelDuringScan() async {
+        let (reading, extractor) = await read(Self.routerLabel, model: LabelFields(status: .found, model: "RT-AX58B0"), allowModel: false)
+        #expect(await extractor.calls == 0)
+        #expect(reading.model == nil)
+        #expect(reading.mac == "D0:8B:0D:B8:51:E5")
+        #expect(reading.generated.isEmpty)
+    }
+
+    @Test("More look-alike letters fold to Latin")
+    func moreLookalikes() {
+        #expect(LabelTextScanner.latin("\u{406}\u{405}\u{432}\u{3BF}\u{3BA}") == "ISBok")
     }
 
     @Test("The prompt flattens and caps the label text and calls it data")
