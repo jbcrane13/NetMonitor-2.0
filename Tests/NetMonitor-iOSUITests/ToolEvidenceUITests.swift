@@ -79,27 +79,6 @@ final class ToolEvidenceUITests: IOSUITestCase {
         XCTAssertTrue(onScreen(target), "\(cardID) should be visible")
     }
 
-    /// Opens a card by its description text, which only the grid card shows ("Speed Test" is also
-    /// a Quick Action button). Drags in the gutter until the text is clear of the tab bar, scanning
-    /// back up once the last card is reached.
-    private func openByDescription(_ description: String, screen: String) {
-        app.tabBars.buttons["Tools"].tap()
-        requireExists(element("screen_tools"), timeout: 5, message: "Tools screen should appear")
-        let grid = app.scrollViews.matching(identifier: "screen_tools").firstMatch
-        let text = app.staticTexts.matching(NSPredicate(format: "label == %@", description)).firstMatch
-        var reachedEnd = false
-        for _ in 0..<40 where !onScreen(text) {
-            reachedEnd = reachedEnd || element("tools_card_web_browser").exists
-            let back = reachedEnd || (text.exists && text.frame.minY < 0)
-            let from = grid.coordinate(withNormalizedOffset: CGVector(dx: 0.01, dy: back ? 0.4 : 0.6))
-            let to = grid.coordinate(withNormalizedOffset: CGVector(dx: 0.01, dy: back ? 0.55 : 0.45))
-            from.press(forDuration: 0.01, thenDragTo: to, withVelocity: .slow, thenHoldForDuration: 0.2)
-        }
-        XCTAssertTrue(onScreen(text), "\(description) should be visible")
-        text.tap()
-        requireExists(element(screen), timeout: 8, message: "\(screen) should appear")
-    }
-
     private func type(_ text: String, into field: XCUIElement) {
         clearAndTypeText(text, into: field)
         hideKeyboard()
@@ -151,21 +130,21 @@ final class ToolEvidenceUITests: IOSUITestCase {
         captureScreenshot(named: "E3_SpeedTest_complete")
     }
 
-    func test04_WorldPingShowsLocations() throws {
-        // XCUITest doesn't report the Monitoring row's cards in the lazy Tools grid (#469).
-        throw XCTSkip("Tools grid card unreachable from XCUITest (#469)")
-        openByDescription("Global latency check", screen: "screen_worldPingTool")
+    func test04_WorldPingShowsLocations() {
+        openTool("tools_card_world_ping", screen: "screen_worldPingTool")
         type("google.com", into: app.textFields["worldPing_input_host"])
         app.buttons["worldPing_button_run"].tap()
-        XCTAssertTrue(element("worldPing_row").waitForExistence(timeout: 60), "World ping should list locations")
+        // On iOS 27 the results section's identifier is stamped over its rows, so match a row's latency text.
+        let latency = app.staticTexts.matching(NSPredicate(
+            format: "identifier IN %@ AND label MATCHES %@", ["worldPing_row", "worldPing_section_results"], "[0-9]+ ms"
+        )).firstMatch
+        XCTAssertTrue(latency.waitForExistence(timeout: 60), "World ping should list locations")
         settle(10)
         captureScreenshot(named: "E4_WorldPing_google.com")
     }
 
-    func test05_SSLMonitorShowsCertificate() throws {
-        // XCUITest doesn't report the Monitoring row's cards in the lazy Tools grid (#469).
-        throw XCTSkip("Tools grid card unreachable from XCUITest (#469)")
-        openByDescription("Certificate expiry check", screen: "screen_sslCertificateMonitor")
+    func test05_SSLMonitorShowsCertificate() {
+        openTool("tools_card_ssl_monitor", screen: "screen_sslCertificateMonitor")
         type("apple.com", into: app.textFields["ssl_monitor_input_domain"])
         app.buttons["sslMonitor_button_query"].tap()
         XCTAssertTrue(
