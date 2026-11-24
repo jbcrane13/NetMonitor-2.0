@@ -35,7 +35,11 @@ Use `pocock-github-workflow:pocock-code-review`. Start **two independent reviewe
 
 The lead reads both reports, makes each call, and sends one consolidated fix list to the worker.
 
-**Optional third reviewer (being evaluated):** the `codex-review` and `codex-adversarial-review` skills. They can also run as an automated gate hosted on this Mac.
+****Codex review (being adopted):**
+- **`codex-review`** is the automatic check, hosted on mini-pro-1. It runs on every PR, and its findings are handled like any other review thread.
+- **`codex-adversarial-review`** is run on demand when a PR carries risk: concurrency, data integrity or migration, privacy or security, the companion protocol, or model output that the user sees as fact.
+
+Neither replaces the two-axis review; they add to it.
 
 Done when: both reports are in, and every finding is fixed, filed as an issue, or explicitly accepted with a reason.
 
