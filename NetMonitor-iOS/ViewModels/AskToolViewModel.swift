@@ -15,7 +15,6 @@ final class AskToolViewModel {
     @MainActor
     final class Inputs {
         var devices: [LocalDevice] = []
-        var networkProfileID: UUID?
     }
 
     init(env: AppEnvironment, model: (any AskModelProtocol)? = nil) {
@@ -23,15 +22,18 @@ final class AskToolViewModel {
         self.inputs = inputs
         let discovery = env.deviceDiscovery
         let events = env.eventService
+        let currentNetwork = env.currentNetworkProfileID
         state = AskState(
             model: model ?? Self.model,
             snapshot: {
-                AskSnapshot(
+                // Read when the question is asked: the phone may have changed networks since the view opened.
+                let network = currentNetwork()
+                return AskSnapshot(
                     devices: inputs.devices
-                        .filter { $0.networkProfileID == nil || $0.networkProfileID == inputs.networkProfileID }
+                        .filter { $0.networkProfileID == nil || $0.networkProfileID == network }
                         .map(AskDevice.init),
                     events: events.events,
-                    networkProfileID: inputs.networkProfileID,
+                    networkProfileID: network,
                     now: Date()
                 )
             },
@@ -52,9 +54,8 @@ final class AskToolViewModel {
     /// Whether Tools shows the Ask card: only with the on-device model.
     static var isAvailable: Bool { model.isAvailable }
 
-    func update(devices: [LocalDevice], networkProfileID: UUID?) {
+    func update(devices: [LocalDevice]) {
         inputs.devices = devices
-        inputs.networkProfileID = networkProfileID
     }
 
     /// The saved row a citation links to, by `LocalDevice.id`: still the same device after a rename.

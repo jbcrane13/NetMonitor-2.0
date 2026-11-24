@@ -10,13 +10,22 @@ import NetMonitorCore
 struct AskToolViewModelTests {
     let home = UUID()
 
-    func env(scanning: Bool = false, events: NetworkEventService = NetworkEventService()) -> AppEnvironment {
+    /// The network the phone is on, as `AppEnvironment.currentNetworkProfileID` reads it.
+    @MainActor
+    final class Network {
+        var id: UUID?
+        init(_ id: UUID?) { self.id = id }
+    }
+
+    func env(scanning: Bool = false, events: NetworkEventService = NetworkEventService(), network: Network? = nil) -> AppEnvironment {
+        let network = network ?? Network(home)
         let discovery = MockDeviceDiscoveryService()
         discovery.isScanning = scanning
         return AppEnvironment(
             networkMonitor: MockNetworkMonitorService(), deviceDiscovery: discovery,
             macConnection: MockMacConnectionService(), publicIP: MockPublicIPService(), wifiInfo: MockWiFiInfoService(),
-            targetManager: .shared, activityLog: .shared, eventService: events, scanScheduler: ScanSchedulerService.shared
+            targetManager: .shared, activityLog: .shared, eventService: events, scanScheduler: ScanSchedulerService.shared,
+            currentNetworkProfileID: { network.id }
         )
     }
 
@@ -35,7 +44,7 @@ struct AskToolViewModelTests {
         let device = printer(network: home)
         container.mainContext.insert(device)
         let viewModel = AskToolViewModel(env: env(), model: Self.model)
-        viewModel.update(devices: [device], networkProfileID: home)
+        viewModel.update(devices: [device])
         await viewModel.state.ask(Self.printerQuestion)
         guard case let .answered(answer) = viewModel.state.phase, let citation = answer.devices.first else {
             Issue.record("no device cited: \(viewModel.state.phase)")
@@ -44,7 +53,7 @@ struct AskToolViewModelTests {
         #expect(answer.text == "Office Printer is offline.")
 
         device.customName = "Upstairs Printer"
-        viewModel.update(devices: [device], networkProfileID: home)
+        viewModel.update(devices: [device])
         let opened = viewModel.device(for: citation)
         #expect(opened?.id == device.id)
         #expect(opened?.displayName == "Upstairs Printer")
@@ -52,7 +61,7 @@ struct AskToolViewModelTests {
 
     @Test func otherNetworksDevicesAreNotLookedUp() async {
         let viewModel = AskToolViewModel(env: env(), model: Self.model)
-        viewModel.update(devices: [printer(network: UUID())], networkProfileID: home)
+        viewModel.update(devices: [printer(network: UUID())])
         await viewModel.state.ask(Self.printerQuestion)
         guard case let .answered(answer) = viewModel.state.phase else {
             Issue.record("not answered: \(viewModel.state.phase)")
@@ -60,6 +69,28 @@ struct AskToolViewModelTests {
         }
         #expect(answer.devices.isEmpty)
         #expect(answer.text == nil)
+    }
+
+    @Test func aNetworkChangeAfterTheViewOpenedIsSeenByTheNextQuestion() async {
+        let network = Network(home)
+        let viewModel = AskToolViewModel(env: env(network: network), model: Self.model)
+        viewModel.update(devices: [printer(network: home)])
+        await viewModel.state.ask(Self.printerQuestion)
+        guard case let .answered(atHome) = viewModel.state.phase else {
+            Issue.record("not answered: \(viewModel.state.phase)")
+            return
+        }
+        #expect(atHome.devices.map(\.name) == ["Office Printer"])
+
+        // The phone joins another network; the saved rows and the view are unchanged.
+        network.id = UUID()
+        await viewModel.state.ask(Self.printerQuestion)
+        guard case let .answered(away) = viewModel.state.phase else {
+            Issue.record("not answered: \(viewModel.state.phase)")
+            return
+        }
+        #expect(away.devices.isEmpty)
+        #expect(away.text == nil)
     }
 
     @Test func eventsComeFromTheAppsEventLog() async {

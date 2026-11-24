@@ -14,7 +14,6 @@ struct AskToolView: View {
     @State private var openEvent: AskAnswer.EventCitation?
     @Query private var devices: [LocalDevice]
     private let env: AppEnvironment
-    private let networkProfileID: UUID?
 
     /// What device detail needs to find the saved row: its address, network and MAC now.
     private struct DeviceRoute: Hashable, Identifiable {
@@ -27,7 +26,6 @@ struct AskToolView: View {
     init(env: AppEnvironment) {
         self.env = env
         _viewModel = State(initialValue: AskToolViewModel(env: env))
-        networkProfileID = env.currentNetworkProfileID()
     }
 
     private var state: AskState { viewModel.state }
@@ -49,7 +47,7 @@ struct AskToolView: View {
         .accessibilityIdentifier("screen_askTool")
         // A rename or a scan changes what the tools read.
         .task(id: devices.map(\.displayName) + devices.map(\.ipAddress)) {
-            viewModel.update(devices: devices, networkProfileID: networkProfileID)
+            viewModel.update(devices: devices)
         }
         .navigationDestination(item: $openDevice) { route in
             DeviceDetailView(ipAddress: route.ipAddress, networkID: route.networkID, macAddress: route.macAddress)
