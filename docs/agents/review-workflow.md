@@ -51,7 +51,7 @@ Done when: every item is confirmed or sent back.
 
 ## 4. Gates on the PR's final code
 
-Run these on mini-pro-1 under `lockf -t 7200 /tmp/nm-mini1-test.lock timeout 1200 …`:
+Pick the test host by the Test Execution Policy in `CLAUDE.md`: mini-pro-2 first, mini-pro-1 only as that policy allows. On mini-pro-1, run under `lockf -t 7200 /tmp/nm-mini1-test.lock timeout 1200 …`. Run these:
 
 - Use private DerivedData outside the source tree, and a throwaway simulator.
 - Core: `swift test --no-parallel`.
@@ -81,7 +81,7 @@ Done when: no thread is unresolved and no CI failure is new.
 ## 6. Merge
 
 1. When `main` has moved since the PR's base, merge it onto current `main` locally and build both app test targets first. Two PRs merged one after the other broke `main` twice in November 2026: once on a protocol requirement, once on a dropped `UITestBootstrap` block.
-2. Squash-merge, then confirm the issue is closed.
+2. Squash-merge, then confirm each issue the PR closes (`Closes #n`) is closed. An issue the PR only partly delivers (`Part of #n`) stays open.
 3. Retire the worker's pane and worktree, and delete the branch. Keep the `pr-evidence/*` branches: the PR bodies link to their screenshots.
 
 Done when: `main` has the merge commit and the issue state is correct.
