@@ -166,6 +166,20 @@ struct DeviceDetailViewModelTests {
         #expect(viewModel.isScanning == false)
     }
 
+    /// PR #578 review: the refusal for a target with no known open port sends the user here, so
+    /// the scan must probe ports like a printer's 9100 or it can never find one.
+    @Test func scanPortsProbesEveryDeviceTypeRulePortAndSavesAPrinterPort() async {
+        let portScanner = MockPortScannerService()
+        portScanner.mockResults = [PortScanResult(port: 9100, state: .open)]
+        let viewModel = makeViewModel(portScanner: portScanner)
+        viewModel.device = LocalDevice(ipAddress: "192.168.1.30", macAddress: "AA:BB")
+
+        await viewModel.scanPorts()
+
+        #expect(DeviceTypeInferenceService.rulePorts.isSubset(of: portScanner.scannedPorts))
+        #expect(viewModel.device?.openPorts == [9100])
+    }
+
     @Test func discoverServicesStoresOnlyUniqueServicesForMatchingDeviceIP() async {
         let bonjour = MockBonjourDiscoveryService()
         bonjour.mockStreamServices = [

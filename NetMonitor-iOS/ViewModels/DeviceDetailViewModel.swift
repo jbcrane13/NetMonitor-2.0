@@ -51,11 +51,12 @@ final class DeviceDetailViewModel {
         suggestionTask?.cancel()
     }
 
-    // Common ports to scan
-    private let commonPorts = [
+    /// The ports a device-page scan probes: common service ports plus every port a device-type
+    /// rule reads, such as a printer's 9100, so a described rule's target can probe one (#572).
+    private let commonPorts = Set([
         21, 22, 23, 25, 53, 80, 110, 143, 443, 445, 548, 631,
         993, 995, 3306, 3389, 5432, 5900, 8080, 8443
-    ]
+    ]).union(DeviceTypeInferenceService.rulePorts).sorted()
 
     /// Loads the saved row for the device at `ipAddress` on `networkID` (the network the list
     /// showed it on), creating one if none matches.
