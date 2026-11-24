@@ -54,6 +54,14 @@ struct AskNetworkTests {
         #expect(answer.text == nil)
     }
 
+    @Test func aNameTheToolsDidNotFindIsRejectedEvenWhenTheQuestionHasItsWord() async {
+        let script = AskScript(calls: [.findDevices("printer")], answer: "Office Printer is offline.")
+        let model = ScriptedAskModel(scripts: ["Is the printer up?": script])
+        let empty = AskSnapshot(devices: [], events: [], now: Fix.now, calendar: Fix.calendar)
+        let answer = await AskNetwork.answer("Is the printer up?", snapshot: empty, pinnedDeviceID: nil, model: model)
+        #expect(answer.text == nil)
+    }
+
     @Test func eventsAreCitedWithTheirTimes() async {
         let answer = await ask("What joined this week?", calls: [.events(range: "last7Days", type: "joined")],
                                answer: "Two devices joined: Kitchen iPad on 2026-11-21 and ESP_3F21A9 on 2026-11-19.")

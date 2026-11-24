@@ -22,8 +22,12 @@ struct TimelineView: View {
         return descriptor
     }
 
-    init(env: AppEnvironment) {
+    /// The day to scroll to when the list loads: an Ask citation's event (#452).
+    private let focusDay: Date?
+
+    init(env: AppEnvironment, focusDay: Date? = nil) {
         _viewModel = State(initialValue: TimelineViewModel(env: env))
+        self.focusDay = focusDay
     }
 
     var body: some View {
@@ -97,33 +101,46 @@ struct TimelineView: View {
     }
 
     private var eventList: some View {
-        ScrollView {
-            LazyVStack(spacing: 0, pinnedViews: .sectionHeaders) {
-                ForEach(viewModel.groupedEvents, id: \.day) { group in
-                    Section {
-                        if let summary = viewModel.summary(for: group.label) {
-                            TimelineDaySummary(summary: summary, label: group.label)
-                                .padding(.horizontal, Theme.Layout.screenPadding)
-                                .padding(.bottom, Theme.Layout.itemSpacing)
-                        }
-                        // Lazy too, so a day of thousands of events stays smooth (#491 D3).
-                        LazyVStack(spacing: 1) {
-                            ForEach(group.events) { event in
-                                TimelineEventRow(event: event)
-                            }
-                        }
-                        .glassCard()
-                        .padding(.horizontal, Theme.Layout.screenPadding)
-                        .padding(.bottom, Theme.Layout.itemSpacing)
-                    } header: {
-                        sectionHeader(group.label)
-                    }
+        ScrollViewReader { proxy in
+            ScrollView {
+                eventSections
+            }
+            .task(id: viewModel.groupedEvents.count) {
+                // The range is All on open, so the focused day's section is in the list.
+                if let focusDay {
+                    proxy.scrollTo(Calendar.autoupdatingCurrent.startOfDay(for: focusDay), anchor: .top)
                 }
             }
-            .padding(.top, Theme.Layout.smallCornerRadius)
-            .padding(.bottom, Theme.Layout.sectionSpacing)
         }
         .accessibilityIdentifier("timeline_list_events")
+    }
+
+    private var eventSections: some View {
+        LazyVStack(spacing: 0, pinnedViews: .sectionHeaders) {
+            ForEach(viewModel.groupedEvents, id: \.day) { group in
+                Section {
+                    if let summary = viewModel.summary(for: group.label) {
+                        TimelineDaySummary(summary: summary, label: group.label)
+                            .padding(.horizontal, Theme.Layout.screenPadding)
+                            .padding(.bottom, Theme.Layout.itemSpacing)
+                    }
+                    // Lazy too, so a day of thousands of events stays smooth (#491 D3).
+                    LazyVStack(spacing: 1) {
+                        ForEach(group.events) { event in
+                            TimelineEventRow(event: event)
+                        }
+                    }
+                    .glassCard()
+                    .padding(.horizontal, Theme.Layout.screenPadding)
+                    .padding(.bottom, Theme.Layout.itemSpacing)
+                } header: {
+                    sectionHeader(group.label)
+                }
+                .id(group.day)
+            }
+        }
+        .padding(.top, Theme.Layout.smallCornerRadius)
+        .padding(.bottom, Theme.Layout.sectionSpacing)
     }
 
     private var rangePicker: some View {

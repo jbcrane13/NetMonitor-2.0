@@ -89,8 +89,8 @@ public enum AskNetwork {
 /// - it has no link, email, phone number or unstated domain (`InsightTextFilter`),
 /// - it names no saved device the tools didn't return,
 /// - it gives no cause ("because", "due to"): the tools record what happened, not why, and
-/// - every capitalised word inside a sentence is in the question or a tool result, or is common
-///   ("Wi-Fi", "AM"); a name the model made up ("the Fridge") fails here.
+/// - every capitalised word inside a sentence is in the question or a tool result with the same
+///   case, or is common ("Wi-Fi", "AM"); a name the model made up ("the Fridge") fails here.
 enum AskAnswerCheck {
     static func accepts(_ text: String, question: String, record: AskRecord, snapshot: AskSnapshot) -> Bool {
         guard !text.isEmpty, !record.outputs.isEmpty else { return false }
@@ -106,8 +106,10 @@ enum AskAnswerCheck {
         guard !uncitedNamed else { return false }
         // The tools record what happened, never why: a cause is the model's guess.
         guard !causalWords.contains(where: { contains(lowered, word: $0) }) else { return false }
-        let given = Set(words(in: ([question] + record.outputs).joined(separator: " ").lowercased()))
-        return capitalisedInsideSentences(text).allSatisfy { given.contains($0.lowercased()) || commonWords.contains($0) }
+        // Case kept: "Printer" in "Office Printer is offline" is a name, and "printer" in the
+        // question doesn't make it one the tools returned.
+        let given = Set(words(in: ([question] + record.outputs).joined(separator: " ")))
+        return capitalisedInsideSentences(text).allSatisfy { given.contains($0) || commonWords.contains($0) }
     }
 
     /// Capitalised words other than the first of each sentence.

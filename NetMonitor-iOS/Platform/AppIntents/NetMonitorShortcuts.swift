@@ -8,6 +8,7 @@ struct NetMonitorShortcuts: AppShortcutsProvider {
         case speedTest
         case networkStatus
         case saveWiFiReading
+        case ask
     }
 
     static let shortcutIDs: [ShortcutID] = ShortcutID.allCases
@@ -62,6 +63,16 @@ struct NetMonitorShortcuts: AppShortcutsProvider {
             ],
             shortTitle: "Save Wi-Fi Reading",
             systemImageName: "antenna.radiowaves.left.and.right"
+        )
+        // Ask your network (#452). Siri asks for the question: free text can't be in a phrase.
+        AppShortcut(
+            intent: AskNetMonitorIntent(),
+            phrases: [
+                "Ask \(.applicationName) about my network",
+                "Ask \(.applicationName) a question"
+            ],
+            shortTitle: "Ask NetMonitor",
+            systemImageName: "questionmark.bubble"
         )
     }
 }
