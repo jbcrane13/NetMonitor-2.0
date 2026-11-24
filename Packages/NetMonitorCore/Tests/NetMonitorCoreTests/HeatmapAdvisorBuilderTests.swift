@@ -64,7 +64,17 @@ struct HeatmapAdvisorBuilderTests {
         let request = HeatmapAdvisorBuilder.request(Self.stats(weakRows: 0 ..< 2, weakCols: 8 ..< 10))
 
         #expect(HeatmapAdvisorBuilder.negligibleWeakPercent == 5)
-        #expect(request.observations == ["Coverage is good across the surveyed area, so no change is needed."])
+        #expect(request.observations == ["Little of the surveyed area is weak, so no change is needed."])
+    }
+
+    @Test func aMostlyFairSurveyIsNotCalledGood() {
+        // Every cell at -70 dBm: fair, nothing weak.
+        let grid: [[Double?]] = Array(repeating: Array(repeating: -70, count: 10), count: 10)
+
+        let request = HeatmapAdvisorBuilder.request(Stats(grid: grid, pointCount: 24))
+
+        #expect(request.observations == ["Little of the surveyed area is weak, so no change is needed."])
+        #expect(request.facts.contains("Area with fair signal (-75 to -67 dBm): 100%"))
     }
 
     @Test func aRoomNameWritesTheKeyPoints() {
@@ -127,14 +137,36 @@ struct HeatmapAdvisorBuilderTests {
         let advice = HeatmapAdvisorBuilder.advice(points: points, floorPlan: Self.plan)
 
         #expect(HeatmapAdvisorBuilder.minimumPoints == 10)
-        #expect(advice == .sparse(hint: "Survey at least 10 points to get advice. This survey has 9."))
+        #expect(advice == .sparse(hint: "Survey at least 10 points with a Wi-Fi signal reading to get advice. This survey has 9."))
     }
 
     @Test func noPlanGetsAHintInsteadOfAdvice() {
         let points = (0 ..< 12).map { MeasurementPoint(floorPlanX: Double($0) / 12, floorPlanY: 0.5, rssi: -60) }
 
         #expect(HeatmapAdvisorBuilder.advice(points: points, floorPlan: nil)
-            == .sparse(hint: "Load a floor plan and survey at least 10 points to get advice."))
+            == .sparse(hint: "Load a floor plan and survey at least 10 points with a Wi-Fi signal reading to get advice."))
+    }
+
+    @Test func pointsWithoutASignalReadingAreLeftOut() {
+        // Both apps record -100 dBm when there is no reading (no Shortcut, not associated).
+        let readings = (0 ..< 10).map { MeasurementPoint(floorPlanX: Double($0) / 9, floorPlanY: 0.5, rssi: -55) }
+        let placeholders = (0 ..< 5).map { MeasurementPoint(floorPlanX: Double($0) / 4, floorPlanY: 0.1, rssi: -100, ssid: "Home") }
+
+        guard case let .ready(request) = HeatmapAdvisorBuilder.advice(points: readings + placeholders, floorPlan: Self.plan) else {
+            Issue.record("expected advice")
+            return
+        }
+        #expect(HeatmapAdvisorBuilder.noReadingRSSI == -100)
+        #expect(request.facts.first == "Measured points: 10")
+        #expect(request.facts.contains("Area with weak signal (below -75 dBm): 0%"))
+    }
+
+    @Test func tooFewReadingsGetTheHint() {
+        let readings = (0 ..< 4).map { MeasurementPoint(floorPlanX: Double($0) / 4, floorPlanY: 0.5, rssi: -55) }
+        let placeholders = (0 ..< 8).map { MeasurementPoint(floorPlanX: Double($0) / 8, floorPlanY: 0.1, rssi: -100) }
+
+        #expect(HeatmapAdvisorBuilder.advice(points: readings + placeholders, floorPlan: Self.plan)
+            == .sparse(hint: "Survey at least 10 points with a Wi-Fi signal reading to get advice. This survey has 4."))
     }
 
     @Test func tenPointsOnAPlanGetAdvice() {

@@ -110,7 +110,7 @@ struct HeatmapAdvisorStateTests {
 
         await advisor.refresh(points: Array(Self.weakCorner.prefix(6)), floorPlan: Self.plan, isSurveying: false)
 
-        #expect(advisor.phase == .sparse(hint: "Survey at least 10 points to get advice. This survey has 6."))
+        #expect(advisor.phase == .sparse(hint: "Survey at least 10 points with a Wi-Fi signal reading to get advice. This survey has 6."))
         #expect(insight.requests.isEmpty)
     }
 

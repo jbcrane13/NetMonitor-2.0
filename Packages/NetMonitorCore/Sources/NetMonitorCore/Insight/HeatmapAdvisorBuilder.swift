@@ -12,8 +12,11 @@ public enum HeatmapAdvice: Sendable, Equatable {
 /// figure comes from `HeatmapSurveyStatistics`, and the app picks the action. The model only
 /// words the key points and facts.
 public enum HeatmapAdvisorBuilder {
-    /// Fewest measurements a survey needs before it gets advice.
+    /// Fewest measurements with a signal reading a survey needs before it gets advice.
     public static let minimumPoints = 10
+    /// What both apps record as the RSSI when a measurement had no signal reading (no Wi-Fi
+    /// Shortcut on iOS, not associated on the Mac). Such points say nothing about coverage.
+    public static let noReadingRSSI = -100
     /// Under this share of weak area, in percent, no change is suggested.
     public static let negligibleWeakPercent = 5
     /// A weak region of at least this share, in percent, is too large to fix by moving the access
@@ -32,13 +35,16 @@ public enum HeatmapAdvisorBuilder {
         configuration: HeatmapRenderer.Configuration = .init()
     ) -> HeatmapAdvice {
         guard let floorPlan else {
-            return .sparse(hint: "Load a floor plan and survey at least \(minimumPoints) points to get advice.")
+            return .sparse(hint: "Load a floor plan and survey at least \(minimumPoints) points with a Wi-Fi signal reading to get advice.")
         }
-        guard points.count >= minimumPoints else {
-            return .sparse(hint: "Survey at least \(minimumPoints) points to get advice. This survey has \(points.count).")
+        let readings = points.filter { $0.rssi > noReadingRSSI }
+        guard readings.count >= minimumPoints else {
+            return .sparse(
+                hint: "Survey at least \(minimumPoints) points with a Wi-Fi signal reading to get advice. This survey has \(readings.count)."
+            )
         }
         let stats = HeatmapSurveyStatistics(
-            points: points,
+            points: readings,
             roomLabels: floorPlan.roomLabels ?? [],
             accessPointNames: accessPointNames,
             configuration: configuration
@@ -74,7 +80,7 @@ public enum HeatmapAdvisorBuilder {
 
     private static func observations(_ stats: HeatmapSurveyStatistics) -> [String] {
         guard stats.coverage.weak >= negligibleWeakPercent, let largest = stats.weakRegions.first else {
-            return ["Coverage is good across the surveyed area, so no change is needed."]
+            return ["Little of the surveyed area is weak, so no change is needed."]
         }
         // One key point per place: the largest region there stands for the others, which stay in the facts.
         var places = Set<String>()
