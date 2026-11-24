@@ -18,12 +18,26 @@ final class SecurityReadoutMacViewModel {
     /// The ranked findings, from the device rows of the last refresh.
     private(set) var findings: [SecurityFinding] = []
 
-    /// The model's overview, or nil when there is none to show.
-    var overview: String? { state.brief?.text }
+    /// The model's overview, or nil when there is none to show. Only an overview of the findings
+    /// on screen shows: during a scan the list updates while the model waits for the scan to end.
+    var overview: String? {
+        guard let askedRequest, askedRequest == SecurityReadoutBuilder.request(findings: findings) else { return nil }
+        return state.brief?.text
+    }
 
-    private let state: ChangeBriefState
+    /// The cache for one network: counts-only requests can be the same on two networks, and
+    /// `ChangeBriefState` caches by request, so each network gets its own.
+    private var state: ChangeBriefState
+    /// The network `state` caches for.
+    private var stateNetwork: UUID?
+    /// The request the model was last asked about; the shown brief answers it.
+    private var askedRequest: InsightRequest?
+    private let service: any InsightServiceProtocol
+    private let timeout: Duration
 
     init(service: any InsightServiceProtocol, timeout: Duration = ChangeBriefState.timeout) {
+        self.service = service
+        self.timeout = timeout
         state = ChangeBriefState(service: service, timeout: timeout)
     }
 
@@ -33,13 +47,19 @@ final class SecurityReadoutMacViewModel {
         let network = devices.filter { $0.networkProfileID == nil || $0.networkProfileID == networkProfileID }
         findings = SecurityRuleTable.findings(for: network)
         // Another network's overview never stays on screen, even while a scan holds back the new one.
-        state.keepOnly(network: networkProfileID)
+        if networkProfileID != stateNetwork {
+            state = ChangeBriefState(service: service, timeout: timeout)
+            stateNetwork = networkProfileID
+            askedRequest = nil
+        }
         guard !isScanning else { return }
         guard state.isAvailable else {
             state.hide()
             return
         }
-        await state.ask(SecurityReadoutBuilder.request(findings: findings), network: networkProfileID)
+        let request = SecurityReadoutBuilder.request(findings: findings)
+        askedRequest = request
+        await state.ask(request)
     }
 
     // MARK: - UI tests

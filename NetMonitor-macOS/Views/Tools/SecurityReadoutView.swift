@@ -13,6 +13,18 @@ import NetMonitorCore
 
 struct SecurityReadoutView: View {
     @Environment(NetworkProfileManager.self) private var profileManager: NetworkProfileManager?
+
+    var body: some View {
+        // The network this Mac is on; a new network is a new query.
+        let networkProfileID = profileManager?.localProfile?.id ?? profileManager?.activeProfile?.id
+        SecurityReadoutContent(networkProfileID: networkProfileID)
+            .id(networkProfileID)
+    }
+}
+
+/// The readout for one network: its saved devices and those on no network, as the dashboard brief counts them.
+private struct SecurityReadoutContent: View {
+    let networkProfileID: UUID?
     @Environment(DeviceDiscoveryCoordinator.self) private var coordinator: DeviceDiscoveryCoordinator?
     @Query private var devices: [LocalDevice]
     @State private var openDevice: LocalDevice?
@@ -20,9 +32,12 @@ struct SecurityReadoutView: View {
     /// Not view state: shared so reopening the tool keeps its cache.
     private var viewModel: SecurityReadoutMacViewModel { SecurityReadoutMacViewModel.shared }
 
-    /// The network this Mac is on.
-    private var networkProfileID: UUID? {
-        profileManager?.localProfile?.id ?? profileManager?.activeProfile?.id
+    init(networkProfileID: UUID?) {
+        self.networkProfileID = networkProfileID
+        let id = networkProfileID
+        _devices = Query(filter: #Predicate<LocalDevice> { device in
+            device.networkProfileID == id || device.networkProfileID == nil
+        })
     }
 
     /// What the readout depends on: the findings as they stand (a rename or a scan's new ports
@@ -71,7 +86,8 @@ struct SecurityReadoutView: View {
                 Text("No risky open ports found")
                     .font(.headline)
                     .accessibilityIdentifier("securityReadout_label_empty")
-                Text("The readout checks the ports that scans found open on this network's devices.")
+                Text("Nothing risky is among the ports scans have found open. "
+                    + "Devices not scanned yet have no ports to check: scan the network to include them.")
                     .font(.subheadline)
                     .foregroundStyle(MacTheme.Colors.labelSecondary)
                     .multilineTextAlignment(.center)

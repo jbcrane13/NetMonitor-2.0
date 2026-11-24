@@ -38,7 +38,12 @@ public struct SecurityRule: Sendable {
     public let severityByType: [DeviceType: SecuritySeverity]
     public let explanation: String
     public let remedy: String
+    /// A title for every port instead of "<service> port <n> is open", for a rule whose service is
+    /// only likely, such as UPnP on port 5000.
+    let fixedTitle: String?
 
+    /// Internal: the rules are `SecurityRuleTable.rules` alone, so every finding traces to a rule
+    /// reviewed there; callers outside Core read rules and can't add one.
     init(
         id: String,
         ports: Set<Int>,
@@ -46,9 +51,11 @@ public struct SecurityRule: Sendable {
         deviceTypes: Set<DeviceType>? = nil,
         severity: SecuritySeverity,
         severityByType: [DeviceType: SecuritySeverity] = [:],
+        title: String? = nil,
         explanation: String,
         remedy: String
     ) {
+        fixedTitle = title
         self.id = id
         self.ports = ports
         self.service = service
@@ -71,13 +78,16 @@ public struct SecurityRule: Sendable {
 
     /// States what was measured, never more: "Telnet port 23 is open".
     public func title(port: Int) -> String {
-        "\(service) port \(port) is open"
+        fixedTitle ?? "\(service) port \(port) is open"
     }
 }
 
 /// One risk the readout lists: one rule plus one open port measured on one device (#454).
 /// Computed from the current device rows, never stored, so it follows its device through a
 /// rename or a record merge.
+///
+/// Its memberwise init stays internal: only `SecurityRuleTable.findings(for:)` makes findings, from
+/// a rule and a port in `openPorts`, so nothing outside Core can list an unmeasured one.
 public struct SecurityFinding: Sendable, Equatable, Identifiable {
     /// Unique per device, rule and port.
     public let id: String
@@ -148,13 +158,13 @@ public enum SecurityRuleTable {
         // Databases protected by a login, but still a target for password guessing on the LAN.
         SecurityRule(
             id: "mysql", ports: [3306], service: "MySQL database", severity: .medium,
-            explanation: "A database listening on the network can be reached by every device on it, and weak passwords can be guessed.",
-            remedy: "Bind the database to the device itself unless other devices need it, and use strong passwords."
+            explanation: databaseExplanation,
+            remedy: databaseRemedy
         ),
         SecurityRule(
             id: "postgresql", ports: [5432], service: "PostgreSQL database", severity: .medium,
-            explanation: "A database listening on the network can be reached by every device on it, and weak passwords can be guessed.",
-            remedy: "Bind the database to the device itself unless other devices need it, and use strong passwords."
+            explanation: databaseExplanation,
+            remedy: databaseRemedy
         ),
         // SMB file sharing is expected on a NAS or a computer (low: keep it patched, no guest
         // access); elsewhere it is unusual. Old SMB versions carried worms such as WannaCry.
@@ -170,7 +180,8 @@ public enum SecurityRuleTable {
             id: "http-admin", ports: [80, 8080], service: "HTTP admin page",
             deviceTypes: [.router, .camera, .printer], severity: .medium,
             severityByType: [.printer: .low],
-            explanation: "This device's settings page can be opened without encryption, so the admin password can be read by others on the network.",
+            explanation: "This device answers on unencrypted HTTP. If its settings page is served there rather than redirected to HTTPS, "
+                + "the admin password can be read by others on the network.",
             remedy: "Use the HTTPS address if the device has one, change the default admin password, and turn off the HTTP page if you can."
         ),
         // Legacy NetBIOS session service, from the era of SMB version one.
@@ -182,7 +193,8 @@ public enum SecurityRuleTable {
         // Many router firmwares serve UPnP control on TCP 5000; UPnP lets any device on the LAN
         // open ports to the internet. Routers only: macOS AirPlay Receiver listens on 5000 too.
         SecurityRule(
-            id: "upnp", ports: [5000], service: "UPnP control", deviceTypes: [.router], severity: .low,
+            id: "upnp", ports: [5000], service: "Possible UPnP", deviceTypes: [.router], severity: .low,
+            title: "Port 5000 (often UPnP) is open",
             explanation: "Routers often use this port for UPnP, which lets any device on the network open ports to the internet without asking.",
             remedy: "Turn UPnP off in the router's settings unless a game console or app needs it."
         ),
@@ -194,6 +206,11 @@ public enum SecurityRuleTable {
             remedy: "Turn SSH off if the device allows it, or change its password."
         )
     ]
+
+    /// Shared by the MySQL and PostgreSQL rules: both are login-protected databases on the LAN.
+    static let databaseExplanation =
+        "A database listening on the network can be reached by every device on it, and weak passwords can be guessed."
+    static let databaseRemedy = "Bind the database to the device itself unless other devices need it, and use strong passwords."
 
     /// Every TCP port a rule reads, for the quick scan to probe.
     public static let ports: Set<Int> = rules.reduce(into: []) { $0.formUnion($1.ports) }

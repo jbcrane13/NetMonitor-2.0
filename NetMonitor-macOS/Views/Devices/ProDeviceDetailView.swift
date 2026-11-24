@@ -419,6 +419,7 @@ private extension ProDeviceDetailView {
                 sectionHeader("Security", icon: "exclamationmark.shield")
                 ForEach(findings) { finding in
                     SecurityFindingRow(finding: finding, showsDevice: false)
+                        .accessibilityIdentifier("deviceDetail_row_security_\(finding.ruleID)_\(finding.port)")
                 }
             }
             .padding(14)

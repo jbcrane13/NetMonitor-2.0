@@ -12,7 +12,7 @@ struct SecurityReadoutBuilderTests {
         #expect(SecurityReadoutBuilder.request(findings: []) == nil)
     }
 
-    @Test func factsAndKeyPointsFollowTheRankedFindings() throws {
+    @Test func factsAndKeyPointsAreCountsBySeverityAndService() throws {
         let findings = SecurityRuleTable.findings(for: [
             device("Garage Camera", .camera, ports: [23, 80]),
             device("printer.lan", .printer, ports: [80]),
@@ -22,9 +22,9 @@ struct SecurityReadoutBuilderTests {
         #expect(request.kind == .summary)
         #expect(request.subject == "Security readout of the devices on this network")
         #expect(request.observations == [
-            "Telnet port 23 is open on Garage Camera, high severity.",
-            "HTTP admin page port 80 is open on Garage Camera, medium severity.",
-            "SMB file sharing port 445 is open on NAS, low severity."
+            "1 high severity finding: Telnet.",
+            "1 medium severity finding: HTTP admin page.",
+            "2 low severity findings: SMB file sharing, HTTP admin page."
         ])
         #expect(request.facts == [
             "Number of findings: 4",
@@ -32,25 +32,26 @@ struct SecurityReadoutBuilderTests {
             "Medium severity findings: 1",
             "Low severity findings: 2",
             "Devices with findings: 3",
-            "Finding 1 device: Garage Camera",
-            "Finding 1: Telnet port 23 is open, high severity",
-            "Finding 2 device: Garage Camera",
-            "Finding 2: HTTP admin page port 80 is open, medium severity",
-            "Finding 3 device: NAS",
-            "Finding 3: SMB file sharing port 445 is open, low severity",
-            "Finding 4 device: printer.lan",
-            "Finding 4: HTTP admin page port 80 is open, low severity"
+            "Telnet findings: 1",
+            "HTTP admin page findings: 2",
+            "SMB file sharing findings: 1"
         ])
     }
 
-    @Test func longListsAreCappedInThePromptOnly() throws {
-        let devices = (1...12).map { device("Camera \($0)", .camera, ports: [23]) }
-        let findings = SecurityRuleTable.findings(for: devices)
+    /// The overview can't pair a device with a port: neither is in the prompt (#550 review).
+    @Test func thePromptNamesNoDeviceAndNoPort() throws {
+        let findings = SecurityRuleTable.findings(for: [
+            device("Garage Camera", .camera, ports: [23, 80, 22]),
+            device("Router", .router, ports: [5000, 8080]),
+            device("Build server", .unknown, ports: [6379, 3306, 27017, 5432, 3389, 5900, 21, 139, 445])
+        ])
         let request = try #require(SecurityReadoutBuilder.request(findings: findings))
-        #expect(findings.count == 12)
-        #expect(request.facts.first == "Number of findings: 12")
-        #expect(request.facts.count { $0.hasPrefix("Finding ") && $0.contains(" device: ") } == SecurityReadoutBuilder.promptLimit)
-        #expect(request.facts.last == "Findings not listed here: 4")
-        #expect(request.observations.count == SecurityReadoutBuilder.keyPointLimit)
+        for name in ["Garage Camera", "Router", "Build server"] {
+            #expect(!request.prompt.contains(name), "\(name) is in the prompt")
+        }
+        let given = Set(InsightGrounding.numbers(in: request.prompt))
+        for port in SecurityRuleTable.ports {
+            #expect(!given.contains(Double(port)), "port \(port) is in the prompt")
+        }
     }
 }

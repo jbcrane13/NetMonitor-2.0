@@ -78,6 +78,40 @@ struct SecurityReadoutMacViewModelTests {
         #expect(viewModel.overview == "The camera has Telnet open.")
     }
 
+    @Test func anOverviewOfOldFindingsHidesWhileAScanHoldsBackTheNewOne() async {
+        let answer = "The camera has Telnet open."
+        let viewModel = SecurityReadoutMacViewModel(service: FixedAnswerInsightService(answer: answer))
+        await viewModel.refresh(devices: devices, networkProfileID: home, isScanning: false)
+        #expect(viewModel.overview == answer)
+
+        // A scan finds one more port: the list updates, and the overview no longer describes it.
+        let router = LocalDevice(ipAddress: "192.168.77.1", macAddress: "AA:00:00:00:00:01", deviceType: .router,
+                                 customName: "Router", openPorts: [23], networkProfileID: home)
+        await viewModel.refresh(devices: devices + [router], networkProfileID: home, isScanning: true)
+        #expect(viewModel.findings.count == 4)
+        #expect(viewModel.overview == nil)
+
+        // Back to the findings it described: the cached overview shows again without asking.
+        await viewModel.refresh(devices: devices, networkProfileID: home, isScanning: true)
+        #expect(viewModel.overview == answer)
+    }
+
+    @Test func anotherNetworkWithTheSameCountsGetsItsOwnOverview() async {
+        // Counts-only requests can match across networks; switching must not leave the readout blank.
+        let office = UUID()
+        let camera = { (network: UUID) in
+            LocalDevice(ipAddress: "192.168.77.30", macAddress: "AA:00:00:00:00:30", deviceType: .camera, customName: "Camera",
+                        openPorts: [23], networkProfileID: network)
+        }
+        let viewModel = SecurityReadoutMacViewModel(service: FixedAnswerInsightService(answer: "A camera has Telnet open."))
+        await viewModel.refresh(devices: [camera(home)], networkProfileID: home, isScanning: false)
+        #expect(viewModel.overview == "A camera has Telnet open.")
+
+        await viewModel.refresh(devices: [camera(office)], networkProfileID: office, isScanning: false)
+
+        #expect(viewModel.overview == "A camera has Telnet open.")
+    }
+
     @Test func onlyTheNetworksDevicesAndUnassignedOnesCount() async {
         let elsewhere = LocalDevice(ipAddress: "10.0.0.5", macAddress: "AA:00:00:00:00:05", deviceType: .camera, customName: "Other",
                                     openPorts: [23], networkProfileID: UUID())

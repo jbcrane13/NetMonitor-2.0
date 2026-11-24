@@ -75,6 +75,11 @@ struct SecurityRuleTableTests {
         #expect(titles == ["Telnet port 23 is open", "SMB file sharing port 445 is open", "HTTP admin page port 80 is open"])
     }
 
+    @Test func thePort5000TitleSaysOnlyWhatWasMeasured() {
+        let findings = SecurityRuleTable.findings(for: [device("Router", .router, ports: [5000])])
+        #expect(findings.map(\.title) == ["Port 5000 (often UPnP) is open"])
+    }
+
     @Test func theQuickScanPortsAreTheRulePorts() {
         #expect(SecurityRuleTable.ports == [21, 22, 23, 80, 139, 445, 3306, 3389, 5000, 5432, 5900, 6379, 8080, 27017])
     }

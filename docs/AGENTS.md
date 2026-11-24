@@ -157,7 +157,7 @@ Use a single shared context and the existing architecture records. See `docs/age
 
 **Pro mode table** — `ProModeRowView` defines shared column width constants (`statusWidth`, `ipWidth`, etc.) that `DevicesView.proModeHeaderRow` references. Always keep header and row widths in sync via these constants.
 
-**Scan pipeline** — `DeviceDiscoveryCoordinator.startScan()` runs: ARP → Bonjour → merge → name resolution → vendor lookup → quick port scan (15 common ports) → device type inference → latency (3 pings) → mark offline. `DeviceTypeInferenceService` classifies unknown devices from hostname/services/ports/vendor.
+**Scan pipeline** — `DeviceDiscoveryCoordinator.startScan()` runs: ARP → Bonjour → merge → name resolution → vendor lookup → quick port scan (27 ports: `QuickPortScanPhase.commonPorts`) → device type inference → latency (3 pings) → mark offline. `DeviceTypeInferenceService` classifies unknown devices from hostname/services/ports/vendor.
 
 ## Shared UI Components (March 2026)
 
