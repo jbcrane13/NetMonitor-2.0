@@ -71,7 +71,7 @@ gate_script="$HOME/.claude/scripts/enable-review-gate.sh"
 if [[ "${SKIP_REVIEW_GATE:-0}" != 1 ]]; then
     if [[ ! -x "$gate_script" ]]; then
         echo "Missing $gate_script; it enables the codex-review gate for every worktree." >&2
-        echo "Restore it (see ~/.claude/CLAUDE.md), or set SKIP_REVIEW_GATE=1 on a host without Codex." >&2
+        echo "Restore it (see ~/AGENTS.md, Review gate), or set SKIP_REVIEW_GATE=1 on a host without Codex." >&2
         exit 1
     fi
     "$gate_script" "$repo_root"

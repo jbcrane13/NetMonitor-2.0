@@ -33,7 +33,7 @@ This directory contains the implementation phase plans for NetMonitor macOS deve
 2. Review the Design reference (`2026-01-10-netmonitor-macos-v1-design.md`)
 3. Execute tasks in sequential order with full verification
 4. Use agent-driven development workflow: plan → implement → verify → commit
-5. Update project CLAUDE.md with completion status
+5. Record completion status on the phase's GitHub issue
 
 **For Specific Implementation:**
 - Each phase file contains numbered Tasks (Task 1, Task 2, etc.)
@@ -77,7 +77,7 @@ All tasks follow this pattern:
 2. Implement as an actor for thread safety
 3. Create tests in NetMonitorTests/Services/
 4. Integrate with coordinator or main app
-5. Add to CLAUDE.md implementation status
+5. Record implementation status on the GitHub issue
 ```
 
 #### View Implementation Pattern
@@ -113,14 +113,14 @@ For each completed task, verify:
 - [ ] Tests written and passing
 - [ ] Accessibility identifiers added (UI elements)
 - [ ] Error handling implemented
-- [ ] Code follows established patterns in CLAUDE.md
+- [ ] Code follows established patterns in the root AGENTS.md
 
 ### Integration Points
 
 **After each phase, integrate with:**
-1. Update `/Users/blake/Projects/NetMonitor/CLAUDE.md` → Implementation Status section
+1. Record the phase's status on its GitHub issue (the repo's only tracker; see the root `AGENTS.md`)
 2. Commit changes with conventional commit messages: `feat:`, `fix:`, `refactor:`
-3. Document any deviations from plan in CLAUDE.md
+3. Document any deviations from plan on the issue and in the PR
 
 **Cross-Phase Dependencies:**
 - Phase 2 depends on Phase 1 completion

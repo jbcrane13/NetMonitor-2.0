@@ -24,7 +24,7 @@ Use `pocock-github-workflow:pocock-code-review`. Start **two independent reviewe
 
 **Standards reviewer**
 
-- Checks the diff against `AGENTS.md`, `CLAUDE.md`, `~/.claude/apple.md` and the code-smell baseline.
+- Checks the diff against `AGENTS.md`, `~/.claude/apple.md` and the code-smell baseline.
 - Name the risk areas for this PR in its brief. Examples: Swift 6 isolation, test isolation from the user's real data, UI-test code in production paths, raw IPs, MACs or hostnames in logs.
 
 **Spec reviewer**
@@ -54,7 +54,7 @@ Done when: every item is confirmed or sent back.
 
 ## 4. Gates on the PR's final code
 
-Pick the test host by the Test Execution Policy in `CLAUDE.md`: mini-pro-2 first, mini-pro-1 only as that policy allows. On mini-pro-1, run under `lockf -t 7200 /tmp/nm-mini1-test.lock timeout 1200 …`. Run these:
+Pick the test host by the Test Execution Policy in `AGENTS.md`: mini-pro-2 first, mini-pro-1 only as that policy allows. On mini-pro-1, run under `lockf -t 7200 /tmp/nm-mini1-test.lock timeout 1200 …`. Run these:
 
 - Use private DerivedData outside the source tree, and a throwaway simulator.
 - Core: `swift test --no-parallel`.
