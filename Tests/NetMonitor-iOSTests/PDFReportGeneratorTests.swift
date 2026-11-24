@@ -77,6 +77,17 @@ final class PDFReportGeneratorTests: XCTestCase {
         XCTAssertEqual(h2, "%PDF")
     }
 
+    // MARK: - Device table names (#492)
+
+    func testDeviceTableNamesADeviceByItsDisplayName() {
+        let device = LocalDevice(ipAddress: "192.168.1.77", macAddress: "", customName: "Den TV")
+        XCTAssertNil(device.hostname)
+
+        let report = text(PDFReportGenerator.generateNetworkReport(devices: [device], toolResults: [], speedTests: []))
+
+        XCTAssertTrue(report.contains("Den TV"), "The device table should name the device by displayName")
+    }
+
     // MARK: - Executive summary (#453)
 
     private func pages(_ data: Data?) -> Int {

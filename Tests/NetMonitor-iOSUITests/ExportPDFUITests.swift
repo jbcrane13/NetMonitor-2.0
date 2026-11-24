@@ -197,6 +197,7 @@ final class ExportPDFNoModelUITests: IOSUITestCase {
         keepScreenshot(page.screenshot(), named: "report-first-page-no-model")
         XCTAssertFalse(page.label.contains("Executive Summary"), "First page: \(page.label)")
         XCTAssertTrue(page.label.contains("Discovered Devices"), "First page: \(page.label)")
-        XCTAssertTrue(page.label.contains("UITest Printer") || page.label.contains("192.168.1.30"), "First page: \(page.label)")
+        // The device table names devices by displayName; the seeded printer has a custom name and no hostname (#492).
+        XCTAssertTrue(page.label.contains("UITest Printer"), "First page: \(page.label)")
     }
 }
