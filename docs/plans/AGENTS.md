@@ -113,7 +113,7 @@ For each completed task, verify:
 - [ ] Tests written and passing
 - [ ] Accessibility identifiers added (UI elements)
 - [ ] Error handling implemented
-- [ ] Code follows established patterns in CLAUDE.md
+- [ ] Code follows established patterns in the root AGENTS.md
 
 ### Integration Points
 

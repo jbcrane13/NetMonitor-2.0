@@ -114,4 +114,4 @@ func testNN_ToolNameVerifiesOutcome() {
 - **Launch args**: `--uitesting`, `--uitesting-reset` (resets app state between runs)
 - **Launch env**: `UITEST_MODE=1`, `XCUITest=1`
 - **System alerts**: Auto-dismissed by `IOSUITestCase`'s `addUIInterruptionMonitor`
-- **Accessibility IDs**: Follow `{screen}_{element}_{descriptor}` convention (see CLAUDE.md)
+- **Accessibility IDs**: Follow `{screen}_{element}_{descriptor}` convention (see AGENTS.md)
