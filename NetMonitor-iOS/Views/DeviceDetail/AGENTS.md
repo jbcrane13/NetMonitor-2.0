@@ -10,6 +10,7 @@ Device detail view showing comprehensive information about a single network devi
 | File | Description |
 |------|-------------|
 | `DeviceDetailView.swift` | Comprehensive device detail screen with multiple sections |
+| `LabelCaptureView.swift` | Scan Label sheet (#456): photo → OCR → on-device model → review → Save as user-confirmed identity; `LabelCaptureViewModel`; Core pipeline in `NetMonitorCore/Insight/LabelReader.swift`. UI-test seams `UITEST_LABEL_IMAGE`, `UITEST_LABEL_MODEL` |
 
 ## For AI Agents
 
