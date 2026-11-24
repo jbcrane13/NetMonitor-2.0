@@ -100,16 +100,31 @@ enum AskAnswerCheck {
         let request = InsightRequest(subject: question, facts: facts, kind: .summary)
         guard InsightGrounding.isGrounded(text, in: request), InsightTextFilter.isClean(text, in: request) else { return false }
         let lowered = text.lowercased()
-        let uncitedNamed = snapshot.devices.contains { device in
-            !record.deviceIDs.contains(device.id) && device.displayName.count >= 4 && contains(lowered, word: device.displayName.lowercased())
-        }
-        guard !uncitedNamed else { return false }
+        guard !namesUncitedDevice(lowered, record: record, snapshot: snapshot) else { return false }
         // The tools record what happened, never why: a cause is the model's guess.
         guard !causalWords.contains(where: { contains(lowered, word: $0) }) else { return false }
         // Case kept: "Printer" in "Office Printer is offline" is a name, and "printer" in the
         // question doesn't make it one the tools returned.
         let given = Set(words(in: ([question] + record.outputs).joined(separator: " ")))
         return capitalisedInsideSentences(text).allSatisfy { given.contains($0) || commonWords.contains($0) }
+    }
+
+    /// Whether the text names a saved device the tools didn't return. The longest names are read
+    /// first and their words taken, so "Printer" inside a cited "Office Printer" names no one.
+    private static func namesUncitedDevice(_ lowered: String, record: AskRecord, snapshot: AskSnapshot) -> Bool {
+        var remaining = lowered
+        let longestFirst = snapshot.devices
+            .map { (name: $0.displayName.lowercased(), isCited: record.deviceIDs.contains($0.id)) }
+            .sorted { $0.name.count != $1.name.count ? $0.name.count > $1.name.count : $0.isCited && !$1.isCited }
+        for device in longestFirst where device.isCited || device.name.count >= 4 {
+            let ranges = ranges(of: device.name, in: remaining)
+            guard !ranges.isEmpty else { continue }
+            guard device.isCited else { return true }
+            for range in ranges.reversed() {
+                remaining.replaceSubrange(range, with: " ")
+            }
+        }
+        return false
     }
 
     /// Capitalised words other than the first of each sentence.
@@ -137,16 +152,22 @@ enum AskAnswerCheck {
     }
 
     private static func contains(_ text: String, word: String) -> Bool {
+        !ranges(of: word, in: text).isEmpty
+    }
+
+    /// Where `word` stands in `text` as whole words.
+    private static func ranges(of word: String, in text: String) -> [Range<String.Index>] {
+        var ranges: [Range<String.Index>] = []
         var searchRange = text.startIndex..<text.endIndex
         while let found = text.range(of: word, range: searchRange) {
             let before = found.lowerBound == text.startIndex ? nil : text[text.index(before: found.lowerBound)]
             let after = found.upperBound == text.endIndex ? nil : text[found.upperBound]
             if !(before?.isLetter ?? false) && !(before?.isNumber ?? false) && !(after?.isLetter ?? false) && !(after?.isNumber ?? false) {
-                return true
+                ranges.append(found)
             }
             searchRange = found.upperBound..<text.endIndex
         }
-        return false
+        return ranges
     }
 }
 

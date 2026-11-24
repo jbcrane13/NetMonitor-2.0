@@ -42,6 +42,22 @@ struct AskNetworkTests {
         #expect(answer.text == nil)
     }
 
+    @Test func aCitedNameMayContainAnotherDevicesName() async {
+        let office = Fix.device("Office Printer", .printer, ip: "192.168.1.60")
+        let plain = Fix.device("Printer", .printer, ip: "192.168.1.61", status: .offline)
+        let snapshot = AskSnapshot(devices: [plain, office], events: [], now: Fix.now, calendar: Fix.calendar)
+        func ask(_ phrase: String, answer: String) async -> String? {
+            let model = ScriptedAskModel(scripts: ["Is it up?": AskScript(calls: [.findDevices(phrase)], answer: answer)])
+            return await AskNetwork.answer("Is it up?", snapshot: snapshot, pinnedDeviceID: nil, model: model).text
+        }
+        // Only "Office Printer" was looked up: "Printer" inside it names no other device.
+        #expect(await ask("Office Printer", answer: "Office Printer is online.") == "Office Printer is online.")
+        #expect(await ask("Office Printer", answer: "Office Printer is online and Printer is offline.") == nil)
+        // Only "Printer" was looked up: the longer name is the other device's.
+        #expect(await ask("dev-a", answer: "Printer is offline.") == "Printer is offline.")
+        #expect(await ask("dev-a", answer: "Office Printer is offline.") == nil)
+    }
+
     @Test func aMadeUpNameIsRejected() async {
         let answer = await ask("Is the printer up?", calls: [.findDevices("printer")],
                                answer: "Brother HL-L2350DW is offline and the Fridge is online.")
