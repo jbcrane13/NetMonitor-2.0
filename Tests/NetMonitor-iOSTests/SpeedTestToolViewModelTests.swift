@@ -296,7 +296,6 @@ struct SpeedTestToolViewModelStartTestTests {
         // The refusal is synchronous: nothing to wait for.
         vm.startTest(modelContext: store.1)
 
-        // The refusal is synchronous: nothing to wait for.
         #expect(vm.isRunning == false)
         #expect(vm.errorMessage == SpeedTestToolViewModel.busyMessage)
         #expect(vm.downloadSpeed == 0)
