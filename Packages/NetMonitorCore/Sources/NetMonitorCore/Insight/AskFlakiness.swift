@@ -5,7 +5,8 @@ import Foundation
 /// device fine.
 ///
 /// A drop is a "Device Left" event for the device in the range. A spike is one of this session's
-/// latency samples above three times the median (and at least 50 ms over it). A device is flaky
+/// latency samples above three times the median (and at least 50 ms over it). The samples carry
+/// no times, so they count only in a range that includes now: never for yesterday. A device is flaky
 /// when it dropped twice, dropped once and spiked, or spiked twice. Most drops rank first, then
 /// most spikes, then name.
 enum AskFlakiness {
@@ -16,8 +17,12 @@ enum AskFlakiness {
     }
 
     static func rank(_ devices: [AskDevice], in range: AskRange, snapshot: AskSnapshot) -> [Entry] {
-        devices.map { device in
-            Entry(device: device, drops: drops(of: device.id, in: range, snapshot: snapshot), spikes: spikes(in: device.latencyHistory))
+        let coversSession = range.interval(now: snapshot.now, calendar: snapshot.calendar).contains(snapshot.now)
+        return devices.map { device in
+            Entry(
+                device: device, drops: drops(of: device.id, in: range, snapshot: snapshot),
+                spikes: coversSession ? spikes(in: device.latencyHistory) : []
+            )
         }
         .filter { $0.drops >= 2 || ($0.drops >= 1 && !$0.spikes.isEmpty) || $0.spikes.count >= 2 }
         .sorted { lhs, rhs in

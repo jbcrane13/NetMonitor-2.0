@@ -151,12 +151,24 @@ struct AskToolboxTests {
         #expect(toolbox.record.deviceIDs == [Fix.doorbell.id, Fix.thermostat.id])
     }
 
-    @Test func spikesCountForAnyRangeBecauseTheyAreThisSessions() {
+    @Test func spikesCountOnlyInARangeThatIncludesThisSession() {
         let toolbox = Fix.toolbox()
         // The printer dropped once today without spikes: not flaky. The doorbell's spikes are this session's.
         #expect(toolbox.flakyDevices("today") == """
         1 flaky device today (2026-11-23), most first:
         - Ring Doorbell: went offline 0 times; 2 latency spikes, highest 512 ms
+        """)
+    }
+
+    @Test func thisSessionsSpikesDoNotMakeADeviceFlakyYesterday() {
+        // The doorbell dropped once yesterday; its two spikes are this session's and carry no times.
+        #expect(Fix.toolbox().flakyDevices("yesterday")
+            == "No device was flaky yesterday (2026-11-22): none went offline twice or had latency spikes.")
+        let twice = Fix.events + [Fix.event(.deviceLeft, "Device Left: Ring Doorbell", at: Fix.date(22, 3), device: Fix.doorbell)]
+        let toolbox = AskToolbox(snapshot: AskSnapshot(devices: Fix.devices, events: twice, now: Fix.now, calendar: Fix.calendar))
+        #expect(toolbox.flakyDevices("yesterday") == """
+        1 flaky device yesterday (2026-11-22), most first:
+        - Ring Doorbell: went offline 2 times
         """)
     }
 
