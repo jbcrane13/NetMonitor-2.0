@@ -74,7 +74,7 @@ NetMonitor-iOS  ──┘
 
 Run `bash scripts/setup-worktree.sh` in every new NM 2.0 worktree before starting work. Configure the worktree manager's setup command to run it automatically and wait for successful completion before starting the agent. The script locates its own checkout, so it also works when invoked by absolute path.
 
-Setup checks Xcode, XcodeGen, SwiftLint, SwiftFormat, and `gh`; configures `.githooks` per worktree; regenerates the Xcode project; and resolves pinned Swift packages. It stops on missing tools, incomplete Xcode setup, existing edits to generated files, or new generated-file/lockfile drift. Review any failure before proceeding. Detached HEAD produces a reminder to create a `codex/<issue-or-task>` branch before committing.
+Setup checks Xcode, XcodeGen, SwiftLint, SwiftFormat, and `gh`; configures `.githooks` per worktree; enables the codex-review gate (`~/.claude/scripts/enable-review-gate.sh`); regenerates the Xcode project; and resolves pinned Swift packages. It stops on missing tools, incomplete Xcode setup, existing edits to generated files, or new generated-file/lockfile drift. Review any failure before proceeding. Detached HEAD produces a reminder to create a `codex/<issue-or-task>` branch before committing.
 
 Setup does not copy secrets or `.env` files, install tools, build, test, switch branches, pull, or push. Use this script instead of the Heatmap-specific `.factory/init.sh` for new worktrees. Tests remain subject to the remote execution policy below.
 
@@ -220,6 +220,10 @@ Never log raw IPs, MACs, SSIDs, or hostnames outside `LogSanitizer` wrappers.
 CI runs all four on every PR via `lint.yml` and `code-quality.yml`. Periphery and jscpd are warning-only and do not block merges.
 
 ---
+
+## Review and Merge
+
+Reviewing or merging a pull request: follow `docs/agents/review-workflow.md`. A worker's own review never replaces it.
 
 ## Reference Docs
 
