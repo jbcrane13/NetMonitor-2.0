@@ -65,9 +65,11 @@ public final class CompanionInsightClient: Sendable, Observable {
     public func disconnected() {
         // Unavailable first, so no request can start between this and failing those in flight.
         setAvailable(false)
-        let pending = state.withLock {
-            defer { $0.pending.removeAll() }
-            return Array($0.pending.values)
+        // A named parameter, not `$0` inside `defer`: Xcode 16.4's compiler rejects that.
+        let pending = state.withLock { state in
+            let values = Array(state.pending.values)
+            state.pending.removeAll()
+            return values
         }
         for continuation in pending {
             continuation.yield(.unreachable)
