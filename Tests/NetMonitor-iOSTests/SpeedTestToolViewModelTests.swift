@@ -277,6 +277,32 @@ struct SpeedTestToolViewModelStartTestTests {
         withExtendedLifetime(store.0) {}
     }
 
+    @Test func startTestIsRefusedWhileTheTroubleshootersTestHoldsTheConnection() async throws {
+        // (#451 review) The troubleshooter claims a manual test; the tool must not run over it.
+        let store = try makeInMemoryStore()
+        let manual = IOSScheduledSpeedTest.manualTestsRunning
+        let scheduled = IOSScheduledSpeedTest.isTestRunning
+        defer {
+            IOSScheduledSpeedTest.manualTestsRunning = manual
+            IOSScheduledSpeedTest.isTestRunning = scheduled
+        }
+        IOSScheduledSpeedTest.isTestRunning = false
+        IOSScheduledSpeedTest.manualTestsRunning = 0
+        #expect(IOSScheduledSpeedTest.claimManualTest())
+
+        let mock = MockSpeedTestService()
+        mock.mockResult = SpeedTestData(downloadSpeed: 150, uploadSpeed: 60, latency: 18)
+        let vm = SpeedTestToolViewModel(service: mock)
+        vm.startTest(modelContext: store.1)
+        try await Task.sleep(for: .milliseconds(50))
+
+        #expect(vm.isRunning == false)
+        #expect(vm.errorMessage == SpeedTestToolViewModel.busyMessage)
+        #expect(vm.downloadSpeed == 0)
+        #expect(IOSScheduledSpeedTest.manualTestsRunning == 1)
+        withExtendedLifetime(store.0) {}
+    }
+
     @Test func startTestSuccessSyncsServiceState() async throws {
         let store = try makeInMemoryStore()
         let context = store.1

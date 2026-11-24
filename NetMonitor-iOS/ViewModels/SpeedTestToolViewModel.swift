@@ -95,10 +95,17 @@ final class SpeedTestToolViewModel {
 
     // MARK: - Actions
 
+    /// Shown when another speed test holds the connection.
+    static let busyMessage = "A speed test is already running. Try again when it finishes."
+
     func startTest(modelContext: ModelContext) {
-        // A scheduled test (#398) already using the connection would skew both results.
-        guard !isRunning, !IOSScheduledSpeedTest.isTestRunning else { return }
-        IOSScheduledSpeedTest.manualTestsRunning += 1
+        guard !isRunning else { return }
+        // A scheduled test (#398) or the troubleshooter's (#451) already using the connection
+        // would skew both results.
+        guard IOSScheduledSpeedTest.claimManualTest() else {
+            errorMessage = Self.busyMessage
+            return
+        }
 
         errorMessage = nil
         isRunning = true

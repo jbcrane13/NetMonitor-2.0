@@ -14,12 +14,13 @@ public final class ServiceTroubleshootProbes: TroubleshootProbing {
     private let speedTest: any SpeedTestServiceProtocol
     private let gateway: @MainActor () async -> String?
     private let canRunSpeedTest: @MainActor () -> Bool
-    private let speedTestFinished: @MainActor (SpeedTestData?) -> Void
+    private let speedTestFinished: @MainActor () -> Void
 
     /// - Parameters:
     ///   - gateway: the router's address (`NetworkUtilities.detectDefaultGateway()` by default).
-    ///   - canRunSpeedTest: false while another speed test runs, so two never overlap.
-    ///   - speedTestFinished: called after the troubleshooter's speed test, with its data or nil.
+    ///   - canRunSpeedTest: claims the connection for a speed test; false while another runs, so two
+    ///     never overlap. The result is not saved to speed test history: it's a diagnostic sample.
+    ///   - speedTestFinished: releases that claim, after the test ends however it ends.
     public init(
         pingService: any PingServiceProtocol = PingService(),
         portScanner: any PortScannerServiceProtocol = PortScannerService(),
@@ -28,7 +29,7 @@ public final class ServiceTroubleshootProbes: TroubleshootProbing {
         speedTest: any SpeedTestServiceProtocol = SpeedTestService(),
         gateway: @escaping @MainActor () async -> String? = { NetworkUtilities.detectDefaultGateway() },
         canRunSpeedTest: @escaping @MainActor () -> Bool = { true },
-        speedTestFinished: @escaping @MainActor (SpeedTestData?) -> Void = { _ in }
+        speedTestFinished: @escaping @MainActor () -> Void = {}
     ) {
         self.pingService = pingService
         self.portScanner = portScanner
@@ -73,17 +74,18 @@ public final class ServiceTroubleshootProbes: TroubleshootProbing {
         return WiFiReading(rssi: rssi, noise: wifi.noiseLevel.flatMap { $0 < 0 ? $0 : nil })
     }
 
-    public func downloadSpeed() async -> Double? {
-        guard canRunSpeedTest() else { return nil }
+    public func downloadSpeed() async -> SpeedTestOutcome {
+        guard canRunSpeedTest() else { return .busy }
+        // Released whatever happens, so the scheduler and the Speed Test tool can run again.
+        defer { speedTestFinished() }
         let service = speedTest
         let data = await withTaskCancellationHandler {
             try? await service.startTest()
         } onCancel: {
             Task { @MainActor in service.stopTest() }
         }
-        let finished = Task.isCancelled ? nil : data
-        speedTestFinished(finished)
-        return finished?.downloadSpeed
+        guard !Task.isCancelled, let data else { return .failed }
+        return .measured(downloadMbps: data.downloadSpeed)
     }
 
     public func openPorts(on host: String, among ports: [Int]) async -> [Int] {

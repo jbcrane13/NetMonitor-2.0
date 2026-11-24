@@ -109,6 +109,51 @@ struct TroubleshootFindingsTests {
         #expect(findings.first?.title == "Office Printer is offline or asleep")
     }
 
+    @Test func aSilentDeviceWithTheRouterUnmeasuredIsNotAnAllClear() {
+        // (#451 review) No router address: the device's silence can't be blamed on either side.
+        let findings = TroubleshootRules.findings(for: [
+            ping(.device("Office Printer", "192.168.1.30"), sent: 5, received: 0),
+            .ports(host: "192.168.1.30", open: [], closed: [631, 9100]),
+            .unavailable("No router address found")
+        ], completed: true)
+        #expect(findings.map(\.kind) == [.deviceOffline])
+        #expect(findings.first?.title == "Office Printer isn't answering")
+        #expect(findings.first?.detail
+            == "Office Printer answered none of 5 pings or its known ports. Your router couldn't be checked, so the network may be the cause.")
+    }
+
+    @Test func aSilentSiteWithTheRouterUnmeasuredIsNotAnAllClear() {
+        let findings = TroubleshootRules.findings(for: [
+            .dns(host: "github.com", milliseconds: 20), ping(.host("github.com"), sent: 5, received: 0),
+            .ports(host: "github.com", open: [], closed: [443]), .unavailable("No router address found")
+        ], completed: true)
+        #expect(findings.map(\.kind) == [.siteNotAnswering])
+        #expect(findings.first?.detail
+            == "github.com resolved, but didn't answer on port 443. Your router couldn't be checked, so the network may be the cause.")
+    }
+
+    @Test func routerJitterOverThirtyMillisecondsIsAnUnstableLink() {
+        #expect(kinds([ping(.gateway, sent: 10, received: 10, avg: 20, jitter: 31)]) == [.unstableRouterLink])
+        #expect(kinds([ping(.gateway, sent: 10, received: 10, avg: 20, jitter: 30)]) == [.noProblem])
+    }
+
+    @Test func routerLatencyOverOneHundredMillisecondsIsAnUnstableLink() {
+        let findings = TroubleshootRules.findings(for: [ping(.gateway, sent: 10, received: 10, avg: 101, jitter: 2)], completed: true)
+        #expect(findings.map(\.kind) == [.unstableRouterLink])
+        #expect(findings.first?.title == "Unstable connection to your router")
+        #expect(findings.first?.detail
+            == "Pings to your router averaged 101 ms with 2 ms jitter; over 100 ms average or 30 ms jitter makes calls and games stutter.")
+        #expect(kinds([ping(.gateway, sent: 10, received: 10, avg: 100, jitter: 2)]) == [.noProblem])
+    }
+
+    @Test func zoomFreezingWithHighJitterIsNotAnAllClear() {
+        let results: [TroubleshootResult] = [
+            ping(.gateway, sent: 10, received: 10, avg: 45, jitter: 90), .dns(host: "apple.com", milliseconds: 30),
+            .wifi([WiFiReading(rssi: -55, noise: -92)]), .speed(downloadMbps: 80, baselineMbps: 90)
+        ]
+        #expect(kinds(results) == [.unstableRouterLink])
+    }
+
     @Test func aDeviceThatAnswersOnAPortIsNotOffline() {
         let results = [ping(.device("Office Printer", "192.168.1.30"), sent: 5, received: 0),
                        .ports(host: "192.168.1.30", open: [9100], closed: [631]),
@@ -158,6 +203,8 @@ struct TroubleshootFindingsTests {
             .wifi([WiFiReading(rssi: -80, noise: -92)]), .speed(downloadMbps: 10, baselineMbps: 100)
         ]
         #expect(kinds(results) == [.weakSignal, .gatewayLoss, .dnsSlow, .ispSlow])
+        let unstable: [TroubleshootResult] = [ping(.gateway, sent: 10, received: 9, avg: 150, jitter: 40), .dns(host: "apple.com", milliseconds: 450)]
+        #expect(kinds(unstable) == [.gatewayLoss, .unstableRouterLink, .dnsSlow])
     }
 
     @Test func findingTextCarriesItsOwnValues() {

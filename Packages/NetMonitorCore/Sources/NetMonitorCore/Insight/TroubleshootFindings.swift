@@ -8,6 +8,7 @@ public struct TroubleshootFinding: Equatable, Sendable, Identifiable {
     public enum Kind: String, Sendable, CaseIterable, Comparable {
         case weakSignal
         case gatewayLoss
+        case unstableRouterLink
         case dnsFailed
         case dnsSlow
         case deviceOffline
@@ -38,9 +39,10 @@ public struct TroubleshootFinding: Equatable, Sendable, Identifiable {
 /// |---|---|
 /// | weak signal | the mean of every Wi-Fi reading is below −75 dBm |
 /// | packet loss to the router | 5% or more of the router pings got no reply. With 5 or 10 pings that is one lost reply: deliberate, any loss to the router is worth naming |
+/// | unstable connection to the router | router pings averaged over 100 ms, or jitter (mean change between consecutive replies) over 30 ms: calls and games stutter well before pings are lost |
 /// | DNS failed / slow | a lookup didn't resolve, or took over 300 ms |
-/// | device offline or asleep | the device answered no ping and no known port, while the router answered with under 5% loss |
-/// | website not answering | the site's name resolved, port 443 didn't answer, and the router is healthy |
+/// | device offline or asleep | the device answered no ping and no known port, while the router answered with under 5% loss. With the router unmeasured, the device "isn't answering" and the router is named as unverified |
+/// | website not answering | the site's name resolved and port 443 didn't answer, while the router is healthy or unmeasured (then named as unverified) |
 /// | slower than usual | download under 25% of the last saved speed test |
 /// | no problem found | the script finished, measured something, and nothing above fired |
 ///
@@ -49,6 +51,8 @@ public struct TroubleshootFinding: Equatable, Sendable, Identifiable {
 public enum TroubleshootRules {
     public static let weakRSSI = -75
     public static let gatewayLossPercent = 5.0
+    public static let unstableLatencyMilliseconds = 100.0
+    public static let unstableJitterMilliseconds = 30.0
     public static let slowDNSMilliseconds = 300.0
     /// Download under this share of the last saved test is ISP slowness.
     public static let slowSpeedFraction = 0.25
@@ -58,9 +62,11 @@ public enum TroubleshootRules {
     public static func findings(for results: [TroubleshootResult], completed: Bool) -> [TroubleshootFinding] {
         let gateway = pings(in: results).first { $0.target == .gateway }
         let gatewayHealthy = gateway.map { $0.received > 0 && $0.lossPercent < gatewayLossPercent } ?? false
-        var findings = weakSignal(in: results) + gatewayLoss(gateway) + dns(in: results)
-        if gatewayHealthy {
-            findings += offlineDevices(in: results) + silentSites(in: results)
+        var findings = weakSignal(in: results) + gatewayLoss(gateway) + unstableLink(gateway) + dns(in: results)
+        // A lossy router explains a silent device or site by itself; an unmeasured one can't clear them.
+        if gatewayHealthy || gateway == nil {
+            let unverified = gateway == nil
+            findings += offlineDevices(in: results, routerUnverified: unverified) + silentSites(in: results, routerUnverified: unverified)
         }
         findings += ispSlowness(in: results)
         // An all-clear needs something measured, and says when some steps couldn't measure.
@@ -122,6 +128,20 @@ public enum TroubleshootRules {
         )]
     }
 
+    private static func unstableLink(_ gateway: PingSummary?) -> [TroubleshootFinding] {
+        guard let gateway, let average = gateway.averageMs,
+              average > unstableLatencyMilliseconds || (gateway.jitterMs ?? 0) > unstableJitterMilliseconds
+        else { return [] }
+        let jitter = gateway.jitterMs.map { " with \(TroubleshootResult.number($0)) ms jitter" } ?? ""
+        return [TroubleshootFinding(
+            kind: .unstableRouterLink,
+            title: "Unstable connection to your router",
+            detail: "Pings to your router averaged \(TroubleshootResult.number(average)) ms\(jitter); over \(Int(unstableLatencyMilliseconds)) ms "
+                + "average or \(Int(unstableJitterMilliseconds)) ms jitter makes calls and games stutter.",
+            nextStep: "Move closer to the router or use a cable, and pause large downloads on the network, then run the check again."
+        )]
+    }
+
     private static func dns(in results: [TroubleshootResult]) -> [TroubleshootFinding] {
         results.compactMap { result in
             guard case let .dns(host, milliseconds) = result else { return nil }
@@ -145,8 +165,11 @@ public enum TroubleshootRules {
         }
     }
 
-    /// Devices that answered no ping and no known port. Only asked while the router is healthy.
-    private static func offlineDevices(in results: [TroubleshootResult]) -> [TroubleshootFinding] {
+    /// What's said when the router couldn't be measured.
+    static let routerUnverifiedNote = " Your router couldn't be checked, so the network may be the cause."
+
+    /// Devices that answered no ping and no known port. Asked while the router is healthy, or unmeasured.
+    private static func offlineDevices(in results: [TroubleshootResult], routerUnverified: Bool) -> [TroubleshootFinding] {
         let answering = Set(results.compactMap { result -> String? in
             if case let .ports(host, open, _) = result, !open.isEmpty {
                 host
@@ -158,16 +181,17 @@ public enum TroubleshootRules {
             guard case let .device(name, address) = summary.target, summary.received == 0, !answering.contains(address) else { return nil }
             return TroubleshootFinding(
                 kind: .deviceOffline,
-                title: "\(name) is offline or asleep",
-                detail: "\(name) answered none of \(summary.sent) pings or its known ports, while your router answered.",
+                title: routerUnverified ? "\(name) isn't answering" : "\(name) is offline or asleep",
+                detail: "\(name) answered none of \(summary.sent) pings or its known ports"
+                    + (routerUnverified ? "." + routerUnverifiedNote : ", while your router answered."),
                 nextStep: "Check that \(name) is powered on and connected to the network, or wake it.",
                 subject: name
             )
         }
     }
 
-    /// Sites whose name resolved but which didn't answer on 443. Only asked while the router is healthy.
-    private static func silentSites(in results: [TroubleshootResult]) -> [TroubleshootFinding] {
+    /// Sites whose name resolved but which didn't answer on 443. Asked while the router is healthy, or unmeasured.
+    private static func silentSites(in results: [TroubleshootResult], routerUnverified: Bool) -> [TroubleshootFinding] {
         let resolved = Set(results.compactMap { result -> String? in
             if case let .dns(host, milliseconds?) = result, milliseconds >= 0 {
                 host
@@ -180,7 +204,7 @@ public enum TroubleshootRules {
             return TroubleshootFinding(
                 kind: .siteNotAnswering,
                 title: "\(host) isn't answering",
-                detail: "\(host) resolved, but didn't answer on port 443, while your router answered.",
+                detail: "\(host) resolved, but didn't answer on port 443" + (routerUnverified ? "." + routerUnverifiedNote : ", while your router answered."),
                 nextStep: "The site may be down; try again later or from another network.",
                 subject: host
             )

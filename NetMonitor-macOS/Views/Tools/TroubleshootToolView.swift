@@ -23,7 +23,7 @@ struct TroubleshootToolView: View {
 
     /// What the state reads when a run needs it.
     private struct InputsKey: Equatable {
-        let deviceIDs: [UUID]
+        let devices: [TroubleshootDevice]
         let networkProfileID: UUID?
         let isScanning: Bool
     }
@@ -41,7 +41,11 @@ struct TroubleshootToolView: View {
         )
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("screen_troubleshoot")
-        .task(id: InputsKey(deviceIDs: devices.map(\.id), networkProfileID: networkProfileID, isScanning: coordinator?.isScanning ?? false)) {
+        .task(id: InputsKey(
+            devices: devices.map(TroubleshootDevice.init),
+            networkProfileID: networkProfileID,
+            isScanning: coordinator?.isScanning ?? false
+        )) {
             viewModel.update(devices: devices, networkProfileID: networkProfileID, isScanning: coordinator?.isScanning ?? false)
         }
         .onDisappear { state.cancel() }
@@ -191,7 +195,7 @@ struct TroubleshootToolView: View {
                         Text("\(step.id). \(step.check.title)")
                             .font(.system(size: 12, weight: .medium))
                             .foregroundStyle(MacTheme.Colors.textPrimary)
-                        Text(stepText(step.status))
+                        Text(step.status.text)
                             .font(.system(size: 11, design: .monospaced))
                             .foregroundStyle(MacTheme.Colors.labelSecondary)
                     }
@@ -211,23 +215,15 @@ struct TroubleshootToolView: View {
         .accessibilityElement(children: .contain)
     }
 
+    /// The icon for a step's tone (Core `TroubleshootStep.Status.tone`).
     @ViewBuilder
     private func stepIcon(_ status: TroubleshootStep.Status) -> some View {
-        switch status {
+        switch status.tone {
         case .pending: Image(systemName: "circle").foregroundStyle(MacTheme.Colors.labelTertiary)
         case .running: ProgressView().controlSize(.mini)
-        case .done(.skipped), .done(.unavailable): Image(systemName: "minus.circle").foregroundStyle(MacTheme.Colors.labelSecondary)
-        case .done: Image(systemName: "checkmark.circle.fill").foregroundStyle(MacTheme.Colors.success)
+        case .unmeasured: Image(systemName: "minus.circle").foregroundStyle(MacTheme.Colors.labelSecondary)
+        case .measured: Image(systemName: "checkmark.circle.fill").foregroundStyle(MacTheme.Colors.success)
         case .cancelled: Image(systemName: "xmark.circle").foregroundStyle(MacTheme.Colors.labelTertiary)
-        }
-    }
-
-    private func stepText(_ status: TroubleshootStep.Status) -> String {
-        switch status {
-        case .pending: "Waiting"
-        case .running: "Running…"
-        case let .done(result): result.text
-        case .cancelled: "Not run"
         }
     }
 

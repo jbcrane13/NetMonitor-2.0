@@ -10,7 +10,7 @@ final class MockTroubleshootProbes: TroubleshootProbing {
     var pingTimes: [String: [Double]] = [:]
     var lookups: [String: Double] = [:]
     var readings: [WiFiReading] = [WiFiReading(rssi: -55, noise: -92)]
-    var download: Double? = 90
+    var download: SpeedTestOutcome = .measured(downloadMbps: 90)
     var openPortsByHost: [String: [Int]] = [:]
     /// The call, by its name in `calls`, that waits until its task is cancelled.
     var holds: String?
@@ -47,9 +47,9 @@ final class MockTroubleshootProbes: TroubleshootProbing {
         return readings.isEmpty ? nil : readings.removeFirst()
     }
 
-    func downloadSpeed() async -> Double? {
+    func downloadSpeed() async -> SpeedTestOutcome {
         await record("speed")
-        return Task.isCancelled ? nil : download
+        return Task.isCancelled ? .failed : download
     }
 
     func openPorts(on host: String, among ports: [Int]) async -> [Int] {
@@ -178,9 +178,27 @@ struct TroubleshootStateTests {
         #expect(state.explanation == nil)
     }
 
+    @Test func aRefusedSpeedTestSaysAnotherIsRunning() async {
+        let probes = MockTroubleshootProbes()
+        probes.download = .busy
+        let state = make(probes)
+        await state.choose(.slowOrUnstableInternet)
+        #expect(results(state).last == .unavailable("A speed test is already running"))
+    }
+
+    @Test func eachStepStatusHasItsTextAndTone() {
+        #expect(TroubleshootStep.Status.pending.text == "Waiting")
+        #expect(TroubleshootStep.Status.running.text == "Running…")
+        #expect(TroubleshootStep.Status.cancelled.text == "Not run")
+        #expect(TroubleshootStep.Status.done(.skipped).text == "Skipped")
+        #expect([TroubleshootStep.Status.pending, .running, .done(.skipped), .done(.unavailable("x")), .done(.wifi([])),
+                 .done(.dns(host: "a.com", milliseconds: 3)), .cancelled].map(\.tone)
+            == [.pending, .running, .unmeasured, .unmeasured, .unmeasured, .measured, .cancelled])
+    }
+
     @Test func theSpeedTestIsComparedWithTheBaselineReadBeforeItRuns() async {
         let probes = MockTroubleshootProbes()
-        probes.download = 20
+        probes.download = .measured(downloadMbps: 20)
         let state = make(probes, baseline: 100)
         await state.choose(.slowOrUnstableInternet)
         #expect(results(state).last == .speed(downloadMbps: 20, baselineMbps: 100))

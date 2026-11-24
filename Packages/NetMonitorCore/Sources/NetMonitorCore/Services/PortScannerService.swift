@@ -14,9 +14,14 @@ public actor PortScannerService: PortScannerServiceProtocol {
         ports: [Int],
         timeout: TimeInterval = 2
     ) -> AsyncStream<PortScanResult> {
-        AsyncStream { continuation in
+        // Registered before the stream exists, and ended by the stream's own termination: a
+        // consumer cancelled at any point ends exactly this run, even before it started (#451).
+        let runID = beginRun()
+        return AsyncStream { continuation in
+            continuation.onTermination = { _ in
+                Task { await self.endRun(runID: runID) }
+            }
             Task {
-                let runID = self.beginRun()
 
                 // Reject out-of-range ports before probing: port 0 is not a scannable
                 // destination, and anything above 65535 cannot be represented as a
@@ -48,6 +53,9 @@ public actor PortScannerService: PortScannerServiceProtocol {
             }
         }
     }
+
+    /// Whether a run is in progress, for tests.
+    var hasActiveRun: Bool { activeRunID != nil }
 
     public func stop() async {
         isRunning = false

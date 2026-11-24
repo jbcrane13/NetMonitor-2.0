@@ -36,7 +36,7 @@ final class TroubleshootMacViewModel {
                     MacSpeedTestHistory.isTestRunning = true
                     return true
                 },
-                speedTestFinished: { _ in MacSpeedTestHistory.isTestRunning = false }
+                speedTestFinished: { MacSpeedTestHistory.isTestRunning = false }
             ),
             classifier: SymptomClassifier.shared,
             insight: InsightService.shared,

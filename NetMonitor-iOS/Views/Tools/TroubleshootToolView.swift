@@ -11,15 +11,26 @@ struct TroubleshootToolView: View {
     @State private var symptom = ""
     @State private var host = ""
     @Query private var devices: [LocalDevice]
-    @Query(sort: \SpeedTestResult.timestamp, order: .reverse) private var speedTests: [SpeedTestResult]
+    /// Only the latest saved test: its download is the baseline.
+    @Query private var speedTests: [SpeedTestResult]
     private let networkProfileID: UUID?
 
     init(env: AppEnvironment) {
         _viewModel = State(initialValue: TroubleshootToolViewModel(env: env))
         networkProfileID = env.currentNetworkProfileID()
+        var latest = FetchDescriptor<SpeedTestResult>(sortBy: [SortDescriptor(\.timestamp, order: .reverse)])
+        latest.fetchLimit = 1
+        _speedTests = Query(latest)
     }
 
     private var state: TroubleshootState { viewModel.state }
+
+    /// What the state reads when a run needs it: the devices as the troubleshooter sees them (a
+    /// rename or a scan's new ports change them) and the latest saved speed test.
+    private struct InputsKey: Equatable {
+        let devices: [TroubleshootDevice]
+        let latestSpeedTest: UUID?
+    }
 
     var body: some View {
         ScrollView {
@@ -43,7 +54,7 @@ struct TroubleshootToolView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
         .accessibilityIdentifier("screen_troubleshootTool")
-        .task(id: [devices.count, speedTests.count]) {
+        .task(id: InputsKey(devices: devices.map(TroubleshootDevice.init), latestSpeedTest: speedTests.first?.id)) {
             viewModel.update(devices: devices, networkProfileID: networkProfileID, latestDownload: speedTests.first?.downloadSpeed)
         }
         .onDisappear { state.cancel() }
@@ -213,7 +224,7 @@ struct TroubleshootToolView: View {
                 Text("\(step.id). \(step.check.title)")
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(Theme.Colors.textPrimary)
-                Text(stepText(step.status))
+                Text(step.status.text)
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(Theme.Colors.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -224,23 +235,15 @@ struct TroubleshootToolView: View {
         .accessibilityIdentifier("troubleshoot_step_\(step.id)")
     }
 
+    /// The icon for a step's tone (Core `TroubleshootStep.Status.tone`).
     @ViewBuilder
     private func stepIcon(_ status: TroubleshootStep.Status) -> some View {
-        switch status {
+        switch status.tone {
         case .pending: Image(systemName: "circle").foregroundStyle(Theme.Colors.textTertiary)
         case .running: ProgressView().controlSize(.small)
-        case .done(.skipped), .done(.unavailable): Image(systemName: "minus.circle").foregroundStyle(Theme.Colors.textSecondary)
-        case .done: Image(systemName: "checkmark.circle.fill").foregroundStyle(Theme.Colors.success)
+        case .unmeasured: Image(systemName: "minus.circle").foregroundStyle(Theme.Colors.textSecondary)
+        case .measured: Image(systemName: "checkmark.circle.fill").foregroundStyle(Theme.Colors.success)
         case .cancelled: Image(systemName: "xmark.circle").foregroundStyle(Theme.Colors.textTertiary)
-        }
-    }
-
-    private func stepText(_ status: TroubleshootStep.Status) -> String {
-        switch status {
-        case .pending: "Waiting"
-        case .running: "Running…"
-        case let .done(result): result.text
-        case .cancelled: "Not run"
         }
     }
 
