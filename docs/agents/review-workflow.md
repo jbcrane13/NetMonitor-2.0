@@ -38,6 +38,8 @@ The lead reads both reports, makes each call, and sends one consolidated fix lis
 ****Codex review (being adopted):**
 - **`codex-review`** is the automatic check, hosted on mini-pro-1. It runs on every PR, and its findings are handled like any other review thread.
 - **`codex-adversarial-review`** is run on demand when a PR carries risk: concurrency, data integrity or migration, privacy or security, the companion protocol, or model output that the user sees as fact.
+  - It accepts a text brief and needs one. Give it the PR's intent, Blake's recorded decisions, the accepted deviations and the risk areas to attack, the same context the spec reviewer gets.
+  - `codex-review` takes no input; it reviews the diff as is.
 
 Neither replaces the two-axis review; they add to it.
 
