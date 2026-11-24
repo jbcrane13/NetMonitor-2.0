@@ -132,7 +132,9 @@ struct LabelReaderTests {
         (["S/N:", "NW12K4471093"], "NW12K4471093"),
         (["Serial Number", "MODEL"], nil),
         (["Serial No.", "MAC: 3C:22:FB:0A:1B:2C"], nil),
-        (["Serial NOX12345"], "NOX12345")
+        (["Serial NOX12345"], "NOX12345"),
+        (["SERIAL NUMBER:", "Serial No."], nil),
+        (["Serial Number", "S/N 2048ZZ01"], "2048ZZ01")
     ] as [([String], String?)])
     func serialHeadings(_ lines: [String], serial: String?) {
         #expect(LabelTextScanner.fields(in: lines).serial == serial)
