@@ -243,6 +243,24 @@ struct TroubleshootStateTests {
         #expect(state.explanation == nil)
     }
 
+    @Test func cancellingWhileTheSymptomIsReadRunsNothing() async {
+        let probes = MockTroubleshootProbes()
+        let classifier = HeldSymptomClassifier()
+        let state = make(probes, classifier: classifier)
+        let run = Task { await state.describe("The internet is slow") }
+        await waitUntil { classifier.isWaiting }
+        #expect(state.phase == .classifying)
+        state.cancel()
+        #expect(state.phase == .idle)
+        // The model answers after the cancel: its answer must not start the script.
+        classifier.answer(SymptomIntent(kind: .slowOrUnstableInternet))
+        await run.value
+        #expect(state.phase == .idle)
+        #expect(state.kind == nil)
+        #expect(state.steps.isEmpty)
+        #expect(probes.calls.isEmpty)
+    }
+
     @Test func skippingTheSpeedTestFinishesTheScript() async {
         let probes = MockTroubleshootProbes()
         probes.holds = "speed"
@@ -306,6 +324,26 @@ struct TroubleshootStateTests {
         #expect(state.findings.first?.kind == .weakSignal)
     }
 
+    @Test func anExplanationOfAnEarlierRunIsDiscarded() async {
+        let probes = MockTroubleshootProbes()
+        probes.readings = [WiFiReading(rssi: -80, noise: -92)]
+        let insight = MockInsightService()
+        let state = make(probes, insight: insight)
+        let first = Task { await state.choose(.slowOrUnstableInternet) }
+        await waitUntil { state.isExplaining }
+        #expect(state.findings.first?.kind == .weakSignal)
+
+        // A website check starts while the weak-signal explanation is still being written.
+        await state.choose(.websiteNotLoading)
+        #expect(state.phase == .needsHost)
+        #expect(!state.isExplaining)
+        insight.send(.finished(Self.answer), to: 0)
+        await first.value
+        #expect(state.explanation == nil)
+        #expect(!state.isExplaining)
+        #expect(state.phase == .needsHost)
+    }
+
     @Test func withoutTheModelTheButtonsAndFindingsStillWork() async {
         let probes = MockTroubleshootProbes()
         probes.readings = [WiFiReading(rssi: -80, noise: -92)]
@@ -324,6 +362,30 @@ struct TroubleshootStateTests {
         state.reset()
         #expect(state.phase == .idle)
         #expect(state.steps.isEmpty && state.findings.isEmpty && state.explanation == nil && state.kind == nil)
+    }
+}
+
+/// A classifier that answers only when the test says so, and ignores cancellation, as a model
+/// call that is already finishing would.
+private final class HeldSymptomClassifier: SymptomClassifierProtocol, @unchecked Sendable {
+    private let lock = NSLock()
+    private var waiting: CheckedContinuation<SymptomIntent?, Never>?
+
+    var isAvailable: Bool { true }
+    var isWaiting: Bool { lock.withLock { waiting != nil } }
+
+    func classify(_ symptom: String) async -> SymptomIntent? {
+        await withCheckedContinuation { continuation in
+            lock.withLock { waiting = continuation }
+        }
+    }
+
+    func answer(_ intent: SymptomIntent?) {
+        let continuation = lock.withLock {
+            defer { waiting = nil }
+            return waiting
+        }
+        continuation?.resume(returning: intent)
     }
 }
 

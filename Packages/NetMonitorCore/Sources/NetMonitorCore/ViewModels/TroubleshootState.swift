@@ -102,6 +102,11 @@ public final class TroubleshootState {
     private let timeout: Duration
     private var runTask: Task<Void, Never>?
     private var stepTask: Task<TroubleshootResult, Never>?
+    private var classifyTask: Task<SymptomIntent?, Never>?
+    private var explainTask: Task<String?, Never>?
+    /// Goes up when a run is cleared or its classification is cancelled; model work started
+    /// under an earlier value is discarded when it returns.
+    private var runID = 0
     private var isCancelled = false
     private var skipRequested = false
 
@@ -152,8 +157,15 @@ public final class TroubleshootState {
             return
         }
         clear()
+        let run = runID
         phase = .classifying
-        guard let intent = await classifier.classify(text), intent.kind != .unsupported else {
+        let task = Task { [classifier] in await classifier.classify(text) }
+        classifyTask = task
+        let classified = await task.value
+        // Cancelled or reset while the model was reading: start nothing.
+        guard run == runID else { return }
+        classifyTask = nil
+        guard let intent = classified, intent.kind != .unsupported else {
             phase = .unsupported
             return
         }
@@ -180,8 +192,16 @@ public final class TroubleshootState {
         await run(.websiteNotLoading, host: host)
     }
 
-    /// Cancels the run; the results so far stay.
+    /// Cancels the run; the results so far stay. Cancelling while the symptom is being read goes
+    /// back to the symptom field and runs nothing.
     public func cancel() {
+        if phase == .classifying {
+            runID += 1
+            classifyTask?.cancel()
+            classifyTask = nil
+            phase = .idle
+            return
+        }
         guard phase == .running else { return }
         isCancelled = true
         stepTask?.cancel()
@@ -204,6 +224,10 @@ public final class TroubleshootState {
     // MARK: - Running
 
     private func clear() {
+        runID += 1
+        explainTask?.cancel()
+        explainTask = nil
+        isExplaining = false
         phase = .idle
         kind = nil
         intent = nil
@@ -345,8 +369,16 @@ public final class TroubleshootState {
 
     private func explain(_ kind: SymptomKind) async {
         guard insight.isAvailable, !isScanning(), let report = TroubleshootReportBuilder.report(for: kind, findings: findings) else { return }
+        let run = runID
         isExplaining = true
-        let text = await InsightSummarizer.summary(for: report.request, service: insight, timeout: timeout)
+        let task = Task { [insight, timeout] in
+            await InsightSummarizer.summary(for: report.request, service: insight, timeout: timeout)
+        }
+        explainTask = task
+        let text = await task.value
+        // Another run replaced this one while the model was writing: its findings aren't these.
+        guard run == runID else { return }
+        explainTask = nil
         isExplaining = false
         explanation = text.flatMap { report.accepts($0) ? $0 : nil }
     }
