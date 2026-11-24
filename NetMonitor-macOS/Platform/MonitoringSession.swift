@@ -181,6 +181,13 @@ final class MonitoringSession {
         }
     }
 
+    /// Starts checking a target added while monitoring runs; `startMonitoring()` only reads the
+    /// targets that existed when it started (#450).
+    func monitorAddedTarget(_ target: NetworkTarget) {
+        guard isMonitoring, target.isEnabled, monitoringTasks[target.id] == nil else { return }
+        startMonitoringTarget(target)
+    }
+
     func latestMeasurement(for targetID: UUID) -> TargetMeasurement? {
         latestResults[targetID]
     }

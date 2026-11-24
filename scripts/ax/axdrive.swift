@@ -9,6 +9,8 @@ import ApplicationServices
 //   axdrive capture-element <id> <file.png>  (only that element's frame on screen)
 //   axdrive pressin <id> <title>  (presses the descendant of <id> titled <title>, such as a picker segment)
 //   axdrive capture-in <id> <file.png>  (the app window only, cropped to that element; no other window shows)
+//   axdrive typefield <id> <text>  (types into the first text field with or inside <id>, for a container
+//                                  whose identifier macOS 27 stamps over its children's)
 let args = CommandLine.arguments
 guard args.count >= 2 else { print("usage")
 exit(2)
@@ -122,6 +124,24 @@ func descendant(of root: AXUIElement, titled title: String) -> AXUIElement? {
     return nil
 }
 
+/// The first text field with identifier `id`, or inside an element with it: macOS 27 stamps a
+/// container's identifier over its children's, so the field may carry the container's.
+func textField(_ id: String) -> AXUIElement? {
+    guard let pid = app()?.processIdentifier else { return nil }
+    var queue: [(AXUIElement, Bool)] = [(AXUIElementCreateApplication(pid), false)]
+    var seen = 0
+    while !queue.isEmpty, seen < 20000 {
+        let (el, insideID) = queue.removeFirst()
+        seen += 1
+        let inside = insideID || attr(el, "AXIdentifier") as? String == id
+        if inside, attr(el, kAXRoleAttribute) as? String == kAXTextFieldRole {
+            return el
+        }
+        queue += (attr(el, kAXChildrenAttribute) as? [AXUIElement] ?? []).map { ($0, inside) }
+    }
+    return nil
+}
+
 func center(_ el: AXUIElement) -> CGPoint? {
     guard let posValue = attr(el, kAXPositionAttribute), let sizeValue = attr(el, kAXSizeAttribute),
           CFGetTypeID(posValue) == AXValueGetTypeID(), CFGetTypeID(sizeValue) == AXValueGetTypeID()
@@ -182,9 +202,16 @@ case "click":
     }
     mouseClick(point)
     print("clicked \(args[2]) at \(point)")
-case "type":
-    guard let el = find(args[2]) else { print("NOTFOUND \(args[2])")
+case "type", "typefield":
+    guard let found = find(args[2]) else { print("NOTFOUND \(args[2])")
     exit(1)
+    }
+    var el = found
+    if args[1] == "typefield" {
+        guard let field = textField(args[2]) else { print("NOFIELD \(args[2])")
+        exit(1)
+        }
+        el = field
     }
     AXUIElementSetAttributeValue(el, kAXFocusedAttribute as CFString, kCFBooleanTrue)
     if let point = center(el) {

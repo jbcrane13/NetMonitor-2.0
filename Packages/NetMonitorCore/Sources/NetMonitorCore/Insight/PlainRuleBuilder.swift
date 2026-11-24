@@ -30,6 +30,13 @@ public struct AlertRuleDraft: Sendable, Equatable {
     /// False when the user gave no latency threshold and the default is filled in.
     public var thresholdWasGiven: Bool
 
+    public init(rule: AlertRule, device: RuleDevice?, hasTarget: Bool, thresholdWasGiven: Bool) {
+        self.rule = rule
+        self.device = device
+        self.hasTarget = hasTarget
+        self.thresholdWasGiven = thresholdWasGiven
+    }
+
     /// Offer to add a monitoring target for the device: only targets time an outage closely
     /// and measure latency.
     public var offersTarget: Bool {

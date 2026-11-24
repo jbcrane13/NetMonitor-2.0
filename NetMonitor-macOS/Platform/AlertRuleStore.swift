@@ -113,7 +113,8 @@ final class MacRuleAlerts {
             case let .cameOnline(seen):
                 event(.cameOnline, seen.ipAddress, seen.macAddress, seen.name, devices, networkID)
             case let .wentOffline(known):
-                event(.wentOffline, known.ipAddress, known.macAddress, known.name, devices, networkID)
+                // Reported after the grace period: the device has been down since it last answered.
+                event(.wentOffline, known.ipAddress, known.macAddress, known.name, devices, networkID, offlineSince: known.lastSeen)
             case .changed:
                 nil
             }
@@ -136,11 +137,15 @@ final class MacRuleAlerts {
             deviceType: row?.deviceType,
             maker: row?.makerExcludingSuggestions,
             networkID: row == nil ? nil : networkID,
-            stateKey: "target:\(result.targetID.uuidString)"
+            stateKey: "target:\(result.targetID.uuidString)",
+            deviceID: row?.id
         )
         var events: [AlertRuleEvent] = []
         if result.wentDown {
             events.append(AlertRuleEvent(kind: .wentOffline, subject: subject))
+        } else if !result.isReachable {
+            // Times rules that wait for an outage to last (#450).
+            events.append(AlertRuleEvent(kind: .stillOffline, subject: subject))
         }
         if result.cameUp {
             events.append(AlertRuleEvent(kind: .cameOnline, subject: subject))
@@ -169,9 +174,10 @@ final class MacRuleAlerts {
     }
 
     private func event(
-        _ kind: AlertRuleEvent.Kind, _ ip: String, _ mac: String?, _ name: String?, _ devices: [LocalDevice], _ networkID: UUID?
+        _ kind: AlertRuleEvent.Kind, _ ip: String, _ mac: String?, _ name: String?, _ devices: [LocalDevice], _ networkID: UUID?,
+        offlineSince: Date? = nil
     ) -> AlertRuleEvent {
-        AlertRuleEvent(kind: kind, subject: subject(ip, mac, name, devices, networkID))
+        AlertRuleEvent(kind: kind, subject: subject(ip, mac, name, devices, networkID), offlineSince: offlineSince)
     }
 
     private func subject(
@@ -184,7 +190,8 @@ final class MacRuleAlerts {
             macAddress: mac,
             deviceType: row?.deviceType,
             maker: row?.makerExcludingSuggestions,
-            networkID: networkID
+            networkID: networkID,
+            deviceID: row?.id
         )
     }
 
@@ -202,7 +209,7 @@ final class MacRuleAlerts {
         let name = event.subject.displayName
         switch event.kind {
         case .cameOnline: return "\(name) came online"
-        case .wentOffline: return "\(name) went offline"
+        case .wentOffline, .stillOffline: return "\(name) went offline"
         case .firstSeen: return "\(name) joined the network for the first time"
         case let .latency(milliseconds): return String(format: "%@ latency is %.0f ms", name, milliseconds)
         }
