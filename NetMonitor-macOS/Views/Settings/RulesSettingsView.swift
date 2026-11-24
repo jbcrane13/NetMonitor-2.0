@@ -29,6 +29,7 @@ struct RulesSettingsView: View {
                     devices: networkDevices,
                     targets: targets,
                     isScanning: discovery?.isScanning ?? false,
+                    isMonitoring: monitoringSession?.isMonitoring ?? false,
                     onConfirm: { plainRule.confirm(store: store, context: modelContext, session: monitoringSession) }
                 )
             }

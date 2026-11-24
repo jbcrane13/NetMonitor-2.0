@@ -27,7 +27,7 @@ final class PlainRuleIOSViewModel {
     func submit(devices: [LocalDevice], targets: [MonitoringTarget], isScanning: Bool) async {
         await composer.submit(
             text,
-            devices: devices.map(Self.ruleDevice),
+            devices: devices.map(RuleDevice.init),
             // iOS targets are checked in background refresh; the notes don't quote an interval.
             timing: RuleTiming(targetCheckInterval: 60),
             targetHosts: Set(targets.map(\.host)),
@@ -61,16 +61,5 @@ final class PlainRuleIOSViewModel {
     func cancel() {
         text = ""
         composer.clear()
-    }
-
-    /// A device as rules see it: its stable identity and the identity seam's name, type and maker.
-    static func ruleDevice(_ device: LocalDevice) -> RuleDevice {
-        RuleDevice(
-            id: device.id,
-            displayName: device.displayName,
-            deviceType: device.deviceType,
-            maker: device.makerExcludingSuggestions,
-            ipAddress: device.ipAddress
-        )
     }
 }

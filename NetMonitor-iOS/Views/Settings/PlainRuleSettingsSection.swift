@@ -1,4 +1,5 @@
 import NetMonitorCore
+import os
 import SwiftData
 import SwiftUI
 
@@ -139,7 +140,11 @@ struct PlainRuleSettingsSection: View {
         for index in offsets {
             modelContext.delete(targets[index])
         }
-        try? modelContext.save()
+        do {
+            try modelContext.save()
+        } catch {
+            Logger.data.error("Failed to delete monitoring targets: \(error.localizedDescription, privacy: .public)")
+        }
     }
 }
 

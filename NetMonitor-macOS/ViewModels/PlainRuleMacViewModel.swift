@@ -40,7 +40,7 @@ final class PlainRuleMacViewModel {
         draft = nil
         await composer.submit(
             text,
-            devices: devices.map(Self.ruleDevice),
+            devices: devices.map(RuleDevice.init),
             timing: timing,
             targetHosts: Set(targets.map(\.host)),
             isScanning: isScanning
@@ -94,16 +94,5 @@ final class PlainRuleMacViewModel {
             draft = nil
             addsTarget = false
         }
-    }
-
-    /// A device as rules see it: its stable identity and the identity seam's name, type and maker.
-    static func ruleDevice(_ device: LocalDevice) -> RuleDevice {
-        RuleDevice(
-            id: device.id,
-            displayName: device.displayName,
-            deviceType: device.deviceType,
-            maker: device.makerExcludingSuggestions,
-            ipAddress: device.ipAddress
-        )
     }
 }

@@ -13,6 +13,8 @@ struct PlainRuleSection: View {
     let devices: [LocalDevice]
     let targets: [NetworkTarget]
     let isScanning: Bool
+    /// Targets are checked only while monitoring runs.
+    let isMonitoring: Bool
     let onConfirm: () -> Void
 
     var body: some View {
@@ -47,7 +49,7 @@ struct PlainRuleSection: View {
         switch viewModel.composer.outcome {
         case .alert:
             if viewModel.draft != nil {
-                PlainRuleDraftView(viewModel: viewModel, onConfirm: onConfirm)
+                PlainRuleDraftView(viewModel: viewModel, isMonitoring: isMonitoring, onConfirm: onConfirm)
             }
         case let .portScan(device, preset):
             VStack(alignment: .leading, spacing: 6) {
@@ -102,6 +104,7 @@ struct PlainRuleSection: View {
 /// The alert-rule draft, editable before Confirm.
 private struct PlainRuleDraftView: View {
     @Bindable var viewModel: PlainRuleMacViewModel
+    let isMonitoring: Bool
     let onConfirm: () -> Void
 
     var body: some View {
@@ -130,6 +133,14 @@ private struct PlainRuleDraftView: View {
                 if draft.offersTarget, let device = draft.device {
                     Toggle("Also add a monitoring target for \(device.ipAddress)", isOn: $viewModel.addsTarget)
                         .accessibilityIdentifier("rules_draft_addTarget")
+                }
+                if !isMonitoring, viewModel.addsTarget || draft.hasTarget {
+                    Label("Monitoring is stopped. Targets are checked only while it runs: choose Start Monitoring in the "
+                        + "NetMonitor menu.", systemImage: "exclamationmark.triangle")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("rules_draft_monitoringStopped")
                 }
                 ForEach(viewModel.notes, id: \.self) { note in
                     Label(note, systemImage: "clock")

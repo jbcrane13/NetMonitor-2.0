@@ -16,6 +16,18 @@ public struct RuleDevice: Sendable, Equatable, Identifiable, Hashable {
         self.maker = maker
         self.ipAddress = ipAddress
     }
+
+    /// A saved device as rules see it: its stable identity and the identity seam's name, type and
+    /// maker. The maker leaves out model suggestions, as alert rules do (#449).
+    public init(_ device: LocalDevice) {
+        self.init(
+            id: device.id,
+            displayName: device.displayName,
+            deviceType: device.deviceType,
+            maker: device.makerExcludingSuggestions,
+            ipAddress: device.ipAddress
+        )
+    }
 }
 
 public enum RuleDeviceResolution: Sendable, Equatable {
