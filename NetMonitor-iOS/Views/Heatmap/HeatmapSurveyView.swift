@@ -1,5 +1,6 @@
 import NetMonitorCore
 import PhotosUI
+import SwiftData
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -7,6 +8,8 @@ import UniformTypeIdentifiers
 
 struct HeatmapSurveyView: View {
     @Environment(DeepLinkRouter.self) private var deepLinkRouter: DeepLinkRouter?
+    /// Names access points in the heatmap advisor; a renamed device refreshes it.
+    @Query private var devices: [LocalDevice]
     @State private var viewModel: HeatmapSurveyViewModel
     @State private var selectedPhotoItem: PhotosPickerItem?
     @State private var showImportOptions = false
@@ -107,7 +110,11 @@ struct HeatmapSurveyView: View {
         }
         .alert("Error", isPresented: Binding(
             get: { viewModel.errorMessage != nil },
-            set: { if !$0 { viewModel.errorMessage = nil } }
+            set: {
+                if !$0 {
+                    viewModel.errorMessage = nil
+                }
+            }
         )) {
             Button("OK") { viewModel.errorMessage = nil }
         } message: {
@@ -263,6 +270,16 @@ struct HeatmapSurveyView: View {
                 onSetup: { showShortcutSetup = true }
             )
         }
+        // Each finished survey state gets advice; measuring or surveying hides it (#455).
+        .task(id: HeatmapAdvisorState.Input(
+            survey: viewModel.state,
+            accessPointNames: HeatmapSurveyStatistics.accessPointNames(devices)
+        )) {
+            await viewModel.advisor.refresh(.init(
+                survey: viewModel.state,
+                accessPointNames: HeatmapSurveyStatistics.accessPointNames(devices)
+            ))
+        }
     }
 }
 
@@ -399,7 +416,11 @@ extension HeatmapSurveyView {
         case .success(let urls):
             guard let url = urls.first else { return }
             let didAccess = url.startAccessingSecurityScopedResource()
-            defer { if didAccess { url.stopAccessingSecurityScopedResource() } }
+            defer {
+                if didAccess {
+                    url.stopAccessingSecurityScopedResource()
+                }
+            }
             do {
                 if url.pathExtension == "netmonblueprint" {
                     try viewModel.importBlueprint(from: url)
@@ -430,7 +451,11 @@ extension HeatmapSurveyView {
 
     private func openFileFromDeepLink(_ url: URL) {
         let didAccess = url.startAccessingSecurityScopedResource()
-        defer { if didAccess { url.stopAccessingSecurityScopedResource() } }
+        defer {
+            if didAccess {
+                url.stopAccessingSecurityScopedResource()
+            }
+        }
         do {
             if url.pathExtension == "netmonblueprint" {
                 try viewModel.importBlueprint(from: url)

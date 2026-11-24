@@ -287,7 +287,8 @@ public struct BlueprintSaveLoadManager: Sendable {
             pixelWidth: renderWidth,
             pixelHeight: renderHeight,
             origin: .arGenerated,
-            walls: floor.wallSegments
+            walls: floor.wallSegments,
+            roomLabels: floor.roomLabels
         )
     }
 

@@ -95,6 +95,10 @@ struct ContentView: View {
             selectedSection = Self.followLocalNetwork(selectedSection, from: oldID, to: newID)
         }
         .onAppear {
+            // UI tests of the heatmap advisor (#455) launch into the seeded survey.
+            if selectedSection == nil, UITestHeatmapAdvisor.opensHeatmap {
+                selectedSection = .tool(.wifiHeatmap)
+            }
             // Launch into the active (local) network dashboard
             if selectedSection == nil,
                let activeProfile = profileManager?.localProfile

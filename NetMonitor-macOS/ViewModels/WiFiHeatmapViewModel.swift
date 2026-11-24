@@ -54,6 +54,12 @@ final class WiFiHeatmapViewModel {
     var showPhotoPicker: Bool = false
     var isHeatmapGenerated: Bool = false
 
+    // MARK: - Advisor (#455)
+
+    /// The advisor in the Analyze sidebar: key points about the finished survey and the
+    /// on-device model's wording of them.
+    let advisor: HeatmapAdvisorState
+
     // MARK: - Services
 
     private let heatmapService: any MacWiFiSignalProviding
@@ -63,11 +69,22 @@ final class WiFiHeatmapViewModel {
 
     // MARK: - Init
 
-    init(heatmapService: any MacWiFiSignalProviding = WiFiHeatmapService()) {
+    init(
+        heatmapService: any MacWiFiSignalProviding = WiFiHeatmapService(),
+        insightService: any InsightServiceProtocol = UITestHeatmapAdvisor.insightService ?? InsightService.shared,
+        seededSurvey: SurveyProject? = UITestHeatmapAdvisor.takeSeededSurvey()
+    ) {
         self.state = HeatmapSurveyState()
+        advisor = HeatmapAdvisorState(service: insightService)
         self.heatmapService = heatmapService
         renderer = HeatmapRenderer()
         setupEngine()
+        // A UI test's finished survey opens on the Analyze sidebar, where the advisor shows (#455).
+        if let seededSurvey {
+            state.setProject(seededSurvey)
+            sidebarMode = .analyze
+            generateHeatmap()
+        }
     }
 
     private func setupEngine() {
@@ -233,7 +250,9 @@ final class WiFiHeatmapViewModel {
             while !Task.isCancelled {
                 guard let self else { return }
                 try? await Task.sleep(for: .seconds(self.continuousScanInterval))
-                if Task.isCancelled { return }
+                if Task.isCancelled {
+                    return
+                }
                 guard self.isSurveying, let loc = self.liveCursorLocation else { continue }
                 await self.takeMeasurement(at: loc)
             }
@@ -265,12 +284,12 @@ final class WiFiHeatmapViewModel {
             point = await wifiEngine?.takeActiveMeasurement(
                 at: normalizedPoint.x,
                 floorPlanY: normalizedPoint.y
-            ) ?? MeasurementPoint(floorPlanX: normalizedPoint.x, floorPlanY: normalizedPoint.y)
+            ) ?? MeasurementPoint(floorPlanX: normalizedPoint.x, floorPlanY: normalizedPoint.y, rssiUnavailable: true)
         } else {
             point = await wifiEngine?.takeMeasurement(
                 at: normalizedPoint.x,
                 floorPlanY: normalizedPoint.y
-            ) ?? MeasurementPoint(floorPlanX: normalizedPoint.x, floorPlanY: normalizedPoint.y)
+            ) ?? MeasurementPoint(floorPlanX: normalizedPoint.x, floorPlanY: normalizedPoint.y, rssiUnavailable: true)
         }
 
         state.recordMeasurement(point)
@@ -408,12 +427,16 @@ final class WiFiHeatmapViewModel {
 
     func undo() {
         state.undo()
-        if isHeatmapGenerated { generateHeatmap() }
+        if isHeatmapGenerated {
+            generateHeatmap()
+        }
     }
 
     func deletePoint(id: UUID) {
         state.deleteMeasurement(id: id)
-        if isHeatmapGenerated { generateHeatmap() }
+        if isHeatmapGenerated {
+            generateHeatmap()
+        }
     }
 
     func clearMeasurements() {
