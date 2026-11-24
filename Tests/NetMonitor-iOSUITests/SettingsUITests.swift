@@ -11,7 +11,7 @@ final class SettingsUITests: XCTestCase {
         // Navigate to Settings via Dashboard gear button
         let settingsButton = app.buttons["dashboard_button_settings"]
         // On iOS 26+ the settings screen is a CollectionView, not an Other; match any type so older trees work too.
-        let settingsScreen = element("screen_settings")
+        let settingsScreen = app.descendants(matching: .any).matching(identifier: "screen_settings").firstMatch
         if settingsButton.waitForExistence(timeout: 5) {
             settingsButton.tap()
             // The first tap after a fresh launch can miss (hit point {-1, -1}); retry once.
