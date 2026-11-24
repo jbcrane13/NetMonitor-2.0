@@ -277,7 +277,7 @@ struct SpeedTestToolViewModelStartTestTests {
         withExtendedLifetime(store.0) {}
     }
 
-    @Test func startTestIsRefusedWhileTheTroubleshootersTestHoldsTheConnection() async throws {
+    @Test func startTestIsRefusedWhileTheTroubleshootersTestHoldsTheConnection() throws {
         // (#451 review) The troubleshooter claims a manual test; the tool must not run over it.
         let store = try makeInMemoryStore()
         let manual = IOSScheduledSpeedTest.manualTestsRunning
@@ -294,8 +294,8 @@ struct SpeedTestToolViewModelStartTestTests {
         mock.mockResult = SpeedTestData(downloadSpeed: 150, uploadSpeed: 60, latency: 18)
         let vm = SpeedTestToolViewModel(service: mock)
         vm.startTest(modelContext: store.1)
-        try await Task.sleep(for: .milliseconds(50))
 
+        // The refusal is synchronous: nothing to wait for.
         #expect(vm.isRunning == false)
         #expect(vm.errorMessage == SpeedTestToolViewModel.busyMessage)
         #expect(vm.downloadSpeed == 0)
