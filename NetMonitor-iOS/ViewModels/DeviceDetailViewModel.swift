@@ -28,15 +28,13 @@ final class DeviceDetailViewModel {
     nonisolated(unsafe) private(set) var suggestionTask: Task<Void, Never>?
     /// Fingerprint of the evidence the running or last suggestion pass was started with.
     private var suggestionFingerprint: String?
-    /// Which address DNS is asked about for the loaded device's name.
+    /// Which address DNS, the port scan and service discovery may probe (``probeAddress``).
     private enum NameLookup {
-        /// The row's own address: detail was opened on it.
+        /// The row's own address: detail was opened on it from the scan's list.
         case savedAddress
-        /// Where the latest scan saw the row's MAC, for a row opened by ID (#584).
-        case scannedAddress(String)
-        /// Opened by ID and not confirmed by the latest scan (not in it, or no real MAC to confirm
-        /// it by): another device may hold the saved address.
-        case unverified
+        /// Opened by ID (#584): wherever the latest completed scan confirms the row's real MAC,
+        /// checked again at every probe, since a newer scan can move the device.
+        case confirmedByScan
     }
 
     private var nameLookup = NameLookup.savedAddress
@@ -281,7 +279,8 @@ final class DeviceDetailViewModel {
                 group.cancelAll()
                 return result.flatMap { $0 }
             }
-            if !Task.isCancelled {
+            // Only if the device is still at that address after the wait.
+            if !Task.isCancelled, probeAddress == ipAddress {
                 device.resolvedHostname = hostname
             }
         }
@@ -349,6 +348,7 @@ final class DeviceDetailViewModel {
             }
         }
 
+        guard probeAddress == deviceIP else { return }
         device.discoveredServices = discoveredServiceNames
         startSuggestion()
     }
@@ -457,19 +457,11 @@ extension DeviceDetailViewModel {
         var descriptor = FetchDescriptor<LocalDevice>(predicate: #Predicate { $0.id == id })
         descriptor.fetchLimit = 1
         device = (try? context.fetch(descriptor))?.first
-        // No name is looked up at an address unless the latest scan confirms the device is there:
+        // No address is probed unless the latest completed scan confirms the device is there:
         // DHCP may have given the saved address to another device.
-        nameLookup = .unverified
+        nameLookup = .confirmedByScan
         defer { startSuggestion() }
-        guard let device, let mac = DeviceMatcher.normalizedMAC(device.macAddress) else { return }
-        // Only a device that answered the latest scan with this real MAC, and only one: a
-        // placeholder MAC or a cached sighting proves nothing about who has the address now.
-        let confirmed = Self.liveScan(deviceDiscoveryService).filter { scanned in
-            !scanned.isCached && scanned.networkProfileID == device.networkProfileID
-                && DeviceMatcher.normalizedMAC(scanned.macAddress) == mac
-        }
-        if confirmed.count == 1, let scanned = confirmed.first {
-            nameLookup = .scannedAddress(scanned.ipAddress)
+        if let device, let scanned = confirmedSighting(of: device) {
             Self.adopt(scanned, into: device)
         }
     }
@@ -482,9 +474,20 @@ extension DeviceDetailViewModel {
         guard let device else { return nil }
         return switch nameLookup {
         case .savedAddress: device.ipAddress
-        case let .scannedAddress(address): address
-        case .unverified: nil
+        case .confirmedByScan: confirmedSighting(of: device)?.ipAddress
         }
+    }
+
+    /// The one device that answered the latest completed scan, on the row's network, with the
+    /// row's real MAC. None while a scan runs (its progress list hides which entries only the
+    /// ARP cache lists), for a placeholder MAC, or for a cached sighting.
+    private func confirmedSighting(of device: LocalDevice) -> DiscoveredDevice? {
+        guard !deviceDiscoveryService.isScanning, let mac = DeviceMatcher.normalizedMAC(device.macAddress) else { return nil }
+        let confirmed = Self.liveScan(deviceDiscoveryService).filter { scanned in
+            !scanned.isCached && scanned.networkProfileID == device.networkProfileID
+                && DeviceMatcher.normalizedMAC(scanned.macAddress) == mac
+        }
+        return confirmed.count == 1 ? confirmed[0] : nil
     }
 
     /// Scan common ports on the device, at ``probeAddress``.
@@ -499,6 +502,8 @@ extension DeviceDetailViewModel {
             openPorts.append(result.port)
         }
 
+        // A newer scan may have moved the device meanwhile: those ports are another device's.
+        guard probeAddress == address else { return }
         device.openPorts = openPorts.sorted()
         startSuggestion()
     }

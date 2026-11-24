@@ -247,6 +247,9 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
 
         // Final sort and flush
         let sorted = await engine.accumulator.sortedSnapshot().map { Self.withProfile($0, profileID: profileID) }
+        // Stopped during the companion merge or identity steps: not a finished scan, and its
+        // engine may already hold a newer scan's devices (#582).
+        guard !Task.isCancelled else { return }
         let result = Self.finalDevices(scanned: sorted, previous: staleDevices)
         discoveredDevices = result
         cachedDevicesByProfileID[cacheKey] = result

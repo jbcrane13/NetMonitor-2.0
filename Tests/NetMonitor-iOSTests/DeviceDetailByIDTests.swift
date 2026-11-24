@@ -151,4 +151,46 @@ extension DeviceDetailViewModelTests {
         #expect(viewModel.device == nil)
         #expect(try context.fetch(FetchDescriptor<LocalDevice>()).isEmpty)
     }
+
+    /// Codex on #589: while a scan runs, its progress list hides which entries only the ARP cache
+    /// lists, so it confirms nothing.
+    @Test func aLinkByIDIsNotConfirmedByAScanStillRunning() throws {
+        let (container, context) = try makeInMemoryStore()
+        defer { withExtendedLifetime(container) {} }
+        let home = UUID()
+        let printer = LocalDevice(ipAddress: "192.168.1.50", macAddress: "3C:22:FB:00:00:50", networkProfileID: home)
+        context.insert(printer)
+        let discovery = MockDeviceDiscoveryService()
+        discovery.discoveredDevices = [scanned("192.168.1.50", mac: "3C:22:FB:00:00:50", network: home)]
+        discovery.isScanning = true
+        let viewModel = makeViewModel(deviceDiscoveryService: discovery)
+
+        viewModel.loadDevice(id: printer.id, context: context)
+        #expect(viewModel.probeAddress == nil)
+        discovery.isScanning = false
+        #expect(viewModel.probeAddress == "192.168.1.50")
+    }
+
+    /// Codex on #589: detail stays open while a newer scan finds the printer at .77 and a phone at
+    /// .50. Probes follow the printer without reloading detail.
+    @Test func aLinkByIDFollowsANewerScanWithoutReloading() async throws {
+        let (container, context) = try makeInMemoryStore()
+        defer { withExtendedLifetime(container) {} }
+        let home = UUID()
+        let printer = LocalDevice(ipAddress: "192.168.1.50", macAddress: "3C:22:FB:00:00:50", networkProfileID: home)
+        context.insert(printer)
+        let discovery = MockDeviceDiscoveryService()
+        discovery.discoveredDevices = [scanned("192.168.1.50", mac: "3C:22:FB:00:00:50", network: home)]
+        let ports = MockPortScannerService()
+        let viewModel = makeViewModel(portScanner: ports, deviceDiscoveryService: discovery)
+        viewModel.loadDevice(id: printer.id, context: context)
+        #expect(viewModel.probeAddress == "192.168.1.50")
+
+        discovery.discoveredDevices = [
+            scanned("192.168.1.77", mac: "3C:22:FB:00:00:50", network: home),
+            scanned("192.168.1.50", mac: "F0:99:B6:00:00:01", network: home, hostname: "phone")
+        ]
+        await viewModel.scanPorts()
+        #expect(ports.scannedHosts == ["192.168.1.77"])
+    }
 }
