@@ -109,6 +109,8 @@ public struct FloorPlan: Sendable, Codable, Identifiable, Equatable {
     public var origin: FloorPlanOrigin
     public var calibrationPoints: [CalibrationPoint]?
     public var walls: [WallSegment]?
+    /// Rooms labelled on a RoomPlan or blueprint plan; nil for an imported image (#455).
+    public var roomLabels: [RoomLabel]?
 
     public init(
         id: UUID = UUID(),
@@ -119,7 +121,8 @@ public struct FloorPlan: Sendable, Codable, Identifiable, Equatable {
         pixelHeight: Int,
         origin: FloorPlanOrigin = .imported,
         calibrationPoints: [CalibrationPoint]? = nil,
-        walls: [WallSegment]? = nil
+        walls: [WallSegment]? = nil,
+        roomLabels: [RoomLabel]? = nil
     ) {
         self.id = id
         self.imageData = imageData
@@ -130,6 +133,7 @@ public struct FloorPlan: Sendable, Codable, Identifiable, Equatable {
         self.origin = origin
         self.calibrationPoints = calibrationPoints
         self.walls = walls
+        self.roomLabels = roomLabels
     }
 
     public var metersPerPixelX: Double {

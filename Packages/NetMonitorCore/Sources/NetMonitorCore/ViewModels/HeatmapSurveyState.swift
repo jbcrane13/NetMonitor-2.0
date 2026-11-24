@@ -167,7 +167,8 @@ public final class HeatmapSurveyState {
             pixelHeight: project.floorPlan.pixelHeight,
             origin: project.floorPlan.origin,
             calibrationPoints: calibrationPoints,
-            walls: project.floorPlan.walls
+            walls: project.floorPlan.walls,
+            roomLabels: project.floorPlan.roomLabels
         )
 
         surveyProject = project
