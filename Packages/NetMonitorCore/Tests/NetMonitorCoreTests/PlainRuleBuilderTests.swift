@@ -22,7 +22,9 @@ struct PlainRuleBuilderTests {
 
     @Test func theNASExampleBecomesAnOfflineRuleOnTheDevicesIdentityWithItsDuration() throws {
         let outcome = mac(RuleIntent(kind: .deviceOffline, device: "NAS", durationSeconds: 300))
-        guard case let .alert(draft) = outcome else { Issue.record("got \(outcome)"); return }
+        guard case let .alert(draft) = outcome else { Issue.record("got \(outcome)")
+        return
+        }
         #expect(draft.rule.trigger == .wentOffline)
         #expect(draft.rule.conditions == AlertRuleConditions(deviceID: nas.id))
         #expect(draft.rule.minimumDuration == 300)
@@ -33,7 +35,8 @@ struct PlainRuleBuilderTests {
 
     @Test func noTargetIsOfferedWhenOneAlreadyWatchesTheDevice() {
         guard case let .alert(draft) = mac(RuleIntent(kind: .deviceOffline, device: "NAS"), targetHosts: ["10.0.0.50"]) else {
-            Issue.record("not an alert"); return
+            Issue.record("not an alert")
+            return
         }
         #expect(!draft.offersTarget)
         #expect(draft.hasTarget)
@@ -41,7 +44,9 @@ struct PlainRuleBuilderTests {
 
     @Test func eachAlertKindMapsToItsTrigger() {
         func rule(_ intent: RuleIntent) -> AlertRule? {
-            if case let .alert(draft) = mac(intent) { return draft.rule }
+            if case let .alert(draft) = mac(intent) {
+                return draft.rule
+            }
             return nil
         }
         #expect(rule(RuleIntent(kind: .deviceOnline, device: "Synology"))?.trigger == .cameOnline)
@@ -57,7 +62,9 @@ struct PlainRuleBuilderTests {
     }
 
     @Test func aMissingThresholdIsFilledInAndSaidSo() {
-        guard case let .alert(draft) = mac(RuleIntent(kind: .latencyAbove, device: "NAS")) else { Issue.record("not an alert"); return }
+        guard case let .alert(draft) = mac(RuleIntent(kind: .latencyAbove, device: "NAS")) else { Issue.record("not an alert")
+        return
+        }
         #expect(draft.rule.trigger == .latencyAbove(milliseconds: 200))
         #expect(!draft.thresholdWasGiven)
         #expect(draft.notes(addingTarget: true, timing: timing).first
@@ -71,7 +78,9 @@ struct PlainRuleBuilderTests {
     @Test func anAmbiguousDeviceAsksForAPickAndThePickIsUsed() {
         let intent = RuleIntent(kind: .deviceOffline, device: "the printer")
         #expect(mac(intent) == .pickDevice([printer, laserJet]))
-        guard case let .alert(draft) = mac(intent, chosen: laserJet) else { Issue.record("not an alert"); return }
+        guard case let .alert(draft) = mac(intent, chosen: laserJet) else { Issue.record("not an alert")
+        return
+        }
         #expect(draft.rule.conditions.deviceID == laserJet.id)
     }
 
@@ -91,7 +100,8 @@ struct PlainRuleBuilderTests {
 
     @Test func anOfflineDurationIsTimedByAMonitoringTarget() {
         guard case let .alert(draft) = mac(RuleIntent(kind: .deviceOffline, device: "NAS", durationSeconds: 300)) else {
-            Issue.record("not an alert"); return
+            Issue.record("not an alert")
+            return
         }
         #expect(draft.notes(addingTarget: true, timing: timing) == [
             "Fires once Synology DS920 has been unreachable for 5 minutes, timed by its monitoring target, which checks it every 5 seconds."
@@ -100,7 +110,8 @@ struct PlainRuleBuilderTests {
 
     @Test func withoutATargetTheNoteSaysScansAreSlowerThanTheDuration() {
         guard case let .alert(draft) = mac(RuleIntent(kind: .deviceOffline, device: "NAS", durationSeconds: 300)) else {
-            Issue.record("not an alert"); return
+            Issue.record("not an alert")
+            return
         }
         #expect(draft.notes(addingTarget: false, timing: timing) == [
             "Without a monitoring target only scans check Synology DS920. A scan reports a device offline after 3 missed scans "
@@ -110,17 +121,20 @@ struct PlainRuleBuilderTests {
 
     @Test func aDurationLongerThanTheScanGraceNeedsATarget() {
         guard case let .alert(draft) = mac(RuleIntent(kind: .deviceOffline, device: "NAS", durationSeconds: 3600)) else {
-            Issue.record("not an alert"); return
+            Issue.record("not an alert")
+            return
         }
         #expect(draft.notes(addingTarget: false, timing: timing) == [
             "Without a monitoring target only scans check Synology DS920, and a scan reports it offline once, after 3 missed scans "
-                + "and at least 15 minutes. This alert fires only if it has been unreachable for 1 hour by then; add the monitoring target to time it."
+                + "and at least 15 minutes. This alert fires only if it has been unreachable for 1 hour by then; "
+                + "add the monitoring target to time it."
         ])
     }
 
     @Test func latencyWithoutATargetNeverFiresAndSaysSo() {
         guard case let .alert(draft) = mac(RuleIntent(kind: .latencyAbove, device: "NAS", thresholdMilliseconds: 250, durationSeconds: 120)) else {
-            Issue.record("not an alert"); return
+            Issue.record("not an alert")
+            return
         }
         #expect(draft.notes(addingTarget: false, timing: timing) == [
             "Only monitoring targets measure latency, so without one this rule never fires."
@@ -132,7 +146,8 @@ struct PlainRuleBuilderTests {
 
     @Test func theNotesFollowAnEditedRule() {
         guard case var .alert(draft) = mac(RuleIntent(kind: .deviceOffline, device: "NAS", durationSeconds: 300)) else {
-            Issue.record("not an alert"); return
+            Issue.record("not an alert")
+            return
         }
         draft.rule.minimumDuration = nil
         #expect(draft.notes(addingTarget: true, timing: timing).isEmpty)
@@ -150,7 +165,8 @@ struct PlainRuleBuilderTests {
 
     @Test func onIOSALatencyThresholdIsNotSavedWithTheTargetAndSaysSo() {
         guard case let .target(draft) = iOS(RuleIntent(kind: .latencyAbove, device: "NAS", thresholdMilliseconds: 250)) else {
-            Issue.record("not a target"); return
+            Issue.record("not a target")
+            return
         }
         #expect(draft.notes == [
             "High-latency alerts use one threshold for every target (Settings › Notifications), so 250 ms isn't saved with this target."
@@ -201,7 +217,9 @@ struct PlainRuleComposerTests {
         await composer.submit("printer down", devices: [printer, laserJet], timing: timing, targetHosts: [])
         #expect(composer.outcome == .pickDevice([printer, laserJet]))
         composer.choose(laserJet)
-        guard case let .alert(draft) = composer.outcome else { Issue.record("no draft"); return }
+        guard case let .alert(draft) = composer.outcome else { Issue.record("no draft")
+        return
+        }
         #expect(draft.rule.conditions.deviceID == laserJet.id)
     }
 

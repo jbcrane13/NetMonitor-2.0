@@ -161,7 +161,9 @@ private struct PlainRuleDraftView: View {
     }
 
     private var latency: Double {
-        if case let .latencyAbove(milliseconds) = viewModel.draft?.rule.trigger { return milliseconds }
+        if case let .latencyAbove(milliseconds) = viewModel.draft?.rule.trigger {
+            return milliseconds
+        }
         return Double(PlainRuleBuilder.defaultThreshold)
     }
 
@@ -185,7 +187,9 @@ private struct PlainRuleDraftView: View {
 
 private extension AlertRuleTrigger {
     var isLatency: Bool {
-        if case .latencyAbove = self { return true }
+        if case .latencyAbove = self {
+            return true
+        }
         return false
     }
 }

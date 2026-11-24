@@ -209,8 +209,12 @@ public enum PlainRuleBuilder {
     public static func spoken(_ seconds: TimeInterval) -> String {
         let whole = Int(seconds.rounded())
         func unit(_ count: Int, _ name: String) -> String { "\(count) \(name)\(count == 1 ? "" : "s")" }
-        if whole >= 3600, whole % 3600 == 0 { return unit(whole / 3600, "hour") }
-        if whole >= 60, whole % 60 == 0 { return unit(whole / 60, "minute") }
+        if whole >= 3600, whole % 3600 == 0 {
+            return unit(whole / 3600, "hour")
+        }
+        if whole >= 60, whole % 60 == 0 {
+            return unit(whole / 60, "minute")
+        }
         return unit(whole, "second")
     }
 }

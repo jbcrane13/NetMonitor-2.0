@@ -41,29 +41,6 @@ struct PortScannerToolView: View {
     @State private var errorMessage: String?
     @AppStorage("netmonitor.lastUsedTarget") private var lastUsedTarget: String = ""
 
-    init() {}
-
-    /// Opens prefilled: a described port-scan preset (#450). Presets this tool lacks become
-    /// their port list in Custom.
-    init(initialHost: String, initialPreset: PortScanPreset) {
-        _host = State(initialValue: initialHost)
-        switch initialPreset {
-        case .common:
-            _preset = State(initialValue: .common)
-        case .web:
-            _preset = State(initialValue: .web)
-        case .wellKnown:
-            _preset = State(initialValue: .custom)
-            _customPorts = State(initialValue: "1-1024")
-        case .extended:
-            _preset = State(initialValue: .custom)
-            _customPorts = State(initialValue: "1-10000")
-        case .database, .mail, .custom:
-            _preset = State(initialValue: .custom)
-            _customPorts = State(initialValue: initialPreset.ports.map(String.init).joined(separator: ","))
-        }
-    }
-
     var body: some View {
         ToolSheetContainer(
             title: "Port Scanner",
@@ -467,4 +444,30 @@ struct PortResult: Identifiable {
 
 #Preview {
     PortScannerToolView()
+}
+
+// MARK: - Prefill (#450)
+
+/// In an extension, so the default `init()` stays.
+extension PortScannerToolView {
+    /// Opens prefilled: a described port-scan preset (#450). Presets this tool lacks become
+    /// their port list in Custom.
+    init(initialHost: String, initialPreset: PortScanPreset) {
+        _host = State(initialValue: initialHost)
+        switch initialPreset {
+        case .common:
+            _preset = State(initialValue: .common)
+        case .web:
+            _preset = State(initialValue: .web)
+        case .wellKnown:
+            _preset = State(initialValue: .custom)
+            _customPorts = State(initialValue: "1-1024")
+        case .extended:
+            _preset = State(initialValue: .custom)
+            _customPorts = State(initialValue: "1-10000")
+        case .database, .mail, .custom:
+            _preset = State(initialValue: .custom)
+            _customPorts = State(initialValue: initialPreset.ports.map(String.init).joined(separator: ","))
+        }
+    }
 }
