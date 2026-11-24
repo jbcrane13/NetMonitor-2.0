@@ -478,12 +478,15 @@ extension DeviceDetailViewModel {
         }
     }
 
-    /// The one device that answered the latest completed scan, on the row's network, with the
-    /// row's real MAC. None while a scan runs (its progress list hides which entries only the
-    /// ARP cache lists), for a placeholder MAC, or for a cached sighting.
+    /// The one device that answered the latest completed scan (`completedScanDevices`, never a
+    /// running or stopped scan's progress list, which hides which entries only the ARP cache lists),
+    /// on the row's network, with the row's real MAC. None while a scan runs, for a placeholder
+    /// MAC, or for a cached sighting.
     private func confirmedSighting(of device: LocalDevice) -> DiscoveredDevice? {
         guard !deviceDiscoveryService.isScanning, let mac = DeviceMatcher.normalizedMAC(device.macAddress) else { return nil }
-        let confirmed = Self.liveScan(deviceDiscoveryService).filter { scanned in
+        let completed = deviceDiscoveryService.completedScanDevices
+            + (UITestFakeDeviceFeed.suggestsIdentity ? UITestFakeDeviceFeed().devices : [])
+        let confirmed = completed.filter { scanned in
             !scanned.isCached && scanned.networkProfileID == device.networkProfileID
                 && DeviceMatcher.normalizedMAC(scanned.macAddress) == mac
         }

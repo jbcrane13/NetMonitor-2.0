@@ -193,4 +193,29 @@ extension DeviceDetailViewModelTests {
         await viewModel.scanPorts()
         #expect(ports.scannedHosts == ["192.168.1.77"])
     }
+
+    /// Codex on #589: a stopped scan leaves its progress list (cached flags removed) with scanning
+    /// off. It confirms nothing; only the last finished scan does.
+    @Test func aStoppedScansProgressListConfirmsNothing() async throws {
+        let (container, context) = try makeInMemoryStore()
+        defer { withExtendedLifetime(container) {} }
+        let home = UUID()
+        let printer = LocalDevice(ipAddress: "192.168.1.50", macAddress: "3C:22:FB:00:00:50", networkProfileID: home)
+        context.insert(printer)
+        let discovery = MockDeviceDiscoveryService()
+        discovery.completedDevices = []
+        discovery.discoveredDevices = [scanned("192.168.1.50", mac: "3C:22:FB:00:00:50", network: home)]
+        let ports = MockPortScannerService()
+        let names = MockDeviceNameResolver(hostname: "phone.lan")
+        let viewModel = makeViewModel(nameResolver: names, portScanner: ports, deviceDiscoveryService: discovery)
+
+        viewModel.loadDevice(id: printer.id, context: context)
+        await viewModel.enrichDevice(bonjourServices: [])
+        await viewModel.scanPorts()
+
+        #expect(viewModel.probeAddress == nil)
+        #expect(ports.scannedHosts.isEmpty)
+        #expect(names.resolveCallCount == 0)
+        #expect(printer.resolvedHostname == nil)
+    }
 }

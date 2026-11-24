@@ -68,8 +68,8 @@ final class DeviceRecordUpdater {
     }
 
     /// Takes a scan that finished since the last check, then saves every completed scan not saved
-    /// yet, oldest first. `lastScanDate` moves only when a scan runs to the end, so a stopped scan's
-    /// partial list is never taken; while a scan runs, the list is that scan's, so nothing is taken.
+    /// yet, oldest first. `lastScanDate` moves only when a scan runs to the end, and the devices
+    /// taken are `completedScanDevices`, that scan's own, never a running or stopped scan's list.
     /// A scan whose rows couldn't be saved stays pending and is tried again at the next change.
     func handleScanChange() {
         let isScanning = discoveryService.isScanning
@@ -77,7 +77,7 @@ final class DeviceRecordUpdater {
         if !isScanning, let scanDate = discoveryService.lastScanDate, scanDate != capturedScanDate {
             capturedScanDate = scanDate
             pending.append(CompletedScan(
-                date: scanDate, devices: discoveryService.discoveredDevices, network: currentNetworkProfileID(), reconciledAt: clock()
+                date: scanDate, devices: discoveryService.completedScanDevices, network: currentNetworkProfileID(), reconciledAt: clock()
             ))
         }
         while let scan = pending.first {

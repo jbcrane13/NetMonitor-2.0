@@ -15,6 +15,8 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
     public private(set) var scanProgress: Double = 0
     public private(set) var scanPhase: ScanDisplayPhase = .idle
     public private(set) var lastScanDate: Date?
+    /// The last scan that ran to the end, as published with `lastScanDate` (#589).
+    public private(set) var completedScanDevices: [DiscoveredDevice] = []
 
     // MARK: - Private scan filter / target types
 
@@ -250,13 +252,18 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
         // Stopped during the companion merge or identity steps: not a finished scan, and its
         // engine may already hold a newer scan's devices (#582).
         guard !Task.isCancelled else { return }
-        let result = Self.finalDevices(scanned: sorted, previous: staleDevices)
+        publishCompletedScan(Self.finalDevices(scanned: sorted, previous: staleDevices), cacheKey: cacheKey)
+    }
+
+    /// Publishes a scan that ran to the end. Only such a scan moves `lastScanDate` and
+    /// `completedScanDevices`: a stopped one leaves a partial list (#582, #589).
+    private func publishCompletedScan(_ result: [DiscoveredDevice], cacheKey: String) {
         discoveredDevices = result
         cachedDevicesByProfileID[cacheKey] = result
         persistCachedDevices()
         scanProgress = 1.0
         scanPhase = .done
-        // Only a scan that ran to the end: a stopped one leaves a partial list (#582).
+        completedScanDevices = result
         lastScanDate = Date()
     }
 

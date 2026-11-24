@@ -373,4 +373,18 @@ final class DeviceRecordUpdaterTests {
         }
         #expect(try rows(context).count == 1)
     }
+
+    /// Codex on #589: scan A finished; before the updater saw it, scan B started, published part of
+    /// its list and was stopped. A's own devices are saved, not B's progress list.
+    @Test func theFinishedScansOwnListIsSavedNotALaterStoppedOnes() throws {
+        let (container, context) = try makeStore()
+        defer { withExtendedLifetime(container) {} }
+        let discovery = MockDeviceDiscoveryService()
+        let updater = try makeUpdater(discovery, context, clock: Clock(start))
+        discovery.completedDevices = [device(0)]
+        discovery.discoveredDevices = [device(3)]
+        discovery.lastScanDate = start
+        updater.handleScanChange()
+        #expect(try rows(context).map(\.hostname) == ["host-0"])
+    }
 }

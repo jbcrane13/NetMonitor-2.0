@@ -397,9 +397,10 @@ final class BackgroundTaskService {
 
         let devices = DeviceDiscoveryService.shared.discoveredDevices
         Self.logger.info("Network scan found \(devices.count) device(s)")
-        // Only a scan that finished during this task; `lastScanDate` moves when one does.
+        // Only a scan that finished during this task; `lastScanDate` moves when one does, with
+        // `completedScanDevices` as its list.
         if let scanDate = DeviceDiscoveryService.shared.lastScanDate, scanDate != scanBefore {
-            reconcileSavedDevices(devices, scanDate: scanDate, network: network?.id)
+            reconcileSavedDevices(DeviceDiscoveryService.shared.completedScanDevices, scanDate: scanDate, network: network?.id)
         }
 
         let diff = ScanSchedulerService.shared.computeDiff(current: devices)

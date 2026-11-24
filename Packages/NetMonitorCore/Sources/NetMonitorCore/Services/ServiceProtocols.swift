@@ -156,10 +156,20 @@ public protocol DeviceDiscoveryServiceProtocol: AnyObject, Sendable {
     @MainActor var scanProgress: Double { get }
     @MainActor var scanPhase: ScanDisplayPhase { get }
     @MainActor var lastScanDate: Date? { get }
+    /// The devices of the last scan that ran to the end (the one `lastScanDate` names), with their
+    /// cached flags. Unlike `discoveredDevices`, never a running or stopped scan's partial list:
+    /// what is saved as presence and what confirms a device's address (#582, #589).
+    @MainActor var completedScanDevices: [DiscoveredDevice] { get }
     @MainActor func cachedDevices(for profile: NetworkProfile?) -> [DiscoveredDevice]
     func scanNetwork(subnet: String?) async
     func scanNetwork(profile: NetworkProfile?) async
     @MainActor func stopScan()
+}
+
+@MainActor
+public extension DeviceDiscoveryServiceProtocol {
+    /// For a conformer whose list only ever holds finished scans (test and UI-test doubles).
+    var completedScanDevices: [DiscoveredDevice] { discoveredDevices }
 }
 
 /// Protocol for default gateway detection.

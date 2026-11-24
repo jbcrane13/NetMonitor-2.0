@@ -266,6 +266,10 @@ final class MockDeviceDiscoveryService: DeviceDiscoveryServiceProtocol, @uncheck
     var scanProgress: Double = 0.0
     var scanPhase: ScanDisplayPhase = .idle
     var lastScanDate: Date? = nil
+    /// The last finished scan's list, when a test sets one apart from `discoveredDevices` (a
+    /// running or stopped scan's progress); otherwise the two are the same.
+    var completedDevices: [DiscoveredDevice]?
+    var completedScanDevices: [DiscoveredDevice] { completedDevices ?? discoveredDevices }
     var scanCallCount = 0
     var lastScannedSubnet: String? = nil
     var lastScannedProfile: NetMonitorCore.NetworkProfile? = nil
