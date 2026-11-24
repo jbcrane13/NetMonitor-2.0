@@ -214,9 +214,12 @@ struct MacAlertTextTests {
         return (MacAlertNotifier(service: NotificationService(poster: poster, defaults: defaults), defaults: defaults, writer: writer), poster)
     }
 
+    /// Waits on a deadline, not a yield count: 2000 yields ran out before the alerts were
+    /// posted on a loaded host (#524). The deadline only bounds a real failure.
     func until(_ condition: () -> Bool) async {
-        for _ in 0 ..< 2000 where !condition() {
-            await Task.yield()
+        let deadline = ContinuousClock.now + .seconds(10)
+        while !condition(), ContinuousClock.now < deadline {
+            try? await Task.sleep(for: .milliseconds(10))
         }
     }
 
@@ -280,7 +283,7 @@ struct MacAlertTextTests {
         #expect(poster.requests.first?.content.title == "New Device Detected")
     }
 
-    @Test func aBurstOfNewDevicesWordsOnlyTheFirstThree() async {
+    @Test func aBurstOfNewDevicesWordsOnlyTheFirstThree() async throws {
         defer { defaults.removePersistentDomain(forName: suite) }
         let insight = EchoInsightService()
         let (notifier, poster) = makeNotifier(insight)
@@ -288,6 +291,7 @@ struct MacAlertTextTests {
 
         notifier.devicesChanged(events)
         await until { poster.requests.count == 5 }
+        try #require(poster.requests.count == 5)
 
         #expect(insight.requests.count == NotificationTextWriter.burstLimit)
         #expect(poster.requests.map(\.content.subtitle) == [

@@ -42,6 +42,40 @@ private actor SuccessMonitorService: NetMonitor_macOS.NetworkMonitorService {
     }
 }
 
+/// Returns a different latency per host, so an average over several targets can't be
+/// mistaken for any single target's result.
+private actor HostLatencyMonitorService: NetMonitor_macOS.NetworkMonitorService {
+    let latencies: [String: Double]
+    init(latencies: [String: Double]) { self.latencies = latencies }
+
+    func check(request: TargetCheckRequest) async throws -> MeasurementResult {
+        MeasurementResult(
+            targetID: request.id,
+            timestamp: Date(),
+            latency: latencies[request.host],
+            isReachable: true,
+            errorMessage: nil
+        )
+    }
+}
+
+/// Returns 1, 2, 3, … ms on successive checks, so the latency history shows which samples
+/// were kept and which were evicted.
+private actor IncrementingLatencyMonitorService: NetMonitor_macOS.NetworkMonitorService {
+    private var checks = 0
+
+    func check(request: TargetCheckRequest) async throws -> MeasurementResult {
+        checks += 1
+        return MeasurementResult(
+            targetID: request.id,
+            timestamp: Date(),
+            latency: Double(checks),
+            isReachable: true,
+            errorMessage: nil
+        )
+    }
+}
+
 private actor UnreachableMonitorService: NetMonitor_macOS.NetworkMonitorService {
     func check(request: TargetCheckRequest) async throws -> MeasurementResult {
         MeasurementResult(
@@ -74,6 +108,16 @@ private func makeInMemoryStore() throws -> (ModelContainer, ModelContext) {
     let config = ModelConfiguration(UUID().uuidString, schema: schema, isStoredInMemoryOnly: true, cloudKitDatabase: .none)
     let container = try ModelContainer(for: schema, configurations: [config])
     return (container, container.mainContext)
+}
+
+/// Polls until `condition` holds. The deadline only bounds a real failure: a fixed sleep
+/// before asserting failed whenever a loaded host had not run the first check yet (#524).
+@MainActor
+private func waitUntil(timeout: Duration = .seconds(10), _ condition: () -> Bool) async {
+    let deadline = ContinuousClock.now + timeout
+    while !condition(), ContinuousClock.now < deadline {
+        try? await Task.sleep(for: .milliseconds(10))
+    }
 }
 
 @MainActor
@@ -374,8 +418,8 @@ struct MonitoringSessionExtendedTests {
 //
 // These tests exercise the async monitoring loop by injecting stub services
 // through the internal `anyHTTPService:anyICMPService:anyTCPService:` init.
-// Each test uses Task.sleep to allow the first loop iteration to complete before
-// asserting, since the loop runs on the cooperative thread pool.
+// Each test waits until the first loop iteration has produced what it asserts on, since
+// the loop runs on the cooperative thread pool (a fixed sleep failed under load, #524).
 
 @Suite(.serialized)
 @MainActor
@@ -395,7 +439,7 @@ struct MonitoringSessionLoopTests {
         let stub = SuccessMonitorService(latency: 42.0)
         let session = makeSession(context: context, stub: stub)
         session.startMonitoring()
-        try await Task.sleep(for: .milliseconds(200))
+        await waitUntil { session.latestResults[target.id] != nil }
 
         #expect(session.latestResults[target.id] != nil)
         #expect(session.latestResults[target.id]?.isReachable == true)
@@ -417,7 +461,7 @@ struct MonitoringSessionLoopTests {
         let stub = SuccessMonitorService(latency: 15.0)
         let session = makeSession(context: context, stub: stub)
         session.startMonitoring()
-        try await Task.sleep(for: .milliseconds(200))
+        await waitUntil { session.latestMeasurement(for: target.id) != nil }
 
         let result = session.latestMeasurement(for: target.id)
         #expect(result != nil)
@@ -437,7 +481,7 @@ struct MonitoringSessionLoopTests {
 
         let session = makeSession(context: context, stub: SuccessMonitorService(latency: 10.0))
         session.startMonitoring()
-        try await Task.sleep(for: .milliseconds(200))
+        await waitUntil { !session.latestResults.isEmpty }
 
         #expect(session.onlineTargetCount == 1)
         #expect(session.offlineTargetCount == 0)
@@ -454,7 +498,7 @@ struct MonitoringSessionLoopTests {
 
         let session = makeSession(context: context, stub: UnreachableMonitorService())
         session.startMonitoring()
-        try await Task.sleep(for: .milliseconds(200))
+        await waitUntil { !session.latestResults.isEmpty }
 
         #expect(session.onlineTargetCount == 0)
         #expect(session.offlineTargetCount == 1)
@@ -473,7 +517,7 @@ struct MonitoringSessionLoopTests {
 
         let session = makeSession(context: context, stub: SuccessMonitorService(latency: 33.0))
         session.startMonitoring()
-        try await Task.sleep(for: .milliseconds(200))
+        await waitUntil { !session.latestResults.isEmpty }
 
         #expect(session.averageLatencyString == "33ms")
         await session.stopMonitoringAndWait()
@@ -492,10 +536,12 @@ struct MonitoringSessionLoopTests {
             targetProtocol: .icmp, checkInterval: 60, isEnabled: true))
         try context.save()
 
-        let session = makeSession(context: context, stub: SuccessMonitorService(latency: 50.0))
+        let stub = HostLatencyMonitorService(latencies: ["192.168.1.1": 40.0, "192.168.1.2": 60.0])
+        let session = makeSession(context: context, stub: stub)
         session.startMonitoring()
-        try await Task.sleep(for: .milliseconds(300))
+        await waitUntil { session.latestResults.count == 2 }
 
+        #expect(session.latestResults.count == 2)
         #expect(session.averageLatencyString == "50ms")
         await session.stopMonitoringAndWait()
     }
@@ -513,7 +559,7 @@ struct MonitoringSessionLoopTests {
 
         let session = makeSession(context: context, stub: ThrowingMonitorService(error: URLError(.timedOut)))
         session.startMonitoring()
-        try await Task.sleep(for: .milliseconds(200))
+        await waitUntil { session.latestMeasurement(for: target.id) != nil }
 
         let result = session.latestMeasurement(for: target.id)
         #expect(result != nil)
@@ -536,7 +582,7 @@ struct MonitoringSessionLoopTests {
 
         let session = makeSession(context: context, stub: UnreachableMonitorService())
         session.startMonitoring()
-        try await Task.sleep(for: .milliseconds(200))
+        await waitUntil { session.latestMeasurement(for: target.id) != nil }
 
         let result = session.latestMeasurement(for: target.id)
         #expect(result?.isReachable == false)
@@ -559,7 +605,7 @@ struct MonitoringSessionLoopTests {
 
         let session = makeSession(context: context, stub: SuccessMonitorService(latency: 10.0))
         session.startMonitoring()
-        try await Task.sleep(for: .milliseconds(150))
+        await waitUntil { session.recentLatencies[target.id]?.isEmpty == false }
         await session.stopMonitoringAndWait()
 
         let history = session.recentLatencies[target.id] ?? []
@@ -580,14 +626,18 @@ struct MonitoringSessionLoopTests {
         context.insert(target)
         try context.save()
 
-        let session = makeSession(context: context, stub: SuccessMonitorService(latency: 5.0))
+        let session = makeSession(context: context, stub: IncrementingLatencyMonitorService())
         session.startMonitoring()
-        try await Task.sleep(for: .milliseconds(400))
+        // The 25th sample means at least five have been evicted.
+        await waitUntil { (session.recentLatencies[target.id]?.last ?? 0) >= 25 }
         await session.stopMonitoringAndWait()
 
         let history = session.recentLatencies[target.id] ?? []
-        #expect(history.count <= 20)
-        #expect(history.isEmpty == false)
+        let newest = try #require(history.last)
+        #expect(newest >= 25)
+        #expect(history.count == 20)
+        // FIFO: the 20 newest samples survive, oldest first, and sample 1 is gone.
+        #expect(history == (0..<20).map { newest - 19 + Double($0) })
     }
 
     // MARK: SessionRecord persisted on start / marked inactive on stop
@@ -643,7 +693,7 @@ struct MonitoringSessionLoopTests {
 
         let session = makeSession(context: context, stub: SuccessMonitorService(latency: 20.0))
         session.startMonitoring()
-        try await Task.sleep(for: .milliseconds(200))
+        await waitUntil { (try? context.fetch(FetchDescriptor<TargetMeasurement>()))?.isEmpty == false }
 
         let measurements = try context.fetch(FetchDescriptor<TargetMeasurement>())
         #expect(measurements.isEmpty == false)
@@ -668,7 +718,7 @@ struct MonitoringSessionLoopTests {
 
         let session = makeSession(context: context, stub: SuccessMonitorService(latency: 30.0))
         session.startMonitoring()
-        try await Task.sleep(for: .milliseconds(200))
+        await waitUntil { session.latestResults[enabled.id] != nil }
 
         #expect(session.latestResults[disabled.id] == nil)
         #expect(session.latestResults[enabled.id] != nil)
