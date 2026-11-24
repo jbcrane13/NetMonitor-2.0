@@ -51,15 +51,16 @@ final class PlainRuleIOSViewModel {
         self.networkID = networkID
         self.context = context
         scannedOnly = [:]
+        let matched = Self.match(scan, to: devices)
         var candidates = devices.map { row in
             var device = RuleDevice(row)
             // The latest scan's open ports when the row has none of its own (#572).
-            if device.openPorts.isEmpty, let ports = Self.scanned(row, in: scan)?.openPorts {
+            if device.openPorts.isEmpty, let ports = matched.byRow[row.id]?.openPorts {
                 device.openPorts = ports
             }
             return device
         }
-        for scanned in scan where !devices.contains(where: { Self.isSame($0, scanned) }) {
+        for scanned in matched.unmatched {
             let candidate = RuleDevice(scanned: scanned)
             scannedOnly[candidate.id] = scanned
             candidates.append(candidate)
@@ -154,16 +155,28 @@ final class PlainRuleIOSViewModel {
         return row
     }
 
-    /// The scan's entry for a saved row: same MAC when both have one, else same address.
-    private static func scanned(_ row: LocalDevice, in scan: [DiscoveredDevice]) -> DiscoveredDevice? {
-        scan.first { isSame(row, $0) }
-    }
-
-    private static func isSame(_ row: LocalDevice, _ scanned: DiscoveredDevice) -> Bool {
-        if !row.macAddress.isEmpty, let mac = scanned.macAddress, !mac.isEmpty {
-            return row.macAddress.caseInsensitiveCompare(mac) == .orderedSame
+    /// Which saved row each scanned device is, by the device match that `saveRow` saves rows
+    /// with: a new device at a saved device's old address has no row, and a device whose private
+    /// MAC rotated keeps its row. `byRow` is keyed by the row's ID.
+    private static func match(
+        _ scan: [DiscoveredDevice], to rows: [LocalDevice]
+    ) -> (byRow: [UUID: DiscoveredDevice], unmatched: [DiscoveredDevice]) {
+        let observed = scan.map { DeviceMatchCandidate(ipAddress: $0.ipAddress, macAddress: $0.macAddress, name: $0.matchName) }
+        var matcher = DeviceMatcher(
+            known: rows.map { DeviceMatchCandidate(ipAddress: $0.ipAddress, macAddress: $0.macAddress, name: $0.matchName) },
+            observed: observed
+        )
+        var byRow: [UUID: DiscoveredDevice] = [:]
+        var unmatched: [DiscoveredDevice] = []
+        for (scanned, observation) in zip(scan, observed) {
+            guard let match = matcher.match(observation) else {
+                unmatched.append(scanned)
+                continue
+            }
+            let row = rows[match.index].id
+            byRow[row] = byRow[row] ?? scanned
         }
-        return row.ipAddress == scanned.ipAddress
+        return (byRow, unmatched)
     }
 
     private func trimmed(_ text: String) -> String {
