@@ -10,7 +10,8 @@ import SwiftUI
 struct CompanionSettingsView: View {
     @AppStorage("netmonitor.companion.enabled") private var companionEnabled = true
     @AppStorage("netmonitor.companion.port") private var servicePort = "8849"
-    @AppStorage(CompanionMessageHandler.answersInsightKey) private var answersInsight = true
+    // Off until the owner turns it on: the link has no pairing yet (#590).
+    @AppStorage(CompanionMessageHandler.answersInsightKey) private var answersInsight = false
 
     @Environment(\.companionService) private var companionService
     @State private var connectedDevices: [ConnectedDevice] = []

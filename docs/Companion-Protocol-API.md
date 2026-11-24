@@ -380,7 +380,7 @@ Sent periodically to maintain connection and verify connectivity.
 |-------|------|-------------|
 | `timestamp` | ISO8601 Date | Current time |
 | `version` | String | Protocol version |
-| `capabilities` | [String]? | Optional. What the sender does beyond the base protocol. The Mac sends `"insight.v1"` while its on-device model can answer and "Answer model requests from iPhone" is on. Omitted when empty; older builds ignore it. |
+| `capabilities` | [String]? | Optional. What the sender does beyond the base protocol. The Mac sends `"insight.v1"` while its on-device model can answer, it isn't scanning, and "Answer model requests from iPhone" is on. That setting is **off by default**: the link has no pairing or authentication for any message type yet, so the Mac's owner opts in (pairing and encryption: #590). Omitted when empty; older builds ignore it. |
 
 The Mac sends a heartbeat when a client connects and in reply to each heartbeat, so a phone learns the Mac's capabilities at once and again every interval.
 

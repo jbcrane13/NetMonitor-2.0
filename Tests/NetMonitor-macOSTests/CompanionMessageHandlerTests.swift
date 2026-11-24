@@ -197,6 +197,8 @@ struct CompanionMessageHandlerTests {
 
     @Test("the heartbeat reply advertises insight.v1 only while this Mac's model can answer")
     func heartbeatAdvertisesInsightWithModel() async throws {
+        UserDefaults.standard.set(true, forKey: CompanionMessageHandler.answersInsightKey)
+        defer { UserDefaults.standard.removeObject(forKey: CompanionMessageHandler.answersInsightKey) }
         let (container, _, withModel, _, _) = try makeFixture(insightService: FixedAnswerInsightService(answer: "SSH is open."))
         let (otherContainer, _, withoutModel, _, _) = try makeFixture()
         _ = (container, otherContainer)
@@ -213,6 +215,8 @@ struct CompanionMessageHandlerTests {
 
     @Test("while the Mac scans its heartbeat drops insight.v1, and a fresh heartbeat goes out when a scan starts and ends")
     func scanWithdrawsInsight() async throws {
+        UserDefaults.standard.set(true, forKey: CompanionMessageHandler.answersInsightKey)
+        defer { UserDefaults.standard.removeObject(forKey: CompanionMessageHandler.answersInsightKey) }
         let (container, _, handler, discovery, _) = try makeFixture(insightService: FixedAnswerInsightService(answer: "SSH is open."))
         _ = container
         var sent: [HeartbeatPayload] = []
@@ -249,6 +253,8 @@ struct CompanionMessageHandlerTests {
 
     @Test("an insight request is answered by the model, under the request's id")
     func insightRequestAnswered() async throws {
+        UserDefaults.standard.set(true, forKey: CompanionMessageHandler.answersInsightKey)
+        defer { UserDefaults.standard.removeObject(forKey: CompanionMessageHandler.answersInsightKey) }
         let (container, _, handler, _, _) = try makeFixture(insightService: FixedAnswerInsightService(answer: "SSH is open on this device."))
         _ = container
 
@@ -258,6 +264,26 @@ struct CompanionMessageHandlerTests {
         }
         #expect(response.requestID == Self.insightRequest.requestID)
         #expect(response.answer == "SSH is open on this device.")
+    }
+
+    @Test("answering is off until the owner turns it on: no capability, and requests are answered unavailable without the model")
+    func insightOffByDefault() async throws {
+        UserDefaults.standard.removeObject(forKey: CompanionMessageHandler.answersInsightKey)
+        let model = FixedAnswerInsightService(answer: "SSH is open.")
+        let (container, _, handler, _, _) = try makeFixture(insightService: model)
+        _ = container
+
+        #expect(!CompanionMessageHandler.answersInsight)
+        #expect(handler.heartbeat().capabilities == nil)
+        guard case let .heartbeat(reply)? = await handler.handle(.heartbeat(HeartbeatPayload()), from: UUID()),
+              case let .insightResponse(response)? = await handler.handle(.insightRequest(Self.insightRequest), from: UUID())
+        else {
+            Issue.record("expected heartbeat and insight replies")
+            return
+        }
+        #expect(reply.capabilities == nil)
+        #expect(response.failureReason == .unavailable)
+        #expect(response.answer == nil)
     }
 
     @Test("with the model unavailable an insight request is answered unavailable")
