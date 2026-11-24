@@ -230,12 +230,18 @@ struct PlainRuleBuilderTests {
         #expect(PlainRuleBuilder.probePort([]) == nil)
     }
 
-    /// #572: with no open port known, a background check could never succeed, so the draft is refused.
-    @Test func anIOSTargetForADeviceWithNoKnownOpenPortIsRefused() {
-        #expect(iOS(RuleIntent(kind: .deviceOffline, device: "LaserJet")) == .message(
-            "LaserJet can't be checked in the background yet: no scan has found an open port on it. "
-                + "Scan its ports from its device page, then try again."
-        ))
+    /// #572 + #578 review: with no open port known, the draft has no port yet; the app checks for
+    /// one before it can be saved, and the probe note waits until it knows the port.
+    @Test func anIOSTargetForADeviceWithNoKnownOpenPortHasNoPortYet() {
+        guard case let .target(draft) = iOS(RuleIntent(kind: .deviceOffline, device: "LaserJet")) else {
+            Issue.record("not a target")
+            return
+        }
+        #expect(draft.port == nil)
+        #expect(!draft.notes.contains { $0.hasPrefix("Background checks connect to port") })
+        #expect(PlainRuleBuilder.cantCheckMessage("LaserJet")
+            == "LaserJet can't be checked in the background: no scan has found an open port on it, and none of the common ports "
+            + "NetMonitor just tried answered. Scan its ports from its device page, then try again.")
     }
 
     @Test func onIOSThePortScanPresetWorksToo() {

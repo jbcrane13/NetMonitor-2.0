@@ -99,12 +99,13 @@ public struct TargetDraft: Sendable, Equatable {
     public var name: String
     public var host: String
     public var deviceID: UUID
-    /// The TCP port background checks connect to: one the device's last scan found open (#572).
-    public var port: Int
+    /// The TCP port background checks connect to: one the device's last scan found open (#572),
+    /// or nil when no scan found one and the app must check for an open port before saving.
+    public var port: Int?
     /// What the target can't do that the user asked for.
     public var notes: [String]
 
-    public init(name: String, host: String, deviceID: UUID, port: Int, notes: [String]) {
+    public init(name: String, host: String, deviceID: UUID, port: Int?, notes: [String]) {
         self.name = name
         self.host = host
         self.deviceID = deviceID
@@ -203,11 +204,9 @@ public enum PlainRuleBuilder {
             if hasTarget {
                 return .message("A monitoring target for \(device.displayName) already exists.")
             }
-            // Background checks can only connect to a TCP port; with none known to be open, a
-            // target would never record a success, so it isn't offered (#572).
-            guard let port = probePort(device.openPorts) else {
-                return .message(cantCheckMessage(device))
-            }
+            // Background checks can only connect to a TCP port. With none known to be open, the
+            // app checks for one before the draft can be saved, and refuses it if none answers.
+            let port = probePort(device.openPorts)
             return .target(TargetDraft(
                 name: device.displayName, host: device.ipAddress, deviceID: device.id, port: port,
                 notes: iOSNotes(intent, device: device, port: port)
@@ -251,15 +250,22 @@ public enum PlainRuleBuilder {
         return preferred.first(where: openPorts.contains) ?? openPorts.min()
     }
 
-    static func cantCheckMessage(_ device: RuleDevice) -> String {
-        "\(device.displayName) can't be checked in the background yet: no scan has found an open port on it. "
-            + "Scan its ports from its device page, then try again."
+    /// Why a target for `name` isn't offered: no scan found an open port, and none of the ports
+    /// the app tried just now answered.
+    public static func cantCheckMessage(_ name: String) -> String {
+        "\(name) can't be checked in the background: no scan has found an open port on it, and none of the common ports "
+            + "NetMonitor just tried answered. Scan its ports from its device page, then try again."
     }
 
-    private static func iOSNotes(_ intent: RuleIntent, device: RuleDevice, port: Int) -> [String] {
+    /// The note for a port the app found open when drafting, not from a scan.
+    public static func foundNowNote(port: Int, name: String) -> String {
+        "Background checks connect to port \(port), which NetMonitor found open on \(name) just now."
+    }
+
+    private static func iOSNotes(_ intent: RuleIntent, device: RuleDevice, port: Int?) -> [String] {
         let cantTime = intent.durationSeconds.map { " It can't time \(spoken(TimeInterval($0)))." } ?? ""
         let dropped = intent.durationWasDropped ? [iOSDroppedDurationNote] : []
-        let probe = ["Background checks connect to port \(port), which a scan found open on \(device.displayName)."]
+        let probe = port.map { ["Background checks connect to port \($0), which a scan found open on \(device.displayName)."] } ?? []
         if intent.kind == .latencyAbove {
             let threshold = intent.thresholdMilliseconds.map { "\($0) ms" } ?? "a threshold"
             return ["High-latency alerts use one threshold for every target (Settings › Notifications), so \(threshold) isn't saved "

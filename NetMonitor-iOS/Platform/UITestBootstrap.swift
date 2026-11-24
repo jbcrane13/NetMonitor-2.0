@@ -425,6 +425,16 @@ extension UITestBootstrap {
 
     static let rulePrinter = (name: "uitest-printer", ip: "192.168.77.20")
 
+    /// Under UI tests (Debug builds), a draft's port check reaches no real network: no port answers.
+    static var ruleProbe: MonitoringTargetProbe? {
+        #if DEBUG
+        guard isUITesting else { return nil }
+        return MonitoringTargetProbe { _, _, _ in false }
+        #else
+        return nil
+        #endif
+    }
+
     /// With `UITEST_RULE_SCAN_DEVICES=1` (Debug builds), the UI-test scan also finds a printer that
     /// has no saved row: "office-laser", with IPP 631 and 9100 open, so its type is inferred and a
     /// target can probe it (#571, #572).

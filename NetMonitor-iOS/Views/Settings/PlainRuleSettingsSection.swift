@@ -83,16 +83,22 @@ struct PlainRuleSettingsSection: View {
 
     @ViewBuilder
     private var outcome: some View {
-        switch viewModel.composer.outcome {
+        if viewModel.isCheckingPorts {
+            ProgressView("Checking ports…")
+                .accessibilityIdentifier("settings_progress_ruleCheckingPorts")
+        }
+        switch viewModel.displayedOutcome {
         case .target:
             if let draft = viewModel.targetDraft {
                 draftCard(
                     summary: "Add a monitoring target for \(draft.name) (\(draft.host))",
                     notes: draft.notes,
                     confirmTitle: "Confirm",
-                    canConfirm: viewModel.canConfirmTarget,
+                    canConfirm: viewModel.canConfirmTarget && !viewModel.isCheckingPorts,
                     editor: targetEditor
-                ) { viewModel.confirm(context: modelContext) }
+                ) {
+                    Task { await viewModel.confirm(context: modelContext, isScanning: env?.deviceDiscovery.isScanning ?? false) }
+                }
             }
         case let .portScan(device, preset):
             draftCard(
@@ -106,7 +112,7 @@ struct PlainRuleSettingsSection: View {
                 Text("More than one device matches. Which one?")
                     .foregroundStyle(Theme.Colors.textPrimary)
                 ForEach(candidates) { candidate in
-                    Button("\(candidate.displayName) (\(candidate.ipAddress))") { viewModel.choose(candidate) }
+                    Button("\(candidate.displayName) (\(candidate.ipAddress))") { Task { await viewModel.choose(candidate) } }
                         // A non-plain style keeps each button's own tap inside one list row.
                         .buttonStyle(.bordered)
                         .accessibilityIdentifier("settings_button_ruleDevice_\(candidate.id.uuidString)")

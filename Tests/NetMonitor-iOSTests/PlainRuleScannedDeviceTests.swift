@@ -26,8 +26,9 @@ struct PlainRuleScannedDeviceTests {
         )
     }
 
-    private func viewModel(_ answers: [String: RuleIntent]) -> PlainRuleIOSViewModel {
-        PlainRuleIOSViewModel(parser: FixedRuleIntentParser(answers: answers))
+    /// `probe` answers the draft's port check; by default no port answers.
+    private func viewModel(_ answers: [String: RuleIntent], probe: MockPortCheck = MockPortCheck(open: [:])) -> PlainRuleIOSViewModel {
+        PlainRuleIOSViewModel(parser: FixedRuleIntentParser(answers: answers), probe: probe.probe, checkedPorts: [22, 80, 443, 445, 631])
     }
 
     private let offline = ["basement-nas down": RuleIntent(kind: .deviceOffline, device: "basement-nas")]
@@ -96,7 +97,7 @@ struct PlainRuleScannedDeviceTests {
         #expect(model.targetDraft?.port == 445)
         #expect(model.targetDraft?.notes.contains("Background checks connect to port 445, which a scan found open on basement-nas.") == true)
 
-        model.confirm(context: context)
+        await model.confirm(context: context)
 
         let target = try #require(try context.fetch(FetchDescriptor<MonitoringTarget>()).first)
         #expect(target.targetProtocol == .tcp)
@@ -140,10 +141,7 @@ struct PlainRuleScannedDeviceTests {
         model.text = "basement-nas down"
         await model.submit(devices: [nas], scan: scan, targets: [], networkID: home, isScanning: false, context: context)
         #expect(model.targetDraft == nil, "The NAS has no open port of its own")
-        #expect(model.composer.outcome == .message(
-            "basement-nas can't be checked in the background yet: no scan has found an open port on it. "
-                + "Scan its ports from its device page, then try again."
-        ))
+        #expect(model.displayedOutcome == .message(PlainRuleBuilder.cantCheckMessage("basement-nas")))
 
         model.text = "scan office-printer"
         await model.submit(devices: [nas], scan: scan, targets: [], networkID: home, isScanning: false, context: context)
@@ -203,10 +201,7 @@ struct PlainRuleScannedDeviceTests {
         let model = viewModel(offline)
         model.text = "basement-nas down"
         await model.submit(devices: [], scan: [scannedNAS(openPorts: nil)], targets: [], networkID: home, isScanning: false, context: context)
-        #expect(model.composer.outcome == .message(
-            "basement-nas can't be checked in the background yet: no scan has found an open port on it. "
-                + "Scan its ports from its device page, then try again."
-        ))
+        #expect(model.displayedOutcome == .message(PlainRuleBuilder.cantCheckMessage("basement-nas")))
         #expect(model.targetDraft == nil)
         #expect(try context.fetch(FetchDescriptor<LocalDevice>()).isEmpty)
     }
@@ -242,7 +237,7 @@ struct PlainRuleScannedDeviceTests {
         #expect(model.targetDraft?.port == 445)
 
         model.targetDraft?.host = "nas-mgmt"
-        model.confirm(context: context)
+        await model.confirm(context: context)
 
         let target = try #require(try context.fetch(FetchDescriptor<MonitoringTarget>()).first)
         #expect(target.host == "nas-mgmt")
@@ -250,7 +245,7 @@ struct PlainRuleScannedDeviceTests {
         #expect(model.confirmProblem == nil)
     }
 
-    @Test func anEditedAddressWithNoKnownOpenPortIsNotSavedAndSaysWhy() async throws {
+    @Test func anEditedAddressWhereNoPortAnswersIsNotSavedAndSaysWhy() async throws {
         let container = try makeContainer()
         let context = container.mainContext
         let model = viewModel(offline)
@@ -258,15 +253,124 @@ struct PlainRuleScannedDeviceTests {
         await model.submit(devices: [], scan: [scannedNAS()], targets: [], networkID: home, isScanning: false, context: context)
 
         model.targetDraft?.host = "10.9.9.9"
-        model.confirm(context: context)
+        await model.confirm(context: context)
 
         #expect(try context.fetch(FetchDescriptor<MonitoringTarget>()).isEmpty)
-        #expect(model.confirmProblem == "No scan has found an open port on 10.9.9.9, so it can't be checked in the background. "
-            + "Use 192.168.1.40, or scan 10.9.9.9's ports first.")
+        #expect(model.confirmProblem == PlainRuleBuilder.cantCheckMessage("10.9.9.9"))
         #expect(model.targetDraft != nil, "The draft stays for the user to fix")
 
         model.targetDraft?.host = "192.168.1.40"
-        model.confirm(context: context)
+        await model.confirm(context: context)
         #expect(try context.fetch(FetchDescriptor<MonitoringTarget>()).first?.port == 445, "Back to the draft's address and port")
+    }
+
+    // MARK: - Port check at draft time (#578 review)
+
+    private let quietNAS = ["quiet-nas down": RuleIntent(kind: .deviceOffline, device: "quiet-nas")]
+
+    private func quietNAS(at address: String = "192.168.1.50") -> DiscoveredDevice {
+        DiscoveredDevice(
+            ipAddress: address, hostname: "quiet-nas", vendor: nil, macAddress: "02:00:00:01:00:50",
+            latency: 3, discoveredAt: Date(), source: .local, networkProfileID: home
+        )
+    }
+
+    /// Discovery on iOS records no open ports: the draft checks the common ports and uses the
+    /// first that accepts (here the second tried), then saves the device's row with it.
+    @Test func withNoKnownPortTheFirstPortThatAcceptsIsUsed() async throws {
+        let container = try makeContainer()
+        let check = MockPortCheck(open: ["192.168.1.50": [80, 445]])
+        let model = viewModel(quietNAS, probe: check)
+        model.text = "quiet-nas down"
+        await model.submit(devices: [], scan: [quietNAS()], targets: [], networkID: home, isScanning: false, context: container.mainContext)
+
+        #expect(model.targetDraft?.port == 80)
+        #expect(model.targetDraft?.notes.contains("Background checks connect to port 80, which NetMonitor found open on quiet-nas just now.") == true)
+        #expect(Set(check.asked("192.168.1.50")) == [22, 80, 443, 445], "One batch of four, then the first that accepted")
+        #expect(!model.isCheckingPorts)
+        let row = try #require(try container.mainContext.fetch(FetchDescriptor<LocalDevice>()).first)
+        #expect(row.openPorts == [80])
+        #expect(model.targetDraft?.deviceID == row.id)
+    }
+
+    @Test func whenNoPortAcceptsTheDraftIsRefusedAndNothingIsSaved() async throws {
+        let container = try makeContainer()
+        let check = MockPortCheck(open: [:])
+        let model = viewModel(quietNAS, probe: check)
+        model.text = "quiet-nas down"
+        await model.submit(devices: [], scan: [quietNAS()], targets: [], networkID: home, isScanning: false, context: container.mainContext)
+
+        #expect(model.displayedOutcome == .message(PlainRuleBuilder.cantCheckMessage("quiet-nas")))
+        #expect(model.targetDraft == nil)
+        #expect(Set(check.asked("192.168.1.50")) == [22, 80, 443, 445, 631])
+        #expect(try container.mainContext.fetch(FetchDescriptor<LocalDevice>()).isEmpty)
+    }
+
+    @Test func aPortTheScanFoundSkipsTheCheck() async throws {
+        let container = try makeContainer()
+        let check = MockPortCheck(open: ["192.168.1.40": [80]])
+        let model = viewModel(offline, probe: check)
+        model.text = "basement-nas down"
+        await model.submit(devices: [], scan: [scannedNAS()], targets: [], networkID: home, isScanning: false, context: container.mainContext)
+
+        #expect(model.targetDraft?.port == 445, "The scan's port")
+        #expect(check.asked("192.168.1.40").isEmpty, "Nothing was checked")
+    }
+
+    /// An edited address with no known port is checked too.
+    @Test func anEditedAddressIsCheckedForAnOpenPort() async throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let check = MockPortCheck(open: ["nas-ipmi": [443]])
+        let model = viewModel(offline, probe: check)
+        model.text = "basement-nas down"
+        await model.submit(devices: [], scan: [scannedNAS()], targets: [], networkID: home, isScanning: false, context: context)
+
+        model.targetDraft?.host = "nas-ipmi"
+        await model.confirm(context: context)
+
+        let target = try #require(try context.fetch(FetchDescriptor<MonitoringTarget>()).first)
+        #expect(target.host == "nas-ipmi")
+        #expect(target.port == 443)
+    }
+
+    @Test func noCheckRunsDuringAScan() async throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let check = MockPortCheck(open: ["nas-ipmi": [443]])
+        let model = viewModel(offline, probe: check)
+        model.text = "basement-nas down"
+        await model.submit(devices: [], scan: [scannedNAS()], targets: [], networkID: home, isScanning: false, context: context)
+
+        model.targetDraft?.host = "nas-ipmi"
+        await model.confirm(context: context, isScanning: true)
+
+        #expect(model.confirmProblem == "Wait for the scan to finish, then try again.")
+        #expect(check.asked("nas-ipmi").isEmpty)
+        #expect(try context.fetch(FetchDescriptor<MonitoringTarget>()).isEmpty)
+    }
+}
+
+/// Answers a draft's port check from a table of open ports per host, and records what was asked.
+final class MockPortCheck: @unchecked Sendable {
+    private let lock = NSLock()
+    private let open: [String: Set<Int>]
+    private var askedPorts: [String: [Int]] = [:]
+
+    init(open: [String: Set<Int>]) {
+        self.open = open
+    }
+
+    func asked(_ host: String) -> [Int] {
+        lock.withLock { askedPorts[host] ?? [] }
+    }
+
+    var probe: MonitoringTargetProbe {
+        MonitoringTargetProbe { [self] host, port, _ in
+            lock.withLock {
+                askedPorts[host, default: []].append(port)
+                return open[host]?.contains(port) ?? false
+            }
+        }
     }
 }

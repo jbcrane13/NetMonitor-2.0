@@ -76,8 +76,9 @@ final class PlainRuleScannedDeviceUITests: IOSUITestCase {
 
         let message = plainRuleElement("settings_label_ruleMessage")
         requireExists(message, timeout: 10, message: "The draft should be refused with a message")
-        XCTAssertEqual(message.label, "uitest-device-3 can't be checked in the background yet: no scan has found an open port on it. "
-            + "Scan its ports from its device page, then try again.")
+        // UI tests check ports against a stub that no port answers (UITestBootstrap.ruleProbe).
+        XCTAssertEqual(message.label, "uitest-device-3 can't be checked in the background: no scan has found an open port on it, and "
+            + "none of the common ports NetMonitor just tried answered. Scan its ports from its device page, then try again.")
         XCTAssertFalse(plainRuleElement("settings_button_confirmRuleDraft").exists, "Nothing can be confirmed")
         keepCroppedEvidence(message, named: "572-ios-refused")
     }

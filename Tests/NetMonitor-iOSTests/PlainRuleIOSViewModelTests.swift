@@ -29,7 +29,8 @@ struct PlainRuleIOSViewModelTests {
     }
 
     private func viewModel(_ text: String) -> PlainRuleIOSViewModel {
-        let model = PlainRuleIOSViewModel(parser: FixedRuleIntentParser.uiTest)
+        // No port answers a check: these tests name devices whose open ports are known.
+        let model = PlainRuleIOSViewModel(parser: FixedRuleIntentParser.uiTest, probe: MonitoringTargetProbe { _, _, _ in false })
         model.text = text
         return model
     }
@@ -82,7 +83,7 @@ struct PlainRuleIOSViewModelTests {
 
         model.targetDraft?.name = "  Basement NAS "
         model.targetDraft?.host = "home-nas"
-        model.confirm(context: container.mainContext)
+        await model.confirm(context: container.mainContext)
 
         let saved = try container.mainContext.fetch(FetchDescriptor<MonitoringTarget>())
         #expect(saved.map(\.name) == ["Basement NAS"])
@@ -96,7 +97,7 @@ struct PlainRuleIOSViewModelTests {
         await model.submit(devices: [homeNAS()], targets: [], networkID: home, isScanning: false, context: rowStore.mainContext)
         model.targetDraft?.host = "  "
         #expect(!model.canConfirmTarget)
-        model.confirm(context: container.mainContext)
+        await model.confirm(context: container.mainContext)
         #expect(try container.mainContext.fetch(FetchDescriptor<MonitoringTarget>()).isEmpty)
     }
 

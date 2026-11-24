@@ -25,11 +25,32 @@ final class PlainRuleIOSViewModel {
     private var knownPorts: [String: [Int]] = [:]
     /// The address the draft was built for; its port was picked for that address.
     private var draftHost: String?
-    /// Why Confirm didn't save, such as an edited address with no known open port.
+    /// Why Confirm didn't save, such as an edited address with no open port.
     private(set) var confirmProblem: String?
+    /// True while the app checks a device for an open port to probe (#578 review).
+    private(set) var isCheckingPorts = false
+    /// Set when a target draft was refused: no port answered the check.
+    private(set) var refusal: String?
+    /// Checks a device for an open port when no scan found one.
+    private let probe: MonitoringTargetProbe
+    /// The ports that check tries, in order.
+    private let checkedPorts: [Int]
+    /// Goes up with every request, so a port check that finishes after a newer one is dropped.
+    private var generation = 0
 
-    init(parser: any RuleIntentParsing = UITestBootstrap.ruleParser ?? RuleIntentParser.shared) {
+    init(
+        parser: any RuleIntentParsing = UITestBootstrap.ruleParser ?? RuleIntentParser.shared,
+        probe: MonitoringTargetProbe = UITestBootstrap.ruleProbe ?? BackgroundTaskService.liveProbe,
+        checkedPorts: [Int] = DeviceTypeInferenceService.fingerprintPorts
+    ) {
         composer = PlainRuleComposer(parser: parser, platform: .iOS)
+        self.probe = probe
+        self.checkedPorts = checkedPorts
+    }
+
+    /// What to show under the field: a refusal, else the composer's outcome.
+    var displayedOutcome: PlainRuleOutcome? {
+        refusal.map(PlainRuleOutcome.message) ?? composer.outcome
     }
 
     var isAvailable: Bool { composer.isAvailable }
@@ -89,12 +110,12 @@ final class PlainRuleIOSViewModel {
             targetHosts: Set(targets.map(\.host)),
             isScanning: isScanning
         )
-        adoptOutcome()
+        await adoptOutcome()
     }
 
-    func choose(_ device: RuleDevice) {
+    func choose(_ device: RuleDevice) async {
         composer.choose(device)
-        adoptOutcome()
+        await adoptOutcome()
     }
 
     /// Whether the edited draft can be saved: it has a name and an address.
@@ -103,23 +124,32 @@ final class PlainRuleIOSViewModel {
         return !trimmed(targetDraft.name).isEmpty && !trimmed(targetDraft.host).isEmpty
     }
 
-    /// Saves the reviewed monitoring-target draft, then clears the field. The draft's port was
-    /// found open on the draft's address; an edited address gets a port a scan found open on it,
-    /// or isn't saved and `confirmProblem` says why (#578 review).
-    func confirm(context: ModelContext) {
-        guard canConfirmTarget, let draft = targetDraft else { return }
+    /// Saves the reviewed monitoring-target draft, then clears the field. The draft's port is
+    /// open on the draft's address. An edited address gets a port a scan found open on it, else
+    /// one a quick check finds open now; with neither, nothing is saved and `confirmProblem`
+    /// says why (#578 review). No check runs during a scan.
+    func confirm(context: ModelContext, isScanning: Bool = false) async {
+        guard canConfirmTarget, !isCheckingPorts, let draft = targetDraft else { return }
         let host = trimmed(draft.host)
         var port = draft.port
         if host.caseInsensitiveCompare(draftHost ?? "") != .orderedSame {
-            guard let edited = PlainRuleBuilder.probePort(knownPorts[host.lowercased()] ?? []) else {
-                confirmProblem = "No scan has found an open port on \(host), so it can't be checked in the background. "
-                    + "Use \(draftHost ?? "the suggested address"), or scan \(host)'s ports first."
-                return
+            port = PlainRuleBuilder.probePort(knownPorts[host.lowercased()] ?? [])
+            if port == nil {
+                guard !isScanning else {
+                    confirmProblem = "Wait for the scan to finish, then try again."
+                    return
+                }
+                let request = generation
+                port = await checkForOpenPort(on: host)
+                guard request == generation else { return }
             }
-            port = edited
+        }
+        guard let port else {
+            confirmProblem = PlainRuleBuilder.cantCheckMessage(host)
+            return
         }
         confirmProblem = nil
-        // A TCP check of a port a scan found open: one that can succeed in the background (#572).
+        // A TCP check of a port found open: one that can succeed in the background (#572).
         context.insert(MonitoringTarget(name: trimmed(draft.name), host: host, port: port, targetProtocol: .tcp))
         do {
             try context.save()
@@ -137,6 +167,9 @@ final class PlainRuleIOSViewModel {
     }
 
     func cancel() {
+        generation += 1
+        isCheckingPorts = false
+        refusal = nil
         text = ""
         targetDraft = nil
         draftHost = nil
@@ -155,23 +188,49 @@ final class PlainRuleIOSViewModel {
         }
     }
 
-    private func adoptOutcome() {
-        if case var .target(draft) = composer.outcome {
-            if let scanned = scannedOnly[draft.deviceID], let row = saveRow(for: scanned) {
-                draft.deviceID = row.id
-            }
-            targetDraft = draft
-            draftHost = draft.host
-        } else {
+    private func adoptOutcome() async {
+        generation += 1
+        let request = generation
+        refusal = nil
+        confirmProblem = nil
+        guard case var .target(draft) = composer.outcome else {
             targetDraft = nil
             draftHost = nil
+            return
         }
-        confirmProblem = nil
+        targetDraft = nil
+        if draft.port == nil {
+            // Discovery on iOS never records open ports, so a device a scan found has none: check
+            // a few common ports now. This deliberately extends "a port the last scan found open"
+            // (#572) to "a port found open now" (#578 review).
+            let found = await checkForOpenPort(on: draft.host)
+            guard request == generation else { return }
+            guard let found else {
+                refusal = PlainRuleBuilder.cantCheckMessage(draft.name)
+                scannedOnly = [:]
+                return
+            }
+            draft.port = found
+            draft.notes.insert(PlainRuleBuilder.foundNowNote(port: found, name: draft.name), at: min(1, draft.notes.count))
+            remember([found], for: [draft.host])
+        }
+        if let scanned = scannedOnly[draft.deviceID], let row = saveRow(for: scanned, openPort: draft.port) {
+            draft.deviceID = row.id
+        }
+        targetDraft = draft
+        draftHost = draft.host
+    }
+
+    /// The first common port that accepts a connection on `host` now, shown as "Checking ports…".
+    private func checkForOpenPort(on host: String) async -> Int? {
+        isCheckingPorts = true
+        defer { isCheckingPorts = false }
+        return await probe.firstOpenPort(on: host, among: checkedPorts)
     }
 
     /// Saves the row for a device only the scan knew, as device detail does when it opens, so a
     /// draft names it by a stable ID (#571).
-    private func saveRow(for scanned: DiscoveredDevice) -> LocalDevice? {
+    private func saveRow(for scanned: DiscoveredDevice, openPort: Int?) -> LocalDevice? {
         guard let context else { return nil }
         let row = DeviceDetailViewModel.savedRow(
             ipAddress: scanned.ipAddress, scanned: scanned, networkID: networkID ?? scanned.networkProfileID, scan: scan, in: context
@@ -179,6 +238,9 @@ final class PlainRuleIOSViewModel {
         DeviceDetailViewModel.adopt(scanned, into: row)
         if let ports = scanned.openPorts, !ports.isEmpty {
             row.openPorts = ports
+        } else if let openPort, row.openPorts?.isEmpty ?? true {
+            // The port the draft found open just now.
+            row.openPorts = [openPort]
         }
         do {
             try context.save()

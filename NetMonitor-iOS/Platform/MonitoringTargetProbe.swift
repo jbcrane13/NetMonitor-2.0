@@ -22,4 +22,29 @@ struct MonitoringTargetProbe: Sendable {
         let answered = await connect(host, port, timeout)
         return (answered, answered ? Date().timeIntervalSince(start) * 1000 : nil)
     }
+
+    /// The first of `ports`, in order, that accepts a TCP connection on `host`, checking `batch`
+    /// at a time with a short `timeout` each; nil when none does. Drafts use it when no scan has
+    /// found an open port on a device (#578 review).
+    func firstOpenPort(on host: String, among ports: [Int], timeout: TimeInterval = 1, batch: Int = 4) async -> Int? {
+        var start = 0
+        while start < ports.count, !Task.isCancelled {
+            let group = Array(ports[start ..< min(start + batch, ports.count)])
+            let open = await withTaskGroup(of: (Int, Bool).self) { tasks in
+                for port in group {
+                    tasks.addTask { await (port, connect(host, port, timeout)) }
+                }
+                var accepted: Set<Int> = []
+                for await (port, ok) in tasks where ok {
+                    accepted.insert(port)
+                }
+                return accepted
+            }
+            if let first = group.first(where: open.contains) {
+                return first
+            }
+            start += batch
+        }
+        return nil
+    }
 }
