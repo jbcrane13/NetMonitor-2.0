@@ -31,13 +31,9 @@ final class TroubleshootToolViewModel {
         state = TroubleshootState(
             probes: ServiceTroubleshootProbes(
                 wifiService: env.wifiInfo,
-                // Counted as a manual test, so a scheduled one won't start meanwhile.
-                canRunSpeedTest: {
-                    // Not over a scheduled test or the Speed Test tool's own run.
-                    guard !IOSScheduledSpeedTest.isTestRunning, IOSScheduledSpeedTest.manualTestsRunning == 0 else { return false }
-                    IOSScheduledSpeedTest.manualTestsRunning += 1
-                    return true
-                },
+                // Counted as a manual test, so a scheduled one won't start meanwhile; refused
+                // over a scheduled test or the Speed Test tool's own run.
+                canRunSpeedTest: { IOSScheduledSpeedTest.claimManualTest() },
                 speedTestFinished: { _ in IOSScheduledSpeedTest.manualTestsRunning -= 1 }
             ),
             classifier: SymptomClassifier.shared,

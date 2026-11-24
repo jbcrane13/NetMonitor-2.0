@@ -38,6 +38,29 @@ struct TroubleshootToolViewModelTests {
         #expect(viewModel.state.steps.isEmpty)
     }
 
+    @Test func aSpeedTestIsNotClaimedOverAnotherManualOrScheduledTest() {
+        let manual = IOSScheduledSpeedTest.manualTestsRunning
+        let scheduled = IOSScheduledSpeedTest.isTestRunning
+        defer {
+            IOSScheduledSpeedTest.manualTestsRunning = manual
+            IOSScheduledSpeedTest.isTestRunning = scheduled
+        }
+        IOSScheduledSpeedTest.isTestRunning = false
+        // The Speed Test tool's own run, still going after the user left it.
+        IOSScheduledSpeedTest.manualTestsRunning = 1
+        #expect(!IOSScheduledSpeedTest.claimManualTest())
+        #expect(IOSScheduledSpeedTest.manualTestsRunning == 1)
+
+        IOSScheduledSpeedTest.manualTestsRunning = 0
+        IOSScheduledSpeedTest.isTestRunning = true
+        #expect(!IOSScheduledSpeedTest.claimManualTest())
+        #expect(IOSScheduledSpeedTest.manualTestsRunning == 0)
+
+        IOSScheduledSpeedTest.isTestRunning = false
+        #expect(IOSScheduledSpeedTest.claimManualTest())
+        #expect(IOSScheduledSpeedTest.manualTestsRunning == 1)
+    }
+
     @Test func theUITestModeUsesTheFixture() {
         let viewModel = TroubleshootToolViewModel(env: env(), mode: "unavailable")
         #expect(!viewModel.state.canDescribe)

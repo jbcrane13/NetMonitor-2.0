@@ -16,6 +16,14 @@ enum IOSScheduledSpeedTest {
     /// Manual tests in progress; a scheduled test won't start then.
     static var manualTestsRunning = 0
 
+    /// Counts a manual test in and returns true, unless a scheduled or another manual test is
+    /// running: the troubleshooter's speed test (#451) never runs over the Speed Test tool's.
+    static func claimManualTest() -> Bool {
+        guard !isTestRunning, manualTestsRunning == 0 else { return false }
+        manualTestsRunning += 1
+        return true
+    }
+
     static func latestResultDate(in modelContext: ModelContext) -> Date? {
         var descriptor = FetchDescriptor<SpeedTestResult>(sortBy: [SortDescriptor(\.timestamp, order: .reverse)])
         descriptor.fetchLimit = 1
