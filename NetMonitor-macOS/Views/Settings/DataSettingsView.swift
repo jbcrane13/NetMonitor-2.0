@@ -14,6 +14,7 @@ import os
 struct DataSettingsView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(DeviceDiscoveryCoordinator.self) private var deviceDiscovery: DeviceDiscoveryCoordinator?
+    @Environment(AlertRuleStore.self) private var ruleStore: AlertRuleStore?
     @AppStorage(HistoryRetention.key) private var historyRetention = HistoryRetention.default.rawValue
 
     @State private var showExportDialog = false
@@ -105,6 +106,8 @@ struct DataSettingsView: View {
             try modelContext.delete(model: LocalDevice.self)
             try modelContext.delete(model: SessionRecord.self)
             try modelContext.save()
+            // The deleted targets' device links go with them (#450).
+            ruleStore?.unlinkAllTargets()
             // Forget remembered devices too, so change detection starts a fresh baseline (#393).
             DeviceChangeTracker().clearAll()
             DeviceSuggestionStore().clearAll()

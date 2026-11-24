@@ -52,7 +52,19 @@ final class PlainRuleMacViewModel {
     /// Whether `target` checks `device`: a linked target checks the device it is linked to,
     /// whatever its address; an unlinked one checks whichever device has its address.
     private func checks(_ target: NetworkTarget, _ device: RuleDevice) -> Bool {
-        targetLinks[target.id].map { $0 == device.id } ?? (target.host == device.ipAddress)
+        Self.checks(target, deviceID: device.id, address: device.ipAddress, linkedDevice: targetLinks[target.id])
+    }
+
+    static func checks(_ target: NetworkTarget, deviceID: UUID, address: String?, linkedDevice: UUID?) -> Bool {
+        linkedDevice.map { $0 == deviceID } ?? (target.host == address)
+    }
+
+    /// Whether an enabled target checks the device, by the same rule as the draft: the rule
+    /// editor's warning uses it too.
+    static func isMonitored(
+        deviceID: UUID, address: String?, targets: [NetworkTarget], linkedDevice: (UUID) -> UUID?
+    ) -> Bool {
+        targets.contains { $0.isEnabled && checks($0, deviceID: deviceID, address: address, linkedDevice: linkedDevice($0.id)) }
     }
 
     private func disabledTarget(for device: RuleDevice) -> NetworkTarget? {
@@ -70,11 +82,15 @@ final class PlainRuleMacViewModel {
         let enabled = targets.filter(\.isEnabled)
         targetIntervals = Dictionary(targets.filter { !$0.isEnabled }.map { ($0.host, $0.checkInterval) }) { first, _ in first }
             .merging(Dictionary(enabled.map { ($0.host, $0.checkInterval) }, uniquingKeysWith: min)) { _, enabled in enabled }
+        let candidates = devices.map(RuleDevice.init)
+        // The addresses of devices an enabled target checks: a linked target counts only for its
+        // own device, an unlinked one for the device at its address.
+        let monitored = candidates.filter { device in enabled.contains { checks($0, device) } }
         await composer.submit(
             text,
-            devices: devices.map(RuleDevice.init),
+            devices: candidates,
             timing: timing,
-            targetHosts: Set(enabled.map(\.host)),
+            targetHosts: Set(monitored.map(\.ipAddress)),
             isScanning: isScanning
         )
         adoptOutcome()

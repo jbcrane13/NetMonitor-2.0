@@ -10,24 +10,37 @@ import SwiftData
 import SwiftUI
 
 struct RulesSettingsView: View {
+    @Environment(AlertRuleStore.self) private var store
+
+    var body: some View {
+        RulesForm(ruleDeviceIDs: Array(Set(store.rules.compactMap(\.conditions.deviceID))))
+    }
+}
+
+/// The Rules tab. `ruleDevices` are exactly the devices the rules name, looked up by ID, so the
+/// list shows each one's current name however many devices are saved.
+private struct RulesForm: View {
     @Environment(NetworkProfileManager.self) private var profileManager: NetworkProfileManager?
     /// The app's one shared store, so every Settings window edits the same rules.
     @Environment(AlertRuleStore.self) private var store
     @Environment(DeviceDiscoveryCoordinator.self) private var discovery: DeviceDiscoveryCoordinator?
     @Environment(MonitoringSession.self) private var monitoringSession: MonitoringSession?
     @Environment(\.modelContext) private var modelContext
-    /// Capped like the app's other device reads (#207); a rule names a device on this network.
-    @Query(Self.devicesDescriptor) private var devices: [LocalDevice]
+    @Query private var ruleDevices: [LocalDevice]
     @Query(Self.targetsDescriptor) private var targets: [NetworkTarget]
     @State private var editing: AlertRule?
     @State private var plainRule = PlainRuleMacViewModel()
+
+    init(ruleDeviceIDs: [UUID]) {
+        _ruleDevices = Query(filter: #Predicate<LocalDevice> { ruleDeviceIDs.contains($0.id) })
+    }
 
     var body: some View {
         Form {
             if plainRule.isAvailable {
                 PlainRuleSection(
                     viewModel: plainRule,
-                    devices: networkDevices,
+                    networkID: profileManager?.activeProfile?.id,
                     targets: targets,
                     isScanning: discovery?.isScanning ?? false,
                     isMonitoring: monitoringSession?.isMonitoring ?? false,
@@ -55,7 +68,7 @@ struct RulesSettingsView: View {
                 ForEach(store.rules) { rule in
                     RuleRow(
                         rule: rule,
-                        summary: RuleDescription.summary(rule, networks: profileManager?.profiles ?? [], devices: devices),
+                        summary: RuleDescription.summary(rule, networks: profileManager?.profiles ?? [], devices: ruleDevices),
                         onToggle: { isOn in
                             var updated = rule
                             updated.isEnabled = isOn
@@ -86,7 +99,7 @@ struct RulesSettingsView: View {
             RuleEditorView(
                 rule: rule,
                 networks: profileManager?.profiles ?? [],
-                deviceName: rule.conditions.deviceID.flatMap { id in devices.first { $0.id == id }?.displayName },
+                deviceName: rule.conditions.deviceID.flatMap { id in ruleDevices.first { $0.id == id }?.displayName },
                 deviceHasTarget: deviceHasTarget(rule.conditions.deviceID),
                 onSave: { saved in
                     if store.rules.contains(where: { $0.id == saved.id }) {
@@ -102,30 +115,22 @@ struct RulesSettingsView: View {
     }
 }
 
-extension RulesSettingsView {
-    private static var devicesDescriptor: FetchDescriptor<LocalDevice> {
-        var descriptor = FetchDescriptor<LocalDevice>()
-        descriptor.fetchLimit = 500
-        return descriptor
-    }
-
+extension RulesForm {
     private static var targetsDescriptor: FetchDescriptor<NetworkTarget> {
         var descriptor = FetchDescriptor<NetworkTarget>()
         descriptor.fetchLimit = 200
         return descriptor
     }
 
-    /// Whether an enabled monitoring target checks the device: one linked to it, or one on its address.
+    /// Whether an enabled monitoring target checks the device, by the draft's rule.
     private func deviceHasTarget(_ deviceID: UUID?) -> Bool {
         guard let deviceID else { return false }
-        let address = devices.first { $0.id == deviceID }?.ipAddress
-        return targets.contains { $0.isEnabled && (store.device(forTarget: $0.id) == deviceID || $0.host == address) }
-    }
-
-    /// The devices a described rule can name: the active network's, or all without one.
-    private var networkDevices: [LocalDevice] {
-        guard let active = profileManager?.activeProfile?.id else { return devices }
-        return devices.filter { $0.networkProfileID == active }
+        return PlainRuleMacViewModel.isMonitored(
+            deviceID: deviceID,
+            address: ruleDevices.first { $0.id == deviceID }?.ipAddress,
+            targets: targets,
+            linkedDevice: store.device(forTarget:)
+        )
     }
 }
 

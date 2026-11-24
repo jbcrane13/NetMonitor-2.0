@@ -17,9 +17,10 @@ struct PlainRuleMacTests {
     private let nasSentence = "Tell me if the NAS is down for more than five minutes"
     private let timing = RuleTiming(targetCheckInterval: 30)
 
-    private func makeDefaults() -> (UserDefaults, String) {
+    /// Never the standard defaults: they hold the user's real rules.
+    private func makeDefaults() throws -> (UserDefaults, String) {
         let suite = "PlainRuleMacTests.\(UUID().uuidString)"
-        return (UserDefaults(suiteName: suite) ?? .standard, suite)
+        return try (#require(UserDefaults(suiteName: suite)), suite)
     }
 
     /// The caller keeps the container: a context whose container is released crashes.
@@ -38,7 +39,7 @@ struct PlainRuleMacTests {
     }
 
     @Test func nothingIsSavedUntilConfirm() async throws {
-        let (defaults, suite) = makeDefaults()
+        let (defaults, suite) = try makeDefaults()
         defer { defaults.removePersistentDomain(forName: suite) }
         let store = AlertRuleStore(defaults: defaults)
         let container = try makeContainer()
@@ -61,7 +62,7 @@ struct PlainRuleMacTests {
     }
 
     @Test func confirmSavesTheRuleOnTheDevicesIdentityAndItsTarget() async throws {
-        let (defaults, suite) = makeDefaults()
+        let (defaults, suite) = try makeDefaults()
         defer { defaults.removePersistentDomain(forName: suite) }
         let store = AlertRuleStore(defaults: defaults)
         let container = try makeContainer()
@@ -87,7 +88,7 @@ struct PlainRuleMacTests {
     }
 
     @Test func confirmWithoutTheTargetSavesOnlyTheRule() async throws {
-        let (defaults, suite) = makeDefaults()
+        let (defaults, suite) = try makeDefaults()
         defer { defaults.removePersistentDomain(forName: suite) }
         let container = try makeContainer()
         let context = container.mainContext
@@ -105,7 +106,7 @@ struct PlainRuleMacTests {
     /// Monitoring skips a turned-off target, so it doesn't count as monitoring the device: the
     /// draft offers to turn it back on, and confirming does that instead of adding a second one.
     @Test func aTurnedOffTargetIsOfferedAndTurnedBackOnAtConfirm() async throws {
-        let (defaults, suite) = makeDefaults()
+        let (defaults, suite) = try makeDefaults()
         defer { defaults.removePersistentDomain(forName: suite) }
         let container = try makeContainer()
         let context = container.mainContext
@@ -163,7 +164,7 @@ struct PlainRuleMacTests {
     /// Through the app's real rule alerts: the target's host is the NAS's row, so the event carries
     /// the NAS's identity, and the rule waits out its five minutes instead of firing at the first failure.
     @Test func aTargetGoingDownDoesNotFireAFiveMinuteRuleAtOnce() throws {
-        let (defaults, suite) = makeDefaults()
+        let (defaults, suite) = try makeDefaults()
         defer { defaults.removePersistentDomain(forName: suite) }
         let store = AlertRuleStore(defaults: defaults)
         let device = nas()
@@ -189,7 +190,7 @@ struct PlainRuleMacTests {
     /// An HTTP target answering 503 is unreachable and still reports a latency on every check.
     /// The rule's clock must run through those checks and stop only when the target recovers.
     @Test func aTargetFailingWithALatencyFiresItsDurationRuleOnceTheTimeIsUp() throws {
-        let (defaults, suite) = makeDefaults()
+        let (defaults, suite) = try makeDefaults()
         defer { defaults.removePersistentDomain(forName: suite) }
         let store = AlertRuleStore(defaults: defaults)
         let device = nas()
@@ -220,8 +221,8 @@ struct PlainRuleMacTests {
         #expect(poster.requests.count == 1, "A new outage starts a new clock")
     }
 
-    @Test func aScanThatReportsTheDeviceOfflineFiresItsDurationRuleByIdentity() {
-        let (defaults, suite) = makeDefaults()
+    @Test func aScanThatReportsTheDeviceOfflineFiresItsDurationRuleByIdentity() throws {
+        let (defaults, suite) = try makeDefaults()
         defer { defaults.removePersistentDomain(forName: suite) }
         let store = AlertRuleStore(defaults: defaults)
         let device = nas()
@@ -267,18 +268,20 @@ extension PlainRuleMacTests {
         }
     }
 
-    private func session(_ context: ModelContext) -> MonitoringSession {
+    /// `defaults` is the test's own suite: the session reads its retry settings there, never from
+    /// the standard defaults.
+    private func session(_ context: ModelContext, defaults: UserDefaults) -> MonitoringSession {
         let stub = ReachableService()
-        return MonitoringSession(modelContext: context, anyHTTPService: stub, anyICMPService: stub, anyTCPService: stub)
+        return MonitoringSession(modelContext: context, anyHTTPService: stub, anyICMPService: stub, anyTCPService: stub, defaults: defaults)
     }
 
     @Test func confirmCanStartMonitoringAfterSavingSoItChecksTheNewTarget() async throws {
-        let (defaults, suite) = makeDefaults()
+        let (defaults, suite) = try makeDefaults()
         defer { defaults.removePersistentDomain(forName: suite) }
         let store = AlertRuleStore(defaults: defaults)
         let container = try makeContainer()
         let context = container.mainContext
-        let monitoring = session(context)
+        let monitoring = session(context, defaults: defaults)
         let model = viewModel()
         model.text = nasSentence
         await model.submit(devices: [nas()], targets: [], isScanning: false)
@@ -295,10 +298,10 @@ extension PlainRuleMacTests {
     }
 
     @Test func confirmWithoutStartingLeavesMonitoringStopped() async throws {
-        let (defaults, suite) = makeDefaults()
+        let (defaults, suite) = try makeDefaults()
         defer { defaults.removePersistentDomain(forName: suite) }
         let container = try makeContainer()
-        let monitoring = session(container.mainContext)
+        let monitoring = session(container.mainContext, defaults: defaults)
         let model = viewModel()
         model.text = nasSentence
         await model.submit(devices: [nas()], targets: [], isScanning: false)
@@ -307,7 +310,7 @@ extension PlainRuleMacTests {
     }
 
     @Test func theTargetARuleAddsIsLinkedToTheDevice() async throws {
-        let (defaults, suite) = makeDefaults()
+        let (defaults, suite) = try makeDefaults()
         defer { defaults.removePersistentDomain(forName: suite) }
         let store = AlertRuleStore(defaults: defaults)
         let container = try makeContainer()
@@ -323,8 +326,8 @@ extension PlainRuleMacTests {
 
     /// The NAS moved to .41 and another device took its old address .40: checks of .40 are not the
     /// NAS's, so they never alert for it, and the target is moved to .41.
-    @Test func aLinkedTargetFollowsItsDeviceAndNeverAlertsForTheOneOnItsOldAddress() {
-        let (defaults, suite) = makeDefaults()
+    @Test func aLinkedTargetFollowsItsDeviceAndNeverAlertsForTheOneOnItsOldAddress() throws {
+        let (defaults, suite) = try makeDefaults()
         defer { defaults.removePersistentDomain(forName: suite) }
         let store = AlertRuleStore(defaults: defaults)
         let device = nas()
@@ -354,8 +357,8 @@ extension PlainRuleMacTests {
 
     /// On another network the NAS has no row, and its old private address is someone else's: the
     /// linked target's checks there are not the NAS's.
-    @Test func aLinkedTargetsChecksOnAnotherNetworkAreNotItsDevices() {
-        let (defaults, suite) = makeDefaults()
+    @Test func aLinkedTargetsChecksOnAnotherNetworkAreNotItsDevices() throws {
+        let (defaults, suite) = try makeDefaults()
         defer { defaults.removePersistentDomain(forName: suite) }
         let store = AlertRuleStore(defaults: defaults)
         let device = nas()
@@ -384,8 +387,8 @@ extension PlainRuleMacTests {
 
     /// The NAS went offline and a phone took its address. The NAS's row keeps that address, but
     /// the scan shows the phone answering there, so the target's readings are not the NAS's.
-    @Test func aLinkedTargetsChecksOfAnAddressAnotherDeviceTookAreNotItsDevices() {
-        let (defaults, suite) = makeDefaults()
+    @Test func aLinkedTargetsChecksOfAnAddressAnotherDeviceTookAreNotItsDevices() throws {
+        let (defaults, suite) = try makeDefaults()
         defer { defaults.removePersistentDomain(forName: suite) }
         let store = AlertRuleStore(defaults: defaults)
         let device = nas()
@@ -424,7 +427,7 @@ extension PlainRuleMacTests {
     /// The session and the app's alert wiring together: the NAS moved to .41, so the failed check
     /// of its old address .40 is neither saved in the NAS target's history nor alerted as down.
     @Test func aCheckOfTheAddressADeviceLeftIsNeitherSavedNorAlerted() async throws {
-        let (defaults, suite) = makeDefaults()
+        let (defaults, suite) = try makeDefaults()
         defer { defaults.removePersistentDomain(forName: suite) }
         let store = AlertRuleStore(defaults: defaults)
         let container = try makeContainer()
@@ -456,7 +459,7 @@ extension PlainRuleMacTests {
     /// At the office a printer has the home NAS's private address. The NAS's turned-off target is
     /// not the printer's: the draft adds a new target and leaves the NAS's link alone.
     @Test func aTurnedOffTargetLinkedToAnotherDeviceIsNotReused() async throws {
-        let (defaults, suite) = makeDefaults()
+        let (defaults, suite) = try makeDefaults()
         defer { defaults.removePersistentDomain(forName: suite) }
         let store = AlertRuleStore(defaults: defaults)
         let container = try makeContainer()
@@ -506,7 +509,9 @@ extension PlainRuleMacTests {
         let target = NetworkTarget(name: "NAS", host: "192.168.77.40", targetProtocol: .icmp, checkInterval: 60)
         context.insert(target)
         try context.save()
-        let monitoring = session(context)
+        let (defaults, suite) = try makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let monitoring = session(context, defaults: defaults)
         monitoring.startMonitoring()
         await waitUntil { monitoring.latestResults[target.id] != nil }
 
@@ -520,8 +525,8 @@ extension PlainRuleMacTests {
 
     /// Both paths together: the target times the outage, so the scan's later report of the same
     /// outage doesn't alert a second time.
-    @Test func aTargetAndAScanReportingOneOutageAlertOnce() {
-        let (defaults, suite) = makeDefaults()
+    @Test func aTargetAndAScanReportingOneOutageAlertOnce() throws {
+        let (defaults, suite) = try makeDefaults()
         defer { defaults.removePersistentDomain(forName: suite) }
         let store = AlertRuleStore(defaults: defaults)
         let device = nas()

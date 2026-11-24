@@ -80,6 +80,16 @@ struct PlainRuleTests {
         #expect(duration(1800, "alert me if the NAS is down for 1 hour and 30 minutes") == nil, "Part of the duration isn't it")
     }
 
+    @Test func spokenDurationsReadHalvesAndShortUnits() {
+        #expect(SpokenDuration.seconds(in: "down for an hour and a half") == [5400])
+        #expect(SpokenDuration.seconds(in: "two hours and a half") == [9000])
+        #expect(SpokenDuration.seconds(in: "for 5m") == [300])
+        #expect(SpokenDuration.seconds(in: "for 5 min") == [300])
+        #expect(SpokenDuration.seconds(in: "for 2h") == [7200])
+        #expect(SpokenDuration.seconds(in: "5 minutes and a second device joins") == [300, 1])
+        #expect(SpokenDuration.seconds(in: "1 hour 30 minutes") == [5400])
+    }
+
     @Test func spokenDurationsReadDigitsWordsAndUnits() {
         #expect(SpokenDuration.seconds(in: "down 5min or 90s") == [300, 90])
         #expect(SpokenDuration.seconds(in: "half a minute") == [30])

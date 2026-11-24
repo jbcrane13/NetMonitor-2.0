@@ -292,6 +292,8 @@ struct NetMonitorApp: App {
             let dispatcher = MacAlertDispatcher(service: service, store: alertRuleStore, insightService: InsightService.shared)
             alertDispatcher = dispatcher
             dispatcher.attach(to: monitoringSession, discovery: deviceDiscovery)
+            // Target-device links whose target, device or rule is gone (#450).
+            alertRuleStore.pruneLinks(in: Self.sharedModelContainer.mainContext)
         }
 
         if autoStartMonitoring && !shouldDisableMonitoring,

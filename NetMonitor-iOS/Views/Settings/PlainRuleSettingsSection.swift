@@ -12,7 +12,6 @@ struct PlainRuleSettingsSection: View {
     @Binding var openPortScan: PortScanRequest?
     @Environment(\.modelContext) private var modelContext
     @Environment(AppEnvironment.self) private var env: AppEnvironment?
-    @Query(Self.devicesDescriptor) private var devices: [LocalDevice]
     @Query(Self.targetsDescriptor) private var targets: [MonitoringTarget]
     @State private var viewModel = PlainRuleIOSViewModel()
 
@@ -67,11 +66,13 @@ struct PlainRuleSettingsSection: View {
     }
 
     private func parse() {
+        let networkID = env?.currentNetworkProfileID()
+        let devices = (try? modelContext.fetch(RuleDevice.candidates(network: networkID))) ?? []
         Task {
             await viewModel.submit(
                 devices: devices,
                 targets: targets,
-                networkID: env?.currentNetworkProfileID(),
+                networkID: networkID,
                 isScanning: env?.deviceDiscovery.isScanning ?? false
             )
         }
@@ -175,12 +176,6 @@ struct PlainRuleSettingsSection: View {
                     .accessibilityIdentifier("settings_button_confirmRuleDraft")
             }
         }
-    }
-
-    private static var devicesDescriptor: FetchDescriptor<LocalDevice> {
-        var descriptor = FetchDescriptor<LocalDevice>()
-        descriptor.fetchLimit = 500
-        return descriptor
     }
 
     private static var targetsDescriptor: FetchDescriptor<MonitoringTarget> {

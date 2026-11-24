@@ -225,4 +225,61 @@ struct AlertRuleIdentityTests {
         let fired = evaluator.evaluate([AlertRuleEvent(kind: .stillOffline, subject: ping)], rules: [rule], now: at(300))
         #expect(fired.map(\.event.subject.monitoredTargetID) == [ping.monitoredTargetID])
     }
+
+    // MARK: - #574 review
+
+    /// "Tell me when the NAS goes offline" (no duration) with its offered target: the target's
+    /// down and the scan's later report are one outage.
+    @Test func aRuleWithoutADurationAlertsOnceForATargetAndAScan() {
+        var evaluator = AlertRuleEvaluator()
+        let offline = AlertRule(name: "Offline", trigger: .wentOffline, conditions: AlertRuleConditions(deviceID: nasID))
+        let online = AlertRule(name: "Back", trigger: .cameOnline, conditions: AlertRuleConditions(deviceID: nasID))
+        let target = targetSubject(UUID())
+        var fired: [String] = []
+        func run(_ kind: AlertRuleEvent.Kind, _ subject: AlertRuleSubject) {
+            fired += evaluator.evaluate([AlertRuleEvent(kind: kind, subject: subject)], rules: [offline, online], now: at(0))
+                .map { "\($0.rule.name)/\($0.event.subject.monitoredTargetID == nil ? "scan" : "target")" }
+        }
+        run(.wentOffline, target)
+        run(.wentOffline, nas(named: "NAS"))
+        run(.cameOnline, target)
+        run(.cameOnline, nas(named: "NAS"))
+        #expect(fired == ["Offline/target", "Back/target"])
+    }
+
+    /// A manual "offline 30 min" rule on storage devices. Its target is deleted while monitoring
+    /// runs: scans time the NAS again instead of staying silenced.
+    @Test func aDeletedTargetStopsSilencingScanReports() {
+        var evaluator = AlertRuleEvaluator()
+        let manual = AlertRule(name: "Storage down", trigger: .wentOffline, conditions: AlertRuleConditions(deviceType: .storage),
+                               minimumDuration: 1800)
+        let targetID = UUID()
+        _ = evaluator.evaluate([AlertRuleEvent(kind: .latency(milliseconds: 4), subject: targetSubject(targetID))], rules: [manual], now: at(0))
+        let report = AlertRuleEvent(kind: .wentOffline, subject: nas(named: "NAS"), offlineSince: at(0))
+        #expect(evaluator.evaluate([report], rules: [manual], now: at(2000)).isEmpty, "The target covers the NAS")
+
+        evaluator.retainTargets([])
+
+        #expect(evaluator.evaluate([report], rules: [manual], now: at(2000)).map(\.rule.name) == ["Storage down"])
+    }
+
+    @Test func aTargetCoversOnlyWhatItsLatestCheckMatched() {
+        var evaluator = AlertRuleEvaluator()
+        let rule = AlertRule(name: "Down", trigger: .wentOffline, conditions: AlertRuleConditions(deviceID: nasID))
+        let targetID = UUID()
+        _ = evaluator.evaluate([AlertRuleEvent(kind: .latency(milliseconds: 4), subject: targetSubject(targetID))], rules: [rule], now: at(0))
+        // Re-addressed: the same target now checks a device with no identity here.
+        let elsewhere = AlertRuleSubject(name: "x", ipAddress: "10.0.0.99", monitoredTargetID: targetID)
+        _ = evaluator.evaluate([AlertRuleEvent(kind: .latency(milliseconds: 4), subject: elsewhere)], rules: [rule], now: at(10))
+        #expect(evaluator.evaluate([AlertRuleEvent(kind: .wentOffline, subject: nas(named: "NAS"))], rules: [rule], now: at(20)).count == 1)
+    }
+
+    @Test func retainingTargetsKeepsTheActiveOnesOutages() {
+        var evaluator = AlertRuleEvaluator()
+        let rule = AlertRule(name: "Down 5 min", trigger: .wentOffline, conditions: AlertRuleConditions(deviceID: nasID), minimumDuration: 300)
+        let kept = UUID()
+        _ = evaluator.evaluate([AlertRuleEvent(kind: .wentOffline, subject: targetSubject(kept))], rules: [rule], now: at(0))
+        evaluator.retainTargets([kept])
+        #expect(evaluator.evaluate([AlertRuleEvent(kind: .stillOffline, subject: targetSubject(kept))], rules: [rule], now: at(300)).count == 1)
+    }
 }

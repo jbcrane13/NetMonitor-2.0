@@ -6,12 +6,15 @@
 //
 
 import NetMonitorCore
+import SwiftData
 import SwiftUI
 
 struct PlainRuleSection: View {
     @Environment(AlertRuleStore.self) private var store
+    @Environment(\.modelContext) private var modelContext
     @Bindable var viewModel: PlainRuleMacViewModel
-    let devices: [LocalDevice]
+    /// The network whose saved devices a rule can name; nil for every network.
+    let networkID: UUID?
     let targets: [NetworkTarget]
     let isScanning: Bool
     /// Targets are checked only while monitoring runs.
@@ -42,6 +45,7 @@ struct PlainRuleSection: View {
     }
 
     private func parse() {
+        let devices = (try? modelContext.fetch(RuleDevice.candidates(network: networkID))) ?? []
         Task { await viewModel.submit(devices: devices, targets: targets, isScanning: isScanning, linkedDevice: store.device(forTarget:)) }
     }
 

@@ -112,9 +112,18 @@ enum SpokenDuration {
                 index += 1
                 continue
             }
-            // "a"/"an" doesn't continue a duration: "for 5 minutes and a second device joins".
-            while let (more, smaller, after) = term(in: words, at: next < words.count && words[next] == "and" ? next + 1 : next),
-                  smaller < unit, !["a", "an"].contains(words[after - 2]) {
+            while true {
+                let start = next < words.count && words[next] == "and" ? next + 1 : next
+                // "an hour and a half": half the unit before it.
+                if start > next, start + 1 < words.count, articles.contains(words[start]), words[start + 1] == "half" {
+                    (total, next) = (total + unit / 2, start + 2)
+                    break
+                }
+                // A smaller unit continues it ("1 hour 30 minutes"), but not one counted with
+                // "a"/"an": "for 5 minutes and a second device joins".
+                guard start < words.count, !articles.contains(words[start]),
+                      let (more, smaller, after) = term(in: words, at: start), smaller < unit
+                else { break }
                 (total, unit, next) = (total + more, smaller, after)
             }
             found.insert(Int(total.rounded()))
@@ -130,6 +139,8 @@ enum SpokenDuration {
         else { return nil }
         return (value * unit, unit, next + 1)
     }
+
+    private static let articles: Set<String> = ["a", "an"]
 
     private static let ones = [
         "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9,
@@ -166,7 +177,9 @@ enum SpokenDuration {
         case "second", "seconds", "sec", "secs": 1
         case "s": afterDigits ? 1 : nil
         case "minute", "minutes", "min", "mins": 60
+        case "m": afterDigits ? 60 : nil
         case "hour", "hours", "hr", "hrs": 3600
+        case "h": afterDigits ? 3600 : nil
         case "day", "days": 86400
         default: nil
         }

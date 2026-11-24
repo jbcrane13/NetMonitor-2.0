@@ -77,8 +77,6 @@ public struct AlertRuleSubject: Sendable, Equatable {
     public var deviceType: DeviceType?
     public var maker: String?
     public var networkID: UUID?
-    /// Overrides `key`, e.g. a monitored target's ID, so two targets on one host stay apart.
-    public var stateKey: String?
     /// The saved device row's stable identity (`LocalDevice.id`), when the subject has one.
     public var deviceID: UUID?
     /// The monitoring target whose check this is; nil for a scan's report (#450).
@@ -91,7 +89,6 @@ public struct AlertRuleSubject: Sendable, Equatable {
         deviceType: DeviceType? = nil,
         maker: String? = nil,
         networkID: UUID? = nil,
-        stateKey: String? = nil,
         deviceID: UUID? = nil,
         monitoredTargetID: UUID? = nil
     ) {
@@ -101,16 +98,12 @@ public struct AlertRuleSubject: Sendable, Equatable {
         self.deviceType = deviceType
         self.maker = maker
         self.networkID = networkID
-        self.stateKey = stateKey
         self.deviceID = deviceID
         self.monitoredTargetID = monitoredTargetID
     }
 
     /// Identifies the subject across events, for latency crossing.
     public var key: String {
-        if let stateKey {
-            return stateKey
-        }
         if let monitoredTargetID {
             return "target:\(monitoredTargetID.uuidString)"
         }
@@ -222,14 +215,16 @@ public struct AlertRuleEvaluator: Sendable {
     private var conditionSince: [StateKey: Date] = [:]
     /// Duration rules that already fired for the current episode, per subject.
     private var firedEpisodes: Set<StateKey> = []
-    /// The rules a monitoring target's checks match, with the device it checks. While one does,
-    /// the target times that device's outages for that rule and scan reports about it are
-    /// ignored, so one outage alerts once.
+    /// The rules each monitoring target's latest check matched, with the device it checked. While
+    /// a target covers a rule and device, it reports that device's outages and recoveries for the
+    /// rule, and scan reports about them are ignored, so one outage alerts once. A target's
+    /// entries follow its latest check and end with it (`retainTargets`, monitoring stopping).
     private var targetTimed: Set<TargetTimed> = []
 
     private struct TargetTimed: Hashable {
         var rule: UUID
         var device: UUID
+        var target: UUID
     }
 
     /// Each rule's trigger and conditions when its state was recorded; a change clears it.
@@ -245,10 +240,13 @@ public struct AlertRuleEvaluator: Sendable {
 
     public mutating func evaluate(_ events: [AlertRuleEvent], rules: [AlertRule], now: Date = Date()) -> [Match] {
         resetChangedRules(rules)
+        for target in Set(events.compactMap(\.subject.monitoredTargetID)) {
+            targetTimed = targetTimed.filter { $0.target != target }
+        }
         for event in events {
-            guard event.subject.monitoredTargetID != nil, let device = event.subject.deviceID else { continue }
+            guard let target = event.subject.monitoredTargetID, let device = event.subject.deviceID else { continue }
             for rule in rules where rule.isEnabled && AlertRuleEngine.conditionsMatch(rule.conditions, event.subject) {
-                targetTimed.insert(TargetTimed(rule: rule.id, device: device))
+                targetTimed.insert(TargetTimed(rule: rule.id, device: device, target: target))
             }
         }
         var matches: [Match] = []
@@ -260,6 +258,15 @@ public struct AlertRuleEvaluator: Sendable {
             }
         }
         return matches
+    }
+
+    /// Forgets everything about monitoring targets not in `active`: deleted, turned off or no longer
+    /// checked. Their outages stop counting and scans report their devices again.
+    public mutating func retainTargets(_ active: Set<UUID>) {
+        targetTimed = targetTimed.filter { active.contains($0.target) }
+        conditionSince = conditionSince.filter { $0.key.target.map(active.contains) ?? true }
+        firedEpisodes = firedEpisodes.filter { $0.target.map(active.contains) ?? true }
+        aboveThreshold = aboveThreshold.filter { $0.target.map(active.contains) ?? true }
     }
 
     /// Monitoring stopped: forgets the monitoring targets' duration timers, since time when
@@ -286,7 +293,22 @@ public struct AlertRuleEvaluator: Sendable {
         definitions = current
     }
 
+    /// A scan's offline, still-offline or online report about a device a target covers for `rule`:
+    /// the target reports that state change itself.
+    private func isCoveredByTarget(_ rule: AlertRule, _ event: AlertRuleEvent) -> Bool {
+        guard event.subject.monitoredTargetID == nil, let device = event.subject.deviceID else { return false }
+        switch event.kind {
+        case .wentOffline, .stillOffline, .cameOnline:
+            return targetTimed.contains { $0.rule == rule.id && $0.device == device }
+        case .firstSeen, .latency:
+            return false
+        }
+    }
+
     private mutating func shouldFire(_ rule: AlertRule, for event: AlertRuleEvent, now: Date) -> Bool {
+        if isCoveredByTarget(rule, event) {
+            return false
+        }
         let stateKey = StateKey(rule, event.subject)
         if let duration = rule.minimumDuration, duration > 0 {
             return durationRuleFires(rule.trigger, duration: duration, event: event, key: stateKey, now: now)
@@ -305,12 +327,6 @@ public struct AlertRuleEvaluator: Sendable {
     private mutating func durationRuleFires(
         _ trigger: AlertRuleTrigger, duration: TimeInterval, event: AlertRuleEvent, key: StateKey, now: Date
     ) -> Bool {
-        // A target whose checks match this rule times the device's outages; the scan's report is
-        // the same outage.
-        if trigger == .wentOffline, event.subject.monitoredTargetID == nil,
-           let device = event.subject.deviceID, targetTimed.contains(TargetTimed(rule: key.rule, device: device)) {
-            return false
-        }
         switch (trigger, event.kind) {
         case (.wentOffline, .wentOffline):
             conditionSince[key] = min(event.offlineSince ?? now, now)

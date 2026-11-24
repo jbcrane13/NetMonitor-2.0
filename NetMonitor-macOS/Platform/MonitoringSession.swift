@@ -211,6 +211,13 @@ final class MonitoringSession {
         }
     }
 
+    /// The saved, enabled targets. A target deleted or turned off since monitoring started is not
+    /// among them, though its check loop runs until monitoring restarts.
+    func activeTargetIDs() -> Set<UUID> {
+        let descriptor = FetchDescriptor<NetworkTarget>(predicate: #Predicate { $0.isEnabled })
+        return Set(((try? modelContext.fetch(descriptor)) ?? []).map(\.id))
+    }
+
     func latestMeasurement(for targetID: UUID) -> TargetMeasurement? {
         latestResults[targetID]
     }

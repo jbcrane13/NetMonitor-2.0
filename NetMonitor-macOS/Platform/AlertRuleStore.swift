@@ -1,6 +1,7 @@
 import Foundation
 import NetMonitorCore
 import os
+import SwiftData
 
 /// The user's alert rules, saved in UserDefaults (#394).
 ///
@@ -41,6 +42,9 @@ final class AlertRuleStore {
 
     func delete(id: UUID) {
         mutate { $0.removeAll { $0.id == id } }
+        // A link exists for a rule's device; with no rule left on it, the target stops following it.
+        let named = Set(rules.compactMap(\.conditions.deviceID))
+        setLinks(targetDevices().filter { UUID(uuidString: $0.value).map(named.contains) ?? false })
     }
 
     /// The device (`LocalDevice.id`) monitoring target `target` checks, when a rule linked them.
@@ -51,11 +55,51 @@ final class AlertRuleStore {
     func link(target: UUID, to device: UUID) {
         var links = targetDevices()
         links[target.uuidString] = device.uuidString
-        defaults.set(links, forKey: Self.targetDevicesKey)
+        setLinks(links)
+    }
+
+    /// Forgets the links of deleted targets.
+    func unlink(targets: some Sequence<UUID>) {
+        var links = targetDevices()
+        for target in targets {
+            links[target.uuidString] = nil
+        }
+        setLinks(links)
+    }
+
+    func unlinkAllTargets() {
+        defaults.removeObject(forKey: Self.targetDevicesKey)
+    }
+
+    /// Keeps only links whose target and device still exist and whose device a rule still names,
+    /// so the links can't go stale against SwiftData. Run at launch.
+    func pruneLinks(targets: Set<UUID>, devices: Set<UUID>) {
+        let named = Set(rules.compactMap(\.conditions.deviceID))
+        setLinks(targetDevices().filter { target, device in
+            guard let target = UUID(uuidString: target), let device = UUID(uuidString: device) else { return false }
+            return targets.contains(target) && devices.contains(device) && named.contains(device)
+        })
+    }
+
+    /// `pruneLinks` against the saved targets and devices in `context`.
+    func pruneLinks(in context: ModelContext) {
+        guard !targetDevices().isEmpty,
+              let targets = try? context.fetch(FetchDescriptor<NetworkTarget>()),
+              let devices = try? context.fetch(FetchDescriptor<LocalDevice>())
+        else { return }
+        pruneLinks(targets: Set(targets.map(\.id)), devices: Set(devices.map(\.id)))
     }
 
     private func targetDevices() -> [String: String] {
         defaults.dictionary(forKey: Self.targetDevicesKey) as? [String: String] ?? [:]
+    }
+
+    private func setLinks(_ links: [String: String]) {
+        if links.isEmpty {
+            defaults.removeObject(forKey: Self.targetDevicesKey)
+        } else {
+            defaults.set(links, forKey: Self.targetDevicesKey)
+        }
     }
 
     /// Re-reads the saved rules. On unreadable data, keeps the last good rules.
@@ -108,6 +152,9 @@ final class MacRuleAlerts {
     /// MAC, type, maker and network from its host.
     private let currentDevices: @MainActor () -> (devices: [LocalDevice], networkID: UUID?)
     private var evaluator = AlertRuleEvaluator()
+    /// The monitoring targets being checked now. Results of others are ignored, and the rules
+    /// forget them, so a deleted, turned-off or stopped target doesn't silence scans (#574 review).
+    var activeTargets: (@MainActor () -> Set<UUID>)?
 
     init(
         store: AlertRuleStore,
@@ -154,16 +201,23 @@ final class MacRuleAlerts {
     /// the current network shows it at the checked address; any other target's host is looked
     /// up in the current network's devices so device conditions can match it.
     func handle(targetResult result: TargetCheckOutcome) {
+        if let activeTargets, !activeTargets().contains(result.targetID) {
+            return
+        }
         guard movedHost(forTarget: result.targetID, checkedAt: result.host) == nil else { return }
         let (devices, networkID) = currentDevices()
         var linked = store.device(forTarget: result.targetID)
         let row: LocalDevice?
         if let device = linked {
-            // On another network the device has no row here, and when it stopped answering a
-            // different device may have taken its address. Either way the check isn't known to
-            // be the linked device's, so it carries no device identity.
+            // While the device is offline, another device that took its address answers this
+            // target. The device is still down, so its outage carries on; the answers aren't its.
             let taken = devices.contains { $0.id != device && $0.ipAddress == result.host && $0.status == .online }
-            row = devices.first { $0.id == device && ($0.status == .online || !taken) }
+            if taken, let offline = devices.first(where: { $0.id == device && $0.status != .online }) {
+                fire([AlertRuleEvent(kind: .stillOffline, subject: subject(for: offline, result: result, networkID: networkID))])
+                return
+            }
+            // On another network the device has no row here, so the check isn't known to be its.
+            row = devices.first { $0.id == device }
             if row == nil {
                 linked = nil
             }
@@ -199,6 +253,19 @@ final class MacRuleAlerts {
         fire(events)
     }
 
+    private func subject(for device: LocalDevice, result: TargetCheckOutcome, networkID: UUID?) -> AlertRuleSubject {
+        AlertRuleSubject(
+            name: device.displayName,
+            ipAddress: result.host,
+            macAddress: device.macAddress.isEmpty ? nil : device.macAddress,
+            deviceType: device.deviceType,
+            maker: device.makerExcludingSuggestions,
+            networkID: networkID,
+            deviceID: device.id,
+            monitoredTargetID: result.targetID
+        )
+    }
+
     /// Monitoring stopped: targets go unchecked from here, so their duration timers start over
     /// when it resumes. Scan-timed outages keep theirs.
     func monitoringStopped() {
@@ -207,6 +274,9 @@ final class MacRuleAlerts {
 
     private func fire(_ events: [AlertRuleEvent]) {
         guard !events.isEmpty else { return }
+        if let activeTargets {
+            evaluator.retainTargets(activeTargets())
+        }
         store.reload()
         let matches = evaluator.evaluate(events, rules: store.rules)
         // The Mac's "Enable notifications" master switch silences rules too.
