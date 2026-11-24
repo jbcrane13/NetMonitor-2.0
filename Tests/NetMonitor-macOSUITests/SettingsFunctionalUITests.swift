@@ -172,9 +172,9 @@ final class SettingsFunctionalUITests: MacOSUITestCase {
             message: "Show in Dock checkbox should exist"
         )
 
-        let valueBefore = showInDock.value as? String ?? ""
+        let valueBefore = stringValue(showInDock)
         showInDock.click()
-        let valueAfter = showInDock.value as? String ?? ""
+        let valueAfter = stringValue(showInDock)
 
         // Value should have changed
         if valueBefore != valueAfter {
@@ -190,7 +190,7 @@ final class SettingsFunctionalUITests: MacOSUITestCase {
                 message: "Show in Dock should exist after returning to General tab"
             )
 
-            let persistedValue = showInDockAfterReturn.value as? String ?? ""
+            let persistedValue = stringValue(showInDockAfterReturn)
             XCTAssertEqual(valueAfter, persistedValue,
                           "Show in Dock state should persist across tab switches")
 
@@ -296,8 +296,8 @@ final class SettingsFunctionalUITests: MacOSUITestCase {
 
         // Dismiss without clearing
         let dismissCandidates = [
-            app.buttons["Cancel"],
-            app.buttons["cancel"],
+            app.buttons["Cancel"].firstMatch,
+            app.buttons["cancel"].firstMatch,
             app.buttons["Don't Clear"],
             app.sheets.firstMatch.buttons.firstMatch
         ]
@@ -356,9 +356,9 @@ final class SettingsFunctionalUITests: MacOSUITestCase {
         let compactToggle = app.switches["settings_toggle_compactMode"]
         guard compactToggle.waitForExistence(timeout: 3) else { return }
 
-        let valueBefore = compactToggle.value as? String ?? ""
+        let valueBefore = stringValue(compactToggle)
         compactToggle.click()
-        let valueAfter = compactToggle.value as? String ?? ""
+        let valueAfter = stringValue(compactToggle)
 
         XCTAssertNotEqual(valueBefore, valueAfter,
                          "Compact mode checkbox should change state after clicking")
@@ -437,9 +437,9 @@ final class SettingsFunctionalUITests: MacOSUITestCase {
         let retryToggle = app.switches["settings_toggle_retryEnabled"]
         guard retryToggle.waitForExistence(timeout: 3) else { return }
 
-        let valueBefore = retryToggle.value as? String ?? ""
+        let valueBefore = stringValue(retryToggle)
         retryToggle.click()
-        let valueAfter = retryToggle.value as? String ?? ""
+        let valueAfter = stringValue(retryToggle)
 
         XCTAssertNotEqual(valueBefore, valueAfter,
                          "Retry enabled checkbox should change state after clicking")
@@ -459,7 +459,7 @@ final class SettingsFunctionalUITests: MacOSUITestCase {
         guard companionToggle.waitForExistence(timeout: 3) else { return }
 
         // If companion is off, turn it on
-        if (companionToggle.value as? String) == "0" {
+        if stringValue(companionToggle) == "0" {
             companionToggle.click()
         }
 

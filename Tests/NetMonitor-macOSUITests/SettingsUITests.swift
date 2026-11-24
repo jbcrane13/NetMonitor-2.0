@@ -73,15 +73,13 @@ final class SettingsUITests: MacOSUITestCase {
             app.switches["settings_toggle_showInDock"], timeout: 3,
             message: "Show in Dock checkbox should exist on General tab"
         )
-        let valueBefore = showInDock.value as? String
+        let valueBefore = stringValue(showInDock)
 
         showInDock.click()
 
-        let valueAfter = showInDock.value as? String
-        if let before = valueBefore, let after = valueAfter {
-            XCTAssertNotEqual(before, after,
-                              "Show in Dock checkbox value should change after toggling")
-        }
+        let valueAfter = stringValue(showInDock)
+        XCTAssertNotEqual(valueBefore, valueAfter,
+                          "Show in Dock checkbox value should change after toggling")
 
         showInDock.click()
     }
@@ -127,8 +125,13 @@ final class SettingsUITests: MacOSUITestCase {
     func testNotificationSliderInteraction() {
         app.staticTexts["settings_tab_Notifications"].click()
 
-        let slider = app.sliders["settings_slider_latencyThreshold"]
-        guard slider.waitForExistence(timeout: 3) else { return }
+        // The slider is disabled until notifications are on.
+        let notifications = app.switches["settings_toggle_notificationsEnabled"]
+        if notifications.waitForExistence(timeout: 3), stringValue(notifications) == "0" {
+            notifications.click()
+        }
+        let slider = requireExists(app.sliders["settings_slider_latencyThreshold"], timeout: 3,
+                                   message: "Latency threshold slider should exist")
 
         XCTAssertTrue(slider.isEnabled, "Latency threshold slider should be enabled")
         slider.adjust(toNormalizedSliderPosition: 0.7)
@@ -177,8 +180,8 @@ final class SettingsUITests: MacOSUITestCase {
         XCTAssertTrue(appeared, "A confirmation sheet or alert should appear after tapping Clear Data")
 
         let dismissCandidates = [
-            app.buttons["Cancel"],
-            app.buttons["cancel"],
+            app.buttons["Cancel"].firstMatch,
+            app.buttons["cancel"].firstMatch,
             app.buttons["Don't Clear"],
             app.sheets.firstMatch.buttons.firstMatch
         ]
@@ -252,7 +255,7 @@ final class SettingsUITests: MacOSUITestCase {
             message: "Companion enabled checkbox should exist"
         )
 
-        if enabledToggle.value as? String == "1" {
+        if stringValue(enabledToggle) == "1" {
             requireExists(app.textFields["settings_textfield_servicePort"], timeout: 3,
                           message: "Service port field should be visible when companion is enabled")
         }

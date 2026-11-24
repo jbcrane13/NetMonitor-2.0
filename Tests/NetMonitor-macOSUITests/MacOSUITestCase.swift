@@ -75,6 +75,11 @@ class MacOSUITestCase: XCTestCase {
         element.typeKey(.delete, modifierFlags: [])
     }
 
+    /// An element's value as text. Switches report a number, so `value as? String` is nil.
+    func stringValue(_ element: XCUIElement) -> String {
+        "\(element.value ?? "")"
+    }
+
     /// Captures a screenshot and attaches it to the test for visual review.
     func captureScreenshot(named name: String) {
         let screenshot = app.screenshot()
