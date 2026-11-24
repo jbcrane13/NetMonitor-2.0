@@ -53,15 +53,15 @@ struct PlainRuleSettingsSection: View {
                 .textFieldStyle(.roundedBorder)
                 .submitLabel(.go)
                 .onSubmit(parse)
-                .accessibilityIdentifier("rules_field_describe")
+                .accessibilityIdentifier("settings_field_describeRule")
             Button("Create Draft", action: parse)
                 .buttonStyle(.borderedProminent)
                 .tint(Theme.Colors.accent)
                 .disabled(viewModel.text.trimmingCharacters(in: .whitespaces).isEmpty || viewModel.composer.isWorking)
-                .accessibilityIdentifier("rules_button_parse")
+                .accessibilityIdentifier("settings_button_createRuleDraft")
             if viewModel.composer.isWorking {
                 ProgressView("Reading your rule…")
-                    .accessibilityIdentifier("rules_draft_progress")
+                    .accessibilityIdentifier("settings_progress_ruleDraft")
             }
         }
     }
@@ -100,14 +100,14 @@ struct PlainRuleSettingsSection: View {
                     Button("\(candidate.displayName) (\(candidate.ipAddress))") { viewModel.choose(candidate) }
                         // A non-plain style keeps each button's own tap inside one list row.
                         .buttonStyle(.bordered)
-                        .accessibilityIdentifier("rules_draft_pick_\(candidate.id.uuidString)")
+                        .accessibilityIdentifier("settings_button_ruleDevice_\(candidate.id.uuidString)")
                 }
             }
         case let .message(message):
             Text(message)
                 .font(.subheadline)
                 .foregroundStyle(Theme.Colors.textSecondary)
-                .accessibilityIdentifier("rules_draft_message")
+                .accessibilityIdentifier("settings_label_ruleMessage")
         case .alert, .none:
             EmptyView()
         }
@@ -118,25 +118,25 @@ struct PlainRuleSettingsSection: View {
             Label("Drafted by the on-device model from your words", systemImage: "sparkles")
                 .font(.caption)
                 .foregroundStyle(Theme.Colors.textSecondary)
-                .accessibilityIdentifier("rules_draft_marker")
+                .accessibilityIdentifier("settings_label_ruleDraftMarker")
             Text(summary)
                 .foregroundStyle(Theme.Colors.textPrimary)
-                .accessibilityIdentifier("rules_draft_summary")
+                .accessibilityIdentifier("settings_label_ruleDraftSummary")
             ForEach(notes, id: \.self) { note in
                 Text(note)
                     .font(.caption)
                     .foregroundStyle(Theme.Colors.textSecondary)
-                    .accessibilityIdentifier("rules_draft_note")
+                    .accessibilityIdentifier("settings_label_ruleDraftNote")
             }
             HStack {
                 Button("Cancel") { viewModel.cancel() }
                     .buttonStyle(.bordered)
-                    .accessibilityIdentifier("rules_draft_cancel")
+                    .accessibilityIdentifier("settings_button_cancelRuleDraft")
                 Spacer()
                 Button(confirmTitle, action: confirm)
                     .buttonStyle(.borderedProminent)
                     .tint(Theme.Colors.accent)
-                    .accessibilityIdentifier("rules_button_confirm")
+                    .accessibilityIdentifier("settings_button_confirmRuleDraft")
             }
         }
     }
@@ -164,7 +164,7 @@ struct PlainRulePortScanSheet: View {
                 .toolbar {
                     ToolbarItem(placement: .confirmationAction) {
                         Button("Done", action: onDone)
-                            .accessibilityIdentifier("rules_button_closePortScan")
+                            .accessibilityIdentifier("settings_button_closePortScan")
                     }
                 }
         }

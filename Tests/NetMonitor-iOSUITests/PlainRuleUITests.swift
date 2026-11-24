@@ -16,7 +16,7 @@ final class PlainRuleUITests: IOSUITestCase {
 
     private func openDescribeField() -> XCUIElement {
         requireExists(app.buttons["dashboard_button_settings"], timeout: 10, message: "Settings should be reachable").tap()
-        let field = ui("rules_field_describe")
+        let field = ui("settings_field_describeRule")
         for _ in 0 ..< 6 where !(field.exists && field.isHittable) {
             app.swipeUp()
         }
@@ -43,15 +43,15 @@ final class PlainRuleUITests: IOSUITestCase {
         let field = openDescribeField()
         field.tap()
         field.typeText("scan web ports on the printer")
-        requireExists(ui("rules_button_parse"), message: "Create Draft should show").tap()
+        requireExists(ui("settings_button_createRuleDraft"), message: "Create Draft should show").tap()
 
-        let summary = ui("rules_draft_summary")
+        let summary = ui("settings_label_ruleDraftSummary")
         requireExists(summary, timeout: 10, message: "A port-scan draft should appear")
         XCTAssertEqual(summary.label, "Scan web ports on uitest-printer (192.168.77.20)")
-        XCTAssertTrue(ui("rules_draft_marker").exists, "The draft should be marked as generated")
+        XCTAssertTrue(ui("settings_label_ruleDraftMarker").exists, "The draft should be marked as generated")
         keep(summary, named: "450-ios-draft")
 
-        requireExists(ui("rules_button_confirm"), message: "Open Port Scanner should show").tap()
+        requireExists(ui("settings_button_confirmRuleDraft"), message: "Open Port Scanner should show").tap()
 
         let host = app.textFields["portScanner_input_host"]
         requireExists(host, timeout: 10, message: "The Port Scanner should open")
@@ -69,12 +69,12 @@ final class PlainRuleUITests: IOSUITestCase {
         let field = openDescribeField()
         field.tap()
         field.typeText("what's the weather")
-        requireExists(ui("rules_button_parse"), message: "Create Draft should show").tap()
+        requireExists(ui("settings_button_createRuleDraft"), message: "Create Draft should show").tap()
 
-        let message = ui("rules_draft_message")
+        let message = ui("settings_label_ruleMessage")
         requireExists(message, timeout: 10, message: "Unsupported input should give a message")
         XCTAssertTrue(message.label.hasPrefix("I can create alerts for a device going offline"), "Message: \(message.label)")
-        XCTAssertFalse(ui("rules_button_confirm").exists, "Nothing can be confirmed")
+        XCTAssertFalse(ui("settings_button_confirmRuleDraft").exists, "Nothing can be confirmed")
         keep(message, named: "450-ios-unsupported")
     }
 
@@ -82,16 +82,16 @@ final class PlainRuleUITests: IOSUITestCase {
         let field = openDescribeField()
         field.tap()
         field.typeText("Tell me if the NAS is down for more than five minutes")
-        requireExists(ui("rules_button_parse"), message: "Create Draft should show").tap()
+        requireExists(ui("settings_button_createRuleDraft"), message: "Create Draft should show").tap()
 
-        let summary = ui("rules_draft_summary")
+        let summary = ui("settings_label_ruleDraftSummary")
         requireExists(summary, timeout: 10, message: "A target draft should appear")
         XCTAssertEqual(summary.label, "Add a monitoring target for uitest-nas (192.168.77.40)")
         XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "It can't time 5 minutes.")).firstMatch.exists,
                       "The draft should say iOS can't time the five minutes")
         XCTAssertFalse(ui("settings_row_target_192.168.77.40").exists, "Nothing is saved before Confirm")
 
-        ui("rules_button_confirm").tap()
+        ui("settings_button_confirmRuleDraft").tap()
         requireExists(ui("settings_row_target_192.168.77.40"), timeout: 5, message: "The confirmed target should be listed")
     }
 }
