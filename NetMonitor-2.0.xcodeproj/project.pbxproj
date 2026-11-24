@@ -178,6 +178,7 @@
 		476B35D66E0D7DED478D1FEF /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = ADE8B26F50AFCAD208AC99F0 /* Assets.xcassets */; };
 		48F7A9075D2952F3E64F7899 /* WHOISToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02D429D7F12642A26F1D2045 /* WHOISToolView.swift */; };
 		4937EB6D1A9EBB7B43A1DA48 /* WHOISToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4896033C2D35E7BEF7BE38F4 /* WHOISToolView.swift */; };
+		4A2F611763E7F8857F430D0B /* PlainRuleTargetLinkTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA18B6989FDE4EB55DF5D7BC /* PlainRuleTargetLinkTests.swift */; };
 		4BF1F7DE0E4B22FB33B7CA9D /* PingToolUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC3C86DC4C3ED5C3FB4B4DBB /* PingToolUITests.swift */; };
 		4C3DB05AE663A6085DE7E17C /* IdentityPrecedenceMergeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0138DA96DCE3DA14CABE4F90 /* IdentityPrecedenceMergeTests.swift */; };
 		4C574A40D5A393675D61527A /* NetworkDevicesPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A11591C4A9BCB4B5C92F700 /* NetworkDevicesPanel.swift */; };
@@ -1055,6 +1056,7 @@
 		B6DBA0C16A1DE7F77F218E6A /* WHOISToolUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WHOISToolUITests.swift; sourceTree = "<group>"; };
 		B8D54CA3F23F80DECD04EB0F /* ScheduledScanUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduledScanUITests.swift; sourceTree = "<group>"; };
 		B95AD20B5D8E360138D27BC7 /* NewFeatureUnitTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewFeatureUnitTests.swift; sourceTree = "<group>"; };
+		BA18B6989FDE4EB55DF5D7BC /* PlainRuleTargetLinkTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlainRuleTargetLinkTests.swift; sourceTree = "<group>"; };
 		BA99B879D32BE1A79C557AA6 /* AppearanceModeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppearanceModeTests.swift; sourceTree = "<group>"; };
 		BAC76B1286C767294ED03042 /* ISPCardViewModelExtendedTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ISPCardViewModelExtendedTests.swift; sourceTree = "<group>"; };
 		BC3A75D6ACCC208F5EE2B7B2 /* SpeedTestActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeedTestActivity.swift; sourceTree = "<group>"; };
@@ -2187,6 +2189,7 @@
 				82E8DBAC9087C85AAE3E698B /* NotificationRouteTests.swift */,
 				CEF8D09201744B0F7191B39F /* PeriodicScanAndRetryTests.swift */,
 				4472B7266056D8C4B0E80CE9 /* PlainRuleMacTests.swift */,
+				BA18B6989FDE4EB55DF5D7BC /* PlainRuleTargetLinkTests.swift */,
 				0D6A9E0C9DE615916C7BBA89 /* PlatformServiceGapTests.swift */,
 				7B3A1C0B35DB6AAB7B866EFB /* PortForwardsToolRegistrationTests.swift */,
 				B0BC4A7335A7D1D27798D9F3 /* PortScannerServiceTests.swift */,
@@ -3053,6 +3056,7 @@
 				1EE0D8CAC8AE9FF934E8C014 /* NotificationRouteTests.swift in Sources */,
 				3D4FE8E41DAC8A11921CC206 /* PeriodicScanAndRetryTests.swift in Sources */,
 				028EC1072A1B272211CBB658 /* PlainRuleMacTests.swift in Sources */,
+				4A2F611763E7F8857F430D0B /* PlainRuleTargetLinkTests.swift in Sources */,
 				450C5A0DBBBFA087B79AAA9E /* PlatformServiceGapTests.swift in Sources */,
 				62890D4885B0E8AB374CD402 /* PortForwardsToolRegistrationTests.swift in Sources */,
 				E63FE18D8F03B57C7109BEA3 /* PortScannerServiceTests.swift in Sources */,

@@ -6,11 +6,15 @@
 //
 
 import NetMonitorCore
+import SwiftData
 import SwiftUI
 
 struct PlainRuleSection: View {
+    @Environment(AlertRuleStore.self) private var store
+    @Environment(\.modelContext) private var modelContext
     @Bindable var viewModel: PlainRuleMacViewModel
-    let devices: [LocalDevice]
+    /// The network whose saved devices a rule can name; nil for every network.
+    let networkID: UUID?
     let targets: [NetworkTarget]
     let isScanning: Bool
     /// Targets are checked only while monitoring runs.
@@ -41,7 +45,8 @@ struct PlainRuleSection: View {
     }
 
     private func parse() {
-        Task { await viewModel.submit(devices: devices, targets: targets, isScanning: isScanning) }
+        let devices = (try? modelContext.fetch(RuleDevice.candidates(network: networkID))) ?? []
+        Task { await viewModel.submit(devices: devices, targets: targets, isScanning: isScanning, linkedDevice: store.device(forTarget:)) }
     }
 
     @ViewBuilder
@@ -60,7 +65,7 @@ struct PlainRuleSection: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 draftButtons(confirmTitle: "Open Port Scanner") {
-                    viewModel.openPortScan = .init(host: device.ipAddress, preset: preset)
+                    viewModel.openPortScan = PortScanRequest(host: device.ipAddress, preset: preset)
                     viewModel.cancel()
                 }
             }
@@ -139,13 +144,17 @@ private struct PlainRuleDraftView: View {
                     )
                         .accessibilityIdentifier("rules_draft_addTarget")
                 }
-                if !isMonitoring, viewModel.addsTarget || draft.hasTarget {
-                    Label("Monitoring is stopped. Targets are checked only while it runs: choose Start Monitoring in the "
-                        + "NetMonitor menu.", systemImage: "exclamationmark.triangle")
-                        .font(.caption)
-                        .foregroundStyle(.orange)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .accessibilityIdentifier("rules_draft_monitoringStopped")
+                if !isMonitoring, viewModel.usesTarget {
+                    // Targets are checked only while monitoring runs; starting it checks every target.
+                    Toggle("Start monitoring when I confirm (checks all your monitoring targets)", isOn: $viewModel.startsMonitoring)
+                        .accessibilityIdentifier("rules_draft_startMonitoring")
+                    if !viewModel.startsMonitoring {
+                        Label("Monitoring is stopped, so the target isn't checked until you start it.", systemImage: "exclamationmark.triangle")
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .accessibilityIdentifier("rules_draft_monitoringStopped")
+                    }
                 }
                 ForEach(viewModel.notes, id: \.self) { note in
                     Label(note, systemImage: "clock")

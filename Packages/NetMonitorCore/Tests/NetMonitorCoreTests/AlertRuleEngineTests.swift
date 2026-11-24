@@ -124,8 +124,8 @@ struct AlertRuleEngineTests {
     @Test func aStateKeyKeepsTwoTargetsOnOneHostApart() {
         var evaluator = AlertRuleEvaluator()
         let rule = AlertRule(name: "slow", trigger: .latencyAbove(milliseconds: 100))
-        let icmp = AlertRuleSubject(name: "Router ping", ipAddress: "10.0.0.1", stateKey: "target:icmp")
-        let https = AlertRuleSubject(name: "Router admin", ipAddress: "10.0.0.1", stateKey: "target:https")
+        let icmp = AlertRuleSubject(name: "Router ping", ipAddress: "10.0.0.1", monitoredTargetID: UUID())
+        let https = AlertRuleSubject(name: "Router admin", ipAddress: "10.0.0.1", monitoredTargetID: UUID())
         func run(_ subject: AlertRuleSubject, _ ms: Double) -> Int {
             evaluator.evaluate([AlertRuleEvent(kind: .latency(milliseconds: ms), subject: subject)], rules: [rule]).count
         }

@@ -459,15 +459,9 @@ extension PortScannerToolView {
             _preset = State(initialValue: .common)
         case .web:
             _preset = State(initialValue: .web)
-        case .wellKnown:
+        case .wellKnown, .extended, .database, .mail, .custom:
             _preset = State(initialValue: .custom)
-            _customPorts = State(initialValue: "1-1024")
-        case .extended:
-            _preset = State(initialValue: .custom)
-            _customPorts = State(initialValue: "1-10000")
-        case .database, .mail, .custom:
-            _preset = State(initialValue: .custom)
-            _customPorts = State(initialValue: initialPreset.ports.map(String.init).joined(separator: ","))
+            _customPorts = State(initialValue: initialPreset.customPortsText)
         }
     }
 }

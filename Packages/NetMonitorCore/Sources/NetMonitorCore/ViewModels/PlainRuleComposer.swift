@@ -36,12 +36,15 @@ public final class PlainRuleComposer {
         generation += 1
         let request = generation
         context = nil
+        // A request still running is superseded, so it no longer counts as working.
         guard !text.isEmpty else {
+            isWorking = false
             outcome = nil
             return
         }
         // The model never runs while a scan does.
         guard !isScanning else {
+            isWorking = false
             outcome = .message("Wait for the scan to finish, then try again.")
             return
         }

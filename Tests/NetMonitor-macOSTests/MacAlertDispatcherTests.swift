@@ -125,6 +125,10 @@ struct MacAlertDispatcherTests {
         let config = ModelConfiguration(UUID().uuidString, schema: schema, isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         let container = try ModelContainer(for: schema, configurations: [config])
         defer { withExtendedLifetime(container) {} }
+        // The fixture's target is saved and enabled: rules ignore results of deleted or turned-off ones.
+        let target = NetworkTarget(id: fixture.targetID, name: "Router", host: "192.0.2.1", targetProtocol: .icmp)
+        container.mainContext.insert(target)
+        try container.mainContext.save()
         let session = MonitoringSession(modelContext: container.mainContext)
         fixture.dispatcher.attach(to: session, discovery: nil)
         var ruleAlerts: [String] {

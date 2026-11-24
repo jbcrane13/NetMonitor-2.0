@@ -6,6 +6,8 @@ import os
 struct TargetsView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(MonitoringSession.self) private var monitoringSession: MonitoringSession?
+    /// Forgets a deleted target's device link (#450).
+    @Environment(AlertRuleStore.self) private var ruleStore: AlertRuleStore?
     @Query(sort: \NetworkTarget.name) private var targets: [NetworkTarget]
 
     @State private var showingAddSheet = false
@@ -136,8 +138,10 @@ struct TargetsView: View {
     }
 
     private func deleteTargets(at offsets: IndexSet) {
-        for index in offsets {
-            modelContext.delete(sortedTargets[index])
+        let deleted = offsets.map { sortedTargets[$0] }
+        ruleStore?.unlink(targets: deleted.map(\.id))
+        for target in deleted {
+            modelContext.delete(target)
         }
         do {
             try modelContext.save()
@@ -148,6 +152,7 @@ struct TargetsView: View {
 
     private func deleteTarget(_ target: NetworkTarget) {
         selectedTargets.remove(target)
+        ruleStore?.unlink(targets: [target.id])
         modelContext.delete(target)
         do {
             try modelContext.save()
@@ -157,6 +162,7 @@ struct TargetsView: View {
     }
 
     private func deleteSelectedTargets() {
+        ruleStore?.unlink(targets: selectedTargets.map(\.id))
         for target in selectedTargets {
             modelContext.delete(target)
         }

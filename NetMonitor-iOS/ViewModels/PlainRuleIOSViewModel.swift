@@ -10,13 +10,9 @@ import SwiftData
 @Observable
 final class PlainRuleIOSViewModel {
     var text = ""
+    /// The monitoring-target draft under review, as the user edits its name and address.
+    var targetDraft: TargetDraft?
     let composer: PlainRuleComposer
-
-    struct PortScanRequest: Identifiable, Equatable {
-        let host: String
-        let preset: PortScanPreset
-        var id: String { "\(host)|\(preset.rawValue)" }
-    }
 
     init(parser: any RuleIntentParsing = UITestBootstrap.ruleParser ?? RuleIntentParser.shared) {
         composer = PlainRuleComposer(parser: parser, platform: .iOS)
@@ -37,16 +33,24 @@ final class PlainRuleIOSViewModel {
             targetHosts: Set(targets.map(\.host)),
             isScanning: isScanning
         )
+        adoptOutcome()
     }
 
     func choose(_ device: RuleDevice) {
         composer.choose(device)
+        adoptOutcome()
+    }
+
+    /// Whether the edited draft can be saved: it has a name and an address.
+    var canConfirmTarget: Bool {
+        guard let targetDraft else { return false }
+        return !trimmed(targetDraft.name).isEmpty && !trimmed(targetDraft.host).isEmpty
     }
 
     /// Saves the reviewed monitoring-target draft, then clears the field.
     func confirm(context: ModelContext) {
-        guard case let .target(draft) = composer.outcome else { return }
-        context.insert(MonitoringTarget(name: draft.name, host: draft.host))
+        guard canConfirmTarget, let draft = targetDraft else { return }
+        context.insert(MonitoringTarget(name: trimmed(draft.name), host: trimmed(draft.host)))
         do {
             try context.save()
         } catch {
@@ -64,6 +68,29 @@ final class PlainRuleIOSViewModel {
 
     func cancel() {
         text = ""
+        targetDraft = nil
         composer.clear()
+    }
+
+    /// Deletes targets from the Monitoring Targets list (a swipe on one row).
+    func delete(_ targets: [MonitoringTarget], context: ModelContext) {
+        targets.forEach(context.delete)
+        do {
+            try context.save()
+        } catch {
+            Logger.data.error("Failed to delete monitoring targets: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    private func adoptOutcome() {
+        if case let .target(draft) = composer.outcome {
+            targetDraft = draft
+        } else {
+            targetDraft = nil
+        }
+    }
+
+    private func trimmed(_ text: String) -> String {
+        text.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }

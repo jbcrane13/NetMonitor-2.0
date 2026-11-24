@@ -1,5 +1,6 @@
 import Foundation
 import NetMonitorCore
+import SwiftData
 import Testing
 @testable import NetMonitor_iOS
 
@@ -42,7 +43,7 @@ struct PlainRuleIOSViewModelTests {
         await model.submit(devices: [printer, homeNAS()], targets: [], networkID: office, isScanning: false)
 
         #expect(model.composer.outcome == .portScan(device: RuleDevice(printer), preset: .web))
-        #expect(model.takePortScan() == PlainRuleIOSViewModel.PortScanRequest(host: "192.168.1.20", preset: .web))
+        #expect(model.takePortScan() == PortScanRequest(host: "192.168.1.20", preset: .web))
     }
 
     @Test func withoutAKnownNetworkEverySavedDeviceCanBeNamed() async {
@@ -57,5 +58,50 @@ struct PlainRuleIOSViewModelTests {
         }
         #expect(draft.host == "192.168.1.40")
         #expect(draft.deviceID == nas.id)
+    }
+
+    private func makeContainer() throws -> ModelContainer {
+        let schema = Schema([MonitoringTarget.self])
+        let config = ModelConfiguration(UUID().uuidString, schema: schema, isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+        return try ModelContainer(for: schema, configurations: [config])
+    }
+
+    @Test func theTargetDraftsNameAndAddressAreEditedBeforeConfirm() async throws {
+        let container = try makeContainer()
+        let model = viewModel("Tell me if the NAS is down for more than five minutes")
+        await model.submit(devices: [homeNAS()], targets: [], networkID: home, isScanning: false)
+        #expect(try container.mainContext.fetch(FetchDescriptor<MonitoringTarget>()).isEmpty, "Nothing saved before Confirm")
+
+        model.targetDraft?.name = "  Basement NAS "
+        model.targetDraft?.host = "nas.local"
+        model.confirm(context: container.mainContext)
+
+        let saved = try container.mainContext.fetch(FetchDescriptor<MonitoringTarget>())
+        #expect(saved.map(\.name) == ["Basement NAS"])
+        #expect(saved.map(\.host) == ["nas.local"])
+        #expect(model.targetDraft == nil)
+    }
+
+    @Test func aTargetDraftWithoutAnAddressCantBeConfirmed() async throws {
+        let container = try makeContainer()
+        let model = viewModel("Tell me if the NAS is down for more than five minutes")
+        await model.submit(devices: [homeNAS()], targets: [], networkID: home, isScanning: false)
+        model.targetDraft?.host = "  "
+        #expect(!model.canConfirmTarget)
+        model.confirm(context: container.mainContext)
+        #expect(try container.mainContext.fetch(FetchDescriptor<MonitoringTarget>()).isEmpty)
+    }
+
+    @Test func deletingATargetRemovesItFromTheStore() throws {
+        let container = try makeContainer()
+        let keep = MonitoringTarget(name: "Router", host: "192.168.1.1")
+        let drop = MonitoringTarget(name: "NAS", host: "192.168.1.40")
+        container.mainContext.insert(keep)
+        container.mainContext.insert(drop)
+        try container.mainContext.save()
+
+        viewModel("").delete([drop], context: container.mainContext)
+
+        #expect(try container.mainContext.fetch(FetchDescriptor<MonitoringTarget>()).map(\.host) == ["192.168.1.1"])
     }
 }

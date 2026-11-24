@@ -19,7 +19,7 @@ struct SettingsView: View {
     @State private var showingPDFExport = false
     @State private var showingPairingSheet = false
     /// The Port Scanner a described port-scan preset opens (#450).
-    @State private var plainRulePortScan: PlainRuleIOSViewModel.PortScanRequest?
+    @State private var plainRulePortScan: PortScanRequest?
     @State private var highLatencyAlertEnabled =
         (UserDefaults.standard.object(forKey: AppSettings.Keys.highLatencyAlertEnabled) as? Bool) ?? false
     @State var connectionService = MacConnectionService.shared

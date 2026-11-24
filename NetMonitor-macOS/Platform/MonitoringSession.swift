@@ -47,6 +47,9 @@ final class MonitoringSession {
     var onTargetDown: (@MainActor (_ name: String, _ host: String) -> Void)?
     /// Called with every recorded check result, after any retries, for alert rules (#394).
     var onTargetResult: (@MainActor (TargetCheckOutcome) -> Void)?
+    /// Asked before a check is recorded: the address the target's device has moved to, when the
+    /// checked one is no longer its. That check is dropped and the target moved there (#450).
+    var movedHost: (@MainActor (_ targetID: UUID, _ host: String) -> String?)?
     /// Called when monitoring stops, so alert rules don't count the unchecked time (#450).
     var onMonitoringStopped: (@MainActor () -> Void)?
 
@@ -191,6 +194,30 @@ final class MonitoringSession {
         startMonitoringTarget(target)
     }
 
+    /// Points a target at a new address, such as the new address of the device a rule linked it
+    /// to (#450), and restarts its checks there.
+    func moveTarget(_ targetID: UUID, to host: String) {
+        let descriptor = FetchDescriptor<NetworkTarget>(predicate: #Predicate { $0.id == targetID })
+        guard let target = try? modelContext.fetch(descriptor).first, target.host != host else { return }
+        target.host = host
+        latestResults[targetID] = nil
+        do {
+            try modelContext.save()
+        } catch {
+            Logger.monitoring.error("Failed to move a target: \(error, privacy: .public)")
+        }
+        if monitoringTasks[targetID] != nil {
+            startMonitoringTarget(target)
+        }
+    }
+
+    /// The saved, enabled targets. A target deleted or turned off since monitoring started is not
+    /// among them, though its check loop runs until monitoring restarts.
+    func activeTargetIDs() -> Set<UUID> {
+        let descriptor = FetchDescriptor<NetworkTarget>(predicate: #Predicate { $0.isEnabled })
+        return Set(((try? modelContext.fetch(descriptor)) ?? []).map(\.id))
+    }
+
     func latestMeasurement(for targetID: UUID) -> TargetMeasurement? {
         latestResults[targetID]
     }
@@ -285,6 +312,12 @@ final class MonitoringSession {
 
     @MainActor
     private func updateMeasurement(_ measurement: TargetMeasurement, for target: NetworkTarget) {
+        // A check of an address the target's device has left may be of another device: it is
+        // neither recorded nor alerted, and the target follows its device.
+        if let host = movedHost?(target.id, target.host) {
+            moveTarget(target.id, to: host)
+            return
+        }
         let previous = latestResults[target.id]
         let wasDown = previous.map { !$0.isReachable } ?? false
         latestResults[target.id] = measurement
