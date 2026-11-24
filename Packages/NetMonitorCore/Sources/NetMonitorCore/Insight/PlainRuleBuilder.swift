@@ -153,6 +153,9 @@ public enum PlainRuleBuilder {
     /// Said when the model's duration isn't one the user's words state.
     public static let droppedDurationNote = "The duration wasn't clear from your words, so the draft has none. Set one if you want it."
 
+    /// The same on iOS, where a monitoring target has no duration to set.
+    static let iOSDroppedDurationNote = "The duration wasn't clear from your words, and a monitoring target can't time one."
+
     /// - Parameters:
     ///   - devices: the devices the phrase may name.
     ///   - targetHosts: the addresses monitoring targets already check.
@@ -232,7 +235,7 @@ public enum PlainRuleBuilder {
 
     private static func iOSNotes(_ intent: RuleIntent) -> [String] {
         let cantTime = intent.durationSeconds.map { " It can't time \(spoken(TimeInterval($0)))." } ?? ""
-        let dropped = intent.durationWasDropped ? [droppedDurationNote] : []
+        let dropped = intent.durationWasDropped ? [iOSDroppedDurationNote] : []
         // BackgroundTaskService checks an ICMP target as a TCP connection to port 80 (#450 review).
         let probe = ["Background checks connect to the device's port 80, so a device that doesn't accept connections there "
             + "shows as down."]

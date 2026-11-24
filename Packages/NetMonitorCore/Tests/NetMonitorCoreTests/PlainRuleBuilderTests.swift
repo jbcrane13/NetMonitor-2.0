@@ -58,7 +58,8 @@ struct PlainRuleBuilderTests {
         guard case let .target(target) = iOS(intent) else { Issue.record("not a target")
         return
         }
-        #expect(target.notes.last == PlainRuleBuilder.droppedDurationNote)
+        // iOS has no duration to set, so its note doesn't offer one.
+        #expect(target.notes.last == "The duration wasn't clear from your words, and a monitoring target can't time one.")
     }
 
     @Test func presetsAScannerLacksBecomeCustomPortLists() {
