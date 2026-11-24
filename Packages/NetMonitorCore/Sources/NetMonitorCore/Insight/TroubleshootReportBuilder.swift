@@ -15,8 +15,13 @@ public struct TroubleshootReport: Sendable, Equatable {
         let text = answer.lowercased()
         let subjects = TroubleshootReportBuilder.subjectWords(for: top)
         guard subjects.contains(where: text.contains) else { return false }
-        let clauses = text.components(separatedBy: CharacterSet(charactersIn: ".,;:!?"))
+        // The finding's own name is kept whole: the dots in "example.com" don't end a clause.
+        let name = top.subject?.lowercased() ?? ""
+        let whole = "\u{1}"
+        let clauses = (name.isEmpty ? text : text.replacingOccurrences(of: name, with: whole))
+            .components(separatedBy: CharacterSet(charactersIn: ".,;:!?"))
             .flatMap { $0.components(separatedBy: " but ") }
+            .map { $0.replacingOccurrences(of: whole, with: name) }
         return !clauses.contains { clause in
             subjects.contains(where: clause.contains) && TroubleshootReportBuilder.denies(clause, kind: top.kind)
         }
@@ -73,8 +78,14 @@ public enum TroubleshootReportBuilder {
         let negation = #"\b(no|not|never|without|isn't|wasn't|aren't|doesn't)\b"#
         let healthy = #"\b(fine|good|great|strong|ok|okay|normal|healthy|excellent|solid|stable|fast|quick|smooth)\b"#
         switch kind {
-        case .weakSignal, .unstableRouterLink, .dnsFailed, .dnsSlow:
+        case .weakSignal, .unstableRouterLink, .dnsSlow:
             return has(negation) || has(healthy)
+        case .dnsFailed:
+            // "DNS is not resolving the name" is the failure itself; only an unnegated healthy state
+            // or a negated fault ("not the problem", "did not fail") denies it.
+            let works = "fine|good|great|ok|okay|normal|healthy|fast|quick|working|resolving|responding|answering"
+            return has(#"(?<!n't )(?<!not )(?<!never )\b("# + works + #")\b"#)
+                || has(#"\b(no|not|never|isn't|wasn't|aren't|doesn't|didn't)\s+(\S+\s+)?(problem|issue|cause|fault|blame|fail\w*|broken)"#)
         case .gatewayLoss:
             return has(#"\b(no|without|zero)\s+(any\s+)?(packet\s+)?loss\b"#) || has(#"\bloss\b.*\b(not|isn't|wasn't)\b"#) || has(healthy)
         case .deviceOffline, .siteNotAnswering:

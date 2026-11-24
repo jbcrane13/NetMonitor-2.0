@@ -71,6 +71,33 @@ struct TroubleshootReportBuilderTests {
         #expect(!dns.accepts("DNS is working fine; the slowdown is elsewhere."))
     }
 
+    @Test func describingAFailedLookupIsNotDenyingIt() throws {
+        // (#575 review) "Not resolving" is the failure itself; only calling DNS healthy or
+        // blameless contradicts it.
+        let failed = try #require(TroubleshootReportBuilder.report(for: .websiteNotLoading, findings: TroubleshootRules.findings(for: [
+            .dns(host: "apple.com", milliseconds: nil)
+        ], completed: true)))
+        #expect(failed.accepts("DNS is not resolving the requested name."))
+        #expect(failed.accepts("The DNS lookup failed: apple.com didn't resolve to an address."))
+        #expect(!failed.accepts("DNS is not the problem; check the website instead."))
+        #expect(!failed.accepts("There is no DNS problem here."))
+        #expect(!failed.accepts("DNS is working fine."))
+        #expect(!failed.accepts("The DNS lookup did not fail."))
+    }
+
+    @Test func aWebsiteNameWithDotsStaysInOneClause() throws {
+        // (#575 review) Splitting at the dots in "example.com" hid the name from the denial check.
+        let silent = try #require(TroubleshootReportBuilder.report(for: .websiteNotLoading, findings: TroubleshootRules.findings(for: [
+            .dns(host: "example.com", milliseconds: 20),
+            .ports(host: "example.com", open: [], closed: [443]),
+            .ping(PingSummary(target: .gateway, sent: 5, received: 5, averageMs: 3, jitterMs: 1))
+        ], completed: true)))
+        #expect(silent.top.kind == .siteNotAnswering)
+        #expect(silent.accepts("example.com isn't answering. The site may be down."))
+        #expect(!silent.accepts("example.com is reachable."))
+        #expect(!silent.accepts("The site example.com is working, so check your browser."))
+    }
+
     @Test func aLookedUpNameIsStatedWholeSoTheAnswerMayRepeatIt() {
         let findings = TroubleshootRules.findings(for: [
             .dns(host: "apple.com", milliseconds: 640), .speed(downloadMbps: 12.4, baselineMbps: 210)

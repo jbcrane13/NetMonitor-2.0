@@ -329,7 +329,14 @@ public final class TroubleshootState {
             } else {
                 nil
             }
-        }, completed: completed)
+        }, completed: completed, unprobedHosts: Set(steps.compactMap { step in
+            // A port check that was cancelled or never started says nothing about the ports.
+            if case let .ports(host, _) = step.check, !step.status.isDone {
+                host
+            } else {
+                nil
+            }
+        }))
         if isCancelled {
             stop(Self.cancelledMessage)
         } else if !completed {

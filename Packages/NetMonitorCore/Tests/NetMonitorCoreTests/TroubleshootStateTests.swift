@@ -280,6 +280,23 @@ struct TroubleshootStateTests {
         #expect(state.explanation == nil)
     }
 
+    @Test func cancellingWhileADevicesPortsAreProbedDoesNotCallThemSilent() async {
+        // (#575 review) The pings went unanswered, but the port check never finished.
+        let probes = MockTroubleshootProbes()
+        probes.pingTimes["192.168.1.30"] = []
+        probes.holds = "ports 192.168.1.30 631,9100"
+        let state = make(probes, classifier: FixedSymptomClassifier(intents: [
+            "the printer won't print": SymptomIntent(kind: .deviceUnreachable, devicePhrase: "the printer")
+        ]))
+        let run = Task { await state.describe("The printer won't print") }
+        await waitUntil { state.steps.count > 1 && state.steps[1].status == .running }
+        state.cancel()
+        await run.value
+        #expect(state.phase == .stopped(TroubleshootState.cancelledMessage))
+        #expect(state.steps.map(\.status.isDone) == [true, false, false])
+        #expect(state.findings.isEmpty)
+    }
+
     @Test func cancellingWhileTheSymptomIsReadRunsNothing() async {
         let probes = MockTroubleshootProbes()
         let classifier = HeldSymptomClassifier()

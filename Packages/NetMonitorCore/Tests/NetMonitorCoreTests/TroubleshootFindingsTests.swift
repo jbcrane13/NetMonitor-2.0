@@ -122,6 +122,14 @@ struct TroubleshootFindingsTests {
             == "Office Printer answered none of 5 pings or its known ports. Your router couldn't be checked, so the network may be the cause.")
     }
 
+    @Test func aSilentDeviceWhosePortCheckDidNotFinishIsNotAFinding() {
+        // (#575 review) Cancelled while probing the known ports: nothing says they didn't answer.
+        let results = [ping(.device("Office Printer", "192.168.1.30"), sent: 5, received: 0)]
+        #expect(TroubleshootRules.findings(for: results, completed: false, unprobedHosts: ["192.168.1.30"]).isEmpty)
+        // A device with no known ports has no port check to wait for.
+        #expect(TroubleshootRules.findings(for: results, completed: false).map(\.kind) == [.deviceOffline])
+    }
+
     @Test func aSilentSiteWithTheRouterUnmeasuredIsNotAnAllClear() {
         let findings = TroubleshootRules.findings(for: [
             .dns(host: "github.com", milliseconds: 20), ping(.host("github.com"), sent: 5, received: 0),

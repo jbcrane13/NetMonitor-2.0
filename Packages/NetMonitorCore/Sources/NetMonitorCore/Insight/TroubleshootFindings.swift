@@ -41,7 +41,7 @@ public struct TroubleshootFinding: Equatable, Sendable, Identifiable {
 /// | packet loss to the router | 5% or more of the router pings got no reply. With 5 or 10 pings that is one lost reply: deliberate, any loss to the router is worth naming |
 /// | unstable connection to the router | router pings averaged over 100 ms, or jitter (mean change between consecutive replies) over 30 ms: calls and games stutter well before pings are lost |
 /// | DNS failed / slow | a lookup didn't resolve, or took over 300 ms |
-/// | device offline or asleep | the device answered no ping and no known port, while the router answered with under 5% loss. With the router unmeasured, the device "isn't answering" and the router is named as unverified |
+/// | device offline or asleep | the device answered no ping and no known port, while the router answered with under 5% loss. With the router unmeasured, the device "isn't answering" and the router is named as unverified. A device whose known-port check didn't finish is not a finding |
 /// | website not answering | the site's name resolved and port 443 didn't answer, while the router is healthy or unmeasured (then named as unverified) |
 /// | slower than usual | download under 25% of the last saved speed test |
 /// | no problem found | the script finished, measured something, and nothing above fired |
@@ -58,15 +58,19 @@ public enum TroubleshootRules {
     public static let slowSpeedFraction = 0.25
 
     /// The findings for `results`, ranked. `completed` is whether the whole script ran: a cancelled
-    /// or stopped run names what it measured but never says no problem was found.
-    public static func findings(for results: [TroubleshootResult], completed: Bool) -> [TroubleshootFinding] {
+    /// or stopped run names what it measured but never says no problem was found. `unprobedHosts`
+    /// are the addresses whose port check was planned but didn't finish.
+    public static func findings(
+        for results: [TroubleshootResult], completed: Bool, unprobedHosts: Set<String> = []
+    ) -> [TroubleshootFinding] {
         let gateway = pings(in: results).first { $0.target == .gateway }
         let gatewayHealthy = gateway.map { $0.received > 0 && $0.lossPercent < gatewayLossPercent } ?? false
         var findings = weakSignal(in: results) + gatewayLoss(gateway) + unstableLink(gateway) + dns(in: results)
         // A lossy router explains a silent device or site by itself; an unmeasured one can't clear them.
         if gatewayHealthy || gateway == nil {
             let unverified = gateway == nil
-            findings += offlineDevices(in: results, routerUnverified: unverified) + silentSites(in: results, routerUnverified: unverified)
+            findings += offlineDevices(in: results, routerUnverified: unverified, unprobedHosts: unprobedHosts)
+                + silentSites(in: results, routerUnverified: unverified)
         }
         findings += ispSlowness(in: results)
         // An all-clear needs something measured, and says when some steps couldn't measure.
@@ -169,7 +173,10 @@ public enum TroubleshootRules {
     static let routerUnverifiedNote = " Your router couldn't be checked, so the network may be the cause."
 
     /// Devices that answered no ping and no known port. Asked while the router is healthy, or unmeasured.
-    private static func offlineDevices(in results: [TroubleshootResult], routerUnverified: Bool) -> [TroubleshootFinding] {
+    /// A device in `unprobedHosts` is left out: its known ports weren't all tried.
+    private static func offlineDevices(
+        in results: [TroubleshootResult], routerUnverified: Bool, unprobedHosts: Set<String>
+    ) -> [TroubleshootFinding] {
         let answering = Set(results.compactMap { result -> String? in
             if case let .ports(host, open, _) = result, !open.isEmpty {
                 host
@@ -178,7 +185,9 @@ public enum TroubleshootRules {
             }
         })
         return pings(in: results).compactMap { summary in
-            guard case let .device(name, address) = summary.target, summary.received == 0, !answering.contains(address) else { return nil }
+            guard case let .device(name, address) = summary.target, summary.received == 0, !answering.contains(address),
+                  !unprobedHosts.contains(address)
+            else { return nil }
             return TroubleshootFinding(
                 kind: .deviceOffline,
                 title: routerUnverified ? "\(name) isn't answering" : "\(name) is offline or asleep",
