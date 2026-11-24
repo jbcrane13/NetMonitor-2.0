@@ -327,3 +327,64 @@ extension UITestBootstrap {
         #endif
     }
 }
+
+// MARK: - Label capture fixtures (#456)
+
+extension UITestBootstrap {
+    /// What the UI-test label prints, and what the stand-in model reads from it. Its MAC is on
+    /// no fixture device, so Save doesn't meet the duplicate-MAC case.
+    static let testLabel = (
+        maker: "Northwind Networks", model: "NW-AC1200", serial: "NW12K4471093", mac: "00:1E:42:7A:9C:31"
+    )
+
+    /// `UITEST_LABEL_IMAGE=1`: the label sheet reads ``testLabelImage`` instead of asking for a
+    /// photo, since the simulator has no camera.
+    static var usesTestLabelImage: Bool {
+        isUITesting && ProcessInfo.processInfo.environment["UITEST_LABEL_IMAGE"] == "1"
+    }
+
+    /// `UITEST_LABEL_MODEL`: "answer" makes a stand-in model fill ``testLabel`` (still checked
+    /// against the real OCR text), "unavailable" turns the model off. Nil otherwise.
+    static var labelExtractor: (any LabelFieldExtractorProtocol)? {
+        guard isUITesting, ProcessInfo.processInfo.environment["UITEST_LABEL_MODEL"] == "answer" else { return nil }
+        return FixedLabelFieldExtractor(answer: LabelFields(
+            status: .found, maker: testLabel.maker, model: testLabel.model, serial: testLabel.serial, mac: testLabel.mac
+        ))
+    }
+
+    static var labelInsightService: (any InsightServiceProtocol)? {
+        guard isUITesting else { return nil }
+        switch ProcessInfo.processInfo.environment["UITEST_LABEL_MODEL"] {
+        case "answer": return FixedAnswerInsightService(answer: "")
+        case "unavailable": return UnavailableInsightService()
+        default: return nil
+        }
+    }
+
+    /// A photo-like device label with ``testLabel``'s values, drawn at launch; real OCR reads it.
+    static func testLabelImage() -> CGImage? {
+        let size = CGSize(width: 900, height: 520)
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        let image = UIGraphicsImageRenderer(size: size, format: format).image { context in
+            UIColor(white: 0.55, alpha: 1).setFill()
+            context.fill(CGRect(origin: .zero, size: size))
+            UIColor(white: 0.96, alpha: 1).setFill()
+            context.fill(CGRect(x: 60, y: 50, width: 780, height: 420))
+            let lines: [(String, UIFont)] = [
+                (testLabel.maker, .boldSystemFont(ofSize: 34)),
+                ("Model: \(testLabel.model)", .monospacedSystemFont(ofSize: 30, weight: .regular)),
+                ("S/N: \(testLabel.serial)", .monospacedSystemFont(ofSize: 30, weight: .regular)),
+                ("MAC: \(testLabel.mac)", .monospacedSystemFont(ofSize: 30, weight: .regular)),
+                ("Input: 12V 1.5A", .monospacedSystemFont(ofSize: 22, weight: .regular))
+            ]
+            for (index, line) in lines.enumerated() {
+                (line.0 as NSString).draw(
+                    at: CGPoint(x: 90, y: 80 + index * 70),
+                    withAttributes: [.font: line.1, .foregroundColor: UIColor.black]
+                )
+            }
+        }
+        return image.cgImage
+    }
+}
