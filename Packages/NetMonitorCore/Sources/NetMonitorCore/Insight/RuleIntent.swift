@@ -277,7 +277,12 @@ public struct FixedRuleIntentParser: RuleIntentParsing {
         "Tell me if the NAS is down for more than five minutes":
             RuleIntent(kind: .deviceOffline, device: "NAS", durationSeconds: 300),
         "scan web ports on the printer":
-            RuleIntent(kind: .portScan, device: "printer", portPreset: .web)
+            RuleIntent(kind: .portScan, device: "printer", portPreset: .web),
+        // Devices only the UI-test scan knows (#571): no saved row, no open port (#572).
+        "scan web ports on uitest-device-2":
+            RuleIntent(kind: .portScan, device: "uitest-device-2", portPreset: .web),
+        "tell me if uitest-device-3 goes offline":
+            RuleIntent(kind: .deviceOffline, device: "uitest-device-3")
     ])
     #endif
 }

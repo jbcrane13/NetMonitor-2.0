@@ -15,7 +15,9 @@ final class BackgroundTaskService {
     typealias TaskCancellation = (String) -> Void
 
     static let shared = BackgroundTaskService()
-    private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "com.blakemiller.netmonitor", category: "BackgroundTaskService")
+    nonisolated private static let logger = Logger(
+        subsystem: Bundle.main.bundleIdentifier ?? "com.blakemiller.netmonitor", category: "BackgroundTaskService"
+    )
 
     static let refreshTaskIdentifier = "com.blakemiller.netmonitor.refresh"
     static let syncTaskIdentifier = "com.blakemiller.netmonitor.sync"
@@ -28,6 +30,8 @@ final class BackgroundTaskService {
     private let notifications: NotificationService
     /// Words alert bodies with the on-device model, or leaves them fixed (#453).
     private let notificationWriter: NotificationTextWriter
+    /// Reaches TCP and ICMP targets (#572).
+    private let probe: MonitoringTargetProbe
 
     init(
         registerTask: @escaping TaskRegistration = { identifier, queue, launchHandler in
@@ -41,8 +45,10 @@ final class BackgroundTaskService {
         cancelTask: @escaping TaskCancellation = { BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: $0) },
         notifications: NotificationService = .shared,
         insightService: any InsightServiceProtocol = InsightService.shared,
-        isScanning: @escaping @MainActor () -> Bool = { DeviceDiscoveryService.shared.isScanning }
+        isScanning: @escaping @MainActor () -> Bool = { DeviceDiscoveryService.shared.isScanning },
+        probe: MonitoringTargetProbe = BackgroundTaskService.liveProbe
     ) {
+        self.probe = probe
         self.registerTask = registerTask
         self.submitTask = submitTask
         self.cancelTask = cancelTask
@@ -524,29 +530,24 @@ extension BackgroundTaskService {
         let startTime = Date()
 
         switch target.targetProtocol {
-        case .tcp:
-            let port = target.port ?? 80
-            let result = await tcpConnect(host: target.host, port: port, timeout: target.timeout)
-            let latency = result ? Date().timeIntervalSince(startTime) * 1000 : nil
-            return (result, latency)
+        case .tcp, .icmp:
+            // ICMP needs raw sockets, which background tasks can't use: both connect over TCP.
+            return await probe.check(target)
 
         case .http, .https:
             let result = await httpCheck(target: target)
             let latency = result ? Date().timeIntervalSince(startTime) * 1000 : nil
             return (result, latency)
-
-        case .icmp:
-            // ICMP requires raw sockets which may not work in background
-            // Fall back to TCP probe on a common port
-            let port = target.port ?? 80
-            let result = await tcpConnect(host: target.host, port: port, timeout: target.timeout)
-            let latency = result ? Date().timeIntervalSince(startTime) * 1000 : nil
-            return (result, latency)
         }
     }
 
-    private func tcpConnect(host: String, port: Int, timeout: TimeInterval) async -> Bool {
-        Self.logger.debug("TCP check: \(host):\(port) (timeout: \(timeout)s)")
+    /// The real probe: a TCP connection with `NWConnection`.
+    nonisolated static var liveProbe: MonitoringTargetProbe {
+        MonitoringTargetProbe { host, port, timeout in await tcpConnect(host: host, port: port, timeout: timeout) }
+    }
+
+    nonisolated private static func tcpConnect(host: String, port: Int, timeout: TimeInterval) async -> Bool {
+        logger.debug("TCP check: \(host):\(port) (timeout: \(timeout)s)")
         return await withTaskGroup(of: Bool?.self) { group in
             let connection = NWConnection(
                 host: NWEndpoint.Host(host),

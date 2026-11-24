@@ -71,9 +71,12 @@ struct PlainRuleSettingsSection: View {
         Task {
             await viewModel.submit(
                 devices: devices,
+                // Devices scanned but never opened can be named too (#571).
+                scan: env?.deviceDiscovery.discoveredDevices ?? [],
                 targets: targets,
                 networkID: networkID,
-                isScanning: env?.deviceDiscovery.isScanning ?? false
+                isScanning: env?.deviceDiscovery.isScanning ?? false,
+                context: modelContext
             )
         }
     }

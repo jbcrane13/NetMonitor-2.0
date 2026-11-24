@@ -84,6 +84,13 @@ final class DeviceDetailViewModel {
         guard let device, let scanned else {
             return
         }
+        Self.adopt(scanned, into: device)
+    }
+
+    /// Merges what a scan knows into a saved row, as detail does when it opens: maker, model and
+    /// friendly name by rank (ADR-022), and the MAC-prefix maker, MAC and hostname where the row
+    /// has none (#426). Described rules save rows the same way (#571).
+    static func adopt(_ scanned: DiscoveredDevice, into device: LocalDevice) {
         device.mergeIdentity(scanned.identity)
         if device.vendor?.isEmpty ?? true, let vendor = scanned.vendor, !vendor.isEmpty {
             device.vendor = vendor

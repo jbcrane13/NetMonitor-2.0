@@ -17,7 +17,7 @@ struct PlainRuleIOSViewModelTests {
 
     private func homeNAS() -> LocalDevice {
         LocalDevice(ipAddress: "192.168.1.40", macAddress: "02:00:00:01:00:40", hostname: "home-nas",
-                    deviceType: .storage, networkProfileID: home)
+                    deviceType: .storage, openPorts: [445], networkProfileID: home)
     }
 
     private func viewModel(_ text: String) -> PlainRuleIOSViewModel {

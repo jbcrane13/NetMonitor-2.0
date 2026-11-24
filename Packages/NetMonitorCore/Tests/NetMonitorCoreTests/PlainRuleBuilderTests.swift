@@ -4,12 +4,13 @@ import Testing
 
 @Suite("Plain-English rules: drafts (#450)")
 struct PlainRuleBuilderTests {
-    private let nas = RuleDevice(id: UUID(), displayName: "Synology DS920", deviceType: .storage, maker: "Synology", ipAddress: "10.0.0.50")
+    private let nas = RuleDevice(id: UUID(), displayName: "Synology DS920", deviceType: .storage, maker: "Synology", ipAddress: "10.0.0.50",
+                                 openPorts: [5000, 445])
     private let printer = RuleDevice(id: UUID(), displayName: "Office Printer", deviceType: .printer, maker: "Brother", ipAddress: "10.0.0.40")
     private let laserJet = RuleDevice(id: UUID(), displayName: "LaserJet", deviceType: .printer, maker: "HP", ipAddress: "10.0.0.41")
     private var devices: [RuleDevice] { [nas, printer, laserJet] }
     private let timing = RuleTiming(targetCheckInterval: 5, scanGrace: DeviceGracePolicy(missedScans: 3, interval: 900))
-    static let portNote = "Background checks connect to the device's port 80, so a device that doesn't accept connections there shows as down."
+    static let portNote = "Background checks connect to port 445, which a scan found open on Synology DS920."
 
     private func mac(_ intent: RuleIntent, targetHosts: Set<String> = [], chosen: RuleDevice? = nil) -> PlainRuleOutcome {
         PlainRuleBuilder.outcome(for: intent, devices: devices, platform: .mac, timing: timing, targetHosts: targetHosts, chosen: chosen)
@@ -192,7 +193,7 @@ struct PlainRuleBuilderTests {
 
     @Test func onIOSAnOfflineRuleBecomesAMonitoringTargetDraftThatSaysWhatItCantTime() {
         let outcome = iOS(RuleIntent(kind: .deviceOffline, device: "NAS", durationSeconds: 300))
-        #expect(outcome == .target(TargetDraft(name: "Synology DS920", host: "10.0.0.50", deviceID: nas.id, notes: [
+        #expect(outcome == .target(TargetDraft(name: "Synology DS920", host: "10.0.0.50", deviceID: nas.id, port: 445, notes: [
             "The app checks monitoring targets during background refresh, when iOS allows it, and reports one down after 3 failed checks. "
                 + "It can't time 5 minutes.",
             Self.portNote
@@ -219,6 +220,22 @@ struct PlainRuleBuilderTests {
     @Test func onIOSAnExistingTargetIsNotAddedAgain() {
         #expect(iOS(RuleIntent(kind: .deviceOffline, device: "NAS"), targetHosts: ["10.0.0.50"])
             == .message("A monitoring target for Synology DS920 already exists."))
+    }
+
+    /// #572: a target probes a port the device's last scan found open, a common service port first.
+    @Test func anIOSTargetProbesAPortTheScanFoundOpen() {
+        #expect(PlainRuleBuilder.probePort([5000, 445]) == 445)
+        #expect(PlainRuleBuilder.probePort([9100, 631]) == 631)
+        #expect(PlainRuleBuilder.probePort([9100, 7000]) == 7000)
+        #expect(PlainRuleBuilder.probePort([]) == nil)
+    }
+
+    /// #572: with no open port known, a background check could never succeed, so the draft is refused.
+    @Test func anIOSTargetForADeviceWithNoKnownOpenPortIsRefused() {
+        #expect(iOS(RuleIntent(kind: .deviceOffline, device: "LaserJet")) == .message(
+            "LaserJet can't be checked in the background yet: no scan has found an open port on it. "
+                + "Scan its ports from its device page, then try again."
+        ))
     }
 
     @Test func onIOSThePortScanPresetWorksToo() {

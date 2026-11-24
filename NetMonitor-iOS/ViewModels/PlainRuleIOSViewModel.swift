@@ -1,5 +1,6 @@
 import Foundation
 import NetMonitorCore
+import NetworkScanKit
 import os
 import SwiftData
 
@@ -13,6 +14,13 @@ final class PlainRuleIOSViewModel {
     /// The monitoring-target draft under review, as the user edits its name and address.
     var targetDraft: TargetDraft?
     let composer: PlainRuleComposer
+    /// Devices the latest scan saw that no saved row describes, by the stand-in ID their
+    /// candidate carries until a draft saves their row (#571).
+    private var scannedOnly: [UUID: DiscoveredDevice] = [:]
+    /// The latest scan of the network, for matching a new row the way device detail does.
+    private var scan: [DiscoveredDevice] = []
+    private var networkID: UUID?
+    private var context: ModelContext?
 
     init(parser: any RuleIntentParsing = UITestBootstrap.ruleParser ?? RuleIntentParser.shared) {
         composer = PlainRuleComposer(parser: parser, platform: .iOS)
@@ -20,14 +28,45 @@ final class PlainRuleIOSViewModel {
 
     var isAvailable: Bool { composer.isAvailable }
 
-    /// - Parameter networkID: the network the phone is on. Only its saved devices can be named: a
-    ///   device saved on another network has an address that means something else here. Nil when
-    ///   the network isn't known, which leaves every saved device in.
-    func submit(devices: [LocalDevice], targets: [MonitoringTarget], networkID: UUID?, isScanning: Bool) async {
+    /// - Parameters:
+    ///   - devices: the saved rows.
+    ///   - scan: the latest scan's devices. One with no saved row can be named too (#571); a
+    ///     target draft for it saves its row, through device detail's matching, so the rule keeps
+    ///     a stable `LocalDevice.id`.
+    ///   - networkID: the network the phone is on. Only its devices can be named: a device saved
+    ///     on another network has an address that means something else here. Nil when the network
+    ///     isn't known, which leaves every device in.
+    ///   - context: where a draft saves a scanned device's row.
+    func submit(
+        devices: [LocalDevice],
+        scan: [DiscoveredDevice] = [],
+        targets: [MonitoringTarget],
+        networkID: UUID?,
+        isScanning: Bool,
+        context: ModelContext? = nil
+    ) async {
         let devices = networkID.map { id in devices.filter { $0.networkProfileID == id } } ?? devices
+        let scan = networkID.map { id in scan.filter { $0.networkProfileID == id } } ?? scan
+        self.scan = scan
+        self.networkID = networkID
+        self.context = context
+        scannedOnly = [:]
+        var candidates = devices.map { row in
+            var device = RuleDevice(row)
+            // The latest scan's open ports when the row has none of its own (#572).
+            if device.openPorts.isEmpty, let ports = Self.scanned(row, in: scan)?.openPorts {
+                device.openPorts = ports
+            }
+            return device
+        }
+        for scanned in scan where !devices.contains(where: { Self.isSame($0, scanned) }) {
+            let candidate = RuleDevice(scanned: scanned)
+            scannedOnly[candidate.id] = scanned
+            candidates.append(candidate)
+        }
         await composer.submit(
             text,
-            devices: devices.map(RuleDevice.init),
+            devices: candidates,
             // iOS targets are checked in background refresh; the notes don't quote an interval.
             timing: RuleTiming(targetCheckInterval: 60),
             targetHosts: Set(targets.map(\.host)),
@@ -50,7 +89,8 @@ final class PlainRuleIOSViewModel {
     /// Saves the reviewed monitoring-target draft, then clears the field.
     func confirm(context: ModelContext) {
         guard canConfirmTarget, let draft = targetDraft else { return }
-        context.insert(MonitoringTarget(name: trimmed(draft.name), host: trimmed(draft.host)))
+        // A TCP check of a port the scan found open: one that can succeed in the background (#572).
+        context.insert(MonitoringTarget(name: trimmed(draft.name), host: trimmed(draft.host), port: draft.port, targetProtocol: .tcp))
         do {
             try context.save()
         } catch {
@@ -69,6 +109,7 @@ final class PlainRuleIOSViewModel {
     func cancel() {
         text = ""
         targetDraft = nil
+        scannedOnly = [:]
         composer.clear()
     }
 
@@ -83,11 +124,46 @@ final class PlainRuleIOSViewModel {
     }
 
     private func adoptOutcome() {
-        if case let .target(draft) = composer.outcome {
+        if case var .target(draft) = composer.outcome {
+            if let scanned = scannedOnly[draft.deviceID], let row = saveRow(for: scanned) {
+                draft.deviceID = row.id
+            }
             targetDraft = draft
         } else {
             targetDraft = nil
         }
+    }
+
+    /// Saves the row for a device only the scan knew, as device detail does when it opens, so a
+    /// draft names it by a stable ID (#571).
+    private func saveRow(for scanned: DiscoveredDevice) -> LocalDevice? {
+        guard let context else { return nil }
+        let row = DeviceDetailViewModel.savedRow(
+            ipAddress: scanned.ipAddress, scanned: scanned, networkID: networkID ?? scanned.networkProfileID, scan: scan, in: context
+        )
+        DeviceDetailViewModel.adopt(scanned, into: row)
+        if row.openPorts?.isEmpty ?? true, let ports = scanned.openPorts {
+            row.openPorts = ports
+        }
+        do {
+            try context.save()
+        } catch {
+            Logger.data.error("Failed to save a described device's row: \(error.localizedDescription, privacy: .public)")
+        }
+        scannedOnly = scannedOnly.filter { $0.value.id != scanned.id }
+        return row
+    }
+
+    /// The scan's entry for a saved row: same MAC when both have one, else same address.
+    private static func scanned(_ row: LocalDevice, in scan: [DiscoveredDevice]) -> DiscoveredDevice? {
+        scan.first { isSame(row, $0) }
+    }
+
+    private static func isSame(_ row: LocalDevice, _ scanned: DiscoveredDevice) -> Bool {
+        if !row.macAddress.isEmpty, let mac = scanned.macAddress, !mac.isEmpty {
+            return row.macAddress.caseInsensitiveCompare(mac) == .orderedSame
+        }
+        return row.ipAddress == scanned.ipAddress
     }
 
     private func trimmed(_ text: String) -> String {

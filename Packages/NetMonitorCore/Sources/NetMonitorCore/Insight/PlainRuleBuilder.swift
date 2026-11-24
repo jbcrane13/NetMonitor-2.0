@@ -99,13 +99,16 @@ public struct TargetDraft: Sendable, Equatable {
     public var name: String
     public var host: String
     public var deviceID: UUID
+    /// The TCP port background checks connect to: one the device's last scan found open (#572).
+    public var port: Int
     /// What the target can't do that the user asked for.
     public var notes: [String]
 
-    public init(name: String, host: String, deviceID: UUID, notes: [String]) {
+    public init(name: String, host: String, deviceID: UUID, port: Int, notes: [String]) {
         self.name = name
         self.host = host
         self.deviceID = deviceID
+        self.port = port
         self.notes = notes
     }
 }
@@ -200,7 +203,15 @@ public enum PlainRuleBuilder {
             if hasTarget {
                 return .message("A monitoring target for \(device.displayName) already exists.")
             }
-            return .target(TargetDraft(name: device.displayName, host: device.ipAddress, deviceID: device.id, notes: iOSNotes(intent)))
+            // Background checks can only connect to a TCP port; with none known to be open, a
+            // target would never record a success, so it isn't offered (#572).
+            guard let port = probePort(device.openPorts) else {
+                return .message(cantCheckMessage(device))
+            }
+            return .target(TargetDraft(
+                name: device.displayName, host: device.ipAddress, deviceID: device.id, port: port,
+                notes: iOSNotes(intent, device: device, port: port)
+            ))
         }
     }
 
@@ -233,12 +244,22 @@ public enum PlainRuleBuilder {
                               durationWasDropped: intent.durationWasDropped)
     }
 
-    private static func iOSNotes(_ intent: RuleIntent) -> [String] {
+    /// The port an iOS target probes among `openPorts`: a common service port if one is open,
+    /// else the lowest. Nil when none is known.
+    public static func probePort(_ openPorts: [Int]) -> Int? {
+        let preferred = [80, 443, 22, 445, 8080, 8443, 548, 631, 5000, 3389, 5900]
+        return preferred.first(where: openPorts.contains) ?? openPorts.min()
+    }
+
+    static func cantCheckMessage(_ device: RuleDevice) -> String {
+        "\(device.displayName) can't be checked in the background yet: no scan has found an open port on it. "
+            + "Scan its ports from its device page, then try again."
+    }
+
+    private static func iOSNotes(_ intent: RuleIntent, device: RuleDevice, port: Int) -> [String] {
         let cantTime = intent.durationSeconds.map { " It can't time \(spoken(TimeInterval($0)))." } ?? ""
         let dropped = intent.durationWasDropped ? [iOSDroppedDurationNote] : []
-        // BackgroundTaskService checks an ICMP target as a TCP connection to port 80 (#450 review).
-        let probe = ["Background checks connect to the device's port 80, so a device that doesn't accept connections there "
-            + "shows as down."]
+        let probe = ["Background checks connect to port \(port), which a scan found open on \(device.displayName)."]
         if intent.kind == .latencyAbove {
             let threshold = intent.thresholdMilliseconds.map { "\($0) ms" } ?? "a threshold"
             return ["High-latency alerts use one threshold for every target (Settings › Notifications), so \(threshold) isn't saved "

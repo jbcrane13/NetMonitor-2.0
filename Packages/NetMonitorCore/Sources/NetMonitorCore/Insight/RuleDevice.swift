@@ -1,4 +1,5 @@
 import Foundation
+import NetworkScanKit
 import SwiftData
 
 /// A device a plain-English rule can name, read through the identity seam (`LocalDevice.id`,
@@ -11,14 +12,25 @@ public struct RuleDevice: DevicePhraseMatchable, Sendable, Equatable, Identifiab
     public var ipAddress: String
     /// The hardware address, when known.
     public var macAddress: String?
+    /// Ports the device's last scan found open; an iOS monitoring target probes one (#572).
+    public var openPorts: [Int]
 
-    public init(id: UUID, displayName: String, deviceType: DeviceType, maker: String?, ipAddress: String, macAddress: String? = nil) {
+    public init(
+        id: UUID,
+        displayName: String,
+        deviceType: DeviceType,
+        maker: String?,
+        ipAddress: String,
+        macAddress: String? = nil,
+        openPorts: [Int] = []
+    ) {
         self.id = id
         self.displayName = displayName
         self.deviceType = deviceType
         self.maker = maker
         self.ipAddress = ipAddress
         self.macAddress = macAddress
+        self.openPorts = openPorts
     }
 
     /// A saved device as rules see it: its stable identity and the identity seam's name, type and
@@ -30,7 +42,22 @@ public struct RuleDevice: DevicePhraseMatchable, Sendable, Equatable, Identifiab
             deviceType: device.deviceType,
             maker: device.makerExcludingSuggestions,
             ipAddress: device.ipAddress,
-            macAddress: device.macAddress.isEmpty ? nil : device.macAddress
+            macAddress: device.macAddress.isEmpty ? nil : device.macAddress,
+            openPorts: device.openPorts ?? []
+        )
+    }
+
+    /// A device the latest scan saw but no saved row describes yet (#571), under a stand-in `id`
+    /// until a draft saves its row. Its type isn't known before a row is saved.
+    public init(scanned device: DiscoveredDevice, id: UUID = UUID()) {
+        self.init(
+            id: id,
+            displayName: device.friendlyName ?? device.hostname ?? device.ipAddress,
+            deviceType: .unknown,
+            maker: device.maker,
+            ipAddress: device.ipAddress,
+            macAddress: device.macAddress.flatMap { $0.isEmpty ? nil : $0 },
+            openPorts: device.openPorts ?? []
         )
     }
 }

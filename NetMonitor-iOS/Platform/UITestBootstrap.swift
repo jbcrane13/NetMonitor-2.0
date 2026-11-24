@@ -438,7 +438,8 @@ extension UITestBootstrap {
         ))
         context.insert(LocalDevice(
             ipAddress: "192.168.77.40", macAddress: "02:00:00:77:00:40", hostname: "uitest-nas",
-            deviceType: .storage, networkProfileID: networkProfileID
+            // A scan found SMB open, so its target has a port to probe (#572).
+            deviceType: .storage, openPorts: [445], networkProfileID: networkProfileID
         ))
         try? context.save()
         #endif
