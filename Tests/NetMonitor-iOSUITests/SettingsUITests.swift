@@ -11,7 +11,7 @@ final class SettingsUITests: XCTestCase {
         // Navigate to Settings via Dashboard gear button
         let settingsButton = app.buttons["dashboard_button_settings"]
         // On iOS 26+ the settings screen is a CollectionView, not an Other; match any type so older trees work too.
-        let settingsScreen = element("screen_settings")
+        let settingsScreen = app.descendants(matching: .any).matching(identifier: "screen_settings").firstMatch
         if settingsButton.waitForExistence(timeout: 5) {
             settingsButton.tap()
             // The first tap after a fresh launch can miss (hit point {-1, -1}); retry once.
@@ -35,8 +35,8 @@ final class SettingsUITests: XCTestCase {
             "Settings screen should be visible"
         )
         // FUNCTIONAL: settings screen should contain at least one section header or control
-        let hasContent = app.staticTexts.count > 0
-            || app.switches.count > 0
+        let hasContent = app.staticTexts.firstMatch.exists
+            || app.switches.firstMatch.exists
             || app.buttons.count > 1
         XCTAssertTrue(hasContent, "Settings screen should display interactive content, not be empty")
     }
@@ -118,7 +118,7 @@ final class SettingsUITests: XCTestCase {
         )
         // FUNCTIONAL: picker should display a selected value
         let activePicker = pickerElement.exists ? pickerElement : pickerButton
-        let hasValue = activePicker.staticTexts.count > 0 || activePicker.label.count > 0
+        let hasValue = activePicker.staticTexts.firstMatch.exists || !activePicker.label.isEmpty
         XCTAssertTrue(hasValue, "Auto-refresh interval picker should display a current value")
     }
 
@@ -185,7 +185,7 @@ final class SettingsUITests: XCTestCase {
         )
         // FUNCTIONAL: picker should display a current value
         let activePicker = pickerElement.exists ? pickerElement : pickerButton
-        let hasValue = activePicker.staticTexts.count > 0 || activePicker.label.count > 0
+        let hasValue = activePicker.staticTexts.firstMatch.exists || !activePicker.label.isEmpty
         XCTAssertTrue(hasValue, "Data retention picker should display a current value")
     }
 
@@ -423,6 +423,40 @@ final class SettingsUITests: XCTestCase {
         stepper.buttons["-"].tap()
     }
 
+    // MARK: - Helpers
+
+    /// Any element with this identifier. On iOS 26+ the settings screen is a `CollectionView`, steppers are
+    /// `Stepper`s, and a row's identifier lands on its texts, so element types aren't stable.
+    private func element(_ identifier: String) -> XCUIElement {
+        app.descendants(matching: .any).matching(identifier: identifier).firstMatch
+    }
+
+    /// Scrolls the settings list until the element is on screen. Rows below the fold aren't in the tree
+    /// until the lazy list renders them.
+    private func scrollTo(_ target: XCUIElement, maxSwipes: Int = 8) {
+        let list = element("screen_settings")
+        for _ in 0..<maxSwipes where !(target.exists && target.isHittable) {
+            list.swipeUp(velocity: .slow)
+        }
+        XCTAssertTrue(
+            target.waitForExistence(timeout: 3) && target.isHittable,
+            "\(target) should be on screen and hittable after scrolling"
+        )
+    }
+
+    private func clearAndTypeText(_ text: String, into element: XCUIElement) {
+        element.tap()
+        if let currentValue = element.value as? String,
+           !currentValue.isEmpty,
+           currentValue != element.placeholderValue {
+            let deleteSequence = String(repeating: XCUIKeyboardKey.delete.rawValue, count: currentValue.count)
+            element.typeText(deleteSequence)
+        }
+        element.typeText(text)
+    }
+}
+
+extension SettingsUITests {
     // MARK: - Functional: Clear actions show confirmation
 
     func testClearHistoryShowsConfirmationAlertAndCanBeCancelled() throws {
@@ -472,37 +506,5 @@ final class SettingsUITests: XCTestCase {
                        "Background refresh toggle state should persist after navigation round-trip")
         // Restore
         toggleAfterReturn.flipSwitch()
-    }
-
-    // MARK: - Helpers
-
-    /// Any element with this identifier. On iOS 26+ the settings screen is a `CollectionView`, steppers are
-    /// `Stepper`s, and a row's identifier lands on its texts, so element types aren't stable.
-    private func element(_ identifier: String) -> XCUIElement {
-        app.descendants(matching: .any).matching(identifier: identifier).firstMatch
-    }
-
-    /// Scrolls the settings list until the element is on screen. Rows below the fold aren't in the tree
-    /// until the lazy list renders them.
-    private func scrollTo(_ target: XCUIElement, maxSwipes: Int = 8) {
-        let list = element("screen_settings")
-        for _ in 0..<maxSwipes where !(target.exists && target.isHittable) {
-            list.swipeUp(velocity: .slow)
-        }
-        XCTAssertTrue(
-            target.waitForExistence(timeout: 3) && target.isHittable,
-            "\(target) should be on screen and hittable after scrolling"
-        )
-    }
-
-    private func clearAndTypeText(_ text: String, into element: XCUIElement) {
-        element.tap()
-        if let currentValue = element.value as? String,
-           !currentValue.isEmpty,
-           currentValue != element.placeholderValue {
-            let deleteSequence = String(repeating: XCUIKeyboardKey.delete.rawValue, count: currentValue.count)
-            element.typeText(deleteSequence)
-        }
-        element.typeText(text)
     }
 }
