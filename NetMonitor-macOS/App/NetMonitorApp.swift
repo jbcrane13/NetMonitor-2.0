@@ -304,7 +304,7 @@ struct NetMonitorApp: App {
         let httpService = HTTPMonitorService()
         let icmpService = ICMPMonitorService()
         let tcpService = TCPMonitorService()
-        let profileManager = NetworkProfileManager()
+        let profileManager = NetworkProfileManager(userDefaults: NetworkProfileDefaults.launchDefaults)
         networkProfileManager = profileManager
         monitoringSession = MonitoringSession(
             modelContext: context,
@@ -380,6 +380,28 @@ struct NetMonitorApp: App {
 }
 
 // swiftlint:enable function_body_length
+
+// MARK: - Network profile defaults
+
+/// Where the network list is saved (#346). A `--uitesting` launch gets its own suite, emptied at
+/// every launch, so networks a UI test adds never reach the user's list or the next launch.
+enum NetworkProfileDefaults {
+    static let uiTestSuite = "netmonitor.uitest.networkProfiles"
+
+    /// This launch's defaults, made once per process. Setup reruns when the main window is
+    /// recreated, and that must not empty the suite again mid-launch.
+    @MainActor static let launchDefaults = make(arguments: ProcessInfo.processInfo.arguments)
+
+    static func make(arguments: [String], uiTestSuite: String = Self.uiTestSuite) -> UserDefaults {
+        guard arguments.contains("--uitesting") else { return .standard }
+        // Never fall back to the standard defaults: that is the user's real network list.
+        guard let defaults = UserDefaults(suiteName: uiTestSuite) else {
+            preconditionFailure("UI-test network profile suite \(uiTestSuite) is unavailable")
+        }
+        defaults.removePersistentDomain(forName: uiTestSuite)
+        return defaults
+    }
+}
 
 // MARK: - UI-test scan fixture
 
