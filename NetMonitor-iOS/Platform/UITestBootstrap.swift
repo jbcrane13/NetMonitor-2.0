@@ -388,3 +388,18 @@ extension UITestBootstrap {
         return image.cgImage
     }
 }
+
+// MARK: - Troubleshooter fixtures (#451)
+
+extension UITestBootstrap {
+    /// `UITEST_TROUBLESHOOT` under a UI test: "answer", "hold" or "unavailable"
+    /// (`TroubleshootUITestFixture.Mode`). Nil otherwise, and always in release builds.
+    static var troubleshootMode: String? {
+        #if DEBUG
+        guard isUITesting else { return nil }
+        return ProcessInfo.processInfo.environment["UITEST_TROUBLESHOOT"]
+        #else
+        return nil
+        #endif
+    }
+}

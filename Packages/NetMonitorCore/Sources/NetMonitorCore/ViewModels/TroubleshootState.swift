@@ -29,7 +29,11 @@ public struct TroubleshootStep: Identifiable, Equatable, Sendable {
         case cancelled
 
         public var isDone: Bool {
-            if case .done = self { true } else { false }
+            if case .done = self {
+                true
+            } else {
+                false
+            }
         }
     }
 
@@ -262,7 +266,11 @@ public final class TroubleshootState {
 
         let completed = steps.allSatisfy(\.status.isDone)
         findings = TroubleshootRules.findings(for: steps.compactMap { step in
-            if case let .done(result) = step.status { result } else { nil }
+            if case let .done(result) = step.status {
+                result
+            } else {
+                nil
+            }
         }, completed: completed)
         if isCancelled {
             stop(Self.cancelledMessage)
@@ -309,9 +317,9 @@ public final class TroubleshootState {
             case let .device(_, address): host = address
             case let .host(name): host = name
             }
-            return .ping(PingSummary(target: target, sent: count, times: await probes.ping(host, count: count)))
+            return await .ping(PingSummary(target: target, sent: count, times: probes.ping(host, count: count)))
         case let .dnsLookup(host, _):
-            return .dns(host: host, milliseconds: await probes.lookup(host))
+            return await .dns(host: host, milliseconds: probes.lookup(host))
         case let .wifiSignal(count):
             var readings: [WiFiReading] = []
             for index in 0..<count {

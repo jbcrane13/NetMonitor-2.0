@@ -186,8 +186,12 @@ public enum TroubleshootResult: Equatable, Sendable {
         switch self {
         case let .ping(summary):
             var parts = ["\(summary.received) of \(summary.sent) replies", "\(Self.number(summary.lossPercent))% loss"]
-            if let average = summary.averageMs { parts.append("avg \(Self.number(average)) ms") }
-            if let jitter = summary.jitterMs { parts.append("jitter \(Self.number(jitter)) ms") }
+            if let average = summary.averageMs {
+                parts.append("avg \(Self.number(average)) ms")
+            }
+            if let jitter = summary.jitterMs {
+                parts.append("jitter \(Self.number(jitter)) ms")
+            }
             return parts.joined(separator: " · ")
         case let .dns(host, milliseconds):
             return milliseconds.map { "\(host) resolved in \(Self.number($0)) ms" } ?? "\(host) didn't resolve"
@@ -201,8 +205,12 @@ public enum TroubleshootResult: Equatable, Sendable {
             return "Download \(Self.number(download)) Mbps" + last
         case let .ports(_, open, closed):
             var parts: [String] = []
-            if !open.isEmpty { parts.append("Open: " + open.map(String.init).joined(separator: ", ")) }
-            if !closed.isEmpty { parts.append("No answer: " + closed.map(String.init).joined(separator: ", ")) }
+            if !open.isEmpty {
+                parts.append("Open: " + open.map(String.init).joined(separator: ", "))
+            }
+            if !closed.isEmpty {
+                parts.append("No answer: " + closed.map(String.init).joined(separator: ", "))
+            }
             return parts.joined(separator: " · ")
         case let .unavailable(reason):
             return reason

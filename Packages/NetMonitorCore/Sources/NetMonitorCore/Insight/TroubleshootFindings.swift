@@ -56,102 +56,13 @@ public enum TroubleshootRules {
     /// The findings for `results`, ranked. `completed` is whether the whole script ran: a cancelled
     /// or stopped run names what it measured but never says no problem was found.
     public static func findings(for results: [TroubleshootResult], completed: Bool) -> [TroubleshootFinding] {
-        var findings: [TroubleshootFinding] = []
-        let pings = results.compactMap { result -> PingSummary? in
-            if case let .ping(summary) = result { summary } else { nil }
-        }
-        let gateway = pings.first { $0.target == .gateway }
+        let gateway = pings(in: results).first { $0.target == .gateway }
         let gatewayHealthy = gateway.map { $0.received > 0 && $0.lossPercent < gatewayLossPercent } ?? false
-
-        let readings = results.flatMap { result -> [WiFiReading] in
-            if case let .wifi(readings) = result { readings } else { [] }
+        var findings = weakSignal(in: results) + gatewayLoss(gateway) + dns(in: results)
+        if gatewayHealthy {
+            findings += offlineDevices(in: results) + silentSites(in: results)
         }
-        if !readings.isEmpty {
-            let mean = Int((Double(readings.map(\.rssi).reduce(0, +)) / Double(readings.count)).rounded())
-            if mean < weakRSSI {
-                let over = readings.count == 1 ? "" : " over \(readings.count) readings"
-                findings.append(TroubleshootFinding(
-                    kind: .weakSignal,
-                    title: "Weak signal",
-                    detail: "Wi-Fi signal averaged \(mean) dBm\(over); below \(weakRSSI) dBm is weak.",
-                    nextStep: "Move closer to the router, or survey the signal with the Wi-Fi Heatmap tool to find where it drops."
-                ))
-            }
-        }
-
-        if let gateway, gateway.lossPercent >= gatewayLossPercent {
-            findings.append(TroubleshootFinding(
-                kind: .gatewayLoss,
-                title: "Packet loss to your router",
-                detail: "\(Int(gateway.lossPercent.rounded()))% of \(gateway.sent) pings to your router got no reply; "
-                    + "\(Int(gatewayLossPercent))% or more points to the local network or Wi-Fi.",
-                nextStep: "Restart the router and check its cables, then run the check again."
-            ))
-        }
-
-        var resolved = Set<String>()
-        for result in results {
-            guard case let .dns(host, milliseconds) = result else { continue }
-            if let milliseconds {
-                resolved.insert(host)
-                if milliseconds > slowDNSMilliseconds {
-                    findings.append(TroubleshootFinding(
-                        kind: .dnsSlow,
-                        title: "Slow DNS",
-                        detail: "Looking up \(host) took \(Int(milliseconds.rounded())) ms; over \(Int(slowDNSMilliseconds)) ms is slow.",
-                        nextStep: "Restart the router, or set a different DNS server on it.",
-                        subject: host
-                    ))
-                }
-            } else {
-                findings.append(TroubleshootFinding(
-                    kind: .dnsFailed,
-                    title: "DNS lookup failed",
-                    detail: "\(host) didn't resolve to an address.",
-                    nextStep: "Check the address is spelled right; if other sites fail too, restart the router or set a different DNS server on it.",
-                    subject: host
-                ))
-            }
-        }
-
-        let ports = results.compactMap { result -> (host: String, open: [Int])? in
-            if case let .ports(host, open, _) = result { (host, open) } else { nil }
-        }
-        for summary in pings {
-            guard case let .device(name, address) = summary.target, summary.received == 0, gatewayHealthy,
-                  !ports.contains(where: { $0.host == address && !$0.open.isEmpty }) else { continue }
-            findings.append(TroubleshootFinding(
-                kind: .deviceOffline,
-                title: "\(name) is offline or asleep",
-                detail: "\(name) answered none of \(summary.sent) pings or its known ports, while your router answered.",
-                nextStep: "Check that \(name) is powered on and connected to the network, or wake it.",
-                subject: name
-            ))
-        }
-
-        for result in results {
-            guard case let .ports(host, open, closed) = result, open.isEmpty, closed == [443], resolved.contains(host), gatewayHealthy
-            else { continue }
-            findings.append(TroubleshootFinding(
-                kind: .siteNotAnswering,
-                title: "\(host) isn't answering",
-                detail: "\(host) resolved, but didn't answer on port 443, while your router answered.",
-                nextStep: "The site may be down; try again later or from another network.",
-                subject: host
-            ))
-        }
-
-        for result in results {
-            guard case let .speed(download, baseline?) = result, baseline > 0, download < baseline * slowSpeedFraction else { continue }
-            findings.append(TroubleshootFinding(
-                kind: .ispSlow,
-                title: "Internet slower than usual",
-                detail: "Download measured \(TroubleshootResult.number(download)) Mbps, under \(Int(slowSpeedFraction * 100))% "
-                    + "of the last saved test (\(TroubleshootResult.number(baseline)) Mbps).",
-                nextStep: "Run a speed test again later; if it stays slow, contact your internet provider."
-            ))
-        }
-
+        findings += ispSlowness(in: results)
         if findings.isEmpty, completed {
             findings.append(TroubleshootFinding(
                 kind: .noProblem,
@@ -161,5 +72,126 @@ public enum TroubleshootRules {
             ))
         }
         return findings.sorted { $0.kind < $1.kind }
+    }
+
+    // MARK: - Rules
+
+    private static func pings(in results: [TroubleshootResult]) -> [PingSummary] {
+        results.compactMap { result in
+            if case let .ping(summary) = result {
+                summary
+            } else {
+                nil
+            }
+        }
+    }
+
+    private static func weakSignal(in results: [TroubleshootResult]) -> [TroubleshootFinding] {
+        let readings = results.flatMap { result -> [WiFiReading] in
+            if case let .wifi(readings) = result {
+                readings
+            } else {
+                []
+            }
+        }
+        guard !readings.isEmpty else { return [] }
+        let mean = Int((Double(readings.map(\.rssi).reduce(0, +)) / Double(readings.count)).rounded())
+        guard mean < weakRSSI else { return [] }
+        let over = readings.count == 1 ? "" : " over \(readings.count) readings"
+        return [TroubleshootFinding(
+            kind: .weakSignal,
+            title: "Weak signal",
+            detail: "Wi-Fi signal averaged \(mean) dBm\(over); below \(weakRSSI) dBm is weak.",
+            nextStep: "Move closer to the router, or survey the signal with the Wi-Fi Heatmap tool to find where it drops."
+        )]
+    }
+
+    private static func gatewayLoss(_ gateway: PingSummary?) -> [TroubleshootFinding] {
+        guard let gateway, gateway.lossPercent >= gatewayLossPercent else { return [] }
+        return [TroubleshootFinding(
+            kind: .gatewayLoss,
+            title: "Packet loss to your router",
+            detail: "\(Int(gateway.lossPercent.rounded()))% of \(gateway.sent) pings to your router got no reply; "
+                + "\(Int(gatewayLossPercent))% or more points to the local network or Wi-Fi.",
+            nextStep: "Restart the router and check its cables, then run the check again."
+        )]
+    }
+
+    private static func dns(in results: [TroubleshootResult]) -> [TroubleshootFinding] {
+        results.compactMap { result in
+            guard case let .dns(host, milliseconds) = result else { return nil }
+            guard let milliseconds else {
+                return TroubleshootFinding(
+                    kind: .dnsFailed,
+                    title: "DNS lookup failed",
+                    detail: "\(host) didn't resolve to an address.",
+                    nextStep: "Check the address is spelled right; if other sites fail too, restart the router or set a different DNS server on it.",
+                    subject: host
+                )
+            }
+            guard milliseconds > slowDNSMilliseconds else { return nil }
+            return TroubleshootFinding(
+                kind: .dnsSlow,
+                title: "Slow DNS",
+                detail: "Looking up \(host) took \(Int(milliseconds.rounded())) ms; over \(Int(slowDNSMilliseconds)) ms is slow.",
+                nextStep: "Restart the router, or set a different DNS server on it.",
+                subject: host
+            )
+        }
+    }
+
+    /// Devices that answered no ping and no known port. Only asked while the router is healthy.
+    private static func offlineDevices(in results: [TroubleshootResult]) -> [TroubleshootFinding] {
+        let answering = Set(results.compactMap { result -> String? in
+            if case let .ports(host, open, _) = result, !open.isEmpty {
+                host
+            } else {
+                nil
+            }
+        })
+        return pings(in: results).compactMap { summary in
+            guard case let .device(name, address) = summary.target, summary.received == 0, !answering.contains(address) else { return nil }
+            return TroubleshootFinding(
+                kind: .deviceOffline,
+                title: "\(name) is offline or asleep",
+                detail: "\(name) answered none of \(summary.sent) pings or its known ports, while your router answered.",
+                nextStep: "Check that \(name) is powered on and connected to the network, or wake it.",
+                subject: name
+            )
+        }
+    }
+
+    /// Sites whose name resolved but which didn't answer on 443. Only asked while the router is healthy.
+    private static func silentSites(in results: [TroubleshootResult]) -> [TroubleshootFinding] {
+        let resolved = Set(results.compactMap { result -> String? in
+            if case let .dns(host, milliseconds?) = result, milliseconds >= 0 {
+                host
+            } else {
+                nil
+            }
+        })
+        return results.compactMap { result in
+            guard case let .ports(host, open, closed) = result, open.isEmpty, closed == [443], resolved.contains(host) else { return nil }
+            return TroubleshootFinding(
+                kind: .siteNotAnswering,
+                title: "\(host) isn't answering",
+                detail: "\(host) resolved, but didn't answer on port 443, while your router answered.",
+                nextStep: "The site may be down; try again later or from another network.",
+                subject: host
+            )
+        }
+    }
+
+    private static func ispSlowness(in results: [TroubleshootResult]) -> [TroubleshootFinding] {
+        results.compactMap { result in
+            guard case let .speed(download, baseline?) = result, baseline > 0, download < baseline * slowSpeedFraction else { return nil }
+            return TroubleshootFinding(
+                kind: .ispSlow,
+                title: "Internet slower than usual",
+                detail: "Download measured \(TroubleshootResult.number(download)) Mbps, under \(Int(slowSpeedFraction * 100))% "
+                    + "of the last saved test (\(TroubleshootResult.number(baseline)) Mbps).",
+                nextStep: "Run a speed test again later; if it stays slow, contact your internet provider."
+            )
+        }
     }
 }

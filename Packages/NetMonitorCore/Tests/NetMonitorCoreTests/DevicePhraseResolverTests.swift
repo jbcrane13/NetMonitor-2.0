@@ -5,8 +5,10 @@ import Foundation
 /// The app, not the model, maps "the NAS" to a saved device (#451, shared with #450).
 @Suite("DevicePhraseResolver")
 struct DevicePhraseResolverTests {
-    static let nas = TroubleshootDevice(id: UUID(), displayName: "Synology DS920", deviceType: .storage, maker: "Synology", ipAddress: "192.168.1.20")
-    static let printer = TroubleshootDevice(id: UUID(), displayName: "Office Printer", deviceType: .printer, maker: "Brother", ipAddress: "192.168.1.30")
+    static let nas = TroubleshootDevice(id: UUID(), displayName: "Synology DS920", deviceType: .storage, maker: "Synology",
+                                        ipAddress: "192.168.1.20")
+    static let printer = TroubleshootDevice(id: UUID(), displayName: "Office Printer", deviceType: .printer, maker: "Brother",
+                                            ipAddress: "192.168.1.30")
     static let laser = TroubleshootDevice(id: UUID(), displayName: "HL-L2350DW", deviceType: .printer, maker: "Brother", ipAddress: "192.168.1.31")
     static let jonas = TroubleshootDevice(id: UUID(), displayName: "Jonas iPhone", deviceType: .phone, maker: "Apple", ipAddress: "192.168.1.40")
     static let all = [nas, printer, laser, jonas]

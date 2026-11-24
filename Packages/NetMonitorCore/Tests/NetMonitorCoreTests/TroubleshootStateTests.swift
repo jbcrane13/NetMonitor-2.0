@@ -90,7 +90,11 @@ struct TroubleshootStateTests {
 
     func results(_ state: TroubleshootState) -> [TroubleshootResult?] {
         state.steps.map { step in
-            if case let .done(result) = step.status { result } else { nil }
+            if case let .done(result) = step.status {
+                result
+            } else {
+                nil
+            }
         }
     }
 
@@ -269,7 +273,11 @@ struct TroubleshootStateTests {
     @Test func aScanStartingMidRunStopsBeforeTheNextStep() async {
         let box = Box()
         let probes = MockTroubleshootProbes()
-        probes.onCall = { if $0 == "dns apple.com" { box.scanning = true } }
+        probes.onCall = {
+            if $0 == "dns apple.com" {
+                box.scanning = true
+            }
+        }
         let state = make(probes, insight: FixedAnswerInsightService(answer: Self.answer), box: box)
         await state.choose(.slowOrUnstableInternet)
         #expect(state.phase == .stopped(TroubleshootState.scanMessage))

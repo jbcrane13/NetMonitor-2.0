@@ -120,7 +120,7 @@ struct TroubleshootFindingsTests {
     }
 
     @Test func noAllClearUnlessTheScriptFinished() {
-        #expect(kinds([ping(.gateway, sent: 10, received: 10)], complete: false) == [])
+        #expect(kinds([ping(.gateway, sent: 10, received: 10)], complete: false).isEmpty)
         // A cancelled run still names what it measured.
         #expect(kinds([ping(.gateway, sent: 10, received: 5)], complete: false) == [.gatewayLoss])
     }
