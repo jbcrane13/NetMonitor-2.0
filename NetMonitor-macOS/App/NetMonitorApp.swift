@@ -14,7 +14,7 @@ struct NetMonitorApp: App {
     @State private var networkChangeWatcher: LocalNetworkChangeMonitor?
     @State private var periodicScanScheduler: PeriodicScanScheduler?
     /// One store for every window and the rule dispatcher (#394).
-    @State private var alertRuleStore = AlertRuleStore()
+    @State private var alertRuleStore = AlertRuleStore(defaults: UITestPlainRules.ruleDefaults())
     @State private var speedTestScheduler: ScheduledSpeedTestRunner?
     @State private var speedTestMaintenance: SpeedTestHistoryMaintenance?
     @State private var companionHandler: CompanionMessageHandler?
@@ -143,6 +143,8 @@ struct NetMonitorApp: App {
                 .environment(networkProfileManager)
                 .environment(deviceDiscovery)
                 .environment(alertRuleStore)
+                // The Rules tab starts monitoring a target it adds (#450).
+                .environment(monitoringSession)
                 .tint(Color(hex: accentColorHex))
                 .environment(\.appAccentColor, Color(hex: accentColorHex))
                 .environment(\.compactMode, compactMode)

@@ -6,9 +6,9 @@ struct PortScannerToolView: View {
     let initialHost: String?
     @State private var viewModel: PortScannerToolViewModel
 
-    init(initialHost: String? = nil) {
+    init(initialHost: String? = nil, initialPreset: PortScanPreset? = nil) {
         self.initialHost = initialHost
-        self._viewModel = State(initialValue: PortScannerToolViewModel(initialHost: initialHost))
+        self._viewModel = State(initialValue: PortScannerToolViewModel(initialHost: initialHost, initialPreset: initialPreset))
     }
 
     var body: some View {
