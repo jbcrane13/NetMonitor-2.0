@@ -31,7 +31,7 @@ enum ToolCategory: String, CaseIterable, Identifiable {
     var tools: [NetworkTool] {
         switch self {
         case .diagnostics: return [.ping, .traceroute, .dnsLookup, .whois]
-        case .discovery:   return [.portScanner, .bonjourBrowser, .subnetCalculator, .portForwards]
+        case .discovery:   return [.portScanner, .bonjourBrowser, .subnetCalculator, .portForwards, .securityReadout]
         case .monitoring:  return [.speedTest, .worldPing, .sslMonitor, .wifiHeatmap, .timeline]
         case .actions:     return [.wakeOnLan, .geoTrace]
         }
@@ -57,6 +57,7 @@ enum NetworkTool: String, CaseIterable, Identifiable {
     case wifiHeatmap = "WiFi Heatmap"
     case portForwards = "Port Forwards"
     case timeline = "Timeline"
+    case securityReadout = "Security Readout"
 
     var id: String { rawValue }
 
@@ -82,6 +83,7 @@ enum NetworkTool: String, CaseIterable, Identifiable {
         case .wifiHeatmap: return "wifi"
         case .portForwards: return "arrow.left.arrow.right.circle"
         case .timeline: return "clock.arrow.circlepath"
+        case .securityReadout: return "exclamationmark.shield"
         }
     }
 
@@ -102,6 +104,7 @@ enum NetworkTool: String, CaseIterable, Identifiable {
         case .wifiHeatmap: return "Survey WiFi coverage"
         case .portForwards: return "Router UPnP port forwards"
         case .timeline: return "Network event history"
+        case .securityReadout: return "Risky open ports"
         }
     }
 }

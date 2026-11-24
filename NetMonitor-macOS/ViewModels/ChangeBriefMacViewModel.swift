@@ -101,11 +101,11 @@ final class ChangeBriefMacViewModel {
     /// States no number and names nothing, so it passes `InsightSummarizer`'s checks for any digest.
     static let uiTestAnswer = "The app recorded changes on this network in the last day; the key points above say what changed."
 
-    /// `--uitest-insight=answer` answers every request with `uiTestAnswer`; `=unavailable` is never
+    /// `--uitest-insight=answer` answers every request with `answer`; `=unavailable` is never
     /// available. Otherwise the on-device model.
-    static func uiTestInsightService(arguments: [String]) -> any InsightServiceProtocol {
+    static func uiTestInsightService(arguments: [String], answer: String = uiTestAnswer) -> any InsightServiceProtocol {
         switch arguments.first(where: { $0.hasPrefix("--uitest-insight=") })?.dropFirst("--uitest-insight=".count) {
-        case "answer": FixedAnswerInsightService(answer: uiTestAnswer)
+        case "answer": FixedAnswerInsightService(answer: answer)
         case "unavailable": UnavailableInsightService()
         default: InsightService.shared
         }

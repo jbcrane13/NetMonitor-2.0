@@ -22,8 +22,10 @@ struct QuickPortScanPhase: ScanPhase, Sendable {
     let timeout: Duration?
 
     /// Fast fingerprinting set, shared with `DeviceTypeInferenceService` so every port a
-    /// type rule reads is scanned (#388).
+    /// type rule reads is scanned (#388), plus every port a security-readout rule reads (#454):
+    /// a finding needs a measured open port.
     static let commonPorts = DeviceTypeInferenceService.fingerprintPorts
+        + SecurityRuleTable.ports.subtracting(DeviceTypeInferenceService.fingerprintPorts).sorted()
 
     private let checker: @Sendable (_ host: String, _ port: Int, _ timeoutMs: Int32) async -> Bool
     /// Matches the retired `quickPortScan`'s device-level sliding-window cap.

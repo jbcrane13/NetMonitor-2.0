@@ -336,11 +336,15 @@ struct NetMonitorApp: App {
         let recorder = MacEventRecorder()
         recorder.attach(to: discovery)
         eventRecorder = recorder
+        if arguments.contains("--seed-security-devices") {
+            UITestScanFixture.seedSecurityDevices(into: context, profileID: profileManager.activeProfile?.id)
+        }
         if arguments.contains("--seed-test-events") {
             UITestScanFixture.seedEvents(into: NetworkEventService.shared, profileID: profileManager.activeProfile?.id)
         }
         UITestHealthHistory.seedIfRequested(networkProfileID: profileManager.localProfile?.id)
         ChangeBriefMacViewModel.configureForUITests(arguments: arguments)
+        SecurityReadoutMacViewModel.configureForUITests(arguments: arguments)
     }
 
     /// A health sample for the Mac's network every 15 minutes (#491 D10).
@@ -437,6 +441,21 @@ enum UITestScanFixture {
             status: .online,
             lastLatency: 5.0,
             networkProfileID: profileID
+        ))
+        try? context.save()
+    }
+
+    /// `--seed-security-devices` (#454): a camera with telnet and HTTP open and a NAS with SMB open,
+    /// for the security readout. Added beside any other seeded device.
+    @MainActor
+    static func seedSecurityDevices(into context: ModelContext, profileID: UUID?) {
+        context.insert(LocalDevice(
+            ipAddress: "192.168.77.30", macAddress: "02:00:00:77:00:30", hostname: "uitest-camera",
+            deviceType: .camera, status: .online, openPorts: [23, 80], networkProfileID: profileID
+        ))
+        context.insert(LocalDevice(
+            ipAddress: "192.168.77.40", macAddress: "02:00:00:77:00:40", hostname: "uitest-nas",
+            deviceType: .storage, status: .online, openPorts: [445], networkProfileID: profileID
         ))
         try? context.save()
     }

@@ -38,6 +38,8 @@ struct ProDeviceDetailView: View {
             ScrollView {
                 VStack(spacing: 16) {
                     headerSection
+                    // Risks first, where they are seen without scrolling (#454).
+                    securitySection
                     detailColumns
                     portsAndServicesSection
                     notesSection
@@ -404,6 +406,28 @@ private extension ProDeviceDetailView {
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .macGlassCard(cornerRadius: MacTheme.Layout.cardCornerRadius)
+    }
+
+    // MARK: - Security (#454)
+
+    /// This device's security-readout findings, computed from its current row; nothing when it has none.
+    @ViewBuilder
+    var securitySection: some View {
+        let findings = SecurityRuleTable.findings(for: [device])
+        if !findings.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                sectionHeader("Security", icon: "exclamationmark.shield")
+                ForEach(findings) { finding in
+                    SecurityFindingRow(finding: finding, showsDevice: false)
+                        .accessibilityIdentifier("deviceDetail_row_security_\(finding.ruleID)_\(finding.port)")
+                }
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .macGlassCard(cornerRadius: MacTheme.Layout.cardCornerRadius)
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("deviceDetail_section_security")
+        }
     }
 
     // MARK: - Notes

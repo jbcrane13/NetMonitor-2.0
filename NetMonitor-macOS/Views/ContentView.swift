@@ -194,6 +194,7 @@ struct ContentView: View {
             case .wifiHeatmap: WiFiHeatmapView(pendingSurveyURL: pendingSurveyURL)
             case .portForwards: PortForwardsToolView()
             case .timeline: TimelineView()
+            case .securityReadout: SecurityReadoutView()
             }
         }
         .toolbar {
