@@ -81,6 +81,8 @@ final class HeatmapAdvisorUITests: IOSUITestCase {
         requireExists(marker, message: "The advisor text should be marked as generated")
         XCTAssertTrue(marker.label.contains("Written by the on-device model"), "Marker: \(marker.label)")
         keepCard([card, ui("heatmap_list_advisorKeyPoints"), text, marker], named: "heatmap-advisor-answer")
+        // The whole screen, for checking the card leaves the heatmap visible; not for publishing.
+        captureScreenshot(named: "heatmap-advisor-answer-screen")
     }
 }
 
