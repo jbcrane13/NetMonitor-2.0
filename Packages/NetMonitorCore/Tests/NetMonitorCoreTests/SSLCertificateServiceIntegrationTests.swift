@@ -86,18 +86,17 @@ struct SSLCertificateServiceIntegrationTests {
         #expect(info.daysUntilExpiry >= 0, "Days until expiry must be non-negative")
     }
 
-    // MARK: - Issuer field limitation
+    // MARK: - Issuer
 
-    @Test("issuer is 'Unknown' — DER parser does not extract issuer (known limitation)", .tags(.integration))
-    func issuerIsUnknown() async throws {
-        // SSLCertificateService.parseCertificate hardcodes issuer = "Unknown" because
-        // SecCertificateCopyValues was removed in macOS 15 SDK and the DER walker
-        // skips the issuer Name field. This test documents the behavior so that
-        // future issuer-parsing improvements can update the expected value.
+    @Test("issuer is the issuing CA's name, not 'Unknown'", .tags(.integration))
+    func issuerIsExtracted() async throws {
+        // The DER walker reads the issuer Name (CN, falling back to O); #468.
+        // The live CA name can change, so only assert that one was parsed;
+        // SSLCertificateIssuerParsingTests checks exact names from fixtures.
         let service = SSLCertificateService()
         let info = try await service.checkCertificate(domain: "apple.com")
-        #expect(info.issuer == "Unknown",
-                "Issuer should be 'Unknown' (known limitation), got '\(info.issuer)'")
+        #expect(info.issuer != "Unknown", "Issuer should be extracted, got '\(info.issuer)'")
+        #expect(!info.issuer.isEmpty, "Issuer should not be empty")
     }
 
     // MARK: - Concurrent requests
