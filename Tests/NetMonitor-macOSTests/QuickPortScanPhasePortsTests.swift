@@ -16,4 +16,11 @@ struct QuickPortScanPhasePortsTests {
     func reviewPortsAreScanned(port: Int) {
         #expect(QuickPortScanPhase.commonPorts.contains(port))
     }
+
+    @Test("Every security-readout rule port is scanned (#454)")
+    func everySecurityRulePortIsScanned() {
+        let missing = SecurityRuleTable.ports.subtracting(QuickPortScanPhase.commonPorts)
+        #expect(missing.isEmpty, "Security rule ports the Mac never scans: \(missing.sorted())")
+        #expect(QuickPortScanPhase.commonPorts.count == Set(QuickPortScanPhase.commonPorts).count)
+    }
 }
