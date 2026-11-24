@@ -352,17 +352,28 @@ extension ScanReconcilerTests {
         #expect(try rows(context).allSatisfy { $0.status == .online && $0.lastSeen == self.start })
     }
 
-    @Test func aRowCreatedFromACachedSightingIsNotSeenNow() throws {
+    @Test func aCachedSightingNeverCreatesARow() throws {
         let (container, context) = try makeContext()
         _ = container
-        let earlier = start.addingTimeInterval(-3600)
         try makeReconciler(context).reconcile(
-            [scanned(0), device(ip: "192.168.7.40", mac: "AA:BB:CC:00:00:40", name: "old", cached: true, seen: earlier)],
+            [scanned(0), device(ip: "192.168.7.40", mac: "AA:BB:CC:00:00:40", name: "old", cached: true)],
             networkProfileID: home, scanDate: start, now: start
         )
-        let cached = try #require(try rows(context).first { $0.ipAddress == "192.168.7.40" })
-        #expect(cached.status == .cached)
-        #expect(cached.lastSeen == earlier)
+        #expect(try rows(context).map(\.ipAddress) == ["192.168.7.10"])
+    }
+
+    /// Codex on ebceade6: the gateway answers every scan while the ARP cache keeps listing a
+    /// nameless entry without a MAC, beyond grace. No scan adds a row for it.
+    @Test func aRepeatedNamelessCachedSightingAddsNoRows() throws {
+        let (container, context) = try makeContext()
+        _ = container
+        let reconciler = try makeReconciler(context)
+        let gateway = device(ip: "192.168.7.1", mac: "AA:BB:CC:00:00:01", name: "router")
+        let ghost = device(ip: "192.168.7.99", mac: nil, name: nil, cached: true)
+        for time in [0.0, 30, 60, 90, 120].map(minutes) {
+            try reconciler.reconcile([gateway, ghost], networkProfileID: home, scanDate: time, now: time)
+        }
+        #expect(try rows(context).map(\.ipAddress) == ["192.168.7.1"])
     }
 
     // MARK: - Writes (blocker 2)

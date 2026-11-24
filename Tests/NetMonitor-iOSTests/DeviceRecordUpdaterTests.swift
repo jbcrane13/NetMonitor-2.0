@@ -570,8 +570,8 @@ extension DeviceRecordUpdaterTests {
     // MARK: - #598, folded into #589
 
     /// The Mac's list says the TV is online; the Mac disconnects; later local scans never see the TV.
-    /// Its sightings from the stale list are cached, so it goes offline under grace, and opening it
-    /// by ID probes nothing.
+    /// The stale list is left out of the scans, so it goes offline under grace, and opening it by ID
+    /// probes nothing.
     @Test func aDisconnectedMacsListNeitherKeepsADeviceOnlineNorConfirmsItsAddress() async throws {
         let (container, context) = try makeStore()
         defer { withExtendedLifetime(container) {} }
@@ -586,7 +586,8 @@ extension DeviceRecordUpdaterTests {
                 list: mac.lastDeviceList, receivedAt: mac.lastDeviceListReceivedAt, macConnected: mac.connectionState.isConnected,
                 now: now, includes: { _ in true }, profileID: home
             )
-            return sightings.devices.map { $0.withCached(!sightings.fresh) }
+            // A stale list is left out of the scan (DeviceDiscoveryService.mergeCompanion).
+            return sightings.fresh ? sightings.devices : []
         }
         let reconciler = try makeReconciler(context)
         // Connected and fresh: the TV counts as answering.
@@ -601,7 +602,7 @@ extension DeviceRecordUpdaterTests {
         for minutes in [10.0, 20, 30] {
             let time = start.addingTimeInterval(minutes * 60)
             latest = [device(0)] + companion(at: time)
-            #expect(latest.last?.isCached == true)
+            #expect(latest.count == 1)
             DeviceRecordUpdater.reconcile(latest, scanDate: time, network: home, with: reconciler, now: time)
         }
         #expect(tv.status == .offline)

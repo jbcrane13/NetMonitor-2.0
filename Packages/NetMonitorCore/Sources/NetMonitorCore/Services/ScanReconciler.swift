@@ -76,9 +76,9 @@ public struct ScanHistory {
 ///   address it answered from.
 /// - **Answered:** the row (found or created, with identity merged through `mergeIdentity`) is
 ///   online, `lastSeen` is now, latency is recorded, and an unknown type is inferred as on the Mac.
-/// - **Cached sighting** (listed by the ARP cache, no answer): it claims its row, so no duplicate is
-///   made, but it is a miss: the row is not updated, an offline row stays offline, and a row created
-///   from one keeps the sighting's own time as `lastSeen`.
+/// - **Cached sighting** (listed by the ARP cache, no answer): it claims a row it matches, so no
+///   duplicate is made, but it is a miss: the row is not updated and an offline row stays offline.
+///   It never creates or adopts a row.
 /// - **Offline:** a row on this network that didn't answer goes offline only under
 ///   `DeviceGracePolicy`: it missed at least `missedScans` scans (this one included) and `interval`
 ///   passed since it was last seen. A scan in which nothing answered, or an empty one, is no
@@ -161,6 +161,10 @@ public struct ScanReconciler {
             let row: LocalDevice
             if let known = assignment[index] {
                 row = rows[known]
+            } else if device.isCached {
+                // A cached sighting never makes or adopts a row: it only counts against a row it
+                // matches. Otherwise a nameless one outside grace would add a row every scan.
+                continue
             } else if let legacy = Self.legacyRow(for: device, among: unassigned, excluding: adoptedLegacy) {
                 row = legacy
                 row.networkProfileID = networkProfileID
@@ -172,13 +176,6 @@ public struct ScanReconciler {
                 row = LocalDevice(ipAddress: device.ipAddress, macAddress: "", networkProfileID: networkProfileID)
                 context.insert(row)
                 rows.append(row)
-                if device.isCached {
-                    // Not seen now: last seen when the cache first had it.
-                    Self.fill(row, from: device)
-                    row.status = .cached
-                    row.lastSeen = min(device.discoveredAt, now)
-                    continue
-                }
             }
             guard !device.isCached else {
                 // A miss that keeps the row from being duplicated; the grace pass below decides.

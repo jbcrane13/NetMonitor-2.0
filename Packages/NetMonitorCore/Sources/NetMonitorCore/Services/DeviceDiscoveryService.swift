@@ -372,10 +372,9 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
     /// The oldest a Mac's device list may be and still count as the devices answering now (#598).
     nonisolated public static let companionListFreshness: TimeInterval = 120
 
-    /// The paired Mac's devices as this scan's sightings, and whether each confirms presence: only
-    /// while the Mac is connected and its list arrived within `companionListFreshness`. A stale
-    /// list (the Mac disconnected, or its list is old) adds cached sightings, which never count as
-    /// answers: saved presence treats them as misses and they never confirm an address (#598).
+    /// The paired Mac's devices as this scan's sightings, and whether they are fresh: only while the
+    /// Mac is connected and its list arrived within `companionListFreshness`. A stale list (the Mac
+    /// disconnected, or its list is old) is left out of the scan (`mergeCompanion`) (#598).
     nonisolated public static func companionSightings(
         list: DeviceListPayload?,
         receivedAt: Date?,
@@ -401,17 +400,29 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
         return (devices, fresh)
     }
 
-    /// Merge devices discovered by the paired Mac into accumulated results, as answers only when
-    /// its list is fresh (`companionSightings`).
+    /// Merge devices discovered by the paired Mac into accumulated results, only when its list is
+    /// fresh (`companionSightings`).
     private func mergeCompanionDevices(filter: ScanFilter, profileID: UUID?, macConnected: Bool) async {
-        let sightings = Self.companionSightings(
-            list: macConnectionService?.lastDeviceList, receivedAt: macConnectionService?.lastDeviceListReceivedAt,
-            macConnected: macConnected, now: Date(), includes: { filter.contains(ipAddress: $0) }, profileID: profileID
+        await Self.mergeCompanion(
+            Self.companionSightings(
+                list: macConnectionService?.lastDeviceList, receivedAt: macConnectionService?.lastDeviceListReceivedAt,
+                macConnected: macConnected, now: Date(), includes: { filter.contains(ipAddress: $0) }, profileID: profileID
+            ),
+            into: engine.accumulator
         )
+    }
+
+    /// Adds the Mac's devices to a scan as answers when its list is fresh. A stale list adds nothing:
+    /// merging it, even unconfirmed, would lend a device the Mac saw before (its MAC, name, maker) to
+    /// whatever the phone finds at that address now, such as another device DHCP gave it to (#598).
+    /// A device only the stale list has is simply absent, which saved presence counts as a miss.
+    nonisolated public static func mergeCompanion(
+        _ sightings: (devices: [DiscoveredDevice], fresh: Bool),
+        into accumulator: ScanAccumulator
+    ) async {
+        guard sightings.fresh else { return }
         for device in sightings.devices {
-            // Not confirming: a device only the stale list has stays unconfirmed, so cached; one this
-            // phone also found keeps its own answer.
-            await engine.accumulator.upsert(device, confirmsPresence: sightings.fresh)
+            await accumulator.upsert(device)
         }
     }
 }
