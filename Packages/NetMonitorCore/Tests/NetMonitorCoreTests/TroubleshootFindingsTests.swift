@@ -70,6 +70,14 @@ struct TroubleshootFindingsTests {
         #expect(kinds([.wifi([WiFiReading(rssi: -75, noise: nil)])]) == [.noProblem])
     }
 
+    @Test func anAverageJustBelowTheThresholdIsWeakWithoutRounding() {
+        let findings = TroubleshootRules.findings(for: [
+            .wifi([WiFiReading(rssi: -75, noise: nil), WiFiReading(rssi: -76, noise: nil)])
+        ], completed: true)
+        #expect(findings.map(\.kind) == [.weakSignal])
+        #expect(findings.first?.detail == "Wi-Fi signal averaged -75.5 dBm over 2 readings; below -75 dBm is weak.")
+    }
+
     @Test func weakSignalUsesTheAverageOfAllReadings() {
         let findings = TroubleshootRules.findings(for: [
             .wifi([WiFiReading(rssi: -70, noise: -90)]),

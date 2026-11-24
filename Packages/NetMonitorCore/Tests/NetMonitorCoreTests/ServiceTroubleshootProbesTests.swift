@@ -34,9 +34,14 @@ private final class MockTroubleshootPorts: PortScannerServiceProtocol, @unchecke
 @MainActor
 private final class MockTroubleshootDNS: DNSLookupServiceProtocol, @unchecked Sendable {
     var result: DNSQueryResult?
+    /// Answers by record type, when set.
+    var results: [DNSRecordType: DNSQueryResult] = [:]
     var isLoading = false
     var lastError: String?
-    func lookup(domain: String, recordType: DNSRecordType, server: String?) async -> DNSQueryResult? { result }
+    func lookup(domain: String, recordType: DNSRecordType, server: String?) async -> DNSQueryResult? {
+        results.isEmpty ? result : results[recordType]
+    }
+
     func lookupAll(domain: String, server: String?) async -> DNSQueryResult? { result }
 }
 
@@ -55,10 +60,15 @@ private final class MockTroubleshootWiFi: WiFiInfoServiceProtocol, @unchecked Se
 @Suite("ServiceTroubleshootProbes")
 @MainActor
 struct ServiceTroubleshootProbesTests {
-    private func probes(ping: MockTroubleshootPing = MockTroubleshootPing(), dns: MockTroubleshootDNS? = nil, wifi: MockTroubleshootWiFi? = nil,
-                        canRunSpeedTest: Bool = true) -> ServiceTroubleshootProbes {
+    private func probes(
+        ping: MockTroubleshootPing = MockTroubleshootPing(),
+        dns: MockTroubleshootDNS? = nil,
+        wifi: MockTroubleshootWiFi? = nil,
+        canRunSpeedTest: Bool = true
+    ) -> ServiceTroubleshootProbes {
         ServiceTroubleshootProbes(
-            pingService: ping, portScanner: MockTroubleshootPorts(), dnsService: dns ?? MockTroubleshootDNS(), wifiService: wifi ?? MockTroubleshootWiFi(),
+            pingService: ping, portScanner: MockTroubleshootPorts(),
+            dnsService: dns ?? MockTroubleshootDNS(), wifiService: wifi ?? MockTroubleshootWiFi(),
             gateway: { "10.0.0.1" }, canRunSpeedTest: { canRunSpeedTest }
         )
     }
@@ -80,6 +90,16 @@ struct ServiceTroubleshootProbesTests {
         dns.result = DNSQueryResult(domain: "a.com", server: "1.1.1.1", queryType: .a,
                                     records: [DNSRecord(name: "a.com", type: .a, value: "1.2.3.4", ttl: 60)], queryTime: 12)
         #expect(await probes(dns: dns).lookup("a.com") == 12)
+    }
+
+    @Test func anIPv6OnlyNameResolvesWithItsAAAATime() async {
+        let dns = MockTroubleshootDNS()
+        dns.results = [
+            .a: DNSQueryResult(domain: "v6.example", server: "1.1.1.1", queryType: .a, records: [], queryTime: 10),
+            .aaaa: DNSQueryResult(domain: "v6.example", server: "1.1.1.1", queryType: .aaaa,
+                                  records: [DNSRecord(name: "v6.example", type: .aaaa, value: "2001:db8::1", ttl: 60)], queryTime: 14)
+        ]
+        #expect(await probes(dns: dns).lookup("v6.example") == 14)
     }
 
     @Test func placeholderSignalValuesAreNoReading() async {

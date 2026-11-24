@@ -144,6 +144,7 @@ struct TroubleshootToolView: View {
                     .onSubmit(checkHost)
                     .accessibilityIdentifier("troubleshoot_field_host")
                 Button("Check", action: checkHost)
+                    .disabled(TroubleshootState.hostName(host) == nil)
                     .accessibilityIdentifier("troubleshoot_button_checkHost")
             }
         case .running, .finished:

@@ -65,6 +65,7 @@ struct TroubleshootToolView: View {
                     accessibilityID: "troubleshoot_field_symptom",
                     onSubmit: start
                 )
+                .disabled(state.isRunning)
                 ToolRunButton(
                     title: "Start",
                     icon: "stethoscope",
@@ -148,6 +149,7 @@ struct TroubleshootToolView: View {
                 ToolInputField(text: $host, placeholder: "example.com", icon: "globe", keyboardType: .URL,
                                accessibilityID: "troubleshoot_field_host") { checkHost() }
                 Button("Check this website", action: checkHost)
+                    .disabled(TroubleshootState.hostName(host) == nil)
                     .accessibilityIdentifier("troubleshoot_button_checkHost")
             }
         default:

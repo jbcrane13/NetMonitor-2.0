@@ -99,13 +99,14 @@ public enum TroubleshootRules {
             }
         }
         guard !readings.isEmpty else { return [] }
-        let mean = Int((Double(readings.map(\.rssi).reduce(0, +)) / Double(readings.count)).rounded())
-        guard mean < weakRSSI else { return [] }
+        // Compared unrounded: -75.5 is below -75.
+        let mean = Double(readings.map(\.rssi).reduce(0, +)) / Double(readings.count)
+        guard mean < Double(weakRSSI) else { return [] }
         let over = readings.count == 1 ? "" : " over \(readings.count) readings"
         return [TroubleshootFinding(
             kind: .weakSignal,
             title: "Weak signal",
-            detail: "Wi-Fi signal averaged \(mean) dBm\(over); below \(weakRSSI) dBm is weak.",
+            detail: "Wi-Fi signal averaged \(TroubleshootResult.number(mean)) dBm\(over); below \(weakRSSI) dBm is weak.",
             nextStep: "Move closer to the router, or survey the signal with the Wi-Fi Heatmap tool to find where it drops."
         )]
     }

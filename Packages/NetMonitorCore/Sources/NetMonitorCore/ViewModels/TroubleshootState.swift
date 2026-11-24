@@ -386,15 +386,15 @@ public final class TroubleshootState {
         explanation = text.flatMap { report.accepts($0) ? $0 : nil }
     }
 
-    /// The host in what the user typed: "https://GitHub.com/login" → "github.com". Nil when it
-    /// isn't a plausible host.
-    static func hostName(_ text: String) -> String? {
+    /// The host in what the user typed: "https://GitHub.com:8443/login" → "github.com". Nil when it
+    /// isn't a plausible host; the views disable their Check button then.
+    public static func hostName(_ text: String) -> String? {
         var host = text.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         if let scheme = host.range(of: "://") {
             host = String(host[scheme.upperBound...])
         }
-        host = String(host.prefix { $0 != "/" && $0 != "?" && $0 != "#" })
-        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: ".-:"))
+        host = String(host.prefix { $0 != "/" && $0 != "?" && $0 != "#" && $0 != ":" })
+        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: ".-"))
         guard host.contains("."), host.unicodeScalars.allSatisfy(allowed.contains) else { return nil }
         return host
     }

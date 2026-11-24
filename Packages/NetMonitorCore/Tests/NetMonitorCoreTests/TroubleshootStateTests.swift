@@ -150,6 +150,13 @@ struct TroubleshootStateTests {
         #expect(probes.calls.first == "dns github.com")
     }
 
+    @Test func aTypedHostKeepsOnlyTheNameNotPortOrPath() {
+        #expect(TroubleshootState.hostName("https://GitHub.com:8443/login?x=1") == "github.com")
+        #expect(TroubleshootState.hostName("example.com:80") == "example.com")
+        #expect(TroubleshootState.hostName("not a host") == nil)
+        #expect(TroubleshootState.hostName("") == nil)
+    }
+
     @Test func aNoRouterAddressIsAStepResultNotAFinding() async {
         let probes = MockTroubleshootProbes()
         probes.gateway = nil

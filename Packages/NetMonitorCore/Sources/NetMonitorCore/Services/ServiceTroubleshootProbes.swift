@@ -57,9 +57,14 @@ public final class ServiceTroubleshootProbes: TroubleshootProbing {
         }
     }
 
+    /// The time of the first family that answers: IPv4, then IPv6 for a name with no A record.
     public func lookup(_ host: String) async -> Double? {
-        guard let result = await dnsService.lookup(domain: host, recordType: .a, server: nil), !result.records.isEmpty else { return nil }
-        return result.queryTime
+        for type in [DNSRecordType.a, .aaaa] {
+            if let result = await dnsService.lookup(domain: host, recordType: type, server: nil), !result.records.isEmpty {
+                return result.queryTime
+            }
+        }
+        return nil
     }
 
     public func wifiReading() async -> WiFiReading? {

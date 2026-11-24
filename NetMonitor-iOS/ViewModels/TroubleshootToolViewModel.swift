@@ -33,7 +33,8 @@ final class TroubleshootToolViewModel {
                 wifiService: env.wifiInfo,
                 // Counted as a manual test, so a scheduled one won't start meanwhile.
                 canRunSpeedTest: {
-                    guard !IOSScheduledSpeedTest.isTestRunning else { return false }
+                    // Not over a scheduled test or the Speed Test tool's own run.
+                    guard !IOSScheduledSpeedTest.isTestRunning, IOSScheduledSpeedTest.manualTestsRunning == 0 else { return false }
                     IOSScheduledSpeedTest.manualTestsRunning += 1
                     return true
                 },
