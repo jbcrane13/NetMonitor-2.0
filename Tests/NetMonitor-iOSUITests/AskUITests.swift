@@ -97,6 +97,13 @@ final class AskUITests: IOSUITestCase {
         XCTAssertTrue(first.label.contains("UITest Camera"), "First: \(first.label)")
         XCTAssertTrue(second.label.contains("UITest Speaker"), "Second: \(second.label)")
         keep([answer, first, second], named: "ask-joined-answer")
+
+        // The event opens the Timeline at its day.
+        first.tap()
+        requireExists(ui("screen_networkTimeline"), timeout: 8, message: "The cited event should open the Timeline")
+        let row = app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "UITest Camera")).firstMatch
+        requireExists(row, timeout: 8, message: "The Timeline should show the cited join")
+        keep([row], named: "ask-joined-timeline")
     }
 }
 
