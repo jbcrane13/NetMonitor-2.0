@@ -1,0 +1,82 @@
+available: true
+=== A: Zoom freezing, weak signal + router loss
+findings: ["Weak signal", "Packet loss to your router"]
+prompt:
+Troubleshooting check: Internet is slow or unstable.
+Key points, which you must state:
+- Most likely cause: Weak signal.
+- Next step: Move closer to the router, or survey the signal with the Wi-Fi Heatmap tool to find where it drops.
+Facts:
+- Most likely cause (Weak signal): Wi-Fi signal averaged -80 dBm; below -75 dBm is weak.
+- Also found: Packet loss to your router
+Summarize this for the reader.
+raw: The network showed a Wi-Fi signal averaging -80 dBm, which is below -75 dBm and indicates a weak signal. There was also packet loss to your router. The next step is to move closer to the router or use the Wi-Fi Heatmap tool to find where it drops.
+summarizer 1.33s: The network showed a Wi-Fi signal averaging -80 dBm, which is below -75 dBm and indicates a weak signal. There was also packet loss to your router. The next step is to move closer to the router or use the Wi-Fi Heatmap tool to find where it drops.
+accepts subject: true -> SHOWN: The network showed a Wi-Fi signal averaging -80 dBm, which is below -75 dBm and indicates a weak signal. There was also packet loss to your router. The next step is to move closer to the router or use the Wi-Fi Heatmap tool to find where it drops.
+=== B: printer unreachable, router fine
+findings: ["Office Printer is offline or asleep"]
+prompt:
+Troubleshooting check: A device can't be reached.
+Key points, which you must state:
+- Most likely cause: Office Printer is offline or asleep.
+- Next step: Check that Office Printer is powered on and connected to the network, or wake it.
+Facts:
+- Most likely cause (Office Printer is offline or asleep): Office Printer answered none of 5 pings or its known ports, while your router answered.
+Summarize this for the reader.
+raw: The Office Printer is offline or asleep because it answered none of 5 pings or its known ports, while your router answered. The next step is to check that the Office Printer is powered on and connected to the network, or wake it.
+summarizer 0.97s: The Office Printer is offline or asleep because it answered none of 5 pings or its known ports, while your router answered. The next step is to check that the Office Printer is powered on and connected to the network, or wake it.
+accepts subject: true -> SHOWN: The Office Printer is offline or asleep because it answered none of 5 pings or its known ports, while your router answered. The next step is to check that the Office Printer is powered on and connected to the network, or wake it.
+=== C: slow internet, slow DNS + ISP slow
+findings: ["Slow DNS", "Internet slower than usual"]
+prompt:
+Troubleshooting check: Internet is slow or unstable.
+Key points, which you must state:
+- Most likely cause: Slow DNS.
+- Next step: Restart the router, or set a different DNS server on it.
+Facts:
+- Most likely cause (Slow DNS): Looking up apple.com took 640 ms; over 300 ms is slow.
+- Also found: Internet slower than usual
+- Name checked: apple.com
+Summarize this for the reader.
+raw: The network showed internet slower than usual and looking up apple.com took 640 ms, which is slow. The most likely cause is slow DNS. The next step is to restart the router, or set a different DNS server on it.
+summarizer 1.02s: The network showed internet slower than usual and looking up apple.com took 640 ms, which is slow. The most likely cause is slow DNS. The next step is to restart the router, or set a different DNS server on it.
+accepts subject: true -> SHOWN: The network showed internet slower than usual and looking up apple.com took 640 ms, which is slow. The most likely cause is slow DNS. The next step is to restart the router, or set a different DNS server on it.
+=== E: Zoom freezing, 90 ms router jitter
+findings: ["Unstable connection to your router"]
+prompt:
+Troubleshooting check: Internet is slow or unstable.
+Key points, which you must state:
+- Most likely cause: Unstable connection to your router.
+- Next step: Move closer to the router or use a cable, and pause large downloads on the network, then run the check again.
+Facts:
+- Most likely cause (Unstable connection to your router): Pings to your router averaged 45 ms with 90 ms jitter; over 100 ms average or 30 ms jitter makes calls and games stutter.
+Summarize this for the reader.
+raw: The network showed pings to your router averaging 45 ms with 90 ms jitter, and over 100 ms average or 30 ms jitter makes calls and games stutter. The most likely cause is an unstable connection to your router. You should move closer to the router or use a cable, and pause large downloads on the network, then run the check again.
+summarizer 1.45s: The network showed pings to your router averaging 45 ms with 90 ms jitter, and over 100 ms average or 30 ms jitter makes calls and games stutter. The most likely cause is an unstable connection to your router. You should move closer to the router or use a cable, and pause large downloads on the network, then run the check again.
+accepts subject: true -> SHOWN: The network showed pings to your router averaging 45 ms with 90 ms jitter, and over 100 ms average or 30 ms jitter makes calls and games stutter. The most likely cause is an unstable connection to your router. You should move closer to the router or use a cable, and pause large downloads on the network, then run the check again.
+=== F: printer silent, router unmeasured
+findings: ["Office Printer isn\'t answering"]
+prompt:
+Troubleshooting check: A device can't be reached.
+Key points, which you must state:
+- Most likely cause: Office Printer isn't answering.
+- Next step: Check that Office Printer is powered on and connected to the network, or wake it.
+Facts:
+- Most likely cause (Office Printer isn't answering): Office Printer answered none of 5 pings or its known ports. Your router couldn't be checked, so the network may be the cause.
+Summarize this for the reader.
+raw: The network monitoring app found that the Office Printer didn't respond to 5 pings or its known ports. The most likely cause is that the Office Printer isn't answering. The router couldn't be checked, so the network may be the cause.
+summarizer 1.17s: The network monitoring app found that the Office Printer didn't respond to 5 pings or its known ports. The most likely cause is that the Office Printer isn't answering. The router couldn't be checked, so the network may be the cause.
+accepts subject: true -> SHOWN: The network monitoring app found that the Office Printer didn't respond to 5 pings or its known ports. The most likely cause is that the Office Printer isn't answering. The router couldn't be checked, so the network may be the cause.
+=== D: weak Wi-Fi, nothing found
+findings: ["No problem found on this network"]
+prompt:
+Troubleshooting check: Wi-Fi is weak.
+Key points, which you must state:
+- No problem was found on this network.
+- Next step: If the problem continues, it may be with the app, website or device you were using.
+Facts:
+- Result: No problem found on this network. Every check finished within its limits.
+Summarize this for the reader.
+raw: The network check finished without finding any issues. Every check completed within its limits. If the problem continues, it may be with the app, website or device you were using.
+summarizer 0.86s: The network check finished without finding any issues. Every check completed within its limits. If the problem continues, it may be with the app, website or device you were using.
+accepts subject: true -> SHOWN: The network check finished without finding any issues. Every check completed within its limits. If the problem continues, it may be with the app, website or device you were using.
