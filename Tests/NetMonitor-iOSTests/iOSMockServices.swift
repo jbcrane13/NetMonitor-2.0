@@ -121,8 +121,11 @@ final class MockWakeOnLANService: WakeOnLANServiceProtocol {
 final class MockPortScannerService: PortScannerServiceProtocol, @unchecked Sendable {
     var mockResults: [PortScanResult] = []
     var stopCallCount = 0
+    /// The ports the last scan was asked to probe.
+    private(set) var scannedPorts: [Int] = []
 
     func scan(host: String, ports: [Int], timeout: TimeInterval) async -> AsyncStream<PortScanResult> {
+        scannedPorts = ports
         let results = mockResults
         return AsyncStream { continuation in
             for result in results { continuation.yield(result) }

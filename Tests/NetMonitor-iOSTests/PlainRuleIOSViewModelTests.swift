@@ -9,6 +9,14 @@ import Testing
 struct PlainRuleIOSViewModelTests {
     private let home = UUID()
     private let office = UUID()
+    /// Where drafts would save a scanned device's row; these tests name saved rows only.
+    private let rowStore: ModelContainer
+
+    init() throws {
+        let schema = Schema([LocalDevice.self, MonitoringTarget.self])
+        let config = ModelConfiguration(UUID().uuidString, schema: schema, isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+        rowStore = try ModelContainer(for: schema, configurations: [config])
+    }
 
     private func officePrinter() -> LocalDevice {
         LocalDevice(ipAddress: "192.168.1.20", macAddress: "02:00:00:01:00:20", hostname: "office-printer",
@@ -17,11 +25,12 @@ struct PlainRuleIOSViewModelTests {
 
     private func homeNAS() -> LocalDevice {
         LocalDevice(ipAddress: "192.168.1.40", macAddress: "02:00:00:01:00:40", hostname: "home-nas",
-                    deviceType: .storage, networkProfileID: home)
+                    deviceType: .storage, openPorts: [445], networkProfileID: home)
     }
 
     private func viewModel(_ text: String) -> PlainRuleIOSViewModel {
-        let model = PlainRuleIOSViewModel(parser: FixedRuleIntentParser.uiTest)
+        // No port answers a check: these tests name devices whose open ports are known.
+        let model = PlainRuleIOSViewModel(parser: FixedRuleIntentParser.uiTest, probe: MonitoringTargetProbe { _, _, _ in false })
         model.text = text
         return model
     }
@@ -30,7 +39,7 @@ struct PlainRuleIOSViewModelTests {
     @Test func aDeviceSavedOnAnotherNetworkIsNotOfferedForAPortScan() async {
         let model = viewModel("scan web ports on the printer")
 
-        await model.submit(devices: [officePrinter(), homeNAS()], targets: [], networkID: home, isScanning: false)
+        await model.submit(devices: [officePrinter(), homeNAS()], targets: [], networkID: home, isScanning: false, context: rowStore.mainContext)
 
         #expect(model.composer.outcome == .message("No device on this network matches “printer”."))
         #expect(model.takePortScan() == nil)
@@ -40,7 +49,7 @@ struct PlainRuleIOSViewModelTests {
         let printer = officePrinter()
         let model = viewModel("scan web ports on the printer")
 
-        await model.submit(devices: [printer, homeNAS()], targets: [], networkID: office, isScanning: false)
+        await model.submit(devices: [printer, homeNAS()], targets: [], networkID: office, isScanning: false, context: rowStore.mainContext)
 
         #expect(model.composer.outcome == .portScan(device: RuleDevice(printer), preset: .web))
         #expect(model.takePortScan() == PortScanRequest(host: "192.168.1.20", preset: .web))
@@ -50,7 +59,7 @@ struct PlainRuleIOSViewModelTests {
         let nas = homeNAS()
         let model = viewModel("Tell me if the NAS is down for more than five minutes")
 
-        await model.submit(devices: [officePrinter(), nas], targets: [], networkID: nil, isScanning: false)
+        await model.submit(devices: [officePrinter(), nas], targets: [], networkID: nil, isScanning: false, context: rowStore.mainContext)
 
         guard case let .target(draft) = model.composer.outcome else {
             Issue.record("Expected a target draft, got \(String(describing: model.composer.outcome))")
@@ -69,26 +78,26 @@ struct PlainRuleIOSViewModelTests {
     @Test func theTargetDraftsNameAndAddressAreEditedBeforeConfirm() async throws {
         let container = try makeContainer()
         let model = viewModel("Tell me if the NAS is down for more than five minutes")
-        await model.submit(devices: [homeNAS()], targets: [], networkID: home, isScanning: false)
+        await model.submit(devices: [homeNAS()], targets: [], networkID: home, isScanning: false, context: rowStore.mainContext)
         #expect(try container.mainContext.fetch(FetchDescriptor<MonitoringTarget>()).isEmpty, "Nothing saved before Confirm")
 
         model.targetDraft?.name = "  Basement NAS "
-        model.targetDraft?.host = "nas.local"
-        model.confirm(context: container.mainContext)
+        model.targetDraft?.host = "home-nas"
+        await model.confirm(context: container.mainContext)
 
         let saved = try container.mainContext.fetch(FetchDescriptor<MonitoringTarget>())
         #expect(saved.map(\.name) == ["Basement NAS"])
-        #expect(saved.map(\.host) == ["nas.local"])
+        #expect(saved.map(\.host) == ["home-nas"])
         #expect(model.targetDraft == nil)
     }
 
     @Test func aTargetDraftWithoutAnAddressCantBeConfirmed() async throws {
         let container = try makeContainer()
         let model = viewModel("Tell me if the NAS is down for more than five minutes")
-        await model.submit(devices: [homeNAS()], targets: [], networkID: home, isScanning: false)
+        await model.submit(devices: [homeNAS()], targets: [], networkID: home, isScanning: false, context: rowStore.mainContext)
         model.targetDraft?.host = "  "
         #expect(!model.canConfirmTarget)
-        model.confirm(context: container.mainContext)
+        await model.confirm(context: container.mainContext)
         #expect(try container.mainContext.fetch(FetchDescriptor<MonitoringTarget>()).isEmpty)
     }
 
