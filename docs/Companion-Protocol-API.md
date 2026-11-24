@@ -380,6 +380,9 @@ Sent periodically to maintain connection and verify connectivity.
 |-------|------|-------------|
 | `timestamp` | ISO8601 Date | Current time |
 | `version` | String | Protocol version |
+| `capabilities` | [String]? | Optional. What the sender does beyond the base protocol. The Mac sends `"insight.v1"` while its on-device model can answer, it isn't scanning, and "Answer model requests from iPhone" is on. That setting is **off by default**: the link has no pairing or authentication for any message type yet, so the Mac's owner opts in (pairing and encryption: #590). Omitted when empty; older builds ignore it. |
+
+The Mac sends a heartbeat when a client connects and in reply to each heartbeat, so a phone learns the Mac's capabilities at once and again every interval.
 
 **Example:**
 
@@ -388,10 +391,49 @@ Sent periodically to maintain connection and verify connectivity.
     "type": "heartbeat",
     "payload": {
         "timestamp": "2026-01-14T15:35:00Z",
-        "version": "1.0"
+        "version": "1.0",
+        "capabilities": ["insight.v1"]
     }
 }
 ```
+
+---
+
+### 8. insightRequest
+
+Asks the Mac's on-device model to word an insight for a phone that can't run the model (#457).
+
+**Direction:** Companion → macOS, only to a Mac whose latest heartbeat listed `"insight.v1"`. Older Macs never advertise it, so they never receive this type.
+
+**Payload:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `requestID` | UUID | Echoed in the response |
+| `kind` | String | `explanation`, `summary`, `notification` or `advice`. The Mac takes its instructions from the kind, never from the wire; an unknown kind is answered `refused`. |
+| `subject` | String | What was measured |
+| `facts` | [String] | The measured values |
+| `observations` | [String] | The app's computed key points |
+
+The encoded payload is capped at 64 KiB (`InsightRequestPayload.maximumEncodedSize`). The phone doesn't send a larger request, and the Mac answers one with `tooLarge`.
+
+### 9. insightResponse
+
+The Mac's whole answer to one `insightRequest`, after its own grounding and text checks. Nothing is streamed.
+
+**Direction:** macOS → Companion, only in reply to an `insightRequest`.
+
+**Payload:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `requestID` | UUID | The request answered |
+| `answer` | String? | The checked answer; absent on failure |
+| `failure` | String? | `unavailable`, `refused`, `timeout`, `tooLarge` or `busy`. A reason the phone doesn't know reads as `refused`. `refused` and `tooLarge` are lasting for that request; `unavailable`, `timeout` and `busy` are for now, and the phone asks again later instead of remembering the failure. |
+
+The Mac answers one request at a time (`busy` for another one meanwhile, and during a Mac scan) and gives the model 20 s. While it scans it also stops listing `insight.v1` and sends a heartbeat without it, and another when the scan ends. The phone gives up after 25 s, and at once when the link drops; the feature then falls back to its path without the model. Phone features that wait for a summary wait at least 27 s when the Mac writes it; notification bodies keep their 2 s budget.
+
+The phone sends requests only after the user agrees, once, to "Use your Mac for on-device AI?"; a Settings switch changes the answer.
 
 ---
 
@@ -432,6 +474,15 @@ Companion                              macOS
     |                                    |
 ```
 
+### Insight (#457)
+
+```
+Companion                              macOS
+    |<------- [heartbeat: insight.v1] ---|
+    |-------- [insightRequest] -------->|
+    |<------- [insightResponse] --------|
+```
+
 ### Keepalive
 
 ```
@@ -468,6 +519,10 @@ Send heartbeat messages every 30 seconds to maintain connection state.
 
 Individual messages should not exceed 1 MB. For large datasets, pagination may be implemented in future versions.
 
+### Unknown Message Types
+
+A frame whose `type` a build doesn't know decodes as `CompanionMessage.unknown(type:)` and is ignored by both sides; the connection stays open and no reply is sent. Builds before #457 failed to decode such a frame instead: they dropped it, kept the connection, and the Mac replied with an `error` (`DECODE_ERROR`). New types are therefore still sent only to a peer that advertised them in `capabilities`, and `protocolVersion` stays 1.
+
 ---
 
 ## Swift Types Reference
@@ -488,7 +543,9 @@ CommandPayload            // Command request
 CommandAction             // Command enum
 ToolResultPayload         // Tool output
 ErrorPayload              // Error response
-HeartbeatPayload          // Keepalive
+HeartbeatPayload          // Keepalive, with optional capabilities
+InsightRequestPayload     // Insight request (#457)
+InsightResponsePayload    // Insight answer or failure reason (#457)
 ```
 
 ---
@@ -498,3 +555,4 @@ HeartbeatPayload          // Keepalive
 | Version | Date | Changes |
 |---------|------|---------|
 | 1.0 | 2026-01-14 | Initial protocol specification |
+| 1.0 | 2026-11-24 | Optional heartbeat `capabilities`; `insightRequest` / `insightResponse` behind `insight.v1` (#457). Wire version unchanged. |

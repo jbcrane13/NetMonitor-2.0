@@ -35,7 +35,7 @@ struct ChangeSummaryView: View {
                 .textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .accessibilityIdentifier(ids.text)
-            Label("Written by the on-device model from the events the app recorded", systemImage: "sparkles")
+            Label("Written by \(summary.source.modelName) from the events the app recorded", systemImage: "sparkles")
                 .font(.caption2)
                 .foregroundStyle(Theme.Colors.textSecondary)
                 .accessibilityElement(children: .combine)

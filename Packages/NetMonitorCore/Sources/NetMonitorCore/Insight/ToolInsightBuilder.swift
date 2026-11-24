@@ -152,14 +152,16 @@ public enum ToolInsightBuilder {
     /// - Parameter allTypes: true when every record type was queried; `result.queryType` is then
     ///   a placeholder and not what was asked.
     public static func dnsLookup(_ result: DNSQueryResult, allTypes: Bool = false) -> InsightRequest {
-        var facts = ["DNS server: \(result.server)", "Query time: \(number(result.queryTime)) ms"]
+        // Each name stands whole after its label, so an answer may repeat it past
+        // `InsightTextFilter`, which refuses a domain inside a longer value (#457).
+        var facts = ["Name looked up: \(result.domain)", "DNS server: \(result.server)", "Query time: \(number(result.queryTime)) ms"]
         facts += result.records.prefix(recordLimit).map { record in
             let value = record.value.count > valueLimit ? record.value.prefix(valueLimit) + "…" : record.value
-            var line = "\(record.type.rawValue) \(value)"
+            var label = "\(record.type.rawValue) record"
             if let priority = record.priority {
-                line += ", priority \(priority)"
+                label += ", priority \(priority)"
             }
-            return line + ", TTL \(record.ttl) s"
+            return "\(label), TTL \(record.ttl) s: \(value)"
         }
         if result.records.count > recordLimit {
             facts.append("\(result.records.count - recordLimit) more records not listed")
@@ -183,13 +185,15 @@ public enum ToolInsightBuilder {
 
     /// For lookups that return only answer values, as the macOS tool's `dig +short` does.
     public static func dnsAnswers(domain: String, recordType: DNSRecordType, answers: [String]) -> InsightRequest {
-        var text = answers.prefix(recordLimit).joined(separator: ", ")
+        // One answer per fact, each whole after its label, as in `dnsLookup` (#457).
+        var facts = ["Name looked up: \(domain)", "Number of answers: \(answers.count)"]
+        facts += answers.prefix(recordLimit).map { "Answer: \($0)" }
         if answers.count > recordLimit {
-            text += ", and \(answers.count - recordLimit) more"
+            facts.append("\(answers.count - recordLimit) more answers not listed")
         }
         return InsightRequest(
             subject: "DNS lookup of \(recordType.rawValue) records for \(domain)",
-            facts: ["Answers (\(answers.count)): \(text)"]
+            facts: facts
         )
     }
 

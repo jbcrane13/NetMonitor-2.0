@@ -764,3 +764,12 @@ final class DeviceDiscoveryCoordinator {
 }
 
 // swiftlint:enable type_body_length
+
+// MARK: - Testing Support
+
+extension DeviceDiscoveryCoordinator {
+    /// Marks a scan as running or not, without scanning, for tests of what waits on scans (#457).
+    func setScanningForTesting(_ scanning: Bool) {
+        isScanning = scanning
+    }
+}

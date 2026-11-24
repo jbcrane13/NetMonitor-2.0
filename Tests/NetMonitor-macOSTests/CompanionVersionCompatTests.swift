@@ -12,7 +12,7 @@ struct CompanionVersionCompatTests {
 
     // MARK: - v1.0 Heartbeat JSON Fixtures
 
-    private let v1_0_MinimalHeartbeat = """
+    private let v1_0_MinimalHeartbeat = Data("""
     {
       "type": "heartbeat",
       "payload": {
@@ -20,18 +20,18 @@ struct CompanionVersionCompatTests {
         "version": "1.0"
       }
     }
-    """.data(using: .utf8)!
+    """.utf8)
 
-    private let v1_0_HeartbeatNoVersion = """
+    private let v1_0_HeartbeatNoVersion = Data("""
     {
       "type": "heartbeat",
       "payload": {
         "timestamp": 1700000000.0
       }
     }
-    """.data(using: .utf8)!
+    """.utf8)
 
-    private let heartbeatWithExtraFields = """
+    private let heartbeatWithExtraFields = Data("""
     {
       "type": "heartbeat",
       "payload": {
@@ -42,20 +42,20 @@ struct CompanionVersionCompatTests {
         "deprecated_key": true
       }
     }
-    """.data(using: .utf8)!
+    """.utf8)
 
-    private let malformedJSON = """
+    private let malformedJSON = Data("""
     {
       "type": "heartbeat",
       "payload": { "timestamp": invalid_date }
     }
-    """.data(using: .utf8)!
+    """.utf8)
 
     // MARK: - v1.0 Heartbeat Decoding Tests
 
-    // TODO: jsonDecoder uses default .deferredToDate strategy (reference-date epoch);
-    // test assumed Unix epoch. Rewrite to use ISO-8601 string or adjust expected Date.
-    @Test("v1.0 heartbeat JSON with minimal fields decodes cleanly", .disabled("date-strategy mismatch — see TODO above"))
+    // Disabled: jsonDecoder uses the default .deferredToDate strategy (reference-date epoch),
+    // while this test assumed the Unix epoch. Rewrite with the right expected Date to re-enable.
+    @Test("v1.0 heartbeat JSON with minimal fields decodes cleanly", .disabled("date-strategy mismatch — see note above"))
     func v1_0_minimalHeartbeatDecodes() throws {
         let decoded = try CompanionMessage.jsonDecoder.decode(
             CompanionMessage.self,
@@ -71,9 +71,9 @@ struct CompanionVersionCompatTests {
         #expect(payload.timestamp == Date(timeIntervalSince1970: 1700000000.0))
     }
 
-    // TODO: HeartbeatPayload.version is non-optional and has no default in decode;
-    // test asserted a default that doesn't exist. Verify actual behavior before re-enabling.
-    @Test("v1.0 heartbeat without version field uses default", .disabled("version field is required — see TODO"))
+    // Disabled: HeartbeatPayload.version is non-optional and has no default in decode, so
+    // the default this test asserted doesn't exist.
+    @Test("v1.0 heartbeat without version field uses default", .disabled("version field is required — see note above"))
     func v1_0_heartbeatMissingVersionUsesDefault() throws {
         let decoded = try CompanionMessage.jsonDecoder.decode(
             CompanionMessage.self,
@@ -89,7 +89,7 @@ struct CompanionVersionCompatTests {
         // This test validates that behavior is explicit, not silent
     }
 
-    // TODO: same date-strategy mismatch as above.
+    // Disabled: the same date-strategy mismatch as above.
     @Test("Heartbeat JSON with extra unknown fields ignores them", .disabled("date-strategy mismatch"))
     func heartbeatWithExtraFieldsIgnoresUnknown() throws {
         let decoded = try CompanionMessage.jsonDecoder.decode(
@@ -109,48 +109,31 @@ struct CompanionVersionCompatTests {
 
     // MARK: - Unknown Message Type Handling
 
-    @Test("Unknown message type in JSON throws DecodingError")
-    func unknownMessageTypeThrows() throws {
-        let unknownTypeJSON = """
-        {
-          "type": "futureMessageType",
-          "payload": { "data": "something" }
-        }
-        """.data(using: .utf8)!
+    @Test("Unknown message type in JSON decodes as .unknown (Models/AGENTS.md fallback, #457)")
+    func unknownMessageTypeDecodesAsUnknown() throws {
+        let unknownTypeJSON = Data(#"{"type":"futureMessageType","payload":{"data":"something"}}"#.utf8)
 
-        // The enum will not have a case for unknownMessageType,
-        // so JSONDecoder will throw a DecodingError
-        let thrownError = #expect(throws: DecodingError.self) {
-            _ = try CompanionMessage.jsonDecoder.decode(
-                CompanionMessage.self,
-                from: unknownTypeJSON
-            )
-        }
+        let decoded = try CompanionMessage.jsonDecoder.decode(CompanionMessage.self, from: unknownTypeJSON)
 
-        // Verify it's a dataCorrupted or keyNotFound error from enum decoding
-        if let decodingError = thrownError as? DecodingError {
-            switch decodingError {
-            case .dataCorrupted, .keyNotFound, .typeMismatch, .valueNotFound:
-                // Any of these is acceptable for unknown enum case
-                break
-            @unknown default:
-                Issue.record("Unexpected DecodingError variant: \(decodingError)")
-            }
+        guard case let .unknown(type) = decoded else {
+            Issue.record("expected .unknown, got \(decoded.logName)")
+            return
         }
+        #expect(type == "futureMessageType")
     }
 
     // MARK: - Missing Required Fields
 
     @Test("Heartbeat JSON missing required 'timestamp' throws keyNotFound")
     func heartbeatMissingTimestampThrows() throws {
-        let missingTimestamp = """
+        let missingTimestamp = Data("""
         {
           "type": "heartbeat",
           "payload": {
             "version": "1.0"
           }
         }
-        """.data(using: .utf8)!
+        """.utf8)
 
         let thrownError = #expect(throws: DecodingError.self) {
             _ = try CompanionMessage.jsonDecoder.decode(
@@ -176,7 +159,7 @@ struct CompanionVersionCompatTests {
 
     @Test("Heartbeat with timestamp as string (wrong type) throws typeMismatch")
     func heartbeatTimestampWrongTypeThrows() throws {
-        let wrongType = """
+        let wrongType = Data("""
         {
           "type": "heartbeat",
           "payload": {
@@ -184,7 +167,7 @@ struct CompanionVersionCompatTests {
             "version": "1.0"
           }
         }
-        """.data(using: .utf8)!
+        """.utf8)
 
         // JSONDecoder will attempt to decode the string as a Date,
         // which uses ISO8601DateFormatter and will fail
@@ -198,33 +181,25 @@ struct CompanionVersionCompatTests {
 
     // MARK: - CompanionMessage with Unknown Payload Type
 
-    @Test("Message with unrecognized type string fails gracefully")
-    func unrecognizedMessageTypeFailsGracefully() throws {
-        let unrecognizedType = """
-        {
-          "type": "novelMessageType",
-          "payload": { "arbitrary": "data" }
-        }
-        """.data(using: .utf8)!
+    @Test("Message with unrecognized type string is kept as unknown, not an error")
+    func unrecognizedMessageTypeIsKeptAsUnknown() throws {
+        let unrecognizedType = Data(#"{"type":"novelMessageType","payload":{"arbitrary":"data"}}"#.utf8)
 
-        _ = #expect(throws: DecodingError.self) {
-            _ = try CompanionMessage.jsonDecoder.decode(
-                CompanionMessage.self,
-                from: unrecognizedType
-            )
-        }
+        let decoded = try CompanionMessage.jsonDecoder.decode(CompanionMessage.self, from: unrecognizedType)
+
+        #expect(decoded.logName == "unknown")
     }
 
     // MARK: - Empty/Null Payloads
 
     @Test("Heartbeat with null payload throws keyNotFound or typeMismatch")
     func heartbeatNullPayloadThrows() throws {
-        let nullPayload = """
+        let nullPayload = Data("""
         {
           "type": "heartbeat",
           "payload": null
         }
-        """.data(using: .utf8)!
+        """.utf8)
 
         _ = #expect(throws: DecodingError.self) {
             _ = try CompanionMessage.jsonDecoder.decode(

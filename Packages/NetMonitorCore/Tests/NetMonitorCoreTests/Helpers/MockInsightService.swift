@@ -20,7 +20,11 @@ final class MockInsightService: InsightServiceProtocol, @unchecked Sendable {
         scripted = suggestion
     }
 
-    var isAvailable: Bool { lock.withLock { available } }
+    var isAvailable: Bool {
+        get { lock.withLock { available } }
+        set { lock.withLock { available = newValue } }
+    }
+
     var requests: [InsightRequest] { lock.withLock { received } }
     var suggestionRequests: [DeviceEvidence] { lock.withLock { evidence } }
 

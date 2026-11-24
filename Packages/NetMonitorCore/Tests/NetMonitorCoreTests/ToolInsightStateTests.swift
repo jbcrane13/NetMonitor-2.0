@@ -19,6 +19,50 @@ struct ToolInsightStateTests {
         #expect(!ToolInsightState(service: MockInsightService(isAvailable: false)).isAvailable)
     }
 
+    @Test("a view reading the affordance hears when a Mac starts or stops offering insight (#457)")
+    func availabilityChangesAreObserved() {
+        let client = CompanionInsightClient(send: { _ in true })
+        let state = ToolInsightState(service: RoutedInsightService(local: UnavailableInsightService(), mac: client, consent: .agreedInMemory))
+        let insight = HeartbeatPayload(capabilities: [CompanionCapability.insight])
+        let changes = ChangeCounter()
+        func track() {
+            withObservationTracking { _ = state.isAvailable } onChange: { changes.increment() }
+        }
+
+        track()
+        client.received(heartbeat: insight)
+        #expect(changes.count == 1)
+        #expect(state.isAvailable)
+
+        // A repeated heartbeat changes nothing, so nothing redraws.
+        track()
+        client.received(heartbeat: insight)
+        #expect(changes.count == 1)
+
+        client.received(heartbeat: HeartbeatPayload())
+        #expect(changes.count == 2)
+
+        client.received(heartbeat: insight)
+        track()
+        client.disconnected()
+        #expect(changes.count == 3)
+        #expect(!state.isAvailable)
+    }
+
+    @Test("an explanation the Mac writes is marked as the Mac's; a local one as this device's (#457)")
+    func explanationRecordsItsSource() async {
+        let client = CompanionInsightClient(send: { _ in true })
+        client.received(heartbeat: HeartbeatPayload(capabilities: [CompanionCapability.insight]))
+        let viaMac = ToolInsightState(service: RoutedInsightService(local: UnavailableInsightService(), mac: client, consent: .agreedInMemory))
+        viaMac.explain(request)
+        #expect(viaMac.source == .mac)
+        client.disconnected()
+
+        let local = ToolInsightState(service: FixedAnswerInsightService(answer: "Your download is fast."))
+        await local.explain(request).value
+        #expect(local.source == .device)
+    }
+
     @Test func explainingShowsTextAsItArrivesThenTheFinishedText() async {
         let service = MockInsightService()
         let state = ToolInsightState(service: service)
@@ -124,4 +168,11 @@ private struct EndsEarlyInsightService: InsightServiceProtocol {
     func suggestIdentity(_ evidence: DeviceEvidence) async -> DeviceSuggestion? {
         nil
     }
+}
+
+private final class ChangeCounter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value = 0
+    var count: Int { lock.withLock { value } }
+    func increment() { lock.withLock { value += 1 } }
 }

@@ -37,7 +37,7 @@ final class TroubleshootToolViewModel {
                 speedTestFinished: { IOSScheduledSpeedTest.manualTestsRunning -= 1 }
             ),
             classifier: SymptomClassifier.shared,
-            insight: InsightService.shared,
+            insight: env.insight,
             devices: { inputs.devices },
             isScanning: { discovery.isScanning },
             speedBaseline: { inputs.latestDownload }

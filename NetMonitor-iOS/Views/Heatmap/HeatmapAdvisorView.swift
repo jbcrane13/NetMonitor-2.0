@@ -8,6 +8,8 @@ import SwiftUI
 /// Without the model the key points still show; a sparse survey shows the app's hint.
 struct HeatmapAdvisorView: View {
     let phase: HeatmapAdvisorState.Phase
+    /// Who wrote the advice text (#457).
+    var source: InsightSource = .device
 
     var body: some View {
         switch phase {
@@ -50,7 +52,7 @@ struct HeatmapAdvisorView: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .accessibilityIdentifier("heatmap_label_advisorText")
-                Label("Written by the on-device model from the survey's statistics", systemImage: "sparkles")
+                Label("Written by \(source.modelName) from the survey's statistics", systemImage: "sparkles")
                     .font(.caption2)
                     .foregroundStyle(Theme.Colors.textSecondary)
                     .accessibilityElement(children: .combine)

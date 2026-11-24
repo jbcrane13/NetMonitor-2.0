@@ -32,6 +32,41 @@ struct CompanionServiceFramingTests {
         #expect(payload.version == "2.0")
     }
 
+    @Test("a frame with a type this build doesn't know decodes as unknown, gets no reply, and the next frame still decodes (#457)")
+    func unknownTypeFrameKeepsConnection() async throws {
+        let service = CompanionService()
+        let unknown = Data(#"{"protocolVersion":1,"type":"futureThing","payload":{}}"#.utf8)
+        var length = UInt32(unknown.count).bigEndian
+        var stream = Data(bytes: &length, count: 4)
+        stream.append(unknown)
+        try stream.append(CompanionMessage.heartbeat(HeartbeatPayload(version: "2.0")).encodeLengthPrefixed())
+
+        let results = await service.processIncomingDataForTesting(stream, clientID: UUID())
+
+        #expect(results.count == 2)
+        #expect(results.contains {
+            if case .unknown(type: "futureThing") = $0 {
+                true
+            } else {
+                false
+            }
+        })
+        #expect(results.contains {
+            if case .heartbeat = $0 {
+                true
+            } else {
+                false
+            }
+        })
+        #expect(!results.contains {
+            if case .error = $0 {
+                true
+            } else {
+                false
+            }
+        })
+    }
+
     @Test("two frames delivered in a single chunk both decode, in order")
     func twoFramesInOneChunkBothDecode() async throws {
         let service = CompanionService()

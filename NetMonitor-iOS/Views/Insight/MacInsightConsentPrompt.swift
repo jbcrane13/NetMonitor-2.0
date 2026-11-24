@@ -1,0 +1,40 @@
+import NetMonitorCore
+import SwiftUI
+
+/// "Use your Mac for on-device AI?" (#457): asked once, when the user first asks for something
+/// this phone's model can't write and a connected Mac could. Until they agree nothing is sent
+/// and features fall back.
+struct MacInsightConsentAlert: ViewModifier {
+    @Binding var isPresented: Bool
+    let consent: MacInsightConsent
+    /// Runs after the user agrees, such as the explanation they asked for.
+    let onAgree: () -> Void
+
+    func body(content: Content) -> some View {
+        content.alert("Use your Mac for on-device AI?", isPresented: $isPresented) {
+            Button("Use My Mac") {
+                consent.agree()
+                onAgree()
+            }
+            .accessibilityIdentifier("macInsight_button_agree")
+            Button("Don't Use Mac", role: .cancel) { consent.decline() }
+                .accessibilityIdentifier("macInsight_button_decline")
+        } message: {
+            Text("This iPhone can't run the on-device model. Your Mac's model can write explanations and summaries instead. "
+                + "Requests go to your Mac over your local network. You can change this in Settings.")
+        }
+    }
+}
+
+/// The Settings switch for the same answer (#457): shown once the user has answered, or while
+/// a connected Mac offers its model.
+struct MacInsightSettingsRow: View {
+    let routed: RoutedInsightService
+
+    var body: some View {
+        if routed.consent.decision != nil || routed.mac.isAvailable {
+            Toggle("Use your Mac for on-device AI", isOn: Binding(get: { routed.consent.isAllowed }, set: routed.consent.setAllowed))
+                .accessibilityIdentifier("settings_toggle_macInsight")
+        }
+    }
+}
