@@ -43,7 +43,7 @@ final class PlainRuleIOSViewModel {
         targets: [MonitoringTarget],
         networkID: UUID?,
         isScanning: Bool,
-        context: ModelContext? = nil
+        context: ModelContext
     ) async {
         let devices = networkID.map { id in devices.filter { $0.networkProfileID == id } } ?? devices
         let scan = networkID.map { id in scan.filter { $0.networkProfileID == id } } ?? scan
@@ -54,8 +54,8 @@ final class PlainRuleIOSViewModel {
         let matched = Self.match(scan, to: devices)
         var candidates = devices.map { row in
             var device = RuleDevice(row)
-            // The latest scan's open ports when the row has none of its own (#572).
-            if device.openPorts.isEmpty, let ports = matched.byRow[row.id]?.openPorts {
+            // The last scan's open ports win over ports a row saved earlier (#572).
+            if let ports = matched.byRow[row.id]?.openPorts, !ports.isEmpty {
                 device.openPorts = ports
             }
             return device
@@ -143,7 +143,7 @@ final class PlainRuleIOSViewModel {
             ipAddress: scanned.ipAddress, scanned: scanned, networkID: networkID ?? scanned.networkProfileID, scan: scan, in: context
         )
         DeviceDetailViewModel.adopt(scanned, into: row)
-        if row.openPorts?.isEmpty ?? true, let ports = scanned.openPorts {
+        if let ports = scanned.openPorts, !ports.isEmpty {
             row.openPorts = ports
         }
         do {

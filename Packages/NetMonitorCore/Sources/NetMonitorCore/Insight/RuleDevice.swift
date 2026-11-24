@@ -48,12 +48,22 @@ public struct RuleDevice: DevicePhraseMatchable, Sendable, Equatable, Identifiab
     }
 
     /// A device the latest scan saw but no saved row describes yet (#571), under a stand-in `id`
-    /// until a draft saves its row. Its type isn't known before a row is saved.
+    /// until a draft saves its row. Its type comes from Core's device-type inference over what the
+    /// scan knows (hostname, maker, open ports), so "the printer" can name it.
     public init(scanned device: DiscoveredDevice, id: UUID = UUID()) {
+        // Unsaved: the inference reads a LocalDevice, and this one exists only to be read.
+        let row = LocalDevice(
+            ipAddress: device.ipAddress,
+            macAddress: device.macAddress ?? "",
+            hostname: device.hostname,
+            vendor: device.vendor,
+            openPorts: device.openPorts
+        )
+        row.mergeIdentity(device.identity)
         self.init(
             id: id,
             displayName: device.friendlyName ?? device.hostname ?? device.ipAddress,
-            deviceType: .unknown,
+            deviceType: DeviceTypeInferenceService().inferDeviceType(for: row),
             maker: device.maker,
             ipAddress: device.ipAddress,
             macAddress: device.macAddress.flatMap { $0.isEmpty ? nil : $0 },

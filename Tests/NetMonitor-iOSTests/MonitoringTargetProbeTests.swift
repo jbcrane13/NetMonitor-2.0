@@ -4,7 +4,7 @@ import Foundation
 import NetMonitorCore
 
 /// The ports a stub device answers on; records every port asked.
-private final class StubDevice: @unchecked Sendable {
+private final class MockProbeDevice: @unchecked Sendable {
     private let lock = NSLock()
     private var listening: Set<Int>
     private(set) var asked: [Int] = []
@@ -25,13 +25,13 @@ private final class StubDevice: @unchecked Sendable {
 @Suite("Monitoring target probe (#572)")
 @MainActor
 struct MonitoringTargetProbeTests {
-    private func probe(_ device: StubDevice) -> MonitoringTargetProbe {
+    private func probe(_ device: MockProbeDevice) -> MonitoringTargetProbe {
         MonitoringTargetProbe { _, port, _ in device.connect(port) }
     }
 
     /// A NAS with port 80 closed and 445 open: up, then down after it stops answering.
     @Test func aReachableDeviceWithPort80ClosedIsUpAndGoesDownWhenItStopsAnswering() async {
-        let nas = StubDevice(listening: [445])
+        let nas = MockProbeDevice(listening: [445])
         let target = MonitoringTarget(name: "NAS", host: "192.168.1.40", port: 445, targetProtocol: .tcp)
         let check = probe(nas)
 
@@ -52,7 +52,7 @@ struct MonitoringTargetProbeTests {
     }
 
     @Test func aTargetSavedWithoutAPortStillProbesPort80() async {
-        let web = StubDevice(listening: [80])
+        let web = MockProbeDevice(listening: [80])
         let target = MonitoringTarget(name: "Router", host: "192.168.1.1")
         #expect(MonitoringTargetProbe.port(for: target) == 80)
         #expect(await probe(web).check(target).success)

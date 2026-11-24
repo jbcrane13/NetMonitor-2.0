@@ -99,7 +99,7 @@ final class UITestFakeDiscoveryService: DeviceDiscoveryServiceProtocol {
                 source: device.source,
                 networkProfileID: UITestBootstrap.networkProfileID
             )
-        }
+        } + UITestBootstrap.ruleScanDevices
     }
 
     func cachedDevices(for profile: NetworkProfile?) -> [DiscoveredDevice] {

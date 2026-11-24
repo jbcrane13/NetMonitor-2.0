@@ -1,4 +1,5 @@
 import Foundation
+import NetworkScanKit
 import Testing
 @testable import NetMonitorCore
 
@@ -143,6 +144,18 @@ struct PlainRuleTests {
         #expect(DevicePhraseResolver.resolve("my office printer", among: devices) == .one(printer))
         #expect(DevicePhraseResolver.resolve("Apple TV", among: devices) == .one(appleTV))
         #expect(DevicePhraseResolver.resolve("the Synology NAS", among: devices) == .one(nas))
+    }
+
+    /// #571: a device only the scan knows gets its type from Core's inference, so "the printer" names it.
+    @Test func aScannedDeviceGetsAnInferredTypeSoATypeWordNamesIt() {
+        let scanned = DiscoveredDevice(
+            ipAddress: "192.168.1.30", hostname: "office-laser", vendor: nil, macAddress: "02:00:00:01:00:30",
+            latency: 4, discoveredAt: Date(), source: .local, openPorts: [631, 9100]
+        )
+        let device = RuleDevice(scanned: scanned)
+        #expect(device.deviceType == .printer)
+        #expect(device.openPorts == [631, 9100])
+        #expect(DevicePhraseResolver.resolve("the printer", among: [device, nas]) == .one(device))
     }
 
     @Test func twoMatchesAreAmbiguous() {

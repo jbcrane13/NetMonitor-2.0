@@ -425,6 +425,21 @@ extension UITestBootstrap {
 
     static let rulePrinter = (name: "uitest-printer", ip: "192.168.77.20")
 
+    /// With `UITEST_RULE_SCAN_DEVICES=1` (Debug builds), the UI-test scan also finds a printer that
+    /// has no saved row: "office-laser", with IPP 631 and 9100 open, so its type is inferred and a
+    /// target can probe it (#571, #572).
+    static var ruleScanDevices: [DiscoveredDevice] {
+        #if DEBUG
+        guard isUITesting, ProcessInfo.processInfo.environment["UITEST_RULE_SCAN_DEVICES"] == "1" else { return [] }
+        return [DiscoveredDevice(
+            ipAddress: "192.168.1.30", hostname: "office-laser", vendor: nil, macAddress: "02:00:00:01:00:30",
+            latency: 4, discoveredAt: Date(), source: .local, networkProfileID: networkProfileID, openPorts: [631, 9100]
+        )]
+        #else
+        return []
+        #endif
+    }
+
     /// With `UITEST_SEED_RULE_DEVICES=1` (Debug builds): a printer and a NAS on the UI-test
     /// network, for describing rules about "the printer". Never twice.
     static func seedRuleDevicesIfNeeded(in context: ModelContext) {

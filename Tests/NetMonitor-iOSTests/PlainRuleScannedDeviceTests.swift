@@ -210,4 +210,18 @@ struct PlainRuleScannedDeviceTests {
         #expect(model.targetDraft == nil)
         #expect(try context.fetch(FetchDescriptor<LocalDevice>()).isEmpty)
     }
+
+    /// #572 "the last scan": a row saved with port 80 open, then a scan that finds only 445.
+    @Test func theLatestScansPortsWinOverARowsOldOnes() async throws {
+        let container = try makeContainer()
+        let row = LocalDevice(ipAddress: "192.168.1.40", macAddress: "02:00:00:01:00:40", hostname: "basement-nas",
+                              openPorts: [80], networkProfileID: home)
+        container.mainContext.insert(row)
+        let model = viewModel(offline)
+        model.text = "basement-nas down"
+        await model.submit(devices: [row], scan: [scannedNAS(openPorts: [445])], targets: [], networkID: home, isScanning: false,
+                           context: container.mainContext)
+        #expect(model.targetDraft?.deviceID == row.id)
+        #expect(model.targetDraft?.port == 445)
+    }
 }
