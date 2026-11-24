@@ -102,6 +102,47 @@ struct PlainRuleMacTests {
         #expect(try context.fetch(FetchDescriptor<NetworkTarget>()).isEmpty)
     }
 
+    /// Monitoring skips a turned-off target, so it doesn't count as monitoring the device: the
+    /// draft offers to turn it back on, and confirming does that instead of adding a second one.
+    @Test func aTurnedOffTargetIsOfferedAndTurnedBackOnAtConfirm() async throws {
+        let (defaults, suite) = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let container = try makeContainer()
+        let context = container.mainContext
+        let existing = NetworkTarget(name: "NAS web", host: "192.168.77.40", targetProtocol: .icmp, checkInterval: 120, isEnabled: false)
+        context.insert(existing)
+        try context.save()
+        let model = viewModel()
+        model.text = nasSentence
+
+        await model.submit(devices: [nas()], targets: [existing], isScanning: false)
+
+        #expect(model.draft?.hasTarget == false)
+        #expect(model.addsTarget)
+        #expect(model.reusesDisabledTarget)
+        #expect(model.notes.contains { $0.contains("checks it every 2 minutes") }, "Notes: \(model.notes)")
+
+        model.confirm(store: AlertRuleStore(defaults: defaults), context: context, session: nil)
+
+        let targets = try context.fetch(FetchDescriptor<NetworkTarget>())
+        #expect(targets.count == 1)
+        #expect(targets.first?.isEnabled == true)
+    }
+
+    @Test func theNotesQuoteTheExistingTargetsOwnCheckInterval() async {
+        let existing = NetworkTarget(name: "NAS", host: "192.168.77.40", targetProtocol: .icmp, checkInterval: 120, isEnabled: true)
+        let model = viewModel()
+        model.text = nasSentence
+
+        await model.submit(devices: [nas()], targets: [existing], isScanning: false)
+
+        #expect(model.draft?.hasTarget == true)
+        #expect(!model.reusesDisabledTarget)
+        #expect(model.notes == [
+            "Fires once uitest-nas has been unreachable for 5 minutes, timed by its monitoring target, which checks it every 2 minutes."
+        ])
+    }
+
     @Test func thePrinterScanOpensThePortScannerPrefilledAndSavesNothing() async {
         let printer = LocalDevice(ipAddress: "192.168.77.20", macAddress: "00:1B:A9:77:00:20", hostname: "uitest-printer", deviceType: .printer)
         let model = viewModel()

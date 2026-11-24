@@ -131,7 +131,12 @@ private struct PlainRuleDraftView: View {
                         .accessibilityIdentifier("rules_draft_device")
                 }
                 if draft.offersTarget, let device = draft.device {
-                    Toggle("Also add a monitoring target for \(device.ipAddress)", isOn: $viewModel.addsTarget)
+                    Toggle(
+                        viewModel.reusesDisabledTarget
+                            ? "Also turn the monitoring target for \(device.ipAddress) back on"
+                            : "Also add a monitoring target for \(device.ipAddress)",
+                        isOn: $viewModel.addsTarget
+                    )
                         .accessibilityIdentifier("rules_draft_addTarget")
                 }
                 if !isMonitoring, viewModel.addsTarget || draft.hasTarget {

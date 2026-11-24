@@ -17,6 +17,10 @@ final class PlainRuleMacViewModel {
     var openPortScan: PortScanRequest?
     let composer: PlainRuleComposer
     let timing: RuleTiming
+    /// Each host's turned-off target. Monitoring skips it, so the draft offers to turn it back on.
+    private var disabledTargets: [String: NetworkTarget] = [:]
+    /// How often each host's target is checked: its enabled target, or else the turned-off one.
+    private var targetIntervals: [String: TimeInterval] = [:]
 
     struct PortScanRequest: Identifiable, Equatable {
         let host: String
@@ -33,16 +37,31 @@ final class PlainRuleMacViewModel {
 
     /// The notes for the draft as edited.
     var notes: [String] {
-        draft?.notes(addingTarget: addsTarget, timing: timing) ?? []
+        guard let draft else { return [] }
+        var timing = timing
+        if let host = draft.device?.ipAddress, let interval = targetIntervals[host] {
+            timing.targetCheckInterval = interval
+        }
+        return draft.notes(addingTarget: addsTarget, timing: timing)
+    }
+
+    /// The draft's device has a turned-off target, which `confirm` turns back on instead of adding another.
+    var reusesDisabledTarget: Bool {
+        draft?.device.flatMap { disabledTargets[$0.ipAddress] } != nil
     }
 
     func submit(devices: [LocalDevice], targets: [NetworkTarget], isScanning: Bool) async {
         draft = nil
+        // Monitoring checks enabled targets only; a turned-off one doesn't make the device monitored.
+        let enabled = targets.filter(\.isEnabled)
+        disabledTargets = Dictionary(targets.filter { !$0.isEnabled }.map { ($0.host, $0) }) { first, _ in first }
+        targetIntervals = disabledTargets.mapValues(\.checkInterval)
+            .merging(Dictionary(enabled.map { ($0.host, $0.checkInterval) }, uniquingKeysWith: min)) { _, enabled in enabled }
         await composer.submit(
             text,
             devices: devices.map(RuleDevice.init),
             timing: timing,
-            targetHosts: Set(targets.map(\.host)),
+            targetHosts: Set(enabled.map(\.host)),
             isScanning: isScanning
         )
         adoptOutcome()
@@ -61,14 +80,20 @@ final class PlainRuleMacViewModel {
         guard !rule.name.isEmpty else { return }
         store.add(rule)
         if addsTarget, draft.offersTarget, let device = draft.device {
-            let target = NetworkTarget(
-                name: device.displayName,
-                host: device.ipAddress,
-                targetProtocol: .icmp,
-                checkInterval: timing.targetCheckInterval,
-                timeout: TargetDefaults.timeout()
-            )
-            context.insert(target)
+            let target: NetworkTarget
+            if let existing = disabledTargets[device.ipAddress], existing.modelContext != nil {
+                existing.isEnabled = true
+                target = existing
+            } else {
+                target = NetworkTarget(
+                    name: device.displayName,
+                    host: device.ipAddress,
+                    targetProtocol: .icmp,
+                    checkInterval: timing.targetCheckInterval,
+                    timeout: TargetDefaults.timeout()
+                )
+                context.insert(target)
+            }
             do {
                 try context.save()
                 session?.monitorAddedTarget(target)
@@ -83,6 +108,8 @@ final class PlainRuleMacViewModel {
         text = ""
         draft = nil
         addsTarget = false
+        disabledTargets = [:]
+        targetIntervals = [:]
         composer.clear()
     }
 
