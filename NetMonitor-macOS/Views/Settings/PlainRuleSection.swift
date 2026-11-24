@@ -9,6 +9,7 @@ import NetMonitorCore
 import SwiftUI
 
 struct PlainRuleSection: View {
+    @Environment(AlertRuleStore.self) private var store
     @Bindable var viewModel: PlainRuleMacViewModel
     let devices: [LocalDevice]
     let targets: [NetworkTarget]
@@ -41,7 +42,7 @@ struct PlainRuleSection: View {
     }
 
     private func parse() {
-        Task { await viewModel.submit(devices: devices, targets: targets, isScanning: isScanning) }
+        Task { await viewModel.submit(devices: devices, targets: targets, isScanning: isScanning, linkedDevice: store.device(forTarget:)) }
     }
 
     @ViewBuilder

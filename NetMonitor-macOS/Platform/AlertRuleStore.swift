@@ -108,9 +108,6 @@ final class MacRuleAlerts {
     /// MAC, type, maker and network from its host.
     private let currentDevices: @MainActor () -> (devices: [LocalDevice], networkID: UUID?)
     private var evaluator = AlertRuleEvaluator()
-    /// Called when a linked target's device answers at a new address, with the target's ID and
-    /// that address, so the target can follow it.
-    var onLinkedTargetMoved: (@MainActor (_ targetID: UUID, _ host: String) -> Void)?
 
     init(
         store: AlertRuleStore,
@@ -143,20 +140,32 @@ final class MacRuleAlerts {
         fire(events)
     }
 
-    /// From one monitored-target check. A target a rule linked to a device is that device;
-    /// any other target's host is looked up in the current network's devices so device
-    /// conditions can match it.
+    /// The address a linked target's device answers at now, when that isn't `host`. A check of
+    /// `host` was then of an address that may be another device's: the session drops it and
+    /// moves the target there.
+    func movedHost(forTarget targetID: UUID, checkedAt host: String) -> String? {
+        guard let linked = store.device(forTarget: targetID),
+              let row = currentDevices().devices.first(where: { $0.id == linked }), row.ipAddress != host
+        else { return nil }
+        return row.ipAddress
+    }
+
+    /// From one monitored-target check. A target a rule linked to a device is that device while
+    /// the current network shows it at the checked address; any other target's host is looked
+    /// up in the current network's devices so device conditions can match it.
     func handle(targetResult result: TargetCheckOutcome) {
+        guard movedHost(forTarget: result.targetID, checkedAt: result.host) == nil else { return }
         let (devices, networkID) = currentDevices()
-        let linked = store.device(forTarget: result.targetID)
+        var linked = store.device(forTarget: result.targetID)
         let row: LocalDevice?
-        if let linked {
-            row = devices.first { $0.id == linked }
-            // The device answers at another address now, so this check was of an address that
-            // may be another device's: drop it and move the target to the device.
-            if let row, row.ipAddress != result.host {
-                onLinkedTargetMoved?(result.targetID, row.ipAddress)
-                return
+        if let device = linked {
+            // On another network the device has no row here, and when it stopped answering a
+            // different device may have taken its address. Either way the check isn't known to
+            // be the linked device's, so it carries no device identity.
+            let taken = devices.contains { $0.id != device && $0.ipAddress == result.host && $0.status == .online }
+            row = devices.first { $0.id == device && ($0.status == .online || !taken) }
+            if row == nil {
+                linked = nil
             }
         } else {
             row = devices.first {

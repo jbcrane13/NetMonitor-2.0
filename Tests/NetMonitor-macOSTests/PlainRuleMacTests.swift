@@ -249,8 +249,11 @@ struct PlainRuleMacTests {
         #expect(RuleDescription.summary(rule, networks: [], devices: []) == "Goes offline · for 5 minutes · device a removed device")
     }
 
-    // MARK: - #450 review
+}
 
+// MARK: - #450 review
+
+extension PlainRuleMacTests {
     private actor ReachableService: NetMonitor_macOS.NetworkMonitorService {
         func check(request: TargetCheckRequest) async throws -> MeasurementResult {
             MeasurementResult(targetID: request.id, timestamp: Date(), latency: 3, isReachable: true, errorMessage: nil)
@@ -335,20 +338,166 @@ struct PlainRuleMacTests {
         let alerts = MacRuleAlerts(store: store, service: NotificationService(poster: poster, defaults: defaults), defaults: defaults) {
             ([device, newcomer], nil)
         }
-        var moves: [(UUID, String)] = []
-        alerts.onLinkedTargetMoved = { moves.append(($0, $1)) }
 
         alerts.handle(targetResult: TargetCheckOutcome(
             targetID: target, name: "NAS", host: "192.168.77.40", isReachable: false, latency: nil, wentDown: true, cameUp: false
         ))
         #expect(poster.requests.isEmpty, "Neither the NAS nor the newcomer is alerted from the old address")
-        #expect(moves.map(\.0) == [target])
-        #expect(moves.map(\.1) == ["192.168.77.41"])
+        #expect(alerts.movedHost(forTarget: target, checkedAt: "192.168.77.40") == "192.168.77.41")
+        #expect(alerts.movedHost(forTarget: target, checkedAt: "192.168.77.41") == nil)
 
         alerts.handle(targetResult: TargetCheckOutcome(
             targetID: target, name: "NAS", host: "192.168.77.41", isReachable: false, latency: nil, wentDown: true, cameUp: false
         ))
         #expect(poster.requests.map(\.content.title) == ["NAS offline"])
+    }
+
+    /// On another network the NAS has no row, and its old private address is someone else's: the
+    /// linked target's checks there are not the NAS's.
+    @Test func aLinkedTargetsChecksOnAnotherNetworkAreNotItsDevices() {
+        let (defaults, suite) = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = AlertRuleStore(defaults: defaults)
+        let device = nas()
+        let printer = LocalDevice(ipAddress: "192.168.77.40", macAddress: "02:00:00:77:00:98", hostname: "office-printer", deviceType: .printer)
+        store.add(AlertRule(name: "NAS offline", trigger: .wentOffline, conditions: AlertRuleConditions(deviceID: device.id)))
+        let target = UUID()
+        store.link(target: target, to: device.id)
+        let poster = PlainRulePoster()
+        var devices = [printer]
+        let alerts = MacRuleAlerts(store: store, service: NotificationService(poster: poster, defaults: defaults), defaults: defaults) {
+            (devices, nil)
+        }
+        func checkFails() {
+            alerts.handle(targetResult: TargetCheckOutcome(
+                targetID: target, name: "NAS", host: "192.168.77.40", isReachable: false, latency: nil, wentDown: true, cameUp: false
+            ))
+        }
+
+        checkFails()
+        #expect(poster.requests.isEmpty, "The NAS isn't on this network")
+
+        devices = [device]
+        checkFails()
+        #expect(poster.requests.map(\.content.title) == ["NAS offline"], "Back on the NAS's network")
+    }
+
+    /// The NAS went offline and a phone took its address. The NAS's row keeps that address, but
+    /// the scan shows the phone answering there, so the target's readings are not the NAS's.
+    @Test func aLinkedTargetsChecksOfAnAddressAnotherDeviceTookAreNotItsDevices() {
+        let (defaults, suite) = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = AlertRuleStore(defaults: defaults)
+        let device = nas()
+        device.status = .offline
+        let phone = LocalDevice(ipAddress: "192.168.77.40", macAddress: "02:00:00:77:00:99", hostname: "phone", deviceType: .phone)
+        phone.status = .online
+        store.add(AlertRule(name: "NAS slow", trigger: .latencyAbove(milliseconds: 100), conditions: AlertRuleConditions(deviceID: device.id)))
+        let target = UUID()
+        store.link(target: target, to: device.id)
+        let poster = PlainRulePoster()
+        let alerts = MacRuleAlerts(store: store, service: NotificationService(poster: poster, defaults: defaults), defaults: defaults) {
+            ([device, phone], nil)
+        }
+        func slowReading() {
+            alerts.handle(targetResult: TargetCheckOutcome(
+                targetID: target, name: "NAS", host: "192.168.77.40", isReachable: true, latency: 400, wentDown: false, cameUp: false
+            ))
+        }
+
+        slowReading()
+        #expect(poster.requests.isEmpty, "The phone's latency is not the NAS's")
+
+        device.status = .online
+        phone.status = .offline
+        slowReading()
+        #expect(poster.requests.map(\.content.title) == ["NAS slow"], "The NAS answers at its address again")
+    }
+
+    private actor OldAddressDownService: NetMonitor_macOS.NetworkMonitorService {
+        func check(request: TargetCheckRequest) async throws -> MeasurementResult {
+            let reachable = request.host != "192.168.77.40"
+            return MeasurementResult(targetID: request.id, timestamp: Date(), latency: reachable ? 3 : nil, isReachable: reachable, errorMessage: nil)
+        }
+    }
+
+    /// The session and the app's alert wiring together: the NAS moved to .41, so the failed check
+    /// of its old address .40 is neither saved in the NAS target's history nor alerted as down.
+    @Test func aCheckOfTheAddressADeviceLeftIsNeitherSavedNorAlerted() async throws {
+        let (defaults, suite) = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = AlertRuleStore(defaults: defaults)
+        let container = try makeContainer()
+        let context = container.mainContext
+        let device = nas()
+        device.ipAddress = "192.168.77.41"
+        let target = NetworkTarget(name: "NAS", host: "192.168.77.40", targetProtocol: .icmp, checkInterval: 60)
+        context.insert(target)
+        try context.save()
+        store.link(target: target.id, to: device.id)
+        let poster = PlainRulePoster()
+        let dispatcher = MacAlertDispatcher(
+            service: NotificationService(poster: poster, defaults: defaults), store: store, defaults: defaults
+        ) { ([device], nil) }
+        let stub = OldAddressDownService()
+        let monitoring = MonitoringSession(modelContext: context, anyHTTPService: stub, anyICMPService: stub, anyTCPService: stub, defaults: defaults)
+        dispatcher.attach(to: monitoring, discovery: nil)
+
+        monitoring.startMonitoring()
+        await waitUntil { monitoring.latestResults[target.id] != nil }
+        await monitoring.stopMonitoringAndWait()
+
+        #expect(target.host == "192.168.77.41", "The target followed the NAS")
+        #expect(monitoring.latestResults[target.id]?.isReachable == true)
+        #expect(target.measurements.map(\.isReachable) == [true], "The failed check of .40 isn't in the NAS's history")
+        #expect(poster.requests.isEmpty, "No target-down alert for the address the NAS left")
+    }
+
+    /// At the office a printer has the home NAS's private address. The NAS's turned-off target is
+    /// not the printer's: the draft adds a new target and leaves the NAS's link alone.
+    @Test func aTurnedOffTargetLinkedToAnotherDeviceIsNotReused() async throws {
+        let (defaults, suite) = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = AlertRuleStore(defaults: defaults)
+        let container = try makeContainer()
+        let context = container.mainContext
+        let homeNAS = UUID()
+        let existing = NetworkTarget(name: "Home NAS", host: "192.168.77.40", targetProtocol: .icmp, checkInterval: 120, isEnabled: false)
+        context.insert(existing)
+        try context.save()
+        store.link(target: existing.id, to: homeNAS)
+        let device = nas()
+        let model = viewModel()
+        model.text = nasSentence
+
+        await model.submit(devices: [device], targets: [existing], isScanning: false, linkedDevice: store.device(forTarget:))
+        #expect(!model.reusesDisabledTarget)
+        model.confirm(store: store, context: context, session: nil)
+
+        let targets = try context.fetch(FetchDescriptor<NetworkTarget>())
+        #expect(targets.count == 2, "A target of its own")
+        #expect(!existing.isEnabled)
+        #expect(store.device(forTarget: existing.id) == homeNAS, "The other device's link is kept")
+        let added = try #require(targets.first { $0.id != existing.id })
+        #expect(store.device(forTarget: added.id) == device.id)
+    }
+
+    /// An enabled target linked to another device doesn't monitor this one, so the draft still
+    /// offers a target; one linked to this device counts wherever it points.
+    @Test func anEnabledTargetCountsOnlyForTheDeviceItIsLinkedTo() async {
+        let device = nas()
+        let other = NetworkTarget(name: "Home NAS", host: "192.168.77.40", targetProtocol: .icmp, checkInterval: 120)
+        let model = viewModel()
+        model.text = nasSentence
+
+        await model.submit(devices: [device], targets: [other], isScanning: false) { _ in UUID() }
+        #expect(model.draft?.hasTarget == false)
+        #expect(model.addsTarget)
+
+        let own = NetworkTarget(name: "NAS", host: "192.168.77.41", targetProtocol: .icmp, checkInterval: 120)
+        model.text = nasSentence
+        await model.submit(devices: [device], targets: [own], isScanning: false) { _ in device.id }
+        #expect(model.draft?.hasTarget == true)
     }
 
     @Test func movingATargetPointsItsChecksAtTheNewAddress() async throws {

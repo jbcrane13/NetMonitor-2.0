@@ -19,8 +19,11 @@ final class PlainRuleMacViewModel {
     var openPortScan: PortScanRequest?
     let composer: PlainRuleComposer
     let timing: RuleTiming
-    /// Each host's turned-off target. Monitoring skips it, so the draft offers to turn it back on.
-    private var disabledTargets: [String: NetworkTarget] = [:]
+    /// The targets as submitted. Monitoring skips a turned-off one, so the draft offers to turn
+    /// it back on.
+    private var targets: [NetworkTarget] = []
+    /// The device each linked target checks, by target ID.
+    private var targetLinks: [UUID: UUID] = [:]
     /// How often each host's target is checked: its enabled target, or else the turned-off one.
     private var targetIntervals: [String: TimeInterval] = [:]
 
@@ -43,15 +46,29 @@ final class PlainRuleMacViewModel {
 
     /// The draft's device has a turned-off target, which `confirm` turns back on instead of adding another.
     var reusesDisabledTarget: Bool {
-        draft?.device.flatMap { disabledTargets[$0.ipAddress] } != nil
+        draft?.device.flatMap(disabledTarget) != nil
     }
 
-    func submit(devices: [LocalDevice], targets: [NetworkTarget], isScanning: Bool) async {
+    /// Whether `target` checks `device`: a linked target checks the device it is linked to,
+    /// whatever its address; an unlinked one checks whichever device has its address.
+    private func checks(_ target: NetworkTarget, _ device: RuleDevice) -> Bool {
+        targetLinks[target.id].map { $0 == device.id } ?? (target.host == device.ipAddress)
+    }
+
+    private func disabledTarget(for device: RuleDevice) -> NetworkTarget? {
+        targets.first { !$0.isEnabled && checks($0, device) }
+    }
+
+    /// - Parameter linkedDevice: the device a rule linked a target to (`AlertRuleStore.device(forTarget:)`).
+    func submit(
+        devices: [LocalDevice], targets: [NetworkTarget], isScanning: Bool, linkedDevice: (UUID) -> UUID? = { _ in nil }
+    ) async {
         draft = nil
+        self.targets = targets
+        targetLinks = Dictionary(uniqueKeysWithValues: targets.compactMap { target in linkedDevice(target.id).map { (target.id, $0) } })
         // Monitoring checks enabled targets only; a turned-off one doesn't make the device monitored.
         let enabled = targets.filter(\.isEnabled)
-        disabledTargets = Dictionary(targets.filter { !$0.isEnabled }.map { ($0.host, $0) }) { first, _ in first }
-        targetIntervals = disabledTargets.mapValues(\.checkInterval)
+        targetIntervals = Dictionary(targets.filter { !$0.isEnabled }.map { ($0.host, $0.checkInterval) }) { first, _ in first }
             .merging(Dictionary(enabled.map { ($0.host, $0.checkInterval) }, uniquingKeysWith: min)) { _, enabled in enabled }
         await composer.submit(
             text,
@@ -85,7 +102,7 @@ final class PlainRuleMacViewModel {
         store.add(rule)
         if addsTarget, draft.offersTarget, let device = draft.device {
             let target: NetworkTarget
-            if let existing = disabledTargets[device.ipAddress], existing.modelContext != nil {
+            if let existing = disabledTarget(for: device), existing.modelContext != nil {
                 existing.isEnabled = true
                 target = existing
             } else {
@@ -118,13 +135,18 @@ final class PlainRuleMacViewModel {
         draft = nil
         addsTarget = false
         startsMonitoring = true
-        disabledTargets = [:]
+        targets = []
+        targetLinks = [:]
         targetIntervals = [:]
         composer.clear()
     }
 
     private func adoptOutcome() {
-        if case let .alert(alert) = composer.outcome {
+        if case var .alert(alert) = composer.outcome {
+            // The composer matched targets by address; a linked target counts only for its own device.
+            if let device = alert.device {
+                alert.hasTarget = targets.contains { $0.isEnabled && checks($0, device) }
+            }
             draft = alert
             addsTarget = alert.offersTarget
         } else {

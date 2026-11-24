@@ -15,17 +15,19 @@ final class MacAlertDispatcher {
     private weak var discovery: DeviceDiscoveryCoordinator?
 
     /// With `insightService`, alert bodies are worded by the on-device model (#453); rule
-    /// alerts keep the user's own text.
+    /// alerts keep the user's own text. `currentDevices` stands in for the attached
+    /// coordinator's devices and network, for tests.
     init(
         service: NotificationService,
         store: AlertRuleStore,
         defaults: UserDefaults = .standard,
-        insightService: (any InsightServiceProtocol)? = nil
+        insightService: (any InsightServiceProtocol)? = nil,
+        currentDevices: (@MainActor () -> (devices: [LocalDevice], networkID: UUID?))? = nil
     ) {
         self.defaults = defaults
         notifier = MacAlertNotifier(service: service, defaults: defaults)
         rules = MacRuleAlerts(store: store, service: service, defaults: defaults) { [weak self] in
-            (self?.discovery?.discoveredDevices ?? [], self?.discovery?.networkProfile?.id)
+            currentDevices?() ?? (self?.discovery?.discoveredDevices ?? [], self?.discovery?.networkProfile?.id)
         }
         if let insightService {
             notifier.writer = NotificationTextWriter(service: insightService) { [weak self] in
@@ -42,7 +44,7 @@ final class MacAlertDispatcher {
         session?.onTargetDown = { [weak self] name, host in self?.targetWentDown(name: name, host: host) }
         session?.onTargetResult = { [weak self] result in self?.targetChecked(result) }
         session?.onMonitoringStopped = { [weak self] in self?.monitoringStopped() }
-        rules?.onLinkedTargetMoved = { [weak session] targetID, host in session?.moveTarget(targetID, to: host) }
+        session?.movedHost = { [weak self] targetID, host in self?.rules?.movedHost(forTarget: targetID, checkedAt: host) }
         discovery?.addDeviceChangeHandler { [weak self, weak discovery] events, profileID in
             self?.devicesChanged(events, devices: discovery?.discoveredDevices ?? [], networkID: profileID)
         }
