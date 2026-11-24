@@ -126,6 +126,25 @@ Project-specific notes for agents. Global lessons live in `~/.claude/lessons-lea
 - **A `ModelContext` whose `ModelContainer` was released crashes the test host** ("Restarting after unexpected exit"). Have helpers return the container.
 - **macOS 27 stamps a card's identifier over its text field** (device detail's name field reads as `deviceDetail_card_header`). `axdrive typefield <id> <text>` types into the first text field that has the identifier or sits inside it.
 
+## 2026-11-24 — iOS scans keep saved devices current (#582, #584)
+- **Grace without a schema field.** Counting a device's missed scans needs per-row state; a `LocalDevice` field would mean a new macOS schema version. `ScanHistory` keeps each network's recent reconciled scans in UserDefaults, and a row's misses are the scans reconciled after its `lastSeen`.
+- **Count misses on the clock that stamps `lastSeen`.** Under an injected UI-test clock, comparing real scan dates with clock-stamped `lastSeen` counted the scan that saw a device as a miss. Store the reconcile time per scan and use the scan date only to skip a scan seen twice.
+- **Saving every scanned device changes who the rule resolver finds.** Rows saved as `.unknown` hid the scan's inferred printer from #571's "the printer". The reconciler infers types as the Mac does.
+- **The iOS app scans on its own at launch under `UITEST_FAKE_DEVICES`,** so a UI test can't assume which tick of an injected clock its first scan gets. Assert relative times.
+- **An iOS info row's label and value are two texts sharing one identifier;** query the value with `label != "<title>"`.
+- **Codex adversarial review keeps finding real ordering bugs in persistence code; budget rounds and file the out-of-diff ones.** Five rounds on #589 found:
+  - a retry re-reading a live list;
+  - a stale retry overwriting a newer scan;
+  - duplicate MAC aliases;
+  - probes of unconfirmed addresses;
+  - cancelled scans publishing;
+  - progress lists posing as results;
+  - stale companion data (#598).
+
+  Each fix was small once found. Stop gates before editing; a run that overlaps edits proves nothing.
+- **Keep a scan's finished list apart from its progress list.** `discoveredDevices` is presentation (progress snapshots drop cached flags; a stopped scan leaves its partial list). Anything that persists presence or confirms identity reads `completedScanDevices`, set only with `lastScanDate`.
+- **Blake's rule for devices without a MAC (2026-11-24):** an address alone never identifies a device; it needs agreeing names (both missing agree). `PresenceMatch` holds it for the reconciler and detail's list entry; the Mac still differs (#596).
+
 ## 2026-11-24 — Mac answers model requests for the iPhone (#457)
 - **Add companion message types behind an advertised capability, not a protocol bump.** An unknown `type` already fails to decode and is dropped without closing the link (the Mac replies `DECODE_ERROR`), but old builds still shouldn't receive new types. The Mac lists `insight.v1` in the optional `HeartbeatPayload.capabilities`, and the phone sends only to a Mac that listed it. Heartbeats suit this: the Mac sends one on connect and in reply to every phone heartbeat.
 - **On iOS, the `ToolInsightCard` identifier hid its button's.** The tree showed a Button with identifier `portScanner_insight_card`, so `*_insight_button_explain` was never found. `.accessibilityElement(children: .contain)` before the card's identifier fixed it, as on macOS (#449).

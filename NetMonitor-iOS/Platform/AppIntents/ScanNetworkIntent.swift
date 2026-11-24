@@ -11,8 +11,9 @@ struct ScanNetworkIntent: AppIntent {
     )
 
     func perform() async throws -> some IntentResult & ReturnsValue<Int> & ProvidesDialog {
-        let service = await MainActor.run { DeviceDiscoveryService.shared }
-        await service.scanNetwork(subnet: nil)
+        // The current network, so the devices are saved and listed under its ID (#582).
+        let (service, network) = await MainActor.run { (DeviceDiscoveryService.shared, CurrentNetwork.detected()) }
+        await service.scanNetwork(profile: network)
         let count = await MainActor.run { service.discoveredDevices.count }
 
         let dialog: IntentDialog = count == 1

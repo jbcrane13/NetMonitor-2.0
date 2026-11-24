@@ -191,6 +191,11 @@ struct MacConnectionServiceTests {
         #expect(service.lastDeviceList?.devices.count == 1)
         #expect(service.lastDeviceList?.devices.first?.ipAddress == "192.168.1.100")
         #expect(service.lastDeviceList?.devices.first?.hostname == "test-host")
+        // #598: the list is fresh evidence only over the link it arrived on.
+        #expect(service.lastDeviceListReceivedAt != nil)
+        service.dropLinkForTesting()
+        #expect(service.lastDeviceListReceivedAt == nil)
+        #expect(service.lastDeviceList?.devices.count == 1)
     }
 
     @Test("reconnect policy uses capped exponential backoff")

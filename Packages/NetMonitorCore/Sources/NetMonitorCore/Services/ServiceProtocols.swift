@@ -156,10 +156,20 @@ public protocol DeviceDiscoveryServiceProtocol: AnyObject, Sendable {
     @MainActor var scanProgress: Double { get }
     @MainActor var scanPhase: ScanDisplayPhase { get }
     @MainActor var lastScanDate: Date? { get }
+    /// The devices of the last scan that ran to the end (the one `lastScanDate` names), with their
+    /// cached flags. Unlike `discoveredDevices`, never a running or stopped scan's partial list:
+    /// what is saved as presence and what confirms a device's address (#582, #589).
+    @MainActor var completedScanDevices: [DiscoveredDevice] { get }
     @MainActor func cachedDevices(for profile: NetworkProfile?) -> [DiscoveredDevice]
     func scanNetwork(subnet: String?) async
     func scanNetwork(profile: NetworkProfile?) async
     @MainActor func stopScan()
+}
+
+@MainActor
+public extension DeviceDiscoveryServiceProtocol {
+    /// For a conformer whose list only ever holds finished scans (test and UI-test doubles).
+    var completedScanDevices: [DiscoveredDevice] { discoveredDevices }
 }
 
 /// Protocol for default gateway detection.
@@ -515,6 +525,9 @@ public enum MacConnectionState: Sendable, Equatable {
 public protocol MacConnectionServiceProtocol: AnyObject {
     var connectionState: MacConnectionState { get }
     var lastDeviceList: DeviceListPayload? { get }
+    /// When `lastDeviceList` arrived over the current link; nil once that link drops, by any path
+    /// (#598). An older list is not evidence of presence now.
+    var lastDeviceListReceivedAt: Date? { get }
     /// The name of the currently connected Mac (nil when not connected).
     var connectedMacName: String? { get }
     /// Whether the service is currently browsing for Macs.
@@ -522,6 +535,11 @@ public protocol MacConnectionServiceProtocol: AnyObject {
     /// Macs discovered on the local network (visible for UI pairing).
     var discoveredMacs: [DiscoveredMac] { get }
     func send(command: CommandPayload) async
+}
+
+public extension MacConnectionServiceProtocol {
+    /// For a conformer that doesn't track it: its list is never fresh.
+    var lastDeviceListReceivedAt: Date? { nil }
 }
 
 /// Minimal representation of a discovered Mac peer on the LAN.

@@ -71,16 +71,20 @@ final class ScheduledScanViewModel {
     // MARK: - Dependencies
 
     private let scheduler: any ScanSchedulerServiceProtocol
+    /// The network a scan started here is about (#582).
+    private let currentNetwork: @MainActor () -> NetworkProfile?
     private let discovery: any DeviceDiscoveryServiceProtocol
 
     // MARK: - Init
 
     init(
         scheduler: any ScanSchedulerServiceProtocol = ScanSchedulerService.shared,
-        discovery: any DeviceDiscoveryServiceProtocol = DeviceDiscoveryService.shared
+        discovery: any DeviceDiscoveryServiceProtocol = DeviceDiscoveryService.shared,
+        currentNetwork: @escaping @MainActor () -> NetworkProfile? = { CurrentNetwork.detected() }
     ) {
         self.scheduler = scheduler
         self.discovery = discovery
+        self.currentNetwork = currentNetwork
 
         let intervalRaw = UserDefaults.standard.integer(forKey: Keys.interval)
         selectedInterval = ScanInterval(rawValue: intervalRaw) ?? .oneHour
@@ -100,7 +104,8 @@ final class ScheduledScanViewModel {
         errorMessage = nil
         defer { isScanning = false }
 
-        await discovery.scanNetwork(subnet: nil)
+        // The current network, so the devices are saved and listed under its ID (#582).
+        await discovery.scanNetwork(profile: currentNetwork())
         let devices = discovery.discoveredDevices
         let diff = scheduler.computeDiff(current: devices)
         lastDiff = diff

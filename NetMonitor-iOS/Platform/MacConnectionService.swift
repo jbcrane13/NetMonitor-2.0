@@ -37,6 +37,8 @@ final class MacConnectionService: MacConnectionServiceProtocol {
     private(set) var lastStatusUpdate: StatusUpdatePayload?
     private(set) var lastTargetList: TargetListPayload?
     private(set) var lastDeviceList: DeviceListPayload?
+    /// When `lastDeviceList` arrived over the current link; nil once the link drops (#598).
+    private(set) var lastDeviceListReceivedAt: Date?
 
     // MARK: - Private
 
@@ -194,12 +196,14 @@ final class MacConnectionService: MacConnectionServiceProtocol {
         lastDeviceList = nil
     }
 
-    /// Ends what a link carried: its heartbeat, the Mac's name, and the Mac's model, whose
-    /// requests in flight fail (#457). Every path that drops or replaces a link calls it.
+    /// Ends what a link carried: its heartbeat, the Mac's name, the freshness of its device list
+    /// (#598), and the Mac's model, whose requests in flight fail (#457). Every path that drops or replaces a link calls it.
     private func tearDownLink() {
         heartbeatTask?.cancel()
         heartbeatTask = nil
         connectedMacName = nil
+        // The Mac's device list stays for display, but is no longer evidence of presence (#598).
+        lastDeviceListReceivedAt = nil
         insightClient.disconnected()
     }
 
@@ -323,6 +327,7 @@ final class MacConnectionService: MacConnectionServiceProtocol {
             lastTargetList = payload
         case .deviceList(let payload):
             lastDeviceList = payload
+            lastDeviceListReceivedAt = Date()
         case .networkProfile(let payload):
             Self.logger.info("Received network profile from Mac")
             let companionName = payload.sourceDeviceName.map { "\($0) Network" } ?? payload.name
@@ -480,6 +485,12 @@ extension MacConnectionService {
     /// Exposes the delegated link session state for tests, proving MacConnectionService keeps
     /// no parallel copy of liveness/reconnect state.
     var linkSessionForTesting: CompanionLinkSession { linkSession }
+
+    /// Drops the link as every disconnect path does (a failure, the Mac closing it, a cancel, the
+    /// user disconnecting), without a real connection.
+    func dropLinkForTesting() {
+        tearDownLink()
+    }
 
     func processIncomingDataForTesting(_ data: Data) async {
         let batch = await frameDecoder.append(data)

@@ -282,7 +282,7 @@ struct DeviceDetailViewModelTests {
 extension DeviceDetailViewModelTests {
     // MARK: - #463: the row is found by device match within its network
 
-    private func scanned(_ ip: String, mac: String?, network: UUID, hostname: String? = nil) -> DiscoveredDevice {
+    func scanned(_ ip: String, mac: String?, network: UUID, hostname: String? = nil) -> DiscoveredDevice {
         DiscoveredDevice(
             ipAddress: ip, hostname: hostname, vendor: nil, macAddress: mac,
             latency: nil, discoveredAt: Date(), source: .local, networkProfileID: network
@@ -432,7 +432,7 @@ extension DeviceDetailViewModelTests {
         #expect(try context.fetch(FetchDescriptor<LocalDevice>()).count == 1)
     }
 
-    private func makeViewModel(
+    func makeViewModel(
         macLookupService: any MACVendorLookupServiceProtocol = MockMACVendorLookupService(vendor: nil),
         nameResolver: any DeviceNameResolverProtocol = MockDeviceNameResolver(hostname: nil),
         portScanner: any PortScannerServiceProtocol = MockPortScannerService(),
@@ -609,7 +609,7 @@ extension DeviceDetailViewModelTests {
         DiscoveredDevice(ipAddress: ip, hostname: "livingroom-tv", vendor: nil, macAddress: nil, latency: nil, discoveredAt: Date(), source: .local)
     }
 
-    private func makeInMemoryStore() throws -> (ModelContainer, ModelContext) {
+    func makeInMemoryStore() throws -> (ModelContainer, ModelContext) {
         let schema = Schema([
             LocalDevice.self,
             MonitoringTarget.self,
@@ -620,33 +620,5 @@ extension DeviceDetailViewModelTests {
         let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
         let container = try ModelContainer(for: schema, configurations: [config])
         return (container, container.mainContext)
-    }
-}
-
-private final class MockMACVendorLookupService: MACVendorLookupServiceProtocol, @unchecked Sendable {
-    private let vendor: String?
-    private(set) var lookupCallCount = 0
-
-    init(vendor: String?) {
-        self.vendor = vendor
-    }
-
-    func lookup(macAddress: String) async -> String? {
-        lookupCallCount += 1
-        return vendor
-    }
-}
-
-private final class MockDeviceNameResolver: DeviceNameResolverProtocol, @unchecked Sendable {
-    private let hostname: String?
-    private(set) var resolveCallCount = 0
-
-    init(hostname: String?) {
-        self.hostname = hostname
-    }
-
-    func resolve(ipAddress: String) async -> String? {
-        resolveCallCount += 1
-        return hostname
     }
 }

@@ -16,6 +16,9 @@ enum AppDestination: Hashable {
     /// `networkID` and `macAddress` describe the tapped device as the list showed it, so detail
     /// opens that network's saved row even for a cached result (#463).
     case deviceDetail(ipAddress: String, networkID: UUID?, macAddress: String?)
+    /// A link that carries `LocalDevice.id` (#584): opens that saved row even after DHCP gave
+    /// its address to another device.
+    case savedDevice(id: UUID)
     case ping(host: String)
     case portScanner(host: String)
     case dnsLookup(domain: String)
@@ -32,6 +35,8 @@ private struct AppDestinationModifier: ViewModifier {
             switch destination {
             case .deviceDetail(let ip, let networkID, let mac):
                 DeviceDetailView(ipAddress: ip, networkID: networkID, macAddress: mac)
+            case .savedDevice(let id):
+                DeviceDetailView(deviceID: id)
             case .ping(let host):
                 PingToolView(initialHost: host)
             case .portScanner(let host):
