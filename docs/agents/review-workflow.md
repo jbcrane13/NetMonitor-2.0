@@ -83,7 +83,7 @@ Done when: no thread is unresolved and no CI failure is new.
 
 ## 6. Merge
 
-1. When `main` has moved since the PR's base, merge it onto current `main` locally and build both app test targets first. Two PRs merged one after the other broke `main` twice in November 2026: once on a protocol requirement, once on a dropped `UITestBootstrap` block.
+1. When `main` has moved since the PR's base, merge it onto current `main` locally and build both app test targets first. If the PRs merged since the base touched the same modules or shared files as this PR, also run the affected test suites on the combined code. Two PRs merged one after the other broke `main` twice in November 2026: once on a protocol requirement, once on a dropped `UITestBootstrap` block.
 2. Squash-merge, then confirm each issue the PR closes (`Closes #n`) is closed. An issue the PR only partly delivers (`Part of #n`) stays open.
 3. Retire the worker's pane and worktree, and delete the branch. Keep the `pr-evidence/*` branches: the PR bodies link to their screenshots.
 
