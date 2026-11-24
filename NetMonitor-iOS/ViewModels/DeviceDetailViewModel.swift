@@ -87,6 +87,7 @@ final class DeviceDetailViewModel {
             macAddress: scanned?.macAddress ?? macAddress,
             networkID: network,
             scan: live.filter { $0.networkProfileID == network },
+            scanTime: deviceDiscoveryService.lastScanDate ?? Date(),
             in: context
         )
         // The scan knows more than a fresh row: merge its maker, model and friendly name by
@@ -184,7 +185,8 @@ final class DeviceDetailViewModel {
     /// rotation) among the rows of the device's network (#463), so two networks that use the
     /// same addresses keep separate rows. `scan` is every device the latest scan saw on that
     /// network; the match needs them all so it never hands one device's row to another, such
-    /// as a newcomer at the old address of a device that moved. A row saved before rows had a
+    /// as a newcomer at the old address of a device that moved. `scanTime` is when that scan
+    /// finished: the match judges "seen within grace" against it. A row saved before rows had a
     /// network (every detail row before #463) is adopted by the first network it's opened on.
     static func savedRow(
         ipAddress: String,
@@ -192,6 +194,7 @@ final class DeviceDetailViewModel {
         macAddress: String? = nil,
         networkID: UUID?,
         scan: [DiscoveredDevice],
+        scanTime: Date = Date(),
         in context: ModelContext
     ) -> LocalDevice {
         let rows = ((try? context.fetch(FetchDescriptor<LocalDevice>())) ?? []).sorted { $0.lastSeen > $1.lastSeen }
@@ -223,7 +226,9 @@ final class DeviceDetailViewModel {
                 PresenceMatch.Known(DeviceMatchCandidate(ipAddress: $0.ipAddress, macAddress: $0.macAddress, name: $0.matchName),
                     lastSeen: $0.lastSeen)
             }
-            let assignment = PresenceMatch.assign(known: known, observed: observed, now: Date(), window: DeviceGracePolicy().interval)
+            // "Seen within grace" is judged at the scan's time, as the reconciler judged it, not
+            // when detail opens.
+            let assignment = PresenceMatch.assign(known: known, observed: observed, now: scanTime, window: DeviceGracePolicy().interval)
             guard let index = assignment[position] else { continue }
             let row = pool[index]
             if let mac = DeviceMatcher.normalizedMAC(observation.macAddress), DeviceMatcher.normalizedMAC(row.macAddress) != mac {

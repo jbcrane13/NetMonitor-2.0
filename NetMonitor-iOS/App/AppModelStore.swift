@@ -3,8 +3,9 @@ import NetMonitorCore
 import SwiftData
 
 /// The app's SwiftData store: one schema for every container the app opens, and the container the
-/// app built, so work outside a view (the background scan) writes through the app's own main context
-/// instead of a second container over the same file (#582).
+/// app built, so work outside a view (saving scanned devices) writes through the app's own container
+/// instead of a second one over the same file (#582). That work uses its own `ModelContext` on it,
+/// never the main context, whose unsaved edits (device detail's) it must not save or roll back.
 @MainActor
 enum AppModelStore {
     /// Every model the app saves.
@@ -23,18 +24,17 @@ enum AppModelStore {
     /// container is released crashes.
     private(set) static var fallbackContainer: ModelContainer?
 
-    /// The app's main context, or one on a container opened (once) and kept when the app's isn't
-    /// there yet.
-    static func mainContext(
+    /// The app's container, or one opened (once) and kept when the app's isn't there yet.
+    static func sharedContainer(
         open: () throws -> ModelContainer = { try ModelContainer(for: schema, configurations: [ModelConfiguration(schema: schema)]) }
-    ) -> ModelContext? {
+    ) -> ModelContainer? {
         if let container {
-            return container.mainContext
+            return container
         }
         if fallbackContainer == nil {
             fallbackContainer = try? open()
         }
-        return fallbackContainer?.mainContext
+        return fallbackContainer
     }
 
     #if DEBUG

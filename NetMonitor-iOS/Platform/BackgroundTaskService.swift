@@ -416,14 +416,18 @@ final class BackgroundTaskService {
 extension BackgroundTaskService {
     /// Puts a background scan into the saved device rows, as the foreground updater does, through
     /// the app's own container, so the next look at a device shows this scan. A device that carries
-    /// no network is `network`'s, detected when the scan started. The foreground updater skips the
-    /// same scan.
+    /// no network is `network`'s, the live network when the scan started; with none, nothing is
+    /// saved. The foreground updater skips the same scan.
     func reconcileSavedDevices(_ devices: [DiscoveredDevice], scanDate: Date, network: UUID?) {
-        guard let context = AppModelStore.mainContext() else {
+        guard let container = AppModelStore.sharedContainer() else {
             Self.logger.error("Failed to open the store to save scanned devices")
             return
         }
-        DeviceRecordUpdater.reconcile(devices, scanDate: scanDate, network: network, with: ScanReconciler(context: context), now: Date())
+        // Its own context on the app's container: a failed save rolls back only this scan, never
+        // device detail's unsaved edits in the main context.
+        DeviceRecordUpdater.reconcile(
+            devices, scanDate: scanDate, network: network, with: ScanReconciler(context: ModelContext(container)), now: Date()
+        )
     }
 }
 

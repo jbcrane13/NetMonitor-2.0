@@ -15,8 +15,10 @@ import NetworkScanKit
 ///   - the same name: the same device;
 ///   - a name unknown on either side (or both): the same device only if the row was seen at that
 ///     address within the grace window (it never left); otherwise a new row.
-///   When several rows qualify, the one seen most recently within the window is taken; if none was,
-///   a new row.
+///   When the device's name is known, a row with that name beats a nameless one at any age, the
+///   most recently seen of several (no new row), so a duplicate made while the name was missing
+///   heals. Recency only decides between rows when no name matches: the one seen there most
+///   recently within the window, else a new row.
 ///
 /// `DeviceMatcher` itself is unchanged: the Mac and the change detector share it.
 public enum PresenceMatch {
@@ -56,6 +58,21 @@ public enum PresenceMatch {
         return name
     }
 
+    /// The row a device without a MAC is, among rows at its address whose names don't differ.
+    /// When its name is known, a row with that name wins at any age (the most recently seen of
+    /// several), so a duplicate made while the name was missing heals once it's back. Otherwise
+    /// recency decides: the row seen there most recently within the window, else none.
+    private static func choose(among candidates: [Int], known: [Known], name: String?, now: Date, window: TimeInterval) -> Int? {
+        if named(name) != nil {
+            let sameName = candidates.filter { named(known[$0].candidate.name) != nil }
+            if let row = sameName.max(by: { known[$0].lastSeen < known[$1].lastSeen }) {
+                return row
+            }
+        }
+        return candidates.filter { isRecent(known[$0], now: now, window: window) }
+            .max { known[$0].lastSeen < known[$1].lastSeen }
+    }
+
     /// For each observation, the index of the known row it is, or nil for a new device. A known row
     /// goes to at most one observation.
     /// - Parameters:
@@ -85,18 +102,12 @@ public enum PresenceMatch {
             let candidates = known.indices.filter { row in
                 let mac = DeviceMatcher.normalizedMAC(known[row].candidate.macAddress)
                 return !taken.contains(row)
-                    && matchesByAddress(known[row], observation, now: now, window: window)
+                    && known[row].candidate.ipAddress == observation.ipAddress
+                    && !namesDiffer(known[row].candidate.name, observation.name)
                     // A row whose MAC answered elsewhere in this scan is that device.
                     && !(mac.map(observedMACs.contains) ?? false)
             }
-            let chosen: Int?
-            if candidates.count == 1 {
-                chosen = candidates[0]
-            } else {
-                // Several fit: the one seen here most recently within the window, else none.
-                chosen = candidates.filter { isRecent(known[$0], now: now, window: window) }
-                    .max { known[$0].lastSeen < known[$1].lastSeen }
-            }
+            let chosen = choose(among: candidates, known: known, name: observation.name, now: now, window: window)
             guard let row = chosen else { continue }
             result[index] = row
             taken.insert(row)

@@ -485,8 +485,8 @@ extension ScanReconcilerTests {
         #expect(try rows(context).count == 2)
     }
 
-    /// Several rows could take a device without a MAC: the one seen there most recently within the
-    /// grace window; with none within it, a new row.
+    /// Several nameless rows could take a nameless device without a MAC: the one seen there most
+    /// recently within the grace window; with none within it, a new row.
     @Test func severalFittingRowsGoToTheMostRecentWithinGraceElseANewRow() {
         let now = minutes(30)
         let older = PresenceMatch.Known(DeviceMatchCandidate(ipAddress: "192.168.7.40", macAddress: nil, name: nil), lastSeen: minutes(20))
@@ -495,11 +495,11 @@ extension ScanReconcilerTests {
         #expect(PresenceMatch.assign(known: [older, newer], observed: [nameless], now: now, window: 15 * 60) == [1])
 
         let stale = [
-            PresenceMatch.Known(DeviceMatchCandidate(ipAddress: "192.168.7.41", macAddress: nil, name: "nas"), lastSeen: start),
-            PresenceMatch.Known(DeviceMatchCandidate(ipAddress: "192.168.7.41", macAddress: nil, name: "nas"), lastSeen: minutes(1))
+            PresenceMatch.Known(DeviceMatchCandidate(ipAddress: "192.168.7.41", macAddress: nil, name: nil), lastSeen: start),
+            PresenceMatch.Known(DeviceMatchCandidate(ipAddress: "192.168.7.41", macAddress: nil, name: nil), lastSeen: minutes(1))
         ]
-        let nas = DeviceMatchCandidate(ipAddress: "192.168.7.41", macAddress: nil, name: "nas")
-        #expect(PresenceMatch.assign(known: stale, observed: [nas], now: now, window: 15 * 60) == [nil])
+        let unnamed = DeviceMatchCandidate(ipAddress: "192.168.7.41", macAddress: nil, name: nil)
+        #expect(PresenceMatch.assign(known: stale, observed: [unnamed], now: now, window: 15 * 60) == [nil])
     }
 
     /// DHCP gave Alice's phone's address to Bob's TV. Neither reads a MAC.
@@ -618,5 +618,29 @@ extension ScanReconcilerTests {
         #expect(saved.count == 1)
         #expect(saved[0].ipAddress == "192.168.7.24")
         #expect(saved[0].lastSeen == minutes(10))
+    }
+
+    /// (C) A nameless return makes a second row; when the name comes back, the named row is
+    /// chosen, at any age, over the recent nameless one.
+    @Test func aNamedRowWinsOnceTheNameIsBack() throws {
+        let (container, context) = try makeContext()
+        _ = container
+        let reconciler = try makeReconciler(context)
+        try reconciler.reconcile([device(ip: "192.168.7.50", mac: nil, name: "nas")], networkProfileID: home, scanDate: start, now: start)
+        let nas = try #require(try rows(context).first)
+        try reconciler.reconcile([device(ip: "192.168.7.50", mac: nil, name: nil)], networkProfileID: home, scanDate: minutes(40), now: minutes(40))
+        #expect(try rows(context).count == 2)
+        try reconciler.reconcile([device(ip: "192.168.7.50", mac: nil, name: "nas")], networkProfileID: home, scanDate: minutes(50), now: minutes(50))
+        #expect(try rows(context).count == 2)
+        #expect(nas.lastSeen == minutes(50))
+    }
+
+    /// (C) Two stale rows named "nas": the most recently seen is taken, and no third row is made.
+    @Test func ofTwoStaleRowsWithTheNameTheMostRecentIsTaken() {
+        let older = PresenceMatch.Known(DeviceMatchCandidate(ipAddress: "192.168.7.41", macAddress: nil, name: "nas"), lastSeen: start)
+        let newer = PresenceMatch.Known(DeviceMatchCandidate(ipAddress: "192.168.7.41", macAddress: nil, name: "nas"), lastSeen: minutes(1))
+        let nameless = PresenceMatch.Known(DeviceMatchCandidate(ipAddress: "192.168.7.41", macAddress: nil, name: nil), lastSeen: minutes(299))
+        let nas = DeviceMatchCandidate(ipAddress: "192.168.7.41", macAddress: nil, name: "nas")
+        #expect(PresenceMatch.assign(known: [older, newer, nameless], observed: [nas], now: minutes(300), window: 15 * 60) == [1])
     }
 }

@@ -510,11 +510,60 @@ extension DeviceRecordUpdaterTests {
             opened += 1
             return try ModelContainer(for: AppModelStore.schema, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
         }
-        let context = try #require(AppModelStore.mainContext(open: open))
+        let shared = try #require(AppModelStore.sharedContainer(open: open))
         #expect(AppModelStore.fallbackContainer != nil)
+        let context = ModelContext(shared)
         context.insert(LocalDevice(ipAddress: "192.168.9.80", macAddress: ""))
         try context.save()
-        _ = AppModelStore.mainContext(open: open)
+        _ = AppModelStore.sharedContainer(open: open)
         #expect(opened == 1)
+    }
+
+    // MARK: - Lead's verification of 7091a67f
+
+    /// (A) The reconciler saves through its own context on the shared container. A failed save rolls
+    /// back only the scan; device detail's unsaved row in the main context survives, and a
+    /// successful reconcile is visible to the main context.
+    @Test func aFailedReconcileLeavesDetailsUnsavedRowAlone() throws {
+        let (container, main) = try makeStore()
+        defer { withExtendedLifetime(container) {} }
+        let opened = LocalDevice(ipAddress: "192.168.9.90", macAddress: "AA:00:00:00:09:90", customName: "Opened in detail")
+        main.insert(opened)
+        let failing = try ScanReconciler(
+            context: ModelContext(container),
+            history: ScanHistory(defaults: #require(UserDefaults(suiteName: suiteName))),
+            save: { _ in throw SaveFailed() }
+        )
+        DeviceRecordUpdater.reconcile([device(0), device(1)], scanDate: start, network: home, with: failing, now: start)
+        #expect(main.hasChanges)
+        #expect(try main.fetch(FetchDescriptor<LocalDevice>()).map(\.customName) == ["Opened in detail"])
+
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        let working = ScanReconciler(context: ModelContext(container), history: ScanHistory(defaults: defaults))
+        DeviceRecordUpdater.reconcile([device(0), device(1)], scanDate: start, network: home, with: working, now: start)
+        let seen = try main.fetch(FetchDescriptor<LocalDevice>()).compactMap(\.hostname).sorted()
+        #expect(seen == ["host-0", "host-1"])
+        #expect(opened.customName == "Opened in detail")
+    }
+
+    /// (B) Detail judges "seen within grace" at the scan's time, not when it opens: opened 20
+    /// minutes after the scan, a nameless device without a MAC opens the row the scan saved.
+    @Test func detailOpenedLaterAfterTheScanStillOpensTheSavedRow() throws {
+        let (container, context) = try makeStore()
+        defer { withExtendedLifetime(container) {} }
+        let scanTime = Date().addingTimeInterval(-20 * 60)
+        let nameless = DiscoveredDevice(ipAddress: "192.168.9.95", hostname: nil, vendor: nil, macAddress: nil, latency: 2,
+                                        discoveredAt: scanTime, source: .local, networkProfileID: home)
+        try DeviceRecordUpdater.reconcile([nameless], scanDate: scanTime, network: home, with: makeReconciler(context), now: scanTime)
+        let saved = try #require(try rows(context).first)
+
+        let discovery = MockDeviceDiscoveryService()
+        discovery.discoveredDevices = [nameless]
+        discovery.lastScanDate = scanTime
+        let viewModel = DeviceDetailViewModel(deviceDiscoveryService: discovery)
+        viewModel.loadDevice(ipAddress: "192.168.9.95", networkID: home, context: context)
+
+        #expect(viewModel.device?.id == saved.id)
+        #expect(try rows(context).count == 1)
     }
 }

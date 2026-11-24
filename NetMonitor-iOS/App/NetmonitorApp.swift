@@ -96,7 +96,9 @@ struct NetmonitorApp: App {
         guard deviceRecordUpdater == nil else { return }
         let updater = DeviceRecordUpdater(
             discoveryService: environment.deviceDiscovery,
-            reconciler: ScanReconciler(context: sharedModelContainer.mainContext),
+            // Its own context on the app's container: a failed save rolls back only the scan, never
+            // device detail's unsaved edits in the main context, which sees the saved rows (#589).
+            reconciler: ScanReconciler(context: ModelContext(sharedModelContainer)),
             // Read only, and only a live network: a device without one is never filed under a
             // network the phone has left (#589).
             currentNetworkProfileID: { CurrentNetwork.detected()?.id },
