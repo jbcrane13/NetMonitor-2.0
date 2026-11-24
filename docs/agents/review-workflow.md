@@ -35,11 +35,12 @@ Use `pocock-github-workflow:pocock-code-review`. Start **two independent reviewe
 
 The lead reads both reports, makes each call, and sends one consolidated fix list to the worker.
 
-****Codex review (being adopted):**
+****Codex review:**
 - **`codex-review`** is the automatic check, hosted on mini-pro-1. It runs on every PR, and its findings are handled like any other review thread.
 - **`codex-adversarial-review`** is run on demand when a PR carries risk: concurrency, data integrity or migration, privacy or security, the companion protocol, or model output that the user sees as fact.
   - It accepts a text brief and needs one. Give it the PR's intent, Blake's recorded decisions, the accepted deviations and the risk areas to attack, the same context the spec reviewer gets.
   - `codex-review` takes no input; it reviews the diff as is.
+- **The gate runs everywhere.** The automated `codex-review` gate is installed for this repo and must be active in every worktree. A new worktree isn't ready for work until the gate is confirmed working there, alongside `scripts/setup-worktree.sh`.
 
 Neither replaces the two-axis review; they add to it.
 
