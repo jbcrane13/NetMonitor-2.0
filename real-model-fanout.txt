@@ -1,0 +1,39 @@
+available: true
+
+=== How has the latency of every device been today? Check each one.
+  calls: 8, outputs kept: 4
+    > 8 saved devices:
+      - id dev-a: Brother HL-L2350DW, printer, offline, last seen 2026-11-23 9:14 AM, address 192.168.1.57
+      - id dev-b: Synology DS920, storage, online, last seen 2026-11-23 12:00 PM, address 192.168.1.20
+      - id dev-c: Ring Doorbell, camera, online, last seen 2026-11-23 12:00 PM, address 192.168.1.88
+      - id dev-d: Nest Thermostat, iot, online, last seen 2026-11-23 12:00 PM, address 192.168.1.73
+      - id dev-e: Living Room Apple TV, tv, online, last seen 2026-11-23 12:00 PM, address 192.168.1.41
+      - id dev-f: Office MacBook, laptop, online, last seen 2026-11-23 11:40 AM, address 192.168.1.102
+      - id dev-g: ESP_3F21A9, unknown type, online, last seen 2026-11-23 12:00 PM, address 192.168.1.143
+      - id dev-h: Kitchen iPad, tablet, online, last seen 2026-11-23 12:00 PM, address 192.168.1.119
+    > Synology DS920, this session's latency samples (4): average 2 ms, highest 2 ms, lowest 2 ms. Latency spikes: 0. Went offline 0 times in the last 7 days (2026-11-17 to 2026-11-23). Lost pings are not recorded per device.
+    > Brother HL-L2350DW has no latency samples this session; its last reply took 6 ms. Went offline 1 time in the last 7 days (2026-11-17 to 2026-11-23). Lost pings are not recorded per device.
+    > Ring Doorbell, this session's latency samples (5): average 211 ms, highest 512 ms, lowest 43 ms. Latency spikes: 2. Went offline 2 times in the last 7 days (2026-11-17 to 2026-11-23). Lost pings are not recorded per device.
+  raw answer: <nil>
+  5.26 s
+  SHOWN: I couldn't look that up.  [grounded: false]
+  cites devices: ["Brother HL-L2350DW", "Synology DS920", "Ring Doorbell", "Nest Thermostat", "Living Room Apple TV", "Office MacBook", "ESP_3F21A9", "Kitchen iPad"] events: []
+
+=== Give me the status and latency history of every device.
+  calls: 8, outputs kept: 4
+    > 8 saved devices:
+      - id dev-a: Brother HL-L2350DW, printer, offline, last seen 2026-11-23 9:14 AM, address 192.168.1.57
+      - id dev-b: Synology DS920, storage, online, last seen 2026-11-23 12:00 PM, address 192.168.1.20
+      - id dev-c: Ring Doorbell, camera, online, last seen 2026-11-23 12:00 PM, address 192.168.1.88
+      - id dev-d: Nest Thermostat, iot, online, last seen 2026-11-23 12:00 PM, address 192.168.1.73
+      - id dev-e: Living Room Apple TV, tv, online, last seen 2026-11-23 12:00 PM, address 192.168.1.41
+      - id dev-f: Office MacBook, laptop, online, last seen 2026-11-23 11:40 AM, address 192.168.1.102
+      - id dev-g: ESP_3F21A9, unknown type, online, last seen 2026-11-23 12:00 PM, address 192.168.1.143
+      - id dev-h: Kitchen iPad, tablet, online, last seen 2026-11-23 12:00 PM, address 192.168.1.119
+    > Brother HL-L2350DW has no latency samples this session; its last reply took 6 ms. Went offline 1 time in the last 7 days (2026-11-17 to 2026-11-23). Lost pings are not recorded per device.
+    > Synology DS920 is online. Last seen 2026-11-23 12:00 PM. Address 192.168.1.20. Last reply 2 ms. Went offline 0 times in the last 7 days (2026-11-17 to 2026-11-23).
+    > Brother HL-L2350DW is offline. Last seen 2026-11-23 9:14 AM. Address 192.168.1.57. Last reply 6 ms. Went offline 1 time in the last 7 days (2026-11-17 to 2026-11-23).
+  raw answer: <nil>
+  6.05 s
+  SHOWN: I couldn't look that up.  [grounded: false]
+  cites devices: ["Brother HL-L2350DW", "Synology DS920", "Ring Doorbell", "Nest Thermostat", "Living Room Apple TV", "Office MacBook", "ESP_3F21A9", "Kitchen iPad"] events: []
