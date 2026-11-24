@@ -59,7 +59,7 @@ final class WHOISToolUITests: MacOSUITestCase {
         // Verify parsed result DATA renders — `whois_picker_viewmode` is gated
         // on `result != nil`, and `whois_section_parsed` is the parsed view
         // container. Either appearing proves the WHOIS service returned data.
-        let viewModePicker = app.segmentedControls["whois_picker_viewmode"]
+        let viewModePicker = ui("whois_picker_viewmode").firstMatch
         let parsedSection = app.descendants(matching: .any)["whois_section_parsed"]
         XCTAssertTrue(
             viewModePicker.waitForExistence(timeout: 35)
@@ -83,7 +83,7 @@ final class WHOISToolUITests: MacOSUITestCase {
         )
 
         // Verify that result-only elements go with it
-        let viewModePicker = app.segmentedControls["whois_picker_viewmode"]
+        let viewModePicker = ui("whois_picker_viewmode").firstMatch
         XCTAssertTrue(
             viewModePicker.exists,
             "View mode picker should be present alongside results"
