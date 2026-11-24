@@ -34,7 +34,8 @@ final class DeviceDetailViewModel {
         case savedAddress
         /// Where the latest scan saw the row's MAC, for a row opened by ID (#584).
         case scannedAddress(String)
-        /// Opened by ID and not in the latest scan: another device may hold the saved address.
+        /// Opened by ID and not confirmed by the latest scan (not in it, or no real MAC to confirm
+        /// it by): another device may hold the saved address.
         case unverified
     }
 
@@ -195,25 +196,24 @@ final class DeviceDetailViewModel {
         scan: [DiscoveredDevice],
         in context: ModelContext
     ) -> LocalDevice {
-        let rows = (try? context.fetch(FetchDescriptor<LocalDevice>())) ?? []
+        let rows = ((try? context.fetch(FetchDescriptor<LocalDevice>())) ?? []).sorted { $0.lastSeen > $1.lastSeen }
         let observation = DeviceMatchCandidate(ipAddress: ipAddress, macAddress: macAddress ?? scanned?.macAddress, name: scanned?.matchName)
-        let observed = scan.map { DeviceMatchCandidate(ipAddress: $0.ipAddress, macAddress: $0.macAddress, name: $0.matchName) }
+        var observed = scan.map { DeviceMatchCandidate(ipAddress: $0.ipAddress, macAddress: $0.macAddress, name: $0.matchName) }
+        let position = observed.firstIndex(of: observation) ?? {
+            observed.append(observation)
+            return observed.count - 1
+        }()
         var pools = [rows.filter { $0.networkProfileID == networkID }]
         if networkID != nil {
             pools.append(rows.filter { $0.networkProfileID == nil })
         }
         for pool in pools {
-            var matcher = DeviceMatcher(
-                known: pool.map { DeviceMatchCandidate(ipAddress: $0.ipAddress, macAddress: $0.macAddress, name: $0.matchName) },
-                observed: observed + [observation]
-            )
-            // The other devices in the scan claim their own rows first.
-            for other in observed where other != observation {
-                _ = matcher.match(other)
-            }
-            guard let match = matcher.match(observation) else { continue }
-            let row = pool[match.index]
-            if let mac = match.adoptedMAC {
+            // The rule scans save rows by (#582, `PresenceMatch`): the other devices in the scan
+            // claim their own rows first, and an address alone never opens a row whose name differs.
+            let known = pool.map { DeviceMatchCandidate(ipAddress: $0.ipAddress, macAddress: $0.macAddress, name: $0.matchName) }
+            guard let index = PresenceMatch.assign(known: known, observed: observed)[position] else { continue }
+            let row = pool[index]
+            if let mac = DeviceMatcher.normalizedMAC(observation.macAddress), DeviceMatcher.normalizedMAC(row.macAddress) != mac {
                 row.macAddress = mac
             }
             row.ipAddress = ipAddress
@@ -456,8 +456,9 @@ extension DeviceDetailViewModel {
     /// Loads the saved row with `id`, for links that carry `LocalDevice.id` (Ask citations, rule
     /// targets, Timeline events; #584). Never matches by IP: when DHCP gave the device's address
     /// to another device, the link still opens this one. The latest scan's identity is merged only
-    /// from the scanned device with the row's MAC, and DNS is asked for a name only at the address
-    /// that device was scanned at. A row that no longer exists loads nothing.
+    /// from the one device that answered the latest scan with the row's real MAC, and DNS is asked
+    /// for a name only at the address that device answered from. A row that no longer exists loads
+    /// nothing.
     func loadDevice(id: UUID, context: ModelContext) {
         suggestionTask?.cancel()
         suggestionTask = nil
@@ -466,16 +467,18 @@ extension DeviceDetailViewModel {
         var descriptor = FetchDescriptor<LocalDevice>(predicate: #Predicate { $0.id == id })
         descriptor.fetchLimit = 1
         device = (try? context.fetch(descriptor))?.first
-        // A row without a MAC is known by its address alone.
-        nameLookup = .savedAddress
-        defer { startSuggestion() }
-        guard let device, !device.macAddress.isEmpty else { return }
+        // No name is looked up at an address unless the latest scan confirms the device is there:
+        // DHCP may have given the saved address to another device.
         nameLookup = .unverified
-        let scanned = Self.liveScan(deviceDiscoveryService).first { scanned in
-            scanned.networkProfileID == device.networkProfileID
-                && scanned.macAddress?.caseInsensitiveCompare(device.macAddress) == .orderedSame
+        defer { startSuggestion() }
+        guard let device, let mac = DeviceMatcher.normalizedMAC(device.macAddress) else { return }
+        // Only a device that answered the latest scan with this real MAC, and only one: a
+        // placeholder MAC or a cached sighting proves nothing about who has the address now.
+        let confirmed = Self.liveScan(deviceDiscoveryService).filter { scanned in
+            !scanned.isCached && scanned.networkProfileID == device.networkProfileID
+                && DeviceMatcher.normalizedMAC(scanned.macAddress) == mac
         }
-        if let scanned {
+        if confirmed.count == 1, let scanned = confirmed.first {
             nameLookup = .scannedAddress(scanned.ipAddress)
             Self.adopt(scanned, into: device)
         }

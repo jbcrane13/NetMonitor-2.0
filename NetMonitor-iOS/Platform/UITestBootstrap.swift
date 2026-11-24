@@ -58,7 +58,9 @@ enum UITestBootstrap {
             AppSettings.Keys.webBrowserRecentURLs,
             "targetManager_savedTargets",
             "netmonitor.networkProfiles",
-            "netmonitor.deviceSuggestions"
+            "netmonitor.deviceSuggestions",
+            // Saved devices' missed-scan counts (#582); the store is in memory under UI tests.
+            ScanHistory.storageKey
         ]
 
         for key in keysToClear {
@@ -493,8 +495,13 @@ extension UITestBootstrap {
     static let scanClockStart = Calendar.current.date(from: DateComponents(year: 2026, month: 11, day: 20, hour: 8))!
     private static var scanClockTicks = 0
 
-    /// With `UITEST_SCAN_DROP_LAST=1`: scans after the first no longer find uitest-device-4.
+    /// With `UITEST_SCAN_DROP_LAST=1`: scans after the first no longer find uitest-device-4. Always
+    /// false in release builds.
     static var dropsLastDeviceAfterFirstScan: Bool {
+        #if DEBUG
         isUITesting && ProcessInfo.processInfo.environment["UITEST_SCAN_DROP_LAST"] == "1"
+        #else
+        false
+        #endif
     }
 }

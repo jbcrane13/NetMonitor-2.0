@@ -1,6 +1,7 @@
 import Foundation
 import NetworkScanKit
 import SwiftData
+import os
 
 /// One network's recent reconciled scans (#582), kept in UserDefaults so the grace policy can
 /// count the scans a device missed without a field on `LocalDevice`.
@@ -12,7 +13,8 @@ public struct ScanHistory {
         let reconciled: Date
     }
 
-    static let storageKey = "scanReconcilerHistory"
+    /// The UserDefaults key; cleared with the saved devices and by UI-test resets.
+    public static let storageKey = "scanReconcilerHistory"
     /// Scans kept per network: more than any grace policy counts.
     static let limit = 20
 
@@ -27,15 +29,24 @@ public struct ScanHistory {
         (load()[Self.key(network)] ?? []).map(\.reconciled)
     }
 
-    /// Records a scan; false when that scan was already recorded.
-    func record(scan: Date, reconciled: Date, for network: UUID?) -> Bool {
+    /// Whether the network's history has this scan.
+    func contains(scan: Date, for network: UUID?) -> Bool {
+        (load()[Self.key(network)] ?? []).contains { $0.scan == scan }
+    }
+
+    /// Records a reconciled scan, once.
+    func record(scan: Date, reconciled: Date, for network: UUID?) {
         var all = load()
         var entries = all[Self.key(network)] ?? []
-        guard !entries.contains(where: { $0.scan == scan }) else { return false }
+        guard !entries.contains(where: { $0.scan == scan }) else { return }
         entries.append(Entry(scan: scan, reconciled: reconciled))
         all[Self.key(network)] = Array(entries.suffix(Self.limit))
         defaults.set(try? JSONEncoder().encode(all), forKey: Self.storageKey)
-        return true
+    }
+
+    /// Forgets every network's scans, as when the saved devices are deleted.
+    public func clearAll() {
+        defaults.removeObject(forKey: Self.storageKey)
     }
 
     private func load() -> [String: [Entry]] {
@@ -53,90 +64,140 @@ public struct ScanHistory {
 /// Keeps the saved device rows current after a completed scan (#582), as the macOS
 /// `DeviceDiscoveryCoordinator` does after each of its scans.
 ///
-/// Every scanned device gets a row on the scanned network, found by the device match
-/// (`DeviceMatcher`: MAC, else IP) or created, with its identity merged through the identity seam
-/// (`mergeIdentity`, ranked). Devices that answered become online with `lastSeen` and latency
-/// set; a cached sighting (no answer this scan) becomes `.cached` and keeps its `lastSeen`.
-/// A row the scan didn't find goes offline only under `DeviceGracePolicy`: it missed at least
-/// `missedScans` recorded scans and `interval` has passed since it was last seen.
-///
-/// Rows still of unknown type get one from `DeviceTypeInferenceService`, as the Mac does.
-/// A row saved before rows carried a network is adopted by a scanned device with the same MAC.
-/// One that only shares the device's address is left for device detail to adopt when the user
-/// opens the device, and the scan saves no second row for it, which would hide its name and notes.
-/// A MAC seen at two addresses (the ARP cache still lists the old one) is one device, at the
-/// address it answered from.
-/// An empty scan says nothing and changes nothing. Reconciling a scan already reconciled (the
-/// foreground observer and a background task both seeing it) changes nothing.
+/// - **Which row:** `PresenceMatch`, shared with device detail. A MAC identifies a device; an
+///   address identifies one only together with agreeing names (Blake's rule for devices without
+///   a MAC), so DHCP reuse makes a new row rather than moving a name or notes onto another device.
+///   A MAC seen at two addresses (the ARP cache still lists the old one) is one device, at the
+///   address it answered from.
+/// - **Answered:** the row (found or created, with identity merged through `mergeIdentity`) is
+///   online, `lastSeen` is now, latency is recorded, and an unknown type is inferred as on the Mac.
+/// - **Cached sighting** (listed by the ARP cache, no answer): it claims its row, so no duplicate is
+///   made, but it is a miss: the row is not updated, an offline row stays offline, and a row created
+///   from one keeps the sighting's own time as `lastSeen`.
+/// - **Offline:** a row on this network that didn't answer goes offline only under
+///   `DeviceGracePolicy`: it missed at least `missedScans` scans (this one included) and `interval`
+///   passed since it was last seen. A scan in which nothing answered, or an empty one, is no
+///   evidence of anything (the phone is likely off this network) and changes nothing.
+/// - **Rows saved without a network** (before rows had one) are adopted only by an identical, real
+///   MAC that one such row has. One at the device's address without a MAC whose name agrees is left
+///   for device detail to adopt when opened; the scan makes no second row that would hide its notes.
+/// - **Writes:** rows are saved first and the scan is recorded in `ScanHistory` only after the save
+///   succeeds, so a failed fetch or save throws and the same scan can be reconciled again; a scan
+///   already recorded is skipped. UserDefaults and SwiftData can't share a transaction, so a crash
+///   between the two reapplies the scan, which changes nothing new.
 @MainActor
 public struct ScanReconciler {
+    public enum Outcome: Equatable, Sendable {
+        case applied
+        /// Already reconciled, empty, or nothing answered.
+        case skipped
+    }
+
+    private static let logger = Logger(subsystem: "com.netmonitor", category: "ScanReconciler")
+
     private let context: ModelContext
     private let history: ScanHistory
     private let policy: DeviceGracePolicy
+    private let save: @MainActor (ModelContext) throws -> Void
 
-    public init(context: ModelContext, history: ScanHistory = ScanHistory(), policy: DeviceGracePolicy = DeviceGracePolicy()) {
+    /// - Parameter save: how rows are saved; tests make it fail.
+    public init(
+        context: ModelContext,
+        history: ScanHistory = ScanHistory(),
+        policy: DeviceGracePolicy = DeviceGracePolicy(),
+        save: @escaping @MainActor (ModelContext) throws -> Void = { try $0.save() }
+    ) {
         self.context = context
         self.history = history
         self.policy = policy
+        self.save = save
     }
 
-    /// Reconciles `scan`, finished at `scanDate`, into `networkProfileID`'s rows.
-    public func reconcile(_ scan: [DiscoveredDevice], networkProfileID: UUID?, scanDate: Date, now: Date = Date()) {
-        guard !scan.isEmpty, history.record(scan: scanDate, reconciled: now, for: networkProfileID) else { return }
+    /// Reconciles `scan`, finished at `scanDate`, into `networkProfileID`'s rows. Throws when the
+    /// rows can't be read or saved; the scan is then not recorded, so it can be tried again.
+    @discardableResult
+    public func reconcile(_ scan: [DiscoveredDevice], networkProfileID: UUID?, scanDate: Date, now: Date = Date()) throws -> Outcome {
         let scan = Self.onePerMAC(scan)
-        let all = (try? context.fetch(FetchDescriptor<LocalDevice>())) ?? []
-        var rows = all.filter { $0.networkProfileID == networkProfileID }
-        let unassigned = networkProfileID == nil ? [] : all.filter { $0.networkProfileID == nil }
-        var matcher = DeviceMatcher(known: rows.map(Self.candidate), observed: scan.map(Self.candidate))
-        var legacy = DeviceMatcher(known: unassigned.map(Self.candidate), observed: scan.map(Self.candidate))
-        var claimed = Set<UUID>()
+        guard scan.contains(where: { !$0.isCached }), !history.contains(scan: scanDate, for: networkProfileID) else { return .skipped }
+        do {
+            try apply(scan, networkProfileID: networkProfileID, now: now)
+            try save(context)
+        } catch {
+            Self.logger.error("Saving a scan's devices failed: \(error.localizedDescription, privacy: .public)")
+            throw error
+        }
+        history.record(scan: scanDate, reconciled: now, for: networkProfileID)
+        return .applied
+    }
 
-        // Devices with a MAC claim their rows first, so a newcomer without one can't take the
-        // row of a device that moved to another address in the same scan.
-        for device in scan.sorted(by: { Self.hasMAC($0) && !Self.hasMAC($1) }) {
+    // MARK: - Applying
+
+    private func apply(_ scan: [DiscoveredDevice], networkProfileID: UUID?, now: Date) throws {
+        let all = try context.fetch(FetchDescriptor<LocalDevice>())
+        var rows = all.filter { $0.networkProfileID == networkProfileID }.sorted { $0.lastSeen > $1.lastSeen }
+        let unassigned = networkProfileID == nil ? [] : all.filter { $0.networkProfileID == nil }
+        let assignment = PresenceMatch.assign(known: rows.map(Self.candidate), observed: scan.map(Self.candidate))
+        var answered = Set<UUID>()
+        var adoptedLegacy = Set<UUID>()
+
+        for (index, device) in scan.enumerated() {
             let row: LocalDevice
-            if let match = matcher.match(Self.candidate(device)) {
-                row = rows[match.index]
-                if let mac = match.adoptedMAC {
-                    row.macAddress = mac
-                }
-            } else if let old = legacy.match(Self.candidate(device)).map({ unassigned[$0.index] }) {
-                // A row saved before rows carried a network. Only the same MAC proves it is this
-                // device; one that merely has the address waits for the user to open it.
-                guard let mac = DeviceMatcher.normalizedMAC(device.macAddress), mac == DeviceMatcher.normalizedMAC(old.macAddress)
-                else { continue }
-                row = old
+            if let known = assignment[index] {
+                row = rows[known]
+            } else if let legacy = Self.legacyRow(for: device, among: unassigned, excluding: adoptedLegacy) {
+                row = legacy
                 row.networkProfileID = networkProfileID
+                adoptedLegacy.insert(row.id)
                 rows.append(row)
-                matcher.add(Self.candidate(device))
+            } else if Self.isHeldForDetail(device, among: unassigned) {
+                continue
             } else {
-                row = LocalDevice(ipAddress: device.ipAddress, macAddress: device.macAddress ?? "", networkProfileID: networkProfileID)
+                row = LocalDevice(ipAddress: device.ipAddress, macAddress: "", networkProfileID: networkProfileID)
                 context.insert(row)
                 rows.append(row)
-                matcher.add(Self.candidate(device))
+                if device.isCached {
+                    // Not seen now: last seen when the cache first had it.
+                    Self.fill(row, from: device)
+                    row.status = .cached
+                    row.lastSeen = min(device.discoveredAt, now)
+                    continue
+                }
             }
-            claimed.insert(row.id)
-            apply(device, to: row, now: now)
+            guard !device.isCached else {
+                // A miss that keeps the row from being duplicated; the grace pass below decides.
+                if row.status != .offline {
+                    row.status = .cached
+                }
+                continue
+            }
+            Self.fill(row, from: device)
+            if let latency = device.latency {
+                row.updateLatency(latency)
+            }
+            row.status = .online
+            row.lastSeen = now
+            answered.insert(row.id)
         }
 
         // Rows of unknown type get one from what the scan knows, as on the Mac, so "the printer"
         // names a scanned printer (#571).
         let inference = DeviceTypeInferenceService()
-        for row in rows where claimed.contains(row.id) && row.deviceType == .unknown {
+        for row in rows where answered.contains(row.id) && row.deviceType == .unknown {
             row.deviceType = inference.inferDeviceType(for: row)
         }
 
-        let scans = history.reconciledTimes(for: networkProfileID)
-        for row in rows where !claimed.contains(row.id) && row.status != .offline {
-            let missed = scans.count { $0 > row.lastSeen }
+        let earlier = history.reconciledTimes(for: networkProfileID)
+        for row in rows where !answered.contains(row.id) && row.status != .offline {
+            // This scan counts as a miss too; it is recorded once the rows are saved.
+            let missed = earlier.count { $0 > row.lastSeen } + 1
             if missed >= policy.missedScans, now.timeIntervalSince(row.lastSeen) >= policy.interval {
                 row.status = .offline
             }
         }
-        try? context.save()
     }
 
-    private func apply(_ device: DiscoveredDevice, to row: LocalDevice, now: Date) {
+    /// What an answering device tells its row: address, names, MAC, identity, ports.
+    private static func fill(_ row: LocalDevice, from device: DiscoveredDevice) {
         row.ipAddress = device.ipAddress
         if let hostname = device.hostname, !hostname.isEmpty {
             row.hostname = hostname
@@ -144,25 +205,34 @@ public struct ScanReconciler {
         if let vendor = device.vendor, !vendor.isEmpty {
             row.vendor = vendor
         }
-        if row.macAddress.isEmpty, let mac = device.macAddress, Self.hasMAC(device) {
+        // A real MAC keys the row from now on: it became readable, or a private one rotated.
+        if let mac = DeviceMatcher.normalizedMAC(device.macAddress), DeviceMatcher.normalizedMAC(row.macAddress) != mac {
             row.macAddress = mac
         }
         row.mergeIdentity(device.identity)
         if let ports = device.openPorts, !ports.isEmpty {
             row.openPorts = Set(row.openPorts ?? []).union(ports).sorted()
         }
-        guard !device.isCached else {
-            row.status = .cached
-            return
-        }
-        if let latency = device.latency {
-            row.updateLatency(latency)
-        }
-        row.status = .online
-        row.lastSeen = now
     }
 
-    /// One observation per MAC, in scan order: the one that answered, else the first.
+    /// The one row saved without a network that has this device's real MAC; none when several do.
+    private static func legacyRow(for device: DiscoveredDevice, among unassigned: [LocalDevice], excluding adopted: Set<UUID>) -> LocalDevice? {
+        guard let mac = DeviceMatcher.normalizedMAC(device.macAddress) else { return nil }
+        let matches = unassigned.filter { !adopted.contains($0.id) && DeviceMatcher.normalizedMAC($0.macAddress) == mac }
+        return matches.count == 1 ? matches[0] : nil
+    }
+
+    /// A device without a MAC at the address of a row saved without a network and without a MAC,
+    /// whose name agrees: device detail adopts that row when opened.
+    private static func isHeldForDetail(_ device: DiscoveredDevice, among unassigned: [LocalDevice]) -> Bool {
+        guard DeviceMatcher.normalizedMAC(device.macAddress) == nil else { return false }
+        return unassigned.contains { row in
+            DeviceMatcher.normalizedMAC(row.macAddress) == nil && row.ipAddress == device.ipAddress
+                && PresenceMatch.namesAgree(row.matchName, device.matchName)
+        }
+    }
+
+    /// One observation per real MAC, in scan order: the one that answered, else the first.
     private static func onePerMAC(_ scan: [DiscoveredDevice]) -> [DiscoveredDevice] {
         var indexByMAC: [String: Int] = [:]
         var kept: [DiscoveredDevice] = []
@@ -181,10 +251,6 @@ public struct ScanReconciler {
             }
         }
         return kept
-    }
-
-    private static func hasMAC(_ device: DiscoveredDevice) -> Bool {
-        !(device.macAddress ?? "").isEmpty
     }
 
     private static func candidate(_ row: LocalDevice) -> DeviceMatchCandidate {

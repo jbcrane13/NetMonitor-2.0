@@ -9,9 +9,15 @@ import NetworkScanKit
 /// Every finished iOS scan updates the saved device rows (#582), driven by a fake discovery service.
 @Suite("DeviceRecordUpdater", .serialized)
 @MainActor
-struct DeviceRecordUpdaterTests {
+final class DeviceRecordUpdaterTests {
     let home = UUID()
     let start = Date(timeIntervalSince1970: 1_800_000_000)
+    /// This test's own defaults suite for the scan history, removed when the test ends.
+    nonisolated let suiteName = "DeviceRecordUpdaterTests.\(UUID().uuidString)"
+
+    deinit {
+        UserDefaults(suiteName: suiteName)?.removePersistentDomain(forName: suiteName)
+    }
 
     final class Clock {
         var now: Date
@@ -31,11 +37,20 @@ struct DeviceRecordUpdaterTests {
         )
     }
 
-    func makeUpdater(_ discovery: MockDeviceDiscoveryService, _ context: ModelContext, clock: Clock) -> DeviceRecordUpdater {
-        let defaults = UserDefaults(suiteName: "DeviceRecordUpdaterTests.\(UUID().uuidString)") ?? .standard
-        return DeviceRecordUpdater(
+    func makeReconciler(
+        _ context: ModelContext,
+        save: @escaping @MainActor (ModelContext) throws -> Void = { try $0.save() }
+    ) throws -> ScanReconciler {
+        try ScanReconciler(context: context, history: ScanHistory(defaults: #require(UserDefaults(suiteName: suiteName))), save: save)
+    }
+
+    func makeUpdater(
+        _ discovery: MockDeviceDiscoveryService, _ context: ModelContext, clock: Clock,
+        save: @escaping @MainActor (ModelContext) throws -> Void = { try $0.save() }
+    ) throws -> DeviceRecordUpdater {
+        try DeviceRecordUpdater(
             discoveryService: discovery,
-            reconciler: ScanReconciler(context: context, history: ScanHistory(defaults: defaults)),
+            reconciler: makeReconciler(context, save: save),
             currentNetworkProfileID: { nil },
             clock: { clock.now }
         )
@@ -60,7 +75,7 @@ struct DeviceRecordUpdaterTests {
         defer { withExtendedLifetime(container) {} }
         let discovery = MockDeviceDiscoveryService()
         let clock = Clock(start)
-        let updater = makeUpdater(discovery, context, clock: clock)
+        let updater = try makeUpdater(discovery, context, clock: clock)
 
         finishScan([device(0), device(1), device(2)], on: discovery, updater: updater, clock: clock)
 
@@ -75,7 +90,7 @@ struct DeviceRecordUpdaterTests {
         defer { withExtendedLifetime(container) {} }
         let discovery = MockDeviceDiscoveryService()
         let clock = Clock(start)
-        let updater = makeUpdater(discovery, context, clock: clock)
+        let updater = try makeUpdater(discovery, context, clock: clock)
         finishScan([device(0), device(1)], on: discovery, updater: updater, clock: clock)
 
         for minutes in [10.0, 20, 30] {
@@ -107,7 +122,7 @@ struct DeviceRecordUpdaterTests {
         defer { withExtendedLifetime(container) {} }
         let discovery = MockDeviceDiscoveryService()
         let clock = Clock(start)
-        let updater = makeUpdater(discovery, context, clock: clock)
+        let updater = try makeUpdater(discovery, context, clock: clock)
         finishScan([device(0)], on: discovery, updater: updater, clock: clock)
         clock.now = start.addingTimeInterval(600)
         updater.handleScanChange()
@@ -121,7 +136,7 @@ struct DeviceRecordUpdaterTests {
         defer { withExtendedLifetime(container) {} }
         let discovery = MockDeviceDiscoveryService()
         let clock = Clock(start)
-        let updater = makeUpdater(discovery, context, clock: clock)
+        let updater = try makeUpdater(discovery, context, clock: clock)
         finishScan([device(0)], on: discovery, updater: updater, clock: clock)
 
         clock.now = start.addingTimeInterval(1800)
@@ -150,7 +165,7 @@ struct DeviceRecordUpdaterTests {
             ipAddress: "192.168.9.10", hostname: nil, vendor: nil, macAddress: nil,
             latency: 5, discoveredAt: start, source: .local, networkProfileID: home
         )
-        finishScan([seen, device(1)], on: discovery, updater: makeUpdater(discovery, context, clock: clock), clock: clock)
+        try finishScan([seen, device(1)], on: discovery, updater: makeUpdater(discovery, context, clock: clock), clock: clock)
 
         let opened = DeviceDetailViewModel.savedRow(
             ipAddress: "192.168.9.10", scanned: seen, networkID: home, scan: discovery.discoveredDevices, in: context
@@ -167,11 +182,137 @@ struct DeviceRecordUpdaterTests {
         let (container, context) = try makeStore()
         defer { withExtendedLifetime(container) {} }
         let discovery = MockDeviceDiscoveryService()
-        let updater = makeUpdater(discovery, context, clock: Clock(start))
+        let updater = try makeUpdater(discovery, context, clock: Clock(start))
         discovery.isScanning = true
         discovery.discoveredDevices = [device(0)]
         discovery.lastScanDate = start
         updater.handleScanChange()
+        #expect(try rows(context).isEmpty)
+    }
+
+    // MARK: - Review blockers (#589)
+
+    struct SaveFailed: Error {}
+
+    final class Flag {
+        var failing = true
+    }
+
+    @Test func aScanWhoseSaveFailedIsSavedAtTheNextChange() throws {
+        let (container, context) = try makeStore()
+        defer { withExtendedLifetime(container) {} }
+        let discovery = MockDeviceDiscoveryService()
+        let clock = Clock(start)
+        let flag = Flag()
+        let updater = try makeUpdater(discovery, context, clock: clock) { context in
+            if flag.failing {
+                throw SaveFailed()
+            }
+            try context.save()
+        }
+        finishScan([device(0), device(1)], on: discovery, updater: updater, clock: clock)
+        flag.failing = false
+        // Nothing new was scanned; the failed scan is tried again.
+        updater.handleScanChange()
+        let saved = try rows(context)
+        #expect(saved.count == 2)
+        #expect(saved.allSatisfy { $0.status == .online && $0.lastSeen == self.start })
+    }
+
+    /// The phone moved from home to the office; the background scan ran there.
+    @Test func aScanOfAnotherNetworkLeavesThisOnesRowsAlone() throws {
+        let (container, context) = try makeStore()
+        defer { withExtendedLifetime(container) {} }
+        let reconciler = try makeReconciler(context)
+        DeviceRecordUpdater.reconcile([device(0), device(1)], scanDate: start, network: home, with: reconciler, now: start)
+        let office = UUID()
+        let desk = DiscoveredDevice(
+            ipAddress: "10.1.0.5", hostname: "desk", vendor: nil, macAddress: "AA:00:00:00:10:05",
+            latency: 3, discoveredAt: start, source: .local
+        )
+        for minutes in [10.0, 20, 30, 40] {
+            let time = start.addingTimeInterval(minutes * 60)
+            DeviceRecordUpdater.reconcile([desk], scanDate: time, network: office, with: reconciler, now: time)
+        }
+        let saved = try rows(context)
+        let homeRows = saved.filter { $0.networkProfileID == home }
+        #expect(homeRows.count == 2)
+        #expect(homeRows.allSatisfy { $0.status == .online && $0.lastSeen == self.start })
+        #expect(saved.filter { $0.networkProfileID == office }.map(\.hostname) == ["desk"])
+    }
+
+    @Test func scansStartedWithoutANetworkScanTheCurrentOne() async {
+        let subnet = NetworkUtilities.IPv4Network(
+            networkAddress: 0xC0A8_0900, broadcastAddress: 0xC0A8_09FF, interfaceAddress: 0xC0A8_0902, netmask: 0xFFFF_FF00
+        )
+        let network = NetworkProfile(
+            id: home, interfaceName: "en0", ipAddress: "192.168.9.2", network: subnet, connectionType: .wifi, name: "Home",
+            gatewayIP: "192.168.9.1", subnet: "192.168.9.0/24", isLocal: true, discoveryMethod: .auto
+        )
+        let tools = MockDeviceDiscoveryService()
+        await ToolsViewModel(deviceDiscoveryService: tools, currentNetwork: { network }).runNetworkScan()
+        #expect(tools.lastScannedProfile?.id == home)
+        #expect(tools.lastScannedSubnet == nil)
+
+        let scheduled = MockDeviceDiscoveryService()
+        await ScheduledScanViewModel(discovery: scheduled, currentNetwork: { network }).runScanNow()
+        #expect(scheduled.lastScannedProfile?.id == home)
+    }
+
+    /// The list opens a scanned device with the network the scan stamped; detail finds the row the
+    /// scan saved instead of making a second one.
+    @Test func detailOpenedFromTheListFindsTheRowTheScanSaved() throws {
+        let (container, context) = try makeStore()
+        defer { withExtendedLifetime(container) {} }
+        let discovery = MockDeviceDiscoveryService()
+        let clock = Clock(start)
+        try finishScan([device(0), device(1)], on: discovery, updater: makeUpdater(discovery, context, clock: clock), clock: clock)
+        let saved = try rows(context)
+        let opened = DeviceDetailViewModel.savedRow(
+            ipAddress: "192.168.9.11", scanned: device(1), macAddress: device(1).macAddress, networkID: home,
+            scan: discovery.discoveredDevices, in: context
+        )
+        #expect(opened.id == saved[1].id)
+        #expect(try rows(context).count == 2)
+    }
+
+    /// DHCP gave Alice's phone's address to Bob's TV; neither reads a MAC. The scan saved Bob as a
+    /// new device, and the list opens Bob's row, leaving Alice's name and notes where they were.
+    @Test func afterDHCPReuseTheListOpensTheNewDevicesRow() throws {
+        let (container, context) = try makeStore()
+        defer { withExtendedLifetime(container) {} }
+        func phoneOrTV(_ name: String) -> DiscoveredDevice {
+            DiscoveredDevice(ipAddress: "192.168.9.20", hostname: name, vendor: nil, macAddress: nil, latency: 4,
+                             discoveredAt: start, source: .local, networkProfileID: home)
+        }
+        let reconciler = try makeReconciler(context)
+        DeviceRecordUpdater.reconcile([phoneOrTV("alice-iphone")], scanDate: start, network: home, with: reconciler, now: start)
+        let alice = try #require(try rows(context).first)
+        alice.notes = "Alice"
+        let later = start.addingTimeInterval(600)
+        DeviceRecordUpdater.reconcile([phoneOrTV("bob-tv")], scanDate: later, network: home, with: reconciler, now: later)
+
+        let opened = DeviceDetailViewModel.savedRow(
+            ipAddress: "192.168.9.20", scanned: phoneOrTV("bob-tv"), networkID: home, scan: [phoneOrTV("bob-tv")], in: context
+        )
+        #expect(opened.id != alice.id)
+        #expect(opened.hostname == "bob-tv")
+        #expect(alice.hostname == "alice-iphone")
+        #expect(alice.notes == "Alice")
+        #expect(try rows(context).count == 2)
+    }
+
+    @Test func deletingTheSavedDataForgetsTheScanHistory() async throws {
+        let (container, context) = try makeStore()
+        defer { withExtendedLifetime(container) {} }
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        let reconciler = ScanReconciler(context: context, history: ScanHistory(defaults: defaults))
+        DeviceRecordUpdater.reconcile([device(0)], scanDate: start, network: home, with: reconciler, now: start)
+        #expect(defaults.data(forKey: ScanHistory.storageKey) != nil)
+
+        await SettingsViewModel(scanHistory: ScanHistory(defaults: defaults)).clearAllCachedData(modelContext: context)
+
+        #expect(defaults.data(forKey: ScanHistory.storageKey) == nil)
         #expect(try rows(context).isEmpty)
     }
 }

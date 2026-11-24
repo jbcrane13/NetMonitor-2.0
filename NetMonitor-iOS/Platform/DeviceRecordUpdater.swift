@@ -2,6 +2,7 @@ import Foundation
 import NetMonitorCore
 import NetworkScanKit
 import SwiftData
+import os
 
 /// Keeps the saved device rows current on iPhone and iPad (#582): after every scan the app's
 /// discovery service finishes, the results go into the scanned network's `LocalDevice` rows
@@ -54,19 +55,32 @@ final class DeviceRecordUpdater {
     }
 
     /// Reconciles a scan that finished since the last check. `lastScanDate` moves only when a
-    /// scan runs to the end, so a stopped scan's partial list is never saved.
+    /// scan runs to the end, so a stopped scan's partial list is never saved. A scan whose rows
+    /// couldn't be saved is tried again at the next change.
     func handleScanChange() {
         let isScanning = discoveryService.isScanning
         defer { wasScanning = isScanning }
         guard !isScanning, let scanDate = discoveryService.lastScanDate, scanDate != handledScanDate else { return }
-        handledScanDate = scanDate
         let devices = discoveryService.discoveredDevices
-        Self.reconcile(devices, scanDate: scanDate, network: currentNetworkProfileID(), with: reconciler, now: clock())
+        if Self.reconcile(devices, scanDate: scanDate, network: currentNetworkProfileID(), with: reconciler, now: clock()) {
+            handledScanDate = scanDate
+        }
     }
 
-    /// Reconciles `devices` into the rows of the network they were scanned on, else `network`.
-    static func reconcile(_ devices: [DiscoveredDevice], scanDate: Date, network: UUID?, with reconciler: ScanReconciler, now: Date) {
-        let scanned = devices.first?.networkProfileID ?? network
-        reconciler.reconcile(devices, networkProfileID: scanned, scanDate: scanDate, now: now)
+    /// Reconciles `devices` into the rows of the network each was scanned on; a device that carries
+    /// no network is the current network's (`network`). False when saving failed (logged).
+    @discardableResult
+    static func reconcile(_ devices: [DiscoveredDevice], scanDate: Date, network: UUID?, with reconciler: ScanReconciler, now: Date) -> Bool {
+        let byNetwork = Dictionary(grouping: devices) { $0.networkProfileID ?? network }
+        var succeeded = true
+        for (scanned, devices) in byNetwork {
+            do {
+                try reconciler.reconcile(devices, networkProfileID: scanned, scanDate: scanDate, now: now)
+            } catch {
+                Logger.data.error("Saving scanned devices failed: \(error.localizedDescription, privacy: .public)")
+                succeeded = false
+            }
+        }
+        return succeeded
     }
 }

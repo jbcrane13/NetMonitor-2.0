@@ -12,6 +12,8 @@ final class ToolsViewModel {
     private(set) var currentPortScanResults: [PortScanResult] = []
     private(set) var lastGatewayResult: String?
 
+    /// The network a scan started here is about (#582).
+    private let currentNetwork: @MainActor () -> NetworkProfile?
     let pingService: any PingServiceProtocol
     let portScannerService: any PortScannerServiceProtocol
     let dnsLookupService: any DNSLookupServiceProtocol
@@ -29,8 +31,10 @@ final class ToolsViewModel {
         deviceDiscoveryService: any DeviceDiscoveryServiceProtocol = DeviceDiscoveryService.shared,
         gatewayService: any GatewayServiceProtocol = GatewayService(),
         activityLog: ToolActivityLog = .shared,
-        reviewPrompt: ReviewPromptPolicy? = nil
+        reviewPrompt: ReviewPromptPolicy? = nil,
+        currentNetwork: @escaping @MainActor () -> NetworkProfile? = CurrentNetwork.detected
     ) {
+        self.currentNetwork = currentNetwork
         self.pingService = pingService
         self.portScannerService = portScannerService
         self.dnsLookupService = dnsLookupService
@@ -81,10 +85,8 @@ final class ToolsViewModel {
 
         let stream = await portScannerService.scan(host: host, ports: ports, timeout: 2)
 
-        for await result in stream {
-            if result.state == .open {
-                currentPortScanResults.append(result)
-            }
+        for await result in stream where result.state == .open {
+            currentPortScanResults.append(result)
         }
 
         let openCount = currentPortScanResults.count
@@ -136,7 +138,8 @@ final class ToolsViewModel {
     }
 
     func runNetworkScan() async {
-        await deviceDiscoveryService.scanNetwork(subnet: nil)
+        // The current network, so the devices are saved and listed under its ID (#582).
+        await deviceDiscoveryService.scanNetwork(profile: currentNetwork())
 
         addActivity(
             tool: "Network Scan",

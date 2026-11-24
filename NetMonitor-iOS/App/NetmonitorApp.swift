@@ -36,13 +36,7 @@ struct NetmonitorApp: App {
     }
 
     private static let persistenceOutcome: PersistenceBootstrapOutcome<ModelContainer> = {
-        let schema = Schema([
-            PairedMac.self,
-            LocalDevice.self,
-            MonitoringTarget.self,
-            ToolResult.self,
-            SpeedTestResult.self
-        ])
+        let schema = AppModelStore.schema
         let modelConfiguration = ModelConfiguration(
             schema: schema,
             isStoredInMemoryOnly: Self.isUITesting,
@@ -71,6 +65,8 @@ struct NetmonitorApp: App {
         // events are in place to migrate (#491).
         UITestBootstrap.prepareEventHistoryIfNeeded()
         _environment = State(initialValue: .live())
+        // Background work writes through this container's main context (#582).
+        AppModelStore.container = Self.persistenceOutcome.store
         guard !Self.isUITesting else {
             // Before any view loads, so the dashboard's first brief sees the seeded events.
             UITestBootstrap.seedEventsIfNeeded()
@@ -168,6 +164,9 @@ struct NetmonitorApp: App {
 
                     BackgroundTaskService.shared.scheduleRefreshTask()
                     BackgroundTaskService.shared.scheduleSyncTask()
+                    // The scheduled scan reschedules itself, but someone has to ask for the first
+                    // one (#582: background scans keep the saved devices current).
+                    BackgroundTaskService.shared.scheduleNetworkScanTask()
 
                     // Request notification authorization
                     Task {

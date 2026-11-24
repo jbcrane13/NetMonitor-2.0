@@ -385,7 +385,11 @@ final class BackgroundTaskService {
 
         Self.logger.debug("Starting network scan...")
         let scanBefore = DeviceDiscoveryService.shared.lastScanDate
-        await DeviceDiscoveryService.shared.scanNetwork(subnet: nil)
+        // The network this phone is on now, detected again: the saved local profile can still
+        // describe the network it left (a move from home to the office), and the scan's devices
+        // carry this network so they are saved as its devices.
+        let network = CurrentNetwork.detected()
+        await DeviceDiscoveryService.shared.scanNetwork(profile: network)
         guard !taskCancelled else {
             Self.logger.info("Task cancelled after network scan")
             return
@@ -395,7 +399,7 @@ final class BackgroundTaskService {
         Self.logger.info("Network scan found \(devices.count) device(s)")
         // Only a scan that finished during this task; `lastScanDate` moves when one does.
         if let scanDate = DeviceDiscoveryService.shared.lastScanDate, scanDate != scanBefore {
-            reconcileSavedDevices(devices, scanDate: scanDate)
+            reconcileSavedDevices(devices, scanDate: scanDate, network: network?.id)
         }
 
         let diff = ScanSchedulerService.shared.computeDiff(current: devices)
@@ -409,19 +413,16 @@ final class BackgroundTaskService {
 // MARK: - Saved devices (#582)
 
 extension BackgroundTaskService {
-    /// Puts a background scan into the saved device rows, as the foreground updater does, so the
-    /// next look at a device shows this scan. The foreground updater skips the same scan.
-    func reconcileSavedDevices(_ devices: [DiscoveredDevice], scanDate: Date) {
-        let schema = Schema([PairedMac.self, LocalDevice.self, MonitoringTarget.self, ToolResult.self, SpeedTestResult.self])
-        guard let container = try? ModelContainer(for: schema, configurations: [ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)])
-        else {
+    /// Puts a background scan into the saved device rows, as the foreground updater does, through
+    /// the app's own container, so the next look at a device shows this scan. A device that carries
+    /// no network is `network`'s, detected when the scan started. The foreground updater skips the
+    /// same scan.
+    func reconcileSavedDevices(_ devices: [DiscoveredDevice], scanDate: Date, network: UUID?) {
+        guard let context = AppModelStore.mainContext() else {
             Self.logger.error("Failed to open the store to save scanned devices")
             return
         }
-        DeviceRecordUpdater.reconcile(
-            devices, scanDate: scanDate, network: NetworkProfileManager.savedLocalProfile()?.id,
-            with: ScanReconciler(context: ModelContext(container)), now: Date()
-        )
+        DeviceRecordUpdater.reconcile(devices, scanDate: scanDate, network: network, with: ScanReconciler(context: context), now: Date())
     }
 }
 
@@ -479,10 +480,7 @@ extension BackgroundTaskService {
         let checkStartTime = Date()
 
         // Create a new ModelContainer for background context with full schema
-        let schema = Schema([
-            PairedMac.self, LocalDevice.self, MonitoringTarget.self,
-            ToolResult.self, SpeedTestResult.self
-        ])
+        let schema = AppModelStore.schema
         guard let modelContainer = try? ModelContainer(
             for: schema,
             configurations: [ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)]

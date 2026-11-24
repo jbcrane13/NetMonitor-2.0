@@ -361,6 +361,38 @@ extension DeviceDetailViewModelTests {
         #expect(nameResolver.resolvedAddresses == ["192.168.1.77"])
     }
 
+    /// Opened by ID, a row is named from an address only when the latest scan confirms its real MAC
+    /// there: never for a row without one, never from a cached sighting.
+    @Test func aLinkByIDLooksUpANameOnlyWhereTheScanConfirmsTheDevice() async throws {
+        let (container, context) = try makeInMemoryStore()
+        defer { withExtendedLifetime(container) {} }
+        let home = UUID()
+        let noMAC = LocalDevice(ipAddress: "192.168.1.60", macAddress: "", networkProfileID: home)
+        let printer = LocalDevice(ipAddress: "192.168.1.50", macAddress: "3c-22-fb-00-00-50", networkProfileID: home)
+        context.insert(noMAC)
+        context.insert(printer)
+        let discovery = MockDeviceDiscoveryService()
+        discovery.discoveredDevices = [
+            scanned("192.168.1.60", mac: nil, network: home, hostname: "phone"),
+            scanned("192.168.1.50", mac: "3C:22:FB:00:00:50", network: home).withCached(true)
+        ]
+        let nameResolver = MockDeviceNameResolver(hostname: "phone.lan")
+        let viewModel = makeViewModel(nameResolver: nameResolver, deviceDiscoveryService: discovery)
+
+        viewModel.loadDevice(id: noMAC.id, context: context)
+        await viewModel.enrichDevice(bonjourServices: [])
+        viewModel.loadDevice(id: printer.id, context: context)
+        await viewModel.enrichDevice(bonjourServices: [])
+        #expect(nameResolver.resolveCallCount == 0)
+        #expect(noMAC.resolvedHostname == nil)
+
+        // It answers now, with its MAC written another way.
+        discovery.discoveredDevices = [scanned("192.168.1.51", mac: "3C:22:FB:00:00:50", network: home)]
+        viewModel.loadDevice(id: printer.id, context: context)
+        await viewModel.enrichDevice(bonjourServices: [])
+        #expect(nameResolver.resolvedAddresses == ["192.168.1.51"])
+    }
+
     @Test func aLinkToADeletedRowFindsNothing() throws {
         let (container, context) = try makeInMemoryStore()
         defer { withExtendedLifetime(container) {} }
@@ -703,35 +735,5 @@ extension DeviceDetailViewModelTests {
         let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
         let container = try ModelContainer(for: schema, configurations: [config])
         return (container, container.mainContext)
-    }
-}
-
-private final class MockMACVendorLookupService: MACVendorLookupServiceProtocol, @unchecked Sendable {
-    private let vendor: String?
-    private(set) var lookupCallCount = 0
-
-    init(vendor: String?) {
-        self.vendor = vendor
-    }
-
-    func lookup(macAddress: String) async -> String? {
-        lookupCallCount += 1
-        return vendor
-    }
-}
-
-private final class MockDeviceNameResolver: DeviceNameResolverProtocol, @unchecked Sendable {
-    private let hostname: String?
-    private(set) var resolveCallCount = 0
-    private(set) var resolvedAddresses: [String] = []
-
-    init(hostname: String?) {
-        self.hostname = hostname
-    }
-
-    func resolve(ipAddress: String) async -> String? {
-        resolveCallCount += 1
-        resolvedAddresses.append(ipAddress)
-        return hostname
     }
 }
