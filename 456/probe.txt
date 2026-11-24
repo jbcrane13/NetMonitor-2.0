@@ -1,0 +1,22 @@
+model available: true
+prewarm: 28.46 s
+
+== model
+[confusable] 1.68 s  OCR: AeroLink Wireless Router | Model: RT-AX58B0 | S/N: 8B0DI15S0072 | MAC: D0:8B:0D:B8:51:E5 | Wi-Fi Name: AeroLink-51E5 | Power: 12V 2.0A Made in Taiwan
+   isLabel=true maker=AeroLink ✓  model=RT-AX58B0 ✓  serial=8B0DI15S0072 ✗  mac=D0:8B:0D:B8:51:E5 ✓  generated=["mac", "maker", "model", "serial"]
+[clean] 1.29 s  OCR: Northwind Networks | Model: NW-AC1200 | S/N: NW12K4471093 | МАС: 00:1Е:42:7A:9C:31 | Default Wi-Fi: Northwind-9C31 | Input: 12V 1.5A
+   isLabel=true maker=Northwind Networks ✓  model=NW-AC1200 ✓  serial=NW12K4471093 ✓  mac=00:1E:42:7A:9C:31 ✓  generated=["mac", "maker", "model", "serial"]
+[printer-rotated] 1.18 s  OCR: Inkwell Office Printer | Model No. IW-4410DN | Serial No.: E78123K5N4 | MAC Address 3C2AF4A1B2C3 | Made in Vietnam | 100-240V
+   isLabel=true maker=Inkwell ✓  model=IW-4410DN ✓  serial=E78123K5N4 ✓  mac=3C:2A:F4:A1:B2:C3 ✓  generated=["mac", "maker", "model", "serial"]
+[not-a-label] 0.74 s  OCR: Shopping list | milk | eggs | coffee beans | call the plumber
+   isLabel=false maker=— ✓  model=— ✓  serial=— ✓  mac=— ✓  generated=[]
+
+== no-model
+[confusable] 0.04 s  OCR: AeroLink Wireless Router | Model: RT-AX58B0 | S/N: 8B0DI15S0072 | MAC: D0:8B:0D:B8:51:E5 | Wi-Fi Name: AeroLink-51E5 | Power: 12V 2.0A Made in Taiwan
+   isLabel=true maker=— ✗  model=— ✗  serial=8B0DI15S0072 ✗  mac=D0:8B:0D:B8:51:E5 ✓  generated=[]
+[clean] 0.04 s  OCR: Northwind Networks | Model: NW-AC1200 | S/N: NW12K4471093 | МАС: 00:1Е:42:7A:9C:31 | Default Wi-Fi: Northwind-9C31 | Input: 12V 1.5A
+   isLabel=true maker=— ✗  model=— ✗  serial=NW12K4471093 ✓  mac=00:1E:42:7A:9C:31 ✓  generated=[]
+[printer-rotated] 0.04 s  OCR: Inkwell Office Printer | Model No. IW-4410DN | Serial No.: E78123K5N4 | MAC Address 3C2AF4A1B2C3 | Made in Vietnam | 100-240V
+   isLabel=true maker=— ✗  model=— ✗  serial=E78123K5N4 ✓  mac=3C:2A:F4:A1:B2:C3 ✓  generated=[]
+[not-a-label] 0.04 s  OCR: Shopping list | milk | eggs | coffee beans | call the plumber
+   isLabel=true maker=— ✓  model=— ✓  serial=— ✓  mac=— ✓  generated=[]
