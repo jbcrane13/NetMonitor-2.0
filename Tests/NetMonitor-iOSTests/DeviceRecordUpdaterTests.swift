@@ -315,4 +315,37 @@ final class DeviceRecordUpdaterTests {
         #expect(defaults.data(forKey: ScanHistory.storageKey) == nil)
         #expect(try rows(context).isEmpty)
     }
+
+    /// Codex on #589: scan A's save fails; scan B starts, publishes part of its list and is stopped,
+    /// so `lastScanDate` still names A. The retry saves A's own devices, not B's partial list.
+    @Test func aRetrySavesTheFailedScansOwnDevicesNotALaterPartialList() throws {
+        let (container, context) = try makeStore()
+        defer { withExtendedLifetime(container) {} }
+        let discovery = MockDeviceDiscoveryService()
+        let clock = Clock(start)
+        let flag = Flag()
+        let updater = try makeUpdater(discovery, context, clock: clock) { context in
+            if flag.failing {
+                throw SaveFailed()
+            }
+            try context.save()
+        }
+        finishScan([device(0)], on: discovery, updater: updater, clock: clock)
+
+        clock.now = start.addingTimeInterval(600)
+        discovery.isScanning = true
+        updater.handleScanChange()
+        let stranger = DiscoveredDevice(
+            ipAddress: "192.168.9.99", hostname: "partial", vendor: nil, macAddress: "AA:00:00:00:09:99",
+            latency: 1, discoveredAt: start, source: .local, networkProfileID: home
+        )
+        discovery.discoveredDevices = [stranger]
+        discovery.isScanning = false
+        flag.failing = false
+        updater.handleScanChange()
+
+        let saved = try rows(context)
+        #expect(saved.map(\.hostname) == ["host-0"])
+        #expect(saved.first?.lastSeen == start)
+    }
 }

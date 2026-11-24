@@ -17,8 +17,21 @@ final class DeviceRecordUpdater {
     private let currentNetworkProfileID: @MainActor () -> UUID?
     private let clock: @MainActor () -> Date
     private var wasScanning = false
-    private var handledScanDate: Date?
+    /// The last completed scan taken into `pending`.
+    private var capturedScanDate: Date?
+    /// Completed scans not saved yet, oldest first. Each is copied when it completes, so a retry
+    /// after a failed save uses that scan's devices, never a later scan's partial list (Codex
+    /// review on #589).
+    private var pending: [CompletedScan] = []
     private var task: Task<Void, Never>?
+
+    /// A completed scan as it was when it finished.
+    private struct CompletedScan {
+        let date: Date
+        let devices: [DiscoveredDevice]
+        let network: UUID?
+        let reconciledAt: Date
+    }
 
     init(
         discoveryService: any DeviceDiscoveryServiceProtocol,
@@ -36,7 +49,7 @@ final class DeviceRecordUpdater {
         task?.cancel()
         wasScanning = discoveryService.isScanning
         // A scan that finished before the app started watching was never reconciled.
-        handledScanDate = nil
+        capturedScanDate = nil
         task = Task { [weak self] in
             while !Task.isCancelled {
                 guard let self else { return }
@@ -54,16 +67,22 @@ final class DeviceRecordUpdater {
         }
     }
 
-    /// Reconciles a scan that finished since the last check. `lastScanDate` moves only when a
-    /// scan runs to the end, so a stopped scan's partial list is never saved. A scan whose rows
-    /// couldn't be saved is tried again at the next change.
+    /// Takes a scan that finished since the last check, then saves every completed scan not saved
+    /// yet, oldest first. `lastScanDate` moves only when a scan runs to the end, so a stopped scan's
+    /// partial list is never taken; while a scan runs, the list is that scan's, so nothing is taken.
+    /// A scan whose rows couldn't be saved stays pending and is tried again at the next change.
     func handleScanChange() {
         let isScanning = discoveryService.isScanning
         defer { wasScanning = isScanning }
-        guard !isScanning, let scanDate = discoveryService.lastScanDate, scanDate != handledScanDate else { return }
-        let devices = discoveryService.discoveredDevices
-        if Self.reconcile(devices, scanDate: scanDate, network: currentNetworkProfileID(), with: reconciler, now: clock()) {
-            handledScanDate = scanDate
+        if !isScanning, let scanDate = discoveryService.lastScanDate, scanDate != capturedScanDate {
+            capturedScanDate = scanDate
+            pending.append(CompletedScan(
+                date: scanDate, devices: discoveryService.discoveredDevices, network: currentNetworkProfileID(), reconciledAt: clock()
+            ))
+        }
+        while let scan = pending.first {
+            guard Self.reconcile(scan.devices, scanDate: scan.date, network: scan.network, with: reconciler, now: scan.reconciledAt) else { return }
+            pending.removeFirst()
         }
     }
 
