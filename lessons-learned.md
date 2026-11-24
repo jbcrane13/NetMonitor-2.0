@@ -125,3 +125,12 @@ Project-specific notes for agents. Global lessons live in `~/.claude/lessons-lea
 - **A `.sheet` on a `Section` inside an iOS `List` is applied to every row,** so it is dismissed as soon as a row changes. Present from the screen and pass a binding down.
 - **A `ModelContext` whose `ModelContainer` was released crashes the test host** ("Restarting after unexpected exit"). Have helpers return the container.
 - **macOS 27 stamps a card's identifier over its text field** (device detail's name field reads as `deviceDetail_card_header`). `axdrive typefield <id> <text>` types into the first text field that has the identifier or sits inside it.
+
+## 2026-11-24 — Ask your network (#452)
+- **The model copies examples out of tool guides and descriptions.** With "such as the printer" in `findDevices`' guide, it searched for "printer" when asked which devices were offline, twice. Keep device examples out of tool text; say "or all for every device".
+- **Enum names steer tool arguments.** Given event kinds `left` and `connectivity`, it filed "did anything go offline yesterday?" under connectivity; `deviceWentOffline` fixed it. With `today` listed first among ranges it picked today for "which devices have been flaky?"; listing `last7Days` first and saying "last7Days when they named none" fixed it.
+- **Numeric grounding doesn't catch an invented cause.** "The internet is slow because the Ring Doorbell had 2 latency spikes" passes every number check. The answer check rejects causal wording ("because", "due to"), and the instructions say the tools don't measure the internet.
+- **Give the model the fact it would otherwise invent.** Without a drop count, `deviceStatus` led to "it has not been offline recently" for a device that dropped twice; adding "Went offline N times in the last 7 days" made the answer correct.
+- **Check capitalised names case-sensitively.** "Office Printer is offline" passed when no device was found, because "printer" was in the question. Comparing capitalised words to the question and tool results with case kept catches it, and the real model still passed 11/11.
+- **Per-run letter handles (`dev-a`) instead of UUIDs.** They are short, the model copied them every time, and they add no digits that grounding would accept as numbers.
+- **On macOS a `static` used by a non-isolated enum** (`ToolCategory.tools`) must be `nonisolated` when it lives on a `@MainActor` view model.

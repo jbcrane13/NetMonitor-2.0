@@ -77,6 +77,12 @@ final class TimelineMacViewModel {
 struct TimelineView: View {
     @State private var viewModel = TimelineMacViewModel()
     @State private var isConfirmingClear = false
+    /// The day to scroll to when the list loads: an Ask citation's event (#452).
+    private let focusDay: Date?
+
+    init(focusDay: Date? = nil) {
+        self.focusDay = focusDay
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -84,17 +90,26 @@ struct TimelineView: View {
             Divider()
             if viewModel.hasEvents {
                 // List is lazy, so a 20,000-event log stays smooth (#491 D3).
-                List {
-                    ForEach(viewModel.groupedEvents, id: \.day) { group in
-                        Section(group.label) {
-                            ForEach(group.events) { event in
-                                MacTimelineRow(event: event)
-                                    .accessibilityIdentifier("timeline_event_\(event.id.uuidString)")
+                ScrollViewReader { proxy in
+                    List {
+                        ForEach(viewModel.groupedEvents, id: \.day) { group in
+                            Section(group.label) {
+                                ForEach(group.events) { event in
+                                    MacTimelineRow(event: event)
+                                        .accessibilityIdentifier("timeline_event_\(event.id.uuidString)")
+                                }
                             }
+                            .id(group.day)
+                        }
+                    }
+                    .listStyle(.inset)
+                    .task(id: viewModel.groupedEvents.count) {
+                        // The range is All on open, so the focused day's section is in the list.
+                        if let focusDay {
+                            proxy.scrollTo(Calendar.autoupdatingCurrent.startOfDay(for: focusDay), anchor: .top)
                         }
                     }
                 }
-                .listStyle(.inset)
                 .accessibilityIdentifier("timeline_list_events")
             } else {
                 ContentUnavailableView(

@@ -21,6 +21,7 @@ Network diagnostic tool views. Each tool has its own view and corresponding View
 | `WebBrowserToolView.swift` | Network-related web browsing with quick bookmarks |
 | `PortForwardsToolView.swift` | Read-only list of the router's UPnP port forwards (#400); state from Core `PortForwardsState`. Needs the multicast entitlement (#381) to find the router |
 | `TroubleshootToolView.swift` | Guided troubleshooter (#451); state from Core `TroubleshootState` via `TroubleshootToolViewModel`. UI tests: `UITEST_TROUBLESHOOT=answer|hold|unavailable` (`Shared/UITest/TroubleshootUITestFixture.swift`) |
+| `AskToolView.swift` | Ask your network (#452), in Monitoring and hidden without the model; state from Core `AskState` via `AskToolViewModel`. Device citations push `DeviceDetailView` with the row found by `LocalDevice.id`; event citations open `TimelineView(env:focusDay:)` in a sheet. UI tests: `UITEST_ASK=answer\|hold\|unavailable` (`Shared/UITest/AskUITestFixture.swift`) |
 
 ## For AI Agents
 
