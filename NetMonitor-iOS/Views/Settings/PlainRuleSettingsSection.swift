@@ -68,7 +68,12 @@ struct PlainRuleSettingsSection: View {
 
     private func parse() {
         Task {
-            await viewModel.submit(devices: devices, targets: targets, isScanning: env?.deviceDiscovery.isScanning ?? false)
+            await viewModel.submit(
+                devices: devices,
+                targets: targets,
+                networkID: env?.currentNetworkProfileID(),
+                isScanning: env?.deviceDiscovery.isScanning ?? false
+            )
         }
     }
 

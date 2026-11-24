@@ -24,7 +24,11 @@ final class PlainRuleIOSViewModel {
 
     var isAvailable: Bool { composer.isAvailable }
 
-    func submit(devices: [LocalDevice], targets: [MonitoringTarget], isScanning: Bool) async {
+    /// - Parameter networkID: the network the phone is on. Only its saved devices can be named: a
+    ///   device saved on another network has an address that means something else here. Nil when
+    ///   the network isn't known, which leaves every saved device in.
+    func submit(devices: [LocalDevice], targets: [MonitoringTarget], networkID: UUID?, isScanning: Bool) async {
+        let devices = networkID.map { id in devices.filter { $0.networkProfileID == id } } ?? devices
         await composer.submit(
             text,
             devices: devices.map(RuleDevice.init),

@@ -2,11 +2,12 @@ import XCTest
 
 /// #450: a rule typed in plain English in Settings › Monitoring Targets. The rule parser answers
 /// with the real model's recorded readings (`UITEST_INSIGHT=answer`), and a printer and a NAS
-/// are seeded on the UI-test network (`UITEST_SEED_RULE_DEVICES=1`).
+/// are seeded on the UI-test network (`UITEST_SEED_RULE_DEVICES=1`). `UITEST_FAKE_DEVICES=1`
+/// makes that the network the app is on: a rule can only name the current network's devices.
 @MainActor
 final class PlainRuleUITests: IOSUITestCase {
     override var additionalLaunchEnvironment: [String: String] {
-        ["UITEST_INSIGHT": "answer", "UITEST_SEED_RULE_DEVICES": "1"]
+        ["UITEST_INSIGHT": "answer", "UITEST_SEED_RULE_DEVICES": "1", "UITEST_FAKE_DEVICES": "1"]
     }
 
     private func ui(_ id: String) -> XCUIElement {
