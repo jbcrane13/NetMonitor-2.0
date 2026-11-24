@@ -51,8 +51,6 @@ public struct AskMention: Equatable, Sendable {
         let range: Range<String.Index>
     }
 
-    private static let fillerWords: Set<String> = ["the", "my", "our", "a", "an", "s", "device"]
-
     private static func words(in text: String) -> [Word] {
         var words: [Word] = []
         var index = text.startIndex
@@ -73,10 +71,10 @@ public struct AskMention: Equatable, Sendable {
     /// The span without filler words at either end, or nil when nothing is left.
     private static func trim(_ span: [Int], _ words: [Word]) -> [Int]? {
         var span = span
-        while let first = span.first, fillerWords.contains(words[first].text) {
+        while let first = span.first, DevicePhraseResolver.fillerWords.contains(words[first].text) {
             span.removeFirst()
         }
-        while let last = span.last, fillerWords.contains(words[last].text) {
+        while let last = span.last, DevicePhraseResolver.fillerWords.contains(words[last].text) {
             span.removeLast()
         }
         return span.isEmpty ? nil : span
