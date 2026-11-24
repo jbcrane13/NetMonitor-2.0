@@ -193,13 +193,13 @@ final class SettingsUITests: MacOSUITestCase {
     func testAppearanceSettingsControls() {
         app.staticTexts["settings_tab_appearance"].click()
 
-        requireExists(app.buttons["settings_color_cyan"], timeout: 3,
+        requireExists(app.buttons["appearance_button_colorcyan"], timeout: 3,
                       message: "Cyan color button should exist on Appearance tab")
-        XCTAssertTrue(app.buttons["settings_color_blue"].exists, "Blue color button should exist")
-        XCTAssertTrue(app.buttons["settings_color_purple"].exists, "Purple color button should exist")
-        XCTAssertTrue(app.buttons["settings_color_pink"].exists, "Pink color button should exist")
-        XCTAssertTrue(app.buttons["settings_color_green"].exists, "Green color button should exist")
-        XCTAssertTrue(app.buttons["settings_color_orange"].exists, "Orange color button should exist")
+        XCTAssertTrue(app.buttons["appearance_button_colorblue"].exists, "Blue color button should exist")
+        XCTAssertTrue(app.buttons["appearance_button_colorpurple"].exists, "Purple color button should exist")
+        XCTAssertTrue(app.buttons["appearance_button_colorpink"].exists, "Pink color button should exist")
+        XCTAssertTrue(app.buttons["appearance_button_colorgreen"].exists, "Green color button should exist")
+        XCTAssertTrue(app.buttons["appearance_button_colororange"].exists, "Orange color button should exist")
         XCTAssertTrue(app.checkBoxes["settings_toggle_compactMode"].exists,
                       "Compact mode checkbox should exist")
     }
@@ -208,13 +208,13 @@ final class SettingsUITests: MacOSUITestCase {
         app.staticTexts["settings_tab_appearance"].click()
 
         let cyanButton = requireExists(
-            app.buttons["settings_color_cyan"], timeout: 3,
+            app.buttons["appearance_button_colorcyan"], timeout: 3,
             message: "Cyan color button should exist on Appearance tab"
         )
         cyanButton.click()
         requireExists(cyanButton, message: "Cyan button should remain after selection")
 
-        let blueButton = app.buttons["settings_color_blue"]
+        let blueButton = app.buttons["appearance_button_colorblue"]
         if blueButton.waitForExistence(timeout: 2) {
             blueButton.click()
             requireExists(blueButton, message: "Blue button should remain after selection")
@@ -223,7 +223,7 @@ final class SettingsUITests: MacOSUITestCase {
 
     func testTabPersistenceAfterSwitch() {
         app.staticTexts["settings_tab_appearance"].click()
-        requireExists(app.buttons["settings_color_cyan"], timeout: 3,
+        requireExists(app.buttons["appearance_button_colorcyan"], timeout: 3,
                       message: "Cyan button should appear on Appearance tab")
 
         app.staticTexts["settings_tab_general"].click()
@@ -231,7 +231,7 @@ final class SettingsUITests: MacOSUITestCase {
                       message: "General tab controls should appear after switching")
 
         app.staticTexts["settings_tab_appearance"].click()
-        requireExists(app.buttons["settings_color_cyan"], timeout: 3,
+        requireExists(app.buttons["appearance_button_colorcyan"], timeout: 3,
                       message: "Cyan button should still be present after switching back to Appearance tab")
     }
 

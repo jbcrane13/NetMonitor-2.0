@@ -137,8 +137,8 @@ final class SettingsFunctionalUITests: MacOSUITestCase {
         tab.click()
 
         let hasControls = waitForEither([
-            app.buttons["settings_color_cyan"],
-            app.buttons["settings_color_blue"],
+            app.buttons["appearance_button_colorcyan"],
+            app.buttons["appearance_button_colorblue"],
             app.checkBoxes["settings_toggle_compactMode"]
         ], timeout: 5)
 
@@ -243,7 +243,7 @@ final class SettingsFunctionalUITests: MacOSUITestCase {
         app.staticTexts["settings_tab_appearance"].click()
 
         let cyanButton = requireExists(
-            app.buttons["settings_color_cyan"], timeout: 3,
+            app.buttons["appearance_button_colorcyan"], timeout: 3,
             message: "Cyan color button should exist"
         )
 
@@ -252,7 +252,7 @@ final class SettingsFunctionalUITests: MacOSUITestCase {
         XCTAssertTrue(cyanButton.exists, "Cyan button should still exist after color selection")
 
         // Click blue — verify selection changes
-        let blueButton = app.buttons["settings_color_blue"]
+        let blueButton = app.buttons["appearance_button_colorblue"]
         guard blueButton.waitForExistence(timeout: 3) else { return }
         blueButton.click()
 
@@ -266,7 +266,7 @@ final class SettingsFunctionalUITests: MacOSUITestCase {
         _ = app.checkBoxes["settings_toggle_launchAtLogin"].waitForExistence(timeout: 3)
         app.staticTexts["settings_tab_appearance"].click()
 
-        let blueButtonAfterReturn = app.buttons["settings_color_blue"]
+        let blueButtonAfterReturn = app.buttons["appearance_button_colorblue"]
         XCTAssertTrue(blueButtonAfterReturn.waitForExistence(timeout: 3),
                       "Blue color button should persist after tab round-trip")
 
