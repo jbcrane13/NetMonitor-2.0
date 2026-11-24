@@ -158,6 +158,8 @@ final class DeviceRecordUpdaterTests {
         defer { withExtendedLifetime(container) {} }
         let legacy = LocalDevice(ipAddress: "192.168.9.10", macAddress: "", customName: "NAS")
         legacy.notes = "Backups"
+        // Seen there a minute before this scan, so the address match may take it (#589).
+        legacy.lastSeen = start.addingTimeInterval(-60)
         context.insert(legacy)
         let discovery = MockDeviceDiscoveryService()
         let clock = Clock(start)
@@ -189,7 +191,11 @@ final class DeviceRecordUpdaterTests {
         updater.handleScanChange()
         #expect(try rows(context).isEmpty)
     }
+}
 
+// MARK: - Review findings on #589
+
+extension DeviceRecordUpdaterTests {
     // MARK: - Review blockers (#589)
 
     struct SaveFailed: Error {}
@@ -386,5 +392,129 @@ final class DeviceRecordUpdaterTests {
         discovery.lastScanDate = start
         updater.handleScanChange()
         #expect(try rows(context).map(\.hostname) == ["host-0"])
+    }
+
+    // MARK: - Lead's verification round (#589)
+
+    final class SaveCounter {
+        var failingDates: Set<Date> = []
+        var attempts = 0
+    }
+
+    /// One scan that can never be saved is tried a few times, then dropped; later scans are saved.
+    @Test func aScanThatNeverSavesIsDroppedAndLaterScansStillSave() throws {
+        let (container, context) = try makeStore()
+        defer { withExtendedLifetime(container) {} }
+        let discovery = MockDeviceDiscoveryService()
+        let clock = Clock(start)
+        let counter = SaveCounter()
+        let updater = try makeUpdater(discovery, context, clock: clock) { context in
+            counter.attempts += 1
+            if context.insertedModelsArray.contains(where: { ($0 as? LocalDevice)?.hostname == "host-0" }) {
+                throw SaveFailed()
+            }
+            try context.save()
+        }
+        finishScan([device(0)], on: discovery, updater: updater, clock: clock)
+        for _ in 1 ..< DeviceRecordUpdater.maxAttempts {
+            updater.handleScanChange()
+        }
+        #expect(counter.attempts == DeviceRecordUpdater.maxAttempts)
+        #expect(try rows(context).isEmpty)
+
+        clock.now = start.addingTimeInterval(600)
+        finishScan([device(1)], on: discovery, updater: updater, clock: clock)
+        #expect(try rows(context).map(\.hostname) == ["host-1"])
+    }
+
+    /// Scans keep finishing while saving fails: only the newest few wait.
+    @Test func atMostAFewScansWaitToBeSaved() throws {
+        let (container, context) = try makeStore()
+        defer { withExtendedLifetime(container) {} }
+        let discovery = MockDeviceDiscoveryService()
+        let clock = Clock(start)
+        let flag = Flag()
+        var saved: [Set<String>] = []
+        let updater = try makeUpdater(discovery, context, clock: clock) { context in
+            if flag.failing {
+                throw SaveFailed()
+            }
+            saved.append(Set(context.insertedModelsArray.compactMap { ($0 as? LocalDevice)?.hostname }))
+            try context.save()
+        }
+        for index in 0 ..< DeviceRecordUpdater.maxPending + 2 {
+            clock.now = start.addingTimeInterval(Double(index) * 600)
+            discovery.lastScanDate = clock.now
+            discovery.discoveredDevices = [DiscoveredDevice(
+                ipAddress: "192.168.9.\(50 + index)", hostname: "scan-\(index)", vendor: nil, macAddress: nil, latency: 1,
+                discoveredAt: start, source: .local, networkProfileID: home
+            )]
+            updater.handleScanChange()
+        }
+        flag.failing = false
+        updater.handleScanChange()
+        let names = try Set(rows(context).compactMap(\.hostname))
+        #expect(!names.contains("scan-0"))
+        #expect(names.contains("scan-\(DeviceRecordUpdater.maxPending + 1)"))
+        #expect(names.count <= DeviceRecordUpdater.maxPending)
+    }
+
+    /// Devices that carry no network, scanned with no live network: nothing is saved, on the
+    /// foreground and background path alike (both go through `reconcile`).
+    @Test func withoutALiveNetworkNothingIsSaved() throws {
+        let (container, context) = try makeStore()
+        defer { withExtendedLifetime(container) {} }
+        let unstamped = DiscoveredDevice(ipAddress: "192.168.9.70", hostname: "loose", vendor: nil, macAddress: "AA:00:00:00:09:70",
+                                         latency: 1, discoveredAt: start, source: .local)
+        let saved = try DeviceRecordUpdater.reconcile([unstamped], scanDate: start, network: nil, with: makeReconciler(context), now: start)
+        #expect(saved)
+        #expect(try rows(context).isEmpty)
+
+        let discovery = MockDeviceDiscoveryService()
+        let clock = Clock(start.addingTimeInterval(600))
+        try finishScan([unstamped], on: discovery, updater: makeUpdater(discovery, context, clock: clock), clock: clock)
+        #expect(try rows(context).isEmpty)
+    }
+
+    // MARK: - CurrentNetwork, AppModelStore
+
+    func profile(id: UUID, interface: String = "en0", subnet: String = "192.168.9.0/24") -> NetworkProfile {
+        let network = NetworkUtilities.IPv4Network(
+            networkAddress: 0xC0A8_0900, broadcastAddress: 0xC0A8_09FF, interfaceAddress: 0xC0A8_0902, netmask: 0xFFFF_FF00
+        )
+        return NetworkProfile(
+            id: id, interfaceName: interface, ipAddress: "192.168.9.2", network: network, connectionType: .wifi, name: "Net",
+            gatewayIP: "192.168.9.1", subnet: subnet, isLocal: true, discoveryMethod: .auto
+        )
+    }
+
+    @Test func theCurrentNetworkIsTheSavedOneOnlyWhileALiveInterfaceIsOnIt() {
+        let saved = profile(id: home)
+        #expect(CurrentNetwork.detected(active: { [self.profile(id: UUID())] }, saved: { saved })?.id == home)
+        // No live interface, or a live one on another subnet: no network, so nothing is filed.
+        #expect(CurrentNetwork.detected(active: { [] }, saved: { saved }) == nil)
+        #expect(CurrentNetwork.detected(active: { [self.profile(id: UUID(), subnet: "10.0.0.0/24")] }, saved: { saved }) == nil)
+        #expect(CurrentNetwork.detected(active: { [self.profile(id: UUID())] }, saved: { nil }) == nil)
+    }
+
+    @Test func theFallbackStoreIsKeptSoItsContextStaysUsable() throws {
+        let previous = AppModelStore.container
+        AppModelStore.container = nil
+        AppModelStore.resetFallbackForTesting()
+        defer {
+            AppModelStore.container = previous
+            AppModelStore.resetFallbackForTesting()
+        }
+        var opened = 0
+        let open = {
+            opened += 1
+            return try ModelContainer(for: AppModelStore.schema, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        }
+        let context = try #require(AppModelStore.mainContext(open: open))
+        #expect(AppModelStore.fallbackContainer != nil)
+        context.insert(LocalDevice(ipAddress: "192.168.9.80", macAddress: ""))
+        try context.save()
+        _ = AppModelStore.mainContext(open: open)
+        #expect(opened == 1)
     }
 }

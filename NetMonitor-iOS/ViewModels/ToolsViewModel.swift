@@ -32,7 +32,7 @@ final class ToolsViewModel {
         gatewayService: any GatewayServiceProtocol = GatewayService(),
         activityLog: ToolActivityLog = .shared,
         reviewPrompt: ReviewPromptPolicy? = nil,
-        currentNetwork: @escaping @MainActor () -> NetworkProfile? = CurrentNetwork.detected
+        currentNetwork: @escaping @MainActor () -> NetworkProfile? = { CurrentNetwork.detected() }
     ) {
         self.currentNetwork = currentNetwork
         self.pingService = pingService

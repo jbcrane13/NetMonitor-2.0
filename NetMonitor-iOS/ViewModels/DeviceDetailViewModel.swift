@@ -219,8 +219,12 @@ final class DeviceDetailViewModel {
         for pool in pools {
             // The rule scans save rows by (#582, `PresenceMatch`): the other devices in the scan
             // claim their own rows first, and an address alone never opens a row whose name differs.
-            let known = pool.map { DeviceMatchCandidate(ipAddress: $0.ipAddress, macAddress: $0.macAddress, name: $0.matchName) }
-            guard let index = PresenceMatch.assign(known: known, observed: observed)[position] else { continue }
+            let known = pool.map {
+                PresenceMatch.Known(DeviceMatchCandidate(ipAddress: $0.ipAddress, macAddress: $0.macAddress, name: $0.matchName),
+                    lastSeen: $0.lastSeen)
+            }
+            let assignment = PresenceMatch.assign(known: known, observed: observed, now: Date(), window: DeviceGracePolicy().interval)
+            guard let index = assignment[position] else { continue }
             let row = pool[index]
             if let mac = DeviceMatcher.normalizedMAC(observation.macAddress), DeviceMatcher.normalizedMAC(row.macAddress) != mac {
                 row.macAddress = mac

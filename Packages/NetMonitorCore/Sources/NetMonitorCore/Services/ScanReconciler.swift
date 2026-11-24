@@ -89,7 +89,8 @@ public struct ScanHistory {
 /// - **Order:** a scan older than one already recorded for the network is skipped, so a late retry
 ///   never puts older presence back over a newer scan.
 /// - **Writes:** rows are saved first and the scan is recorded in `ScanHistory` only after the save
-///   succeeds, so a failed fetch or save throws and the same scan can be reconciled again; a scan
+///   succeeds, so a failed fetch or save rolls the context back and throws, and the same scan can be
+///   reconciled again; a scan
 ///   already recorded is skipped. UserDefaults and SwiftData can't share a transaction, so a crash
 ///   between the two reapplies the scan, which changes nothing new.
 @MainActor
@@ -134,6 +135,8 @@ public struct ScanReconciler {
             try apply(scan, networkProfileID: networkProfileID, now: now)
             try save(context)
         } catch {
+            // Nothing half-applied stays in the context for the next save to write.
+            context.rollback()
             Self.logger.error("Saving a scan's devices failed: \(error.localizedDescription, privacy: .public)")
             throw error
         }
@@ -147,7 +150,10 @@ public struct ScanReconciler {
         let all = try context.fetch(FetchDescriptor<LocalDevice>())
         var rows = all.filter { $0.networkProfileID == networkProfileID }.sorted { $0.lastSeen > $1.lastSeen }
         let unassigned = networkProfileID == nil ? [] : all.filter { $0.networkProfileID == nil }
-        let assignment = PresenceMatch.assign(known: rows.map(Self.candidate), observed: scan.map(Self.candidate))
+        let assignment = PresenceMatch.assign(
+            known: rows.map { PresenceMatch.Known(Self.candidate($0), lastSeen: $0.lastSeen) },
+            observed: scan.map(Self.candidate), now: now, window: policy.interval
+        )
         var answered = Set<UUID>()
         var adoptedLegacy = Set<UUID>()
 
@@ -160,7 +166,7 @@ public struct ScanReconciler {
                 row.networkProfileID = networkProfileID
                 adoptedLegacy.insert(row.id)
                 rows.append(row)
-            } else if Self.isHeldForDetail(device, among: unassigned) {
+            } else if isHeldForDetail(device, among: unassigned, now: now) {
                 continue
             } else {
                 row = LocalDevice(ipAddress: device.ipAddress, macAddress: "", networkProfileID: networkProfileID)
@@ -233,13 +239,15 @@ public struct ScanReconciler {
         return matches.count == 1 ? matches[0] : nil
     }
 
-    /// A device without a MAC at the address of a row saved without a network and without a MAC,
-    /// whose name agrees: device detail adopts that row when opened.
-    private static func isHeldForDetail(_ device: DiscoveredDevice, among unassigned: [LocalDevice]) -> Bool {
+    /// A device without a MAC at the address of a row saved without a network and without a MAC
+    /// that the match by address would take: device detail adopts that row when opened.
+    private func isHeldForDetail(_ device: DiscoveredDevice, among unassigned: [LocalDevice], now: Date) -> Bool {
         guard DeviceMatcher.normalizedMAC(device.macAddress) == nil else { return false }
         return unassigned.contains { row in
-            DeviceMatcher.normalizedMAC(row.macAddress) == nil && row.ipAddress == device.ipAddress
-                && PresenceMatch.namesAgree(row.matchName, device.matchName)
+            DeviceMatcher.normalizedMAC(row.macAddress) == nil
+                && PresenceMatch.matchesByAddress(
+                    PresenceMatch.Known(Self.candidate(row), lastSeen: row.lastSeen), Self.candidate(device), now: now, window: policy.interval
+                )
         }
     }
 

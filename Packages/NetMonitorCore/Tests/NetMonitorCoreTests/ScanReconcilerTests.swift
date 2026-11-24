@@ -197,18 +197,17 @@ final class ScanReconcilerTests {
         #expect(old.deviceType == .printer)
     }
 
-    /// Most rows an older iPhone build saved have no network and no MAC. A scan must not save a
-    /// second row at that address: device detail would open it and hide the name and notes.
-    @Test func aScanLeavesAnAddressOnlyRowSavedWithoutANetworkForDetailToAdopt() throws {
+    /// Most rows an older iPhone build saved have no network and no MAC. One seen at the address
+    /// within the grace window is the same device: the scan leaves it for device detail to adopt
+    /// rather than saving a second row that would hide its name and notes.
+    @Test func aRecentAddressOnlyRowSavedWithoutANetworkIsLeftForDetailToAdopt() throws {
         let (container, context) = try makeContext()
         _ = container
         let nas = LocalDevice(ipAddress: "192.168.7.10", macAddress: "", customName: "NAS")
         nas.notes = "Backups"
+        nas.lastSeen = start.addingTimeInterval(-60)
         context.insert(nas)
-        let noMAC = DiscoveredDevice(
-            ipAddress: "192.168.7.10", hostname: nil, vendor: nil, macAddress: nil, latency: 4,
-            discoveredAt: start, source: .local, networkProfileID: home
-        )
+        let noMAC = device(ip: "192.168.7.10", mac: nil, name: nil)
         try makeReconciler(context).reconcile([noMAC, scanned(1)], networkProfileID: home, scanDate: start, now: start)
         let saved = try rows(context)
         #expect(saved.map(\.ipAddress) == ["192.168.7.10", "192.168.7.11"])
@@ -216,6 +215,23 @@ final class ScanReconcilerTests {
         #expect(saved[0].networkProfileID == nil)
         #expect(saved[0].notes == "Backups")
         #expect(saved[1].networkProfileID == home)
+    }
+
+    /// One not seen there within the grace window may be another device now: a split beats a
+    /// wrong merge, so the scan saves a new row and leaves the old one, notes and all, untouched.
+    @Test func aStaleAddressOnlyRowSavedWithoutANetworkIsLeftAloneAndANewRowSaved() throws {
+        let (container, context) = try makeContext()
+        _ = container
+        let nas = LocalDevice(ipAddress: "192.168.7.10", macAddress: "", customName: "NAS")
+        nas.notes = "Backups"
+        nas.lastSeen = start.addingTimeInterval(-7 * 86400)
+        context.insert(nas)
+        try makeReconciler(context).reconcile([device(ip: "192.168.7.10", mac: nil, name: nil)], networkProfileID: home, scanDate: start, now: start)
+        let saved = try rows(context)
+        #expect(saved.count == 2)
+        #expect(nas.networkProfileID == nil)
+        #expect(nas.notes == "Backups")
+        #expect(saved.contains { $0.networkProfileID == home && $0.id != nas.id })
     }
 
     /// A printer moved from .90 to .24 and answers there; the ARP cache still lists .90.
@@ -360,8 +376,12 @@ extension ScanReconcilerTests {
         let failing = try makeReconciler(context) { _ in throw SaveFailed() }
         let later = minutes(10)
         #expect(throws: SaveFailed.self) {
-            try failing.reconcile([scanned(0, latency: 40)], networkProfileID: self.home, scanDate: later, now: later)
+            try failing.reconcile([scanned(0, latency: 40), scanned(5)], networkProfileID: self.home, scanDate: later, now: later)
         }
+        // Rolled back: no half-applied scan waits in the context for the next save.
+        #expect(!context.hasChanges)
+        #expect(try rows(context).count == 2)
+        #expect(try rows(context)[0].lastLatency == 12)
         // The same scan again, now saving: applied, not skipped as already reconciled.
         let outcome = try makeReconciler(context).reconcile([scanned(0, latency: 40)], networkProfileID: home, scanDate: later, now: later)
         #expect(outcome == .applied)
@@ -417,13 +437,69 @@ extension ScanReconcilerTests {
 
     // MARK: - Devices without a MAC (Blake's rule, blocker 7)
 
-    @Test func namesAgreeOnlyWhenBothAreMissingOrEqual() {
-        #expect(PresenceMatch.namesAgree(nil, nil))
-        #expect(PresenceMatch.namesAgree("", nil))
-        #expect(PresenceMatch.namesAgree("Alice-iPhone", "alice-iphone"))
-        #expect(!PresenceMatch.namesAgree("Alice-iPhone", nil))
-        #expect(!PresenceMatch.namesAgree(nil, "Bob-TV"))
-        #expect(!PresenceMatch.namesAgree("Alice-iPhone", "Bob-TV"))
+    @Test func onlyTwoDifferentNamesDiffer() {
+        #expect(PresenceMatch.namesDiffer("Alice-iPhone", "Bob-TV"))
+        #expect(!PresenceMatch.namesDiffer("Alice-iPhone", "alice-iphone"))
+        #expect(!PresenceMatch.namesDiffer("Alice-iPhone", nil))
+        #expect(!PresenceMatch.namesDiffer(nil, "Bob-TV"))
+        #expect(!PresenceMatch.namesDiffer("", nil))
+    }
+
+    /// The lead's refinement: a TV whose reverse DNS times out for one scan stays on its row.
+    @Test func aDeviceWhoseNameIsMissingForOneScanStaysOnItsRow() throws {
+        let (container, context) = try makeContext()
+        _ = container
+        let reconciler = try makeReconciler(context)
+        try reconciler.reconcile([device(ip: "192.168.7.25", mac: nil, name: "living-room-tv")], networkProfileID: home, scanDate: start, now: start)
+        try reconciler.reconcile([device(ip: "192.168.7.25", mac: nil, name: nil)], networkProfileID: home, scanDate: minutes(10), now: minutes(10))
+        let saved = try rows(context)
+        #expect(saved.count == 1)
+        #expect(saved[0].hostname == "living-room-tv")
+        #expect(saved[0].lastSeen == minutes(10))
+    }
+
+    /// A nameless device at an address whose row hasn't been seen for longer than the grace window
+    /// is a new device.
+    @Test func aNamelessDeviceAtAReusedAddressAfterTheGraceGapGetsANewRow() throws {
+        let (container, context) = try makeContext()
+        _ = container
+        let reconciler = try makeReconciler(context)
+        try reconciler.reconcile([device(ip: "192.168.7.26", mac: nil, name: "alice-iphone")], networkProfileID: home, scanDate: start, now: start)
+        let alice = try #require(try rows(context).first)
+        alice.notes = "Alice"
+        // Something else answers there 40 minutes later, without a name.
+        try reconciler.reconcile([device(ip: "192.168.7.26", mac: nil, name: nil)], networkProfileID: home, scanDate: minutes(40), now: minutes(40))
+        let saved = try rows(context)
+        #expect(saved.count == 2)
+        #expect(alice.lastSeen == start)
+        #expect(alice.notes == "Alice")
+    }
+
+    @Test func differentNamesAlwaysSplitEvenWithinTheGraceWindow() throws {
+        let (container, context) = try makeContext()
+        _ = container
+        let reconciler = try makeReconciler(context)
+        try reconciler.reconcile([device(ip: "192.168.7.27", mac: nil, name: "alice-iphone")], networkProfileID: home, scanDate: start, now: start)
+        try reconciler.reconcile([device(ip: "192.168.7.27", mac: nil, name: "bob-tv")],
+            networkProfileID: home, scanDate: minutes(1), now: minutes(1))
+        #expect(try rows(context).count == 2)
+    }
+
+    /// Several rows could take a device without a MAC: the one seen there most recently within the
+    /// grace window; with none within it, a new row.
+    @Test func severalFittingRowsGoToTheMostRecentWithinGraceElseANewRow() {
+        let now = minutes(30)
+        let older = PresenceMatch.Known(DeviceMatchCandidate(ipAddress: "192.168.7.40", macAddress: nil, name: nil), lastSeen: minutes(20))
+        let newer = PresenceMatch.Known(DeviceMatchCandidate(ipAddress: "192.168.7.40", macAddress: nil, name: nil), lastSeen: minutes(25))
+        let nameless = DeviceMatchCandidate(ipAddress: "192.168.7.40", macAddress: nil, name: nil)
+        #expect(PresenceMatch.assign(known: [older, newer], observed: [nameless], now: now, window: 15 * 60) == [1])
+
+        let stale = [
+            PresenceMatch.Known(DeviceMatchCandidate(ipAddress: "192.168.7.41", macAddress: nil, name: "nas"), lastSeen: start),
+            PresenceMatch.Known(DeviceMatchCandidate(ipAddress: "192.168.7.41", macAddress: nil, name: "nas"), lastSeen: minutes(1))
+        ]
+        let nas = DeviceMatchCandidate(ipAddress: "192.168.7.41", macAddress: nil, name: "nas")
+        #expect(PresenceMatch.assign(known: stale, observed: [nas], now: now, window: 15 * 60) == [nil])
     }
 
     /// DHCP gave Alice's phone's address to Bob's TV. Neither reads a MAC.
@@ -461,24 +537,28 @@ extension ScanReconcilerTests {
         #expect(saved.first?.status == .online)
     }
 
-    @Test func anObservationWithoutAMACTakesAMACRowOnlyWhenTheNameAgrees() throws {
+    @Test func anObservationWithoutAMACTakesAMACRowByNameOrWithinGrace() throws {
         let (container, context) = try makeContext()
         _ = container
         let reconciler = try makeReconciler(context)
-        try reconciler.reconcile([device(ip: "192.168.7.30", mac: "AA:BB:CC:00:00:30", name: "printer")],
-            networkProfileID: home, scanDate: start, now: start)
+        try reconciler.reconcile(
+            [device(ip: "192.168.7.30", mac: "AA:BB:CC:00:00:30", name: "printer")], networkProfileID: home, scanDate: start, now: start
+        )
         // Its MAC wasn't readable this time, but its name is the printer's.
         try reconciler.reconcile([device(ip: "192.168.7.30", mac: nil, name: "printer")],
             networkProfileID: home, scanDate: minutes(10), now: minutes(10))
-        #expect(try rows(context).count == 1)
-        #expect(try rows(context).first?.lastSeen == minutes(10))
-        // A nameless device at that address now is not the printer.
+        // No MAC and no name, still within the grace window: still the printer.
         try reconciler.reconcile([device(ip: "192.168.7.30", mac: nil, name: nil)], networkProfileID: home, scanDate: minutes(20), now: minutes(20))
+        #expect(try rows(context).count == 1)
+        #expect(try rows(context).first?.lastSeen == minutes(20))
+        // A different name there is another device.
+        try reconciler.reconcile([device(ip: "192.168.7.30", mac: nil, name: "phone")],
+            networkProfileID: home, scanDate: minutes(25), now: minutes(25))
         let saved = try rows(context)
         #expect(saved.count == 2)
         let printer = try #require(saved.first { $0.macAddress == "AA:BB:CC:00:00:30" })
         #expect(printer.hostname == "printer")
-        #expect(printer.lastSeen == minutes(10))
+        #expect(printer.lastSeen == minutes(20))
     }
 
     @Test func aMACBecomingReadableTakesTheRowOnlyWhenTheNameAgrees() throws {

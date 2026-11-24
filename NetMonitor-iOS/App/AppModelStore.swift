@@ -19,11 +19,28 @@ enum AppModelStore {
     /// The app's container, set when the app starts; nil only before then.
     static var container: ModelContainer?
 
-    /// The app's main context, or a context on a new container when the app's isn't there yet.
-    static func mainContext() -> ModelContext? {
+    /// A container opened because the app's wasn't there yet. Kept, because a context whose
+    /// container is released crashes.
+    private(set) static var fallbackContainer: ModelContainer?
+
+    /// The app's main context, or one on a container opened (once) and kept when the app's isn't
+    /// there yet.
+    static func mainContext(
+        open: () throws -> ModelContainer = { try ModelContainer(for: schema, configurations: [ModelConfiguration(schema: schema)]) }
+    ) -> ModelContext? {
         if let container {
             return container.mainContext
         }
-        return (try? ModelContainer(for: schema, configurations: [ModelConfiguration(schema: schema)]))?.mainContext
+        if fallbackContainer == nil {
+            fallbackContainer = try? open()
+        }
+        return fallbackContainer?.mainContext
     }
+
+    #if DEBUG
+    /// Forgets the fallback container, for tests.
+    static func resetFallbackForTesting() {
+        fallbackContainer = nil
+    }
+    #endif
 }

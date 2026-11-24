@@ -7,44 +7,73 @@ import NetworkScanKit
 /// - An observation with a real MAC (`DeviceMatcher.normalizedMAC`: placeholders such as
 ///   `02:00:00:00:00:00` and unreadable values count as none) is matched by `DeviceMatcher`: the
 ///   same MAC, a rotated private MAC with the same name, or a row without a MAC at the same address.
-/// - Blake's rule for devices without a MAC (2026-11-24): an address alone never proves identity,
-///   because DHCP reuses addresses. A row and an observation of which at least one has no MAC are
-///   the same device only at the same address **and** with names that agree. Otherwise the
-///   observation is a new device, and the old row is left alone (its name and notes never move
-///   onto another device) to go offline under the grace policy.
+/// - **A match by address** (a row or an observation without a real MAC) follows Blake's intent
+///   (2026-11-24): an address alone never proves identity, because DHCP reuses addresses, and a
+///   split beats a wrong merge, so notes never move onto another device. As refined by the lead
+///   (2026-11-24), a missing name is *unknown*, not a disagreement:
+///   - two different names: a different device, a new row;
+///   - the same name: the same device;
+///   - a name unknown on either side (or both): the same device only if the row was seen at that
+///     address within the grace window (it never left); otherwise a new row.
+///   When several rows qualify, the one seen most recently within the window is taken; if none was,
+///   a new row.
 ///
-/// Names agree when both are missing, or both are present and equal ignoring case. A name on one
-/// side only does not agree. `DeviceMatcher` itself is unchanged: the Mac and the change detector
-/// share it.
+/// `DeviceMatcher` itself is unchanged: the Mac and the change detector share it.
 public enum PresenceMatch {
-    /// Whether two names say the device could be the same.
-    public static func namesAgree(_ lhs: String?, _ rhs: String?) -> Bool {
-        let lhs = lhs.flatMap { $0.isEmpty ? nil : $0 }
-        let rhs = rhs.flatMap { $0.isEmpty ? nil : $0 }
-        switch (lhs, rhs) {
-        case (nil, nil): return true
-        case let (lhs?, rhs?): return lhs.caseInsensitiveCompare(rhs) == .orderedSame
-        default: return false
+    /// A saved row as the match sees it.
+    public struct Known: Sendable, Equatable {
+        public let candidate: DeviceMatchCandidate
+        /// When the row last answered, at `candidate.ipAddress`.
+        public let lastSeen: Date
+
+        public init(_ candidate: DeviceMatchCandidate, lastSeen: Date) {
+            self.candidate = candidate
+            self.lastSeen = lastSeen
         }
     }
 
-    /// For each observation, the index of the known device it is, or nil for a new device. A known
-    /// device goes to at most one observation. Among several rows that could take an observation
-    /// without a MAC, one without a MAC is preferred, then the earliest in `known` (callers list the
-    /// most recently seen first).
-    public static func assign(known: [DeviceMatchCandidate], observed: [DeviceMatchCandidate]) -> [Int?] {
+    /// Two different, non-empty names (ignoring case): two different devices.
+    public static func namesDiffer(_ lhs: String?, _ rhs: String?) -> Bool {
+        guard let lhs = named(lhs), let rhs = named(rhs) else { return false }
+        return lhs.caseInsensitiveCompare(rhs) != .orderedSame
+    }
+
+    /// Whether an observation is the row at its address: see the type's rules.
+    static func matchesByAddress(_ row: Known, _ observation: DeviceMatchCandidate, now: Date, window: TimeInterval) -> Bool {
+        guard row.candidate.ipAddress == observation.ipAddress, !namesDiffer(row.candidate.name, observation.name) else { return false }
+        if named(row.candidate.name) != nil, named(observation.name) != nil {
+            return true
+        }
+        return isRecent(row, now: now, window: window)
+    }
+
+    static func isRecent(_ row: Known, now: Date, window: TimeInterval) -> Bool {
+        now.timeIntervalSince(row.lastSeen) <= window
+    }
+
+    private static func named(_ name: String?) -> String? {
+        guard let name, !name.isEmpty else { return nil }
+        return name
+    }
+
+    /// For each observation, the index of the known row it is, or nil for a new device. A known row
+    /// goes to at most one observation.
+    /// - Parameters:
+    ///   - now: when the scan is being matched.
+    ///   - window: the grace window (`DeviceGracePolicy.interval`).
+    public static func assign(known: [Known], observed: [DeviceMatchCandidate], now: Date, window: TimeInterval) -> [Int?] {
         var result = [Int?](repeating: nil, count: observed.count)
         var taken = Set<Int>()
-        var matcher = DeviceMatcher(known: known, observed: observed)
+        var matcher = DeviceMatcher(known: known.map(\.candidate), observed: observed)
         let observedMACs = Set(observed.compactMap { DeviceMatcher.normalizedMAC($0.macAddress) })
 
         // Devices with a MAC first, so a newcomer without one can't take the row of a device that
         // moved to another address in the same scan.
         for index in observed.indices where DeviceMatcher.normalizedMAC(observed[index].macAddress) != nil {
             guard let match = matcher.match(observed[index]), !taken.contains(match.index) else { continue }
-            // Its MAC became readable at a row's address: only the same name proves it's that row.
-            if DeviceMatcher.normalizedMAC(known[match.index].macAddress) == nil,
-               !namesAgree(known[match.index].name, observed[index].name) {
+            // Its MAC became readable at the address of a row without one: a match by address.
+            if DeviceMatcher.normalizedMAC(known[match.index].candidate.macAddress) == nil,
+               !matchesByAddress(known[match.index], observed[index], now: now, window: window) {
                 continue
             }
             result[index] = match.index
@@ -54,15 +83,21 @@ public enum PresenceMatch {
         for index in observed.indices where DeviceMatcher.normalizedMAC(observed[index].macAddress) == nil {
             let observation = observed[index]
             let candidates = known.indices.filter { row in
-                let mac = DeviceMatcher.normalizedMAC(known[row].macAddress)
+                let mac = DeviceMatcher.normalizedMAC(known[row].candidate.macAddress)
                 return !taken.contains(row)
-                    && known[row].ipAddress == observation.ipAddress
-                    && namesAgree(known[row].name, observation.name)
+                    && matchesByAddress(known[row], observation, now: now, window: window)
                     // A row whose MAC answered elsewhere in this scan is that device.
                     && !(mac.map(observedMACs.contains) ?? false)
             }
-            guard let row = candidates.first(where: { DeviceMatcher.normalizedMAC(known[$0].macAddress) == nil }) ?? candidates.first
-            else { continue }
+            let chosen: Int?
+            if candidates.count == 1 {
+                chosen = candidates[0]
+            } else {
+                // Several fit: the one seen here most recently within the window, else none.
+                chosen = candidates.filter { isRecent(known[$0], now: now, window: window) }
+                    .max { known[$0].lastSeen < known[$1].lastSeen }
+            }
+            guard let row = chosen else { continue }
             result[index] = row
             taken.insert(row)
         }

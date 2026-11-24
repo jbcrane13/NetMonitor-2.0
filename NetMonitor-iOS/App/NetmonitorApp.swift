@@ -97,7 +97,9 @@ struct NetmonitorApp: App {
         let updater = DeviceRecordUpdater(
             discoveryService: environment.deviceDiscovery,
             reconciler: ScanReconciler(context: sharedModelContainer.mainContext),
-            currentNetworkProfileID: environment.currentNetworkProfileID,
+            // Read only, and only a live network: a device without one is never filed under a
+            // network the phone has left (#589).
+            currentNetworkProfileID: { CurrentNetwork.detected()?.id },
             clock: UITestBootstrap.scanClock ?? Date.init
         )
         updater.start()

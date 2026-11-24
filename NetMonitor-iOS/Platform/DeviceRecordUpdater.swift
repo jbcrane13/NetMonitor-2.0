@@ -31,7 +31,14 @@ final class DeviceRecordUpdater {
         let devices: [DiscoveredDevice]
         let network: UUID?
         let reconciledAt: Date
+        var attempts = 0
     }
+
+    /// Saves tried per scan before it is dropped, so one scan that can't be saved never holds up
+    /// the ones after it.
+    static let maxAttempts = 3
+    /// Completed scans kept waiting at most; the oldest is dropped past this.
+    static let maxPending = 5
 
     init(
         discoveryService: any DeviceDiscoveryServiceProtocol,
@@ -79,18 +86,35 @@ final class DeviceRecordUpdater {
             pending.append(CompletedScan(
                 date: scanDate, devices: discoveryService.completedScanDevices, network: currentNetworkProfileID(), reconciledAt: clock()
             ))
+            if pending.count > Self.maxPending {
+                Logger.data.error("Too many scans waiting to be saved; dropping the oldest")
+                pending.removeFirst()
+            }
         }
-        while let scan = pending.first {
-            guard Self.reconcile(scan.devices, scanDate: scan.date, network: scan.network, with: reconciler, now: scan.reconciledAt) else { return }
+        while !pending.isEmpty {
+            let scan = pending[0]
+            if Self.reconcile(scan.devices, scanDate: scan.date, network: scan.network, with: reconciler, now: scan.reconciledAt) {
+                pending.removeFirst()
+                continue
+            }
+            pending[0].attempts += 1
+            guard pending[0].attempts >= Self.maxAttempts else { return }
+            Logger.data.error("Dropping a scan whose devices couldn't be saved after \(Self.maxAttempts) tries")
             pending.removeFirst()
         }
     }
 
     /// Reconciles `devices` into the rows of the network each was scanned on; a device that carries
-    /// no network is the current network's (`network`). False when saving failed (logged).
+    /// no network is the live network's (`network`, detected when the scan started). With neither,
+    /// nothing is reconciled: devices are never filed under a network the phone may have left.
+    /// False when saving failed (logged).
     @discardableResult
     static func reconcile(_ devices: [DiscoveredDevice], scanDate: Date, network: UUID?, with reconciler: ScanReconciler, now: Date) -> Bool {
-        let byNetwork = Dictionary(grouping: devices) { $0.networkProfileID ?? network }
+        var byNetwork: [UUID: [DiscoveredDevice]] = [:]
+        for device in devices {
+            guard let scanned = device.networkProfileID ?? network else { continue }
+            byNetwork[scanned, default: []].append(device)
+        }
         var succeeded = true
         for (scanned, devices) in byNetwork {
             do {
