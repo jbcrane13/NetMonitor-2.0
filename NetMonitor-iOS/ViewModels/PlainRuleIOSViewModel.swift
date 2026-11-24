@@ -21,6 +21,12 @@ final class PlainRuleIOSViewModel {
     private var scan: [DiscoveredDevice] = []
     private var networkID: UUID?
     private var context: ModelContext?
+    /// Open ports the rows and the scan know, by address and hostname, for an edited address.
+    private var knownPorts: [String: [Int]] = [:]
+    /// The address the draft was built for; its port was picked for that address.
+    private var draftHost: String?
+    /// Why Confirm didn't save, such as an edited address with no known open port.
+    private(set) var confirmProblem: String?
 
     init(parser: any RuleIntentParsing = UITestBootstrap.ruleParser ?? RuleIntentParser.shared) {
         composer = PlainRuleComposer(parser: parser, platform: .iOS)
@@ -60,6 +66,16 @@ final class PlainRuleIOSViewModel {
             }
             return device
         }
+        knownPorts = [:]
+        for row in devices {
+            remember(row.openPorts ?? [], for: [row.ipAddress, row.hostname, row.resolvedHostname])
+        }
+        for scanned in scan {
+            remember(scanned.openPorts ?? [], for: [scanned.ipAddress, scanned.hostname])
+        }
+        for device in candidates {
+            remember(device.openPorts, for: [device.ipAddress])
+        }
         for scanned in matched.unmatched {
             let candidate = RuleDevice(scanned: scanned)
             scannedOnly[candidate.id] = scanned
@@ -87,11 +103,24 @@ final class PlainRuleIOSViewModel {
         return !trimmed(targetDraft.name).isEmpty && !trimmed(targetDraft.host).isEmpty
     }
 
-    /// Saves the reviewed monitoring-target draft, then clears the field.
+    /// Saves the reviewed monitoring-target draft, then clears the field. The draft's port was
+    /// found open on the draft's address; an edited address gets a port a scan found open on it,
+    /// or isn't saved and `confirmProblem` says why (#578 review).
     func confirm(context: ModelContext) {
         guard canConfirmTarget, let draft = targetDraft else { return }
-        // A TCP check of a port the scan found open: one that can succeed in the background (#572).
-        context.insert(MonitoringTarget(name: trimmed(draft.name), host: trimmed(draft.host), port: draft.port, targetProtocol: .tcp))
+        let host = trimmed(draft.host)
+        var port = draft.port
+        if host.caseInsensitiveCompare(draftHost ?? "") != .orderedSame {
+            guard let edited = PlainRuleBuilder.probePort(knownPorts[host.lowercased()] ?? []) else {
+                confirmProblem = "No scan has found an open port on \(host), so it can't be checked in the background. "
+                    + "Use \(draftHost ?? "the suggested address"), or scan \(host)'s ports first."
+                return
+            }
+            port = edited
+        }
+        confirmProblem = nil
+        // A TCP check of a port a scan found open: one that can succeed in the background (#572).
+        context.insert(MonitoringTarget(name: trimmed(draft.name), host: host, port: port, targetProtocol: .tcp))
         do {
             try context.save()
         } catch {
@@ -110,6 +139,8 @@ final class PlainRuleIOSViewModel {
     func cancel() {
         text = ""
         targetDraft = nil
+        draftHost = nil
+        confirmProblem = nil
         scannedOnly = [:]
         composer.clear()
     }
@@ -130,9 +161,12 @@ final class PlainRuleIOSViewModel {
                 draft.deviceID = row.id
             }
             targetDraft = draft
+            draftHost = draft.host
         } else {
             targetDraft = nil
+            draftHost = nil
         }
+        confirmProblem = nil
     }
 
     /// Saves the row for a device only the scan knew, as device detail does when it opens, so a
@@ -177,6 +211,13 @@ final class PlainRuleIOSViewModel {
             byRow[row] = byRow[row] ?? scanned
         }
         return (byRow, unmatched)
+    }
+
+    private func remember(_ ports: [Int], for names: [String?]) {
+        guard !ports.isEmpty else { return }
+        for name in names.compactMap({ $0?.lowercased() }) where !name.isEmpty {
+            knownPorts[name] = ports
+        }
     }
 
     private func trimmed(_ text: String) -> String {

@@ -81,12 +81,12 @@ struct PlainRuleIOSViewModelTests {
         #expect(try container.mainContext.fetch(FetchDescriptor<MonitoringTarget>()).isEmpty, "Nothing saved before Confirm")
 
         model.targetDraft?.name = "  Basement NAS "
-        model.targetDraft?.host = "nas.local"
+        model.targetDraft?.host = "home-nas"
         model.confirm(context: container.mainContext)
 
         let saved = try container.mainContext.fetch(FetchDescriptor<MonitoringTarget>())
         #expect(saved.map(\.name) == ["Basement NAS"])
-        #expect(saved.map(\.host) == ["nas.local"])
+        #expect(saved.map(\.host) == ["home-nas"])
         #expect(model.targetDraft == nil)
     }
 

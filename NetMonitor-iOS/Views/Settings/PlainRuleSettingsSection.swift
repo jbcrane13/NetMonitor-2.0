@@ -161,6 +161,12 @@ struct PlainRuleSettingsSection: View {
                 .foregroundStyle(Theme.Colors.textPrimary)
                 .accessibilityIdentifier("settings_label_ruleDraftSummary")
             editor
+            if let problem = viewModel.confirmProblem {
+                Text(problem)
+                    .font(.caption)
+                    .foregroundStyle(Theme.Colors.warning)
+                    .accessibilityIdentifier("settings_label_ruleTargetProblem")
+            }
             ForEach(notes, id: \.self) { note in
                 Text(note)
                     .font(.caption)

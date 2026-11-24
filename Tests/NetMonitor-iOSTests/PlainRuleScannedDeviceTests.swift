@@ -224,4 +224,49 @@ struct PlainRuleScannedDeviceTests {
         #expect(model.targetDraft?.deviceID == row.id)
         #expect(model.targetDraft?.port == 445)
     }
+
+    // MARK: - Edited address (#578 review)
+
+    /// The user points the draft at the NAS's other interface, which the scan saw with HTTPS open:
+    /// the target probes 443 there, not the first address's SMB port.
+    @Test func anEditedAddressGetsAPortTheScanFoundOpenOnIt() async throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let other = DiscoveredDevice(
+            ipAddress: "192.168.1.41", hostname: "nas-mgmt", vendor: nil, macAddress: "02:00:00:01:00:41",
+            latency: 3, discoveredAt: Date(), source: .local, networkProfileID: home, openPorts: [443]
+        )
+        let model = viewModel(offline)
+        model.text = "basement-nas down"
+        await model.submit(devices: [], scan: [scannedNAS(), other], targets: [], networkID: home, isScanning: false, context: context)
+        #expect(model.targetDraft?.port == 445)
+
+        model.targetDraft?.host = "nas-mgmt"
+        model.confirm(context: context)
+
+        let target = try #require(try context.fetch(FetchDescriptor<MonitoringTarget>()).first)
+        #expect(target.host == "nas-mgmt")
+        #expect(target.port == 443)
+        #expect(model.confirmProblem == nil)
+    }
+
+    @Test func anEditedAddressWithNoKnownOpenPortIsNotSavedAndSaysWhy() async throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let model = viewModel(offline)
+        model.text = "basement-nas down"
+        await model.submit(devices: [], scan: [scannedNAS()], targets: [], networkID: home, isScanning: false, context: context)
+
+        model.targetDraft?.host = "10.9.9.9"
+        model.confirm(context: context)
+
+        #expect(try context.fetch(FetchDescriptor<MonitoringTarget>()).isEmpty)
+        #expect(model.confirmProblem == "No scan has found an open port on 10.9.9.9, so it can't be checked in the background. "
+            + "Use 192.168.1.40, or scan 10.9.9.9's ports first.")
+        #expect(model.targetDraft != nil, "The draft stays for the user to fix")
+
+        model.targetDraft?.host = "192.168.1.40"
+        model.confirm(context: context)
+        #expect(try context.fetch(FetchDescriptor<MonitoringTarget>()).first?.port == 445, "Back to the draft's address and port")
+    }
 }
