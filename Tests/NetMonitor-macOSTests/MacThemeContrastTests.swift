@@ -216,9 +216,7 @@ struct MacThemeContrastTests {
         let fg = resolveColor(MacTheme.Colors.success, appearance: .aqua)
         let bg = resolveColor(MacTheme.Colors.backgroundBase, appearance: .aqua)
         let ratio = contrastRatio(foreground: (fg.r, fg.g, fg.b), background: (bg.r, bg.g, bg.b))
-        withKnownIssue("Light-mode status/accent colors are below 3:1 — #361") {
-            #expect(ratio >= 3.0, "Light: success on backgroundBase = \(String(format: "%.2f", ratio)):1 (need 3:1)")
-        }
+        #expect(ratio >= 3.0, "Light: success on backgroundBase = \(String(format: "%.2f", ratio)):1 (need 3:1)")
     }
 
     @Test("error on backgroundBase meets WCAG AA UI (3:1) in dark mode")
@@ -234,9 +232,7 @@ struct MacThemeContrastTests {
         let fg = resolveColor(MacTheme.Colors.error, appearance: .aqua)
         let bg = resolveColor(MacTheme.Colors.backgroundBase, appearance: .aqua)
         let ratio = contrastRatio(foreground: (fg.r, fg.g, fg.b), background: (bg.r, bg.g, bg.b))
-        withKnownIssue("Light-mode status/accent colors are below 3:1 — #361") {
-            #expect(ratio >= 3.0, "Light: error on backgroundBase = \(String(format: "%.2f", ratio)):1 (need 3:1)")
-        }
+        #expect(ratio >= 3.0, "Light: error on backgroundBase = \(String(format: "%.2f", ratio)):1 (need 3:1)")
     }
 
     @Test("sidebarActiveBorder on backgroundBase meets WCAG AA UI (3:1) in dark mode")
@@ -251,12 +247,9 @@ struct MacThemeContrastTests {
     func sidebarActiveBorderOnBackgroundBaseLight() {
         let fg = resolveColor(MacTheme.Colors.sidebarActiveBorder, appearance: .aqua)
         let bg = resolveColor(MacTheme.Colors.backgroundBase, appearance: .aqua)
-        // sidebarActiveBorder in light mode has alpha=0.8 (line 190)
         let blended = blendColor(foreground: (fg.r, fg.g, fg.b, fg.a), background: (bg.r, bg.g, bg.b))
         let ratio = contrastRatio(foreground: blended, background: (bg.r, bg.g, bg.b))
-        withKnownIssue("Light-mode status/accent colors are below 3:1 — #361") {
-            #expect(ratio >= 3.0, "Light: sidebarActiveBorder on backgroundBase = \(String(format: "%.2f", ratio)):1 (need 3:1)")
-        }
+        #expect(ratio >= 3.0, "Light: sidebarActiveBorder on backgroundBase = \(String(format: "%.2f", ratio)):1 (need 3:1)")
     }
 
     // MARK: Adaptive label colors on glass cards (#334)
