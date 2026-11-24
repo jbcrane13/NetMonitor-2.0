@@ -21,6 +21,10 @@ public enum CompanionMessage: Codable, Sendable {
     case insightRequest(InsightRequestPayload)
     /// Mac → iPhone: the answer to one `insightRequest`, never sent unprompted (#457).
     case insightResponse(InsightResponsePayload)
+    /// A type this build doesn't know, from a newer peer: kept so the frame decodes, and
+    /// ignored by both sides (Models/AGENTS.md: Codable enums get an unknown fallback). New
+    /// types are still sent only to a peer that advertised them.
+    case unknown(type: String)
 
     // MARK: Coding Keys
 
@@ -54,7 +58,11 @@ public enum CompanionMessage: Codable, Sendable {
                 expected: Self.currentProtocolVersion
             )
         }
-        let type = try container.decode(MessageType.self, forKey: .type)
+        let typeName = try container.decode(String.self, forKey: .type)
+        guard let type = MessageType(rawValue: typeName) else {
+            self = .unknown(type: typeName)
+            return
+        }
 
         switch type {
         case .statusUpdate:
@@ -117,6 +125,9 @@ public enum CompanionMessage: Codable, Sendable {
         case .insightResponse(let payload):
             try container.encode(MessageType.insightResponse, forKey: .type)
             try container.encode(payload, forKey: .payload)
+        case .unknown(let type):
+            try container.encode(type, forKey: .type)
+            try container.encode([String: String](), forKey: .payload)
         }
     }
 }
@@ -343,6 +354,7 @@ extension CompanionMessage {
         case .heartbeat: "heartbeat"
         case .insightRequest: "insightRequest"
         case .insightResponse: "insightResponse"
+        case .unknown: "unknown"
         }
     }
 }

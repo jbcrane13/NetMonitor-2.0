@@ -233,6 +233,13 @@ struct CompanionMessageHandlerTests {
         #expect(sent.last?.capabilities == ["insight.v1"])
     }
 
+    @Test("a message type this build doesn't know gets no reply")
+    func unknownTypeGetsNoReply() async throws {
+        let (container, _, handler, _, _) = try makeFixture()
+        _ = container
+        #expect(await handler.handle(.unknown(type: "futureThing"), from: UUID()) == nil)
+    }
+
     @Test("an insight request is handled apart from its batch; other messages keep their order")
     func insightRequestsRunOffBatch() {
         #expect(CompanionService.answersOffBatch(.insightRequest(Self.insightRequest)))

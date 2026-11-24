@@ -347,6 +347,9 @@ final class MacConnectionService: MacConnectionServiceProtocol {
         case .command, .insightRequest:
             // Outbound only from iOS; ignore if received
             break
+        case .unknown:
+            // A newer Mac's message type: ignored, and the link stays up.
+            break
         }
     }
 

@@ -129,9 +129,9 @@ struct CompanionInsightMessageTests {
         #expect(String(bytes: plain, encoding: .utf8)?.contains("capabilities") == false)
     }
 
-    @Test("a frame with a type this build doesn't know is dropped, and the next frame still arrives")
+    @Test("a frame with a type this build doesn't know decodes as unknown, and the next frame still arrives")
     func unknownTypeFrameKeepsStream() async throws {
-        let unknown = Data(#"{"protocolVersion":1,"type":"futureThing","payload":{}}"#.utf8)
+        let unknown = Data(#"{"protocolVersion":1,"type":"futureThing","payload":{"x":1}}"#.utf8)
         var length = UInt32(unknown.count).bigEndian
         var stream = Data(bytes: &length, count: 4)
         stream.append(unknown)
@@ -139,11 +139,22 @@ struct CompanionInsightMessageTests {
 
         let batch = await CompanionFrameDecoder().append(stream)
 
-        #expect(batch.errors == [.malformedPayload])
-        #expect(batch.messages.count == 1)
-        guard case .heartbeat = batch.messages.first else {
-            Issue.record("expected the heartbeat after the unknown frame")
+        #expect(batch.errors.isEmpty)
+        #expect(batch.messages.count == 2)
+        guard case let .unknown(type) = batch.messages.first, case .heartbeat = batch.messages.last else {
+            Issue.record("expected the unknown frame, then the heartbeat")
             return
         }
+        #expect(type == "futureThing")
+        #expect(batch.messages.first?.logName == "unknown")
+    }
+
+    @Test("an unknown message keeps its type when encoded again")
+    func unknownRoundTrip() throws {
+        guard case let .unknown(type) = try Self.roundTrip(.unknown(type: "futureThing")) else {
+            Issue.record("expected an unknown message")
+            return
+        }
+        #expect(type == "futureThing")
     }
 }

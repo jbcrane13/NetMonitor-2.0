@@ -521,7 +521,7 @@ Individual messages should not exceed 1 MB. For large datasets, pagination may b
 
 ### Unknown Message Types
 
-A frame whose `type` a build doesn't know fails to decode and is dropped; the connection stays open. The Mac replies to such a frame with an `error` (`DECODE_ERROR`), and the phone logs it. New types are therefore sent only to a peer that advertised them in `capabilities`, and `protocolVersion` stays 1.
+A frame whose `type` a build doesn't know decodes as `CompanionMessage.unknown(type:)` and is ignored by both sides; the connection stays open and no reply is sent. Builds before #457 failed to decode such a frame instead: they dropped it, kept the connection, and the Mac replied with an `error` (`DECODE_ERROR`). New types are therefore still sent only to a peer that advertised them in `capabilities`, and `protocolVersion` stays 1.
 
 ---
 
