@@ -33,7 +33,7 @@ NetMonitor-iOS  ──┘
 
 ### NetMonitorCore
 
-Defines every service protocol in `Services/ServiceProtocols.swift`; platform targets implement them. Services include DeviceDiscovery, Ping, PortScanner, DNS, WHOIS, Bonjour, Traceroute, SpeedTest, WakeOnLAN, NetworkMonitor, Notification and MACVendorLookup. Key enums live in `Models/Enums.swift`.
+Defines every service protocol in `Services/ServiceProtocols.swift`; platform targets implement them. Services include DeviceDiscovery, Ping, PortScanner, DNS, WHOIS, Bonjour, Traceroute, SpeedTest, WakeOnLAN, NetworkMonitor, Notification and MACVendorLookup. Key enums: `DeviceType`, `StatusType`, `DeviceStatus`, `ConnectionType`, `ToolType`, `TargetProtocol`, `DNSRecordType`, `PortScanPreset` (in `Models/Enums.swift`), and `SpeedTestPhase`, `ScanDisplayPhase` (in `Services/ServiceProtocols.swift`).
 
 ### NetworkScanKit
 
@@ -66,7 +66,7 @@ Key types: `ScanEngine`, `ScanPipeline`, `ScanContext`, `ScanAccumulator`, `Conn
 
 ## Mac–iOS Companion Protocol
 
-Bonjour `_netmon._tcp`, port 8849, 4-byte big-endian length-prefixed JSON frames over `NWConnection`, capped at 1 MiB (`CompanionFrameDecoder.defaultMaximumFrameSize`). `CompanionMessage` in NetMonitorCore defines the wire format for both sides. Spec: `docs/Companion-Protocol-API.md`.
+Bonjour `_netmon._tcp`, port 8849, 4-byte big-endian length-prefixed JSON frames over `NWConnection`, capped at 1 MiB (`CompanionFrameDecoder.defaultMaximumFrameSize`). `CompanionMessage` (`Models/CompanionMessage.swift` in NetMonitorCore) defines the wire format for both sides. Message types: `statusUpdate`, `targetList`, `deviceList`, `networkProfile`, `command`, `toolResult`, `error`, `heartbeat`. Spec: `docs/Companion-Protocol-API.md`.
 
 ## Worktree Setup
 
@@ -91,8 +91,13 @@ swift build -c debug   # from Packages/NetMonitorCore or Packages/NetworkScanKit
 
 Run `xcodebuild test` on a test host, never in an ad-hoc local session:
 
-- **mini-pro-2** (`ssh blakes-mac-mini-2`) is the automation node, preferred when it is reachable and has disk space.
-- **mini-pro-1** is the current host while mini-pro-2 is unavailable. If Blake is actively using mini-pro-1, tell him before starting a long run. Every run there goes through the shared lock and a timeout, so one hung run can't block the other workers:
+- **mini-pro-2** (`ssh blakes-mac-mini-2`) is the automation node, preferred when it is reachable and has disk space. Run there over SSH from its checkout:
+
+  ```bash
+  ssh blakes-mac-mini-2 "cd ~/Projects/NetMonitor-2.0 && xcodebuild test -scheme NetMonitor-macOS -configuration Debug …"
+  ```
+
+- **mini-pro-1** is the current host while mini-pro-2 is unavailable. Run there after consulting Blake when he is actively using that machine; if he is not present, you may run there without consulting. Every run there goes through the shared lock and a timeout, so one hung run can't block the other workers:
 
   ```bash
   lockf -t 7200 /tmp/nm-mini1-test.lock timeout 1200 xcodebuild test … -derivedDataPath <private dir>
@@ -109,13 +114,13 @@ On either host:
 
 ```bash
 # macOS unit tests (add /SuiteName to -only-testing for a single suite)
-xcodebuild test -scheme NetMonitor-macOS -destination 'platform=macOS' \
+xcodebuild test -scheme NetMonitor-macOS -configuration Debug -destination 'platform=macOS' \
   CODE_SIGN_IDENTITY='' CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO \
   -parallel-testing-enabled NO -derivedDataPath <private dir> \
   -only-testing:NetMonitor-macOSTests
 
 # iOS unit tests
-xcodebuild test -scheme NetMonitor-iOS \
+xcodebuild test -scheme NetMonitor-iOS -configuration Debug \
   -destination 'platform=iOS Simulator,id=<iPhone 17 id>' \
   CODE_SIGN_IDENTITY='' CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO \
   -parallel-testing-enabled NO -derivedDataPath <private dir> \
@@ -139,7 +144,7 @@ cd Packages/NetworkScanKit && swift test --no-parallel
 | Periphery | `periphery scan --quiet` | Unused declarations (dead code) |
 | jscpd | `jscpd --languages swift .` | Duplicate code detection |
 
-Config: `.swiftlint.yml`, `.swiftformat`. The pre-commit hook runs SwiftLint on staged Swift files, and its errors block the commit. CI runs all four on every PR via `lint.yml` and `code-quality.yml`; Periphery and jscpd are warning-only.
+Config: `.swiftlint.yml`, `.swiftformat`. The pre-commit hook runs SwiftLint and `swiftformat --lint` on staged Swift files; their errors block the commit. CI runs all four on every PR via `lint.yml` and `code-quality.yml`; Periphery and jscpd are warning-only.
 
 ## Code Style
 
@@ -176,7 +181,7 @@ No enforced order. Conventional grouping: Foundation → Apple frameworks → pr
 
 ### Concurrency
 - **ViewModels:** `@MainActor @Observable final class`, state as `private(set) var`. Views contain no business logic.
-- **Services:** actors, or `Sendable` conformance. Every service protocol is `Sendable`, and every service is protocol-backed for DI and testability.
+- **Services:** `Sendable`; services that touch state are actors or `@MainActor`. Every service protocol is `Sendable`, and every service is protocol-backed for DI and testability.
 - **Mocks:** `@unchecked Sendable` (or `@MainActor` when testing MainActor-isolated code).
 - **Streaming ops** (ping, port scan, traceroute): `AsyncStream<T>` for incremental results.
 - **Atomic ops:** `async throws` with typed `NetworkError`.
