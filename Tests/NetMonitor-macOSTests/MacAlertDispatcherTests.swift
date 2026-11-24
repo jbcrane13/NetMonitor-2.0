@@ -115,6 +115,33 @@ struct MacAlertDispatcherTests {
         #expect(fixture.poster.requests.map(\.content.title) == ["Router down"])
     }
 
+    /// A latency rule that needs its condition to last: a reading before monitoring stopped
+    /// must not count toward the time after it resumes (#450).
+    @Test func stoppingMonitoringRestartsATargetsDurationClock() throws {
+        let fixture = Fixture()
+        defer { fixture.cleanUp() }
+        fixture.store.add(AlertRule(name: "Slow for a while", trigger: .latencyAbove(milliseconds: 100), minimumDuration: 0.2))
+        let schema = Schema([NetworkTarget.self, TargetMeasurement.self, SessionRecord.self, LocalDevice.self])
+        let config = ModelConfiguration(UUID().uuidString, schema: schema, isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+        let container = try ModelContainer(for: schema, configurations: [config])
+        defer { withExtendedLifetime(container) {} }
+        let session = MonitoringSession(modelContext: container.mainContext)
+        fixture.dispatcher.attach(to: session, discovery: nil)
+        var ruleAlerts: [String] {
+            fixture.poster.requests.filter { $0.content.categoryIdentifier == NotificationService.ruleMatchCategory }.map(\.content.title)
+        }
+
+        session.onTargetResult?(fixture.outcome(latency: 500))
+        session.onMonitoringStopped?()
+        Thread.sleep(forTimeInterval: 0.3)
+        session.onTargetResult?(fixture.outcome(latency: 500))
+        #expect(ruleAlerts.isEmpty, "The time monitoring was stopped doesn't count")
+
+        Thread.sleep(forTimeInterval: 0.3)
+        session.onTargetResult?(fixture.outcome(latency: 500))
+        #expect(ruleAlerts == ["Slow for a while"])
+    }
+
     @Test func theNotificationsSwitchSilencesEveryAlert() {
         let fixture = Fixture()
         defer { fixture.cleanUp() }
@@ -214,9 +241,12 @@ struct MacAlertTextTests {
         return (MacAlertNotifier(service: NotificationService(poster: poster, defaults: defaults), defaults: defaults, writer: writer), poster)
     }
 
+    /// Waits on a deadline, not a yield count: 2000 yields ran out before the alerts were
+    /// posted on a loaded host (#524). The deadline only bounds a real failure.
     func until(_ condition: () -> Bool) async {
-        for _ in 0 ..< 2000 where !condition() {
-            await Task.yield()
+        let deadline = ContinuousClock.now + .seconds(10)
+        while !condition(), ContinuousClock.now < deadline {
+            try? await Task.sleep(for: .milliseconds(10))
         }
     }
 
@@ -280,7 +310,7 @@ struct MacAlertTextTests {
         #expect(poster.requests.first?.content.title == "New Device Detected")
     }
 
-    @Test func aBurstOfNewDevicesWordsOnlyTheFirstThree() async {
+    @Test func aBurstOfNewDevicesWordsOnlyTheFirstThree() async throws {
         defer { defaults.removePersistentDomain(forName: suite) }
         let insight = EchoInsightService()
         let (notifier, poster) = makeNotifier(insight)
@@ -288,6 +318,7 @@ struct MacAlertTextTests {
 
         notifier.devicesChanged(events)
         await until { poster.requests.count == 5 }
+        try #require(poster.requests.count == 5)
 
         #expect(insight.requests.count == NotificationTextWriter.burstLimit)
         #expect(poster.requests.map(\.content.subtitle) == [

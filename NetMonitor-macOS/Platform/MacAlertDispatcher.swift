@@ -41,6 +41,7 @@ final class MacAlertDispatcher {
         self.discovery = discovery
         session?.onTargetDown = { [weak self] name, host in self?.targetWentDown(name: name, host: host) }
         session?.onTargetResult = { [weak self] result in self?.targetChecked(result) }
+        session?.onMonitoringStopped = { [weak self] in self?.monitoringStopped() }
         discovery?.addDeviceChangeHandler { [weak self, weak discovery] events, profileID in
             self?.devicesChanged(events, devices: discovery?.discoveredDevices ?? [], networkID: profileID)
         }
@@ -53,6 +54,10 @@ final class MacAlertDispatcher {
     func targetChecked(_ result: TargetCheckOutcome) {
         notifier.targetChecked(result)
         rules?.handle(targetResult: result)
+    }
+
+    func monitoringStopped() {
+        rules?.monitoringStopped()
     }
 
     func devicesChanged(_ events: [DeviceChangeEvent], devices: [LocalDevice], networkID: UUID?) {

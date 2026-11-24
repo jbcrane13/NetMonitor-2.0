@@ -18,6 +18,8 @@ struct SettingsView: View {
     // periphery:ignore
     @State private var showingPDFExport = false
     @State private var showingPairingSheet = false
+    /// The Port Scanner a described port-scan preset opens (#450).
+    @State private var plainRulePortScan: PlainRuleIOSViewModel.PortScanRequest?
     @State private var highLatencyAlertEnabled =
         (UserDefaults.standard.object(forKey: AppSettings.Keys.highLatencyAlertEnabled) as? Bool) ?? false
     @State var connectionService = MacConnectionService.shared
@@ -113,6 +115,9 @@ struct SettingsView: View {
                     .foregroundStyle(Theme.Colors.textSecondary)
             }
             .listRowBackground(Theme.Colors.glassBackground)
+
+            // MARK: - Monitoring Targets and "Describe a rule…" (#450)
+            PlainRuleSettingsSection(openPortScan: $plainRulePortScan)
 
             // MARK: - Notification Settings Section
             Section {
@@ -311,6 +316,9 @@ struct SettingsView: View {
         }
         .sheet(isPresented: $showingPairingSheet) {
             MacPairingView()
+        }
+        .sheet(item: $plainRulePortScan) { request in
+            PlainRulePortScanSheet(request: request) { plainRulePortScan = nil }
         }
         .onAppear {
             highLatencyAlertEnabled = viewModel.highLatencyAlertEnabled

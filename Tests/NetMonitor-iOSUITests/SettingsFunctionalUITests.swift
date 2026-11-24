@@ -28,13 +28,13 @@ final class SettingsFunctionalUITests: IOSUITestCase {
 
         let toggle = app.switches["settings_toggle_backgroundRefresh"]
         scrollToElement(toggle)
-        guard toggle.waitForExistence(timeout: 5) else { return }
+        requireExists(toggle, message: "Background refresh toggle should exist")
 
         // Capture initial state
         let initialValue = toggle.value as? String ?? ""
 
         // Toggle state
-        toggle.tap()
+        toggle.flipSwitch()
         let toggledValue = toggle.value as? String ?? ""
         XCTAssertNotEqual(initialValue, toggledValue,
                          "Background refresh toggle should change state after tap")
@@ -62,7 +62,7 @@ final class SettingsFunctionalUITests: IOSUITestCase {
                       "Background refresh toggle state should persist after navigation round-trip")
 
         // Restore original state
-        toggleAfterReturn.tap()
+        toggleAfterReturn.flipSwitch()
 
         captureScreenshot(named: "Settings_TogglePersistence")
     }
@@ -255,42 +255,38 @@ final class SettingsFunctionalUITests: IOSUITestCase {
 
         let toggle = app.switches["settings_toggle_highLatencyAlert"]
         scrollToElement(toggle)
-        guard toggle.waitForExistence(timeout: 5) else { return }
+        requireExists(toggle, message: "High latency alert toggle should exist")
 
         // Turn on if currently off
         if (toggle.value as? String) == "0" {
-            toggle.tap()
+            toggle.flipSwitch()
         }
 
         // Threshold stepper should now be visible
-        let thresholdStepper = ui("settings_stepper_highLatencyThreshold")
+        let thresholdStepper = app.steppers["settings_stepper_highLatencyThreshold"]
         XCTAssertTrue(
             thresholdStepper.waitForExistence(timeout: 3),
             "High latency threshold stepper should appear when alert toggle is ON"
         )
 
         // FUNCTIONAL: threshold stepper should be interactive
-        let incrementButton = thresholdStepper.buttons["+"]
-        if incrementButton.waitForExistence(timeout: 3) {
-            let valueBefore = thresholdStepper.staticTexts.firstMatch.label
-            incrementButton.tap()
-            let valueAfter = thresholdStepper.staticTexts.firstMatch.label
-            XCTAssertNotEqual(valueBefore, valueAfter,
-                             "High latency threshold value should change after increment")
-            // Restore
-            let decrementButton = thresholdStepper.buttons["-"]
-            if decrementButton.waitForExistence(timeout: 3) {
-                decrementButton.tap()
-            }
-        }
+        let incrementButton = app.buttons["settings_stepper_highLatencyThreshold-Increment"]
+        requireExists(incrementButton, timeout: 3, message: "Threshold stepper should have an increment button")
+        let valueBefore = thresholdStepper.value as? String
+        incrementButton.tap()
+        let valueAfter = thresholdStepper.value as? String
+        XCTAssertNotEqual(valueBefore, valueAfter,
+                          "High latency threshold value should change after increment")
+        // Restore
+        app.buttons["settings_stepper_highLatencyThreshold-Decrement"].tap()
 
         captureScreenshot(named: "Settings_HighLatencyThreshold")
 
         // Turn off to verify stepper disappears
-        toggle.tap()
+        toggle.flipSwitch()
         let disappeared = waitForDisappearance(thresholdStepper, timeout: 3)
         XCTAssertTrue(disappeared,
-                     "Threshold stepper should disappear when high latency alert is toggled OFF")
+                      "Threshold stepper should disappear when high latency alert is toggled OFF")
     }
 
     // MARK: - 7. DNS Server Field Accepts Input

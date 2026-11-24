@@ -37,12 +37,17 @@ final class PortScannerToolViewModel {
     init(
         portScannerService: any PortScannerServiceProtocol = PortScannerService(),
         initialHost: String? = nil,
+        initialPreset: PortScanPreset? = nil,
         activityLog: ToolActivityLog = .shared
     ) {
         self.portScannerService = portScannerService
         self.activityLog = activityLog
         if let initialHost = initialHost {
             self.host = initialHost
+        }
+        // A described port-scan preset (#450).
+        if let initialPreset {
+            self.portPreset = initialPreset
         }
     }
 

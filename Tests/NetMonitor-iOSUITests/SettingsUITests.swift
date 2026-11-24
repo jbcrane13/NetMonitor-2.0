@@ -10,9 +10,16 @@ final class SettingsUITests: XCTestCase {
         app.launch()
         // Navigate to Settings via Dashboard gear button
         let settingsButton = app.buttons["dashboard_button_settings"]
+        // On iOS 26+ the settings screen is a CollectionView, not an Other; match any type so older trees work too.
+        let settingsScreen = element("screen_settings")
         if settingsButton.waitForExistence(timeout: 5) {
             settingsButton.tap()
+            // The first tap after a fresh launch can miss (hit point {-1, -1}); retry once.
+            if !settingsScreen.waitForExistence(timeout: 5) {
+                settingsButton.tap()
+            }
         }
+        XCTAssertTrue(settingsScreen.waitForExistence(timeout: 5), "Settings screen should open")
     }
 
     override func tearDownWithError() throws {
@@ -22,7 +29,7 @@ final class SettingsUITests: XCTestCase {
     // MARK: - Screen Existence
 
     func testSettingsScreenExistsAndShowsContent() throws {
-        let screen = app.otherElements["screen_settings"]
+        let screen = element("screen_settings")
         XCTAssertTrue(
             screen.waitForExistence(timeout: 5),
             "Settings screen should be visible"
@@ -41,14 +48,14 @@ final class SettingsUITests: XCTestCase {
     // MARK: - Network Tools Section
 
     func testPingCountStepperExistsAndIsInteractive() throws {
-        let stepper = app.otherElements["settings_stepper_pingCount"]
+        let stepper = app.steppers["settings_stepper_pingCount"]
         XCTAssertTrue(
             stepper.waitForExistence(timeout: 5),
             "Ping count stepper should exist"
         )
         // FUNCTIONAL: stepper should have increment/decrement buttons
-        let incrementButton = stepper.buttons["+"]
-        let decrementButton = stepper.buttons["-"]
+        let incrementButton = app.buttons["settings_stepper_pingCount-Increment"]
+        let decrementButton = app.buttons["settings_stepper_pingCount-Decrement"]
         XCTAssertTrue(
             incrementButton.exists || decrementButton.exists,
             "Ping count stepper should have + or - buttons for interaction"
@@ -56,27 +63,25 @@ final class SettingsUITests: XCTestCase {
     }
 
     func testPingTimeoutStepperExistsAndIsInteractive() throws {
-        let stepper = app.otherElements["settings_stepper_pingTimeout"]
+        let stepper = app.steppers["settings_stepper_pingTimeout"]
         XCTAssertTrue(
             stepper.waitForExistence(timeout: 5),
             "Ping timeout stepper should exist"
         )
-        // FUNCTIONAL: verify stepper value label shows a numeric value
-        let valueLabel = stepper.staticTexts.firstMatch
-        if valueLabel.exists {
-            let value = valueLabel.value as? String ?? ""
-            XCTAssertFalse(value.isEmpty, "Ping timeout stepper should display a numeric value")
-        }
+        // FUNCTIONAL: verify the stepper shows a numeric value
+        let value = stepper.value as? String ?? ""
+        XCTAssertFalse(value.isEmpty, "Ping timeout stepper should display a numeric value")
     }
 
     func testPortScanTimeoutStepperExistsAndIsInteractive() throws {
-        let stepper = app.otherElements["settings_stepper_portScanTimeout"]
+        let stepper = app.steppers["settings_stepper_portScanTimeout"]
         XCTAssertTrue(
             stepper.waitForExistence(timeout: 5),
             "Port scan timeout stepper should exist"
         )
         // FUNCTIONAL: verify stepper has interactive controls
-        let hasButtons = stepper.buttons["+"].exists || stepper.buttons["-"].exists
+        let hasButtons = app.buttons["settings_stepper_portScanTimeout-Increment"].exists
+            || app.buttons["settings_stepper_portScanTimeout-Decrement"].exists
         XCTAssertTrue(hasButtons, "Port scan timeout stepper should have increment/decrement buttons")
     }
 
@@ -118,58 +123,50 @@ final class SettingsUITests: XCTestCase {
     }
 
     func testBackgroundRefreshToggleExistsAndIsTogglable() throws {
-        app.swipeUp()
         let toggle = app.switches["settings_toggle_backgroundRefresh"]
-        XCTAssertTrue(
-            toggle.waitForExistence(timeout: 5),
-            "Background refresh toggle should exist"
-        )
+        scrollTo(toggle)
         // FUNCTIONAL: toggle should change state when tapped
         let before = toggle.value as? String ?? ""
-        toggle.tap()
+        toggle.flipSwitch()
         let after = toggle.value as? String ?? ""
         XCTAssertNotEqual(before, after, "Background refresh toggle should change state after tap")
         // Restore
-        toggle.tap()
+        toggle.flipSwitch()
     }
 
     // MARK: - Notification Section
 
     func testHighLatencyAlertToggleExistsAndRevealsThreshold() throws {
-        app.swipeUp()
         let toggle = app.switches["settings_toggle_highLatencyAlert"]
-        XCTAssertTrue(
-            toggle.waitForExistence(timeout: 5),
-            "High latency alert toggle should exist"
-        )
+        scrollTo(toggle)
         // FUNCTIONAL: turning on the toggle should reveal the threshold stepper
-        if (toggle.value as? String) == "0" {
-            toggle.tap()
+        let wasOff = (toggle.value as? String) == "0"
+        if wasOff {
+            toggle.flipSwitch()
+            // Restore even when the assertion below fails and stops the test.
+            addTeardownBlock { toggle.flipSwitch() }
         }
-        let thresholdStepper = app.otherElements["settings_stepper_highLatencyThreshold"]
+        let thresholdStepper = app.steppers["settings_stepper_highLatencyThreshold"]
         XCTAssertTrue(
             thresholdStepper.waitForExistence(timeout: 3),
             "High latency threshold stepper should appear when toggle is ON"
         )
+        // Restore
+        if wasOff {
+            toggle.flipSwitch()
+        }
     }
 
     // MARK: - Appearance Section
 
     func testAccentColorPickerExistsAndIsTappable() throws {
-        app.swipeUp()
-        let pickerElement = app.otherElements["settings_picker_accentColor"]
-        let pickerButton = app.buttons["settings_picker_accentColor"]
-        XCTAssertTrue(
-            pickerElement.waitForExistence(timeout: 5) ||
-            pickerButton.waitForExistence(timeout: 3),
-            "Accent color picker should exist"
-        )
+        let picker = element("settings_picker_accentColor")
+        scrollTo(picker)
         // FUNCTIONAL: picker should be tappable and present options
-        let activePicker = pickerElement.exists ? pickerElement : pickerButton
-        activePicker.tap()
+        picker.tap()
         // After tapping, either options appear or picker is still visible
         XCTAssertTrue(
-            activePicker.waitForExistence(timeout: 3),
+            picker.waitForExistence(timeout: 3),
             "Accent color picker should remain accessible after tap"
         )
     }
@@ -193,20 +190,15 @@ final class SettingsUITests: XCTestCase {
     }
 
     func testShowDetailedResultsToggleExistsAndIsTogglable() throws {
-        app.swipeUp()
-        app.swipeUp()
         let toggle = app.switches["settings_toggle_showDetailedResults"]
-        XCTAssertTrue(
-            toggle.waitForExistence(timeout: 5),
-            "Show detailed results toggle should exist"
-        )
+        scrollTo(toggle)
         // FUNCTIONAL: toggle should change state
         let before = toggle.value as? String ?? ""
-        toggle.tap()
+        toggle.flipSwitch()
         let after = toggle.value as? String ?? ""
         XCTAssertNotEqual(before, after, "Show detailed results toggle should change state after tap")
         // Restore
-        toggle.tap()
+        toggle.flipSwitch()
     }
 
     func testClearHistoryButtonTriggersAlert() throws {
@@ -255,31 +247,21 @@ final class SettingsUITests: XCTestCase {
     // MARK: - About Section
 
     func testAppVersionRowExistsAndShowsValue() throws {
-        app.swipeUp()
-        app.swipeUp()
-        app.swipeUp()
-        let row = app.otherElements["settings_row_appVersion"]
-        XCTAssertTrue(
-            row.waitForExistence(timeout: 5),
-            "App version row should exist"
-        )
-        // FUNCTIONAL: version row should display a version number
-        let hasVersionText = row.staticTexts.count > 0
-        XCTAssertTrue(hasVersionText, "App version row should display a version string")
+        // The row's identifier lands on its two texts: the title and the value.
+        let rowTexts = app.staticTexts.matching(identifier: "settings_row_appVersion")
+        scrollTo(rowTexts.firstMatch)
+        // FUNCTIONAL: the row should display a version string next to its title
+        XCTAssertGreaterThanOrEqual(rowTexts.count, 2, "App version row should display a version string")
+        XCTAssertFalse(rowTexts.element(boundBy: 1).label.isEmpty, "App version row value should not be empty")
     }
 
     func testBuildNumberRowExistsAndShowsValue() throws {
-        app.swipeUp()
-        app.swipeUp()
-        app.swipeUp()
-        let row = app.otherElements["settings_row_buildNumber"]
-        XCTAssertTrue(
-            row.waitForExistence(timeout: 5),
-            "Build number row should exist"
-        )
-        // FUNCTIONAL: build row should display a build number
-        let hasBuildText = row.staticTexts.count > 0
-        XCTAssertTrue(hasBuildText, "Build number row should display a build string")
+        // The row's identifier lands on its two texts: the title and the value.
+        let rowTexts = app.staticTexts.matching(identifier: "settings_row_buildNumber")
+        scrollTo(rowTexts.firstMatch)
+        // FUNCTIONAL: the row should display a build string next to its title
+        XCTAssertGreaterThanOrEqual(rowTexts.count, 2, "Build number row should display a build string")
+        XCTAssertFalse(rowTexts.element(boundBy: 1).label.isEmpty, "Build number row value should not be empty")
     }
 
     func testAcknowledgementsLinkNavigatesToScreen() throws {
@@ -337,16 +319,14 @@ final class SettingsUITests: XCTestCase {
     // MARK: - Toggle Interaction
 
     func testToggleBackgroundRefresh() throws {
-        app.swipeUp()
         let toggle = app.switches["settings_toggle_backgroundRefresh"]
-        if toggle.waitForExistence(timeout: 5) {
-            let initialValue = toggle.value as? String
-            toggle.tap()
-            let newValue = toggle.value as? String
-            XCTAssertNotEqual(initialValue, newValue)
-            // Toggle back
-            toggle.tap()
-        }
+        scrollTo(toggle)
+        let initialValue = toggle.value as? String
+        toggle.flipSwitch()
+        let newValue = toggle.value as? String
+        XCTAssertNotEqual(initialValue, newValue)
+        // Toggle back
+        toggle.flipSwitch()
     }
 
     // MARK: - Navigation
@@ -399,21 +379,27 @@ final class SettingsUITests: XCTestCase {
     }
 
     func testHighLatencyToggleRevealsThresholdStepper() throws {
-        app.swipeUp()
         let toggle = app.switches["settings_toggle_highLatencyAlert"]
-        guard toggle.waitForExistence(timeout: 5) else { return }
+        scrollTo(toggle)
 
         // If currently off, turn on and verify threshold stepper appears
-        if (toggle.value as? String) == "0" {
-            toggle.tap()
+        let wasOff = (toggle.value as? String) == "0"
+        if wasOff {
+            toggle.flipSwitch()
+            // Restore even when the assertion below fails and stops the test.
+            addTeardownBlock { toggle.flipSwitch() }
         }
 
         // FUNCTIONAL: threshold stepper should now be visible
-        let stepper = app.otherElements["settings_stepper_highLatencyThreshold"]
+        let stepper = app.steppers["settings_stepper_highLatencyThreshold"]
         XCTAssertTrue(
             stepper.waitForExistence(timeout: 3),
             "High latency threshold stepper should appear when toggle is ON"
         )
+        // Restore
+        if wasOff {
+            toggle.flipSwitch()
+        }
     }
 
     func testPingCountStepperChangesValue() throws {
@@ -440,10 +426,8 @@ final class SettingsUITests: XCTestCase {
     // MARK: - Functional: Clear actions show confirmation
 
     func testClearHistoryShowsConfirmationAlertAndCanBeCancelled() throws {
-        app.swipeUp()
-        app.swipeUp()
         let clearButton = app.buttons["settings_button_clearHistory"]
-        guard clearButton.waitForExistence(timeout: 5) else { return }
+        scrollTo(clearButton)
         clearButton.tap()
 
         // FUNCTIONAL: confirmation alert must appear
@@ -457,46 +441,59 @@ final class SettingsUITests: XCTestCase {
         cancelButton.tap()
 
         // FUNCTIONAL: alert dismissed, settings screen still visible
-        XCTAssertTrue(app.otherElements["screen_settings"].waitForExistence(timeout: 3),
+        XCTAssertTrue(element("screen_settings").waitForExistence(timeout: 3),
                      "Settings screen should still be visible after cancelling Clear History")
     }
 
     // MARK: - Functional: Toggle persists across navigation
 
     func testBackgroundRefreshTogglePersistsAfterNavigation() throws {
-        app.swipeUp()
         let toggle = app.switches["settings_toggle_backgroundRefresh"]
-        guard toggle.waitForExistence(timeout: 5) else { return }
+        scrollTo(toggle)
 
         let before = toggle.value as? String ?? ""
-        toggle.tap()
+        toggle.flipSwitch()
         let afterToggle = toggle.value as? String ?? ""
         XCTAssertNotEqual(before, afterToggle, "Toggle should change state after tap")
 
         // Navigate away and come back
         let backButton = app.navigationBars.buttons.firstMatch
-        if backButton.waitForExistence(timeout: 3) {
-            backButton.tap()
-        }
-        // Return to settings
+        XCTAssertTrue(backButton.waitForExistence(timeout: 3), "Back button should exist")
+        backButton.tap()
         let settingsButton = app.buttons["dashboard_button_settings"]
-        if settingsButton.waitForExistence(timeout: 5) {
-            settingsButton.tap()
-        }
+        XCTAssertTrue(settingsButton.waitForExistence(timeout: 5), "Dashboard settings button should exist")
+        settingsButton.tap()
 
         // FUNCTIONAL: verify toggle state persisted
-        app.swipeUp()
         let toggleAfterReturn = app.switches["settings_toggle_backgroundRefresh"]
-        if toggleAfterReturn.waitForExistence(timeout: 5) {
-            let persistedValue = toggleAfterReturn.value as? String ?? ""
-            XCTAssertEqual(afterToggle, persistedValue,
-                          "Background refresh toggle state should persist after navigation round-trip")
-            // Restore
-            toggleAfterReturn.tap()
-        }
+        scrollTo(toggleAfterReturn)
+        let persistedValue = toggleAfterReturn.value as? String ?? ""
+        XCTAssertEqual(afterToggle, persistedValue,
+                       "Background refresh toggle state should persist after navigation round-trip")
+        // Restore
+        toggleAfterReturn.flipSwitch()
     }
 
     // MARK: - Helpers
+
+    /// Any element with this identifier. On iOS 26+ the settings screen is a `CollectionView`, steppers are
+    /// `Stepper`s, and a row's identifier lands on its texts, so element types aren't stable.
+    private func element(_ identifier: String) -> XCUIElement {
+        app.descendants(matching: .any).matching(identifier: identifier).firstMatch
+    }
+
+    /// Scrolls the settings list until the element is on screen. Rows below the fold aren't in the tree
+    /// until the lazy list renders them.
+    private func scrollTo(_ target: XCUIElement, maxSwipes: Int = 8) {
+        let list = element("screen_settings")
+        for _ in 0..<maxSwipes where !(target.exists && target.isHittable) {
+            list.swipeUp(velocity: .slow)
+        }
+        XCTAssertTrue(
+            target.waitForExistence(timeout: 3) && target.isHittable,
+            "\(target) should be on screen and hittable after scrolling"
+        )
+    }
 
     private func clearAndTypeText(_ text: String, into element: XCUIElement) {
         element.tap()

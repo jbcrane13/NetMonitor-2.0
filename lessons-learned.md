@@ -117,3 +117,11 @@ Project-specific notes for agents. Global lessons live in `~/.claude/lessons-lea
 - **`.summary` can carry a next step** when the step is a key point ("Next step: …"): the real model stated it in 4 of 4 fixtures. The `.advice` kind was only needed for #455's survey wording.
 - **On macOS, `.textSelection(.enabled)` takes a `Text` out of an `.accessibilityElement(children: .combine)` row**, so the row's AX value held only the heading and `axdrive text` couldn't find the result line.
 - **On iOS, a field's keyboard stays up after Start and covers the live results below it.** Resign first responder when a run starts; the XCUITest's cropped "steps" screenshot showed only keys until then.
+## 2026-11-24 — Plain-English rules (#450)
+- **Guided generation needs an escape listed first in its kind enum.** With `unsupported` as one of six kinds and synonyms in the guide ("down, offline, unreachable, drops off"), the real model scored 10/10 (spike inputs plus three). Questions such as "is my printer online?" still read as an alert, so a draft is always reviewed before Confirm.
+- **The only number to check against the user's words is the one the model copies.** Keep a latency threshold only when its digits appear in the input. Durations are conversions ("five minutes" → 300) and stay editable in the draft.
+- **Before this PR, `--uitesting` macOS launches saved alert rules in the user's real defaults.** The Debug build shares the bundle id, so `AlertRuleStore` now uses its own suite under `--uitesting` (`UITestPlainRules.ruleDefaults()`).
+- **`MonitoringSession.startMonitoring()` reads targets once.** A target added later wasn't checked until monitoring restarted, which affects Add to Targets too. `monitorAddedTarget(_:)` starts one mid-session.
+- **A `.sheet` on a `Section` inside an iOS `List` is applied to every row,** so it is dismissed as soon as a row changes. Present from the screen and pass a binding down.
+- **A `ModelContext` whose `ModelContainer` was released crashes the test host** ("Restarting after unexpected exit"). Have helpers return the container.
+- **macOS 27 stamps a card's identifier over its text field** (device detail's name field reads as `deviceDetail_card_header`). `axdrive typefield <id> <text>` types into the first text field that has the identifier or sits inside it.

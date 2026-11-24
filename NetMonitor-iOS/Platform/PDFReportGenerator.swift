@@ -176,10 +176,11 @@ public enum PDFReportGenerator {
 
     private static func drawDevices(devices: [LocalDevice], ctx: UIGraphicsPDFRendererContext, y: CGFloat) -> CGFloat {
         var cursor = pageBreakIfNeeded(y: y, ctx: ctx)
-        cursor = drawSectionTitle("Discovered Devices (\(devices.count))", y: cursor)
+        let rows = devices.sorted { $0.lastSeen > $1.lastSeen }.prefix(35)
+        cursor = drawSectionTitle("Discovered Devices (\(countLabel(shown: rows.count, total: devices.count)))", y: cursor)
         cursor = drawRow(cols: ["IP Address", "Name", "Type", "Status"], y: cursor, header: true)
 
-        for device in devices.prefix(35) {
+        for device in rows {
             cursor = pageBreakIfNeeded(y: cursor, ctx: ctx)
             cursor = drawRow(cols: [
                 device.ipAddress,
@@ -195,11 +196,12 @@ public enum PDFReportGenerator {
 
     private static func drawToolResults(toolResults: [ToolResult], ctx: UIGraphicsPDFRendererContext, y: CGFloat) -> CGFloat {
         var cursor = pageBreakIfNeeded(y: y, ctx: ctx)
-        cursor = drawSectionTitle("Tool Results (\(min(toolResults.count, 25)))", y: cursor)
+        let rows = toolResults.sorted { $0.timestamp > $1.timestamp }.prefix(25)
+        cursor = drawSectionTitle("Tool Results (\(countLabel(shown: rows.count, total: toolResults.count)))", y: cursor)
         cursor = drawRow(cols: ["Tool", "Target", "Result", "Date"], y: cursor, header: true)
 
         let fmt = makeDateFormatter()
-        for result in toolResults.prefix(25) {
+        for result in rows {
             cursor = pageBreakIfNeeded(y: cursor, ctx: ctx)
             cursor = drawRow(cols: [
                 result.toolType.displayName,
@@ -215,11 +217,12 @@ public enum PDFReportGenerator {
 
     private static func drawSpeedTests(speedTests: [SpeedTestResult], ctx: UIGraphicsPDFRendererContext, y: CGFloat) -> CGFloat {
         var cursor = pageBreakIfNeeded(y: y, ctx: ctx)
-        cursor = drawSectionTitle("Speed Test History (\(min(speedTests.count, 25)))", y: cursor)
+        let rows = speedTests.sorted { $0.timestamp > $1.timestamp }.prefix(25)
+        cursor = drawSectionTitle("Speed Test History (\(countLabel(shown: rows.count, total: speedTests.count)))", y: cursor)
         cursor = drawRow(cols: ["Date", "Download", "Upload", "Latency"], y: cursor, header: true)
 
         let fmt = makeDateFormatter()
-        for test in speedTests.prefix(25) {
+        for test in rows {
             cursor = pageBreakIfNeeded(y: cursor, ctx: ctx)
             cursor = drawRow(cols: [
                 fmt.string(from: test.timestamp),
@@ -229,6 +232,11 @@ public enum PDFReportGenerator {
             ], y: cursor, header: false)
         }
         return cursor + sectionGap
+    }
+
+    /// A table title's count: "25 of 36" when the table is capped, else the total.
+    private static func countLabel(shown: Int, total: Int) -> String {
+        shown < total ? "\(shown) of \(total)" : "\(total)"
     }
 
     // MARK: - Drawing Primitives

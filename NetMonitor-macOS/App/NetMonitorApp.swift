@@ -14,7 +14,7 @@ struct NetMonitorApp: App {
     @State private var networkChangeWatcher: LocalNetworkChangeMonitor?
     @State private var periodicScanScheduler: PeriodicScanScheduler?
     /// One store for every window and the rule dispatcher (#394).
-    @State private var alertRuleStore = AlertRuleStore()
+    @State private var alertRuleStore = AlertRuleStore(defaults: UITestPlainRules.ruleDefaults())
     @State private var speedTestScheduler: ScheduledSpeedTestRunner?
     @State private var speedTestMaintenance: SpeedTestHistoryMaintenance?
     @State private var companionHandler: CompanionMessageHandler?
@@ -143,6 +143,8 @@ struct NetMonitorApp: App {
                 .environment(networkProfileManager)
                 .environment(deviceDiscovery)
                 .environment(alertRuleStore)
+                // The Rules tab starts monitoring a target it adds (#450).
+                .environment(monitoringSession)
                 .tint(Color(hex: accentColorHex))
                 .environment(\.appAccentColor, Color(hex: accentColorHex))
                 .environment(\.compactMode, compactMode)
@@ -304,7 +306,7 @@ struct NetMonitorApp: App {
         let httpService = HTTPMonitorService()
         let icmpService = ICMPMonitorService()
         let tcpService = TCPMonitorService()
-        let profileManager = NetworkProfileManager()
+        let profileManager = NetworkProfileManager(userDefaults: NetworkProfileDefaults.launchDefaults)
         networkProfileManager = profileManager
         monitoringSession = MonitoringSession(
             modelContext: context,
@@ -380,6 +382,28 @@ struct NetMonitorApp: App {
 }
 
 // swiftlint:enable function_body_length
+
+// MARK: - Network profile defaults
+
+/// Where the network list is saved (#346). A `--uitesting` launch gets its own suite, emptied at
+/// every launch, so networks a UI test adds never reach the user's list or the next launch.
+enum NetworkProfileDefaults {
+    static let uiTestSuite = "netmonitor.uitest.networkProfiles"
+
+    /// This launch's defaults, made once per process. Setup reruns when the main window is
+    /// recreated, and that must not empty the suite again mid-launch.
+    @MainActor static let launchDefaults = make(arguments: ProcessInfo.processInfo.arguments)
+
+    static func make(arguments: [String], uiTestSuite: String = Self.uiTestSuite) -> UserDefaults {
+        guard arguments.contains("--uitesting") else { return .standard }
+        // Never fall back to the standard defaults: that is the user's real network list.
+        guard let defaults = UserDefaults(suiteName: uiTestSuite) else {
+            preconditionFailure("UI-test network profile suite \(uiTestSuite) is unavailable")
+        }
+        defaults.removePersistentDomain(forName: uiTestSuite)
+        return defaults
+    }
+}
 
 // MARK: - UI-test scan fixture
 
