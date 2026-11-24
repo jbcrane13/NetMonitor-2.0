@@ -187,7 +187,9 @@ public enum PlainRuleBuilder {
         let rule = AlertRule(
             name: name,
             trigger: trigger,
-            conditions: AlertRuleConditions(deviceID: device.id),
+            // `device` is for builds before #450, which ignore `deviceID`: without it they would
+            // apply the rule to every device. This build matches on `deviceID` only.
+            conditions: AlertRuleConditions(device: device.displayName, deviceID: device.id),
             minimumDuration: trigger == .cameOnline ? nil : duration
         )
         return AlertRuleDraft(rule: rule, device: device, hasTarget: hasTarget,

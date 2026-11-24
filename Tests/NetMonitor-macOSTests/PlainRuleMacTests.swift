@@ -76,7 +76,7 @@ struct PlainRuleMacTests {
         let saved = AlertRuleStore(defaults: defaults).rules
         #expect(saved.count == 1)
         #expect(saved.first?.trigger == .wentOffline)
-        #expect(saved.first?.conditions == AlertRuleConditions(deviceID: device.id))
+        #expect(saved.first?.conditions == AlertRuleConditions(device: "uitest-nas", deviceID: device.id))
         #expect(saved.first?.minimumDuration == 300)
         #expect(saved.first?.name == "Offline for 5 minutes")
         let targets = try context.fetch(FetchDescriptor<NetworkTarget>())

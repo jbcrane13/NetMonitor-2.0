@@ -26,7 +26,8 @@ struct PlainRuleBuilderTests {
         return
         }
         #expect(draft.rule.trigger == .wentOffline)
-        #expect(draft.rule.conditions == AlertRuleConditions(deviceID: nas.id))
+        // The name is a fallback for builds before #450, which don't read `deviceID`.
+        #expect(draft.rule.conditions == AlertRuleConditions(device: "Synology DS920", deviceID: nas.id))
         #expect(draft.rule.minimumDuration == 300)
         #expect(draft.rule.name == "Offline for 5 minutes")
         #expect(draft.device == nas)
