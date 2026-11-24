@@ -90,9 +90,12 @@ final class SettingsFunctionalUITests: MacOSUITestCase {
             XCTAssertTrue(app.switches["settings_toggle_notificationsEnabled"].isEnabled,
                           "Notifications enabled checkbox should be interactive")
         }
-        if app.sliders["settings_slider_latencyThreshold"].exists {
-            XCTAssertTrue(app.sliders["settings_slider_latencyThreshold"].isEnabled,
-                          "Latency threshold slider should be interactive")
+        // The slider is disabled while notifications are off (NotificationSettingsView).
+        let notifications = app.switches["settings_toggle_notificationsEnabled"]
+        if app.sliders["settings_slider_latencyThreshold"].exists, notifications.exists {
+            XCTAssertEqual(app.sliders["settings_slider_latencyThreshold"].isEnabled,
+                           stringValue(notifications) == "1",
+                           "Latency threshold slider should be enabled only while notifications are on")
         }
 
         captureScreenshot(named: "MacSettings_NotificationsTab")
@@ -296,8 +299,8 @@ final class SettingsFunctionalUITests: MacOSUITestCase {
 
         // Dismiss without clearing
         let dismissCandidates = [
-            app.buttons["Cancel"].firstMatch,
-            app.buttons["cancel"].firstMatch,
+            app.windows.buttons["Cancel"].firstMatch,
+            app.windows.buttons["cancel"].firstMatch,
             app.buttons["Don't Clear"],
             app.sheets.firstMatch.buttons.firstMatch
         ]

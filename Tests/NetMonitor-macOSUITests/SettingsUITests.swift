@@ -180,8 +180,8 @@ final class SettingsUITests: MacOSUITestCase {
         XCTAssertTrue(appeared, "A confirmation sheet or alert should appear after tapping Clear Data")
 
         let dismissCandidates = [
-            app.buttons["Cancel"].firstMatch,
-            app.buttons["cancel"].firstMatch,
+            app.windows.buttons["Cancel"].firstMatch,
+            app.windows.buttons["cancel"].firstMatch,
             app.buttons["Don't Clear"],
             app.sheets.firstMatch.buttons.firstMatch
         ]
