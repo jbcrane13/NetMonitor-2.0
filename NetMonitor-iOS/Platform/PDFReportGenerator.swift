@@ -177,13 +177,13 @@ public enum PDFReportGenerator {
     private static func drawDevices(devices: [LocalDevice], ctx: UIGraphicsPDFRendererContext, y: CGFloat) -> CGFloat {
         var cursor = pageBreakIfNeeded(y: y, ctx: ctx)
         cursor = drawSectionTitle("Discovered Devices (\(devices.count))", y: cursor)
-        cursor = drawRow(cols: ["IP Address", "Hostname", "Type", "Status"], y: cursor, header: true)
+        cursor = drawRow(cols: ["IP Address", "Name", "Type", "Status"], y: cursor, header: true)
 
         for device in devices.prefix(35) {
             cursor = pageBreakIfNeeded(y: cursor, ctx: ctx)
             cursor = drawRow(cols: [
                 device.ipAddress,
-                device.hostname ?? "—",
+                device.displayName,
                 device.deviceType.displayName,
                 device.status.statusType.label
             ], y: cursor, header: false)
