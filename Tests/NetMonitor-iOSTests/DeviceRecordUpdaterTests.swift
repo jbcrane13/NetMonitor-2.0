@@ -566,4 +566,55 @@ extension DeviceRecordUpdaterTests {
         #expect(viewModel.device?.id == saved.id)
         #expect(try rows(context).count == 1)
     }
+
+    // MARK: - #598, folded into #589
+
+    /// The Mac's list says the TV is online; the Mac disconnects; later local scans never see the TV.
+    /// Its sightings from the stale list are cached, so it goes offline under grace, and opening it
+    /// by ID probes nothing.
+    @Test func aDisconnectedMacsListNeitherKeepsADeviceOnlineNorConfirmsItsAddress() async throws {
+        let (container, context) = try makeStore()
+        defer { withExtendedLifetime(container) {} }
+        let mac = MockMacConnectionService()
+        mac.connectionState = .connected
+        mac.lastDeviceList = DeviceListPayload(devices: [DeviceInfo(
+            ipAddress: "192.168.9.60", macAddress: "AA:00:00:00:09:60", hostname: "den-tv", deviceType: "tv", isOnline: true
+        )])
+        mac.lastDeviceListReceivedAt = start
+        func companion(at now: Date) -> [DiscoveredDevice] {
+            let sightings = DeviceDiscoveryService.companionSightings(
+                list: mac.lastDeviceList, receivedAt: mac.lastDeviceListReceivedAt, macConnected: mac.connectionState.isConnected,
+                now: now, includes: { _ in true }, profileID: home
+            )
+            return sightings.devices.map { $0.withCached(!sightings.fresh) }
+        }
+        let reconciler = try makeReconciler(context)
+        // Connected and fresh: the TV counts as answering.
+        DeviceRecordUpdater.reconcile([device(0)] + companion(at: start), scanDate: start, network: home, with: reconciler, now: start)
+        let tv = try #require(try rows(context).first { $0.hostname == "den-tv" })
+        #expect(tv.status == .online)
+
+        // The Mac disconnects (its link drops, clearing the receive time); local scans go on.
+        mac.connectionState = .disconnected
+        mac.lastDeviceListReceivedAt = nil
+        var latest: [DiscoveredDevice] = []
+        for minutes in [10.0, 20, 30] {
+            let time = start.addingTimeInterval(minutes * 60)
+            latest = [device(0)] + companion(at: time)
+            #expect(latest.last?.isCached == true)
+            DeviceRecordUpdater.reconcile(latest, scanDate: time, network: home, with: reconciler, now: time)
+        }
+        #expect(tv.status == .offline)
+        #expect(tv.lastSeen == start)
+
+        // Opened by ID, nothing confirms the TV's address: no probe runs.
+        let discovery = MockDeviceDiscoveryService()
+        discovery.discoveredDevices = latest
+        let ports = MockPortScannerService()
+        let viewModel = DeviceDetailViewModel(portScanner: ports, deviceDiscoveryService: discovery)
+        viewModel.loadDevice(id: tv.id, context: context)
+        await viewModel.scanPorts()
+        #expect(viewModel.probeAddress == nil)
+        #expect(ports.scannedHosts.isEmpty)
+    }
 }

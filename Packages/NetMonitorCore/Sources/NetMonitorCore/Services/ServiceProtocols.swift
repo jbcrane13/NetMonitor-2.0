@@ -525,6 +525,9 @@ public enum MacConnectionState: Sendable, Equatable {
 public protocol MacConnectionServiceProtocol: AnyObject {
     var connectionState: MacConnectionState { get }
     var lastDeviceList: DeviceListPayload? { get }
+    /// When `lastDeviceList` arrived over the current link; nil once that link drops, by any path
+    /// (#598). An older list is not evidence of presence now.
+    var lastDeviceListReceivedAt: Date? { get }
     /// The name of the currently connected Mac (nil when not connected).
     var connectedMacName: String? { get }
     /// Whether the service is currently browsing for Macs.
@@ -532,6 +535,11 @@ public protocol MacConnectionServiceProtocol: AnyObject {
     /// Macs discovered on the local network (visible for UI pairing).
     var discoveredMacs: [DiscoveredMac] { get }
     func send(command: CommandPayload) async
+}
+
+public extension MacConnectionServiceProtocol {
+    /// For a conformer that doesn't track it: its list is never fresh.
+    var lastDeviceListReceivedAt: Date? { nil }
 }
 
 /// Minimal representation of a discovered Mac peer on the LAN.

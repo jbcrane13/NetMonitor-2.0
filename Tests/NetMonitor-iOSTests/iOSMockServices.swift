@@ -297,6 +297,7 @@ final class MockDeviceDiscoveryService: DeviceDiscoveryServiceProtocol, @uncheck
 final class MockMacConnectionService: MacConnectionServiceProtocol {
     var connectionState: MacConnectionState = .disconnected
     var lastDeviceList: DeviceListPayload? = nil
+    var lastDeviceListReceivedAt: Date?
     var connectedMacName: String? = nil
     var isBrowsing: Bool = false
     var discoveredMacs: [DiscoveredMac] = []
