@@ -1,0 +1,144 @@
+import Foundation
+#if canImport(FoundationModels)
+import FoundationModels
+#endif
+
+/// The Ask model the apps use (#452): the on-device model with tool calling on iOS 27 / macOS 27
+/// and later, and one that is never available everywhere else.
+public enum AskModel {
+    public static let shared: any AskModelProtocol = make()
+
+    static func make() -> any AskModelProtocol {
+        #if canImport(FoundationModels)
+        if #available(iOS 27.0, macOS 27.0, *) {
+            return SystemAskModel()
+        }
+        #endif
+        return ScriptedAskModel(scripts: [:], isAvailable: false)
+    }
+}
+
+#if canImport(FoundationModels)
+/// Answers with the system language model calling `AskToolbox`'s tools. Everything stays on the
+/// device; questions and tool results carry device names and addresses, so nothing is logged.
+///
+/// From the #447 spike: the toolbox caps calls itself and answers "limit reached" (approach C),
+/// and `onToolCall` stops the turn past `AskToolbox.hardStop` (approach D). Tool calling is left
+/// at its default: `.required` never stops. The caller cancels by cancelling its task.
+@available(iOS 27.0, macOS 27.0, *)
+struct SystemAskModel: AskModelProtocol {
+    var isAvailable: Bool { SystemLanguageModel.default.isAvailable }
+
+    func answer(_ question: String, instructions: String, toolbox: AskToolbox) async -> String? {
+        let tools: [any Tool] = [
+            FindDevicesTool(toolbox: toolbox), DeviceStatusTool(toolbox: toolbox), DeviceLatencyHistoryTool(toolbox: toolbox),
+            EventsTool(toolbox: toolbox), FlakyDevicesTool(toolbox: toolbox)
+        ]
+        let profile = LanguageModelSession.Profile {
+            Instructions(instructions)
+            tools
+        }
+        // Greedy: the same question on the same data gets the same answer.
+        .samplingMode(.greedy)
+        .onToolCall { _ in try toolbox.admit() }
+        do {
+            let session = LanguageModelSession(profile: profile)
+            let response = try await session.respond(to: question, options: GenerationOptions(maximumResponseTokens: 220))
+            return response.content
+        } catch {
+            return nil
+        }
+    }
+}
+
+@available(iOS 27.0, macOS 27.0, *)
+@Generable
+struct AskPhraseArguments {
+    // No example device here: given "such as the printer", the model searched for the printer
+    // when asked which devices were offline.
+    @Guide(description: "The user's own words for one device, or all for every device with its status")
+    var phrase: String
+}
+
+@available(iOS 27.0, macOS 27.0, *)
+@Generable
+struct AskDeviceArguments {
+    @Guide(description: "The device's id from findDevices, such as dev-a")
+    var id: String
+}
+
+@available(iOS 27.0, macOS 27.0, *)
+@Generable
+struct AskEventsArguments {
+    @Guide(description: "The time range the user asked about; last7Days when they named none", .anyOf(AskRange.allCases.map(\.rawValue)))
+    var range: String
+    @Guide(description: "The kind of event: deviceWentOffline when a device dropped off or left, deviceJoined when one is new, or any",
+           .anyOf(["any"] + AskEventKind.allCases.map(\.rawValue)))
+    var type: String
+}
+
+@available(iOS 27.0, macOS 27.0, *)
+@Generable
+struct AskRangeArguments {
+    @Guide(description: "The time range the user asked about; last7Days when they named none", .anyOf(AskRange.allCases.map(\.rawValue)))
+    var range: String
+}
+
+@available(iOS 27.0, macOS 27.0, *)
+struct FindDevicesTool: Tool {
+    let toolbox: AskToolbox
+    let name = "findDevices"
+    let description = "Find saved devices by the user's words for one (a name, a kind or a maker), or list every device with all. "
+        + "Returns each device's id, name, kind, status, last seen time and address."
+
+    func call(arguments: AskPhraseArguments) async throws -> String {
+        toolbox.findDevices(arguments.phrase)
+    }
+}
+
+@available(iOS 27.0, macOS 27.0, *)
+struct DeviceStatusTool: Tool {
+    let toolbox: AskToolbox
+    let name = "deviceStatus"
+    let description = "Whether one device is online or offline, when it was last seen and its last reply time."
+
+    func call(arguments: AskDeviceArguments) async throws -> String {
+        toolbox.deviceStatus(arguments.id)
+    }
+}
+
+@available(iOS 27.0, macOS 27.0, *)
+struct DeviceLatencyHistoryTool: Tool {
+    let toolbox: AskToolbox
+    let name = "deviceLatencyHistory"
+    let description = "One device's recent latency: average, highest, spikes, and how often it went offline."
+
+    func call(arguments: AskDeviceArguments) async throws -> String {
+        toolbox.deviceLatencyHistory(arguments.id)
+    }
+}
+
+@available(iOS 27.0, macOS 27.0, *)
+struct EventsTool: Tool {
+    let toolbox: AskToolbox
+    let name = "events"
+    let description = "Network events in a time range, newest first: devices joining or leaving, connectivity, speed, "
+        + "gateway and VPN changes, scans."
+
+    func call(arguments: AskEventsArguments) async throws -> String {
+        toolbox.events(arguments.range, type: arguments.type)
+    }
+}
+
+@available(iOS 27.0, macOS 27.0, *)
+struct FlakyDevicesTool: Tool {
+    let toolbox: AskToolbox
+    let name = "flakyDevices"
+    let description = "The devices that were flaky in a time range, ranked by the app: those that went offline repeatedly "
+        + "or had latency spikes."
+
+    func call(arguments: AskRangeArguments) async throws -> String {
+        toolbox.flakyDevices(arguments.range)
+    }
+}
+#endif
