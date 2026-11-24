@@ -206,6 +206,26 @@ struct MonitoringSessionExtendedTests {
         await session.stopMonitoringAndWait()
     }
 
+    @Test func stoppingMonitoringReportsItOnce() async throws {
+        let (container, context) = try makeInMemoryStore()
+        _ = container
+        context.insert(NetworkTarget(
+            name: "Router", host: "192.168.1.1",
+            targetProtocol: .icmp, isEnabled: true
+        ))
+        try context.save()
+        let session = MonitoringSession(modelContext: context)
+        var stops = 0
+        session.onMonitoringStopped = { stops += 1 }
+
+        session.startMonitoring()
+        #expect(stops == 0)
+        await session.stopMonitoringAndWait()
+        session.stopMonitoring()
+
+        #expect(stops == 1)
+    }
+
     @Test func startMonitoringWhileAlreadyMonitoringIsIdempotent() async throws {
         let (container, context) = try makeInMemoryStore()
         _ = container

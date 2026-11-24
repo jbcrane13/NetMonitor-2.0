@@ -137,7 +137,7 @@ final class MacRuleAlerts {
             deviceType: row?.deviceType,
             maker: row?.makerExcludingSuggestions,
             networkID: row == nil ? nil : networkID,
-            stateKey: "target:\(result.targetID.uuidString)",
+            stateKey: "\(Self.targetKeyPrefix)\(result.targetID.uuidString)",
             deviceID: row?.id
         )
         var events: [AlertRuleEvent] = []
@@ -155,6 +155,14 @@ final class MacRuleAlerts {
         }
         fire(events)
     }
+
+    /// Monitoring stopped: targets go unchecked from here, so their duration timers start over
+    /// when it resumes. Scan-timed outages keep theirs.
+    func monitoringStopped() {
+        evaluator.endEpisodes(subjectKeyPrefix: Self.targetKeyPrefix)
+    }
+
+    private static let targetKeyPrefix = "target:"
 
     private func fire(_ events: [AlertRuleEvent]) {
         guard !events.isEmpty else { return }

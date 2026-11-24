@@ -47,6 +47,8 @@ final class MonitoringSession {
     var onTargetDown: (@MainActor (_ name: String, _ host: String) -> Void)?
     /// Called with every recorded check result, after any retries, for alert rules (#394).
     var onTargetResult: (@MainActor (TargetCheckOutcome) -> Void)?
+    /// Called when monitoring stops, so alert rules don't count the unchecked time (#450).
+    var onMonitoringStopped: (@MainActor () -> Void)?
 
     private var monitoringTasks: [UUID: Task<Void, Never>] = [:]
     private var currentSessionRecord: SessionRecord?
@@ -169,6 +171,7 @@ final class MonitoringSession {
 
         for task in monitoringTasks.values { task.cancel() }
         monitoringTasks.removeAll()
+        onMonitoringStopped?()
     }
 
     /// Stops monitoring and waits for all background tasks to finish.

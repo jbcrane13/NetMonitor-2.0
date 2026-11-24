@@ -115,6 +115,33 @@ struct MacAlertDispatcherTests {
         #expect(fixture.poster.requests.map(\.content.title) == ["Router down"])
     }
 
+    /// A latency rule that needs its condition to last: a reading before monitoring stopped
+    /// must not count toward the time after it resumes (#450).
+    @Test func stoppingMonitoringRestartsATargetsDurationClock() throws {
+        let fixture = Fixture()
+        defer { fixture.cleanUp() }
+        fixture.store.add(AlertRule(name: "Slow for a while", trigger: .latencyAbove(milliseconds: 100), minimumDuration: 0.2))
+        let schema = Schema([NetworkTarget.self, TargetMeasurement.self, SessionRecord.self, LocalDevice.self])
+        let config = ModelConfiguration(UUID().uuidString, schema: schema, isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+        let container = try ModelContainer(for: schema, configurations: [config])
+        defer { withExtendedLifetime(container) {} }
+        let session = MonitoringSession(modelContext: container.mainContext)
+        fixture.dispatcher.attach(to: session, discovery: nil)
+        var ruleAlerts: [String] {
+            fixture.poster.requests.filter { $0.content.categoryIdentifier == NotificationService.ruleMatchCategory }.map(\.content.title)
+        }
+
+        session.onTargetResult?(fixture.outcome(latency: 500))
+        session.onMonitoringStopped?()
+        Thread.sleep(forTimeInterval: 0.3)
+        session.onTargetResult?(fixture.outcome(latency: 500))
+        #expect(ruleAlerts.isEmpty, "The time monitoring was stopped doesn't count")
+
+        Thread.sleep(forTimeInterval: 0.3)
+        session.onTargetResult?(fixture.outcome(latency: 500))
+        #expect(ruleAlerts == ["Slow for a while"])
+    }
+
     @Test func theNotificationsSwitchSilencesEveryAlert() {
         let fixture = Fixture()
         defer { fixture.cleanUp() }

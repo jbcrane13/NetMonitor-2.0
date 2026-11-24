@@ -225,6 +225,15 @@ public struct AlertRuleEvaluator: Sendable {
         return matches
     }
 
+    /// Forgets the duration timers of subjects whose key starts with `prefix`, such as monitored
+    /// targets when monitoring stops: time when nothing was checked doesn't count toward a duration.
+    public mutating func endEpisodes(subjectKeyPrefix prefix: String) {
+        // State keys are "<rule ID>|<subject key>".
+        let marker = "|\(prefix)"
+        conditionSince = conditionSince.filter { !$0.key.contains(marker) }
+        firedEpisodes = firedEpisodes.filter { !$0.contains(marker) }
+    }
+
     /// Forgets crossing and duration state for rules whose definition changed, or that were deleted.
     private mutating func resetChangedRules(_ rules: [AlertRule]) {
         var current: [UUID: Definition] = [:]

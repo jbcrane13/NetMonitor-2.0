@@ -121,6 +121,26 @@ struct AlertRuleIdentityTests {
         #expect(fired == [0, 0, 0, 0, 0, 1, 0])
     }
 
+    @Test func endingATargetsEpisodesRestartsItsClockAndLeavesScanTimedOnesAlone() {
+        var evaluator = AlertRuleEvaluator()
+        let rule = AlertRule(name: "Slow 2 min", trigger: .latencyAbove(milliseconds: 250), minimumDuration: 120)
+        let offline = AlertRule(name: "Down 5 min", trigger: .wentOffline, minimumDuration: 300)
+        var target = nas(named: "NAS")
+        target.stateKey = "target:\(UUID().uuidString)"
+        let high = AlertRuleEvent(kind: .latency(milliseconds: 300), subject: target)
+        #expect(evaluator.evaluate([high], rules: [rule, offline], now: at(0)).isEmpty)
+        #expect(evaluator.evaluate([AlertRuleEvent(kind: .wentOffline, subject: nas(named: "NAS"))], rules: [rule, offline], now: at(0)).isEmpty)
+
+        evaluator.endEpisodes(subjectKeyPrefix: "target:")
+
+        // Ten unchecked minutes later, one high reading starts a new clock.
+        #expect(evaluator.evaluate([high], rules: [rule, offline], now: at(600)).isEmpty)
+        #expect(evaluator.evaluate([high], rules: [rule, offline], now: at(720)).map(\.rule.name) == ["Slow 2 min"])
+        // The scan-timed outage kept its start.
+        let still = AlertRuleEvent(kind: .stillOffline, subject: nas(named: "NAS"))
+        #expect(evaluator.evaluate([still], rules: [rule, offline], now: at(730)).map(\.rule.name) == ["Down 5 min"])
+    }
+
     @Test func changingARulesDurationForgetsItsTimers() {
         var evaluator = AlertRuleEvaluator()
         var rule = AlertRule(name: "Down", trigger: .wentOffline, minimumDuration: 300)
