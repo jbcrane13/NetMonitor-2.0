@@ -547,7 +547,9 @@ extension BackgroundTaskService {
     }
 
     nonisolated private static func tcpConnect(host: String, port: Int, timeout: TimeInterval) async -> Bool {
-        logger.debug("TCP check: \(host):\(port) (timeout: \(timeout)s)")
+        // A target's address is an IP or a hostname; each has its own redaction.
+        let address = IPv4Address(host) == nil ? LogSanitizer.redactHostname(host) : LogSanitizer.redactIP(host)
+        logger.debug("TCP check: \(address):\(port) (timeout: \(timeout)s)")
         return await withTaskGroup(of: Bool?.self) { group in
             let connection = NWConnection(
                 host: NWEndpoint.Host(host),
