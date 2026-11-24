@@ -1,0 +1,116 @@
+available: true
+
+=== Is the printer up?
+  calls: 1, outputs kept: 1
+    > 1 device matches "printer":
+      - id dev-a: Brother HL-L2350DW, printer, offline, last seen 2026-11-23 9:14 AM, address 192.168.1.57
+  raw answer: The Brother HL-L2350DW printer is offline, last seen on 2026-11-23 at 9:14 AM.
+  1.89 s
+  SHOWN: The Brother HL-L2350DW printer is offline, last seen on 2026-11-23 at 9:14 AM.  [grounded: true]
+  cites devices: ["Brother HL-L2350DW"] events: []
+
+=== What joined this week?
+  calls: 1, outputs kept: 1
+    > 2 events (Device Joined) in the last 7 days (2026-11-17 to 2026-11-23), newest first:
+      - 2026-11-21 3:02 PM: Device Joined: Kitchen iPad
+      - 2026-11-19 10:05 AM: Device Joined: ESP_3F21A9
+  raw answer: Two devices joined this week: Kitchen iPad on 2026-11-21 at 3:02 PM and ESP_3F21A9 on 2026-11-19 at 10:05 AM.
+  2.62 s
+  SHOWN: Two devices joined this week: Kitchen iPad on 2026-11-21 at 3:02 PM and ESP_3F21A9 on 2026-11-19 at 10:05 AM.  [grounded: true]
+  cites devices: ["Kitchen iPad", "ESP_3F21A9"] events: ["Device Joined: Kitchen iPad", "Device Joined: ESP_3F21A9"]
+
+=== Which devices have been flaky?
+  calls: 1, outputs kept: 1
+    > 2 flaky devices in the last 7 days (2026-11-17 to 2026-11-23), most first:
+      - Ring Doorbell: went offline 2 times; 2 latency spikes, highest 512 ms
+      - Nest Thermostat: went offline 1 time; 1 latency spike, highest 297 ms
+  raw answer: Two devices were flaky in the last 7 days: Ring Doorbell with 2 latency spikes, highest 512 ms, and Nest Thermostat with 1 latency spike, highest 297 ms.
+  2.71 s
+  SHOWN: Two devices were flaky in the last 7 days: Ring Doorbell with 2 latency spikes, highest 512 ms, and Nest Thermostat with 1 latency spike, highest 297 ms.  [grounded: true]
+  cites devices: ["Ring Doorbell", "Nest Thermostat"] events: []
+
+=== How has the NAS latency been today?
+  calls: 2, outputs kept: 2
+    > 1 device matches "NAS":
+      - id dev-b: Synology DS920, storage, online, last seen 2026-11-23 12:00 PM, address 192.168.1.20
+    > Synology DS920, this session's latency samples (4): average 2 ms, highest 2 ms, lowest 2 ms. Latency spikes: 0. Went offline 0 times in the last 7 days (2026-11-17 to 2026-11-23). Lost pings are not recorded per device.
+  raw answer: The Synology DS920 had latency samples averaging 2 ms today, with the highest and lowest at 2 ms. There were no latency spikes or offline periods recorded for the Synology DS920 from 2026-11-17 to 2026-11-23.
+  5.32 s
+  SHOWN: The Synology DS920 had latency samples averaging 2 ms today, with the highest and lowest at 2 ms. There were no latency spikes or offline periods recorded for the Synology DS920 from 2026-11-17 to 2026-11-23.  [grounded: true]
+  cites devices: ["Synology DS920"] events: []
+
+=== the printer won't print
+  calls: 1, outputs kept: 1
+    > 1 device matches "printer":
+      - id dev-a: Brother HL-L2350DW, printer, offline, last seen 2026-11-23 9:14 AM, address 192.168.1.57
+  raw answer: The Brother HL-L2350DW printer is offline, last seen on 2026-11-23 at 9:14 AM.
+  2.42 s
+  SHOWN: The Brother HL-L2350DW printer is offline, last seen on 2026-11-23 at 9:14 AM.  [grounded: true]
+  cites devices: ["Brother HL-L2350DW"] events: []
+
+=== Why is the internet slow tonight?
+  calls: 0, outputs kept: 0
+  raw answer: I cannot measure the internet connection or explain why it is slow. The tools do not provide information on network speed or its causes.
+  2.00 s
+  SHOWN: I couldn't look that up.  [grounded: false]
+  cites devices: [] events: []
+
+=== Is the Ring Doorbell online?
+  calls: 2, outputs kept: 2
+    > 1 device matches "Ring Doorbell":
+      - id dev-c: Ring Doorbell, camera, online, last seen 2026-11-23 12:00 PM, address 192.168.1.88
+    > Ring Doorbell is online. Last seen 2026-11-23 12:00 PM. Address 192.168.1.88. Last reply 388 ms. Went offline 2 times in the last 7 days (2026-11-17 to 2026-11-23).
+  raw answer: The Ring Doorbell is online, last seen on 2026-11-23 12:00 PM. It went offline 2 times in the last 7 days (2026-11-17 to 2026-11-23).
+  3.60 s
+  SHOWN: The Ring Doorbell is online, last seen on 2026-11-23 12:00 PM. It went offline 2 times in the last 7 days (2026-11-17 to 2026-11-23).  [grounded: true]
+  cites devices: ["Ring Doorbell"] events: []
+
+=== When was the Office MacBook last seen?
+  calls: 1, outputs kept: 1
+    > 1 device matches "Office MacBook":
+      - id dev-f: Office MacBook, laptop, online, last seen 2026-11-23 11:40 AM, address 192.168.1.102
+  raw answer: The Office MacBook was last seen on 2026-11-23 at 11:40 AM.
+  2.20 s
+  SHOWN: The Office MacBook was last seen on 2026-11-23 at 11:40 AM.  [grounded: true]
+  cites devices: ["Office MacBook"] events: []
+
+=== Did anything go offline yesterday?
+  calls: 1, outputs kept: 1
+    > 1 event (Device Left) yesterday (2026-11-22), newest first:
+      - 2026-11-22 6:30 PM: Device Left: Ring Doorbell
+  raw answer: One device left yesterday at 2026-11-22 6:30 PM: Ring Doorbell.
+  2.21 s
+  SHOWN: One device left yesterday at 2026-11-22 6:30 PM: Ring Doorbell.  [grounded: true]
+  cites devices: ["Ring Doorbell"] events: ["Device Left: Ring Doorbell"]
+
+=== Which devices are offline right now?
+  calls: 1, outputs kept: 1
+    > 8 saved devices:
+      - id dev-a: Brother HL-L2350DW, printer, offline, last seen 2026-11-23 9:14 AM, address 192.168.1.57
+      - id dev-b: Synology DS920, storage, online, last seen 2026-11-23 12:00 PM, address 192.168.1.20
+      - id dev-c: Ring Doorbell, camera, online, last seen 2026-11-23 12:00 PM, address 192.168.1.88
+      - id dev-d: Nest Thermostat, iot, online, last seen 2026-11-23 12:00 PM, address 192.168.1.73
+      - id dev-e: Living Room Apple TV, tv, online, last seen 2026-11-23 12:00 PM, address 192.168.1.41
+      - id dev-f: Office MacBook, laptop, online, last seen 2026-11-23 11:40 AM, address 192.168.1.102
+      - id dev-g: ESP_3F21A9, unknown type, online, last seen 2026-11-23 12:00 PM, address 192.168.1.143
+      - id dev-h: Kitchen iPad, tablet, online, last seen 2026-11-23 12:00 PM, address 192.168.1.119
+  raw answer: The Brother HL-L2350DW printer is offline. It was last seen on 2026-11-23 9:14 AM at address 192.168.1.57.
+  3.33 s
+  SHOWN: The Brother HL-L2350DW printer is offline. It was last seen on 2026-11-23 9:14 AM at address 192.168.1.57.  [grounded: true]
+  cites devices: ["Brother HL-L2350DW", "Synology DS920", "Ring Doorbell", "Nest Thermostat", "Living Room Apple TV", "Office MacBook", "ESP_3F21A9", "Kitchen iPad"] events: []
+
+=== How many devices are saved?
+  calls: 1, outputs kept: 1
+    > 8 saved devices:
+      - id dev-a: Brother HL-L2350DW, printer, offline, last seen 2026-11-23 9:14 AM, address 192.168.1.57
+      - id dev-b: Synology DS920, storage, online, last seen 2026-11-23 12:00 PM, address 192.168.1.20
+      - id dev-c: Ring Doorbell, camera, online, last seen 2026-11-23 12:00 PM, address 192.168.1.88
+      - id dev-d: Nest Thermostat, iot, online, last seen 2026-11-23 12:00 PM, address 192.168.1.73
+      - id dev-e: Living Room Apple TV, tv, online, last seen 2026-11-23 12:00 PM, address 192.168.1.41
+      - id dev-f: Office MacBook, laptop, online, last seen 2026-11-23 11:40 AM, address 192.168.1.102
+      - id dev-g: ESP_3F21A9, unknown type, online, last seen 2026-11-23 12:00 PM, address 192.168.1.143
+      - id dev-h: Kitchen iPad, tablet, online, last seen 2026-11-23 12:00 PM, address 192.168.1.119
+  raw answer: There are 8 saved devices.
+  2.24 s
+  SHOWN: There are 8 saved devices.  [grounded: true]
+  cites devices: ["Brother HL-L2350DW", "Synology DS920", "Ring Doorbell", "Nest Thermostat", "Living Room Apple TV", "Office MacBook", "ESP_3F21A9", "Kitchen iPad"] events: []
