@@ -450,11 +450,11 @@ enum UITestScanFixture {
     @MainActor
     static func seedSecurityDevices(into context: ModelContext, profileID: UUID?) {
         context.insert(LocalDevice(
-            ipAddress: "192.168.77.30", macAddress: "00:1B:A9:77:00:30", hostname: "uitest-camera",
+            ipAddress: "192.168.77.30", macAddress: "02:00:00:77:00:30", hostname: "uitest-camera",
             deviceType: .camera, status: .online, openPorts: [23, 80], networkProfileID: profileID
         ))
         context.insert(LocalDevice(
-            ipAddress: "192.168.77.40", macAddress: "00:1B:A9:77:00:40", hostname: "uitest-nas",
+            ipAddress: "192.168.77.40", macAddress: "02:00:00:77:00:40", hostname: "uitest-nas",
             deviceType: .storage, status: .online, openPorts: [445], networkProfileID: profileID
         ))
         try? context.save()

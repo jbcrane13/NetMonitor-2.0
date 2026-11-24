@@ -44,6 +44,8 @@ struct SecurityReadoutView: View {
             outputArea: { content },
             footerContent: { footer }
         )
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("screen_securityReadout")
         .task(id: RefreshKey(
             findings: SecurityRuleTable.findings(for: devices),
             networkProfileID: networkProfileID,

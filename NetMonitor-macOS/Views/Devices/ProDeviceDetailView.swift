@@ -38,9 +38,10 @@ struct ProDeviceDetailView: View {
             ScrollView {
                 VStack(spacing: 16) {
                     headerSection
+                    // Risks first, where they are seen without scrolling (#454).
+                    securitySection
                     detailColumns
                     portsAndServicesSection
-                    securitySection
                     notesSection
                 }
                 .padding(20)
