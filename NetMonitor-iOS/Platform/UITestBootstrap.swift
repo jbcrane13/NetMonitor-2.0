@@ -505,3 +505,26 @@ extension UITestBootstrap {
         #endif
     }
 }
+
+// MARK: - Ask your network (#452)
+
+extension UITestBootstrap {
+    /// `UITEST_ASK` under a UI test: "answer", "hold" or "unavailable" (`AskUITestFixture.Mode`).
+    /// Nil otherwise, and always in release builds.
+    static var askMode: String? {
+        #if DEBUG
+        guard isUITesting else { return nil }
+        return ProcessInfo.processInfo.environment["UITEST_ASK"]
+        #else
+        return nil
+        #endif
+    }
+
+    /// Under `UITEST_ASK`: the fixture's printer and two joins this week, for the Ask flows.
+    static func seedAskIfNeeded(in context: ModelContext) {
+        #if DEBUG
+        guard askMode != nil else { return }
+        AskUITestFixture.seed(into: context, events: NetworkEventService.shared)
+        #endif
+    }
+}

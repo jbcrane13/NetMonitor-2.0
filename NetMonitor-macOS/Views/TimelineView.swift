@@ -43,6 +43,11 @@ final class TimelineMacViewModel {
         self.now = now
     }
 
+    /// The day section `date` falls in, in the list's calendar.
+    func day(of date: Date) -> Date {
+        calendar.startOfDay(for: date)
+    }
+
     var filteredEvents: [NetworkEvent] {
         guard let filter = selectedFilter else { return events }
         return events.filter { $0.type == filter }
@@ -77,6 +82,14 @@ final class TimelineMacViewModel {
 struct TimelineView: View {
     @State private var viewModel = TimelineMacViewModel()
     @State private var isConfirmingClear = false
+    /// Set once the list has scrolled to `focusDay`, so later changes don't scroll it back.
+    @State private var hasFocused = false
+    /// The day to scroll to when the list loads: an Ask citation's event (#452).
+    private let focusDay: Date?
+
+    init(focusDay: Date? = nil) {
+        self.focusDay = focusDay
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -84,17 +97,26 @@ struct TimelineView: View {
             Divider()
             if viewModel.hasEvents {
                 // List is lazy, so a 20,000-event log stays smooth (#491 D3).
-                List {
-                    ForEach(viewModel.groupedEvents, id: \.day) { group in
-                        Section(group.label) {
-                            ForEach(group.events) { event in
-                                MacTimelineRow(event: event)
-                                    .accessibilityIdentifier("timeline_event_\(event.id.uuidString)")
+                ScrollViewReader { proxy in
+                    List {
+                        ForEach(viewModel.groupedEvents, id: \.day) { group in
+                            Section(group.label) {
+                                ForEach(group.events) { event in
+                                    MacTimelineRow(event: event)
+                                        .accessibilityIdentifier("timeline_event_\(event.id.uuidString)")
+                                }
                             }
+                            .id(group.day)
                         }
                     }
+                    .listStyle(.inset)
+                    .task(id: viewModel.groupedEvents.count) {
+                        // The range is All on open, so the focused day's section is in the list.
+                        guard !hasFocused, let focusDay, !viewModel.groupedEvents.isEmpty else { return }
+                        proxy.scrollTo(viewModel.day(of: focusDay), anchor: .top)
+                        hasFocused = true
+                    }
                 }
-                .listStyle(.inset)
                 .accessibilityIdentifier("timeline_list_events")
             } else {
                 ContentUnavailableView(

@@ -29,6 +29,8 @@ targets:
       - path: Shared/UITest/HeatmapAdvisorUITestFixture.swift
       # Troubleshooter UI-test fixture (#451); Debug-only like the one above.
       - path: Shared/UITest/TroubleshootUITestFixture.swift
+      # Ask your network UI-test fixture (#452); Debug-only like the ones above.
+      - path: Shared/UITest/AskUITestFixture.swift
       - path: NetMonitor-macOS/Resources/Assets.xcassets
     info:
       path: NetMonitor-macOS/Resources/Info.plist
@@ -147,6 +149,8 @@ targets:
       - path: Shared/UITest/HeatmapAdvisorUITestFixture.swift
       # Troubleshooter UI-test fixture (#451); Debug-only like the one above.
       - path: Shared/UITest/TroubleshootUITestFixture.swift
+      # Ask your network UI-test fixture (#452); Debug-only like the ones above.
+      - path: Shared/UITest/AskUITestFixture.swift
       - path: NetMonitor-iOS/Resources/Assets.xcassets
     entitlements:
       path: NetMonitor-iOS/Resources/NetMonitor-iOS.entitlements

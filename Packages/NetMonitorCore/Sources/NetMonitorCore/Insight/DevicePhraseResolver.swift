@@ -61,7 +61,7 @@ public enum DevicePhraseResolver {
         .iot: ["thermostat", "plug", "sensor", "bulb"]
     ]
 
-    private static let fillerWords: Set<String> = ["the", "my", "our", "a", "an", "s", "device"]
+    static let fillerWords: Set<String> = ["the", "my", "our", "a", "an", "s", "device"]
 
     private static func significantWords(_ text: String) -> [String] {
         tokens(text).filter { !fillerWords.contains($0) }

@@ -153,6 +153,24 @@ Project-specific notes for agents. Global lessons live in `~/.claude/lessons-lea
 - **A text field's keyboard covers the tab bar**, so a later `tabBars.buttons[...]` tap misses and a fallback tapped Back instead. Tap the keyboard's Return after typing.
 - **`InsightTextFilter` rejected every `www.` name**, even one the app stated whole, which refused all CNAME explanations. A stated `www.` name is now allowed.
 
+## 2026-11-24 — Ask your network (#452)
+- **The model copies examples out of tool guides and descriptions.** With "such as the printer" in `findDevices`' guide, it searched for "printer" when asked which devices were offline, twice. Keep device examples out of tool text; say "or all for every device".
+- **Enum names steer tool arguments.** Given event kinds `left` and `connectivity`, it filed "did anything go offline yesterday?" under connectivity; `deviceWentOffline` fixed it. With `today` listed first among ranges it picked today for "which devices have been flaky?"; listing `last7Days` first and saying "last7Days when they named none" fixed it.
+- **Numeric grounding doesn't catch an invented cause.** "The internet is slow because the Ring Doorbell had 2 latency spikes" passes every number check. The answer check rejects causal wording ("because", "due to"), and the instructions say the tools don't measure the internet.
+- **Give the model the fact it would otherwise invent.** Without a drop count, `deviceStatus` led to "it has not been offline recently" for a device that dropped twice; adding "Went offline N times in the last 7 days" made the answer correct.
+- **Check capitalised names case-sensitively.** "Office Printer is offline" passed when no device was found, because "printer" was in the question. Comparing capitalised words to the question and tool results with case kept catches it, and the real model still passed 11/11.
+- **Per-run letter handles (`dev-a`) instead of UUIDs.** They are short, the model copied them every time, and they add no digits that grounding would accept as numbers.
+- **On macOS a `static` used by a non-isolated enum** (`ToolCategory.tools`) must be `nonisolated` when it lives on a `@MainActor` view model.
+
+## 2026-11-25 — Ask states how fresh presence is (#452 after #589)
+- **The 3B model turns "answered the last scan" into "online".** Wording alone doesn't stop it: on a 40-minute-old snapshot it still wrote "the following devices are online". The app-side check (`AskPresenceCheck`: present-tense online/up/connected rejected unless the device answered a recent scan) is what holds Blake's rule; the stale list's first line "Whether these devices are online now is not known" made most answers safe.
+- **Allow negations and the past, or the check refuses safe answers.** The model's stale answers were "not confirmed as online", "Whether it is online now is not known", "Its online status is unknown". Negations are looked for within the claim's clause only ("is not slow and is online" is still a claim).
+- **Show the app's freshness line yourself.** The model drops "as of the scan…" often; `AskAnswer.freshness` is shown verbatim under every answer that stated status.
+- **The model repeats per-run handles** ("Ring Doorbell (id dev-c)"); strip them before checking and showing.
+- **`git --work-tree=<dir> checkout <ref> -- .` also stages those files in your own index.** Use `git worktree add --detach` to read another branch.
+- **Don't `git pull --rebase` on a branch that merges main.** It replayed #596's commit onto the branch, which made the PR diff carry #596 as its own. Merging main again restored the merge base without a force-push. Use `git fetch` and then `git merge --ff-only @{u}`, or a plain `git pull`.
+- **The model words; the app states presence (lead, 2026-11-25).** Matching words to tell good presence claims from bad ones leaked ("All devices are online", "is active"). Dropping every presence sentence and showing the app's status beside each cited device is simpler and holds. Watch for lists under a dropped heading and for "did not answer".
+
 ## 2026-11-25 — Authenticated companion link (#590)
 
 - **Network.framework: TLS 1.3 with an external PSK doesn't work** (`-9858` with every 1.3 suite tried on macOS 27.2 and the iOS 27.2 simulator). TLS 1.2 PSK works, but `sec_protocol_options_append_tls_ciphersuite` doesn't pin the suite: a peer still negotiates plain PSK. What worked is TLS 1.3 with self-signed P-256 identities: a CryptoKit key plus a hand-built X.509, through `SecIdentityCreate` (public since iOS 11.2, no Keychain), with verify blocks that pin the peer's key hash. See `CompanionTLS`.
