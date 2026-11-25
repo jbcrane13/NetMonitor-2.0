@@ -200,6 +200,7 @@ struct ContentView: View {
             case .timeline: TimelineView()
             case .securityReadout: SecurityReadoutView()
             case .troubleshoot: TroubleshootToolView()
+            case .ask: AskToolView()
             }
         }
         .toolbar {

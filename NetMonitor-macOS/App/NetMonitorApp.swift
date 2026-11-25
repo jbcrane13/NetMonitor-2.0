@@ -359,6 +359,12 @@ struct NetMonitorApp: App {
         UITestHealthHistory.seedIfRequested(networkProfileID: profileManager.localProfile?.id)
         ChangeBriefMacViewModel.configureForUITests(arguments: arguments)
         SecurityReadoutMacViewModel.configureForUITests(arguments: arguments)
+        // Ask your network (#452): the printer and two joins this week.
+        #if DEBUG
+        if AskMacViewModel.uiTestMode(arguments: arguments) != nil {
+            AskUITestFixture.seed(into: context, events: NetworkEventService.shared)
+        }
+        #endif
     }
 
     /// A health sample for the Mac's network every 15 minutes (#491 D10).

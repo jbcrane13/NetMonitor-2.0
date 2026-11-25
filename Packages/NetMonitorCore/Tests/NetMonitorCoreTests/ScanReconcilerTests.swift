@@ -96,6 +96,20 @@ final class ScanReconcilerTests {
         #expect(saved[0].lastLatency == 30)
     }
 
+    @Test func theLastScanIsReadOnTheClockThatStampsLastSeen() throws {
+        // Ask says "as of the scan N minutes ago" from this (#452): a row that answered has the same time.
+        let (container, context) = try makeContext()
+        _ = container
+        let reconciler = try makeReconciler(context)
+        let history = try ScanHistory(defaults: #require(UserDefaults(suiteName: suiteName)))
+        #expect(history.lastScanTime(for: home) == nil)
+        try reconciler.reconcile([scanned(0)], networkProfileID: home, scanDate: start, now: minutes(1))
+        try reconciler.reconcile([scanned(0)], networkProfileID: home, scanDate: minutes(10), now: minutes(11))
+        #expect(history.lastScanTime(for: home) == minutes(11))
+        #expect(try rows(context)[0].lastSeen == minutes(11))
+        #expect(history.lastScanTime(for: UUID()) == nil)
+    }
+
     @Test func anUnseenDeviceStaysOnlineUntilTheGracePolicyIsMet() throws {
         let (container, context) = try makeContext()
         _ = container

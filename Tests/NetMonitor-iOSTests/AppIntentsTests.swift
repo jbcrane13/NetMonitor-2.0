@@ -4,6 +4,10 @@ import Foundation
 
 // MARK: - PingIntent Tests
 
+/// Why the intent-instantiation tests are disabled.
+private let instantiationCrash: Comment =
+    "AppIntents instantiation crashes on Xcode 26 beta — framework requires runtime context unavailable in tests"
+
 @MainActor
 struct PingIntentTests {
 
@@ -12,26 +16,26 @@ struct PingIntentTests {
         #expect(PingIntent.title == "Ping a Host")
     }
 
-    @Test("default count is 4", .disabled("AppIntents instantiation crashes on Xcode 26 beta — framework requires runtime context unavailable in tests"))
+    @Test("default count is 4", .disabled(instantiationCrash))
     func defaultCountIs4() {
         let intent = PingIntent()
         #expect(intent.count == 4)
     }
 
-    @Test("host defaults to empty string", .disabled("AppIntents instantiation crashes on Xcode 26 beta — framework requires runtime context unavailable in tests"))
+    @Test("host defaults to empty string", .disabled(instantiationCrash))
     func hostDefaultsToEmpty() {
         let intent = PingIntent()
-        #expect(intent.host == "")
+        #expect(intent.host.isEmpty)
     }
 
-    @Test("host can be set", .disabled("AppIntents instantiation crashes on Xcode 26 beta — framework requires runtime context unavailable in tests"))
+    @Test("host can be set", .disabled(instantiationCrash))
     func hostCanBeSet() {
         var intent = PingIntent()
         intent.host = "8.8.8.8"
         #expect(intent.host == "8.8.8.8")
     }
 
-    @Test("count can be set within range", .disabled("AppIntents instantiation crashes on Xcode 26 beta — framework requires runtime context unavailable in tests"))
+    @Test("count can be set within range", .disabled(instantiationCrash))
     func countCanBeSet() {
         var intent = PingIntent()
         intent.count = 10
@@ -49,7 +53,7 @@ struct ScanNetworkIntentTests {
         #expect(ScanNetworkIntent.title == "Scan My Network")
     }
 
-    @Test("intent can be created with no parameters", .disabled("AppIntents instantiation crashes on Xcode 26 beta — framework requires runtime context unavailable in tests"))
+    @Test("intent can be created with no parameters", .disabled(instantiationCrash))
     func intentCreation() {
         let intent = ScanNetworkIntent()
         _ = intent  // Just verify it creates without error
@@ -67,7 +71,7 @@ struct SpeedTestIntentTests {
         #expect(SpeedTestIntent.title == "Run Speed Test")
     }
 
-    @Test("intent can be created with no parameters", .disabled("AppIntents instantiation crashes on Xcode 26 beta — framework requires runtime context unavailable in tests"))
+    @Test("intent can be created with no parameters", .disabled(instantiationCrash))
     func intentCreation() {
         let intent = SpeedTestIntent()
         _ = intent
@@ -85,7 +89,7 @@ struct NetworkStatusIntentTests {
         #expect(NetworkStatusIntent.title == "Network Status")
     }
 
-    @Test("intent can be created with no parameters", .disabled("AppIntents instantiation crashes on Xcode 26 beta — framework requires runtime context unavailable in tests"))
+    @Test("intent can be created with no parameters", .disabled(instantiationCrash))
     func intentCreation() {
         let intent = NetworkStatusIntent()
         _ = intent
@@ -109,5 +113,6 @@ struct NetMonitorShortcutsTests {
         #expect(shortcutIDs.contains(.speedTest))
         #expect(shortcutIDs.contains(.networkStatus))
         #expect(shortcutIDs.contains(.saveWiFiReading))
+        #expect(shortcutIDs.contains(.ask))
     }
 }

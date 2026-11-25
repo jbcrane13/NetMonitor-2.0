@@ -29,10 +29,15 @@ enum ToolCategory: String, CaseIterable, Identifiable {
     }
 
     var tools: [NetworkTool] {
+        // Ask your network (#452): only with the on-device model.
+        tools(showsAsk: AskMacViewModel.isAvailable)
+    }
+
+    func tools(showsAsk: Bool) -> [NetworkTool] {
         switch self {
         case .diagnostics: return [.ping, .traceroute, .dnsLookup, .whois, .troubleshoot]
         case .discovery:   return [.portScanner, .bonjourBrowser, .subnetCalculator, .portForwards, .securityReadout]
-        case .monitoring:  return [.speedTest, .worldPing, .sslMonitor, .wifiHeatmap, .timeline]
+        case .monitoring:  return [.speedTest, .worldPing, .sslMonitor, .wifiHeatmap, .timeline] + (showsAsk ? [.ask] : [])
         case .actions:     return [.wakeOnLan, .geoTrace]
         }
     }
@@ -59,6 +64,8 @@ enum NetworkTool: String, CaseIterable, Identifiable {
     case timeline = "Timeline"
     case securityReadout = "Security Readout"
     case troubleshoot = "Troubleshoot"
+    // Ask your network (#452)
+    case ask = "Ask"
 
     var id: String { rawValue }
 
@@ -86,6 +93,7 @@ enum NetworkTool: String, CaseIterable, Identifiable {
         case .timeline: return "clock.arrow.circlepath"
         case .securityReadout: return "exclamationmark.shield"
         case .troubleshoot: return "stethoscope"
+        case .ask: return "questionmark.bubble"
         }
     }
 
@@ -108,6 +116,7 @@ enum NetworkTool: String, CaseIterable, Identifiable {
         case .timeline: return "Network event history"
         case .securityReadout: return "Risky open ports"
         case .troubleshoot: return "Find what's wrong"
+        case .ask: return "Ask about your network"
         }
     }
 }

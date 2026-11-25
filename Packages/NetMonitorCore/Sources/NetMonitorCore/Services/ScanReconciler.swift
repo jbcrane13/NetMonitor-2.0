@@ -55,6 +55,12 @@ public struct ScanHistory {
         (load()[Self.key(network)] ?? []).map(\.scan).max()
     }
 
+    /// When the network's latest scan was reconciled, on the clock that stamps `lastSeen`: the
+    /// scan "as of" which Ask states presence (#452). Nil when the network has none.
+    public func lastScanTime(for network: UUID?) -> Date? {
+        (load()[Self.key(network)] ?? []).max { $0.scan < $1.scan }?.reconciled
+    }
+
     /// Forgets every network's scans, as when the saved devices are deleted.
     public func clearAll() {
         defaults.removeObject(forKey: Self.storageKey)
