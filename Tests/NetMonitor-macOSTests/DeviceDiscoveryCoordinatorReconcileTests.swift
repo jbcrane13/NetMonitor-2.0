@@ -193,11 +193,12 @@ struct DeviceDiscoveryCoordinatorReconcileTests {
         #expect(coordinator.discoveredDevices.count == 3)
     }
 
-    /// Lead, 2026-11-25: hourly auto-scan (or a relaunch or sleep) keeps a nameless device on one
-    /// row while every scan sees it, on the Mac (sparse merge, then final) as on the iPhone.
+    /// Lead, 2026-11-25: hourly auto-scan (or a relaunch or sleep under 2 h) keeps a nameless device
+    /// on one row while every scan sees it, on the Mac (sparse merge, then final) as on the iPhone.
     @Test func hourlyScansKeepANamelessDeviceOnOneRowOnBothPlatforms() throws {
         let start = Date(timeIntervalSince1970: 1_790_000_000)
-        let times = [0.0, 60, 120, 180, 240, 420].map { start.addingTimeInterval($0 * 60) }  // then a 3 h sleep
+        // Hourly, then a 110-minute sleep: within `PresenceMatch.previousScanReach` (2 h).
+        let times = [0.0, 60, 120, 180, 240, 350].map { start.addingTimeInterval($0 * 60) }
         let scan = [Self.engine("10.0.0.80", nil)]
 
         let (macContainer, macContext) = try makeStore()
@@ -237,6 +238,24 @@ struct DeviceDiscoveryCoordinatorReconcileTests {
             profileID: home, now: clock.now
         )
         #expect(coordinator.discoveredDevices.map(\.ipAddress) == ["10.0.0.41"])
+    }
+
+    /// The sparse merge never saves status: a scan cancelled after it leaves an offline row offline.
+    @Test func theSparseMergeLeavesStatusToTheFinalPass() throws {
+        let (container, context) = try makeStore()
+        _ = container
+        let clock = TestClock(Date(timeIntervalSince1970: 1_790_000_000))
+        let row = LocalDevice(ipAddress: "10.0.0.95", macAddress: "AC:DE:48:00:00:95", hostname: "nas", status: .offline, networkProfileID: home)
+        row.lastSeen = clock.now.addingTimeInterval(-3600)
+        context.insert(row)
+        try context.save()
+        let coordinator = makeCoordinator(context, clock: clock)
+
+        coordinator.mergeSparseSnapshot([Self.device("10.0.0.95", nil, mac: "AC:DE:48:00:00:95", latency: 7)], profileID: home, now: clock.now)
+
+        let saved = try #require(try ModelContext(container).fetch(FetchDescriptor<LocalDevice>()).first)
+        #expect(saved.status == .offline)
+        #expect(saved.lastSeen == clock.now.addingTimeInterval(-3600))
     }
 
     /// One MAC listed at two addresses (the ARP cache still has the old one) is one device: the
@@ -362,7 +381,9 @@ struct DeviceDiscoveryCoordinatorReconcileTests {
             [
                 Self.engine("10.0.0.1", "router", mac: "AA:00:00:00:00:01"),
                 Self.engine("10.0.0.20", "kitchen-phone"),
-                Self.engine("10.0.0.31", nil, mac: "02:00:00:00:00:00")
+                Self.engine("10.0.0.31", nil, mac: "02:00:00:00:00:00"),
+                // The row saved without a network has this public MAC: adopted, never a second row.
+                Self.engine("10.0.0.91", "old-tv", mac: "AC:DE:48:00:00:90")
             ],
             [Self.engine("10.0.0.1", "router", mac: "AA:00:00:00:00:01")],
             [
@@ -373,9 +394,17 @@ struct DeviceDiscoveryCoordinatorReconcileTests {
             ]
         ]
         let start = Date(timeIntervalSince1970: 1_790_000_000)
+        /// A row saved before rows had a network, with a public MAC.
+        func seedUnassignedRow(_ context: ModelContext) throws {
+            let row = LocalDevice(ipAddress: "10.0.0.90", macAddress: "AC:DE:48:00:00:90", hostname: "old-tv")
+            row.lastSeen = start.addingTimeInterval(-86400)
+            context.insert(row)
+            try context.save()
+        }
 
         let (macContainer, macContext) = try makeStore()
         _ = macContainer
+        try seedUnassignedRow(macContext)
         let clock = TestClock(start)
         let mac = makeCoordinator(macContext, clock: clock)
         for (index, scan) in scans.enumerated() {
@@ -390,6 +419,7 @@ struct DeviceDiscoveryCoordinatorReconcileTests {
 
         let (phoneContainer, phoneContext) = try makeStore()
         _ = phoneContainer
+        try seedUnassignedRow(phoneContext)
         let phone = ScanReconciler(context: ModelContext(phoneContainer), history: .forTesting())
         for (index, scan) in scans.enumerated() {
             let now = start.addingTimeInterval(Double(index) * 600)
@@ -398,11 +428,15 @@ struct DeviceDiscoveryCoordinatorReconcileTests {
 
         func rows(_ context: ModelContext) throws -> [String] {
             try context.fetch(FetchDescriptor<LocalDevice>())
-                .map { "\($0.ipAddress) \($0.macAddress) \($0.hostname ?? "-") \($0.status.rawValue) \($0.lastSeen.timeIntervalSince(start))" }
+                .map {
+                    let network = $0.networkProfileID == nil ? "none" : "home"
+                    return "\($0.ipAddress) \($0.macAddress) \($0.hostname ?? "-") \($0.status.rawValue) \($0.lastSeen.timeIntervalSince(start)) \(network)"
+                }
                 .sorted()
         }
         let macRows = try rows(macContext)
         #expect(try macRows == rows(phoneContext))
-        #expect(macRows.count == 6)
+        #expect(macRows.count == 7)
+        #expect(macRows.contains { $0.hasPrefix("10.0.0.91 AC:DE:48:00:00:90 old-tv") && $0.hasSuffix("home") })
     }
 }

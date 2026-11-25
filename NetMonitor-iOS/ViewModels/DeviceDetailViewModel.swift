@@ -22,6 +22,8 @@ final class DeviceDetailViewModel {
     private let bonjourService: any BonjourDiscoveryServiceProtocol
     private let deviceDiscoveryService: any DeviceDiscoveryServiceProtocol
     private let suggester: DeviceSuggester
+    /// The reconciled scans, for "seen by the previous scan" in the row match (#596).
+    private let scanHistory: ScanHistory
     private var modelContext: ModelContext?
     /// The running suggestion. Cancelled on reload and when the view model goes away, so it
     /// never writes to a row that has been replaced or deleted.
@@ -47,7 +49,8 @@ final class DeviceDetailViewModel {
         portScanner: any PortScannerServiceProtocol = PortScannerService(),
         bonjourService: any BonjourDiscoveryServiceProtocol = BonjourDiscoveryService(),
         deviceDiscoveryService: any DeviceDiscoveryServiceProtocol = DeviceDiscoveryService.shared,
-        suggester: DeviceSuggester = DeviceSuggester(service: UITestFakeDeviceFeed.insightService, store: DeviceSuggestionStore())
+        suggester: DeviceSuggester = DeviceSuggester(service: UITestFakeDeviceFeed.insightService, store: DeviceSuggestionStore()),
+        scanHistory: ScanHistory = ScanHistory()
     ) {
         self.macLookupService = macLookupService
         self.nameResolver = nameResolver
@@ -55,6 +58,7 @@ final class DeviceDetailViewModel {
         self.bonjourService = bonjourService
         self.deviceDiscoveryService = deviceDiscoveryService
         self.suggester = suggester
+        self.scanHistory = scanHistory
     }
 
     deinit {
@@ -88,7 +92,7 @@ final class DeviceDetailViewModel {
             networkID: network,
             scan: live.filter { $0.networkProfileID == network },
             scanTime: deviceDiscoveryService.lastScanDate ?? Date(),
-            previousScan: deviceDiscoveryService.lastScanDate.flatMap { ScanHistory().previousReconciled(beforeScan: $0, for: network) },
+            previousScan: deviceDiscoveryService.lastScanDate.flatMap { scanHistory.previousReconciled(beforeScan: $0, for: network) },
             in: context
         )
         // The scan knows more than a fresh row: merge its maker, model and friendly name by
@@ -503,7 +507,7 @@ extension DeviceDetailViewModel {
         if networkID != nil {
             pools.append(rows.filter { $0.networkProfileID == nil })
         }
-        for pool in pools {
+        for (poolIndex, pool) in pools.enumerated() {
             // The rule scans save rows by (#582, `PresenceMatch`): the other devices in the scan
             // claim their own rows first, and an address alone never opens a row whose name differs.
             let known = pool.map {
@@ -512,9 +516,12 @@ extension DeviceDetailViewModel {
             }
             // "Seen within grace" is judged at the scan's time, as the reconciler judged it, not
             // when detail opens.
+            // The previous scan is the network's; rows saved without a network (the second pool)
+            // judge recency by the grace window only, as the reconciler's held-for-detail check does.
+            let isNetworksOwnPool = networkID != nil && poolIndex == 0
             let assignment = PresenceMatch.assign(
                 known: known, observed: observed, now: scanTime, window: DeviceGracePolicy().interval,
-                previousScan: networkID == nil || pool.first?.networkProfileID == nil ? nil : previousScan
+                previousScan: isNetworksOwnPool ? previousScan : nil
             )
             guard let index = assignment[position] else { continue }
             let row = pool[index]

@@ -25,8 +25,9 @@ final class DeviceDiscoveryCoordinator {
     /// Receives each completed scan's network and how many devices it found (#491).
     typealias ScanCompletedHandler = @MainActor (_ profileID: UUID?, _ deviceCount: Int) -> Void
     private(set) var scanCompletedHandlers: [ScanCompletedHandler] = []
-    /// Remembers devices between scans for the device change handlers. Tests inject one with fresh defaults.
-    var changeTracker = DeviceChangeTracker()
+    /// Remembers devices between scans for the device change handlers, under the coordinator's
+    /// grace policy. Tests inject one with fresh defaults.
+    var changeTracker: DeviceChangeTracker
     /// Asks the on-device model what this network's devices are after each completed scan
     /// (#449). Nil, the default, turns suggestions off: only the app passes one, so tests
     /// never reach the real model.
@@ -125,6 +126,7 @@ final class DeviceDiscoveryCoordinator {
         self.scanHistory = scanHistory
         self.gracePolicy = gracePolicy
         self.clock = clock
+        self.changeTracker = DeviceChangeTracker(policy: gracePolicy)
         self.networkProfile = networkProfileManager.activeProfile
         loadPersistedDevices(for: effectiveProfileID())
     }
@@ -377,12 +379,14 @@ final class DeviceDiscoveryCoordinator {
 
     /// The progressive display at the discovery→enrichment transition (E2), before names are
     /// resolved. Rows are matched by `PresenceMatch`, as the final pass will, but only a row with
-    /// the device's own real MAC is touched, and only its status and latency: an address match
-    /// without names can't tell DHCP reuse from the same device yet, and a name or a fresh
-    /// `lastSeen` written now would make the final pass trust that match (#596). A device with a
-    /// real, non-private MAC and no row gets one, unless a row without a MAC is at its address:
-    /// the final pass, with names, may adopt the MAC onto that row, and a row made now would strand
-    /// its name and notes. Without a MAC (every device on macOS 27, which hides the ARP table) or
+    /// the device's own real MAC is touched, and only its latency: an address match without names
+    /// can't tell DHCP reuse from the same device yet, and a name or a fresh `lastSeen` written now
+    /// would make the final pass trust that match (#596). Status is left to the final pass, so a
+    /// cancelled or failed scan never leaves an old row reading Online. A device with a real,
+    /// non-private MAC and no row gets one, unless a row without a MAC is at its address (the final
+    /// pass, with names, may adopt the MAC onto that row) or a row saved without a network has the
+    /// MAC (the reconciler adopts that row, as on the iPhone): a row made now would strand the other
+    /// row's name and notes. Without a MAC (every device on macOS 27, which hides the ARP table) or
     /// with a private one it waits for the final pass, which has its name (#411). Cached sightings
     /// change nothing.
     func mergeSparseSnapshot(_ devices: [LocalDiscoveredDevice], profileID: UUID?, now: Date) {
@@ -394,8 +398,9 @@ final class DeviceDiscoveryCoordinator {
             previousScan: scanHistory.previousReconciled(beforeScan: now, for: profileID)
         )
         // One MAC listed at two addresses (the ARP cache still has the old one) is one device, and a
-        // MAC a row already has is never a second row.
-        var rowMACs = Set(rows.compactMap { DeviceMatcher.normalizedMAC($0.macAddress) })
+        // MAC a row already has, on this network or saved without one, is never a second row.
+        let unassigned = profileID == nil ? [] : fetchDevices(for: nil)
+        var rowMACs = Set((rows + unassigned).compactMap { DeviceMatcher.normalizedMAC($0.macAddress) })
         for (index, device) in devices.enumerated() where !device.isCached {
             let mac = DeviceMatcher.normalizedMAC(device.macAddress)
             if let known = assignment[index] {
@@ -404,7 +409,6 @@ final class DeviceDiscoveryCoordinator {
                 if let latency = device.latency {
                     row.lastLatency = latency
                 }
-                row.status = .online
             } else if let mac, !MACAddress.isPrivate(mac), !rowMACs.contains(mac),
                       !rows.contains(where: { $0.ipAddress == device.ipAddress && DeviceMatcher.normalizedMAC($0.macAddress) == nil }) {
                 rowMACs.insert(mac)
@@ -424,9 +428,9 @@ final class DeviceDiscoveryCoordinator {
 
     /// The final merge of a completed scan (#596): `ScanReconciler`, shared with the iPhone, keeps
     /// the network's rows current (which row, online, cached, offline under `DeviceGracePolicy`),
-    /// in its own context on the shared container. Then the Mac's own steps: one sparkline point
-    /// per answering row, a maker or model from saved names for rows that didn't answer (#439),
-    /// and a type for rows still unknown. True when the scan was applied; false when it was
+    /// in its own context on the shared container, and infers types for the rows that answered.
+    /// Then the Mac's own steps: one sparkline point per answering row, and for rows that didn't
+    /// answer a maker or model from saved names (#439) and a type if still unknown. True when the scan was applied; false when it was
     /// skipped (nothing answered) or its rows couldn't be saved (logged; the next scan retries).
     @discardableResult
     func reconcileScan(_ scan: [DiscoveredDevice], profileID: UUID?, now: Date? = nil) -> Bool {
@@ -440,21 +444,21 @@ final class DeviceDiscoveryCoordinator {
         do {
             outcome = try reconciler.reconcile(scan, networkProfileID: profileID, scanDate: now, now: now)
         } catch {
-            Logger.discovery.error("Failed to save scanned devices: \(error, privacy: .public)")
+            Logger.discovery.error("Failed to save scanned devices: \(error)")
             return false
         }
         loadPersistedDevices(for: profileID)
-        guard outcome == .applied else { return false }
+        guard case .applied(let answered) = outcome else { return false }
         let inference = DeviceTypeInferenceService()
         for row in discoveredDevices {
-            if row.lastSeen == now {
+            if answered.contains(row.id) {
                 // The reconciler's sparkline point went to its own context's copy of the row.
                 if let latency = row.lastLatency {
                     row.appendLatencySample(latency)
                 }
-            } else {
-                Self.fillFromSavedNames(row)
+                continue
             }
+            Self.fillFromSavedNames(row)
             if row.deviceType == .unknown {
                 row.deviceType = inference.inferDeviceType(for: row)
             }
@@ -467,7 +471,7 @@ final class DeviceDiscoveryCoordinator {
     private func saveContext(_ what: String) {
         guard modelContext.hasChanges else { return }
         do { try modelContext.save() } catch {
-            Logger.discovery.error("Failed to save \(what, privacy: .public): \(error, privacy: .public)")
+            Logger.discovery.error("Failed to save \(what, privacy: .public): \(error)")
         }
     }
 

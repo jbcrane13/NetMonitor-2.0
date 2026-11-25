@@ -15,9 +15,9 @@ import NetworkScanKit
 ///   - two different names: a different device, a new row;
 ///   - the same name: the same device;
 ///   - a name unknown on either side (or both): the same device only if the row was seen at that
-///     address within the grace window, or by the network's previous recorded scan (it never
-///     missed a scan, however far apart scans are: hourly auto-scan, relaunch, sleep; lead,
-///     2026-11-25); otherwise a new row.
+///     address within the grace window, or by the network's previous recorded scan when that
+///     scan is at most `previousScanReach` (2 h) earlier (it never missed a scan: hourly
+///     auto-scan, relaunch, a short sleep; lead, 2026-11-25); otherwise a new row.
 ///   When the device's name is known, a row with that name beats a nameless one at any age, the
 ///   most recently seen of several (no new row), so a duplicate made while the name was missing
 ///   heals. Recency only decides between rows when no name matches: the one seen there most
@@ -54,10 +54,20 @@ public enum PresenceMatch {
         return isRecent(row, now: now, window: window, previousScan: previousScan)
     }
 
-    /// Seen within the window, or by the previous recorded scan (`lastSeen` is stamped with the
-    /// time a scan was reconciled, which `ScanHistory` keeps).
+    /// How long before a scan the previous recorded scan may be for a row it saw to count as
+    /// recent (lead, 2026-11-25): an hourly auto-scan qualifies; days apart, the address may long
+    /// since belong to another device, so only the grace window counts.
+    public static let previousScanReach: TimeInterval = 2 * 60 * 60
+
+    /// Seen within the window, or by the previous recorded scan when that scan is within
+    /// `previousScanReach` (`lastSeen` is stamped with the time a scan was reconciled, which
+    /// `ScanHistory` keeps).
     static func isRecent(_ row: Known, now: Date, window: TimeInterval, previousScan: Date? = nil) -> Bool {
-        now.timeIntervalSince(row.lastSeen) <= window || previousScan.map { row.lastSeen >= $0 } ?? false
+        if now.timeIntervalSince(row.lastSeen) <= window {
+            return true
+        }
+        guard let previousScan, now.timeIntervalSince(previousScan) <= previousScanReach else { return false }
+        return row.lastSeen >= previousScan
     }
 
     private static func named(_ name: String?) -> String? {

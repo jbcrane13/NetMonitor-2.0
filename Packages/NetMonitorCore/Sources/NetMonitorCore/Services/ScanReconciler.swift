@@ -103,7 +103,8 @@ public struct ScanHistory {
 @MainActor
 public struct ScanReconciler {
     public enum Outcome: Equatable, Sendable {
-        case applied
+        /// Saved; `answered` are the IDs of the rows a device answered for this scan.
+        case applied(answered: Set<UUID>)
         /// Already reconciled, empty, or nothing answered.
         case skipped
     }
@@ -144,8 +145,9 @@ public struct ScanReconciler {
               // a background scan) would put older addresses and presence back.
               history.newestScan(for: networkProfileID).map({ scanDate > $0 }) ?? true
         else { return .skipped }
+        let answered: Set<UUID>
         do {
-            try apply(scan, networkProfileID: networkProfileID, scanDate: scanDate, now: now)
+            answered = try apply(scan, networkProfileID: networkProfileID, scanDate: scanDate, now: now)
             try save(context)
         } catch {
             // Nothing half-applied stays in the context for the next save to write.
@@ -154,16 +156,18 @@ public struct ScanReconciler {
             throw error
         }
         history.record(scan: scanDate, reconciled: now, for: networkProfileID)
-        return .applied
+        return .applied(answered: answered)
     }
 
     // MARK: - Applying
 
-    private func apply(_ scan: [DiscoveredDevice], networkProfileID: UUID?, scanDate: Date, now: Date) throws {
+    /// Returns the IDs of the rows that answered.
+    private func apply(_ scan: [DiscoveredDevice], networkProfileID: UUID?, scanDate: Date, now: Date) throws -> Set<UUID> {
         let all = try context.fetch(FetchDescriptor<LocalDevice>())
         var rows = all.filter { $0.networkProfileID == networkProfileID }.sorted { $0.lastSeen > $1.lastSeen }
         let unassigned = networkProfileID == nil ? [] : all.filter { $0.networkProfileID == nil }
-        // A row the network's previous scan saw never missed a scan, however long ago that was.
+        // A row the network's previous scan saw never missed a scan (that scan at most
+        // `PresenceMatch.previousScanReach` before this one).
         let previousScan = history.previousReconciled(beforeScan: scanDate, for: networkProfileID)
         let assignment = PresenceMatch.assign(
             known: rows.map { PresenceMatch.Known(Self.candidate($0), lastSeen: $0.lastSeen) },
@@ -223,6 +227,7 @@ public struct ScanReconciler {
                 row.status = .offline
             }
         }
+        return answered
     }
 
     /// What an answering device tells its row: address, names, MAC, identity, ports.
