@@ -60,7 +60,8 @@ for (label, snap, qs) in [("FRESH (scan 3 min ago)", snapshot, questions), ("STA
     print("\n=== \(q)")
     let a = await AskNetwork.answer(q, snapshot: snap, pinnedDeviceID: nil, model: Logging())
     print(String(format: "  %.2f s", Date().timeIntervalSince(t0)))
-    print("  SHOWN: \(a.shownText)  [grounded: \(a.text != nil)]")
+    print("  SHOWN: \(a.shownText)  [model text kept: \(a.text != nil)]")
+    print("  STATUSES: \(a.devices.map { "\($0.name)=\($0.presence.label)" })")
     print("  FRESHNESS LINE: \(a.freshness ?? "-")")
     print("  cites devices: \(a.devices.map(\.name)) events: \(a.events.map(\.title))")
   }
