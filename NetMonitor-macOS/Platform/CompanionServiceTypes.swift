@@ -1,6 +1,5 @@
 import Foundation
 import NetMonitorCore
-import Synchronization
 
 /// Metadata for a connected, paired companion phone
 struct ConnectedClientInfo {
@@ -49,19 +48,6 @@ protocol CompanionServiceProtocol: Sendable {
     func closePairingWindow() async
     func confirmPairing(link: UUID, accepted: Bool) async
     func revoke(_ pin: Data) async -> Bool
-}
-
-/// Whether a link is still open, readable from any thread.
-final class LinkOpenFlag: Sendable {
-    private let state = Mutex(true)
-
-    var isOpen: Bool {
-        state.withLock { $0 }
-    }
-
-    func close() {
-        state.withLock { $0 = false }
-    }
 }
 
 enum CompanionServiceError: Error {

@@ -28,18 +28,48 @@ public struct CompanionIdentity: Sendable {
         Data(SHA256.hash(data: x963))
     }
 
-    /// The identity for `sec_protocol_options_set_local_identity`, or nil if the Security
-    /// framework refuses the key or certificate.
-    public func makeSecIdentity() -> sec_identity_t? {
+    /// The identity for `sec_protocol_options_set_local_identity`. Throws when the Security
+    /// framework refuses the key or certificate, or when this build's SDK can't make one.
+    public func makeSecIdentity() throws -> sec_identity_t {
         guard let der = try? CompanionCertificate.selfSigned(by: privateKey),
-              let certificate = SecCertificateCreateWithData(nil, der as CFData) else { return nil }
+              let certificate = SecCertificateCreateWithData(nil, der as CFData) else {
+            throw CompanionIdentityError.refused
+        }
         let attributes: [CFString: Any] = [
             kSecAttrKeyType: kSecAttrKeyTypeECSECPrimeRandom,
             kSecAttrKeyClass: kSecAttrKeyClassPrivate
         ]
-        guard let key = SecKeyCreateWithData(privateKey.x963Representation as CFData, attributes as CFDictionary, nil),
-              let identity = SecIdentityCreate(nil, certificate, key) else { return nil }
-        return sec_identity_create(identity)
+        guard let key = SecKeyCreateWithData(privateKey.x963Representation as CFData, attributes as CFDictionary, nil) else {
+            throw CompanionIdentityError.refused
+        }
+        // `SecIdentityCreate` (API_AVAILABLE macOS 10.12, iOS 11.2) is an old symbol that only
+        // the newer SDK headers (Xcode 27, Swift 6.2+) make public. Release builds use those, so
+        // the identity works on the iOS 18 / macOS 15 deployment targets. An older toolchain (CI's
+        // Xcode 16.4, Swift 6.1) can't see it; that build compiles but can't pair (#590).
+        #if compiler(>=6.2)
+        guard let identity = SecIdentityCreate(nil, certificate, key),
+              let secIdentity = sec_identity_create(identity) else {
+            throw CompanionIdentityError.refused
+        }
+        return secIdentity
+        #else
+        throw CompanionIdentityError.requiresNewerSDK
+        #endif
+    }
+}
+
+public enum CompanionIdentityError: Error, Equatable, LocalizedError {
+    /// The Security framework refused the key or certificate.
+    case refused
+    /// Built with an SDK whose headers don't expose `SecIdentityCreate`; never the case in
+    /// Xcode 27 builds.
+    case requiresNewerSDK
+
+    public var errorDescription: String? {
+        switch self {
+        case .refused: "The companion link couldn't create its TLS identity."
+        case .requiresNewerSDK: "Pairing needs a build made with a newer SDK (Xcode 27 or later)."
+        }
     }
 }
 

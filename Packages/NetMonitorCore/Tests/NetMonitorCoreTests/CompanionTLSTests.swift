@@ -60,8 +60,8 @@ struct CompanionIdentityTests {
     }
 
     @Test("It yields a TLS identity the Security framework accepts")
-    func makesSecIdentity() {
-        #expect(CompanionIdentity().makeSecIdentity() != nil)
+    func makesSecIdentity() throws {
+        _ = try CompanionIdentity().makeSecIdentity()
     }
 }
 

@@ -64,8 +64,8 @@ actor CompanionService: CompanionServiceProtocol {
         let acceptedAt: Date
         /// The listener generation that accepted it; a link from an older one is closed.
         let listenerGeneration: Int
-        /// Cleared synchronously when the link closes; authorisation tokens read it.
-        let openFlag = LinkOpenFlag()
+        /// Closed when the link closes; model submissions for the link happen inside it.
+        let submissionLock = CompanionSubmissionLock()
         var role: CompanionLinkRole?
         var session: CompanionVerifiedSession?
         var decoder: CompanionFrameDecoder?
@@ -314,12 +314,13 @@ extension CompanionService {
         credentials?.pairedPhones() ?? []
     }
 
-    /// Removes a phone: denied at once, its links and their deferred work closed, then its
-    /// Keychain item deleted. False when the delete failed; the phone stays denied anyway.
+    /// Removes a phone: its links closed first (each close waits for a model submission in
+    /// progress and stops any after it), then its key denied and its Keychain item deleted. All
+    /// of it runs on this actor without suspending, so no new link binds in between. False when
+    /// the delete failed; the phone stays denied anyway.
     @discardableResult
     func revoke(_ pin: Data) -> Bool {
         guard let credentials else { return false }
-        credentials.gate.revoke(pin)
         for (id, link) in links {
             if case .paired(let linkPin, _)? = link.role, linkPin == pin {
                 close(id)
@@ -600,8 +601,7 @@ extension CompanionService {
         guard isAuthorized(id), let link = links[id], let role = link.role, let gate = credentials?.gate else {
             return CompanionAuthorization { false }
         }
-        let openFlag = link.openFlag
-        return CompanionAuthorization { openFlag.isOpen && gate.isAuthorized(role, link: id) }
+        return CompanionAuthorization(lock: link.submissionLock) { gate.isAuthorized(role, link: id) }
     }
 
     /// Runs a model request off the batch, at most `maximumInsightRequests` per link. The work
@@ -685,7 +685,7 @@ extension CompanionService {
     /// Closes a link and cancels its deferred work.
     private func close(_ id: UUID) {
         guard let link = links.removeValue(forKey: id) else { return }
-        link.openFlag.close()
+        link.submissionLock.close()
         link.tasks.values.forEach { $0.cancel() }
         link.connection.cancel()
     }

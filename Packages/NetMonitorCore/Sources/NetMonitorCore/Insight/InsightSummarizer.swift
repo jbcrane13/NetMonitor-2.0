@@ -37,9 +37,16 @@ public enum InsightSummarizer {
         let wait = source == .mac && waitsForMac ? max(timeout, macWait) : timeout
         let update = await withTaskGroup(of: InsightUpdate?.self) { group in
             group.addTask {
-                // Checked and submitted in one synchronous step: nothing can run between them.
-                guard authorization?.isCurrent() ?? true else { return .failed }
-                for await update in service.explain(request) {
+                // With a link's authorisation, the check and the submission are one critical
+                // section that the link's close (and so a revoke) can't interleave with.
+                let stream: AsyncStream<InsightUpdate>?
+                if let authorization {
+                    stream = authorization.perform { service.explain(request) }
+                } else {
+                    stream = service.explain(request)
+                }
+                guard let stream else { return .failed }
+                for await update in stream {
                     if case .partial = update {
                         continue
                     }

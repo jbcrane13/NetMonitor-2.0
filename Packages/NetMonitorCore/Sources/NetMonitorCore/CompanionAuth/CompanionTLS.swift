@@ -19,7 +19,7 @@ public enum CompanionTLS {
         identity: CompanionIdentity,
         acceptsPeer: @escaping @Sendable (Data) -> Bool
     ) -> NWParameters? {
-        guard let secIdentity = identity.makeSecIdentity() else { return nil }
+        guard let secIdentity = try? identity.makeSecIdentity() else { return nil }
         let tls = NWProtocolTLS.Options()
         let options = tls.securityProtocolOptions
         sec_protocol_options_set_min_tls_protocol_version(options, .TLSv13)
