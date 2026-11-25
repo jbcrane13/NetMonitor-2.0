@@ -9,6 +9,7 @@ struct NetworkDevicesPanel: View {
 
     @Environment(DeviceDiscoveryCoordinator.self) private var coordinator: DeviceDiscoveryCoordinator?
     @Environment(NetworkProfileManager.self) private var profileManager: NetworkProfileManager?
+    @Environment(\.presence) private var presence
     @Query private var devices: [LocalDevice]
 
     init(networkProfileID: UUID?) {
@@ -57,6 +58,9 @@ struct NetworkDevicesPanel: View {
             devices,
             search: searchText,
             onlineOnly: false,
+            // Past devices stay in the Devices view, behind "Show past devices" (#583).
+            showPast: false,
+            presence: presence,
             sort: sortOrder,
             ascending: sortOrder == .lastSeen ? false : true
         )
@@ -265,14 +269,15 @@ private struct DevicePanelRow: View {
     let isSelected: Bool
 
     @State private var isHovering = false
+    @Environment(\.presence) private var presence
 
     var body: some View {
         HStack(spacing: 8) {
-            // Status dot
-            Circle()
-                .fill(MacTheme.Colors.statusColor(device.status.statusType).opacity(device.status == .online ? 1 : 0.5))
-                .frame(width: 7, height: 7)
-                .shadow(color: device.status == .online ? MacTheme.Colors.success.opacity(0.6) : .clear, radius: 3)
+            PresenceDot(
+                freshness: presence.freshness(of: device), size: 7,
+                accessibilityText: "\(presence.freshness(of: device).label), \(presence.lastSeenText(device))"
+            )
+            .shadow(color: presence.freshness(of: device).isOnline ? MacTheme.Colors.success.opacity(0.6) : .clear, radius: 3)
 
             // Device icon
             Image(systemName: device.deviceType.iconName)
@@ -316,11 +321,11 @@ private struct DevicePanelRow: View {
             Spacer(minLength: 4)
 
             // Latency — bright threshold-colored
-            if let latency = device.lastLatency, latency > 0 {
+            if presence.freshness(of: device).isOnline, let latency = device.lastLatency, latency > 0 {
                 Text(String(format: "%.1fms", latency))
                     .font(.system(size: 11, weight: .semibold, design: .monospaced))
                     .foregroundStyle(latencyColor(latency))
-            } else if device.status == .online {
+            } else if presence.freshness(of: device).isOnline {
                 Text("--")
                     .font(.system(size: 11, design: .monospaced))
                     .foregroundStyle(MacTheme.Colors.labelTertiary)

@@ -7,6 +7,8 @@ struct ProModeRowView: View {
     let device: LocalDevice
     let isSelected: Bool
 
+    @Environment(\.presence) private var presence
+
     // Column widths — must match proModeHeaderRow in DevicesView
     static let statusWidth: CGFloat = 28
     static let typeWidth: CGFloat = 80
@@ -22,10 +24,12 @@ struct ProModeRowView: View {
     var body: some View {
         HStack(spacing: Self.columnSpacing) {
             // Status
-            Circle()
-                .fill(MacTheme.Colors.statusColor(device.status.statusType).opacity(device.status == .online ? 1 : 0.4))
-                .frame(width: 8, height: 8)
-                .frame(width: Self.statusWidth, alignment: .leading)
+            PresenceDot(
+                freshness: presence.freshness(of: device),
+                accessibilityText: "\(presence.freshness(of: device).label), \(presence.lastSeenText(device))"
+            )
+            .accessibilityIdentifier("devices_pro_presence_\(device.ipAddress)")
+            .frame(width: Self.statusWidth, alignment: .leading)
 
             // Device Type
             HStack(spacing: 4) {
@@ -76,6 +80,7 @@ struct ProModeRowView: View {
                 .foregroundStyle(MacTheme.Colors.textTertiary)
                 .frame(width: Self.seenWidth, alignment: .leading)
         }
+
         .font(.system(.body, design: .default))
         .foregroundStyle(MacTheme.Colors.textPrimary)
         .padding(.horizontal, 16)
@@ -102,7 +107,8 @@ struct ProModeRowView: View {
 
     @ViewBuilder
     private var latencyView: some View {
-        if let latency = device.lastLatency {
+        // A latency is news only while the device is online (#583).
+        if presence.freshness(of: device).isOnline, let latency = device.lastLatency {
             let text = latency < 1 ? "<1 ms" : String(format: "%.0f ms", latency)
             Text(text)
                 .monospacedDigit()
@@ -115,7 +121,7 @@ struct ProModeRowView: View {
     // MARK: - Last Seen
 
     private var lastSeenText: String {
-        DeviceList.recencyLabel(since: device.lastSeen, style: .compact)
+        DeviceList.recencyLabel(since: device.lastSeen, now: presence.now, style: .compact)
     }
 }
 

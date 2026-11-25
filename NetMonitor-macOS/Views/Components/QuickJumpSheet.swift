@@ -15,6 +15,7 @@ struct QuickJumpSheet: View {
     @Binding var isPresented: Bool
 
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.presence) private var presence
     @Query(LocalDeviceQueries.recents()) private var devices: [LocalDevice]
 
     @State private var searchText: String = ""
@@ -121,12 +122,12 @@ struct QuickJumpSheet: View {
             HStack(spacing: 10) {
                 ZStack {
                     Circle()
-                        .fill(MacTheme.Colors.statusColor(device.status.statusType).opacity(0.2))
+                        .fill(MacTheme.Colors.presenceColor(presence.freshness(of: device)).opacity(0.2))
                         .frame(width: 28, height: 28)
 
                     Image(systemName: device.deviceType.iconName)
                         .font(.system(size: 12))
-                        .foregroundStyle(MacTheme.Colors.statusColor(device.status.statusType))
+                        .foregroundStyle(MacTheme.Colors.presenceColor(presence.freshness(of: device)))
                 }
 
                 VStack(alignment: .leading, spacing: 1) {
@@ -153,9 +154,7 @@ struct QuickJumpSheet: View {
 
                 Spacer()
 
-                Circle()
-                    .fill(MacTheme.Colors.statusColor(device.status.statusType))
-                    .frame(width: 6, height: 6)
+                PresenceStatusLabel(device: device, font: .system(size: 10))
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 6)

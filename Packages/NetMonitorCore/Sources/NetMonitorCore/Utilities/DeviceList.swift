@@ -33,7 +33,7 @@ public enum DeviceList {
     /// sorts ascending by default. `ascending` inverts that default: for `lastSeen`,
     /// passing `true` reverses to ascending; for every other sort, passing `false`
     /// reverses to descending.
-    public static func rows(
+    public static func rows( // swiftlint:disable:this function_parameter_count
         _ devices: [LocalDevice],
         search: String,
         onlineOnly: Bool,

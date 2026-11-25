@@ -61,14 +61,16 @@ public struct ScanHistory {
         (load()[Self.key(network)] ?? []).max { $0.scan < $1.scan }?.reconciled
     }
 
-    /// Each network's `lastScanTime(for:)`, read once, as of `now` (#583).
-    public func presenceSnapshot(
-        for networks: some Sequence<UUID?>, now: Date, policy: DeviceGracePolicy = DeviceGracePolicy()
-    ) -> PresenceSnapshot {
-        let all = load()
+    /// Every network's `lastScanTime(for:)`, read once, as of `now` (#583).
+    public func presenceSnapshot(now: Date, policy: DeviceGracePolicy = DeviceGracePolicy()) -> PresenceSnapshot {
         var lastScans: [UUID?: Date] = [:]
-        for network in networks {
-            lastScans[network] = (all[Self.key(network)] ?? []).max { $0.scan < $1.scan }?.reconciled
+        for (key, entries) in load() {
+            guard let latest = entries.max(by: { $0.scan < $1.scan }) else { continue }
+            if key == Self.key(nil) {
+                lastScans[nil] = latest.reconciled
+            } else if let network = UUID(uuidString: key) {
+                lastScans[network] = latest.reconciled
+            }
         }
         return PresenceSnapshot(lastScans: lastScans, now: now, policy: policy)
     }
