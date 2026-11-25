@@ -207,7 +207,7 @@ struct AskToolView: View {
         .accessibilityIdentifier("ask_list_citations")
     }
 
-    private func citationRow(icon: String, title: String, detail: String?, presence: AskPresence? = nil) -> some View {
+    private func citationRow(icon: String, title: String, detail: String?, presence: PresenceFreshness? = nil) -> some View {
         HStack(spacing: 10) {
             Image(systemName: icon)
                 .foregroundStyle(Theme.Colors.accent)

@@ -190,9 +190,9 @@ struct AskPresenceFilterTests {
 
     @Test func presenceLabels() {
         // Blake's three states (#583).
-        #expect(AskPresence.online.label == "Online")
-        #expect(AskPresence.offline.label == "Offline")
-        #expect(AskPresence.notCheckedRecently.label == "Not checked recently")
+        #expect(PresenceFreshness.online.label == "Online")
+        #expect(PresenceFreshness.offline.label == "Offline")
+        #expect(PresenceFreshness.notCheckedRecently.label == "Not checked recently")
         #expect(Fix.snapshot.presence(of: Fix.printer) == .offline)
         // No scan, or an old one: not checked recently, whatever the saved status says.
         let unscanned = AskSnapshot(devices: [Fix.nas], events: [], lastScan: nil, now: Fix.now, calendar: Fix.calendar)
