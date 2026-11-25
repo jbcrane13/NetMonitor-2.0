@@ -238,7 +238,8 @@ struct CompanionMessageHandlerTests {
         try await waitUntil { sent.count == 1 }
         #expect(handler.heartbeat().capabilities == nil)
         #expect(sent.last?.capabilities == nil)
-        guard case let .insightResponse(response)? = await handler.handle(.insightRequest(Self.insightRequest), from: UUID(), authorization: .always) else {
+        let reply = await handler.handle(.insightRequest(Self.insightRequest), from: UUID(), authorization: .always)
+        guard case let .insightResponse(response)? = reply else {
             Issue.record("expected an insight response")
             return
         }
@@ -270,7 +271,8 @@ struct CompanionMessageHandlerTests {
         let (container, _, handler, _, _) = try makeFixture(insightService: FixedAnswerInsightService(answer: "SSH is open on this device."))
         _ = container
 
-        guard case let .insightResponse(response)? = await handler.handle(.insightRequest(Self.insightRequest), from: UUID(), authorization: .always) else {
+        let reply = await handler.handle(.insightRequest(Self.insightRequest), from: UUID(), authorization: .always)
+        guard case let .insightResponse(response)? = reply else {
             Issue.record("expected an insight response")
             return
         }
@@ -303,7 +305,8 @@ struct CompanionMessageHandlerTests {
         let (container, _, handler, _, _) = try makeFixture()
         _ = container
 
-        guard case let .insightResponse(response)? = await handler.handle(.insightRequest(Self.insightRequest), from: UUID(), authorization: .always) else {
+        let reply = await handler.handle(.insightRequest(Self.insightRequest), from: UUID(), authorization: .always)
+        guard case let .insightResponse(response)? = reply else {
             Issue.record("expected an insight response")
             return
         }
@@ -318,7 +321,8 @@ struct CompanionMessageHandlerTests {
         _ = container
 
         #expect(handler.heartbeat().capabilities == nil)
-        guard case let .insightResponse(response)? = await handler.handle(.insightRequest(Self.insightRequest), from: UUID(), authorization: .always) else {
+        let reply = await handler.handle(.insightRequest(Self.insightRequest), from: UUID(), authorization: .always)
+        guard case let .insightResponse(response)? = reply else {
             Issue.record("expected an insight response")
             return
         }
