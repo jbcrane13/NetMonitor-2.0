@@ -17,3 +17,30 @@ public enum CompanionServiceTXT {
         (record["mac"].flatMap(UUID.init(uuidString:)), record["pv"].flatMap { Int($0) })
     }
 }
+
+/// Where the companion link lives (#590).
+public enum CompanionLink {
+    public static let defaultPort: UInt16 = 8849
+    public static let serviceType = "_netmon._tcp"
+}
+
+extension Data {
+    /// Lowercase hex, two digits per byte.
+    public var hexString: String {
+        map { String(format: "%02x", $0) }.joined()
+    }
+
+    /// Bytes from hex with an even number of digits; nil otherwise.
+    public init?(hexString: String) {
+        guard hexString.count.isMultiple(of: 2) else { return nil }
+        var bytes: [UInt8] = []
+        var index = hexString.startIndex
+        while index < hexString.endIndex {
+            let next = hexString.index(index, offsetBy: 2)
+            guard let byte = UInt8(hexString[index..<next], radix: 16) else { return nil }
+            bytes.append(byte)
+            index = next
+        }
+        self.init(bytes)
+    }
+}

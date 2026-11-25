@@ -34,13 +34,13 @@ struct CompanionLinkAuthorizerTests {
         #expect(CompanionLinkAuthorizer.decide(message, role: nil) == .refuse)
     }
 
-    @Test("A pairing link accepts only pairRequest", arguments: everyMessage)
-    func pairingAcceptsOnlyPairRequest(message: CompanionMessage) {
+    @Test("A pairing link accepts only pairRequest and the phone's verdict", arguments: everyMessage)
+    func pairingAcceptsOnlyPairingFrames(message: CompanionMessage) {
         let decision = CompanionLinkAuthorizer.decide(message, role: .pairing(window: UUID()))
-        if case .pairRequest = message {
-            #expect(decision == .pairRequest)
-        } else {
-            #expect(decision == .refuse)
+        switch message {
+        case .pairRequest: #expect(decision == .pairRequest)
+        case .pairResult: #expect(decision == .pairVerdict)
+        default: #expect(decision == .refuse)
         }
     }
 

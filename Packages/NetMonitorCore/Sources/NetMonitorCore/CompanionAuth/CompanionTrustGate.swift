@@ -1,48 +1,50 @@
 import Foundation
+import Synchronization
 
 /// The Mac's live trust state for the companion link (#590): which phone pins are trusted (each
 /// with a credential generation) and the pairing window.
 ///
-/// It is lock-guarded and synchronous because the TLS verify block reads it on Network.framework's
-/// queue. Every check and change happens under one lock, so a revoke is in force the moment
-/// `revoke` returns: before any socket is cancelled or Keychain item deleted.
-public final class CompanionTrustGate: @unchecked Sendable {
-    private let lock = NSLock()
+/// Synchronous and guarded by one `Mutex`, so a revoke is in force the moment `revoke` returns:
+/// before any socket is cancelled or Keychain item deleted.
+public final class CompanionTrustGate: Sendable {
+    private struct State {
+        var trusted: [Data: UInt64] = [:]
+        var nextGeneration: UInt64 = 1
+        var window: CompanionPairingWindow?
+        /// The link that consumed the window and may finish pairing.
+        var consumer: UUID?
+
+        mutating func trust(_ pin: Data) {
+            trusted[pin] = nextGeneration
+            nextGeneration += 1
+        }
+    }
+
+    private let state: Mutex<State>
     private let now: @Sendable () -> TimeInterval
-    private var trusted: [Data: UInt64] = [:]
-    private var nextGeneration: UInt64 = 1
-    private var window: CompanionPairingWindow?
-    /// The link that consumed the window and may finish pairing.
-    private var consumer: UUID?
 
     /// `now` is a monotonic clock in seconds; it defaults to system uptime.
     public init(paired pins: [Data], now: @escaping @Sendable () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }) {
         self.now = now
-        for pin in pins { trustLocked(pin) }
-    }
-
-    // MARK: - Handshake and binding
-
-    /// For the verify block: a trusted pin, or any other pin while a window can still admit.
-    public func acceptsAtHandshake(_ pin: Data) -> Bool {
-        locked {
-            if trusted[pin] != nil {
-                return true
-            }
-            guard let window, window.isOpen(now: now()) else { return false }
-            return window.admittedConnections < CompanionPairingWindow.maximumConnections
+        var initial = State()
+        for pin in pins {
+            initial.trust(pin)
         }
+        state = Mutex(initial)
     }
 
-    /// The role of a verified session's peer, or nil to close it. A pairing role uses one of
+    // MARK: - Binding
+
+    /// The role of a verified session's peer, or nil to refuse it. A pairing role uses one of
     /// the window's admissions.
     public func classify(_ pin: Data) -> CompanionLinkRole? {
-        locked {
-            if let generation = trusted[pin] {
+        let now = now()
+        return state.withLock { state in
+            if let generation = state.trusted[pin] {
                 return .paired(pin: pin, generation: generation)
             }
-            guard var window, window.admit(now: now()) else { return nil }
-            self.window = window
+            guard var window = state.window, window.admit(now: now) else { return nil }
+            state.window = window
             return .pairing(window: window.generation)
         }
     }
@@ -50,15 +52,16 @@ public final class CompanionTrustGate: @unchecked Sendable {
     /// Whether `role` still stands: a paired pin not revoked since it bound, or a pairing window
     /// still open (or consumed by this very link).
     public func isAuthorized(_ role: CompanionLinkRole, link: UUID) -> Bool {
-        locked {
+        let now = now()
+        return state.withLock { state in
             switch role {
             case .paired(let pin, let generation):
-                return trusted[pin] == generation
+                return state.trusted[pin] == generation
             case .pairing(let generation):
-                guard let window, window.generation == generation, now() < window.deadline else { return false }
+                guard let window = state.window, window.generation == generation, now < window.deadline else { return false }
                 switch window.state {
                 case .open: return true
-                case .consumed: return consumer == link
+                case .consumed: return state.consumer == link
                 case .closed: return false
                 }
             }
@@ -68,36 +71,34 @@ public final class CompanionTrustGate: @unchecked Sendable {
     // MARK: - Trust
 
     public func trust(_ pin: Data) {
-        locked { trustLocked(pin) }
+        state.withLock { $0.trust(pin) }
     }
 
     /// Denies `pin` at once, in memory, whatever happens to its Keychain item afterwards.
     public func revoke(_ pin: Data) {
-        locked { trusted[pin] = nil }
+        _ = state.withLock { $0.trusted.removeValue(forKey: pin) }
     }
 
     // MARK: - Pairing window
 
-    /// Opens a new window, shutting any earlier one.
+    /// Opens a new window, shutting any earlier one. `code` is random unless a test passes one.
     @discardableResult
     public func openWindow(code: CompanionPairingCode = .random()) -> CompanionPairingWindow {
-        locked {
-            let opened = CompanionPairingWindow(opening: now(), code: code)
-            window = opened
-            consumer = nil
-            return opened
+        let opened = CompanionPairingWindow(opening: now(), code: code)
+        state.withLock { state in
+            state.window = opened
+            state.consumer = nil
         }
+        return opened
     }
 
     public func closeWindow() {
-        locked {
-            window?.close()
-        }
+        state.withLock { $0.window?.close() }
     }
 
     /// The pairing step: verify the phone's proof, then consume the window, in one critical
-    /// section with no suspension. Nil when the role, window, proof or pin doesn't hold; a wrong
-    /// proof doesn't burn the window.
+    /// section with no suspension. Nil when the role, window, proof, nonce or pin doesn't hold; a
+    /// wrong proof doesn't burn the window.
     public func beginPairing(
         link: UUID,
         role: CompanionLinkRole,
@@ -106,24 +107,24 @@ public final class CompanionTrustGate: @unchecked Sendable {
         macPin: Data,
         macNonce: Data
     ) -> CompanionPairingStep? {
-        locked {
+        let now = now()
+        let binding = CompanionPairingProof.Binding(exporter: session.exporter, macPin: macPin, phonePin: session.peerPin)
+        return state.withLock { state -> CompanionPairingStep? in
             guard case .pairing(let generation) = role,
-                  var window, window.generation == generation, window.isOpen(now: now()),
-                  trusted[session.peerPin] == nil,
+                  var window = state.window, window.generation == generation, window.isOpen(now: now),
+                  state.trusted[session.peerPin] == nil,
                   request.nonce.count == 32, macNonce.count == 32,
                   CompanionPairingProof.verify(
-                      request.proof, role: .phone, kind: request.kind, secret: window.secret(for: request.kind),
-                      binding: .init(exporter: session.exporter, macPin: macPin, phonePin: session.peerPin)
+                      request.proof, role: .phone, kind: request.kind, secret: window.secret(for: request.kind), binding: binding
                   ),
-                  window.consume(generation: generation, now: now()) else { return nil }
-            self.window = window
-            consumer = link
+                  window.consume(generation: generation, now: now) else { return nil }
+            state.window = window
+            state.consumer = link
             return CompanionPairingStep(
                 window: generation,
                 phonePin: session.peerPin,
                 challenge: CompanionPairingProof.make(
-                    role: .mac, kind: request.kind, secret: window.secret(for: request.kind),
-                    binding: .init(exporter: session.exporter, macPin: macPin, phonePin: session.peerPin)
+                    role: .mac, kind: request.kind, secret: window.secret(for: request.kind), binding: binding
                 ),
                 macNonce: macNonce,
                 comparisonCode: CompanionPairingProof.comparisonCode(
@@ -132,19 +133,6 @@ public final class CompanionTrustGate: @unchecked Sendable {
                 )
             )
         }
-    }
-
-    // MARK: - Private
-
-    private func trustLocked(_ pin: Data) {
-        trusted[pin] = nextGeneration
-        nextGeneration += 1
-    }
-
-    private func locked<T>(_ body: () -> T) -> T {
-        lock.lock()
-        defer { lock.unlock() }
-        return body()
     }
 }
 

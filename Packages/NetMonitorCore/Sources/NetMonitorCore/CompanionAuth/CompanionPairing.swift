@@ -52,7 +52,7 @@ public struct CompanionPairingInvitation: Sendable, Equatable {
             macPin: macPin,
             secret: secret,
             host: items["h"].flatMap { $0.isEmpty ? nil : $0 },
-            port: items["p"].flatMap(UInt16.init) ?? 8849
+            port: items["p"].flatMap(UInt16.init) ?? CompanionLink.defaultPort
         )
     }
 }

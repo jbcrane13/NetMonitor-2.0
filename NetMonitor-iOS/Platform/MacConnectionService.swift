@@ -1,6 +1,3 @@
-// The link's state stays private to this type (#590); splitting it across files would widen that
-// access to the whole module, so the file is longer than the usual limit instead.
-// swiftlint:disable file_length
 import Foundation
 import NetMonitorCore
 import Network
@@ -10,21 +7,24 @@ import UIKit
 // MARK: - MacConnectionService
 
 /// The phone end of the companion link (#590): TLS 1.3 with this phone's identity, pinning the
-/// paired Mac's key. Nothing is sent on a link before the Mac's `serverHello`.
+/// paired Mac's key. Nothing is sent on a link before the Mac's `serverHello`. Only the Mac's
+/// explicit refusal ends a paired link for good; every other failure retries with backoff.
 @MainActor
 @Observable
 final class MacConnectionService: MacConnectionServiceProtocol {
 
     // MARK: - Shared Instance
 
-    static let shared: MacConnectionService = .init(insightClient: PhoneInsight.linkClient, macStore: defaultMacStore())
+    static let shared: MacConnectionService = .init(
+        insightClient: PhoneInsight.linkClient, macStore: defaultMacStore(), defaults: defaultDefaults()
+    )
     private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "com.blakemiller.netmonitor", category: "MacConnectionService")
 
     // MARK: - Public State
 
     private(set) var connectionState: MacConnectionState = .disconnected
-    private(set) var discoveredMacs: [DiscoveredMac] = []
-    private(set) var isBrowsing: Bool = false
+    var discoveredMacs: [DiscoveredMac] { browser.discoveredMacs }
+    var isBrowsing: Bool { browser.isBrowsing }
     private(set) var connectedMacName: String?
     private(set) var lastStatusUpdate: StatusUpdatePayload?
     private(set) var lastTargetList: TargetListPayload?
@@ -34,19 +34,19 @@ final class MacConnectionService: MacConnectionServiceProtocol {
     /// The Mac this phone is paired with (#590).
     private(set) var pairedMac: PairedMacRecord?
     private(set) var linkProblem: MacLinkProblem?
-    private(set) var pairingState: PhonePairingState = .idle
+    /// Set when Forget This Mac couldn't delete the key; the key is blocked from use meanwhile.
+    private(set) var forgetError: String?
+    var pairingState: PhonePairingState { pairing.state }
 
     // MARK: - Private
 
     /// What the current link is for.
     private enum LinkMode {
         case paired(PairedMacRecord, identity: CompanionIdentity)
-        case pairing(PhonePairingAttempt)
+        case pairing
     }
 
-    /// Maps DiscoveredMac.id → NWEndpoint for connection lookups
-    private var endpointCache: [String: NWEndpoint] = [:]
-    private var browser: NWBrowser?
+    private let browser = MacBrowser()
     private var connection: NWConnection?
     private let queue = DispatchQueue(label: "com.netmonitor.macconnection", qos: .userInitiated)
     private var heartbeatTask: Task<Void, Never>?
@@ -61,20 +61,21 @@ final class MacConnectionService: MacConnectionServiceProtocol {
     private var linkSession = CompanionLinkSession(heartbeatInterval: MacConnectionService.heartbeatInterval)
     private let networkProfileManager: NetworkProfileManager
     private let macStore: PairedMacStore
+    private let defaults: UserDefaults
+    /// How long an attempt may take to reach the Mac's serverHello before it counts as failed.
+    private let helloTimeout: Duration
+    private let pairing = PhonePairingController()
     private var linkMode: LinkMode?
     private var session: CompanionVerifiedSession?
     /// True from `.ready` until the Mac's `serverHello` authorises the link.
     private var awaitingHello = false
-    /// What the Mac accepted, held until the user also says the codes match on the phone.
-    private var macAcceptedRecord: PairedMacRecord?
-    /// The user said the codes match on this phone.
-    private var phoneConfirmed = false
 
     // MARK: - Constants
 
-    private static let serviceType = "_netmon._tcp"
     private static let heartbeatInterval: TimeInterval = 15
     private static let heartbeatVersion = "1.0"
+    /// Forget This Mac couldn't delete the key: it must not be loaded or used until it is.
+    static let pendingForgetKey = "netmonitor.companion.pendingForget"
 
     /// Fed with the Mac's heartbeats and insight replies, and told when the link ends (#457).
     private let insightClient: CompanionInsightClient
@@ -83,18 +84,30 @@ final class MacConnectionService: MacConnectionServiceProtocol {
     init(
         insightClient: CompanionInsightClient,
         networkProfileManager: NetworkProfileManager = NetworkProfileManager(),
-        macStore: PairedMacStore
+        macStore: PairedMacStore,
+        defaults: UserDefaults = .standard,
+        helloTimeout: Duration = .seconds(15)
     ) {
         self.insightClient = insightClient
         self.networkProfileManager = networkProfileManager
         self.macStore = macStore
+        self.defaults = defaults
+        self.helloTimeout = helloTimeout
         reloadPairedMacIfNeeded()
     }
 
     /// Reads the paired Mac if it isn't loaded yet. A launch while the phone is locked can't read
-    /// the Keychain item (WhenUnlocked), so browsing and connecting try again.
+    /// the Keychain item (WhenUnlocked), so browsing and connecting try again. A key left behind
+    /// by a failed Forget is deleted first and never loaded.
     private func reloadPairedMacIfNeeded() {
         guard pairedMac == nil else { return }
+        if defaults.bool(forKey: Self.pendingForgetKey) {
+            if (try? macStore.forget()) != nil {
+                defaults.removeObject(forKey: Self.pendingForgetKey)
+                forgetError = nil
+            }
+            return
+        }
         do {
             pairedMac = try macStore.load()
         } catch {
@@ -102,102 +115,50 @@ final class MacConnectionService: MacConnectionServiceProtocol {
         }
     }
 
-    /// The Keychain, or memory for `--uitesting` launches.
+    /// The Keychain, or memory for `--uitesting` launches of Debug builds.
     private static func defaultMacStore() -> PairedMacStore {
+        #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("--uitesting") {
             return PairedMacStore(backing: UITestFakeMacPairing.store)
         }
+        #endif
         return PairedMacStore(backing: CompanionKeychain(service: "com.netmonitor.companion.mac", accessibility: .whenUnlocked))
+    }
+
+    private static func defaultDefaults() -> UserDefaults {
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--uitesting"),
+           let suite = UserDefaults(suiteName: UITestFakeMacPairing.defaultsSuite) {
+            return suite
+        }
+        #endif
+        return .standard
     }
 
     // Note: cleanup is handled by disconnect() and stopBrowsing() which
     // should be called before the service is released.
-
 }
 
 // MARK: - Browsing
 
 extension MacConnectionService {
     func startBrowsing() {
-        stopBrowsing()
         reloadPairedMacIfNeeded()
-
-        isBrowsing = true
         // Browsing doesn't change a link that is up or coming up.
         if !connectionState.isConnected, connectionState != .connecting {
             connectionState = .browsing
         }
-        discoveredMacs = []
-        if let fake = UITestFakeMacPairing.discovered {
-            discoveredMacs = [fake.mac]
-            endpointCache = [fake.mac.id: fake.endpoint]
-            return
+        browser.onFailure = { [weak self] message in
+            self?.connectionState = .error(message)
         }
-
-        let descriptor = NWBrowser.Descriptor.bonjourWithTXTRecord(type: Self.serviceType, domain: nil)
-        let parameters = NWParameters()
-        parameters.includePeerToPeer = true
-
-        let newBrowser = NWBrowser(for: descriptor, using: parameters)
-
-        newBrowser.stateUpdateHandler = { [weak self] state in
-            Task { @MainActor [weak self] in
-                guard let self else { return }
-                switch state {
-                case .ready:
-                    Self.logger.info("NWBrowser ready — scanning for \(Self.serviceType, privacy: .public)")
-                case .failed(let error):
-                    Self.logger.error("NWBrowser failed: \(error, privacy: .public)")
-                    self.isBrowsing = false
-                    self.connectionState = .error("Bonjour browser failed: \(error.localizedDescription)")
-                case .cancelled:
-                    Self.logger.info("NWBrowser cancelled")
-                    self.isBrowsing = false
-                case .waiting(let error):
-                    Self.logger.warning("NWBrowser waiting: \(error, privacy: .public)")
-                default:
-                    break
-                }
-            }
-        }
-
-        newBrowser.browseResultsChangedHandler = { [weak self] results, _ in
-            Task { @MainActor [weak self] in
-                guard let self else { return }
-                self.handleBrowseResults(results)
-            }
-        }
-
-        newBrowser.start(queue: queue)
-        browser = newBrowser
+        browser.start()
     }
 
     func stopBrowsing() {
-        browser?.cancel()
-        browser = nil
-        isBrowsing = false
+        browser.stop()
         if case .browsing = connectionState {
             connectionState = .disconnected
         }
-    }
-
-    private func handleBrowseResults(_ results: Set<NWBrowser.Result>) {
-        var macs: [NetMonitorCore.DiscoveredMac] = []
-        var cache: [String: NWEndpoint] = [:]
-        for result in results {
-            if case let .service(name, _, _, _) = result.endpoint {
-                let id = "\(name)-\(result.endpoint.debugDescription)"
-                var macID: UUID?
-                var version: Int?
-                if case .bonjour(let txt) = result.metadata {
-                    (macID, version) = CompanionServiceTXT.read(txt)
-                }
-                macs.append(NetMonitorCore.DiscoveredMac(id: id, name: name, macID: macID, protocolVersion: version))
-                cache[id] = result.endpoint
-            }
-        }
-        endpointCache = cache
-        discoveredMacs = macs
     }
 
     /// Whether `mac` is the one this phone is paired with.
@@ -205,7 +166,6 @@ extension MacConnectionService {
         guard let pairedMac, let macID = mac.macID else { return false }
         return pairedMac.macID == macID
     }
-
 }
 
 // MARK: - Connection
@@ -213,7 +173,7 @@ extension MacConnectionService {
 extension MacConnectionService {
     /// Connects to `mac` if this phone is paired with it; otherwise says why not.
     func connect(to mac: NetMonitorCore.DiscoveredMac) {
-        guard let endpoint = endpointCache[mac.id] else { return }
+        guard let endpoint = browser.endpoint(for: mac) else { return }
         reloadPairedMacIfNeeded()
         guard mac.isCurrent else {
             linkProblem = .macNeedsUpdate
@@ -229,13 +189,11 @@ extension MacConnectionService {
     /// Connects to the paired Mac at a typed address.
     func connectDirect(host: String, port: UInt16) {
         reloadPairedMacIfNeeded()
-        guard let record = pairedMac else {
+        guard let record = pairedMac, let port = NWEndpoint.Port(rawValue: port) else {
             linkProblem = .notPaired
             return
         }
-        // swiftlint:disable:next force_unwrapping
-        let endpoint = NWEndpoint.hostPort(host: .init(host), port: .init(rawValue: port)!)
-        connectPaired(record, endpoint: endpoint, macName: record.macName)
+        connectPaired(record, endpoint: .hostPort(host: .init(host), port: port), macName: record.macName)
     }
 
     private func connectPaired(_ record: PairedMacRecord, endpoint: NWEndpoint, macName: String) {
@@ -301,88 +259,78 @@ extension MacConnectionService {
         conn.stateUpdateHandler = { [weak self] state in
             Task { @MainActor [weak self] in
                 guard let self, self.connectionGeneration == generation else { return }
-                self.handleConnectionState(state, connection: conn, macName: macName, generation: generation)
+                self.handleConnectionState(state, connection: conn, generation: generation)
             }
         }
 
         conn.start(queue: queue)
+        // An attempt that hangs (a reset the stack keeps retrying, a Mac that never answers) ends
+        // here and goes through the same backoff as any other failure.
+        Task { [weak self, helloTimeout] in
+            try? await Task.sleep(for: helloTimeout)
+            guard let self, self.connectionGeneration == generation else { return }
+            if self.connectionState == .connecting || self.awaitingHello {
+                self.linkFailed(generation: generation, reason: "The Mac didn't answer in time.")
+            }
+        }
     }
 
-    private func handleConnectionState(
-        _ state: NWConnection.State,
-        connection: NWConnection,
-        macName: String,
-        generation: UUID
-    ) {
+    private func handleConnectionState(_ state: NWConnection.State, connection: NWConnection, generation: UUID) {
         switch state {
         case .ready:
-            // TLS 1.3: the client is ready before the Mac has judged its certificate, so the link
-            // is only usable once the Mac's serverHello arrives.
+            // Nothing is sent until the Mac's serverHello says what it made of this phone.
             guard let verified = CompanionTLS.sessionFacts(of: connection).verified else {
-                failAuthentication()
+                linkFailed(generation: generation, reason: "The Mac's connection couldn't be verified.")
                 return
             }
             session = verified
             awaitingHello = true
             frameDecoder = CompanionFrameDecoder()
             scheduleReceive(connection: connection, generation: generation)
-
         case .failed(let error):
-            self.connection = nil
-            if case .tls = error {
-                failAuthentication()
-                return
-            }
-            connectionState = .error(error.localizedDescription)
-            tearDownLink()
-            failPairingIfNeeded("The connection to the Mac failed.")
-            scheduleReconnect(generation: generation)
-
+            linkFailed(generation: generation, reason: error.localizedDescription)
         case .cancelled:
-            tearDownLink()
             if shouldAutoReconnect {
-                self.connection = nil
-                connectionState = .disconnected
-                scheduleReconnect(generation: generation)
+                linkFailed(generation: generation, reason: nil)
+            } else {
+                tearDownLink()
             }
-
         case .waiting(let error):
-            connectionState = .error("Waiting: \(error.localizedDescription)")
-
+            // A reset mid-handshake (a Mac at capacity) lands here, and Network.framework would only
+            // retry on a path change: treat it as a failed attempt and use the backoff.
+            linkFailed(generation: generation, reason: error.localizedDescription)
         default:
             break
         }
     }
 
-    /// The handshake or the Mac's verdict refused this phone: say so and stop retrying.
-    private func failAuthentication() {
-        let wasPairing = if case .pairing? = linkMode {
-            true
-        } else {
-            false
+    /// A link ended without the Mac refusing this phone: a TLS error, an early close, a deadline
+    /// or full slots. A paired link retries with backoff; a pairing attempt fails for the user.
+    private func linkFailed(generation: UUID, reason: String?) {
+        guard connectionGeneration == generation else { return }
+        connection?.cancel()
+        connection = nil
+        tearDownLink()
+        if case .pairing? = linkMode {
+            linkMode = nil
+            pairing.linkEnded()
+            connectionState = .disconnected
+            return
         }
+        connectionState = reason.map { .error("Can't reach the Mac: \($0)") } ?? .disconnected
+        scheduleReconnect(generation: generation)
+    }
+
+    /// The Mac said it doesn't trust this phone's key: a definite answer, so stop retrying.
+    private func refusedByMac() {
         shouldAutoReconnect = false
         connection?.cancel()
         connection = nil
         tearDownLink()
-        if wasPairing {
-            pairingState = .failed("Couldn't verify the Mac. Check the code and try again.")
-            connectionState = .disconnected
-        } else {
-            linkProblem = .notRecognized
-            connectionState = .error(MacLinkProblem.notRecognized.message)
-        }
+        linkProblem = .notRecognized
+        connectionState = .error(MacLinkProblem.notRecognized.message)
         linkMode = nil
     }
-
-    private func failPairingIfNeeded(_ message: String) {
-        if case .pairing? = linkMode {
-            pairingState = .failed(message)
-            shouldAutoReconnect = false
-            linkMode = nil
-        }
-    }
-
 }
 
 // MARK: - Receive
@@ -409,49 +357,12 @@ extension MacConnectionService {
                     }
 
                     if isComplete || error != nil {
-                        self.handleReceiveTermination(error: error, generation: generation)
+                        self.linkFailed(generation: generation, reason: error?.localizedDescription)
                     } else if self.connectionGeneration == generation {
                         self.scheduleReceive(connection: connection, generation: generation)
                     }
                 }
             }
-        }
-    }
-
-    private func handleReceiveTermination(error: NWError?, generation: UUID) {
-        guard connectionGeneration == generation else { return }
-        // Closed before the Mac said hello: the Mac refused this phone's certificate.
-        if awaitingHello {
-            failAuthentication()
-            return
-        }
-        if case .pairing? = linkMode {
-            connection = nil
-            tearDownLink()
-            switch pairingState {
-            case .comparing, .waitingForMac:
-                // After the Mac's verdict the link closes by design.
-                if macAcceptedRecord == nil {
-                    pairingState = .failed("The Mac closed the pairing.")
-                }
-            case .connecting:
-                pairingState = .failed("The Mac didn't accept the code. Check it and try again.")
-            case .idle, .paired, .failed:
-                break
-            }
-            linkMode = nil
-            connectionState = .disconnected
-            return
-        }
-        connection = nil
-        tearDownLink()
-        if let error {
-            connectionState = .error(error.localizedDescription)
-        } else {
-            connectionState = .disconnected
-        }
-        if shouldAutoReconnect {
-            scheduleReconnect(generation: generation)
         }
     }
 
@@ -462,19 +373,18 @@ extension MacConnectionService {
         switch message {
         case .serverHello(let payload):
             handleServerHello(payload)
-            return
         case .pairChallenge(let payload):
-            handlePairChallenge(payload)
-            return
+            guard !awaitingHello, case .pairing? = linkMode, let session else { return }
+            if !pairing.challenge(payload, session: session) {
+                endPairingLink()
+            }
         case .pairResult(let payload):
             handlePairResult(payload)
-            return
         default:
-            break
+            // Everything else only on a paired, authorised link.
+            guard !awaitingHello, case .paired? = linkMode else { return }
+            handleLinkMessage(message)
         }
-        // Everything else only on a paired, authorised link.
-        guard !awaitingHello, case .paired? = linkMode else { return }
-        handleLinkMessage(message)
     }
 
     private func handleLinkMessage(_ message: CompanionMessage) {
@@ -519,7 +429,7 @@ extension MacConnectionService {
     private func sendLocalNetworkProfile() async {
         networkProfileManager.detectLocalNetwork()
         guard let profile = networkProfileManager.localProfile
-                ?? networkProfileManager.activeProfile else {
+            ?? networkProfileManager.activeProfile else {
             return
         }
 
@@ -532,7 +442,6 @@ extension MacConnectionService {
         )
         await sendMessage(.networkProfile(payload))
     }
-
 }
 
 // MARK: - Heartbeat and reconnect
@@ -575,8 +484,6 @@ extension MacConnectionService {
         return true
     }
 
-    // MARK: - Reconnect
-
     private func scheduleReconnect(generation: UUID) {
         guard shouldAutoReconnect,
               connectionGeneration == generation,
@@ -603,7 +510,7 @@ extension MacConnectionService {
 
 extension MacConnectionService {
     private func handleServerHello(_ payload: ServerHelloPayload) {
-        guard awaitingHello, let mode = linkMode else { return }
+        guard awaitingHello, let mode = linkMode, let session else { return }
         awaitingHello = false
         switch (mode, payload.mode) {
         case (.paired, .paired):
@@ -613,86 +520,54 @@ extension MacConnectionService {
             connectedMacName = pendingMacName ?? payload.macName
             lastConnectedEndpoint = pendingEndpoint
             lastConnectedMacName = pendingMacName
-            let generation = connectionGeneration
-            startHeartbeat(generation: generation)
+            startHeartbeat(generation: connectionGeneration)
             Task { await sendLocalNetworkProfile() }
-        case (.paired, .pairing):
-            // The Mac doesn't know this phone's key any more.
-            failAuthentication()
-        case (.pairing(var attempt), .pairing):
-            guard let session else { return }
-            guard let request = PhonePairingFlow.pairRequest(
-                for: &attempt, hello: payload, session: session, phoneName: UIDevice.current.name
-            ) else {
-                pairingState = .failed(MacLinkProblem.macNeedsUpdate.message)
+        case (.paired, .pairing), (.paired, .refused):
+            // The Mac doesn't trust this phone's key: removed there, or another Mac.
+            refusedByMac()
+        case (.pairing, _):
+            guard let request = pairing.hello(payload, session: session, phoneName: UIDevice.current.name) else {
                 endPairingLink()
                 return
             }
-            linkMode = .pairing(attempt)
             Task { await sendMessage(request) }
-        case (.pairing, .paired):
-            failAuthentication()
-        }
-    }
-
-    private func handlePairChallenge(_ payload: PairChallengePayload) {
-        guard !awaitingHello, case .pairing(var attempt)? = linkMode, !attempt.challengeVerified, let session else { return }
-        pairingState = PhonePairingFlow.check(payload, attempt: &attempt, session: session)
-        linkMode = .pairing(attempt)
-        if case .failed = pairingState {
-            endPairingLink()
         }
     }
 
     private func handlePairResult(_ payload: PairResultPayload) {
-        guard case .pairing(let attempt)? = linkMode, attempt.challengeVerified, let session else { return }
-        switch PhonePairingFlow.record(for: payload, attempt: attempt, session: session) {
-        case .failure(let failure):
-            pairingState = .failed(failure.message)
-            endPairingLink()
-        case .success(let record):
-            macAcceptedRecord = record
-            endPairingLink()
-            if phoneConfirmed {
-                finishPairing(record)
-            }
-        }
-    }
-
-    /// The user's answer on the phone: do the six digits match the Mac's? The Mac is saved only
-    /// once both the user here and the Mac have said yes, in either order.
-    func confirmComparison(_ match: Bool) {
-        guard case .comparing(let code, let macName) = pairingState else { return }
-        guard match else {
-            macAcceptedRecord = nil
-            pairingState = .failed(
-                "The codes didn't match, so nothing was saved on this iPhone. Click Don't Pair on the Mac, "
-                    + "or remove this iPhone there if it was paired."
-            )
+        guard case .pairing? = linkMode, let session else { return }
+        guard let record = pairing.result(payload, session: session) else {
             endPairingLink()
             return
         }
-        phoneConfirmed = true
-        if let record = macAcceptedRecord {
-            finishPairing(record)
-        } else {
-            pairingState = .waitingForMac(code: code, macName: macName)
-        }
-    }
-
-    private func finishPairing(_ record: PairedMacRecord) {
-        macAcceptedRecord = nil
+        let endpoint = pendingEndpoint
+        endPairingLink()
         do {
             try macStore.save(record)
         } catch {
-            pairingState = .failed("This iPhone couldn't save the pairing. Remove it on the Mac and pair again.")
+            pairing.fail("This iPhone couldn't save the pairing. Remove it on the Mac and pair again.")
             return
         }
+        // A new pairing replaced any key a failed Forget left behind.
+        defaults.removeObject(forKey: Self.pendingForgetKey)
+        forgetError = nil
         pairedMac = record
         linkProblem = nil
-        pairingState = .paired(macName: record.macName)
-        if let endpoint = pendingEndpoint {
+        pairing.saved(record)
+        if let endpoint {
             connectPaired(record, endpoint: endpoint, macName: record.macName)
+        }
+    }
+
+    /// The user's answer on the phone. The verdict goes to the Mac either way; the Mac saves this
+    /// phone only after it, and the phone saves the Mac only after the Mac accepts.
+    func confirmComparison(_ match: Bool) {
+        guard let verdict = pairing.confirm(match) else { return }
+        Task {
+            await sendMessage(verdict)
+            if !match {
+                endPairingLink()
+            }
         }
     }
 
@@ -709,88 +584,84 @@ extension MacConnectionService {
     /// Pairs with the Mac in a scanned QR invitation, pinning the Mac's key from the QR.
     func pair(with invitation: CompanionPairingInvitation) {
         let endpoint: NWEndpoint
-        if let mac = discoveredMacs.first(where: { $0.macID == invitation.macID }), let cached = endpointCache[mac.id] {
+        if let cached = browser.endpoint(forMacID: invitation.macID) {
             endpoint = cached
         } else if let host = invitation.host, let port = NWEndpoint.Port(rawValue: invitation.port) {
             endpoint = .hostPort(host: .init(host), port: port)
         } else {
-            pairingState = .failed("Couldn't find that Mac on this network.")
+            pairing.fail("Couldn't find that Mac on this network.")
             return
         }
-        startPairing(
-            kind: .qr, secret: invitation.secret, endpoint: endpoint, macName: invitation.macName,
-            host: invitation.host, port: invitation.port, acceptsMac: { [pin = invitation.macPin] in $0 == pin }
+        let attempt = PhonePairingAttempt(
+            kind: .qr, secret: invitation.secret, identity: CompanionIdentity(),
+            host: invitation.host, port: invitation.port, macName: invitation.macName
         )
+        startPairing(attempt, endpoint: endpoint, acceptsMac: { [pin = invitation.macPin] in $0 == pin })
     }
 
     /// Pairs with `mac` using the code typed from its screen. The Mac's key isn't known in
     /// advance, so the Mac must prove the same code before anything is trusted.
     func pair(code: CompanionPairingCode, with mac: DiscoveredMac) {
-        guard let endpoint = endpointCache[mac.id] else {
-            pairingState = .failed("Couldn't find that Mac on this network.")
+        guard let endpoint = browser.endpoint(for: mac) else {
+            pairing.fail("Couldn't find that Mac on this network.")
             return
         }
         guard mac.isCurrent else {
-            pairingState = .failed(MacLinkProblem.macNeedsUpdate.message)
+            pairing.fail(MacLinkProblem.macNeedsUpdate.message)
             return
         }
-        startPairing(kind: .code, secret: code.secret, endpoint: endpoint, macName: mac.name, host: nil, port: 8849, acceptsMac: { _ in true })
+        let attempt = PhonePairingAttempt(
+            kind: .code, secret: code.secret, identity: CompanionIdentity(),
+            host: nil, port: CompanionLink.defaultPort, macName: mac.name
+        )
+        startPairing(attempt, endpoint: endpoint, acceptsMac: { _ in true })
     }
 
-    // swiftlint:disable:next function_parameter_count
-    private func startPairing(
-        kind: CompanionPairingProof.Kind,
-        secret: Data,
-        endpoint: NWEndpoint,
-        macName: String,
-        host: String?,
-        port: UInt16,
-        acceptsMac: @escaping @Sendable (Data) -> Bool
-    ) {
-        // A fresh identity for every pairing: nothing ties it to an earlier one.
-        let identity = CompanionIdentity()
-        guard let parameters = CompanionTLS.parameters(identity: identity, acceptsPeer: acceptsMac) else {
-            pairingState = .failed("Couldn't create this iPhone's key.")
+    /// Opens a pairing link with the attempt's fresh identity: nothing ties it to an earlier one.
+    private func startPairing(_ attempt: PhonePairingAttempt, endpoint: NWEndpoint, acceptsMac: @escaping @Sendable (Data) -> Bool) {
+        guard let parameters = CompanionTLS.parameters(identity: attempt.identity, acceptsPeer: acceptsMac) else {
+            pairing.fail("Couldn't create this iPhone's key.")
             return
         }
         disconnect()
         linkProblem = nil
-        pairingState = .connecting
         connectionState = .connecting
         pendingEndpoint = endpoint
-        pendingMacName = macName
-        macAcceptedRecord = nil
-        phoneConfirmed = false
-        linkMode = .pairing(PhonePairingAttempt(kind: kind, secret: secret, identity: identity, host: host, port: port, macName: macName))
-        setupConnection(NWConnection(to: endpoint, using: parameters), macName: macName)
+        pendingMacName = attempt.macName
+        pairing.begin(attempt)
+        linkMode = .pairing
+        setupConnection(NWConnection(to: endpoint, using: parameters), macName: attempt.macName)
     }
 
     func resetPairingState() {
-        switch pairingState {
-        case .comparing, .waitingForMac:
+        switch pairing.state {
+        case .connecting, .comparing, .waitingForMac:
             endPairingLink()
-        case .idle, .connecting, .paired, .failed:
+        case .idle, .paired, .failed:
             break
         }
-        macAcceptedRecord = nil
-        phoneConfirmed = false
-        pairingState = .idle
+        pairing.reset()
     }
 
     /// Forgets the paired Mac: tells it (if connected) to drop this phone, then deletes the key.
+    /// If the delete fails, the key is marked and never loaded or used, and deleting is retried.
     func forgetMac() async {
         if connectionState.isConnected {
             await sendMessage(.unpair(UnpairPayload()))
         }
         disconnect()
-        do {
-            try macStore.forget()
-        } catch {
-            Self.logger.error("Couldn't delete the paired Mac: \(String(describing: error), privacy: .public)")
-        }
         pairedMac = nil
         linkProblem = nil
-        pairingState = .idle
+        pairing.reset()
+        do {
+            try macStore.forget()
+            defaults.removeObject(forKey: Self.pendingForgetKey)
+            forgetError = nil
+        } catch {
+            Self.logger.error("Couldn't delete the paired Mac: \(String(describing: error), privacy: .public)")
+            defaults.set(true, forKey: Self.pendingForgetKey)
+            forgetError = "This iPhone couldn't delete the Mac's key. It won't be used, and NetMonitor will try again."
+        }
     }
 }
 
@@ -809,12 +680,15 @@ extension MacConnectionService {
     }
 
     /// Send a CompanionMessage with 4-byte big-endian length prefix + JSON payload, only on a
-    /// link the Mac has greeted, and app data only on a paired one. Returns whether it was sent.
+    /// link the Mac has greeted. A pairing link carries only the pairing request and the verdict.
     @discardableResult
     private func sendMessage(_ message: CompanionMessage) async -> Bool {
         guard let conn = connection, !awaitingHello, let linkMode else { return false }
         if case .pairing = linkMode {
-            guard case .pairRequest = message else { return false }
+            switch message {
+            case .pairRequest, .pairResult: break
+            default: return false
+            }
         }
         do {
             let data = try message.encodeLengthPrefixed()
@@ -858,12 +732,11 @@ extension MacConnectionService {
     }
 
     func endpointForTesting(_ mac: DiscoveredMac) -> NWEndpoint? {
-        endpointCache[mac.id]
+        browser.endpoint(for: mac)
     }
 
     /// A Mac at `endpoint`, as if Bonjour had found it.
     func addDiscoveredMacForTesting(_ mac: DiscoveredMac, endpoint: NWEndpoint) {
-        discoveredMacs.append(mac)
-        endpointCache[mac.id] = endpoint
+        browser.add(mac, endpoint: endpoint)
     }
 }

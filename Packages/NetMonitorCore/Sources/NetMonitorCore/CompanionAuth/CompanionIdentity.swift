@@ -48,7 +48,9 @@ public struct CompanionIdentity: Sendable {
 enum CompanionCertificate {
     static func selfSigned(by key: P256.Signing.PrivateKey) throws -> Data {
         var serial = [UInt8](repeating: 0, count: 8)
-        _ = SecRandomCopyBytes(kSecRandomDefault, serial.count, &serial)
+        guard SecRandomCopyBytes(kSecRandomDefault, serial.count, &serial) == errSecSuccess else {
+            throw CompanionCredentialError.keychain(errSecAllocate)
+        }
         let algorithm = sequence(ecdsaWithSHA256)
         let name = sequence(element(0x31, sequence(commonNameOID, element(0x0C, Array("NetMonitor".utf8)))))
         let validity = sequence(element(0x17, Array("250101000000Z".utf8)), element(0x17, Array("491231235959Z".utf8)))

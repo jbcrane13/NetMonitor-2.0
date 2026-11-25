@@ -80,16 +80,26 @@ struct CompanionPairingSheet: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
-            HStack {
-                Button("Don't Pair") {
-                    Task { await model.confirm(false) }
+            if pending.waitingForPhone {
+                HStack(spacing: 8) {
+                    ProgressView()
+                        .controlSize(.small)
+                    Text("Waiting for the iPhone: tap They Match there.")
+                        .foregroundStyle(.secondary)
                 }
-                .accessibilityIdentifier("pairing_button_reject")
-                Button("Pair") {
-                    Task { await model.confirm(true) }
+                .accessibilityIdentifier("pairing_label_waitingForPhone")
+            } else {
+                HStack {
+                    Button("Don't Pair") {
+                        Task { await model.confirm(false) }
+                    }
+                    .accessibilityIdentifier("pairing_button_reject")
+                    Button("Pair") {
+                        Task { await model.confirm(true) }
+                    }
+                    .keyboardShortcut(.defaultAction)
+                    .accessibilityIdentifier("pairing_button_confirm")
                 }
-                .keyboardShortcut(.defaultAction)
-                .accessibilityIdentifier("pairing_button_confirm")
             }
         }
     }

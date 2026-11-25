@@ -1,5 +1,6 @@
 import Foundation
 import NetMonitorCore
+import Synchronization
 
 /// What the Mac's companion link trusts (#590): its own TLS identity, its ID, the paired phones,
 /// and the live trust gate built from them.
@@ -21,10 +22,11 @@ struct CompanionCredentials: Sendable {
 
     /// The Keychain-backed credentials. Throws when the Keychain refuses, in which case the
     /// companion service stays off: there is no unauthenticated fallback.
-    static func live(defaults: UserDefaults = .standard) throws -> CompanionCredentials {
+    /// `defaultsSuite` nil is the standard defaults.
+    static func live(defaultsSuite: String? = nil) throws -> CompanionCredentials {
         let keychain = CompanionKeychain(service: keychainService, accessibility: .afterFirstUnlock)
         return try make(
-            backing: keychain, defaults: defaults,
+            backing: keychain, defaultsSuite: defaultsSuite,
             macName: Host.current().localizedName ?? "Mac", host: ProcessInfo.processInfo.hostName
         )
     }
@@ -32,7 +34,7 @@ struct CompanionCredentials: Sendable {
     /// Credentials that never touch the Keychain, for tests and `--uitesting` launches.
     static func inMemory(
         seedPhones: [PairedPhone] = [],
-        defaults: UserDefaults,
+        defaultsSuite: String?,
         backing: InMemoryCompanionSecretStore = InMemoryCompanionSecretStore()
     ) -> CompanionCredentials {
         let phones = PairedPhoneStore(backing: backing)
@@ -42,18 +44,18 @@ struct CompanionCredentials: Sendable {
         // An in-memory store never throws on these paths.
         // A made-up name and no host, so evidence screenshots and QR codes carry nothing real.
         // swiftlint:disable:next force_try
-        return try! make(backing: backing, defaults: defaults, macName: "Test Mac", host: nil)
+        return try! make(backing: backing, defaultsSuite: defaultsSuite, macName: "Test Mac", host: nil)
     }
 
     private static func make(
         backing: any CompanionSecretStore,
-        defaults: UserDefaults,
+        defaultsSuite: String?,
         macName: String,
         host: String?
     ) throws -> CompanionCredentials {
         let identity = try CompanionIdentityStore(backing: backing).loadOrCreate()
         let phones = PairedPhoneStore(backing: backing)
-        let denied = DeniedPins(defaults: defaults)
+        let denied = DeniedPins(suite: defaultsSuite)
         for hex in denied.all() {
             if let pin = Data(hexString: hex), (try? phones.remove(pin: pin)) != nil {
                 denied.remove(hex)
@@ -63,7 +65,7 @@ struct CompanionCredentials: Sendable {
         let trusted = try phones.all().map(\.pin).filter { !stillDenied.contains($0.hexString) }
         return CompanionCredentials(
             identity: identity,
-            macID: macID(defaults: defaults),
+            macID: macID(defaults: denied.defaults),
             macName: macName,
             host: host,
             phones: phones,
@@ -104,42 +106,33 @@ struct CompanionCredentials: Sendable {
 }
 
 /// Pins still refused after their Keychain delete failed, kept in defaults (pins aren't secret).
-/// `UserDefaults` is documented as thread-safe, which is what the unchecked conformance rests on.
-private final class DeniedPins: @unchecked Sendable {
-    private let defaults: UserDefaults
+/// It holds the suite's name, not a `UserDefaults` (which isn't `Sendable`), and serialises its
+/// read-modify-write behind a `Mutex`.
+private final class DeniedPins: Sendable {
+    private let suite: String?
+    private let lock = Mutex(())
 
-    init(defaults: UserDefaults) {
-        self.defaults = defaults
+    init(suite: String?) {
+        self.suite = suite
+    }
+
+    var defaults: UserDefaults {
+        suite.flatMap(UserDefaults.init(suiteName:)) ?? .standard
     }
 
     func all() -> Set<String> {
-        Set(defaults.stringArray(forKey: CompanionCredentials.deniedPinsKey) ?? [])
+        lock.withLock { _ in read() }
     }
 
     func insert(_ hex: String) {
-        defaults.set(Array(all().union([hex])), forKey: CompanionCredentials.deniedPinsKey)
+        lock.withLock { _ in defaults.set(Array(read().union([hex])), forKey: CompanionCredentials.deniedPinsKey) }
     }
 
     func remove(_ hex: String) {
-        defaults.set(Array(all().subtracting([hex])), forKey: CompanionCredentials.deniedPinsKey)
-    }
-}
-
-extension Data {
-    var hexString: String {
-        map { String(format: "%02x", $0) }.joined()
+        lock.withLock { _ in defaults.set(Array(read().subtracting([hex])), forKey: CompanionCredentials.deniedPinsKey) }
     }
 
-    init?(hexString: String) {
-        guard hexString.count.isMultiple(of: 2) else { return nil }
-        var bytes: [UInt8] = []
-        var index = hexString.startIndex
-        while index < hexString.endIndex {
-            let next = hexString.index(index, offsetBy: 2)
-            guard let byte = UInt8(hexString[index..<next], radix: 16) else { return nil }
-            bytes.append(byte)
-            index = next
-        }
-        self.init(bytes)
+    private func read() -> Set<String> {
+        Set(defaults.stringArray(forKey: CompanionCredentials.deniedPinsKey) ?? [])
     }
 }

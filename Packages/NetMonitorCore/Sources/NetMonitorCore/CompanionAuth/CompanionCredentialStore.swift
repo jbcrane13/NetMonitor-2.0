@@ -1,5 +1,7 @@
 import Foundation
+import os
 import Security
+import Synchronization
 
 public enum CompanionCredentialError: Error, Equatable, Sendable {
     /// A Keychain call returned this status.
@@ -55,8 +57,14 @@ public struct CompanionKeychain: CompanionSecretStore {
         return data
     }
 
+    /// Replaces the item in place, or adds it: a failed write never loses the existing record.
     public func write(_ data: Data, account: String) throws {
-        try delete(account: account)
+        let update: [String: Any] = [kSecValueData as String: data, kSecAttrAccessible as String: accessibility.value]
+        let updated = SecItemUpdate(base(account: account) as CFDictionary, update as CFDictionary)
+        if updated == errSecSuccess {
+            return
+        }
+        guard updated == errSecItemNotFound else { throw CompanionCredentialError.keychain(updated) }
         var item = base(account: account)
         item[kSecValueData as String] = data
         item[kSecAttrAccessible as String] = accessibility.value
@@ -98,50 +106,61 @@ public struct CompanionKeychain: CompanionSecretStore {
 }
 
 /// Storage in memory, for tests and UI-test launches; it can be told to fail.
-public final class InMemoryCompanionSecretStore: CompanionSecretStore, @unchecked Sendable {
-    private let lock = NSLock()
-    private var items: [String: Data] = [:]
-    private var shouldFailWrites = false
-    private var shouldFailDeletes = false
+public final class InMemoryCompanionSecretStore: CompanionSecretStore {
+    private struct State {
+        var items: [String: Data] = [:]
+        var failWrites = false
+        var failDeletes = false
+    }
+
+    private let state = Mutex(State())
 
     public init() {}
 
     public var failWrites: Bool {
-        get { locked { shouldFailWrites } }
-        set { locked { shouldFailWrites = newValue } }
+        get { state.withLock { $0.failWrites } }
+        set { state.withLock { $0.failWrites = newValue } }
     }
 
     public var failDeletes: Bool {
-        get { locked { shouldFailDeletes } }
-        set { locked { shouldFailDeletes = newValue } }
+        get { state.withLock { $0.failDeletes } }
+        set { state.withLock { $0.failDeletes = newValue } }
     }
 
-    public func read(account: String) throws -> Data? { locked { items[account] } }
+    public func read(account: String) throws -> Data? {
+        state.withLock { $0.items[account] }
+    }
 
     public func write(_ data: Data, account: String) throws {
-        try locked {
-            if shouldFailWrites {
+        try state.withLock { state in
+            if state.failWrites {
                 throw CompanionCredentialError.keychain(errSecIO)
             }
-            items[account] = data
+            state.items[account] = data
         }
     }
 
     public func delete(account: String) throws {
-        try locked {
-            if shouldFailDeletes {
+        try state.withLock { state in
+            if state.failDeletes {
                 throw CompanionCredentialError.keychain(errSecIO)
             }
-            items[account] = nil
+            state.items[account] = nil
         }
     }
 
-    public func accounts() throws -> [String] { locked { Array(items.keys) } }
+    public func accounts() throws -> [String] {
+        state.withLock { Array($0.items.keys) }
+    }
+}
 
-    private func locked<T>(_ body: () throws -> T) rethrows -> T {
-        lock.lock()
-        defer { lock.unlock() }
-        return try body()
+/// Both record stores skip a record that doesn't decode and log it, so one damaged item never
+/// blocks the rest: a corrupt phone is left out of the list, a corrupt Mac reads as not paired.
+enum CompanionRecordLog {
+    static let logger = Logger(subsystem: "com.netmonitor", category: "CompanionCredentials")
+
+    static func corrupt(_ kind: String) {
+        logger.error("Skipped a corrupt \(kind, privacy: .public) record in the Keychain")
     }
 }
 
@@ -173,7 +192,12 @@ public struct PairedPhoneStore: Sendable {
 
     public func all() throws -> [PairedPhone] {
         try backing.accounts().filter { $0.hasPrefix(Self.prefix) }.compactMap { account in
-            try backing.read(account: account).flatMap { try? JSONDecoder().decode(PairedPhone.self, from: $0) }
+            guard let data = try backing.read(account: account) else { return nil }
+            guard let phone = try? JSONDecoder().decode(PairedPhone.self, from: data) else {
+                CompanionRecordLog.corrupt("paired phone")
+                return nil
+            }
+            return phone
         }
     }
 
@@ -188,7 +212,7 @@ public struct PairedPhoneStore: Sendable {
     }
 
     private static func account(for pin: Data) -> String {
-        prefix + pin.map { String(format: "%02x", $0) }.joined()
+        prefix + pin.hexString
     }
 }
 
@@ -243,11 +267,11 @@ public struct PairedMacStore: Sendable {
 
     public func load() throws -> PairedMacRecord? {
         guard let data = try backing.read(account: Self.account) else { return nil }
-        do {
-            return try JSONDecoder().decode(PairedMacRecord.self, from: data)
-        } catch {
-            throw CompanionCredentialError.corrupt
+        guard let record = try? JSONDecoder().decode(PairedMacRecord.self, from: data) else {
+            CompanionRecordLog.corrupt("paired Mac")
+            return nil
         }
+        return record
     }
 
     public func save(_ record: PairedMacRecord) throws {

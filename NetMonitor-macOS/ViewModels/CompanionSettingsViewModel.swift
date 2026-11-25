@@ -7,6 +7,8 @@ import NetMonitorCore
         let link: UUID
         let phoneName: String
         let code: String
+        /// The user clicked Pair; the iPhone's "They Match" is still to come.
+        var waitingForPhone = false
     }
 
     enum PairingOutcome: Equatable {
@@ -22,9 +24,11 @@ import NetMonitorCore
     private(set) var refusedAttemptAt: Date?
     private(set) var errorMessage: String?
 
-    private let service: CompanionService?
+    private let service: (any CompanionServiceProtocol)?
 
-    init(service: CompanionService?) {
+    /// The app passes its `CompanionService` (nil when the Keychain refused and it never started);
+    /// tests pass a fake.
+    init(service: (any CompanionServiceProtocol)?) {
         self.service = service
     }
 
@@ -43,14 +47,18 @@ import NetMonitorCore
     func refresh() async {
         guard let service else { return }
         phones = await service.pairedPhones()
-        refusedAttemptAt = await service.lastRefusedAttempt
-        connectedPins = await Set(service.getConnectedClientInfos().map(\.phonePin))
+        refusedAttemptAt = await service.refusedAttemptDate()
+        connectedPins = await service.connectedPhonePins()
     }
 
     func apply(_ event: CompanionPairingEvent) {
         switch event {
         case .awaitingConfirmation(let link, let phoneName, let code):
             pending = PendingConfirmation(link: link, phoneName: phoneName, code: code)
+        case .awaitingPhone(let link):
+            if pending?.link == link {
+                pending?.waitingForPhone = true
+            }
         case .paired(let phone):
             pending = nil
             offer = nil
@@ -83,12 +91,12 @@ import NetMonitorCore
 
     func confirm(_ accepted: Bool) async {
         guard let pending else { return }
-        self.pending = nil
-        await service?.confirmPairing(link: pending.link, accepted: accepted)
         if !accepted {
+            self.pending = nil
             outcome = .failed("Pairing cancelled. Nothing was saved on either device.")
             offer = nil
         }
+        await service?.confirmPairing(link: pending.link, accepted: accepted)
     }
 
     // MARK: - Remove

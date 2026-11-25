@@ -69,3 +69,27 @@ struct CompanionIdentityStoreTests {
         #expect(try store.load() == nil)
     }
 }
+
+@Suite("Companion record handling")
+struct CompanionRecordHandlingTests {
+    @Test("Both stores skip a record that doesn't decode: the phone list leaves it out, the Mac reads as not paired")
+    func corruptRecords() throws {
+        let backing = InMemoryCompanionSecretStore()
+        let phones = PairedPhoneStore(backing: backing)
+        let good = PairedPhone(pin: Data(repeating: 1, count: 32), name: "iPhone", pairedAt: Date(timeIntervalSince1970: 1_800_000_000))
+        try phones.add(good)
+        try backing.write(Data("not json".utf8), account: "phone." + Data(repeating: 2, count: 32).hexString)
+        try backing.write(Data("not json".utf8), account: "paired-mac")
+        #expect(try phones.all() == [good])
+        #expect(try PairedMacStore(backing: backing).load() == nil)
+    }
+
+    @Test("Hex round-trips, and odd or non-hex text is refused")
+    func hex() {
+        let bytes = Data([0x00, 0x0A, 0xFF, 0x7E])
+        #expect(bytes.hexString == "000aff7e")
+        #expect(Data(hexString: "000aff7e") == bytes)
+        #expect(Data(hexString: "abc") == nil)
+        #expect(Data(hexString: "zz") == nil)
+    }
+}

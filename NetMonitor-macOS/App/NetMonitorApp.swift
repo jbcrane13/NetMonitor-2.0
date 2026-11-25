@@ -408,11 +408,14 @@ extension NetMonitorApp {
     /// memory, seeded by `--seed-paired-phones`; otherwise they live in this Mac's Keychain. When the
     /// Keychain refuses, the service stays off rather than running unauthenticated.
     func makeCompanionCredentials() -> CompanionCredentials? {
-        let arguments = ProcessInfo.processInfo.arguments
+        #if DEBUG
         if isUITesting {
-            let seeds = arguments.contains("--seed-paired-phones") ? UITestCompanion.seedPhones : []
-            return .inMemory(seedPhones: seeds, defaults: NetworkProfileDefaults.launchDefaults)
+            let seeds = ProcessInfo.processInfo.arguments.contains("--seed-paired-phones") ? UITestCompanion.seedPhones : []
+            // The launch's UI-test suite, emptied at launch (`NetworkProfileDefaults.launchDefaults`).
+            _ = NetworkProfileDefaults.launchDefaults
+            return .inMemory(seedPhones: seeds, defaultsSuite: NetworkProfileDefaults.uiTestSuite)
         }
+        #endif
         do {
             return try .live()
         } catch {
@@ -422,13 +425,15 @@ extension NetMonitorApp {
     }
 }
 
-/// Paired phones for `--seed-paired-phones` (#590); made-up names and keys.
+#if DEBUG
+/// Paired phones for `--seed-paired-phones` (#590); made-up names and keys. Debug builds only.
 enum UITestCompanion {
     static let seedPhones = [
         PairedPhone(pin: Data(repeating: 0xA1, count: 32), name: "Test iPhone", pairedAt: Date(timeIntervalSince1970: 1_798_000_000)),
         PairedPhone(pin: Data(repeating: 0xB2, count: 32), name: "Test iPad", pairedAt: Date(timeIntervalSince1970: 1_799_000_000))
     ]
 }
+#endif
 
 // MARK: - Network profile defaults
 

@@ -193,12 +193,22 @@ struct PairWithMacView: View {
 /// code instead, since the simulator has no camera.
 private struct PairingQRScanner: View {
     let onScan: (String) -> Void
+
+    /// The fake Mac's QR under `--fake-mac-pairing`, in Debug builds only.
+    private static var testInvitation: CompanionPairingInvitation? {
+        #if DEBUG
+        UITestFakeMacPairing.invitation
+        #else
+        nil
+        #endif
+    }
+
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         NavigationStack {
             Group {
-                if let invitation = UITestFakeMacPairing.invitation {
+                if let invitation = Self.testInvitation {
                     Button("Scan the test Mac's code") { onScan(invitation.qrText) }
                         .accessibilityIdentifier("pairMac_button_simulateScan")
                 } else if DataScannerViewController.isSupported, DataScannerViewController.isAvailable {

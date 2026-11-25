@@ -61,7 +61,12 @@ Added in protocol v2 (#590). The link carries device lists, scan results, comman
 ### Transport
 
 - **TLS 1.3 only**, through Network.framework. Each end has a P-256 identity (`CompanionIdentity`) and a minimal self-signed certificate made from it.
-- **Mutual pinning.** Each end's verify block accepts the peer only if the SHA-256 of the peer's X9.63 public key (its **pin**) is one it trusts. Certificate names and dates mean nothing.
+- **Pinning.** The phone's verify block accepts the Mac only if the SHA-256 of its X9.63 public key (its **pin**) is the paired Mac's, or the one in the QR. The Mac lets any certificate complete TLS, then decides at `.ready` from the verified peer pin.
+  - A key it trusts → a paired link.
+  - An unknown key while a window can admit it → a pairing link.
+  - Anything else → **`serverHello{mode: refused}`**, then close; nothing is read.
+  - The refusal travels over the verified session, so the phone treats it as definite: "Forget This Mac, then pair again", with no retry. Every other failure (TLS error, early close, deadline, full slots) is a retryable "can't reach the Mac", with backoff.
+  - Certificate names and dates mean nothing.
 - **Resumption, session tickets, False Start and renegotiation are off.** Every connection is a full handshake.
 - **The `.ready` gate** (`CompanionSessionFacts.verified`) fails closed. It requires all of these:
   - TLS 1.3;
@@ -87,7 +92,7 @@ All items use the data protection keychain (`kSecUseDataProtectionKeychain`) and
    - **QR text:** `netmonitor://pair?v=2&m=<mac UUID>&n=<name>&pin=<Mac pin, base64url>&k=<secret, base64url>&h=<host>&p=<port>`.
    - **Typed code:** 25 Crockford base32 digits = **125 bits** (a big-endian integer held in 16 bytes, top 3 bits zero, most significant digit first), plus Crockford's mod-37 check symbol (`0-9A-Z` without `ILOU`, then `*~$=U`). It is shown in groups of five. Input ignores case, dashes and spaces, and reads I/L as 1 and O as 0.
 2. **The phone connects with a fresh identity.** From a QR, it pins the Mac's key from the QR. With a typed code it can't know the key yet, so it accepts the certificate provisionally.
-3. **The Mac's verify block** accepts an unknown key only while a window can still admit one. At `.ready` the link becomes a **pairing link**: only `pairRequest` is accepted, and frames are capped at 4 KiB. The Mac's `serverHello{mode: pairing, commitment}` commits to a fresh 32-byte nonce: `commitment = SHA-256("netmonitor commit v2" ‖ macNonce)`. A phone refuses a pairing hello without one.
+3. **At `.ready`, the Mac makes the link a pairing link** if the window can still admit it. Only `pairRequest` and the phone's verdict (`pairResult` from the phone) are accepted, and frames are capped at 4 KiB. The Mac's `serverHello{mode: pairing, commitment}` commits to a fresh 32-byte nonce: `commitment = SHA-256("netmonitor commit v2" ‖ macNonce)`. A phone refuses a pairing hello without one.
 4. **Phone → Mac:** `pairRequest{kind, proof, nonce, phoneName}`, where `nonce` is the phone's own 32 random bytes.
    - `proof = HMAC-SHA256(HKDF(secret, salt "netmonitor pairing v2", info "proof <kind>"), "netmonitor pair v2 phone" ‖ exporter ‖ macPin ‖ phonePin)`.
    - The Mac verifies the proof, then consumes the window, both in one critical section with no suspension in between. Both secrets burn together, and the window's other connections close. A wrong proof closes the link without burning the window. A pin that is already paired is refused.
@@ -95,9 +100,11 @@ All items use the data protection keychain (`kSecUseDataProtectionKeychain`) and
 6. **Both screens show a 6-digit comparison code**, HKDF(exporter, "netmonitor compare v2" ‖ macPin ‖ phonePin ‖ macNonce ‖ phoneNonce) mod 10⁶.
    - **The commit-then-reveal is what makes the code safe.** A TLS 1.3 exporter is fixed before the client's certificate is sent, so without the nonces a party in the middle holding a stolen code could grind its own key offline until the codes collide.
    - With them, neither side can choose its input after seeing the other's. A valid `pairRequest` burns the window, so an attacker in the middle gets one 1-in-10⁶ guess per window.
-7. **The user confirms on both screens:** Pair on the Mac, They Match on the phone. Don't Pair or Don't Match ends pairing.
-8. **The Mac saves the phone's pin.** Only if the Keychain saves it does the Mac trust the pin and send `pairResult{accepted: true}`. Otherwise it sends `pairResult{accepted: false, reason}`.
-9. **The phone saves the Mac** (ID, name, pin from this session, identity key) only when both the Mac's `accepted: true` and the user's They Match have happened, in either order. A device that merely knows the code and claims to accept can't get itself pinned. The phone then reconnects as paired.
+7. **The user confirms on both screens, in either order.**
+   - On the phone, They Match sends `pairResult{accepted: true}` to the Mac; Don't Match sends `accepted: false` and ends pairing.
+   - On the Mac, the user clicks Pair or Don't Pair.
+8. **The Mac saves the phone's pin only after both confirmations,** and only if the Keychain saves it. Then it trusts the pin and sends `pairResult{accepted: true}`. Don't Pair, Don't Match or a failed save sends `accepted: false` (or just closes), and no pin exists on either side.
+9. **The phone saves the Mac** (ID, name, pin from this session, identity key) on the Mac's `accepted: true`, which can only come after its own They Match. It then reconnects as paired.
 
 Names are display only and never a basis for trust.
 
@@ -115,8 +122,9 @@ Before each dispatch, and again before a reply goes out, the Mac checks that the
 
 ### Limits
 
-- At most 16 links, 4 of them not yet paired. The capacity is reserved at accept.
-- A link must be paired within 10 s of accept, or 120 s for a pairing link, which waits for the user.
+- At most 16 links, 8 of them still in the TLS handshake (reserved at accept), and 4 pairing links. A paired phone's link never counts against the pairing cap, so strangers can't lock it out once its TLS is up.
+- A link must have a verified session within 10 s of accept. A pairing link gets 120 s, since it waits for the users.
+- At most 2 model requests running per link; more get `busy`.
 - One receive per link at a time, so no queue builds up.
 - **Residual risk:** a LAN attacker can hold the 4 pre-auth slots and keep a phone or a pairing attempt out. It can't read or command anything.
 
@@ -127,13 +135,14 @@ Before each dispatch, and again before a reply goes out, the Mac checks that the
   - the phone's links close;
   - then the Keychain item is deleted.
   - If the delete fails, the pin stays denied: it is kept in defaults and retried at each launch, and Settings reports it.
-  - The phone's next handshake fails, and it shows "Pair again" and stops retrying.
-- **Forget This Mac on the iPhone:** sends `unpair`, which removes the phone on the Mac, then deletes the phone's key.
+  - Deferred work for that phone checks its credential generation when it starts, so queued work never reaches the handler, and closing the link cancels it.
+  - The phone's next connection gets `serverHello{refused}`. It shows "Forget This Mac, then pair again" and stops retrying.
+- **Forget This Mac on the iPhone:** sends `unpair`, which removes the phone on the Mac, then deletes the phone's key. If the delete fails, the phone says so and keeps a "pending forget" mark that stops the credential loading or being used; it retries the delete at each load.
 - **Can't be undone:** an operation already started before a revoke runs to completion: a Wake on LAN packet sent, a scan running, a model request submitted. Its reply isn't sent to a revoked link.
 
 ### Old and unpaired peers
 
-A v1 phone can't complete the handshake. It sees a TLS alert and retries, and the Mac's Settings notes "a device that isn't paired tried to connect". A v2 phone shows "Needs a NetMonitor update" for a Mac without TXT `pv=2`, and "Not paired" for a Mac it hasn't paired with. Release both apps together.
+A v1 phone speaks plain TCP, so its connection fails in the Mac's TLS handshake, and it keeps retrying. The Mac's Settings notes "a device that isn't paired tried to connect" only for a v2 device whose certificate the Mac doesn't trust, which it refused over the verified session. Neither a failed handshake nor a paired phone dropping off the network is reported. A v2 phone shows "Needs a NetMonitor update" for a Mac without TXT `pv=2`, and "Not paired" for a Mac it hasn't paired with. Release both apps together.
 
 ### Not covered
 
@@ -475,7 +484,7 @@ Sent periodically to maintain connection and verify connectivity.
 |-------|------|-------------|
 | `timestamp` | ISO8601 Date | Current time |
 | `version` | String | Protocol version |
-| `capabilities` | [String]? | Optional. What the sender does beyond the base protocol. The Mac sends `"insight.v1"` while its on-device model can answer, it isn't scanning, and "Answer model requests from iPhone" is on. That setting is **off by default**: the link has no pairing or authentication for any message type yet, so the Mac's owner opts in (pairing and encryption: #590). Omitted when empty; older builds ignore it. |
+| `capabilities` | [String]? | Optional. What the sender does beyond the base protocol. The Mac sends `"insight.v1"` while its on-device model can answer, it isn't scanning, and "Answer model requests from iPhone" is on. That setting is **off by default** (#457). Since #590 only a paired iPhone can send model requests at all. Omitted when empty; older builds ignore it. |
 
 The Mac sends a heartbeat when a client connects and in reply to each heartbeat, so a phone learns the Mac's capabilities at once and again every interval.
 
@@ -658,10 +667,10 @@ ErrorPayload              // Error response
 HeartbeatPayload          // Keepalive, with optional capabilities
 InsightRequestPayload     // Insight request (#457)
 InsightResponsePayload    // Insight answer or failure reason (#457)
-ServerHelloPayload        // Mac's greeting: paired or pairing (#590)
+ServerHelloPayload        // Mac's greeting: paired, pairing or refused (#590)
 PairRequestPayload        // Phone's proof of the one-time secret (#590)
 PairChallengePayload      // Mac's proof of the same secret (#590)
-PairResultPayload         // Whether the user confirmed on the Mac (#590)
+PairResultPayload         // Mac → phone: paired or not; phone → Mac: the codes match or not (#590)
 UnpairPayload             // The phone forgot this Mac (#590)
 ```
 

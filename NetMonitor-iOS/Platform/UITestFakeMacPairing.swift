@@ -1,12 +1,13 @@
+#if DEBUG
 import Foundation
 import NetMonitorCore
 import Network
 import Synchronization
 
-/// A Mac end of the companion link for UI tests and unit tests (#590), on 127.0.0.1 only. It
-/// uses the real `CompanionTLS` and `CompanionTrustGate`, opens a pairing window with a known
-/// code, and confirms (or refuses) pairing by itself after a pause, standing in for the user's
-/// click on the Mac.
+/// A Mac end of the companion link for UI tests and unit tests (#590), on 127.0.0.1 only and in
+/// Debug builds only. It uses the real `CompanionTLS` and `CompanionTrustGate`, opens a pairing
+/// window with a known code, and stands in for the Mac's user: it confirms (or refuses) pairing
+/// after a pause. Like the real Mac, it pins the phone only after the phone's "They Match".
 final class FakeCompanionMac: Sendable {
     enum Confirmation: Sendable {
         case accept
@@ -23,12 +24,24 @@ final class FakeCompanionMac: Sendable {
     private let confirmation: Confirmation
     private let confirmDelay: Duration
     private let revealsWrongNonce: Bool
+    /// Closes every connection at accept, as a Mac with full slots or a stale listener would.
+    private let dropsConnections: Bool
     private let state = Mutex(State())
+
+    /// One link's fixed facts.
+    private struct LinkContext: Sendable {
+        let id: UUID
+        let role: CompanionLinkRole
+        let session: CompanionVerifiedSession
+        let nonce: Data
+    }
 
     private struct State {
         var connections: [NWConnection] = []
         var received: [String] = []
         var connectionCount = 0
+        /// Pairing links waiting for both verdicts: link → (phone pin, Mac said yes, phone said yes).
+        var verdicts: [UUID: (pin: Data, mac: Bool, phone: Bool)] = [:]
     }
 
     init(
@@ -38,15 +51,17 @@ final class FakeCompanionMac: Sendable {
         confirmation: Confirmation = .accept,
         confirmDelay: Duration = .milliseconds(200),
         pairedPins: [Data] = [],
-        revealsWrongNonce: Bool = false
+        revealsWrongNonce: Bool = false,
+        dropsConnections: Bool = false
     ) throws {
         self.name = name
         self.confirmation = confirmation
         self.confirmDelay = confirmDelay
         self.revealsWrongNonce = revealsWrongNonce
+        self.dropsConnections = dropsConnections
         gate = CompanionTrustGate(paired: pairedPins)
         window = gate.openWindow(code: code)
-        guard let parameters = CompanionTLS.parameters(identity: identity, acceptsPeer: { [gate] in gate.acceptsAtHandshake($0) }),
+        guard let parameters = CompanionTLS.parameters(identity: identity, acceptsPeer: { _ in true }),
               let listenPort = NWEndpoint.Port(rawValue: port) else { throw FakeMacError.noIdentity }
         parameters.includePeerToPeer = false
         parameters.requiredLocalEndpoint = .hostPort(host: .ipv4(.loopback), port: listenPort)
@@ -59,8 +74,8 @@ final class FakeCompanionMac: Sendable {
     /// Starts listening; returns the bound port.
     func start() async throws -> UInt16 {
         let ready = Mutex(false)
-        listener.stateUpdateHandler = {
-            if case .ready = $0 {
+        listener.stateUpdateHandler = { state in
+            if case .ready = state {
                 ready.withLock { $0 = true }
             }
         }
@@ -98,13 +113,21 @@ final class FakeCompanionMac: Sendable {
             $0.connections.append(connection)
             $0.connectionCount += 1
         }
+        if dropsConnections {
+            connection.start(queue: queue)
+            connection.forceCancel()
+            return
+        }
         let decoder = CompanionFrameDecoder()
         let link = UUID()
         connection.stateUpdateHandler = { [weak self] state in
             guard let self, case .ready = state else { return }
-            guard let session = CompanionTLS.sessionFacts(of: connection).verified,
-                  let role = gate.classify(session.peerPin) else {
+            guard let session = CompanionTLS.sessionFacts(of: connection).verified else {
                 connection.cancel()
+                return
+            }
+            guard let role = gate.classify(session.peerPin) else {
+                send(.serverHello(ServerHelloPayload(macID: macID, macName: name, mode: .refused)), on: connection)
                 return
             }
             let mode: ServerHelloPayload.Mode = if case .paired = role {
@@ -118,44 +141,31 @@ final class FakeCompanionMac: Sendable {
             if mode == .paired {
                 send(.heartbeat(HeartbeatPayload()), on: connection)
             }
-            receive(on: connection, link: link, decoder: decoder, role: role, session: session, nonce: nonce)
+            receive(on: connection, decoder: decoder, context: LinkContext(id: link, role: role, session: session, nonce: nonce))
         }
         connection.start(queue: queue)
     }
 
-    private func receive(
-        on connection: NWConnection,
-        link: UUID,
-        decoder: CompanionFrameDecoder,
-        role: CompanionLinkRole,
-        session: CompanionVerifiedSession,
-        nonce: Data
-    ) {
+    private func receive(on connection: NWConnection, decoder: CompanionFrameDecoder, context: LinkContext) {
         connection.receive(minimumIncompleteLength: 1, maximumLength: 65536) { [weak self] data, _, isComplete, error in
             guard let self else { return }
             Task {
                 if let data, !data.isEmpty {
                     for message in await decoder.append(data).messages {
-                        self.handle(message, on: connection, link: link, role: role, session: session, nonce: nonce)
+                        self.handle(message, on: connection, context: context)
                     }
                 }
                 if isComplete || error != nil {
                     connection.cancel()
                 } else {
-                    self.receive(on: connection, link: link, decoder: decoder, role: role, session: session, nonce: nonce)
+                    self.receive(on: connection, decoder: decoder, context: context)
                 }
             }
         }
     }
 
-    private func handle(
-        _ message: CompanionMessage,
-        on connection: NWConnection,
-        link: UUID,
-        role: CompanionLinkRole,
-        session: CompanionVerifiedSession,
-        nonce: Data
-    ) {
+    private func handle(_ message: CompanionMessage, on connection: NWConnection, context: LinkContext) {
+        let link = context.id, role = context.role
         guard gate.isAuthorized(role, link: link) else {
             connection.cancel()
             return
@@ -179,25 +189,50 @@ final class FakeCompanionMac: Sendable {
         case .pairRequest:
             guard case .pairRequest(let request) = message,
                   let step = gate.beginPairing(
-                      link: link, role: role, request: request, session: session, macPin: identity.pin, macNonce: nonce
+                      link: link, role: role, request: request, session: context.session, macPin: identity.pin, macNonce: context.nonce
                   ) else {
                 connection.cancel()
                 return
             }
+            state.withLock { $0.verdicts[link] = (step.phonePin, false, false) }
             // `revealsWrongNonce` plays a Mac that breaks its commitment.
             let revealed = revealsWrongNonce ? CompanionPairingProof.makeNonce() : step.macNonce
             send(.pairChallenge(PairChallengePayload(proof: step.challenge, nonce: revealed)), on: connection)
-            let confirmation = confirmation, delay = confirmDelay, gate = gate
+            let confirmation = confirmation, delay = confirmDelay
             Task {
                 try? await Task.sleep(for: delay)
                 switch confirmation {
                 case .accept:
-                    gate.trust(step.phonePin)
-                    self.send(.pairResult(PairResultPayload(accepted: true)), on: connection)
+                    self.recordVerdict(link: link, mac: true, on: connection)
                 case .reject:
                     self.send(.pairResult(PairResultPayload(accepted: false, reason: "Cancelled on the Mac.")), on: connection)
                 }
             }
+        case .pairVerdict:
+            guard case .pairResult(let verdict) = message else { return }
+            state.withLock { $0.received.append("verdict:\(verdict.accepted)") }
+            guard verdict.accepted else {
+                connection.cancel()
+                return
+            }
+            recordVerdict(link: link, phone: true, on: connection)
+        }
+    }
+
+    /// Pins the phone once both the stand-in user and the phone have said yes.
+    private func recordVerdict(link: UUID, mac: Bool = false, phone: Bool = false, on connection: NWConnection) {
+        let complete: Data? = state.withLock { state in
+            guard var entry = state.verdicts[link] else { return nil }
+            entry.mac = entry.mac || mac
+            entry.phone = entry.phone || phone
+            state.verdicts[link] = entry
+            guard entry.mac, entry.phone else { return nil }
+            state.verdicts[link] = nil
+            return entry.pin
+        }
+        if let pin = complete {
+            gate.trust(pin)
+            send(.pairResult(PairResultPayload(accepted: true)), on: connection)
         }
     }
 
@@ -207,12 +242,14 @@ final class FakeCompanionMac: Sendable {
     }
 }
 
-/// The pairing UI tests' seam (#590): with `--uitesting --fake-mac-pairing`, Bonjour is replaced
-/// by one fake Mac on loopback whose typed code is `UITEST_PAIRING_CODE`.
+/// The pairing UI tests' seam (#590), Debug builds only: with `--uitesting --fake-mac-pairing`,
+/// Bonjour is replaced by one fake Mac on loopback whose typed code is `UITEST_PAIRING_CODE`.
 @MainActor
 enum UITestFakeMacPairing {
     /// The phone's Keychain stand-in for every `--uitesting` launch.
     static let store = InMemoryCompanionSecretStore()
+    /// The defaults suite for `--uitesting` launches (the pending-forget mark).
+    static let defaultsSuite = "netmonitor.uitest.companion"
 
     static let port: UInt16 = 48849
 
@@ -237,3 +274,4 @@ enum UITestFakeMacPairing {
         fake?.invitation(port: port)
     }
 }
+#endif

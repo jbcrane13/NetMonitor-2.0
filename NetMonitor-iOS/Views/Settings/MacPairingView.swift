@@ -6,7 +6,7 @@ struct MacPairingView: View {
     @State private var connectionService = MacConnectionService.shared
     @State private var selectedMac: DiscoveredMac?
     @State private var manualHost: String = ""
-    @State private var manualPort: String = "8849"
+    @State private var manualPort: String = .init(CompanionLink.defaultPort)
     @State private var showManualEntry: Bool = false
     /// The Mac the pairing screen opens for; a QR-only pairing uses `pairsFromQR`.
     @State private var macToPair: DiscoveredMac?
@@ -266,7 +266,14 @@ struct MacPairingView: View {
                     Text("Forget This Mac")
                 }
                 .accessibilityIdentifier("pairing_button_forget")
-            } else {
+            }
+            if let forgetError = connectionService.forgetError {
+                Text(forgetError)
+                    .font(.caption)
+                    .foregroundStyle(Theme.Colors.error)
+                    .accessibilityIdentifier("pairing_label_forgetError")
+            }
+            if connectionService.pairedMac == nil {
                 Button {
                     pairsFromQR = true
                 } label: {
@@ -343,7 +350,7 @@ struct MacPairingView: View {
     private func connectManually() {
         let host = manualHost.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !host.isEmpty else { return }
-        let port = UInt16(manualPort) ?? 8849
+        let port = UInt16(manualPort) ?? CompanionLink.defaultPort
         connectionService.connectDirect(host: host, port: port)
     }
 }

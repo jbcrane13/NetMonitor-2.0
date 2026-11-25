@@ -9,8 +9,12 @@ public struct ServerHelloPayload: Codable, Sendable, Equatable {
     public enum Mode: String, Codable, Sendable {
         /// A paired phone: the link is authorised.
         case paired
-        /// An unknown phone while a pairing window is open: only `pairRequest` is accepted.
+        /// An unknown phone while a pairing window is open: only `pairRequest` and the phone's
+        /// verdict are accepted.
         case pairing
+        /// The Mac doesn't trust this phone's key and isn't pairing: the link closes. Sent over the
+        /// verified session, so the phone can tell a revocation from a network failure.
+        case refused
     }
 
     public let macID: UUID
@@ -55,6 +59,7 @@ public struct PairChallengePayload: Codable, Sendable, Equatable {
     }
 }
 
+/// Mac → phone: whether pairing completed. Phone → Mac: whether the user said the codes match.
 public struct PairResultPayload: Codable, Sendable, Equatable {
     public let accepted: Bool
     /// A short reason when refused, for the phone's screen.

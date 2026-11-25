@@ -10,39 +10,13 @@ import Network
 import NetMonitorCore
 import os
 
-/// Metadata for a connected, paired companion phone
-struct ConnectedClientInfo {
-    let id: UUID
-    let endpoint: String
-    let connectedSince: Date
-    /// The paired phone's pin.
-    let phonePin: Data
-}
-
-/// What the pairing sheet hears from the service (#590).
-enum CompanionPairingEvent: Sendable, Equatable {
-    /// A phone proved the one-time secret; the user must compare `code` and confirm.
-    case awaitingConfirmation(link: UUID, phoneName: String, code: String)
-    case paired(PairedPhone)
-    case failed(String)
-    /// A phone that isn't paired tried to connect.
-    case refusedAttempt(Date)
-}
-
-/// What the pairing sheet shows: the QR invitation, the typed code, and when both expire.
-struct CompanionPairingOffer: Sendable {
-    let invitation: CompanionPairingInvitation
-    let code: CompanionPairingCode
-    let expiresAt: Date
-}
-
 /// The Mac end of the companion link (#590): a TLS 1.3 listener with mutually pinned identities,
 /// advertised over Bonjour. Each connection gets a role when its session is verified, and every
 /// frame is checked against the role and the live trust gate before it is handled.
-actor CompanionService {
+actor CompanionService: CompanionServiceProtocol {
 
     let port: UInt16
-    let serviceType = "_netmon._tcp"
+    let serviceType = CompanionLink.serviceType
     let serviceName = "NetMonitor"
 
     // MARK: Limits (#590)
@@ -50,12 +24,16 @@ actor CompanionService {
     struct Limits: Sendable {
         /// Links of any kind.
         var maximumLinks = 16
-        /// Links not yet paired: in the handshake, or pairing.
-        var maximumPreAuthLinks = 4
-        /// From accept to a paired link.
+        /// Links still in the TLS handshake: their key isn't known yet.
+        var maximumHandshakes = 8
+        /// Links with a key the Mac doesn't trust that are pairing. A paired phone never counts here.
+        var maximumPairingLinks = 4
+        /// From accept to a verified session.
         var authDeadline: Duration = .seconds(10)
-        /// From accept to the end of pairing, which waits for the user's confirmation.
+        /// From accept to the end of pairing, which waits for the users.
         var pairingDeadline: Duration = .seconds(120)
+        /// Model requests one link may have running at once.
+        var maximumInsightRequests = 2
     }
 
     /// Largest frame accepted on a link that isn't paired, before JSON decoding.
@@ -84,17 +62,24 @@ actor CompanionService {
     private struct Link {
         let connection: NWConnection
         let acceptedAt: Date
+        /// The listener generation that accepted it; a link from an older one is closed.
+        let listenerGeneration: Int
         var role: CompanionLinkRole?
         var session: CompanionVerifiedSession?
         var decoder: CompanionFrameDecoder?
         var pendingPairing: PendingPairing?
         /// A pairing link's comparison nonce, committed to in `serverHello`.
         var macNonce: Data?
+        /// Deferred work for this link, cancelled when it closes.
+        var tasks: [UUID: Task<Void, Never>] = [:]
+        var runningInsightRequests = 0
     }
 
     private struct PendingPairing {
         let step: CompanionPairingStep
         let phoneName: String
+        var macConfirmed = false
+        var phoneConfirmed = false
     }
 
     private(set) var isRunning = false
@@ -107,14 +92,21 @@ actor CompanionService {
     /// The heartbeat sent when a phone's link is authorised, carrying this Mac's capabilities (#457).
     private var heartbeat: @Sendable () async -> HeartbeatPayload = { HeartbeatPayload() }
     private var eventHandler: (@Sendable (CompanionPairingEvent) -> Void)?
-    /// When a device that isn't paired last failed the handshake, for Settings.
+    /// When a device whose certificate this Mac doesn't trust last connected, for Settings.
     private(set) var lastRefusedAttempt: Date?
     /// Per-client decoders for the `processIncomingDataForTesting` seam only.
     private var testDecoders: [UUID: CompanionFrameDecoder] = [:]
+    /// Awaited by deferred work before its authorisation check; tests use it to hold work back.
+    private var deferredStartHook: (@Sendable () async -> Void)?
 
     /// `credentials` nil makes a service that can't start, for tests of its static surface.
     /// Tests pass port 0 for any free port, `advertises: false`, and short `limits`.
-    init(credentials: CompanionCredentials? = nil, port: UInt16 = 8849, limits: Limits = Limits(), advertises: Bool = true) {
+    init(
+        credentials: CompanionCredentials? = nil,
+        port: UInt16 = CompanionLink.defaultPort,
+        limits: Limits = Limits(),
+        advertises: Bool = true
+    ) {
         self.credentials = credentials
         self.port = port
         self.limits = limits
@@ -139,6 +131,14 @@ actor CompanionService {
         }
     }
 
+    func connectedPhonePins() -> Set<Data> {
+        Set(getConnectedClientInfos().map(\.phonePin))
+    }
+
+    func refusedAttemptDate() -> Date? {
+        lastRefusedAttempt
+    }
+
     func setEventHandler(_ handler: @escaping @Sendable (CompanionPairingEvent) -> Void) {
         eventHandler = handler
     }
@@ -151,11 +151,11 @@ actor CompanionService {
         messageHandler: @escaping (CompanionMessage, UUID) async -> CompanionMessage?
     ) throws {
         guard !isRunning else { return }
+        // Any certificate completes TLS: a key this Mac doesn't trust gets no role, an explicit
+        // refusal over the verified session, and a closed link. Nothing is read from it.
         guard let credentials,
               let listenPort = NWEndpoint.Port(rawValue: port),
-              let parameters = CompanionTLS.parameters(identity: credentials.identity, acceptsPeer: { [gate = credentials.gate] in
-                  gate.acceptsAtHandshake($0)
-              }) else {
+              let parameters = CompanionTLS.parameters(identity: credentials.identity, acceptsPeer: { _ in true }) else {
             throw CompanionServiceError.noIdentity
         }
         // Construct *before* storing `messageHandler` so a thrown error doesn't
@@ -185,7 +185,7 @@ actor CompanionService {
         }
         newListener.newConnectionHandler = { [weak self] connection in
             Task { [weak self] in
-                await self?.handleNewConnection(connection)
+                await self?.handleNewConnection(connection, generation: generation)
             }
         }
         newListener.start(queue: listenerQueue)
@@ -217,8 +217,7 @@ actor CompanionService {
 
     /// Send a message to one phone, if its link is still authorised.
     func send(_ message: CompanionMessage, to clientID: UUID) async {
-        guard let link = links[clientID], let role = link.role,
-              credentials?.gate.isAuthorized(role, link: clientID) == true,
+        guard isAuthorized(clientID), let link = links[clientID],
               let framedData = try? message.encodeLengthPrefixed() else { return }
         Self.send(data: framedData, to: link.connection, clientID: clientID)
     }
@@ -250,16 +249,42 @@ extension CompanionService {
         closePairingLinks()
     }
 
-    /// The user's answer to `awaitingConfirmation`. Pairing succeeds only if the Keychain saves
-    /// the phone; otherwise nothing is pinned on either side.
+    /// The Mac user's answer to `awaitingConfirmation`. The phone is pinned only when the iPhone's
+    /// user has also said the codes match, and only if the Keychain saves it.
     func confirmPairing(link id: UUID, accepted: Bool) {
-        guard let credentials, let link = links[id], let role = link.role, let pending = link.pendingPairing,
-              credentials.gate.isAuthorized(role, link: id) else {
+        guard let link = links[id], link.pendingPairing != nil, isAuthorized(id) else {
             emit(.failed("The iPhone disconnected before pairing finished."))
             return
         }
         guard accepted else {
             finishPairing(id, result: PairResultPayload(accepted: false, reason: "Cancelled on the Mac."))
+            return
+        }
+        links[id]?.pendingPairing?.macConfirmed = true
+        completePairingIfConfirmed(id)
+    }
+
+    /// The phone's verdict on the comparison code. "Don't Match" ends pairing with no pin.
+    private func receivePhoneVerdict(_ id: UUID, match: Bool) {
+        guard links[id]?.pendingPairing != nil else {
+            close(id)
+            return
+        }
+        guard match else {
+            emit(.failed("The iPhone said the codes don't match. Nothing was paired."))
+            close(id)
+            return
+        }
+        links[id]?.pendingPairing?.phoneConfirmed = true
+        completePairingIfConfirmed(id)
+    }
+
+    private func completePairingIfConfirmed(_ id: UUID) {
+        guard let credentials, let pending = links[id]?.pendingPairing else { return }
+        guard pending.macConfirmed, pending.phoneConfirmed else {
+            if pending.macConfirmed {
+                emit(.awaitingPhone(link: id))
+            }
             return
         }
         let phone = PairedPhone(pin: pending.step.phonePin, name: pending.phoneName, pairedAt: Date())
@@ -281,8 +306,8 @@ extension CompanionService {
         credentials?.pairedPhones() ?? []
     }
 
-    /// Removes a phone: denied at once, its links closed, then its Keychain item deleted.
-    /// False when the delete failed; the phone stays denied anyway.
+    /// Removes a phone: denied at once, its links and their deferred work closed, then its
+    /// Keychain item deleted. False when the delete failed; the phone stays denied anyway.
     @discardableResult
     func revoke(_ pin: Data) -> Bool {
         guard let credentials else { return false }
@@ -321,15 +346,20 @@ extension CompanionService {
         }
     }
 
-    private func handleNewConnection(_ connection: NWConnection) {
-        let preAuth = links.values.filter { !Self.isPaired($0.role) }.count
-        guard links.count < limits.maximumLinks, preAuth < limits.maximumPreAuthLinks else {
-            Logger.companion.warning("Refused a connection: at capacity")
-            connection.cancel()
+    /// Accepts a connection from the current listener while there is room for one more link and
+    /// one more handshake. A paired phone that finds the handshake slots full retries.
+    private func handleNewConnection(_ connection: NWConnection, generation: Int) {
+        let handshakes = links.values.filter { $0.role == nil }.count
+        guard generation == listenerGeneration, links.count < limits.maximumLinks, handshakes < limits.maximumHandshakes else {
+            Logger.companion.warning("Refused a connection: stale listener or at capacity")
+            // Started, then reset, so the peer sees the close at once and retries; a connection that
+            // was never started, or is cancelled gracefully mid-handshake, leaves the peer waiting.
+            connection.start(queue: connectionQueue)
+            connection.forceCancel()
             return
         }
         let clientID = UUID()
-        links[clientID] = Link(connection: connection, acceptedAt: Date())
+        links[clientID] = Link(connection: connection, acceptedAt: Date(), listenerGeneration: generation)
         connection.stateUpdateHandler = { [weak self] state in
             Task { [weak self] in
                 await self?.handleConnectionState(state, clientID: clientID)
@@ -347,7 +377,7 @@ extension CompanionService {
         }
     }
 
-    /// Closes a link that isn't paired by `authDeadline`, or still pairing at `pairingDeadline`.
+    /// Closes a link without a verified session by `authDeadline`, or still pairing at `pairingDeadline`.
     private func enforceDeadline(_ id: UUID, pairingLimit: Bool) {
         guard let link = links[id] else { return }
         switch link.role {
@@ -363,39 +393,52 @@ extension CompanionService {
     }
 
     private func handleConnectionState(_ state: NWConnection.State, clientID: UUID) {
+        guard let link = links[clientID], link.listenerGeneration == listenerGeneration else {
+            close(clientID)
+            return
+        }
         switch state {
         case .ready:
             authorize(clientID)
         case .waiting(let error):
             Logger.companion.warning("Client \(clientID) waiting: \(error, privacy: .public)")
         case .failed(let error):
-            if let link = links[clientID], link.role == nil {
-                // The handshake failed: most often a phone this Mac doesn't trust.
-                let now = Date()
-                lastRefusedAttempt = now
-                emit(.refusedAttempt(now))
-            }
             Logger.companion.info("Client \(clientID) failed: \(error, privacy: .public)")
             close(clientID)
         case .cancelled:
-            links.removeValue(forKey: clientID)
+            close(clientID)
         default:
             break
         }
     }
 
     /// The `.ready` gate: verify the session, give the link its role, and greet the phone. Until
-    /// this succeeds nothing is sent and nothing is read.
+    /// this succeeds nothing is read. A key the Mac doesn't trust, outside a pairing window, gets
+    /// an explicit refusal, so the phone can tell revocation from a network failure.
     private func authorize(_ id: UUID) {
         guard let credentials, var link = links[id], link.role == nil else { return }
-        guard let session = CompanionTLS.sessionFacts(of: link.connection).verified,
-              let role = credentials.gate.classify(session.peerPin) else {
+        guard let session = CompanionTLS.sessionFacts(of: link.connection).verified else {
+            close(id)
+            return
+        }
+        guard let role = credentials.gate.classify(session.peerPin) else {
+            refuse(id)
+            return
+        }
+        let isPaired = Self.isPaired(role)
+        let pairingLinks = links.values.filter {
+            if case .pairing? = $0.role {
+                true
+            } else {
+                false
+            }
+        }.count
+        guard isPaired || pairingLinks < limits.maximumPairingLinks else {
             close(id)
             return
         }
         link.role = role
         link.session = session
-        let isPaired = Self.isPaired(role)
         link.decoder = CompanionFrameDecoder(
             maximumFrameSize: isPaired ? CompanionFrameDecoder.defaultMaximumFrameSize : Self.pairingFrameLimit
         )
@@ -415,6 +458,21 @@ extension CompanionService {
             }
         }
         receive(on: link.connection, clientID: id)
+    }
+
+    private func refuse(_ id: UUID) {
+        guard let credentials, let link = links[id] else { return }
+        let now = Date()
+        lastRefusedAttempt = now
+        emit(.refusedAttempt(now))
+        let refusal = CompanionMessage.serverHello(ServerHelloPayload(macID: credentials.macID, macName: credentials.macName, mode: .refused))
+        guard let data = try? refusal.encodeLengthPrefixed() else {
+            close(id)
+            return
+        }
+        link.connection.send(content: data, completion: .contentProcessed { [weak self] _ in
+            Task { await self?.close(id) }
+        })
     }
 
     /// One receive at a time per link: the next is asked for only after this chunk is handled,
@@ -442,6 +500,13 @@ extension CompanionService {
         links[id] != nil
     }
 
+    /// The link is open, from the current listener, and its role still stands in the trust gate.
+    private func isAuthorized(_ id: UUID) -> Bool {
+        guard let gate = credentials?.gate, let link = links[id], let role = link.role,
+              link.listenerGeneration == listenerGeneration else { return false }
+        return gate.isAuthorized(role, link: id)
+    }
+
     private static func decodeErrorMessage() -> CompanionMessage {
         .error(ErrorPayload(code: "DECODE_ERROR", message: "Failed to decode message: malformed payload"))
     }
@@ -453,8 +518,7 @@ extension CompanionService {
         let batch = await decoder.append(data)
 
         for message in batch.messages {
-            guard let credentials, let link = links[clientID], let role = link.role,
-                  credentials.gate.isAuthorized(role, link: clientID) else {
+            guard isAuthorized(clientID), let role = links[clientID]?.role else {
                 close(clientID)
                 return
             }
@@ -474,6 +538,10 @@ extension CompanionService {
             case .pairRequest:
                 if case .pairRequest(let payload) = message {
                     beginPairing(clientID, request: payload)
+                }
+            case .pairVerdict:
+                if case .pairResult(let verdict) = message {
+                    receivePhoneVerdict(clientID, match: verdict.accepted)
                 }
             case .dispatch:
                 await dispatch(message, from: clientID)
@@ -499,20 +567,52 @@ extension CompanionService {
     /// Hands `message` to the handler. A reply goes out only if the link is still authorised
     /// when it is ready: `send(_:to:)` checks again.
     private func dispatch(_ message: CompanionMessage, from clientID: UUID) async {
-        let handler = messageHandler
         // A model request can take 20 s: answer it on its own, so the frames behind it, such
         // as heartbeats, are handled meanwhile (#457).
         if Self.answersOffBatch(message) {
-            Task {
-                if let response = await handler?(message, clientID) {
-                    await send(response, to: clientID)
-                }
+            deferInsightRequest(message, from: clientID)
+            return
+        }
+        if let response = await messageHandler?(message, clientID) {
+            await send(response, to: clientID)
+        }
+    }
+
+    /// Runs a model request off the batch, at most `maximumInsightRequests` per link. The work
+    /// checks the link's authorisation when it starts, so a revoke that lands first means the
+    /// handler never runs; closing the link cancels it.
+    private func deferInsightRequest(_ message: CompanionMessage, from clientID: UUID) {
+        guard var link = links[clientID] else { return }
+        guard link.runningInsightRequests < limits.maximumInsightRequests else {
+            if case .insightRequest(let request) = message {
+                let busy = CompanionMessage.insightResponse(InsightResponsePayload(requestID: request.requestID, failure: .busy))
+                Task { await send(busy, to: clientID) }
             }
             return
         }
-        if let response = await handler?(message, clientID) {
-            await send(response, to: clientID)
+        let taskID = UUID()
+        let handler = messageHandler
+        let hook = deferredStartHook
+        link.runningInsightRequests += 1
+        // Runs on this actor (it captures `self`), so the check below and the handler's start
+        // can't interleave with a revoke. The task removes itself, and `close` cancels it.
+        link.tasks[taskID] = Task {
+            await hook?()
+            guard !Task.isCancelled, isAuthorized(clientID) else {
+                finishDeferred(taskID, clientID: clientID)
+                return
+            }
+            if let response = await handler?(message, clientID), !Task.isCancelled {
+                await send(response, to: clientID)
+            }
+            finishDeferred(taskID, clientID: clientID)
         }
+        links[clientID] = link
+    }
+
+    private func finishDeferred(_ taskID: UUID, clientID: UUID) {
+        guard links[clientID]?.tasks.removeValue(forKey: taskID) != nil else { return }
+        links[clientID]?.runningInsightRequests -= 1
     }
 
     private func beginPairing(_ id: UUID, request: PairRequestPayload) {
@@ -555,15 +655,16 @@ extension CompanionService {
         }
     }
 
+    /// Closes a link and cancels its deferred work.
     private func close(_ id: UUID) {
         guard let link = links.removeValue(forKey: id) else { return }
+        link.tasks.values.forEach { $0.cancel() }
         link.connection.cancel()
     }
 
     private func authorizedLinks() -> [(id: UUID, link: Link)] {
-        guard let gate = credentials?.gate else { return [] }
-        return links.compactMap { id, link in
-            guard let role = link.role, Self.isPaired(role), gate.isAuthorized(role, link: id) else { return nil }
+        links.compactMap { id, link in
+            guard Self.isPaired(link.role), isAuthorized(id) else { return nil }
             return (id, link)
         }
     }
@@ -627,6 +728,19 @@ extension CompanionService {
         }
         return results
     }
+
+    /// Makes deferred work wait on `hook` before its authorisation check.
+    func setDeferredStartHookForTesting(_ hook: @escaping @Sendable () async -> Void) {
+        deferredStartHook = hook
+    }
+
+    /// Hands `connection` to the service as if a listener of `generation` had accepted it.
+    func acceptForTesting(_ connection: NWConnection, generation: Int) {
+        handleNewConnection(connection, generation: generation)
+    }
+
+    var currentListenerGenerationForTesting: Int { listenerGeneration }
+    var linkCountForTesting: Int { links.count }
 }
 
 enum CompanionServiceError: Error {

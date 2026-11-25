@@ -10,7 +10,7 @@ import SwiftUI
 
 struct CompanionSettingsView: View {
     @AppStorage("netmonitor.companion.enabled") private var companionEnabled = true
-    @AppStorage("netmonitor.companion.port") private var servicePort = "8849"
+    @AppStorage("netmonitor.companion.port") private var servicePort = String(CompanionLink.defaultPort)
     // Off until the owner turns it on (#457).
     @AppStorage(CompanionMessageHandler.answersInsightKey) private var answersInsight = false
 

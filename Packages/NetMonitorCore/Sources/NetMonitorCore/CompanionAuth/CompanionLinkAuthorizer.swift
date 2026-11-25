@@ -13,6 +13,8 @@ public enum CompanionLinkDecision: Sendable, Equatable {
     case dispatch
     /// Run the pairing step.
     case pairRequest
+    /// The phone's verdict on the comparison code.
+    case pairVerdict
     /// The phone forgot this Mac: remove its pin.
     case unpair
     /// A newer peer's type: drop it, keep the link.
@@ -29,10 +31,11 @@ public enum CompanionLinkAuthorizer {
         case nil:
             return .refuse
         case .pairing:
-            if case .pairRequest = message {
-                return .pairRequest
+            switch message {
+            case .pairRequest: return .pairRequest
+            case .pairResult: return .pairVerdict
+            default: return .refuse
             }
-            return .refuse
         case .paired:
             switch message {
             case .serverHello, .pairRequest, .pairChallenge, .pairResult:

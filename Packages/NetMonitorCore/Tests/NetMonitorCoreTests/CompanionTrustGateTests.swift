@@ -43,11 +43,9 @@ struct CompanionTrustGateTests {
 
     // MARK: Handshake and binding
 
-    @Test("Without a window, only paired pins pass the handshake and bind")
+    @Test("Without a window, only paired pins bind")
     func pairedOnly() throws {
         let gate = gate()
-        #expect(gate.acceptsAtHandshake(pairedPin))
-        #expect(!gate.acceptsAtHandshake(newPin))
         let role = try #require(gate.classify(pairedPin))
         guard case .paired(let pin, _) = role else { Issue.record("expected paired")
         return
@@ -61,12 +59,10 @@ struct CompanionTrustGateTests {
     func pairingAdmission() {
         let gate = gate()
         let window = gate.openWindow()
-        #expect(gate.acceptsAtHandshake(newPin))
         for _ in 0..<CompanionPairingWindow.maximumConnections {
             #expect(gate.classify(newPin) == .pairing(window: window.generation))
         }
         #expect(gate.classify(newPin) == nil)
-        #expect(!gate.acceptsAtHandshake(newPin))
     }
 
     // MARK: Revocation
@@ -77,7 +73,6 @@ struct CompanionTrustGateTests {
         let role = try #require(gate.classify(pairedPin))
         gate.revoke(pairedPin)
         #expect(!gate.isAuthorized(role, link: UUID()))
-        #expect(!gate.acceptsAtHandshake(pairedPin))
         #expect(gate.classify(pairedPin) == nil)
     }
 

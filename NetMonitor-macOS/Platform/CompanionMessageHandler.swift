@@ -26,9 +26,9 @@ final class CompanionMessageHandler {
     /// Settings key for "Answer model requests from iPhone"; off when unset.
     nonisolated static let answersInsightKey = "netmonitor.companion.answersInsight"
 
-    /// Whether the user lets this Mac answer the iPhone's model requests. Off until the owner
-    /// turns it on: the companion link has no pairing or authentication yet (#590), so any
-    /// client on the LAN could otherwise use the Mac's model.
+    /// Whether the user lets this Mac answer the iPhone's model requests. Off until the owner turns
+    /// it on (#457). Only a paired iPhone reaches this handler (#590); whether to turn it on by
+    /// default is a separate decision.
     nonisolated static var answersInsight: Bool {
         UserDefaults.standard.object(forKey: answersInsightKey) as? Bool ?? false
     }
