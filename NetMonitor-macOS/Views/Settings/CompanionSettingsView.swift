@@ -5,16 +5,19 @@
 //  iOS companion app connection settings.
 //
 
+import NetMonitorCore
 import SwiftUI
 
 struct CompanionSettingsView: View {
     @AppStorage("netmonitor.companion.enabled") private var companionEnabled = true
     @AppStorage("netmonitor.companion.port") private var servicePort = "8849"
-    // Off until the owner turns it on: the link has no pairing yet (#590).
+    // Off until the owner turns it on (#457).
     @AppStorage(CompanionMessageHandler.answersInsightKey) private var answersInsight = false
 
     @Environment(\.companionService) private var companionService
-    @State private var connectedDevices: [ConnectedDevice] = []
+    @State private var model: CompanionSettingsViewModel?
+    @State private var showsPairingSheet = false
+    @State private var phoneToRemove: PairedPhone?
 
     var body: some View {
         Form {
@@ -40,52 +43,21 @@ struct CompanionSettingsView: View {
             } header: {
                 Text("Service")
             } footer: {
-                Text("The companion service allows iOS devices to connect and view monitoring status.")
+                Text("Paired iPhones connect over an encrypted link. Other devices can't connect.")
             }
 
-            if companionEnabled {
-                SwiftUI.Section {
-                    if connectedDevices.isEmpty {
-                        HStack {
-                            Image(systemName: "iphone.slash")
-                                .foregroundStyle(.secondary)
-                            Text("No devices connected")
-                                .foregroundStyle(.secondary)
-                        }
-                    } else {
-                        ForEach(connectedDevices) { device in
-                            HStack {
-                                Image(systemName: "iphone")
-                                    .foregroundStyle(.green)
-
-                                VStack(alignment: .leading) {
-                                    Text(device.name)
-                                    Text(device.ipAddress)
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
-
-                                Spacer()
-
-                                Text(device.connectedSince.formatted(date: .omitted, time: .shortened))
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                    }
-                } header: {
-                    Text("Connected Devices")
-                }
+            if companionEnabled, let model {
+                pairedPhonesSection(model)
             }
 
             SwiftUI.Section {
                 VStack(alignment: .leading, spacing: 8) {
-                    Label("How to connect", systemImage: "questionmark.circle")
+                    Label("How to pair", systemImage: "questionmark.circle")
                         .font(.headline)
 
-                    Text("1. Install the NetMonitor companion app on your iOS device")
-                    Text("2. Ensure both devices are on the same network")
-                    Text("3. Open the companion app and it will auto-discover this Mac")
+                    Text("1. Update NetMonitor on your iPhone, on the same network as this Mac")
+                    Text("2. Click Pair iPhone… and scan the code with the iPhone (Settings → Mac Companion)")
+                    Text("3. Check that both screens show the same six digits, then click Pair")
                 }
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -96,30 +68,101 @@ struct CompanionSettingsView: View {
         .formStyle(.grouped)
         .padding()
         .navigationTitle("Companion")
-        .task {
-            guard let service = companionService else { return }
-            while !Task.isCancelled {
-                let infos = await service.getConnectedClientInfos()
-                connectedDevices = infos.map { info in
-                    ConnectedDevice(
-                        name: "iOS Device",
-                        ipAddress: info.endpoint,
-                        connectedSince: info.connectedSince
-                    )
+        .sheet(isPresented: $showsPairingSheet) {
+            if let model {
+                CompanionPairingSheet(model: model)
+            }
+        }
+        .confirmationDialog(
+            "Remove \(phoneToRemove?.name ?? "this iPhone")?",
+            isPresented: Binding(get: { phoneToRemove != nil }, set: {
+                if !$0 {
+                    phoneToRemove = nil
                 }
+            }),
+            presenting: phoneToRemove
+        ) { phone in
+            Button("Remove", role: .destructive) {
+                Task { await model?.remove(phone) }
+            }
+            .accessibilityIdentifier("settings_button_confirmRemovePhone")
+        } message: { _ in
+            Text("It disconnects now and must pair again to reconnect.")
+        }
+        .task {
+            let created = CompanionSettingsViewModel(service: companionService)
+            model = created
+            await created.attach()
+            while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(2))
+                await created.refresh()
             }
         }
     }
-}
 
-// MARK: - Models
+    private func pairedPhonesSection(_ model: CompanionSettingsViewModel) -> some View {
+        SwiftUI.Section {
+            if model.phones.isEmpty {
+                HStack {
+                    Image(systemName: "iphone.slash")
+                        .foregroundStyle(.secondary)
+                    Text("No paired iPhones")
+                        .foregroundStyle(.secondary)
+                }
+                .accessibilityIdentifier("settings_label_noPairedPhones")
+            } else {
+                ForEach(model.phones) { phone in
+                    pairedPhoneRow(phone, isConnected: model.connectedPins.contains(phone.pin))
+                }
+            }
 
-struct ConnectedDevice: Identifiable {
-    let id = UUID()
-    let name: String
-    let ipAddress: String
-    let connectedSince: Date
+            Button("Pair iPhone…") {
+                showsPairingSheet = true
+            }
+            .accessibilityIdentifier("settings_button_pairPhone")
+
+            if let message = model.errorMessage {
+                Text(message)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .accessibilityIdentifier("settings_label_companionError")
+            }
+            if let attempt = model.refusedAttemptAt {
+                Text("A device that isn't paired tried to connect at \(attempt.formatted(date: .omitted, time: .shortened)). "
+                    + "If it was your iPhone, update NetMonitor on it and pair it.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("settings_label_refusedAttempt")
+            }
+        } header: {
+            Text("Paired iPhones")
+        }
+    }
+
+    private func pairedPhoneRow(_ phone: PairedPhone, isConnected: Bool) -> some View {
+        HStack {
+            Image(systemName: "iphone")
+                .foregroundStyle(isConnected ? .green : .secondary)
+            VStack(alignment: .leading) {
+                Text(phone.name)
+                Text("Paired \(phone.pairedAt.formatted(date: .abbreviated, time: .omitted))")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            if isConnected {
+                Text("Connected")
+                    .font(.caption)
+                    .foregroundStyle(.green)
+            }
+            Button("Remove…") {
+                phoneToRemove = phone
+            }
+            .accessibilityIdentifier("settings_button_removePhone_\(phone.name)")
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("settings_row_pairedPhone_\(phone.name)")
+    }
 }
 
 #Preview {

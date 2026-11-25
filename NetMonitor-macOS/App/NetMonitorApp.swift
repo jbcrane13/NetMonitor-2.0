@@ -256,7 +256,7 @@ struct NetMonitorApp: App {
                 networkProfileManager: profileManager
             )
 
-            companionService = CompanionService()
+            companionService = CompanionService(credentials: makeCompanionCredentials())
             let handler = companionHandler
             do {
                 // While a scan runs the Mac stops offering insight; tell connected phones (#457).
@@ -394,6 +394,36 @@ struct NetMonitorApp: App {
 }
 
 // swiftlint:enable function_body_length
+
+// MARK: - Companion credentials
+
+@MainActor
+extension NetMonitorApp {
+    /// The companion link's identity and paired phones (#590). A `--uitesting` launch keeps them in
+    /// memory, seeded by `--seed-paired-phones`; otherwise they live in this Mac's Keychain. When the
+    /// Keychain refuses, the service stays off rather than running unauthenticated.
+    func makeCompanionCredentials() -> CompanionCredentials? {
+        let arguments = ProcessInfo.processInfo.arguments
+        if arguments.contains("--uitesting") {
+            let seeds = arguments.contains("--seed-paired-phones") ? UITestCompanion.seedPhones : []
+            return .inMemory(seedPhones: seeds, defaults: NetworkProfileDefaults.launchDefaults)
+        }
+        do {
+            return try .live()
+        } catch {
+            Logger.companion.error("Companion credentials unavailable: \(String(describing: error), privacy: .public)")
+            return nil
+        }
+    }
+}
+
+/// Paired phones for `--seed-paired-phones` (#590); made-up names and keys.
+enum UITestCompanion {
+    static let seedPhones = [
+        PairedPhone(pin: Data(repeating: 0xA1, count: 32), name: "Test iPhone", pairedAt: Date(timeIntervalSince1970: 1_798_000_000)),
+        PairedPhone(pin: Data(repeating: 0xB2, count: 32), name: "Test iPad", pairedAt: Date(timeIntervalSince1970: 1_799_000_000))
+    ]
+}
 
 // MARK: - Network profile defaults
 
