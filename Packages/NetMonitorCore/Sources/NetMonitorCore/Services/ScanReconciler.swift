@@ -66,8 +66,8 @@ public struct ScanHistory {
     }
 }
 
-/// Keeps the saved device rows current after a completed scan (#582), as the macOS
-/// `DeviceDiscoveryCoordinator` does after each of its scans.
+/// Keeps the saved device rows current after a completed scan: the iPhone's
+/// `DeviceRecordUpdater` (#582) and the Mac's `DeviceDiscoveryCoordinator` (#596) both use it.
 ///
 /// - **Which row:** `PresenceMatch`, shared with device detail. A MAC identifies a device; an
 ///   address identifies one only together with agreeing names (Blake's rule for devices without
@@ -86,6 +86,7 @@ public struct ScanHistory {
 /// - **Rows saved without a network** (before rows had one) are adopted only by an identical, real
 ///   MAC that one such row has. One at the device's address without a MAC whose name agrees is left
 ///   for device detail to adopt when opened; the scan makes no second row that would hide its notes.
+///   The Mac has no such adopter (`holdsUnassignedForDetail` false), so there the scan makes a row.
 /// - **Order:** a scan older than one already recorded for the network is skipped, so a late retry
 ///   never puts older presence back over a newer scan.
 /// - **Writes:** rows are saved first and the scan is recorded in `ScanHistory` only after the save
@@ -106,18 +107,24 @@ public struct ScanReconciler {
     private let context: ModelContext
     private let history: ScanHistory
     private let policy: DeviceGracePolicy
+    private let holdsUnassignedForDetail: Bool
     private let save: @MainActor (ModelContext) throws -> Void
 
-    /// - Parameter save: how rows are saved; tests make it fail.
+    /// - Parameters:
+    ///   - holdsUnassignedForDetail: whether a device at the address of a row saved without a
+    ///     network is left for device detail to adopt (the iPhone). The Mac makes a row instead.
+    ///   - save: how rows are saved; tests make it fail.
     public init(
         context: ModelContext,
         history: ScanHistory = ScanHistory(),
         policy: DeviceGracePolicy = DeviceGracePolicy(),
+        holdsUnassignedForDetail: Bool = true,
         save: @escaping @MainActor (ModelContext) throws -> Void = { try $0.save() }
     ) {
         self.context = context
         self.history = history
         self.policy = policy
+        self.holdsUnassignedForDetail = holdsUnassignedForDetail
         self.save = save
     }
 
@@ -170,7 +177,7 @@ public struct ScanReconciler {
                 row.networkProfileID = networkProfileID
                 adoptedLegacy.insert(row.id)
                 rows.append(row)
-            } else if isHeldForDetail(device, among: unassigned, now: now) {
+            } else if holdsUnassignedForDetail, isHeldForDetail(device, among: unassigned, now: now) {
                 continue
             } else {
                 row = LocalDevice(ipAddress: device.ipAddress, macAddress: "", networkProfileID: networkProfileID)

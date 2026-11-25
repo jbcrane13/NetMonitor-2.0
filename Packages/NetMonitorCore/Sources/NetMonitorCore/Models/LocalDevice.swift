@@ -171,7 +171,12 @@ public final class LocalDevice {
         if status == .offline || status == .cached {
             status = .online
         }
-        // Append to in-memory sparkline buffer
+        appendLatencySample(latency)
+    }
+
+    /// Adds a point to the in-memory sparkline buffer only, for a latency already saved on the row
+    /// (the Mac's rows after `ScanReconciler` saved them in its own context, #596).
+    public func appendLatencySample(_ latency: Double) {
         latencyHistory.append(latency)
         if latencyHistory.count > Self.maxLatencyHistory {
             latencyHistory.removeFirst(latencyHistory.count - Self.maxLatencyHistory)

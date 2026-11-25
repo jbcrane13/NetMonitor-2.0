@@ -27,7 +27,8 @@ struct SecurityReadoutScanTests {
                     ScanPipeline.Step(phases: [QuickPortScanPhase(checker: { _, port, _ in port == 23 })], concurrent: false)
                 ])
             },
-            portChecker: { _, _, _ in false }
+            portChecker: { _, _, _ in false },
+            scanHistory: .forTesting()
         )
 
         coordinator.startScan()

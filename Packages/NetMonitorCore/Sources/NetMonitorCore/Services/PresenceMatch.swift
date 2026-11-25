@@ -1,8 +1,9 @@
 import Foundation
 import NetworkScanKit
 
-/// Which saved device each observation of a scan is, for the iPhone's saved rows (#582): the rule
-/// `ScanReconciler` and device detail's list entry share, so both open and update the same row.
+/// Which saved device each observation of a scan is, for the saved rows on both platforms (#582,
+/// #596): the rule `ScanReconciler`, the Mac's sparse merge and iPhone device detail's list entry
+/// share, so all of them open and update the same row.
 ///
 /// - An observation with a real MAC (`DeviceMatcher.normalizedMAC`: placeholders such as
 ///   `02:00:00:00:00:00` and unreadable values count as none) is matched by `DeviceMatcher`: the
@@ -20,7 +21,7 @@ import NetworkScanKit
 ///   heals. Recency only decides between rows when no name matches: the one seen there most
 ///   recently within the window, else a new row.
 ///
-/// `DeviceMatcher` itself is unchanged: the Mac and the change detector share it.
+/// `DeviceMatcher` itself is unchanged: the change detector still matches with it alone.
 public enum PresenceMatch {
     /// A saved row as the match sees it.
     public struct Known: Sendable, Equatable {

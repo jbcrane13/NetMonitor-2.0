@@ -454,7 +454,8 @@ struct UITestScanFixtureTests {
             bonjourScanner: BonjourDiscoveryService(),
             networkProfileManager: profiles,
             pipelineFactory: UITestScanFixture.pipelineFactory,
-            portChecker: { _, _, _ in false }
+            portChecker: { _, _, _ in false },
+            scanHistory: .forTesting()
         )
         defer { coordinator.stopScan() }
         coordinator.changeTracker = DeviceChangeTracker(defaults: defaults)
@@ -498,7 +499,8 @@ struct UITestScanFixtureTests {
             bonjourScanner: BonjourDiscoveryService(),
             networkProfileManager: profiles,
             pipelineFactory: UITestScanFixture.pipelineFactory,
-            portChecker: { _, _, _ in false }
+            portChecker: { _, _, _ in false },
+            scanHistory: .forTesting()
         )
         defer { coordinator.stopScan() }
         coordinator.changeTracker = DeviceChangeTracker(defaults: defaults)

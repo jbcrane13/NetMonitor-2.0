@@ -3,11 +3,11 @@ import NetMonitorCore
 import NetworkScanKit
 @testable import NetMonitor_macOS
 
-/// Golden fixtures for `DeviceDiscoveryCoordinator`'s merge/offline-marking pipeline.
+/// Golden fixtures for `DeviceDiscoveryCoordinator`'s final merge (`ScanReconciler`, #596).
 ///
 /// Originally recorded against the pre-`ScanEngine` coordinator (before #279); widened for
 /// P2 (#297) to cover `vendor`/`openPorts`/`lastLatency` now that the macOS enrichment
-/// phases write those fields onto the accumulator and `mergeDiscoveredDevices` carries them
+/// phases write those fields onto the accumulator and the final merge carries them
 /// through to the persisted `LocalDevice` row.
 ///
 /// All fixture addresses use `192.0.2.0/24` (RFC 5737 TEST-NET-1) — guaranteed non-routable,
@@ -51,10 +51,10 @@ enum DeviceDiscoveryCoordinatorFixtures {
     //      the fields the macOS enrichment phases write via `upsert`/`setLatency`,
     //   2. a device with an empty MAC (e.g. found only by TCP/Bonjour, never ARP),
     //   3. a Bonjour-only host identified purely by hostname,
-    //   4. a device present in the merge but absent from the post-scan `currentIPs` set,
-    //      which `markOfflineDevices` must flip to `.offline`.
+    //   4. a device present in the first scan but absent from later ones (`currentIPs`), which
+    //      goes `.offline` once past the grace policy.
 
-    /// Devices as they arrive at `mergeDiscoveredDevices(_:profileID:)` — the macOS-local
+    /// Devices as they arrive at `reconcileScan(_:profileID:)` — the macOS-local
     /// discovery type produced by mapping the `ScanEngine` accumulator's `DiscoveredDevice`s
     /// (`DeviceDiscoveryCoordinator.mapDiscoveredDevices(_:)`).
     static let discovered: [LocalDiscoveredDevice] = [
@@ -115,12 +115,11 @@ enum DeviceDiscoveryCoordinatorFixtures {
         ),
     ]
 
-    /// IPs still present when `markOfflineDevices` runs — everything except
-    /// `192.0.2.99`, which must be marked `.offline`.
+    /// IPs later scans still find — everything except `192.0.2.99`, which goes `.offline`.
     static let currentIPsAfterOffline: Set<String> = ["192.0.2.1", "192.0.2.50", "192.0.2.60"]
 
-    /// Expected persisted rows after `mergeDiscoveredDevices(discovered, profileID: nil)`
-    /// followed by `markOfflineDevices(currentIPs: currentIPsAfterOffline, profileID: nil)`,
+    /// Expected persisted rows after `reconcileScan(discovered, profileID: nil)` followed by
+    /// `missPastGrace(keeping: currentIPsAfterOffline, of: discovered, profileID: nil)`,
     /// sorted by IP address for deterministic comparison.
     static let expectedRows: [Row] = [
         Row(
@@ -137,13 +136,12 @@ enum DeviceDiscoveryCoordinatorFixtures {
     //
     // Used with a fixture `pipelineFactory` that replaces the standard pipeline entirely
     // (opts out of enrichment per E9), so this fixture only needs to exercise
-    // `mergeDiscoveredDevices`/`markOfflineDevices` end to end through `startScan()`. The
+    // the final merge end to end through `startScan()`. The
     // "gateway with vendor/openPorts/latency" case is already covered by the merge/offline
     // fixture above.
     //
-    // `startScan()` derives `markOfflineDevices`'s `currentIPs` from what THIS scan found,
-    // so the offline transition needs two scans: scan A discovers all four devices, scan B
-    // discovers only three of them, flipping the fourth to `.offline`.
+    // The offline transition needs scans past the grace policy: scan A discovers all four
+    // devices, then scans B (three of them, 10 minutes apart) flip the fourth to `.offline`.
 
     static let endToEndDevicesScanA: [DiscoveredDevice] = [
         DiscoveredDevice(
@@ -184,10 +182,10 @@ enum DeviceDiscoveryCoordinatorFixtures {
         ),
     ]
 
-    /// Scan B omits `192.0.2.99` so it is marked `.offline` by `markOfflineDevices`.
+    /// Scan B omits `192.0.2.99`, so it goes `.offline` once past grace.
     static let endToEndDevicesScanB: [DiscoveredDevice] = Array(endToEndDevicesScanA.prefix(3))
 
-    /// Expected rows after scan A followed by scan B, sorted by IP address.
+    /// Expected rows after scan A followed by scans B past grace, sorted by IP address.
     static let expectedRowsAfterEndToEndScans: [Row] = [
         Row(ipAddress: "192.0.2.1", macAddress: "", hostname: "router.local", vendor: nil, status: .online, lastLatency: nil),
         Row(ipAddress: "192.0.2.50", macAddress: "", hostname: "printer.local", vendor: nil, status: .online, lastLatency: nil),
@@ -198,10 +196,9 @@ enum DeviceDiscoveryCoordinatorFixtures {
 }
 
 extension DeviceDiscoveryCoordinator {
-    /// Test shorthand: keeps the rows at `currentIPs` online. Production passes the rows the
-    /// final merge's device match claimed (#461); for fixtures without duplicate IPs the two agree.
-    func markOfflineDevices(currentIPs: Set<String>, profileID: UUID?) {
-        let seen = discoveredDevices.filter { currentIPs.contains($0.ipAddress) }.map(\.id)
-        markOfflineDevices(keeping: Set(seen), profileID: profileID)
+    /// Test shorthand: later scans find only `scan`'s devices at `currentIPs`, until the rest
+    /// are past the grace policy and go offline (#596).
+    func missPastGrace(keeping currentIPs: Set<String>, of scan: [LocalDiscoveredDevice], profileID: UUID?) {
+        missPastGrace(answering: scan.filter { currentIPs.contains($0.ipAddress) }, profileID: profileID)
     }
 }
