@@ -28,6 +28,16 @@ final class DeviceDetailViewModel {
     nonisolated(unsafe) private(set) var suggestionTask: Task<Void, Never>?
     /// Fingerprint of the evidence the running or last suggestion pass was started with.
     private var suggestionFingerprint: String?
+    /// Which address DNS, the port scan and service discovery may probe (``probeAddress``).
+    private enum NameLookup {
+        /// The row's own address: detail was opened on it from the scan's list.
+        case savedAddress
+        /// Opened by ID (#584): wherever the latest completed scan confirms the row's real MAC,
+        /// checked again at every probe, since a newer scan can move the device.
+        case confirmedByScan
+    }
+
+    private var nameLookup = NameLookup.savedAddress
     private let maxServiceResolves = 80
     private let maxServiceResolveConcurrency = 8
 
@@ -51,11 +61,12 @@ final class DeviceDetailViewModel {
         suggestionTask?.cancel()
     }
 
-    // Common ports to scan
-    private let commonPorts = [
+    /// The ports a device-page scan probes: common service ports plus every port a device-type
+    /// rule reads, such as a printer's 9100, so a described rule's target can probe one (#572).
+    private let commonPorts = Set([
         21, 22, 23, 25, 53, 80, 110, 143, 443, 445, 548, 631,
         993, 995, 3306, 3389, 5432, 5900, 8080, 8443
-    ]
+    ]).union(DeviceTypeInferenceService.rulePorts).sorted()
 
     /// Loads the saved row for the device at `ipAddress` on `networkID` (the network the list
     /// showed it on), creating one if none matches.
@@ -66,6 +77,7 @@ final class DeviceDetailViewModel {
         suggestionTask = nil
         suggestionFingerprint = nil
         modelContext = context
+        nameLookup = .savedAddress
         let live = Self.liveScan(deviceDiscoveryService)
         let scanned = live.first { $0.ipAddress == ipAddress && (networkID == nil || $0.networkProfileID == networkID) }
         let network = networkID ?? scanned?.networkProfileID
@@ -75,6 +87,7 @@ final class DeviceDetailViewModel {
             macAddress: scanned?.macAddress ?? macAddress,
             networkID: network,
             scan: live.filter { $0.networkProfileID == network },
+            scanTime: deviceDiscoveryService.lastScanDate ?? Date(),
             in: context
         )
         // The scan knows more than a fresh row: merge its maker, model and friendly name by
@@ -84,6 +97,13 @@ final class DeviceDetailViewModel {
         guard let device, let scanned else {
             return
         }
+        Self.adopt(scanned, into: device)
+    }
+
+    /// Merges what a scan knows into a saved row, as detail does when it opens: maker, model and
+    /// friendly name by rank (ADR-022), and the MAC-prefix maker, MAC and hostname where the row
+    /// has none (#426). Described rules save rows the same way (#571).
+    static func adopt(_ scanned: DiscoveredDevice, into device: LocalDevice) {
         device.mergeIdentity(scanned.identity)
         if device.vendor?.isEmpty ?? true, let vendor = scanned.vendor, !vendor.isEmpty {
             device.vendor = vendor
@@ -165,7 +185,8 @@ final class DeviceDetailViewModel {
     /// rotation) among the rows of the device's network (#463), so two networks that use the
     /// same addresses keep separate rows. `scan` is every device the latest scan saw on that
     /// network; the match needs them all so it never hands one device's row to another, such
-    /// as a newcomer at the old address of a device that moved. A row saved before rows had a
+    /// as a newcomer at the old address of a device that moved. `scanTime` is when that scan
+    /// finished: the match judges "seen within grace" against it. A row saved before rows had a
     /// network (every detail row before #463) is adopted by the first network it's opened on.
     static func savedRow(
         ipAddress: String,
@@ -173,30 +194,47 @@ final class DeviceDetailViewModel {
         macAddress: String? = nil,
         networkID: UUID?,
         scan: [DiscoveredDevice],
+        scanTime: Date = Date(),
         in context: ModelContext
     ) -> LocalDevice {
-        let rows = (try? context.fetch(FetchDescriptor<LocalDevice>())) ?? []
+        let rows = ((try? context.fetch(FetchDescriptor<LocalDevice>())) ?? []).sorted { $0.lastSeen > $1.lastSeen }
         let observation = DeviceMatchCandidate(ipAddress: ipAddress, macAddress: macAddress ?? scanned?.macAddress, name: scanned?.matchName)
-        let observed = scan.map { DeviceMatchCandidate(ipAddress: $0.ipAddress, macAddress: $0.macAddress, name: $0.matchName) }
+        // The scan as the reconciler sees it: one observation per real MAC, at the address it
+        // answered from, so a cached old address opens the same row and doesn't move it back.
+        let canonical = PresenceMatch.onePerMAC(scan)
+        var observed = canonical.map { DeviceMatchCandidate(ipAddress: $0.ipAddress, macAddress: $0.macAddress, name: $0.matchName) }
+        var address = ipAddress
+        let position: Int
+        if let mac = DeviceMatcher.normalizedMAC(observation.macAddress),
+           let index = canonical.firstIndex(where: { DeviceMatcher.normalizedMAC($0.macAddress) == mac }) {
+            position = index
+            address = canonical[index].ipAddress
+        } else if let index = observed.firstIndex(of: observation) {
+            position = index
+        } else {
+            observed.append(observation)
+            position = observed.count - 1
+        }
         var pools = [rows.filter { $0.networkProfileID == networkID }]
         if networkID != nil {
             pools.append(rows.filter { $0.networkProfileID == nil })
         }
         for pool in pools {
-            var matcher = DeviceMatcher(
-                known: pool.map { DeviceMatchCandidate(ipAddress: $0.ipAddress, macAddress: $0.macAddress, name: $0.matchName) },
-                observed: observed + [observation]
-            )
-            // The other devices in the scan claim their own rows first.
-            for other in observed where other != observation {
-                _ = matcher.match(other)
+            // The rule scans save rows by (#582, `PresenceMatch`): the other devices in the scan
+            // claim their own rows first, and an address alone never opens a row whose name differs.
+            let known = pool.map {
+                PresenceMatch.Known(DeviceMatchCandidate(ipAddress: $0.ipAddress, macAddress: $0.macAddress, name: $0.matchName),
+                    lastSeen: $0.lastSeen)
             }
-            guard let match = matcher.match(observation) else { continue }
-            let row = pool[match.index]
-            if let mac = match.adoptedMAC {
+            // "Seen within grace" is judged at the scan's time, as the reconciler judged it, not
+            // when detail opens.
+            let assignment = PresenceMatch.assign(known: known, observed: observed, now: scanTime, window: DeviceGracePolicy().interval)
+            guard let index = assignment[position] else { continue }
+            let row = pool[index]
+            if let mac = DeviceMatcher.normalizedMAC(observation.macAddress), DeviceMatcher.normalizedMAC(row.macAddress) != mac {
                 row.macAddress = mac
             }
-            row.ipAddress = ipAddress
+            row.ipAddress = address
             row.networkProfileID = networkID
             return row
         }
@@ -213,7 +251,7 @@ final class DeviceDetailViewModel {
 
         // Extract Sendable values before async work
         let macAddress = device.macAddress
-        let ipAddress = device.ipAddress
+        let ipAddress = probeAddress
 
         // Look up the MAC-prefix maker (`vendor`, ADR-022); skip without a MAC
         if device.vendor?.isEmpty ?? true, !macAddress.isEmpty {
@@ -237,7 +275,7 @@ final class DeviceDetailViewModel {
         guard !Task.isCancelled else { return }
 
         // Resolve hostname with timeout to prevent hanging on DNS
-        if device.resolvedHostname == nil {
+        if device.resolvedHostname == nil, let ipAddress {
             let hostname: String? = await withTaskGroup(of: String?.self) { group in
                 group.addTask {
                     await self.nameResolver.resolve(ipAddress: ipAddress)
@@ -250,7 +288,8 @@ final class DeviceDetailViewModel {
                 group.cancelAll()
                 return result.flatMap { $0 }
             }
-            if !Task.isCancelled {
+            // Only if the device is still at that address after the wait.
+            if !Task.isCancelled, probeAddress == ipAddress {
                 device.resolvedHostname = hostname
             }
         }
@@ -258,25 +297,9 @@ final class DeviceDetailViewModel {
         startSuggestion()
     }
 
-    /// Scan common ports on the device
-    func scanPorts() async {
-        guard let device = device else { return }
-        isScanning = true
-        defer { isScanning = false }
-
-        var openPorts: [Int] = []
-
-        for await result in await portScanner.scan(host: device.ipAddress, ports: commonPorts, timeout: 1.5) where result.state == .open {
-            openPorts.append(result.port)
-        }
-
-        device.openPorts = openPorts.sorted()
-        startSuggestion()
-    }
-
-    /// Discover Bonjour services matching this device's IP
+    /// Discover Bonjour services at ``probeAddress``.
     func discoverServices() async {
-        guard let device = device else { return }
+        guard let device, let deviceIP = probeAddress else { return }
         isDiscovering = true
         defer { isDiscovering = false }
 
@@ -295,7 +318,6 @@ final class DeviceDetailViewModel {
         timeoutTask.cancel()
 
         // Phase 2: Resolve and match services (bounded concurrency)
-        let deviceIP = device.ipAddress
         var discoveredServiceNames: [String] = []
         let servicesToResolve = Array(uniqueServices(from: collectedServices).prefix(maxServiceResolves))
 
@@ -335,6 +357,7 @@ final class DeviceDetailViewModel {
             }
         }
 
+        guard probeAddress == deviceIP else { return }
         device.discoveredServices = discoveredServiceNames
         startSuggestion()
     }
@@ -423,5 +446,77 @@ final class DeviceDetailViewModel {
 
             continuation.resume(returning: Array(resolved))
         }
+    }
+}
+
+// MARK: - Opening by ID (#584)
+
+extension DeviceDetailViewModel {
+    /// Loads the saved row with `id`, for links that carry `LocalDevice.id` (Ask citations, rule
+    /// targets, Timeline events; #584). Never matches by IP: when DHCP gave the device's address
+    /// to another device, the link still opens this one. The latest scan's identity is merged only
+    /// from the one device that answered the latest scan with the row's real MAC, and DNS is asked
+    /// for a name only at the address that device answered from. A row that no longer exists loads
+    /// nothing.
+    func loadDevice(id: UUID, context: ModelContext) {
+        suggestionTask?.cancel()
+        suggestionTask = nil
+        suggestionFingerprint = nil
+        modelContext = context
+        var descriptor = FetchDescriptor<LocalDevice>(predicate: #Predicate { $0.id == id })
+        descriptor.fetchLimit = 1
+        device = (try? context.fetch(descriptor))?.first
+        // No address is probed unless the latest completed scan confirms the device is there:
+        // DHCP may have given the saved address to another device.
+        nameLookup = .confirmedByScan
+        defer { startSuggestion() }
+        if let device, let scanned = confirmedSighting(of: device) {
+            Self.adopt(scanned, into: device)
+        }
+    }
+
+    /// The address DNS, the port scan and service discovery may probe for the loaded device, and
+    /// write what they find onto its row: where it was opened from the list, or, opened by ID,
+    /// where the latest scan confirmed its real MAC. Nil when that can't be established (DHCP may
+    /// have given the saved address to another device); the views disable those actions then.
+    var probeAddress: String? {
+        guard let device else { return nil }
+        return switch nameLookup {
+        case .savedAddress: device.ipAddress
+        case .confirmedByScan: confirmedSighting(of: device)?.ipAddress
+        }
+    }
+
+    /// The one device that answered the latest completed scan (`completedScanDevices`, never a
+    /// running or stopped scan's progress list, which hides which entries only the ARP cache lists),
+    /// on the row's network, with the row's real MAC. None while a scan runs, for a placeholder
+    /// MAC, or for a cached sighting.
+    private func confirmedSighting(of device: LocalDevice) -> DiscoveredDevice? {
+        guard !deviceDiscoveryService.isScanning, let mac = DeviceMatcher.normalizedMAC(device.macAddress) else { return nil }
+        let completed = deviceDiscoveryService.completedScanDevices
+            + (UITestFakeDeviceFeed.suggestsIdentity ? UITestFakeDeviceFeed().devices : [])
+        let confirmed = completed.filter { scanned in
+            !scanned.isCached && scanned.networkProfileID == device.networkProfileID
+                && DeviceMatcher.normalizedMAC(scanned.macAddress) == mac
+        }
+        return confirmed.count == 1 ? confirmed[0] : nil
+    }
+
+    /// Scan common ports on the device, at ``probeAddress``.
+    func scanPorts() async {
+        guard let device, let address = probeAddress else { return }
+        isScanning = true
+        defer { isScanning = false }
+
+        var openPorts: [Int] = []
+
+        for await result in await portScanner.scan(host: address, ports: commonPorts, timeout: 1.5) where result.state == .open {
+            openPorts.append(result.port)
+        }
+
+        // A newer scan may have moved the device meanwhile: those ports are another device's.
+        guard probeAddress == address else { return }
+        device.openPorts = openPorts.sorted()
+        startSuggestion()
     }
 }

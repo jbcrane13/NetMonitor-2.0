@@ -15,6 +15,8 @@ struct NetmonitorApp: App {
     @State private var networkChangeMonitor: LocalNetworkChangeMonitor?
     /// Logs connectivity and device changes for the Timeline.
     @State private var eventListener: EventListenerService?
+    /// Puts every finished scan into the saved device rows (#582).
+    @State private var deviceRecordUpdater: DeviceRecordUpdater?
     @Environment(\.scenePhase) private var scenePhase
 
     private static var isUITesting: Bool {
@@ -34,13 +36,7 @@ struct NetmonitorApp: App {
     }
 
     private static let persistenceOutcome: PersistenceBootstrapOutcome<ModelContainer> = {
-        let schema = Schema([
-            PairedMac.self,
-            LocalDevice.self,
-            MonitoringTarget.self,
-            ToolResult.self,
-            SpeedTestResult.self
-        ])
+        let schema = AppModelStore.schema
         let modelConfiguration = ModelConfiguration(
             schema: schema,
             isStoredInMemoryOnly: Self.isUITesting,
@@ -69,6 +65,8 @@ struct NetmonitorApp: App {
         // events are in place to migrate (#491).
         UITestBootstrap.prepareEventHistoryIfNeeded()
         _environment = State(initialValue: .live())
+        // Background work writes through this container's main context (#582).
+        AppModelStore.container = Self.persistenceOutcome.store
         guard !Self.isUITesting else {
             // Before any view loads, so the dashboard's first brief sees the seeded events.
             UITestBootstrap.seedEventsIfNeeded()
@@ -91,6 +89,23 @@ struct NetmonitorApp: App {
         )
         listener.start()
         eventListener = listener
+    }
+
+    /// Starts keeping the saved device rows current after each scan, once (#582).
+    private func startDeviceRecordUpdater() {
+        guard deviceRecordUpdater == nil else { return }
+        let updater = DeviceRecordUpdater(
+            discoveryService: environment.deviceDiscovery,
+            // Its own context on the app's container: a failed save rolls back only the scan, never
+            // device detail's unsaved edits in the main context, which sees the saved rows (#589).
+            reconciler: ScanReconciler(context: ModelContext(sharedModelContainer)),
+            // Read only, and only a live network: a device without one is never filed under a
+            // network the phone has left (#589).
+            currentNetworkProfileID: { CurrentNetwork.detected()?.id },
+            clock: UITestBootstrap.scanClock ?? Date.init
+        )
+        updater.start()
+        deviceRecordUpdater = updater
     }
 
     // Respect user's appearance preference (light/dark/system)
@@ -131,6 +146,8 @@ struct NetmonitorApp: App {
                     if UITestBootstrap.recordsEvents {
                         startEventListener()
                     }
+                    // Saved device rows follow every scan, in UI tests too (#582).
+                    startDeviceRecordUpdater()
 
                     if Self.isUITesting || Self.persistenceOutcome.isDegraded {
                         return
@@ -153,6 +170,9 @@ struct NetmonitorApp: App {
 
                     BackgroundTaskService.shared.scheduleRefreshTask()
                     BackgroundTaskService.shared.scheduleSyncTask()
+                    // The scheduled scan reschedules itself, but someone has to ask for the first
+                    // one (#582: background scans keep the saved devices current).
+                    BackgroundTaskService.shared.scheduleNetworkScanTask()
 
                     // Request notification authorization
                     Task {

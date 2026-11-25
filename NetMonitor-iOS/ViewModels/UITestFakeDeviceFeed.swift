@@ -47,7 +47,9 @@ final class UITestFakeDeviceFeed {
                 latency: Double(10 + ((tick + index) % 5) * 3),
                 discoveredAt: Date(),
                 source: .local,
-                networkProfileID: nil
+                // The UI-test network, as the fake scan stamps it: detail opened from the list then
+                // finds the rows scans saved there (#582).
+                networkProfileID: UITestBootstrap.networkProfileID
             )
         }
     }
@@ -79,6 +81,7 @@ final class UITestFakeDiscoveryService: DeviceDiscoveryServiceProtocol {
     private(set) var lastScanDate: Date?
     private let devices: @MainActor () -> [DiscoveredDevice]
     private let hold: Duration
+    private var scans = 0
 
     init(devices: @escaping @MainActor () -> [DiscoveredDevice] = UITestFakeDiscoveryService.fixtureDevices, hold: Duration = .milliseconds(300)) {
         self.devices = devices
@@ -99,7 +102,7 @@ final class UITestFakeDiscoveryService: DeviceDiscoveryServiceProtocol {
                 source: device.source,
                 networkProfileID: UITestBootstrap.networkProfileID
             )
-        }
+        } + UITestBootstrap.ruleScanDevices
     }
 
     func cachedDevices(for profile: NetworkProfile?) -> [DiscoveredDevice] {
@@ -125,7 +128,9 @@ final class UITestFakeDiscoveryService: DeviceDiscoveryServiceProtocol {
         scanPhase = .arpScan
         scanProgress = 0
         try? await Task.sleep(for: hold)
-        discoveredDevices = devices()
+        scans += 1
+        // #582: later scans can miss a device, so it goes offline after the grace policy.
+        discoveredDevices = devices().filter { scans == 1 || !UITestBootstrap.dropsLastDeviceAfterFirstScan || $0.hostname != "uitest-device-4" }
         lastScanDate = Date()
         scanProgress = 1
         scanPhase = .idle

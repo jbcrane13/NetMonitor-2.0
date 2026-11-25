@@ -20,6 +20,18 @@ final class CompanionMessageHandler {
     private let wakeOnLanService: WakeOnLANService
     private let icmpService: ICMPMonitorService
     private let networkProfileManager: NetworkProfileManager
+    /// Answers the iPhone's insight requests with this Mac's model (#457).
+    private let insightResponder: CompanionInsightResponder
+
+    /// Settings key for "Answer model requests from iPhone"; off when unset.
+    nonisolated static let answersInsightKey = "netmonitor.companion.answersInsight"
+
+    /// Whether the user lets this Mac answer the iPhone's model requests. Off until the owner
+    /// turns it on: the companion link has no pairing or authentication yet (#590), so any
+    /// client on the LAN could otherwise use the Mac's model.
+    nonisolated static var answersInsight: Bool {
+        UserDefaults.standard.object(forKey: answersInsightKey) as? Bool ?? false
+    }
 
     init(
         modelContext: ModelContext,
@@ -27,7 +39,8 @@ final class CompanionMessageHandler {
         deviceDiscovery: DeviceDiscoveryCoordinator,
         wakeOnLanService: WakeOnLANService,
         icmpService: ICMPMonitorService,
-        networkProfileManager: NetworkProfileManager
+        networkProfileManager: NetworkProfileManager,
+        insightService: any InsightServiceProtocol = InsightService.shared
     ) {
         self.modelContext = modelContext
         self.monitoringSession = monitoringSession
@@ -35,6 +48,12 @@ final class CompanionMessageHandler {
         self.wakeOnLanService = wakeOnLanService
         self.icmpService = icmpService
         self.networkProfileManager = networkProfileManager
+        insightResponder = CompanionInsightResponder(
+            service: insightService,
+            isAllowed: { Self.answersInsight },
+            // Never ask the model during a scan.
+            isScanning: { [weak deviceDiscovery] in await MainActor.run { deviceDiscovery?.isScanning ?? false } }
+        )
     }
 
     /// Process an incoming message and return an optional response
@@ -44,13 +63,39 @@ final class CompanionMessageHandler {
             return await handleCommand(payload)
 
         case .heartbeat:
-            return .heartbeat(HeartbeatPayload())
+            return .heartbeat(heartbeat())
+
+        case .insightRequest(let payload):
+            return await .insightResponse(insightResponder.respond(to: payload))
 
         case .networkProfile(let payload):
             return handleNetworkProfileSync(payload)
 
         default:
             return nil
+        }
+    }
+
+    /// This Mac's heartbeat, advertising insight while its model can answer and the user
+    /// allows it (#457). An iPhone sends insight requests only after seeing it.
+    func heartbeat() -> HeartbeatPayload {
+        HeartbeatPayload(capabilities: insightResponder.capabilities(
+            allowed: Self.answersInsight, isScanning: deviceDiscovery.isScanning
+        ))
+    }
+
+    /// Calls `send` with a fresh heartbeat whenever a scan starts or ends, so a phone stops
+    /// asking while the Mac scans and starts again after (#457).
+    func onScanningChange(_ send: @escaping @MainActor (HeartbeatPayload) -> Void) {
+        withObservationTracking {
+            _ = deviceDiscovery.isScanning
+        } onChange: { [weak self] in
+            // Fires before the change, off the main actor: hop over, then read the new value.
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                send(self.heartbeat())
+                self.onScanningChange(send)
+            }
         }
     }
 

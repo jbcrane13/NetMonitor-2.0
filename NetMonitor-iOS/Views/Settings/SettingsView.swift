@@ -37,6 +37,8 @@ struct SettingsView: View {
                     connectionService.disconnect()
                 }
             )
+            // "Use your Mac for on-device AI" (#457).
+            Section { MacInsightSettingsRow(routed: PhoneInsight.routed) }
 
             // MARK: - Network Tools Section
             Section {
@@ -345,7 +347,7 @@ struct SettingsView: View {
             devices: devices,
             toolResults: toolResults,
             speedTests: speedTestResults,
-            insightService: UITestBootstrap.insightService ?? InsightService.shared
+            insightService: UITestBootstrap.insightService ?? PhoneInsight.shared
         ),
         let url = DataExportService.writeToTempFile(data: data, name: "netmonitor-report", ext: "pdf") else { return }
         uiTestReportPreview = UITestBootstrap.reportPreview(of: data)

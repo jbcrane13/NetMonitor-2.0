@@ -141,6 +141,33 @@ struct ChangeBriefStateTests {
         #expect(state.brief == nil)
     }
 
+    @Test("hiding forgets what was asked, so the same digest is asked again once the model is back (#457)")
+    func theSameDigestIsAskedAgainAfterHide() async {
+        let insight = MockInsightService()
+        let state = ChangeBriefState(service: insight)
+        await ask(state, insight, request(), answering: .finished(Self.answer))
+
+        state.hide()
+        await ask(state, insight, request(), answering: .finished(Self.answer), index: 1)
+
+        #expect(insight.requests.count == 2)
+        #expect(state.brief?.text == Self.answer)
+    }
+
+    @Test("a digest asked about while no model was available is asked once one is (#457)")
+    func anAskWithNoModelIsNotRemembered() async {
+        let insight = MockInsightService(isAvailable: false)
+        let state = ChangeBriefState(service: insight)
+        await state.ask(request())
+        #expect(state.brief == nil)
+        #expect(insight.requests.isEmpty)
+
+        insight.isAvailable = true
+        await ask(state, insight, request(), answering: .finished(Self.answer))
+
+        #expect(state.brief?.text == Self.answer)
+    }
+
     @Test func theFixedAnswerServiceAnswersEveryRequest() async {
         let service = FixedAnswerInsightService(answer: Self.answer)
         var answers: [InsightUpdate] = []

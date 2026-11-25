@@ -22,7 +22,7 @@ final class ChangeBriefViewModel {
 
     /// The dashboard's brief. Shared so that a dashboard rebuilt by navigation keeps its cache.
     static let dashboard = ChangeBriefViewModel(
-        service: UITestBootstrap.insightService ?? InsightService.shared,
+        service: UITestBootstrap.insightService ?? PhoneInsight.shared,
         eventService: NetworkEventService.shared
     )
 

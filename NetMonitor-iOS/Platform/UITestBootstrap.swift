@@ -58,7 +58,9 @@ enum UITestBootstrap {
             AppSettings.Keys.webBrowserRecentURLs,
             "targetManager_savedTargets",
             "netmonitor.networkProfiles",
-            "netmonitor.deviceSuggestions"
+            "netmonitor.deviceSuggestions",
+            // Saved devices' missed-scan counts (#582); the store is in memory under UI tests.
+            ScanHistory.storageKey
         ]
 
         for key in keysToClear {
@@ -425,6 +427,31 @@ extension UITestBootstrap {
 
     static let rulePrinter = (name: "uitest-printer", ip: "192.168.77.20")
 
+    /// Under UI tests (Debug builds), a draft's port check reaches no real network: no port answers.
+    static var ruleProbe: MonitoringTargetProbe? {
+        #if DEBUG
+        guard isUITesting else { return nil }
+        return MonitoringTargetProbe { _, _, _ in false }
+        #else
+        return nil
+        #endif
+    }
+
+    /// With `UITEST_RULE_SCAN_DEVICES=1` (Debug builds), the UI-test scan also finds a printer that
+    /// has no saved row: "office-laser", with IPP 631 and 9100 open, so its type is inferred and a
+    /// target can probe it (#571, #572).
+    static var ruleScanDevices: [DiscoveredDevice] {
+        #if DEBUG
+        guard isUITesting, ProcessInfo.processInfo.environment["UITEST_RULE_SCAN_DEVICES"] == "1" else { return [] }
+        return [DiscoveredDevice(
+            ipAddress: "192.168.1.30", hostname: "office-laser", vendor: nil, macAddress: "02:00:00:01:00:30",
+            latency: 4, discoveredAt: Date(), source: .local, networkProfileID: networkProfileID, openPorts: [631, 9100]
+        )]
+        #else
+        return []
+        #endif
+    }
+
     /// With `UITEST_SEED_RULE_DEVICES=1` (Debug builds): a printer and a NAS on the UI-test
     /// network, for describing rules about "the printer". Never twice.
     static func seedRuleDevicesIfNeeded(in context: ModelContext) {
@@ -438,9 +465,43 @@ extension UITestBootstrap {
         ))
         context.insert(LocalDevice(
             ipAddress: "192.168.77.40", macAddress: "02:00:00:77:00:40", hostname: "uitest-nas",
-            deviceType: .storage, networkProfileID: networkProfileID
+            // A scan found SMB open, so its target has a port to probe (#572).
+            deviceType: .storage, openPorts: [445], networkProfileID: networkProfileID
         ))
         try? context.save()
+        #endif
+    }
+}
+
+// MARK: - Saved devices follow scans (#582)
+
+extension UITestBootstrap {
+    /// With `UITEST_SCAN_CLOCK=1`: the clock the device-record updater stamps scans with. The first
+    /// scan is at 08:00 on 2026-11-20 (local time), each later one 10 minutes after the previous,
+    /// so a test sees "last seen" at a known time and the grace interval pass without waiting.
+    static var scanClock: (@MainActor () -> Date)? {
+        #if DEBUG
+        guard isUITesting, ProcessInfo.processInfo.environment["UITEST_SCAN_CLOCK"] == "1" else { return nil }
+        return {
+            defer { scanClockTicks += 1 }
+            return scanClockStart.addingTimeInterval(Double(scanClockTicks) * 600)
+        }
+        #else
+        return nil
+        #endif
+    }
+
+    // swiftlint:disable:next force_unwrapping
+    static let scanClockStart = Calendar.current.date(from: DateComponents(year: 2026, month: 11, day: 20, hour: 8))!
+    private static var scanClockTicks = 0
+
+    /// With `UITEST_SCAN_DROP_LAST=1`: scans after the first no longer find uitest-device-4. Always
+    /// false in release builds.
+    static var dropsLastDeviceAfterFirstScan: Bool {
+        #if DEBUG
+        isUITesting && ProcessInfo.processInfo.environment["UITEST_SCAN_DROP_LAST"] == "1"
+        #else
+        false
         #endif
     }
 }

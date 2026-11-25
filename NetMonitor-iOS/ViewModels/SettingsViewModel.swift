@@ -108,10 +108,17 @@ final class SettingsViewModel {
     private let suggestionStore: DeviceSuggestionStore
     /// Saved health scores (#491), cleared with the other measurements.
     private let healthHistory: HealthScoreHistoryStore
+    /// Saved devices' missed-scan counts (#582), cleared with the devices.
+    private let scanHistory: ScanHistory
 
-    init(suggestionStore: DeviceSuggestionStore = DeviceSuggestionStore(), healthHistory: HealthScoreHistoryStore = .shared) {
+    init(
+        suggestionStore: DeviceSuggestionStore = DeviceSuggestionStore(),
+        healthHistory: HealthScoreHistoryStore = .shared,
+        scanHistory: ScanHistory = ScanHistory()
+    ) {
         self.suggestionStore = suggestionStore
         self.healthHistory = healthHistory
+        self.scanHistory = scanHistory
         let defaults = UserDefaults.standard
         defaultPingCount = defaults.object(forKey: AppSettings.Keys.defaultPingCount) as? Int ?? 4
         pingTimeout = defaults.object(forKey: AppSettings.Keys.pingTimeout) as? Double ?? 5.0
@@ -184,6 +191,8 @@ final class SettingsViewModel {
         }
         suggestionStore.clearAll()
         healthHistory.clearAll()
+        // The saved devices are gone, so their missed-scan counts go too (#582).
+        scanHistory.clearAll()
 
         // URLCache + file-system sweeps run on a background executor — they're
         // sync I/O and can take noticeable time on a populated cache.

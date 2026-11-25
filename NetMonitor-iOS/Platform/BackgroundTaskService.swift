@@ -15,7 +15,9 @@ final class BackgroundTaskService {
     typealias TaskCancellation = (String) -> Void
 
     static let shared = BackgroundTaskService()
-    private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "com.blakemiller.netmonitor", category: "BackgroundTaskService")
+    nonisolated private static let logger = Logger(
+        subsystem: Bundle.main.bundleIdentifier ?? "com.blakemiller.netmonitor", category: "BackgroundTaskService"
+    )
 
     static let refreshTaskIdentifier = "com.blakemiller.netmonitor.refresh"
     static let syncTaskIdentifier = "com.blakemiller.netmonitor.sync"
@@ -28,6 +30,8 @@ final class BackgroundTaskService {
     private let notifications: NotificationService
     /// Words alert bodies with the on-device model, or leaves them fixed (#453).
     private let notificationWriter: NotificationTextWriter
+    /// Reaches TCP and ICMP targets (#572).
+    private let probe: MonitoringTargetProbe
 
     init(
         registerTask: @escaping TaskRegistration = { identifier, queue, launchHandler in
@@ -40,9 +44,11 @@ final class BackgroundTaskService {
         submitTask: @escaping TaskSubmission = { try BGTaskScheduler.shared.submit($0) },
         cancelTask: @escaping TaskCancellation = { BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: $0) },
         notifications: NotificationService = .shared,
-        insightService: any InsightServiceProtocol = InsightService.shared,
-        isScanning: @escaping @MainActor () -> Bool = { DeviceDiscoveryService.shared.isScanning }
+        insightService: any InsightServiceProtocol = PhoneInsight.shared,
+        isScanning: @escaping @MainActor () -> Bool = { DeviceDiscoveryService.shared.isScanning },
+        probe: MonitoringTargetProbe = BackgroundTaskService.liveProbe
     ) {
+        self.probe = probe
         self.registerTask = registerTask
         self.submitTask = submitTask
         self.cancelTask = cancelTask
@@ -378,7 +384,12 @@ final class BackgroundTaskService {
         }
 
         Self.logger.debug("Starting network scan...")
-        await DeviceDiscoveryService.shared.scanNetwork(subnet: nil)
+        let scanBefore = DeviceDiscoveryService.shared.lastScanDate
+        // The network this phone is on now, detected again: the saved local profile can still
+        // describe the network it left (a move from home to the office), and the scan's devices
+        // carry this network so they are saved as its devices.
+        let network = CurrentNetwork.detected()
+        await DeviceDiscoveryService.shared.scanNetwork(profile: network)
         guard !taskCancelled else {
             Self.logger.info("Task cancelled after network scan")
             return
@@ -386,6 +397,11 @@ final class BackgroundTaskService {
 
         let devices = DeviceDiscoveryService.shared.discoveredDevices
         Self.logger.info("Network scan found \(devices.count) device(s)")
+        // Only a scan that finished during this task; `lastScanDate` moves when one does, with
+        // `completedScanDevices` as its list.
+        if let scanDate = DeviceDiscoveryService.shared.lastScanDate, scanDate != scanBefore {
+            reconcileSavedDevices(DeviceDiscoveryService.shared.completedScanDevices, scanDate: scanDate, network: network?.id)
+        }
 
         let diff = ScanSchedulerService.shared.computeDiff(current: devices)
         Self.logger.info("Scan diff: \(diff.newDevices.count) new, \(diff.removedDevices.count) removed")
@@ -393,6 +409,26 @@ final class BackgroundTaskService {
         await notifyScanChanges(diff, wordBodies: !taskCancelled)
     }
 
+}
+
+// MARK: - Saved devices (#582)
+
+extension BackgroundTaskService {
+    /// Puts a background scan into the saved device rows, as the foreground updater does, through
+    /// the app's own container, so the next look at a device shows this scan. A device that carries
+    /// no network is `network`'s, the live network when the scan started; with none, nothing is
+    /// saved. The foreground updater skips the same scan.
+    func reconcileSavedDevices(_ devices: [DiscoveredDevice], scanDate: Date, network: UUID?) {
+        guard let container = AppModelStore.sharedContainer() else {
+            Self.logger.error("Failed to open the store to save scanned devices")
+            return
+        }
+        // Its own context on the app's container: a failed save rolls back only this scan, never
+        // device detail's unsaved edits in the main context.
+        DeviceRecordUpdater.reconcile(
+            devices, scanDate: scanDate, network: network, with: ScanReconciler(context: ModelContext(container)), now: Date()
+        )
+    }
 }
 
 // MARK: - Alerts (#453)
@@ -449,10 +485,7 @@ extension BackgroundTaskService {
         let checkStartTime = Date()
 
         // Create a new ModelContainer for background context with full schema
-        let schema = Schema([
-            PairedMac.self, LocalDevice.self, MonitoringTarget.self,
-            ToolResult.self, SpeedTestResult.self
-        ])
+        let schema = AppModelStore.schema
         guard let modelContainer = try? ModelContainer(
             for: schema,
             configurations: [ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)]
@@ -524,29 +557,26 @@ extension BackgroundTaskService {
         let startTime = Date()
 
         switch target.targetProtocol {
-        case .tcp:
-            let port = target.port ?? 80
-            let result = await tcpConnect(host: target.host, port: port, timeout: target.timeout)
-            let latency = result ? Date().timeIntervalSince(startTime) * 1000 : nil
-            return (result, latency)
+        case .tcp, .icmp:
+            // ICMP needs raw sockets, which background tasks can't use: both connect over TCP.
+            return await probe.check(target)
 
         case .http, .https:
             let result = await httpCheck(target: target)
             let latency = result ? Date().timeIntervalSince(startTime) * 1000 : nil
             return (result, latency)
-
-        case .icmp:
-            // ICMP requires raw sockets which may not work in background
-            // Fall back to TCP probe on a common port
-            let port = target.port ?? 80
-            let result = await tcpConnect(host: target.host, port: port, timeout: target.timeout)
-            let latency = result ? Date().timeIntervalSince(startTime) * 1000 : nil
-            return (result, latency)
         }
     }
 
-    private func tcpConnect(host: String, port: Int, timeout: TimeInterval) async -> Bool {
-        Self.logger.debug("TCP check: \(host):\(port) (timeout: \(timeout)s)")
+    /// The real probe: a TCP connection with `NWConnection`.
+    nonisolated static var liveProbe: MonitoringTargetProbe {
+        MonitoringTargetProbe { host, port, timeout in await tcpConnect(host: host, port: port, timeout: timeout) }
+    }
+
+    nonisolated private static func tcpConnect(host: String, port: Int, timeout: TimeInterval) async -> Bool {
+        // A target's address is an IP or a hostname; each has its own redaction.
+        let address = IPv4Address(host) == nil ? LogSanitizer.redactHostname(host) : LogSanitizer.redactIP(host)
+        logger.debug("TCP check: \(address):\(port) (timeout: \(timeout)s)")
         return await withTaskGroup(of: Bool?.self) { group in
             let connection = NWConnection(
                 host: NWEndpoint.Host(host),

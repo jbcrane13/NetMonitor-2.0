@@ -121,8 +121,14 @@ final class MockWakeOnLANService: WakeOnLANServiceProtocol {
 final class MockPortScannerService: PortScannerServiceProtocol, @unchecked Sendable {
     var mockResults: [PortScanResult] = []
     var stopCallCount = 0
+    /// The ports the last scan was asked to probe.
+    private(set) var scannedPorts: [Int] = []
+    /// Every host a scan was asked to probe, in order.
+    private(set) var scannedHosts: [String] = []
 
     func scan(host: String, ports: [Int], timeout: TimeInterval) async -> AsyncStream<PortScanResult> {
+        scannedPorts = ports
+        scannedHosts.append(host)
         let results = mockResults
         return AsyncStream { continuation in
             for result in results { continuation.yield(result) }
@@ -260,6 +266,10 @@ final class MockDeviceDiscoveryService: DeviceDiscoveryServiceProtocol, @uncheck
     var scanProgress: Double = 0.0
     var scanPhase: ScanDisplayPhase = .idle
     var lastScanDate: Date? = nil
+    /// The last finished scan's list, when a test sets one apart from `discoveredDevices` (a
+    /// running or stopped scan's progress); otherwise the two are the same.
+    var completedDevices: [DiscoveredDevice]?
+    var completedScanDevices: [DiscoveredDevice] { completedDevices ?? discoveredDevices }
     var scanCallCount = 0
     var lastScannedSubnet: String? = nil
     var lastScannedProfile: NetMonitorCore.NetworkProfile? = nil
@@ -287,6 +297,7 @@ final class MockDeviceDiscoveryService: DeviceDiscoveryServiceProtocol, @uncheck
 final class MockMacConnectionService: MacConnectionServiceProtocol {
     var connectionState: MacConnectionState = .disconnected
     var lastDeviceList: DeviceListPayload? = nil
+    var lastDeviceListReceivedAt: Date?
     var connectedMacName: String? = nil
     var isBrowsing: Bool = false
     var discoveredMacs: [DiscoveredMac] = []
