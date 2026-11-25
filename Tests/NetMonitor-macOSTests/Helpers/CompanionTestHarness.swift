@@ -78,7 +78,7 @@ final class TestMac: @unchecked Sendable {
             handled.with { $0.append(message.logName) }
             if let handlerPause {
                 await handlerPause.wait()
-                let current = await authorization.isCurrent()
+                let current = authorization.isCurrent()
                 tokenAfterPause.with { $0 = current }
             }
             return nil

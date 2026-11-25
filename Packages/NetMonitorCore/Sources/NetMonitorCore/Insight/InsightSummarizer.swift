@@ -9,12 +9,15 @@ public enum InsightSummarizer {
     /// link, email address, phone number or unstated domain (`InsightTextFilter`). Callers
     /// omit the summary on nil. A timed-out answer is cancelled. The wait is exactly `timeout`,
     /// even through a Mac: notification bodies keep to their budget.
+    /// `authorization`, when given, is checked in the same step that asks the model (#590): if it
+    /// no longer holds, the model is never asked.
     public static func summary(
         for request: InsightRequest,
         service: any InsightServiceProtocol,
-        timeout: Duration
+        timeout: Duration,
+        authorization: CompanionAuthorization? = nil
     ) async -> String? {
-        await outcome(for: request, service: service, timeout: timeout, waitsForMac: false).answer?.text
+        await outcome(for: request, service: service, timeout: timeout, waitsForMac: false, authorization: authorization).answer?.text
     }
 
     /// Like `summary`, but says whether a missing answer is lasting or for now, and who wrote
@@ -26,13 +29,16 @@ public enum InsightSummarizer {
         for request: InsightRequest,
         service: any InsightServiceProtocol,
         timeout: Duration,
-        waitsForMac: Bool = true
+        waitsForMac: Bool = true,
+        authorization: CompanionAuthorization? = nil
     ) async -> InsightOutcome {
         guard service.isAvailable else { return .tryLater }
         let source = InsightService.source(of: service)
         let wait = source == .mac && waitsForMac ? max(timeout, macWait) : timeout
         let update = await withTaskGroup(of: InsightUpdate?.self) { group in
             group.addTask {
+                // Checked and submitted in one synchronous step: nothing can run between them.
+                guard authorization?.isCurrent() ?? true else { return .failed }
                 for await update in service.explain(request) {
                     if case .partial = update {
                         continue

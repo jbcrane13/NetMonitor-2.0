@@ -121,6 +121,23 @@ struct CompanionInsightResponderTests {
         #expect(service.askedCount == 0)
     }
 
+    @Test("the summarizer checks authorization in the step that asks the model: a revoked link is never submitted (#590)")
+    func summarizerChecksAtSubmission() async {
+        let service = GatedInsightService()
+        let revoked = await InsightSummarizer.summary(
+            for: Self.request, service: service, timeout: .seconds(1), authorization: CompanionAuthorization { false }
+        )
+        #expect(revoked == nil)
+        #expect(service.askedCount == 0)
+
+        let allowed = Task {
+            await InsightSummarizer.summary(for: Self.request, service: service, timeout: .seconds(5), authorization: .always)
+        }
+        await waitUntil { service.askedCount == 1 }
+        service.release(with: "SSH is open on this device.")
+        #expect(await allowed.value == "SSH is open on this device.")
+    }
+
     @Test("a cancelled request never reaches the model (#590)")
     func cancelledBeforeSubmission() async {
         let service = GatedInsightService()

@@ -9,6 +9,7 @@ import Foundation
 import Network
 import NetMonitorCore
 import os
+import Synchronization
 
 /// The Mac end of the companion link (#590): a TLS 1.3 listener with mutually pinned identities,
 /// advertised over Bonjour. Each connection gets a role when its session is verified, and every
@@ -64,6 +65,8 @@ actor CompanionService: CompanionServiceProtocol {
         let acceptedAt: Date
         /// The listener generation that accepted it; a link from an older one is closed.
         let listenerGeneration: Int
+        /// Cleared synchronously when the link closes; authorisation tokens read it.
+        let openFlag = LinkOpenFlag()
         var role: CompanionLinkRole?
         var session: CompanionVerifiedSession?
         var decoder: CompanionFrameDecoder?
@@ -577,13 +580,16 @@ extension CompanionService {
         }
     }
 
-    /// A token that stays true only while this link is open, from the current listener, and
-    /// authorised under the credential generation it bound with. Handlers check it after each
-    /// suspension, so a revoke stops work that hasn't reached the model or the network yet.
+    /// A token that stays true only while this link is open and authorised under the credential
+    /// generation it bound with. Its check is synchronous (a lock-guarded flag and the
+    /// `Mutex`-guarded trust gate), so a revoke is visible to it the moment `revoke` returns, and
+    /// the model is asked in the same step the token is checked.
     private func authorization(for id: UUID) -> CompanionAuthorization {
-        CompanionAuthorization { [weak self] in
-            await self?.isAuthorized(id) ?? false
+        guard isAuthorized(id), let link = links[id], let role = link.role, let gate = credentials?.gate else {
+            return CompanionAuthorization { false }
         }
+        let openFlag = link.openFlag
+        return CompanionAuthorization { openFlag.isOpen && gate.isAuthorized(role, link: id) }
     }
 
     /// Runs a model request off the batch, at most `maximumInsightRequests` per link. The work
@@ -667,6 +673,7 @@ extension CompanionService {
     /// Closes a link and cancels its deferred work.
     private func close(_ id: UUID) {
         guard let link = links.removeValue(forKey: id) else { return }
+        link.openFlag.close()
         link.tasks.values.forEach { $0.cancel() }
         link.connection.cancel()
     }
@@ -750,6 +757,19 @@ extension CompanionService {
 
     var currentListenerGenerationForTesting: Int { listenerGeneration }
     var linkCountForTesting: Int { links.count }
+}
+
+/// Whether a link is still open, readable from any thread.
+final class LinkOpenFlag: Sendable {
+    private let state = Mutex(true)
+
+    var isOpen: Bool {
+        state.withLock { $0 }
+    }
+
+    func close() {
+        state.withLock { $0 = false }
+    }
 }
 
 enum CompanionServiceError: Error {

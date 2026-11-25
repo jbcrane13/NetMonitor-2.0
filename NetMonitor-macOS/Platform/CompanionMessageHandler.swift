@@ -60,7 +60,7 @@ final class CompanionMessageHandler {
     /// (#590): nothing runs once the phone is revoked or the link closed, and model requests
     /// check it again before the model is asked.
     func handle(_ message: CompanionMessage, from _: UUID, authorization: CompanionAuthorization) async -> CompanionMessage? {
-        guard await authorization.isCurrent() else { return nil }
+        guard authorization.isCurrent() else { return nil }
         switch message {
         case .command(let payload):
             return await handleCommand(payload)
