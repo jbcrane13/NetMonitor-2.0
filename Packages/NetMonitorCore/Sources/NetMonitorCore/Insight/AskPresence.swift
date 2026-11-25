@@ -1,33 +1,11 @@
 import Foundation
 
-/// A cited device's status as the app shows it beside an Ask answer (#452), always with its last
-/// seen. Blake's three states (#583); the model never states them (lead decision, 2026-11-25: the
-/// app computes, the model words). A stand-in for #583's shared Core `PresenceFreshness`, which it
-/// should be swapped for; it holds only these rules:
-/// - a network with no scan, or whose last scan is older than the grace interval: not checked
-///   recently, whatever the saved status says;
-/// - after a recent scan: offline when the row is offline, else online. A row that missed that
-///   scan but is still within `DeviceGracePolicy` reads online with its real last seen (lead,
-///   #583 comment).
-public enum AskPresence: Equatable, Sendable {
-    case online
-    case offline
-    case notCheckedRecently
-
-    public var label: String {
-        switch self {
-        case .online: "Online"
-        case .offline: "Offline"
-        case .notCheckedRecently: "Not checked recently"
-        }
-    }
-}
-
 public extension AskSnapshot {
-    /// The device's status as the app shows it.
-    func presence(of device: AskDevice) -> AskPresence {
-        guard scanFreshness == .fresh else { return .notCheckedRecently }
-        return device.status == .offline ? .offline : .online
+    /// A cited device's status as the app shows it beside an Ask answer (#452), always with its
+    /// last seen: Core `PresenceFreshness` (#583), the same three states and grace rule as every
+    /// device list. The model never states them; the app computes, the model words.
+    func presence(of device: AskDevice) -> PresenceFreshness {
+        PresenceFreshness.of(status: device.status, lastScan: lastScan, now: now, policy: DeviceGracePolicy(interval: staleAfter))
     }
 }
 

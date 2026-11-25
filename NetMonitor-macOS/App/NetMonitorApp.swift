@@ -94,6 +94,7 @@ struct NetMonitorApp: App {
                     PersistenceRecoveryView(recovery: recovery)
                 } else if let monitoringSession, let deviceDiscovery {
                     ContentView()
+                        .presenceEnvironment()
                         .environment(monitoringSession)
                         .environment(deviceDiscovery)
                         .environment(networkProfileManager)
@@ -332,7 +333,8 @@ struct NetMonitorApp: App {
             pipelineFactory: UITestScanFixture.pipelineFactory,
             suggester: Self.uiTestSuggester,
             scanHistory: UITestScanFixture.scanHistory(),
-            clock: UITestScanFixture.scanClock ?? Date.init
+            clock: UITestScanFixture.scanClock ?? Date.init,
+            presenceClock: UITestScanFixture.presenceClock ?? Date.init
         )
         discovery.changeTracker = UITestScanFixture.changeTracker(reset: HistoryFileLocation.current.resetRequested)
         deviceDiscovery = discovery
@@ -350,6 +352,9 @@ struct NetMonitorApp: App {
         let recorder = MacEventRecorder()
         recorder.attach(to: discovery)
         eventRecorder = recorder
+        if arguments.contains("--seed-past-device") {
+            UITestScanFixture.seedPastDevice(into: context, profileID: profileManager.activeProfile?.id)
+        }
         if arguments.contains("--seed-security-devices") {
             UITestScanFixture.seedSecurityDevices(into: context, profileID: profileManager.activeProfile?.id)
         }
@@ -463,6 +468,14 @@ enum UITestScanFixture {
         }
     }
 
+    /// With `UITEST_PRESENCE_OFFSET=<seconds>` (#583): presence is shown as of that long after the
+    /// wall clock, so a network scanned at launch reads "Not checked recently".
+    @MainActor
+    static var presenceClock: (@MainActor () -> Date)? {
+        guard let offset = ProcessInfo.processInfo.environment["UITEST_PRESENCE_OFFSET"].flatMap(TimeInterval.init) else { return nil }
+        return { Date().addingTimeInterval(offset) }
+    }
+
     /// The reconciler's scan history in the tracker's suite, emptied at every launch: a stepped
     /// `scanClock` leaves scans dated ahead, which would make the next launch's scans look older
     /// and be skipped.
@@ -522,6 +535,19 @@ enum UITestScanFixture {
             lastLatency: 5.0,
             networkProfileID: profileID
         ))
+        try? context.save()
+    }
+
+    /// `--seed-past-device` (#583): an offline TV last seen 8 days ago, a past device the list
+    /// hides behind "Show past devices". Added beside any other seeded device.
+    @MainActor
+    static func seedPastDevice(into context: ModelContext, profileID: UUID?) {
+        let row = LocalDevice(
+            ipAddress: "192.168.77.50", macAddress: "02:00:00:77:00:50", hostname: "uitest-old-tv",
+            deviceType: .tv, status: .offline, networkProfileID: profileID
+        )
+        row.lastSeen = Date().addingTimeInterval(-8 * 86400)
+        context.insert(row)
         try? context.save()
     }
 

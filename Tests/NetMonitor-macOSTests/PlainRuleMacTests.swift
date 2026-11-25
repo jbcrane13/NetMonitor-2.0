@@ -399,9 +399,12 @@ extension PlainRuleMacTests {
         let target = UUID()
         store.link(target: target, to: device.id)
         let poster = PlainRulePoster()
-        let alerts = MacRuleAlerts(store: store, service: NotificationService(poster: poster, defaults: defaults), defaults: defaults) {
-            ([device, phone], nil)
-        }
+        // The network (none here) was scanned just now, so the rows' statuses are current (#583).
+        let presence = PresenceSnapshot(lastScans: [nil: Date()], now: Date())
+        let alerts = MacRuleAlerts(
+            store: store, service: NotificationService(poster: poster, defaults: defaults), defaults: defaults,
+            currentDevices: { ([device, phone], nil) }, presence: { presence }
+        )
         func slowReading() {
             alerts.handle(targetResult: TargetCheckOutcome(
                 targetID: target, name: "NAS", host: "192.168.77.40", isReachable: true, latency: 400, wentDown: false, cameUp: false
@@ -415,6 +418,31 @@ extension PlainRuleMacTests {
         phone.status = .offline
         slowReading()
         #expect(poster.requests.map(\.content.title) == ["NAS slow"], "The NAS answers at its address again")
+    }
+
+    /// #583: an hour after the last scan, the saved "phone took the address" is old news, so the
+    /// readings count as the NAS's: no "still offline" from a stale status, and its rule fires.
+    @Test func aStaleScanIsNoEvidenceAnotherDeviceTookTheAddress() throws {
+        let (defaults, suite) = try makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = AlertRuleStore(defaults: defaults)
+        let device = nas()
+        device.status = .offline
+        let phone = LocalDevice(ipAddress: "192.168.77.40", macAddress: "02:00:00:77:00:99", hostname: "phone", deviceType: .phone)
+        phone.status = .online
+        store.add(AlertRule(name: "NAS slow", trigger: .latencyAbove(milliseconds: 100), conditions: AlertRuleConditions(deviceID: device.id)))
+        let target = UUID()
+        store.link(target: target, to: device.id)
+        let poster = PlainRulePoster()
+        let stale = PresenceSnapshot(lastScans: [nil: Date().addingTimeInterval(-3600)], now: Date())
+        let alerts = MacRuleAlerts(
+            store: store, service: NotificationService(poster: poster, defaults: defaults), defaults: defaults,
+            currentDevices: { ([device, phone], nil) }, presence: { stale }
+        )
+        alerts.handle(targetResult: TargetCheckOutcome(
+            targetID: target, name: "NAS", host: "192.168.77.40", isReachable: true, latency: 400, wentDown: false, cameUp: false
+        ))
+        #expect(poster.requests.map(\.content.title) == ["NAS slow"])
     }
 
     private actor OldAddressDownService: NetMonitor_macOS.NetworkMonitorService {

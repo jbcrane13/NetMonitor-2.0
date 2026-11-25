@@ -17,6 +17,10 @@ struct DevicesView: View {
     @State private var selectedDevice: LocalDevice?
     @State private var searchText: String = ""
     @State private var filterOnlineOnly: Bool = false
+    /// Past devices (unseen for a week, #583) are hidden at every launch, never remembered hidden:
+    /// the list always says how many there are, so none is hidden without a visible way back.
+    @State private var showPastDevices = false
+    @Environment(\.presence) private var presence
     @State private var sortOrder: DeviceSortOrder = .lastSeen
     @State private var sortAscending: Bool = false
     @AppStorage("netmonitor.devices.viewMode") private var viewMode: DeviceViewMode = .consumer
@@ -48,10 +52,17 @@ struct DevicesView: View {
     var filteredDevices: [LocalDevice] {
         DeviceList.rows(
             devices,
-            search: searchText,
-            onlineOnly: filterOnlineOnly,
+            filter: DeviceListFilter(search: searchText, onlineOnly: filterOnlineOnly, showPast: showPastDevices),
+            presence: presence,
             sort: sortOrder,
             ascending: sortAscending
+        )
+    }
+
+    /// The N in "Show past devices (N)".
+    private var pastDeviceCount: Int {
+        DeviceList.pastCount(
+            devices, filter: DeviceListFilter(search: searchText, onlineOnly: filterOnlineOnly), presence: presence
         )
     }
 
@@ -181,7 +192,7 @@ struct DevicesView: View {
 
     private var deviceList: some View {
         Group {
-            if filteredDevices.isEmpty && coordinator?.isScanning != true {
+            if filteredDevices.isEmpty && pastDeviceCount == 0 && coordinator?.isScanning != true {
                 ContentUnavailableView(
                     "No Devices Found",
                     systemImage: "network",
@@ -216,6 +227,7 @@ struct DevicesView: View {
                         .accessibilityIdentifier("devices_card_\(device.ipAddress)")
                         .contextMenu { deviceContextMenu(for: device) }
                 }
+                pastDevicesToggle
             }
             .padding()
         }
@@ -225,7 +237,7 @@ struct DevicesView: View {
 
     private var proModeFullScreenList: some View {
         Group {
-            if filteredDevices.isEmpty && coordinator?.isScanning != true {
+            if filteredDevices.isEmpty && pastDeviceCount == 0 && coordinator?.isScanning != true {
                 ContentUnavailableView(
                     "No Devices Found",
                     systemImage: "network",
@@ -261,9 +273,26 @@ struct DevicesView: View {
                         .fill(MacTheme.Colors.divider)
                         .frame(height: 1)
                 }
+                pastDevicesToggle
+                    .padding(.vertical, 8)
             }
         }
         .background(MacTheme.Colors.chartSurface)
+    }
+
+    /// "Show past devices (N)" under the list, while there are any (#583).
+    @ViewBuilder
+    private var pastDevicesToggle: some View {
+        if pastDeviceCount > 0 {
+            Button(showPastDevices ? "Hide past devices" : "Show past devices (\(pastDeviceCount))") {
+                showPastDevices.toggle()
+            }
+            .buttonStyle(.link)
+            .font(.caption)
+            .foregroundStyle(MacTheme.Colors.labelSecondary)
+            .help("Devices not seen for \(PresenceFreshness.pastDeviceDays) days while this network was scanned")
+            .accessibilityIdentifier("devices_button_showPast")
+        }
     }
 
     private var proModeHeaderRow: some View {

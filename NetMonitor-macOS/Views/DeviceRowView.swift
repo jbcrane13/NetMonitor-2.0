@@ -4,12 +4,11 @@ import NetMonitorCore
 struct DeviceRowView: View {
     let device: LocalDevice
 
+    @Environment(\.presence) private var presence
+
     var body: some View {
         HStack(spacing: 12) {
-            // Status indicator
-            Circle()
-                .fill(MacTheme.Colors.statusColor(device.status.statusType))
-                .frame(width: 8, height: 8)
+            PresenceDot(freshness: presence.freshness(of: device))
 
             // Device icon
             Image(systemName: device.deviceType.iconName)
@@ -26,6 +25,8 @@ struct DeviceRowView: View {
                     .font(.caption)
                     .foregroundStyle(MacTheme.Colors.labelSecondary)
                     .fontDesign(.monospaced)
+
+                PresenceStatusLabel(device: device, font: .caption2)
             }
 
             Spacer()

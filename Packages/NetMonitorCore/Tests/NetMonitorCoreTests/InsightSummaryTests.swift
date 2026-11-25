@@ -201,9 +201,12 @@ struct ReportSummaryBuilderTests {
         return calendar
     }()
 
-    func device(_ ip: String, name: String? = nil, status: DeviceStatus = .online, firstSeenDaysAgo: Double = 30) -> LocalDevice {
+    func device(
+        _ ip: String, name: String? = nil, status: DeviceStatus = .online, firstSeenDaysAgo: Double = 30, lastSeenDaysAgo: Double = 0
+    ) -> LocalDevice {
         let device = LocalDevice(ipAddress: ip, macAddress: "", customName: name, status: status)
         device.firstSeen = Self.now.addingTimeInterval(-firstSeenDaysAgo * Self.day)
+        device.lastSeen = Self.now.addingTimeInterval(-lastSeenDaysAgo * Self.day)
         return device
     }
 
@@ -213,8 +216,14 @@ struct ReportSummaryBuilderTests {
         return test
     }
 
-    func build(_ devices: [LocalDevice] = [], _ results: [ToolResult] = [], _ tests: [SpeedTestResult] = []) -> InsightRequest? {
-        ReportSummaryBuilder.request(devices: devices, toolResults: results, speedTests: tests, now: Self.now, calendar: Self.utc)
+    /// Every device's network (none) scanned a minute before the report.
+    static let freshPresence = PresenceSnapshot(lastScans: [nil: now - 60], now: now)
+
+    func build(
+        _ devices: [LocalDevice] = [], _ results: [ToolResult] = [], _ tests: [SpeedTestResult] = [],
+        presence: PresenceSnapshot = freshPresence
+    ) -> InsightRequest? {
+        ReportSummaryBuilder.request(devices: devices, toolResults: results, speedTests: tests, presence: presence, now: Self.now, calendar: Self.utc)
     }
 
     @Test func nothingToSummarizeGivesNoRequest() {
@@ -232,6 +241,7 @@ struct ReportSummaryBuilderTests {
         #expect(request?.facts == [
             "Report date: November 18, 2026",
             "Number of devices: 2",
+            "Latest device scan: 1 min ago",
             "Devices online: 2",
             "Devices offline: 0",
             "Number of speed tests: 2",
@@ -268,9 +278,10 @@ struct ReportSummaryBuilderTests {
         #expect(request?.facts == [
             "Report date: November 18, 2026",
             "Number of devices: 8",
-            "Devices online: 4",
+            "Latest device scan: 1 min ago",
+            // Idle and cached rows are within grace: online, with their last seen (#583).
+            "Devices online: 6",
             "Devices offline: 2",
-            "Devices idle or not answering: 2",
             "Number of speed tests: 3",
             "Latest download: 100.0 Mbps",
             "Latest upload: 10.0 Mbps",
@@ -283,6 +294,40 @@ struct ReportSummaryBuilderTests {
             "The latest download speed, 100.0 Mbps, is well below the average of 240.0 Mbps.",
             "3 tool runs failed: Ping (2), Port Scanner (1)."
         ])
+    }
+
+    /// #583: after a 3-hour-old scan the summary has no online count implying now, and a TV last
+    /// seen 3 months ago is a past device, not an offline one.
+    @Test func anOldScanStatesNoOnlineCountAndPastDevicesAreCountedApart() {
+        let stale = PresenceSnapshot(lastScans: [nil: Self.now - 3 * 3600], now: Self.now)
+        let request = build(
+            [device("10.0.0.1", name: "Router"), device("10.0.0.2", status: .offline, lastSeenDaysAgo: 0.2),
+             device("10.0.0.9", name: "Old TV", status: .offline, lastSeenDaysAgo: 90)],
+            presence: stale
+        )
+        let facts = request?.facts ?? []
+        #expect(facts.contains("Number of devices: 2"))
+        #expect(facts.contains("Latest device scan: 3 hours ago"))
+        #expect(facts.contains("Devices not checked recently: 2"))
+        #expect(facts.contains("Past devices (not seen for 7 days): 1"))
+        #expect(!facts.contains { $0.hasPrefix("Devices online") || $0.hasPrefix("Devices offline") }, "\(facts)")
+        #expect(request?.observations == ["2 devices were not checked recently: the latest scan was 3 hours ago."])
+    }
+
+    @Test func aPastDeviceIsNotCountedOfflineAfterAFreshScan() {
+        let request = build([device("10.0.0.1"), device("10.0.0.9", name: "Old TV", status: .offline, lastSeenDaysAgo: 90)])
+        let facts = request?.facts ?? []
+        #expect(facts.contains("Number of devices: 1"))
+        #expect(facts.contains("Devices offline: 0"))
+        #expect(facts.contains("Past devices (not seen for 7 days): 1"))
+        #expect(request?.observations.isEmpty == true)
+    }
+
+    @Test func withoutAnyScanNoDeviceCountsAsOnline() {
+        let request = build([device("10.0.0.1")], presence: PresenceSnapshot(lastScans: [:], now: Self.now))
+        #expect(request?.facts.contains("Devices not checked recently: 1") == true)
+        #expect(request?.facts.contains("Latest device scan: none recorded") == true)
+        #expect(request?.observations == ["1 device was not checked recently: no scan has been recorded."])
     }
 
     @Test func oneOfEachIsWordedInTheSingular() {

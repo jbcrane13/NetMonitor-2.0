@@ -18,6 +18,7 @@ struct DeviceDetailView: View {
     @State private var showsLabelCapture = false
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @Environment(DevicePresenceModel.self) private var presenceModel: DevicePresenceModel?
 
     init(ipAddress: String, networkID: UUID? = nil, macAddress: String? = nil) {
         entry = .scanned(ipAddress: ipAddress, networkID: networkID, macAddress: macAddress)
@@ -135,6 +136,10 @@ struct DeviceDetailView: View {
         .accessibilityIdentifier("screen_deviceDetail")
     }
 
+    private var presence: PresenceSnapshot {
+        presenceModel?.snapshot ?? DevicePresenceModel.noScans
+    }
+
     // MARK: - Header Section
 
     private func headerSection(_ device: LocalDevice) -> some View {
@@ -150,15 +155,15 @@ struct DeviceDetailView: View {
                 .foregroundStyle(Theme.Colors.textPrimary)
                 .accessibilityIdentifier("deviceDetail_label_displayName")
 
+            // What the saved status means now (#583); the presence model refreshes every minute.
             HStack(spacing: 8) {
-                Circle()
-                    .fill(device.status.color)
-                    .frame(width: 8, height: 8)
-
-                Text(device.status.statusType.label)
+                PresenceDot(freshness: presence.freshness(of: device))
+                Text(presence.statusText(device))
                     .font(.subheadline)
                     .foregroundStyle(Theme.Colors.textSecondary)
             }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(presence.accessibilityText(device))
             .accessibilityIdentifier("deviceDetail_label_status")
 
             if let maker = device.maker {
@@ -621,7 +626,7 @@ extension DeviceDetailView {
         MAC: \(device.macAddress.isEmpty ? "—" : device.macAddress)
         Manufacturer: \(device.maker ?? "Unknown")
         Type: \(device.deviceType.rawValue)
-        Status: \(device.status.rawValue)
+        Status: \(presence.freshness(of: device).label)
         First Seen: \(dateFormatter.string(from: device.firstSeen))
         Last Seen: \(dateFormatter.string(from: device.lastSeen))
         """

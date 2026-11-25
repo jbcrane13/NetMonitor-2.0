@@ -12,6 +12,8 @@ struct ChangeBriefMacViewModelTests {
     /// 2026-11-22 12:00 UTC.
     let now = Date(timeIntervalSince1970: 1_795_348_800)
     let home = UUID()
+    /// No scan recorded: no device is a past one unless unseen for a week before now.
+    let noScans = PresenceSnapshot(lastScans: [:], now: Date())
     let events = NetworkEventService()
     static let answer = "A device joined the network."
 
@@ -32,7 +34,7 @@ struct ChangeBriefMacViewModelTests {
         _ viewModel: ChangeBriefMacViewModel, _ insight: MockInsightService, devices: [LocalDevice] = [],
         with update: InsightUpdate, index: Int = 0
     ) async {
-        let task = Task { await viewModel.refresh(devices: devices, networkProfileID: home, isScanning: false) }
+        let task = Task { await viewModel.refresh(devices: devices, networkProfileID: home, presence: noScans, isScanning: false) }
         await waitUntil { insight.requests.count > index }
         insight.send(update, to: index)
         await task.value
@@ -81,6 +83,25 @@ struct ChangeBriefMacViewModelTests {
         #expect(request.facts.suffix(2) == ["Devices found by the last scan: 1", "Saved devices not found by the last scan: 1"])
     }
 
+    /// #583: a device unseen for a month is a past device, not one the last scan didn't find.
+    @Test func pastDevicesAreNotCountedAsNotFound() async throws {
+        let old = LocalDevice(ipAddress: "192.168.77.22", macAddress: "00:1B:A9:77:00:22", status: .offline, networkProfileID: home)
+        old.lastSeen = Date().addingTimeInterval(-30 * 86_400)
+        let rows = [
+            LocalDevice(ipAddress: "192.168.77.20", macAddress: "00:1B:A9:77:00:20", status: .online, networkProfileID: home),
+            LocalDevice(ipAddress: "192.168.77.21", macAddress: "00:1B:A9:77:00:21", status: .offline, networkProfileID: home),
+            old
+        ]
+        let insight = MockInsightService()
+        let viewModel = makeViewModel(insight)
+        logJoin("uitest-printer", profileID: home)
+
+        await refreshAnswering(viewModel, insight, devices: rows, with: .finished(Self.answer))
+
+        let request = try #require(insight.requests.first)
+        #expect(request.facts.suffix(2) == ["Devices found by the last scan: 1", "Saved devices not found by the last scan: 1"])
+    }
+
     @Test func theLatestTwoSavedSpeedTestsAreCompared() async throws {
         let tests = [
             SpeedTestHistoryEntry(timestamp: now.addingTimeInterval(-3 * 86_400), downloadMbps: 500, uploadMbps: 50, pingMs: 9),
@@ -106,7 +127,7 @@ struct ChangeBriefMacViewModelTests {
         logJoin("uitest-printer", profileID: home)
         await refreshAnswering(viewModel, insight, with: .finished(Self.answer))
 
-        await viewModel.refresh(devices: [], networkProfileID: home, isScanning: false)
+        await viewModel.refresh(devices: [], networkProfileID: home, presence: noScans, isScanning: false)
 
         #expect(insight.requests.count == 1)
         #expect(viewModel.brief?.text == Self.answer)
@@ -132,7 +153,7 @@ struct ChangeBriefMacViewModelTests {
         logJoin("uitest-printer", profileID: home)
         await refreshAnswering(viewModel, insight, with: .finished(Self.answer))
 
-        await viewModel.refresh(devices: [], networkProfileID: UUID(), isScanning: true)
+        await viewModel.refresh(devices: [], networkProfileID: UUID(), presence: noScans, isScanning: true)
 
         #expect(viewModel.brief == nil)
     }
@@ -144,7 +165,7 @@ struct ChangeBriefMacViewModelTests {
         await refreshAnswering(viewModel, insight, with: .finished(Self.answer))
         logJoin("uitest-camera", profileID: home, ip: "192.168.77.21", secondsAgo: 60)
 
-        let second = Task { await viewModel.refresh(devices: [], networkProfileID: home, isScanning: false) }
+        let second = Task { await viewModel.refresh(devices: [], networkProfileID: home, presence: noScans, isScanning: false) }
         await waitUntil { insight.requests.count == 2 }
         #expect(viewModel.brief == nil)
         insight.send(.finished("Two devices joined the network."), to: 1)
@@ -170,7 +191,7 @@ struct ChangeBriefMacViewModelTests {
         let viewModel = makeViewModel(insight)
         logJoin("uitest-printer", profileID: home)
 
-        await viewModel.refresh(devices: [], networkProfileID: home, isScanning: true)
+        await viewModel.refresh(devices: [], networkProfileID: home, presence: noScans, isScanning: true)
 
         #expect(insight.requests.isEmpty)
         #expect(viewModel.brief == nil)
@@ -181,7 +202,7 @@ struct ChangeBriefMacViewModelTests {
         let viewModel = makeViewModel(insight)
         logJoin("uitest-printer", profileID: home)
 
-        await viewModel.refresh(devices: [], networkProfileID: home, isScanning: false)
+        await viewModel.refresh(devices: [], networkProfileID: home, presence: noScans, isScanning: false)
 
         #expect(insight.requests.isEmpty)
         #expect(viewModel.brief == nil)
@@ -203,7 +224,7 @@ struct ChangeBriefMacViewModelTests {
         events.log(NetworkEvent(type: .scanComplete, timestamp: now.addingTimeInterval(-60), title: "Scan Complete — 2 devices found",
                                 networkProfileID: home))
 
-        await viewModel.refresh(devices: [], networkProfileID: home, isScanning: false)
+        await viewModel.refresh(devices: [], networkProfileID: home, presence: noScans, isScanning: false)
 
         #expect(insight.requests.isEmpty)
         #expect(viewModel.brief == nil)
@@ -216,7 +237,7 @@ struct ChangeBriefMacViewModelTests {
         let viewModel = makeViewModel(insight)
         logJoin("cabin-tv", profileID: UUID())
 
-        await viewModel.refresh(devices: [], networkProfileID: home, isScanning: false)
+        await viewModel.refresh(devices: [], networkProfileID: home, presence: noScans, isScanning: false)
 
         #expect(insight.requests.isEmpty)
     }
@@ -275,7 +296,7 @@ struct ChangeBriefMacViewModelTests {
         events.log(NetworkEvent(type: .connectivityChange, timestamp: now.addingTimeInterval(-60), title: "UITest Event Today",
                                 networkProfileID: home))
 
-        await viewModel.refresh(devices: [], networkProfileID: home, isScanning: false)
+        await viewModel.refresh(devices: [], networkProfileID: home, presence: noScans, isScanning: false)
 
         #expect(viewModel.brief?.text == ChangeBriefMacViewModel.uiTestAnswer)
         #expect(viewModel.brief?.keyPoints == ["1 device joined the network."])

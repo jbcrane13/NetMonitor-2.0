@@ -14,19 +14,22 @@ public enum ReportSummaryBuilder {
     /// summarize. Speed figures use every saved test, as the report's own Summary section
     /// does; the apps save only tests that completed.
     /// - Parameters:
+    ///   - presence: what each device's saved status means as of the report (#583): online,
+    ///     offline or not checked recently, from its network's latest scan.
     ///   - now: the report time, used for the report date.
     ///   - calendar: writes the report date in the reader's time zone.
     public static func request(
         devices: [LocalDevice],
         toolResults: [ToolResult],
         speedTests: [SpeedTestResult],
+        presence: PresenceSnapshot,
         now: Date = Date(),
         calendar: Calendar = .current
     ) -> InsightRequest? {
         guard !devices.isEmpty || !toolResults.isEmpty || !speedTests.isEmpty else { return nil }
         var facts = ["Report date: \(longDay(now, calendar))"]
         var observations: [String] = []
-        addDevices(devices, facts: &facts, observations: &observations)
+        addDevices(devices, presence: presence, facts: &facts, observations: &observations)
         addSpeedTests(speedTests, facts: &facts, observations: &observations)
         addToolResults(toolResults, facts: &facts, observations: &observations)
         return InsightRequest(subject: "Network report", facts: facts, observations: observations, kind: .summary)
@@ -34,19 +37,40 @@ public enum ReportSummaryBuilder {
 
     // MARK: - Sections
 
-    private static func addDevices(_ devices: [LocalDevice], facts: inout [String], observations: inout [String]) {
-        let online = devices.count { $0.status == .online }
-        let offline = devices.count { $0.status == .offline }
-        // Idle devices and ones only left in the ARP cache are neither online nor offline.
-        let other = devices.count - online - offline
-        facts.append("Number of devices: \(devices.count)")
-        facts.append("Devices online: \(online)")
-        facts.append("Devices offline: \(offline)")
-        if other > 0 {
-            facts.append("Devices idle or not answering: \(other)")
+    /// Devices by `PresenceFreshness` (#583). Online and offline are counted only for devices whose
+    /// network was checked recently, so an old scan never gives an online count that reads as now.
+    /// Past devices are counted apart, never as offline.
+    private static func addDevices(_ devices: [LocalDevice], presence: PresenceSnapshot, facts: inout [String], observations: inout [String]) {
+        guard !devices.isEmpty else {
+            facts.append("Number of devices: 0")
+            return
+        }
+        let past = devices.count { presence.isPast($0) }
+        let current = devices.filter { !presence.isPast($0) }
+        let states = current.map { presence.freshness(of: $0) }
+        let notChecked = states.count(where: { $0 == .notCheckedRecently })
+        let offline = states.count(where: { $0 == .offline })
+        let latest = Set(devices.map(\.networkProfileID)).compactMap { presence.lastScan(for: $0) }.max()
+        let latestText = latest.map { PresenceFreshness.relativeText(since: $0, now: presence.now) }
+
+        facts.append("Number of devices: \(current.count)")
+        facts.append("Latest device scan: \(latestText ?? "none recorded")")
+        if notChecked < current.count {
+            facts.append("Devices online: \(states.count(where: { $0 == .online }))")
+            facts.append("Devices offline: \(offline)")
+        }
+        if notChecked > 0 {
+            facts.append("Devices not checked recently: \(notChecked)")
+        }
+        if past > 0 {
+            facts.append("Past devices (not seen for \(PresenceFreshness.pastDeviceDays) days): \(past)")
         }
         if offline > 0 {
             observations.append("\(ToolInsightBuilder.plural(offline, "device")) \(offline == 1 ? "is" : "are") offline.")
+        }
+        if notChecked > 0 {
+            let when = latestText.map { "the latest scan was \($0)" } ?? "no scan has been recorded"
+            observations.append("\(ToolInsightBuilder.plural(notChecked, "device")) \(notChecked == 1 ? "was" : "were") not checked recently: \(when).")
         }
     }
 

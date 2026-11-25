@@ -68,6 +68,14 @@ final class DeviceDiscoveryCoordinator {
     private let gracePolicy: DeviceGracePolicy
     /// When a scan happens; read once per scan. UI tests step it to pass the grace interval.
     private let clock: @MainActor () -> Date
+    /// The time presence is shown as of (#583); UI tests move it ahead to show a stale network.
+    private let presenceClock: @MainActor () -> Date
+    /// The latest time `clock` gave. Presence is shown as of it when it is ahead of
+    /// `presenceClock`, as under the UI tests' stepped scan clock.
+    private var lastScanClockReading: Date?
+    /// Bumped once a scan is recorded in `scanHistory`, which isn't observable, so views reading
+    /// `presence()` update.
+    private var presenceRevision = 0
     /// How the reconciler reads the rows; tests make it fail.
     private let reconcilerFetch: @MainActor (ModelContext) throws -> [LocalDevice]
 
@@ -115,6 +123,7 @@ final class DeviceDiscoveryCoordinator {
         scanHistory: ScanHistory = ScanHistory(),
         gracePolicy: DeviceGracePolicy = DeviceGracePolicy(),
         clock: @escaping @MainActor () -> Date = Date.init,
+        presenceClock: @escaping @MainActor () -> Date = Date.init,
         reconcilerFetch: @escaping @MainActor (ModelContext) throws -> [LocalDevice] = ScanReconciler.fetchAllRows
     ) {
         self.modelContext = modelContext
@@ -130,6 +139,7 @@ final class DeviceDiscoveryCoordinator {
         self.scanHistory = scanHistory
         self.gracePolicy = gracePolicy
         self.clock = clock
+        self.presenceClock = presenceClock
         self.reconcilerFetch = reconcilerFetch
         self.changeTracker = DeviceChangeTracker(policy: gracePolicy)
         self.networkProfile = networkProfileManager.activeProfile
@@ -151,7 +161,7 @@ final class DeviceDiscoveryCoordinator {
 
         let profileID = effectiveProfileID()
         // The scan's one time: the sparse merge, the reconcile and the change tracker share it.
-        let scanTime = clock()
+        let scanTime = readClock()
         loadPersistedDevices(for: profileID)
         // Rows from before #393, used only when this network has no tracker state yet, so an
         // update doesn't report every existing device as new. Every row counts as confirmed:
@@ -425,7 +435,7 @@ final class DeviceDiscoveryCoordinator {
 
     @discardableResult
     func reconcileScan(_ scan: [DiscoveredDevice], profileID: UUID?, now: Date? = nil) -> Bool {
-        let now = now ?? clock()
+        let now = now ?? readClock()
         // The reconciler reads the store, so rows still unsaved here must reach it first.
         saveContext("devices before reconciling")
         let reconciler = ScanReconciler(
@@ -441,6 +451,7 @@ final class DeviceDiscoveryCoordinator {
         }
         loadPersistedDevices(for: profileID)
         guard case .applied(let answered, let latencies) = outcome else { return false }
+        presenceRevision += 1
         let inference = DeviceTypeInferenceService()
         for row in discoveredDevices {
             if answered.contains(row.id) {
@@ -564,6 +575,20 @@ final class DeviceDiscoveryCoordinator {
         let pingService = ShellPingService()
         let result = try? await pingService.ping(host: host, count: 3, timeout: 2)
         return result?.isReachable == true ? result?.minLatency : nil
+    }
+
+    /// What every saved row's status means now (#583): each network's last scan, read once, as of
+    /// the later of `presenceClock` and the last scan's time.
+    func presence() -> PresenceSnapshot {
+        _ = presenceRevision
+        let now = max(presenceClock(), lastScanClockReading ?? .distantPast)
+        return scanHistory.presenceSnapshot(now: now, policy: gracePolicy)
+    }
+
+    private func readClock() -> Date {
+        let now = clock()
+        lastScanClockReading = max(now, lastScanClockReading ?? .distantPast)
+        return now
     }
 
     private func loadPersistedDevices(for profileID: UUID?) {

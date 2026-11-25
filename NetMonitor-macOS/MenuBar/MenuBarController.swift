@@ -51,6 +51,8 @@ final class MenuBarController: NSObject {
             deviceDiscovery: deviceDiscovery,
             onClose: { [weak self] in self?.closePopover() }
         )
+        .presenceEnvironment()
+        .environment(deviceDiscovery)
         popover?.contentViewController = NSHostingController(rootView: contentView)
 
         // Start observing monitoring state to keep the icon updated

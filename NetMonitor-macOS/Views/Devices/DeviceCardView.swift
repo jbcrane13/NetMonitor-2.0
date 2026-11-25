@@ -8,6 +8,7 @@ struct DeviceCardView: View {
     let isSelected: Bool
 
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.presence) private var presence
 
     var body: some View {
         VStack(spacing: 0) {
@@ -15,12 +16,12 @@ struct DeviceCardView: View {
                 // Status indicator and icon
                 ZStack {
                     Circle()
-                        .fill(MacTheme.Colors.statusColor(device.status.statusType).opacity(0.2))
+                        .fill(MacTheme.Colors.presenceColor(presence.freshness(of: device)).opacity(0.2))
                         .frame(width: 48, height: 48)
 
                     Image(systemName: device.deviceType.iconName)
                         .font(.title3)
-                        .foregroundStyle(MacTheme.Colors.statusColor(device.status.statusType))
+                        .foregroundStyle(MacTheme.Colors.presenceColor(presence.freshness(of: device)))
                 }
 
                 // Device info
@@ -62,17 +63,14 @@ struct DeviceCardView: View {
 
                 // Connection info
                 VStack(alignment: .trailing, spacing: 4) {
-                    HStack(spacing: 4) {
-                        Circle()
-                            .fill(MacTheme.Colors.statusColor(device.status.statusType))
-                            .frame(width: 8, height: 8)
+                    PresenceStatusLabel(device: device, showsLastSeen: false)
+                    Text(presence.lastSeenText(device))
+                        .font(.caption2)
+                        .foregroundStyle(MacTheme.Colors.labelTertiary)
+                        .accessibilityHidden(true)
 
-                        Text(device.status == .cached ? "Cached" : device.status == .online ? "Online" : "Offline")
-                            .font(.caption)
-                            .foregroundStyle(device.status == .online ? MacTheme.Colors.success : MacTheme.Colors.labelSecondary)
-                    }
-
-                    if let latency = device.lastLatency {
+                    // A latency is news only while the device is online (#583).
+                    if let latency = presence.currentLatency(device) {
                         Text(latencyText(latency))
                             .font(.caption2)
                             .foregroundStyle(MacTheme.Colors.latencyColor(ms: latency))

@@ -11,6 +11,7 @@ struct DeviceDetailView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(DeviceDiscoveryCoordinator.self) private var discoveryCoordinator: DeviceDiscoveryCoordinator?
     @Environment(\.appAccentColor) private var accentColor
+    @Environment(\.presence) private var presence
 
     @Environment(\.dismiss) private var dismiss
 
@@ -96,12 +97,12 @@ struct DeviceDetailView: View {
         HStack(spacing: 16) {
             ZStack {
                 Circle()
-                    .fill(MacTheme.Colors.statusColor(device.status.statusType).opacity(0.2))
+                    .fill(MacTheme.Colors.presenceColor(presence.freshness(of: device)).opacity(0.2))
                     .frame(width: 64, height: 64)
 
                 Image(systemName: device.deviceType.iconName)
                     .font(.title)
-                    .foregroundStyle(MacTheme.Colors.statusColor(device.status.statusType))
+                    .foregroundStyle(MacTheme.Colors.presenceColor(presence.freshness(of: device)))
             }
 
             VStack(alignment: .leading, spacing: 4) {
@@ -115,15 +116,8 @@ struct DeviceDetailView: View {
                         .fontWeight(.semibold)
                 }
 
-                HStack(spacing: 8) {
-                    Circle()
-                        .fill(MacTheme.Colors.statusColor(device.status.statusType))
-                        .frame(width: 8, height: 8)
-
-                    Text(device.status == .cached ? "Cached" : device.status == .online ? "Online" : "Offline")
-                        .font(.subheadline)
-                        .foregroundStyle(MacTheme.Colors.labelSecondary)
-                }
+                PresenceStatusLabel(device: device, font: .subheadline)
+                    .accessibilityIdentifier("deviceDetail_label_presence")
 
                 if let maker = device.maker {
                     Text(maker)
@@ -480,7 +474,7 @@ struct DeviceDetailView: View {
     // MARK: - Computed Properties
 
     private var timeSinceLastSeen: String {
-        DeviceList.recencyLabel(since: device.lastSeen, style: .long)
+        PresenceFreshness.relativeText(since: device.lastSeen, now: presence.now)
     }
 
     private var totalTimeTracked: String {
