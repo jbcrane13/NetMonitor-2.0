@@ -35,7 +35,7 @@ struct CompanionServiceFramingTests {
     @Test("a frame with a type this build doesn't know decodes as unknown, gets no reply, and the next frame still decodes (#457)")
     func unknownTypeFrameKeepsConnection() async throws {
         let service = CompanionService()
-        let unknown = Data(#"{"protocolVersion":1,"type":"futureThing","payload":{}}"#.utf8)
+        let unknown = Data(#"{"protocolVersion":2,"type":"futureThing","payload":{}}"#.utf8)
         var length = UInt32(unknown.count).bigEndian
         var stream = Data(bytes: &length, count: 4)
         stream.append(unknown)
