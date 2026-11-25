@@ -774,8 +774,8 @@ struct LocalDevicesCard: View {
                         case .saved(let device):
                             SavedDeviceRow(device: device, list: list)
                         case .found(let device):
-                            DeviceRow(device: device)
-                                .accessibilityValue(DeviceListView.foundInThisScan)
+                            DeviceRow(device: device, isOnline: list.freshness(of: device).isOnline)
+                                .accessibilityValue(list.foundText(device))
                         }
                         if entry.id != entries.last?.id {
                             Divider()
@@ -880,6 +880,8 @@ struct SavedDeviceRow: View {
 
 struct DeviceRow: View {
     let device: DiscoveredDevice
+    /// Whether the sighting is recent (#583): an old one shows no live dot or latency.
+    var isOnline = true
 
     var body: some View {
         HStack(spacing: 12) {
@@ -910,12 +912,12 @@ struct DeviceRow: View {
             Spacer()
 
             HStack(spacing: 6) {
-                Circle()
-                    .fill(Theme.Colors.success)
-                    .frame(width: 6, height: 6)
-                Text(device.latencyText)
-                    .font(.system(size: 13, weight: .bold, design: .rounded))
-                    .foregroundStyle(Theme.Colors.success)
+                PresenceDot(freshness: isOnline ? .online : .notCheckedRecently, size: 6)
+                if isOnline {
+                    Text(device.latencyText)
+                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                        .foregroundStyle(Theme.Colors.success)
+                }
             }
         }
         .padding(.vertical, 4)

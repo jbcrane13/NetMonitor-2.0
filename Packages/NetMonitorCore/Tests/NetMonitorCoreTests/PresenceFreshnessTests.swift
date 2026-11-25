@@ -123,4 +123,30 @@ struct PresenceFreshnessPastTests {
         #expect(presence.isNetworkChecked(home))
         #expect(!presence.isNetworkChecked(nil))
     }
+
+    /// The companion feed's sighting (#598): only a device that answered the latest recent scan.
+    @Test func onlyADeviceThatAnsweredTheLatestRecentScanCountsAsAnswering() {
+        let home = UUID()
+        func row(_ status: DeviceStatus, seen: Date) -> LocalDevice {
+            let row = LocalDevice(ipAddress: "192.168.1.9", macAddress: "", status: status, networkProfileID: home)
+            row.lastSeen = seen
+            return row
+        }
+        let presence = PresenceSnapshot(lastScans: [home: scan], now: scan + 60)
+        #expect(presence.answeredLatestScan(row(.online, seen: scan)))
+        #expect(!presence.answeredLatestScan(row(.cached, seen: scan - 600)), "only the ARP cache listed it")
+        #expect(!presence.answeredLatestScan(row(.online, seen: scan - 600)), "within grace, but missed the scan")
+        #expect(!presence.answeredLatestScan(row(.offline, seen: scan - 3600)))
+        let stale = PresenceSnapshot(lastScans: [home: scan], now: scan + 3600)
+        #expect(!stale.answeredLatestScan(row(.online, seen: scan)), "the scan is old")
+    }
+
+    @Test func aLatencyIsShownOnlyWhileTheDeviceIsOnline() {
+        let home = UUID()
+        let row = LocalDevice(ipAddress: "192.168.1.9", macAddress: "", status: .online, lastLatency: 4, networkProfileID: home)
+        #expect(PresenceSnapshot(lastScans: [home: scan], now: scan).currentLatency(row) == 4)
+        #expect(PresenceSnapshot(lastScans: [home: scan], now: scan + 3600).currentLatency(row) == nil, "not checked recently")
+        row.status = .offline
+        #expect(PresenceSnapshot(lastScans: [home: scan], now: scan).currentLatency(row) == nil, "offline")
+    }
 }

@@ -61,7 +61,9 @@ struct DevicesView: View {
 
     /// The N in "Show past devices (N)".
     private var pastDeviceCount: Int {
-        DeviceList.pastCount(devices, search: searchText, presence: presence)
+        DeviceList.pastCount(
+            devices, filter: DeviceListFilter(search: searchText, onlineOnly: filterOnlineOnly), presence: presence
+        )
     }
 
     private var selectedNetwork: NetworkProfile? {

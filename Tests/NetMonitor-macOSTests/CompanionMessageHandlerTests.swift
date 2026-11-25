@@ -142,6 +142,29 @@ struct CompanionMessageHandlerTests {
         #expect(payload.devices[0].isOnline == true)
     }
 
+    /// #583, #598: a device the latest scan found only in the ARP cache didn't answer, so the feed
+    /// doesn't report it online, though it reads Online in the Mac's list within grace.
+    @Test func generateDeviceListReportsOnlyDevicesThatAnsweredTheLatestScan() throws {
+        let (container, _, handler, coordinator, _) = try makeFixture()
+        _ = container
+        let printer = LocalDiscoveredDevice(ipAddress: "192.168.1.44", macAddress: "AA:BB:CC:DD:EE:44", hostname: "printer.local")
+        let phone = LocalDiscoveredDevice(ipAddress: "192.168.1.45", macAddress: "AA:BB:CC:DD:EE:45", hostname: "phone.local")
+        let start = Date()
+        coordinator.reconcileScan([printer, phone], profileID: nil, now: start)
+        let cachedPrinter = LocalDiscoveredDevice(
+            ipAddress: "192.168.1.44", macAddress: "AA:BB:CC:DD:EE:44", hostname: "printer.local", isCached: true
+        )
+        coordinator.reconcileScan([cachedPrinter, phone], profileID: nil, now: start.addingTimeInterval(60))
+
+        guard case .deviceList(let payload) = handler.generateDeviceList() else {
+            Issue.record("Expected a device list")
+            return
+        }
+        let online = Dictionary(uniqueKeysWithValues: payload.devices.map { ($0.ipAddress, $0.isOnline) })
+        #expect(online["192.168.1.45"] == true)
+        #expect(online["192.168.1.44"] == false)
+    }
+
     /// #462 keeps friendly names out of `hostname`; the feed has no friendly-name field (#427),
     /// so a device known only by its UPnP or UniFi name still reaches iOS with that name.
     @Test func generateDeviceListSendsTheFriendlyNameWithoutAHostname() throws {

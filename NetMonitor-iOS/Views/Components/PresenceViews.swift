@@ -18,7 +18,8 @@ extension Theme.Colors {
 /// the states never differ by colour alone. Hidden from VoiceOver; the text beside it says it.
 struct PresenceDot: View {
     let freshness: PresenceFreshness
-    var size: CGFloat = 8
+    var size: CGFloat = Theme.Layout.presenceDotSize
+    var accessibilityID: String?
 
     var body: some View {
         Group {
@@ -34,6 +35,7 @@ struct PresenceDot: View {
         .foregroundStyle(Theme.Colors.presence(freshness))
         .frame(width: size, height: size)
         .accessibilityHidden(true)
+        .accessibilityIdentifier(accessibilityID ?? "")
     }
 }
 
@@ -41,14 +43,16 @@ struct PresenceDot: View {
 struct PresenceLine: View {
     let freshness: PresenceFreshness
     let text: String
+    var accessibilityID: String?
 
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: Theme.Layout.inlineSpacing) {
             PresenceDot(freshness: freshness)
             Text(text)
                 .font(.caption2)
                 .foregroundStyle(freshness == .online ? Theme.Colors.success : Theme.Colors.textSecondary)
                 .lineLimit(1)
         }
+        .accessibilityIdentifier(accessibilityID ?? "")
     }
 }

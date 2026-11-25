@@ -139,7 +139,8 @@ final class CompanionMessageHandler {
 
     /// Generate device list message
     func generateDeviceList() -> CompanionMessage {
-        // Online means online now: the network's last scan is recent too (#583).
+        // Online means it answered the network's latest scan, and that scan is recent (#583,
+        // #598): never a row within grace that missed it, nor one only the ARP cache listed.
         let presence = deviceDiscovery.presence()
         let deviceInfos = deviceDiscovery.discoveredDevices.map { device in
             DeviceInfo(
@@ -153,7 +154,7 @@ final class CompanionMessageHandler {
                 // has no maker or source fields yet (#427).
                 vendor: device.makerExcludingSuggestions,
                 deviceType: device.deviceType.rawValue,
-                isOnline: presence.freshness(of: device).isOnline
+                isOnline: presence.answeredLatestScan(device)
             )
         }
 

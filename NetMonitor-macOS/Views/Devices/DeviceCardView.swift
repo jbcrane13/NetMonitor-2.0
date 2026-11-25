@@ -70,7 +70,7 @@ struct DeviceCardView: View {
                         .accessibilityHidden(true)
 
                     // A latency is news only while the device is online (#583).
-                    if presence.freshness(of: device).isOnline, let latency = device.lastLatency {
+                    if let latency = presence.currentLatency(device) {
                         Text(latencyText(latency))
                             .font(.caption2)
                             .foregroundStyle(MacTheme.Colors.latencyColor(ms: latency))

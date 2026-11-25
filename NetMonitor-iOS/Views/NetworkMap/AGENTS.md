@@ -18,7 +18,7 @@ Network topology view showing discovered LAN devices and their relationships wit
 - Integrates with NetworkScanKit for composable scan phases (ARP, TCP, SSDP, Bonjour)
 - Device data persisted via `LocalDevice` SwiftData model
 - Real-time scan progress tracking with phase-specific feedback
-- Accessibility prefix: `map_`
+- Accessibility prefix: `networkMap_` (as every identifier in `NetworkMapView` and the UI tests use; the "not checked recently" note is `networkMap_label_notCheckedRecently`, #583)
 
 ### Testing Requirements
 - Verify scan start/stop controls work correctly

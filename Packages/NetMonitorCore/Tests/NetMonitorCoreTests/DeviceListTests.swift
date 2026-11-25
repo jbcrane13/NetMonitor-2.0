@@ -330,8 +330,10 @@ struct DeviceListPresenceTests {
         ]
         let hidden = DeviceList.rows(rows, filter: DeviceListFilter(), presence: presence, sort: .name, ascending: true)
         #expect(hidden.map(\.displayName) == ["Recent"])
-        #expect(DeviceList.pastCount(rows, search: "", presence: presence) == 2)
-        #expect(DeviceList.pastCount(rows, search: "old", presence: presence) == 1)
+        #expect(DeviceList.pastCount(rows, filter: DeviceListFilter(), presence: presence) == 2)
+        #expect(DeviceList.pastCount(rows, filter: DeviceListFilter(search: "old"), presence: presence) == 1)
+        // Online Only shows no offline device, so showing past devices would add none.
+        #expect(DeviceList.pastCount(rows, filter: DeviceListFilter(onlineOnly: true), presence: presence) == 0)
         let shown = DeviceList.rows(rows, filter: DeviceListFilter(showPast: true), presence: presence, sort: .name, ascending: true)
         #expect(shown.count == 3)
     }

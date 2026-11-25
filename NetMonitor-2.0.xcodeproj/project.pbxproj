@@ -347,6 +347,7 @@
 		88972A34C3E66281CF1A0CD3 /* SSLCertificateMonitorUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4D1CAE1F08AF8C7C2450636 /* SSLCertificateMonitorUITests.swift */; };
 		88CA4E319D8AC8D6C5F4F83A /* MacTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92BF0C346E28EDB80D9A26AB /* MacTheme.swift */; };
 		8920FD6896291B3F05978274 /* EventHistoryMigrationUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2633A89F5EDD7827E6D2D52D /* EventHistoryMigrationUITests.swift */; };
+		893C8D3DC0BACE85B79B15F1 /* PDFReportPresenceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C7356F2AAC7CEFE36B4C82C /* PDFReportPresenceTests.swift */; };
 		8942A94C0CA1A6F0DFB6E087 /* WHOISToolUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6DBA0C16A1DE7F77F218E6A /* WHOISToolUITests.swift */; };
 		896271FDA47CBB5680506041 /* TroubleshootToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9CB2F9032D1B7A94C87B962 /* TroubleshootToolView.swift */; };
 		897C5DA9F1315D605ADE8B18 /* TracerouteToolUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB84885DADC6FEC24984A6BE /* TracerouteToolUITests.swift */; };
@@ -1059,6 +1060,7 @@
 		9B5B8FA3615567C2D430F676 /* SettingsPersistenceUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsPersistenceUITests.swift; sourceTree = "<group>"; };
 		9B99C2ADF1978B8883811B44 /* RawResponseCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RawResponseCard.swift; sourceTree = "<group>"; };
 		9B99F72BE32DB84B46917C83 /* DataExportServiceExtendedTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataExportServiceExtendedTests.swift; sourceTree = "<group>"; };
+		9C7356F2AAC7CEFE36B4C82C /* PDFReportPresenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PDFReportPresenceTests.swift; sourceTree = "<group>"; };
 		9C8EFF5761E9E21BEF9DA9BF /* SpeedTestToolViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeedTestToolViewModelTests.swift; sourceTree = "<group>"; };
 		9C9A3CE431FD0207EA5C06D5 /* TimelineViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineViewModelTests.swift; sourceTree = "<group>"; };
 		9CC69E9737C5F7F3278AB73E /* WindowOpener.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowOpener.swift; sourceTree = "<group>"; };
@@ -1864,6 +1866,7 @@
 				B95AD20B5D8E360138D27BC7 /* NewFeatureUnitTests.swift */,
 				172DD803998F508A24071CB3 /* OnboardingViewTests.swift */,
 				D8A6E7FD29C99FBEC41B588C /* PDFReportGeneratorTests.swift */,
+				9C7356F2AAC7CEFE36B4C82C /* PDFReportPresenceTests.swift */,
 				188CE56C7F99450209487467 /* PingToolViewModelTests.swift */,
 				D1B63113D27266E541737C00 /* PlainRuleIOSViewModelTests.swift */,
 				FAB02CAA59EEBEF509BFC5D3 /* PlainRuleScannedDeviceTests.swift */,
@@ -2915,6 +2918,7 @@
 				788A8716E0EDEA1A0BCB71D6 /* NewFeatureUnitTests.swift in Sources */,
 				F05FB206EFD7E4CE072CCAEC /* OnboardingViewTests.swift in Sources */,
 				C8A1D1542966EAD744A3905F /* PDFReportGeneratorTests.swift in Sources */,
+				893C8D3DC0BACE85B79B15F1 /* PDFReportPresenceTests.swift in Sources */,
 				C557FD376DC02C0FFF46E49A /* PingToolViewModelTests.swift in Sources */,
 				A0251E84443BB62CC5E6DBA1 /* PlainRuleIOSViewModelTests.swift in Sources */,
 				A657E05ACEFDF739E90F383D /* PlainRuleScannedDeviceTests.swift in Sources */,

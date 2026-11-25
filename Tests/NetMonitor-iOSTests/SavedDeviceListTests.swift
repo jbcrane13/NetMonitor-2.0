@@ -137,6 +137,45 @@ struct SavedDeviceListTests {
         })
     }
 
+    /// A device found by an old scan (or read back from the scan cache) isn't online now.
+    @Test func aFoundDeviceIsOnlineOnlyWhileItsSightingIsRecent() {
+        let fresh = live("192.168.1.42", network: home)
+        let old = DiscoveredDevice(
+            ipAddress: "192.168.1.43", hostname: "old", vendor: nil, macAddress: nil, latency: 3,
+            discoveredAt: scan - 2 * 3600, source: .local, networkProfileID: home
+        )
+        let list = SavedDeviceList(saved: [], live: [fresh, old], network: home, sort: .status, showPast: false, presence: presence)
+        #expect(list.freshness(of: fresh) == .online)
+        #expect(list.freshness(of: old) == .notCheckedRecently)
+        #expect(list.onlineCount == 1)
+        #expect(ips(list) == ["192.168.1.42", "192.168.1.43"])
+        #expect(list.foundText(old) == "Not checked recently · found 2 hours ago")
+        #expect(list.foundText(fresh) == "Found in this scan")
+    }
+
+    /// A saved row opens by its ID, so DHCP reusing its address never opens another device.
+    @Test func aSavedRowOpensByItsIDAndAFoundDeviceByItsAddress() {
+        let saved = row("192.168.1.10", network: home, mac: "AA:00:00:00:00:10", lastSeen: scan)
+        let found = live("192.168.1.42", mac: "AA:00:00:00:00:42", network: home)
+        let list = SavedDeviceList(saved: [saved], live: [found], network: home, sort: .ip, showPast: false, presence: presence)
+        #expect(list.entries.map(\.destination) == [
+            .savedDevice(id: saved.id),
+            .deviceDetail(ipAddress: "192.168.1.42", networkID: home, macAddress: "AA:00:00:00:00:42")
+        ])
+    }
+
+    /// A row saved before rows had a network: the reconciler leaves the scanned device for detail to
+    /// adopt, so the list must show the legacy row itself, once, not hide it behind the network's rows.
+    @Test func aLegacyRowWithoutANetworkStaysListedWhenTheScanFindsItsDevice() {
+        let legacy = row("192.168.1.20", network: nil, lastSeen: scan - 3600)
+        let rows = [row("192.168.1.10", network: home, lastSeen: scan), legacy]
+        let list = SavedDeviceList(
+            saved: rows, live: [live("192.168.1.20", network: home)], network: home, sort: .ip, showPast: false, presence: presence
+        )
+        #expect(ips(list) == ["192.168.1.10", "192.168.1.20"])
+        #expect(list.entries.contains { $0.id == "saved-\(legacy.id)" })
+    }
+
     @Test func anotherNetworksScannedDevicesAreNotListed() {
         let list = SavedDeviceList(saved: [], live: [live("10.0.0.2", network: UUID())], network: home, sort: .ip, showPast: false,
             presence: presence)

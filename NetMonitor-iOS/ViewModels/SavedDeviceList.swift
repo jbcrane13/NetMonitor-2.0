@@ -21,7 +21,7 @@ struct SavedDeviceList {
     enum Entry: Identifiable {
         /// A saved device, shown with its presence.
         case saved(LocalDevice)
-        /// A device this scan found that has no saved row yet. It answered, so it is online.
+        /// A device a scan found that has no saved row yet: online only while that sighting is recent.
         case found(DiscoveredDevice)
 
         var id: String {
@@ -35,6 +35,16 @@ struct SavedDeviceList {
             switch self {
             case .saved(let device): device.ipAddress
             case .found(let device): device.ipAddress
+            }
+        }
+
+        /// Where tapping the row goes: a saved row by its `LocalDevice.id` (#584), so an address
+        /// DHCP gave another device never opens the wrong one; a found device by its address.
+        var destination: AppDestination {
+            switch self {
+            case .saved(let device): .savedDevice(id: device.id)
+            case .found(let device):
+                .deviceDetail(ipAddress: device.ipAddress, networkID: device.networkProfileID, macAddress: device.macAddress)
             }
         }
 
@@ -62,7 +72,7 @@ struct SavedDeviceList {
             (device.networkProfileID == network || device.networkProfileID == nil) && !rows.contains { Self.matches($0, device) }
         }
         let shown = DeviceList.rows(rows, filter: DeviceListFilter(showPast: showPast), presence: presence, sort: .ipAddress, ascending: true)
-        pastCount = DeviceList.pastCount(rows, search: "", presence: presence)
+        pastCount = DeviceList.pastCount(rows, filter: DeviceListFilter(), presence: presence)
         entries = Self.sorted(shown.map(Entry.saved) + found.map(Entry.found), by: sort, presence: presence)
     }
 
@@ -82,19 +92,26 @@ struct SavedDeviceList {
 
     static let fetchLimit = 500
 
-    /// Rows online now, counting devices found in this scan.
+    /// Rows online now, counting devices found by a recent scan.
     var onlineCount: Int {
-        entries.count { entry in
-            if case .saved(let device) = entry {
-                return presence.freshness(of: device).isOnline
-            }
-            return true
-        }
+        entries.count { Self.freshness($0, presence).isOnline }
+    }
+
+    /// A found device is online while its sighting is within the grace interval; a stopped or
+    /// cached scan's device goes "not checked recently" like any saved row (#583).
+    func freshness(of device: DiscoveredDevice) -> PresenceFreshness {
+        PresenceFreshness.isRecent(device.discoveredAt, now: presence.now, policy: presence.policy) ? .online : .notCheckedRecently
+    }
+
+    /// "Found in this scan", or "Not checked recently · found 2 hours ago" for an old sighting.
+    func foundText(_ device: DiscoveredDevice) -> String {
+        guard freshness(of: device) == .notCheckedRecently else { return "Found in this scan" }
+        return "\(PresenceFreshness.notCheckedRecently.label) · found \(PresenceFreshness.relativeText(since: device.discoveredAt, now: presence.now))"
     }
 
     /// The last latency, only while the device is online: an old one is no news.
     func latencyText(_ device: LocalDevice) -> String? {
-        guard presence.freshness(of: device).isOnline, let latency = device.lastLatency else { return nil }
+        guard let latency = presence.currentLatency(device) else { return nil }
         return latency < 1 ? "<1 ms" : "\(Int(latency.rounded())) ms"
     }
 
@@ -121,16 +138,19 @@ struct SavedDeviceList {
     }
 
     private static func freshness(_ entry: Entry, _ presence: PresenceSnapshot) -> PresenceFreshness {
-        if case .saved(let device) = entry {
-            return presence.freshness(of: device)
+        switch entry {
+        case .saved(let device):
+            presence.freshness(of: device)
+        case .found(let device):
+            PresenceFreshness.isRecent(device.discoveredAt, now: presence.now, policy: presence.policy) ? .online : .notCheckedRecently
         }
-        return .online
     }
 
     private static func latency(_ entry: Entry, _ presence: PresenceSnapshot) -> Double {
         switch entry {
-        case .saved(let device): presence.freshness(of: device).isOnline ? device.lastLatency ?? .infinity : .infinity
-        case .found(let device): device.latency ?? .infinity
+        case .saved(let device): presence.currentLatency(device) ?? .infinity
+        case .found(let device):
+            PresenceFreshness.isRecent(device.discoveredAt, now: presence.now, policy: presence.policy) ? device.latency ?? .infinity : .infinity
         }
     }
 }

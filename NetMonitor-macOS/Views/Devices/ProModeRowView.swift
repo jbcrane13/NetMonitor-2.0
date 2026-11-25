@@ -109,7 +109,7 @@ struct ProModeRowView: View {
     @ViewBuilder
     private var latencyView: some View {
         // A latency is news only while the device is online (#583).
-        if presence.freshness(of: device).isOnline, let latency = device.lastLatency {
+        if let latency = presence.currentLatency(device) {
             let text = latency < 1 ? "<1 ms" : String(format: "%.0f ms", latency)
             Text(text)
                 .monospacedDigit()

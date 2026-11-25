@@ -104,6 +104,20 @@ public struct PresenceSnapshot: Sendable, Equatable {
         PresenceFreshness.of(status: device.status, lastScan: lastScan(for: device.networkProfileID), now: now, policy: policy)
     }
 
+    /// Whether the device answered its network's latest scan, and that scan is recent: a sighting,
+    /// as the companion feed reports one (#583, #598). Stricter than `.online`: a row within grace
+    /// that missed the scan, or one only the ARP cache listed, didn't answer.
+    public func answeredLatestScan(_ device: LocalDevice) -> Bool {
+        guard isNetworkChecked(device.networkProfileID), device.status == .online,
+              let lastScan = lastScan(for: device.networkProfileID) else { return false }
+        return device.lastSeen >= lastScan
+    }
+
+    /// The device's last latency, only while it is online: an old one is no news (#583).
+    public func currentLatency(_ device: LocalDevice) -> Double? {
+        freshness(of: device).isOnline ? device.lastLatency : nil
+    }
+
     public func isPast(_ device: LocalDevice) -> Bool {
         PresenceFreshness.isPast(lastSeen: device.lastSeen, lastScan: lastScan(for: device.networkProfileID), now: now)
     }

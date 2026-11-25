@@ -191,7 +191,7 @@ private extension ProDeviceDetailView {
                     PresenceStatusLabel(device: device, font: .subheadline)
                         .accessibilityIdentifier("deviceDetail_label_presence")
 
-                    if presence.freshness(of: device).isOnline, let latency = device.lastLatency {
+                    if let latency = presence.currentLatency(device) {
                         Text("·")
                             .foregroundStyle(MacTheme.Colors.labelTertiary)
                         Text(latencyText(latency))
@@ -220,8 +220,8 @@ private extension ProDeviceDetailView {
 
             Spacer()
 
-            // Latency stats cluster (top-right)
-            if !latencyHistory.isEmpty || device.lastLatency != nil {
+            // Latency stats cluster (top-right): only while the device is online (#583).
+            if presence.currentLatency(device) != nil {
                 latencyCluster
             }
         }
@@ -232,7 +232,7 @@ private extension ProDeviceDetailView {
     // MARK: - Latency Cluster (compact)
 
     var latencyCluster: some View {
-        let currentLatency = device.lastLatency
+        let currentLatency = presence.currentLatency(device)
         let minLatency = latencyHistory.min()
         let maxLatency = latencyHistory.max()
         let avgLatency = latencyHistory.isEmpty ? nil : latencyHistory.reduce(0, +) / Double(latencyHistory.count)

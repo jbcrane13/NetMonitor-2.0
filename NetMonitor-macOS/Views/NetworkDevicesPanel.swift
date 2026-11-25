@@ -319,7 +319,7 @@ private struct DevicePanelRow: View {
             Spacer(minLength: 4)
 
             // Latency — bright threshold-colored
-            if presence.freshness(of: device).isOnline, let latency = device.lastLatency, latency > 0 {
+            if let latency = presence.currentLatency(device), latency > 0 {
                 Text(String(format: "%.1fms", latency))
                     .font(.system(size: 11, weight: .semibold, design: .monospaced))
                     .foregroundStyle(latencyColor(latency))

@@ -77,10 +77,12 @@ public enum DeviceList {
         return result
     }
 
-    /// How many devices matching `search` are past devices, hidden unless shown: the N in
-    /// "Show past devices (N)".
-    public static func pastCount(_ devices: [LocalDevice], search: String, presence: PresenceSnapshot) -> Int {
-        matching(devices, search: search).count { presence.isPast($0) }
+    /// How many past devices showing them would add under `filter`'s search and Online Only: the
+    /// N in "Show past devices (N)". With Online Only on, an offline past device adds nothing.
+    public static func pastCount(_ devices: [LocalDevice], filter: DeviceListFilter, presence: PresenceSnapshot) -> Int {
+        matching(devices, search: filter.search).count { device in
+            presence.isPast(device) && (!filter.onlineOnly || presence.freshness(of: device).isOnline)
+        }
     }
 
     private static func matching(_ devices: [LocalDevice], search: String) -> [LocalDevice] {

@@ -94,7 +94,7 @@ struct DeviceListView: View {
                 case .saved(let device):
                     savedLink(device, in: list)
                 case .found(let device):
-                    foundLink(device)
+                    foundLink(device, in: list)
                 }
             }
 
@@ -113,9 +113,7 @@ struct DeviceListView: View {
     }
 
     private func savedLink(_ device: LocalDevice, in list: SavedDeviceList) -> some View {
-        NavigationLink(value: AppDestination.deviceDetail(
-            ipAddress: device.ipAddress, networkID: device.networkProfileID, macAddress: device.macAddress
-        )) {
+        NavigationLink(value: SavedDeviceList.Entry.saved(device).destination) {
             if isProMode {
                 savedProModeRow(device, in: list)
             } else {
@@ -129,21 +127,18 @@ struct DeviceListView: View {
     }
 
     /// A device this scan found that has no saved row yet.
-    private func foundLink(_ device: DiscoveredDevice) -> some View {
-        NavigationLink(value: AppDestination.deviceDetail(
-            ipAddress: device.ipAddress, networkID: device.networkProfileID, macAddress: device.macAddress
-        )) {
+    private func foundLink(_ device: DiscoveredDevice, in list: SavedDeviceList) -> some View {
+        NavigationLink(value: SavedDeviceList.Entry.found(device).destination) {
             if isProMode {
-                proModeRow(device: device)
+                proModeRow(device: device, foundText: list.foundText(device))
             } else {
-                deviceRow(device: device)
+                deviceRow(device: device, foundText: list.foundText(device))
             }
         }
-        .accessibilityValue(Self.foundInThisScan)
+        .opacity(list.freshness(of: device).isOnline ? 1 : 0.7)
+        .accessibilityValue(list.foundText(device))
         .accessibilityIdentifier("deviceList_row_device_\(device.ipAddress.replacingOccurrences(of: ".", with: "_"))")
     }
-
-    static let foundInThisScan = "Found in this scan"
 
     private func savedRow(_ device: LocalDevice, in list: SavedDeviceList) -> some View {
         GlassCard {
@@ -169,7 +164,10 @@ struct DeviceListView: View {
                         }
                     }
 
-                    PresenceLine(freshness: list.presence.freshness(of: device), text: list.presence.statusText(device))
+                    PresenceLine(
+                        freshness: list.presence.freshness(of: device), text: list.presence.statusText(device),
+                        accessibilityID: "deviceList_label_presence_\(device.ipAddress.replacingOccurrences(of: ".", with: "_"))"
+                    )
                         .accessibilityHidden(true)
                 }
 
@@ -264,7 +262,7 @@ struct DeviceListView: View {
         .padding(.horizontal, Theme.Layout.screenPadding)
     }
 
-    private func deviceRow(device: DiscoveredDevice) -> some View {
+    private func deviceRow(device: DiscoveredDevice, foundText: String) -> some View {
         GlassCard {
             HStack(spacing: Theme.Layout.itemSpacing) {
                 Image(systemName: device.source == .macCompanion ? "desktopcomputer.and.arrow.down" : "desktopcomputer")
@@ -295,7 +293,7 @@ struct DeviceListView: View {
                             .foregroundStyle(Theme.Colors.textTertiary)
                     }
 
-                    Label(Self.foundInThisScan, systemImage: "sparkle")
+                    Label(foundText, systemImage: "sparkle")
                         .font(.caption2)
                         .foregroundStyle(Theme.Colors.accent)
                         .accessibilityHidden(true)
@@ -311,7 +309,7 @@ struct DeviceListView: View {
         }
     }
 
-    private func proModeRow(device: DiscoveredDevice) -> some View {
+    private func proModeRow(device: DiscoveredDevice, foundText: String) -> some View {
         GlassCard(padding: 10) {
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 8) {
@@ -359,7 +357,7 @@ struct DeviceListView: View {
                         .lineLimit(1)
                 }
 
-                Text(Self.foundInThisScan)
+                Text(foundText)
                     .font(.system(size: 11, design: .monospaced))
                     .foregroundStyle(Theme.Colors.accent)
                     .accessibilityHidden(true)
