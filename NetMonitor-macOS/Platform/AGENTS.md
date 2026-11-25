@@ -36,10 +36,11 @@ There is no `ARPScannerService`; ARP discovery lives in NetworkScanKit (`ARPScan
 A completed scan's rows are kept current by Core `ScanReconciler`, the iPhone's too (#596), through `DeviceDiscoveryCoordinator.reconcileScan`, in its own `ModelContext` on the shared container:
 - Which row comes from `PresenceMatch`. Without a real MAC (every device on macOS 27), an address identifies a row only with agreeing names, or, when a name is unknown, if the row was seen there within grace or by the network's previous scan when that scan was at most 2 h earlier (`PresenceMatch.previousScanReach`). Otherwise the device gets a new row.
 - An answering device's row is `.online` with `lastSeen` = the scan's time. A cached sighting (ARP cache only) is a miss: its row becomes `.cached` and keeps `lastSeen`. A cached sighting never makes a row.
-- A row goes `.offline` only under `DeviceGracePolicy` (3 missed scans and 15 minutes). A scan in which nothing answered changes nothing, and neither the rows nor the Timeline move.
+- A row goes `.offline` only under `DeviceGracePolicy` (3 missed scans and 15 minutes). A scan in which nothing answered, or whose rows couldn't be saved, changes nothing: no rows, no change events, and no "Scan Complete".
+- The change tracker uses the same grace policy. On the first scan a network's `ScanHistory` records (after an app update), it forgets misses counted before, so "Device Left" lands with the row going offline.
 - Each network's reconciled scans are in `ScanHistory` (UserDefaults; a UI-test suite under `--uitesting`). Clearing the data clears it.
 
-`mergeSparseSnapshot`, at the enrichment transition, touches only the latency of rows with the device's own real MAC (status is left to the final pass, so a cancelled scan never leaves an old row Online), and inserts only public MACs that no row on the network, or saved without one, already has. The coordinator's clock is read once per scan for the sparse merge, the reconcile and the change tracker. Online counts, the menu bar and the companion's `isOnline` count only `.online`.
+`mergeSparseSnapshot`, at the enrichment transition, only writes a fresh latency to the saved row with the device's own real MAC. It makes no rows, and leaves status and `lastSeen` to the final pass. New devices appear at the final pass; on macOS 27 (no MACs) they already did. The coordinator's clock is read once per scan for the sparse merge, the reconcile and the change tracker. Online counts, the menu bar and the companion's `isOnline` count only `.online`.
 
 ### Shell Command Pattern
 ```swift

@@ -83,7 +83,8 @@ struct DeviceDiscoveryCoordinatorReconcileTests {
         let coordinator = DeviceDiscoveryCoordinator(
             modelContext: context,
             bonjourScanner: BonjourDiscoveryService(),
-            networkProfileManager: NetworkProfileManager(userDefaults: InMemoryDefaults()),
+            // No ambient network: rows and the tracker use the "no network" scope.
+            networkProfileManager: NetworkProfileManager(userDefaults: InMemoryDefaults(), activeProfilesProvider: { [] }),
             pipelineFactory: pipeline ?? { _ in ScanPipeline(steps: []) },
             portChecker: { _, _, _ in false },
             scanHistory: .forTesting(),
@@ -113,6 +114,19 @@ struct DeviceDiscoveryCoordinatorReconcileTests {
         #expect(row.status == .online)
         #expect(row.lastSeen == clock.now)
         #expect(row.latencyHistory == [4, 6])
+    }
+
+    /// Review (#601): a device that answers without a latency measurement gets no sparkline point;
+    /// the old latency is never appended again.
+    @Test func onlyALatencyMeasuredThisScanIsASparklinePoint() throws {
+        let (container, context) = try makeStore()
+        _ = container
+        let clock = TestClock(Date(timeIntervalSince1970: 1_790_000_000))
+        let coordinator = makeCoordinator(context, clock: clock)
+        coordinator.reconcileScan([Self.device("10.0.0.2", "nas", mac: "AC:DE:48:00:00:02", latency: 4)], profileID: nil)
+        clock.advance(minutes: 1)
+        coordinator.reconcileScan([Self.device("10.0.0.2", "nas", mac: "AC:DE:48:00:00:02")], profileID: nil)
+        #expect(coordinator.discoveredDevices.first?.latencyHistory == [4])
     }
 
     @Test func aMissedDeviceGoesOfflineOnlyAfterThreeScansAndFifteenMinutes() throws {
@@ -164,7 +178,7 @@ struct DeviceDiscoveryCoordinatorReconcileTests {
         let coordinator = makeCoordinator(context, clock: clock)
 
         clock.advance(minutes: 1)
-        coordinator.mergeSparseSnapshot([Self.device("10.0.0.20", nil, latency: 3)], profileID: home, now: clock.now)
+        coordinator.mergeSparseSnapshot([Self.device("10.0.0.20", nil, latency: 3)], profileID: home)
         coordinator.reconcileScan([Self.device("10.0.0.20", "kitchen-phone", latency: 3)], profileID: home)
 
         let rows = coordinator.discoveredDevices.sorted { ($0.hostname ?? "") < ($1.hostname ?? "") }
@@ -207,7 +221,7 @@ struct DeviceDiscoveryCoordinatorReconcileTests {
         let mac = makeCoordinator(macContext, clock: clock)
         for time in times {
             clock.now = time
-            mac.mergeSparseSnapshot(DeviceDiscoveryCoordinator.mapDiscoveredDevices(scan), profileID: home, now: time)
+            mac.mergeSparseSnapshot(DeviceDiscoveryCoordinator.mapDiscoveredDevices(scan), profileID: home)
             mac.reconcileScan(scan, profileID: home, now: time)
         }
         #expect(mac.discoveredDevices.count == 1)
@@ -224,7 +238,8 @@ struct DeviceDiscoveryCoordinatorReconcileTests {
         #expect(phoneRows.first?.lastSeen == mac.discoveredDevices.first?.lastSeen)
     }
 
-    @Test func theSparseMergeInsertsOnlyDevicesWithAPublicMAC() throws {
+    /// The sparse merge makes no rows, with or without a MAC: new devices appear at the final pass.
+    @Test func theSparseMergeMakesNoRows() throws {
         let (container, context) = try makeStore()
         _ = container
         let clock = TestClock(Date(timeIntervalSince1970: 1_790_000_000))
@@ -235,9 +250,60 @@ struct DeviceDiscoveryCoordinatorReconcileTests {
                 Self.device("10.0.0.41", nil, mac: "AC:DE:48:00:00:41"),
                 Self.device("10.0.0.42", nil, mac: "AA:00:00:00:00:42")
             ],
-            profileID: home, now: clock.now
+            profileID: home
         )
-        #expect(coordinator.discoveredDevices.map(\.ipAddress) == ["10.0.0.41"])
+        #expect(coordinator.discoveredDevices.isEmpty)
+    }
+
+    /// Review (#601): a cached ARP alias that sorts before the address the device answered from
+    /// must not leave the answering sighting unmatched and make a second row.
+    @Test func aCachedAliasNeverMakesTheSparseMergeDuplicateARow() throws {
+        let (container, context) = try makeStore()
+        _ = container
+        let clock = TestClock(Date(timeIntervalSince1970: 1_790_000_000))
+        let mac = "AC:DE:48:00:00:A1"
+        let row = LocalDevice(ipAddress: "10.0.0.50", macAddress: mac, hostname: "tv", networkProfileID: home)
+        row.notes = "Living room"
+        row.lastSeen = clock.now.addingTimeInterval(-300)
+        context.insert(row)
+        try context.save()
+        let coordinator = makeCoordinator(context, clock: clock)
+
+        // Sorted by address, as the accumulator returns them: the cached old address first.
+        coordinator.mergeSparseSnapshot(
+            [Self.device("10.0.0.5", nil, mac: mac, cached: true), Self.device("10.0.0.60", nil, mac: mac, latency: 9)],
+            profileID: home
+        )
+        #expect(coordinator.discoveredDevices.count == 1)
+        #expect(coordinator.discoveredDevices.first?.lastLatency == 9)
+
+        coordinator.reconcileScan(
+            [Self.device("10.0.0.5", nil, mac: mac, cached: true), Self.device("10.0.0.60", "tv", mac: mac, latency: 9)], profileID: home
+        )
+        #expect(coordinator.discoveredDevices.count == 1)
+        #expect(coordinator.discoveredDevices.first?.notes == "Living room")
+        #expect(coordinator.discoveredDevices.first?.ipAddress == "10.0.0.60")
+    }
+
+    /// Review (#601): a saved MAC-less device whose public MAC becomes readable at a new address,
+    /// before its hostname resolves, must keep one row with its notes once the name arrives.
+    @Test func aMACArrivingBeforeTheNameNeverStrandsASavedRow() throws {
+        let (container, context) = try makeStore()
+        _ = container
+        let clock = TestClock(Date(timeIntervalSince1970: 1_790_000_000))
+        let row = LocalDevice(ipAddress: "10.0.0.61", macAddress: "", hostname: "nas", networkProfileID: home)
+        row.notes = "Backups"
+        row.lastSeen = clock.now.addingTimeInterval(-3600)
+        context.insert(row)
+        try context.save()
+        let coordinator = makeCoordinator(context, clock: clock)
+
+        coordinator.mergeSparseSnapshot([Self.device("10.0.0.61", nil, mac: "AC:DE:48:00:00:A2")], profileID: home)
+        #expect(coordinator.discoveredDevices.count == 1)
+        coordinator.reconcileScan([Self.device("10.0.0.61", "nas", mac: "AC:DE:48:00:00:A2")], profileID: home)
+        #expect(coordinator.discoveredDevices.count == 1)
+        #expect(coordinator.discoveredDevices.first?.notes == "Backups")
+        #expect(coordinator.discoveredDevices.first?.macAddress == "AC:DE:48:00:00:A2")
     }
 
     /// The sparse merge never saves status: a scan cancelled after it leaves an offline row offline.
@@ -251,32 +317,32 @@ struct DeviceDiscoveryCoordinatorReconcileTests {
         try context.save()
         let coordinator = makeCoordinator(context, clock: clock)
 
-        coordinator.mergeSparseSnapshot([Self.device("10.0.0.95", nil, mac: "AC:DE:48:00:00:95", latency: 7)], profileID: home, now: clock.now)
+        coordinator.mergeSparseSnapshot([Self.device("10.0.0.95", nil, mac: "AC:DE:48:00:00:95", latency: 7)], profileID: home)
 
         let saved = try #require(try ModelContext(container).fetch(FetchDescriptor<LocalDevice>()).first)
         #expect(saved.status == .offline)
         #expect(saved.lastSeen == clock.now.addingTimeInterval(-3600))
     }
 
-    /// One MAC listed at two addresses (the ARP cache still has the old one) is one device: the
-    /// sparse merge inserts one row, which the final pass then keeps.
-    @Test func theSparseMergeInsertsOneRowPerMAC() throws {
+    /// One MAC listed at two addresses (the ARP cache still has the old one) is one device: no row
+    /// from the sparse merge, one from the final pass, and never a second.
+    @Test func oneMACListedTwiceIsOneRow() throws {
         let (container, context) = try makeStore()
         _ = container
         let clock = TestClock(Date(timeIntervalSince1970: 1_790_000_000))
         let coordinator = makeCoordinator(context, clock: clock)
         let mac = "AC:DE:48:00:00:70"
         coordinator.mergeSparseSnapshot(
-            [Self.device("10.0.0.70", nil, mac: mac), Self.device("10.0.0.71", nil, mac: mac)], profileID: home, now: clock.now
+            [Self.device("10.0.0.70", nil, mac: mac), Self.device("10.0.0.71", nil, mac: mac)], profileID: home
         )
-        #expect(coordinator.discoveredDevices.count == 1)
+        #expect(coordinator.discoveredDevices.isEmpty)
 
         coordinator.reconcileScan([Self.device("10.0.0.71", "tv", mac: mac)], profileID: home)
         #expect(coordinator.discoveredDevices.map(\.ipAddress) == ["10.0.0.71"])
         // Again, with the row saved: one copy matches it, the other is never a second row.
         clock.advance(minutes: 1)
         coordinator.mergeSparseSnapshot(
-            [Self.device("10.0.0.71", nil, mac: mac), Self.device("10.0.0.72", nil, mac: mac)], profileID: home, now: clock.now
+            [Self.device("10.0.0.71", nil, mac: mac), Self.device("10.0.0.72", nil, mac: mac)], profileID: home
         )
         #expect(coordinator.discoveredDevices.count == 1)
     }
@@ -295,6 +361,11 @@ struct DeviceDiscoveryCoordinatorReconcileTests {
         #expect(coordinator.discoveredDevices.first?.networkProfileID == home)
     }
 
+}
+
+// MARK: - Timeline and the iPhone
+
+extension DeviceDiscoveryCoordinatorReconcileTests {
     // MARK: Timeline follows grace
 
     @Test func theTimelineReportsLeftAndCameBackWithTheRows() async throws {
@@ -358,6 +429,89 @@ struct DeviceDiscoveryCoordinatorReconcileTests {
         })
     }
 
+    /// Runs one fixture scan through `startScan` and waits for it.
+    func runScan(_ coordinator: DeviceDiscoveryCoordinator) async {
+        coordinator.startScan()
+        let deadline = ContinuousClock.now + .seconds(30)
+        while coordinator.isScanning, ContinuousClock.now < deadline {
+            try? await Task.sleep(for: .milliseconds(20))
+        }
+    }
+
+    /// Review (#601): a scan the reconciler skipped (nothing answered) writes no "Scan Complete".
+    @Test func aScanInWhichNothingAnsweredWritesNoTimelineEvent() async throws {
+        let (container, context) = try makeStore()
+        _ = container
+        let clock = TestClock(Date(timeIntervalSince1970: 1_790_000_000))
+        let box = FixtureUpsertBox(devices: [])
+        let coordinator = makeCoordinator(context, clock: clock) { _ in
+            ScanPipeline(steps: [ScanPipeline.Step(phases: [FixtureUpsertScanPhase(box: box)], concurrent: false)])
+        }
+        var completed = 0
+        coordinator.addScanCompletedHandler { _, _ in completed += 1 }
+
+        await runScan(coordinator)
+        #expect(completed == 0)
+        box.devices = [Self.engine("10.0.0.1", "router", mac: "AC:DE:48:00:00:01")]
+        clock.advance(minutes: 1)
+        await runScan(coordinator)
+        #expect(completed == 1)
+    }
+
+    /// Review (#601): after an upgrade the tracker may remember misses from before `ScanHistory`
+    /// existed. "Device Left" must still wait for the row's own grace, so both move together.
+    @Test func afterAnUpgradeTheTimelineWaitsForTheRowToGoOffline() async throws {
+        let (container, context) = try makeStore()
+        _ = container
+        let start = Date(timeIntervalSince1970: 1_790_000_000)
+        let clock = TestClock(start)
+        let router = Self.engine("10.0.0.1", "router", mac: "AC:DE:48:00:00:01")
+        let printer = Self.engine("10.0.0.20", "printer", mac: "AC:DE:48:00:00:20")
+        for device in [router, printer] {
+            let row = LocalDevice(ipAddress: device.ipAddress, macAddress: device.macAddress ?? "", hostname: device.hostname)
+            row.lastSeen = start
+            context.insert(row)
+        }
+        try context.save()
+        // The tracker from before the upgrade: the printer already missed two scans.
+        let tracker = DeviceChangeTracker(defaults: InMemoryDefaults())
+        for (minutes, seen) in [(0.0, [router, printer]), (10, [router]), (20, [router])] {
+            _ = tracker.record(
+                scope: "default", observed: seen.map { DeviceObservation(ipAddress: $0.ipAddress, macAddress: $0.macAddress, name: $0.hostname) },
+                now: start.addingTimeInterval(minutes * 60)
+            )
+        }
+        let box = FixtureUpsertBox(devices: [router])
+        let coordinator = makeCoordinator(context, clock: clock) { _ in
+            ScanPipeline(steps: [ScanPipeline.Step(phases: [FixtureUpsertScanPhase(box: box)], concurrent: false)])
+        }
+        coordinator.changeTracker = tracker
+        var left: [String?] = []
+        coordinator.addDeviceChangeHandler { changes, _ in
+            left += changes.compactMap {
+                if case .wentOffline(let known) = $0 {
+                    known.name
+                } else {
+                    nil
+                }
+            }
+        }
+        func printerRow() -> LocalDevice? { coordinator.discoveredDevices.first { $0.hostname == "printer" } }
+
+        // The first scan after the upgrade: the tracker's third miss, the reconciler's first.
+        clock.now = start.addingTimeInterval(30 * 60)
+        await runScan(coordinator)
+        #expect(printerRow()?.status == .online)
+        #expect(left.isEmpty)
+
+        for minutes in [40.0, 50] {
+            clock.now = start.addingTimeInterval(minutes * 60)
+            await runScan(coordinator)
+        }
+        #expect(printerRow()?.status == .offline)
+        #expect(left == ["printer"])
+    }
+
     static func engine(_ ip: String, _ name: String?, mac: String? = nil, cached: Bool = false) -> DiscoveredDevice {
         DiscoveredDevice(
             ipAddress: ip, hostname: name, vendor: nil, macAddress: mac, latency: cached ? nil : 5,
@@ -413,7 +567,7 @@ struct DeviceDiscoveryCoordinatorReconcileTests {
             let sparse = DeviceDiscoveryCoordinator.mapDiscoveredDevices(scan).map {
                 LocalDiscoveredDevice(ipAddress: $0.ipAddress, macAddress: $0.macAddress, hostname: nil, isCached: $0.isCached)
             }
-            mac.mergeSparseSnapshot(sparse, profileID: home, now: clock.now)
+            mac.mergeSparseSnapshot(sparse, profileID: home)
             mac.reconcileScan(scan, profileID: home, now: clock.now)
         }
 

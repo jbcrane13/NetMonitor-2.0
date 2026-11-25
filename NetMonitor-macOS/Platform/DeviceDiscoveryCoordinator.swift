@@ -22,7 +22,8 @@ final class DeviceDiscoveryCoordinator {
     typealias DeviceChangeHandler = @MainActor (_ changes: [DeviceChangeEvent], _ profileID: UUID?) -> Void
     /// Every subscriber gets each change: the alert dispatcher and the event recorder (#491).
     private(set) var deviceChangeHandlers: [DeviceChangeHandler] = []
-    /// Receives each completed scan's network and how many devices it found (#491).
+    /// Receives each completed scan's network and how many devices it found (#491); not called for
+    /// a scan in which nothing answered or whose rows couldn't be saved (#596).
     typealias ScanCompletedHandler = @MainActor (_ profileID: UUID?, _ deviceCount: Int) -> Void
     private(set) var scanCompletedHandlers: [ScanCompletedHandler] = []
     /// Remembers devices between scans for the device change handlers, under the coordinator's
@@ -67,6 +68,8 @@ final class DeviceDiscoveryCoordinator {
     private let gracePolicy: DeviceGracePolicy
     /// When a scan happens; read once per scan. UI tests step it to pass the grace interval.
     private let clock: @MainActor () -> Date
+    /// How the reconciler reads the rows; tests make it fail.
+    private let reconcilerFetch: @MainActor (ModelContext) throws -> [LocalDevice]
 
     private var scanTask: Task<Void, Never>?
 
@@ -111,7 +114,8 @@ final class DeviceDiscoveryCoordinator {
         suggester: DeviceSuggester? = nil,
         scanHistory: ScanHistory = ScanHistory(),
         gracePolicy: DeviceGracePolicy = DeviceGracePolicy(),
-        clock: @escaping @MainActor () -> Date = Date.init
+        clock: @escaping @MainActor () -> Date = Date.init,
+        reconcilerFetch: @escaping @MainActor (ModelContext) throws -> [LocalDevice] = ScanReconciler.fetchAllRows
     ) {
         self.modelContext = modelContext
         self.bonjourScanner = bonjourScanner
@@ -126,6 +130,7 @@ final class DeviceDiscoveryCoordinator {
         self.scanHistory = scanHistory
         self.gracePolicy = gracePolicy
         self.clock = clock
+        self.reconcilerFetch = reconcilerFetch
         self.changeTracker = DeviceChangeTracker(policy: gracePolicy)
         self.networkProfile = networkProfileManager.activeProfile
         loadPersistedDevices(for: effectiveProfileID())
@@ -194,7 +199,6 @@ final class DeviceDiscoveryCoordinator {
                         progress,
                         phaseID: phaseID,
                         profileID: profileID,
-                        scanTime: scanTime,
                         accumulator: accumulatorRef,
                         enrichmentPhaseIDs: enrichmentPhaseIDs
                     )
@@ -205,16 +209,25 @@ final class DeviceDiscoveryCoordinator {
                 try Task.checkCancellation()
 
                 let allDiscovered = Self.mapDiscoveredDevices(engineDevices)
+                // The first scan this network's `ScanHistory` records: misses the tracker counted
+                // before it (an app update) start over, so "went offline" waits for the rows' grace.
+                let isFirstRecordedScan = scanHistory.previousReconciled(beforeScan: .distantFuture, for: profileID) == nil
                 // Rows and the Timeline move together: a scan the reconciler skipped (nothing
-                // answered) or couldn't save is no evidence a device left.
-                if reconcileScan(engineDevices, profileID: profileID, now: scanTime) {
+                // answered) or couldn't save is no evidence of anything, and writes no event.
+                let applied = reconcileScan(engineDevices, profileID: profileID, now: scanTime)
+                if applied {
+                    if isFirstRecordedScan {
+                        changeTracker.forgetMisses(for: Self.trackerScope(profileID))
+                    }
                     reportDeviceChanges(allDiscovered, profileID: profileID, seed: trackerSeed, now: scanTime)
                 }
                 Logger.discovery.notice("Scan finished: \(allDiscovered.count, privacy: .public) devices")
                 scanProgress = 1.0
                 lastScanTime = Date()
-                for handler in scanCompletedHandlers {
-                    handler(profileID, allDiscovered.count)
+                if applied {
+                    for handler in scanCompletedHandlers {
+                        handler(profileID, allDiscovered.count)
+                    }
                 }
 
                 if let profileID {
@@ -262,7 +275,6 @@ final class DeviceDiscoveryCoordinator {
         _ progress: Double,
         phaseID: ScanPhaseID,
         profileID: UUID?,
-        scanTime: Date,
         accumulator: ScanAccumulator,
         enrichmentPhaseIDs: Set<ScanPhaseID>
     ) async {
@@ -277,7 +289,7 @@ final class DeviceDiscoveryCoordinator {
 
         let snapshot = await accumulator.sortedSnapshot()
         guard !Task.isCancelled else { return }
-        mergeSparseSnapshot(Self.mapDiscoveredDevices(snapshot), profileID: profileID, now: scanTime)
+        mergeSparseSnapshot(Self.mapDiscoveredDevices(snapshot), profileID: profileID)
     }
 
     /// The one entry point for every scan trigger (#484): `ScanPolicy` picks the network and
@@ -378,49 +390,22 @@ final class DeviceDiscoveryCoordinator {
     }
 
     /// The progressive display at the discovery→enrichment transition (E2), before names are
-    /// resolved. Rows are matched by `PresenceMatch`, as the final pass will, but only a row with
-    /// the device's own real MAC is touched, and only its latency: an address match without names
-    /// can't tell DHCP reuse from the same device yet, and a name or a fresh `lastSeen` written now
-    /// would make the final pass trust that match (#596). Status is left to the final pass, so a
-    /// cancelled or failed scan never leaves an old row reading Online. A device with a real,
-    /// non-private MAC and no row gets one, unless a row without a MAC is at its address (the final
-    /// pass, with names, may adopt the MAC onto that row) or a row saved without a network has the
-    /// MAC (the reconciler adopts that row, as on the iPhone): a row made now would strand the other
-    /// row's name and notes. Without a MAC (every device on macOS 27, which hides the ARP table) or
-    /// with a private one it waits for the final pass, which has its name (#411). Cached sightings
-    /// change nothing.
-    func mergeSparseSnapshot(_ devices: [LocalDiscoveredDevice], profileID: UUID?, now: Date) {
-        let rows = fetchDevices(for: profileID)
-        let assignment = PresenceMatch.assign(
-            known: rows.map { PresenceMatch.Known(Self.matchCandidate($0), lastSeen: $0.lastSeen) },
-            observed: devices.map(Self.matchCandidate), now: now, window: gracePolicy.interval,
-            // This scan isn't recorded yet, so the newest recorded one is the previous scan.
-            previousScan: scanHistory.previousReconciled(beforeScan: now, for: profileID)
-        )
-        // One MAC listed at two addresses (the ARP cache still has the old one) is one device, and a
-        // MAC a row already has, on this network or saved without one, is never a second row.
-        let unassigned = profileID == nil ? [] : fetchDevices(for: nil)
-        var rowMACs = Set((rows + unassigned).compactMap { DeviceMatcher.normalizedMAC($0.macAddress) })
-        for (index, device) in devices.enumerated() where !device.isCached {
-            let mac = DeviceMatcher.normalizedMAC(device.macAddress)
-            if let known = assignment[index] {
-                let row = rows[known]
-                guard let mac, DeviceMatcher.normalizedMAC(row.macAddress) == mac else { continue }
-                if let latency = device.latency {
-                    row.lastLatency = latency
-                }
-            } else if let mac, !MACAddress.isPrivate(mac), !rowMACs.contains(mac),
-                      !rows.contains(where: { $0.ipAddress == device.ipAddress && DeviceMatcher.normalizedMAC($0.macAddress) == nil }) {
-                rowMACs.insert(mac)
-                let row = LocalDevice(
-                    ipAddress: device.ipAddress, macAddress: mac, hostname: device.hostname, vendor: device.vendor,
-                    deviceType: .unknown, status: .online, lastLatency: device.latency, openPorts: device.openPorts,
-                    networkProfileID: profileID
-                )
-                row.lastSeen = now
-                row.mergeIdentity(device.identity)
-                modelContext.insert(row)
-            }
+    /// resolved: a fresh latency on the saved row with the device's own real MAC, nothing else
+    /// (#596). It makes no rows: new devices appear at the final pass, seconds later, which on
+    /// macOS 27 (no MACs) was already the case. Before names are known, a row made or claimed here
+    /// could duplicate a saved device (a cached ARP alias, a MAC read before the hostname that
+    /// would match a row without one, a row saved without a network) and strand its notes.
+    /// Status and `lastSeen` are left to the final pass, so a cancelled or failed scan never leaves
+    /// an old row reading Online. Cached sightings change nothing.
+    func mergeSparseSnapshot(_ devices: [LocalDiscoveredDevice], profileID: UUID?) {
+        let rowsByMAC = Dictionary(grouping: fetchDevices(for: profileID)) { DeviceMatcher.normalizedMAC($0.macAddress) ?? "" }
+        var measured = Set<String>()
+        for device in devices where !device.isCached {
+            // One sighting per MAC: the first that answered.
+            guard let mac = DeviceMatcher.normalizedMAC(device.macAddress), measured.insert(mac).inserted,
+                  let latency = device.latency, let rows = rowsByMAC[mac], rows.count == 1
+            else { continue }
+            rows[0].lastLatency = latency
         }
         saveContext("sparse scan devices")
         loadPersistedDevices(for: profileID)
@@ -438,7 +423,8 @@ final class DeviceDiscoveryCoordinator {
         // The reconciler reads the store, so rows still unsaved here must reach it first.
         saveContext("devices before reconciling")
         let reconciler = ScanReconciler(
-            context: ModelContext(modelContext.container), history: scanHistory, policy: gracePolicy, holdsUnassignedForDetail: false
+            context: ModelContext(modelContext.container), history: scanHistory, policy: gracePolicy, holdsUnassignedForDetail: false,
+            fetch: reconcilerFetch
         )
         let outcome: ScanReconciler.Outcome
         do {
@@ -448,12 +434,13 @@ final class DeviceDiscoveryCoordinator {
             return false
         }
         loadPersistedDevices(for: profileID)
-        guard case .applied(let answered) = outcome else { return false }
+        guard case .applied(let answered, let latencies) = outcome else { return false }
         let inference = DeviceTypeInferenceService()
         for row in discoveredDevices {
             if answered.contains(row.id) {
-                // The reconciler's sparkline point went to its own context's copy of the row.
-                if let latency = row.lastLatency {
+                // The reconciler's sparkline point went to its own context's copy of the row; only a
+                // latency measured this scan is a point.
+                if let latency = latencies[row.id] {
                     row.appendLatencySample(latency)
                 }
                 continue
@@ -692,7 +679,7 @@ final class DeviceDiscoveryCoordinator {
     /// Compares a completed scan with the devices seen before and reports changes (#393).
     private func reportDeviceChanges(_ discovered: [LocalDiscoveredDevice], profileID: UUID?, seed: [KnownDevice], now: Date) {
         let changes = changeTracker.record(
-            scope: profileID?.uuidString ?? "default",
+            scope: Self.trackerScope(profileID),
             observed: discovered.map {
                 DeviceObservation(ipAddress: $0.ipAddress, macAddress: $0.macAddress, name: $0.matchName, isCached: $0.isCached)
             },
@@ -701,6 +688,11 @@ final class DeviceDiscoveryCoordinator {
             seed: { seed }
         )
         notifyDeviceChanges(changes, profileID: profileID)
+    }
+
+    /// The change tracker's key for a network.
+    private static func trackerScope(_ profileID: UUID?) -> String {
+        profileID?.uuidString ?? "default"
     }
 
     /// Subscribes `handler` to every later scan's device changes.

@@ -103,8 +103,9 @@ public struct ScanHistory {
 @MainActor
 public struct ScanReconciler {
     public enum Outcome: Equatable, Sendable {
-        /// Saved; `answered` are the IDs of the rows a device answered for this scan.
-        case applied(answered: Set<UUID>)
+        /// Saved. `answered`: the IDs of the rows a device answered for; `latencies`: the latency
+        /// measured this scan, by row ID, for those that had one.
+        case applied(answered: Set<UUID>, latencies: [UUID: Double])
         /// Already reconciled, empty, or nothing answered.
         case skipped
     }
@@ -116,23 +117,30 @@ public struct ScanReconciler {
     private let policy: DeviceGracePolicy
     private let holdsUnassignedForDetail: Bool
     private let save: @MainActor (ModelContext) throws -> Void
+    private let fetch: @MainActor (ModelContext) throws -> [LocalDevice]
+
+    /// Reads every saved row; the default for `fetch`.
+    public static let fetchAllRows: @MainActor (ModelContext) throws -> [LocalDevice] = { try $0.fetch(FetchDescriptor<LocalDevice>()) }
 
     /// - Parameters:
     ///   - holdsUnassignedForDetail: whether a device at the address of a row saved without a
     ///     network is left for device detail to adopt (the iPhone). The Mac makes a row instead.
     ///   - save: how rows are saved; tests make it fail.
+    ///   - fetch: how rows are read; tests make it fail.
     public init(
         context: ModelContext,
         history: ScanHistory = ScanHistory(),
         policy: DeviceGracePolicy = DeviceGracePolicy(),
         holdsUnassignedForDetail: Bool = true,
-        save: @escaping @MainActor (ModelContext) throws -> Void = { try $0.save() }
+        save: @escaping @MainActor (ModelContext) throws -> Void = { try $0.save() },
+        fetch: @escaping @MainActor (ModelContext) throws -> [LocalDevice] = ScanReconciler.fetchAllRows
     ) {
         self.context = context
         self.history = history
         self.policy = policy
         self.holdsUnassignedForDetail = holdsUnassignedForDetail
         self.save = save
+        self.fetch = fetch
     }
 
     /// Reconciles `scan`, finished at `scanDate`, into `networkProfileID`'s rows. Throws when the
@@ -145,9 +153,9 @@ public struct ScanReconciler {
               // a background scan) would put older addresses and presence back.
               history.newestScan(for: networkProfileID).map({ scanDate > $0 }) ?? true
         else { return .skipped }
-        let answered: Set<UUID>
+        let applied: (answered: Set<UUID>, latencies: [UUID: Double])
         do {
-            answered = try apply(scan, networkProfileID: networkProfileID, scanDate: scanDate, now: now)
+            applied = try apply(scan, networkProfileID: networkProfileID, scanDate: scanDate, now: now)
             try save(context)
         } catch {
             // Nothing half-applied stays in the context for the next save to write.
@@ -156,14 +164,16 @@ public struct ScanReconciler {
             throw error
         }
         history.record(scan: scanDate, reconciled: now, for: networkProfileID)
-        return .applied(answered: answered)
+        return .applied(answered: applied.answered, latencies: applied.latencies)
     }
 
     // MARK: - Applying
 
-    /// Returns the IDs of the rows that answered.
-    private func apply(_ scan: [DiscoveredDevice], networkProfileID: UUID?, scanDate: Date, now: Date) throws -> Set<UUID> {
-        let all = try context.fetch(FetchDescriptor<LocalDevice>())
+    /// Returns the IDs of the rows that answered, and the latencies measured this scan.
+    private func apply(
+        _ scan: [DiscoveredDevice], networkProfileID: UUID?, scanDate: Date, now: Date
+    ) throws -> (answered: Set<UUID>, latencies: [UUID: Double]) {
+        let all = try fetch(context)
         var rows = all.filter { $0.networkProfileID == networkProfileID }.sorted { $0.lastSeen > $1.lastSeen }
         let unassigned = networkProfileID == nil ? [] : all.filter { $0.networkProfileID == nil }
         // A row the network's previous scan saw never missed a scan (that scan at most
@@ -174,6 +184,7 @@ public struct ScanReconciler {
             observed: scan.map(Self.candidate), now: now, window: policy.interval, previousScan: previousScan
         )
         var answered = Set<UUID>()
+        var latencies: [UUID: Double] = [:]
         var adoptedLegacy = Set<UUID>()
 
         for (index, device) in scan.enumerated() {
@@ -206,6 +217,7 @@ public struct ScanReconciler {
             Self.fill(row, from: device)
             if let latency = device.latency {
                 row.updateLatency(latency)
+                latencies[row.id] = latency
             }
             row.status = .online
             row.lastSeen = now
@@ -227,7 +239,7 @@ public struct ScanReconciler {
                 row.status = .offline
             }
         }
-        return answered
+        return (answered, latencies)
     }
 
     /// What an answering device tells its row: address, names, MAC, identity, ports.

@@ -414,7 +414,8 @@ extension ScanReconcilerTests {
         #expect(try rows(context)[0].lastLatency == 12)
         // The same scan again, now saving: applied, not skipped as already reconciled.
         let outcome = try makeReconciler(context).reconcile([scanned(0, latency: 40)], networkProfileID: home, scanDate: later, now: later)
-        #expect(try outcome == .applied(answered: Set(rows(context).filter { $0.lastSeen == later }.map(\.id))))
+        let row = try #require(try rows(context).first { $0.lastSeen == later })
+        #expect(outcome == .applied(answered: [row.id], latencies: [row.id: 40]))
         #expect(outcome != .skipped)
         #expect(try rows(context)[0].lastLatency == 40)
         #expect(try makeReconciler(context).reconcile([scanned(0)], networkProfileID: home, scanDate: later, now: later) == .skipped)

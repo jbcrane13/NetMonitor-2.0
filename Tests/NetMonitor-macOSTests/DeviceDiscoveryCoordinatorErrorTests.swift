@@ -197,26 +197,36 @@ struct DeviceDiscoveryCoordinatorErrorTests {
                 "Documents current behavior: empty store returns empty array via try? ?? []")
     }
 
-    @Test("reconcileScan: fetch failure during duplicate check treats device as new")
-    func mergeFetchFailureTreatsAsNew() throws {
+    /// The reconciler's read of the rows fails: nothing is saved or recorded, nothing reaches the
+    /// Timeline, and the same scan applies once the store answers (review on #601).
+    @Test("reconcileScan: a failed fetch saves nothing, and the scan applies once the store answers")
+    func aFailedFetchSavesNothingAndTheScanAppliesLater() throws {
         let (container, context) = try makeInMemoryStore()
         _ = container
-        let coordinator = makeCoordinator(context: context)
+        final class StoreSwitch { var isDown = true }
+        struct StoreUnavailable: Error {}
+        let store = StoreSwitch()
+        let coordinator = DeviceDiscoveryCoordinator(
+            modelContext: context,
+            bonjourScanner: BonjourDiscoveryService(),
+            networkProfileManager: NetworkProfileManager(),
+            scanHistory: .forTesting(),
+            reconcilerFetch: { context in
+                if store.isDown {
+                    throw StoreUnavailable()
+                }
+                return try ScanReconciler.fetchAllRows(context)
+            }
+        )
+        let scan = [LocalDiscoveredDevice(ipAddress: "192.168.1.1", macAddress: "CC:CC:CC:CC:CC:01", hostname: nil)]
+        let now = Date()
 
-        // The production code at line ~168:
-        //   let existing = try? modelContext.fetch(descriptor).first
-        //
-        // If the fetch throws, existing is nil, so the device is treated as new
-        // and inserted. This could cause duplicates if the store is temporarily
-        // unreachable then recovers.
-        //
-        // GAP: A failing fetch should be distinguished from "no match found."
+        #expect(coordinator.reconcileScan(scan, profileID: nil, now: now) == false)
+        #expect(try context.fetch(FetchDescriptor<LocalDevice>()).isEmpty)
+        #expect(coordinator.discoveredDevices.isEmpty)
 
-        coordinator.reconcileScan([
-            LocalDiscoveredDevice(ipAddress: "192.168.1.1", macAddress: "CC:CC:CC:CC:CC:01", hostname: nil)
-        ], profileID: nil)
-
-        #expect(coordinator.discoveredDevices.count == 1,
-                "Documents current behavior: successful fetch correctly finds/inserts device")
+        store.isDown = false
+        #expect(coordinator.reconcileScan(scan, profileID: nil, now: now))
+        #expect(coordinator.discoveredDevices.count == 1)
     }
 }

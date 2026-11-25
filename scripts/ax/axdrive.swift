@@ -6,6 +6,8 @@ import ApplicationServices
 //   axdrive press <id> | click <id> | type <id> <text> | wait <id> <seconds> | gone <id> <seconds>
 //   axdrive capture <file.png> | ids | value <id> | menu <menu item title>
 //   axdrive text <substring> <seconds> | notext <substring> <seconds>  (any element's value, title or description)
+//   axdrive textin <id> <substring> <seconds> | notextin <id> <substring> <seconds>  (only in elements
+//                                            carrying <id> and their descendants, such as one card)
 //   axdrive capture-element <id> <file.png>  (only that element's frame on screen)
 //   axdrive pressin <id> <title>  (presses the descendant of <id> titled <title>, such as a picker segment)
 //   axdrive capture-in <id> <file.png>  (the app window only, cropped to that element; no other window shows)
@@ -134,10 +136,23 @@ func hasText(_ text: String) -> Bool {
     return false
 }
 
-func waitForText(_ text: String, _ seconds: Double, present: Bool) -> Bool {
+/// Whether an element carrying `id`, or one inside it, shows `text` in its title, value or description.
+func hasText(_ text: String, inside id: String) -> Bool {
+    var queue = findAll([id])
+    while !queue.isEmpty {
+        let el = queue.removeFirst()
+        for name in [kAXTitleAttribute, kAXValueAttribute, kAXDescriptionAttribute] where (attr(el, name) as? String)?.contains(text) == true {
+            return true
+        }
+        queue += attr(el, kAXChildrenAttribute) as? [AXUIElement] ?? []
+    }
+    return false
+}
+
+func waitForText(_ text: String, _ seconds: Double, present: Bool, inside id: String? = nil) -> Bool {
     let deadline = Date().addingTimeInterval(seconds)
     while Date() < deadline {
-        if hasText(text) == present {
+        if (id.map { hasText(text, inside: $0) } ?? hasText(text)) == present {
             return true
         }
         usleep(300_000)
@@ -281,6 +296,10 @@ case "text":
     print(waitForText(args[2], Double(args[3]) ?? 10, present: true) ? "found text \(args[2])" : "TIMEOUT text \(args[2])")
 case "notext":
     print(waitForText(args[2], Double(args[3]) ?? 10, present: false) ? "no text \(args[2])" : "STILL text \(args[2])")
+case "textin":
+    print(waitForText(args[3], Double(args[4]) ?? 10, present: true, inside: args[2]) ? "found text \(args[3])" : "TIMEOUT text \(args[3])")
+case "notextin":
+    print(waitForText(args[3], Double(args[4]) ?? 10, present: false, inside: args[2]) ? "no text \(args[3])" : "STILL text \(args[3])")
 case "capture-element":
     guard let el = find(args[2]), let posValue = attr(el, kAXPositionAttribute), let sizeValue = attr(el, kAXSizeAttribute),
           CFGetTypeID(posValue) == AXValueGetTypeID(), CFGetTypeID(sizeValue) == AXValueGetTypeID()

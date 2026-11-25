@@ -126,7 +126,7 @@ struct PrivateMACMergeTests {
         // Enrichment transition: the name isn't resolved yet.
         coordinator.mergeSparseSnapshot([
             LocalDiscoveredDevice(ipAddress: "192.0.2.20", macAddress: newPrivateMAC, hostname: nil)
-        ], profileID: nil, now: Date())
+        ], profileID: nil)
         #expect(try context.fetch(FetchDescriptor<LocalDevice>()).count == 1)
 
         // Final merge: the name has arrived.
@@ -146,16 +146,17 @@ struct PrivateMACMergeTests {
         #expect(row.status == .online)
     }
 
-    @Test func sparseMergeStillInsertsPublicMACs() throws {
+    /// The sparse merge makes no rows (#596); new devices appear at the final pass.
+    @Test func sparseMergeMakesNoRowsEvenForPublicMACs() throws {
         let (container, context) = try makeInMemoryStore()
         _ = container
         makeCoordinator(context: context).mergeSparseSnapshot([
             LocalDiscoveredDevice(ipAddress: "192.0.2.30", macAddress: "AC:DE:48:00:11:22", hostname: nil),
             LocalDiscoveredDevice(ipAddress: "192.0.2.31", macAddress: newPrivateMAC, hostname: nil)
-        ], profileID: nil, now: Date())
+        ], profileID: nil)
 
         let devices = try context.fetch(FetchDescriptor<LocalDevice>())
-        #expect(devices.map(\.macAddress) == ["AC:DE:48:00:11:22"])
+        #expect(devices.isEmpty)
     }
 
     /// The sparse merge skips a new private MAC, so the final merge inserts it: that insert
@@ -166,7 +167,7 @@ struct PrivateMACMergeTests {
         let coordinator = makeCoordinator(context: context)
         let observed = LocalDiscoveredDevice(ipAddress: "192.0.2.32", macAddress: newPrivateMAC, hostname: nil, latency: 12.5)
 
-        coordinator.mergeSparseSnapshot([observed], profileID: nil, now: Date())
+        coordinator.mergeSparseSnapshot([observed], profileID: nil)
         coordinator.reconcileScan([observed], profileID: nil)
 
         let devices = try context.fetch(FetchDescriptor<LocalDevice>())
@@ -188,7 +189,7 @@ struct PrivateMACMergeTests {
 
         coordinator.mergeSparseSnapshot([
             LocalDiscoveredDevice(ipAddress: "192.0.2.20", macAddress: newPrivateMAC, hostname: nil, isCached: true)
-        ], profileID: nil, now: Date())
+        ], profileID: nil)
         // Another device answers, so the scan is applied (#596).
         coordinator.reconcileScan([
             LocalDiscoveredDevice(ipAddress: "192.0.2.20", macAddress: newPrivateMAC, hostname: "pixel.local", isCached: true),

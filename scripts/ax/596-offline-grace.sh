@@ -44,19 +44,21 @@ scan() {
 # Scan 1: the printer answers and gets its card.
 scan
 expect "$("$AX" wait $PRINTER 15)" found "scan 1: the printer's card never showed"
-expect "$("$AX" text Online 5)" "found text" "scan 1: no Online status"
+expect "$("$AX" textin $PRINTER Online 5)" "found text" "scan 1: the printer's card doesn't say Online"
 "$AX" capture-union "$OUT/596-1-scan1-online.png" $CARDS
 
-# Scans 2 and 3 miss it: within grace, so it stays Online (no Offline anywhere).
+# Scans 2 and 3 miss it: within grace, so its own card stays Online.
 for n in 2 3; do
   scan
   expect "$("$AX" wait $PRINTER 5)" found "scan $n: the printer's card is gone"
-  expect "$("$AX" notext Offline 5)" "no text" "scan $n: the printer went offline before grace"
+  expect "$("$AX" textin $PRINTER Online 5)" "found text" "scan $n: the printer's card doesn't say Online"
+  expect "$("$AX" notextin $PRINTER Offline 5)" "no text" "scan $n: the printer went offline before grace"
 done
 "$AX" capture-union "$OUT/596-2-scan3-still-online.png" $CARDS
 
 # Scan 4: the third miss, 30 minutes after it was seen: now Offline.
 scan
-expect "$("$AX" text Offline 10)" "found text" "scan 4: the printer never went offline"
+expect "$("$AX" textin $PRINTER Offline 10)" "found text" "scan 4: the printer's card never said Offline"
+expect "$("$AX" textin devices_card_192.168.77.77 Online 5)" "found text" "scan 4: the seeded device should still be Online"
 "$AX" capture-union "$OUT/596-3-scan4-offline.png" $CARDS
 echo PASS
