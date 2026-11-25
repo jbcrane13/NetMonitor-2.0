@@ -3,7 +3,9 @@
 # Launches a Debug build with UI-test arguments and --uitest-ask=answer: a scripted model that
 # calls the app's real tools on a seeded printer ("UITest Printer", offline, 192.0.2.57) and two
 # joins this week. Opens Tools > Ask, asks "Is the printer up?": the answer, the generated marker
-# and the printer's citation show. Clicking the citation opens the printer's device detail.
+# and the printer's citation show, with the app's line on how fresh the status is. Clicking the
+# citation opens the printer's device detail. Then "What joined this week?": clicking the newer
+# join opens the Timeline at its day, and Done closes it.
 # Screenshots are the app window cropped to the Ask sheet and the detail: only fixture values.
 # Never touches an installed /Applications copy: it drives only the process it started.
 # Usage: scripts/ax/452-ask.sh <Debug NetMonitor-macOS.app> <out-dir>
@@ -36,10 +38,26 @@ expect "$("$AX" wait ask_field_question 10)" found "the question field is missin
 expect "$("$AX" text "UITest Printer is offline." 15)" "found text" "the answer is missing"
 expect "$("$AX" text "Written by the on-device model from the records below" 3)" "found text" "the generated marker is missing"
 expect "$("$AX" wait ask_citation_device_1 5)" found "the printer is not cited"
+# The app's freshness line (#452 after #589): the UI-test network has no scan.
+expect "$("$AX" wait ask_label_freshness 5)" found "the freshness line is missing"
+expect "$("$AX" text "This network hasn't been scanned yet" 3)" "found text" "the freshness line has the wrong text"
 "$AX" capture-in screen_ask "$OUT/452-ask-printer.png"
 
 "$AX" press ask_citation_device_1 > /dev/null
 expect "$("$AX" wait screen_deviceDetail 10)" found "the cited printer's detail never opened"
 expect "$("$AX" text "UITest Printer" 5)" "found text" "detail does not show the printer"
 "$AX" capture-in screen_deviceDetail "$OUT/452-ask-printer-detail.png"
+"$AX" press deviceDetail_button_close > /dev/null
+expect "$("$AX" gone screen_deviceDetail 5)" gone "device detail did not close"
+
+"$AX" type ask_field_question "What joined this week?" > /dev/null
+"$AX" press ask_button_ask > /dev/null
+expect "$("$AX" text "Two devices joined this week: UITest Camera and UITest Speaker." 15)" "found text" "the joins answer is missing"
+expect "$("$AX" wait ask_citation_event_1 5)" found "the newer join is not cited"
+"$AX" press ask_citation_event_1 > /dev/null
+expect "$("$AX" wait screen_networkTimeline 10)" found "the Timeline never opened"
+expect "$("$AX" text "UITest Camera" 5)" "found text" "the Timeline does not show the cited join"
+"$AX" capture-in screen_networkTimeline "$OUT/452-ask-joined-timeline.png"
+"$AX" press ask_button_closeTimeline > /dev/null
+expect "$("$AX" gone screen_networkTimeline 5)" gone "Done did not close the Timeline"
 echo "PASS"

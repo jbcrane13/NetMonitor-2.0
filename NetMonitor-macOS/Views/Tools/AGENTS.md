@@ -22,7 +22,7 @@ Network diagnostic tool views for macOS. Each tool is presented as a sheet from 
 | `PortForwardsToolView.swift` | Read-only table of the router's UPnP port forwards (#400); state from Core `PortForwardsState` |
 | `SecurityReadoutView.swift` | Ranked risks from measured open ports (#454); findings from Core `SecurityRuleTable`, optional model overview via `SecurityReadoutMacViewModel` |
 | `TroubleshootToolView.swift` | Guided troubleshooter (#451): symptom → the app's fixed checks with live results → ranked likely causes → optional model explanation; state from Core `TroubleshootState` via `TroubleshootMacViewModel`. AX flow: `scripts/ax/451-troubleshoot.sh` |
-| `AskToolView.swift` | Ask your network (#452), in Monitoring and hidden without the model: a question answered by the on-device model through Core `AskToolbox` tools, with citations that open device detail (by `LocalDevice.id`) or the Timeline at the event's day; state from Core `AskState` via `AskMacViewModel`. UI tests: `--uitest-ask=answer\|hold\|unavailable` (`Shared/UITest/AskUITestFixture.swift`). AX flow: `scripts/ax/452-ask.sh` |
+| `AskToolView.swift` | Ask your network (#452), in Monitoring and hidden without the model: a question answered by the on-device model through Core `AskToolbox` tools, with citations that open device detail (by `LocalDevice.id`) or the Timeline at the event's day, and the app's freshness line (`AskAnswer.freshness`, from the profile's `lastScanned`); state from Core `AskState` via `AskMacViewModel`. UI tests: `--uitest-ask=answer\|hold\|unavailable` (`Shared/UITest/AskUITestFixture.swift`). AX flow: `scripts/ax/452-ask.sh` |
 
 ## For AI Agents
 
