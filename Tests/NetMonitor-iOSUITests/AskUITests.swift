@@ -9,8 +9,12 @@ private extension IOSUITestCase {
 
     /// Opens Tools → Ask, in Monitoring.
     func openAsk() {
-        app.tabBars.buttons["Tools"].tap()
         let tools = ui("screen_tools")
+        // Right after a scan the first tap can be swallowed (a dismissed prompt); tap again.
+        for _ in 0 ..< 3 where !tools.exists {
+            app.tabBars.buttons["Tools"].tap()
+            _ = tools.waitForExistence(timeout: 4)
+        }
         requireExists(tools, timeout: 8, message: "Tools screen should open")
         let card = ui("tools_card_ask")
         for _ in 0 ..< 8 where !(card.exists && card.isHittable) {
