@@ -61,10 +61,6 @@ public struct AskSnapshot: Sendable {
     /// When the network's last scan finished, on the clock that stamps `lastSeen`; nil when it
     /// has none.
     public let lastScan: Date?
-    /// How long before `lastScan` a device's `lastSeen` may be and still count as answering that
-    /// scan: zero on iPhone, where the reconciler stamps both with one time, longer on the Mac,
-    /// which stamps devices while merging and the profile when the scan ends.
-    public let lastScanTolerance: TimeInterval
     /// After this long the last scan is "not checked recently".
     public let staleAfter: TimeInterval
     public let now: Date
@@ -107,7 +103,6 @@ public struct AskSnapshot: Sendable {
         events: [NetworkEvent],
         networkProfileID: UUID? = nil,
         lastScan: Date?,
-        lastScanTolerance: TimeInterval = 0,
         staleAfter: TimeInterval = DeviceGracePolicy().interval,
         now: Date,
         calendar: Calendar = .current
@@ -117,7 +112,6 @@ public struct AskSnapshot: Sendable {
             .filter { networkProfileID == nil || $0.networkProfileID == nil || $0.networkProfileID == networkProfileID }
             .sorted { $0.timestamp > $1.timestamp }
         self.lastScan = lastScan
-        self.lastScanTolerance = lastScanTolerance
         self.staleAfter = staleAfter
         self.now = now
         self.calendar = calendar
@@ -132,7 +126,8 @@ public struct AskSnapshot: Sendable {
     /// Whether the device answered the network's last scan: online, and seen at or after it.
     func answeredLastScan(_ device: AskDevice) -> Bool {
         guard let lastScan, device.status == .online else { return false }
-        return device.lastSeen >= lastScan.addingTimeInterval(-lastScanTolerance)
+        // Both apps' reconcilers stamp lastSeen and the scan with one time.
+        return device.lastSeen >= lastScan
     }
 
     /// The app's line on how fresh device statuses are, shown under an answer word for word.

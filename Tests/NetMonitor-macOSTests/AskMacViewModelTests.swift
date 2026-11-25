@@ -42,10 +42,10 @@ struct AskMacViewModelTests {
     /// status is not recent and drops an answer that calls it online now.
     @Test func aDeviceTheLastScanSawFortyMinutesAgoIsNeverOnlineNow() async {
         let scanEnd = Date().addingTimeInterval(-40 * 60)
-        // Stamped while merging, a moment before the profile's lastScanned.
+        // The reconciler stamps lastSeen with the scan's reconcile time (#596).
         let nas = LocalDevice(ipAddress: "192.168.77.40", macAddress: "AA:00:00:00:00:40", deviceType: .storage,
                               customName: "Garage NAS", status: .online, networkProfileID: home)
-        nas.lastSeen = scanEnd.addingTimeInterval(-20)
+        nas.lastSeen = scanEnd
         let model = ScriptedAskModel(scripts: [
             "What's online?": AskScript(calls: [.findDevices("all")], answer: "Garage NAS is online."),
             "Is the NAS up?": AskScript(calls: [.deviceStatus("NAS")], answer: "Garage NAS was last seen 40 minutes ago.")
@@ -67,7 +67,7 @@ struct AskMacViewModelTests {
             Issue.record("not answered: \(viewModel.state.phase)")
             return
         }
-        // Within the tolerance, the NAS answered that scan: the app shows it beside the citation.
+        // The NAS answered that scan, which is old: the app shows it beside the citation.
         #expect(status.text == "Garage NAS was last seen 40 minutes ago.")
         #expect(status.devices.first?.presence == .answeredOldScan)
     }

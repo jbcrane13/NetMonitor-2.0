@@ -94,16 +94,6 @@ struct AskFreshnessTests {
         #expect(status.hasPrefix("Synology DS920: this network hasn't been scanned yet, so its status is not known. Last seen 40 minutes ago"))
     }
 
-    @Test func aScanWithinTheToleranceCountsAsAnswered() {
-        // The Mac stamps lastSeen while merging, a moment before the profile's lastScanned.
-        let device = Fix.device("Synology DS920", .storage, ip: "192.168.1.20", lastSeen: Fix.now.addingTimeInterval(-90))
-        let snapshot = AskSnapshot(
-            devices: [device], events: [], lastScan: Fix.now, lastScanTolerance: 5 * 60, now: Fix.now, calendar: Fix.calendar
-        )
-        #expect(snapshot.answeredLastScan(device))
-        #expect(!AskSnapshot(devices: [device], events: [], lastScan: Fix.now, now: Fix.now, calendar: Fix.calendar).answeredLastScan(device))
-    }
-
     // MARK: - The answer
 
     @Test func aDeviceSeenFortyMinutesAgoIsNeverDescribedAsOnlineNow() async {
