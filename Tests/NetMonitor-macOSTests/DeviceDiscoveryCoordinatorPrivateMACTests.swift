@@ -25,7 +25,8 @@ struct PrivateMACMergeTests {
             modelContext: context,
             bonjourScanner: BonjourDiscoveryService(),
             networkProfileManager: NetworkProfileManager(),
-            pipelineFactory: { _ in ScanPipeline(steps: []) }
+            pipelineFactory: { _ in ScanPipeline(steps: []) },
+            scanHistory: .forTesting()
         )
     }
 
@@ -35,7 +36,7 @@ struct PrivateMACMergeTests {
         context.insert(LocalDevice(ipAddress: "192.0.2.20", macAddress: oldPrivateMAC, hostname: "pixel.local"))
         try context.save()
 
-        makeCoordinator(context: context).mergeDiscoveredDevices([
+        makeCoordinator(context: context).reconcileScan([
             LocalDiscoveredDevice(ipAddress: "192.0.2.20", macAddress: newPrivateMAC, hostname: "pixel.local")
         ], profileID: nil)
 
@@ -51,7 +52,7 @@ struct PrivateMACMergeTests {
         context.insert(LocalDevice(ipAddress: "192.0.2.20", macAddress: oldPrivateMAC, hostname: "pixel.local"))
         try context.save()
 
-        makeCoordinator(context: context).mergeDiscoveredDevices([
+        makeCoordinator(context: context).reconcileScan([
             LocalDiscoveredDevice(ipAddress: "192.0.2.20", macAddress: newPrivateMAC, hostname: nil)
         ], profileID: nil)
 
@@ -65,7 +66,7 @@ struct PrivateMACMergeTests {
         context.insert(LocalDevice(ipAddress: "192.0.2.20", macAddress: "06:00:00:00:00:01", hostname: "pixel.local"))
         try context.save()
 
-        makeCoordinator(context: context).mergeDiscoveredDevices([
+        makeCoordinator(context: context).reconcileScan([
             LocalDiscoveredDevice(ipAddress: "192.0.2.20", macAddress: newPrivateMAC, hostname: "pixel.local")
         ], profileID: nil)
 
@@ -81,7 +82,7 @@ struct PrivateMACMergeTests {
         try context.save()
 
         // The old device still answers this scan, so the new private MAC is a different device.
-        makeCoordinator(context: context).mergeDiscoveredDevices([
+        makeCoordinator(context: context).reconcileScan([
             LocalDiscoveredDevice(ipAddress: "192.0.2.20", macAddress: newPrivateMAC, hostname: "pixel.local"),
             LocalDiscoveredDevice(ipAddress: "192.0.2.20", macAddress: oldPrivateMAC, hostname: "pixel.local")
         ], profileID: nil)
@@ -97,7 +98,7 @@ struct PrivateMACMergeTests {
         context.insert(LocalDevice(ipAddress: "192.0.2.20", macAddress: "AC:DE:48:00:11:22", hostname: "nas.local"))
         try context.save()
 
-        makeCoordinator(context: context).mergeDiscoveredDevices([
+        makeCoordinator(context: context).reconcileScan([
             LocalDiscoveredDevice(ipAddress: "192.0.2.20", macAddress: "AC:DE:48:00:11:33", hostname: "nas.local")
         ], profileID: nil)
 
@@ -123,15 +124,15 @@ struct PrivateMACMergeTests {
         let coordinator = makeCoordinator(context: context)
 
         // Enrichment transition: the name isn't resolved yet.
-        coordinator.mergeDiscoveredDevices([
+        coordinator.mergeSparseSnapshot([
             LocalDiscoveredDevice(ipAddress: "192.0.2.20", macAddress: newPrivateMAC, hostname: nil)
-        ], profileID: nil, recordLatencyHistory: false, isSparse: true)
+        ], profileID: nil)
         #expect(try context.fetch(FetchDescriptor<LocalDevice>()).count == 1)
 
         // Final merge: the name has arrived.
-        coordinator.mergeDiscoveredDevices([
+        coordinator.reconcileScan([
             LocalDiscoveredDevice(ipAddress: "192.0.2.20", macAddress: newPrivateMAC, hostname: "pixel.local", latency: 4)
-        ], profileID: nil, recordLatencyHistory: true)
+        ], profileID: nil)
 
         let devices = try context.fetch(FetchDescriptor<LocalDevice>())
         #expect(devices.count == 1)
@@ -145,16 +146,17 @@ struct PrivateMACMergeTests {
         #expect(row.status == .online)
     }
 
-    @Test func sparseMergeStillInsertsPublicMACs() throws {
+    /// The sparse merge makes no rows (#596); new devices appear at the final pass.
+    @Test func sparseMergeMakesNoRowsEvenForPublicMACs() throws {
         let (container, context) = try makeInMemoryStore()
         _ = container
-        makeCoordinator(context: context).mergeDiscoveredDevices([
+        makeCoordinator(context: context).mergeSparseSnapshot([
             LocalDiscoveredDevice(ipAddress: "192.0.2.30", macAddress: "AC:DE:48:00:11:22", hostname: nil),
             LocalDiscoveredDevice(ipAddress: "192.0.2.31", macAddress: newPrivateMAC, hostname: nil)
-        ], profileID: nil, recordLatencyHistory: false, isSparse: true)
+        ], profileID: nil)
 
         let devices = try context.fetch(FetchDescriptor<LocalDevice>())
-        #expect(devices.map(\.macAddress) == ["AC:DE:48:00:11:22"])
+        #expect(devices.isEmpty)
     }
 
     /// The sparse merge skips a new private MAC, so the final merge inserts it: that insert
@@ -165,8 +167,8 @@ struct PrivateMACMergeTests {
         let coordinator = makeCoordinator(context: context)
         let observed = LocalDiscoveredDevice(ipAddress: "192.0.2.32", macAddress: newPrivateMAC, hostname: nil, latency: 12.5)
 
-        coordinator.mergeDiscoveredDevices([observed], profileID: nil, recordLatencyHistory: false, isSparse: true)
-        coordinator.mergeDiscoveredDevices([observed], profileID: nil)
+        coordinator.mergeSparseSnapshot([observed], profileID: nil)
+        coordinator.reconcileScan([observed], profileID: nil)
 
         let devices = try context.fetch(FetchDescriptor<LocalDevice>())
         #expect(devices.count == 1)
@@ -185,19 +187,22 @@ struct PrivateMACMergeTests {
         try context.save()
         let coordinator = makeCoordinator(context: context)
 
-        coordinator.mergeDiscoveredDevices([
+        coordinator.mergeSparseSnapshot([
             LocalDiscoveredDevice(ipAddress: "192.0.2.20", macAddress: newPrivateMAC, hostname: nil, isCached: true)
-        ], profileID: nil, recordLatencyHistory: false, isSparse: true)
-        coordinator.mergeDiscoveredDevices([
-            LocalDiscoveredDevice(ipAddress: "192.0.2.20", macAddress: newPrivateMAC, hostname: "pixel.local", isCached: true)
+        ], profileID: nil)
+        // Another device answers, so the scan is applied (#596).
+        coordinator.reconcileScan([
+            LocalDiscoveredDevice(ipAddress: "192.0.2.20", macAddress: newPrivateMAC, hostname: "pixel.local", isCached: true),
+            LocalDiscoveredDevice(ipAddress: "192.0.2.1", macAddress: "AC:DE:48:00:00:01", hostname: "router.local")
         ], profileID: nil)
 
         let devices = try context.fetch(FetchDescriptor<LocalDevice>())
-        #expect(devices.count == 1)
-        #expect(devices.first?.id == originalID)
-        #expect(devices.first?.macAddress == newPrivateMAC)
-        #expect(devices.first?.status == .cached)
-        #expect(devices.first?.lastSeen == lastSeen)
+        #expect(devices.count == 2)
+        let row = try #require(devices.first { $0.id == originalID })
+        // A cached sighting is a miss: it keeps the row from being duplicated but changes nothing on it.
+        #expect(row.macAddress == oldPrivateMAC)
+        #expect(row.status == .cached)
+        #expect(row.lastSeen == lastSeen)
     }
 }
 
@@ -219,7 +224,8 @@ struct DeviceMatchMergeTests {
             modelContext: context,
             bonjourScanner: BonjourDiscoveryService(),
             networkProfileManager: NetworkProfileManager(),
-            pipelineFactory: { _ in ScanPipeline(steps: []) }
+            pipelineFactory: { _ in ScanPipeline(steps: []) },
+            scanHistory: .forTesting()
         )
     }
 
@@ -230,7 +236,7 @@ struct DeviceMatchMergeTests {
         context.insert(LocalDevice(id: originalID, ipAddress: "192.0.2.30", macAddress: "", hostname: "switch.local"))
         try context.save()
 
-        makeCoordinator(context: context).mergeDiscoveredDevices([
+        makeCoordinator(context: context).reconcileScan([
             LocalDiscoveredDevice(ipAddress: "192.0.2.30", macAddress: publicMAC, hostname: "switch.local")
         ], profileID: nil)
 
@@ -246,7 +252,7 @@ struct DeviceMatchMergeTests {
         let coordinator = makeCoordinator(context: context)
 
         for mac in ["", publicMAC, "", publicMAC] {
-            coordinator.mergeDiscoveredDevices([
+            coordinator.reconcileScan([
                 LocalDiscoveredDevice(ipAddress: "192.0.2.30", macAddress: mac, hostname: "switch.local")
             ], profileID: nil)
         }
@@ -263,33 +269,39 @@ struct DeviceMatchMergeTests {
         context.insert(LocalDevice(ipAddress: "192.0.2.30", macAddress: "", hostname: "camera.local"))
         try context.save()
 
-        makeCoordinator(context: context).mergeDiscoveredDevices([
+        makeCoordinator(context: context).reconcileScan([
             LocalDiscoveredDevice(ipAddress: "192.0.2.30", macAddress: placeholder, hostname: "camera.local")
         ], profileID: nil)
 
         #expect(try context.fetch(FetchDescriptor<LocalDevice>()).count == 1)
     }
 
-    /// Two MAC'd rows at one IP are ambiguous, so a MAC-less sighting there is a new device.
-    /// (Before #461 it silently reused whichever row came first.)
-    @Test func aMACLessSightingBetweenTwoMACdRowsIsNew() throws {
+    /// A nameless, MAC-less sighting at an address two nameless MAC'd rows share is the one seen
+    /// there most recently within grace (`PresenceMatch`, #596); before, it was a new row (#461).
+    @Test func aMACLessSightingBetweenTwoMACdRowsTakesTheMostRecentOne() throws {
         let (container, context) = try makeInMemoryStore()
         _ = container
-        context.insert(LocalDevice(ipAddress: "192.0.2.30", macAddress: "3C:22:FB:00:00:08"))
-        context.insert(LocalDevice(ipAddress: "192.0.2.30", macAddress: "3C:22:FB:00:00:09"))
+        let older = LocalDevice(ipAddress: "192.0.2.30", macAddress: "3C:22:FB:00:00:08")
+        older.lastSeen = Date().addingTimeInterval(-120)
+        let recent = LocalDevice(ipAddress: "192.0.2.30", macAddress: "3C:22:FB:00:00:09")
+        recent.lastSeen = Date().addingTimeInterval(-60)
+        context.insert(older)
+        context.insert(recent)
         try context.save()
 
-        makeCoordinator(context: context).mergeDiscoveredDevices([
+        makeCoordinator(context: context).reconcileScan([
             LocalDiscoveredDevice(ipAddress: "192.0.2.30", macAddress: "", hostname: nil)
         ], profileID: nil)
 
-        #expect(try context.fetch(FetchDescriptor<LocalDevice>()).count == 3)
+        let rows = try context.fetch(FetchDescriptor<LocalDevice>())
+        #expect(rows.count == 2)
+        #expect(rows.first { $0.macAddress == "3C:22:FB:00:00:09" }?.lastSeen ?? .distantPast > Date().addingTimeInterval(-10))
     }
 }
 
 extension DeviceMatchMergeTests {
-    /// A duplicate row #442 left behind goes offline once the device answers under its MAC,
-    /// even though the live device has the same IP.
+    /// A duplicate row #442 left behind goes offline (past grace, #596) once the device answers
+    /// under its MAC, even though the live device has the same IP.
     @Test func aStaleDuplicateRowAtALiveIPGoesOffline() throws {
         let (container, context) = try makeInMemoryStore()
         _ = container
@@ -302,12 +314,10 @@ extension DeviceMatchMergeTests {
         try context.save()
         let coordinator = makeCoordinator(context: context)
 
-        let seen = coordinator.mergeDiscoveredDevices([
-            LocalDiscoveredDevice(ipAddress: "192.0.2.30", macAddress: publicMAC, hostname: "switch.local")
-        ], profileID: nil)
-        coordinator.markOfflineDevices(keeping: seen, profileID: nil)
+        let scan = [LocalDiscoveredDevice(ipAddress: "192.0.2.30", macAddress: publicMAC, hostname: "switch.local")]
+        coordinator.reconcileScan(scan, profileID: nil)
+        coordinator.missPastGrace(answering: scan, profileID: nil)
 
-        #expect(seen == [live.id])
         #expect(stale.status == .offline)
         #expect(live.status == .online)
     }

@@ -291,7 +291,8 @@ struct DeviceDiscoveryNewDeviceHookTests {
             pipelineFactory: { _ in
                 ScanPipeline(steps: [ScanPipeline.Step(phases: [ListUpsertPhase(box: box)], concurrent: false)])
             },
-            portChecker: { _, _, _ in false }
+            portChecker: { _, _, _ in false },
+            scanHistory: .forTesting()
         )
         let suite = "DeviceDiscoveryNewDeviceHookTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite) ?? .standard
@@ -332,7 +333,8 @@ struct DeviceDiscoveryNewDeviceHookTests {
         coordinator.startScan()
         await waitUntil { !coordinator.isScanning }
         let rows = try container.mainContext.fetch(FetchDescriptor<LocalDevice>())
-        #expect(rows.first { $0.ipAddress == "192.0.2.4" }?.status == .cached)
+        // A cached sighting never makes a row (#596).
+        #expect(!rows.contains { $0.ipAddress == "192.0.2.4" })
         #expect(reported == [["192.0.2.3"]])
 
         // When that device first answers, it alerts once (#393 folds in the #407 trade-off).
@@ -367,7 +369,8 @@ struct DeviceDiscoveryNewDeviceHookTests {
             pipelineFactory: { _ in
                 ScanPipeline(steps: [ScanPipeline.Step(phases: [ListUpsertPhase(box: box)], concurrent: false)])
             },
-            portChecker: { _, _, _ in false }
+            portChecker: { _, _, _ in false },
+            scanHistory: .forTesting()
         )
         let suite = "UpgradeSeedTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite) ?? .standard

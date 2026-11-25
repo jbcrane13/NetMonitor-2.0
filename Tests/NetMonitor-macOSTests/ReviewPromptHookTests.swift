@@ -63,7 +63,8 @@ struct ReviewPromptHookTests {
             networkProfileManager: NetworkProfileManager(userDefaults: harness.defaults, activeProfilesProvider: { [local] }),
             // Empty pipeline: scans complete immediately, no real LAN scan (#309).
             pipelineFactory: { _ in ScanPipeline(steps: []) },
-            reviewPrompt: harness.policy
+            reviewPrompt: harness.policy,
+            scanHistory: .forTesting()
         )
     }
 

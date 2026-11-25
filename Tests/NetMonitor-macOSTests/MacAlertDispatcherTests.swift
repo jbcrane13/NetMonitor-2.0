@@ -174,7 +174,8 @@ struct MacAlertDispatcherTests {
         let coordinator = DeviceDiscoveryCoordinator(
             modelContext: context,
             bonjourScanner: BonjourDiscoveryService(),
-            networkProfileManager: NetworkProfileManager()
+            networkProfileManager: NetworkProfileManager(),
+            scanHistory: .forTesting()
         )
         defer { withExtendedLifetime(container) {} }
         #expect(session.onTargetDown == nil)

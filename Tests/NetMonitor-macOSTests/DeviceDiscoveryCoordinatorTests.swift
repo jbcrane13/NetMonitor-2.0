@@ -9,7 +9,7 @@ import NetworkScanKit
 @MainActor
 struct DeviceDiscoveryCoordinatorTests {
 
-    @Test func mergeDiscoveredDevicesUpdatesExistingRecordByMACAndInsertsNewDevice() throws {
+    @Test func reconcileScanUpdatesExistingRecordByMACAndInsertsNewDevice() throws {
         let (container, context) = try makeInMemoryStore()
         _ = container
 
@@ -23,7 +23,7 @@ struct DeviceDiscoveryCoordinatorTests {
         try context.save()
 
         let coordinator = makeCoordinator(context: context)
-        coordinator.mergeDiscoveredDevices([
+        coordinator.reconcileScan([
             LocalDiscoveredDevice(
                 ipAddress: "192.168.1.11",
                 macAddress: "aa:bb:cc:dd:ee:ff",
@@ -49,7 +49,7 @@ struct DeviceDiscoveryCoordinatorTests {
         #expect(inserted?.hostname == "camera.local")
     }
 
-    @Test func mergeDiscoveredDevicesToleratesDuplicateHistoricalIdentifiers() throws {
+    @Test func reconcileScanToleratesDuplicateHistoricalIdentifiers() throws {
         let (container, context) = try makeInMemoryStore()
         _ = container
 
@@ -66,7 +66,7 @@ struct DeviceDiscoveryCoordinatorTests {
         try context.save()
 
         let coordinator = makeCoordinator(context: context)
-        coordinator.mergeDiscoveredDevices([
+        coordinator.reconcileScan([
             LocalDiscoveredDevice(
                 ipAddress: "192.168.1.12",
                 macAddress: "aa:bb:cc:dd:ee:ff",
@@ -79,16 +79,19 @@ struct DeviceDiscoveryCoordinatorTests {
         #expect(devices.contains { $0.hostname == "current.local" && $0.ipAddress == "192.168.1.12" })
     }
 
-    @Test func markOfflineDevicesMarksOnlyMissingIPsOffline() throws {
+    @Test func onlyDevicesMissingPastGraceGoOffline() throws {
         let (container, context) = try makeInMemoryStore()
         _ = container
 
         let coordinator = makeCoordinator(context: context)
-        coordinator.mergeDiscoveredDevices([
+        coordinator.reconcileScan([
             LocalDiscoveredDevice(ipAddress: "192.168.1.2", macAddress: "00:00:00:00:00:02", hostname: nil),
             LocalDiscoveredDevice(ipAddress: "192.168.1.3", macAddress: "00:00:00:00:00:03", hostname: nil)
         ], profileID: nil)
-        coordinator.markOfflineDevices(currentIPs: Set(["192.168.1.2"]), profileID: nil)
+        coordinator.missPastGrace(
+            answering: [LocalDiscoveredDevice(ipAddress: "192.168.1.2", macAddress: "00:00:00:00:00:02", hostname: nil)],
+            profileID: nil
+        )
 
         let devices = try context.fetch(FetchDescriptor<LocalDevice>())
         let stillOnline = devices.first { $0.ipAddress == "192.168.1.2" }
@@ -100,18 +103,17 @@ struct DeviceDiscoveryCoordinatorTests {
 
     // MARK: - #279 equivalence: fixture devices through the retained merge/offline path
     //
-    // This exercises only `mergeDiscoveredDevices`/`markOfflineDevices`, whose bodies are
-    // unchanged by #279's `ScanEngine` adapter rewrite, so it must be green on both the
-    // pre-rewrite ARP/Bonjour coordinator and the post-rewrite `ScanEngine` adapter.
+    // This exercises only the final merge (`ScanReconciler` since #596) and the grace policy.
 
     @Test func fixtureDevicesThroughMergeAndMarkOfflineMatchGoldenRows() throws {
         let (container, context) = try makeInMemoryStore()
         _ = container
 
         let coordinator = makeCoordinator(context: context)
-        coordinator.mergeDiscoveredDevices(DeviceDiscoveryCoordinatorFixtures.discovered, profileID: nil)
-        coordinator.markOfflineDevices(
-            currentIPs: DeviceDiscoveryCoordinatorFixtures.currentIPsAfterOffline,
+        coordinator.reconcileScan(DeviceDiscoveryCoordinatorFixtures.discovered, profileID: nil)
+        coordinator.missPastGrace(
+            keeping: DeviceDiscoveryCoordinatorFixtures.currentIPsAfterOffline,
+            of: DeviceDiscoveryCoordinatorFixtures.discovered,
             profileID: nil
         )
 
@@ -141,11 +143,8 @@ struct DeviceDiscoveryCoordinatorTests {
 
         let coordinator = makeCoordinator(context: context)
         let mapped = DeviceDiscoveryCoordinator.mapDiscoveredDevices(DeviceDiscoveryCoordinatorFixtures.engineDiscovered)
-        coordinator.mergeDiscoveredDevices(mapped, profileID: nil)
-        coordinator.markOfflineDevices(
-            currentIPs: DeviceDiscoveryCoordinatorFixtures.currentIPsAfterOffline,
-            profileID: nil
-        )
+        coordinator.reconcileScan(mapped, profileID: nil)
+        coordinator.missPastGrace(keeping: DeviceDiscoveryCoordinatorFixtures.currentIPsAfterOffline, of: mapped, profileID: nil)
 
         let rows = try context.fetch(FetchDescriptor<LocalDevice>())
             .map {
@@ -170,9 +169,9 @@ struct DeviceDiscoveryCoordinatorTests {
         let (container, context) = try makeInMemoryStore()
         _ = container
 
-        // Scan A discovers all four devices; scan B omits one, so markOfflineDevices
-        // (whose currentIPs is derived from THIS scan's results) flips it to .offline —
-        // exercising the same offline transition the merge-only fixture test covers.
+        // Scan A discovers all four devices; scans B omit one, which goes .offline once past
+        // the grace policy (#596) — the same transition the merge-only fixture test covers.
+        let clock = TestClock(Date())
         let upsertDevices = FixtureUpsertBox(devices: DeviceDiscoveryCoordinatorFixtures.endToEndDevicesScanA)
 
         let coordinator = DeviceDiscoveryCoordinator(
@@ -187,17 +186,23 @@ struct DeviceDiscoveryCoordinatorTests {
                     ScanPipeline.Step(phases: [FixtureUpsertScanPhase(box: upsertDevices)], concurrent: false)
                 ])
             },
-            portChecker: { _, _, _ in false }
+            portChecker: { _, _, _ in false },
+            scanHistory: .forTesting(),
+            clock: { clock.now }
         )
+        coordinator.changeTracker = DeviceChangeTracker(defaults: InMemoryDefaults())
 
         coordinator.startScan()
         await waitUntil(timeout: .seconds(30)) { coordinator.isScanning == false }
         #expect(coordinator.isScanning == false)
 
         upsertDevices.devices = DeviceDiscoveryCoordinatorFixtures.endToEndDevicesScanB
-        coordinator.startScan()
-        await waitUntil(timeout: .seconds(30)) { coordinator.isScanning == false }
-        #expect(coordinator.isScanning == false)
+        for _ in 1...3 {
+            clock.advance(minutes: 10)
+            coordinator.startScan()
+            await waitUntil(timeout: .seconds(30)) { coordinator.isScanning == false }
+            #expect(coordinator.isScanning == false)
+        }
 
         let rows = try context.fetch(FetchDescriptor<LocalDevice>())
             .map {
@@ -260,7 +265,8 @@ struct DeviceDiscoveryCoordinatorTests {
                     ScanPipeline.Step(phases: [FixtureSleepingScanPhase()], concurrent: false)
                 ])
             },
-            portChecker: { _, _, _ in false }
+            portChecker: { _, _, _ in false },
+            scanHistory: .forTesting()
         )
 
         // `ConnectionBudget.shared` is process-global: earlier suites in the same test
@@ -290,7 +296,8 @@ struct DeviceDiscoveryCoordinatorTests {
         DeviceDiscoveryCoordinator(
             modelContext: context,
             bonjourScanner: BonjourDiscoveryService(),
-            networkProfileManager: NetworkProfileManager()
+            networkProfileManager: NetworkProfileManager(),
+            scanHistory: .forTesting()
         )
     }
 }
@@ -305,7 +312,8 @@ struct DeviceDiscoveryCoordinatorCachedTests {
         DeviceDiscoveryCoordinator(
             modelContext: context,
             bonjourScanner: BonjourDiscoveryService(),
-            networkProfileManager: NetworkProfileManager()
+            networkProfileManager: NetworkProfileManager(),
+            scanHistory: .forTesting()
         )
     }
 
@@ -319,11 +327,13 @@ struct DeviceDiscoveryCoordinatorCachedTests {
         context.insert(existing)
         try context.save()
 
-        makeCoordinator(context: context).mergeDiscoveredDevices([
-            LocalDiscoveredDevice(ipAddress: "192.168.1.10", macAddress: "AA:BB:CC:DD:EE:FF", hostname: nil, isCached: true)
+        // Another device answers, so the scan is applied; an all-cached scan changes nothing (#596).
+        makeCoordinator(context: context).reconcileScan([
+            LocalDiscoveredDevice(ipAddress: "192.168.1.10", macAddress: "AA:BB:CC:DD:EE:FF", hostname: nil, isCached: true),
+            LocalDiscoveredDevice(ipAddress: "192.168.1.1", macAddress: "AC:DE:48:00:00:01", hostname: "router")
         ], profileID: nil)
 
-        let device = try #require(try context.fetch(FetchDescriptor<LocalDevice>()).first)
+        let device = try #require(try context.fetch(FetchDescriptor<LocalDevice>()).first { $0.ipAddress == "192.168.1.10" })
         #expect(device.status == .cached)
         #expect(device.lastSeen == lastSeen)
     }
@@ -338,7 +348,7 @@ struct DeviceDiscoveryCoordinatorCachedTests {
         context.insert(existing)
         try context.save()
 
-        makeCoordinator(context: context).mergeDiscoveredDevices([
+        makeCoordinator(context: context).reconcileScan([
             LocalDiscoveredDevice(ipAddress: "192.168.1.10", macAddress: "AA:BB:CC:DD:EE:FF", hostname: nil)
         ], profileID: nil)
 
@@ -347,16 +357,18 @@ struct DeviceDiscoveryCoordinatorCachedTests {
         #expect(device.lastSeen > lastSeen)
     }
 
-    @Test func newCachedDeviceIsInsertedAsCached() throws {
+    /// A device only the ARP cache lists never gets a row (`ScanReconciler`, #596); before, it
+    /// was inserted as cached.
+    @Test func aCachedSightingNeverMakesARow() throws {
         let (container, context) = try makeInMemoryStore()
         _ = container
 
-        makeCoordinator(context: context).mergeDiscoveredDevices([
-            LocalDiscoveredDevice(ipAddress: "192.168.1.30", macAddress: "11:22:33:44:55:66", hostname: nil, isCached: true)
+        makeCoordinator(context: context).reconcileScan([
+            LocalDiscoveredDevice(ipAddress: "192.168.1.30", macAddress: "11:22:33:44:55:66", hostname: nil, isCached: true),
+            LocalDiscoveredDevice(ipAddress: "192.168.1.1", macAddress: "AC:DE:48:00:00:01", hostname: "router")
         ], profileID: nil)
 
-        let device = try #require(try context.fetch(FetchDescriptor<LocalDevice>()).first)
-        #expect(device.status == .cached)
+        #expect(try context.fetch(FetchDescriptor<LocalDevice>()).map(\.ipAddress) == ["192.168.1.1"])
     }
 
     @Test func mapDiscoveredDevicesCarriesIsCached() {
@@ -378,13 +390,14 @@ struct DeviceDiscoveryCoordinatorCachedTests {
 
 @Suite(.serialized)
 @MainActor
-struct DeviceDiscoveryCoordinatorDescriptionTests {
+struct CoordinatorUPnPDescriptionTests {
 
     private func makeCoordinator(context: ModelContext) -> DeviceDiscoveryCoordinator {
         DeviceDiscoveryCoordinator(
             modelContext: context,
             bonjourScanner: BonjourDiscoveryService(),
-            networkProfileManager: NetworkProfileManager()
+            networkProfileManager: NetworkProfileManager(),
+            scanHistory: .forTesting()
         )
     }
 
@@ -399,7 +412,7 @@ struct DeviceDiscoveryCoordinatorDescriptionTests {
         let (container, context) = try makeInMemoryStore()
         _ = container
 
-        makeCoordinator(context: context).mergeDiscoveredDevices([
+        makeCoordinator(context: context).reconcileScan([
             LocalDiscoveredDevice(ipAddress: "192.168.1.20", macAddress: "", hostname: nil, identity: Self.upnpTV)
         ], profileID: nil)
 
@@ -420,7 +433,7 @@ struct DeviceDiscoveryCoordinatorDescriptionTests {
         ))
         try context.save()
 
-        makeCoordinator(context: context).mergeDiscoveredDevices([
+        makeCoordinator(context: context).reconcileScan([
             LocalDiscoveredDevice(ipAddress: "192.168.1.20", macAddress: "AA:BB:CC:DD:EE:FF", hostname: nil, identity: Self.upnpTV)
         ], profileID: nil)
 
@@ -452,7 +465,8 @@ struct DeviceDiscoveryCoordinatorModelTests {
         DeviceDiscoveryCoordinator(
             modelContext: context,
             bonjourScanner: BonjourDiscoveryService(),
-            networkProfileManager: NetworkProfileManager()
+            networkProfileManager: NetworkProfileManager(),
+            scanHistory: .forTesting()
         )
     }
 
@@ -479,7 +493,7 @@ struct DeviceDiscoveryCoordinatorModelTests {
         try context.save()
 
         let coordinator = makeCoordinator(context: context)
-        coordinator.mergeDiscoveredDevices([
+        coordinator.reconcileScan([
             LocalDiscoveredDevice(ipAddress: "192.168.1.60", macAddress: "00:11:22:33:44:55", hostname: nil,
                                   identity: DeviceIdentity(model: IdentityValue("MacBookPro18,1", source: .bonjour))),
             LocalDiscoveredDevice(ipAddress: "192.168.1.61", macAddress: "", hostname: "tv",
@@ -491,7 +505,7 @@ struct DeviceDiscoveryCoordinatorModelTests {
         #expect(byIP["192.168.1.61"]?.modelName == "AppleTV14,1")
 
         // A later scan that saw no TXT record keeps the model already known.
-        coordinator.mergeDiscoveredDevices([
+        coordinator.reconcileScan([
             LocalDiscoveredDevice(ipAddress: "192.168.1.60", macAddress: "00:11:22:33:44:55", hostname: nil)
         ], profileID: nil)
         #expect(byIP["192.168.1.60"]?.modelName == "MacBookPro18,1")
@@ -549,7 +563,7 @@ struct DeviceDiscoveryEnrichmentTests {
     /// A "seen last scan, absent this scan" device must not be re-resolved or re-pinged by
     /// the macOS enrichment phases (E1). Before P2, `resolveDeviceNames`/`measureDeviceLatencies`
     /// queried persisted `LocalDevice` rows filtered only by status/emptiness — reaching
-    /// stale rows `markOfflineDevices` hadn't flipped yet. The phases now read only the
+    /// stale rows not yet offline. The phases now read only the
     /// `ScanAccumulator`, which by construction holds just this scan's devices, so this test
     /// proves that structurally rather than just asserting on the resulting rows.
     @Test func enrichmentPhasesSkipStaleDevicesNotSeenThisScan() async throws {
@@ -563,7 +577,7 @@ struct DeviceDiscoveryEnrichmentTests {
         // default `NetworkProfileManager()`, which reads the real host's detected network and
         // would give `effectiveProfileID()` a non-nil UUID this stale row never gets — on such
         // a host `fetchDevices(for:)` would silently exclude the stale row from every query
-        // below, including `markOfflineDevices`, independent of anything this phase does.
+        // below, including the final merge, independent of anything this phase does.
         let stale = LocalDevice(
             ipAddress: "192.0.2.77",
             macAddress: "AA:BB:CC:DD:EE:77",
@@ -615,7 +629,8 @@ struct DeviceDiscoveryEnrichmentTests {
                     ], concurrent: true),
                 ])
             },
-            portChecker: { _, _, _ in false }
+            portChecker: { _, _, _ in false },
+            scanHistory: .forTesting()
         )
 
         coordinator.startScan()
@@ -631,7 +646,7 @@ struct DeviceDiscoveryEnrichmentTests {
 
         let devices = try context.fetch(FetchDescriptor<LocalDevice>())
         let staleAfter = devices.first { $0.ipAddress == "192.0.2.77" }
-        #expect(staleAfter?.status == .offline, "a device absent from this scan must be marked offline")
+        #expect(staleAfter?.status == .online, "a device absent from one scan keeps its status within grace (#596)")
         #expect(staleAfter?.hostname == nil, "a stale device's hostname must remain untouched")
     }
 
@@ -674,7 +689,8 @@ struct DeviceDiscoveryEnrichmentTests {
                     ], concurrent: true),
                 ])
             },
-            portChecker: { _, _, _ in false }
+            portChecker: { _, _, _ in false },
+            scanHistory: .forTesting()
         )
 
         coordinator.startScan()
@@ -757,7 +773,8 @@ struct DeviceDiscoveryEnrichmentTests {
                     inputs.standardEnrichmentStep,
                 ])
             },
-            portChecker: { _, _, _ in false }
+            portChecker: { _, _, _ in false },
+            scanHistory: .forTesting()
         )
 
         coordinator.startScan()
@@ -776,97 +793,5 @@ struct DeviceDiscoveryEnrichmentTests {
         #expect(deviceB?.lastLatency == icmpSeededLatency, "ShellPingLatencyPhase must not overwrite a latency already ranked .icmp (ADR-003)")
         let pingedIPs = await pingerCalls.calledIPs
         #expect(!pingedIPs.contains(deviceBIP), "a device whose latency is already ranked .icmp must never reach the shell-ping fallback")
-    }
-}
-
-/// Records IPs a fixture `resolver`/`pinger` closure was called with, for tests proving a
-/// stale device (E1) is never touched. An actor because the four enrichment phases in
-/// `ScanPipeline.Step(concurrent: true)` may call these closures concurrently.
-private actor CallRecorder {
-    private(set) var calledIPs: [String] = []
-
-    func record(_ ip: String) {
-        calledIPs.append(ip)
-    }
-}
-
-// MARK: - Fixture ScanPhases
-
-/// Mutable holder for `FixtureUpsertScanPhase`'s device list, reassigned between the two
-/// scans in `startScanWithFixturePipelineProducesGoldenRowsAcrossTwoScans`. Mutation only
-/// ever happens on the MainActor test body between scans (each awaited to completion via
-/// `waitUntil` before the next `startScan()`), never concurrently with a running scan, so
-/// `@unchecked Sendable` is safe here.
-private final class FixtureUpsertBox: @unchecked Sendable {
-    var devices: [DiscoveredDevice]
-    init(devices: [DiscoveredDevice]) {
-        self.devices = devices
-    }
-}
-
-/// Test-only `ScanPhase` that upserts a fixed set of devices into the accumulator — used
-/// to drive `startScan()` deterministically without touching any live network, mirroring
-/// what `ScanEngine`'s real ARP/Bonjour/TCP/SSDP phases would produce.
-private struct FixtureUpsertScanPhase: ScanPhase, Sendable {
-    let id: ScanPhaseID = "fixtureUpsert"
-    let displayName = "Fixture upsert"
-    let weight: Double = 1.0
-    let box: FixtureUpsertBox
-
-    func execute(
-        context: ScanContext,
-        accumulator: ScanAccumulator,
-        onProgress: @Sendable (Double) async -> Void
-    ) async {
-        await onProgress(0.0)
-        for device in box.devices {
-            await accumulator.upsert(device)
-        }
-        await onProgress(1.0)
-    }
-}
-
-/// Test-only `ScanPhase` that sets a device's latency at a specific `LatencySource` rank —
-/// used to seed a device as if `ICMPLatencyPhase` had already measured it, so
-/// `ShellPingLatencyPhase`'s "never overwrite .icmp" contract (ADR-003) can be exercised
-/// deterministically. Must run after the device is already upserted (`setLatency` is a no-op
-/// for an IP the accumulator doesn't know about yet).
-private struct FixtureICMPSeedPhase: ScanPhase, Sendable {
-    let id: ScanPhaseID = "fixtureIcmpSeed"
-    let displayName = "Fixture ICMP seed"
-    let weight: Double = 1.0
-    let ip: String
-    let latency: Double
-
-    func execute(
-        context: ScanContext,
-        accumulator: ScanAccumulator,
-        onProgress: @Sendable (Double) async -> Void
-    ) async {
-        await onProgress(0.0)
-        await accumulator.setLatency(ip: ip, value: latency, source: .icmp)
-        await onProgress(1.0)
-    }
-}
-
-/// Test-only `ScanPhase` that sleeps while holding a `ConnectionBudget` slot — used to
-/// exercise `stopScan()` cancellation and prove the slot is released even under
-/// cancellation, the same way every real raw-socket / `NWConnection` phase must.
-private struct FixtureSleepingScanPhase: ScanPhase, Sendable {
-    let id: ScanPhaseID = "fixtureSleep"
-    let displayName = "Fixture sleep"
-    let weight: Double = 1.0
-
-    func execute(
-        context: ScanContext,
-        accumulator: ScanAccumulator,
-        onProgress: @Sendable (Double) async -> Void
-    ) async {
-        await onProgress(0.0)
-        _ = await withConnectionSlot { () -> Bool in
-            try? await Task.sleep(for: .seconds(30))
-            return true
-        }
-        await onProgress(1.0)
     }
 }

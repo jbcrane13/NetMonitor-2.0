@@ -40,7 +40,8 @@ struct NetworkDetailViewScanRegressionTests {
             // outlive the test and trap on its released ModelContainer (#309).
             pipelineFactory: { _ in
                 ScanPipeline(steps: [ScanPipeline.Step(phases: [HoldingScanPhase()], concurrent: false)])
-            }
+            },
+            scanHistory: .forTesting()
         )
     }
 
@@ -410,7 +411,9 @@ struct NetworkDetailViewScanRegressionTests {
 
         coordinator.stopScan()
     }
+}
 
+extension NetworkDetailViewScanRegressionTests {
     // MARK: - #347: the panel's Scan button targets the panel's own network
 
     @Test("Panel for network B scans B even after A was scanned last")

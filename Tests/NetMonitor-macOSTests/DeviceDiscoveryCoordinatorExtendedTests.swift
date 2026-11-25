@@ -24,7 +24,8 @@ struct DeviceDiscoveryCoordinatorExtendedTests {
             bonjourScanner: BonjourDiscoveryService(),
             networkProfileManager: NetworkProfileManager(),
             // Empty pipeline: lifecycle assertions only, no real LAN scan (#309).
-            pipelineFactory: { _ in ScanPipeline(steps: []) }
+            pipelineFactory: { _ in ScanPipeline(steps: []) },
+            scanHistory: .forTesting()
         )
     }
 
@@ -70,10 +71,10 @@ struct DeviceDiscoveryCoordinatorExtendedTests {
         let coordinator = makeCoordinator(context: context)
 
         // Insert same MAC twice with different IPs
-        coordinator.mergeDiscoveredDevices([
+        coordinator.reconcileScan([
             LocalDiscoveredDevice(ipAddress: "192.168.1.5", macAddress: "AA:BB:CC:DD:EE:05", hostname: nil),
         ], profileID: nil)
-        coordinator.mergeDiscoveredDevices([
+        coordinator.reconcileScan([
             LocalDiscoveredDevice(ipAddress: "192.168.1.6", macAddress: "AA:BB:CC:DD:EE:05", hostname: "updated-host"),
         ], profileID: nil)
 
@@ -90,7 +91,7 @@ struct DeviceDiscoveryCoordinatorExtendedTests {
         _ = container
         let coordinator = makeCoordinator(context: context)
 
-        coordinator.mergeDiscoveredDevices([
+        coordinator.reconcileScan([
             LocalDiscoveredDevice(ipAddress: "192.168.1.20", macAddress: "", hostname: "device-a"),
             LocalDiscoveredDevice(ipAddress: "192.168.1.21", macAddress: "", hostname: "device-b"),
         ], profileID: nil)
@@ -122,25 +123,22 @@ struct DeviceDiscoveryCoordinatorExtendedTests {
         _ = container
         let coordinator = makeCoordinator(context: context)
 
-        coordinator.mergeDiscoveredDevices([], profileID: nil)
+        coordinator.reconcileScan([LocalDiscoveredDevice](), profileID: nil)
 
         let devices = try context.fetch(FetchDescriptor<LocalDevice>())
         #expect(devices.isEmpty)
         #expect(coordinator.discoveredDevices.isEmpty)
     }
 
-    @Test func markOfflineWithAllCurrentIPsKeepsDevicesOnline() throws {
+    @Test func aScanThatFindsEveryDeviceKeepsThemOnline() throws {
         let (container, context) = try makeInMemoryStore()
         _ = container
         let coordinator = makeCoordinator(context: context)
 
-        coordinator.mergeDiscoveredDevices([
+        coordinator.reconcileScan([
             LocalDiscoveredDevice(ipAddress: "10.0.0.1", macAddress: "00:00:00:00:00:01", hostname: nil),
             LocalDiscoveredDevice(ipAddress: "10.0.0.2", macAddress: "00:00:00:00:00:02", hostname: nil),
         ], profileID: nil)
-
-        // All IPs are still present → nothing should go offline
-        coordinator.markOfflineDevices(currentIPs: Set(["10.0.0.1", "10.0.0.2"]), profileID: nil)
 
         let devices = try context.fetch(FetchDescriptor<LocalDevice>())
         #expect(devices.allSatisfy { $0.status == .online })

@@ -11,6 +11,7 @@ struct CompanionMessageHandlerExtendedTests {
 
     // MARK: - Fixture
 
+    // swiftlint:disable large_tuple
     private func makeFixture(
         activeProfiles: @escaping @Sendable () -> [NetworkProfile] = NetworkProfileManager.detectActiveProfiles
     ) throws -> (
@@ -20,6 +21,7 @@ struct CompanionMessageHandlerExtendedTests {
         DeviceDiscoveryCoordinator,
         MonitoringSession
     ) {
+        // swiftlint:enable large_tuple
         let schema = Schema([
             NetworkTarget.self,
             TargetMeasurement.self,
@@ -37,7 +39,8 @@ struct CompanionMessageHandlerExtendedTests {
             bonjourScanner: BonjourDiscoveryService(),
             networkProfileManager: networkProfileManager,
             // Empty pipeline: `.scanDevices` must not start a real LAN scan from a unit test (#309).
-            pipelineFactory: { _ in ScanPipeline(steps: []) }
+            pipelineFactory: { _ in ScanPipeline(steps: []) },
+            scanHistory: .forTesting()
         )
 
         let handler = CompanionMessageHandler(
@@ -100,7 +103,7 @@ struct CompanionMessageHandlerExtendedTests {
         let (container, _, handler, coordinator, _) = try makeFixture()
         _ = container
 
-        coordinator.mergeDiscoveredDevices([
+        coordinator.reconcileScan([
             LocalDiscoveredDevice(ipAddress: "192.168.1.10", macAddress: "AA:BB:CC:DD:EE:10", hostname: "printer"),
             LocalDiscoveredDevice(ipAddress: "192.168.1.11", macAddress: "AA:BB:CC:DD:EE:11", hostname: "camera"),
         ], profileID: nil)

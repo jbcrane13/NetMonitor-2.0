@@ -62,7 +62,7 @@ struct MeasurementResult {
 /// Represents a device discovered on the local network — the macOS-local mirror of
 /// `NetworkScanKit.DiscoveredDevice` that `DeviceDiscoveryCoordinator.mapDiscoveredDevices(_:)`
 /// produces from the `ScanEngine` accumulator. `vendor`/`openPorts`/`latency` are filled by
-/// the macOS enrichment phases (P2); `mergeDiscoveredDevices` writes each only when non-nil
+/// the macOS enrichment phases (P2); the merges write each only when non-nil
 /// so a sparse (pre-enrichment) merge cannot clear a value a later merge would supply.
 struct LocalDiscoveredDevice: Equatable {
     let ipAddress: String

@@ -124,7 +124,8 @@ struct ScanPolicyCoordinatorTests {
             modelContext: container.mainContext,
             bonjourScanner: BonjourDiscoveryService(),
             networkProfileManager: manager,
-            pipelineFactory: { _ in ScanPipeline(steps: [ScanPipeline.Step(phases: [HoldPolicyScanPhase()], concurrent: false)]) }
+            pipelineFactory: { _ in ScanPipeline(steps: [ScanPipeline.Step(phases: [HoldPolicyScanPhase()], concurrent: false)]) },
+            scanHistory: .forTesting()
         )
         return (coordinator, manager, container)
     }

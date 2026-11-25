@@ -10,7 +10,7 @@ import NetMonitorCore
 /// Specifically exercises the code paths at:
 /// - Line 167: `let existing = try? modelContext.fetch(descriptor).first`
 /// - Line 463: `return (try? modelContext.fetch(descriptor)) ?? []`
-/// - The save + reload loop inside mergeDiscoveredDevices / markOfflineDevices
+/// - The save + reload loop inside reconcileScan
 @Suite(.serialized)
 @MainActor
 struct DeviceDiscoveryCoordinatorSaveErrorTests {
@@ -31,13 +31,16 @@ struct DeviceDiscoveryCoordinatorSaveErrorTests {
             networkProfileManager: NetworkProfileManager(
                 userDefaults: makeFreshDefaults().0,
                 activeProfilesProvider: { [] }
-            )
+            ),
+            scanHistory: .forTesting()
         )
     }
 
     private func makeFreshDefaults() -> (UserDefaults, String) {
         let suite = "DeviceDiscoveryCoordinatorSaveErrorTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suite)!
+        guard let defaults = UserDefaults(suiteName: suite) else {
+            preconditionFailure("Test defaults suite \(suite) is unavailable")
+        }
         defaults.removePersistentDomain(forName: suite)
         return (defaults, suite)
     }
@@ -56,19 +59,19 @@ struct DeviceDiscoveryCoordinatorSaveErrorTests {
 
     // MARK: - Merge then Fetch Reflects Updated State
 
-    @Test("discoveredDevices reflects persisted count after mergeDiscoveredDevices")
+    @Test("discoveredDevices reflects persisted count after reconcileScan")
     func discoveredDevicesCountMatchesPersistedAfterMerge() throws {
         let (container, context) = try makeInMemoryStore()
         _ = container
         let coordinator = makeCoordinator(context: context)
 
-        coordinator.mergeDiscoveredDevices([
+        coordinator.reconcileScan([
             LocalDiscoveredDevice(ipAddress: "10.0.0.1", macAddress: "AA:BB:CC:00:00:01", hostname: nil),
             LocalDiscoveredDevice(ipAddress: "10.0.0.2", macAddress: "AA:BB:CC:00:00:02", hostname: nil),
             LocalDiscoveredDevice(ipAddress: "10.0.0.3", macAddress: "AA:BB:CC:00:00:03", hostname: nil),
         ], profileID: nil)
 
-        // mergeDiscoveredDevices calls loadPersistedDevices at the end,
+        // reconcileScan calls loadPersistedDevices at the end,
         // so discoveredDevices must reflect the three inserted records.
         #expect(coordinator.discoveredDevices.count == 3)
     }
@@ -80,7 +83,7 @@ struct DeviceDiscoveryCoordinatorSaveErrorTests {
         let coordinator = makeCoordinator(context: context)
 
         let inputIPs = ["192.168.1.10", "192.168.1.20", "192.168.1.30"]
-        coordinator.mergeDiscoveredDevices(
+        coordinator.reconcileScan(
             inputIPs.enumerated().map { idx, ip in
                 LocalDiscoveredDevice(ipAddress: ip, macAddress: "BB:BB:BB:BB:BB:0\(idx)", hostname: nil)
             },
@@ -157,7 +160,7 @@ struct DeviceDiscoveryCoordinatorSaveErrorTests {
 
         // Coordinator targeting profileA should only see devA.
         let coordinator = makeCoordinator(context: context)
-        coordinator.mergeDiscoveredDevices([], profileID: profileA)
+        coordinator.reconcileScan([LocalDiscoveredDevice](), profileID: profileA)
 
         let ips = Set(coordinator.discoveredDevices.map(\.ipAddress))
         #expect(ips.contains("10.1.0.1"))
@@ -167,22 +170,24 @@ struct DeviceDiscoveryCoordinatorSaveErrorTests {
 
     // MARK: - Mark-Offline Reload
 
-    @Test("markOfflineDevices triggers reload, leaving discoveredDevices consistent with store")
+    @Test("Going offline past grace reloads discoveredDevices, consistent with the store")
     func markOfflineTriggersReload() throws {
         let (container, context) = try makeInMemoryStore()
         _ = container
         let coordinator = makeCoordinator(context: context)
 
-        coordinator.mergeDiscoveredDevices([
+        coordinator.reconcileScan([
             LocalDiscoveredDevice(ipAddress: "192.168.5.1", macAddress: "EE:EE:EE:00:00:01", hostname: nil),
             LocalDiscoveredDevice(ipAddress: "192.168.5.2", macAddress: "EE:EE:EE:00:00:02", hostname: nil),
         ], profileID: nil)
 
-        // Only keep .1 in the current scan; .2 should be marked offline.
-        coordinator.markOfflineDevices(currentIPs: Set(["192.168.5.1"]), profileID: nil)
+        // Only .1 answers later scans; .2 goes offline once past the grace policy (#596).
+        coordinator.missPastGrace(
+            answering: [LocalDiscoveredDevice(ipAddress: "192.168.5.1", macAddress: "EE:EE:EE:00:00:01", hostname: nil)],
+            profileID: nil
+        )
 
-        // discoveredDevices is reloaded inside markOfflineDevices — verify count unchanged
-        // but status differs.
+        // discoveredDevices is reloaded by each reconcile: count unchanged, status differs.
         #expect(coordinator.discoveredDevices.count == 2)
 
         let device1 = coordinator.discoveredDevices.first(where: { $0.ipAddress == "192.168.5.1" })
@@ -200,10 +205,10 @@ struct DeviceDiscoveryCoordinatorSaveErrorTests {
         let coordinator = makeCoordinator(context: context)
 
         let mac = "FF:FF:FF:FF:FF:01"
-        coordinator.mergeDiscoveredDevices([
+        coordinator.reconcileScan([
             LocalDiscoveredDevice(ipAddress: "10.0.1.1", macAddress: mac, hostname: nil),
         ], profileID: nil)
-        coordinator.mergeDiscoveredDevices([
+        coordinator.reconcileScan([
             LocalDiscoveredDevice(ipAddress: "10.0.1.1", macAddress: mac, hostname: "updated.local"),
         ], profileID: nil)
 
@@ -230,7 +235,7 @@ struct DeviceDiscoveryCoordinatorSaveErrorTests {
             )
         }
 
-        coordinator.mergeDiscoveredDevices(devices, profileID: nil)
+        coordinator.reconcileScan(devices, profileID: nil)
 
         #expect(coordinator.discoveredDevices.count == batchSize)
     }
@@ -244,13 +249,13 @@ struct DeviceDiscoveryCoordinatorSaveErrorTests {
         let coordinator = makeCoordinator(context: context)
 
         // Insert a device with nil profileID.
-        coordinator.mergeDiscoveredDevices([
+        coordinator.reconcileScan([
             LocalDiscoveredDevice(ipAddress: "192.0.2.1", macAddress: "00:11:22:33:44:55", hostname: nil),
         ], profileID: nil)
 
         // Merge for a specific profile — nil-profile devices must not appear.
         let specificProfile = UUID()
-        coordinator.mergeDiscoveredDevices([
+        coordinator.reconcileScan([
             LocalDiscoveredDevice(ipAddress: "192.0.3.1", macAddress: "66:77:88:99:AA:BB", hostname: nil),
         ], profileID: specificProfile)
 

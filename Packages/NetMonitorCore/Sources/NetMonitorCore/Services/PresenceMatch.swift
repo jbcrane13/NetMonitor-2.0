@@ -1,8 +1,9 @@
 import Foundation
 import NetworkScanKit
 
-/// Which saved device each observation of a scan is, for the iPhone's saved rows (#582): the rule
-/// `ScanReconciler` and device detail's list entry share, so both open and update the same row.
+/// Which saved device each observation of a scan is, for the saved rows on both platforms (#582,
+/// #596): the rule `ScanReconciler`, the Mac's sparse merge and iPhone device detail's list entry
+/// share, so all of them open and update the same row.
 ///
 /// - An observation with a real MAC (`DeviceMatcher.normalizedMAC`: placeholders such as
 ///   `02:00:00:00:00:00` and unreadable values count as none) is matched by `DeviceMatcher`: the
@@ -14,13 +15,15 @@ import NetworkScanKit
 ///   - two different names: a different device, a new row;
 ///   - the same name: the same device;
 ///   - a name unknown on either side (or both): the same device only if the row was seen at that
-///     address within the grace window (it never left); otherwise a new row.
+///     address within the grace window, or by the network's previous recorded scan when that
+///     scan is at most `previousScanReach` (2 h) earlier (it never missed a scan: hourly
+///     auto-scan, relaunch, a short sleep; lead, 2026-11-25); otherwise a new row.
 ///   When the device's name is known, a row with that name beats a nameless one at any age, the
 ///   most recently seen of several (no new row), so a duplicate made while the name was missing
 ///   heals. Recency only decides between rows when no name matches: the one seen there most
-///   recently within the window, else a new row.
+///   recently among those that count as recent, else a new row.
 ///
-/// `DeviceMatcher` itself is unchanged: the Mac and the change detector share it.
+/// `DeviceMatcher` itself is unchanged: the change detector still matches with it alone.
 public enum PresenceMatch {
     /// A saved row as the match sees it.
     public struct Known: Sendable, Equatable {
@@ -41,16 +44,30 @@ public enum PresenceMatch {
     }
 
     /// Whether an observation is the row at its address: see the type's rules.
-    static func matchesByAddress(_ row: Known, _ observation: DeviceMatchCandidate, now: Date, window: TimeInterval) -> Bool {
+    static func matchesByAddress(
+        _ row: Known, _ observation: DeviceMatchCandidate, now: Date, window: TimeInterval, previousScan: Date? = nil
+    ) -> Bool {
         guard row.candidate.ipAddress == observation.ipAddress, !namesDiffer(row.candidate.name, observation.name) else { return false }
         if named(row.candidate.name) != nil, named(observation.name) != nil {
             return true
         }
-        return isRecent(row, now: now, window: window)
+        return isRecent(row, now: now, window: window, previousScan: previousScan)
     }
 
-    static func isRecent(_ row: Known, now: Date, window: TimeInterval) -> Bool {
-        now.timeIntervalSince(row.lastSeen) <= window
+    /// How long before a scan the previous recorded scan may be for a row it saw to count as
+    /// recent (lead, 2026-11-25): an hourly auto-scan qualifies; days apart, the address may long
+    /// since belong to another device, so only the grace window counts.
+    public static let previousScanReach: TimeInterval = 2 * 60 * 60
+
+    /// Seen within the window, or by the previous recorded scan when that scan is within
+    /// `previousScanReach` (`lastSeen` is stamped with the time a scan was reconciled, which
+    /// `ScanHistory` keeps).
+    static func isRecent(_ row: Known, now: Date, window: TimeInterval, previousScan: Date? = nil) -> Bool {
+        if now.timeIntervalSince(row.lastSeen) <= window {
+            return true
+        }
+        guard let previousScan, now.timeIntervalSince(previousScan) <= previousScanReach else { return false }
+        return row.lastSeen >= previousScan
     }
 
     private static func named(_ name: String?) -> String? {
@@ -62,14 +79,16 @@ public enum PresenceMatch {
     /// When its name is known, a row with that name wins at any age (the most recently seen of
     /// several), so a duplicate made while the name was missing heals once it's back. Otherwise
     /// recency decides: the row seen there most recently within the window, else none.
-    private static func choose(among candidates: [Int], known: [Known], name: String?, now: Date, window: TimeInterval) -> Int? {
+    private static func choose(
+        among candidates: [Int], known: [Known], name: String?, now: Date, window: TimeInterval, previousScan: Date?
+    ) -> Int? {
         if named(name) != nil {
             let sameName = candidates.filter { named(known[$0].candidate.name) != nil }
             if let row = sameName.max(by: { known[$0].lastSeen < known[$1].lastSeen }) {
                 return row
             }
         }
-        return candidates.filter { isRecent(known[$0], now: now, window: window) }
+        return candidates.filter { isRecent(known[$0], now: now, window: window, previousScan: previousScan) }
             .max { known[$0].lastSeen < known[$1].lastSeen }
     }
 
@@ -78,7 +97,11 @@ public enum PresenceMatch {
     /// - Parameters:
     ///   - now: when the scan is being matched.
     ///   - window: the grace window (`DeviceGracePolicy.interval`).
-    public static func assign(known: [Known], observed: [DeviceMatchCandidate], now: Date, window: TimeInterval) -> [Int?] {
+    ///   - previousScan: when the network's previous recorded scan was reconciled
+    ///     (`ScanHistory.previousReconciled`); a row it saw counts as recent.
+    public static func assign(
+        known: [Known], observed: [DeviceMatchCandidate], now: Date, window: TimeInterval, previousScan: Date? = nil
+    ) -> [Int?] {
         var result = [Int?](repeating: nil, count: observed.count)
         var taken = Set<Int>()
         var matcher = DeviceMatcher(known: known.map(\.candidate), observed: observed)
@@ -90,7 +113,7 @@ public enum PresenceMatch {
             guard let match = matcher.match(observed[index]), !taken.contains(match.index) else { continue }
             // Its MAC became readable at the address of a row without one: a match by address.
             if DeviceMatcher.normalizedMAC(known[match.index].candidate.macAddress) == nil,
-               !matchesByAddress(known[match.index], observed[index], now: now, window: window) {
+               !matchesByAddress(known[match.index], observed[index], now: now, window: window, previousScan: previousScan) {
                 continue
             }
             result[index] = match.index
@@ -107,7 +130,9 @@ public enum PresenceMatch {
                     // A row whose MAC answered elsewhere in this scan is that device.
                     && !(mac.map(observedMACs.contains) ?? false)
             }
-            let chosen = choose(among: candidates, known: known, name: observation.name, now: now, window: window)
+            let chosen = choose(
+                among: candidates, known: known, name: observation.name, now: now, window: window, previousScan: previousScan
+            )
             guard let row = chosen else { continue }
             result[index] = row
             taken.insert(row)

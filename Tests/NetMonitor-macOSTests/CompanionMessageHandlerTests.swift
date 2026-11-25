@@ -122,7 +122,7 @@ struct CompanionMessageHandlerTests {
         let (container, _, handler, coordinator, _) = try makeFixture()
         _ = container
 
-        coordinator.mergeDiscoveredDevices([
+        coordinator.reconcileScan([
             LocalDiscoveredDevice(
                 ipAddress: "192.168.1.44",
                 macAddress: "AA:BB:CC:DD:EE:44",
@@ -148,7 +148,7 @@ struct CompanionMessageHandlerTests {
         let (container, _, handler, coordinator, _) = try makeFixture()
         _ = container
 
-        coordinator.mergeDiscoveredDevices([
+        coordinator.reconcileScan([
             LocalDiscoveredDevice(
                 ipAddress: "192.168.1.45", macAddress: "", hostname: nil,
                 identity: DeviceIdentity(friendlyName: IdentityValue("Living Room TV", source: .upnp))
@@ -167,7 +167,7 @@ struct CompanionMessageHandlerTests {
         let (container, _, handler, coordinator, _) = try makeFixture()
         _ = container
 
-        coordinator.mergeDiscoveredDevices([
+        coordinator.reconcileScan([
             LocalDiscoveredDevice(ipAddress: "192.168.1.46", macAddress: "", hostname: "box-46.lan"),
             LocalDiscoveredDevice(
                 ipAddress: "192.168.1.47", macAddress: "", hostname: "box-47.lan",
@@ -336,7 +336,8 @@ struct CompanionMessageHandlerTests {
         let deviceDiscovery = DeviceDiscoveryCoordinator(
             modelContext: context,
             bonjourScanner: BonjourDiscoveryService(),
-            networkProfileManager: networkProfileManager
+            networkProfileManager: networkProfileManager,
+            scanHistory: .forTesting()
         )
 
         let handler = CompanionMessageHandler(

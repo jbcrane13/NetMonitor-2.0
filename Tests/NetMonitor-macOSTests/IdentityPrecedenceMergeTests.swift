@@ -19,7 +19,8 @@ struct IdentityPrecedenceMergeTests {
             modelContext: container.mainContext,
             bonjourScanner: BonjourDiscoveryService(),
             networkProfileManager: NetworkProfileManager(),
-            pipelineFactory: { _ in ScanPipeline(steps: []) }
+            pipelineFactory: { _ in ScanPipeline(steps: []) },
+            scanHistory: .forTesting()
         )
         return (container, container.mainContext, coordinator)
     }
@@ -37,13 +38,13 @@ struct IdentityPrecedenceMergeTests {
     func bonjourModelStaysAcrossScans() throws {
         let (container, context, coordinator) = try makeCoordinator()
         _ = container
-        coordinator.mergeDiscoveredDevices([scan(DeviceIdentity(model: IdentityValue("AppleTV14,1", source: .bonjour)))], profileID: nil)
-        coordinator.mergeDiscoveredDevices([scan(DeviceIdentity(model: IdentityValue("Apple TV 4K", source: .upnp)))], profileID: nil)
-        coordinator.mergeDiscoveredDevices([scan(DeviceIdentity(model: IdentityValue("Apple TV", source: .hostnameGuess)))], profileID: nil)
+        coordinator.reconcileScan([scan(DeviceIdentity(model: IdentityValue("AppleTV14,1", source: .bonjour)))], profileID: nil)
+        coordinator.reconcileScan([scan(DeviceIdentity(model: IdentityValue("Apple TV 4K", source: .upnp)))], profileID: nil)
+        coordinator.reconcileScan([scan(DeviceIdentity(model: IdentityValue("Apple TV", source: .hostnameGuess)))], profileID: nil)
         #expect(try row(in: context).identity.model == IdentityValue("AppleTV14,1", source: .bonjour))
 
         // A newer Bonjour model replaces it: equal rank, newer wins.
-        coordinator.mergeDiscoveredDevices([scan(DeviceIdentity(model: IdentityValue("AppleTV14,2", source: .bonjour)))], profileID: nil)
+        coordinator.reconcileScan([scan(DeviceIdentity(model: IdentityValue("AppleTV14,2", source: .bonjour)))], profileID: nil)
         #expect(try row(in: context).modelName == "AppleTV14,2")
     }
 
@@ -51,10 +52,10 @@ struct IdentityPrecedenceMergeTests {
     func guessThenAnnouncement() throws {
         let (container, context, coordinator) = try makeCoordinator()
         _ = container
-        coordinator.mergeDiscoveredDevices([scan(DeviceIdentity(maker: IdentityValue("Meross", source: .hostnameGuess)))], profileID: nil)
+        coordinator.reconcileScan([scan(DeviceIdentity(maker: IdentityValue("Meross", source: .hostnameGuess)))], profileID: nil)
         #expect(try row(in: context).maker == "Meross")
-        coordinator.mergeDiscoveredDevices([scan(DeviceIdentity(maker: IdentityValue("Meross Technology", source: .upnp)))], profileID: nil)
-        coordinator.mergeDiscoveredDevices([scan(DeviceIdentity(maker: IdentityValue("Meross", source: .hostnameGuess)))], profileID: nil)
+        coordinator.reconcileScan([scan(DeviceIdentity(maker: IdentityValue("Meross Technology", source: .upnp)))], profileID: nil)
+        coordinator.reconcileScan([scan(DeviceIdentity(maker: IdentityValue("Meross", source: .hostnameGuess)))], profileID: nil)
         #expect(try row(in: context).identity.maker == IdentityValue("Meross Technology", source: .upnp))
     }
 
@@ -66,7 +67,7 @@ struct IdentityPrecedenceMergeTests {
         saved.modelName = "Q80"
         context.insert(saved)
         try context.save()
-        coordinator.mergeDiscoveredDevices([scan(DeviceIdentity(model: IdentityValue("TV", source: .hostnameGuess)))], profileID: nil)
+        coordinator.reconcileScan([scan(DeviceIdentity(model: IdentityValue("TV", source: .hostnameGuess)))], profileID: nil)
         #expect(try row(in: context).identity.model == IdentityValue("TV", source: .hostnameGuess))
     }
 
@@ -74,8 +75,8 @@ struct IdentityPrecedenceMergeTests {
     func friendlyNames() throws {
         let (container, context, coordinator) = try makeCoordinator()
         _ = container
-        coordinator.mergeDiscoveredDevices([scan(DeviceIdentity(friendlyName: IdentityValue("Blake's TV", source: .unifi)))], profileID: nil)
-        coordinator.mergeDiscoveredDevices([scan(DeviceIdentity(friendlyName: IdentityValue("[TV] Samsung Q80", source: .upnp)))], profileID: nil)
+        coordinator.reconcileScan([scan(DeviceIdentity(friendlyName: IdentityValue("Blake's TV", source: .unifi)))], profileID: nil)
+        coordinator.reconcileScan([scan(DeviceIdentity(friendlyName: IdentityValue("[TV] Samsung Q80", source: .upnp)))], profileID: nil)
         let device = try row(in: context)
         #expect(device.friendlyName == "Blake's TV")
         #expect(device.hostname == "living-room.lan")
@@ -92,7 +93,7 @@ struct IdentityPrecedenceMergeTests {
         context.insert(saved) // as 2.2.x saved it: the friendly name in hostname
         try context.save()
 
-        coordinator.mergeDiscoveredDevices([
+        coordinator.reconcileScan([
             LocalDiscoveredDevice(
                 ipAddress: "192.168.2.60", macAddress: "AA:BB:CC:00:00:02", hostname: nil,
                 identity: DeviceIdentity(friendlyName: IdentityValue("Living Room TV", source: .upnp))
@@ -134,7 +135,7 @@ struct IdentityPrecedenceMergeTests {
         ))
         try context.save()
 
-        coordinator.mergeDiscoveredDevices([scan(DeviceIdentity())], profileID: nil)
+        coordinator.reconcileScan([scan(DeviceIdentity())], profileID: nil)
 
         let byIP = try Dictionary(uniqueKeysWithValues: context.fetch(FetchDescriptor<LocalDevice>()).map { ($0.ipAddress, $0) })
         #expect(byIP["192.168.2.108"]?.identity.maker == IdentityValue("WiZ", source: .hostnameGuess))
@@ -199,21 +200,22 @@ struct ModelSuggestionMacTests {
         let context = container.mainContext
         let coordinator = DeviceDiscoveryCoordinator(
             modelContext: context, bonjourScanner: BonjourDiscoveryService(), networkProfileManager: NetworkProfileManager(),
-            pipelineFactory: { _ in ScanPipeline(steps: []) }
+            pipelineFactory: { _ in ScanPipeline(steps: []) },
+            scanHistory: .forTesting()
         )
         let suggester = makeSuggester(MockInsightService(suggestion: Self.suggestion))
 
-        coordinator.mergeDiscoveredDevices([scan(DeviceIdentity())], profileID: nil)
+        coordinator.reconcileScan([scan(DeviceIdentity())], profileID: nil)
         try await suggester.suggest(for: [row(in: context)])
-        coordinator.mergeDiscoveredDevices([scan(DeviceIdentity())], profileID: nil)
+        coordinator.reconcileScan([scan(DeviceIdentity())], profileID: nil)
         #expect(try row(in: context).identity.maker == IdentityValue("Acme", source: .modelSuggestion))
         #expect(try row(in: context).identity.model == IdentityValue("Box 1", source: .modelSuggestion))
 
         let scanned = DeviceIdentity(maker: IdentityValue("Globex", source: source), model: IdentityValue("Box 2", source: source))
-        coordinator.mergeDiscoveredDevices([scan(scanned)], profileID: nil)
+        coordinator.reconcileScan([scan(scanned)], profileID: nil)
         // The evidence changed, so the model is asked again; its answer still loses.
         try await suggester.suggest(for: [row(in: context)])
-        coordinator.mergeDiscoveredDevices([scan(DeviceIdentity())], profileID: nil)
+        coordinator.reconcileScan([scan(DeviceIdentity())], profileID: nil)
 
         let device = try row(in: context)
         #expect(device.identity.maker == IdentityValue("Globex", source: source))
@@ -227,14 +229,15 @@ struct ModelSuggestionMacTests {
         let context = container.mainContext
         let coordinator = DeviceDiscoveryCoordinator(
             modelContext: context, bonjourScanner: BonjourDiscoveryService(), networkProfileManager: NetworkProfileManager(),
-            pipelineFactory: { _ in ScanPipeline(steps: []) }
+            pipelineFactory: { _ in ScanPipeline(steps: []) },
+            scanHistory: .forTesting()
         )
         let service = MockInsightService(suggestion: Self.suggestion)
         let suggester = makeSuggester(service)
 
-        coordinator.mergeDiscoveredDevices([scan(DeviceIdentity(model: IdentityValue("Box 2", source: source)))], profileID: nil)
+        coordinator.reconcileScan([scan(DeviceIdentity(model: IdentityValue("Box 2", source: source)))], profileID: nil)
         try await suggester.suggest(for: [row(in: context)])
-        coordinator.mergeDiscoveredDevices([scan(DeviceIdentity())], profileID: nil)
+        coordinator.reconcileScan([scan(DeviceIdentity())], profileID: nil)
 
         let device = try row(in: context)
         #expect(service.suggestionRequests.count == 1)
@@ -287,7 +290,8 @@ struct ModelSuggestionMacTests {
             networkProfileManager: NetworkProfileManager(userDefaults: testDefaults.defaults, activeProfilesProvider: { [local] }),
             // Empty pipeline: scans complete at once and keep the saved rows (#309).
             pipelineFactory: { _ in ScanPipeline(steps: []) },
-            suggester: suggester
+            suggester: suggester,
+            scanHistory: .forTesting()
         )
         return (container, coordinator, local.id)
     }
@@ -386,7 +390,8 @@ struct ModelSuggestionMacTests {
         let container = try makeContainer()
         let coordinator = DeviceDiscoveryCoordinator(
             modelContext: container.mainContext, bonjourScanner: BonjourDiscoveryService(), networkProfileManager: NetworkProfileManager(),
-            pipelineFactory: { _ in ScanPipeline(steps: []) }
+            pipelineFactory: { _ in ScanPipeline(steps: []) },
+            scanHistory: .forTesting()
         )
         let device = LocalDevice(ipAddress: "192.168.1.17", macAddress: "", hostname: "box-17.lan")
         container.mainContext.insert(device)

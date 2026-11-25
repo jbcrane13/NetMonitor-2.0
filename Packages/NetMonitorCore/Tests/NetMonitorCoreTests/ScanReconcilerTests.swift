@@ -231,6 +231,25 @@ final class ScanReconcilerTests {
         #expect(saved[1].networkProfileID == home)
     }
 
+    /// The Mac has no device detail to adopt such a row (#596): there the scan saves the network's
+    /// own row, and the unassigned one is left untouched, notes and all.
+    @Test func withoutADetailAdopterTheScanSavesTheNetworksOwnRow() throws {
+        let (container, context) = try makeContext()
+        _ = container
+        let nas = LocalDevice(ipAddress: "192.168.7.10", macAddress: "", customName: "NAS")
+        nas.notes = "Backups"
+        nas.lastSeen = start.addingTimeInterval(-60)
+        context.insert(nas)
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        let reconciler = ScanReconciler(context: context, history: ScanHistory(defaults: defaults), holdsUnassignedForDetail: false)
+        try reconciler.reconcile([device(ip: "192.168.7.10", mac: nil, name: nil)], networkProfileID: home, scanDate: start, now: start)
+        let saved = try rows(context)
+        #expect(saved.count == 2)
+        #expect(saved.first { $0.id == nas.id }?.networkProfileID == nil)
+        #expect(saved.first { $0.id == nas.id }?.notes == "Backups")
+        #expect(saved.first { $0.id != nas.id }?.networkProfileID == home)
+    }
+
     /// One not seen there within the grace window may be another device now: a split beats a
     /// wrong merge, so the scan saves a new row and leaves the old one, notes and all, untouched.
     @Test func aStaleAddressOnlyRowSavedWithoutANetworkIsLeftAloneAndANewRowSaved() throws {
@@ -409,7 +428,9 @@ extension ScanReconcilerTests {
         #expect(try rows(context)[0].lastLatency == 12)
         // The same scan again, now saving: applied, not skipped as already reconciled.
         let outcome = try makeReconciler(context).reconcile([scanned(0, latency: 40)], networkProfileID: home, scanDate: later, now: later)
-        #expect(outcome == .applied)
+        let row = try #require(try rows(context).first { $0.lastSeen == later })
+        #expect(outcome == .applied(answered: [row.id], latencies: [row.id: 40]))
+        #expect(outcome != .skipped)
         #expect(try rows(context)[0].lastLatency == 40)
         #expect(try makeReconciler(context).reconcile([scanned(0)], networkProfileID: home, scanDate: later, now: later) == .skipped)
     }
@@ -483,8 +504,8 @@ extension ScanReconcilerTests {
         #expect(saved[0].lastSeen == minutes(10))
     }
 
-    /// A nameless device at an address whose row hasn't been seen for longer than the grace window
-    /// is a new device.
+    /// A nameless device at an address whose row hasn't been seen for longer than the grace window,
+    /// and that the previous scan didn't see, is a new device.
     @Test func aNamelessDeviceAtAReusedAddressAfterTheGraceGapGetsANewRow() throws {
         let (container, context) = try makeContext()
         _ = container
@@ -492,9 +513,11 @@ extension ScanReconcilerTests {
         try reconciler.reconcile([device(ip: "192.168.7.26", mac: nil, name: "alice-iphone")], networkProfileID: home, scanDate: start, now: start)
         let alice = try #require(try rows(context).first)
         alice.notes = "Alice"
-        // Something else answers there 40 minutes later, without a name.
+        // A scan without her, so she missed the previous scan.
+        try reconciler.reconcile([scanned(1)], networkProfileID: home, scanDate: minutes(20), now: minutes(20))
+        // Something else answers there 40 minutes after she was seen, without a name.
         try reconciler.reconcile([device(ip: "192.168.7.26", mac: nil, name: nil)], networkProfileID: home, scanDate: minutes(40), now: minutes(40))
-        let saved = try rows(context)
+        let saved = try rows(context).filter { $0.ipAddress == "192.168.7.26" }
         #expect(saved.count == 2)
         #expect(alice.lastSeen == start)
         #expect(alice.notes == "Alice")
@@ -653,10 +676,12 @@ extension ScanReconcilerTests {
         let reconciler = try makeReconciler(context)
         try reconciler.reconcile([device(ip: "192.168.7.50", mac: nil, name: "nas")], networkProfileID: home, scanDate: start, now: start)
         let nas = try #require(try rows(context).first)
+        // A scan without it, so the nameless return isn't one the previous scan saw.
+        try reconciler.reconcile([scanned(1)], networkProfileID: home, scanDate: minutes(20), now: minutes(20))
         try reconciler.reconcile([device(ip: "192.168.7.50", mac: nil, name: nil)], networkProfileID: home, scanDate: minutes(40), now: minutes(40))
-        #expect(try rows(context).count == 2)
+        #expect(try rows(context).filter { $0.ipAddress == "192.168.7.50" }.count == 2)
         try reconciler.reconcile([device(ip: "192.168.7.50", mac: nil, name: "nas")], networkProfileID: home, scanDate: minutes(50), now: minutes(50))
-        #expect(try rows(context).count == 2)
+        #expect(try rows(context).filter { $0.ipAddress == "192.168.7.50" }.count == 2)
         #expect(nas.lastSeen == minutes(50))
     }
 
