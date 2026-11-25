@@ -69,7 +69,7 @@ struct DeviceDiscoveryCoordinatorErrorTests {
 
     // MARK: - Merge with Empty Input: No Crash
 
-    @Test("mergeDiscoveredDevices with empty array: no crash, state unchanged")
+    @Test("reconcileScan with empty array: no crash, state unchanged")
     func mergeEmptyArrayNoCrash() throws {
         let (container, context) = try makeInMemoryStore()
         _ = container
@@ -197,7 +197,7 @@ struct DeviceDiscoveryCoordinatorErrorTests {
                 "Documents current behavior: empty store returns empty array via try? ?? []")
     }
 
-    @Test("mergeDiscoveredDevices: fetch failure during duplicate check treats device as new")
+    @Test("reconcileScan: fetch failure during duplicate check treats device as new")
     func mergeFetchFailureTreatsAsNew() throws {
         let (container, context) = try makeInMemoryStore()
         _ = container

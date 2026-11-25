@@ -380,9 +380,11 @@ final class DeviceDiscoveryCoordinator {
     /// the device's own real MAC is touched, and only its status and latency: an address match
     /// without names can't tell DHCP reuse from the same device yet, and a name or a fresh
     /// `lastSeen` written now would make the final pass trust that match (#596). A device with a
-    /// real, non-private MAC and no row gets one; without a MAC (every device on macOS 27, which
-    /// hides the ARP table) or with a private one it waits for the final pass, which has its name
-    /// (#411). Cached sightings change nothing.
+    /// real, non-private MAC and no row gets one, unless a row without a MAC is at its address:
+    /// the final pass, with names, may adopt the MAC onto that row, and a row made now would strand
+    /// its name and notes. Without a MAC (every device on macOS 27, which hides the ARP table) or
+    /// with a private one it waits for the final pass, which has its name (#411). Cached sightings
+    /// change nothing.
     func mergeSparseSnapshot(_ devices: [LocalDiscoveredDevice], profileID: UUID?, now: Date) {
         let rows = fetchDevices(for: profileID)
         let assignment = PresenceMatch.assign(
@@ -398,7 +400,8 @@ final class DeviceDiscoveryCoordinator {
                     row.lastLatency = latency
                 }
                 row.status = .online
-            } else if let mac, !MACAddress.isPrivate(mac) {
+            } else if let mac, !MACAddress.isPrivate(mac),
+                      !rows.contains(where: { $0.ipAddress == device.ipAddress && DeviceMatcher.normalizedMAC($0.macAddress) == nil }) {
                 let row = LocalDevice(
                     ipAddress: device.ipAddress, macAddress: mac, hostname: device.hostname, vendor: device.vendor,
                     deviceType: .unknown, status: .online, lastLatency: device.latency, openPorts: device.openPorts,

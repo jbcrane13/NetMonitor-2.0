@@ -331,7 +331,7 @@ struct NetMonitorApp: App {
             networkProfileManager: profileManager,
             pipelineFactory: UITestScanFixture.pipelineFactory,
             suggester: Self.uiTestSuggester,
-            scanHistory: UITestScanFixture.scanHistory(reset: HistoryFileLocation.current.resetRequested),
+            scanHistory: UITestScanFixture.scanHistory(),
             clock: UITestScanFixture.scanClock ?? Date.init
         )
         discovery.changeTracker = UITestScanFixture.changeTracker(reset: HistoryFileLocation.current.resetRequested)
@@ -457,16 +457,17 @@ enum UITestScanFixture {
         }
     }
 
-    /// The reconciler's scan history in the tracker's suite, emptied with it on reset.
+    /// The reconciler's scan history in the tracker's suite, emptied at every launch: a stepped
+    /// `scanClock` leaves scans dated ahead, which would make the next launch's scans look older
+    /// and be skipped.
     @MainActor
-    static func scanHistory(reset: Bool) -> ScanHistory {
+    static func scanHistory() -> ScanHistory {
         guard let defaults = UserDefaults(suiteName: trackerSuite) else {
             preconditionFailure("UI-test tracker suite \(trackerSuite) is unavailable")
         }
-        if reset {
-            ScanHistory(defaults: defaults).clearAll()
-        }
-        return ScanHistory(defaults: defaults)
+        let history = ScanHistory(defaults: defaults)
+        history.clearAll()
+        return history
     }
 
     static var devices: [DiscoveredDevice] {

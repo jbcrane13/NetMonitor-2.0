@@ -59,7 +59,7 @@ struct DeviceDiscoveryCoordinatorSaveErrorTests {
 
     // MARK: - Merge then Fetch Reflects Updated State
 
-    @Test("discoveredDevices reflects persisted count after mergeDiscoveredDevices")
+    @Test("discoveredDevices reflects persisted count after reconcileScan")
     func discoveredDevicesCountMatchesPersistedAfterMerge() throws {
         let (container, context) = try makeInMemoryStore()
         _ = container
@@ -71,7 +71,7 @@ struct DeviceDiscoveryCoordinatorSaveErrorTests {
             LocalDiscoveredDevice(ipAddress: "10.0.0.3", macAddress: "AA:BB:CC:00:00:03", hostname: nil),
         ], profileID: nil)
 
-        // mergeDiscoveredDevices calls loadPersistedDevices at the end,
+        // reconcileScan calls loadPersistedDevices at the end,
         // so discoveredDevices must reflect the three inserted records.
         #expect(coordinator.discoveredDevices.count == 3)
     }

@@ -299,7 +299,8 @@ struct DeviceDiscoveryCoordinatorReconcileTests {
                 Self.engine("10.0.0.1", "router", mac: "AA:00:00:00:00:01"),
                 Self.engine("10.0.0.20", "printer"),
                 Self.engine("10.0.0.30", nil),
-                Self.engine("10.0.0.40", "stale", mac: "AA:00:00:00:00:40", cached: true)
+                Self.engine("10.0.0.40", "stale", mac: "AA:00:00:00:00:40", cached: true),
+                Self.engine("10.0.0.60", "nas")
             ],
             [
                 Self.engine("10.0.0.1", "router", mac: "AA:00:00:00:00:01"),
@@ -307,7 +308,12 @@ struct DeviceDiscoveryCoordinatorReconcileTests {
                 Self.engine("10.0.0.31", nil, mac: "02:00:00:00:00:00")
             ],
             [Self.engine("10.0.0.1", "router", mac: "AA:00:00:00:00:01")],
-            [Self.engine("10.0.0.1", "router", mac: "AA:00:00:00:00:01"), Self.engine("10.0.0.20", "printer")]
+            [
+                Self.engine("10.0.0.1", "router", mac: "AA:00:00:00:00:01"),
+                Self.engine("10.0.0.20", "printer"),
+                // Back 30 minutes later with a readable, public MAC: the same row, never a second one.
+                Self.engine("10.0.0.60", "nas", mac: "AC:DE:48:00:00:60")
+            ]
         ]
         let start = Date(timeIntervalSince1970: 1_790_000_000)
 
@@ -317,7 +323,11 @@ struct DeviceDiscoveryCoordinatorReconcileTests {
         let mac = makeCoordinator(macContext, clock: clock)
         for (index, scan) in scans.enumerated() {
             clock.now = start.addingTimeInterval(Double(index) * 600)
-            mac.mergeSparseSnapshot(DeviceDiscoveryCoordinator.mapDiscoveredDevices(scan), profileID: home, now: clock.now)
+            // At the enrichment transition names aren't resolved yet.
+            let sparse = DeviceDiscoveryCoordinator.mapDiscoveredDevices(scan).map {
+                LocalDiscoveredDevice(ipAddress: $0.ipAddress, macAddress: $0.macAddress, hostname: nil, isCached: $0.isCached)
+            }
+            mac.mergeSparseSnapshot(sparse, profileID: home, now: clock.now)
             mac.reconcileScan(scan, profileID: home, now: clock.now)
         }
 
@@ -336,6 +346,6 @@ struct DeviceDiscoveryCoordinatorReconcileTests {
         }
         let macRows = try rows(macContext)
         #expect(try macRows == rows(phoneContext))
-        #expect(macRows.count == 5)
+        #expect(macRows.count == 6)
     }
 }

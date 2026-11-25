@@ -9,7 +9,7 @@ import NetworkScanKit
 @MainActor
 struct DeviceDiscoveryCoordinatorTests {
 
-    @Test func mergeDiscoveredDevicesUpdatesExistingRecordByMACAndInsertsNewDevice() throws {
+    @Test func reconcileScanUpdatesExistingRecordByMACAndInsertsNewDevice() throws {
         let (container, context) = try makeInMemoryStore()
         _ = container
 
@@ -49,7 +49,7 @@ struct DeviceDiscoveryCoordinatorTests {
         #expect(inserted?.hostname == "camera.local")
     }
 
-    @Test func mergeDiscoveredDevicesToleratesDuplicateHistoricalIdentifiers() throws {
+    @Test func reconcileScanToleratesDuplicateHistoricalIdentifiers() throws {
         let (container, context) = try makeInMemoryStore()
         _ = container
 
@@ -563,7 +563,7 @@ struct DeviceDiscoveryEnrichmentTests {
     /// A "seen last scan, absent this scan" device must not be re-resolved or re-pinged by
     /// the macOS enrichment phases (E1). Before P2, `resolveDeviceNames`/`measureDeviceLatencies`
     /// queried persisted `LocalDevice` rows filtered only by status/emptiness — reaching
-    /// stale rows `markOfflineDevices` hadn't flipped yet. The phases now read only the
+    /// stale rows not yet offline. The phases now read only the
     /// `ScanAccumulator`, which by construction holds just this scan's devices, so this test
     /// proves that structurally rather than just asserting on the resulting rows.
     @Test func enrichmentPhasesSkipStaleDevicesNotSeenThisScan() async throws {
@@ -577,7 +577,7 @@ struct DeviceDiscoveryEnrichmentTests {
         // default `NetworkProfileManager()`, which reads the real host's detected network and
         // would give `effectiveProfileID()` a non-nil UUID this stale row never gets — on such
         // a host `fetchDevices(for:)` would silently exclude the stale row from every query
-        // below, including `markOfflineDevices`, independent of anything this phase does.
+        // below, including the final merge, independent of anything this phase does.
         let stale = LocalDevice(
             ipAddress: "192.0.2.77",
             macAddress: "AA:BB:CC:DD:EE:77",

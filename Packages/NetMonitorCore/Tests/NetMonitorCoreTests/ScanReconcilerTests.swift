@@ -217,6 +217,25 @@ final class ScanReconcilerTests {
         #expect(saved[1].networkProfileID == home)
     }
 
+    /// The Mac has no device detail to adopt such a row (#596): there the scan saves the network's
+    /// own row, and the unassigned one is left untouched, notes and all.
+    @Test func withoutADetailAdopterTheScanSavesTheNetworksOwnRow() throws {
+        let (container, context) = try makeContext()
+        _ = container
+        let nas = LocalDevice(ipAddress: "192.168.7.10", macAddress: "", customName: "NAS")
+        nas.notes = "Backups"
+        nas.lastSeen = start.addingTimeInterval(-60)
+        context.insert(nas)
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        let reconciler = ScanReconciler(context: context, history: ScanHistory(defaults: defaults), holdsUnassignedForDetail: false)
+        try reconciler.reconcile([device(ip: "192.168.7.10", mac: nil, name: nil)], networkProfileID: home, scanDate: start, now: start)
+        let saved = try rows(context)
+        #expect(saved.count == 2)
+        #expect(saved.first { $0.id == nas.id }?.networkProfileID == nil)
+        #expect(saved.first { $0.id == nas.id }?.notes == "Backups")
+        #expect(saved.first { $0.id != nas.id }?.networkProfileID == home)
+    }
+
     /// One not seen there within the grace window may be another device now: a split beats a
     /// wrong merge, so the scan saves a new row and leaves the old one, notes and all, untouched.
     @Test func aStaleAddressOnlyRowSavedWithoutANetworkIsLeftAloneAndANewRowSaved() throws {

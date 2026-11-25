@@ -48,7 +48,7 @@ Key types: `ScanEngine`, `ScanPipeline`, `ScanContext`, `ScanAccumulator`, `Conn
 
 ### macOS scan pipeline
 
-`DeviceDiscoveryCoordinator.startScan()` runs: ARP → Bonjour → merge → name resolution → vendor lookup → quick port scan (27 ports: `QuickPortScanPhase.commonPorts`, the device fingerprint ports plus the security-rule ports) → device type inference → latency (3 pings) → mark offline. `DeviceTypeInferenceService` classifies unknown devices from hostname, services, ports and vendor.
+`DeviceDiscoveryCoordinator.startScan()` runs: ARP → Bonjour → merge → name resolution → vendor lookup → quick port scan (27 ports: `QuickPortScanPhase.commonPorts`, the device fingerprint ports plus the security-rule ports) → device type inference → latency (3 pings) → final merge through Core `ScanReconciler` (shared with iOS: `PresenceMatch` picks the row, and a row goes offline only under `DeviceGracePolicy`, 3 missed scans and 15 minutes; #596). `DeviceTypeInferenceService` classifies unknown devices from hostname, services, ports and vendor.
 
 ## Platform Differences
 
