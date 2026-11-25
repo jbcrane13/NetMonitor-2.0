@@ -13,6 +13,7 @@ struct IdentityRankingTests {
             case .maker: return DeviceIdentity(maker: value)
             case .model: return DeviceIdentity(model: value)
             case .friendlyName: return DeviceIdentity(friendlyName: value)
+            case .serial: return DeviceIdentity(serial: value)
             }
         }
         let merged = identity("current", current).merging(identity("newer", newer))
@@ -20,6 +21,7 @@ struct IdentityRankingTests {
         case .maker: return merged.maker?.value
         case .model: return merged.model?.value
         case .friendlyName: return merged.friendlyName?.value
+        case .serial: return merged.serial?.value
         }
     }
 
@@ -89,7 +91,8 @@ struct IdentityRankingTests {
         #expect(DeviceIdentity(maker: IdentityValue("Meross", source: .hostnameGuess)).resolvedMaker(macPrefixMaker: "Espressif Inc.") == "Meross")
         // Still shown when nothing else names the device, and a device maker's own prefix still wins.
         #expect(DeviceIdentity().resolvedMaker(macPrefixMaker: "Texas Instruments") == "Texas Instruments")
-        #expect(DeviceIdentity(maker: IdentityValue("Apple TV", source: .hostnameGuess)).resolvedMaker(macPrefixMaker: "Apple, Inc.") == "Apple, Inc.")
+        let guessed = DeviceIdentity(maker: IdentityValue("Apple TV", source: .hostnameGuess))
+        #expect(guessed.resolvedMaker(macPrefixMaker: "Apple, Inc.") == "Apple, Inc.")
     }
 
     @Test("A guess may name the device when only a chip maker is known")
@@ -225,5 +228,24 @@ struct IdentityRankingTests {
         await accumulator.upsert(report(.upnp, model: "Apple TV 4K"))
         await accumulator.upsert(report(.hostnameGuess, model: "TV"))
         #expect(await accumulator.snapshot().first?.identity.model == IdentityValue("AppleTV14,1", source: .bonjour))
+    }
+
+    @Test("Serial (#561): user-confirmed > UPnP > no source; a suggestion never wins", arguments: [
+        (IdentitySource?.some(.userConfirmed), IdentitySource?.some(.upnp), "current"),
+        (.upnp, .userConfirmed, "newer"),
+        (nil, .upnp, "newer"),
+        (.upnp, nil, "current"),
+        (nil, .modelSuggestion, "current")
+    ])
+    func serialRanks(current: IdentitySource?, newer: IdentitySource?, winner: String) {
+        #expect(merge(.serial, current, newer) == winner)
+    }
+
+    @Test("A serial survives withoutSuggestions unless it is a suggestion")
+    func serialWithoutSuggestions() {
+        let confirmed = DeviceIdentity(serial: IdentityValue("C02", source: .userConfirmed))
+        let suggested = DeviceIdentity(serial: IdentityValue("C02", source: .modelSuggestion))
+        #expect(confirmed.withoutSuggestions.serial?.value == "C02")
+        #expect(suggested.withoutSuggestions.serial == nil)
     }
 }

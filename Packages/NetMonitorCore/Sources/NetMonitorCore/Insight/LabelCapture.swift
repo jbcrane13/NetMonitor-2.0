@@ -22,8 +22,8 @@ public struct LabelValues: Sendable, Equatable {
 
 /// Saves what the user confirmed from a label photo (#456). The maker and model go through the
 /// identity seam as ``IdentitySource/userConfirmed`` (ADR-022), the way accepting a suggestion
-/// does (#449), so no scan replaces them. `LocalDevice` has no serial field (#561), so the
-/// serial is kept as a `Serial:` line in the notes. The MAC is written only to a device that
+/// does (#449), so no scan replaces them; so does the serial (#561), which before kept to a
+/// `Serial:` notes line (`SerialNotesMigration` moves those). The MAC is written only to a device that
 /// has none, and never when another device already has it (#442: one MAC, one device).
 public enum LabelCapture {
     /// The other device that has a MAC: a saved row, or a device the latest scan saw that has
@@ -86,13 +86,11 @@ public enum LabelCapture {
             let text: String? = text.trimmingCharacters(in: .whitespacesAndNewlines)
             return IdentityValue(text, source: .userConfirmed)
         }
-        let identity = device.identity.merging(DeviceIdentity(maker: confirmed(values.maker), model: confirmed(values.model)))
+        let identity = device.identity.merging(DeviceIdentity(
+            maker: confirmed(values.maker), model: confirmed(values.model), serial: confirmed(values.serial)
+        ))
         if identity != device.identity {
             device.identity = identity
-        }
-        let serial = values.serial.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !serial.isEmpty {
-            device.notes = notes(device.notes, serial: serial)
         }
         let outcome = macOutcome(for: values.mac, on: device, among: rows, scanned: scanned)
         if outcome == .written, let mac = LabelTextScanner.mac(from: values.mac) {
@@ -121,19 +119,5 @@ public enum LabelCapture {
             return .belongsTo(owner)
         }
         return existing.map { .kept(existing: $0) } ?? .written
-    }
-
-    /// `notes` with its `Serial:` line set to `serial`.
-    static func notes(_ notes: String?, serial: String) -> String {
-        let line = serialPrefix + serial
-        var lines = (notes ?? "").components(separatedBy: "\n")
-        if let index = lines.firstIndex(where: { $0.hasPrefix(serialPrefix) }) {
-            lines[index] = line
-        } else if lines == [""] {
-            lines = [line]
-        } else {
-            lines.append(line)
-        }
-        return lines.joined(separator: "\n")
     }
 }

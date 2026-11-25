@@ -42,7 +42,8 @@ struct NetmonitorApp: App {
         let modelConfiguration = ModelConfiguration(
             schema: schema,
             isStoredInMemoryOnly: Self.isUITesting,
-            allowsSave: true
+            allowsSave: true,
+            cloudKitDatabase: .none
         )
 
         do {
@@ -51,7 +52,7 @@ struct NetmonitorApp: App {
                     try ModelContainer(for: schema, configurations: [modelConfiguration])
                 },
                 fallbackStore: {
-                    let fallback = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+                    let fallback = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true, cloudKitDatabase: .none)
                     return try ModelContainer(for: schema, configurations: [fallback])
                 }
             )
@@ -69,6 +70,8 @@ struct NetmonitorApp: App {
         _environment = State(initialValue: .live())
         // Background work writes through this container's main context (#582).
         AppModelStore.container = Self.persistenceOutcome.store
+        // Serials label capture kept in the notes move into the serial field (#561).
+        SerialNotesMigration.runAtLaunch(on: Self.persistenceOutcome.store)
         guard !Self.isUITesting else {
             // Before any view loads, so the dashboard's first brief sees the seeded events.
             UITestBootstrap.seedEventsIfNeeded()

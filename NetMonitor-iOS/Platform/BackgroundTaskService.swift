@@ -484,12 +484,8 @@ extension BackgroundTaskService {
     private func checkMonitoringTargets() async {
         let checkStartTime = Date()
 
-        // Create a new ModelContainer for background context with full schema
-        let schema = AppModelStore.schema
-        guard let modelContainer = try? ModelContainer(
-            for: schema,
-            configurations: [ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)]
-        ) else {
+        // The app's own container (or the one kept fallback), never a second one over the same file.
+        guard let modelContainer = AppModelStore.sharedContainer() else {
             Self.logger.error("Failed to create ModelContainer for background task")
             return
         }

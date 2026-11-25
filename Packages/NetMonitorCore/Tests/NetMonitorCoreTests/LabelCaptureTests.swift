@@ -50,15 +50,19 @@ struct LabelCaptureTests {
         #expect(device.identity.model == IdentityValue("L-BDG2", source: .userConfirmed))
     }
 
-    @Test("The serial is kept in the notes, replacing an earlier one")
-    func serialInNotes() {
+    @Test("The serial is saved as a user-confirmed field (#561), replacing an earlier one; notes stay as they were")
+    func serialIsAField() {
         let device = device()
-        device.notes = "In the hall closet\nSerial: OLD1"
-        LabelCapture.save(LabelValues(serial: "8B0DI15S0072"), to: device, among: [device])
-        #expect(device.notes == "In the hall closet\nSerial: 8B0DI15S0072")
+        device.notes = "In the hall closet"
+        device.identity = DeviceIdentity(serial: IdentityValue("OLD1", source: .userConfirmed))
+        LabelCapture.save(LabelValues(serial: " 8B0DI15S0072 "), to: device, among: [device])
+        #expect(device.serialNumber == "8B0DI15S0072")
+        #expect(device.serialSource == IdentitySource.userConfirmed.rawValue)
+        #expect(device.notes == "In the hall closet")
         let fresh = self.device()
         LabelCapture.save(LabelValues(serial: "ABC123"), to: fresh, among: [fresh])
-        #expect(fresh.notes == "Serial: ABC123")
+        #expect(fresh.identity.serial == IdentityValue("ABC123", source: .userConfirmed))
+        #expect(fresh.notes == nil)
     }
 
     @Test("A device without a MAC gets the label's MAC, normalized")

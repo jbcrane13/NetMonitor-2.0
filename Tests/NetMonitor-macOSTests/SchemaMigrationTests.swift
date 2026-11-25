@@ -67,7 +67,7 @@ struct SchemaMigrationTests {
         let fixture = V1Fixture()
         try writeV1Store(at: url, fixture)
 
-        let schema = Schema(versionedSchema: SchemaV3.self)
+        let schema = Schema(versionedSchema: SchemaV4.self)
         let container = try ModelContainer(
             for: schema,
             migrationPlan: NetMonitorMigrationPlan.self,
@@ -112,7 +112,7 @@ struct SchemaMigrationTests {
     func v3StorePersistsIdentity() throws {
         let (directory, url) = try makeStoreURL()
         defer { try? FileManager.default.removeItem(at: directory) }
-        let schema = Schema(versionedSchema: SchemaV3.self)
+        let schema = Schema(versionedSchema: SchemaV4.self)
         let identity = DeviceIdentity(
             maker: IdentityValue("Apple", source: .bonjour),
             model: IdentityValue("MacBookPro18,1", source: .bonjour),
@@ -216,7 +216,7 @@ struct SchemaMigrationTests {
         #expect(SchemaV1.versionIdentifier != SchemaV2.versionIdentifier)
         #expect(SchemaV2.versionIdentifier != SchemaV3.versionIdentifier)
         // Building a container with every schema in the plan throws on duplicate checksums.
-        let schema = Schema(versionedSchema: SchemaV3.self)
+        let schema = Schema(versionedSchema: SchemaV4.self)
         _ = try ModelContainer(
             for: schema,
             migrationPlan: NetMonitorMigrationPlan.self,
