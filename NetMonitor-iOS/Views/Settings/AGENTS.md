@@ -11,7 +11,8 @@ App settings and configuration including Mac companion pairing, network tool def
 |------|-------------|
 | `SettingsView.swift` | Main settings screen with all configuration sections |
 | `ConnectionSettingsSection.swift` | Mac companion connection status and pairing controls |
-| `MacPairingView.swift` | Mac pairing flow with QR code/manual entry |
+| `MacPairingView.swift` | Connect to Mac: discovered Macs with Paired/Not paired badges, the paired Mac and Forget This Mac, manual address |
+| `PairWithMacView.swift` | Pairing (#590): scan the Mac's QR or type its code, compare the six digits, then Paired |
 | `AcknowledgementsView.swift` | Open source acknowledgements and credits |
 
 ## For AI Agents
@@ -62,6 +63,6 @@ App settings and configuration including Mac companion pairing, network tool def
 - Services: `../../Services/MacConnectionService.swift`, `../../Services/DataExportService.swift`
 - Models: `../../Models/ToolResult.swift`, `../../Models/SpeedTestResult.swift`, `../../Models/LocalDevice.swift`, `../../Models/PairedMac.swift`
 - Utilities: `../../Utilities/Theme.swift`, `../../Utilities/ThemeManager.swift`
-- Sub-views: `ConnectionSettingsSection.swift`, `MacPairingView.swift`, `AcknowledgementsView.swift`
+- Sub-views: `ConnectionSettingsSection.swift`, `MacPairingView.swift`, `PairWithMacView.swift`, `AcknowledgementsView.swift`
 
 <!-- MANUAL: -->
