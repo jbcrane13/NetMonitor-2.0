@@ -30,7 +30,7 @@ iOS-specific service implementations and UI infrastructure. Implements service p
 - All services are singletons accessed via `ServiceName.shared` (wired in `SharedServices.swift`)
 - New services must implement the corresponding protocol from `NetMonitorCore/Services/ServiceProtocols.swift`
 - Theme constants live in `Theme.swift` — never hardcode colors, spacing, or fonts
-- `MacConnectionService` uses newline-delimited JSON; see `docs/Companion-Protocol-API.md` for wire format
+- `MacConnectionService` speaks length-prefixed JSON over TLS 1.3 with pinned identities (#590); pairing steps live in `PhonePairingController`/`PhonePairingFlow`. See `docs/Companion-Protocol-API.md`. `FakeCompanionMac` (Debug only) is a loopback Mac for tests
 
 ### Theme System
 ```swift

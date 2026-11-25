@@ -15,7 +15,8 @@ macOS-specific service implementations. Implements protocols from `NetMonitorCor
 | `ICMPMonitorService.swift` | Continuous ICMP monitoring using `ICMPSocket` (raw socket) |
 | `HTTPMonitorService.swift` | HTTP/HTTPS target monitoring via `URLSession` |
 | `TCPMonitorService.swift` | TCP connection monitoring via `NWConnection` |
-| `CompanionService.swift` | Bonjour advertisement (`_netmon._tcp`, port 8849) + `NWListener` for iOS connections |
+| `CompanionService.swift` | Bonjour advertisement (`_netmon._tcp`, port 8849) + the TLS `NWListener` for paired iPhones, pairing and Remove (#590) |
+| `CompanionCredentials.swift` | The Mac's companion identity, paired phones (Keychain) and trust gate (#590) |
 | `CompanionMessageHandler.swift` | Processes `CompanionMessage` commands from iOS clients |
 | `DeviceDiscoveryCoordinator.swift` | Runs the NetworkScanKit `ScanEngine` pipeline and merges results into SwiftData `LocalDevice` rows (online, cached, offline) |
 | `Phases/` | macOS enrichment phases appended to `ScanPipeline.standard`: shell name resolution, vendor lookup, quick port scan, shell ping |
@@ -50,7 +51,7 @@ let output = try await runner.run("/sbin/ping", arguments: ["-c", "1", host])
 ```
 
 ### Companion Protocol
-Wire format is newline-delimited JSON. Message types and payloads are defined in `NetMonitorCore/CompanionMessage.swift`. See `docs/Companion-Protocol-API.md` for the full protocol spec.
+Wire format is 4-byte big-endian length-prefixed JSON inside a TLS 1.3 link with mutually pinned identities (#590). `CompanionService` gives each verified session a role (paired, pairing, or refused), and every frame passes `CompanionLinkAuthorizer` and the trust gate before the handler sees it. Message types and payloads are defined in `NetMonitorCore/CompanionMessage.swift`. See `docs/Companion-Protocol-API.md` for the full protocol spec.
 
 ### Adding a New Service
 1. Define the protocol in `NetMonitorCore/Services/ServiceProtocols.swift`

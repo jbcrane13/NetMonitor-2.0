@@ -66,7 +66,16 @@ Key types: `ScanEngine`, `ScanPipeline`, `ScanContext`, `ScanAccumulator`, `Conn
 
 ## Mac–iOS Companion Protocol
 
-Bonjour `_netmon._tcp`, port 8849, 4-byte big-endian length-prefixed JSON frames over `NWConnection`, capped at 1 MiB (`CompanionFrameDecoder.defaultMaximumFrameSize`). `CompanionMessage` (`Models/CompanionMessage.swift` in NetMonitorCore) defines the wire format for both sides. Message types: `statusUpdate`, `targetList`, `deviceList`, `networkProfile`, `command`, `toolResult`, `error`, `heartbeat`. Spec: `docs/Companion-Protocol-API.md`.
+Bonjour `_netmon._tcp`, port 8849, 4-byte big-endian length-prefixed JSON frames over `NWConnection`, capped at 1 MiB (`CompanionFrameDecoder.defaultMaximumFrameSize`). `CompanionMessage` (`Models/CompanionMessage.swift` in NetMonitorCore) defines the wire format for both sides. Message types: `statusUpdate`, `targetList`, `deviceList`, `networkProfile`, `command`, `toolResult`, `error`, `heartbeat`, plus the pairing frames. Spec: `docs/Companion-Protocol-API.md`.
+
+Since protocol v2 (#590), every link is TLS 1.3 with mutually pinned P-256 identities, and only a paired iPhone gets in. The pieces live in NetMonitorCore `CompanionAuth/`:
+- `CompanionTLS` and its `.ready` gate;
+- `CompanionTrustGate`, which the Mac's verify block reads live;
+- `CompanionLinkAuthorizer`, the per-frame rule;
+- pairing by QR or typed code with a comparison code the user confirms on the Mac;
+- the Keychain stores.
+
+Every inbound frame passes the authorizer and the gate before it is handled, so never dispatch a message around them. Tests use `FakeCompanionMac` (iOS) or a `CompanionService` on port 0 with in-memory credentials (macOS).
 
 ## Worktree Setup
 

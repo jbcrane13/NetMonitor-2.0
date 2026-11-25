@@ -3,10 +3,13 @@ import Foundation
 // MARK: - CompanionMessage
 /// Root message type for macOS ↔ iOS companion communication.
 /// Uses length-prefixed JSON framing: 4-byte big-endian length prefix + JSON payload.
-/// JSON format: { "protocolVersion": 1, "type": "<messageType>", "payload": { ... } }
+/// JSON format: { "protocolVersion": 2, "type": "<messageType>", "payload": { ... } }
+/// Every frame travels inside the pinned TLS 1.3 link (#590, `CompanionTLS`).
 
 public enum CompanionMessage: Codable, Sendable {
-    public static let currentProtocolVersion = 1
+    /// 2 since #590: the link is TLS 1.3 with pinned identities and a pairing handshake. A
+    /// deliberate break, not a capability: a v1 peer can't complete the handshake at all.
+    public static let currentProtocolVersion = 2
 
     case statusUpdate(StatusUpdatePayload)
     case targetList(TargetListPayload)
@@ -21,6 +24,17 @@ public enum CompanionMessage: Codable, Sendable {
     case insightRequest(InsightRequestPayload)
     /// Mac → iPhone: the answer to one `insightRequest`, never sent unprompted (#457).
     case insightResponse(InsightResponsePayload)
+    /// Mac → iPhone, first on every link once the Mac has verified the session: the phone sends
+    /// nothing before it (#590).
+    case serverHello(ServerHelloPayload)
+    /// iPhone → Mac on a pairing link: proof of the one-time secret over this session (#590).
+    case pairRequest(PairRequestPayload)
+    /// Mac → iPhone on a pairing link: the Mac's proof of the same secret (#590).
+    case pairChallenge(PairChallengePayload)
+    /// Mac → iPhone: whether the user confirmed the pairing on the Mac (#590).
+    case pairResult(PairResultPayload)
+    /// iPhone → Mac on a paired link: this phone forgot the Mac; remove its pin (#590).
+    case unpair(UnpairPayload)
     /// A type this build doesn't know, from a newer peer: kept so the frame decodes, and
     /// ignored by both sides (Models/AGENTS.md: Codable enums get an unknown fallback). New
     /// types are still sent only to a peer that advertised them.
@@ -45,6 +59,11 @@ public enum CompanionMessage: Codable, Sendable {
         case heartbeat
         case insightRequest
         case insightResponse
+        case serverHello
+        case pairRequest
+        case pairChallenge
+        case pairResult
+        case unpair
     }
 
     // MARK: Decodable
@@ -85,6 +104,16 @@ public enum CompanionMessage: Codable, Sendable {
             self = try .insightRequest(container.decode(InsightRequestPayload.self, forKey: .payload))
         case .insightResponse:
             self = try .insightResponse(container.decode(InsightResponsePayload.self, forKey: .payload))
+        case .serverHello:
+            self = try .serverHello(container.decode(ServerHelloPayload.self, forKey: .payload))
+        case .pairRequest:
+            self = try .pairRequest(container.decode(PairRequestPayload.self, forKey: .payload))
+        case .pairChallenge:
+            self = try .pairChallenge(container.decode(PairChallengePayload.self, forKey: .payload))
+        case .pairResult:
+            self = try .pairResult(container.decode(PairResultPayload.self, forKey: .payload))
+        case .unpair:
+            self = try .unpair(container.decode(UnpairPayload.self, forKey: .payload))
         }
     }
 
@@ -124,6 +153,21 @@ public enum CompanionMessage: Codable, Sendable {
             try container.encode(payload, forKey: .payload)
         case .insightResponse(let payload):
             try container.encode(MessageType.insightResponse, forKey: .type)
+            try container.encode(payload, forKey: .payload)
+        case .serverHello(let payload):
+            try container.encode(MessageType.serverHello, forKey: .type)
+            try container.encode(payload, forKey: .payload)
+        case .pairRequest(let payload):
+            try container.encode(MessageType.pairRequest, forKey: .type)
+            try container.encode(payload, forKey: .payload)
+        case .pairChallenge(let payload):
+            try container.encode(MessageType.pairChallenge, forKey: .type)
+            try container.encode(payload, forKey: .payload)
+        case .pairResult(let payload):
+            try container.encode(MessageType.pairResult, forKey: .type)
+            try container.encode(payload, forKey: .payload)
+        case .unpair(let payload):
+            try container.encode(MessageType.unpair, forKey: .type)
             try container.encode(payload, forKey: .payload)
         case .unknown(let type):
             try container.encode(type, forKey: .type)
@@ -354,6 +398,11 @@ extension CompanionMessage {
         case .heartbeat: "heartbeat"
         case .insightRequest: "insightRequest"
         case .insightResponse: "insightResponse"
+        case .serverHello: "serverHello"
+        case .pairRequest: "pairRequest"
+        case .pairChallenge: "pairChallenge"
+        case .pairResult: "pairResult"
+        case .unpair: "unpair"
         case .unknown: "unknown"
         }
     }

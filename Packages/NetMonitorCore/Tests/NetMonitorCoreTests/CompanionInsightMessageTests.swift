@@ -45,7 +45,7 @@ struct CompanionInsightMessageTests {
     @Test("a request kind this build doesn't know decodes, but carries no request")
     func unknownKindDecodesWithoutRequest() throws {
         let json = """
-        {"protocolVersion":1,"type":"insightRequest","payload":{"requestID":"6B1B5E36-2C0C-4E57-9C1D-3D4A0F5E7A11",\
+        {"protocolVersion":2,"type":"insightRequest","payload":{"requestID":"6B1B5E36-2C0C-4E57-9C1D-3D4A0F5E7A11",\
         "kind":"poem","subject":"s","facts":[],"observations":[]}}
         """
         guard case let .insightRequest(decoded) = try CompanionMessage.decode(from: Data(json.utf8)) else {
@@ -91,7 +91,7 @@ struct CompanionInsightMessageTests {
     @Test("a failure reason this build doesn't know still reads as a failure")
     func unknownFailureReason() throws {
         let json = """
-        {"protocolVersion":1,"type":"insightResponse","payload":{"requestID":"6B1B5E36-2C0C-4E57-9C1D-3D4A0F5E7A11","failure":"overheated"}}
+        {"protocolVersion":2,"type":"insightResponse","payload":{"requestID":"6B1B5E36-2C0C-4E57-9C1D-3D4A0F5E7A11","failure":"overheated"}}
         """
         guard case let .insightResponse(decoded) = try CompanionMessage.decode(from: Data(json.utf8)) else {
             Issue.record("expected an insight response")
@@ -104,7 +104,7 @@ struct CompanionInsightMessageTests {
     @Test("a heartbeat from an older build, without capabilities, still decodes")
     func oldHeartbeatDecodes() throws {
         let json = """
-        {"protocolVersion":1,"type":"heartbeat","payload":{"timestamp":786000000,"version":"1.0"}}
+        {"protocolVersion":2,"type":"heartbeat","payload":{"timestamp":786000000,"version":"1.0"}}
         """
         guard case let .heartbeat(payload) = try CompanionMessage.decode(from: Data(json.utf8)) else {
             Issue.record("expected a heartbeat")
@@ -131,7 +131,7 @@ struct CompanionInsightMessageTests {
 
     @Test("a frame with a type this build doesn't know decodes as unknown, and the next frame still arrives")
     func unknownTypeFrameKeepsStream() async throws {
-        let unknown = Data(#"{"protocolVersion":1,"type":"futureThing","payload":{"x":1}}"#.utf8)
+        let unknown = Data(#"{"protocolVersion":2,"type":"futureThing","payload":{"x":1}}"#.utf8)
         var length = UInt32(unknown.count).bigEndian
         var stream = Data(bytes: &length, count: 4)
         stream.append(unknown)

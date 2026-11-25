@@ -21,7 +21,7 @@ struct MacConnectionServiceInsightTests {
         service.disconnect()
         defer { service.disconnect() }
 
-        var stream = Self.frame(json: #"{"protocolVersion":1,"type":"futureThing","payload":{}}"#)
+        var stream = Self.frame(json: #"{"protocolVersion":2,"type":"futureThing","payload":{}}"#)
         try stream.append(CompanionMessage.heartbeat(HeartbeatPayload(capabilities: [CompanionCapability.insight])).encodeLengthPrefixed())
         await service.processIncomingDataForTesting(stream)
 

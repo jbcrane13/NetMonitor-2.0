@@ -15,7 +15,8 @@ Seven settings panels presented in the macOS Settings window (`Settings` scene).
 | `NetworkSettingsView.swift` | DNS server override, scan timeout, TCP probe ports |
 | `NotificationSettingsView.swift` | Alert rules for target down, high latency, new devices |
 | `AppearanceSettingsView.swift` | Theme (system/light/dark), accent color |
-| `CompanionSettingsView.swift` | iOS companion service toggle, port config, paired devices |
+| `CompanionSettingsView.swift` | iOS companion service toggle, port config, paired iPhones with Remove… (#590) |
+| `CompanionPairingSheet.swift` | Pair iPhone… (#590): one-time QR and typed code, then the comparison code to confirm |
 | `DataSettingsView.swift` | Retention period, export format, clear history |
 
 ## For AI Agents

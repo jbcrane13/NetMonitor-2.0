@@ -209,12 +209,14 @@ struct CompanionServiceValueTypeTests {
         let info = ConnectedClientInfo(
             id: id,
             endpoint: "192.168.1.50:54321",
-            connectedSince: now
+            connectedSince: now,
+            phonePin: Data(repeating: 7, count: 32)
         )
 
         #expect(info.id == id)
         #expect(info.endpoint == "192.168.1.50:54321")
         #expect(info.connectedSince == now)
+        #expect(info.phonePin == Data(repeating: 7, count: 32))
     }
 
     @Test("CompanionService initial state is not running")

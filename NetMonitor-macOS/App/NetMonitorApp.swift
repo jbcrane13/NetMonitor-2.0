@@ -257,7 +257,7 @@ struct NetMonitorApp: App {
                 networkProfileManager: profileManager
             )
 
-            companionService = CompanionService()
+            companionService = CompanionService(credentials: makeCompanionCredentials())
             let handler = companionHandler
             do {
                 // While a scan runs the Mac stops offering insight; tell connected phones (#457).
@@ -267,8 +267,8 @@ struct NetMonitorApp: App {
                 }
                 try await companionService?.start(
                     heartbeat: { await handler?.heartbeat() ?? HeartbeatPayload() },
-                    messageHandler: { @Sendable message, clientID in
-                        await handler?.handle(message, from: clientID)
+                    messageHandler: { @Sendable message, clientID, authorization in
+                        await handler?.handle(message, from: clientID, authorization: authorization)
                     }
                 )
             } catch {
@@ -338,6 +338,11 @@ struct NetMonitorApp: App {
         )
         discovery.changeTracker = UITestScanFixture.changeTracker(reset: HistoryFileLocation.current.resetRequested)
         deviceDiscovery = discovery
+        // Settings > Companion over in-memory credentials; the listener stays off, so a UI-test
+        // launch never opens the companion port (#590).
+        if companionService == nil {
+            companionService = CompanionService(credentials: makeCompanionCredentials())
+        }
         let arguments = ProcessInfo.processInfo.arguments
         if arguments.contains("--seed-test-device") {
             UITestScanFixture.seedDevice(
@@ -405,6 +410,41 @@ struct NetMonitorApp: App {
 }
 
 // swiftlint:enable function_body_length
+
+// MARK: - Companion credentials
+
+@MainActor
+extension NetMonitorApp {
+    /// The companion link's identity and paired phones (#590). A `--uitesting` launch keeps them in
+    /// memory, seeded by `--seed-paired-phones`; otherwise they live in this Mac's Keychain. When the
+    /// Keychain refuses, the service stays off rather than running unauthenticated.
+    func makeCompanionCredentials() -> CompanionCredentials? {
+        #if DEBUG
+        if isUITesting {
+            let seeds = ProcessInfo.processInfo.arguments.contains("--seed-paired-phones") ? UITestCompanion.seedPhones : []
+            // The launch's UI-test suite, emptied at launch (`NetworkProfileDefaults.launchDefaults`).
+            _ = NetworkProfileDefaults.launchDefaults
+            return .inMemory(seedPhones: seeds, defaultsSuite: NetworkProfileDefaults.uiTestSuite)
+        }
+        #endif
+        do {
+            return try .live()
+        } catch {
+            Logger.companion.error("Companion credentials unavailable: \(String(describing: error), privacy: .public)")
+            return nil
+        }
+    }
+}
+
+#if DEBUG
+/// Paired phones for `--seed-paired-phones` (#590); made-up names and keys. Debug builds only.
+enum UITestCompanion {
+    static let seedPhones = [
+        PairedPhone(pin: Data(repeating: 0xA1, count: 32), name: "Test iPhone", pairedAt: Date(timeIntervalSince1970: 1_798_000_000)),
+        PairedPhone(pin: Data(repeating: 0xB2, count: 32), name: "Test iPad", pairedAt: Date(timeIntervalSince1970: 1_799_000_000))
+    ]
+}
+#endif
 
 // MARK: - Network profile defaults
 
