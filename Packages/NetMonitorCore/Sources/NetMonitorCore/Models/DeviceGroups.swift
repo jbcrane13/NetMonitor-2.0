@@ -13,7 +13,6 @@ public enum DeviceGroupSource: String, Sendable, CaseIterable {
 /// One device as every list, count and reader shows it (#594, design v3.1): a row of its own, or
 /// the group of rows that are its interfaces. Built by ``DeviceGroups/project(_:)`` from complete
 /// groups; never stored.
-@MainActor
 public struct DeviceProjection: Identifiable {
     /// The group's own ID (`deviceGroupID`), or the row's ID for a device of one row. Stable when
     /// the primary changes.
@@ -46,7 +45,6 @@ public struct DeviceProjection: Identifiable {
 
 /// Builds ``DeviceProjection``s (#594, design v3.1 §4, §6). Readers scope rows to a network, make
 /// groups complete (``completingGroups(_:in:)``), project, and only then search, filter or limit.
-@MainActor
 public enum DeviceGroups {
     /// One projection per device, at the position of its first row in `rows`. Rows sharing a
     /// `deviceGroupID` on the same network are one device; a group's primary is the member its
@@ -80,6 +78,21 @@ public enum DeviceGroups {
         let have = Set(rows.map(\.id))
         let grouped = try context.fetch(FetchDescriptor<LocalDevice>(predicate: #Predicate { $0.deviceGroupID != nil }))
         return rows + grouped.filter { member in member.deviceGroupID.map(groupIDs.contains) == true && !have.contains(member.id) }
+    }
+
+    /// The `limit` most recently seen devices on `network` (every network's when nil), each with
+    /// all its members, most recent first: the bounded fetch every capped reader uses (#594).
+    public static func recentDevices(network: UUID?, limit: Int, in context: ModelContext) throws -> [DeviceProjection] {
+        var descriptor: FetchDescriptor<LocalDevice>
+        if let network {
+            descriptor = FetchDescriptor(predicate: #Predicate { $0.networkProfileID == network })
+        } else {
+            descriptor = FetchDescriptor()
+        }
+        descriptor.sortBy = [SortDescriptor(\.lastSeen, order: .reverse)]
+        descriptor.fetchLimit = limit
+        let rows = try completingGroups(context.fetch(descriptor), in: context)
+        return Array(project(rows).prefix(limit))
     }
 
     /// The primary to use when a group's `groupPrimaryID` names no member, or a member leaves:
@@ -152,7 +165,6 @@ public enum DeviceGroups {
 
 /// Finds the device a stored ID names (#594): a group's ID or any member row's ID, as rules,
 /// Timeline events, citations and notifications store row IDs.
-@MainActor
 public struct DeviceGroupResolver {
     public let devices: [DeviceProjection]
     private let indexByID: [UUID: Int]
@@ -176,8 +188,6 @@ public struct DeviceGroupResolver {
 }
 
 // MARK: - Presence of a device
-
-@MainActor
 public extension PresenceSnapshot {
     /// The best member's state: online > not checked recently > offline (#594).
     func freshness(of device: DeviceProjection) -> PresenceFreshness {
@@ -216,5 +226,17 @@ public extension PresenceSnapshot {
 
     func accessibilityText(_ device: DeviceProjection) -> String {
         "\(freshness(of: device).label), last seen \(relativeLastSeen(device))"
+    }
+}
+
+// MARK: - Rule subjects
+
+public extension AlertRuleSubject {
+    /// Marks the subject as `row`, one interface of `device` (#594): rules naming any member match
+    /// it, and an outage is one per device.
+    mutating func setDevice(_ device: DeviceProjection, row: LocalDevice) {
+        deviceID = row.id
+        deviceGroupID = device.isGroup ? device.id : nil
+        groupMemberIDs = device.isGroup ? device.memberIDs : []
     }
 }

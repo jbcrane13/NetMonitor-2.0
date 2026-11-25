@@ -81,6 +81,13 @@ public struct AlertRuleSubject: Sendable, Equatable {
     public var deviceID: UUID?
     /// The monitoring target whose check this is; nil for a scan's report (#450).
     public var monitoredTargetID: UUID?
+    /// When the row is one interface of a device group (#594): the group, and every member row's
+    /// ID, so a rule naming any member matches and an outage is one per device.
+    public var deviceGroupID: UUID?
+    public var groupMemberIDs: Set<UUID> = []
+
+    /// The device the subject is, across its interfaces: its group, else its row.
+    public var deviceKey: UUID? { deviceGroupID ?? deviceID }
 
     public init(
         name: String?,
@@ -106,6 +113,9 @@ public struct AlertRuleSubject: Sendable, Equatable {
     public var key: String {
         if let monitoredTargetID {
             return "target:\(monitoredTargetID.uuidString)"
+        }
+        if let deviceGroupID {
+            return "group:\(deviceGroupID.uuidString)"
         }
         if let macAddress, !macAddress.isEmpty {
             return "mac:\(macAddress.uppercased())"
@@ -151,7 +161,7 @@ public enum AlertRuleEngine {
     /// Whether `rule`'s conditions accept `subject`. The trigger isn't checked here.
     public static func conditionsMatch(_ conditions: AlertRuleConditions, _ subject: AlertRuleSubject) -> Bool {
         if let deviceID = conditions.deviceID {
-            guard subject.deviceID == deviceID else { return false }
+            guard subject.deviceID == deviceID || subject.groupMemberIDs.contains(deviceID) else { return false }
         } else if let device = trimmed(conditions.device) {
             let candidates = [subject.ipAddress, subject.macAddress, subject.name].compactMap { $0 }
             guard candidates.contains(where: { $0.caseInsensitiveCompare(device) == .orderedSame }) else { return false }
@@ -254,14 +264,14 @@ public struct AlertRuleEvaluator: Sendable {
             targetTimed = targetTimed.filter { $0.target != target }
         }
         for event in events {
-            guard let target = event.subject.monitoredTargetID, let device = event.subject.deviceID else { continue }
+            guard let target = event.subject.monitoredTargetID, let device = event.subject.deviceKey else { continue }
             for rule in rules where rule.isEnabled && AlertRuleEngine.conditionsMatch(rule.conditions, event.subject) {
                 targetTimed.insert(TargetTimed(rule: rule.id, device: device, target: target))
             }
         }
         var matches: [Match] = []
         for event in events {
-            if event.kind == .cameOnline, let device = event.subject.deviceID {
+            if event.kind == .cameOnline, let device = event.subject.deviceKey {
                 alertedOutages = alertedOutages.filter { $0.device != device }
             }
             for rule in rules where rule.isEnabled && AlertRuleEngine.conditionsMatch(rule.conditions, event.subject) {
@@ -309,14 +319,14 @@ public struct AlertRuleEvaluator: Sendable {
 
     /// False for an offline rule that already alerted for this device's outage.
     private mutating func isFirstAlertOfOutage(_ rule: AlertRule, _ event: AlertRuleEvent) -> Bool {
-        guard rule.trigger == .wentOffline, let device = event.subject.deviceID else { return true }
+        guard rule.trigger == .wentOffline, let device = event.subject.deviceKey else { return true }
         return alertedOutages.insert(RuleDevice(rule: rule.id, device: device)).inserted
     }
 
     /// A scan's offline, still-offline or online report about a device a target covers for `rule`:
     /// the target reports that state change itself.
     private func isCoveredByTarget(_ rule: AlertRule, _ event: AlertRuleEvent) -> Bool {
-        guard event.subject.monitoredTargetID == nil, let device = event.subject.deviceID else { return false }
+        guard event.subject.monitoredTargetID == nil, let device = event.subject.deviceKey else { return false }
         switch event.kind {
         case .wentOffline, .stillOffline, .cameOnline:
             return targetTimed.contains { $0.rule == rule.id && $0.device == device }

@@ -18,6 +18,8 @@ public enum ReportSummaryBuilder {
     ///     offline or not checked recently, from its network's latest scan.
     ///   - now: the report time, used for the report date.
     ///   - calendar: writes the report date in the reader's time zone.
+    /// Devices are counted as devices, not rows: a group of interfaces is one (#594). Pass
+    /// complete groups.
     public static func request(
         devices: [LocalDevice],
         toolResults: [ToolResult],
@@ -29,7 +31,7 @@ public enum ReportSummaryBuilder {
         guard !devices.isEmpty || !toolResults.isEmpty || !speedTests.isEmpty else { return nil }
         var facts = ["Report date: \(longDay(now, calendar))"]
         var observations: [String] = []
-        addDevices(devices, presence: presence, facts: &facts, observations: &observations)
+        addDevices(DeviceGroups.project(devices), presence: presence, facts: &facts, observations: &observations)
         addSpeedTests(speedTests, facts: &facts, observations: &observations)
         addToolResults(toolResults, facts: &facts, observations: &observations)
         return InsightRequest(subject: "Network report", facts: facts, observations: observations, kind: .summary)
@@ -40,7 +42,9 @@ public enum ReportSummaryBuilder {
     /// Devices by `PresenceFreshness` (#583). Online and offline are counted only for devices whose
     /// network was checked recently, so an old scan never gives an online count that reads as now.
     /// Past devices are counted apart, never as offline.
-    private static func addDevices(_ devices: [LocalDevice], presence: PresenceSnapshot, facts: inout [String], observations: inout [String]) {
+    private static func addDevices(
+        _ devices: [DeviceProjection], presence: PresenceSnapshot, facts: inout [String], observations: inout [String]
+    ) {
         guard !devices.isEmpty else {
             facts.append("Number of devices: 0")
             return
@@ -50,7 +54,7 @@ public enum ReportSummaryBuilder {
         let states = current.map { presence.freshness(of: $0) }
         let notChecked = states.count(where: { $0 == .notCheckedRecently })
         let offline = states.count(where: { $0 == .offline })
-        let latest = Set(devices.map(\.networkProfileID)).compactMap { presence.lastScan(for: $0) }.max()
+        let latest = Set(devices.flatMap { $0.members.map(\.networkProfileID) }).compactMap { presence.lastScan(for: $0) }.max()
         let latestText = latest.map { PresenceFreshness.relativeText(since: $0, now: presence.now) }
 
         facts.append("Number of devices: \(current.count)")

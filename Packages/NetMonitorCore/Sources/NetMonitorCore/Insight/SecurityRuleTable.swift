@@ -216,12 +216,16 @@ public enum SecurityRuleTable {
     public static let ports: Set<Int> = rules.reduce(into: []) { $0.formUnion($1.ports) }
 
     /// The findings on `devices`, ranked: highest severity first, then rule order, then device
-    /// name and port. Only ports in each device's `openPorts` count.
+    /// name and port. Only ports in each row's `openPorts` count: a port stays with the interface
+    /// (row) it was found open on, named by its device (#594; a group's primary). Pass complete
+    /// groups.
     public static func findings(for devices: [LocalDevice]) -> [SecurityFinding] {
-        let found = devices.flatMap { device in
-            Set(device.openPorts ?? []).sorted().flatMap { port in
-                rules.filter { $0.applies(port: port, deviceType: device.deviceType) }.map { rule in
-                    finding(rule, port: port, device: device)
+        let found = DeviceGroups.project(devices).flatMap { group in
+            group.members.flatMap { device in
+                Set(device.openPorts ?? []).sorted().flatMap { port in
+                    rules.filter { $0.applies(port: port, deviceType: group.primary.deviceType) }.map { rule in
+                        finding(rule, port: port, device: device, group: group)
+                    }
                 }
             }
         }
@@ -244,15 +248,15 @@ public enum SecurityRuleTable {
         }
     }
 
-    private static func finding(_ rule: SecurityRule, port: Int, device: LocalDevice) -> SecurityFinding {
+    private static func finding(_ rule: SecurityRule, port: Int, device: LocalDevice, group: DeviceProjection) -> SecurityFinding {
         SecurityFinding(
             id: "\(device.id.uuidString)-\(rule.id)-\(port)",
             deviceID: device.id,
-            deviceName: device.displayName,
+            deviceName: group.displayName,
             port: port,
             ruleID: rule.id,
             service: rule.service,
-            severity: rule.severity(for: device.deviceType),
+            severity: rule.severity(for: group.primary.deviceType),
             title: rule.title(port: port),
             explanation: rule.explanation,
             remedy: rule.remedy

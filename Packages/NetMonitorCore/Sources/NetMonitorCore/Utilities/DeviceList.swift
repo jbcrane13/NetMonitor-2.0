@@ -25,26 +25,29 @@ public struct DeviceListFilter: Sendable, Equatable {
     }
 }
 
-/// Pure derivation of a device list's search, filter and sort, shared by every macOS device list
-/// view.
+/// Pure derivation of a device list's search, filter and sort, shared by every device list (both
+/// platforms). It works on devices, not rows (#594): rows are projected first
+/// (`DeviceGroups.project`), so a group of interfaces is one entry; then searched, filtered and
+/// sorted. Pass complete groups (`DeviceGroups.completingGroups`).
 public enum DeviceList {
-    /// Filters and sorts `devices` per `filter`, `sort`, and `ascending`.
+    /// The devices of `rows` per `filter`, `sort`, and `ascending`.
     ///
-    /// `onlineOnly` and the `status` sort use each row's `PresenceFreshness` from `presence`, never
-    /// the saved status alone (#583); the status sort is online, then not checked recently, then
-    /// offline. Past devices (`PresenceFreshness.isPast`) are left out unless `showPast`.
+    /// `onlineOnly` and the `status` sort use each device's `PresenceFreshness` from `presence` (the
+    /// best member's), never a saved status alone (#583); the status sort is online, then not
+    /// checked recently, then offline. Past devices (`PresenceFreshness.isPast`, on the latest
+    /// member's last seen) are left out unless `showPast`.
     ///
-    /// The search matches (case-insensitively, except IP address which uses `contains`)
-    /// against displayName, ipAddress, macAddress, and vendor.
+    /// The search matches (case-insensitively, except IP address which uses `contains`) the
+    /// device's name and every member's name, IP address, MAC address and maker.
     ///
     /// `lastSeen` sorts descending (most recent first) by default; every other sort
     /// sorts ascending by default. `ascending` inverts that default: for `lastSeen`,
     /// passing `true` reverses to ascending; for every other sort, passing `false`
-    /// reverses to descending.
-    public static func rows(
-        _ devices: [LocalDevice], filter: DeviceListFilter, presence: PresenceSnapshot, sort: DeviceSortOrder, ascending: Bool
-    ) -> [LocalDevice] {
-        var result = matching(devices, search: filter.search)
+    /// reverses to descending. Addresses and latency are the current member's.
+    public static func devices(
+        _ rows: [LocalDevice], filter: DeviceListFilter, presence: PresenceSnapshot, sort: DeviceSortOrder, ascending: Bool
+    ) -> [DeviceProjection] {
+        var result = matching(DeviceGroups.project(rows), search: filter.search)
 
         if filter.onlineOnly {
             result = result.filter { presence.freshness(of: $0).isOnline }
@@ -64,9 +67,9 @@ public enum DeviceList {
         case .status:
             result.sort { statusRank(presence.freshness(of: $0)) < statusRank(presence.freshness(of: $1)) }
         case .vendor:
-            result.sort { ($0.maker ?? "zzz").localizedCaseInsensitiveCompare($1.maker ?? "zzz") == .orderedAscending }
+            result.sort { (maker(of: $0) ?? "zzz").localizedCaseInsensitiveCompare(maker(of: $1) ?? "zzz") == .orderedAscending }
         case .latency:
-            result.sort { ($0.lastLatency ?? .infinity) < ($1.lastLatency ?? .infinity) }
+            result.sort { ($0.current.lastLatency ?? .infinity) < ($1.current.lastLatency ?? .infinity) }
         }
 
         // Reverse for descending (lastSeen defaults descending, so invert logic)
@@ -79,19 +82,26 @@ public enum DeviceList {
 
     /// How many past devices showing them would add under `filter`'s search and Online Only: the
     /// N in "Show past devices (N)". With Online Only on, an offline past device adds nothing.
-    public static func pastCount(_ devices: [LocalDevice], filter: DeviceListFilter, presence: PresenceSnapshot) -> Int {
-        matching(devices, search: filter.search).count { device in
+    public static func pastCount(_ rows: [LocalDevice], filter: DeviceListFilter, presence: PresenceSnapshot) -> Int {
+        matching(DeviceGroups.project(rows), search: filter.search).count { device in
             presence.isPast(device) && (!filter.onlineOnly || presence.freshness(of: device).isOnline)
         }
     }
 
-    private static func matching(_ devices: [LocalDevice], search: String) -> [LocalDevice] {
+    /// The device's maker: the primary's, else the first member's that has one.
+    static func maker(of device: DeviceProjection) -> String? {
+        device.primary.maker ?? device.members.lazy.compactMap(\.maker).first
+    }
+
+    private static func matching(_ devices: [DeviceProjection], search: String) -> [DeviceProjection] {
         guard !search.isEmpty else { return devices }
         return devices.filter { device in
-            device.displayName.localizedCaseInsensitiveContains(search) ||
-                device.ipAddress.contains(search) ||
-                device.macAddress.localizedCaseInsensitiveContains(search) ||
-                (device.maker?.localizedCaseInsensitiveContains(search) ?? false)
+            device.displayName.localizedCaseInsensitiveContains(search) || device.members.contains { member in
+                member.displayName.localizedCaseInsensitiveContains(search) ||
+                    member.ipAddress.contains(search) ||
+                    member.macAddress.localizedCaseInsensitiveContains(search) ||
+                    (member.maker?.localizedCaseInsensitiveContains(search) ?? false)
+            }
         }
     }
 

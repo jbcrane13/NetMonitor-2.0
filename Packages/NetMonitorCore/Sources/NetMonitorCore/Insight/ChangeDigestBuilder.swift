@@ -36,6 +36,8 @@ public enum ChangeDigestBuilder {
     ///     the scan gave the device, so a device without a saved row keeps that label.
     ///   - deviceNamesByID: the same names by `LocalDevice.id`, for events that carry a
     ///     `deviceID` (#491). They win over `deviceNames`, and one ID counts as one device.
+    ///   - deviceKeysByID: each member row's device (`deviceKeysByID(_:)`, #594), so events about
+    ///     two interfaces of one device count once.
     public static func request(
         events: [NetworkEvent],
         from: Date,
@@ -43,6 +45,7 @@ public enum ChangeDigestBuilder {
         filter: NetworkEventType? = nil,
         deviceNames: [String: String] = [:],
         deviceNamesByID: [UUID: String] = [:],
+        deviceKeysByID: [UUID: UUID] = [:],
         speedTests: [SpeedTestResult] = [],
         counts: ChangeDigestCounts? = nil,
         subject: String = "Network changes in the last 24 hours"
@@ -56,7 +59,7 @@ public enum ChangeDigestBuilder {
         guard !changes.isEmpty || speed != nil else { return nil }
         var facts: [String] = []
         var observations: [String] = []
-        let names = DeviceNames(byAddress: deviceNames, byID: deviceNamesByID)
+        let names = DeviceNames(byAddress: deviceNames, byID: deviceNamesByID, deviceByID: deviceKeysByID)
         let joins = changes.filter { $0.type == .deviceJoined }
         let backOnline = joins.filter { $0.title.hasPrefix(backOnlinePrefix) }
         addDevices(joins.filter { !$0.title.hasPrefix(backOnlinePrefix) }, kind: .joined, names: names, facts: &facts, observations: &observations)
@@ -75,16 +78,25 @@ public enum ChangeDigestBuilder {
         return InsightRequest(subject: subject, facts: facts, observations: observations, kind: .summary)
     }
 
-    /// Each saved device's name through the identity seam (`LocalDevice.displayName`), by IP
-    /// address, for `request(deviceNames:)`. Where two rows share an address the first wins.
+    /// Each saved device's name through the identity seam (`LocalDevice.displayName`; a group's
+    /// primary's, #594), by every member's IP address, for `request(deviceNames:)`. Where two
+    /// devices share an address the first wins. Pass complete groups.
     public static func deviceNames(_ devices: [LocalDevice]) -> [String: String] {
-        Dictionary(devices.map { ($0.ipAddress, $0.displayName) }, uniquingKeysWith: { first, _ in first })
+        let pairs = DeviceGroups.project(devices).flatMap { device in device.members.map { ($0.ipAddress, device.displayName) } }
+        return Dictionary(pairs, uniquingKeysWith: { first, _ in first })
     }
 
-    /// Each saved device's name through the identity seam, by `LocalDevice.id`, for
+    /// Each saved device's name through the identity seam, by every member's `LocalDevice.id`, for
     /// `request(deviceNamesByID:)`.
     public static func deviceNamesByID(_ devices: [LocalDevice]) -> [UUID: String] {
-        Dictionary(devices.map { ($0.id, $0.displayName) }, uniquingKeysWith: { first, _ in first })
+        let pairs = DeviceGroups.project(devices).flatMap { device in device.members.map { ($0.id, device.displayName) } }
+        return Dictionary(pairs, uniquingKeysWith: { first, _ in first })
+    }
+
+    /// Each member row's device ID (`DeviceProjection.id`), for `request(deviceKeysByID:)`.
+    public static func deviceKeysByID(_ devices: [LocalDevice]) -> [UUID: UUID] {
+        let pairs = DeviceGroups.project(devices).flatMap { device in device.members.map { ($0.id, device.id) } }
+        return Dictionary(pairs, uniquingKeysWith: { first, _ in first })
     }
 
     /// The subject of a one-day digest, such as "Network events on November 22, 2026".
@@ -162,6 +174,7 @@ public enum ChangeDigestBuilder {
     private struct DeviceNames {
         let byAddress: [String: String]
         let byID: [UUID: String]
+        let deviceByID: [UUID: UUID]
     }
 
     private enum DeviceKind {
@@ -195,7 +208,7 @@ public enum ChangeDigestBuilder {
             let address = kind == .left ? label : (event.details ?? label)
             let ip = event.details ?? label
             let keys: Set<String> = if let id = event.deviceID {
-                ["id:\(id.uuidString)", "address:\(ip)"]
+                ["id:\((names.deviceByID[id] ?? id).uuidString)", "address:\(ip)"]
             } else {
                 Set(["address:\(address)", event.details.map { "address:\($0)" }].compactMap { $0 })
             }

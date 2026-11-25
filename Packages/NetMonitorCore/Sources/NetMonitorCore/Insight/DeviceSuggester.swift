@@ -69,10 +69,11 @@ public final class DeviceSuggester {
     }
 
     /// Asks about each device that needs it and whose evidence changed since the model was
-    /// last asked, one at a time. Stops when the task is cancelled.
+    /// last asked, one at a time. Stops when the task is cancelled. A device of several interfaces
+    /// is asked about once, on its primary, where its type and name live (#594).
     public func suggest(for devices: [LocalDevice]) async {
         guard service.isAvailable else { return }
-        for device in devices {
+        for device in DeviceGroups.project(devices).map(\.primary) {
             if Task.isCancelled {
                 return
             }

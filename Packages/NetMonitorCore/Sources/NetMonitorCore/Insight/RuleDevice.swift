@@ -33,17 +33,21 @@ public struct RuleDevice: DevicePhraseMatchable, Sendable, Equatable, Identifiab
         self.openPorts = openPorts
     }
 
-    /// A saved device as rules see it: its stable identity and the identity seam's name, type and
-    /// maker. The maker leaves out model suggestions, as alert rules do (#449).
-    public init(_ device: LocalDevice) {
+    /// A saved device as rules see it (#594: a device, not a row): the primary's stable identity
+    /// (`LocalDevice.id`) and the identity seam's name, type and maker, the current member's
+    /// address and every member's open ports. The maker leaves out model suggestions, as alert
+    /// rules do (#449).
+    public init(_ device: DeviceProjection) {
+        let primary = device.primary
         self.init(
-            id: device.id,
+            id: primary.id,
             displayName: device.displayName,
-            deviceType: device.deviceType,
-            maker: device.makerExcludingSuggestions,
+            deviceType: primary.deviceType != .unknown ? primary.deviceType
+                : device.members.first { $0.deviceType != .unknown }?.deviceType ?? .unknown,
+            maker: primary.makerExcludingSuggestions ?? device.members.lazy.compactMap(\.makerExcludingSuggestions).first,
             ipAddress: device.ipAddress,
-            macAddress: device.macAddress.isEmpty ? nil : device.macAddress,
-            openPorts: device.openPorts ?? []
+            macAddress: device.realMACs.first,
+            openPorts: Set(device.members.flatMap { $0.openPorts ?? [] }).sorted()
         )
     }
 
@@ -78,16 +82,8 @@ public extension RuleDevice {
 
     /// The saved devices a described rule can name, shared by both apps: the network's when it is
     /// known (so the cap never drops them for another network's), else every network's; most
-    /// recently seen first, capped at ``candidateLimit``.
-    static func candidates(network: UUID?) -> FetchDescriptor<LocalDevice> {
-        var descriptor: FetchDescriptor<LocalDevice>
-        if let network {
-            descriptor = FetchDescriptor(predicate: #Predicate { $0.networkProfileID == network })
-        } else {
-            descriptor = FetchDescriptor()
-        }
-        descriptor.sortBy = [SortDescriptor(\.lastSeen, order: .reverse)]
-        descriptor.fetchLimit = candidateLimit
-        return descriptor
+    /// recently seen first, capped at ``candidateLimit`` devices, each with all its members.
+    static func candidates(network: UUID?, in context: ModelContext) -> [RuleDevice] {
+        ((try? DeviceGroups.recentDevices(network: network, limit: candidateLimit, in: context)) ?? []).map(RuleDevice.init)
     }
 }
