@@ -336,6 +336,11 @@ struct NetMonitorApp: App {
         )
         discovery.changeTracker = UITestScanFixture.changeTracker(reset: HistoryFileLocation.current.resetRequested)
         deviceDiscovery = discovery
+        // Settings > Companion over in-memory credentials; the listener stays off, so a UI-test
+        // launch never opens the companion port (#590).
+        if companionService == nil {
+            companionService = CompanionService(credentials: makeCompanionCredentials())
+        }
         let arguments = ProcessInfo.processInfo.arguments
         if arguments.contains("--seed-test-device") {
             UITestScanFixture.seedDevice(

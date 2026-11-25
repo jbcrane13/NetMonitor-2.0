@@ -25,6 +25,8 @@ struct CompanionPairingSheet: View {
         }
         .padding(24)
         .frame(width: 380)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("screen_pairingSheet")
         .task { await model.openPairing() }
         .onDisappear {
             Task { await model.closePairing() }
@@ -44,13 +46,16 @@ struct CompanionPairingSheet: View {
                     .accessibilityLabel("Pairing QR code")
                     .accessibilityIdentifier("pairing_image_qr")
             }
-            DisclosureGroup("Can't scan? Type a code instead", isExpanded: $showsCode) {
+            if showsCode {
                 Text(offer.code.display)
                     .font(.system(.body, design: .monospaced))
                     .textSelection(.enabled)
                     .accessibilityIdentifier("pairing_label_code")
+            } else {
+                Button("Can't scan? Type a code instead") { showsCode = true }
+                    .buttonStyle(.link)
+                    .accessibilityIdentifier("pairing_toggle_showCode")
             }
-            .accessibilityIdentifier("pairing_toggle_showCode")
             Text(timerInterval: Date()...offer.expiresAt, countsDown: true)
                 .font(.caption.monospacedDigit())
                 .foregroundStyle(.secondary)

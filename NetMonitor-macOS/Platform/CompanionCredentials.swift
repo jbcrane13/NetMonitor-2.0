@@ -11,7 +11,10 @@ struct CompanionCredentials: Sendable {
 
     let identity: CompanionIdentity
     let macID: UUID
+    /// Shown on the phone; display only.
     let macName: String
+    /// Where the QR tells the phone to connect when Bonjour can't find the Mac.
+    let host: String?
     let phones: PairedPhoneStore
     let gate: CompanionTrustGate
     private let denied: DeniedPins
@@ -20,7 +23,10 @@ struct CompanionCredentials: Sendable {
     /// companion service stays off: there is no unauthenticated fallback.
     static func live(defaults: UserDefaults = .standard) throws -> CompanionCredentials {
         let keychain = CompanionKeychain(service: keychainService, accessibility: .afterFirstUnlock)
-        return try make(backing: keychain, defaults: defaults)
+        return try make(
+            backing: keychain, defaults: defaults,
+            macName: Host.current().localizedName ?? "Mac", host: ProcessInfo.processInfo.hostName
+        )
     }
 
     /// Credentials that never touch the Keychain, for tests and `--uitesting` launches.
@@ -34,11 +40,17 @@ struct CompanionCredentials: Sendable {
             try? phones.add(phone)
         }
         // An in-memory store never throws on these paths.
+        // A made-up name and no host, so evidence screenshots and QR codes carry nothing real.
         // swiftlint:disable:next force_try
-        return try! make(backing: backing, defaults: defaults)
+        return try! make(backing: backing, defaults: defaults, macName: "Test Mac", host: nil)
     }
 
-    private static func make(backing: any CompanionSecretStore, defaults: UserDefaults) throws -> CompanionCredentials {
+    private static func make(
+        backing: any CompanionSecretStore,
+        defaults: UserDefaults,
+        macName: String,
+        host: String?
+    ) throws -> CompanionCredentials {
         let identity = try CompanionIdentityStore(backing: backing).loadOrCreate()
         let phones = PairedPhoneStore(backing: backing)
         let denied = DeniedPins(defaults: defaults)
@@ -52,7 +64,8 @@ struct CompanionCredentials: Sendable {
         return CompanionCredentials(
             identity: identity,
             macID: macID(defaults: defaults),
-            macName: Host.current().localizedName ?? "Mac",
+            macName: macName,
+            host: host,
             phones: phones,
             gate: CompanionTrustGate(paired: trusted),
             denied: denied

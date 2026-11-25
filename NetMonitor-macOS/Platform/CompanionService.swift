@@ -240,7 +240,7 @@ extension CompanionService {
             macName: credentials.macName,
             macPin: credentials.identity.pin,
             secret: window.secret(for: .qr),
-            host: ProcessInfo.processInfo.hostName,
+            host: credentials.host,
             port: port
         )
         let remaining = window.deadline - ProcessInfo.processInfo.systemUptime
