@@ -65,6 +65,10 @@ final class MacConnectionService: MacConnectionServiceProtocol {
     private var session: CompanionVerifiedSession?
     /// True from `.ready` until the Mac's `serverHello` authorises the link.
     private var awaitingHello = false
+    /// What the Mac accepted, held until the user also says the codes match on the phone.
+    private var macAcceptedRecord: PairedMacRecord?
+    /// The user said the codes match on this phone.
+    private var phoneConfirmed = false
 
     // MARK: - Constants
 
@@ -84,6 +88,13 @@ final class MacConnectionService: MacConnectionServiceProtocol {
         self.insightClient = insightClient
         self.networkProfileManager = networkProfileManager
         self.macStore = macStore
+        reloadPairedMacIfNeeded()
+    }
+
+    /// Reads the paired Mac if it isn't loaded yet. A launch while the phone is locked can't read
+    /// the Keychain item (WhenUnlocked), so browsing and connecting try again.
+    private func reloadPairedMacIfNeeded() {
+        guard pairedMac == nil else { return }
         do {
             pairedMac = try macStore.load()
         } catch {
@@ -109,6 +120,7 @@ final class MacConnectionService: MacConnectionServiceProtocol {
 extension MacConnectionService {
     func startBrowsing() {
         stopBrowsing()
+        reloadPairedMacIfNeeded()
 
         isBrowsing = true
         // Browsing doesn't change a link that is up or coming up.
@@ -178,8 +190,7 @@ extension MacConnectionService {
                 var macID: UUID?
                 var version: Int?
                 if case .bonjour(let txt) = result.metadata {
-                    macID = txt["mac"].flatMap(UUID.init(uuidString:))
-                    version = txt["pv"].flatMap { Int($0) }
+                    (macID, version) = CompanionServiceTXT.read(txt)
                 }
                 macs.append(NetMonitorCore.DiscoveredMac(id: id, name: name, macID: macID, protocolVersion: version))
                 cache[id] = result.endpoint
@@ -203,6 +214,7 @@ extension MacConnectionService {
     /// Connects to `mac` if this phone is paired with it; otherwise says why not.
     func connect(to mac: NetMonitorCore.DiscoveredMac) {
         guard let endpoint = endpointCache[mac.id] else { return }
+        reloadPairedMacIfNeeded()
         guard mac.isCurrent else {
             linkProblem = .macNeedsUpdate
             return
@@ -216,6 +228,7 @@ extension MacConnectionService {
 
     /// Connects to the paired Mac at a typed address.
     func connectDirect(host: String, port: UInt16) {
+        reloadPairedMacIfNeeded()
         guard let record = pairedMac else {
             linkProblem = .notPaired
             return
@@ -416,8 +429,11 @@ extension MacConnectionService {
             connection = nil
             tearDownLink()
             switch pairingState {
-            case .comparing:
-                pairingState = .failed("The Mac closed the pairing.")
+            case .comparing, .waitingForMac:
+                // After the Mac's verdict the link closes by design.
+                if macAcceptedRecord == nil {
+                    pairingState = .failed("The Mac closed the pairing.")
+                }
             case .connecting:
                 pairingState = .failed("The Mac didn't accept the code. Check it and try again.")
             case .idle, .paired, .failed:
@@ -605,7 +621,13 @@ extension MacConnectionService {
             failAuthentication()
         case (.pairing(var attempt), .pairing):
             guard let session else { return }
-            let request = PhonePairingFlow.pairRequest(for: &attempt, hello: payload, session: session, phoneName: UIDevice.current.name)
+            guard let request = PhonePairingFlow.pairRequest(
+                for: &attempt, hello: payload, session: session, phoneName: UIDevice.current.name
+            ) else {
+                pairingState = .failed(MacLinkProblem.macNeedsUpdate.message)
+                endPairingLink()
+                return
+            }
             linkMode = .pairing(attempt)
             Task { await sendMessage(request) }
         case (.pairing, .paired):
@@ -624,25 +646,52 @@ extension MacConnectionService {
 
     private func handlePairResult(_ payload: PairResultPayload) {
         guard case .pairing(let attempt)? = linkMode, attempt.challengeVerified, let session else { return }
-        let record: PairedMacRecord
-        do {
-            record = try PhonePairingFlow.record(for: payload, attempt: attempt, session: session).get()
-            try macStore.save(record)
-        } catch let failure as PhonePairingFlow.Failure {
+        switch PhonePairingFlow.record(for: payload, attempt: attempt, session: session) {
+        case .failure(let failure):
             pairingState = .failed(failure.message)
             endPairingLink()
+        case .success(let record):
+            macAcceptedRecord = record
+            endPairingLink()
+            if phoneConfirmed {
+                finishPairing(record)
+            }
+        }
+    }
+
+    /// The user's answer on the phone: do the six digits match the Mac's? The Mac is saved only
+    /// once both the user here and the Mac have said yes, in either order.
+    func confirmComparison(_ match: Bool) {
+        guard case .comparing(let code, let macName) = pairingState else { return }
+        guard match else {
+            macAcceptedRecord = nil
+            pairingState = .failed(
+                "The codes didn't match, so nothing was saved on this iPhone. Click Don't Pair on the Mac, "
+                    + "or remove this iPhone there if it was paired."
+            )
+            endPairingLink()
             return
+        }
+        phoneConfirmed = true
+        if let record = macAcceptedRecord {
+            finishPairing(record)
+        } else {
+            pairingState = .waitingForMac(code: code, macName: macName)
+        }
+    }
+
+    private func finishPairing(_ record: PairedMacRecord) {
+        macAcceptedRecord = nil
+        do {
+            try macStore.save(record)
         } catch {
             pairingState = .failed("This iPhone couldn't save the pairing. Remove it on the Mac and pair again.")
-            endPairingLink()
             return
         }
         pairedMac = record
         linkProblem = nil
         pairingState = .paired(macName: record.macName)
-        let endpoint = pendingEndpoint
-        endPairingLink()
-        if let endpoint {
+        if let endpoint = pendingEndpoint {
             connectPaired(record, endpoint: endpoint, macName: record.macName)
         }
     }
@@ -710,14 +759,21 @@ extension MacConnectionService {
         connectionState = .connecting
         pendingEndpoint = endpoint
         pendingMacName = macName
+        macAcceptedRecord = nil
+        phoneConfirmed = false
         linkMode = .pairing(PhonePairingAttempt(kind: kind, secret: secret, identity: identity, host: host, port: port, macName: macName))
         setupConnection(NWConnection(to: endpoint, using: parameters), macName: macName)
     }
 
     func resetPairingState() {
-        if case .comparing = pairingState {
+        switch pairingState {
+        case .comparing, .waitingForMac:
             endPairingLink()
+        case .idle, .connecting, .paired, .failed:
+            break
         }
+        macAcceptedRecord = nil
+        phoneConfirmed = false
         pairingState = .idle
     }
 

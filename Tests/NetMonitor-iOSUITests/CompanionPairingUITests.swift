@@ -29,6 +29,7 @@ final class CompanionPairingUITests: IOSUITestCase {
         )
         XCTAssertEqual(comparison.label.count, 7, "Six digits in two groups: \(comparison.label)")
         captureScreenshot(named: "590-03-comparison-code")
+        requireExists(app.buttons["pairMac_button_codesMatch"], message: "They Match").tap()
 
         requireExists(app.staticTexts["pairMac_label_paired"], timeout: 10, message: "The Mac confirms and the phone pins it")
         captureScreenshot(named: "590-04-paired")
@@ -60,8 +61,23 @@ final class CompanionPairingUITests: IOSUITestCase {
         requireExists(app.buttons["pairMac_button_scan"], timeout: 5, message: "Scan button").tap()
         requireExists(app.buttons["pairMac_button_simulateScan"], timeout: 5, message: "The simulator stands in for the camera").tap()
         requireExists(app.staticTexts["pairMac_label_comparisonCode"], timeout: 8, message: "The QR pairing reaches the comparison code")
+        requireExists(app.buttons["pairMac_button_codesMatch"], message: "They Match").tap()
         requireExists(app.staticTexts["pairMac_label_paired"], timeout: 10, message: "The QR pairing completes")
         captureScreenshot(named: "590-07-paired-by-qr")
+    }
+
+    func testCodesDifferSavesNothing() throws {
+        openPairingSheet()
+        requireExists(app.buttons["pairing_row_Test Mac"], timeout: 5, message: "The fake Mac should be listed").tap()
+        let field = requireExists(app.textFields["pairMac_textfield_code"], timeout: 5, message: "The code field should show")
+        field.tap()
+        field.typeText(Self.code)
+        app.buttons["pairMac_button_pairWithCode"].tap()
+        requireExists(app.buttons["pairMac_button_codesDiffer"], timeout: 8, message: "Don't Match").tap()
+        requireExists(app.staticTexts["pairMac_label_failed"], timeout: 5, message: "Don't Match ends pairing")
+        captureScreenshot(named: "590-08-codes-differ")
+        app.navigationBars.buttons.firstMatch.tap()
+        requireExists(app.buttons["pairing_button_pairQR"], timeout: 5, message: "The phone is still unpaired")
     }
 
     // MARK: - Helpers

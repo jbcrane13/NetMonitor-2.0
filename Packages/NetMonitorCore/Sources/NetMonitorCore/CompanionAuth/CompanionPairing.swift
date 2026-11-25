@@ -1,5 +1,6 @@
 import CryptoKit
 import Foundation
+import Security
 
 /// What the Mac's pairing QR code carries (#590): the Mac's identity and pin, a one-time
 /// 256-bit secret, and where to reach it.
@@ -96,17 +97,35 @@ public enum CompanionPairingProof {
         )
     }
 
-    /// Six digits as "123 456", from this session's exporter and both pins. Equal on both
-    /// screens only when both ends share one session with each other.
-    public static func comparisonCode(exporter: Data, macPin: Data, phonePin: Data) -> String {
+    /// Six digits as "123 456", from this session's exporter, both pins and both nonces. Equal
+    /// on both screens only when both ends share one session with each other.
+    ///
+    /// The nonces stop a party in the middle from steering the code: the Mac commits to its nonce
+    /// (`commitment(to:)`) before the phone sends its own, and reveals it only after, so neither
+    /// side can choose its input once it knows the other's. (A TLS 1.3 exporter alone is fixed
+    /// before the client's certificate is sent, so a client could otherwise grind its key.)
+    public static func comparisonCode(exporter: Data, macPin: Data, phonePin: Data, macNonce: Data, phoneNonce: Data) -> String {
         let derived = HKDF<SHA256>.deriveKey(
             inputKeyMaterial: SymmetricKey(data: exporter),
-            info: Data("netmonitor compare v2".utf8) + macPin + phonePin,
+            info: Data("netmonitor compare v2".utf8) + macPin + phonePin + macNonce + phoneNonce,
             outputByteCount: 4
         )
         let value = derived.withUnsafeBytes { bytes in bytes.reduce(UInt32(0)) { $0 << 8 | UInt32($1) } } % 1_000_000
         let digits = String(format: "%06u", value)
         return "\(digits.prefix(3)) \(digits.suffix(3))"
+    }
+
+    /// The Mac's commitment to `nonce`, sent before the phone's nonce.
+    public static func commitment(to nonce: Data) -> Data {
+        Data(SHA256.hash(data: Data("netmonitor commit v2".utf8) + nonce))
+    }
+
+    /// 32 fresh random bytes for a commitment or a comparison nonce.
+    public static func makeNonce() -> Data {
+        var bytes = [UInt8](repeating: 0, count: 32)
+        let status = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
+        precondition(status == errSecSuccess, "SecRandomCopyBytes failed")
+        return Data(bytes)
     }
 
     private static func key(kind: Kind, secret: Data) -> SymmetricKey {

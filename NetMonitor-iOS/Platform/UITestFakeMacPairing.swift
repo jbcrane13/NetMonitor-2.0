@@ -22,6 +22,7 @@ final class FakeCompanionMac: Sendable {
     private let queue = DispatchQueue(label: "com.netmonitor.fakemac")
     private let confirmation: Confirmation
     private let confirmDelay: Duration
+    private let revealsWrongNonce: Bool
     private let state = Mutex(State())
 
     private struct State {
@@ -36,11 +37,13 @@ final class FakeCompanionMac: Sendable {
         code: CompanionPairingCode = .random(),
         confirmation: Confirmation = .accept,
         confirmDelay: Duration = .milliseconds(200),
-        pairedPins: [Data] = []
+        pairedPins: [Data] = [],
+        revealsWrongNonce: Bool = false
     ) throws {
         self.name = name
         self.confirmation = confirmation
         self.confirmDelay = confirmDelay
+        self.revealsWrongNonce = revealsWrongNonce
         gate = CompanionTrustGate(paired: pairedPins)
         window = gate.openWindow(code: code)
         guard let parameters = CompanionTLS.parameters(identity: identity, acceptsPeer: { [gate] in gate.acceptsAtHandshake($0) }),
@@ -109,11 +112,13 @@ final class FakeCompanionMac: Sendable {
             } else {
                 .pairing
             }
-            send(.serverHello(ServerHelloPayload(macID: macID, macName: name, mode: mode)), on: connection)
+            let nonce = CompanionPairingProof.makeNonce()
+            let commitment = mode == .pairing ? CompanionPairingProof.commitment(to: nonce) : nil
+            send(.serverHello(ServerHelloPayload(macID: macID, macName: name, mode: mode, commitment: commitment)), on: connection)
             if mode == .paired {
                 send(.heartbeat(HeartbeatPayload()), on: connection)
             }
-            receive(on: connection, link: link, decoder: decoder, role: role, session: session)
+            receive(on: connection, link: link, decoder: decoder, role: role, session: session, nonce: nonce)
         }
         connection.start(queue: queue)
     }
@@ -123,20 +128,21 @@ final class FakeCompanionMac: Sendable {
         link: UUID,
         decoder: CompanionFrameDecoder,
         role: CompanionLinkRole,
-        session: CompanionVerifiedSession
+        session: CompanionVerifiedSession,
+        nonce: Data
     ) {
         connection.receive(minimumIncompleteLength: 1, maximumLength: 65536) { [weak self] data, _, isComplete, error in
             guard let self else { return }
             Task {
                 if let data, !data.isEmpty {
                     for message in await decoder.append(data).messages {
-                        self.handle(message, on: connection, link: link, role: role, session: session)
+                        self.handle(message, on: connection, link: link, role: role, session: session, nonce: nonce)
                     }
                 }
                 if isComplete || error != nil {
                     connection.cancel()
                 } else {
-                    self.receive(on: connection, link: link, decoder: decoder, role: role, session: session)
+                    self.receive(on: connection, link: link, decoder: decoder, role: role, session: session, nonce: nonce)
                 }
             }
         }
@@ -147,7 +153,8 @@ final class FakeCompanionMac: Sendable {
         on connection: NWConnection,
         link: UUID,
         role: CompanionLinkRole,
-        session: CompanionVerifiedSession
+        session: CompanionVerifiedSession,
+        nonce: Data
     ) {
         guard gate.isAuthorized(role, link: link) else {
             connection.cancel()
@@ -171,11 +178,15 @@ final class FakeCompanionMac: Sendable {
             }
         case .pairRequest:
             guard case .pairRequest(let request) = message,
-                  let step = gate.beginPairing(link: link, role: role, request: request, session: session, macPin: identity.pin) else {
+                  let step = gate.beginPairing(
+                      link: link, role: role, request: request, session: session, macPin: identity.pin, macNonce: nonce
+                  ) else {
                 connection.cancel()
                 return
             }
-            send(.pairChallenge(PairChallengePayload(proof: step.challenge)), on: connection)
+            // `revealsWrongNonce` plays a Mac that breaks its commitment.
+            let revealed = revealsWrongNonce ? CompanionPairingProof.makeNonce() : step.macNonce
+            send(.pairChallenge(PairChallengePayload(proof: step.challenge, nonce: revealed)), on: connection)
             let confirmation = confirmation, delay = confirmDelay, gate = gate
             Task {
                 try? await Task.sleep(for: delay)

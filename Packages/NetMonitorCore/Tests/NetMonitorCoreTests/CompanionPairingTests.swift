@@ -77,15 +77,41 @@ struct CompanionPairingProofTests {
         #expect(!verifies(swapped))
     }
 
+    private let macNonce = Data(repeating: 0x4D, count: 32)
+    private let phoneNonce = Data(repeating: 0x50, count: 32)
+
+    private func code(exporter: Data? = nil, macNonce: Data? = nil, phoneNonce: Data? = nil) -> String {
+        CompanionPairingProof.comparisonCode(
+            exporter: exporter ?? self.exporter, macPin: macPin, phonePin: phonePin,
+            macNonce: macNonce ?? self.macNonce, phoneNonce: phoneNonce ?? self.phoneNonce
+        )
+    }
+
     @Test("Both ends get the same 6-digit comparison code; another session gets another")
     func comparisonCode() {
-        let code = CompanionPairingProof.comparisonCode(exporter: exporter, macPin: macPin, phonePin: phonePin)
+        let code = code()
         #expect(code.count == 7)
         #expect(code.filter(\.isNumber).count == 6)
-        #expect(code == CompanionPairingProof.comparisonCode(exporter: exporter, macPin: macPin, phonePin: phonePin))
-        let codes = Set((0..<20).map { index in
-            CompanionPairingProof.comparisonCode(exporter: Data(repeating: UInt8(index), count: 32), macPin: macPin, phonePin: phonePin)
-        })
+        #expect(code == self.code())
+        let codes = Set((0..<20).map { self.code(exporter: Data(repeating: UInt8($0), count: 32)) })
         #expect(codes.count > 15)
+    }
+
+    @Test("Each side's nonce changes the code, so neither can fix it alone")
+    func nonceSensitivity() {
+        let macSide = Set((0..<20).map { code(macNonce: Data(repeating: UInt8($0), count: 32)) })
+        let phoneSide = Set((0..<20).map { code(phoneNonce: Data(repeating: UInt8($0), count: 32)) })
+        #expect(macSide.count > 15)
+        #expect(phoneSide.count > 15)
+    }
+
+    @Test("A commitment binds its nonce and reveals nothing of it")
+    func commitment() {
+        let nonce = CompanionPairingProof.makeNonce()
+        let commitment = CompanionPairingProof.commitment(to: nonce)
+        #expect(commitment == CompanionPairingProof.commitment(to: nonce))
+        #expect(commitment != CompanionPairingProof.commitment(to: CompanionPairingProof.makeNonce()))
+        #expect(commitment.range(of: nonce) == nil)
+        #expect(nonce.count == 32)
     }
 }

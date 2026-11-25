@@ -46,6 +46,10 @@ struct MacConnectionServicePairingTests {
         #expect(shown.count == 7)
         #expect(try store.load() == nil)
 
+        // The user says the codes match before the Mac's verdict arrives: the phone waits.
+        service.confirmComparison(true)
+        #expect(service.pairingState == .waitingForMac(code: shown, macName: "Test Mac"))
+        #expect(try store.load() == nil)
         await waitUntil({ service.connectionState.isConnected }, timeout: .seconds(5))
         #expect(service.pairingState == .paired(macName: "Test Mac"))
         let record = try #require(try store.load())
@@ -61,6 +65,17 @@ struct MacConnectionServicePairingTests {
         let (service, store) = makeService()
         let port = try await fake.start()
         service.pair(with: fake.invitation(port: port))
+        await waitUntil({
+            if case .comparing = service.pairingState {
+                true
+            } else {
+                false
+            }
+        }, timeout: .seconds(5))
+        // The Mac accepts first; the phone still waits for its own user.
+        try await Task.sleep(for: .milliseconds(600))
+        #expect(try store.load() == nil)
+        service.confirmComparison(true)
         await waitUntil({ service.connectionState.isConnected }, timeout: .seconds(6))
         #expect(try store.load()?.macPin == fake.identity.pin)
     }
@@ -115,9 +130,71 @@ struct MacConnectionServicePairingTests {
         let (service, store) = makeService()
         let mac = try await start(fake, in: service)
         service.pair(code: code, with: mac)
+        await waitUntil({
+            if case .comparing = service.pairingState {
+                true
+            } else {
+                false
+            }
+        }, timeout: .seconds(5))
+        service.confirmComparison(true)
         await waitUntil({ service.pairingState == .failed("Cancelled on the Mac.") }, timeout: .seconds(5))
         #expect(service.pairingState == .failed("Cancelled on the Mac."))
         #expect(try store.load() == nil)
+    }
+
+    @Test("Don't Match on the phone saves nothing, even when the Mac accepts")
+    func codesDifferOnPhone() async throws {
+        let code = CompanionPairingCode.random()
+        let fake = try FakeCompanionMac(code: code)
+        defer { fake.stop() }
+        let (service, store) = makeService()
+        let mac = try await start(fake, in: service)
+        service.pair(code: code, with: mac)
+        await waitUntil({
+            if case .comparing = service.pairingState {
+                true
+            } else {
+                false
+            }
+        }, timeout: .seconds(5))
+        try await Task.sleep(for: .milliseconds(600))
+        service.confirmComparison(false)
+        if case .failed = service.pairingState {} else {
+            Issue.record("expected failed, got \(service.pairingState)")
+        }
+        #expect(try store.load() == nil)
+        #expect(service.pairedMac == nil)
+        #expect(!service.connectionState.isConnected)
+    }
+
+    @Test("A Mac that reveals a nonce other than the one it committed to is not paired")
+    func brokenCommitment() async throws {
+        let code = CompanionPairingCode.random()
+        let fake = try FakeCompanionMac(code: code, revealsWrongNonce: true)
+        defer { fake.stop() }
+        let (service, store) = makeService()
+        let mac = try await start(fake, in: service)
+        service.pair(code: code, with: mac)
+        await waitUntil({
+            if case .failed = service.pairingState {
+                true
+            } else {
+                false
+            }
+        }, timeout: .seconds(5))
+        #expect(service.pairingState == .failed("The Mac's answer didn't match what it promised. Nothing was paired."))
+        #expect(try store.load() == nil)
+    }
+
+    @Test("A Mac's hello without a commitment gets no pairing request")
+    func helloWithoutCommitment() throws {
+        var attempt = PhonePairingAttempt(
+            kind: .code, secret: Data(count: 16), identity: CompanionIdentity(), host: nil, port: 8849, macName: "Mac"
+        )
+        let session = CompanionVerifiedSession(peerPin: Data(repeating: 1, count: 32), exporter: Data(repeating: 2, count: 32))
+        let hello = ServerHelloPayload(macID: UUID(), macName: "Mac", mode: .pairing)
+        #expect(PhonePairingFlow.pairRequest(for: &attempt, hello: hello, session: session, phoneName: "iPhone") == nil)
     }
 
     @Test("A phone the Mac removed gets a terminal 'pair again' state and stops reconnecting")
@@ -167,6 +244,14 @@ struct MacConnectionServicePairingTests {
         let (service, store) = makeService()
         let mac = try await start(fake, in: service)
         service.pair(code: code, with: mac)
+        await waitUntil({
+            if case .comparing = service.pairingState {
+                true
+            } else {
+                false
+            }
+        }, timeout: .seconds(5))
+        service.confirmComparison(true)
         await waitUntil({ service.connectionState.isConnected }, timeout: .seconds(6))
         await service.forgetMac()
         #expect(try store.load() == nil)

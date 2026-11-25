@@ -17,8 +17,8 @@ struct CompanionLinkAuthorizerTests {
         .insightRequest(InsightRequestPayload(requestID: UUID(), request: InsightRequest(subject: "s", facts: ["a"]))),
         .insightResponse(InsightResponsePayload(requestID: UUID(), answer: "t")),
         .serverHello(ServerHelloPayload(macID: UUID(), macName: "Mac", mode: .paired)),
-        .pairRequest(PairRequestPayload(kind: .qr, proof: Data(count: 32), phoneName: "iPhone")),
-        .pairChallenge(PairChallengePayload(proof: Data(count: 32))),
+        .pairRequest(PairRequestPayload(kind: .qr, proof: Data(count: 32), nonce: Data(count: 32), phoneName: "iPhone")),
+        .pairChallenge(PairChallengePayload(proof: Data(count: 32), nonce: Data(count: 32))),
         .pairResult(PairResultPayload(accepted: true)),
         .unpair(UnpairPayload()),
         .unknown(type: "futureThing")
@@ -74,9 +74,11 @@ struct CompanionProtocolV2Tests {
     }
 
     @Test("Every pairing frame round-trips", arguments: [
-        CompanionMessage.serverHello(ServerHelloPayload(macID: UUID(), macName: "Mac", mode: .pairing)),
-        .pairRequest(PairRequestPayload(kind: .code, proof: Data(repeating: 7, count: 32), phoneName: "iPhone")),
-        .pairChallenge(PairChallengePayload(proof: Data(repeating: 9, count: 32))),
+        CompanionMessage.serverHello(ServerHelloPayload(macID: UUID(), macName: "Mac", mode: .pairing, commitment: Data(repeating: 3, count: 32))),
+        .pairRequest(PairRequestPayload(
+            kind: .code, proof: Data(repeating: 7, count: 32), nonce: Data(repeating: 8, count: 32), phoneName: "iPhone"
+        )),
+        .pairChallenge(PairChallengePayload(proof: Data(repeating: 9, count: 32), nonce: Data(repeating: 6, count: 32))),
         .pairResult(PairResultPayload(accepted: false, reason: "Cancelled on the Mac")),
         .unpair(UnpairPayload())
     ])

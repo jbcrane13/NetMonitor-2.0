@@ -88,6 +88,8 @@ actor CompanionService {
         var session: CompanionVerifiedSession?
         var decoder: CompanionFrameDecoder?
         var pendingPairing: PendingPairing?
+        /// A pairing link's comparison nonce, committed to in `serverHello`.
+        var macNonce: Data?
     }
 
     private struct PendingPairing {
@@ -105,6 +107,8 @@ actor CompanionService {
     /// The heartbeat sent when a phone's link is authorised, carrying this Mac's capabilities (#457).
     private var heartbeat: @Sendable () async -> HeartbeatPayload = { HeartbeatPayload() }
     private var eventHandler: (@Sendable (CompanionPairingEvent) -> Void)?
+    /// When a device that isn't paired last failed the handshake, for Settings.
+    private(set) var lastRefusedAttempt: Date?
     /// Per-client decoders for the `processIncomingDataForTesting` seam only.
     private var testDecoders: [UUID: CompanionFrameDecoder] = [:]
 
@@ -171,7 +175,7 @@ actor CompanionService {
                 name: serviceName,
                 type: serviceType,
                 domain: "local.",
-                txtRecord: Self.txtRecord(macID: credentials.macID)
+                txtRecord: CompanionServiceTXT.record(macID: credentials.macID)
             )
         }
         newListener.stateUpdateHandler = { [weak self] state in
@@ -186,13 +190,6 @@ actor CompanionService {
         }
         newListener.start(queue: listenerQueue)
         isRunning = true
-    }
-
-    static func txtRecord(macID: UUID) -> NWTXTRecord {
-        var record = NWTXTRecord()
-        record["pv"] = String(CompanionMessage.currentProtocolVersion)
-        record["mac"] = macID.uuidString
-        return record
     }
 
     // periphery:ignore
@@ -374,7 +371,9 @@ extension CompanionService {
         case .failed(let error):
             if let link = links[clientID], link.role == nil {
                 // The handshake failed: most often a phone this Mac doesn't trust.
-                emit(.refusedAttempt(Date()))
+                let now = Date()
+                lastRefusedAttempt = now
+                emit(.refusedAttempt(now))
             }
             Logger.companion.info("Client \(clientID) failed: \(error, privacy: .public)")
             close(clientID)
@@ -400,12 +399,14 @@ extension CompanionService {
         link.decoder = CompanionFrameDecoder(
             maximumFrameSize: isPaired ? CompanionFrameDecoder.defaultMaximumFrameSize : Self.pairingFrameLimit
         )
+        link.macNonce = isPaired ? nil : CompanionPairingProof.makeNonce()
         links[id] = link
         Logger.companion.info("Client \(id) authorised as \(isPaired ? "paired" : "pairing", privacy: .public)")
         let hello = CompanionMessage.serverHello(ServerHelloPayload(
             macID: credentials.macID,
             macName: credentials.macName,
-            mode: isPaired ? .paired : .pairing
+            mode: isPaired ? .paired : .pairing,
+            commitment: link.macNonce.map(CompanionPairingProof.commitment(to:))
         ))
         sendRaw(hello, to: id)
         if isPaired {
@@ -516,9 +517,10 @@ extension CompanionService {
 
     private func beginPairing(_ id: UUID, request: PairRequestPayload) {
         guard let credentials, var link = links[id], let role = link.role, let session = link.session,
-              link.pendingPairing == nil,
+              link.pendingPairing == nil, let macNonce = link.macNonce,
               let step = credentials.gate.beginPairing(
-                  link: id, role: role, request: request, session: session, macPin: credentials.identity.pin
+                  link: id, role: role, request: request, session: session,
+                  macPin: credentials.identity.pin, macNonce: macNonce
               ) else {
             close(id)
             return
@@ -530,7 +532,7 @@ extension CompanionService {
         let name = Self.displayName(request.phoneName)
         link.pendingPairing = PendingPairing(step: step, phoneName: name)
         links[id] = link
-        sendRaw(.pairChallenge(PairChallengePayload(proof: step.challenge)), to: id)
+        sendRaw(.pairChallenge(PairChallengePayload(proof: step.challenge, nonce: step.macNonce)), to: id)
         emit(.awaitingConfirmation(link: id, phoneName: name, code: step.comparisonCode))
     }
 

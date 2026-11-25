@@ -103,12 +103,14 @@ public final class CompanionTrustGate: @unchecked Sendable {
         role: CompanionLinkRole,
         request: PairRequestPayload,
         session: CompanionVerifiedSession,
-        macPin: Data
+        macPin: Data,
+        macNonce: Data
     ) -> CompanionPairingStep? {
         locked {
             guard case .pairing(let generation) = role,
                   var window, window.generation == generation, window.isOpen(now: now()),
                   trusted[session.peerPin] == nil,
+                  request.nonce.count == 32, macNonce.count == 32,
                   CompanionPairingProof.verify(
                       request.proof, role: .phone, kind: request.kind, secret: window.secret(for: request.kind),
                       binding: .init(exporter: session.exporter, macPin: macPin, phonePin: session.peerPin)
@@ -123,8 +125,10 @@ public final class CompanionTrustGate: @unchecked Sendable {
                     role: .mac, kind: request.kind, secret: window.secret(for: request.kind),
                     binding: .init(exporter: session.exporter, macPin: macPin, phonePin: session.peerPin)
                 ),
+                macNonce: macNonce,
                 comparisonCode: CompanionPairingProof.comparisonCode(
-                    exporter: session.exporter, macPin: macPin, phonePin: session.peerPin
+                    exporter: session.exporter, macPin: macPin, phonePin: session.peerPin,
+                    macNonce: macNonce, phoneNonce: request.nonce
                 )
             )
         }
@@ -150,6 +154,8 @@ public struct CompanionPairingStep: Sendable, Equatable {
     public let phonePin: Data
     /// The Mac's proof of the same secret, for `pairChallenge`.
     public let challenge: Data
+    /// The nonce the Mac committed to in `serverHello`, revealed in `pairChallenge`.
+    public let macNonce: Data
     /// What both screens show; the user confirms on the Mac that they match.
     public let comparisonCode: String
 }

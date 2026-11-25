@@ -28,7 +28,7 @@ enum MacLinkProblem: Equatable {
         switch self {
         case .notPaired: "This iPhone isn't paired with that Mac. Pair it with the code from the Mac's Settings → Companion."
         case .macNeedsUpdate: "This Mac needs a NetMonitor update before it can pair."
-        case .notRecognized: "The Mac no longer recognizes this iPhone, or it isn't your Mac. Pair again."
+        case .notRecognized: "The Mac no longer recognizes this iPhone, or it isn't your Mac. Forget This Mac, then pair again."
         }
     }
 }
@@ -39,6 +39,8 @@ enum PhonePairingState: Equatable {
     case connecting
     /// Both proofs checked out; the user compares `code` with the Mac's screen and confirms there.
     case comparing(code: String, macName: String)
+    /// The user said the codes match on the phone; the Mac's confirmation is still to come.
+    case waitingForMac(code: String, macName: String)
     case paired(macName: String)
     case failed(String)
 }
@@ -53,6 +55,9 @@ struct PhonePairingAttempt {
     let port: UInt16
     var macID: UUID?
     var macName: String
+    /// The phone's comparison nonce, sent after the Mac committed to its own.
+    let phoneNonce = CompanionPairingProof.makeNonce()
+    var commitment: Data?
     var challengeVerified = false
 
     init(kind: CompanionPairingProof.Kind, secret: Data, identity: CompanionIdentity, host: String?, port: UInt16, macName: String) {
@@ -72,19 +77,22 @@ enum PhonePairingFlow {
         let message: String
     }
 
-    /// The `pairRequest` answering the Mac's hello on a pairing link.
+    /// The `pairRequest` answering the Mac's hello on a pairing link; nil when the hello carries
+    /// no commitment to the Mac's nonce, without which the comparison code could be steered.
     static func pairRequest(
         for attempt: inout PhonePairingAttempt,
         hello: ServerHelloPayload,
         session: CompanionVerifiedSession,
         phoneName: String
-    ) -> CompanionMessage {
+    ) -> CompanionMessage? {
+        guard let commitment = hello.commitment, commitment.count == 32 else { return nil }
         attempt.macID = hello.macID
         attempt.macName = hello.macName
+        attempt.commitment = commitment
         let proof = CompanionPairingProof.make(
             role: .phone, kind: attempt.kind, secret: attempt.secret, binding: binding(attempt, session)
         )
-        return .pairRequest(PairRequestPayload(kind: attempt.kind, proof: proof, phoneName: phoneName))
+        return .pairRequest(PairRequestPayload(kind: attempt.kind, proof: proof, nonce: attempt.phoneNonce, phoneName: phoneName))
     }
 
     /// The comparison code to show when the Mac proved the same secret over this session;
@@ -98,9 +106,15 @@ enum PhonePairingFlow {
         guard CompanionPairingProof.verify(challenge.proof, role: .mac, kind: attempt.kind, secret: attempt.secret, binding: binding) else {
             return .failed("That device couldn't prove it's the Mac showing the code. Nothing was paired.")
         }
+        guard let commitment = attempt.commitment, CompanionPairingProof.commitment(to: challenge.nonce) == commitment else {
+            return .failed("The Mac's answer didn't match what it promised. Nothing was paired.")
+        }
         attempt.challengeVerified = true
         return .comparing(
-            code: CompanionPairingProof.comparisonCode(exporter: binding.exporter, macPin: binding.macPin, phonePin: binding.phonePin),
+            code: CompanionPairingProof.comparisonCode(
+                exporter: binding.exporter, macPin: binding.macPin, phonePin: binding.phonePin,
+                macNonce: challenge.nonce, phoneNonce: attempt.phoneNonce
+            ),
             macName: attempt.macName
         )
     }

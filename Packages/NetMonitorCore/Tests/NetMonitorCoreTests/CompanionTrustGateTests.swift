@@ -8,6 +8,8 @@ struct CompanionTrustGateTests {
     private let pairedPin = Data(repeating: 0x01, count: 32)
     private let newPin = Data(repeating: 0x02, count: 32)
     private let exporter = Data(repeating: 0x33, count: 32)
+    private let macNonce = Data(repeating: 0x4D, count: 32)
+    private let phoneNonce = Data(repeating: 0x50, count: 32)
 
     private final class Clock: @unchecked Sendable {
         var now: TimeInterval = 1000
@@ -22,7 +24,17 @@ struct CompanionTrustGateTests {
             role: .phone, kind: kind, secret: window.secret(for: kind),
             binding: .init(exporter: exporter, macPin: macPin, phonePin: pin ?? newPin)
         )
-        return PairRequestPayload(kind: kind, proof: proof, phoneName: "iPhone")
+        return PairRequestPayload(kind: kind, proof: proof, nonce: phoneNonce, phoneName: "iPhone")
+    }
+
+    private func begin(
+        _ gate: CompanionTrustGate,
+        link: UUID,
+        role: CompanionLinkRole,
+        request: PairRequestPayload,
+        session: CompanionVerifiedSession
+    ) -> CompanionPairingStep? {
+        gate.beginPairing(link: link, role: role, request: request, session: session, macPin: macPin, macNonce: macNonce)
     }
 
     private func session(_ pin: Data? = nil) -> CompanionVerifiedSession {
@@ -88,13 +100,16 @@ struct CompanionTrustGateTests {
         let window = gate.openWindow()
         let role = try #require(gate.classify(newPin))
         let link = UUID()
-        let step = try #require(gate.beginPairing(link: link, role: role, request: request(window), session: session(), macPin: macPin))
+        let step = try #require(begin(gate, link: link, role: role, request: request(window), session: session()))
         #expect(step.phonePin == newPin)
         #expect(CompanionPairingProof.verify(
             step.challenge, role: .mac, kind: .qr, secret: window.secret(for: .qr),
             binding: .init(exporter: exporter, macPin: macPin, phonePin: newPin)
         ))
-        #expect(step.comparisonCode == CompanionPairingProof.comparisonCode(exporter: exporter, macPin: macPin, phonePin: newPin))
+        #expect(step.macNonce == macNonce)
+        #expect(step.comparisonCode == CompanionPairingProof.comparisonCode(
+            exporter: exporter, macPin: macPin, phonePin: newPin, macNonce: macNonce, phoneNonce: phoneNonce
+        ))
         #expect(gate.isAuthorized(role, link: link))
         #expect(!gate.isAuthorized(role, link: UUID()))
         #expect(gate.classify(Data(repeating: 9, count: 32)) == nil)
@@ -106,9 +121,9 @@ struct CompanionTrustGateTests {
         let window = gate.openWindow()
         let first = try #require(gate.classify(newPin))
         let second = try #require(gate.classify(Data(repeating: 4, count: 32)))
-        #expect(gate.beginPairing(link: UUID(), role: first, request: request(window), session: session(), macPin: macPin) != nil)
+        #expect(begin(gate, link: UUID(), role: first, request: request(window), session: session()) != nil)
         let other = Data(repeating: 4, count: 32)
-        #expect(gate.beginPairing(link: UUID(), role: second, request: request(window, pin: other), session: session(other), macPin: macPin) == nil)
+        #expect(begin(gate, link: UUID(), role: second, request: request(window, pin: other), session: session(other)) == nil)
     }
 
     @Test("A wrong proof is refused without burning the window")
@@ -116,9 +131,9 @@ struct CompanionTrustGateTests {
         let gate = gate()
         let window = gate.openWindow()
         let role = try #require(gate.classify(newPin))
-        let bad = PairRequestPayload(kind: .qr, proof: Data(repeating: 0, count: 32), phoneName: "x")
-        #expect(gate.beginPairing(link: UUID(), role: role, request: bad, session: session(), macPin: macPin) == nil)
-        #expect(gate.beginPairing(link: UUID(), role: role, request: request(window), session: session(), macPin: macPin) != nil)
+        let bad = PairRequestPayload(kind: .qr, proof: Data(repeating: 0, count: 32), nonce: phoneNonce, phoneName: "x")
+        #expect(begin(gate, link: UUID(), role: role, request: bad, session: session()) == nil)
+        #expect(begin(gate, link: UUID(), role: role, request: request(window), session: session()) != nil)
     }
 
     @Test("The typed code pairs too, and its proof is not the QR's")
@@ -126,9 +141,9 @@ struct CompanionTrustGateTests {
         let gate = gate()
         let window = gate.openWindow()
         let role = try #require(gate.classify(newPin))
-        let qrProofSentAsCode = PairRequestPayload(kind: .code, proof: request(window).proof, phoneName: "x")
-        #expect(gate.beginPairing(link: UUID(), role: role, request: qrProofSentAsCode, session: session(), macPin: macPin) == nil)
-        #expect(gate.beginPairing(link: UUID(), role: role, request: request(window, kind: .code), session: session(), macPin: macPin) != nil)
+        let qrProofSentAsCode = PairRequestPayload(kind: .code, proof: request(window).proof, nonce: phoneNonce, phoneName: "x")
+        #expect(begin(gate, link: UUID(), role: role, request: qrProofSentAsCode, session: session()) == nil)
+        #expect(begin(gate, link: UUID(), role: role, request: request(window, kind: .code), session: session()) != nil)
     }
 
     @Test("A pin that is already paired can't pair again")
@@ -136,9 +151,7 @@ struct CompanionTrustGateTests {
         let gate = gate()
         let window = gate.openWindow()
         let role = CompanionLinkRole.pairing(window: window.generation)
-        let step = gate.beginPairing(
-            link: UUID(), role: role, request: request(window, pin: pairedPin), session: session(pairedPin), macPin: macPin
-        )
+        let step = begin(gate, link: UUID(), role: role, request: request(window, pin: pairedPin), session: session(pairedPin))
         #expect(step == nil)
     }
 
@@ -151,13 +164,13 @@ struct CompanionTrustGateTests {
         clock.now += CompanionPairingWindow.lifetime
         #expect(gate.classify(newPin) == nil)
         #expect(!gate.isAuthorized(role, link: UUID()))
-        #expect(gate.beginPairing(link: UUID(), role: role, request: request(window), session: session(), macPin: macPin) == nil)
+        #expect(begin(gate, link: UUID(), role: role, request: request(window), session: session()) == nil)
 
         let reopened = gate.openWindow()
         let fresh = try #require(gate.classify(newPin))
         gate.closeWindow()
         #expect(!gate.isAuthorized(fresh, link: UUID()))
-        #expect(gate.beginPairing(link: UUID(), role: fresh, request: request(reopened), session: session(), macPin: macPin) == nil)
+        #expect(begin(gate, link: UUID(), role: fresh, request: request(reopened), session: session()) == nil)
     }
 
     @Test("Opening a new window shuts the old one")
@@ -167,7 +180,7 @@ struct CompanionTrustGateTests {
         let oldRole = try #require(gate.classify(newPin))
         _ = gate.openWindow()
         #expect(!gate.isAuthorized(oldRole, link: UUID()))
-        #expect(gate.beginPairing(link: UUID(), role: oldRole, request: request(old), session: session(), macPin: macPin) == nil)
+        #expect(begin(gate, link: UUID(), role: oldRole, request: request(old), session: session()) == nil)
     }
 
     @Test("Once trusted after pairing, the new phone binds as paired")
@@ -175,10 +188,21 @@ struct CompanionTrustGateTests {
         let gate = gate()
         let window = gate.openWindow()
         let role = try #require(gate.classify(newPin))
-        _ = try #require(gate.beginPairing(link: UUID(), role: role, request: request(window), session: session(), macPin: macPin))
+        _ = try #require(begin(gate, link: UUID(), role: role, request: request(window), session: session()))
         gate.trust(newPin)
         guard case .paired? = gate.classify(newPin) else { Issue.record("expected paired")
         return
         }
+    }
+
+    @Test("A request without a full nonce is refused without burning the window")
+    func shortNonce() throws {
+        let gate = gate()
+        let window = gate.openWindow()
+        let role = try #require(gate.classify(newPin))
+        let valid = request(window)
+        let short = PairRequestPayload(kind: valid.kind, proof: valid.proof, nonce: Data(count: 4), phoneName: "x")
+        #expect(begin(gate, link: UUID(), role: role, request: short, session: session()) == nil)
+        #expect(begin(gate, link: UUID(), role: role, request: valid, session: session()) != nil)
     }
 }

@@ -22,6 +22,8 @@ struct CompanionServiceAuthTests {
         #expect(await phone.waitUntilClosed())
         #expect(await phone.firstMessage(timeout: .milliseconds(300)) == nil)
         #expect(mac.handled.isEmpty)
+        // Settings can show the attempt whenever it is opened.
+        #expect(await poll { await mac.service.lastRefusedAttempt != nil })
     }
 
     @Test("A paired phone is greeted as paired and its messages reach the handler")
@@ -110,10 +112,13 @@ struct CompanionServiceAuthTests {
             return
         }
         #expect(hello.mode == .pairing)
+        let commitment = try #require(hello.commitment)
         let binding = try phone.binding(macPin: offer.invitation.macPin)
+        let phoneNonce = CompanionPairingProof.makeNonce()
         phone.send(.pairRequest(PairRequestPayload(
             kind: .qr,
             proof: CompanionPairingProof.make(role: .phone, kind: .qr, secret: offer.invitation.secret, binding: binding),
+            nonce: phoneNonce,
             phoneName: "Test\u{0007} iPhone"
         )))
         guard case .pairChallenge(let challenge)? = await phone.nextMessage() else {
@@ -121,6 +126,8 @@ struct CompanionServiceAuthTests {
             return
         }
         #expect(CompanionPairingProof.verify(challenge.proof, role: .mac, kind: .qr, secret: offer.invitation.secret, binding: binding))
+        // The Mac reveals the nonce it committed to before seeing the phone's.
+        #expect(CompanionPairingProof.commitment(to: challenge.nonce) == commitment)
 
         let event = try #require(await mac.nextEvent())
         guard case .awaitingConfirmation(let link, let name, let code) = event else {
@@ -128,7 +135,10 @@ struct CompanionServiceAuthTests {
             return
         }
         #expect(name == "Test iPhone")
-        #expect(code == CompanionPairingProof.comparisonCode(exporter: binding.exporter, macPin: binding.macPin, phonePin: binding.phonePin))
+        #expect(code == CompanionPairingProof.comparisonCode(
+            exporter: binding.exporter, macPin: binding.macPin, phonePin: binding.phonePin,
+            macNonce: challenge.nonce, phoneNonce: phoneNonce
+        ))
         #expect(await mac.service.pairedPhones().isEmpty)
 
         await mac.service.confirmPairing(link: link, accepted: true)
@@ -218,7 +228,7 @@ struct CompanionServiceAuthTests {
         let phone = TestCompanionPhone(identity: CompanionIdentity(), macPin: mac.pin, port: mac.port)
         await phone.start()
         _ = await phone.firstMessage()
-        phone.send(.pairRequest(PairRequestPayload(kind: .qr, proof: Data(repeating: 1, count: 32), phoneName: "x")))
+        phone.send(.pairRequest(PairRequestPayload(kind: .qr, proof: Data(repeating: 1, count: 32), nonce: Data(count: 32), phoneName: "x")))
         #expect(await phone.waitUntilClosed())
         #expect(await mac.nextEvent(timeout: .milliseconds(300)) == nil)
     }
@@ -229,7 +239,7 @@ struct CompanionServiceAuthTests {
         .command(CommandPayload(action: .wakeOnLan, parameters: ["mac": "00:11:22:33:44:55"])),
         .networkProfile(NetworkProfilePayload(name: "n", gatewayIP: "10.0.0.1", subnet: "10.0.0.0/24", interfaceName: "en0")),
         .insightRequest(InsightRequestPayload(requestID: UUID(), request: InsightRequest(subject: "s", facts: ["a"]))),
-        .pairRequest(PairRequestPayload(kind: .qr, proof: Data(count: 32), phoneName: "x")),
+        .pairRequest(PairRequestPayload(kind: .qr, proof: Data(count: 32), nonce: Data(count: 32), phoneName: "x")),
         .unpair(UnpairPayload())
     ]
 }
@@ -364,6 +374,7 @@ final class TestCompanionPhone: @unchecked Sendable {
         send(.pairRequest(PairRequestPayload(
             kind: .qr,
             proof: CompanionPairingProof.make(role: .phone, kind: .qr, secret: offer.invitation.secret, binding: binding),
+            nonce: CompanionPairingProof.makeNonce(),
             phoneName: "iPhone"
         )))
     }

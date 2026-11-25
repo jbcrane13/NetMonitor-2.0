@@ -409,7 +409,7 @@ extension NetMonitorApp {
     /// Keychain refuses, the service stays off rather than running unauthenticated.
     func makeCompanionCredentials() -> CompanionCredentials? {
         let arguments = ProcessInfo.processInfo.arguments
-        if arguments.contains("--uitesting") {
+        if isUITesting {
             let seeds = arguments.contains("--seed-paired-phones") ? UITestCompanion.seedPhones : []
             return .inMemory(seedPhones: seeds, defaults: NetworkProfileDefaults.launchDefaults)
         }

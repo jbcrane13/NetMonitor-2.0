@@ -29,7 +29,9 @@ struct PairWithMacView: View {
                 }
                 .listRowBackground(Theme.Colors.glassBackground)
             case .comparing(let code, let macName):
-                comparingSection(code: code, macName: macName)
+                comparingSection(code: code, macName: macName, waiting: false)
+            case .waitingForMac(let code, let macName):
+                comparingSection(code: code, macName: macName, waiting: true)
             case .paired(let macName):
                 pairedSection(macName: macName)
             }
@@ -107,7 +109,7 @@ struct PairWithMacView: View {
             }
     }
 
-    private func comparingSection(code: String, macName: String) -> some View {
+    private func comparingSection(code: String, macName: String, waiting: Bool) -> some View {
         Section {
             VStack(spacing: 12) {
                 Text("Check that \(macName) shows the same code:")
@@ -117,10 +119,27 @@ struct PairWithMacView: View {
                     .font(.system(size: 40, weight: .semibold, design: .monospaced))
                     .foregroundStyle(Theme.Colors.textPrimary)
                     .accessibilityIdentifier("pairMac_label_comparisonCode")
-                Text("Then click Pair on the Mac. If the codes differ, click Don't Pair there.")
-                    .font(.caption)
-                    .foregroundStyle(Theme.Colors.textTertiary)
-                    .multilineTextAlignment(.center)
+                if waiting {
+                    HStack(spacing: 8) {
+                        ProgressView()
+                        Text("Now click Pair on \(macName).")
+                            .foregroundStyle(Theme.Colors.textSecondary)
+                    }
+                    .accessibilityIdentifier("pairMac_label_waitingForMac")
+                } else {
+                    Text("If they match, tap They Match here and click Pair on the Mac. If they differ, tap Don't Match.")
+                        .font(.caption)
+                        .foregroundStyle(Theme.Colors.textTertiary)
+                        .multilineTextAlignment(.center)
+                    GlassButton(title: "They Match", icon: "checkmark", style: .primary, size: .medium, isFullWidth: true) {
+                        connectionService.confirmComparison(true)
+                    }
+                    .accessibilityIdentifier("pairMac_button_codesMatch")
+                    Button("Don't Match", role: .destructive) {
+                        connectionService.confirmComparison(false)
+                    }
+                    .accessibilityIdentifier("pairMac_button_codesDiffer")
+                }
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 12)

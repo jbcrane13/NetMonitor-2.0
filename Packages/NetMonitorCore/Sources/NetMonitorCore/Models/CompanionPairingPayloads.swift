@@ -17,32 +17,41 @@ public struct ServerHelloPayload: Codable, Sendable, Equatable {
     /// Display only; never a basis for trust.
     public let macName: String
     public let mode: Mode
+    /// On a pairing link, the Mac's commitment to the nonce it reveals in `pairChallenge`.
+    public let commitment: Data?
 
-    public init(macID: UUID, macName: String, mode: Mode) {
+    public init(macID: UUID, macName: String, mode: Mode, commitment: Data? = nil) {
         self.macID = macID
         self.macName = macName
         self.mode = mode
+        self.commitment = commitment
     }
 }
 
 public struct PairRequestPayload: Codable, Sendable, Equatable {
     public let kind: CompanionPairingProof.Kind
     public let proof: Data
+    /// The phone's nonce for the comparison code, sent after the Mac committed to its own.
+    public let nonce: Data
     /// Display only; never a basis for trust.
     public let phoneName: String
 
-    public init(kind: CompanionPairingProof.Kind, proof: Data, phoneName: String) {
+    public init(kind: CompanionPairingProof.Kind, proof: Data, nonce: Data, phoneName: String) {
         self.kind = kind
         self.proof = proof
+        self.nonce = nonce
         self.phoneName = phoneName
     }
 }
 
 public struct PairChallengePayload: Codable, Sendable, Equatable {
     public let proof: Data
+    /// The Mac's nonce, revealed only now; it must match the `serverHello` commitment.
+    public let nonce: Data
 
-    public init(proof: Data) {
+    public init(proof: Data, nonce: Data) {
         self.proof = proof
+        self.nonce = nonce
     }
 }
 

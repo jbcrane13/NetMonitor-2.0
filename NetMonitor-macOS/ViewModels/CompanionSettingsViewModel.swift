@@ -43,6 +43,7 @@ import NetMonitorCore
     func refresh() async {
         guard let service else { return }
         phones = await service.pairedPhones()
+        refusedAttemptAt = await service.lastRefusedAttempt
         connectedPins = await Set(service.getConnectedClientInfos().map(\.phonePin))
     }
 

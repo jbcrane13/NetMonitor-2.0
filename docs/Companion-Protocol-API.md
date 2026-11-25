@@ -79,7 +79,7 @@ Added in protocol v2 (#590). The link carries device lists, scan results, comman
 | Mac | One item per paired phone: pin, name, date paired | `com.netmonitor.companion` / `phone.<pin hex>` |
 | iPhone | The paired Mac (ID, name, pin, host) and this phone's identity key for that pairing | `com.netmonitor.companion.mac` / `paired-mac`, WhenUnlockedThisDeviceOnly |
 
-All items use the data protection keychain (`kSecUseDataProtectionKeychain`) and are never synchronised. Every status is checked. The phone makes a **new identity for every pairing**, so nothing links one pairing to the next. Pins are never logged.
+All items use the data protection keychain (`kSecUseDataProtectionKeychain`) and are never synchronised. On macOS that needs the app's own `keychain-access-groups` entry (`$(AppIdentifierPrefix)com.netmonitor.NetMonitor`), which also makes signing embed the application identifier. Without it, a signed Debug build gets `errSecMissingEntitlement` and the companion service stays off. An unsigned test host skips the Keychain tests for the same reason. Every status is checked. The phone makes a **new identity for every pairing**, so nothing links one pairing to the next. Pins are never logged.
 
 ### Pairing
 
@@ -87,14 +87,17 @@ All items use the data protection keychain (`kSecUseDataProtectionKeychain`) and
    - **QR text:** `netmonitor://pair?v=2&m=<mac UUID>&n=<name>&pin=<Mac pin, base64url>&k=<secret, base64url>&h=<host>&p=<port>`.
    - **Typed code:** 25 Crockford base32 digits = **125 bits** (a big-endian integer held in 16 bytes, top 3 bits zero, most significant digit first), plus Crockford's mod-37 check symbol (`0-9A-Z` without `ILOU`, then `*~$=U`). It is shown in groups of five. Input ignores case, dashes and spaces, and reads I/L as 1 and O as 0.
 2. **The phone connects with a fresh identity.** From a QR, it pins the Mac's key from the QR. With a typed code it can't know the key yet, so it accepts the certificate provisionally.
-3. **The Mac's verify block** accepts an unknown key only while a window can still admit one. At `.ready` the link becomes a **pairing link**: only `pairRequest` is accepted, and frames are capped at 4 KiB.
-4. **Phone → Mac:** `pairRequest{kind, proof, phoneName}`.
+3. **The Mac's verify block** accepts an unknown key only while a window can still admit one. At `.ready` the link becomes a **pairing link**: only `pairRequest` is accepted, and frames are capped at 4 KiB. The Mac's `serverHello{mode: pairing, commitment}` commits to a fresh 32-byte nonce: `commitment = SHA-256("netmonitor commit v2" ‖ macNonce)`. A phone refuses a pairing hello without one.
+4. **Phone → Mac:** `pairRequest{kind, proof, nonce, phoneName}`, where `nonce` is the phone's own 32 random bytes.
    - `proof = HMAC-SHA256(HKDF(secret, salt "netmonitor pairing v2", info "proof <kind>"), "netmonitor pair v2 phone" ‖ exporter ‖ macPin ‖ phonePin)`.
    - The Mac verifies the proof, then consumes the window, both in one critical section with no suspension in between. Both secrets burn together, and the window's other connections close. A wrong proof closes the link without burning the window. A pin that is already paired is refused.
-5. **Mac → phone:** `pairChallenge{proof}`, the same HMAC with role `mac`. The phone verifies it, so a device that doesn't know the secret can't pose as the Mac.
-6. **Both screens show a 6-digit comparison code**, HKDF(exporter, "netmonitor compare v2" ‖ macPin ‖ phonePin) mod 10⁶. The user confirms on the Mac that they match. This covers a stolen code: an attacker in the middle holds two sessions with different exporters.
-7. **The Mac saves the phone's pin.** Only if the Keychain saves it does the Mac trust the pin and send `pairResult{accepted: true}`. Otherwise it sends `pairResult{accepted: false, reason}`.
-8. **The phone saves the Mac** (ID, name, pin from this session, identity key) only after `accepted: true`. It then reconnects as a paired phone.
+5. **Mac → phone:** `pairChallenge{proof, nonce}`, the same HMAC with role `mac`, plus the Mac's nonce, revealed only now. The phone checks the proof, so a device that doesn't know the secret can't pose as the Mac. It also checks the nonce against the commitment.
+6. **Both screens show a 6-digit comparison code**, HKDF(exporter, "netmonitor compare v2" ‖ macPin ‖ phonePin ‖ macNonce ‖ phoneNonce) mod 10⁶.
+   - **The commit-then-reveal is what makes the code safe.** A TLS 1.3 exporter is fixed before the client's certificate is sent, so without the nonces a party in the middle holding a stolen code could grind its own key offline until the codes collide.
+   - With them, neither side can choose its input after seeing the other's. A valid `pairRequest` burns the window, so an attacker in the middle gets one 1-in-10⁶ guess per window.
+7. **The user confirms on both screens:** Pair on the Mac, They Match on the phone. Don't Pair or Don't Match ends pairing.
+8. **The Mac saves the phone's pin.** Only if the Keychain saves it does the Mac trust the pin and send `pairResult{accepted: true}`. Otherwise it sends `pairResult{accepted: false, reason}`.
+9. **The phone saves the Mac** (ID, name, pin from this session, identity key) only when both the Mac's `accepted: true` and the user's They Match have happened, in either order. A device that merely knows the code and claims to accept can't get itself pinned. The phone then reconnects as paired.
 
 Names are display only and never a basis for trust.
 

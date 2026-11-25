@@ -102,6 +102,10 @@ targets:
         com.apple.security.files.user-selected.read-write: true
         com.apple.security.network.client: true
         com.apple.security.network.server: true
+        # The companion link's keys live in the data protection keychain (#590), which needs the
+        # app's own access group; it also makes signing embed the application identifier.
+        keychain-access-groups:
+          - $(AppIdentifierPrefix)com.netmonitor.NetMonitor
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.netmonitor.NetMonitor
