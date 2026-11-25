@@ -37,15 +37,22 @@ public enum PDFReportGenerator {
     }
 
     /// Generates a full network PDF report from provided data arrays.
-    /// - Parameter executiveSummary: when given, an Executive Summary page comes first;
-    ///   without it the report has no such page.
+    /// - Parameters:
+    ///   - presence: what each device's saved status means as of the report (#583). Without it no
+    ///     network has a scan, so no device reads online.
+    ///   - executiveSummary: when given, an Executive Summary page comes first;
+    ///     without it the report has no such page.
     /// - Returns: PDF data, or nil if rendering fails.
     public static func generateNetworkReport(
         devices: [LocalDevice],
         toolResults: [ToolResult],
         speedTests: [SpeedTestResult],
+        presence: PresenceSnapshot = PresenceSnapshot(lastScans: [:], now: Date()),
         executiveSummary: ExecutiveSummary? = nil
     ) -> Data? {
+        // Past devices (unseen for a week, #583) are counted, not listed.
+        let past = devices.filter { presence.isPast($0) }
+        let devices = devices.filter { !presence.isPast($0) }
         let bounds = CGRect(x: 0, y: 0, width: pageWidth, height: pageHeight)
         let renderer = UIGraphicsPDFRenderer(bounds: bounds)
 
@@ -57,10 +64,10 @@ public enum PDFReportGenerator {
             }
             ctx.beginPage()
             var y = drawHeader()
-            y = drawSummary(devices: devices, speedTests: speedTests, y: y)
+            y = drawSummary(devices: devices, pastCount: past.count, presence: presence, speedTests: speedTests, y: y)
 
-            if !devices.isEmpty {
-                y = drawDevices(devices: devices, ctx: ctx, y: y)
+            if !devices.isEmpty || !past.isEmpty {
+                y = drawDevices(devices: devices, pastCount: past.count, presence: presence, ctx: ctx, y: y)
             }
             if !toolResults.isEmpty {
                 y = drawToolResults(toolResults: toolResults, ctx: ctx, y: y)
@@ -151,10 +158,12 @@ public enum PDFReportGenerator {
 
     // MARK: - Summary Section
 
-    private static func drawSummary(devices: [LocalDevice], speedTests: [SpeedTestResult], y: CGFloat) -> CGFloat {
+    private static func drawSummary(
+        devices: [LocalDevice], pastCount: Int, presence: PresenceSnapshot, speedTests: [SpeedTestResult], y: CGFloat
+    ) -> CGFloat {
         var cursor = drawSectionTitle("Summary", y: y)
 
-        let onlineCount = devices.filter { $0.status == .online }.count
+        let onlineCount = devices.count { presence.freshness(of: $0).isOnline }
         let avgDownload: String
         if speedTests.isEmpty {
             avgDownload = "—"
@@ -166,6 +175,7 @@ public enum PDFReportGenerator {
         let pairs: [(String, String)] = [
             ("Total Devices", "\(devices.count)"),
             ("Online", "\(onlineCount)"),
+            ("Past Devices", "\(pastCount)"),
             ("Speed Tests", "\(speedTests.count)"),
             ("Avg Download", avgDownload)
         ]
@@ -177,11 +187,14 @@ public enum PDFReportGenerator {
 
     // MARK: - Devices Section
 
-    private static func drawDevices(devices: [LocalDevice], ctx: UIGraphicsPDFRendererContext, y: CGFloat) -> CGFloat {
+    private static func drawDevices(
+        devices: [LocalDevice], pastCount: Int, presence: PresenceSnapshot, ctx: UIGraphicsPDFRendererContext, y: CGFloat
+    ) -> CGFloat {
         var cursor = pageBreakIfNeeded(y: y, ctx: ctx)
         let rows = devices.sorted { $0.lastSeen > $1.lastSeen }.prefix(35)
         cursor = drawSectionTitle("Discovered Devices (\(countLabel(shown: rows.count, total: devices.count)))", y: cursor)
-        cursor = drawRow(cols: ["IP Address", "Name", "Type", "Status"], y: cursor, header: true)
+        cursor = drawNote(statusAsOf(devices, presence: presence), y: cursor)
+        cursor = drawRow(cols: ["IP Address", "Name", "Type", "Status", "Last Seen"], y: cursor, header: true)
 
         for device in rows {
             cursor = pageBreakIfNeeded(y: cursor, ctx: ctx)
@@ -189,10 +202,28 @@ public enum PDFReportGenerator {
                 device.ipAddress,
                 device.displayName,
                 device.deviceType.displayName,
-                device.status.statusType.label
+                presence.freshness(of: device).label,
+                PresenceFreshness.relativeText(since: device.lastSeen, now: presence.now)
             ], y: cursor, header: false)
         }
+        if pastCount > 0 {
+            let days = Int(PresenceFreshness.pastDeviceAge / 86400)
+            cursor = drawNote("\(pastCount) past \(pastCount == 1 ? "device" : "devices") (not seen for \(days) days) not listed.", y: cursor)
+        }
         return cursor + sectionGap
+    }
+
+    /// "Status as of 14:05; latest scan at 14:02." Times only: the report's header has the date.
+    static func statusAsOf(_ devices: [LocalDevice], presence: PresenceSnapshot) -> String {
+        let time = Date.FormatStyle(date: .omitted, time: .shortened)
+        let scans = Set(devices.map(\.networkProfileID)).compactMap { presence.lastScan(for: $0) }
+        let scan = scans.max().map { "latest scan at \($0.formatted(time))" } ?? "no scan recorded"
+        return "Status as of \(presence.now.formatted(time)); \(scan)."
+    }
+
+    private static func drawNote(_ text: String, y: CGFloat) -> CGFloat {
+        let attributes: [NSAttributedString.Key: Any] = [.font: UIFont.italicSystemFont(ofSize: 8), .foregroundColor: UIColor.darkGray]
+        return drawWrapped(text, x: margin, y: y + 2, width: contentWidth, attributes: attributes) + 4
     }
 
     // MARK: - Tool Results Section

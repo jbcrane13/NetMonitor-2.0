@@ -26,7 +26,7 @@ struct NetworkMapView: View {
             }
         case .latency:
             return devices.sorted { ($0.latency ?? 9999) < ($1.latency ?? 9999) }
-        case .source:
+        case .source, .status:
             return devices.sorted {
                 if $0.source == $1.source {
                     return $0.ipAddress.ipSortKey < $1.ipAddress.ipSortKey
@@ -43,35 +43,59 @@ struct NetworkMapView: View {
 
     var body: some View {
         NavigationStack {
+            // Qualified: the app has its own TimelineView. Every minute, so the map goes stale
+            // without a scan.
+            SwiftUI.TimelineView(.everyMinute) { _ in
+                mapContent(staleNote: viewModel.notCheckedRecentlyNote(SavedDeviceList.currentPresence()))
+            }
+        }
+    }
+
+    /// The grid's title, node count, the not-checked-recently note (#583) and the sort.
+    private func controlBar(staleNote: String?) -> some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("SIGNAL GRID")
+                    .font(.system(.caption2, weight: .black))
+                    .foregroundStyle(Theme.Colors.textTertiary)
+                    .tracking(1.5)
+                Text(staleNote == nil ? "\(viewModel.deviceCount) active nodes" : "\(viewModel.deviceCount) nodes")
+                    .font(.system(.caption, design: .rounded, weight: .bold))
+                    .foregroundStyle(Theme.Colors.accent)
+                if let staleNote {
+                    HStack(spacing: 4) {
+                        PresenceDot(freshness: .notCheckedRecently)
+                        Text(staleNote)
+                            .font(.caption2)
+                            .foregroundStyle(Theme.Colors.textSecondary)
+                    }
+                    .accessibilityElement(children: .combine)
+                    .accessibilityIdentifier("networkMap_label_notCheckedRecently")
+                }
+            }
+
+            Spacer()
+
+            Picker("Sort", selection: $sortOrder) {
+                ForEach([DeviceSortOrder.ip, .name, .latency, .source], id: \.self) { order in
+                    Text(order.rawValue).tag(order)
+                }
+            }
+            .pickerStyle(.menu)
+            .tint(Theme.Colors.accent)
+            .accessibilityIdentifier("networkMap_picker_sort")
+        }
+        .padding(.horizontal, 4)
+    }
+
+    private func mapContent(staleNote: String?) -> some View {
             ScrollView {
                 VStack(spacing: Theme.Layout.sectionSpacing) {
                     // 1. Network Context Header
                     networkSummary
 
                     // 2. Control Bar
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("SIGNAL GRID")
-                                .font(.system(.caption2, weight: .black))
-                                .foregroundStyle(Theme.Colors.textTertiary)
-                                .tracking(1.5)
-                            Text("\(viewModel.deviceCount) active nodes")
-                                .font(.system(.caption, design: .rounded, weight: .bold))
-                                .foregroundStyle(Theme.Colors.accent)
-                        }
-
-                        Spacer()
-
-                        Picker("Sort", selection: $sortOrder) {
-                            ForEach(DeviceSortOrder.allCases, id: \.self) { order in
-                                Text(order.rawValue).tag(order)
-                            }
-                        }
-                        .pickerStyle(.menu)
-                        .tint(Theme.Colors.accent)
-                        .accessibilityIdentifier("networkMap_picker_sort")
-                    }
-                    .padding(.horizontal, 4)
+                    controlBar(staleNote: staleNote)
 
                     // 4. High-Density Device Grid
                     if sortedDevices.isEmpty && !viewModel.isScanning {
@@ -91,8 +115,9 @@ struct NetworkMapView: View {
                                     ProDeviceRow(device: device, isScanning: viewModel.isScanning)
                                 }
                                 .buttonStyle(PlainButtonStyle())
-                                // A cached device gave no answer this scan and may have left (#378).
-                                .opacity(device.isCached ? 0.55 : 1)
+                                // A cached device gave no answer this scan and may have left (#378);
+                                // none is online now when the network wasn't checked recently (#583).
+                                .opacity(device.isCached || staleNote != nil ? 0.55 : 1)
                                 .accessibilityValue(device.isCached ? "Cached, may have left the network" : "")
                                 .accessibilityIdentifier("networkMap_row_\(device.ipAddress)")
                             }
@@ -134,7 +159,6 @@ struct NetworkMapView: View {
                 // The device joined another network: show that network, not the old one.
                 viewModel.refreshAvailableNetworks()
             }
-        }
     }
 
     // MARK: - Sub-components

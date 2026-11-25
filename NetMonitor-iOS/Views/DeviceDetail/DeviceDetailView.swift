@@ -150,14 +150,19 @@ struct DeviceDetailView: View {
                 .foregroundStyle(Theme.Colors.textPrimary)
                 .accessibilityIdentifier("deviceDetail_label_displayName")
 
-            HStack(spacing: 8) {
-                Circle()
-                    .fill(device.status.color)
-                    .frame(width: 8, height: 8)
-
-                Text(device.status.statusType.label)
-                    .font(.subheadline)
-                    .foregroundStyle(Theme.Colors.textSecondary)
+            // What the saved status means now (#583), refreshed every minute. Qualified: the app has
+            // its own TimelineView.
+            SwiftUI.TimelineView(.everyMinute) { _ in
+                let presence = SavedDeviceList.currentPresence()
+                let freshness = presence.freshness(of: device)
+                HStack(spacing: 8) {
+                    PresenceDot(freshness: freshness)
+                    Text("\(freshness.label) · \(presence.lastSeenText(device))")
+                        .font(.subheadline)
+                        .foregroundStyle(Theme.Colors.textSecondary)
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("\(freshness.label), \(presence.lastSeenText(device))")
             }
             .accessibilityIdentifier("deviceDetail_label_status")
 
@@ -621,7 +626,7 @@ extension DeviceDetailView {
         MAC: \(device.macAddress.isEmpty ? "—" : device.macAddress)
         Manufacturer: \(device.maker ?? "Unknown")
         Type: \(device.deviceType.rawValue)
-        Status: \(device.status.rawValue)
+        Status: \(SavedDeviceList.currentPresence().freshness(of: device).label)
         First Seen: \(dateFormatter.string(from: device.firstSeen))
         Last Seen: \(dateFormatter.string(from: device.lastSeen))
         """

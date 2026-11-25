@@ -17,7 +17,7 @@ Main dashboard tab showing real-time network status overview — connectivity, W
 ### Working In This Directory
 - `DashboardView` uses `DashboardViewModel` for state management
 - Displays data from multiple services: NetworkMonitorService, WiFiInfoService, GatewayService, PublicIPService
-- `DeviceListView` displays devices from NetworkScanKit's `DiscoveredDevice` type
+- `DeviceListView` and `LocalDevicesCard` show the network's saved `LocalDevice` rows through `SavedDeviceList` (#583): each row's `PresenceFreshness` (online, offline, not checked recently) and last-seen time, with past devices behind "Show past devices (N)". They fall back to the live scan's `DiscoveredDevice`s only before any row is saved.
 - Use `MetricCard` and `GlassCard` components for consistent styling
 - Accessibility prefix: `dashboard_` for DashboardView, `deviceList_` for DeviceListView
 

@@ -38,7 +38,8 @@ enum DataExportService {
         speedTests: [SpeedTestResult],
         insightService: any InsightServiceProtocol = PhoneInsight.shared,
         summaryTimeout: Duration = .seconds(20),
-        now: Date = Date()
+        now: Date = Date(),
+        presence: PresenceSnapshot? = nil
     ) async -> Data? {
         var executiveSummary: PDFReportGenerator.ExecutiveSummary?
         if let request = ReportSummaryBuilder.request(devices: devices, toolResults: toolResults, speedTests: speedTests, now: now),
@@ -49,6 +50,7 @@ enum DataExportService {
             devices: devices,
             toolResults: toolResults,
             speedTests: speedTests,
+            presence: presence ?? SavedDeviceList.currentPresence(),
             executiveSummary: executiveSummary
         )
     }

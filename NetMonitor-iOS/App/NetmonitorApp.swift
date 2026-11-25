@@ -141,6 +141,7 @@ struct NetmonitorApp: App {
                     UITestBootstrap.seedReportDataIfNeeded(in: sharedModelContainer.mainContext)
                     UITestBootstrap.seedTimelineDeviceIfNeeded(in: sharedModelContainer.mainContext)
                     UITestBootstrap.seedRuleDevicesIfNeeded(in: sharedModelContainer.mainContext)
+                    UITestBootstrap.seedPastDeviceIfNeeded(in: sharedModelContainer.mainContext)
                     if UITestBootstrap.recordsEvents {
                         startEventListener()
                     }

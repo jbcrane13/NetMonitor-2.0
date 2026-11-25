@@ -161,6 +161,12 @@ final class DashboardViewModel {
         return scopedDevices(from: deviceDiscoveryService.cachedDevices(for: activeNetwork))
     }
 
+    /// The network whose saved rows the device list and card show (#583): the one the scan's
+    /// devices were stamped with, else the active network.
+    var deviceNetworkID: UUID? {
+        discoveredDevices.lazy.compactMap(\.networkProfileID).first ?? activeNetwork?.id
+    }
+
     var deviceCount: Int {
         discoveredDevices.count
     }
@@ -422,7 +428,12 @@ final class DashboardViewModel {
         await deviceDiscoveryService.scanNetwork(profile: profile)
         return nil
     }
+}
 
+// MARK: - Auto-Refresh and helpers
+
+// An extension in this file keeps the class body within the type length limit.
+extension DashboardViewModel {
     // MARK: - Auto-Refresh
 
     /// How often the loop re-reads the auto-refresh setting, so a switch to or from
@@ -498,10 +509,8 @@ final class DashboardViewModel {
     private func isHostReachable(_ host: String) async -> Bool {
         let pingStream = await pingService.ping(host: host, count: 2, timeout: 1.5)
 
-        for await result in pingStream {
-            if !result.isTimeout {
-                return true
-            }
+        for await result in pingStream where !result.isTimeout {
+            return true
         }
 
         return false

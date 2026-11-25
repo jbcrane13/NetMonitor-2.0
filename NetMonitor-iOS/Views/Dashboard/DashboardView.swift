@@ -40,7 +40,8 @@ struct DashboardView: View {
                 .navigationDestination(for: DeviceListRoute.self) { _ in
                     DeviceListView(
                         discoveredDevices: viewModel.discoveredDevices,
-                        networkProfile: viewModel.activeNetwork
+                        networkProfile: viewModel.activeNetwork,
+                        networkID: viewModel.deviceNetworkID
                     )
                 }
                 .themedBackground()
@@ -196,7 +197,7 @@ struct DashboardView: View {
 
             LiveEventTicker()
 
-            LocalDevicesCard(viewModel: viewModel)
+            LocalDevicesCard(viewModel: viewModel, savedDevices: savedDevices)
         }
     }
 }
@@ -715,6 +716,9 @@ private struct DeviceListRoute: Hashable {}
 
 struct LocalDevicesCard: View {
     @Bindable var viewModel: DashboardViewModel
+    /// The saved rows (#583): the card lists the network's, with their presence, once a scan saved
+    /// any; before that, the live scan's devices.
+    let savedDevices: [LocalDevice]
     @Environment(\.horizontalSizeClass) private var sizeClass
 
     /// Show all devices on iPad, cap at 5 on iPhone
@@ -725,27 +729,59 @@ struct LocalDevicesCard: View {
         return Array(viewModel.discoveredDevices.prefix(5))
     }
 
+    private func visibleRows(_ saved: SavedDeviceList) -> [LocalDevice] {
+        sizeClass == .regular ? saved.rows : Array(saved.rows.prefix(5))
+    }
+
     var body: some View {
         NavigationLink(value: DeviceListRoute()) {
-            GlassCard(statusGlow: Theme.Colors.info) {
-                VStack(alignment: .leading, spacing: 14) {
-                    HStack {
-                        Text("ACTIVE DEVICES")
-                            .font(.system(.caption2, weight: .heavy))
-                            .foregroundStyle(Theme.Colors.textTertiary)
-                            .tracking(2.0)
-                        Spacer()
-                        HStack(spacing: 4) {
-                            Text("\(viewModel.deviceCount) total")
-                                .font(.system(.caption2, weight: .bold))
-                                .foregroundStyle(Theme.Colors.accent)
-                            Image(systemName: "chevron.right")
-                                .font(.system(.caption2, weight: .bold))
-                                .foregroundStyle(Theme.Colors.textTertiary)
-                        }
-                    }
+            // Qualified: the app has its own TimelineView. Every minute, so the card goes stale
+            // without a scan.
+            SwiftUI.TimelineView(.everyMinute) { _ in
+                let saved = SavedDeviceList(
+                    saved: savedDevices, network: viewModel.deviceNetworkID, sort: .status, showPast: false,
+                    presence: SavedDeviceList.currentPresence()
+                )
+                card(saved.rows.isEmpty ? nil : saved)
+            }
+        }
+        .buttonStyle(PlainButtonStyle())
+        .frame(maxHeight: sizeClass == .regular ? .infinity : nil)
+        .accessibilityIdentifier("dashboard_link_devices")
+        .accessibilityValue("\(viewModel.deviceCount) devices")
+    }
 
-                    VStack(spacing: 0) {
+    private func card(_ saved: SavedDeviceList?) -> some View {
+        GlassCard(statusGlow: Theme.Colors.info) {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack {
+                    Text("ACTIVE DEVICES")
+                        .font(.system(.caption2, weight: .heavy))
+                        .foregroundStyle(Theme.Colors.textTertiary)
+                        .tracking(2.0)
+                    Spacer()
+                    HStack(spacing: 4) {
+                        Text(saved.map { "\($0.onlineCount) online · \($0.rows.count) total" } ?? "\(viewModel.deviceCount) total")
+                            .font(.system(.caption2, weight: .bold))
+                            .foregroundStyle(Theme.Colors.accent)
+                        Image(systemName: "chevron.right")
+                            .font(.system(.caption2, weight: .bold))
+                            .foregroundStyle(Theme.Colors.textTertiary)
+                    }
+                }
+
+                VStack(spacing: 0) {
+                    if let saved {
+                        let rows = visibleRows(saved)
+                        ForEach(rows) { device in
+                            SavedDeviceRow(device: device, list: saved)
+                            if device.id != rows.last?.id {
+                                Divider()
+                                    .background(Theme.Colors.divider)
+                                    .padding(.vertical, 4)
+                            }
+                        }
+                    } else {
                         ForEach(visibleDevices) { device in
                             DeviceRow(device: device)
                             if device.id != visibleDevices.last?.id {
@@ -755,39 +791,90 @@ struct LocalDevicesCard: View {
                             }
                         }
                     }
+                }
 
-                    if viewModel.discoveredDevices.isEmpty {
-                        HStack(spacing: 8) {
-                            if viewModel.isScanning {
-                                ProgressView(value: viewModel.scanProgress)
-                                    .progressViewStyle(.circular)
-                                    .controlSize(.small)
-                                Text("SCANNING • \(viewModel.scanPhase.rawValue.uppercased())")
-                            } else if !viewModel.isConnected {
-                                Image(systemName: "wifi.slash")
-                                Text("CONNECT TO WI-FI TO SCAN")
-                            } else if viewModel.lastScanDate != nil {
-                                Image(systemName: "arrow.clockwise")
-                                Text("NO DEVICES FOUND • SCAN AGAIN")
-                            } else {
-                                Image(systemName: "dot.radiowaves.left.and.right")
-                                Text("NO SCAN YET • RUN A DEVICE SCAN")
-                            }
+                if saved == nil, viewModel.discoveredDevices.isEmpty {
+                    HStack(spacing: 8) {
+                        if viewModel.isScanning {
+                            ProgressView(value: viewModel.scanProgress)
+                                .progressViewStyle(.circular)
+                                .controlSize(.small)
+                            Text("SCANNING • \(viewModel.scanPhase.rawValue.uppercased())")
+                        } else if !viewModel.isConnected {
+                            Image(systemName: "wifi.slash")
+                            Text("CONNECT TO WI-FI TO SCAN")
+                        } else if viewModel.lastScanDate != nil {
+                            Image(systemName: "arrow.clockwise")
+                            Text("NO DEVICES FOUND • SCAN AGAIN")
+                        } else {
+                            Image(systemName: "dot.radiowaves.left.and.right")
+                            Text("NO SCAN YET • RUN A DEVICE SCAN")
                         }
-                        .font(.system(.caption2, design: .monospaced, weight: .black))
-                        .foregroundStyle(Theme.Colors.textTertiary)
-                        .frame(maxWidth: .infinity, alignment: .center)
-                        .padding(.vertical, 10)
-                        .accessibilityIdentifier("dashboard_devices_emptyState")
                     }
+                    .font(.system(.caption2, design: .monospaced, weight: .black))
+                    .foregroundStyle(Theme.Colors.textTertiary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.vertical, 10)
+                    .accessibilityIdentifier("dashboard_devices_emptyState")
                 }
             }
-            .accessibilityIdentifier("dashboard_card_localDevices")
         }
-        .buttonStyle(PlainButtonStyle())
-        .frame(maxHeight: sizeClass == .regular ? .infinity : nil)
-        .accessibilityIdentifier("dashboard_link_devices")
-        .accessibilityValue("\(viewModel.deviceCount) devices")
+        .accessibilityIdentifier("dashboard_card_localDevices")
+    }
+}
+
+/// A saved row on the dashboard card (#583): its presence dot, and the latency only while online,
+/// else its state and last-seen time.
+struct SavedDeviceRow: View {
+    let device: LocalDevice
+    let list: SavedDeviceList
+
+    var body: some View {
+        let freshness = list.presence.freshness(of: device)
+        HStack(spacing: 12) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(Theme.Colors.crystalBase)
+                    .frame(width: 36, height: 36)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(Theme.Colors.divider, lineWidth: 1)
+                    )
+
+                Image(systemName: device.deviceType.iconName)
+                    .font(.system(size: 16))
+                    .foregroundStyle(Theme.Colors.accent)
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(device.displayName)
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundStyle(Theme.Colors.textStrong)
+                Text(device.ipAddress)
+                    .font(.system(.caption2, design: .monospaced))
+                    .foregroundStyle(Theme.Colors.textTertiary)
+                    .tracking(0.3)
+            }
+
+            Spacer()
+
+            HStack(spacing: 6) {
+                PresenceDot(freshness: freshness, size: 6)
+                if let latency = list.latencyText(device) {
+                    Text(latency)
+                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                        .foregroundStyle(Theme.Colors.success)
+                } else if !freshness.isOnline {
+                    Text(freshness == .offline ? "Offline" : "Not checked")
+                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        .foregroundStyle(Theme.Colors.textSecondary)
+                }
+            }
+        }
+        .padding(.vertical, 4)
+        .accessibilityElement(children: .combine)
+        .accessibilityValue(list.statusText(device).replacingOccurrences(of: " · ", with: ", "))
+        .accessibilityIdentifier("dashboard_device_row_\(device.ipAddress)")
     }
 }
 
