@@ -35,12 +35,14 @@ expect "$("$AX" wait ask_field_question 10)" found "the question field is missin
 "$AX" type ask_field_question "Is the printer up?" > /dev/null
 "$AX" press ask_button_ask > /dev/null
 
-expect "$("$AX" text "UITest Printer is offline." 15)" "found text" "the answer is missing"
+expect "$("$AX" text "UITest Printer is a printer at 192.0.2.57." 15)" "found text" "the answer is missing"
 expect "$("$AX" text "Written by the on-device model from the records below" 3)" "found text" "the generated marker is missing"
 expect "$("$AX" wait ask_citation_device_1 5)" found "the printer is not cited"
 # The app's freshness line (#452 after #589): the UI-test network has no scan.
 expect "$("$AX" wait ask_label_freshness 5)" found "the freshness line is missing"
 expect "$("$AX" text "This network hasn't been scanned yet" 3)" "found text" "the freshness line has the wrong text"
+# The app's status beside the citation; the model states none.
+expect "$("$AX" text "Not checked" 3)" "found text" "the citation has no status"
 "$AX" capture-in screen_ask "$OUT/452-ask-printer.png"
 
 "$AX" press ask_citation_device_1 > /dev/null

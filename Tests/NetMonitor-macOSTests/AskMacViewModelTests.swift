@@ -10,7 +10,7 @@ import NetMonitorCore
 struct AskMacViewModelTests {
     let home = UUID()
     static let model = ScriptedAskModel(scripts: [
-        "Is the printer up?": AskScript(calls: [.findDevices("printer")], answer: "Office Printer is offline.")
+        "Is the printer up?": AskScript(calls: [.findDevices("printer")], answer: "Office Printer is a printer.")
     ])
 
     func printer(network: UUID?) -> LocalDevice {
@@ -29,7 +29,8 @@ struct AskMacViewModelTests {
             Issue.record("no device cited: \(viewModel.state.phase)")
             return
         }
-        #expect(answer.text == "Office Printer is offline.")
+        #expect(answer.text == "Office Printer is a printer.")
+        #expect(answer.devices.first?.presence == .notChecked)
 
         device.customName = "Upstairs Printer"
         viewModel.update(devices: [device], networkProfileID: home, lastScan: nil, isScanning: false)
@@ -47,7 +48,7 @@ struct AskMacViewModelTests {
         nas.lastSeen = scanEnd.addingTimeInterval(-20)
         let model = ScriptedAskModel(scripts: [
             "What's online?": AskScript(calls: [.findDevices("all")], answer: "Garage NAS is online."),
-            "Is the NAS up?": AskScript(calls: [.deviceStatus("NAS")], answer: "Garage NAS answered the last scan, 40 minutes ago.")
+            "Is the NAS up?": AskScript(calls: [.deviceStatus("NAS")], answer: "Garage NAS was last seen 40 minutes ago.")
         ])
         let viewModel = AskMacViewModel(model: model, events: NetworkEventService())
         viewModel.update(devices: [nas], networkProfileID: home, lastScan: scanEnd, isScanning: false)
@@ -66,8 +67,9 @@ struct AskMacViewModelTests {
             Issue.record("not answered: \(viewModel.state.phase)")
             return
         }
-        // Within the tolerance, the NAS answered that scan.
-        #expect(status.text == "Garage NAS answered the last scan, 40 minutes ago.")
+        // Within the tolerance, the NAS answered that scan: the app shows it beside the citation.
+        #expect(status.text == "Garage NAS was last seen 40 minutes ago.")
+        #expect(status.devices.first?.presence == .answeredOldScan)
     }
 
     @Test func nothingIsAskedDuringAScan() async {
@@ -93,7 +95,7 @@ struct AskMacViewModelTests {
         #expect(ToolCategory.monitoring.tools(showsAsk: true).contains(.ask))
         #expect(!ToolCategory.monitoring.tools(showsAsk: false).contains(.ask))
         #expect(ToolCategory.allCases.filter { $0.tools(showsAsk: true).contains(.ask) } == [.monitoring])
-        #expect(!AskMacViewModel(model: ScriptedAskModel(scripts: [:], isAvailable: false)).state.isVisible)
+        #expect(!AskMacViewModel(model: UnavailableAskModel()).state.isVisible)
     }
 
     @Test func theUITestModeComesFromItsArgument() {

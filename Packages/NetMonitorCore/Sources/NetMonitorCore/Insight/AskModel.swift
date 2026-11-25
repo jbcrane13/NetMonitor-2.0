@@ -1,4 +1,5 @@
 import Foundation
+import os
 #if canImport(FoundationModels)
 import FoundationModels
 #endif
@@ -14,7 +15,18 @@ public enum AskModel {
             return SystemAskModel()
         }
         #endif
-        return ScriptedAskModel(scripts: [:], isAvailable: false)
+        return UnavailableAskModel()
+    }
+}
+
+/// No model: where the on-device model can't run, and in UI tests of the hidden Ask card.
+public struct UnavailableAskModel: AskModelProtocol {
+    public init() {}
+
+    public var isAvailable: Bool { false }
+
+    public func answer(_ question: String, instructions: String, toolbox: AskToolbox) async -> String? {
+        nil
     }
 }
 
@@ -27,6 +39,8 @@ public enum AskModel {
 /// at its default: `.required` never stops. The caller cancels by cancelling its task.
 @available(iOS 27.0, macOS 27.0, *)
 struct SystemAskModel: AskModelProtocol {
+    private static let logger = Logger(subsystem: "com.netmonitor", category: "AskModel")
+
     var isAvailable: Bool { SystemLanguageModel.default.isAvailable }
 
     func answer(_ question: String, instructions: String, toolbox: AskToolbox) async -> String? {
@@ -46,6 +60,8 @@ struct SystemAskModel: AskModelProtocol {
             let response = try await session.respond(to: question, options: GenerationOptions(maximumResponseTokens: 220))
             return response.content
         } catch {
+            // The error's type only: its description can quote the question or tool results.
+            Self.logger.error("Ask model failed: \(String(describing: type(of: error)), privacy: .public)")
             return nil
         }
     }

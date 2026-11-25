@@ -189,9 +189,12 @@ struct AskToolView: View {
                     openDevice = device
                 } label: {
                     // Last seen, so a stale answer's "last-seen times are below" holds.
+                    // The app's status and last seen: the model's text never states presence.
                     Label(
-                        [device?.displayName ?? citation.name, device.map { "last seen " + $0.lastSeen.formatted(.relative(presentation: .named)) }]
-                            .compactMap(\.self).joined(separator: " · "),
+                        [
+                            device?.displayName ?? citation.name, citation.presence.label,
+                            "last seen " + citation.lastSeen.formatted(.relative(presentation: .named))
+                        ].joined(separator: " · "),
                         systemImage: device?.deviceType.iconName ?? "questionmark.circle"
                     )
                     .font(.system(size: 12))

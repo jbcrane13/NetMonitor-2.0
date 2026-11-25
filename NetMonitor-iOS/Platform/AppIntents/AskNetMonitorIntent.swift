@@ -54,19 +54,31 @@ enum AskIntentRunner {
             return "Which one do you mean: \(ListFormatter.localizedString(byJoining: names))? Ask again with its name."
         }
         let answer = await AskNetwork.answer(question, snapshot: snapshot, pinnedDeviceID: nil, model: model)
-        // Siri has no freshness label, so the app's line follows the answer.
-        return [answer.shownText, answer.freshness].compactMap(\.self).joined(separator: " ")
+        // Siri has no status chips or freshness label: the app's statuses and line follow the answer.
+        let statuses = answer.devices.prefix(5).map { "\($0.name): \($0.presence.label)." }
+        return ([answer.shownText] + statuses + [answer.freshness].compactMap(\.self)).joined(separator: " ")
     }
 
-    /// The saved devices on `network` and those on none, read through the app's own container
-    /// (#582), never a second one over the same file. Copied out while the container is alive.
+    /// Most rows the intent reads: the most recently seen first.
+    static let deviceLimit = 500
+
+    /// The saved devices on `network` and those on none, most recently seen first, read through the
+    /// app's own container (#582), never a second one over the same file. Copied out while the
+    /// container is alive.
     static func savedDevices(on network: UUID?) -> [AskDevice] {
         guard let container = AppModelStore.sharedContainer() else {
             return []
         }
-        var descriptor = FetchDescriptor<LocalDevice>()
-        descriptor.fetchLimit = 500
-        let rows = (try? ModelContext(container).fetch(descriptor)) ?? []
-        return rows.filter { $0.networkProfileID == nil || $0.networkProfileID == network }.map(AskDevice.init)
+        return savedDevices(on: network, in: ModelContext(container))
+    }
+
+    static func savedDevices(on network: UUID?, in context: ModelContext) -> [AskDevice] {
+        var descriptor = FetchDescriptor<LocalDevice>(
+            predicate: #Predicate { $0.networkProfileID == nil || $0.networkProfileID == network },
+            sortBy: [SortDescriptor(\.lastSeen, order: .reverse)]
+        )
+        descriptor.fetchLimit = deviceLimit
+        let rows = (try? context.fetch(descriptor)) ?? []
+        return AskSnapshot.devices(rows, on: network)
     }
 }

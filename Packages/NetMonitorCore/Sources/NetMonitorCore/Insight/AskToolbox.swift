@@ -12,9 +12,6 @@ public struct AskRecord: Sendable, Equatable {
     public internal(set) var deviceIDs: [UUID] = []
     /// Events the tools returned, first mention first.
     public internal(set) var eventIDs: [UUID] = []
-    /// Whether a tool stated the status of at least one device, which the answer's freshness line
-    /// then qualifies.
-    public internal(set) var statedPresence = false
 }
 
 /// The tools "Ask your network" gives the model (#452), over data the app already holds. The app
@@ -74,7 +71,7 @@ public final class AskToolbox: Sendable {
     /// The devices `phrase` names, or every device for "all", after the app's line on how fresh
     /// their status is.
     public func findDevices(_ phrase: String) -> String {
-        run(statesPresence: true) { () -> ([UUID], String) in
+        run { () -> ([UUID], String) in
             let flat = InsightRequest.line(phrase, limit: 80)
             if Self.meansAll(phrase) {
                 let shown = Array(snapshot.devices.prefix(Self.listLimit))
@@ -96,7 +93,7 @@ public final class AskToolbox: Sendable {
     /// Whether one device answered the last scan and how long ago that was, when it was last seen,
     /// its last reply and its drops this week.
     public func deviceStatus(_ device: String) -> String {
-        run(statesPresence: true) {
+        run {
             withDevice(device) { device in
                 var text = "\(name(device))\(presence(device)). Last seen \(seen(device)). Address \(device.ipAddress)."
                 if let latency = device.lastLatency {
@@ -153,7 +150,7 @@ public final class AskToolbox: Sendable {
             header += matching.count > shown.count ? "; the newest \(shown.count):" : ":"
             let lines = shown.map { "- \(snapshot.format($0.timestamp)): \(eventText($0))" }
             recordEvents(shown)
-            let devices = shown.compactMap(\.deviceID).filter { id in snapshot.devices.contains { $0.id == id } }
+            let devices = shown.compactMap(device(in:)).map(\.id)
             return (devices, ([header] + lines).joined(separator: "\n"))
         }
     }
@@ -187,7 +184,7 @@ public final class AskToolbox: Sendable {
     // MARK: - Running
 
     /// Runs one tool under the cap, recording what it returned.
-    private func run(statesPresence: Bool = false, _ body: () -> ([UUID], String)) -> String {
+    private func run(_ body: () -> ([UUID], String)) -> String {
         let allowed = state.withLock { state in
             state.record.calls += 1
             return state.record.calls <= Self.softCap
@@ -196,8 +193,6 @@ public final class AskToolbox: Sendable {
         let (devices, output) = body()
         state.withLock { state in
             state.record.outputs.append(output)
-            // A lookup that found no device stated no status.
-            state.record.statedPresence = state.record.statedPresence || statesPresence && !devices.isEmpty
             for id in devices where !state.record.deviceIDs.contains(id) {
                 state.record.deviceIDs.append(id)
             }
@@ -230,10 +225,21 @@ public final class AskToolbox: Sendable {
         }
     }
 
+    /// The saved device a joined or left event is about: by its id, or for an event written
+    /// without one, the one device whose name its title gives ("Device Left: Synology DS920").
+    private func device(in event: NetworkEvent) -> AskDevice? {
+        if let id = event.deviceID {
+            return snapshot.devices.first { $0.id == id }
+        }
+        let name = event.title.components(separatedBy: ": ").dropFirst().joined(separator: ": ")
+        guard event.type == .deviceJoined || event.type == .deviceLeft, !name.isEmpty else { return nil }
+        let named = snapshot.devices.filter { $0.displayName.caseInsensitiveCompare(name) == .orderedSame }
+        return named.count == 1 ? named[0] : nil
+    }
+
     /// An event as the model reads it: a device event names the device by its current name.
     private func eventText(_ event: NetworkEvent) -> String {
-        if let id = event.deviceID, let device = snapshot.devices.first(where: { $0.id == id }),
-           event.type == .deviceJoined || event.type == .deviceLeft {
+        if let device = device(in: event), event.type == .deviceJoined || event.type == .deviceLeft {
             let prefix = event.title.hasPrefix(ChangeDigestBuilder.backOnlinePrefix)
                 ? ChangeDigestBuilder.backOnlinePrefix : "\(event.type.displayName): "
             return prefix + name(device)

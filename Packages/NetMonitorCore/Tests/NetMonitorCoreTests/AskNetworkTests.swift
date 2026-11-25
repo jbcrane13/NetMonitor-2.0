@@ -15,9 +15,11 @@ struct AskNetworkTests {
 
     @Test func aGroundedAnswerIsShownWithItsCitations() async {
         let answer = await ask("Is the printer up?", calls: [.findDevices("printer")],
-                               answer: "No. Brother HL-L2350DW is offline; it was last seen at 9:14 AM on 2026-11-23.")
-        #expect(answer.text == "No. Brother HL-L2350DW is offline; it was last seen at 9:14 AM on 2026-11-23.")
-        #expect(answer.devices == [AskAnswer.DeviceCitation(id: Fix.printer.id, name: "Brother HL-L2350DW")])
+                               answer: "Brother HL-L2350DW was last seen at 9:14 AM on 2026-11-23.")
+        #expect(answer.text == "Brother HL-L2350DW was last seen at 9:14 AM on 2026-11-23.")
+        #expect(answer.devices == [
+            AskAnswer.DeviceCitation(id: Fix.printer.id, name: "Brother HL-L2350DW", presence: .offline, lastSeen: Fix.printer.lastSeen)
+        ])
         #expect(answer.events.isEmpty)
     }
 
@@ -51,11 +53,11 @@ struct AskNetworkTests {
             return await AskNetwork.answer("Is it up?", snapshot: snapshot, pinnedDeviceID: nil, model: model).text
         }
         // Only "Office Printer" was looked up: "Printer" inside it names no other device.
-        #expect(await ask("Office Printer", answer: "Office Printer is online.") == "Office Printer is online.")
-        #expect(await ask("Office Printer", answer: "Office Printer is online and Printer is offline.") == nil)
+        #expect(await ask("Office Printer", answer: "Office Printer has an address.") == "Office Printer has an address.")
+        #expect(await ask("Office Printer", answer: "Office Printer and Printer are printers.") == nil)
         // Only "Printer" was looked up: the longer name is the other device's.
-        #expect(await ask("dev-a", answer: "Printer is offline.") == "Printer is offline.")
-        #expect(await ask("dev-a", answer: "Office Printer is offline.") == nil)
+        #expect(await ask("dev-a", answer: "Printer is a printer.") == "Printer is a printer.")
+        #expect(await ask("dev-a", answer: "Office Printer is a printer.") == nil)
     }
 
     @Test func aMadeUpNameIsRejected() async {
@@ -102,15 +104,15 @@ struct AskNetworkTests {
 
     @Test func callsPastTheSoftCapStillLetTheModelAnswer() async {
         let calls = Array(repeating: AskToolCall.findDevices("printer"), count: 6)
-        let answer = await ask("Is the printer up?", calls: calls, answer: "Brother HL-L2350DW is offline.")
-        #expect(answer.text == "Brother HL-L2350DW is offline.")
+        let answer = await ask("Is the printer up?", calls: calls, answer: "Brother HL-L2350DW is a printer.")
+        #expect(answer.text == "Brother HL-L2350DW is a printer.")
     }
 
     @Test func aPickedDeviceIsTheOneTheToolsUse() async {
-        let answer = await ask("Is the Office MacBook up?", calls: [.deviceStatus("Apple")], answer: "Office MacBook is online.",
+        let answer = await ask("Is the Office MacBook up?", calls: [.deviceStatus("Apple")], answer: "Office MacBook is a laptop.",
                                pinned: Fix.macBook.id)
         #expect(answer.devices.map(\.id) == [Fix.macBook.id])
-        #expect(answer.text == "Office MacBook is online.")
+        #expect(answer.text == "Office MacBook is a laptop.")
     }
 
     @Test func aFailedModelShowsTheFallback() async {

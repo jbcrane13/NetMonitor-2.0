@@ -30,9 +30,7 @@ final class AskToolViewModel {
                 // Read when the question is asked: the phone may have changed networks since the view opened.
                 let network = currentNetwork()
                 return AskSnapshot(
-                    devices: inputs.devices
-                        .filter { $0.networkProfileID == nil || $0.networkProfileID == network }
-                        .map(AskDevice.init),
+                    devices: AskSnapshot.devices(inputs.devices, on: network),
                     events: events.events,
                     networkProfileID: network,
                     // lastSeen and this share the reconciler's clock, so no tolerance.

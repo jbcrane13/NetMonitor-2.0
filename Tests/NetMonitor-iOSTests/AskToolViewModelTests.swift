@@ -32,7 +32,7 @@ struct AskToolViewModelTests {
 
     static let printerQuestion = "Is the printer up?"
     static let model = ScriptedAskModel(scripts: [
-        printerQuestion: AskScript(calls: [.findDevices("printer")], answer: "Office Printer is offline.")
+        printerQuestion: AskScript(calls: [.findDevices("printer")], answer: "Office Printer is a printer.")
     ])
 
     func printer(network: UUID?) -> LocalDevice {
@@ -51,7 +51,7 @@ struct AskToolViewModelTests {
             Issue.record("no device cited: \(viewModel.state.phase)")
             return
         }
-        #expect(answer.text == "Office Printer is offline.")
+        #expect(answer.text == "Office Printer is a printer.")
 
         device.customName = "Upstairs Printer"
         viewModel.update(devices: [device])
@@ -150,7 +150,7 @@ struct AskToolViewModelTests {
     }
 
     @Test func theCardIsHiddenWithoutTheModel() {
-        let viewModel = AskToolViewModel(env: env(), model: ScriptedAskModel(scripts: [:], isAvailable: false))
+        let viewModel = AskToolViewModel(env: env(), model: UnavailableAskModel())
         #expect(!viewModel.state.isVisible)
     }
 
@@ -166,9 +166,10 @@ struct AskToolViewModelTests {
     @Test func theIntentAnswersWithTheSamePipelineAndSaysHowFresh() async {
         let device = AskDevice(printer(network: nil))
         let text = await intent(devices: [device], lastScan: Date(), isScanning: false)
-        #expect(text.hasPrefix("Office Printer is offline. Device status as of the scan less than a minute ago ("))
+        #expect(text.hasPrefix("Office Printer is a printer. Office Printer: Offline. Device status as of the scan less than a minute ago ("))
         let unscanned = await intent(devices: [device], lastScan: nil, isScanning: false)
-        #expect(unscanned == "Office Printer is offline. This network hasn't been scanned yet, so no device's status has been checked.")
+        #expect(unscanned == "Office Printer is a printer. Office Printer: Not checked. "
+            + "This network hasn't been scanned yet, so no device's status has been checked.")
     }
 
     @Test func theIntentNamesTheCandidatesInsteadOfAPicker() async {
@@ -178,7 +179,7 @@ struct AskToolViewModelTests {
     }
 
     @Test func theIntentSaysWhenItCantAsk() async {
-        let unavailable = await intent(model: ScriptedAskModel(scripts: [:], isAvailable: false), devices: [], lastScan: nil, isScanning: false)
+        let unavailable = await intent(model: UnavailableAskModel(), devices: [], lastScan: nil, isScanning: false)
         #expect(unavailable == AskIntentRunner.unavailableMessage)
         let scanning = await intent(devices: [], lastScan: nil, isScanning: true)
         #expect(scanning == AskState.scanMessage)

@@ -69,9 +69,39 @@ public struct AskSnapshot: Sendable {
     public let staleAfter: TimeInterval
     public let now: Date
     public let calendar: Calendar
+    /// Made once per snapshot, in its calendar, for every time the tools and instructions write.
+    private let formatters: Formatters
+
+    /// The date formatters a snapshot writes with. `DateFormatter` is thread-safe for formatting.
+    private final class Formatters: @unchecked Sendable {
+        let time: DateFormatter
+        let day: DateFormatter
+        let weekday: DateFormatter
+
+        init(calendar: Calendar) {
+            func make(_ format: String) -> DateFormatter {
+                let formatter = DateFormatter()
+                formatter.locale = Locale(identifier: "en_US_POSIX")
+                formatter.calendar = calendar
+                formatter.timeZone = calendar.timeZone
+                formatter.dateFormat = format
+                return formatter
+            }
+            time = make("yyyy-MM-dd h:mm a")
+            day = make("yyyy-MM-dd")
+            weekday = make("EEEE, yyyy-MM-dd")
+        }
+    }
+
+    /// The saved rows Ask reads for `network`: its own and those saved before rows had one. The
+    /// one place the apps and the Siri intent filter devices by network.
+    @MainActor
+    public static func devices(_ rows: [LocalDevice], on network: UUID?) -> [AskDevice] {
+        rows.filter { $0.networkProfileID == nil || $0.networkProfileID == network }.map(AskDevice.init)
+    }
 
     /// - Parameter networkProfileID: keeps the events of this network and those written before
-    ///   events carried one. Devices are filtered by the caller.
+    ///   events carried one. Devices are filtered by the caller (`devices(_:on:)`).
     public init(
         devices: [AskDevice],
         events: [NetworkEvent],
@@ -91,6 +121,7 @@ public struct AskSnapshot: Sendable {
         self.staleAfter = staleAfter
         self.now = now
         self.calendar = calendar
+        formatters = Formatters(calendar: calendar)
     }
 
     public var scanFreshness: ScanFreshness {
@@ -132,22 +163,17 @@ public struct AskSnapshot: Sendable {
 
     /// "2026-11-23 9:14 AM" in the snapshot's calendar: the form the model is asked to copy.
     func format(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.calendar = calendar
-        formatter.timeZone = calendar.timeZone
-        formatter.dateFormat = "yyyy-MM-dd h:mm a"
-        return formatter.string(from: date)
+        formatters.time.string(from: date)
     }
 
     /// "2026-11-23", in the snapshot's calendar.
     func formatDay(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.calendar = calendar
-        formatter.timeZone = calendar.timeZone
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter.string(from: date)
+        formatters.day.string(from: date)
+    }
+
+    /// "Monday, 2026-11-23", for the model's instructions.
+    func formatWeekday(_ date: Date) -> String {
+        formatters.weekday.string(from: date)
     }
 }
 

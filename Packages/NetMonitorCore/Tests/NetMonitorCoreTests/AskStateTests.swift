@@ -26,7 +26,7 @@ struct AskStateTests {
         )
     }
 
-    private static let printerScript = AskScript(calls: [.findDevices("printer")], answer: "Brother HL-L2350DW is offline.")
+    private static let printerScript = AskScript(calls: [.findDevices("printer")], answer: "Brother HL-L2350DW is a printer.")
 
     @Test func aQuestionIsAnsweredWithCitations() async {
         let state = makeState(["Is the printer up?": Self.printerScript])
@@ -35,7 +35,7 @@ struct AskStateTests {
             Issue.record("not answered: \(state.phase)")
             return
         }
-        #expect(answer.text == "Brother HL-L2350DW is offline.")
+        #expect(answer.text == "Brother HL-L2350DW is a printer.")
         #expect(answer.devices.map(\.id) == [Fix.printer.id])
     }
 
@@ -55,7 +55,7 @@ struct AskStateTests {
     }
 
     @Test func severalMatchingDevicesAreOfferedBeforeTheModelIsAsked() async {
-        let script = AskScript(calls: [.findDevices("HL-L2350DW Upstairs")], answer: "HL-L2350DW Upstairs is online.")
+        let script = AskScript(calls: [.findDevices("HL-L2350DW Upstairs")], answer: "HL-L2350DW Upstairs is a printer.")
         let state = makeState(["Is the HL-L2350DW Upstairs up?": script], devices: Fix.devices + [Self.laser])
         await state.ask("Is the printer up?")
         #expect(state.phase == .needsDevice([Fix.printer, Self.laser]))
@@ -65,7 +65,7 @@ struct AskStateTests {
             return
         }
         #expect(state.question == "Is the HL-L2350DW Upstairs up?")
-        #expect(answer.text == "HL-L2350DW Upstairs is online.")
+        #expect(answer.text == "HL-L2350DW Upstairs is a printer.")
         #expect(answer.devices.map(\.id) == [Self.laser.id])
     }
 

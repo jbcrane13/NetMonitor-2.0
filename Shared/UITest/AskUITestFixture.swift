@@ -29,8 +29,8 @@ enum AskUITestFixture {
     static let olderJoinName = "UITest Doorbell"
 
     /// What the scripted model answers. Each states only what its tool returns, so it passes the
-    /// grounding checks.
-    static let printerAnswer = "UITest Printer is offline."
+    /// grounding checks, and no presence, which the app shows itself (#452).
+    static let printerAnswer = "UITest Printer is a printer at 192.0.2.57."
     static let joinedAnswer = "Two devices joined this week: UITest Camera and UITest Speaker."
     static let monthAnswer = "Three devices joined in the last 30 days: UITest Camera, UITest Speaker and UITest Doorbell."
 
@@ -39,16 +39,14 @@ enum AskUITestFixture {
         let joined = AskScript(calls: [.events(range: "last7Days", type: "joined")], answer: joinedAnswer)
         let month = AskScript(calls: [.events(range: "last30Days", type: "joined")], answer: monthAnswer)
         let online = AskScript(calls: [.findDevices("all")]) { results in onlineAnswer(results.first ?? "") }
-        return ScriptedAskModel(
-            scripts: [printerQuestion: printer, joinedQuestion: joined, monthQuestion: month, onlineQuestion: online],
-            isAvailable: mode != .unavailable
-        )
+        guard mode != .unavailable else { return UnavailableAskModel() }
+        return ScriptedAskModel(scripts: [printerQuestion: printer, joinedQuestion: joined, monthQuestion: month, onlineQuestion: online])
     }
 
-    /// What the scripted model makes of `findDevices("all")`. After a recent scan: the devices listed
-    /// online, with the list's freshness ("Online as of the scan less than a minute ago: a, b.").
-    /// After an old one it does what the real model did (probe, 2026-11-25): calls the devices that
-    /// answered that scan online, which the app rejects for its stale fallback.
+    /// What the scripted model makes of `findDevices("all")`, as the real model did (probe,
+    /// 2026-11-25): it calls the devices online ("Online as of the scan …: a, b." after a recent scan,
+    /// "Online: a, b." after an old one). The app drops those sentences and shows its own summary or
+    /// stale fallback with each device's status.
     static func onlineAnswer(_ list: String) -> String {
         let lines = list.components(separatedBy: "\n")
         let note = lines.first ?? ""

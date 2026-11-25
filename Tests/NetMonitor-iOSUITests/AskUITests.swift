@@ -72,12 +72,14 @@ final class AskUITests: IOSUITestCase {
         openAsk()
         ask("Is the printer up?")
 
-        let answer = waitForAnswer("UITest Printer is offline.")
+        let answer = waitForAnswer("UITest Printer is a printer at 192.0.2.57.")
         let marker = ui("ask_label_generated")
         requireExists(marker, message: "The generated marker should show under the answer")
         let citation = ui("ask_citation_device_1")
         requireExists(citation, message: "The printer the tool returned should be cited")
         XCTAssertTrue(citation.label.contains("UITest Printer"), "Citation: \(citation.label)")
+        // The app's status beside it: this network has no scan.
+        XCTAssertTrue(citation.label.contains("Not checked"), "Citation: \(citation.label)")
         keep([answer, marker, citation], named: "ask-printer-answer")
 
         citation.tap()
@@ -156,12 +158,17 @@ final class AskFreshnessUITests: IOSUITestCase {
         openAsk()
         ask("What's online?")
 
+        // The model's "Online as of the scan …: …" is dropped: the app says it, and shows each status.
         let answer = ui("ask_label_answer")
         requireExists(answer, timeout: 10, message: "An answer should show")
-        let worded = expectation(for: NSPredicate(format: "label BEGINSWITH %@", "Online as of the scan "), evaluatedWith: answer)
+        let worded = expectation(
+            for: NSPredicate(format: "label MATCHES %@", "[0-9]+ of [0-9]+ devices answered the scan .* ago\\."), evaluatedWith: answer
+        )
         wait(for: [worded], timeout: 10)
-        XCTAssertTrue(answer.label.contains("uitest-device-0"), "Answer: \(answer.label)")
-        XCTAssertFalse(answer.label.contains("UITest Printer"), "The offline printer is not online: \(answer.label)")
+        XCTAssertFalse(ui("ask_label_generated").exists, "The app's summary is not marked as generated")
+        let online = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier BEGINSWITH %@ AND label CONTAINS %@", "ask_citation_device_", "Online"))
+        XCTAssertGreaterThan(online.count, 0, "The devices that answered should show Online")
         let freshness = ui("ask_label_freshness")
         requireExists(freshness, message: "The app's freshness line should show under the answer")
         XCTAssertTrue(freshness.label.contains("Device status as of the scan "), "Freshness: \(freshness.label)")

@@ -27,9 +27,7 @@ final class AskMacViewModel {
             model: model ?? Self.model(),
             snapshot: {
                 AskSnapshot(
-                    devices: inputs.devices
-                        .filter { $0.networkProfileID == nil || $0.networkProfileID == inputs.networkProfileID }
-                        .map(AskDevice.init),
+                    devices: AskSnapshot.devices(inputs.devices, on: inputs.networkProfileID),
                     events: events.events,
                     networkProfileID: inputs.networkProfileID,
                     lastScan: inputs.lastScan,

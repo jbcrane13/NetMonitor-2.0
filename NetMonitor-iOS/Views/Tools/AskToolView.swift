@@ -13,8 +13,15 @@ struct AskToolView: View {
     /// The cited device's `LocalDevice.id`: detail opens the saved row, not whatever answers at its address now.
     @State private var openDevice: UUID?
     @State private var openEvent: AskAnswer.EventCitation?
-    @Query private var devices: [LocalDevice]
+    @Query(AskToolView.devicesDescriptor) private var devices: [LocalDevice]
     private let env: AppEnvironment
+
+    /// The rows Ask reads: the most recently seen first, capped.
+    static var devicesDescriptor: FetchDescriptor<LocalDevice> {
+        var descriptor = FetchDescriptor<LocalDevice>(sortBy: [SortDescriptor(\.lastSeen, order: .reverse)])
+        descriptor.fetchLimit = AskIntentRunner.deviceLimit
+        return descriptor
+    }
 
     init(env: AppEnvironment) {
         self.env = env
@@ -37,7 +44,7 @@ struct AskToolView: View {
         .navigationTitle("Ask")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
-        .accessibilityIdentifier("screen_askTool")
+        .accessibilityIdentifier("screen_ask")
         // A rename or a scan changes what the tools read.
         .task(id: devices.map(\.displayName) + devices.map(\.ipAddress)) {
             viewModel.update(devices: devices)
@@ -177,7 +184,8 @@ struct AskToolView: View {
                     citationRow(
                         icon: device?.deviceType.iconName ?? "questionmark.circle",
                         title: device?.displayName ?? citation.name,
-                        detail: device.map { "Last seen " + $0.lastSeen.formatted(.relative(presentation: .named)) }
+                        detail: "Last seen " + citation.lastSeen.formatted(.relative(presentation: .named)),
+                        presence: citation.presence
                     )
                 }
                 .buttonStyle(.plain)
@@ -199,7 +207,7 @@ struct AskToolView: View {
         .accessibilityIdentifier("ask_list_citations")
     }
 
-    private func citationRow(icon: String, title: String, detail: String?) -> some View {
+    private func citationRow(icon: String, title: String, detail: String?, presence: AskDevicePresence? = nil) -> some View {
         HStack(spacing: 10) {
             Image(systemName: icon)
                 .foregroundStyle(Theme.Colors.accent)
@@ -215,6 +223,16 @@ struct AskToolView: View {
                 }
             }
             Spacer(minLength: 0)
+            if let presence {
+                // The app's status: the model's text never states presence.
+                Text(presence.label)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(presence.isOnline ? Theme.Colors.success : Theme.Colors.textSecondary)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(Capsule().fill(Theme.Colors.textSecondary.opacity(0.15)))
+                    .accessibilityIdentifier("ask_label_status")
+            }
             Image(systemName: "chevron.right")
                 .font(.caption)
                 .foregroundStyle(Theme.Colors.textTertiary)

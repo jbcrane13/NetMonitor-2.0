@@ -119,7 +119,7 @@ struct AskFreshnessTests {
         ] {
             let answer = await ask("What's online?", calls: calls, answer: claim, snapshot: Self.stale)
             #expect(answer.text == nil, "accepted \(claim)")
-            // The app says why there's no answer instead of "I couldn't look that up."
+            // The app says why there's no status instead of "I couldn't look that up."
             #expect(answer.shownText == AskNetwork.staleFallback)
             // The citation and the app's freshness line still show.
             #expect(answer.devices.map(\.id) == [Self.staleNAS.id])
@@ -157,53 +157,53 @@ struct AskFreshnessTests {
         }
     }
 
-    @Test func aRejectedAnswerAfterAFreshScanKeepsThePlainFallback() async {
+    @Test func aRejectedAnswerAfterAFreshScanGetsTheAppsSummary() async {
         let snapshot = AskSnapshot(devices: [Fix.nas], events: [], lastScan: Fix.now, now: Fix.now, calendar: Fix.calendar)
         let answer = await ask("Is the NAS up?", calls: [.deviceStatus("NAS")], answer: "Synology DS920 had 9 drops.", snapshot: snapshot)
-        #expect(answer.shownText == AskNetwork.fallback)
+        #expect(answer.text == nil)
+        #expect(answer.shownText == "Synology DS920 answered the scan less than a minute ago.")
     }
 
-    @Test func aStaleAnswerWordedAsThePastOrANegationIsShown() async {
+    @Test func pastTenseAndNegatedPresenceIsTheAppsToo() async {
+        // Allowed before the lead's 2026-11-25 change; the model states no presence at all now.
         for text in [
-            "Synology DS920 answered the last scan, 40 minutes ago, and was online then; it has not been checked recently.",
-            // The real model's wording on the 40-minute snapshot (probe, 2026-11-25).
-            "Synology DS920 was last seen 40 minutes ago. Its status is not confirmed as online.",
-            "Synology DS920 isn't known to be online now; it was last seen 40 minutes ago.",
-            "Synology DS920 was last seen 40 minutes ago. Its online status is unknown.",
-            "Synology DS920 was last seen 40 minutes ago. Whether it is online now is not known."
+            "Synology DS920 answered the last scan, 40 minutes ago, and was online then.",
+            "Its status is not confirmed as online.",
+            "Whether it is online now is not known."
         ] {
             let answer = await ask("What's online?", calls: [.findDevices("all")], answer: text, snapshot: Self.stale)
-            #expect(answer.text == text)
+            #expect(answer.text == nil, "kept: \(text)")
+            #expect(answer.shownText == AskNetwork.staleFallback)
         }
     }
 
     @Test func aRepeatedHandleIsLeftOut() async {
-        let text = "Synology DS920 (id dev-a) was last seen 40 minutes ago. Whether it is online now is not known."
-        let answer = await ask("Is the NAS up?", calls: [.deviceStatus("NAS")], answer: text, snapshot: Self.stale)
-        #expect(answer.text == "Synology DS920 was last seen 40 minutes ago. Whether it is online now is not known.")
+        let text = "Synology DS920 (id dev-a) was last seen 40 minutes ago (2026-11-23 11:20 AM)."
+        let answer = await ask("When was the NAS seen?", calls: [.deviceStatus("NAS")], answer: text, snapshot: Self.stale)
+        #expect(answer.text == "Synology DS920 was last seen 40 minutes ago (2026-11-23 11:20 AM).")
         #expect(AskNetwork.withoutHandles("Ring Doorbell (ID dev-c) and NAS (dev-ab).") == "Ring Doorbell and NAS.")
     }
 
-    @Test func aFreshAnswerMayRepeatTheAppsFreshness() async {
+    @Test func aFreshAnswerMayRepeatTheToolsLastSeen() async {
         let snapshot = AskSnapshot(
             devices: [Fix.nas], events: [], lastScan: Fix.now.addingTimeInterval(-3 * 60), now: Fix.now, calendar: Fix.calendar
         )
-        let text = "Synology DS920 is online as of the scan 3 minutes ago, last seen less than a minute ago."
-        let answer = await ask("Is the NAS up?", calls: [.deviceStatus("NAS")], answer: text, snapshot: snapshot)
+        let text = "Synology DS920 was last seen less than a minute ago."
+        let answer = await ask("When was the NAS seen?", calls: [.deviceStatus("NAS")], answer: text, snapshot: snapshot)
         #expect(answer.text == text)
         #expect(answer.freshness == "Device status as of the scan 3 minutes ago (2026-11-23 11:57 AM).")
     }
 
-    @Test func aFreshScanStillRejectsOnlineForADeviceThatMissedIt() async {
+    @Test func aFreshScanShowsWhichCitedDevicesAnswered() async {
         let missed = Fix.device("Synology DS920", .storage, ip: "192.168.1.20", lastSeen: Fix.now.addingTimeInterval(-10 * 60))
         let snapshot = AskSnapshot(
             devices: [missed, Fix.appleTV], events: [], lastScan: Fix.now, now: Fix.now, calendar: Fix.calendar
         )
-        let calls: [AskToolCall] = [.findDevices("all")]
-        #expect(await ask("What's online?", calls: calls, answer: "Synology DS920 is online.", snapshot: snapshot).text == nil)
-        // The device that answered may be called online, beside one that didn't.
         let mixed = "Synology DS920 did not answer the last scan, but Living Room Apple TV is online."
-        #expect(await ask("What's online?", calls: calls, answer: mixed, snapshot: snapshot).text == mixed)
+        let answer = await ask("What's online?", calls: [.findDevices("all")], answer: mixed, snapshot: snapshot)
+        #expect(answer.text == nil)
+        #expect(answer.shownText == "1 of 2 devices answered the scan less than a minute ago.")
+        #expect(answer.devices.map(\.presence) == [.missedLastScan, .online])
     }
 
     @Test func anAnswerWithoutDevicesHasNoFreshnessLine() async {

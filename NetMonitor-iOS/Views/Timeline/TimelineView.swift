@@ -6,6 +6,8 @@ struct TimelineView: View {
     @State private var viewModel: TimelineViewModel
     @State private var showingFilterSheet = false
     @State private var isConfirmingClear = false
+    /// Set once the list has scrolled to `focusDay`, so later changes don't scroll it back.
+    @State private var hasFocused = false
     /// Summaries name devices through their saved rows and compare speed tests (#453).
     @Query(Self.savedDevicesDescriptor) private var savedDevices: [LocalDevice]
     @Query(Self.speedTestsDescriptor) private var speedTests: [SpeedTestResult]
@@ -107,9 +109,9 @@ struct TimelineView: View {
             }
             .task(id: viewModel.groupedEvents.count) {
                 // The range is All on open, so the focused day's section is in the list.
-                if let focusDay {
-                    proxy.scrollTo(Calendar.autoupdatingCurrent.startOfDay(for: focusDay), anchor: .top)
-                }
+                guard !hasFocused, let focusDay, !viewModel.groupedEvents.isEmpty else { return }
+                proxy.scrollTo(viewModel.day(of: focusDay), anchor: .top)
+                hasFocused = true
             }
         }
         .accessibilityIdentifier("timeline_list_events")
