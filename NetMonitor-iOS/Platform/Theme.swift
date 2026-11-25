@@ -156,6 +156,11 @@ enum Theme {
         static let screenPadding: CGFloat = 16
         static let itemSpacing: CGFloat = 12
         static let sectionSpacing: CGFloat = 20
+        /// Between a small mark and its text on one line, such as a presence dot and its label.
+        static let inlineSpacing: CGFloat = 6
+
+        /// A presence dot (#583).
+        static let presenceDotSize: CGFloat = 8
 
         static let iconSize: CGFloat = 24
         static let largeIconSize: CGFloat = 32

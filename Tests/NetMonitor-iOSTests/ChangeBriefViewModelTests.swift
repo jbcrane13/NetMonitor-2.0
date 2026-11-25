@@ -11,6 +11,7 @@ import NetworkScanKit
 struct ChangeBriefViewModelTests {
     let events = NetworkEventService()
     static let answer = "Two new devices appeared on the network."
+    static let noScans = PresenceSnapshot(lastScans: [:], now: Date())
 
     func makeViewModel(_ insight: MockInsightService) -> ChangeBriefViewModel {
         ChangeBriefViewModel(service: insight, eventService: events)
@@ -20,9 +21,16 @@ struct ChangeBriefViewModelTests {
         events.log(type: .deviceJoined, title: "Device Joined: \(name)", details: nil, severity: .success)
     }
 
+    /// A refresh with no devices or speed tests.
+    func refreshEmpty(_ viewModel: ChangeBriefViewModel, networkProfileID: UUID? = nil, isScanning: Bool) async {
+        await viewModel.refresh(
+            scanned: [], saved: [], networkProfileID: networkProfileID, speedTests: [], presence: Self.noScans, isScanning: isScanning
+        )
+    }
+
     /// Starts a refresh, answers the `index`th request with `update`, and waits for it.
     func refreshAnswering(_ viewModel: ChangeBriefViewModel, _ insight: MockInsightService, with update: InsightUpdate, index: Int = 0) async {
-        let task = Task { await viewModel.refresh(scanned: [], saved: [], networkProfileID: nil, speedTests: [], isScanning: false) }
+        let task = Task { await refreshEmpty(viewModel, isScanning: false) }
         await waitUntil { insight.requests.count > index }
         insight.send(update, to: index)
         await task.value
@@ -46,7 +54,7 @@ struct ChangeBriefViewModelTests {
         logJoin("Camera")
         await refreshAnswering(viewModel, insight, with: .finished("A camera joined the network."))
 
-        await viewModel.refresh(scanned: [], saved: [], networkProfileID: nil, speedTests: [], isScanning: false)
+        await viewModel.refresh(scanned: [], saved: [], networkProfileID: nil, speedTests: [], presence: Self.noScans, isScanning: false)
 
         #expect(insight.requests.count == 1)
         #expect(viewModel.brief?.text == "A camera joined the network.")
@@ -56,10 +64,10 @@ struct ChangeBriefViewModelTests {
         let insight = MockInsightService()
         let viewModel = makeViewModel(insight)
         logJoin("Camera")
-        let first = Task { await viewModel.refresh(scanned: [], saved: [], networkProfileID: nil, speedTests: [], isScanning: false) }
+        let first = Task { await refreshEmpty(viewModel, isScanning: false) }
         await waitUntil { insight.requests.count == 1 }
 
-        await viewModel.refresh(scanned: [], saved: [], networkProfileID: nil, speedTests: [], isScanning: false)
+        await viewModel.refresh(scanned: [], saved: [], networkProfileID: nil, speedTests: [], presence: Self.noScans, isScanning: false)
         insight.send(.finished("A camera joined the network."))
         await first.value
 
@@ -84,12 +92,12 @@ struct ChangeBriefViewModelTests {
         let insight = MockInsightService()
         let viewModel = makeViewModel(insight)
         logJoin("Camera")
-        let first = Task { await viewModel.refresh(scanned: [], saved: [], networkProfileID: nil, speedTests: [], isScanning: false) }
+        let first = Task { await refreshEmpty(viewModel, isScanning: false) }
         await waitUntil { insight.requests.count == 1 }
         insight.send(.finished("A camera joined the network."))
         await first.value
 
-        await viewModel.refresh(scanned: [], saved: [], networkProfileID: UUID(), speedTests: [], isScanning: true)
+        await viewModel.refresh(scanned: [], saved: [], networkProfileID: UUID(), speedTests: [], presence: Self.noScans, isScanning: true)
 
         #expect(viewModel.brief == nil)
     }
@@ -101,7 +109,7 @@ struct ChangeBriefViewModelTests {
         await refreshAnswering(viewModel, insight, with: .finished("A camera joined the network."))
         logJoin("Speaker")
 
-        let second = Task { await viewModel.refresh(scanned: [], saved: [], networkProfileID: nil, speedTests: [], isScanning: false) }
+        let second = Task { await refreshEmpty(viewModel, isScanning: false) }
         await waitUntil { insight.requests.count == 2 }
         #expect(viewModel.brief == nil)
         insight.send(.finished(Self.answer), to: 1)
@@ -114,7 +122,7 @@ struct ChangeBriefViewModelTests {
         let viewModel = makeViewModel(insight)
         logJoin("Camera")
 
-        await viewModel.refresh(scanned: [], saved: [], networkProfileID: nil, speedTests: [], isScanning: true)
+        await viewModel.refresh(scanned: [], saved: [], networkProfileID: nil, speedTests: [], presence: Self.noScans, isScanning: true)
 
         #expect(insight.requests.isEmpty)
         #expect(viewModel.brief == nil)
@@ -125,7 +133,7 @@ struct ChangeBriefViewModelTests {
         let viewModel = makeViewModel(insight)
         logJoin("Camera")
 
-        await viewModel.refresh(scanned: [], saved: [], networkProfileID: nil, speedTests: [], isScanning: false)
+        await viewModel.refresh(scanned: [], saved: [], networkProfileID: nil, speedTests: [], presence: Self.noScans, isScanning: false)
 
         #expect(insight.requests.isEmpty)
         #expect(viewModel.brief == nil)
@@ -137,7 +145,7 @@ struct ChangeBriefViewModelTests {
         logJoin("Camera")
         await refreshAnswering(viewModel, insight, with: .failed)
 
-        await viewModel.refresh(scanned: [], saved: [], networkProfileID: nil, speedTests: [], isScanning: false)
+        await viewModel.refresh(scanned: [], saved: [], networkProfileID: nil, speedTests: [], presence: Self.noScans, isScanning: false)
 
         #expect(viewModel.brief == nil)
         #expect(insight.requests.count == 1)
@@ -147,7 +155,7 @@ struct ChangeBriefViewModelTests {
         let insight = MockInsightService()
         let viewModel = makeViewModel(insight)
         logJoin("Camera")
-        let first = Task { await viewModel.refresh(scanned: [], saved: [], networkProfileID: nil, speedTests: [], isScanning: false) }
+        let first = Task { await refreshEmpty(viewModel, isScanning: false) }
         await waitUntil { insight.requests.count == 1 }
         first.cancel()
         await first.value
@@ -163,13 +171,18 @@ struct ChangeBriefViewModelTests {
         let viewModel = makeViewModel(insight)
         let earlier = SpeedTestResult(downloadSpeed: 300, uploadSpeed: 20, latency: 12)
         earlier.timestamp = Date().addingTimeInterval(-3600)
-        let first = Task { await viewModel.refresh(scanned: [], saved: [], networkProfileID: nil, speedTests: [earlier], isScanning: false) }
+        let first = Task {
+            await viewModel.refresh(scanned: [], saved: [], networkProfileID: nil, speedTests: [earlier], presence: Self.noScans, isScanning: false)
+        }
         await waitUntil { insight.requests.count == 1 }
         insight.send(.finished("The download speed was 300 Mbps."))
         await first.value
         let latest = SpeedTestResult(downloadSpeed: 80, uploadSpeed: 10, latency: 12)
 
-        let second = Task { await viewModel.refresh(scanned: [], saved: [], networkProfileID: nil, speedTests: [latest, earlier], isScanning: false) }
+        let second = Task {
+            await viewModel.refresh(scanned: [], saved: [], networkProfileID: nil, speedTests: [latest, earlier],
+                presence: Self.noScans, isScanning: false)
+        }
         await waitUntil { insight.requests.count == 2 }
         insight.send(.finished("The download speed fell."), to: 1)
         await second.value
@@ -182,7 +195,7 @@ struct ChangeBriefViewModelTests {
         let viewModel = makeViewModel(insight)
         events.log(type: .scanComplete, title: "Scan Complete — 4 devices found", details: nil, severity: .info)
 
-        await viewModel.refresh(scanned: [], saved: [], networkProfileID: nil, speedTests: [], isScanning: false)
+        await viewModel.refresh(scanned: [], saved: [], networkProfileID: nil, speedTests: [], presence: Self.noScans, isScanning: false)
 
         #expect(insight.requests.isEmpty)
         #expect(viewModel.brief == nil)
@@ -193,7 +206,7 @@ struct ChangeBriefViewModelTests {
         let viewModel = makeViewModel(insight)
         events.log(NetworkEvent(type: .deviceJoined, timestamp: Date().addingTimeInterval(-90_000), title: "Device Joined: Old"))
 
-        await viewModel.refresh(scanned: [], saved: [], networkProfileID: nil, speedTests: [], isScanning: false)
+        await viewModel.refresh(scanned: [], saved: [], networkProfileID: nil, speedTests: [], presence: Self.noScans, isScanning: false)
 
         #expect(insight.requests.isEmpty)
     }
@@ -216,7 +229,9 @@ struct ChangeBriefViewModelTests {
         let viewModel = makeViewModel(insight)
         events.log(type: .deviceJoined, title: "Device Joined: Camera", details: "192.168.1.50", severity: .success)
 
-        let task = Task { await viewModel.refresh(scanned: scanned, saved: saved, networkProfileID: home, speedTests: [], isScanning: false) }
+        let task = Task {
+            await viewModel.refresh(scanned: scanned, saved: saved, networkProfileID: home, speedTests: [], presence: Self.noScans, isScanning: false)
+        }
         await waitUntil { insight.requests.count == 1 }
         insight.send(.finished("A camera joined the network."))
         await task.value
@@ -228,5 +243,31 @@ struct ChangeBriefViewModelTests {
             "Devices found by the last scan: 1",
             "Saved devices not found by the last scan: 1"
         ])
+    }
+
+    /// #583: a saved device unseen for a month is a past device, not one the last scan missed.
+    @Test func pastDevicesAreNotCountedAsMissing() async throws {
+        let home = UUID()
+        let old = LocalDevice(ipAddress: "192.168.1.70", macAddress: "AA:BB:CC:00:00:70", customName: "Old TV", networkProfileID: home)
+        old.lastSeen = Date().addingTimeInterval(-30 * 86400)
+        let saved = [
+            LocalDevice(ipAddress: "192.168.1.50", macAddress: "AA:BB:CC:00:00:50", customName: "Garage Camera", networkProfileID: home),
+            LocalDevice(ipAddress: "192.168.1.30", macAddress: "AA:BB:CC:00:00:30", customName: "Office Printer", networkProfileID: home),
+            old
+        ]
+        let scanned = [DiscoveredDevice(ipAddress: "192.168.1.50", latency: 3, discoveredAt: Date(), networkProfileID: home)]
+        let insight = MockInsightService()
+        let viewModel = makeViewModel(insight)
+        events.log(type: .deviceJoined, title: "Device Joined: Camera", details: "192.168.1.50", severity: .success)
+
+        let task = Task {
+            await viewModel.refresh(scanned: scanned, saved: saved, networkProfileID: home, speedTests: [], presence: Self.noScans, isScanning: false)
+        }
+        await waitUntil { insight.requests.count == 1 }
+        insight.send(.finished("A camera joined the network."))
+        await task.value
+
+        let request = try #require(insight.requests.first)
+        #expect(request.facts.suffix(2) == ["Devices found by the last scan: 1", "Saved devices not found by the last scan: 1"])
     }
 }

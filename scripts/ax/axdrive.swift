@@ -13,6 +13,8 @@ import ApplicationServices
 //   axdrive capture-in <id> <file.png>  (the app window only, cropped to that element; no other window shows)
 //   axdrive capture-union <file.png> <id>...  (the app window only, cropped to every element carrying any of
 //                                            the ids, for content macOS 27 stamps one identifier across)
+//   axdrive resize <width> <height>  (moves the app's main window to the main display's top left and
+//                                     resizes it, such as to fit a wide table)
 //   axdrive typefield <id> <text>  (types into the first text field with or inside <id>, for a container
 //                                  whose identifier macOS 27 stamps over its children's)
 let args = CommandLine.arguments
@@ -397,6 +399,24 @@ case "capture-union":
     print("captured \(frames.count) elements to \(args[2])")
 case "ids":
     print(allIDs().joined(separator: "\n"))
+case "resize":
+    guard let pid = app()?.processIdentifier,
+          let window = attr(AXUIElementCreateApplication(pid), kAXMainWindowAttribute) as! AXUIElement?, // swiftlint:disable:this force_cast
+          let width = Double(args[2]), let height = Double(args[3])
+    else { print("NOWINDOW")
+        exit(1)
+    }
+    var origin = CGPoint(x: 0, y: 30)
+    if let position = AXValueCreate(.cgPoint, &origin) {
+        AXUIElementSetAttributeValue(window, kAXPositionAttribute as CFString, position)
+    }
+    var size = CGSize(width: width, height: height)
+    guard let value = AXValueCreate(.cgSize, &size),
+          AXUIElementSetAttributeValue(window, kAXSizeAttribute as CFString, value) == .success
+    else { print("NORESIZE")
+        exit(1)
+    }
+    print("resized to \(args[2])x\(args[3])")
 case "capture":
     guard let wid = windowID() else { print("NOWINDOW")
     exit(1)

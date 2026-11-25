@@ -48,11 +48,13 @@ final class ChangeBriefViewModel {
     ///     devices and count as found or missing.
     ///   - networkProfileID: the network being shown.
     ///   - speedTests: the most recent saved speed tests; the latest two are enough.
+    ///   - presence: past devices (#583), unseen for a week, are not counted as missing.
     func refresh(
         scanned: [DiscoveredDevice],
         saved: [LocalDevice],
         networkProfileID: UUID?,
         speedTests: [SpeedTestResult],
+        presence: PresenceSnapshot,
         isScanning: Bool
     ) async {
         // Another network's brief never stays on screen, even while a scan holds back the new one.
@@ -72,7 +74,9 @@ final class ChangeBriefViewModel {
             to: end,
             deviceNames: ChangeDigestBuilder.deviceNames(network),
             speedTests: speedTests,
-            counts: ChangeDigestCounts(found: found.count, notFound: network.count { !found.contains($0.ipAddress) })
+            counts: ChangeDigestCounts(
+                found: found.count, notFound: network.count { !found.contains($0.ipAddress) && !presence.isPast($0) }
+            )
         )
         await state.ask(request, network: networkProfileID)
     }

@@ -307,7 +307,7 @@ public final class AskToolbox: Sendable {
         "\(snapshot.ago(device.lastSeen)) (\(snapshot.format(device.lastSeen)))"
     }
 
-    /// A device's status in a list, under the list's freshness line: the app's (`AskPresence`).
+    /// A device's status in a list, under the list's freshness line: the app's (`PresenceFreshness`).
     private func statusWord(_ device: AskDevice) -> String {
         snapshot.presence(of: device).label.lowercased()
     }

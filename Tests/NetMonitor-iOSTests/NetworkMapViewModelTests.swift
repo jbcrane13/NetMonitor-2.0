@@ -35,6 +35,7 @@ struct NetworkMapViewModelTests {
 
     func makeUserDefaults() -> UserDefaults {
         let suiteName = "NetworkMapViewModelTests.\(UUID().uuidString)"
+        // swiftlint:disable:next force_unwrapping
         let defaults = UserDefaults(suiteName: suiteName)!
         defaults.removePersistentDomain(forName: suiteName)
         return defaults
@@ -312,5 +313,24 @@ struct NetworkMapViewModelTests {
         let error = await vm.addNetworkProfile(gateway: "192.168.1.1", subnet: "", name: "Bad")
 
         #expect(error != nil)
+    }
+
+    // MARK: - Not checked recently (#583)
+
+    @Test func theMapSaysItsNetworkWasNotCheckedRecentlyOnlyWhenItsLastScanIsOld() {
+        // No active network here, so the map's devices and its scans are those of no network.
+        let network: UUID? = nil
+        let scan = Date(timeIntervalSinceReferenceDate: 800_000_000)
+        let discovery = MockDeviceDiscoveryService()
+        discovery.discoveredDevices = [DiscoveredDevice(ipAddress: "192.168.1.100", latency: 5.0, discoveredAt: scan)]
+        let vm = makeVM(deviceDiscovery: discovery)
+
+        #expect(vm.notCheckedRecentlyNote(PresenceSnapshot(lastScans: [network: scan], now: scan + 600)) == nil)
+        #expect(vm.notCheckedRecentlyNote(PresenceSnapshot(lastScans: [network: scan], now: scan + 3600))
+            == "Not checked recently · last scan 1 hour ago")
+        #expect(vm.notCheckedRecentlyNote(PresenceSnapshot(lastScans: [:], now: scan)) == "Not checked recently · scan to update")
+
+        discovery.isScanning = true
+        #expect(vm.notCheckedRecentlyNote(PresenceSnapshot(lastScans: [network: scan], now: scan + 3600)) == nil)
     }
 }

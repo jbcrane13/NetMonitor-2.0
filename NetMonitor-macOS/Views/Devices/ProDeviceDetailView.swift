@@ -7,6 +7,7 @@ struct ProDeviceDetailView: View {
     @Bindable var device: LocalDevice
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.presence) private var presence
     @Environment(DeviceDiscoveryCoordinator.self) private var coordinator: DeviceDiscoveryCoordinator?
 
     @State private var isEditing = false
@@ -154,12 +155,12 @@ private extension ProDeviceDetailView {
         HStack(spacing: 16) {
             ZStack {
                 RoundedRectangle(cornerRadius: 16)
-                    .fill(MacTheme.Colors.statusColor(device.status.statusType).opacity(0.12))
+                    .fill(MacTheme.Colors.presenceColor(presence.freshness(of: device)).opacity(0.12))
                     .frame(width: 64, height: 64)
 
                 Image(systemName: device.deviceType.iconName)
                     .font(.system(size: 28))
-                    .foregroundStyle(MacTheme.Colors.statusColor(device.status.statusType))
+                    .foregroundStyle(MacTheme.Colors.presenceColor(presence.freshness(of: device)))
             }
 
             VStack(alignment: .leading, spacing: 4) {
@@ -187,15 +188,10 @@ private extension ProDeviceDetailView {
                 }
 
                 HStack(spacing: 8) {
-                    Circle()
-                        .fill(MacTheme.Colors.statusColor(device.status.statusType))
-                        .frame(width: 8, height: 8)
+                    PresenceStatusLabel(device: device, font: .subheadline)
+                        .accessibilityIdentifier("deviceDetail_label_presence")
 
-                    Text(device.status == .cached ? "Cached" : device.status == .online ? "Online" : "Offline")
-                        .font(.subheadline)
-                        .foregroundStyle(device.status == .online ? MacTheme.Colors.success : MacTheme.Colors.labelSecondary)
-
-                    if device.status == .online, let latency = device.lastLatency {
+                    if let latency = presence.currentLatency(device) {
                         Text("·")
                             .foregroundStyle(MacTheme.Colors.labelTertiary)
                         Text(latencyText(latency))
@@ -224,8 +220,8 @@ private extension ProDeviceDetailView {
 
             Spacer()
 
-            // Latency stats cluster (top-right)
-            if !latencyHistory.isEmpty || device.lastLatency != nil {
+            // Latency stats cluster (top-right): only while the device is online (#583).
+            if presence.currentLatency(device) != nil {
                 latencyCluster
             }
         }
@@ -236,7 +232,7 @@ private extension ProDeviceDetailView {
     // MARK: - Latency Cluster (compact)
 
     var latencyCluster: some View {
-        let currentLatency = device.lastLatency
+        let currentLatency = presence.currentLatency(device)
         let minLatency = latencyHistory.min()
         let maxLatency = latencyHistory.max()
         let avgLatency = latencyHistory.isEmpty ? nil : latencyHistory.reduce(0, +) / Double(latencyHistory.count)
@@ -502,17 +498,7 @@ private extension ProDeviceDetailView {
     }
 
     var timeSinceLastSeen: String {
-        let interval = Date().timeIntervalSince(device.lastSeen)
-        if interval < 60 {
-            return "Just now"
-        }
-        if interval < 3600 {
-            return "\(Int(interval / 60)) min"
-        }
-        if interval < 86400 {
-            return "\(Int(interval / 3600)) hours"
-        }
-        return "\(Int(interval / 86400)) days"
+        PresenceFreshness.relativeText(since: device.lastSeen, now: presence.now)
     }
 
     var totalTimeTracked: String {

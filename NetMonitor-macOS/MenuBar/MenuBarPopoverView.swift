@@ -14,6 +14,7 @@ struct MenuBarPopoverView: View {
     @Bindable var session: MonitoringSession
     var deviceDiscovery: DeviceDiscoveryCoordinator
     let onClose: () -> Void
+    @Environment(\.presence) private var presence
 
     var body: some View {
         VStack(spacing: 0) {
@@ -279,11 +280,13 @@ struct MenuBarPopoverView: View {
 
     // MARK: - Problem Devices
 
-    /// Devices that are offline or have high latency — surfaced prominently
+    /// Devices that are offline or have high latency, surfaced prominently. Past devices and
+    /// rows whose network wasn't checked recently are no news (#583).
     private var problemDevices: [LocalDevice] {
         deviceDiscovery.discoveredDevices.filter { device in
-            device.status == .offline ||
-            (device.lastLatency ?? 0) > 100
+            let freshness = presence.freshness(of: device)
+            guard !presence.isPast(device), freshness != .notCheckedRecently else { return false }
+            return freshness == .offline || (device.lastLatency ?? 0) > 100
         }
         .prefix(3)
         .map { $0 }
@@ -307,7 +310,7 @@ struct MenuBarPopoverView: View {
                     HStack(spacing: 6) {
                         Image(systemName: device.deviceType.iconName)
                             .font(.system(size: 10))
-                            .foregroundStyle(device.status == .offline ? .red : MacTheme.Colors.warning)
+                            .foregroundStyle(presence.freshness(of: device) == .offline ? .red : MacTheme.Colors.warning)
                             .frame(width: 14)
 
                         Text(device.displayName)
@@ -316,7 +319,7 @@ struct MenuBarPopoverView: View {
 
                         Spacer()
 
-                        if device.status == .offline {
+                        if presence.freshness(of: device) == .offline {
                             Text("Offline")
                                 .font(.system(size: 9, weight: .medium))
                                 .foregroundStyle(.red)
@@ -509,13 +512,14 @@ struct MenuBarPopoverView: View {
     private var offlineTargetCount: Int { session.offlineTargetCount }
     private var averageLatencyString: String { session.averageLatencyString }
 
-    /// Number of online devices discovered by the scanner
+    /// Online devices out of the network's current ones (past devices left out, #583).
     private var deviceCountString: String {
-        let total = deviceDiscovery.discoveredDevices.count
+        let current = deviceDiscovery.discoveredDevices.filter { !presence.isPast($0) }
+        let total = current.count
         if total == 0 {
             return "—"
         }
-        let online = deviceDiscovery.discoveredDevices.filter { $0.status == .online }.count
+        let online = current.count { presence.freshness(of: $0).isOnline }
         return "\(online)/\(total)"
     }
 

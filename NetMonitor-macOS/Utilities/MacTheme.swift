@@ -355,16 +355,6 @@ enum MacTheme {
             }
         }
 
-        // MARK: — Status color
-
-        static func statusColor(_ status: StatusType) -> Color {
-            switch status {
-            case .online: return success
-            case .cached: return warning
-            default:      return Color.gray
-            }
-        }
-
         // MARK: — Health score color
 
         static func healthScoreColor(_ score: Int) -> Color {

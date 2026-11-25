@@ -38,10 +38,13 @@ enum DataExportService {
         speedTests: [SpeedTestResult],
         insightService: any InsightServiceProtocol = PhoneInsight.shared,
         summaryTimeout: Duration = .seconds(20),
-        now: Date = Date()
+        now: Date = Date(),
+        presence: PresenceSnapshot
     ) async -> Data? {
         var executiveSummary: PDFReportGenerator.ExecutiveSummary?
-        if let request = ReportSummaryBuilder.request(devices: devices, toolResults: toolResults, speedTests: speedTests, now: now),
+        if let request = ReportSummaryBuilder.request(
+            devices: devices, toolResults: toolResults, speedTests: speedTests, presence: presence, now: now
+        ),
            let answer = await InsightSummarizer.outcome(for: request, service: insightService, timeout: summaryTimeout).answer {
             executiveSummary = PDFReportGenerator.ExecutiveSummary(text: answer.text, keyPoints: request.observations, source: answer.source)
         }
@@ -49,6 +52,7 @@ enum DataExportService {
             devices: devices,
             toolResults: toolResults,
             speedTests: speedTests,
+            presence: presence,
             executiveSummary: executiveSummary
         )
     }

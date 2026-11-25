@@ -20,10 +20,10 @@ public struct AskAnswer: Equatable, Sendable {
         /// The name when the question was answered; the views show the current one.
         public let name: String
         /// The app's status for the device, shown beside it: the model never states presence.
-        public let presence: AskPresence
+        public let presence: PresenceFreshness
         public let lastSeen: Date
 
-        public init(id: UUID, name: String, presence: AskPresence, lastSeen: Date) {
+        public init(id: UUID, name: String, presence: PresenceFreshness, lastSeen: Date) {
             self.id = id
             self.name = name
             self.presence = presence

@@ -71,6 +71,19 @@ final class NetworkMapViewModel {
         deviceDiscoveryService.isScanning
     }
 
+    /// The map's note when its network's last scan is older than the grace interval (#583): its
+    /// nodes are that scan's, so they are not online now. Nil while scanning, with no nodes, or
+    /// when the scan is recent.
+    func notCheckedRecentlyNote(_ presence: PresenceSnapshot) -> String? {
+        let devices = discoveredDevices
+        guard !isScanning, !devices.isEmpty else { return nil }
+        let network = devices.lazy.compactMap(\.networkProfileID).first ?? activeNetwork?.id
+        guard !presence.isNetworkChecked(network) else { return nil }
+        let lastScan = presence.lastScan(for: network)
+        return lastScan.map { "Not checked recently · last scan \(PresenceFreshness.relativeText(since: $0, now: presence.now))" }
+            ?? "Not checked recently · scan to update"
+    }
+
     var scanProgress: Double {
         deviceDiscoveryService.scanProgress
     }
@@ -250,10 +263,8 @@ final class NetworkMapViewModel {
 
     private func isHostReachable(_ host: String) async -> Bool {
         let pingStream = await pingService.ping(host: host, count: 2, timeout: 1.5)
-        for await result in pingStream {
-            if !result.isTimeout {
-                return true
-            }
+        for await result in pingStream where !result.isTimeout {
+            return true
         }
         return false
     }

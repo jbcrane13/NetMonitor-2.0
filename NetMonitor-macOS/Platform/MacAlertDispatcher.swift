@@ -26,9 +26,13 @@ final class MacAlertDispatcher {
     ) {
         self.defaults = defaults
         notifier = MacAlertNotifier(service: service, defaults: defaults)
-        rules = MacRuleAlerts(store: store, service: service, defaults: defaults) { [weak self] in
-            currentDevices?() ?? (self?.discovery?.discoveredDevices ?? [], self?.discovery?.networkProfile?.id)
-        }
+        rules = MacRuleAlerts(
+            store: store, service: service, defaults: defaults,
+            currentDevices: { [weak self] in
+                currentDevices?() ?? (self?.discovery?.discoveredDevices ?? [], self?.discovery?.networkProfile?.id)
+            },
+            presence: { [weak self] in self?.discovery?.presence() ?? PresenceSnapshot(lastScans: [:], now: Date()) }
+        )
         if let insightService {
             notifier.writer = NotificationTextWriter(service: insightService) { [weak self] in
                 self?.discovery?.isScanning ?? false

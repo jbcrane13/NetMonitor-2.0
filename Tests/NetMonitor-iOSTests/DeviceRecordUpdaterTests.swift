@@ -111,7 +111,8 @@ final class DeviceRecordUpdaterTests {
         #expect(statuses == ["offline", "online"])
 
         // So does the PDF report's summary: two devices, one online.
-        let pdf = PDFReportGenerator.generateNetworkReport(devices: saved, toolResults: [], speedTests: [])
+        let presence = PresenceSnapshot(lastScans: [saved[0].networkProfileID: clock.now], now: clock.now)
+        let pdf = PDFReportGenerator.generateNetworkReport(devices: saved, toolResults: [], speedTests: [], presence: presence)
         let text = (pdf.flatMap(PDFDocument.init(data:))?.string ?? "").replacingOccurrences(of: "\n", with: " ")
         #expect(text.contains("Total Devices 2"), "\(text.prefix(300))")
         #expect(text.contains("Online 1"), "\(text.prefix(300))")

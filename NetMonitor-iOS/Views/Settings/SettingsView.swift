@@ -4,6 +4,7 @@ import NetMonitorCore
 
 struct SettingsView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(DevicePresenceModel.self) private var presenceModel: DevicePresenceModel?
     @State private var viewModel = SettingsViewModel()
     // Observe ThemeManager so accent color changes re-render this view
     private var themeManager = ThemeManager.shared
@@ -347,7 +348,8 @@ struct SettingsView: View {
             devices: devices,
             toolResults: toolResults,
             speedTests: speedTestResults,
-            insightService: UITestBootstrap.insightService ?? PhoneInsight.shared
+            insightService: UITestBootstrap.insightService ?? PhoneInsight.shared,
+            presence: presenceModel?.snapshot ?? DevicePresenceModel.noScans
         ),
         let url = DataExportService.writeToTempFile(data: data, name: "netmonitor-report", ext: "pdf") else { return }
         uiTestReportPreview = UITestBootstrap.reportPreview(of: data)

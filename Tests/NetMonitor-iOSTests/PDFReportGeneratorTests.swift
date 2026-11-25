@@ -137,7 +137,8 @@ final class PDFReportGeneratorTests: XCTestCase {
         let (devices, results, tests) = records()
         let service = ReportInsightService(isAvailable: false, answer: "1 device is offline.")
         let data = await DataExportService.exportFullReportAsPDF(
-            devices: devices, toolResults: results, speedTests: tests, insightService: service
+            devices: devices, toolResults: results, speedTests: tests, insightService: service,
+            presence: PresenceSnapshot(lastScans: [:], now: Date())
         )
         let plain = PDFReportGenerator.generateNetworkReport(devices: devices, toolResults: results, speedTests: tests)
 
@@ -151,7 +152,8 @@ final class PDFReportGeneratorTests: XCTestCase {
         let (devices, results, tests) = records()
         let service = ReportInsightService(isAvailable: true, answer: "One of the 2 devices is offline; the latest download was 412.0 Mbps.")
         let data = await DataExportService.exportFullReportAsPDF(
-            devices: devices, toolResults: results, speedTests: tests, insightService: service
+            devices: devices, toolResults: results, speedTests: tests, insightService: service,
+            presence: PresenceSnapshot(lastScans: [:], now: Date())
         )
         let plain = PDFReportGenerator.generateNetworkReport(devices: devices, toolResults: results, speedTests: tests)
 
@@ -169,7 +171,8 @@ final class PDFReportGeneratorTests: XCTestCase {
         let (devices, results, tests) = records()
         let service = ReportInsightService(isAvailable: true, answer: "Three devices are offline.")
         let data = await DataExportService.exportFullReportAsPDF(
-            devices: devices, toolResults: results, speedTests: tests, insightService: service
+            devices: devices, toolResults: results, speedTests: tests, insightService: service,
+            presence: PresenceSnapshot(lastScans: [:], now: Date())
         )
         XCTAssertEqual(service.requests.count, 1)
         XCTAssertFalse(text(data).contains("Executive Summary"))

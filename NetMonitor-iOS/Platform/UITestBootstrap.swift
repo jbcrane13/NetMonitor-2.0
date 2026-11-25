@@ -452,6 +452,26 @@ extension UITestBootstrap {
         #endif
     }
 
+    /// With `UITEST_SEED_PAST_DEVICE=1` (Debug builds, #583): an offline TV on the UI-test network
+    /// last seen 8 days before the scan clock's start, a past device the list hides behind
+    /// "Show past devices". Never twice.
+    static func seedPastDeviceIfNeeded(in context: ModelContext) {
+        #if DEBUG
+        guard isUITesting, ProcessInfo.processInfo.environment["UITEST_SEED_PAST_DEVICE"] == "1",
+              !((try? context.fetch(FetchDescriptor<LocalDevice>()))?.contains { $0.ipAddress == pastDeviceIP } ?? false)
+        else { return }
+        let row = LocalDevice(
+            ipAddress: pastDeviceIP, macAddress: "02:00:00:01:00:50", hostname: "uitest-old-tv",
+            deviceType: .tv, status: .offline, networkProfileID: networkProfileID
+        )
+        row.lastSeen = scanClockStart.addingTimeInterval(-8 * 86400)
+        context.insert(row)
+        try? context.save()
+        #endif
+    }
+
+    static let pastDeviceIP = "192.168.1.50"
+
     /// With `UITEST_SEED_RULE_DEVICES=1` (Debug builds): a printer and a NAS on the UI-test
     /// network, for describing rules about "the printer". Never twice.
     static func seedRuleDevicesIfNeeded(in context: ModelContext) {
@@ -484,7 +504,9 @@ extension UITestBootstrap {
         guard isUITesting, ProcessInfo.processInfo.environment["UITEST_SCAN_CLOCK"] == "1" else { return nil }
         return {
             defer { scanClockTicks += 1 }
-            return scanClockStart.addingTimeInterval(Double(scanClockTicks) * 600)
+            let now = scanClockStart.addingTimeInterval(Double(scanClockTicks) * 600)
+            lastScanClockReading = now
+            return now
         }
         #else
         return nil
@@ -494,6 +516,21 @@ extension UITestBootstrap {
     // swiftlint:disable:next force_unwrapping
     static let scanClockStart = Calendar.current.date(from: DateComponents(year: 2026, month: 11, day: 20, hour: 8))!
     private static var scanClockTicks = 0
+    private static var lastScanClockReading: Date?
+
+    /// The time saved devices' presence is shown as of (#583): the wall clock; under
+    /// `UITEST_SCAN_CLOCK=1` the latest scan's time on that clock (its start before any scan).
+    /// `UITEST_PRESENCE_OFFSET=<seconds>` moves it on, so a network reads "Not checked recently".
+    static func presenceNow() -> Date {
+        #if DEBUG
+        guard isUITesting else { return Date() }
+        let environment = ProcessInfo.processInfo.environment
+        let base = environment["UITEST_SCAN_CLOCK"] == "1" ? lastScanClockReading ?? scanClockStart : Date()
+        return base.addingTimeInterval(environment["UITEST_PRESENCE_OFFSET"].flatMap(TimeInterval.init) ?? 0)
+        #else
+        return Date()
+        #endif
+    }
 
     /// With `UITEST_SCAN_DROP_LAST=1`: scans after the first no longer find uitest-device-4. Always
     /// false in release builds.
