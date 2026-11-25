@@ -7,7 +7,7 @@ import NetMonitorCore
 /// Area 6d: Silent failure error surfacing tests for DeviceDiscoveryCoordinator.
 ///
 /// DeviceDiscoveryCoordinator has `try?` sites at:
-///   - mergeDiscoveredDevices(): `let existing = try? modelContext.fetch(descriptor).first`
+///   - reconcileScan(): `let existing = try? modelContext.fetch(descriptor).first`
 ///     (line ~168) — SwiftData fetch failure silently treated as "no existing device"
 ///   - fetchDevices(): `return (try? modelContext.fetch(descriptor)) ?? []`
 ///     (line ~464) — fetch failure silently returns empty array
@@ -36,7 +36,9 @@ struct DeviceDiscoveryCoordinatorErrorTests {
 
     private func makeFreshDefaults() -> (UserDefaults, String) {
         let suite = "DeviceDiscoveryCoordinatorErrorTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suite)!
+        guard let defaults = UserDefaults(suiteName: suite) else {
+            preconditionFailure("Test defaults suite \(suite) is unavailable")
+        }
         defaults.removePersistentDomain(forName: suite)
         return (defaults, suite)
     }
@@ -48,7 +50,8 @@ struct DeviceDiscoveryCoordinatorErrorTests {
             networkProfileManager: NetworkProfileManager(
                 userDefaults: makeFreshDefaults().0,
                 activeProfilesProvider: { [] }
-            )
+            ),
+            scanHistory: .forTesting()
         )
     }
 
@@ -66,43 +69,43 @@ struct DeviceDiscoveryCoordinatorErrorTests {
 
     // MARK: - Merge with Empty Input: No Crash
 
-    @Test("mergeDiscoveredDevices with empty array: no crash, state unchanged")
+    @Test("reconcileScan with empty array: no crash, state unchanged")
     func mergeEmptyArrayNoCrash() throws {
         let (container, context) = try makeInMemoryStore()
         _ = container
         let coordinator = makeCoordinator(context: context)
 
-        coordinator.mergeDiscoveredDevices([], profileID: nil)
+        coordinator.reconcileScan([LocalDiscoveredDevice](), profileID: nil)
 
         #expect(coordinator.discoveredDevices.isEmpty)
     }
 
-    // MARK: - Merge: Device with Empty MAC Falls Back to IP Matching
+    // MARK: - Merge: Devices without a MAC need agreeing names (#596)
 
-    @Test("Device with empty MAC address uses IP-based matching")
-    func emptyMACUsesIPMatching() throws {
+    @Test("A different name at a MAC-less device's address is a new device")
+    func emptyMACWithADifferentNameIsANewDevice() throws {
         let (container, context) = try makeInMemoryStore()
         _ = container
         let coordinator = makeCoordinator(context: context)
 
         // First merge: device with empty MAC
-        coordinator.mergeDiscoveredDevices([
+        coordinator.reconcileScan([
             LocalDiscoveredDevice(ipAddress: "192.168.1.50", macAddress: "", hostname: "camera.local")
         ], profileID: nil)
 
         // Second merge: same IP, empty MAC, different hostname
-        coordinator.mergeDiscoveredDevices([
+        coordinator.reconcileScan([
             LocalDiscoveredDevice(ipAddress: "192.168.1.50", macAddress: "", hostname: "camera-updated.local")
         ], profileID: nil)
 
-        // Should be 1 device (matched by IP), not 2
-        #expect(coordinator.discoveredDevices.count == 1)
-        #expect(coordinator.discoveredDevices.first?.hostname == "camera-updated.local")
+        // An address alone never identifies a device (DHCP reuse): two rows, the first unchanged.
+        #expect(coordinator.discoveredDevices.count == 2)
+        #expect(Set(coordinator.discoveredDevices.compactMap(\.hostname)) == ["camera.local", "camera-updated.local"])
     }
 
     // MARK: - Mark Offline: Non-Matching Profile Devices Unaffected
 
-    @Test("markOfflineDevices only affects devices with matching profileID")
+    @Test("Rows past grace go offline only on the scanned network")
     func markOfflineProfileIsolation() throws {
         let (container, context) = try makeInMemoryStore()
         _ = container
@@ -131,9 +134,11 @@ struct DeviceDiscoveryCoordinatorErrorTests {
 
         let coordinator = makeCoordinator(context: context)
 
-        // Mark offline for profileA with no current IPs — only profileA devices affected
-        coordinator.mergeDiscoveredDevices([], profileID: profileA)
-        coordinator.markOfflineDevices(currentIPs: Set(), profileID: profileA)
+        // Scans of profileA in which only another device answers, past the grace policy (#596).
+        coordinator.missPastGrace(
+            answering: [LocalDiscoveredDevice(ipAddress: "10.0.0.9", macAddress: "AA:AA:AA:AA:AA:09", hostname: nil)],
+            profileID: profileA
+        )
 
         // Fetch all devices to check
         let allDevices = try context.fetch(FetchDescriptor<LocalDevice>())
@@ -143,7 +148,7 @@ struct DeviceDiscoveryCoordinatorErrorTests {
         #expect(devA?.status == .offline,
                 "ProfileA device should be marked offline")
         #expect(devB?.status == .online,
-                "ProfileB device should be unaffected — markOfflineDevices skips non-matching profiles")
+                "ProfileB device should be unaffected — a scan only changes its own network's rows")
     }
 
     // MARK: - Scan State: stopScan Resets isScanning
@@ -192,26 +197,36 @@ struct DeviceDiscoveryCoordinatorErrorTests {
                 "Documents current behavior: empty store returns empty array via try? ?? []")
     }
 
-    @Test("mergeDiscoveredDevices: fetch failure during duplicate check treats device as new")
-    func mergeFetchFailureTreatsAsNew() throws {
+    /// The reconciler's read of the rows fails: nothing is saved or recorded, nothing reaches the
+    /// Timeline, and the same scan applies once the store answers (review on #601).
+    @Test("reconcileScan: a failed fetch saves nothing, and the scan applies once the store answers")
+    func aFailedFetchSavesNothingAndTheScanAppliesLater() throws {
         let (container, context) = try makeInMemoryStore()
         _ = container
-        let coordinator = makeCoordinator(context: context)
+        final class StoreSwitch { var isDown = true }
+        struct StoreUnavailable: Error {}
+        let store = StoreSwitch()
+        let coordinator = DeviceDiscoveryCoordinator(
+            modelContext: context,
+            bonjourScanner: BonjourDiscoveryService(),
+            networkProfileManager: NetworkProfileManager(),
+            scanHistory: .forTesting(),
+            reconcilerFetch: { context in
+                if store.isDown {
+                    throw StoreUnavailable()
+                }
+                return try ScanReconciler.fetchAllRows(context)
+            }
+        )
+        let scan = [LocalDiscoveredDevice(ipAddress: "192.168.1.1", macAddress: "CC:CC:CC:CC:CC:01", hostname: nil)]
+        let now = Date()
 
-        // The production code at line ~168:
-        //   let existing = try? modelContext.fetch(descriptor).first
-        //
-        // If the fetch throws, existing is nil, so the device is treated as new
-        // and inserted. This could cause duplicates if the store is temporarily
-        // unreachable then recovers.
-        //
-        // GAP: A failing fetch should be distinguished from "no match found."
+        #expect(coordinator.reconcileScan(scan, profileID: nil, now: now) == false)
+        #expect(try context.fetch(FetchDescriptor<LocalDevice>()).isEmpty)
+        #expect(coordinator.discoveredDevices.isEmpty)
 
-        coordinator.mergeDiscoveredDevices([
-            LocalDiscoveredDevice(ipAddress: "192.168.1.1", macAddress: "CC:CC:CC:CC:CC:01", hostname: nil)
-        ], profileID: nil)
-
-        #expect(coordinator.discoveredDevices.count == 1,
-                "Documents current behavior: successful fetch correctly finds/inserts device")
+        store.isDown = false
+        #expect(coordinator.reconcileScan(scan, profileID: nil, now: now))
+        #expect(coordinator.discoveredDevices.count == 1)
     }
 }

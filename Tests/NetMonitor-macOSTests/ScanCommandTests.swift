@@ -32,7 +32,8 @@ struct ScanCommandTests {
             modelContext: container.mainContext,
             bonjourScanner: BonjourDiscoveryService(),
             networkProfileManager: manager,
-            pipelineFactory: { _ in ScanPipeline(steps: [ScanPipeline.Step(phases: [HoldScanPhase()], concurrent: false)]) }
+            pipelineFactory: { _ in ScanPipeline(steps: [ScanPipeline.Step(phases: [HoldScanPhase()], concurrent: false)]) },
+            scanHistory: .forTesting()
         )
         defer { coordinator.stopScan() }
 

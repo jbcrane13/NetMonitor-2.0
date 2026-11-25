@@ -330,7 +330,9 @@ struct NetMonitorApp: App {
             bonjourScanner: BonjourDiscoveryService(),
             networkProfileManager: profileManager,
             pipelineFactory: UITestScanFixture.pipelineFactory,
-            suggester: Self.uiTestSuggester
+            suggester: Self.uiTestSuggester,
+            scanHistory: UITestScanFixture.scanHistory(),
+            clock: UITestScanFixture.scanClock ?? Date.init
         )
         discovery.changeTracker = UITestScanFixture.changeTracker(reset: HistoryFileLocation.current.resetRequested)
         deviceDiscovery = discovery
@@ -430,6 +432,44 @@ enum UITestScanFixture {
     static let printerMAC = "00:1B:A9:77:00:20"
     static let printerHostname = "uitest-printer"
 
+    /// Scans the fixture has answered, for `UITEST_SCAN_DROP_LAST`.
+    @MainActor private static var scansRun = 0
+
+    /// The fixture's scan: both devices, except that with `UITEST_SCAN_DROP_LAST=1` scans after
+    /// the first no longer find the printer, so a UI test sees it go offline under grace (#596).
+    @MainActor
+    static func nextScan() -> [DiscoveredDevice] {
+        defer { scansRun += 1 }
+        let drops = ProcessInfo.processInfo.environment["UITEST_SCAN_DROP_LAST"] == "1" && scansRun > 0
+        return drops ? devices.filter { $0.ipAddress != printerIP } : devices
+    }
+
+    /// With `UITEST_SCAN_CLOCK=1`: the time each scan happens, starting at launch and stepping
+    /// 10 minutes per scan, so the grace interval passes without waiting (#596).
+    @MainActor
+    static var scanClock: (@MainActor () -> Date)? {
+        guard ProcessInfo.processInfo.environment["UITEST_SCAN_CLOCK"] == "1" else { return nil }
+        let start = Date()
+        var ticks = 0
+        return {
+            defer { ticks += 1 }
+            return start.addingTimeInterval(Double(ticks) * 600)
+        }
+    }
+
+    /// The reconciler's scan history in the tracker's suite, emptied at every launch: a stepped
+    /// `scanClock` leaves scans dated ahead, which would make the next launch's scans look older
+    /// and be skipped.
+    @MainActor
+    static func scanHistory() -> ScanHistory {
+        guard let defaults = UserDefaults(suiteName: trackerSuite) else {
+            preconditionFailure("UI-test tracker suite \(trackerSuite) is unavailable")
+        }
+        let history = ScanHistory(defaults: defaults)
+        history.clearAll()
+        return history
+    }
+
     static var devices: [DiscoveredDevice] {
         [
             DiscoveredDevice(
@@ -513,7 +553,7 @@ enum UITestScanFixture {
         let weight: Double = 1.0
 
         func execute(context: ScanContext, accumulator: ScanAccumulator, onProgress: @Sendable (Double) async -> Void) async {
-            for device in UITestScanFixture.devices {
+            for device in await UITestScanFixture.nextScan() {
                 await accumulator.upsert(device)
             }
             await onProgress(1.0)

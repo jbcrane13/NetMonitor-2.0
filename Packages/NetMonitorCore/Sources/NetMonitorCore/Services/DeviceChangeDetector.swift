@@ -309,6 +309,19 @@ public final class DeviceChangeTracker {
         return result.events
     }
 
+    /// Forgets the scans `scope`'s devices have missed, keeping who they are and whether they
+    /// went offline: for a new owner of the grace count (the Mac's `ScanHistory` after an update,
+    /// #596), so "went offline" waits for the same misses the saved rows count.
+    public func forgetMisses(for scope: String) {
+        var registry = load()
+        guard var known = registry[scope] else { return }
+        for index in known.indices where !known[index].isOffline {
+            known[index].missedScans = 0
+        }
+        registry[scope] = known
+        save(registry)
+    }
+
     /// Whether `scope` has stored state yet.
     public func hasState(for scope: String) -> Bool {
         load()[scope] != nil

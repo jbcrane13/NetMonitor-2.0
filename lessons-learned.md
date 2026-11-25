@@ -143,7 +143,7 @@ Project-specific notes for agents. Global lessons live in `~/.claude/lessons-lea
 
   Each fix was small once found. Stop gates before editing; a run that overlaps edits proves nothing.
 - **Keep a scan's finished list apart from its progress list.** `discoveredDevices` is presentation (progress snapshots drop cached flags; a stopped scan leaves its partial list). Anything that persists presence or confirms identity reads `completedScanDevices`, set only with `lastScanDate`.
-- **Blake's rule for devices without a MAC (2026-11-24):** an address alone never identifies a device; it needs agreeing names (both missing agree). `PresenceMatch` holds it for the reconciler and detail's list entry; the Mac still differs (#596).
+- **Blake's rule for devices without a MAC (2026-11-24):** an address alone never identifies a device; it needs agreeing names (both missing agree). `PresenceMatch` holds it for the reconciler and detail's list entry; the Mac uses the same reconciler since #596. The lead refined it the same day: a missing name is unknown, and then the row is reused only if it was seen at that address within grace.
 
 ## 2026-11-24 — Mac answers model requests for the iPhone (#457)
 - **Add companion message types behind an advertised capability, not a protocol bump.** An unknown `type` already fails to decode and is dropped without closing the link (the Mac replies `DECODE_ERROR`), but old builds still shouldn't receive new types. The Mac lists `insight.v1` in the optional `HeartbeatPayload.capabilities`, and the phone sends only to a Mac that listed it. Heartbeats suit this: the Mac sends one on connect and in reply to every phone heartbeat.
