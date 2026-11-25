@@ -177,6 +177,7 @@
 		4459481DA501075D8E72DC0B /* TabNavigationUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48CEEE4D5A124B872F21F508 /* TabNavigationUITests.swift */; };
 		450C5A0DBBBFA087B79AAA9E /* PlatformServiceGapTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D6A9E0C9DE615916C7BBA89 /* PlatformServiceGapTests.swift */; };
 		4535749A6ABEA495B758D569 /* BonjourDiscoveryToolViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E2DDEE169D6930C49B355DF /* BonjourDiscoveryToolViewModelTests.swift */; };
+		45724045DBFFA1365830BA10 /* DeviceDiscoveryCoordinatorPresenceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 385E6F560E0E0752CBDAA7A7 /* DeviceDiscoveryCoordinatorPresenceTests.swift */; };
 		45A48DC3C46952C69E5E07B2 /* HeatmapAdvisorUITestFixture.swift in Sources */ = {isa = PBXBuildFile; fileRef = 886ACE7B6E16CDED42BA65DB /* HeatmapAdvisorUITestFixture.swift */; };
 		4604FF1A5966EFBD1C2F7190 /* HeatmapSidebarSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 207F5A4C57A503A97B48F7D9 /* HeatmapSidebarSheet.swift */; };
 		46A2AA640F5B4C1E7ED80A14 /* ToolsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FF4F9ADB872CDB93DAA9636 /* ToolsView.swift */; };
@@ -796,6 +797,7 @@
 		37AE458090167806D6FA7CFE /* UITestPlainRules.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UITestPlainRules.swift; sourceTree = "<group>"; };
 		383FA50DFE0EA7F9EF69192B /* ConnectionInfoCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionInfoCard.swift; sourceTree = "<group>"; };
 		385D78F7ADDB4090CCE4EEA2 /* WorldPingToolViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorldPingToolViewModel.swift; sourceTree = "<group>"; };
+		385E6F560E0E0752CBDAA7A7 /* DeviceDiscoveryCoordinatorPresenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceDiscoveryCoordinatorPresenceTests.swift; sourceTree = "<group>"; };
 		38B2842ECC13155C42B01207 /* WakeOnLanToolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WakeOnLanToolView.swift; sourceTree = "<group>"; };
 		393DEE2EE70B17035AADAB91 /* HealthHistoryMacTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthHistoryMacTests.swift; sourceTree = "<group>"; };
 		3970DE448DE2D230066F264D /* ISPCardErrorSurfacingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ISPCardErrorSurfacingTests.swift; sourceTree = "<group>"; };
@@ -2219,6 +2221,7 @@
 				AD009F26DFFECED8731E7A9F /* DeviceDiscoveryCoordinatorFixturePhases.swift */,
 				A242FEF3FDE1E77C8561270B /* DeviceDiscoveryCoordinatorFixtures.swift */,
 				82587ACE5E6C4E18385B83D9 /* DeviceDiscoveryCoordinatorLiveScanTests.swift */,
+				385E6F560E0E0752CBDAA7A7 /* DeviceDiscoveryCoordinatorPresenceTests.swift */,
 				3EA8AD9BFE5B7952E2CA9DD7 /* DeviceDiscoveryCoordinatorPrivateMACTests.swift */,
 				787F99955E1E46F23A988383 /* DeviceDiscoveryCoordinatorReconcileTests.swift */,
 				2A385E58594F43F7929CB055 /* DeviceDiscoveryCoordinatorSaveErrorTests.swift */,
@@ -3104,6 +3107,7 @@
 				3443609DD098615E0019DFFA /* DeviceDiscoveryCoordinatorFixturePhases.swift in Sources */,
 				C25F716B54CA12D16EFE75C8 /* DeviceDiscoveryCoordinatorFixtures.swift in Sources */,
 				5095FEFFA1501CF8B77D416B /* DeviceDiscoveryCoordinatorLiveScanTests.swift in Sources */,
+				45724045DBFFA1365830BA10 /* DeviceDiscoveryCoordinatorPresenceTests.swift in Sources */,
 				526A7FD22841DB69E7436635 /* DeviceDiscoveryCoordinatorPrivateMACTests.swift in Sources */,
 				5A6C80EE867D30469E28BB3D /* DeviceDiscoveryCoordinatorReconcileTests.swift in Sources */,
 				2D13D963FF2F70618466B87F /* DeviceDiscoveryCoordinatorSaveErrorTests.swift in Sources */,
