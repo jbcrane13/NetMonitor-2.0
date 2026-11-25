@@ -47,7 +47,8 @@ final class ChangeBriefMacViewModel {
     /// from the last one.
     /// - Parameter devices: the saved devices; those of the network (or of none) name devices
     ///   and count as found (online after the last scan) or not found.
-    func refresh(devices: [LocalDevice], networkProfileID: UUID?, isScanning: Bool) async {
+    /// - Parameter presence: past devices (#583), unseen for a week, are not counted as not found.
+    func refresh(devices: [LocalDevice], networkProfileID: UUID?, presence: PresenceSnapshot, isScanning: Bool) async {
         // Another network's brief never stays on screen, even while a scan holds back the new one.
         state.keepOnly(network: networkProfileID)
         guard !isScanning else { return }
@@ -56,7 +57,8 @@ final class ChangeBriefMacViewModel {
             return
         }
         let network = devices.filter { $0.networkProfileID == nil || $0.networkProfileID == networkProfileID }
-        let found = network.count { $0.status == .online }
+        let counted = network.filter { !presence.isPast($0) }
+        let found = counted.count { $0.status == .online }
         let end = now()
         let start = end.addingTimeInterval(-Self.window)
         // Events with no network predate network IDs; like iOS, they still count.
@@ -69,7 +71,7 @@ final class ChangeBriefMacViewModel {
             deviceNames: ChangeDigestBuilder.deviceNames(network),
             deviceNamesByID: ChangeDigestBuilder.deviceNamesByID(network),
             speedTests: Self.latestTwo(speedTests()),
-            counts: ChangeDigestCounts(found: found, notFound: network.count - found)
+            counts: ChangeDigestCounts(found: found, notFound: counted.count - found)
         )
         await state.ask(request, network: networkProfileID)
     }

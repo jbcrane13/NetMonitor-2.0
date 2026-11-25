@@ -18,7 +18,7 @@ struct ProModeRowView: View {
     static let macWidth: CGFloat = 100
     static let portsWidth: CGFloat = 100
     static let latencyWidth: CGFloat = 70
-    static let seenWidth: CGFloat = 50
+    static let seenWidth: CGFloat = 90
     static let columnSpacing: CGFloat = 12
 
     var body: some View {
@@ -26,7 +26,7 @@ struct ProModeRowView: View {
             // Status
             PresenceDot(
                 freshness: presence.freshness(of: device),
-                accessibilityText: "\(presence.freshness(of: device).label), \(presence.lastSeenText(device))"
+                accessibilityText: presence.accessibilityText(device)
             )
             .accessibilityIdentifier("devices_pro_presence_\(device.ipAddress)")
             .frame(width: Self.statusWidth, alignment: .leading)
@@ -79,8 +79,9 @@ struct ProModeRowView: View {
             Text(lastSeenText)
                 .foregroundStyle(MacTheme.Colors.textTertiary)
                 .frame(width: Self.seenWidth, alignment: .leading)
+                // The status dot says the state and last seen to VoiceOver once.
+                .accessibilityHidden(true)
         }
-
         .font(.system(.body, design: .default))
         .foregroundStyle(MacTheme.Colors.textPrimary)
         .padding(.horizontal, 16)
@@ -121,7 +122,7 @@ struct ProModeRowView: View {
     // MARK: - Last Seen
 
     private var lastSeenText: String {
-        DeviceList.recencyLabel(since: device.lastSeen, now: presence.now, style: .compact)
+        presence.relativeLastSeen(device)
     }
 }
 

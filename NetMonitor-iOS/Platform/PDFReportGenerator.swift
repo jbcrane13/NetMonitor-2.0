@@ -207,7 +207,7 @@ public enum PDFReportGenerator {
             ], y: cursor, header: false)
         }
         if pastCount > 0 {
-            let days = Int(PresenceFreshness.pastDeviceAge / 86400)
+            let days = PresenceFreshness.pastDeviceDays
             cursor = drawNote("\(pastCount) past \(pastCount == 1 ? "device" : "devices") (not seen for \(days) days) not listed.", y: cursor)
         }
         return cursor + sectionGap

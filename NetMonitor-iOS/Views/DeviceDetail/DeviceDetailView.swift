@@ -18,6 +18,7 @@ struct DeviceDetailView: View {
     @State private var showsLabelCapture = false
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @Environment(DevicePresenceModel.self) private var presenceModel: DevicePresenceModel?
 
     init(ipAddress: String, networkID: UUID? = nil, macAddress: String? = nil) {
         entry = .scanned(ipAddress: ipAddress, networkID: networkID, macAddress: macAddress)
@@ -135,6 +136,10 @@ struct DeviceDetailView: View {
         .accessibilityIdentifier("screen_deviceDetail")
     }
 
+    private var presence: PresenceSnapshot {
+        presenceModel?.snapshot ?? DevicePresenceModel.noScans
+    }
+
     // MARK: - Header Section
 
     private func headerSection(_ device: LocalDevice) -> some View {
@@ -150,20 +155,15 @@ struct DeviceDetailView: View {
                 .foregroundStyle(Theme.Colors.textPrimary)
                 .accessibilityIdentifier("deviceDetail_label_displayName")
 
-            // What the saved status means now (#583), refreshed every minute. Qualified: the app has
-            // its own TimelineView.
-            SwiftUI.TimelineView(.everyMinute) { _ in
-                let presence = SavedDeviceList.currentPresence()
-                let freshness = presence.freshness(of: device)
-                HStack(spacing: 8) {
-                    PresenceDot(freshness: freshness)
-                    Text("\(freshness.label) · \(presence.lastSeenText(device))")
-                        .font(.subheadline)
-                        .foregroundStyle(Theme.Colors.textSecondary)
-                }
-                .accessibilityElement(children: .combine)
-                .accessibilityLabel("\(freshness.label), \(presence.lastSeenText(device))")
+            // What the saved status means now (#583); the presence model refreshes every minute.
+            HStack(spacing: 8) {
+                PresenceDot(freshness: presence.freshness(of: device))
+                Text(presence.statusText(device))
+                    .font(.subheadline)
+                    .foregroundStyle(Theme.Colors.textSecondary)
             }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(presence.accessibilityText(device))
             .accessibilityIdentifier("deviceDetail_label_status")
 
             if let maker = device.maker {
@@ -626,7 +626,7 @@ extension DeviceDetailView {
         MAC: \(device.macAddress.isEmpty ? "—" : device.macAddress)
         Manufacturer: \(device.maker ?? "Unknown")
         Type: \(device.deviceType.rawValue)
-        Status: \(SavedDeviceList.currentPresence().freshness(of: device).label)
+        Status: \(presence.freshness(of: device).label)
         First Seen: \(dateFormatter.string(from: device.firstSeen))
         Last Seen: \(dateFormatter.string(from: device.lastSeen))
         """

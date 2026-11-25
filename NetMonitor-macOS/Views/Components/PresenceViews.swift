@@ -15,7 +15,7 @@ extension MacTheme.Colors {
         switch freshness {
         case .online: success
         case .notCheckedRecently: labelTertiary
-        case .offline: statusColor(.offline)
+        case .offline: Color.gray
         }
     }
 }
@@ -57,16 +57,15 @@ struct PresenceStatusLabel: View {
 
     var body: some View {
         let freshness = presence.freshness(of: device)
-        let lastSeen = presence.lastSeenText(device)
         HStack(spacing: 4) {
             PresenceDot(freshness: freshness)
-            Text(showsLastSeen ? "\(freshness.label) · \(lastSeen)" : freshness.label)
+            Text(showsLastSeen ? presence.statusText(device) : freshness.label)
                 .font(font)
                 .foregroundStyle(freshness == .online ? MacTheme.Colors.success : MacTheme.Colors.labelSecondary)
                 .lineLimit(1)
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(freshness.label), \(lastSeen)")
+        .accessibilityLabel(presence.accessibilityText(device))
     }
 }
 

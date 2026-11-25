@@ -17,6 +17,8 @@ struct NetmonitorApp: App {
     @State private var eventListener: EventListenerService?
     /// Puts every finished scan into the saved device rows (#582).
     @State private var deviceRecordUpdater: DeviceRecordUpdater?
+    /// What saved devices' statuses mean now (#583), shared by every device view.
+    @State private var presence = DevicePresenceModel()
     @Environment(\.scenePhase) private var scenePhase
 
     private static var isUITesting: Bool {
@@ -102,7 +104,8 @@ struct NetmonitorApp: App {
             // Read only, and only a live network: a device without one is never filed under a
             // network the phone has left (#589).
             currentNetworkProfileID: { CurrentNetwork.detected()?.id },
-            clock: UITestBootstrap.scanClock ?? Date.init
+            clock: UITestBootstrap.scanClock ?? Date.init,
+            onSaved: { [presence] in presence.refresh() }
         )
         updater.start()
         deviceRecordUpdater = updater
@@ -129,6 +132,7 @@ struct NetmonitorApp: App {
                 .preferredColorScheme(resolvedColorScheme)
                 .accessibilityIdentifier("screen_main")
                 .environment(environment)
+                .environment(presence)
                 .environment(deepLinkRouter)
                 .onOpenURL { url in
                     deepLinkRouter.handle(url: url)
@@ -149,6 +153,9 @@ struct NetmonitorApp: App {
                     }
                     // Saved device rows follow every scan, in UI tests too (#582).
                     startDeviceRecordUpdater()
+                    // After any UI-test reset of the scan history; then every minute (#583).
+                    presence.refresh()
+                    presence.startTicking()
 
                     if Self.isUITesting || Self.persistenceOutcome.isDegraded {
                         return

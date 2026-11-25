@@ -151,6 +151,9 @@ final class MacRuleAlerts {
     /// The current network's device rows and ID, used to fill in a monitored target's
     /// MAC, type, maker and network from its host.
     private let currentDevices: @MainActor () -> (devices: [LocalDevice], networkID: UUID?)
+    /// What the rows' saved statuses mean now (#583): an old status is no evidence of who holds an
+    /// address. Without a coordinator there is no scan, so no saved status counts.
+    private let presence: @MainActor () -> PresenceSnapshot
     private var evaluator = AlertRuleEvaluator()
     /// The monitoring targets being checked now. Results of others are ignored, and the rules
     /// forget them, so a deleted, turned-off or stopped target doesn't silence scans (#574 review).
@@ -160,11 +163,13 @@ final class MacRuleAlerts {
         store: AlertRuleStore,
         service: NotificationService,
         defaults: UserDefaults = .standard,
-        currentDevices: @escaping @MainActor () -> (devices: [LocalDevice], networkID: UUID?) = { ([], nil) }
+        currentDevices: @escaping @MainActor () -> (devices: [LocalDevice], networkID: UUID?) = { ([], nil) },
+        presence: @escaping @MainActor () -> PresenceSnapshot = { PresenceSnapshot(lastScans: [:], now: Date()) }
     ) {
         self.store = store
         self.service = service
         self.defaults = defaults
+        self.presence = presence
         self.currentDevices = currentDevices
     }
 
@@ -211,8 +216,11 @@ final class MacRuleAlerts {
         if let device = linked {
             // While the device is offline, another device that took its address answers this
             // target. The device is still down, so its outage carries on; the answers aren't its.
-            let taken = devices.contains { $0.id != device && $0.ipAddress == result.host && $0.status == .online }
-            if taken, let offline = devices.first(where: { $0.id == device && $0.status != .online }) {
+            // Only a recent scan says so (#583): on a network not checked recently the saved
+            // statuses are old, so the answers count as the device's, as with any target.
+            let presence = presence()
+            let taken = devices.contains { $0.id != device && $0.ipAddress == result.host && presence.freshness(of: $0) == .online }
+            if taken, let offline = devices.first(where: { $0.id == device && presence.freshness(of: $0) == .offline }) {
                 fire([AlertRuleEvent(kind: .stillOffline, subject: subject(for: offline, result: result, networkID: networkID))])
                 return
             }

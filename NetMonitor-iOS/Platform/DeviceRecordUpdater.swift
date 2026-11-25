@@ -16,6 +16,8 @@ final class DeviceRecordUpdater {
     /// The network a scan is about when its devices don't say.
     private let currentNetworkProfileID: @MainActor () -> UUID?
     private let clock: @MainActor () -> Date
+    /// Called after a scan is saved and recorded, so presence is read again (#583).
+    private let onSaved: @MainActor () -> Void
     private var wasScanning = false
     /// The last completed scan taken into `pending`.
     private var capturedScanDate: Date?
@@ -44,12 +46,14 @@ final class DeviceRecordUpdater {
         discoveryService: any DeviceDiscoveryServiceProtocol,
         reconciler: ScanReconciler,
         currentNetworkProfileID: @escaping @MainActor () -> UUID?,
-        clock: @escaping @MainActor () -> Date = Date.init
+        clock: @escaping @MainActor () -> Date = Date.init,
+        onSaved: @escaping @MainActor () -> Void = {}
     ) {
         self.discoveryService = discoveryService
         self.reconciler = reconciler
         self.currentNetworkProfileID = currentNetworkProfileID
         self.clock = clock
+        self.onSaved = onSaved
     }
 
     func start() {
@@ -95,6 +99,7 @@ final class DeviceRecordUpdater {
             let scan = pending[0]
             if Self.reconcile(scan.devices, scanDate: scan.date, network: scan.network, with: reconciler, now: scan.reconciledAt) {
                 pending.removeFirst()
+                onSaved()
                 continue
             }
             pending[0].attempts += 1

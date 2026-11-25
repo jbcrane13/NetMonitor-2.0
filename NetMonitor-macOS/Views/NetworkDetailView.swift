@@ -220,6 +220,7 @@ struct NetworkDetailView: View {
             await changeBrief.refresh(
                 devices: ChangeBriefMacViewModel.savedDevices(for: profile.id, in: modelContext),
                 networkProfileID: profile.id,
+                presence: deviceDiscovery?.presence() ?? PresenceSnapshot(lastScans: [:], now: Date()),
                 isScanning: deviceDiscovery?.isScanning ?? false
             )
         }

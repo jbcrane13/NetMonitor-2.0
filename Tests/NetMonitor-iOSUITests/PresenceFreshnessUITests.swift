@@ -68,11 +68,11 @@ final class PresenceFreshnessUITests: PresenceUITestCase {
 
         let online = row("192.168.1.10")
         requireExists(online, timeout: 10, message: "The list should show the answering device")
-        expectValue(online, startsWith: "Online, Last seen just now", "The answering device should be online now")
+        expectValue(online, startsWith: "Online, last seen just now", "The answering device should be online now")
         let offline = row("192.168.1.14")
         scrollToElement(offline)
         requireExists(offline, timeout: 5, message: "The list should show the missing device")
-        expectValue(offline, startsWith: "Offline, Last seen", "The missing device should be offline after grace")
+        expectValue(offline, startsWith: "Offline, last seen", "The missing device should be offline after grace")
         XCTAssertFalse(row("192.168.1.50").exists, "The past TV should be hidden by default")
 
         let showPast = ui("deviceList_button_showPast")
@@ -86,7 +86,7 @@ final class PresenceFreshnessUITests: PresenceUITestCase {
         let past = row("192.168.1.50")
         scrollToElement(past)
         requireExists(past, timeout: 5, message: "Show past devices should list the TV")
-        expectValue(past, startsWith: "Offline, Last seen 8 days ago", "The TV was last seen 8 days ago")
+        expectValue(past, startsWith: "Offline, last seen 8 days ago", "The TV was last seen 8 days ago")
         keepCroppedEvidence(past, named: "583-ios-past-device-shown")
 
         // Back to the top for the online row's evidence.
@@ -96,7 +96,7 @@ final class PresenceFreshnessUITests: PresenceUITestCase {
         online.tap()
         let status = ui("deviceDetail_label_status")
         requireExists(status, timeout: 8, message: "Detail should show the status")
-        XCTAssertTrue(status.label.hasPrefix("Online, Last seen just now"), "Detail status: \(status.label)")
+        XCTAssertTrue(status.label.hasPrefix("Online, last seen just now"), "Detail status: \(status.label)")
         keepCroppedEvidence(status, named: "583-ios-detail-status")
     }
 }
@@ -116,7 +116,7 @@ final class PresenceNotCheckedRecentlyUITests: PresenceUITestCase {
         openDeviceList()
         let device = row("192.168.1.10")
         requireExists(device, timeout: 10, message: "The list should show the device")
-        expectValue(device, startsWith: "Not checked recently, Last seen 1 hour ago", "An hour-old scan is not online now")
+        expectValue(device, startsWith: "Not checked recently, last seen 1 hour ago", "An hour-old scan is not online now")
         XCTAssertFalse(value(device).hasPrefix("Online"), "Never online from an old scan: \(value(device))")
         keepCroppedEvidence(device, named: "583-ios-not-checked-recently-row")
     }

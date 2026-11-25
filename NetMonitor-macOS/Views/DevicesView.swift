@@ -52,9 +52,7 @@ struct DevicesView: View {
     var filteredDevices: [LocalDevice] {
         DeviceList.rows(
             devices,
-            search: searchText,
-            onlineOnly: filterOnlineOnly,
-            showPast: showPastDevices,
+            filter: DeviceListFilter(search: searchText, onlineOnly: filterOnlineOnly, showPast: showPastDevices),
             presence: presence,
             sort: sortOrder,
             ascending: sortAscending
@@ -290,7 +288,7 @@ struct DevicesView: View {
             .buttonStyle(.link)
             .font(.caption)
             .foregroundStyle(MacTheme.Colors.labelSecondary)
-            .help("Devices not seen for \(Int(PresenceFreshness.pastDeviceAge / 86400)) days while this network was scanned")
+            .help("Devices not seen for \(PresenceFreshness.pastDeviceDays) days while this network was scanned")
             .accessibilityIdentifier("devices_button_showPast")
         }
     }

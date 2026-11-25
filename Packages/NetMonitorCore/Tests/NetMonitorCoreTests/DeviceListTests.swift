@@ -41,7 +41,7 @@ struct DeviceListSearchTests {
             makeDevice(customName: "Kitchen Sonos"),
             makeDevice(customName: "Office Printer")
         ]
-        let result = DeviceList.rows(devices, search: "sonos", onlineOnly: false, showPast: true,
+        let result = DeviceList.rows(devices, filter: DeviceListFilter(search: "sonos", showPast: true),
             presence: fresh, sort: .name, ascending: true)
         #expect(result.map(\.displayName) == ["Kitchen Sonos"])
     }
@@ -52,7 +52,7 @@ struct DeviceListSearchTests {
             makeDevice(ipAddress: "192.168.1.42"),
             makeDevice(ipAddress: "10.0.0.5")
         ]
-        let result = DeviceList.rows(devices, search: "168.1.4", onlineOnly: false, showPast: true,
+        let result = DeviceList.rows(devices, filter: DeviceListFilter(search: "168.1.4", showPast: true),
             presence: fresh, sort: .name, ascending: true)
         #expect(result.map(\.ipAddress) == ["192.168.1.42"])
     }
@@ -63,7 +63,7 @@ struct DeviceListSearchTests {
             makeDevice(macAddress: "AA:BB:CC:DD:EE:FF"),
             makeDevice(macAddress: "11:22:33:44:55:66")
         ]
-        let result = DeviceList.rows(devices, search: "aa:bb:cc", onlineOnly: false, showPast: true,
+        let result = DeviceList.rows(devices, filter: DeviceListFilter(search: "aa:bb:cc", showPast: true),
             presence: fresh, sort: .name, ascending: true)
         #expect(result.map(\.macAddress) == ["AA:BB:CC:DD:EE:FF"])
     }
@@ -74,7 +74,7 @@ struct DeviceListSearchTests {
             makeDevice(vendor: "Apple, Inc."),
             makeDevice(vendor: "Samsung")
         ]
-        let result = DeviceList.rows(devices, search: "apple", onlineOnly: false, showPast: true,
+        let result = DeviceList.rows(devices, filter: DeviceListFilter(search: "apple", showPast: true),
             presence: fresh, sort: .name, ascending: true)
         #expect(result.map(\.vendor) == ["Apple, Inc."])
     }
@@ -84,7 +84,7 @@ struct DeviceListSearchTests {
         let devices = [
             makeDevice(vendor: nil, customName: "No Vendor Device")
         ]
-        let result = DeviceList.rows(devices, search: "apple", onlineOnly: false, showPast: true,
+        let result = DeviceList.rows(devices, filter: DeviceListFilter(search: "apple", showPast: true),
             presence: fresh, sort: .name, ascending: true)
         #expect(result.isEmpty)
     }
@@ -92,7 +92,7 @@ struct DeviceListSearchTests {
     @Test("Empty search returns all devices")
     func emptySearchReturnsAll() {
         let devices = [makeDevice(customName: "A"), makeDevice(customName: "B")]
-        let result = DeviceList.rows(devices, search: "", onlineOnly: false, showPast: true,
+        let result = DeviceList.rows(devices, filter: DeviceListFilter(showPast: true),
             presence: fresh, sort: .name, ascending: true)
         #expect(result.count == 2)
     }
@@ -108,7 +108,7 @@ struct DeviceListOnlineOnlyTests {
             makeDevice(customName: "Online", status: .online),
             makeDevice(customName: "Offline", status: .offline)
         ]
-        let result = DeviceList.rows(devices, search: "", onlineOnly: true, showPast: true,
+        let result = DeviceList.rows(devices, filter: DeviceListFilter(onlineOnly: true, showPast: true),
             presence: fresh, sort: .name, ascending: true)
         #expect(result.map(\.displayName) == ["Online"])
     }
@@ -119,7 +119,7 @@ struct DeviceListOnlineOnlyTests {
             makeDevice(customName: "Online", status: .online),
             makeDevice(customName: "Offline", status: .offline)
         ]
-        let result = DeviceList.rows(devices, search: "", onlineOnly: false, showPast: true,
+        let result = DeviceList.rows(devices, filter: DeviceListFilter(showPast: true),
             presence: fresh, sort: .name, ascending: true)
         #expect(result.count == 2)
     }
@@ -136,7 +136,7 @@ struct DeviceListSortTests {
         let newer = makeDevice(customName: "Newer")
         newer.lastSeen = Date()
 
-        let result = DeviceList.rows([older, newer], search: "", onlineOnly: false, showPast: true,
+        let result = DeviceList.rows([older, newer], filter: DeviceListFilter(showPast: true),
             presence: fresh, sort: .lastSeen, ascending: false)
         #expect(result.map(\.displayName) == ["Newer", "Older"])
     }
@@ -148,7 +148,7 @@ struct DeviceListSortTests {
         let newer = makeDevice(customName: "Newer")
         newer.lastSeen = Date()
 
-        let result = DeviceList.rows([older, newer], search: "", onlineOnly: false, showPast: true,
+        let result = DeviceList.rows([older, newer], filter: DeviceListFilter(showPast: true),
             presence: fresh, sort: .lastSeen, ascending: true)
         #expect(result.map(\.displayName) == ["Older", "Newer"])
     }
@@ -156,7 +156,7 @@ struct DeviceListSortTests {
     @Test("name sorts ascending by default")
     func nameAscendingDefault() {
         let devices = [makeDevice(customName: "Bravo"), makeDevice(customName: "Alpha")]
-        let result = DeviceList.rows(devices, search: "", onlineOnly: false, showPast: true,
+        let result = DeviceList.rows(devices, filter: DeviceListFilter(showPast: true),
             presence: fresh, sort: .name, ascending: true)
         #expect(result.map(\.displayName) == ["Alpha", "Bravo"])
     }
@@ -164,7 +164,7 @@ struct DeviceListSortTests {
     @Test("name sorts descending when ascending is false")
     func nameDescendingWhenFalse() {
         let devices = [makeDevice(customName: "Bravo"), makeDevice(customName: "Alpha")]
-        let result = DeviceList.rows(devices, search: "", onlineOnly: false, showPast: true,
+        let result = DeviceList.rows(devices, filter: DeviceListFilter(showPast: true),
             presence: fresh, sort: .name, ascending: false)
         #expect(result.map(\.displayName) == ["Bravo", "Alpha"])
     }
@@ -175,7 +175,7 @@ struct DeviceListSortTests {
             makeDevice(ipAddress: "192.168.2.10", customName: "Ten"),
             makeDevice(ipAddress: "192.168.2.3", customName: "Three")
         ]
-        let result = DeviceList.rows(devices, search: "", onlineOnly: false, showPast: true,
+        let result = DeviceList.rows(devices, filter: DeviceListFilter(showPast: true),
             presence: fresh, sort: .ipAddress, ascending: true)
         #expect(result.map(\.displayName) == ["Three", "Ten"])
     }
@@ -186,7 +186,7 @@ struct DeviceListSortTests {
             makeDevice(ipAddress: "192.168.2.10", customName: "Ten"),
             makeDevice(ipAddress: "192.168.2.3", customName: "Three")
         ]
-        let result = DeviceList.rows(devices, search: "", onlineOnly: false, showPast: true,
+        let result = DeviceList.rows(devices, filter: DeviceListFilter(showPast: true),
             presence: fresh, sort: .ipAddress, ascending: false)
         #expect(result.map(\.displayName) == ["Ten", "Three"])
     }
@@ -197,7 +197,7 @@ struct DeviceListSortTests {
             makeDevice(customName: "Offline", status: .offline),
             makeDevice(customName: "Online", status: .online)
         ]
-        let result = DeviceList.rows(devices, search: "", onlineOnly: false, showPast: true,
+        let result = DeviceList.rows(devices, filter: DeviceListFilter(showPast: true),
             presence: fresh, sort: .status, ascending: true)
         #expect(result.map(\.displayName) == ["Online", "Offline"])
     }
@@ -208,7 +208,7 @@ struct DeviceListSortTests {
             makeDevice(customName: "Offline", status: .offline),
             makeDevice(customName: "Online", status: .online)
         ]
-        let result = DeviceList.rows(devices, search: "", onlineOnly: false, showPast: true,
+        let result = DeviceList.rows(devices, filter: DeviceListFilter(showPast: true),
             presence: fresh, sort: .status, ascending: false)
         #expect(result.map(\.displayName) == ["Offline", "Online"])
     }
@@ -219,7 +219,7 @@ struct DeviceListSortTests {
             makeDevice(vendor: nil, customName: "NoVendor"),
             makeDevice(vendor: "Apple", customName: "AppleDevice")
         ]
-        let result = DeviceList.rows(devices, search: "", onlineOnly: false, showPast: true,
+        let result = DeviceList.rows(devices, filter: DeviceListFilter(showPast: true),
             presence: fresh, sort: .vendor, ascending: true)
         #expect(result.map(\.displayName) == ["AppleDevice", "NoVendor"])
     }
@@ -230,7 +230,7 @@ struct DeviceListSortTests {
             makeDevice(vendor: nil, customName: "NoVendor"),
             makeDevice(vendor: "Apple", customName: "AppleDevice")
         ]
-        let result = DeviceList.rows(devices, search: "", onlineOnly: false, showPast: true,
+        let result = DeviceList.rows(devices, filter: DeviceListFilter(showPast: true),
             presence: fresh, sort: .vendor, ascending: false)
         #expect(result.map(\.displayName) == ["NoVendor", "AppleDevice"])
     }
@@ -241,7 +241,7 @@ struct DeviceListSortTests {
             makeDevice(customName: "NoLatency", lastLatency: nil),
             makeDevice(customName: "Fast", lastLatency: 5.0)
         ]
-        let result = DeviceList.rows(devices, search: "", onlineOnly: false, showPast: true,
+        let result = DeviceList.rows(devices, filter: DeviceListFilter(showPast: true),
             presence: fresh, sort: .latency, ascending: true)
         #expect(result.map(\.displayName) == ["Fast", "NoLatency"])
     }
@@ -252,7 +252,7 @@ struct DeviceListSortTests {
             makeDevice(customName: "NoLatency", lastLatency: nil),
             makeDevice(customName: "Fast", lastLatency: 5.0)
         ]
-        let result = DeviceList.rows(devices, search: "", onlineOnly: false, showPast: true,
+        let result = DeviceList.rows(devices, filter: DeviceListFilter(showPast: true),
             presence: fresh, sort: .latency, ascending: false)
         #expect(result.map(\.displayName) == ["NoLatency", "Fast"])
     }
@@ -271,61 +271,6 @@ struct DeviceListCompareIPAddressesTests {
     @Test("Equal addresses compare false")
     func equalAddresses() {
         #expect(DeviceList.compareIPAddresses("10.0.0.1", "10.0.0.1") == false)
-    }
-}
-
-// MARK: - recencyLabel
-
-struct DeviceListRecencyLabelTests {
-
-    let now = Date()
-
-    @Test("compact style at 30 seconds")
-    func compact30Seconds() {
-        let since = now.addingTimeInterval(-30)
-        #expect(DeviceList.recencyLabel(since: since, now: now, style: .compact) == "Now")
-    }
-
-    @Test("compact style at 5 minutes")
-    func compact5Minutes() {
-        let since = now.addingTimeInterval(-5 * 60)
-        #expect(DeviceList.recencyLabel(since: since, now: now, style: .compact) == "5m")
-    }
-
-    @Test("compact style at 3 hours")
-    func compact3Hours() {
-        let since = now.addingTimeInterval(-3 * 3600)
-        #expect(DeviceList.recencyLabel(since: since, now: now, style: .compact) == "3h")
-    }
-
-    @Test("compact style at 2 days")
-    func compact2Days() {
-        let since = now.addingTimeInterval(-2 * 86400)
-        #expect(DeviceList.recencyLabel(since: since, now: now, style: .compact) == "2d")
-    }
-
-    @Test("long style at 30 seconds")
-    func long30Seconds() {
-        let since = now.addingTimeInterval(-30)
-        #expect(DeviceList.recencyLabel(since: since, now: now, style: .long) == "Just now")
-    }
-
-    @Test("long style at 5 minutes")
-    func long5Minutes() {
-        let since = now.addingTimeInterval(-5 * 60)
-        #expect(DeviceList.recencyLabel(since: since, now: now, style: .long) == "5 minutes ago")
-    }
-
-    @Test("long style at 3 hours")
-    func long3Hours() {
-        let since = now.addingTimeInterval(-3 * 3600)
-        #expect(DeviceList.recencyLabel(since: since, now: now, style: .long) == "3 hours ago")
-    }
-
-    @Test("long style at 2 days")
-    func long2Days() {
-        let since = now.addingTimeInterval(-2 * 86400)
-        #expect(DeviceList.recencyLabel(since: since, now: now, style: .long) == "2 days ago")
     }
 }
 
@@ -354,7 +299,7 @@ struct DeviceListPresenceTests {
             device("Stale", network: away, lastSeen: scan - 3600),
             device("Unassigned", network: nil, lastSeen: scan)
         ]
-        let result = DeviceList.rows(rows, search: "", onlineOnly: true, showPast: false, presence: presence, sort: .name, ascending: true)
+        let result = DeviceList.rows(rows, filter: DeviceListFilter(onlineOnly: true), presence: presence, sort: .name, ascending: true)
         #expect(result.map(\.displayName) == ["Fresh"])
     }
 
@@ -371,9 +316,9 @@ struct DeviceListPresenceTests {
             device("Stale", network: away, lastSeen: scan - 3600),
             device("Online", network: home, lastSeen: scan)
         ]
-        let ascending = DeviceList.rows(rows, search: "", onlineOnly: false, showPast: true, presence: presence, sort: .status, ascending: true)
+        let ascending = DeviceList.rows(rows, filter: DeviceListFilter(showPast: true), presence: presence, sort: .status, ascending: true)
         #expect(ascending.map(\.displayName) == ["Online", "Stale", "Offline"])
-        let descending = DeviceList.rows(rows, search: "", onlineOnly: false, showPast: true, presence: presence, sort: .status, ascending: false)
+        let descending = DeviceList.rows(rows, filter: DeviceListFilter(showPast: true), presence: presence, sort: .status, ascending: false)
         #expect(descending.map(\.displayName) == ["Offline", "Stale", "Online"])
     }
 
@@ -383,11 +328,11 @@ struct DeviceListPresenceTests {
             device("Past", network: home, status: .offline, lastSeen: scan - 8 * day),
             device("Old past", network: home, status: .offline, lastSeen: scan - 30 * day)
         ]
-        let hidden = DeviceList.rows(rows, search: "", onlineOnly: false, showPast: false, presence: presence, sort: .name, ascending: true)
+        let hidden = DeviceList.rows(rows, filter: DeviceListFilter(), presence: presence, sort: .name, ascending: true)
         #expect(hidden.map(\.displayName) == ["Recent"])
         #expect(DeviceList.pastCount(rows, search: "", presence: presence) == 2)
         #expect(DeviceList.pastCount(rows, search: "old", presence: presence) == 1)
-        let shown = DeviceList.rows(rows, search: "", onlineOnly: false, showPast: true, presence: presence, sort: .name, ascending: true)
+        let shown = DeviceList.rows(rows, filter: DeviceListFilter(showPast: true), presence: presence, sort: .name, ascending: true)
         #expect(shown.count == 3)
     }
 

@@ -8,62 +8,47 @@ enum DeviceSortOrder: String, CaseIterable {
     case name = "Name"
     case latency = "Latency"
     case source = "Source"
-    /// Online, then not checked recently, then offline (#583); the saved list's sort.
-    case status = "Status"
 }
 
 struct DeviceListView: View {
+    /// The scan's devices, during or after it: those not saved yet show as found in this scan.
     let discoveredDevices: [DiscoveredDevice]
     let networkProfile: NetworkProfile?
     /// The network whose saved rows the list shows (#583): the scan's, else the active one.
     let networkID: UUID?
-    @Query(Self.savedDevicesDescriptor) private var savedDevices: [LocalDevice]
-    @State private var sortOrder: DeviceSortOrder = .ip
+    let isScanning: Bool
+    @Query private var savedDevices: [LocalDevice]
+    @Environment(DevicePresenceModel.self) private var presenceModel: DevicePresenceModel?
+    @State private var sortOrder: SavedDeviceList.Sort = .ip
     /// Past devices (unseen for a week) are hidden each time the list opens, never remembered
     /// hidden: the list always says how many there are, so none is hidden without a way back.
     @State private var showPastDevices = false
     @AppStorage("netmonitor.ios.devices.proMode") private var isProMode: Bool = false
 
-    private static var savedDevicesDescriptor: FetchDescriptor<LocalDevice> {
-        var descriptor = FetchDescriptor<LocalDevice>()
-        descriptor.fetchLimit = 500
-        return descriptor
-    }
-
-    private var sortedDevices: [DiscoveredDevice] {
-        switch sortOrder {
-        case .ip:
-            discoveredDevices.sorted { $0.ipAddress.ipSortKey < $1.ipAddress.ipSortKey }
-        case .name:
-            discoveredDevices.sorted {
-                ($0.displayName).localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending
-            }
-        case .latency:
-            discoveredDevices.sorted { ($0.latency ?? 9999) < ($1.latency ?? 9999) }
-        case .source, .status:
-            discoveredDevices.sorted {
-                if $0.source == $1.source {
-                    return $0.ipAddress.ipSortKey < $1.ipAddress.ipSortKey
-                }
-                return $0.source == .local
-            }
-        }
+    init(discoveredDevices: [DiscoveredDevice], networkProfile: NetworkProfile?, networkID: UUID?, isScanning: Bool = false) {
+        self.discoveredDevices = discoveredDevices
+        self.networkProfile = networkProfile
+        self.networkID = networkID
+        self.isScanning = isScanning
+        _savedDevices = Query(SavedDeviceList.fetchDescriptor(network: networkID))
     }
 
     var body: some View {
-        // Qualified: the app has its own TimelineView. Every minute, so an open list goes stale
-        // without a scan; the rows' query redraws it after each scan.
-        SwiftUI.TimelineView(.everyMinute) { _ in
-            let saved = SavedDeviceList(
-                saved: savedDevices, network: networkID, sort: sortOrder, showPast: showPastDevices,
-                presence: SavedDeviceList.currentPresence()
-            )
-            ScrollView {
-                if saved.rows.isEmpty, saved.pastCount == 0 {
-                    discoveredContent
-                } else {
-                    savedContent(saved)
-                }
+        // The presence model refreshes after each saved scan and every minute.
+        let list = SavedDeviceList(
+            saved: savedDevices, live: discoveredDevices, network: networkID, sort: sortOrder, showPast: showPastDevices,
+            presence: presenceModel?.snapshot ?? DevicePresenceModel.noScans
+        )
+        ScrollView {
+            if list.entries.isEmpty, list.pastCount == 0, !isScanning {
+                ContentUnavailableView(
+                    "No Devices Found",
+                    systemImage: "network.slash",
+                    description: Text("Run a network scan to discover devices")
+                )
+                .accessibilityIdentifier("deviceList_label_empty")
+            } else {
+                content(list)
             }
         }
         .themedBackground()
@@ -84,29 +69,37 @@ struct DeviceListView: View {
         .accessibilityIdentifier("screen_deviceList")
     }
 
-    // MARK: - Saved rows (#583)
+    // MARK: - Rows (#583)
 
-    private func savedContent(_ saved: SavedDeviceList) -> some View {
+    private func content(_ list: SavedDeviceList) -> some View {
         VStack(spacing: Theme.Layout.itemSpacing) {
-            header(count: "\(saved.onlineCount) online · \(saved.rows.count) devices", sorts: SavedDeviceList.sortOrders)
+            header(count: "\(list.onlineCount) online · \(list.entries.count) devices")
 
-            ForEach(saved.rows) { device in
-                NavigationLink(value: AppDestination.deviceDetail(
-                    ipAddress: device.ipAddress, networkID: device.networkProfileID, macAddress: device.macAddress
-                )) {
-                    if isProMode {
-                        savedProModeRow(device, in: saved)
-                    } else {
-                        savedRow(device, in: saved)
-                    }
+            if isScanning {
+                HStack(spacing: 8) {
+                    ProgressView()
+                        .controlSize(.small)
+                    Text("Scanning…")
+                        .font(.caption)
+                        .foregroundStyle(Theme.Colors.textSecondary)
                 }
-                .opacity(saved.presence.freshness(of: device).isOnline ? 1 : 0.7)
-                .accessibilityValue(saved.statusText(device).replacingOccurrences(of: " · ", with: ", "))
-                .accessibilityIdentifier("deviceList_row_device_\(device.ipAddress.replacingOccurrences(of: ".", with: "_"))")
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, Theme.Layout.screenPadding)
+                .accessibilityElement(children: .combine)
+                .accessibilityIdentifier("deviceList_label_scanning")
             }
 
-            if saved.pastCount > 0 {
-                Button(showPastDevices ? "Hide past devices" : "Show past devices (\(saved.pastCount))") {
+            ForEach(list.entries) { entry in
+                switch entry {
+                case .saved(let device):
+                    savedLink(device, in: list)
+                case .found(let device):
+                    foundLink(device)
+                }
+            }
+
+            if list.pastCount > 0 {
+                Button(showPastDevices ? "Hide past devices" : "Show past devices (\(list.pastCount))") {
                     showPastDevices.toggle()
                 }
                 .font(.subheadline)
@@ -119,7 +112,40 @@ struct DeviceListView: View {
         .padding(.vertical, Theme.Layout.smallCornerRadius)
     }
 
-    private func savedRow(_ device: LocalDevice, in saved: SavedDeviceList) -> some View {
+    private func savedLink(_ device: LocalDevice, in list: SavedDeviceList) -> some View {
+        NavigationLink(value: AppDestination.deviceDetail(
+            ipAddress: device.ipAddress, networkID: device.networkProfileID, macAddress: device.macAddress
+        )) {
+            if isProMode {
+                savedProModeRow(device, in: list)
+            } else {
+                savedRow(device, in: list)
+            }
+        }
+        .opacity(list.presence.freshness(of: device).isOnline ? 1 : 0.7)
+        // The row's value says the state once; the visible status line is hidden from VoiceOver.
+        .accessibilityValue(list.presence.accessibilityText(device))
+        .accessibilityIdentifier("deviceList_row_device_\(device.ipAddress.replacingOccurrences(of: ".", with: "_"))")
+    }
+
+    /// A device this scan found that has no saved row yet.
+    private func foundLink(_ device: DiscoveredDevice) -> some View {
+        NavigationLink(value: AppDestination.deviceDetail(
+            ipAddress: device.ipAddress, networkID: device.networkProfileID, macAddress: device.macAddress
+        )) {
+            if isProMode {
+                proModeRow(device: device)
+            } else {
+                deviceRow(device: device)
+            }
+        }
+        .accessibilityValue(Self.foundInThisScan)
+        .accessibilityIdentifier("deviceList_row_device_\(device.ipAddress.replacingOccurrences(of: ".", with: "_"))")
+    }
+
+    static let foundInThisScan = "Found in this scan"
+
+    private func savedRow(_ device: LocalDevice, in list: SavedDeviceList) -> some View {
         GlassCard {
             HStack(spacing: Theme.Layout.itemSpacing) {
                 Image(systemName: device.deviceType.iconName)
@@ -136,14 +162,15 @@ struct DeviceListView: View {
                         Text(device.ipAddress)
                             .font(.caption)
                             .foregroundStyle(Theme.Colors.textTertiary)
-                        if let latency = saved.latencyText(device) {
+                        if let latency = list.latencyText(device) {
                             Text(latency)
                                 .font(.caption)
                                 .foregroundStyle(Theme.Colors.textSecondary)
                         }
                     }
 
-                    PresenceLine(freshness: saved.presence.freshness(of: device), text: saved.statusText(device))
+                    PresenceLine(freshness: list.presence.freshness(of: device), text: list.presence.statusText(device))
+                        .accessibilityHidden(true)
                 }
 
                 Spacer()
@@ -156,16 +183,16 @@ struct DeviceListView: View {
         }
     }
 
-    private func savedProModeRow(_ device: LocalDevice, in saved: SavedDeviceList) -> some View {
+    private func savedProModeRow(_ device: LocalDevice, in list: SavedDeviceList) -> some View {
         GlassCard(padding: 10) {
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 8) {
-                    PresenceDot(freshness: saved.presence.freshness(of: device))
+                    PresenceDot(freshness: list.presence.freshness(of: device))
                     Text(device.ipAddress)
                         .font(.system(size: 13, weight: .bold, design: .monospaced))
                         .foregroundStyle(Theme.Colors.textPrimary)
                     Spacer()
-                    if let latency = saved.latencyText(device) {
+                    if let latency = list.latencyText(device) {
                         Text(latency)
                             .font(.system(size: 12, weight: .semibold, design: .rounded))
                             .foregroundStyle(latencyColor(device.lastLatency))
@@ -175,52 +202,17 @@ struct DeviceListView: View {
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(Theme.Colors.textSecondary)
                     .lineLimit(1)
-                Text(saved.statusText(device))
+                Text(list.presence.statusText(device))
                     .font(.system(size: 11, design: .monospaced))
                     .foregroundStyle(Theme.Colors.textTertiary)
                     .lineLimit(1)
+                    .accessibilityHidden(true)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
-    // MARK: - Live scan (before any row is saved)
-
-    @ViewBuilder
-    private var discoveredContent: some View {
-        if discoveredDevices.isEmpty {
-            ContentUnavailableView(
-                "No Devices Found",
-                systemImage: "network.slash",
-                description: Text("Run a network scan to discover devices")
-            )
-            .accessibilityIdentifier("deviceList_label_empty")
-        } else {
-            VStack(spacing: Theme.Layout.itemSpacing) {
-                header(count: "\(discoveredDevices.count) devices", sorts: [.ip, .name, .latency, .source])
-
-                ForEach(sortedDevices) { device in
-                    NavigationLink(value: AppDestination.deviceDetail(
-                        ipAddress: device.ipAddress, networkID: device.networkProfileID, macAddress: device.macAddress
-                    )) {
-                        if isProMode {
-                            proModeRow(device: device)
-                        } else {
-                            deviceRow(device: device)
-                        }
-                    }
-                    // A cached device gave no answer this scan and may have left (#378).
-                    .opacity(device.isCached ? 0.55 : 1)
-                    .accessibilityValue(device.isCached ? "Cached, may have left the network" : "")
-                    .accessibilityIdentifier("deviceList_row_device_\(device.ipAddress.replacingOccurrences(of: ".", with: "_"))")
-                }
-            }
-            .padding(.horizontal, Theme.Layout.screenPadding)
-            .padding(.vertical, Theme.Layout.smallCornerRadius)
-        }
-    }
-
-    private func header(count: String, sorts: [DeviceSortOrder]) -> some View {
+    private func header(count: String) -> some View {
         HStack {
             Text(count)
                 .font(.subheadline)
@@ -261,7 +253,7 @@ struct DeviceListView: View {
 
             Spacer()
             Picker("Sort", selection: $sortOrder) {
-                ForEach(sorts, id: \.self) { order in
+                ForEach(SavedDeviceList.Sort.allCases, id: \.self) { order in
                     Text(order.rawValue).tag(order)
                 }
             }
@@ -302,6 +294,11 @@ struct DeviceListView: View {
                             .font(.caption2)
                             .foregroundStyle(Theme.Colors.textTertiary)
                     }
+
+                    Label(Self.foundInThisScan, systemImage: "sparkle")
+                        .font(.caption2)
+                        .foregroundStyle(Theme.Colors.accent)
+                        .accessibilityHidden(true)
                 }
 
                 Spacer()
@@ -361,6 +358,11 @@ struct DeviceListView: View {
                         .foregroundStyle(Theme.Colors.textTertiary)
                         .lineLimit(1)
                 }
+
+                Text(Self.foundInThisScan)
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(Theme.Colors.accent)
+                    .accessibilityHidden(true)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }

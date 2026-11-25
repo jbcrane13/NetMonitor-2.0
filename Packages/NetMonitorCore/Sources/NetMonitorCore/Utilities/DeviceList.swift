@@ -11,44 +11,46 @@ public enum DeviceSortOrder: String, CaseIterable, Sendable {
     case latency
 }
 
-/// Formatting style for `DeviceList.recencyLabel`.
-public enum RecencyStyle: Sendable {
-    case compact
-    case long
+/// What a device list shows (#583): a search, whether only online devices show, and whether past
+/// devices do.
+public struct DeviceListFilter: Sendable, Equatable {
+    public var search: String
+    public var onlineOnly: Bool
+    public var showPast: Bool
+
+    public init(search: String = "", onlineOnly: Bool = false, showPast: Bool = false) {
+        self.search = search
+        self.onlineOnly = onlineOnly
+        self.showPast = showPast
+    }
 }
 
-/// Pure derivation of a device list's search/filter/sort, and its "last seen"
-/// recency label, shared by every macOS device list view.
+/// Pure derivation of a device list's search, filter and sort, shared by every macOS device list
+/// view.
 public enum DeviceList {
-    /// Filters and sorts `devices` per `search`, `onlineOnly`, `showPast`, `sort`, and `ascending`.
+    /// Filters and sorts `devices` per `filter`, `sort`, and `ascending`.
     ///
     /// `onlineOnly` and the `status` sort use each row's `PresenceFreshness` from `presence`, never
     /// the saved status alone (#583); the status sort is online, then not checked recently, then
     /// offline. Past devices (`PresenceFreshness.isPast`) are left out unless `showPast`.
     ///
-    /// `search` matches (case-insensitively, except IP address which uses `contains`)
+    /// The search matches (case-insensitively, except IP address which uses `contains`)
     /// against displayName, ipAddress, macAddress, and vendor.
     ///
     /// `lastSeen` sorts descending (most recent first) by default; every other sort
     /// sorts ascending by default. `ascending` inverts that default: for `lastSeen`,
     /// passing `true` reverses to ascending; for every other sort, passing `false`
     /// reverses to descending.
-    public static func rows( // swiftlint:disable:this function_parameter_count
-        _ devices: [LocalDevice],
-        search: String,
-        onlineOnly: Bool,
-        showPast: Bool,
-        presence: PresenceSnapshot,
-        sort: DeviceSortOrder,
-        ascending: Bool
+    public static func rows(
+        _ devices: [LocalDevice], filter: DeviceListFilter, presence: PresenceSnapshot, sort: DeviceSortOrder, ascending: Bool
     ) -> [LocalDevice] {
-        var result = matching(devices, search: search)
+        var result = matching(devices, search: filter.search)
 
-        if onlineOnly {
+        if filter.onlineOnly {
             result = result.filter { presence.freshness(of: $0).isOnline }
         }
 
-        if !showPast {
+        if !filter.showPast {
             result = result.filter { !presence.isPast($0) }
         }
 
@@ -108,38 +110,5 @@ public enum DeviceList {
             return lhsParts[index] < rhsParts[index]
         }
         return lhsParts.count < rhsParts.count
-    }
-
-    /// Formats the time elapsed since `since` (relative to `now`) as a "last seen" label.
-    ///
-    /// `.compact` yields "Now" / "5m" / "3h" / "2d"; `.long` yields
-    /// "Just now" / "5 minutes ago" / "3 hours ago" / "2 days ago".
-    /// Thresholds: 60 s, 3600 s, 86400 s.
-    public static func recencyLabel(since: Date, now: Date = .now, style: RecencyStyle) -> String {
-        let interval = now.timeIntervalSince(since)
-        switch style {
-        case .compact:
-            if interval < 60 {
-                return "Now"
-            }
-            if interval < 3600 {
-                return "\(Int(interval / 60))m"
-            }
-            if interval < 86400 {
-                return "\(Int(interval / 3600))h"
-            }
-            return "\(Int(interval / 86400))d"
-        case .long:
-            if interval < 60 {
-                return "Just now"
-            }
-            if interval < 3600 {
-                return "\(Int(interval / 60)) minutes ago"
-            }
-            if interval < 86400 {
-                return "\(Int(interval / 3600)) hours ago"
-            }
-            return "\(Int(interval / 86400)) days ago"
-        }
     }
 }

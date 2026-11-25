@@ -11,31 +11,31 @@ struct PresenceFreshnessTests {
     private func minutes(_ value: Double) -> TimeInterval { value * 60 }
 
     @Test func aRowThatAnsweredARecentScanIsOnline() {
-        let state = PresenceFreshness.of(status: .online, lastSeen: scan, lastScan: scan, now: scan + minutes(5), policy: policy)
+        let state = PresenceFreshness.of(status: .online, lastScan: scan, now: scan + minutes(5), policy: policy)
         #expect(state == .online)
     }
 
     @Test func aRowOnANetworkWithNoScanIsNotCheckedRecently() {
-        let state = PresenceFreshness.of(status: .online, lastSeen: scan, lastScan: nil, now: scan, policy: policy)
+        let state = PresenceFreshness.of(status: .online, lastScan: nil, now: scan, policy: policy)
         #expect(state == .notCheckedRecently)
     }
 
     @Test func anOldScanMakesEveryRowNotCheckedRecentlyWhateverItsSavedStatus() {
         for status in DeviceStatus.allCases {
-            let state = PresenceFreshness.of(status: status, lastSeen: scan, lastScan: scan, now: scan + minutes(16), policy: policy)
+            let state = PresenceFreshness.of(status: status, lastScan: scan, now: scan + minutes(16), policy: policy)
             #expect(state == .notCheckedRecently, "status \(status)")
         }
     }
 
     @Test func aScanExactlyTheGraceIntervalOldIsStillRecent() {
-        let atBoundary = PresenceFreshness.of(status: .online, lastSeen: scan, lastScan: scan, now: scan + policy.interval, policy: policy)
-        let past = PresenceFreshness.of(status: .online, lastSeen: scan, lastScan: scan, now: scan + policy.interval + 1, policy: policy)
+        let atBoundary = PresenceFreshness.of(status: .online, lastScan: scan, now: scan + policy.interval, policy: policy)
+        let past = PresenceFreshness.of(status: .online, lastScan: scan, now: scan + policy.interval + 1, policy: policy)
         #expect(atBoundary == .online)
         #expect(past == .notCheckedRecently)
     }
 
     @Test func aRowMarkedOfflineOnARecentlyScannedNetworkIsOffline() {
-        let state = PresenceFreshness.of(status: .offline, lastSeen: scan - minutes(30), lastScan: scan, now: scan, policy: policy)
+        let state = PresenceFreshness.of(status: .offline, lastScan: scan, now: scan, policy: policy)
         #expect(state == .offline)
     }
 
@@ -43,20 +43,21 @@ struct PresenceFreshnessTests {
     /// flap, so such a row reads Online; its line shows the real last-seen time, never "now".
     @Test func aRowWithinGraceThatMissedTheLastScanReadsOnlineWithItsLastSeen() {
         for status in [DeviceStatus.online, .cached, .idle] {
-            let state = PresenceFreshness.of(status: status, lastSeen: scan - minutes(6), lastScan: scan, now: scan, policy: policy)
+            let state = PresenceFreshness.of(status: status, lastScan: scan, now: scan, policy: policy)
             #expect(state == .online, "status \(status)")
         }
         #expect(PresenceFreshness.lastSeenText(since: scan - minutes(6), now: scan) == "Last seen 6 min ago")
     }
 
-    @Test func aRowSeenAfterTheLastScanByClockSkewCountsAsAnswering() {
-        let state = PresenceFreshness.of(status: .online, lastSeen: scan + minutes(2), lastScan: scan, now: scan, policy: policy)
-        #expect(state == .online)
+    @Test func aScanDatedUpToFiveMinutesAheadOfNowByClockSkewIsRecent() {
+        #expect(PresenceFreshness.clockSkewAllowance == minutes(5))
+        #expect(PresenceFreshness.of(status: .online, lastScan: scan, now: scan - minutes(5), policy: policy) == .online)
     }
 
-    @Test func aScanDatedAheadOfNowByClockSkewIsRecent() {
-        let state = PresenceFreshness.of(status: .online, lastSeen: scan, lastScan: scan, now: scan - minutes(30), policy: policy)
-        #expect(state == .online)
+    /// A scan further ahead is a wrong clock, not a recent check.
+    @Test func aScanDatedMoreThanFiveMinutesAheadOfNowIsNotRecent() {
+        #expect(PresenceFreshness.of(status: .online, lastScan: scan, now: scan - minutes(5) - 1, policy: policy) == .notCheckedRecently)
+        #expect(PresenceFreshness.of(status: .online, lastScan: scan, now: scan - minutes(30), policy: policy) == .notCheckedRecently)
     }
 
     @Test func onlyOnlineIsOnline() {
@@ -77,6 +78,7 @@ struct PresenceFreshnessPastTests {
     private let day: TimeInterval = 86400
 
     @Test func pastDevicesAreThoseUnseenForSevenDaysBeforeTheNetworksLastScan() {
+        #expect(PresenceFreshness.pastDeviceDays == 7)
         #expect(PresenceFreshness.pastDeviceAge == 7 * day)
         #expect(PresenceFreshness.isPast(lastSeen: scan - 7 * day, lastScan: scan, now: scan))
         #expect(!PresenceFreshness.isPast(lastSeen: scan - 7 * day + 1, lastScan: scan, now: scan))
@@ -108,5 +110,17 @@ struct PresenceFreshnessPastTests {
 
     @Test func aLastSeenInTheFutureReadsAsJustNow() {
         #expect(PresenceFreshness.lastSeenText(since: scan + 600, now: scan) == "Last seen just now")
+    }
+
+    @Test func aRowSaysItsStateAndLastSeenOnceForVoiceOver() {
+        let home = UUID()
+        let row = LocalDevice(ipAddress: "192.168.1.9", macAddress: "", status: .offline, networkProfileID: home)
+        row.lastSeen = scan - 30 * 60
+        let presence = PresenceSnapshot(lastScans: [home: scan], now: scan)
+        #expect(presence.statusText(row) == "Offline · Last seen 30 min ago")
+        #expect(presence.accessibilityText(row) == "Offline, last seen 30 min ago")
+        #expect(presence.relativeLastSeen(row) == "30 min ago")
+        #expect(presence.isNetworkChecked(home))
+        #expect(!presence.isNetworkChecked(nil))
     }
 }

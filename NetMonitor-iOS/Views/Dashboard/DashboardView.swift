@@ -10,6 +10,7 @@ struct DashboardView: View {
     @State private var healthViewModel: NetworkHealthScoreViewModel
     @State private var lastHealthRefresh: Date?
     @State private var changeBrief = ChangeBriefViewModel.dashboard
+    @Environment(DevicePresenceModel.self) private var presenceModel: DevicePresenceModel?
     @Query(Self.savedDevicesDescriptor) private var savedDevices: [LocalDevice]
     @Query(Self.recentSpeedTestsDescriptor) private var recentSpeedTests: [SpeedTestResult]
     // periphery:ignore
@@ -41,7 +42,8 @@ struct DashboardView: View {
                     DeviceListView(
                         discoveredDevices: viewModel.discoveredDevices,
                         networkProfile: viewModel.activeNetwork,
-                        networkID: viewModel.deviceNetworkID
+                        networkID: viewModel.deviceNetworkID,
+                        isScanning: viewModel.isScanning
                     )
                 }
                 .themedBackground()
@@ -139,6 +141,7 @@ struct DashboardView: View {
             saved: savedDevices,
             networkProfileID: viewModel.activeNetwork?.id,
             speedTests: recentSpeedTests,
+            presence: presenceModel?.snapshot ?? DevicePresenceModel.noScans,
             isScanning: viewModel.isScanning
         )
     }
@@ -197,7 +200,7 @@ struct DashboardView: View {
 
             LiveEventTicker()
 
-            LocalDevicesCard(viewModel: viewModel, savedDevices: savedDevices)
+            LocalDevicesCard(viewModel: viewModel)
         }
     }
 }
@@ -464,7 +467,7 @@ struct RefinedNetworkHealthCard: View {
             return "Check your local connection"
         }
         var parts: [String] = []
-        parts.append("\(viewModel.deviceCount) devices active")
+        parts.append("\(viewModel.deviceCount) devices")
         if let latency = viewModel.gateway?.latency {
             parts.append("Gateway \(Int(latency))ms")
         }
@@ -716,52 +719,46 @@ private struct DeviceListRoute: Hashable {}
 
 struct LocalDevicesCard: View {
     @Bindable var viewModel: DashboardViewModel
-    /// The saved rows (#583): the card lists the network's, with their presence, once a scan saved
-    /// any; before that, the live scan's devices.
-    let savedDevices: [LocalDevice]
+    /// The network's saved rows (#583), with their presence, plus the scan's devices not saved yet.
+    @Query private var savedDevices: [LocalDevice]
+    @Environment(DevicePresenceModel.self) private var presenceModel: DevicePresenceModel?
     @Environment(\.horizontalSizeClass) private var sizeClass
 
-    /// Show all devices on iPad, cap at 5 on iPhone
-    private var visibleDevices: [DiscoveredDevice] {
-        if sizeClass == .regular {
-            return Array(viewModel.discoveredDevices)
-        }
-        return Array(viewModel.discoveredDevices.prefix(5))
+    init(viewModel: DashboardViewModel) {
+        self.viewModel = viewModel
+        _savedDevices = Query(SavedDeviceList.fetchDescriptor(network: viewModel.deviceNetworkID))
     }
 
-    private func visibleRows(_ saved: SavedDeviceList) -> [LocalDevice] {
-        sizeClass == .regular ? saved.rows : Array(saved.rows.prefix(5))
+    /// Show all devices on iPad, cap at 5 on iPhone
+    private func visibleEntries(_ list: SavedDeviceList) -> [SavedDeviceList.Entry] {
+        sizeClass == .regular ? list.entries : Array(list.entries.prefix(5))
     }
 
     var body: some View {
+        let list = SavedDeviceList(
+            saved: savedDevices, live: viewModel.discoveredDevices, network: viewModel.deviceNetworkID, sort: .status, showPast: false,
+            presence: presenceModel?.snapshot ?? DevicePresenceModel.noScans
+        )
         NavigationLink(value: DeviceListRoute()) {
-            // Qualified: the app has its own TimelineView. Every minute, so the card goes stale
-            // without a scan.
-            SwiftUI.TimelineView(.everyMinute) { _ in
-                let saved = SavedDeviceList(
-                    saved: savedDevices, network: viewModel.deviceNetworkID, sort: .status, showPast: false,
-                    presence: SavedDeviceList.currentPresence()
-                )
-                card(saved.rows.isEmpty ? nil : saved)
-            }
+            card(list)
         }
         .buttonStyle(PlainButtonStyle())
         .frame(maxHeight: sizeClass == .regular ? .infinity : nil)
         .accessibilityIdentifier("dashboard_link_devices")
-        .accessibilityValue("\(viewModel.deviceCount) devices")
+        .accessibilityValue("\(list.onlineCount) online, \(list.entries.count) devices")
     }
 
-    private func card(_ saved: SavedDeviceList?) -> some View {
+    private func card(_ list: SavedDeviceList) -> some View {
         GlassCard(statusGlow: Theme.Colors.info) {
             VStack(alignment: .leading, spacing: 14) {
                 HStack {
-                    Text("ACTIVE DEVICES")
+                    Text("DEVICES")
                         .font(.system(.caption2, weight: .heavy))
                         .foregroundStyle(Theme.Colors.textTertiary)
                         .tracking(2.0)
                     Spacer()
                     HStack(spacing: 4) {
-                        Text(saved.map { "\($0.onlineCount) online · \($0.rows.count) total" } ?? "\(viewModel.deviceCount) total")
+                        Text("\(list.onlineCount) online · \(list.entries.count) total")
                             .font(.system(.caption2, weight: .bold))
                             .foregroundStyle(Theme.Colors.accent)
                         Image(systemName: "chevron.right")
@@ -771,29 +768,24 @@ struct LocalDevicesCard: View {
                 }
 
                 VStack(spacing: 0) {
-                    if let saved {
-                        let rows = visibleRows(saved)
-                        ForEach(rows) { device in
-                            SavedDeviceRow(device: device, list: saved)
-                            if device.id != rows.last?.id {
-                                Divider()
-                                    .background(Theme.Colors.divider)
-                                    .padding(.vertical, 4)
-                            }
-                        }
-                    } else {
-                        ForEach(visibleDevices) { device in
+                    let entries = visibleEntries(list)
+                    ForEach(entries) { entry in
+                        switch entry {
+                        case .saved(let device):
+                            SavedDeviceRow(device: device, list: list)
+                        case .found(let device):
                             DeviceRow(device: device)
-                            if device.id != visibleDevices.last?.id {
-                                Divider()
-                                    .background(Theme.Colors.divider)
-                                    .padding(.vertical, 4)
-                            }
+                                .accessibilityValue(DeviceListView.foundInThisScan)
+                        }
+                        if entry.id != entries.last?.id {
+                            Divider()
+                                .background(Theme.Colors.divider)
+                                .padding(.vertical, 4)
                         }
                     }
                 }
 
-                if saved == nil, viewModel.discoveredDevices.isEmpty {
+                if list.entries.isEmpty || viewModel.isScanning {
                     HStack(spacing: 8) {
                         if viewModel.isScanning {
                             ProgressView(value: viewModel.scanProgress)
@@ -823,8 +815,8 @@ struct LocalDevicesCard: View {
     }
 }
 
-/// A saved row on the dashboard card (#583): its presence dot, and the latency only while online,
-/// else its state and last-seen time.
+/// A saved row on the dashboard card (#583): its presence dot, the latency only while online, else
+/// its state, and always how long ago it was last seen.
 struct SavedDeviceRow: View {
     let device: LocalDevice
     let list: SavedDeviceList
@@ -858,22 +850,30 @@ struct SavedDeviceRow: View {
 
             Spacer()
 
-            HStack(spacing: 6) {
-                PresenceDot(freshness: freshness, size: 6)
-                if let latency = list.latencyText(device) {
-                    Text(latency)
-                        .font(.system(size: 13, weight: .bold, design: .rounded))
-                        .foregroundStyle(Theme.Colors.success)
-                } else if !freshness.isOnline {
-                    Text(freshness == .offline ? "Offline" : "Not checked")
-                        .font(.system(size: 12, weight: .semibold, design: .rounded))
-                        .foregroundStyle(Theme.Colors.textSecondary)
+            VStack(alignment: .trailing, spacing: 2) {
+                HStack(spacing: 6) {
+                    PresenceDot(freshness: freshness, size: 6)
+                    if let latency = list.latencyText(device) {
+                        Text(latency)
+                            .font(.system(size: 13, weight: .bold, design: .rounded))
+                            .foregroundStyle(Theme.Colors.success)
+                    } else if !freshness.isOnline {
+                        Text(freshness == .offline ? "Offline" : "Not checked")
+                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                            .foregroundStyle(Theme.Colors.textSecondary)
+                            .accessibilityHidden(true)
+                    }
                 }
+                Text(list.presence.relativeLastSeen(device))
+                    .font(.system(.caption2, design: .rounded))
+                    .foregroundStyle(Theme.Colors.textTertiary)
+                    .accessibilityHidden(true)
             }
         }
         .padding(.vertical, 4)
         .accessibilityElement(children: .combine)
-        .accessibilityValue(list.statusText(device).replacingOccurrences(of: " · ", with: ", "))
+        // The state and last seen once, from the one place that words them.
+        .accessibilityValue(list.presence.accessibilityText(device))
         .accessibilityIdentifier("dashboard_device_row_\(device.ipAddress)")
     }
 }

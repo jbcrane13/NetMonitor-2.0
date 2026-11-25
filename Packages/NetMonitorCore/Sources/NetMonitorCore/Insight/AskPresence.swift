@@ -5,10 +5,7 @@ public extension AskSnapshot {
     /// last seen: Core `PresenceFreshness` (#583), the same three states and grace rule as every
     /// device list. The model never states them; the app computes, the model words.
     func presence(of device: AskDevice) -> PresenceFreshness {
-        PresenceFreshness.of(
-            status: device.status, lastSeen: device.lastSeen, lastScan: lastScan, now: now,
-            policy: DeviceGracePolicy(interval: staleAfter)
-        )
+        PresenceFreshness.of(status: device.status, lastScan: lastScan, now: now, policy: DeviceGracePolicy(interval: staleAfter))
     }
 }
 

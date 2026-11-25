@@ -120,7 +120,8 @@ public struct AskSnapshot: Sendable {
 
     public var scanFreshness: ScanFreshness {
         guard let lastScan else { return .notScanned }
-        return now.timeIntervalSince(lastScan) > staleAfter ? .stale : .fresh
+        // The same rule as every device's presence (#583), clock skew included.
+        return PresenceFreshness.isRecent(lastScan, now: now, policy: DeviceGracePolicy(interval: staleAfter)) ? .fresh : .stale
     }
 
     /// The app's line on how fresh device statuses are, shown under an answer word for word.

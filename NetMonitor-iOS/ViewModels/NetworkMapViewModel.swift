@@ -77,9 +77,9 @@ final class NetworkMapViewModel {
     func notCheckedRecentlyNote(_ presence: PresenceSnapshot) -> String? {
         let devices = discoveredDevices
         guard !isScanning, !devices.isEmpty else { return nil }
-        let lastScan = presence.lastScan(for: devices.lazy.compactMap(\.networkProfileID).first ?? activeNetwork?.id)
-        let state = PresenceFreshness.of(status: .online, lastSeen: .distantPast, lastScan: lastScan, now: presence.now, policy: presence.policy)
-        guard state == .notCheckedRecently else { return nil }
+        let network = devices.lazy.compactMap(\.networkProfileID).first ?? activeNetwork?.id
+        guard !presence.isNetworkChecked(network) else { return nil }
+        let lastScan = presence.lastScan(for: network)
         return lastScan.map { "Not checked recently · last scan \(PresenceFreshness.relativeText(since: $0, now: presence.now))" }
             ?? "Not checked recently · scan to update"
     }

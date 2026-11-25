@@ -61,9 +61,9 @@ expect "$("$AX" wait devices_card_$SEEDED 15)" found "run 1: the seeded device's
 
 for n in 1 2 3 4; do scan; done
 expect "$("$AX" textin devices_card_$SEEDED "Online" 5)" "found text" "the seeded device should be Online"
-expect "$("$AX" textin devices_card_$SEEDED "Last seen just now" 5)" "found text" "the seeded device's last seen"
+expect "$("$AX" textin devices_card_$SEEDED "last seen just now" 5)" "found text" "the seeded device's last seen"
 expect "$("$AX" textin devices_card_$PRINTER "Offline" 10)" "found text" "the printer should be Offline after grace"
-expect "$("$AX" textin devices_card_$PRINTER "Last seen 30 min ago" 5)" "found text" "the printer's last seen"
+expect "$("$AX" textin devices_card_$PRINTER "last seen 30 min ago" 5)" "found text" "the printer's last seen"
 expect "$("$AX" gone devices_card_$TV 3)" gone "the past TV should be hidden by default"
 expect "$("$AX" text "Show past devices (1)" 5)" "found text" "the past-devices control should count the TV"
 "$AX" capture-union "$OUT/583-1-cards-online-offline.png" devices_card_$SEEDED devices_card_$PRINTER devices_button_showPast
@@ -71,7 +71,7 @@ expect "$("$AX" text "Show past devices (1)" 5)" "found text" "the past-devices 
 "$AX" press devices_button_showPast > /dev/null
 expect "$("$AX" wait devices_card_$TV 5)" found "Show past devices should list the TV"
 expect "$("$AX" textin devices_card_$TV "Offline" 5)" "found text" "the TV should read Offline"
-expect "$("$AX" textin devices_card_$TV "Last seen 8 days ago" 5)" "found text" "the TV's last seen"
+expect "$("$AX" textin devices_card_$TV "last seen 8 days ago" 5)" "found text" "the TV's last seen"
 expect "$("$AX" text "Hide past devices" 5)" "found text" "the control should offer to hide them again"
 "$AX" capture-union "$OUT/583-2-cards-past-shown.png" devices_card_$SEEDED devices_card_$PRINTER devices_card_$TV devices_button_showPast
 
@@ -87,9 +87,9 @@ for n in 1 2 3 4; do scan; done
 expect "$("$AX" gone devices_row_pro$TV 3)" gone "Pro: the past TV should be hidden by default"
 "$AX" press devices_button_showPast > /dev/null
 expect "$("$AX" wait devices_row_pro$TV 5)" found "Pro: Show past devices should list the TV"
-expect "$("$AX" textin devices_row_pro$SEEDED "Online, Last seen just now" 5)" "found text" "Pro: seeded Online"
-expect "$("$AX" textin devices_row_pro$PRINTER "Offline, Last seen 30 min ago" 5)" "found text" "Pro: printer Offline"
-expect "$("$AX" textin devices_row_pro$TV "Offline, Last seen 8 days ago" 5)" "found text" "Pro: TV Offline"
+expect "$("$AX" textin devices_row_pro$SEEDED "Online, last seen just now" 5)" "found text" "Pro: seeded Online"
+expect "$("$AX" textin devices_row_pro$PRINTER "Offline, last seen 30 min ago" 5)" "found text" "Pro: printer Offline"
+expect "$("$AX" textin devices_row_pro$TV "Offline, last seen 8 days ago" 5)" "found text" "Pro: TV Offline"
 "$AX" capture-union "$OUT/583-3-pro-table.png" devices_row_pro$SEEDED devices_row_pro$PRINTER devices_row_pro$TV \
   devices_pro_presence_$SEEDED devices_pro_presence_$PRINTER devices_pro_presence_$TV
 
@@ -104,7 +104,7 @@ expect "$("$AX" wait devices_card_$PRINTER 10)" found "run 3: the printer's card
 for ip in $SEEDED $PRINTER; do
   expect "$("$AX" textin devices_card_$ip "Not checked recently" 5)" "found text" "run 3: $ip should be Not checked recently"
   expect "$("$AX" notextin devices_card_$ip "Online" 3)" "no text" "run 3: $ip must not read Online"
-  expect "$("$AX" textin devices_card_$ip "Last seen 1 hour ago" 5)" "found text" "run 3: $ip last seen"
+  expect "$("$AX" textin devices_card_$ip "last seen 1 hour ago" 5)" "found text" "run 3: $ip last seen"
 done
 "$AX" capture-union "$OUT/583-4-cards-not-checked.png" devices_card_$SEEDED devices_card_$PRINTER
 echo PASS

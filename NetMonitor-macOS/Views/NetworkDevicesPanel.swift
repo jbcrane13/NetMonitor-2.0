@@ -56,10 +56,8 @@ struct NetworkDevicesPanel: View {
     private var filteredDevices: [LocalDevice] {
         DeviceList.rows(
             devices,
-            search: searchText,
-            onlineOnly: false,
             // Past devices stay in the Devices view, behind "Show past devices" (#583).
-            showPast: false,
+            filter: DeviceListFilter(search: searchText),
             presence: presence,
             sort: sortOrder,
             ascending: sortOrder == .lastSeen ? false : true
@@ -275,7 +273,7 @@ private struct DevicePanelRow: View {
         HStack(spacing: 8) {
             PresenceDot(
                 freshness: presence.freshness(of: device), size: 7,
-                accessibilityText: "\(presence.freshness(of: device).label), \(presence.lastSeenText(device))"
+                accessibilityText: presence.accessibilityText(device)
             )
             .shadow(color: presence.freshness(of: device).isOnline ? MacTheme.Colors.success.opacity(0.6) : .clear, radius: 3)
 
@@ -330,6 +328,14 @@ private struct DevicePanelRow: View {
                     .font(.system(size: 11, design: .monospaced))
                     .foregroundStyle(MacTheme.Colors.labelTertiary)
             }
+
+            // How long ago it was last seen (#583); the dot already says it to VoiceOver.
+            Text(presence.relativeLastSeen(device))
+                .font(.system(size: 10))
+                .foregroundStyle(MacTheme.Colors.labelTertiary)
+                .lineLimit(1)
+                .frame(width: 70, alignment: .trailing)
+                .accessibilityHidden(true)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 5)

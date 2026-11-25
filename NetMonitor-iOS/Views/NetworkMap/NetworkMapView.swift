@@ -4,6 +4,7 @@ import NetworkScanKit
 
 struct NetworkMapView: View {
     @State private var viewModel: NetworkMapViewModel
+    @Environment(DevicePresenceModel.self) private var presenceModel: DevicePresenceModel?
     @State private var sortOrder: DeviceSortOrder = .ip
     @State private var isAddNetworkSheetPresented = false
 
@@ -26,7 +27,7 @@ struct NetworkMapView: View {
             }
         case .latency:
             return devices.sorted { ($0.latency ?? 9999) < ($1.latency ?? 9999) }
-        case .source, .status:
+        case .source:
             return devices.sorted {
                 if $0.source == $1.source {
                     return $0.ipAddress.ipSortKey < $1.ipAddress.ipSortKey
@@ -43,11 +44,8 @@ struct NetworkMapView: View {
 
     var body: some View {
         NavigationStack {
-            // Qualified: the app has its own TimelineView. Every minute, so the map goes stale
-            // without a scan.
-            SwiftUI.TimelineView(.everyMinute) { _ in
-                mapContent(staleNote: viewModel.notCheckedRecentlyNote(SavedDeviceList.currentPresence()))
-            }
+            // The presence model refreshes after each saved scan and every minute (#583).
+            mapContent(staleNote: viewModel.notCheckedRecentlyNote(presenceModel?.snapshot ?? DevicePresenceModel.noScans))
         }
     }
 
@@ -77,7 +75,7 @@ struct NetworkMapView: View {
             Spacer()
 
             Picker("Sort", selection: $sortOrder) {
-                ForEach([DeviceSortOrder.ip, .name, .latency, .source], id: \.self) { order in
+                ForEach(DeviceSortOrder.allCases, id: \.self) { order in
                     Text(order.rawValue).tag(order)
                 }
             }
