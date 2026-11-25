@@ -97,6 +97,8 @@ struct CompanionSettingsView: View {
                 try? await Task.sleep(for: .seconds(2))
                 await created.refresh()
             }
+            // The panel is gone: stop receiving pairing events (#590).
+            await created.detach()
         }
     }
 

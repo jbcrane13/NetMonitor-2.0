@@ -56,7 +56,7 @@ struct CompanionPairingSheet: View {
                     .buttonStyle(.link)
                     .accessibilityIdentifier("pairing_toggle_showCode")
             }
-            Text(timerInterval: Date()...offer.expiresAt, countsDown: true)
+            Text(timerInterval: offer.countdown(now: Date()), countsDown: true)
                 .font(.caption.monospacedDigit())
                 .foregroundStyle(.secondary)
             Text("The code works once and expires in ten minutes.")

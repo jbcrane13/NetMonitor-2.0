@@ -1,5 +1,6 @@
 import Foundation
 import NetMonitorCore
+import Synchronization
 
 /// Metadata for a connected, paired companion phone
 struct ConnectedClientInfo {
@@ -27,12 +28,20 @@ struct CompanionPairingOffer: Sendable {
     let invitation: CompanionPairingInvitation
     let code: CompanionPairingCode
     let expiresAt: Date
+
+    /// The range the countdown shows; empty, not reversed, once the offer has expired, since a
+    /// reversed `ClosedRange` traps.
+    func countdown(now: Date) -> ClosedRange<Date> {
+        now...max(now, expiresAt)
+    }
 }
 
 /// What Settings → Companion uses of the service, so its view model can be tested with a fake.
 /// Mac-only, so it lives here rather than in Core's `ServiceProtocols.swift`.
 protocol CompanionServiceProtocol: Sendable {
-    func setEventHandler(_ handler: @escaping @Sendable (CompanionPairingEvent) -> Void) async
+    /// Subscribes `handler` to pairing events; every open Companion panel gets them.
+    func addEventHandler(_ id: UUID, _ handler: @escaping @Sendable (CompanionPairingEvent) -> Void) async
+    func removeEventHandler(_ id: UUID) async
     func pairedPhones() async -> [PairedPhone]
     func connectedPhonePins() async -> Set<Data>
     func refusedAttemptDate() async -> Date?
@@ -40,4 +49,22 @@ protocol CompanionServiceProtocol: Sendable {
     func closePairingWindow() async
     func confirmPairing(link: UUID, accepted: Bool) async
     func revoke(_ pin: Data) async -> Bool
+}
+
+/// Whether a link is still open, readable from any thread.
+final class LinkOpenFlag: Sendable {
+    private let state = Mutex(true)
+
+    var isOpen: Bool {
+        state.withLock { $0 }
+    }
+
+    func close() {
+        state.withLock { $0 = false }
+    }
+}
+
+enum CompanionServiceError: Error {
+    /// The companion identity couldn't be loaded, so the service doesn't start.
+    case noIdentity
 }

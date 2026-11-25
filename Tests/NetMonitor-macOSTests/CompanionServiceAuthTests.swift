@@ -326,6 +326,19 @@ struct CompanionServiceAuthTests {
 struct CompanionServiceLimitsTests {
     // MARK: Deferred work and listener lifecycle
 
+    @Test("Closing a link cancels its deadline tasks instead of leaving them scheduled")
+    func deadlineTasksEndWithTheLink() async throws {
+        let limits = CompanionService.Limits(authDeadline: .milliseconds(300), pairingDeadline: .seconds(60))
+        let mac = try await TestMac.start(limits: limits)
+        defer { mac.stop() }
+        let stalled = try NWConnection(host: "127.0.0.1", port: #require(NWEndpoint.Port(rawValue: mac.port)), using: .tcp)
+        stalled.start(queue: .global())
+        defer { stalled.cancel() }
+        #expect(await poll { await mac.service.liveDeadlineTasks == 2 })
+        // The auth deadline closes the stalled link at 300 ms; the 60 s pairing deadline must go with it.
+        #expect(await poll(timeout: .seconds(3)) { await mac.service.liveDeadlineTasks == 0 })
+    }
+
     @Test("A model request held back across a revoke never reaches the handler")
     func deferredWorkAfterRevoke() async throws {
         let identity = CompanionIdentity()

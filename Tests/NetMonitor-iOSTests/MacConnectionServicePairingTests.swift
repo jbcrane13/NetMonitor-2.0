@@ -126,6 +126,25 @@ struct MacConnectionServicePairingTests {
         #expect(!service.connectionState.isConnected)
     }
 
+    @Test("Back while still connecting closes the pairing link: the attempt can't continue unseen")
+    func backWhileConnecting() async throws {
+        let code = CompanionPairingCode.random()
+        let fake = try FakeCompanionMac(code: code)
+        defer { fake.stop() }
+        let (service, store) = makeService()
+        let mac = try await start(fake, in: service)
+        service.pair(code: code, with: mac)
+        #expect(service.pairingState == .connecting)
+        service.resetPairingState()
+        #expect(service.pairingState == .idle)
+        // An absence check: had the link stayed open, the Mac's hello and challenge would arrive
+        // within a few hundred milliseconds and move the state on.
+        try await Task.sleep(for: .seconds(1))
+        #expect(service.pairingState == .idle)
+        #expect(!fake.received.contains("verdict:true"))
+        #expect(try store.load() == nil)
+    }
+
     @Test("A wrong code is refused by the Mac and nothing is saved")
     func wrongCode() async throws {
         let fake = try FakeCompanionMac()

@@ -25,6 +25,8 @@ import NetMonitorCore
     private(set) var errorMessage: String?
 
     private let service: (any CompanionServiceProtocol)?
+    /// This panel's pairing-event subscription; every open panel has its own.
+    private let subscription = UUID()
 
     /// The app passes its `CompanionService` (nil when the Keychain refused and it never started);
     /// tests pass a fake.
@@ -38,10 +40,15 @@ import NetMonitorCore
             errorMessage = "The companion service isn't running."
             return
         }
-        await service.setEventHandler { [weak self] event in
+        await service.addEventHandler(subscription) { [weak self] event in
             Task { @MainActor [weak self] in self?.apply(event) }
         }
         await refresh()
+    }
+
+    /// Stops this panel's pairing events.
+    func detach() async {
+        await service?.removeEventHandler(subscription)
     }
 
     func refresh() async {

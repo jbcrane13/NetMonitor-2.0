@@ -10,17 +10,9 @@ public enum CompanionCredentialError: Error, Equatable, Sendable {
     case corrupt
 }
 
-/// Raw secret storage for the companion link (#590), one item per account.
-public protocol CompanionSecretStore: Sendable {
-    func read(account: String) throws -> Data?
-    func write(_ data: Data, account: String) throws
-    func delete(account: String) throws
-    func accounts() throws -> [String]
-}
-
 /// The Keychain, on this device only: the data protection keychain (also on macOS), never
 /// synchronised, every status checked.
-public struct CompanionKeychain: CompanionSecretStore {
+public struct CompanionKeychain: CompanionSecretStoreProtocol {
     public enum Accessibility: Sendable {
         /// The Mac's menu bar app runs from login, before anyone unlocks it interactively.
         case afterFirstUnlock
@@ -106,7 +98,7 @@ public struct CompanionKeychain: CompanionSecretStore {
 }
 
 /// Storage in memory, for tests and UI-test launches; it can be told to fail.
-public final class InMemoryCompanionSecretStore: CompanionSecretStore {
+public final class InMemoryCompanionSecretStore: CompanionSecretStoreProtocol {
     private struct State {
         var items: [String: Data] = [:]
         var failWrites = false
@@ -183,10 +175,10 @@ public struct PairedPhone: Codable, Sendable, Equatable, Identifiable {
 
 /// The Mac's paired phones, one Keychain item each under `phone.<pin hex>`.
 public struct PairedPhoneStore: Sendable {
-    private let backing: any CompanionSecretStore
+    private let backing: any CompanionSecretStoreProtocol
     private static let prefix = "phone."
 
-    public init(backing: any CompanionSecretStore) {
+    public init(backing: any CompanionSecretStoreProtocol) {
         self.backing = backing
     }
 
@@ -218,10 +210,10 @@ public struct PairedPhoneStore: Sendable {
 
 /// This device's own TLS identity, created on first use.
 public struct CompanionIdentityStore: Sendable {
-    private let backing: any CompanionSecretStore
+    private let backing: any CompanionSecretStoreProtocol
     private let account: String
 
-    public init(backing: any CompanionSecretStore, account: String = "identity") {
+    public init(backing: any CompanionSecretStoreProtocol, account: String = "identity") {
         self.backing = backing
         self.account = account
     }
@@ -258,10 +250,10 @@ public struct PairedMacRecord: Codable, Sendable, Equatable {
 
 /// The iPhone's single paired Mac.
 public struct PairedMacStore: Sendable {
-    private let backing: any CompanionSecretStore
+    private let backing: any CompanionSecretStoreProtocol
     private static let account = "paired-mac"
 
-    public init(backing: any CompanionSecretStore) {
+    public init(backing: any CompanionSecretStoreProtocol) {
         self.backing = backing
     }
 

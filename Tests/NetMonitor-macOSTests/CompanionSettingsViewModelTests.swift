@@ -11,19 +11,21 @@ private actor FakeCompanionService: CompanionServiceProtocol {
     var revokeSucceeds = true
     private(set) var confirmations: [(UUID, Bool)] = []
     private(set) var revoked: [Data] = []
-    private var handler: (@Sendable (CompanionPairingEvent) -> Void)?
+    private var handlers: [UUID: @Sendable (CompanionPairingEvent) -> Void] = [:]
 
     init(phones: [PairedPhone]) {
         self.phones = phones
     }
 
-    func setEventHandler(_ handler: @escaping @Sendable (CompanionPairingEvent) -> Void) {
-        self.handler = handler
+    func addEventHandler(_ id: UUID, _ handler: @escaping @Sendable (CompanionPairingEvent) -> Void) {
+        handlers[id] = handler
     }
 
-    func emit(_ event: CompanionPairingEvent) {
-        handler?(event)
+    func removeEventHandler(_ id: UUID) {
+        handlers[id] = nil
     }
+
+    var subscriberCount: Int { handlers.count }
 
     func pairedPhones() -> [PairedPhone] { phones }
     func connectedPhonePins() -> Set<Data> { connected }
@@ -112,5 +114,29 @@ struct CompanionSettingsViewModelTests {
         #expect(await service.revoked == [phone.pin])
         #expect(model.phones.isEmpty)
         #expect(model.errorMessage?.contains("couldn't be deleted from the Keychain") == true)
+    }
+
+    @Test("Each open panel subscribes on its own and stops on detach, so events reach the panel that paired")
+    func subscriptionsPerPanel() async {
+        let service = FakeCompanionService(phones: [])
+        let first = CompanionSettingsViewModel(service: service)
+        let second = CompanionSettingsViewModel(service: service)
+        await first.attach()
+        await second.attach()
+        #expect(await service.subscriberCount == 2)
+        await second.detach()
+        #expect(await service.subscriberCount == 1)
+    }
+
+    @Test("The countdown range is never reversed, even after the offer expired")
+    func countdownAfterExpiry() throws {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let invitation = CompanionPairingInvitation(
+            macID: UUID(), macName: "Mac", macPin: Data(count: 32), secret: Data(count: 32), host: nil, port: 8849
+        )
+        let expired = CompanionPairingOffer(invitation: invitation, code: .random(), expiresAt: now.addingTimeInterval(-60))
+        #expect(expired.countdown(now: now) == now...now)
+        let live = CompanionPairingOffer(invitation: invitation, code: .random(), expiresAt: now.addingTimeInterval(60))
+        #expect(live.countdown(now: now) == now...now.addingTimeInterval(60))
     }
 }

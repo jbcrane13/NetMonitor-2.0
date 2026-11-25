@@ -73,7 +73,7 @@ final class TestMac: @unchecked Sendable {
         let handled = Locked<[String]>([])
         let events = Locked<[CompanionPairingEvent]>([])
         let tokenAfterPause = Locked<Bool?>(nil)
-        await service.setEventHandler { event in events.with { $0.append(event) } }
+        await service.addEventHandler(UUID()) { event in events.with { $0.append(event) } }
         try await service.start(messageHandler: { message, _, authorization in
             handled.with { $0.append(message.logName) }
             if let handlerPause {

@@ -9,7 +9,6 @@ import Foundation
 import Network
 import NetMonitorCore
 import os
-import Synchronization
 
 /// The Mac end of the companion link (#590): a TLS 1.3 listener with mutually pinned identities,
 /// advertised over Bonjour. Each connection gets a role when its session is verified, and every
@@ -94,7 +93,9 @@ actor CompanionService: CompanionServiceProtocol {
     private var messageHandler: ((CompanionMessage, UUID, CompanionAuthorization) async -> CompanionMessage?)?
     /// The heartbeat sent when a phone's link is authorised, carrying this Mac's capabilities (#457).
     private var heartbeat: @Sendable () async -> HeartbeatPayload = { HeartbeatPayload() }
-    private var eventHandler: (@Sendable (CompanionPairingEvent) -> Void)?
+    private var eventHandlers: [UUID: @Sendable (CompanionPairingEvent) -> Void] = [:]
+    /// Deadline tasks still running, for tests.
+    private(set) var liveDeadlineTasks = 0
     /// When a device whose certificate this Mac doesn't trust last connected, for Settings.
     private(set) var lastRefusedAttempt: Date?
     /// Per-client decoders for the `processIncomingDataForTesting` seam only.
@@ -142,8 +143,12 @@ actor CompanionService: CompanionServiceProtocol {
         lastRefusedAttempt
     }
 
-    func setEventHandler(_ handler: @escaping @Sendable (CompanionPairingEvent) -> Void) {
-        eventHandler = handler
+    func addEventHandler(_ id: UUID, _ handler: @escaping @Sendable (CompanionPairingEvent) -> Void) {
+        eventHandlers[id] = handler
+    }
+
+    func removeEventHandler(_ id: UUID) {
+        eventHandlers[id] = nil
     }
 
     // MARK: - Lifecycle
@@ -362,22 +367,29 @@ extension CompanionService {
             return
         }
         let clientID = UUID()
-        links[clientID] = Link(connection: connection, acceptedAt: Date(), listenerGeneration: generation)
+        var link = Link(connection: connection, acceptedAt: Date(), listenerGeneration: generation)
         connection.stateUpdateHandler = { [weak self] state in
             Task { [weak self] in
                 await self?.handleConnectionState(state, clientID: clientID)
             }
         }
+        // The deadlines are the link's tasks, so closing the link cancels them.
+        for (delay, pairingLimit) in [(limits.authDeadline, false), (limits.pairingDeadline, true)] {
+            liveDeadlineTasks += 1
+            link.tasks[UUID()] = Task { [weak self] in
+                try? await Task.sleep(for: delay)
+                if !Task.isCancelled {
+                    await self?.enforceDeadline(clientID, pairingLimit: pairingLimit)
+                }
+                await self?.deadlineEnded()
+            }
+        }
+        links[clientID] = link
         connection.start(queue: connectionQueue)
-        let limits = limits
-        Task { [weak self] in
-            try? await Task.sleep(for: limits.authDeadline)
-            await self?.enforceDeadline(clientID, pairingLimit: false)
-        }
-        Task { [weak self] in
-            try? await Task.sleep(for: limits.pairingDeadline)
-            await self?.enforceDeadline(clientID, pairingLimit: true)
-        }
+    }
+
+    private func deadlineEnded() {
+        liveDeadlineTasks -= 1
     }
 
     /// Closes a link without a verified session by `authDeadline`, or still pairing at `pairingDeadline`.
@@ -700,7 +712,7 @@ extension CompanionService {
     }
 
     private func emit(_ event: CompanionPairingEvent) {
-        eventHandler?(event)
+        eventHandlers.values.forEach { $0(event) }
     }
 
     private static func isPaired(_ role: CompanionLinkRole?) -> Bool {
@@ -757,22 +769,4 @@ extension CompanionService {
 
     var currentListenerGenerationForTesting: Int { listenerGeneration }
     var linkCountForTesting: Int { links.count }
-}
-
-/// Whether a link is still open, readable from any thread.
-final class LinkOpenFlag: Sendable {
-    private let state = Mutex(true)
-
-    var isOpen: Bool {
-        state.withLock { $0 }
-    }
-
-    func close() {
-        state.withLock { $0 = false }
-    }
-}
-
-enum CompanionServiceError: Error {
-    /// The companion identity couldn't be loaded, so the service doesn't start.
-    case noIdentity
 }

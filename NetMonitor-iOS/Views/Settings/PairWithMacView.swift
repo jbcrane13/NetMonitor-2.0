@@ -5,17 +5,18 @@ import VisionKit
 /// Pair with a Mac (#590): scan the QR code from the Mac's Settings → Companion, or type the code
 /// shown under it; then compare the six digits on both screens and confirm on the Mac.
 struct PairWithMacView: View {
-    /// The Mac picked from the list; nil when pairing from a scanned QR alone.
-    let mac: DiscoveredMac?
-    @State private var connectionService = MacConnectionService.shared
-    @State private var codeText = ""
-    @State private var codeError: String?
+    @State private var viewModel: PairWithMacViewModel
     @State private var showsScanner = false
     @Environment(\.dismiss) private var dismiss
 
+    /// `mac` is the Mac picked from the list; nil when pairing from a scanned QR alone.
+    init(mac: DiscoveredMac?) {
+        _viewModel = State(initialValue: PairWithMacViewModel(mac: mac))
+    }
+
     var body: some View {
         List {
-            switch connectionService.pairingState {
+            switch viewModel.state {
             case .idle, .failed:
                 entrySection
             case .connecting:
@@ -38,19 +39,16 @@ struct PairWithMacView: View {
         }
         .scrollContentBackground(.hidden)
         .themedBackground()
-        .navigationTitle(mac.map { "Pair with \($0.name)" } ?? "Pair with a Mac")
+        .navigationTitle(viewModel.mac.map { "Pair with \($0.name)" } ?? "Pair with a Mac")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showsScanner) {
             PairingQRScanner { text in
                 showsScanner = false
-                handleScan(text)
+                viewModel.handleScan(text)
             }
         }
-        .onDisappear {
-            if case .paired = connectionService.pairingState {} else {
-                connectionService.resetPairingState()
-            }
-        }
+        .onAppear { viewModel.appear() }
+        .onDisappear { viewModel.disappear() }
         .accessibilityIdentifier("screen_pairWithMac")
     }
 
@@ -58,7 +56,15 @@ struct PairWithMacView: View {
 
     @ViewBuilder
     private var entrySection: some View {
-        if case .failed(let message) = connectionService.pairingState {
+        if let inputError = viewModel.inputError {
+            Section {
+                Label(inputError, systemImage: "exclamationmark.triangle")
+                    .foregroundStyle(Theme.Colors.error)
+                    .accessibilityIdentifier("pairMac_label_inputError")
+            }
+            .listRowBackground(Theme.Colors.glassBackground)
+        }
+        if case .failed(let message) = viewModel.state {
                 Section {
                     Label(message, systemImage: "xmark.octagon")
                         .foregroundStyle(Theme.Colors.error)
@@ -80,22 +86,16 @@ struct PairWithMacView: View {
             }
             .listRowBackground(Theme.Colors.glassBackground)
 
-            if let mac {
+            if viewModel.mac != nil {
                 Section {
-                    TextField("XXXXX-XXXXX-XXXXX-XXXXX-XXXXX-X", text: $codeText)
+                    TextField("XXXXX-XXXXX-XXXXX-XXXXX-XXXXX-X", text: $viewModel.codeText)
                         .font(.system(.body, design: .monospaced))
                         .textInputAutocapitalization(.characters)
                         .autocorrectionDisabled()
                         .foregroundStyle(Theme.Colors.textPrimary)
                         .accessibilityIdentifier("pairMac_textfield_code")
-                    if let codeError {
-                        Text(codeError)
-                            .font(.caption)
-                            .foregroundStyle(Theme.Colors.error)
-                            .accessibilityIdentifier("pairMac_label_codeError")
-                    }
                     GlassButton(title: "Pair", icon: "link", style: .primary, size: .medium, isFullWidth: true) {
-                        pairWithCode(mac)
+                        viewModel.pairWithCode()
                     }
                     .accessibilityIdentifier("pairMac_button_pairWithCode")
                 } header: {
@@ -132,11 +132,11 @@ struct PairWithMacView: View {
                         .foregroundStyle(Theme.Colors.textTertiary)
                         .multilineTextAlignment(.center)
                     GlassButton(title: "They Match", icon: "checkmark", style: .primary, size: .medium, isFullWidth: true) {
-                        connectionService.confirmComparison(true)
+                        viewModel.confirm(true)
                     }
                     .accessibilityIdentifier("pairMac_button_codesMatch")
                     Button("Don't Match", role: .destructive) {
-                        connectionService.confirmComparison(false)
+                        viewModel.confirm(false)
                     }
                     .accessibilityIdentifier("pairMac_button_codesDiffer")
                 }
@@ -158,7 +158,7 @@ struct PairWithMacView: View {
                     .foregroundStyle(Theme.Colors.textPrimary)
                     .accessibilityIdentifier("pairMac_label_paired")
                 GlassButton(title: "Done", icon: "checkmark", style: .primary, size: .medium, isFullWidth: true) {
-                    connectionService.resetPairingState()
+                    viewModel.done()
                     dismiss()
                 }
                 .accessibilityIdentifier("pairMac_button_done")
@@ -167,25 +167,6 @@ struct PairWithMacView: View {
             .padding(.vertical, 12)
         }
         .listRowBackground(Theme.Colors.glassBackground)
-    }
-
-    // MARK: - Actions
-
-    private func pairWithCode(_ mac: DiscoveredMac) {
-        guard let code = CompanionPairingCode(typed: codeText) else {
-            codeError = "Check the code: it's 26 characters, and one doesn't match."
-            return
-        }
-        codeError = nil
-        connectionService.pair(code: code, with: mac)
-    }
-
-    private func handleScan(_ text: String) {
-        guard let invitation = CompanionPairingInvitation(qrText: text) else {
-            codeError = "That isn't a NetMonitor pairing code."
-            return
-        }
-        connectionService.pair(with: invitation)
     }
 }
 
@@ -225,6 +206,7 @@ private struct PairingQRScanner: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
+                        .accessibilityIdentifier("pairMac_button_cancelScan")
                 }
             }
         }

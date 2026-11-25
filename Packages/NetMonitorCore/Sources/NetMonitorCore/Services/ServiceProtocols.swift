@@ -612,3 +612,14 @@ public protocol LabelFieldExtractorProtocol: Sendable {
     /// The fields the model read from `lines`, or nil when it can't answer.
     func extractFields(from lines: [String]) async -> LabelFields?
 }
+
+// MARK: - Companion secret storage (#590)
+
+/// Raw secret storage for the companion link, one item per account: the Keychain
+/// (`CompanionKeychain`) in the apps, memory (`InMemoryCompanionSecretStore`) in tests.
+public protocol CompanionSecretStoreProtocol: Sendable {
+    func read(account: String) throws -> Data?
+    func write(_ data: Data, account: String) throws
+    func delete(account: String) throws
+    func accounts() throws -> [String]
+}

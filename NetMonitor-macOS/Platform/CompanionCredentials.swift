@@ -48,7 +48,7 @@ struct CompanionCredentials: Sendable {
     }
 
     private static func make(
-        backing: any CompanionSecretStore,
+        backing: any CompanionSecretStoreProtocol,
         defaultsSuite: String?,
         macName: String,
         host: String?
