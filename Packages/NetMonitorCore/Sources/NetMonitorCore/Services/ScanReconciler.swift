@@ -55,6 +55,24 @@ public struct ScanHistory {
         (load()[Self.key(network)] ?? []).map(\.scan).max()
     }
 
+    /// When the network's latest scan was reconciled, on the clock that stamps `lastSeen`: the
+    /// scan "as of" which Ask states presence (#452). Nil when the network has none.
+    public func lastScanTime(for network: UUID?) -> Date? {
+        (load()[Self.key(network)] ?? []).max { $0.scan < $1.scan }?.reconciled
+    }
+
+    /// Each network's `lastScanTime(for:)`, read once, as of `now` (#583).
+    public func presenceSnapshot(
+        for networks: some Sequence<UUID?>, now: Date, policy: DeviceGracePolicy = DeviceGracePolicy()
+    ) -> PresenceSnapshot {
+        let all = load()
+        var lastScans: [UUID?: Date] = [:]
+        for network in networks {
+            lastScans[network] = (all[Self.key(network)] ?? []).max { $0.scan < $1.scan }?.reconciled
+        }
+        return PresenceSnapshot(lastScans: lastScans, now: now, policy: policy)
+    }
+
     /// Forgets every network's scans, as when the saved devices are deleted.
     public func clearAll() {
         defaults.removeObject(forKey: Self.storageKey)

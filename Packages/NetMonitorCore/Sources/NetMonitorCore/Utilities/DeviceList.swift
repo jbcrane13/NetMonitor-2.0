@@ -20,7 +20,11 @@ public enum RecencyStyle: Sendable {
 /// Pure derivation of a device list's search/filter/sort, and its "last seen"
 /// recency label, shared by every macOS device list view.
 public enum DeviceList {
-    /// Filters and sorts `devices` per `search`, `onlineOnly`, `sort`, and `ascending`.
+    /// Filters and sorts `devices` per `search`, `onlineOnly`, `showPast`, `sort`, and `ascending`.
+    ///
+    /// `onlineOnly` and the `status` sort use each row's `PresenceFreshness` from `presence`, never
+    /// the saved status alone (#583); the status sort is online, then not checked recently, then
+    /// offline. Past devices (`PresenceFreshness.isPast`) are left out unless `showPast`.
     ///
     /// `search` matches (case-insensitively, except IP address which uses `contains`)
     /// against displayName, ipAddress, macAddress, and vendor.
@@ -33,22 +37,19 @@ public enum DeviceList {
         _ devices: [LocalDevice],
         search: String,
         onlineOnly: Bool,
+        showPast: Bool,
+        presence: PresenceSnapshot,
         sort: DeviceSortOrder,
         ascending: Bool
     ) -> [LocalDevice] {
-        var result = devices
+        var result = matching(devices, search: search)
 
         if onlineOnly {
-            result = result.filter { $0.status == .online }
+            result = result.filter { presence.freshness(of: $0).isOnline }
         }
 
-        if !search.isEmpty {
-            result = result.filter { device in
-                device.displayName.localizedCaseInsensitiveContains(search) ||
-                device.ipAddress.contains(search) ||
-                device.macAddress.localizedCaseInsensitiveContains(search) ||
-                (device.maker?.localizedCaseInsensitiveContains(search) ?? false)
-            }
+        if !showPast {
+            result = result.filter { !presence.isPast($0) }
         }
 
         switch sort {
@@ -59,7 +60,7 @@ public enum DeviceList {
         case .ipAddress:
             result.sort { compareIPAddresses($0.ipAddress, $1.ipAddress) }
         case .status:
-            result.sort { ($0.status == .online ? 0 : 1) < ($1.status == .online ? 0 : 1) }
+            result.sort { statusRank(presence.freshness(of: $0)) < statusRank(presence.freshness(of: $1)) }
         case .vendor:
             result.sort { ($0.maker ?? "zzz").localizedCaseInsensitiveCompare($1.maker ?? "zzz") == .orderedAscending }
         case .latency:
@@ -72,6 +73,30 @@ public enum DeviceList {
         }
 
         return result
+    }
+
+    /// How many devices matching `search` are past devices, hidden unless shown: the N in
+    /// "Show past devices (N)".
+    public static func pastCount(_ devices: [LocalDevice], search: String, presence: PresenceSnapshot) -> Int {
+        matching(devices, search: search).count { presence.isPast($0) }
+    }
+
+    private static func matching(_ devices: [LocalDevice], search: String) -> [LocalDevice] {
+        guard !search.isEmpty else { return devices }
+        return devices.filter { device in
+            device.displayName.localizedCaseInsensitiveContains(search) ||
+                device.ipAddress.contains(search) ||
+                device.macAddress.localizedCaseInsensitiveContains(search) ||
+                (device.maker?.localizedCaseInsensitiveContains(search) ?? false)
+        }
+    }
+
+    private static func statusRank(_ freshness: PresenceFreshness) -> Int {
+        switch freshness {
+        case .online: 0
+        case .notCheckedRecently: 1
+        case .offline: 2
+        }
     }
 
     /// Compares two dotted-quad IP address strings numerically per octet
