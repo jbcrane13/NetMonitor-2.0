@@ -45,7 +45,7 @@ struct AskNetworkTests {
     @Test func aCitedNameMayContainAnotherDevicesName() async {
         let office = Fix.device("Office Printer", .printer, ip: "192.168.1.60")
         let plain = Fix.device("Printer", .printer, ip: "192.168.1.61", status: .offline)
-        let snapshot = AskSnapshot(devices: [plain, office], events: [], now: Fix.now, calendar: Fix.calendar)
+        let snapshot = AskSnapshot(devices: [plain, office], events: [], lastScan: Fix.now, now: Fix.now, calendar: Fix.calendar)
         func ask(_ phrase: String, answer: String) async -> String? {
             let model = ScriptedAskModel(scripts: ["Is it up?": AskScript(calls: [.findDevices(phrase)], answer: answer)])
             return await AskNetwork.answer("Is it up?", snapshot: snapshot, pinnedDeviceID: nil, model: model).text
@@ -73,7 +73,7 @@ struct AskNetworkTests {
     @Test func aNameTheToolsDidNotFindIsRejectedEvenWhenTheQuestionHasItsWord() async {
         let script = AskScript(calls: [.findDevices("printer")], answer: "Office Printer is offline.")
         let model = ScriptedAskModel(scripts: ["Is the printer up?": script])
-        let empty = AskSnapshot(devices: [], events: [], now: Fix.now, calendar: Fix.calendar)
+        let empty = AskSnapshot(devices: [], events: [], lastScan: Fix.now, now: Fix.now, calendar: Fix.calendar)
         let answer = await AskNetwork.answer("Is the printer up?", snapshot: empty, pinnedDeviceID: nil, model: model)
         #expect(answer.text == nil)
     }

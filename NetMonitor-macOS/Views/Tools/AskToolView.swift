@@ -22,12 +22,14 @@ struct AskToolView: View {
 
     private var state: AskState { viewModel.state }
     private var networkProfileID: UUID? { profileManager?.localProfile?.id ?? profileManager?.activeProfile?.id }
+    private var lastScan: Date? { profileManager?.profiles.first { $0.id == networkProfileID }?.lastScanned }
 
     /// What the state reads when a question is asked: a rename or a scan changes it.
     private struct InputsKey: Equatable {
         let names: [String]
         let addresses: [String]
         let networkProfileID: UUID?
+        let lastScan: Date?
         let isScanning: Bool
     }
 
@@ -48,9 +50,12 @@ struct AskToolView: View {
             names: devices.map(\.displayName),
             addresses: devices.map(\.ipAddress),
             networkProfileID: networkProfileID,
+            lastScan: lastScan,
             isScanning: coordinator?.isScanning ?? false
         )) {
-            viewModel.update(devices: devices, networkProfileID: networkProfileID, isScanning: coordinator?.isScanning ?? false)
+            viewModel.update(
+                devices: devices, networkProfileID: networkProfileID, lastScan: lastScan, isScanning: coordinator?.isScanning ?? false
+            )
         }
         .sheet(item: $openDevice) { device in
             ProDeviceDetailView(device: device)
@@ -148,6 +153,15 @@ struct AskToolView: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .accessibilityIdentifier("ask_label_answer")
+            if let freshness = answer.freshness {
+                // The app's own line: the model may leave out how old the statuses are.
+                Label(freshness, systemImage: "clock")
+                    .font(.system(size: 11))
+                    .foregroundStyle(MacTheme.Colors.labelSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityIdentifier("ask_label_freshness")
+            }
             if answer.text != nil {
                 Label("Written by the on-device model from the records below", systemImage: "sparkles")
                     .font(.system(size: 10))

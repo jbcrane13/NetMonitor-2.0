@@ -40,24 +40,94 @@ public struct AskDevice: DevicePhraseMatchable, Sendable, Equatable, Identifiabl
     }
 }
 
-/// What the app holds when a question is asked (#452): the current network's saved devices and
-/// its Timeline events. The tools answer from this copy only, so nothing is measured.
+/// What the app holds when a question is asked (#452): the current network's saved devices, its
+/// Timeline events and when it was last scanned. The tools answer from this copy only, so nothing
+/// is measured.
+///
+/// A saved status is only as fresh as the scan that set it (Blake, 2026-11-24: never let an old
+/// status read as "online now"). The app works out how fresh: "as of the scan N minutes ago" while
+/// the last scan is within `staleAfter` (the grace interval), "not checked recently" after it.
 public struct AskSnapshot: Sendable {
+    /// How recent the network's last scan is.
+    public enum ScanFreshness: Equatable, Sendable {
+        case notScanned
+        case fresh
+        case stale
+    }
+
     public let devices: [AskDevice]
     /// Newest first.
     public let events: [NetworkEvent]
+    /// When the network's last scan finished, on the clock that stamps `lastSeen`; nil when it
+    /// has none.
+    public let lastScan: Date?
+    /// How long before `lastScan` a device's `lastSeen` may be and still count as answering that
+    /// scan: zero on iPhone, where the reconciler stamps both with one time, longer on the Mac,
+    /// which stamps devices while merging and the profile when the scan ends.
+    public let lastScanTolerance: TimeInterval
+    /// After this long the last scan is "not checked recently".
+    public let staleAfter: TimeInterval
     public let now: Date
     public let calendar: Calendar
 
     /// - Parameter networkProfileID: keeps the events of this network and those written before
     ///   events carried one. Devices are filtered by the caller.
-    public init(devices: [AskDevice], events: [NetworkEvent], networkProfileID: UUID? = nil, now: Date, calendar: Calendar = .current) {
+    public init(
+        devices: [AskDevice],
+        events: [NetworkEvent],
+        networkProfileID: UUID? = nil,
+        lastScan: Date?,
+        lastScanTolerance: TimeInterval = 0,
+        staleAfter: TimeInterval = DeviceGracePolicy().interval,
+        now: Date,
+        calendar: Calendar = .current
+    ) {
         self.devices = devices
         self.events = events
             .filter { networkProfileID == nil || $0.networkProfileID == nil || $0.networkProfileID == networkProfileID }
             .sorted { $0.timestamp > $1.timestamp }
+        self.lastScan = lastScan
+        self.lastScanTolerance = lastScanTolerance
+        self.staleAfter = staleAfter
         self.now = now
         self.calendar = calendar
+    }
+
+    public var scanFreshness: ScanFreshness {
+        guard let lastScan else { return .notScanned }
+        return now.timeIntervalSince(lastScan) > staleAfter ? .stale : .fresh
+    }
+
+    /// Whether the device answered the network's last scan: online, and seen at or after it.
+    func answeredLastScan(_ device: AskDevice) -> Bool {
+        guard let lastScan, device.status == .online else { return false }
+        return device.lastSeen >= lastScan.addingTimeInterval(-lastScanTolerance)
+    }
+
+    /// The app's line on how fresh device statuses are, shown under an answer word for word.
+    public var freshnessNote: String {
+        guard let lastScan else {
+            return "This network hasn't been scanned yet, so no device's status has been checked."
+        }
+        switch scanFreshness {
+        case .stale: return "Not checked recently: the last scan was \(ago(lastScan)) (\(format(lastScan)))."
+        default: return "Device status as of the scan \(ago(lastScan)) (\(format(lastScan)))."
+        }
+    }
+
+    /// "less than a minute ago", "40 minutes ago", "2 hours ago", "3 days ago": one unit, rounded
+    /// down, so the model has one form to repeat.
+    func ago(_ date: Date) -> String {
+        let seconds = max(0, now.timeIntervalSince(date))
+        func count(_ value: Int, _ unit: String) -> String {
+            "\(value) \(unit)\(value == 1 ? "" : "s") ago"
+        }
+        switch seconds {
+        case ..<60: return "less than a minute ago"
+        case ..<3600: return count(Int(seconds / 60), "minute")
+        case ..<86400: return count(Int(seconds / 3600), "hour")
+        default: return count(Int(seconds / 86400), "day")
+        }
     }
 
     /// "2026-11-23 9:14 AM" in the snapshot's calendar: the form the model is asked to copy.

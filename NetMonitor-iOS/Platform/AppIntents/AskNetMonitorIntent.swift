@@ -35,39 +35,33 @@ enum AskIntentRunner {
         return await answer(
             question,
             model: AskModel.shared,
-            devices: savedDevices(on: network),
-            events: NetworkEventService.shared.events,
-            networkProfileID: network,
+            snapshot: AskSnapshot(
+                devices: savedDevices(on: network),
+                events: NetworkEventService.shared.events,
+                networkProfileID: network,
+                lastScan: ScanHistory().lastScanTime(for: network),
+                now: Date()
+            ),
             isScanning: DeviceDiscoveryService.shared.isScanning
         )
     }
 
-    static func answer(
-        _ question: String,
-        model: any AskModelProtocol,
-        devices: [AskDevice],
-        events: [NetworkEvent],
-        networkProfileID: UUID?,
-        isScanning: Bool,
-        now: Date = Date()
-    ) async -> String {
+    static func answer(_ question: String, model: any AskModelProtocol, snapshot: AskSnapshot, isScanning: Bool) async -> String {
         guard model.isAvailable else { return unavailableMessage }
         guard !isScanning else { return AskState.scanMessage }
-        let snapshot = AskSnapshot(
-            devices: devices, events: events, networkProfileID: networkProfileID, now: now
-        )
         if let mention = AskMention.ambiguous(in: question, among: snapshot.devices) {
             let names = mention.devices.prefix(5).map(\.displayName)
             return "Which one do you mean: \(ListFormatter.localizedString(byJoining: names))? Ask again with its name."
         }
-        return await AskNetwork.answer(question, snapshot: snapshot, pinnedDeviceID: nil, model: model).shownText
+        let answer = await AskNetwork.answer(question, snapshot: snapshot, pinnedDeviceID: nil, model: model)
+        // Siri has no freshness label, so the app's line follows the answer.
+        return [answer.shownText, answer.freshness].compactMap(\.self).joined(separator: " ")
     }
 
-    /// The saved devices on `network` and those on none, read from the app's store as the
-    /// background checks do. Copied out while the container is alive: its models crash after.
+    /// The saved devices on `network` and those on none, read through the app's own container
+    /// (#582), never a second one over the same file. Copied out while the container is alive.
     static func savedDevices(on network: UUID?) -> [AskDevice] {
-        let schema = Schema([PairedMac.self, LocalDevice.self, MonitoringTarget.self, ToolResult.self, SpeedTestResult.self])
-        guard let container = try? ModelContainer(for: schema, configurations: [ModelConfiguration(schema: schema)]) else {
+        guard let container = AppModelStore.sharedContainer() else {
             return []
         }
         var descriptor = FetchDescriptor<LocalDevice>()

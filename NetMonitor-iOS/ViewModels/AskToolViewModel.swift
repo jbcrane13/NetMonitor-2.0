@@ -17,7 +17,8 @@ final class AskToolViewModel {
         var devices: [LocalDevice] = []
     }
 
-    init(env: AppEnvironment, model: (any AskModelProtocol)? = nil) {
+    /// - Parameter history: the iPhone's reconciled scans (#582), whose latest gives "as of the scan".
+    init(env: AppEnvironment, model: (any AskModelProtocol)? = nil, history: ScanHistory = ScanHistory()) {
         let inputs = Inputs()
         self.inputs = inputs
         let discovery = env.deviceDiscovery
@@ -34,6 +35,8 @@ final class AskToolViewModel {
                         .map(AskDevice.init),
                     events: events.events,
                     networkProfileID: network,
+                    // lastSeen and this share the reconciler's clock, so no tolerance.
+                    lastScan: history.lastScanTime(for: network),
                     now: Date()
                 )
             },

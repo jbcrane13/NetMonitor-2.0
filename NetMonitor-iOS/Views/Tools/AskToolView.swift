@@ -10,18 +10,11 @@ import NetMonitorCore
 struct AskToolView: View {
     @State private var viewModel: AskToolViewModel
     @State private var question = ""
-    @State private var openDevice: DeviceRoute?
+    /// The cited device's `LocalDevice.id`: detail opens the saved row, not whatever answers at its address now.
+    @State private var openDevice: UUID?
     @State private var openEvent: AskAnswer.EventCitation?
     @Query private var devices: [LocalDevice]
     private let env: AppEnvironment
-
-    /// What device detail needs to find the saved row: its address, network and MAC now.
-    private struct DeviceRoute: Hashable, Identifiable {
-        let id: UUID
-        let ipAddress: String
-        let networkID: UUID?
-        let macAddress: String
-    }
 
     init(env: AppEnvironment) {
         self.env = env
@@ -49,8 +42,8 @@ struct AskToolView: View {
         .task(id: devices.map(\.displayName) + devices.map(\.ipAddress)) {
             viewModel.update(devices: devices)
         }
-        .navigationDestination(item: $openDevice) { route in
-            DeviceDetailView(ipAddress: route.ipAddress, networkID: route.networkID, macAddress: route.macAddress)
+        .navigationDestination(item: $openDevice) { id in
+            DeviceDetailView(deviceID: id)
         }
         .sheet(item: $openEvent) { event in
             TimelineView(env: env, focusDay: event.timestamp)
@@ -150,6 +143,14 @@ struct AskToolView: View {
                 .foregroundStyle(Theme.Colors.textPrimary)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityIdentifier("ask_label_answer")
+            if let freshness = answer.freshness {
+                // The app's own line: the model may leave out how old the statuses are.
+                Label(freshness, systemImage: "clock")
+                    .font(.caption)
+                    .foregroundStyle(Theme.Colors.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("ask_label_freshness")
+            }
             if answer.text != nil {
                 Text("Written by the on-device model from the records below. Check it against them.")
                     .font(.caption2)
@@ -173,7 +174,11 @@ struct AskToolView: View {
                     open(citation)
                 } label: {
                     let device = viewModel.device(for: citation)
-                    citationRow(icon: device?.deviceType.iconName ?? "questionmark.circle", title: device?.displayName ?? citation.name, detail: nil)
+                    citationRow(
+                        icon: device?.deviceType.iconName ?? "questionmark.circle",
+                        title: device?.displayName ?? citation.name,
+                        detail: device.map { "Last seen " + $0.lastSeen.formatted(.relative(presentation: .named)) }
+                    )
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("ask_citation_device_\(index + 1)")
@@ -218,9 +223,10 @@ struct AskToolView: View {
         .contentShape(Rectangle())
     }
 
-    /// Opens the cited device's detail, found by its id, so a renamed device still opens.
+    /// Opens the cited device's saved row by its id, so a renamed device still opens and a device
+    /// now at its old address doesn't.
     private func open(_ citation: AskAnswer.DeviceCitation) {
         guard let device = viewModel.device(for: citation) else { return }
-        openDevice = DeviceRoute(id: device.id, ipAddress: device.ipAddress, networkID: device.networkProfileID, macAddress: device.macAddress)
+        openDevice = device.id
     }
 }

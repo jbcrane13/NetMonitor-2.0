@@ -12,6 +12,8 @@ public struct AskRecord: Sendable, Equatable {
     public internal(set) var deviceIDs: [UUID] = []
     /// Events the tools returned, first mention first.
     public internal(set) var eventIDs: [UUID] = []
+    /// Whether a tool stated device status, which the answer's freshness line then qualifies.
+    public internal(set) var statedPresence = false
 }
 
 /// The tools "Ask your network" gives the model (#452), over data the app already holds. The app
@@ -68,16 +70,17 @@ public final class AskToolbox: Sendable {
 
     // MARK: - Tools
 
-    /// The devices `phrase` names, or every device for "all".
+    /// The devices `phrase` names, or every device for "all", after the app's line on how fresh
+    /// their status is.
     public func findDevices(_ phrase: String) -> String {
-        run { () -> ([UUID], String) in
+        run(statesPresence: true) { () -> ([UUID], String) in
             let flat = InsightRequest.line(phrase, limit: 80)
             if Self.meansAll(phrase) {
                 let shown = Array(snapshot.devices.prefix(Self.listLimit))
                 let header = snapshot.devices.count > shown.count
                     ? "\(snapshot.devices.count) saved devices; the first \(shown.count):"
                     : "\(shown.count) saved device\(shown.count == 1 ? "" : "s"):"
-                return (shown.map(\.id), ([header] + shown.map(deviceLine)).joined(separator: "\n"))
+                return (shown.map(\.id), ([listFreshness, header] + shown.map(deviceLine)).joined(separator: "\n"))
             }
             let matches = resolve(phrase)
             guard !matches.isEmpty else {
@@ -85,16 +88,16 @@ public final class AskToolbox: Sendable {
             }
             let shown = Array(matches.prefix(Self.listLimit))
             let header = "\(matches.count) device\(matches.count == 1 ? " matches" : "s match") \"\(flat)\":"
-            return (shown.map(\.id), ([header] + shown.map(deviceLine)).joined(separator: "\n"))
+            return (shown.map(\.id), ([listFreshness, header] + shown.map(deviceLine)).joined(separator: "\n"))
         }
     }
 
-    /// Whether one device is online, when it was last seen, its last reply and its drops this week.
+    /// Whether one device answered the last scan and how long ago that was, when it was last seen,
+    /// its last reply and its drops this week.
     public func deviceStatus(_ device: String) -> String {
-        run {
+        run(statesPresence: true) {
             withDevice(device) { device in
-                var text = "\(name(device)) is \(Self.statusWord(device.status)). Last seen \(snapshot.format(device.lastSeen)). "
-                    + "Address \(device.ipAddress)."
+                var text = "\(name(device))\(presence(device)). Last seen \(seen(device)). Address \(device.ipAddress)."
                 if let latency = device.lastLatency {
                     text += " Last reply \(Self.milliseconds(latency))."
                 }
@@ -183,7 +186,7 @@ public final class AskToolbox: Sendable {
     // MARK: - Running
 
     /// Runs one tool under the cap, recording what it returned.
-    private func run(_ body: () -> ([UUID], String)) -> String {
+    private func run(statesPresence: Bool = false, _ body: () -> ([UUID], String)) -> String {
         let allowed = state.withLock { state in
             state.record.calls += 1
             return state.record.calls <= Self.softCap
@@ -192,6 +195,7 @@ public final class AskToolbox: Sendable {
         let (devices, output) = body()
         state.withLock { state in
             state.record.outputs.append(output)
+            state.record.statedPresence = state.record.statedPresence || statesPresence
             for id in devices where !state.record.deviceIDs.contains(id) {
                 state.record.deviceIDs.append(id)
             }
@@ -277,15 +281,72 @@ public final class AskToolbox: Sendable {
     private func deviceLine(_ device: AskDevice) -> String {
         let type = device.deviceType == .unknown ? "unknown type" : device.deviceType.rawValue
         return "- id \(handles[device.id] ?? "?"): \(InsightRequest.line(device.displayName, limit: 80)), \(type), "
-            + "\(Self.statusWord(device.status)), last seen \(snapshot.format(device.lastSeen)), address \(device.ipAddress)"
+            + "\(statusWord(device)), last seen \(seen(device)), address \(device.ipAddress)"
     }
 
-    static func statusWord(_ status: DeviceStatus) -> String {
+    // MARK: - Presence
+
+    /// A list's first line: the freshness note, and after a scan that isn't recent, that nothing
+    /// is known about now. Without it the model turned "answered the last scan" into "online".
+    private var listFreshness: String {
+        snapshot.scanFreshness == .stale
+            ? snapshot.freshnessNote + " Whether these devices are online now is not known."
+            : snapshot.freshnessNote
+    }
+
+    /// "40 minutes ago (2026-11-23 11:20 AM)".
+    private func seen(_ device: AskDevice) -> String {
+        "\(snapshot.ago(device.lastSeen)) (\(snapshot.format(device.lastSeen)))"
+    }
+
+    /// A device's status in a list, under the list's freshness line. Only a device that answered a
+    /// recent scan is "online".
+    private func statusWord(_ device: AskDevice) -> String {
+        let answered = snapshot.answeredLastScan(device)
+        switch snapshot.scanFreshness {
+        case .notScanned: return "status not checked"
+        case .fresh:
+            if answered {
+                return "online"
+            }
+            return Self.heldStatus(device.status) ?? "did not answer the last scan"
+        case .stale:
+            if answered {
+                return "answered the last scan"
+            }
+            return Self.heldStatus(device.status).map { "\($0) at the last scan" } ?? "did not answer the last scan"
+        }
+    }
+
+    /// What follows a device's name in `deviceStatus`: its status and how fresh it is.
+    private func presence(_ device: AskDevice) -> String {
+        guard let lastScan = snapshot.lastScan else {
+            return ": this network hasn't been scanned yet, so its status is not known"
+        }
+        let scan = "\(snapshot.ago(lastScan)) (\(snapshot.format(lastScan)))"
+        let answered = snapshot.answeredLastScan(device)
+        let held = Self.heldStatus(device.status)
+        switch snapshot.scanFreshness {
+        case .fresh:
+            if answered {
+                return " is online as of the scan \(scan)"
+            }
+            return held.map { " is \($0) as of the scan \(scan)" } ?? " did not answer the scan \(scan)"
+        default:
+            if answered {
+                return " answered the last scan, \(scan); not checked recently"
+            }
+            return (held.map { " was \($0) at the last scan, \(scan)" } ?? " did not answer the last scan, \(scan)") + "; not checked recently"
+        }
+    }
+
+    /// A status other than online that a row keeps between scans; nil for online and cached, which
+    /// count as answering or not by `lastSeen`.
+    private static func heldStatus(_ status: DeviceStatus) -> String? {
         switch status {
-        case .online: "online"
         case .offline: "offline"
         case .idle: "idle"
-        case .cached: "not answering since the last scan"
+        case .online, .cached: nil
         }
     }
 

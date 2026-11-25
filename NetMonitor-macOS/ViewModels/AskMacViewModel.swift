@@ -15,12 +15,14 @@ final class AskMacViewModel {
     final class Inputs {
         var devices: [LocalDevice] = []
         var networkProfileID: UUID?
+        var lastScan: Date?
         var isScanning = false
     }
 
     init(model: (any AskModelProtocol)? = nil, events: any NetworkEventServiceProtocol = NetworkEventService.shared) {
         let inputs = Inputs()
         self.inputs = inputs
+        let lastScanTolerance = Self.lastScanTolerance
         state = AskState(
             model: model ?? Self.model(),
             snapshot: {
@@ -30,6 +32,9 @@ final class AskMacViewModel {
                         .map(AskDevice.init),
                     events: events.events,
                     networkProfileID: inputs.networkProfileID,
+                    lastScan: inputs.lastScan,
+                    // The Mac stamps lastSeen while merging, before the profile's lastScanned.
+                    lastScanTolerance: lastScanTolerance,
                     now: Date()
                 )
             },
@@ -50,9 +55,14 @@ final class AskMacViewModel {
     /// Whether Tools shows the Ask card: only with the on-device model.
     nonisolated static var isAvailable: Bool { model().isAvailable }
 
-    func update(devices: [LocalDevice], networkProfileID: UUID?, isScanning: Bool) {
+    /// How long before the profile's `lastScanned` a device seen by that scan may be stamped.
+    static let lastScanTolerance: TimeInterval = 5 * 60
+
+    /// - Parameter lastScan: when the network's last scan finished (`NetworkProfile.lastScanned`).
+    func update(devices: [LocalDevice], networkProfileID: UUID?, lastScan: Date?, isScanning: Bool) {
         inputs.devices = devices
         inputs.networkProfileID = networkProfileID
+        inputs.lastScan = lastScan
         inputs.isScanning = isScanning
     }
 

@@ -21,7 +21,7 @@ struct AskStateTests {
     ) -> AskState {
         AskState(
             model: ScriptedAskModel(scripts: scripts, isAvailable: available),
-            snapshot: { AskSnapshot(devices: devices, events: Fix.events, now: Fix.now, calendar: Fix.calendar) },
+            snapshot: { AskSnapshot(devices: devices, events: Fix.events, lastScan: Fix.now, now: Fix.now, calendar: Fix.calendar) },
             isScanning: { scanning.value }
         )
     }

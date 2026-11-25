@@ -105,6 +105,77 @@ final class AskUITests: IOSUITestCase {
         requireExists(row, timeout: 8, message: "The Timeline should show the cited join")
         keep([row], named: "ask-joined-timeline")
     }
+
+    func testAnOlderEventCitationScrollsTheTimelineToItsDay() {
+        openAsk()
+        ask("What joined this month?")
+
+        _ = waitForAnswer("Three devices joined in the last 30 days: UITest Camera, UITest Speaker and UITest Doorbell.")
+        let oldest = ui("ask_citation_event_3")
+        requireExists(oldest, message: "The join 20 days ago should be cited third")
+        XCTAssertTrue(oldest.label.contains("UITest Doorbell"), "Third: \(oldest.label)")
+
+        oldest.tap()
+        requireExists(ui("screen_networkTimeline"), timeout: 8, message: "The cited event should open the Timeline")
+        // 17 days of filler events sit above it: only the scroll to its day brings it on screen.
+        let row = app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "UITest Doorbell")).firstMatch
+        requireExists(row, timeout: 8, message: "The Timeline should show the cited join")
+        let hittable = expectation(for: NSPredicate(format: "hittable == true"), evaluatedWith: row)
+        wait(for: [hittable], timeout: 8)
+        keep([row], named: "ask-older-event-timeline")
+    }
+}
+
+/// #452 after #589: the fake scan saves uitest-device-0…4 on the UI-test network, and "What's
+/// online?" answers from those rows with how fresh they are.
+@MainActor
+final class AskFreshnessUITests: IOSUITestCase {
+    override var additionalLaunchEnvironment: [String: String] {
+        ["UITEST_ASK": "answer", "UITEST_FAKE_DEVICES": "1"]
+    }
+
+    /// Scans from the Map tab and waits for it to finish.
+    private func scan() {
+        requireExists(app.tabBars.buttons["Map"], timeout: 10, message: "The Map tab should exist").tap()
+        requireExists(ui("networkMap_button_scan"), timeout: 10, message: "The map's Scan button should exist").tap()
+        let spinner = app.activityIndicators.firstMatch
+        _ = spinner.waitForExistence(timeout: 3)
+        XCTAssertTrue(waitForDisappearance(spinner, timeout: 20), "The scan should finish")
+        let notNow = app.buttons["Not Now"]
+        if notNow.waitForExistence(timeout: 2) {
+            notNow.tap()
+        }
+    }
+
+    func testWhatsOnlineSaysHowFreshTheScanIs() {
+        scan()
+        openAsk()
+        ask("What's online?")
+
+        let answer = ui("ask_label_answer")
+        requireExists(answer, timeout: 10, message: "An answer should show")
+        let worded = expectation(for: NSPredicate(format: "label BEGINSWITH %@", "Online as of the scan "), evaluatedWith: answer)
+        wait(for: [worded], timeout: 10)
+        XCTAssertTrue(answer.label.contains("uitest-device-0"), "Answer: \(answer.label)")
+        XCTAssertFalse(answer.label.contains("UITest Printer"), "The offline printer is not online: \(answer.label)")
+        let freshness = ui("ask_label_freshness")
+        requireExists(freshness, message: "The app's freshness line should show under the answer")
+        XCTAssertTrue(freshness.label.contains("Device status as of the scan "), "Freshness: \(freshness.label)")
+        XCTAssertTrue(freshness.label.contains("less than a minute ago") || freshness.label.contains("minute ago")
+            || freshness.label.contains("minutes ago"), "Freshness: \(freshness.label)")
+        let citation = ui("ask_citation_device_1")
+        requireExists(citation, message: "The listed devices should be cited")
+        XCTAssertTrue(citation.label.contains("Last seen"), "Citation: \(citation.label)")
+        keep([answer, freshness, citation], named: "ask-online-freshness")
+
+        // The citation opens the saved row by its id.
+        let cited = citation.label
+        citation.tap()
+        let title = ui("deviceDetail_label_displayName")
+        requireExists(title, timeout: 8, message: "The cited device's detail should open")
+        XCTAssertTrue(cited.contains(title.label), "Detail \(title.label) for citation \(cited)")
+        XCTAssertFalse(ui("deviceDetail_label_notFound").exists, "Detail should find the saved device")
+    }
 }
 
 /// The printer question waits until cancelled.

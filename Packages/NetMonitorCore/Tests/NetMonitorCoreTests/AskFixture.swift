@@ -50,7 +50,7 @@ enum AskFixture {
     static let printerLeft = event(.deviceLeft, "Device Left: Brother HL-L2350DW", at: date(23, 9, 14), device: printer)
     static let events = [printerLeft, doorbellLeft2, iPadJoined, thermostatLeft, doorbellLeft1, espJoined, macBookBack]
 
-    static let snapshot = AskSnapshot(devices: devices, events: events, now: now, calendar: calendar)
+    static let snapshot = AskSnapshot(devices: devices, events: events, lastScan: now, now: now, calendar: calendar)
 
     static func toolbox(pinned: UUID? = nil) -> AskToolbox {
         AskToolbox(snapshot: snapshot, pinnedDeviceID: pinned)

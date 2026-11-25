@@ -59,6 +59,38 @@ struct AskToolViewModelTests {
         #expect(opened?.displayName == "Upstairs Printer")
     }
 
+    /// The brief's case, through a real reconcile: the phone's last scan of this network, 40 minutes
+    /// ago, saw the NAS. Ask says how old that is and never lets the model call it online now.
+    @Test func aDeviceTheLastScanSawFortyMinutesAgoIsNeverOnlineNow() async throws {
+        let container = try ModelContainer(for: LocalDevice.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let suite = "AskToolViewModelTests.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let history = ScanHistory(defaults: defaults)
+        let scanTime = Date().addingTimeInterval(-40 * 60)
+        let nas = DiscoveredDevice(
+            ipAddress: "192.168.77.40", hostname: "garage-nas", vendor: nil, macAddress: "AA:00:00:00:00:40", latency: 3,
+            discoveredAt: scanTime, source: .local, networkProfileID: home
+        )
+        try ScanReconciler(context: container.mainContext, history: history)
+            .reconcile([nas], networkProfileID: home, scanDate: scanTime, now: scanTime)
+        let rows = try container.mainContext.fetch(FetchDescriptor<LocalDevice>())
+        let row = try #require(rows.first)
+        #expect(row.status == .online)
+
+        let model = ScriptedAskModel(scripts: ["What's online?": AskScript(calls: [.findDevices("all")], answer: "\(row.displayName) is online.")])
+        let viewModel = AskToolViewModel(env: env(), model: model, history: history)
+        viewModel.update(devices: rows)
+        await viewModel.state.ask("What's online?")
+        guard case let .answered(answer) = viewModel.state.phase else {
+            Issue.record("not answered: \(viewModel.state.phase)")
+            return
+        }
+        #expect(answer.text == nil)
+        #expect(answer.devices.map(\.id) == [row.id])
+        #expect(answer.freshness?.hasPrefix("Not checked recently: the last scan was 40 minutes ago (") == true)
+    }
+
     @Test func otherNetworksDevicesAreNotLookedUp() async {
         let viewModel = AskToolViewModel(env: env(), model: Self.model)
         viewModel.update(devices: [printer(network: UUID())])
@@ -122,27 +154,31 @@ struct AskToolViewModelTests {
 
     // MARK: - Intent
 
-    @Test func theIntentAnswersWithTheSamePipeline() async {
+    private func intent(
+        model: any AskModelProtocol = Self.model, devices: [AskDevice], lastScan: Date?, isScanning: Bool = false
+    ) async -> String {
+        let snapshot = AskSnapshot(devices: devices, events: [], lastScan: lastScan, now: Date())
+        return await AskIntentRunner.answer(Self.printerQuestion, model: model, snapshot: snapshot, isScanning: isScanning)
+    }
+
+    @Test func theIntentAnswersWithTheSamePipelineAndSaysHowFresh() async {
         let device = AskDevice(printer(network: nil))
-        let text = await AskIntentRunner.answer(Self.printerQuestion, model: Self.model, devices: [device], events: [],
-                                                networkProfileID: nil, isScanning: false)
-        #expect(text == "Office Printer is offline.")
+        let text = await intent(devices: [device], lastScan: Date(), isScanning: false)
+        #expect(text.hasPrefix("Office Printer is offline. Device status as of the scan less than a minute ago ("))
+        let unscanned = await intent(devices: [device], lastScan: nil, isScanning: false)
+        #expect(unscanned == "Office Printer is offline. This network hasn't been scanned yet, so no device's status has been checked.")
     }
 
     @Test func theIntentNamesTheCandidatesInsteadOfAPicker() async {
         let other = LocalDevice(ipAddress: "192.168.77.31", macAddress: "AA:00:00:00:00:31", deviceType: .printer, customName: "Den Printer")
-        let text = await AskIntentRunner.answer(Self.printerQuestion, model: Self.model,
-                                                devices: [AskDevice(printer(network: nil)), AskDevice(other)],
-                                                events: [], networkProfileID: nil, isScanning: false)
+        let text = await intent(devices: [AskDevice(printer(network: nil)), AskDevice(other)], lastScan: nil, isScanning: false)
         #expect(text == "Which one do you mean: Office Printer and Den Printer? Ask again with its name.")
     }
 
     @Test func theIntentSaysWhenItCantAsk() async {
-        let unavailable = await AskIntentRunner.answer(Self.printerQuestion, model: ScriptedAskModel(scripts: [:], isAvailable: false),
-                                                       devices: [], events: [], networkProfileID: nil, isScanning: false)
+        let unavailable = await intent(model: ScriptedAskModel(scripts: [:], isAvailable: false), devices: [], lastScan: nil, isScanning: false)
         #expect(unavailable == AskIntentRunner.unavailableMessage)
-        let scanning = await AskIntentRunner.answer(Self.printerQuestion, model: Self.model, devices: [], events: [],
-                                                    networkProfileID: nil, isScanning: true)
+        let scanning = await intent(devices: [], lastScan: nil, isScanning: true)
         #expect(scanning == AskState.scanMessage)
     }
 }
