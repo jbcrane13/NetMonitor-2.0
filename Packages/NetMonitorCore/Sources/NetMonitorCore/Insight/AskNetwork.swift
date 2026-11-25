@@ -35,21 +35,34 @@ public struct AskAnswer: Equatable, Sendable {
     /// The app's line on how fresh the device statuses are (`AskSnapshot.freshnessNote`), when a
     /// tool stated one. Shown word for word: the model may leave it out.
     public let freshness: String?
+    /// What shows when `text` is nil: `AskNetwork.fallback`, or the app's own words when the
+    /// tools stated status from a scan that isn't recent (`AskNetwork.staleFallback`).
+    public let fallback: String
 
-    public init(text: String?, devices: [DeviceCitation], events: [EventCitation], freshness: String? = nil) {
+    public init(
+        text: String?, devices: [DeviceCitation], events: [EventCitation], freshness: String? = nil,
+        fallback: String = AskNetwork.fallback
+    ) {
         self.text = text
         self.devices = devices
         self.events = events
         self.freshness = freshness
+        self.fallback = fallback
     }
 
-    public var shownText: String { text ?? AskNetwork.fallback }
+    public var shownText: String { text ?? fallback }
 }
 
 /// Answers a question about the network with the model and the app's tools (#452).
 public enum AskNetwork {
-    /// Shown instead of an answer that can't be trusted.
+    /// Shown instead of an answer that can't be trusted, when nothing more can be said.
     public static let fallback = "I couldn't look that up."
+    /// Shown instead of a rejected answer when the tools stated status from a scan older than the
+    /// grace interval: the lookup worked, the statuses are just old. The citations below say when
+    /// each device was last seen.
+    public static let staleFallback = "These devices haven't been checked recently. Their last-seen times are below."
+    /// As `staleFallback`, for a network with no scan.
+    public static let unscannedFallback = "This network hasn't been scanned yet."
 
     /// Asks `model`, then checks its answer against this run's tool results (`AskAnswerCheck`).
     public static func answer(
@@ -70,8 +83,20 @@ public enum AskNetwork {
         let trimmed = text.map(withoutHandles)?.trimmingCharacters(in: .whitespacesAndNewlines)
         let accepted = trimmed.flatMap { AskAnswerCheck.accepts($0, question: question, record: record, snapshot: snapshot) ? $0 : nil }
         return AskAnswer(
-            text: accepted, devices: devices, events: events, freshness: record.statedPresence ? snapshot.freshnessNote : nil
+            text: accepted, devices: devices, events: events, freshness: record.statedPresence ? snapshot.freshnessNote : nil,
+            fallback: fallback(record: record, snapshot: snapshot)
         )
+    }
+
+    /// The fallback for this run: a genuine lookup failure (no tool ran, or none stated status)
+    /// says so; status looked up from an old scan, or none, says that instead.
+    static func fallback(record: AskRecord, snapshot: AskSnapshot) -> String {
+        guard record.statedPresence else { return fallback }
+        switch snapshot.scanFreshness {
+        case .fresh: return fallback
+        case .stale: return staleFallback
+        case .notScanned: return unscannedFallback
+        }
     }
 
     /// The text without the per-run handles the model sometimes repeats: "Ring Doorbell (id dev-c)"

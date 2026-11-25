@@ -88,6 +88,7 @@ struct AskToolViewModelTests {
             return
         }
         #expect(answer.text == nil)
+        #expect(answer.shownText == AskNetwork.staleFallback)
         #expect(answer.devices.map(\.id) == [row.id])
         #expect(answer.freshness?.hasPrefix("Not checked recently: the last scan was 40 minutes ago (") == true)
     }

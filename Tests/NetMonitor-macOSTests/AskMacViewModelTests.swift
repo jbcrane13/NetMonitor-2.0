@@ -58,6 +58,7 @@ struct AskMacViewModelTests {
             return
         }
         #expect(online.text == nil)
+        #expect(online.shownText == AskNetwork.staleFallback)
         #expect(online.freshness?.hasPrefix("Not checked recently: the last scan was 40 minutes ago (") == true)
 
         await viewModel.state.ask("Is the NAS up?")

@@ -45,33 +45,42 @@ enum AskUITestFixture {
         )
     }
 
-    /// What the scripted model makes of `findDevices("all")`: the devices listed online, worded with
-    /// the list's freshness ("Online as of the scan less than a minute ago: a, b."), or, when the
-    /// list isn't from a recent scan, its first line as written.
+    /// What the scripted model makes of `findDevices("all")`. After a recent scan: the devices listed
+    /// online, with the list's freshness ("Online as of the scan less than a minute ago: a, b.").
+    /// After an old one it does what the real model did (probe, 2026-11-25): calls the devices that
+    /// answered that scan online, which the app rejects for its stale fallback.
     static func onlineAnswer(_ list: String) -> String {
         let lines = list.components(separatedBy: "\n")
         let note = lines.first ?? ""
+        func listed(_ status: String) -> [String] {
+            lines.compactMap { line -> String? in
+                let parts = line.components(separatedBy: ", ")
+                guard parts.count > 2, parts[2] == status, let name = parts[0].components(separatedBy: ": ").last else { return nil }
+                return name
+            }
+        }
         let prefix = "Device status as of the scan "
         guard note.hasPrefix(prefix), let when = note.dropFirst(prefix.count).components(separatedBy: " (").first else {
-            return note
+            let answered = listed("answered the last scan")
+            return answered.isEmpty ? note : "Online: \(answered.joined(separator: ", "))."
         }
-        let online = lines.compactMap { line -> String? in
-            let parts = line.components(separatedBy: ", ")
-            guard parts.count > 2, parts[2] == "online", let name = parts[0].components(separatedBy: ": ").last else { return nil }
-            return name
-        }
+        let online = listed("online")
         return online.isEmpty ? "No device answered the scan \(when)." : "Online as of the scan \(when): \(online.joined(separator: ", "))."
     }
 
-    /// Saves the printer (offline) and logs the two joins, a day and two days ago, an older join 20
+    /// Saves the printer (offline, last seen two hours before `now`) and logs the two joins, a day and two days ago, an older join 20
     /// days ago and a filler event on each day between. Never twice.
     @MainActor
     static func seed(into context: ModelContext, events: any NetworkEventServiceProtocol, now: Date = Date()) {
         let rows = (try? context.fetch(FetchDescriptor<LocalDevice>())) ?? []
         if !rows.contains(where: { $0.ipAddress == printer.ip }) {
-            context.insert(LocalDevice(
+            let row = LocalDevice(
                 ipAddress: printer.ip, macAddress: printer.mac, deviceType: .printer, customName: printer.name, status: .offline
-            ))
+            )
+            // Offline since well before now, not "seen" at the moment it was seeded.
+            row.firstSeen = now.addingTimeInterval(-3 * 86400)
+            row.lastSeen = now.addingTimeInterval(-2 * 3600)
+            context.insert(row)
             try? context.save()
         }
         guard !events.events.contains(where: { $0.title == "Device Joined: \(joinedNames[0])" }) else { return }

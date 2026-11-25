@@ -188,8 +188,13 @@ struct AskToolView: View {
                     // Found by id, so a renamed device still opens.
                     openDevice = device
                 } label: {
-                    Label(device?.displayName ?? citation.name, systemImage: device?.deviceType.iconName ?? "questionmark.circle")
-                        .font(.system(size: 12))
+                    // Last seen, so a stale answer's "last-seen times are below" holds.
+                    Label(
+                        [device?.displayName ?? citation.name, device.map { "last seen " + $0.lastSeen.formatted(.relative(presentation: .named)) }]
+                            .compactMap(\.self).joined(separator: " · "),
+                        systemImage: device?.deviceType.iconName ?? "questionmark.circle"
+                    )
+                    .font(.system(size: 12))
                 }
                 .buttonStyle(.link)
                 .disabled(device == nil)

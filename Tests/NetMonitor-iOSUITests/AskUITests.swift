@@ -178,6 +178,40 @@ final class AskFreshnessUITests: IOSUITestCase {
     }
 }
 
+/// As `AskFreshnessUITests`, with `UITEST_SCAN_CLOCK=1`: the scan is stamped 2026-11-20, long before
+/// now, so it isn't recent. The scripted model calls the devices online, as the real model did; the
+/// app drops that and says the devices haven't been checked recently.
+@MainActor
+final class AskStaleUITests: IOSUITestCase {
+    override var additionalLaunchEnvironment: [String: String] {
+        ["UITEST_ASK": "answer", "UITEST_FAKE_DEVICES": "1", "UITEST_SCAN_CLOCK": "1"]
+    }
+
+    func testWhatsOnlineAfterAnOldScanSaysTheDevicesHaventBeenChecked() {
+        requireExists(app.tabBars.buttons["Map"], timeout: 10, message: "The Map tab should exist").tap()
+        requireExists(ui("networkMap_button_scan"), timeout: 10, message: "The map's Scan button should exist").tap()
+        let spinner = app.activityIndicators.firstMatch
+        _ = spinner.waitForExistence(timeout: 3)
+        XCTAssertTrue(waitForDisappearance(spinner, timeout: 20), "The scan should finish")
+        let notNow = app.buttons["Not Now"]
+        if notNow.waitForExistence(timeout: 2) {
+            notNow.tap()
+        }
+        openAsk()
+        ask("What's online?")
+
+        let answer = waitForAnswer("These devices haven't been checked recently. Their last-seen times are below.")
+        XCTAssertFalse(ui("ask_label_generated").exists, "The app's own words are not marked as generated")
+        let freshness = ui("ask_label_freshness")
+        requireExists(freshness, message: "The freshness line should still show")
+        XCTAssertTrue(freshness.label.contains("Not checked recently: the last scan was"), "Freshness: \(freshness.label)")
+        let citation = ui("ask_citation_device_1")
+        requireExists(citation, message: "The devices looked up should still be cited")
+        XCTAssertTrue(citation.label.contains("Last seen"), "Citation: \(citation.label)")
+        keep([answer, freshness, citation], named: "ask-online-stale")
+    }
+}
+
 /// The printer question waits until cancelled.
 @MainActor
 final class AskCancelUITests: IOSUITestCase {

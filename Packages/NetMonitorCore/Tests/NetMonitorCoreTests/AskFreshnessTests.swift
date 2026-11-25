@@ -119,11 +119,42 @@ struct AskFreshnessTests {
         ] {
             let answer = await ask("What's online?", calls: calls, answer: claim, snapshot: Self.stale)
             #expect(answer.text == nil, "accepted \(claim)")
-            #expect(answer.shownText == AskNetwork.fallback)
+            // The app says why there's no answer instead of "I couldn't look that up."
+            #expect(answer.shownText == AskNetwork.staleFallback)
             // The citation and the app's freshness line still show.
             #expect(answer.devices.map(\.id) == [Self.staleNAS.id])
             #expect(answer.freshness == "Not checked recently: the last scan was 40 minutes ago (2026-11-23 11:20 AM).")
         }
+    }
+
+    @Test func aRejectedAnswerOnANetworkNeverScannedSaysSo() async {
+        let snapshot = AskSnapshot(devices: [Self.staleNAS], events: [], lastScan: nil, now: Fix.now, calendar: Fix.calendar)
+        let answer = await ask("What's online?", calls: [.findDevices("all")], answer: "Synology DS920 is online.", snapshot: snapshot)
+        #expect(answer.text == nil)
+        #expect(answer.shownText == "This network hasn't been scanned yet.")
+        #expect(answer.devices.map(\.id) == [Self.staleNAS.id])
+        #expect(answer.freshness == snapshot.freshnessNote)
+    }
+
+    @Test func aGenuineLookupFailureStillSaysSoOnAStaleNetwork() async {
+        // No tool ran: nothing was looked up, so the stale wording would claim too much.
+        let noCalls = await ask("What's online?", calls: [], answer: "Everything is fine.", snapshot: Self.stale)
+        #expect(noCalls.shownText == AskNetwork.fallback)
+        // The model failed (an unknown question to the script) after no status was stated.
+        let failed = await AskNetwork.answer(
+            "Unknown?", snapshot: Self.stale, pinnedDeviceID: nil, model: ScriptedAskModel(scripts: [:])
+        )
+        #expect(failed.shownText == AskNetwork.fallback)
+        // A rejected answer from tools that stated no status (events) keeps the plain fallback too.
+        let events = await ask("What joined?", calls: [.events(range: "last7Days", type: "joined")],
+                               answer: "Five devices joined.", snapshot: Self.stale)
+        #expect(events.shownText == AskNetwork.fallback)
+    }
+
+    @Test func aRejectedAnswerAfterAFreshScanKeepsThePlainFallback() async {
+        let snapshot = AskSnapshot(devices: [Fix.nas], events: [], lastScan: Fix.now, now: Fix.now, calendar: Fix.calendar)
+        let answer = await ask("Is the NAS up?", calls: [.deviceStatus("NAS")], answer: "Synology DS920 had 9 drops.", snapshot: snapshot)
+        #expect(answer.shownText == AskNetwork.fallback)
     }
 
     @Test func aStaleAnswerWordedAsThePastOrANegationIsShown() async {
