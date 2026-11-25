@@ -9,6 +9,8 @@ import ApplicationServices
 //   axdrive capture-element <id> <file.png>  (only that element's frame on screen)
 //   axdrive pressin <id> <title>  (presses the descendant of <id> titled <title>, such as a picker segment)
 //   axdrive capture-in <id> <file.png>  (the app window only, cropped to that element; no other window shows)
+//   axdrive capture-union <file.png> <id>...  (the app window only, cropped to every element carrying any of
+//                                            the ids, for content macOS 27 stamps one identifier across)
 //   axdrive typefield <id> <text>  (types into the first text field with or inside <id>, for a container
 //                                  whose identifier macOS 27 stamps over its children's)
 let args = CommandLine.arguments
@@ -46,6 +48,38 @@ func find(_ id: String) -> AXUIElement? {
         }
     }
     return nil
+}
+
+/// Every element whose identifier is in `ids`.
+func findAll(_ ids: Set<String>) -> [AXUIElement] {
+    guard let pid = app()?.processIdentifier else { return [] }
+    var queue: [AXUIElement] = [AXUIElementCreateApplication(pid)]
+    var found: [AXUIElement] = []
+    var seen = 0
+    while !queue.isEmpty, seen < 20000 {
+        let el = queue.removeFirst()
+        seen += 1
+        if let ident = attr(el, "AXIdentifier") as? String, ids.contains(ident) {
+            found.append(el)
+        }
+        if let children = attr(el, kAXChildrenAttribute) as? [AXUIElement] {
+            queue += children
+        }
+    }
+    return found
+}
+
+/// An element's frame on screen, when it has one.
+func frame(of el: AXUIElement) -> CGRect? {
+    guard let posValue = attr(el, kAXPositionAttribute), let sizeValue = attr(el, kAXSizeAttribute),
+          CFGetTypeID(posValue) == AXValueGetTypeID(), CFGetTypeID(sizeValue) == AXValueGetTypeID()
+    else { return nil }
+    var pos = CGPoint.zero, size = CGSize.zero
+    // swiftlint:disable force_cast
+    AXValueGetValue(posValue as! AXValue, .cgPoint, &pos)
+    AXValueGetValue(sizeValue as! AXValue, .cgSize, &size)
+    // swiftlint:enable force_cast
+    return CGRect(origin: pos, size: size)
 }
 
 func menuItem(titled title: String) -> AXUIElement? {
@@ -310,6 +344,38 @@ case "capture-in":
         exit(1)
     }
     print("captured \(args[2]) to \(args[3])")
+case "capture-union":
+    let frames = findAll(Set(args.dropFirst(3))).compactMap(frame(of:)).filter { $0.width > 0 && $0.height > 0 }
+    guard let union = frames.first.map({ frames.dropFirst().reduce($0) { $0.union($1) } }), let wid = windowID(),
+          let info = (CGWindowListCopyWindowInfo([.optionIncludingWindow], wid) as? [[String: Any]])?.first,
+          let bounds = info[kCGWindowBounds as String] as? [String: CGFloat]
+    else { print("NOTFOUND \(args.dropFirst(3).joined(separator: " "))")
+        exit(1)
+    }
+    let full = args[2] + ".window.png"
+    let task = Process()
+    task.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
+    task.arguments = ["-x", "-o", "-l\(wid)", full]
+    try task.run()
+    task.waitUntilExit()
+    guard let source = CGImageSourceCreateWithURL(URL(fileURLWithPath: full) as CFURL, nil),
+          let image = CGImageSourceCreateImageAtIndex(source, 0, nil) else { print("NOIMAGE")
+        exit(1)
+    }
+    let scale = CGFloat(image.width) / (bounds["Width"] ?? 1)
+    let rect = CGRect(x: (union.minX - (bounds["X"] ?? 0)) * scale, y: (union.minY - (bounds["Y"] ?? 0)) * scale,
+                      width: union.width * scale, height: union.height * scale)
+    guard let cropped = image.cropping(to: rect),
+          let dest = CGImageDestinationCreateWithURL(URL(fileURLWithPath: args[2]) as CFURL, "public.png" as CFString, 1, nil)
+    else { print("NOCROP")
+        exit(1)
+    }
+    CGImageDestinationAddImage(dest, cropped, nil)
+    try? FileManager.default.removeItem(atPath: full)
+    guard CGImageDestinationFinalize(dest) else { print("NOWRITE \(args[2])")
+        exit(1)
+    }
+    print("captured \(frames.count) elements to \(args[2])")
 case "ids":
     print(allIDs().joined(separator: "\n"))
 case "capture":
