@@ -12,7 +12,8 @@ public struct AskRecord: Sendable, Equatable {
     public internal(set) var deviceIDs: [UUID] = []
     /// Events the tools returned, first mention first.
     public internal(set) var eventIDs: [UUID] = []
-    /// Whether a tool stated device status, which the answer's freshness line then qualifies.
+    /// Whether a tool stated the status of at least one device, which the answer's freshness line
+    /// then qualifies.
     public internal(set) var statedPresence = false
 }
 
@@ -195,7 +196,8 @@ public final class AskToolbox: Sendable {
         let (devices, output) = body()
         state.withLock { state in
             state.record.outputs.append(output)
-            state.record.statedPresence = state.record.statedPresence || statesPresence
+            // A lookup that found no device stated no status.
+            state.record.statedPresence = state.record.statedPresence || statesPresence && !devices.isEmpty
             for id in devices where !state.record.deviceIDs.contains(id) {
                 state.record.deviceIDs.append(id)
             }

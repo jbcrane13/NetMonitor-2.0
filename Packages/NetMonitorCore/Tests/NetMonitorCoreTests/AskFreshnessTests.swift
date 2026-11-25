@@ -149,6 +149,12 @@ struct AskFreshnessTests {
         let events = await ask("What joined?", calls: [.events(range: "last7Days", type: "joined")],
                                answer: "Five devices joined.", snapshot: Self.stale)
         #expect(events.shownText == AskNetwork.fallback)
+        // A device lookup that found nothing stated no status either: no stale wording, no freshness line.
+        for call in [AskToolCall.findDevices("fridge"), .deviceStatus("fridge")] {
+            let missed = await ask("Is the fridge up?", calls: [call], answer: "The fridge is online.", snapshot: Self.stale)
+            #expect(missed.shownText == AskNetwork.fallback, "\(call)")
+            #expect(missed.freshness == nil, "\(call)")
+        }
     }
 
     @Test func aRejectedAnswerAfterAFreshScanKeepsThePlainFallback() async {
