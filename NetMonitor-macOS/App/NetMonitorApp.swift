@@ -80,8 +80,8 @@ struct NetMonitorApp: App {
             let inMemory = NSClassFromString("XCTest") != nil
                 || arguments.contains("--in-memory-store") || arguments.contains("--uitesting")
             let outcome = try MacPersistence.makeOutcome(storeURL: nil, inMemory: inMemory)
-            // Serials label capture kept in the notes move into the serial field (#561).
-            SerialNotesMigration.runAtLaunch(on: outcome.store)
+            // Device groups made consistent, and serial notes lines moved into the field (#561, #594).
+            DeviceStoreMaintenance.runAtLaunch(on: outcome.store)
             return outcome
         } catch {
             fatalError("Could not create recovery ModelContainer: \(error)")

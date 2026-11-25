@@ -58,7 +58,7 @@ struct IOSStoreMigrationTests {
         let url = directory.appending(path: "default.store")
         try FileManager.default.copyItem(at: fixture, to: url)
         let container = try openAppStore(at: url)
-        SerialNotesMigration.runAtLaunch(on: container)
+        DeviceStoreMaintenance.runAtLaunch(on: container)
         let rows = try ModelContext(container).fetch(FetchDescriptor<LocalDevice>())
         let byIP = Dictionary(uniqueKeysWithValues: rows.map { ($0.ipAddress, $0) })
         #expect(byIP["192.168.1.20"]?.serialNumber == "C02XYZ123")

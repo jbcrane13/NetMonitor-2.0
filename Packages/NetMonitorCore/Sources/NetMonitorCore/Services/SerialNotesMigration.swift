@@ -1,7 +1,6 @@
 import Foundation
 import NetworkScanKit
 import SwiftData
-import os
 
 /// Moves serials that label capture kept as `Serial:` notes lines (#456) into the serial field
 /// (#561, design v3.1 §10). It runs after launch in a normal context, not as a schema migration
@@ -19,17 +18,6 @@ import os
 @MainActor
 public enum SerialNotesMigration {
     static let prefix = LabelCapture.serialPrefix
-    private static let logger = Logger(subsystem: "com.netmonitor", category: "SerialNotesMigration")
-
-    /// The launch pass, in its own context on the app's container. A failure is logged and retried
-    /// at the next launch; the notes are left as they were.
-    public static func runAtLaunch(on container: ModelContainer) {
-        do {
-            try run(in: ModelContext(container))
-        } catch {
-            logger.error("Moving serial notes lines failed: \(error.localizedDescription, privacy: .public)")
-        }
-    }
 
     public static func run(in context: ModelContext, save: (ModelContext) throws -> Void = { try $0.save() }) throws {
         try adoptSerials(in: context, save: save)
