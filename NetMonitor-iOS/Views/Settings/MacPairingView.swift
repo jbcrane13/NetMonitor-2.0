@@ -8,6 +8,10 @@ struct MacPairingView: View {
     @State private var manualHost: String = ""
     @State private var manualPort: String = "8849"
     @State private var showManualEntry: Bool = false
+    /// The Mac the pairing screen opens for; a QR-only pairing uses `pairsFromQR`.
+    @State private var macToPair: DiscoveredMac?
+    @State private var pairsFromQR = false
+    @State private var confirmsForget = false
 
     /// Called when a connection is established, passing the service and Mac name.
     var onConnected: ((MacConnectionService) -> Void)?
@@ -15,6 +19,18 @@ struct MacPairingView: View {
     var body: some View {
         NavigationStack {
             List {
+                pairedMacSection
+
+                if let problem = connectionService.linkProblem {
+                    Section {
+                        Label(problem.message, systemImage: "lock.trianglebadge.exclamationmark")
+                            .font(.subheadline)
+                            .foregroundStyle(Theme.Colors.warning)
+                            .accessibilityIdentifier("pairing_label_linkProblem")
+                    }
+                    .listRowBackground(Theme.Colors.glassBackground)
+                }
+
                 // MARK: - Discovered Macs
                 Section {
                     if connectionService.isBrowsing && connectionService.discoveredMacs.isEmpty {
@@ -47,8 +63,7 @@ struct MacPairingView: View {
                     } else {
                         ForEach(connectionService.discoveredMacs) { mac in
                             Button {
-                                selectedMac = mac
-                                connectionService.connect(to: mac)
+                                select(mac)
                             } label: {
                                 HStack(spacing: 12) {
                                     Image(systemName: "desktopcomputer")
@@ -61,9 +76,10 @@ struct MacPairingView: View {
                                             .font(.body)
                                             .fontWeight(.medium)
                                             .foregroundStyle(Theme.Colors.textPrimary)
-                                        Text("NetMonitor Companion")
+                                        Text(pairingBadge(for: mac))
                                             .font(.caption)
                                             .foregroundStyle(Theme.Colors.textSecondary)
+                                            .accessibilityIdentifier("pairing_label_badge_\(mac.name)")
                                     }
 
                                     Spacer()
@@ -204,6 +220,24 @@ struct MacPairingView: View {
                     .accessibilityIdentifier("pairing_button_cancel")
                 }
             }
+            .navigationDestination(item: $macToPair) { mac in
+                PairWithMacView(mac: mac)
+            }
+            .navigationDestination(isPresented: $pairsFromQR) {
+                PairWithMacView(mac: nil)
+            }
+            .confirmationDialog(
+                "Forget \(connectionService.pairedMac?.macName ?? "this Mac")?",
+                isPresented: $confirmsForget,
+                titleVisibility: .visible
+            ) {
+                Button("Forget This Mac", role: .destructive) {
+                    Task { await connectionService.forgetMac() }
+                }
+                .accessibilityIdentifier("pairing_button_confirmForget")
+            } message: {
+                Text("This iPhone deletes its key and asks the Mac to remove it. You'll need to pair again.")
+            }
             .onAppear {
                 connectionService.startBrowsing()
             }
@@ -212,6 +246,59 @@ struct MacPairingView: View {
             }
         }
         .accessibilityIdentifier("screen_macPairing")
+    }
+
+    // MARK: - Pairing (#590)
+
+    private var pairedMacSection: some View {
+        Section {
+            if let paired = connectionService.pairedMac {
+                HStack(spacing: 12) {
+                    Image(systemName: "lock.shield")
+                        .foregroundStyle(Theme.Colors.success)
+                    Text("Paired with \(paired.macName)")
+                        .foregroundStyle(Theme.Colors.textPrimary)
+                        .accessibilityIdentifier("pairing_label_pairedMac")
+                }
+                Button(role: .destructive) {
+                    confirmsForget = true
+                } label: {
+                    Text("Forget This Mac")
+                }
+                .accessibilityIdentifier("pairing_button_forget")
+            } else {
+                Button {
+                    pairsFromQR = true
+                } label: {
+                    Label("Pair with QR Code", systemImage: "qrcode.viewfinder")
+                        .foregroundStyle(Theme.Colors.textPrimary)
+                }
+                .accessibilityIdentifier("pairing_button_pairQR")
+            }
+        } header: {
+            Text("Pairing")
+                .foregroundStyle(Theme.Colors.textSecondary)
+        } footer: {
+            Text("A paired iPhone and Mac talk over an encrypted link that other devices can't join.")
+                .foregroundStyle(Theme.Colors.textTertiary)
+        }
+        .listRowBackground(Theme.Colors.glassBackground)
+    }
+
+    private func pairingBadge(for mac: DiscoveredMac) -> String {
+        if !mac.isCurrent {
+            return "Needs a NetMonitor update"
+        }
+        return connectionService.isPaired(with: mac) ? "Paired" : "Not paired"
+    }
+
+    private func select(_ mac: DiscoveredMac) {
+        selectedMac = mac
+        if !mac.isCurrent || connectionService.isPaired(with: mac) {
+            connectionService.connect(to: mac)
+        } else {
+            macToPair = mac
+        }
     }
 
     // MARK: - Helpers

@@ -56,7 +56,7 @@ struct CompanionSettingsView: View {
                         .font(.headline)
 
                     Text("1. Update NetMonitor on your iPhone, on the same network as this Mac")
-                    Text("2. Click Pair iPhone… and scan the code with the iPhone (Settings → Mac Companion)")
+                    Text("2. Click Pair iPhone… and scan the code with the iPhone (Settings → Connect to Mac)")
                     Text("3. Check that both screens show the same six digits, then click Pair")
                 }
                 .font(.caption)

@@ -10,6 +10,9 @@ class IOSUITestCase: XCTestCase {
     /// duplicating this class's `setUp()`.
     var additionalLaunchEnvironment: [String: String] { [:] }
 
+    /// Extra launch arguments, after `--uitesting --uitesting-reset`.
+    var additionalLaunchArguments: [String] { [] }
+
     override func setUp() async throws {
         continueAfterFailure = false
         app = XCUIApplication()
@@ -33,7 +36,7 @@ class IOSUITestCase: XCTestCase {
             }
             return false
         }
-        app.launchArguments += ["--uitesting", "--uitesting-reset"]
+        app.launchArguments += ["--uitesting", "--uitesting-reset"] + additionalLaunchArguments
         app.launchEnvironment["UITEST_MODE"] = "1"
         app.launchEnvironment["XCUITest"] = "1"
         for (key, value) in additionalLaunchEnvironment {

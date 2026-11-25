@@ -80,9 +80,9 @@ public final class CompanionTrustGate: @unchecked Sendable {
 
     /// Opens a new window, shutting any earlier one.
     @discardableResult
-    public func openWindow() -> CompanionPairingWindow {
+    public func openWindow(code: CompanionPairingCode = .random()) -> CompanionPairingWindow {
         locked {
-            let opened = CompanionPairingWindow(opening: now())
+            let opened = CompanionPairingWindow(opening: now(), code: code)
             window = opened
             consumer = nil
             return opened

@@ -33,7 +33,7 @@ struct CompanionPairingSheet: View {
 
     private func invitation(_ offer: CompanionPairingOffer) -> some View {
         VStack(spacing: 12) {
-            Text("On your iPhone, open NetMonitor → Settings → Mac Companion → Pair with QR Code.")
+            Text("On your iPhone, open NetMonitor → Settings → Connect to Mac → Pair with QR Code.")
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
             if let image = Self.qrImage(offer.invitation.qrText) {

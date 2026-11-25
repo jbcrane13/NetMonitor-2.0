@@ -21,9 +21,10 @@ public struct CompanionPairingWindow: Sendable {
     public private(set) var admittedConnections = 0
     private let qrSecret: Data
 
-    public init(opening now: TimeInterval) {
+    /// `code` is random unless a test passes its own.
+    public init(opening now: TimeInterval, code: CompanionPairingCode = .random()) {
         generation = UUID()
-        code = .random()
+        self.code = code
         deadline = now + Self.lifetime
         var bytes = [UInt8](repeating: 0, count: 32)
         let status = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)

@@ -543,17 +543,25 @@ public extension MacConnectionServiceProtocol {
 }
 
 /// Minimal representation of a discovered Mac peer on the LAN.
-public struct DiscoveredMac: Identifiable, Sendable, Equatable {
+public struct DiscoveredMac: Identifiable, Sendable, Hashable {
     public let id: String
     public let name: String
+    /// The Mac's ID from its Bonjour TXT record (`mac`), from protocol v2 on (#590).
+    public let macID: UUID?
+    /// The protocol version the Mac advertises (`pv`); nil from a Mac before v2. A hint for the
+    /// screen only: the link's security never depends on it.
+    public let protocolVersion: Int?
 
-    public init(id: String, name: String) {
+    public init(id: String, name: String, macID: UUID? = nil, protocolVersion: Int? = nil) {
         self.id = id
         self.name = name
+        self.macID = macID
+        self.protocolVersion = protocolVersion
     }
 
-    public static func == (lhs: DiscoveredMac, rhs: DiscoveredMac) -> Bool {
-        lhs.id == rhs.id && lhs.name == rhs.name
+    /// Whether the Mac speaks this build's protocol.
+    public var isCurrent: Bool {
+        protocolVersion == CompanionMessage.currentProtocolVersion
     }
 }
 
