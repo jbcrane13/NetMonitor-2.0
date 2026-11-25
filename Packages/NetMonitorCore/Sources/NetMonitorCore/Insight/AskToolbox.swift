@@ -307,23 +307,9 @@ public final class AskToolbox: Sendable {
         "\(snapshot.ago(device.lastSeen)) (\(snapshot.format(device.lastSeen)))"
     }
 
-    /// A device's status in a list, under the list's freshness line. Only a device that answered a
-    /// recent scan is "online".
+    /// A device's status in a list, under the list's freshness line: the app's (`AskPresence`).
     private func statusWord(_ device: AskDevice) -> String {
-        let answered = snapshot.answeredLastScan(device)
-        switch snapshot.scanFreshness {
-        case .notScanned: return "status not checked"
-        case .fresh:
-            if answered {
-                return "online"
-            }
-            return Self.heldStatus(device.status) ?? "did not answer the last scan"
-        case .stale:
-            if answered {
-                return "answered the last scan"
-            }
-            return Self.heldStatus(device.status).map { "\($0) at the last scan" } ?? "did not answer the last scan"
-        }
+        snapshot.presence(of: device).label.lowercased()
     }
 
     /// What follows a device's name in `deviceStatus`: its status and how fresh it is.
@@ -332,29 +318,10 @@ public final class AskToolbox: Sendable {
             return ": this network hasn't been scanned yet, so its status is not known"
         }
         let scan = "\(snapshot.ago(lastScan)) (\(snapshot.format(lastScan)))"
-        let answered = snapshot.answeredLastScan(device)
-        let held = Self.heldStatus(device.status)
-        switch snapshot.scanFreshness {
-        case .fresh:
-            if answered {
-                return " is online as of the scan \(scan)"
-            }
-            return held.map { " is \($0) as of the scan \(scan)" } ?? " did not answer the scan \(scan)"
-        default:
-            if answered {
-                return " answered the last scan, \(scan); not checked recently"
-            }
-            return (held.map { " was \($0) at the last scan, \(scan)" } ?? " did not answer the last scan, \(scan)") + "; not checked recently"
-        }
-    }
-
-    /// A status other than online that a row keeps between scans; nil for online and cached, which
-    /// count as answering or not by `lastSeen`.
-    private static func heldStatus(_ status: DeviceStatus) -> String? {
-        switch status {
-        case .offline: "offline"
-        case .idle: "idle"
-        case .online, .cached: nil
+        switch snapshot.presence(of: device) {
+        case .online: return " is online as of the scan \(scan)"
+        case .offline: return " is offline as of the scan \(scan)"
+        case .notCheckedRecently: return ": not checked recently; the last scan was \(scan)"
         }
     }
 

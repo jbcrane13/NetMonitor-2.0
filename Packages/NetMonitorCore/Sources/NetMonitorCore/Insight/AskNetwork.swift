@@ -20,10 +20,10 @@ public struct AskAnswer: Equatable, Sendable {
         /// The name when the question was answered; the views show the current one.
         public let name: String
         /// The app's status for the device, shown beside it: the model never states presence.
-        public let presence: AskDevicePresence
+        public let presence: AskPresence
         public let lastSeen: Date
 
-        public init(id: UUID, name: String, presence: AskDevicePresence, lastSeen: Date) {
+        public init(id: UUID, name: String, presence: AskPresence, lastSeen: Date) {
             self.id = id
             self.name = name
             self.presence = presence
@@ -73,6 +73,8 @@ public enum AskNetwork {
     /// older than the grace interval: the lookup worked, the statuses are just old. The citations
     /// below say when each device was last seen.
     public static let staleFallback = "These devices haven't been checked recently. Their last-seen times are below."
+    /// `staleFallback` for one cited device.
+    public static let staleFallbackOne = "This device hasn't been checked recently. Its last-seen time is below."
     /// As `staleFallback`, for a network with no scan.
     public static let unscannedFallback = "This network hasn't been scanned yet."
 
@@ -110,15 +112,15 @@ public enum AskNetwork {
         guard !cited.isEmpty, let lastScan = snapshot.lastScan else {
             return cited.isEmpty ? fallback : unscannedFallback
         }
-        guard snapshot.scanFreshness == .fresh else { return staleFallback }
+        guard snapshot.scanFreshness == .fresh else { return cited.count == 1 ? staleFallbackOne : staleFallback }
         let ago = snapshot.ago(lastScan)
         if cited.count == 1 {
             let device = cited[0]
-            let name = InsightRequest.line(device.displayName, limit: 80)
-            return snapshot.answeredLastScan(device) ? "\(name) answered the scan \(ago)." : "\(name) didn't answer the scan \(ago)."
+            let state = snapshot.presence(of: device) == .online ? "online" : "offline"
+            return "\(InsightRequest.line(device.displayName, limit: 80)) is \(state) as of the scan \(ago)."
         }
-        let answered = cited.count(where: snapshot.answeredLastScan)
-        return "\(answered) of \(cited.count) devices answered the scan \(ago)."
+        let online = cited.count { snapshot.presence(of: $0) == .online }
+        return "\(online) of \(cited.count) devices are online as of the scan \(ago)."
     }
 
     /// The text without the per-run handles the model sometimes repeats: "Ring Doorbell (id dev-c)"

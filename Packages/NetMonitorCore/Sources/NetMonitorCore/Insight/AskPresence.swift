@@ -1,64 +1,33 @@
 import Foundation
 
-/// A cited device's status as the app shows it beside an Ask answer (#452). The app works it out
-/// from the device's saved row and the network's last scan; the model never states it (lead
-/// decision, 2026-11-25: the app computes, the model words).
-public enum AskDevicePresence: Equatable, Sendable {
-    /// Answered the network's last scan, which is recent.
+/// A cited device's status as the app shows it beside an Ask answer (#452), always with its last
+/// seen. Blake's three states (#583); the model never states them (lead decision, 2026-11-25: the
+/// app computes, the model words). A stand-in for #583's shared Core `PresenceFreshness`, which it
+/// should be swapped for; it holds only these rules:
+/// - a network with no scan, or whose last scan is older than the grace interval: not checked
+///   recently, whatever the saved status says;
+/// - after a recent scan: offline when the row is offline, else online. A row that missed that
+///   scan but is still within `DeviceGracePolicy` reads online with its real last seen (lead,
+///   #583 comment).
+public enum AskPresence: Equatable, Sendable {
     case online
-    /// Offline as of a recent scan.
     case offline
-    /// Idle as of a recent scan.
-    case idle
-    /// Didn't answer the network's last scan (it may still be within the grace interval).
-    case missedLastScan
-    /// Answered the last scan, which is older than the grace interval.
-    case answeredOldScan
-    /// Offline at the last scan, which is older than the grace interval.
-    case offlineAtOldScan
-    /// The network has no scan.
-    case notChecked
+    case notCheckedRecently
 
     public var label: String {
         switch self {
         case .online: "Online"
         case .offline: "Offline"
-        case .idle: "Idle"
-        case .missedLastScan: "Missed last scan"
-        case .answeredOldScan: "Seen at last scan"
-        case .offlineAtOldScan: "Offline at last scan"
-        case .notChecked: "Not checked"
+        case .notCheckedRecently: "Not checked recently"
         }
-    }
-
-    /// Only a device that answered a recent scan reads as online.
-    public var isOnline: Bool {
-        self == .online
     }
 }
 
 public extension AskSnapshot {
     /// The device's status as the app shows it.
-    func presence(of device: AskDevice) -> AskDevicePresence {
-        let answered = answeredLastScan(device)
-        switch scanFreshness {
-        case .notScanned:
-            return .notChecked
-        case .fresh:
-            if answered {
-                return .online
-            }
-            switch device.status {
-            case .offline: return .offline
-            case .idle: return .idle
-            case .online, .cached: return .missedLastScan
-            }
-        case .stale:
-            if answered {
-                return .answeredOldScan
-            }
-            return device.status == .offline ? .offlineAtOldScan : .missedLastScan
-        }
+    func presence(of device: AskDevice) -> AskPresence {
+        guard scanFreshness == .fresh else { return .notCheckedRecently }
+        return device.status == .offline ? .offline : .online
     }
 }
 
@@ -101,40 +70,52 @@ enum AskPresenceFilter {
     }
 
     private static let presenceWords: Set<String> = [
-        "online", "offline", "down", "active", "inactive", "available", "unavailable", "awake", "asleep",
-        "reachable", "unreachable", "responding", "responsive", "unresponsive", "answer", "answers", "answering", "answered",
-        "connected", "disconnected", "back", "gone", "alive", "dead", "up"
+        "online", "offline", "up", "down", "active", "inactive", "available", "unavailable", "awake", "asleep", "sleeping",
+        "idle", "running", "working", "live", "alive", "dead", "present", "absent", "missing", "gone", "back",
+        "reachable", "unreachable", "pingable", "responding", "responsive", "unresponsive",
+        "answer", "answers", "answering", "answered", "connected", "disconnected", "unplugged", "plugged",
+        "visible", "detected", "found", "appeared", "disappeared", "status", "scan", "scanned"
     ]
     /// "up" outside presence.
     private static let upPhrases = ["looked up", "look up", "set up", "up to", "pick up", "picked up"]
-    private static let presencePhrases = ["on the network", "off the network", "on your network", "off your network"]
+    private static let presencePhrases = [
+        "on the network", "off the network", "on your network", "off your network", "is on", "are on", "is off", "are off",
+        "turned on", "turned off", "powered on", "powered off", "switched on", "switched off", "dropped off", "drops off"
+    ]
+    private static let yesNo: Set<String> = ["yes", "no", "yep", "yeah", "yup", "nope", "nah"]
 
     static func statesPresence(_ sentence: String) -> Bool {
         let lowered = sentence.lowercased()
         if presencePhrases.contains(where: lowered.contains) {
             return true
         }
-        var words = lowered.split { !$0.isLetter && !$0.isNumber }.map(String.init)
-        if let first = words.first, first == "yes" || first == "no",
+        // A bare yes or no ("Yes.", "Yeah, it is.") answers "is it up?"; "No device joined" doesn't.
+        if let first = lowered.split(whereSeparator: { !$0.isLetter }).first.map(String.init), yesNo.contains(first),
            lowered.dropFirst(first.count).first.map({ !$0.isLetter && $0 != " " }) ?? true {
             return true
         }
-        // "up" in "looked up" is not presence.
         var withoutUp = lowered
         for phrase in upPhrases {
             withoutUp = withoutUp.replacingOccurrences(of: phrase, with: " ")
         }
-        words = withoutUp.split { !$0.isLetter && !$0.isNumber }.map(String.init)
-        for (index, word) in words.enumerated() where presenceWords.contains(word) {
-            // "went offline 2 times", "offline once": a count of drops from the tools.
-            let next = words.dropFirst(index + 1).prefix(2)
-            let isCount = (next.first.map { Int($0) != nil } ?? false && next.dropFirst().first?.hasPrefix("time") == true)
-                || next.first == "once" || next.first == "twice"
-            if !isCount {
-                return true
-            }
+        let words = withoutUp.split { !$0.isLetter && !$0.isNumber }.map(String.init)
+        let history = dropCounts(in: words)
+        return words.indices.contains { presenceWords.contains(words[$0]) && !history.contains($0) }
+    }
+
+    /// The words of "went offline 2 times", "gone offline twice": a count of past drops from the
+    /// tools, not presence. Only "offline" after went/gone/going, followed by a count.
+    private static func dropCounts(in words: [String]) -> Set<Int> {
+        var indices = Set<Int>()
+        for index in words.indices where words[index] == "offline" && index > 0 {
+            guard ["went", "gone", "going", "goes", "go"].contains(words[index - 1]) else { continue }
+            let next = Array(words.dropFirst(index + 1).prefix(2))
+            let isNumberedCount = next.count == 2 && Int(next[0]) != nil && next[1].hasPrefix("time")
+            guard isNumberedCount || next.first == "once" || next.first == "twice" else { continue }
+            indices.insert(index)
+            indices.insert(index - 1)
         }
-        return false
+        return indices
     }
 
     private static let vagueFreshness = [

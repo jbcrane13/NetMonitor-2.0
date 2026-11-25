@@ -58,7 +58,7 @@ struct AskFreshnessTests {
         let toolbox = AskToolbox(snapshot: Self.stale)
         let status = toolbox.deviceStatus("the NAS")
         #expect(status == """
-        Synology DS920 answered the last scan, 40 minutes ago (2026-11-23 11:20 AM); not checked recently. \
+        Synology DS920: not checked recently; the last scan was 40 minutes ago (2026-11-23 11:20 AM). \
         Last seen 40 minutes ago (2026-11-23 11:20 AM). Address 192.168.1.20. Last reply 2 ms. \
         Went offline 0 times in the last 7 days (2026-11-17 to 2026-11-23).
         """)
@@ -66,7 +66,7 @@ struct AskFreshnessTests {
         #expect(list == """
         Not checked recently: the last scan was 40 minutes ago (2026-11-23 11:20 AM). Whether these devices are online now is not known.
         1 saved device:
-        - id dev-a: Synology DS920, storage, answered the last scan, last seen 40 minutes ago (2026-11-23 11:20 AM), address 192.168.1.20
+        - id dev-a: Synology DS920, storage, not checked recently, last seen 40 minutes ago (2026-11-23 11:20 AM), address 192.168.1.20
         """)
         // Only the note mentions "online", to say it isn't known.
         #expect(!status.lowercased().contains("online"))
@@ -79,13 +79,12 @@ struct AskFreshnessTests {
             + "Last seen less than a minute ago (2026-11-23 12:00 PM)."))
     }
 
-    @Test func aDeviceStillInGraceThatMissedTheLastScanIsNotOnline() {
-        // iPhone rows stay .online through the grace interval after a missed scan (#582).
+    @Test func aDeviceStillInGraceThatMissedTheLastScanReadsOnlineWithItsRealLastSeen() {
+        // Rows stay .online through the grace interval after a missed scan (#582); lead, #583 comment.
         let missed = Fix.device("Synology DS920", .storage, ip: "192.168.1.20", lastSeen: Fix.now.addingTimeInterval(-10 * 60))
         let snapshot = AskSnapshot(devices: [missed], events: [], lastScan: Fix.now.addingTimeInterval(-2 * 60), now: Fix.now, calendar: Fix.calendar)
         let status = AskToolbox(snapshot: snapshot).deviceStatus("the NAS")
-        #expect(status.hasPrefix("Synology DS920 did not answer the scan 2 minutes ago (2026-11-23 11:58 AM). Last seen 10 minutes ago"))
-        #expect(!status.lowercased().contains("online"))
+        #expect(status.hasPrefix("Synology DS920 is online as of the scan 2 minutes ago (2026-11-23 11:58 AM). Last seen 10 minutes ago"))
     }
 
     @Test func aNetworkNeverScannedGivesNoStatus() {
@@ -110,7 +109,7 @@ struct AskFreshnessTests {
             let answer = await ask("What's online?", calls: calls, answer: claim, snapshot: Self.stale)
             #expect(answer.text == nil, "accepted \(claim)")
             // The app says why there's no status instead of "I couldn't look that up."
-            #expect(answer.shownText == AskNetwork.staleFallback)
+            #expect(answer.shownText == AskNetwork.staleFallbackOne)
             // The citation and the app's freshness line still show.
             #expect(answer.devices.map(\.id) == [Self.staleNAS.id])
             #expect(answer.freshness == "Not checked recently: the last scan was 40 minutes ago (2026-11-23 11:20 AM).")
@@ -151,7 +150,7 @@ struct AskFreshnessTests {
         let snapshot = AskSnapshot(devices: [Fix.nas], events: [], lastScan: Fix.now, now: Fix.now, calendar: Fix.calendar)
         let answer = await ask("Is the NAS up?", calls: [.deviceStatus("NAS")], answer: "Synology DS920 had 9 drops.", snapshot: snapshot)
         #expect(answer.text == nil)
-        #expect(answer.shownText == "Synology DS920 answered the scan less than a minute ago.")
+        #expect(answer.shownText == "Synology DS920 is online as of the scan less than a minute ago.")
     }
 
     @Test func pastTenseAndNegatedPresenceIsTheAppsToo() async {
@@ -163,7 +162,7 @@ struct AskFreshnessTests {
         ] {
             let answer = await ask("What's online?", calls: [.findDevices("all")], answer: text, snapshot: Self.stale)
             #expect(answer.text == nil, "kept: \(text)")
-            #expect(answer.shownText == AskNetwork.staleFallback)
+            #expect(answer.shownText == AskNetwork.staleFallbackOne)
         }
     }
 
@@ -184,7 +183,7 @@ struct AskFreshnessTests {
         #expect(answer.freshness == "Device status as of the scan 3 minutes ago (2026-11-23 11:57 AM).")
     }
 
-    @Test func aFreshScanShowsWhichCitedDevicesAnswered() async {
+    @Test func aRowInGraceReadsOnlineWithItsRealLastSeen() async {
         let missed = Fix.device("Synology DS920", .storage, ip: "192.168.1.20", lastSeen: Fix.now.addingTimeInterval(-10 * 60))
         let snapshot = AskSnapshot(
             devices: [missed, Fix.appleTV], events: [], lastScan: Fix.now, now: Fix.now, calendar: Fix.calendar
@@ -192,8 +191,9 @@ struct AskFreshnessTests {
         let mixed = "Synology DS920 did not answer the last scan, but Living Room Apple TV is online."
         let answer = await ask("What's online?", calls: [.findDevices("all")], answer: mixed, snapshot: snapshot)
         #expect(answer.text == nil)
-        #expect(answer.shownText == "1 of 2 devices answered the scan less than a minute ago.")
-        #expect(answer.devices.map(\.presence) == [.missedLastScan, .online])
+        #expect(answer.shownText == "2 of 2 devices are online as of the scan less than a minute ago.")
+        #expect(answer.devices.map(\.presence) == [.online, .online])
+        #expect(answer.devices.first?.lastSeen == missed.lastSeen)
     }
 
     @Test func anAnswerWithoutDevicesHasNoFreshnessLine() async {

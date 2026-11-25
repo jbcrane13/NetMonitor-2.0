@@ -123,13 +123,6 @@ public struct AskSnapshot: Sendable {
         return now.timeIntervalSince(lastScan) > staleAfter ? .stale : .fresh
     }
 
-    /// Whether the device answered the network's last scan: online, and seen at or after it.
-    func answeredLastScan(_ device: AskDevice) -> Bool {
-        guard let lastScan, device.status == .online else { return false }
-        // Both apps' reconcilers stamp lastSeen and the scan with one time.
-        return device.lastSeen >= lastScan
-    }
-
     /// The app's line on how fresh device statuses are, shown under an answer word for word.
     public var freshnessNote: String {
         guard let lastScan else {

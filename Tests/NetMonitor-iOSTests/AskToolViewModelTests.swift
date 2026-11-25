@@ -88,7 +88,7 @@ struct AskToolViewModelTests {
             return
         }
         #expect(answer.text == nil)
-        #expect(answer.shownText == AskNetwork.staleFallback)
+        #expect(answer.shownText == AskNetwork.staleFallbackOne)
         #expect(answer.devices.map(\.id) == [row.id])
         #expect(answer.freshness?.hasPrefix("Not checked recently: the last scan was 40 minutes ago (") == true)
     }
@@ -168,7 +168,7 @@ struct AskToolViewModelTests {
         let text = await intent(devices: [device], lastScan: Date(), isScanning: false)
         #expect(text.hasPrefix("Office Printer is a printer. Office Printer: Offline. Device status as of the scan less than a minute ago ("))
         let unscanned = await intent(devices: [device], lastScan: nil, isScanning: false)
-        #expect(unscanned == "Office Printer is a printer. Office Printer: Not checked. "
+        #expect(unscanned == "Office Printer is a printer. Office Printer: Not checked recently. "
             + "This network hasn't been scanned yet, so no device's status has been checked.")
     }
 

@@ -14,10 +14,11 @@ struct AskPresenceFilterTests {
     private static let stale = AskSnapshot(
         devices: [staleNAS], events: [], lastScan: fortyMinutesAgo, now: Fix.now, calendar: Fix.calendar
     )
-    /// A fresh scan two minutes ago that the printer (still "online" in grace) missed.
+    /// A fresh scan two minutes ago that the printer missed (still online in grace), and an offline TV.
     private static let missedPrinter = Fix.device("Brother HL-L2350DW", .printer, ip: "192.168.1.57", lastSeen: Fix.now.addingTimeInterval(-600))
+    private static let offlineTV = Fix.device("Living Room Apple TV", .tv, ip: "192.168.1.41", status: .offline)
     private static let fresh = AskSnapshot(
-        devices: [missedPrinter, Fix.nas, Fix.appleTV], events: [], lastScan: Fix.now.addingTimeInterval(-120),
+        devices: [missedPrinter, Fix.nas, offlineTV], events: [], lastScan: Fix.now.addingTimeInterval(-120),
         now: Fix.now, calendar: Fix.calendar
     )
 
@@ -37,9 +38,9 @@ struct AskPresenceFilterTests {
     func presenceAfterAFreshScanIsNeverTheModels(_ claim: String) async {
         let answer = await ask("Is the printer up?", calls: [.findDevices("all")], answer: claim, snapshot: Self.fresh)
         #expect(answer.text == nil, "kept: \(claim)")
-        // The app says it instead: three devices looked up, two answered the scan.
-        #expect(answer.shownText == "2 of 3 devices answered the scan 2 minutes ago.")
-        #expect(answer.devices.map(\.presence) == [.missedLastScan, .online, .online])
+        // The app says it instead: three devices looked up, two online (the printer within grace).
+        #expect(answer.shownText == "2 of 3 devices are online as of the scan 2 minutes ago.")
+        #expect(answer.devices.map(\.presence) == [.online, .online, .offline])
     }
 
     @Test(arguments: [
@@ -56,8 +57,8 @@ struct AskPresenceFilterTests {
     func presenceOnAStaleScanIsNeverTheModels(_ claim: String) async {
         let answer = await ask("Is the NAS up?", calls: [.deviceStatus("NAS")], answer: claim, snapshot: Self.stale)
         #expect(answer.text == nil, "kept: \(claim)")
-        #expect(answer.shownText == AskNetwork.staleFallback)
-        #expect(answer.devices.map(\.presence) == [.answeredOldScan])
+        #expect(answer.shownText == AskNetwork.staleFallbackOne)
+        #expect(answer.devices.map(\.presence) == [.notCheckedRecently])
         #expect(answer.freshness == Self.stale.freshnessNote)
     }
 
@@ -76,10 +77,46 @@ struct AskPresenceFilterTests {
         """
         let answer = await ask("What's online?", calls: [.findDevices("all")], answer: text, snapshot: Self.stale)
         #expect(answer.text == nil)
-        #expect(answer.shownText == AskNetwork.staleFallback)
+        #expect(answer.shownText == AskNetwork.staleFallbackOne)
         // A list under a heading that stays is kept.
         let kept = "Saved devices:\n- Synology DS920, storage, address 192.168.1.20"
         #expect(AskPresenceFilter.filtered(kept, outputs: []) == "Saved devices: - Synology DS920, storage, address 192.168.1.20")
+    }
+
+    @Test(arguments: [
+        "Synology DS920 is idle.",
+        "Synology DS920 is running.",
+        "Synology DS920 is working fine.",
+        "Synology DS920 is live.",
+        "Synology DS920 is present.",
+        "Synology DS920 is missing.",
+        "Synology DS920 is on.",
+        "Synology DS920 is turned off.",
+        "Synology DS920 is powered on.",
+        "Synology DS920 was unplugged.",
+        "Synology DS920 dropped off.",
+        "Synology DS920 appeared in the last scan.",
+        "Synology DS920 was found by the scan.",
+        "Synology DS920 is visible.",
+        "Synology DS920 is detected.",
+        "Its status is good.",
+        "Synology DS920 is sleeping.",
+        "Synology DS920 is pingable.",
+        "Yep.",
+        "Yeah, it is.",
+        "Nope.",
+        "Synology DS920 is online 2 times faster.",
+        "Synology DS920 is up 3 times today."
+    ])
+    func moreWaysToStatePresenceAreDropped(_ claim: String) async {
+        let answer = await ask("Is the NAS up?", calls: [.deviceStatus("NAS")], answer: claim, snapshot: Self.stale)
+        #expect(answer.text == nil, "kept: \(claim)")
+    }
+
+    @Test func onlyADropCountIsHistory() {
+        for kept in ["Ring Doorbell went offline 2 times.", "Ring Doorbell went offline once.", "Ring Doorbell has gone offline twice."] {
+            #expect(!AskPresenceFilter.statesPresence(kept), "dropped: \(kept)")
+        }
     }
 
     @Test func theRestOfTheModelsTextIsShown() async {
@@ -123,30 +160,48 @@ struct AskPresenceFilterTests {
 
     @Test func oneDeviceGetsItsOwnSummary() async {
         let missed = await ask("Is the printer up?", calls: [.findDevices("printer")], answer: "Yes.", snapshot: Self.fresh)
-        #expect(missed.shownText == "Brother HL-L2350DW didn't answer the scan 2 minutes ago.")
-        let answered = await ask("Is the NAS up?", calls: [.findDevices("NAS")], answer: "Yes.", snapshot: Self.fresh)
-        #expect(answered.shownText == "Synology DS920 answered the scan 2 minutes ago.")
+        #expect(missed.shownText == "Brother HL-L2350DW is online as of the scan 2 minutes ago.")
+        let offline = await ask("Is the TV up?", calls: [.findDevices("Apple TV")], answer: "Yes.", snapshot: Self.fresh)
+        #expect(offline.shownText == "Living Room Apple TV is offline as of the scan 2 minutes ago.")
+    }
+
+    @Test func theStaleFallbackIsSingularForOneDevice() async {
+        let one = await ask("Is the NAS up?", calls: [.deviceStatus("NAS")], answer: "Yes.", snapshot: Self.stale)
+        #expect(one.shownText == "This device hasn't been checked recently. Its last-seen time is below.")
+        let printer = Fix.device("Brother HL-L2350DW", .printer, ip: "192.168.1.57", status: .offline, lastSeen: Self.fortyMinutesAgo)
+        let two = AskSnapshot(
+            devices: [Self.staleNAS, printer], events: [], lastScan: Self.fortyMinutesAgo, now: Fix.now, calendar: Fix.calendar
+        )
+        let both = await ask("What's online?", calls: [.findDevices("all")], answer: "Yes.", snapshot: two)
+        #expect(both.shownText == "These devices haven't been checked recently. Their last-seen times are below.")
+        // The saved "offline" doesn't show through an old scan.
+        #expect(both.devices.map(\.presence) == [.notCheckedRecently, .notCheckedRecently])
     }
 
     @Test func eachCitationCarriesTheAppsStatusAndLastSeen() async {
         let answer = await ask("What's there?", calls: [.findDevices("all")], answer: "Three devices are saved.", snapshot: Self.fresh)
         #expect(answer.text == "Three devices are saved.")
         let printer = answer.devices.first { $0.id == Self.missedPrinter.id }
-        #expect(printer?.presence == .missedLastScan)
-        #expect(printer?.presence.label == "Missed last scan")
+        // Missed the recent scan but within grace: Online, with its real last seen (lead, #583).
+        #expect(printer?.presence == .online)
         #expect(printer?.lastSeen == Self.missedPrinter.lastSeen)
         #expect(answer.freshness == Self.fresh.freshnessNote)
     }
 
     @Test func presenceLabels() {
-        #expect(AskDevicePresence.online.label == "Online")
-        #expect(AskDevicePresence.offline.label == "Offline")
-        #expect(AskDevicePresence.answeredOldScan.label == "Seen at last scan")
-        #expect(AskDevicePresence.offlineAtOldScan.label == "Offline at last scan")
-        #expect(AskDevicePresence.notChecked.label == "Not checked")
-        let unscanned = AskSnapshot(devices: [Fix.nas], events: [], lastScan: nil, now: Fix.now, calendar: Fix.calendar)
-        #expect(unscanned.presence(of: Fix.nas) == .notChecked)
+        // Blake's three states (#583).
+        #expect(AskPresence.online.label == "Online")
+        #expect(AskPresence.offline.label == "Offline")
+        #expect(AskPresence.notCheckedRecently.label == "Not checked recently")
         #expect(Fix.snapshot.presence(of: Fix.printer) == .offline)
+        // No scan, or an old one: not checked recently, whatever the saved status says.
+        let unscanned = AskSnapshot(devices: [Fix.nas], events: [], lastScan: nil, now: Fix.now, calendar: Fix.calendar)
+        #expect(unscanned.presence(of: Fix.nas) == .notCheckedRecently)
+        let old = AskSnapshot(
+            devices: [Fix.printer], events: [], lastScan: Self.fortyMinutesAgo, now: Fix.now, calendar: Fix.calendar
+        )
+        #expect(old.presence(of: Fix.printer) == .notCheckedRecently)
+        #expect(Self.stale.presence(of: Self.staleNAS) == .notCheckedRecently)
     }
 
     // MARK: - Events

@@ -79,7 +79,7 @@ final class AskUITests: IOSUITestCase {
         requireExists(citation, message: "The printer the tool returned should be cited")
         XCTAssertTrue(citation.label.contains("UITest Printer"), "Citation: \(citation.label)")
         // The app's status beside it: this network has no scan.
-        XCTAssertTrue(citation.label.contains("Not checked"), "Citation: \(citation.label)")
+        XCTAssertTrue(citation.label.contains("Not checked recently"), "Citation: \(citation.label)")
         keep([answer, marker, citation], named: "ask-printer-answer")
 
         citation.tap()
@@ -162,7 +162,7 @@ final class AskFreshnessUITests: IOSUITestCase {
         let answer = ui("ask_label_answer")
         requireExists(answer, timeout: 10, message: "An answer should show")
         let worded = expectation(
-            for: NSPredicate(format: "label MATCHES %@", "[0-9]+ of [0-9]+ devices answered the scan .* ago\\."), evaluatedWith: answer
+            for: NSPredicate(format: "label MATCHES %@", "[0-9]+ of [0-9]+ devices are online as of the scan .* ago\\."), evaluatedWith: answer
         )
         wait(for: [worded], timeout: 10)
         XCTAssertFalse(ui("ask_label_generated").exists, "The app's summary is not marked as generated")

@@ -30,7 +30,7 @@ struct AskMacViewModelTests {
             return
         }
         #expect(answer.text == "Office Printer is a printer.")
-        #expect(answer.devices.first?.presence == .notChecked)
+        #expect(answer.devices.first?.presence == .notCheckedRecently)
 
         device.customName = "Upstairs Printer"
         viewModel.update(devices: [device], networkProfileID: home, lastScan: nil, isScanning: false)
@@ -59,7 +59,7 @@ struct AskMacViewModelTests {
             return
         }
         #expect(online.text == nil)
-        #expect(online.shownText == AskNetwork.staleFallback)
+        #expect(online.shownText == AskNetwork.staleFallbackOne)
         #expect(online.freshness?.hasPrefix("Not checked recently: the last scan was 40 minutes ago (") == true)
 
         await viewModel.state.ask("Is the NAS up?")
@@ -67,9 +67,9 @@ struct AskMacViewModelTests {
             Issue.record("not answered: \(viewModel.state.phase)")
             return
         }
-        // The NAS answered that scan, which is old: the app shows it beside the citation.
+        // The scan is old: not checked recently, beside the citation.
         #expect(status.text == "Garage NAS was last seen 40 minutes ago.")
-        #expect(status.devices.first?.presence == .answeredOldScan)
+        #expect(status.devices.first?.presence == .notCheckedRecently)
     }
 
     @Test func nothingIsAskedDuringAScan() async {

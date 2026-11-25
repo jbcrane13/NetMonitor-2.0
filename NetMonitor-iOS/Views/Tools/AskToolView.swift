@@ -207,7 +207,7 @@ struct AskToolView: View {
         .accessibilityIdentifier("ask_list_citations")
     }
 
-    private func citationRow(icon: String, title: String, detail: String?, presence: AskDevicePresence? = nil) -> some View {
+    private func citationRow(icon: String, title: String, detail: String?, presence: AskPresence? = nil) -> some View {
         HStack(spacing: 10) {
             Image(systemName: icon)
                 .foregroundStyle(Theme.Colors.accent)
@@ -227,7 +227,7 @@ struct AskToolView: View {
                 // The app's status: the model's text never states presence.
                 Text(presence.label)
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(presence.isOnline ? Theme.Colors.success : Theme.Colors.textSecondary)
+                    .foregroundStyle(presence == .online ? Theme.Colors.success : Theme.Colors.textSecondary)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 3)
                     .background(Capsule().fill(Theme.Colors.textSecondary.opacity(0.15)))
