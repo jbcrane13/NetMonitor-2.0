@@ -266,8 +266,8 @@ struct NetMonitorApp: App {
                 }
                 try await companionService?.start(
                     heartbeat: { await handler?.heartbeat() ?? HeartbeatPayload() },
-                    messageHandler: { @Sendable message, clientID in
-                        await handler?.handle(message, from: clientID)
+                    messageHandler: { @Sendable message, clientID, authorization in
+                        await handler?.handle(message, from: clientID, authorization: authorization)
                     }
                 )
             } catch {

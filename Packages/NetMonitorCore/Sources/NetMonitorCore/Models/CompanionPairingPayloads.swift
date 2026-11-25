@@ -17,19 +17,24 @@ public struct ServerHelloPayload: Codable, Sendable, Equatable {
         case refused
     }
 
-    public let macID: UUID
-    /// Display only; never a basis for trust.
-    public let macName: String
+    /// The Mac's ID; nil in a refusal, which says nothing about the Mac.
+    public let macID: UUID?
+    /// Display only; never a basis for trust. Nil in a refusal.
+    public let macName: String?
     public let mode: Mode
     /// On a pairing link, the Mac's commitment to the nonce it reveals in `pairChallenge`.
     public let commitment: Data?
 
-    public init(macID: UUID, macName: String, mode: Mode, commitment: Data? = nil) {
+    public init(macID: UUID?, macName: String?, mode: Mode, commitment: Data? = nil) {
         self.macID = macID
         self.macName = macName
         self.mode = mode
         self.commitment = commitment
     }
+
+    /// What a key the Mac doesn't trust gets: the refusal status and nothing else, so an
+    /// unknown device learns neither the Mac's name nor its ID.
+    public static let refusal = ServerHelloPayload(macID: nil, macName: nil, mode: .refused)
 }
 
 public struct PairRequestPayload: Codable, Sendable, Equatable {

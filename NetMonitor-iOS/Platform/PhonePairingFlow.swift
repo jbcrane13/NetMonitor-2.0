@@ -85,9 +85,10 @@ enum PhonePairingFlow {
         session: CompanionVerifiedSession,
         phoneName: String
     ) -> CompanionMessage? {
-        guard let commitment = hello.commitment, commitment.count == 32 else { return nil }
-        attempt.macID = hello.macID
-        attempt.macName = hello.macName
+        guard let commitment = hello.commitment, commitment.count == 32,
+              let macID = hello.macID, let macName = hello.macName else { return nil }
+        attempt.macID = macID
+        attempt.macName = macName
         attempt.commitment = commitment
         let proof = CompanionPairingProof.make(
             role: .phone, kind: attempt.kind, secret: attempt.secret, binding: binding(attempt, session)

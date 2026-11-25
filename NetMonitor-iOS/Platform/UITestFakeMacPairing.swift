@@ -127,7 +127,7 @@ final class FakeCompanionMac: Sendable {
                 return
             }
             guard let role = gate.classify(session.peerPin) else {
-                send(.serverHello(ServerHelloPayload(macID: macID, macName: name, mode: .refused)), on: connection)
+                send(.serverHello(.refusal), on: connection)
                 return
             }
             let mode: ServerHelloPayload.Mode = if case .paired = role {

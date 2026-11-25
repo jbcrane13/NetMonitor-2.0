@@ -91,6 +91,15 @@ struct CompanionProtocolV2Tests {
         #expect(decoded.logName == message.logName)
     }
 
+    @Test("A refusal encodes the refusal status and nothing else")
+    func refusalIsStatusOnly() throws {
+        let json = try CompanionMessage.jsonEncoder.encode(CompanionMessage.serverHello(.refusal))
+        let object = try #require(try JSONSerialization.jsonObject(with: json) as? [String: Any])
+        let payload = try #require(object["payload"] as? [String: Any])
+        #expect(Set(payload.keys) == ["mode"])
+        #expect(payload["mode"] as? String == "refused")
+    }
+
     @Test("A pairing frame with an unknown mode fails to decode instead of falling back")
     func strictPairingFrames() {
         let text = #"{"protocolVersion":2,"type":"serverHello","payload":"#

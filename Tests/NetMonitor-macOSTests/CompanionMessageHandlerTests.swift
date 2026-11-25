@@ -13,7 +13,7 @@ struct CompanionMessageHandlerTests {
         let (container, _, handler, _, _) = try makeFixture()
         _ = container
 
-        let response = await handler.handle(.heartbeat(HeartbeatPayload()), from: UUID())
+        let response = await handler.handle(.heartbeat(HeartbeatPayload()), from: UUID(), authorization: .always)
         if case .heartbeat? = response {
             #expect(true)
         } else {
@@ -25,7 +25,7 @@ struct CompanionMessageHandlerTests {
         let (container, _, handler, _, _) = try makeFixture()
         _ = container
 
-        let response = await handler.handle(.command(CommandPayload(action: .traceroute)), from: UUID())
+        let response = await handler.handle(.command(CommandPayload(action: .traceroute)), from: UUID(), authorization: .always)
         guard case .error(let payload)? = response else {
             #expect(Bool(false))
             return
@@ -41,7 +41,8 @@ struct CompanionMessageHandlerTests {
 
         let response = await handler.handle(
             .command(CommandPayload(action: .ping, parameters: [:])),
-            from: UUID()
+            from: UUID(),
+            authorization: .always
         )
         guard case .error(let payload)? = response else {
             #expect(Bool(false))
@@ -52,13 +53,24 @@ struct CompanionMessageHandlerTests {
         #expect(payload.message.contains("host"))
     }
 
+    @Test("A handler given a link that is no longer authorised does nothing (#590)")
+    func revokedLinkGetsNothing() async throws {
+        let (container, _, handler, _, _) = try makeFixture()
+        _ = container
+        let revoked = CompanionAuthorization { false }
+        #expect(await handler.handle(.heartbeat(HeartbeatPayload()), from: UUID(), authorization: revoked) == nil)
+        let ping = CompanionMessage.command(CommandPayload(action: .ping, parameters: ["host": "127.0.0.1"]))
+        #expect(await handler.handle(ping, from: UUID(), authorization: revoked) == nil)
+    }
+
     @Test func wakeOnLanCommandWithoutMacReturnsMissingParameterError() async throws {
         let (container, _, handler, _, _) = try makeFixture()
         _ = container
 
         let response = await handler.handle(
             .command(CommandPayload(action: .wakeOnLan, parameters: [:])),
-            from: UUID()
+            from: UUID(),
+            authorization: .always
         )
         guard case .error(let payload)? = response else {
             #expect(Bool(false))
@@ -85,7 +97,7 @@ struct CompanionMessageHandlerTests {
         ))
         try context.save()
 
-        let response = await handler.handle(.command(CommandPayload(action: .refreshTargets)), from: UUID())
+        let response = await handler.handle(.command(CommandPayload(action: .refreshTargets)), from: UUID(), authorization: .always)
         guard case .targetList(let payload)? = response else {
             #expect(Bool(false))
             return
@@ -107,7 +119,7 @@ struct CompanionMessageHandlerTests {
         ))
         try context.save()
 
-        let response = await handler.handle(.command(CommandPayload(action: .startMonitoring)), from: UUID())
+        let response = await handler.handle(.command(CommandPayload(action: .startMonitoring)), from: UUID(), authorization: .always)
         guard case .statusUpdate(let payload)? = response else {
             #expect(Bool(false))
             return
@@ -203,8 +215,8 @@ struct CompanionMessageHandlerTests {
         let (otherContainer, _, withoutModel, _, _) = try makeFixture()
         _ = (container, otherContainer)
 
-        guard case let .heartbeat(offered)? = await withModel.handle(.heartbeat(HeartbeatPayload()), from: UUID()),
-              case let .heartbeat(plain)? = await withoutModel.handle(.heartbeat(HeartbeatPayload()), from: UUID())
+        guard case let .heartbeat(offered)? = await withModel.handle(.heartbeat(HeartbeatPayload()), from: UUID(), authorization: .always),
+              case let .heartbeat(plain)? = await withoutModel.handle(.heartbeat(HeartbeatPayload()), from: UUID(), authorization: .always)
         else {
             Issue.record("expected heartbeat replies")
             return
@@ -226,7 +238,7 @@ struct CompanionMessageHandlerTests {
         try await waitUntil { sent.count == 1 }
         #expect(handler.heartbeat().capabilities == nil)
         #expect(sent.last?.capabilities == nil)
-        guard case let .insightResponse(response)? = await handler.handle(.insightRequest(Self.insightRequest), from: UUID()) else {
+        guard case let .insightResponse(response)? = await handler.handle(.insightRequest(Self.insightRequest), from: UUID(), authorization: .always) else {
             Issue.record("expected an insight response")
             return
         }
@@ -241,7 +253,7 @@ struct CompanionMessageHandlerTests {
     func unknownTypeGetsNoReply() async throws {
         let (container, _, handler, _, _) = try makeFixture()
         _ = container
-        #expect(await handler.handle(.unknown(type: "futureThing"), from: UUID()) == nil)
+        #expect(await handler.handle(.unknown(type: "futureThing"), from: UUID(), authorization: .always) == nil)
     }
 
     @Test("an insight request is handled apart from its batch; other messages keep their order")
@@ -258,7 +270,7 @@ struct CompanionMessageHandlerTests {
         let (container, _, handler, _, _) = try makeFixture(insightService: FixedAnswerInsightService(answer: "SSH is open on this device."))
         _ = container
 
-        guard case let .insightResponse(response)? = await handler.handle(.insightRequest(Self.insightRequest), from: UUID()) else {
+        guard case let .insightResponse(response)? = await handler.handle(.insightRequest(Self.insightRequest), from: UUID(), authorization: .always) else {
             Issue.record("expected an insight response")
             return
         }
@@ -275,8 +287,8 @@ struct CompanionMessageHandlerTests {
 
         #expect(!CompanionMessageHandler.answersInsight)
         #expect(handler.heartbeat().capabilities == nil)
-        guard case let .heartbeat(reply)? = await handler.handle(.heartbeat(HeartbeatPayload()), from: UUID()),
-              case let .insightResponse(response)? = await handler.handle(.insightRequest(Self.insightRequest), from: UUID())
+        guard case let .heartbeat(reply)? = await handler.handle(.heartbeat(HeartbeatPayload()), from: UUID(), authorization: .always),
+              case let .insightResponse(response)? = await handler.handle(.insightRequest(Self.insightRequest), from: UUID(), authorization: .always)
         else {
             Issue.record("expected heartbeat and insight replies")
             return
@@ -291,7 +303,7 @@ struct CompanionMessageHandlerTests {
         let (container, _, handler, _, _) = try makeFixture()
         _ = container
 
-        guard case let .insightResponse(response)? = await handler.handle(.insightRequest(Self.insightRequest), from: UUID()) else {
+        guard case let .insightResponse(response)? = await handler.handle(.insightRequest(Self.insightRequest), from: UUID(), authorization: .always) else {
             Issue.record("expected an insight response")
             return
         }
@@ -306,7 +318,7 @@ struct CompanionMessageHandlerTests {
         _ = container
 
         #expect(handler.heartbeat().capabilities == nil)
-        guard case let .insightResponse(response)? = await handler.handle(.insightRequest(Self.insightRequest), from: UUID()) else {
+        guard case let .insightResponse(response)? = await handler.handle(.insightRequest(Self.insightRequest), from: UUID(), authorization: .always) else {
             Issue.record("expected an insight response")
             return
         }

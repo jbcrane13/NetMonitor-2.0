@@ -31,6 +31,27 @@ struct CompanionServiceAuthTests {
         #expect(await poll { await mac.service.refusedAttemptDate() != nil })
     }
 
+    @Test("The refusal is the status alone: its bytes carry neither the Mac's name nor its ID")
+    func refusalRevealsNothing() async throws {
+        let mac = try await TestMac.start()
+        defer { mac.stop() }
+        let phone = TestCompanionPhone(identity: CompanionIdentity(), macPin: mac.pin, port: mac.port)
+        await phone.start()
+        guard case .serverHello(let hello)? = await phone.firstMessage() else {
+            Issue.record("expected the refusal")
+            return
+        }
+        #expect(hello == .refusal)
+        #expect(await phone.waitUntilClosed())
+        let bytes = phone.receivedBytes
+        #expect(!bytes.isEmpty)
+        #expect(bytes.range(of: Data(mac.macName.utf8)) == nil)
+        #expect(bytes.range(of: Data(mac.macID.uuidString.utf8)) == nil)
+        #expect(bytes.range(of: Data(mac.macID.uuidString.lowercased().utf8)) == nil)
+        #expect(bytes.range(of: Data("macName".utf8)) == nil)
+        #expect(bytes.range(of: Data("macID".utf8)) == nil)
+    }
+
     @Test("A paired phone is greeted as paired and its messages reach the handler")
     func pairedDispatches() async throws {
         let identity = CompanionIdentity()
@@ -323,6 +344,23 @@ struct CompanionServiceLimitsTests {
         #expect(!mac.handled.contains("insightRequest"))
     }
 
+    @Test("The handler's token turns false when the phone is removed while the handler is paused")
+    func handlerTokenFollowsRevoke() async throws {
+        let identity = CompanionIdentity()
+        let pause = AsyncGate()
+        let mac = try await TestMac.start(paired: [identity.pin], handlerPause: pause)
+        defer { mac.stop() }
+        let phone = TestCompanionPhone(identity: identity, macPin: mac.pin, port: mac.port)
+        await phone.start()
+        _ = await phone.firstMessage()
+        phone.send(CompanionServiceAuthTests.insightRequest())
+        #expect(await poll { await pause.waiters > 0 })
+        #expect(await mac.service.revoke(identity.pin))
+        await pause.open()
+        #expect(await poll { mac.tokenAfterPause.with { $0 } != nil })
+        #expect(mac.tokenAfterPause.with { $0 } == false)
+    }
+
     @Test("A phone gets at most two model requests running; a third is answered busy")
     func insightRequestCap() async throws {
         let identity = CompanionIdentity()
@@ -445,16 +483,30 @@ actor AsyncGate {
 final class TestMac: @unchecked Sendable {
     let service: CompanionService
     let pin: Data
+    let macID: UUID
+    let macName: String
     let port: UInt16
+    /// What the live authorisation token said when a paused handler resumed.
+    let tokenAfterPause: Locked<Bool?>
     private let handledTypes: Locked<[String]>
     private let events: Locked<[CompanionPairingEvent]>
 
     /// Message types the handler was given.
     var handled: [String] { handledTypes.with { $0 } }
 
-    private init(service: CompanionService, pin: Data, port: UInt16, handled: Locked<[String]>, events: Locked<[CompanionPairingEvent]>) {
+    private init(
+        service: CompanionService,
+        credentials: CompanionCredentials,
+        port: UInt16,
+        handled: Locked<[String]>,
+        events: Locked<[CompanionPairingEvent]>,
+        tokenAfterPause: Locked<Bool?>
+    ) {
+        self.tokenAfterPause = tokenAfterPause
         self.service = service
-        self.pin = pin
+        pin = credentials.identity.pin
+        macID = credentials.macID
+        macName = credentials.macName
         self.port = port
         handledTypes = handled
         self.events = events
@@ -463,7 +515,8 @@ final class TestMac: @unchecked Sendable {
     static func start(
         paired pins: [Data] = [],
         backing: InMemoryCompanionSecretStore = InMemoryCompanionSecretStore(),
-        limits: CompanionService.Limits = CompanionService.Limits(authDeadline: .milliseconds(800), pairingDeadline: .seconds(20))
+        limits: CompanionService.Limits = CompanionService.Limits(authDeadline: .milliseconds(800), pairingDeadline: .seconds(20)),
+        handlerPause: AsyncGate? = nil
     ) async throws -> TestMac {
         let phones = pins.map { PairedPhone(pin: $0, name: "Phone", pairedAt: Date()) }
         let credentials = CompanionCredentials.inMemory(
@@ -472,13 +525,21 @@ final class TestMac: @unchecked Sendable {
         let service = CompanionService(credentials: credentials, port: 0, limits: limits, advertises: false)
         let handled = Locked<[String]>([])
         let events = Locked<[CompanionPairingEvent]>([])
+        let tokenAfterPause = Locked<Bool?>(nil)
         await service.setEventHandler { event in events.with { $0.append(event) } }
-        try await service.start(messageHandler: { message, _ in
+        try await service.start(messageHandler: { message, _, authorization in
             handled.with { $0.append(message.logName) }
+            if let handlerPause {
+                await handlerPause.wait()
+                let current = await authorization.isCurrent()
+                tokenAfterPause.with { $0 = current }
+            }
             return nil
         })
         let port = try #require(await poll { await service.listeningPort.flatMap { $0 == 0 ? nil : $0 } })
-        return TestMac(service: service, pin: credentials.identity.pin, port: port, handled: handled, events: events)
+        return TestMac(
+            service: service, credentials: credentials, port: port, handled: handled, events: events, tokenAfterPause: tokenAfterPause
+        )
     }
 
     /// The next pairing event other than a refused attempt.
@@ -510,6 +571,7 @@ final class TestCompanionPhone: @unchecked Sendable {
     private let queue = DispatchQueue(label: "test.companion.phone")
     private let decoder = CompanionFrameDecoder()
     private let inbox = Locked<[CompanionMessage]>([])
+    private let raw = Locked(Data())
     private let closed = Locked(false)
     private let ready = Locked<Bool?>(nil)
 
@@ -544,6 +606,7 @@ final class TestCompanionPhone: @unchecked Sendable {
         connection.receive(minimumIncompleteLength: 1, maximumLength: 65536) { [weak self] data, _, isComplete, error in
             guard let self else { return }
             if let data, !data.isEmpty {
+                raw.with { $0.append(data) }
                 let decoder = decoder, inbox = inbox
                 Task {
                     let batch = await decoder.append(data)
@@ -562,6 +625,9 @@ final class TestCompanionPhone: @unchecked Sendable {
         guard let data = try? message.encodeLengthPrefixed() else { return }
         sendRaw(data)
     }
+
+    /// Every byte the Mac sent, decrypted, in order.
+    var receivedBytes: Data { raw.with { $0 } }
 
     func sendRaw(_ data: Data) {
         connection.send(content: data, completion: .contentProcessed { _ in })

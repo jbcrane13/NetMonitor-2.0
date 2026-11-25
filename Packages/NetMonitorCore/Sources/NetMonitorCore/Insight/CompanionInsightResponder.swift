@@ -35,9 +35,14 @@ public actor CompanionInsightResponder {
         allowed && !isScanning && service.isAvailable ? [CompanionCapability.insight] : nil
     }
 
-    /// The reply to `payload`: the checked answer, or why there is none.
-    public func respond(to payload: InsightRequestPayload) async -> InsightResponsePayload {
+    /// The reply to `payload`: the checked answer, or why there is none. `authorization` is the
+    /// link's; it is checked at entry, after each suspension, and right before the model is
+    /// asked, so a phone revoked meanwhile never reaches the model.
+    public func respond(to payload: InsightRequestPayload, authorization: CompanionAuthorization) async -> InsightResponsePayload {
         let id = payload.requestID
+        guard await authorization.isCurrent() else {
+            return InsightResponsePayload(requestID: id, failure: .unavailable)
+        }
         guard let encoded = try? JSONEncoder().encode(payload),
               encoded.count <= InsightRequestPayload.maximumEncodedSize else {
             return InsightResponsePayload(requestID: id, failure: .tooLarge)
@@ -45,17 +50,25 @@ public actor CompanionInsightResponder {
         guard let request = payload.request else {
             return InsightResponsePayload(requestID: id, failure: .refused)
         }
-        guard await isAllowed(), service.isAvailable else {
+        guard await isAllowed(), service.isAvailable, await authorization.isCurrent() else {
             return InsightResponsePayload(requestID: id, failure: .unavailable)
         }
         // The scan check suspends, so `isAnswering` is checked and set after it, with no
         // suspension between: a request arriving meanwhile is busy.
-        guard await !isScanning(), !isAnswering else {
+        let scanning = await isScanning()
+        guard await authorization.isCurrent() else {
+            return InsightResponsePayload(requestID: id, failure: .unavailable)
+        }
+        guard !scanning, !isAnswering else {
             return InsightResponsePayload(requestID: id, failure: .busy)
         }
         isAnswering = true
         defer { isAnswering = false }
 
+        // The last suspension was the authorisation check itself: submit only if it still holds.
+        guard await authorization.isCurrent() else {
+            return InsightResponsePayload(requestID: id, failure: .unavailable)
+        }
         let clock = ContinuousClock()
         let started = clock.now
         guard let answer = await InsightSummarizer.summary(for: request, service: service, timeout: timeout) else {

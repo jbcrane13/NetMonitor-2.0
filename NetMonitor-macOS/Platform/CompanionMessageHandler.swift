@@ -56,8 +56,11 @@ final class CompanionMessageHandler {
         )
     }
 
-    /// Process an incoming message and return an optional response
-    func handle(_ message: CompanionMessage, from _: UUID) async -> CompanionMessage? {
+    /// Process an incoming message and return an optional response. `authorization` is the link's
+    /// (#590): nothing runs once the phone is revoked or the link closed, and model requests
+    /// check it again before the model is asked.
+    func handle(_ message: CompanionMessage, from _: UUID, authorization: CompanionAuthorization) async -> CompanionMessage? {
+        guard await authorization.isCurrent() else { return nil }
         switch message {
         case .command(let payload):
             return await handleCommand(payload)
@@ -66,7 +69,7 @@ final class CompanionMessageHandler {
             return .heartbeat(heartbeat())
 
         case .insightRequest(let payload):
-            return await .insightResponse(insightResponder.respond(to: payload))
+            return await .insightResponse(insightResponder.respond(to: payload, authorization: authorization))
 
         case .networkProfile(let payload):
             return handleNetworkProfileSync(payload)

@@ -88,7 +88,7 @@ actor CompanionService: CompanionServiceProtocol {
     /// Bumped on every start and stop; callbacks from an older listener are dropped.
     private var listenerGeneration = 0
     private let credentials: CompanionCredentials?
-    private var messageHandler: ((CompanionMessage, UUID) async -> CompanionMessage?)?
+    private var messageHandler: ((CompanionMessage, UUID, CompanionAuthorization) async -> CompanionMessage?)?
     /// The heartbeat sent when a phone's link is authorised, carrying this Mac's capabilities (#457).
     private var heartbeat: @Sendable () async -> HeartbeatPayload = { HeartbeatPayload() }
     private var eventHandler: (@Sendable (CompanionPairingEvent) -> Void)?
@@ -148,7 +148,7 @@ actor CompanionService: CompanionServiceProtocol {
     /// Start the TLS listener and advertise it.
     func start(
         heartbeat: @escaping @Sendable () async -> HeartbeatPayload = { HeartbeatPayload() },
-        messageHandler: @escaping (CompanionMessage, UUID) async -> CompanionMessage?
+        messageHandler: @escaping (CompanionMessage, UUID, CompanionAuthorization) async -> CompanionMessage?
     ) throws {
         guard !isRunning else { return }
         // Any certificate completes TLS: a key this Mac doesn't trust gets no role, an explicit
@@ -461,12 +461,11 @@ extension CompanionService {
     }
 
     private func refuse(_ id: UUID) {
-        guard let credentials, let link = links[id] else { return }
+        guard let link = links[id] else { return }
         let now = Date()
         lastRefusedAttempt = now
         emit(.refusedAttempt(now))
-        let refusal = CompanionMessage.serverHello(ServerHelloPayload(macID: credentials.macID, macName: credentials.macName, mode: .refused))
-        guard let data = try? refusal.encodeLengthPrefixed() else {
+        guard let data = try? CompanionMessage.serverHello(.refusal).encodeLengthPrefixed() else {
             close(id)
             return
         }
@@ -573,8 +572,17 @@ extension CompanionService {
             deferInsightRequest(message, from: clientID)
             return
         }
-        if let response = await messageHandler?(message, clientID) {
+        if let response = await messageHandler?(message, clientID, authorization(for: clientID)) {
             await send(response, to: clientID)
+        }
+    }
+
+    /// A token that stays true only while this link is open, from the current listener, and
+    /// authorised under the credential generation it bound with. Handlers check it after each
+    /// suspension, so a revoke stops work that hasn't reached the model or the network yet.
+    private func authorization(for id: UUID) -> CompanionAuthorization {
+        CompanionAuthorization { [weak self] in
+            await self?.isAuthorized(id) ?? false
         }
     }
 
@@ -594,15 +602,16 @@ extension CompanionService {
         let handler = messageHandler
         let hook = deferredStartHook
         link.runningInsightRequests += 1
-        // Runs on this actor (it captures `self`), so the check below and the handler's start
-        // can't interleave with a revoke. The task removes itself, and `close` cancels it.
+        // Runs on this actor (it captures `self`). The handler suspends, so it gets a live
+        // authorisation token to check again before the model is asked. The task removes
+        // itself, and `close` cancels it.
         link.tasks[taskID] = Task {
             await hook?()
             guard !Task.isCancelled, isAuthorized(clientID) else {
                 finishDeferred(taskID, clientID: clientID)
                 return
             }
-            if let response = await handler?(message, clientID), !Task.isCancelled {
+            if let response = await handler?(message, clientID, authorization(for: clientID)), !Task.isCancelled {
                 await send(response, to: clientID)
             }
             finishDeferred(taskID, clientID: clientID)

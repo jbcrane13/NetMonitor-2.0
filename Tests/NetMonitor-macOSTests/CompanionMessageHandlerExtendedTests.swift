@@ -77,7 +77,7 @@ struct CompanionMessageHandlerExtendedTests {
         let (container, _, handler, _, _) = try makeFixture()
         _ = container
 
-        let response = await handler.handle(.command(CommandPayload(action: .startMonitoring)), from: UUID())
+        let response = await handler.handle(.command(CommandPayload(action: .startMonitoring)), from: UUID(), authorization: .always)
         guard case .statusUpdate? = response else {
             #expect(Bool(false), "Expected .statusUpdate response from startMonitoring")
             return
@@ -133,7 +133,7 @@ struct CompanionMessageHandlerExtendedTests {
         defer { withExtendedLifetime(container) {} }
         defer { deviceDiscovery.stopScan() }
 
-        let response = await handler.handle(.command(CommandPayload(action: .scanDevices)), from: UUID())
+        let response = await handler.handle(.command(CommandPayload(action: .scanDevices)), from: UUID(), authorization: .always)
         guard case .toolResult(let payload)? = response else {
             #expect(Bool(false), "Expected .toolResult")
             return
@@ -148,7 +148,7 @@ struct CompanionMessageHandlerExtendedTests {
         defer { withExtendedLifetime(container) {} }
         defer { deviceDiscovery.stopScan() }
 
-        let response = await handler.handle(.command(CommandPayload(action: .scanDevices)), from: UUID())
+        let response = await handler.handle(.command(CommandPayload(action: .scanDevices)), from: UUID(), authorization: .always)
         guard case .toolResult(let payload)? = response else {
             #expect(Bool(false), "Expected .toolResult")
             return
@@ -161,7 +161,7 @@ struct CompanionMessageHandlerExtendedTests {
         let (container, _, handler, _, _) = try makeFixture()
         _ = container
 
-        let response = await handler.handle(.command(CommandPayload(action: .refreshDevices)), from: UUID())
+        let response = await handler.handle(.command(CommandPayload(action: .refreshDevices)), from: UUID(), authorization: .always)
         guard case .deviceList? = response else {
             #expect(Bool(false), "Expected .deviceList from refreshDevices")
             return
@@ -175,7 +175,7 @@ struct CompanionMessageHandlerExtendedTests {
         let (container, _, handler, _, _) = try makeFixture()
         _ = container
 
-        let response = await handler.handle(.command(CommandPayload(action: .portScan)), from: UUID())
+        let response = await handler.handle(.command(CommandPayload(action: .portScan)), from: UUID(), authorization: .always)
         guard case .error(let payload)? = response else {
             #expect(Bool(false), "Expected .error for unsupported portScan command")
             return
@@ -188,7 +188,7 @@ struct CompanionMessageHandlerExtendedTests {
         let (container, _, handler, _, _) = try makeFixture()
         _ = container
 
-        let response = await handler.handle(.command(CommandPayload(action: .dnsLookup)), from: UUID())
+        let response = await handler.handle(.command(CommandPayload(action: .dnsLookup)), from: UUID(), authorization: .always)
         guard case .error(let payload)? = response else {
             #expect(Bool(false), "Expected .error for dnsLookup command")
             return
