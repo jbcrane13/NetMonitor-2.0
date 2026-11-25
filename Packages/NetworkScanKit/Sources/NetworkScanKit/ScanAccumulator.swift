@@ -101,7 +101,8 @@ public actor ScanAccumulator {
             source: existing.source,
             networkProfileID: existing.networkProfileID,
             openPorts: existing.openPorts,
-            identity: existing.identity
+            identity: existing.identity,
+            bonjourClaims: existing.bonjourClaims
         )
         latencySourceByIP[ip] = source
         // A measured latency means the device answered this scan.
@@ -159,7 +160,7 @@ public actor ScanAccumulator {
     public var count: Int { devices.count }
 
     /// Identity merges by rank (ADR-022): a higher-ranked value wins, and on equal rank the
-    /// later report wins. Everything else keeps the first value heard.
+    /// later report wins. Bonjour claims accumulate. Everything else keeps the first value heard.
     private static func merged(existing: DiscoveredDevice, incoming: DiscoveredDevice) -> DiscoveredDevice {
         DiscoveredDevice(
             id: existing.id,
@@ -172,7 +173,9 @@ public actor ScanAccumulator {
             source: existing.source,
             networkProfileID: existing.networkProfileID ?? incoming.networkProfileID,
             openPorts: existing.openPorts ?? incoming.openPorts,
-            identity: existing.identity.merging(incoming.identity)
+            identity: existing.identity.merging(incoming.identity),
+            // Every host claim is evidence; none is chosen over another (#594).
+            bonjourClaims: existing.bonjourClaims + incoming.bonjourClaims.filter { !existing.bonjourClaims.contains($0) }
         )
     }
 }

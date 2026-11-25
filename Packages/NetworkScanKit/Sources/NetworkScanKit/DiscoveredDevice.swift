@@ -29,6 +29,9 @@ public struct DiscoveredDevice: Identifiable, Codable, Sendable {
     /// Maker, model and friendly name with their sources (ADR-022). Additive: older JSON
     /// caches decode with nil values or nil sources.
     public let identity: DeviceIdentity
+    /// Every Bonjour host this address answered for this scan (#594), in the order found. Evidence
+    /// only: Core groups devices from it. Additive: older JSON caches decode with none.
+    public let bonjourClaims: [HostClaim]
 
     public var friendlyName: String? { identity.friendlyName?.value }
     /// The maker the device announced, or a guess from its names. See ``maker``.
@@ -52,6 +55,7 @@ public struct DiscoveredDevice: Identifiable, Codable, Sendable {
         self.openPorts = nil
         self.isCached = false
         self.identity = DeviceIdentity()
+        self.bonjourClaims = []
     }
 
     /// Full init with all fields. `vendor` is the MAC-prefix maker only; a maker from any
@@ -68,7 +72,8 @@ public struct DiscoveredDevice: Identifiable, Codable, Sendable {
         networkProfileID: UUID? = nil,
         openPorts: [Int]? = nil,
         isCached: Bool = false,
-        identity: DeviceIdentity = DeviceIdentity()
+        identity: DeviceIdentity = DeviceIdentity(),
+        bonjourClaims: [HostClaim] = []
     ) {
         self.id = id
         self.ipAddress = ipAddress
@@ -82,12 +87,14 @@ public struct DiscoveredDevice: Identifiable, Codable, Sendable {
         self.openPorts = openPorts
         self.isCached = isCached
         self.identity = identity
+        self.bonjourClaims = bonjourClaims
     }
 
     private enum CodingKeys: String, CodingKey {
         case id, ipAddress, hostname, vendor, macAddress, latency, discoveredAt, source, networkProfileID, openPorts, isCached
         case friendlyName, manufacturer, modelName
         case friendlyNameSource, makerSource, modelSource
+        case bonjourClaims
     }
 
     public init(from decoder: any Decoder) throws {
@@ -114,6 +121,7 @@ public struct DiscoveredDevice: Identifiable, Codable, Sendable {
             model: value(.modelName, .modelSource),
             friendlyName: value(.friendlyName, .friendlyNameSource)
         )
+        bonjourClaims = try container.decodeIfPresent([HostClaim].self, forKey: .bonjourClaims) ?? []
     }
 
     public func encode(to encoder: any Encoder) throws {
@@ -135,6 +143,9 @@ public struct DiscoveredDevice: Identifiable, Codable, Sendable {
         try container.encodeIfPresent(identity.maker?.source, forKey: .makerSource)
         try container.encodeIfPresent(identity.model?.value, forKey: .modelName)
         try container.encodeIfPresent(identity.model?.source, forKey: .modelSource)
+        if !bonjourClaims.isEmpty {
+            try container.encode(bonjourClaims, forKey: .bonjourClaims)
+        }
     }
 
     /// A copy with `isCached` replaced; every other field is kept.
@@ -151,7 +162,27 @@ public struct DiscoveredDevice: Identifiable, Codable, Sendable {
             networkProfileID: networkProfileID,
             openPorts: openPorts,
             isCached: isCached,
-            identity: identity
+            identity: identity,
+            bonjourClaims: bonjourClaims
+        )
+    }
+
+    /// A copy with `bonjourClaims` replaced; every other field is kept.
+    public func withBonjourClaims(_ bonjourClaims: [HostClaim]) -> DiscoveredDevice {
+        DiscoveredDevice(
+            id: id,
+            ipAddress: ipAddress,
+            hostname: hostname,
+            vendor: vendor,
+            macAddress: macAddress,
+            latency: latency,
+            discoveredAt: discoveredAt,
+            source: source,
+            networkProfileID: networkProfileID,
+            openPorts: openPorts,
+            isCached: isCached,
+            identity: identity,
+            bonjourClaims: bonjourClaims
         )
     }
 
@@ -169,7 +200,8 @@ public struct DiscoveredDevice: Identifiable, Codable, Sendable {
             networkProfileID: networkProfileID,
             openPorts: openPorts,
             isCached: isCached,
-            identity: identity
+            identity: identity,
+            bonjourClaims: bonjourClaims
         )
     }
 
