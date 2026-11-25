@@ -88,6 +88,7 @@ final class DeviceDetailViewModel {
             networkID: network,
             scan: live.filter { $0.networkProfileID == network },
             scanTime: deviceDiscoveryService.lastScanDate ?? Date(),
+            previousScan: deviceDiscoveryService.lastScanDate.flatMap { ScanHistory().previousReconciled(beforeScan: $0, for: network) },
             in: context
         )
         // The scan knows more than a fresh row: merge its maker, model and friendly name by
@@ -179,68 +180,6 @@ final class DeviceDetailViewModel {
 
     private func saveContext() {
         try? modelContext?.save()
-    }
-
-    /// The row for a device, found by the device match (#461: MAC, else IP, with private-MAC
-    /// rotation) among the rows of the device's network (#463), so two networks that use the
-    /// same addresses keep separate rows. `scan` is every device the latest scan saw on that
-    /// network; the match needs them all so it never hands one device's row to another, such
-    /// as a newcomer at the old address of a device that moved. `scanTime` is when that scan
-    /// finished: the match judges "seen within grace" against it. A row saved before rows had a
-    /// network (every detail row before #463) is adopted by the first network it's opened on.
-    static func savedRow(
-        ipAddress: String,
-        scanned: DiscoveredDevice?,
-        macAddress: String? = nil,
-        networkID: UUID?,
-        scan: [DiscoveredDevice],
-        scanTime: Date = Date(),
-        in context: ModelContext
-    ) -> LocalDevice {
-        let rows = ((try? context.fetch(FetchDescriptor<LocalDevice>())) ?? []).sorted { $0.lastSeen > $1.lastSeen }
-        let observation = DeviceMatchCandidate(ipAddress: ipAddress, macAddress: macAddress ?? scanned?.macAddress, name: scanned?.matchName)
-        // The scan as the reconciler sees it: one observation per real MAC, at the address it
-        // answered from, so a cached old address opens the same row and doesn't move it back.
-        let canonical = PresenceMatch.onePerMAC(scan)
-        var observed = canonical.map { DeviceMatchCandidate(ipAddress: $0.ipAddress, macAddress: $0.macAddress, name: $0.matchName) }
-        var address = ipAddress
-        let position: Int
-        if let mac = DeviceMatcher.normalizedMAC(observation.macAddress),
-           let index = canonical.firstIndex(where: { DeviceMatcher.normalizedMAC($0.macAddress) == mac }) {
-            position = index
-            address = canonical[index].ipAddress
-        } else if let index = observed.firstIndex(of: observation) {
-            position = index
-        } else {
-            observed.append(observation)
-            position = observed.count - 1
-        }
-        var pools = [rows.filter { $0.networkProfileID == networkID }]
-        if networkID != nil {
-            pools.append(rows.filter { $0.networkProfileID == nil })
-        }
-        for pool in pools {
-            // The rule scans save rows by (#582, `PresenceMatch`): the other devices in the scan
-            // claim their own rows first, and an address alone never opens a row whose name differs.
-            let known = pool.map {
-                PresenceMatch.Known(DeviceMatchCandidate(ipAddress: $0.ipAddress, macAddress: $0.macAddress, name: $0.matchName),
-                    lastSeen: $0.lastSeen)
-            }
-            // "Seen within grace" is judged at the scan's time, as the reconciler judged it, not
-            // when detail opens.
-            let assignment = PresenceMatch.assign(known: known, observed: observed, now: scanTime, window: DeviceGracePolicy().interval)
-            guard let index = assignment[position] else { continue }
-            let row = pool[index]
-            if let mac = DeviceMatcher.normalizedMAC(observation.macAddress), DeviceMatcher.normalizedMAC(row.macAddress) != mac {
-                row.macAddress = mac
-            }
-            row.ipAddress = address
-            row.networkProfileID = networkID
-            return row
-        }
-        let row = LocalDevice(ipAddress: ipAddress, macAddress: macAddress ?? scanned?.macAddress ?? "", networkProfileID: networkID)
-        context.insert(row)
-        return row
     }
 
     /// Enrich device data with the MAC-prefix maker and resolved hostname
@@ -518,5 +457,76 @@ extension DeviceDetailViewModel {
         guard probeAddress == address else { return }
         device.openPorts = openPorts.sorted()
         startSuggestion()
+    }
+}
+
+// MARK: - Saved row
+
+extension DeviceDetailViewModel {
+    /// The row for a device, found by the device match (#461: MAC, else IP, with private-MAC
+    /// rotation) among the rows of the device's network (#463), so two networks that use the
+    /// same addresses keep separate rows. `scan` is every device the latest scan saw on that
+    /// network; the match needs them all so it never hands one device's row to another, such
+    /// as a newcomer at the old address of a device that moved. `scanTime` is when that scan
+    /// finished: the match judges "seen within grace" against it, and `previousScan` (when the scan
+    /// before it was reconciled, from `ScanHistory`) counts a row it saw as recent. A row saved before rows had a
+    /// network (every detail row before #463) is adopted by the first network it's opened on.
+    static func savedRow(
+        ipAddress: String,
+        scanned: DiscoveredDevice?,
+        macAddress: String? = nil,
+        networkID: UUID?,
+        scan: [DiscoveredDevice],
+        scanTime: Date = Date(),
+        previousScan: Date? = nil,
+        in context: ModelContext
+    ) -> LocalDevice {
+        let rows = ((try? context.fetch(FetchDescriptor<LocalDevice>())) ?? []).sorted { $0.lastSeen > $1.lastSeen }
+        let observation = DeviceMatchCandidate(ipAddress: ipAddress, macAddress: macAddress ?? scanned?.macAddress, name: scanned?.matchName)
+        // The scan as the reconciler sees it: one observation per real MAC, at the address it
+        // answered from, so a cached old address opens the same row and doesn't move it back.
+        let canonical = PresenceMatch.onePerMAC(scan)
+        var observed = canonical.map { DeviceMatchCandidate(ipAddress: $0.ipAddress, macAddress: $0.macAddress, name: $0.matchName) }
+        var address = ipAddress
+        let position: Int
+        if let mac = DeviceMatcher.normalizedMAC(observation.macAddress),
+           let index = canonical.firstIndex(where: { DeviceMatcher.normalizedMAC($0.macAddress) == mac }) {
+            position = index
+            address = canonical[index].ipAddress
+        } else if let index = observed.firstIndex(of: observation) {
+            position = index
+        } else {
+            observed.append(observation)
+            position = observed.count - 1
+        }
+        var pools = [rows.filter { $0.networkProfileID == networkID }]
+        if networkID != nil {
+            pools.append(rows.filter { $0.networkProfileID == nil })
+        }
+        for pool in pools {
+            // The rule scans save rows by (#582, `PresenceMatch`): the other devices in the scan
+            // claim their own rows first, and an address alone never opens a row whose name differs.
+            let known = pool.map {
+                PresenceMatch.Known(DeviceMatchCandidate(ipAddress: $0.ipAddress, macAddress: $0.macAddress, name: $0.matchName),
+                    lastSeen: $0.lastSeen)
+            }
+            // "Seen within grace" is judged at the scan's time, as the reconciler judged it, not
+            // when detail opens.
+            let assignment = PresenceMatch.assign(
+                known: known, observed: observed, now: scanTime, window: DeviceGracePolicy().interval,
+                previousScan: networkID == nil || pool.first?.networkProfileID == nil ? nil : previousScan
+            )
+            guard let index = assignment[position] else { continue }
+            let row = pool[index]
+            if let mac = DeviceMatcher.normalizedMAC(observation.macAddress), DeviceMatcher.normalizedMAC(row.macAddress) != mac {
+                row.macAddress = mac
+            }
+            row.ipAddress = address
+            row.networkProfileID = networkID
+            return row
+        }
+        let row = LocalDevice(ipAddress: ipAddress, macAddress: macAddress ?? scanned?.macAddress ?? "", networkProfileID: networkID)
+        context.insert(row)
+        return row
     }
 }

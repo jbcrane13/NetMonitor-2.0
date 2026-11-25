@@ -389,8 +389,13 @@ final class DeviceDiscoveryCoordinator {
         let rows = fetchDevices(for: profileID)
         let assignment = PresenceMatch.assign(
             known: rows.map { PresenceMatch.Known(Self.matchCandidate($0), lastSeen: $0.lastSeen) },
-            observed: devices.map(Self.matchCandidate), now: now, window: gracePolicy.interval
+            observed: devices.map(Self.matchCandidate), now: now, window: gracePolicy.interval,
+            // This scan isn't recorded yet, so the newest recorded one is the previous scan.
+            previousScan: scanHistory.previousReconciled(beforeScan: now, for: profileID)
         )
+        // One MAC listed at two addresses (the ARP cache still has the old one) is one device, and a
+        // MAC a row already has is never a second row.
+        var rowMACs = Set(rows.compactMap { DeviceMatcher.normalizedMAC($0.macAddress) })
         for (index, device) in devices.enumerated() where !device.isCached {
             let mac = DeviceMatcher.normalizedMAC(device.macAddress)
             if let known = assignment[index] {
@@ -400,8 +405,9 @@ final class DeviceDiscoveryCoordinator {
                     row.lastLatency = latency
                 }
                 row.status = .online
-            } else if let mac, !MACAddress.isPrivate(mac),
+            } else if let mac, !MACAddress.isPrivate(mac), !rowMACs.contains(mac),
                       !rows.contains(where: { $0.ipAddress == device.ipAddress && DeviceMatcher.normalizedMAC($0.macAddress) == nil }) {
+                rowMACs.insert(mac)
                 let row = LocalDevice(
                     ipAddress: device.ipAddress, macAddress: mac, hostname: device.hostname, vendor: device.vendor,
                     deviceType: .unknown, status: .online, lastLatency: device.latency, openPorts: device.openPorts,

@@ -44,6 +44,12 @@ public struct ScanHistory {
         defaults.set(try? JSONEncoder().encode(all), forKey: Self.storageKey)
     }
 
+    /// When the network's newest recorded scan older than `scan` was reconciled: the scan before
+    /// it. For a scan not recorded yet (newer than all), the newest recorded one.
+    public func previousReconciled(beforeScan scan: Date, for network: UUID?) -> Date? {
+        (load()[Self.key(network)] ?? []).filter { $0.scan < scan }.max { $0.scan < $1.scan }?.reconciled
+    }
+
     /// The latest scan recorded for the network.
     func newestScan(for network: UUID?) -> Date? {
         (load()[Self.key(network)] ?? []).map(\.scan).max()
@@ -139,7 +145,7 @@ public struct ScanReconciler {
               history.newestScan(for: networkProfileID).map({ scanDate > $0 }) ?? true
         else { return .skipped }
         do {
-            try apply(scan, networkProfileID: networkProfileID, now: now)
+            try apply(scan, networkProfileID: networkProfileID, scanDate: scanDate, now: now)
             try save(context)
         } catch {
             // Nothing half-applied stays in the context for the next save to write.
@@ -153,13 +159,15 @@ public struct ScanReconciler {
 
     // MARK: - Applying
 
-    private func apply(_ scan: [DiscoveredDevice], networkProfileID: UUID?, now: Date) throws {
+    private func apply(_ scan: [DiscoveredDevice], networkProfileID: UUID?, scanDate: Date, now: Date) throws {
         let all = try context.fetch(FetchDescriptor<LocalDevice>())
         var rows = all.filter { $0.networkProfileID == networkProfileID }.sorted { $0.lastSeen > $1.lastSeen }
         let unassigned = networkProfileID == nil ? [] : all.filter { $0.networkProfileID == nil }
+        // A row the network's previous scan saw never missed a scan, however long ago that was.
+        let previousScan = history.previousReconciled(beforeScan: scanDate, for: networkProfileID)
         let assignment = PresenceMatch.assign(
             known: rows.map { PresenceMatch.Known(Self.candidate($0), lastSeen: $0.lastSeen) },
-            observed: scan.map(Self.candidate), now: now, window: policy.interval
+            observed: scan.map(Self.candidate), now: now, window: policy.interval, previousScan: previousScan
         )
         var answered = Set<UUID>()
         var adoptedLegacy = Set<UUID>()

@@ -178,15 +178,49 @@ struct DeviceDiscoveryCoordinatorReconcileTests {
         _ = container
         let clock = TestClock(Date(timeIntervalSince1970: 1_790_000_000))
         let coordinator = makeCoordinator(context, clock: clock)
-        coordinator.reconcileScan([Self.device("10.0.0.30", nil)], profileID: home)
+        let router = Self.device("10.0.0.1", "router", mac: "AC:DE:48:00:00:01")
+        coordinator.reconcileScan([router, Self.device("10.0.0.30", nil)], profileID: home)
         clock.advance(minutes: 10)
-        coordinator.reconcileScan([Self.device("10.0.0.30", nil)], profileID: home)
-        #expect(coordinator.discoveredDevices.count == 1)
-
-        // Gone longer than the grace window: an address alone no longer proves it's the same device.
-        clock.advance(minutes: 30)
-        coordinator.reconcileScan([Self.device("10.0.0.30", nil)], profileID: home)
+        coordinator.reconcileScan([router, Self.device("10.0.0.30", nil)], profileID: home)
         #expect(coordinator.discoveredDevices.count == 2)
+
+        // Missed a scan and gone longer than the grace window: an address alone no longer proves
+        // it's the same device.
+        clock.advance(minutes: 10)
+        coordinator.reconcileScan([router], profileID: home)
+        clock.advance(minutes: 30)
+        coordinator.reconcileScan([router, Self.device("10.0.0.30", nil)], profileID: home)
+        #expect(coordinator.discoveredDevices.count == 3)
+    }
+
+    /// Lead, 2026-11-25: hourly auto-scan (or a relaunch or sleep) keeps a nameless device on one
+    /// row while every scan sees it, on the Mac (sparse merge, then final) as on the iPhone.
+    @Test func hourlyScansKeepANamelessDeviceOnOneRowOnBothPlatforms() throws {
+        let start = Date(timeIntervalSince1970: 1_790_000_000)
+        let times = [0.0, 60, 120, 180, 240, 420].map { start.addingTimeInterval($0 * 60) }  // then a 3 h sleep
+        let scan = [Self.engine("10.0.0.80", nil)]
+
+        let (macContainer, macContext) = try makeStore()
+        _ = macContainer
+        let clock = TestClock(start)
+        let mac = makeCoordinator(macContext, clock: clock)
+        for time in times {
+            clock.now = time
+            mac.mergeSparseSnapshot(DeviceDiscoveryCoordinator.mapDiscoveredDevices(scan), profileID: home, now: time)
+            mac.reconcileScan(scan, profileID: home, now: time)
+        }
+        #expect(mac.discoveredDevices.count == 1)
+        #expect(mac.discoveredDevices.first?.status == .online)
+
+        let (phoneContainer, phoneContext) = try makeStore()
+        _ = phoneContainer
+        let phone = ScanReconciler(context: ModelContext(phoneContainer), history: .forTesting())
+        for time in times {
+            try phone.reconcile(scan, networkProfileID: home, scanDate: time, now: time)
+        }
+        let phoneRows = try phoneContext.fetch(FetchDescriptor<LocalDevice>())
+        #expect(phoneRows.count == 1)
+        #expect(phoneRows.first?.lastSeen == mac.discoveredDevices.first?.lastSeen)
     }
 
     @Test func theSparseMergeInsertsOnlyDevicesWithAPublicMAC() throws {
@@ -203,6 +237,29 @@ struct DeviceDiscoveryCoordinatorReconcileTests {
             profileID: home, now: clock.now
         )
         #expect(coordinator.discoveredDevices.map(\.ipAddress) == ["10.0.0.41"])
+    }
+
+    /// One MAC listed at two addresses (the ARP cache still has the old one) is one device: the
+    /// sparse merge inserts one row, which the final pass then keeps.
+    @Test func theSparseMergeInsertsOneRowPerMAC() throws {
+        let (container, context) = try makeStore()
+        _ = container
+        let clock = TestClock(Date(timeIntervalSince1970: 1_790_000_000))
+        let coordinator = makeCoordinator(context, clock: clock)
+        let mac = "AC:DE:48:00:00:70"
+        coordinator.mergeSparseSnapshot(
+            [Self.device("10.0.0.70", nil, mac: mac), Self.device("10.0.0.71", nil, mac: mac)], profileID: home, now: clock.now
+        )
+        #expect(coordinator.discoveredDevices.count == 1)
+
+        coordinator.reconcileScan([Self.device("10.0.0.71", "tv", mac: mac)], profileID: home)
+        #expect(coordinator.discoveredDevices.map(\.ipAddress) == ["10.0.0.71"])
+        // Again, with the row saved: one copy matches it, the other is never a second row.
+        clock.advance(minutes: 1)
+        coordinator.mergeSparseSnapshot(
+            [Self.device("10.0.0.71", nil, mac: mac), Self.device("10.0.0.72", nil, mac: mac)], profileID: home, now: clock.now
+        )
+        #expect(coordinator.discoveredDevices.count == 1)
     }
 
     /// A row saved before the Mac had a network is never adopted by address; unlike the iPhone,
