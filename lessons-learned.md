@@ -168,3 +168,5 @@ Project-specific notes for agents. Global lessons live in `~/.claude/lessons-lea
 - **Show the app's freshness line yourself.** The model drops "as of the scan…" often; `AskAnswer.freshness` is shown verbatim under every answer that stated status.
 - **The model repeats per-run handles** ("Ring Doorbell (id dev-c)"); strip them before checking and showing.
 - **`git --work-tree=<dir> checkout <ref> -- .` also stages those files in your own index.** Use `git worktree add --detach` to read another branch.
+- **Don't `git pull --rebase` on a branch that merges main.** It replayed #596's commit onto the branch, which made the PR diff carry #596 as its own. Merging main again restored the merge base without a force-push. Use `git fetch` and then `git merge --ff-only @{u}`, or a plain `git pull`.
+- **The model words; the app states presence (lead, 2026-11-25).** Matching words to tell good presence claims from bad ones leaked ("All devices are online", "is active"). Dropping every presence sentence and showing the app's status beside each cited device is simpler and holds. Watch for lists under a dropped heading and for "did not answer".
