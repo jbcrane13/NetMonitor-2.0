@@ -34,9 +34,11 @@ struct PlainRuleTargetLinkTests {
 
     private func alerts(_ store: AlertRuleStore, _ defaults: UserDefaults, _ poster: ReviewPoster, devices: [LocalDevice],
                         active: Set<UUID>? = nil) -> MacRuleAlerts {
-        let alerts = MacRuleAlerts(store: store, service: NotificationService(poster: poster, defaults: defaults), defaults: defaults) {
-            (devices, nil)
-        }
+        // The network (none here) was just scanned, so the rows' statuses are current (#583).
+        let alerts = MacRuleAlerts(
+            store: store, service: NotificationService(poster: poster, defaults: defaults), defaults: defaults,
+            currentDevices: { (devices, nil) }, presence: { PresenceSnapshot(lastScans: [nil: Date()], now: Date()) }
+        )
         if let active {
             alerts.activeTargets = { active }
         }
