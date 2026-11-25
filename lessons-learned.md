@@ -161,3 +161,10 @@ Project-specific notes for agents. Global lessons live in `~/.claude/lessons-lea
 - **Check capitalised names case-sensitively.** "Office Printer is offline" passed when no device was found, because "printer" was in the question. Comparing capitalised words to the question and tool results with case kept catches it, and the real model still passed 11/11.
 - **Per-run letter handles (`dev-a`) instead of UUIDs.** They are short, the model copied them every time, and they add no digits that grounding would accept as numbers.
 - **On macOS a `static` used by a non-isolated enum** (`ToolCategory.tools`) must be `nonisolated` when it lives on a `@MainActor` view model.
+
+## 2026-11-25 — Ask states how fresh presence is (#452 after #589)
+- **The 3B model turns "answered the last scan" into "online".** Wording alone doesn't stop it: on a 40-minute-old snapshot it still wrote "the following devices are online". The app-side check (`AskPresenceCheck`: present-tense online/up/connected rejected unless the device answered a recent scan) is what holds Blake's rule; the stale list's first line "Whether these devices are online now is not known" made most answers safe.
+- **Allow negations and the past, or the check refuses safe answers.** The model's stale answers were "not confirmed as online", "Whether it is online now is not known", "Its online status is unknown". Negations are looked for within the claim's clause only ("is not slow and is online" is still a claim).
+- **Show the app's freshness line yourself.** The model drops "as of the scan…" often; `AskAnswer.freshness` is shown verbatim under every answer that stated status.
+- **The model repeats per-run handles** ("Ring Doorbell (id dev-c)"); strip them before checking and showing.
+- **`git --work-tree=<dir> checkout <ref> -- .` also stages those files in your own index.** Use `git worktree add --detach` to read another branch.
