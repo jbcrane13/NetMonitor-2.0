@@ -67,6 +67,11 @@ final class TimelineViewModel {
         self.now = now
     }
 
+    /// The day section `date` falls in, in the list's calendar.
+    func day(of date: Date) -> Date {
+        calendar.startOfDay(for: date)
+    }
+
     /// The app's Timeline: the environment's event log, and its discovery service for the
     /// scanning state, so the UI-test fake's scans count too.
     convenience init(

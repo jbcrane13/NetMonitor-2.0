@@ -427,6 +427,12 @@ final class DeviceDiscoveryCoordinator {
     /// Then the Mac's own steps: one sparkline point per answering row, and for rows that didn't
     /// answer a maker or model from saved names (#439) and a type if still unknown. True when the scan was applied; false when it was
     /// skipped (nothing answered) or its rows couldn't be saved (logged; the next scan retries).
+    /// When the network's latest scan was reconciled, on the clock that stamps `lastSeen`: the
+    /// scan "as of" which Ask states presence (#452).
+    func lastScanTime(for profileID: UUID?) -> Date? {
+        scanHistory.lastScanTime(for: profileID)
+    }
+
     @discardableResult
     func reconcileScan(_ scan: [DiscoveredDevice], profileID: UUID?, now: Date? = nil) -> Bool {
         let now = now ?? readClock()

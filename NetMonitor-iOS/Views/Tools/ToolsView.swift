@@ -59,6 +59,8 @@ enum ToolDestination: Hashable {
     case portForwards
     // Guided troubleshooter (#451)
     case troubleshoot
+    // Ask your network (#452)
+    case ask
     @ViewBuilder
     @MainActor
     func view(env: AppEnvironment) -> some View {
@@ -101,6 +103,9 @@ enum ToolDestination: Hashable {
         // Guided troubleshooter (#451)
         case .troubleshoot:
             TroubleshootToolView(env: env)
+        // Ask your network (#452)
+        case .ask:
+            AskToolView(env: env)
         }
     }
 }
@@ -427,6 +432,15 @@ struct ToolsGridSection: View {
         ]),
     ]
 
+    // Ask your network (#452): in Monitoring, only with the on-device model.
+    var showsAsk = AskToolViewModel.isAvailable
+
+    private func askTools(in category: IOSToolCategory) -> [ToolItem] {
+        guard category == .monitoring, showsAsk else { return [] }
+        return [ToolItem(name: "Ask", icon: "questionmark.bubble", color: Theme.Colors.accent,
+                         description: "Ask about your network", destination: .ask)]
+    }
+
     private let columns = [
         GridItem(.flexible(), spacing: Theme.Layout.itemSpacing),
         GridItem(.flexible(), spacing: Theme.Layout.itemSpacing)
@@ -450,7 +464,7 @@ struct ToolsGridSection: View {
                     .accessibilityIdentifier("tools_section_\(section.category.rawValue.lowercased())")
 
                     LazyVGrid(columns: columns, spacing: Theme.Layout.itemSpacing) {
-                        ForEach(section.tools) { tool in
+                        ForEach(section.tools + askTools(in: section.category)) { tool in
                             ToolCard(tool: tool)
                         }
                     }
