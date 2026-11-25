@@ -2,6 +2,7 @@ import Testing
 import Foundation
 import SwiftData
 import NetMonitorCore
+import NetworkScanKit
 @testable import NetMonitor_iOS
 
 /// Tools ▸ Ask's wiring on iOS (#452), with a scripted model.
