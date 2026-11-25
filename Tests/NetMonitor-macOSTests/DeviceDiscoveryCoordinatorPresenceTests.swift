@@ -12,7 +12,9 @@ import NetworkScanKit
 struct DeviceDiscoveryCoordinatorPresenceTests {
     private let start = Date(timeIntervalSinceReferenceDate: 800_000_000)
 
-    private func makeCoordinator(context: ModelContext, scanClock: @escaping @MainActor () -> Date, presenceClock: @escaping @MainActor () -> Date) -> DeviceDiscoveryCoordinator {
+    private func makeCoordinator(
+        context: ModelContext, scanClock: @escaping @MainActor () -> Date, presenceClock: @escaping @MainActor () -> Date
+    ) -> DeviceDiscoveryCoordinator {
         DeviceDiscoveryCoordinator(
             modelContext: context,
             bonjourScanner: BonjourDiscoveryService(),
