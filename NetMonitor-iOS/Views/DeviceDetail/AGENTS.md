@@ -12,7 +12,7 @@ Device detail view showing comprehensive information about a single network devi
 | `DeviceDetailView.swift` | Comprehensive device detail screen with multiple sections |
 | `DeviceInterfacesSection.swift` | Interfaces of a device of several rows (#594): address, MAC, ports, notes, "Grouped by Bonjour name", "Not the same device", "Remove this interface" |
 | `DeviceDetailView+Interfaces.swift` | Wake on LAN to every interface's MAC; well-known port names |
-| `DeviceDetailView+Grouping.swift` | #594 PR2: suggestion banner, "Same device as…" picker sheet, override confirmation and undo toast (`DeviceGroupingPresentation`). State and actions live in `ViewModels/DeviceDetailViewModel+Grouping.swift` (`DeviceGroupingState`); candidates, search and wording come from Core `DeviceGroupingChoices` |
+| `DeviceDetailView+Grouping.swift` | #594 PR2: suggestion banner, "Same device as…" picker sheet, override confirmation and undo toast (`DeviceGroupingPresentation`). State and actions live in `ViewModels/DeviceDetailViewModel+Grouping.swift` (`DeviceGroupingState`); candidates, search and wording come from Core `DeviceGroupingChoices`. The picker's devices load once as it opens (`loadSameDeviceCandidates`, from `SameDeviceAsButton`); search filters them in memory, never in `body` |
 | `LabelCaptureView.swift` | Scan Label sheet (#456): photo → OCR → on-device model → review → Save as user-confirmed identity; `LabelCaptureViewModel`; Core pipeline in `NetMonitorCore/Insight/LabelReader.swift`. UI-test seams `UITEST_LABEL_IMAGE`, `UITEST_LABEL_MODEL` |
 
 ## For AI Agents
@@ -23,7 +23,7 @@ Device detail view showing comprehensive information about a single network devi
 - Device is identified by IP address passed as parameter
 - View automatically enriches device data on appear (ports, services)
 - Accessibility prefix: `deviceDetail_`; the "Same device as…" sheet uses `sameDeviceAs_` (`screen_sameDeviceAs`, `sameDeviceAs_row_<ip>`, `sameDeviceAs_label_empty`, `sameDeviceAs_button_cancel`)
-- Grouping IDs (#594 PR2, shared with the Mac): `deviceDetail_banner_suggestion`, `deviceDetail_label_suggestion`, `deviceDetail_button_suggestionSameDevice` / `_suggestionNotSameDevice`, `deviceDetail_button_sameDeviceAs`, `deviceDetail_button_confirmGroupOverride` / `_cancelGroupOverride`, `deviceDetail_toast_undo`, `deviceDetail_label_toastMessage`, `deviceDetail_button_undo`, `deviceDetail_button_dismissToast`, `deviceDetail_button_notSameDevice_<ip>`, `deviceDetail_label_groupedByBonjour_<ip>` (`<ip>` with dots as underscores, like the other interface IDs)
+- Grouping IDs (#594 PR2, shared with the Mac): `deviceDetail_banner_suggestion`, `deviceDetail_label_suggestion`, `deviceDetail_button_suggestionSameDevice` / `_suggestionNotSameDevice`, `deviceDetail_button_sameDeviceAs`, `deviceDetail_button_confirmGroupOverride` / `_cancelGroupOverride`, `deviceDetail_toast_undo`, `deviceDetail_label_toastMessage`, `deviceDetail_button_undo`, `deviceDetail_button_dismissToast`, `deviceDetail_button_notSameDevice_<ip>`, `deviceDetail_label_groupedByBonjour_<ip>`, the picker's `screen_sameDeviceAs`, `sameDeviceAs_row_<ip>` (`DeviceGroupingChoices.AccessibilityID.sameDeviceAsRow`), `sameDeviceAs_button_cancel`, `sameDeviceAs_label_empty` (`<ip>` with dots as underscores, like the other interface IDs)
 
 ### Testing Requirements
 - Verify all sections render correctly with populated data
