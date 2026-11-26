@@ -72,7 +72,9 @@ public final class DeviceSuggester {
     /// last asked, one at a time. Stops when the task is cancelled. A device of several interfaces
     /// is asked about once, on its primary, where its type and name live (#594).
     public func suggest(for devices: [LocalDevice]) async {
-        guard service.isAvailable else { return }
+        // Cancelled first: a cancelled task (its device's screen, or the store, gone) must not read
+        // the rows, not even to group them.
+        guard service.isAvailable, !Task.isCancelled else { return }
         for device in DeviceGroups.project(devices).map(\.primary) {
             if Task.isCancelled {
                 return
