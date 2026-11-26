@@ -46,7 +46,12 @@ let panels: [Panel] = [
         lights: [.init(label: "POWER", color: "green"), .init(label: "PON", color: "green"), .init(label: "LOS", color: "red"), .init(label: "LAN 1", color: "green")]),
   .init(name: "10-router-wan-red", caseColor: (0.2, 0.2, 0.22), textGray: 0.95, led: 28, square: true, layout: .row(labelsAbove: false), brand: "AeroLink AX",
         lights: [.init(label: "POWER", color: "green"), .init(label: "WAN", color: "red"), .init(label: "LAN 1", color: "green"), .init(label: "LAN 2", color: "green"),
-                 .init(label: "LAN 3", color: "off"), .init(label: "WLAN", color: "green")])
+                 .init(label: "LAN 3", color: "off"), .init(label: "WLAN", color: "green")]),
+  // White lit lights on a light case: the class that failed on fixture 02.
+  .init(name: "13-all-white-light-case", caseColor: (0.94, 0.94, 0.93), textGray: 0.25, led: 20, square: false, layout: .row(labelsAbove: true), brand: "HomeHub 5",
+        lights: [.init(label: "POWER", color: "white"), .init(label: "DSL", color: "white"), .init(label: "INTERNET", color: "white"), .init(label: "WI-FI", color: "white"), .init(label: "LAN 1", color: "white")]),
+  .init(name: "14-white-internet-silver", caseColor: (0.8, 0.8, 0.82), textGray: 0.15, led: 22, square: false, layout: .row(labelsAbove: false), brand: "FiberGate G2",
+        lights: [.init(label: "POWER", color: "green"), .init(label: "BROADBAND", color: "green"), .init(label: "INTERNET", color: "white"), .init(label: "WIRELESS", color: "off")])
 ]
 
 func rgb(_ name: String) -> CGColor? {
@@ -191,7 +196,7 @@ func norm(_ s: String) -> String { s.uppercased().filter { $0.isLetter || $0.isN
         let wantSev = ModemLightVerdict(label: want.label, color: wantColour).meaning?.severity
         // The app's verdict on the light as read, with the panel-level rules applied.
         let gotSev = appReport.verdicts.first { norm($0.label) == norm(got.label) }?.meaning?.severity
-        if wantSev != gotSev, wantSev != nil, gotSev != nil, let kind = ModemLightKind(label: want.label), [.power, .broadband, .internet, .upstream, .downstream].contains(kind) {
+        if wantSev != gotSev, wantSev != nil, gotSev != nil, let kind = ModemLightKind(label: want.label), [.power, .broadband, .internet, .upstream, .downstream, .wan].contains(kind) {
           verdictFlips.append("\(panel.name) \(want.label): \(want.color)→\(got.color.rawValue) (\(wantSev.map { "\($0)" } ?? "-")→\(gotSev.map { "\($0)" } ?? "-"))")
         }
         print("  \(want.label): want \(want.color) got \(got.label)=\(got.color.rawValue) \(ok ? "✓" : "✗")")
@@ -223,7 +228,7 @@ func norm(_ s: String) -> String { s.uppercased().filter { $0.isLetter || $0.isN
     print("labels found \(found)/\(total) (\(Int(Double(found) / Double(total) * 100))%), missed \(missed), invented \(invented)")
     print("colour right \(colourRight)/\(found) (\(Int(Double(colourRight) / Double(max(found, 1)) * 100))%)")
     print("colour errors: \(colourErrors.isEmpty ? "none" : colourErrors.joined(separator: "; "))")
-    print("app verdict flips (one verdict to another) on power/broadband/internet/US/DS: \(verdictFlips.isEmpty ? "none" : verdictFlips.joined(separator: "; "))")
+    print("app verdict flips (one verdict to another) on power/broadband/internet/US/DS/WAN: \(verdictFlips.isEmpty ? "none" : verdictFlips.joined(separator: "; "))")
     print("non-panel rejected \(rejects)/2")
     print("\n| Fixture | Light | Truth | Model | |\n|---|---|---|---|---|")
     rows.forEach { print($0) }
