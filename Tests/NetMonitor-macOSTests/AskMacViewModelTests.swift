@@ -102,4 +102,29 @@ struct AskMacViewModelTests {
         #expect(AskMacViewModel.uiTestMode(arguments: ["--uitesting", "--uitest-ask=answer"]) == .answer)
         #expect(AskMacViewModel.uiTestMode(arguments: ["--uitest-ask=answer"]) == nil)
     }
+
+    // MARK: - Live tools (#579)
+
+    /// "Is the printer answering right now?" pings the saved printer: the app's measurement line
+    /// shows, the model's presence sentence goes, and the saved status stays the scan's.
+    @Test func aPingQuestionShowsTheAppsMeasurementAndKeepsTheSavedStatus() async {
+        let printer = LocalDevice(
+            ipAddress: AskUITestFixture.printer.ip, macAddress: AskUITestFixture.printer.mac, deviceType: .printer,
+            customName: AskUITestFixture.printer.name, status: .offline, networkProfileID: home
+        )
+        let home = home
+        let viewModel = AskMacViewModel(
+            model: AskUITestFixture.model(.answer), events: NetworkEventService(), live: AskUITestFixture.live { home }
+        )
+        viewModel.update(devices: [printer], networkProfileID: home, lastScan: nil, isScanning: false)
+        await viewModel.state.ask(AskUITestFixture.pingQuestion)
+        guard case let .answered(answer) = viewModel.state.phase else {
+            Issue.record("not answered: \(viewModel.state.phase)")
+            return
+        }
+        #expect(answer.text == AskUITestFixture.pingShown)
+        #expect(answer.measurements.map(\.text) == [AskUITestFixture.pingMeasurement])
+        #expect(answer.devices.map(\.presence) == [.notCheckedRecently])
+        #expect(printer.status == .offline)
+    }
 }

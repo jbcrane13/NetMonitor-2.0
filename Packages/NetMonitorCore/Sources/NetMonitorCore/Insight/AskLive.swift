@@ -125,3 +125,21 @@ public struct AskMeasurement: Equatable, Sendable, Identifiable {
         self.measuredAt = measuredAt
     }
 }
+
+public extension AskLiveTools {
+    /// The live tools on the app's own services: Core `PingService`, the network this device is on
+    /// now (`NetworkProfileManager.currentProfile`), `monitor`'s connection and the routed gateway
+    /// (never the subnet's first host, which is a guess).
+    static func system(
+        monitor: any NetworkMonitorServiceProtocol, isScanning: @escaping @Sendable @MainActor () -> Bool
+    ) -> AskLiveTools {
+        AskLiveTools(
+            pinger: PingService(),
+            currentNetwork: { NetworkProfileManager.currentProfile() },
+            connection: {
+                Connection(type: monitor.isConnected ? monitor.connectionType : nil, gatewayIP: NetworkUtilities.detectRoutedGateway())
+            },
+            isScanning: isScanning
+        )
+    }
+}

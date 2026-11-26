@@ -42,21 +42,25 @@ enum AskIntentRunner {
                 lastScan: ScanHistory().lastScanTime(for: network),
                 now: Date()
             ),
-            isScanning: DeviceDiscoveryService.shared.isScanning
+            isScanning: DeviceDiscoveryService.shared.isScanning,
+            live: .system(monitor: NetworkMonitorService.shared) { DeviceDiscoveryService.shared.isScanning }
         )
     }
 
-    static func answer(_ question: String, model: any AskModelProtocol, snapshot: AskSnapshot, isScanning: Bool) async -> String {
+    static func answer(
+        _ question: String, model: any AskModelProtocol, snapshot: AskSnapshot, isScanning: Bool, live: AskLiveTools? = nil
+    ) async -> String {
         guard model.isAvailable else { return unavailableMessage }
         guard !isScanning else { return AskState.scanMessage }
         if let mention = AskMention.ambiguous(in: question, among: snapshot.devices) {
             let names = mention.devices.prefix(5).map(\.displayName)
             return "Which one do you mean: \(ListFormatter.localizedString(byJoining: names))? Ask again with its name."
         }
-        let answer = await AskNetwork.answer(question, snapshot: snapshot, pinnedDeviceID: nil, model: model)
-        // Siri has no status chips or freshness label: the app's statuses and line follow the answer.
+        let answer = await AskNetwork.answer(question, snapshot: snapshot, pinnedDeviceID: nil, model: model, live: live)
+        // Siri has no status chips or freshness label: the app's measurements, statuses and line follow the answer.
+        let measured = answer.measurements.map { "\($0.text), measured just now." }
         let statuses = answer.devices.prefix(5).map { "\($0.name): \($0.presence.label)." }
-        return ([answer.shownText] + statuses + [answer.freshness].compactMap(\.self)).joined(separator: " ")
+        return ([answer.shownText] + measured + statuses + [answer.freshness].compactMap(\.self)).joined(separator: " ")
     }
 
     /// Most devices the intent reads: the most recently seen first.

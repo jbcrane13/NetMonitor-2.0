@@ -18,7 +18,10 @@ final class AskToolViewModel {
     }
 
     /// - Parameter history: the iPhone's reconciled scans (#582), whose latest gives "as of the scan".
-    init(env: AppEnvironment, model: (any AskModelProtocol)? = nil, history: ScanHistory = ScanHistory()) {
+    /// - Parameter live: the live tools' services (#579); the app's own by default.
+    init(
+        env: AppEnvironment, model: (any AskModelProtocol)? = nil, history: ScanHistory = ScanHistory(), live: AskLiveTools? = nil
+    ) {
         let inputs = Inputs()
         self.inputs = inputs
         let discovery = env.deviceDiscovery
@@ -38,8 +41,22 @@ final class AskToolViewModel {
                     now: Date()
                 )
             },
-            isScanning: { discovery.isScanning }
+            isScanning: { discovery.isScanning },
+            live: live ?? Self.live(monitor: env.networkMonitor, discovery: discovery, network: currentNetwork)
         )
+    }
+
+    /// The live tools (#579): the UI-test fixture's fakes under `UITEST_ASK`, else the app's services.
+    static func live(
+        monitor: any NetworkMonitorServiceProtocol, discovery: any DeviceDiscoveryServiceProtocol,
+        network: @escaping @Sendable @MainActor () -> UUID?
+    ) -> AskLiveTools {
+        #if DEBUG
+        if UITestBootstrap.askMode != nil {
+            return AskUITestFixture.live(network: network)
+        }
+        #endif
+        return .system(monitor: monitor) { discovery.isScanning }
     }
 
     /// The model the app uses: the UI-test fixture's under `UITEST_ASK`, else the on-device one.

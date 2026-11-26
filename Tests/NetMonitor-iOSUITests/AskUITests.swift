@@ -130,6 +130,41 @@ final class AskUITests: IOSUITestCase {
         wait(for: [hittable], timeout: 8)
         keep([row], named: "ask-older-event-timeline")
     }
+
+    // MARK: - Live tools (#579)
+
+    /// The scripted model pings the printer through the fixture's fake pinger. Its "Yes, … is
+    /// answering right now" is dropped; the app's measurement line shows, and the saved status
+    /// beside the citation stays the scan's.
+    func testAPingQuestionShowsTheAppsMeasurement() {
+        openAsk()
+        ask("Is the printer answering right now?")
+
+        let answer = waitForAnswer("It is a printer at 192.0.2.57.")
+        let measurement = ui("ask_label_measurement_1")
+        requireExists(measurement, message: "The app's ping measurement should show under the answer")
+        XCTAssertTrue(measurement.label.hasPrefix("UITest Printer: 3 of 3 replies, 4 ms average, measured at "),
+                      "Measurement: \(measurement.label)")
+        let marker = ui("ask_label_generated")
+        requireExists(marker, message: "The generated marker should show under the answer")
+        let citation = ui("ask_citation_device_1")
+        requireExists(citation, message: "The pinged printer should be cited")
+        XCTAssertTrue(citation.label.contains("Not checked recently"), "The saved status stays the scan's: \(citation.label)")
+        keep([answer, measurement, marker, citation], named: "ask-ping-measurement")
+    }
+
+    func testTheConnectionQuestionShowsTheAppsStatusLine() {
+        openAsk()
+        ask("How is my connection?")
+
+        let answer = waitForAnswer("The connection is Wi-Fi. The gateway is at 192.0.2.1.")
+        let measurement = ui("ask_label_measurement_1")
+        requireExists(measurement, message: "The app's connection measurement should show under the answer")
+        XCTAssertTrue(measurement.label.hasPrefix(
+            "Wi-Fi · gateway: 3 of 3 replies, 2 ms average · internet: 3 of 3 replies, 15 ms average, measured at "
+        ), "Measurement: \(measurement.label)")
+        keep([answer, measurement], named: "ask-connection-measurement")
+    }
 }
 
 /// #452 after #589: the fake scan saves uitest-device-0…4 on the UI-test network, and "What's

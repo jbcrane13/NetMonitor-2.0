@@ -19,7 +19,11 @@ final class AskMacViewModel {
         var isScanning = false
     }
 
-    init(model: (any AskModelProtocol)? = nil, events: any NetworkEventServiceProtocol = NetworkEventService.shared) {
+    /// - Parameter live: the live tools' services (#579); the app's own by default.
+    init(
+        model: (any AskModelProtocol)? = nil, events: any NetworkEventServiceProtocol = NetworkEventService.shared,
+        live: AskLiveTools? = nil
+    ) {
         let inputs = Inputs()
         self.inputs = inputs
         state = AskState(
@@ -33,8 +37,20 @@ final class AskMacViewModel {
                     now: Date()
                 )
             },
-            isScanning: { inputs.isScanning }
+            isScanning: { inputs.isScanning },
+            live: live ?? Self.live(inputs: inputs)
         )
+    }
+
+    /// The live tools (#579): the UI-test fixture's fakes under `--uitest-ask=<mode>`, else the
+    /// app's services. Pings only while the Mac is on the network asked about.
+    private static func live(inputs: Inputs) -> AskLiveTools {
+        #if DEBUG
+        if uiTestMode(arguments: ProcessInfo.processInfo.arguments) != nil {
+            return AskUITestFixture.live { inputs.networkProfileID }
+        }
+        #endif
+        return .system(monitor: NetMonitorCore.NetworkMonitorService()) { inputs.isScanning }
     }
 
     /// The model the app uses: the UI-test fixture's under `--uitest-ask=<mode>`, else the on-device one.
