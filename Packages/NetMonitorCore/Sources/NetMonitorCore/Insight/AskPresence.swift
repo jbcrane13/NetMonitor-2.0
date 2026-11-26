@@ -51,7 +51,7 @@ enum AskPresenceFilter {
         "online", "offline", "up", "down", "active", "inactive", "available", "unavailable", "awake", "asleep", "sleeping",
         "idle", "running", "working", "live", "alive", "dead", "present", "absent", "missing", "gone", "back",
         "reachable", "unreachable", "pingable", "responding", "responsive", "unresponsive",
-        // A live ping's result is the app's line (#579): the model may count replies, not say who answered.
+        // A live ping's result is the app's line (#579); after a live tool, `AskLiveTextFilter` drops more.
         "respond", "responds", "responded", "replied", "replies", "replying",
         "answer", "answers", "answering", "answered", "connected", "disconnected", "unplugged", "plugged",
         "visible", "detected", "found", "appeared", "disappeared", "status", "scan", "scanned"
@@ -118,4 +118,33 @@ enum AskPresenceFilter {
             return !tools.contains(lowered[found])
         }
     }
+}
+
+/// After a live tool ran in the turn (#579, lead decision on #627), the app's lines are the answer:
+/// a model sentence stays only if it has no digit and none of the live vocabulary. Word lists for
+/// presence leaked paraphrases ("It pinged fine", "The ping succeeded"), and "3 ms" passed
+/// grounding because 3 is the probe count.
+enum AskLiveTextFilter {
+    static func filtered(_ text: String) -> String? {
+        let kept = AskPresenceFilter.sentences(in: text).filter { !aboutTheLiveResult($0) }
+        let joined = kept.joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
+        return joined.isEmpty ? nil : joined
+    }
+
+    static func aboutTheLiveResult(_ sentence: String) -> Bool {
+        let lowered = sentence.lowercased()
+        guard !lowered.contains(where: \.isNumber), !lowered.contains("timed out") else { return true }
+        let words = lowered.split { !$0.isLetter }.map(String.init)
+        return words.contains { word in liveWords.contains(word) || liveStems.contains { word.hasPrefix($0) } }
+    }
+
+    /// Whole words: short ones whose stems would catch other words ("ms", "ok", "test").
+    private static let liveWords: Set<String> = [
+        "ms", "ok", "okay", "fine", "good", "bad", "well", "healthy", "test", "tests", "tested", "testing", "returned", "returns"
+    ]
+    /// Prefixes: ping/pinged/pings, reply/replies/replied, respond/response, latency, succeed/success,
+    /// fail/failure, timeout, reach/reachable, check/checked, measure/measurement.
+    private static let liveStems = [
+        "ping", "repl", "respon", "latenc", "succe", "fail", "timeout", "reach", "unreach", "check", "measur"
+    ]
 }

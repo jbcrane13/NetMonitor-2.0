@@ -1,5 +1,5 @@
 import Foundation
-import Synchronization
+import Network
 
 /// The live measurements "Ask your network" may make (#579): a ping of one saved device and the
 /// current connection's status. The app measures and words every result; the model only picks the
@@ -18,7 +18,7 @@ public struct AskLiveTools: Sendable {
     /// probes, so a silent device takes about 5 s (3 timeouts, 2 gaps; 4.2 s measured on a Mac,
     /// 2026-11-26): the deadline leaves room for that and catches only a hung run.
     public static let deadline: Duration = .seconds(8)
-    /// The host `networkStatus` pings for the internet: the one the health score pings.
+    /// The public address `networkStatus` pings for the internet: the one the health score pings.
     public static let internetHost = "8.8.8.8"
 
     /// The current connection as the app's services report it.
@@ -38,28 +38,47 @@ public struct AskLiveTools: Sendable {
     let currentNetwork: @Sendable @MainActor () -> NetworkProfile?
     let connection: @Sendable @MainActor () -> Connection
     let isScanning: @Sendable @MainActor () -> Bool
+    let joinedAt: @Sendable @MainActor () -> Date?
     let now: @Sendable () -> Date
     let deadline: Duration
+    /// Most live tool calls one question may make; nil for the toolbox's own cap only.
+    let callLimit: Int?
 
     /// - Parameters:
-    ///   - currentNetwork: the network this device is on now (`NetworkProfileManager.currentProfile`),
-    ///     nil when it has no live interface on a saved network. A device is pinged only inside it.
+    ///   - currentNetwork: the network this device is on now, nil when it has no live interface on a
+    ///     saved network. A device is pinged only inside it.
     ///   - connection: the connection type and routed gateway now.
     ///   - isScanning: whether a device scan is running; no measurement starts during one.
+    ///   - joinedAt: when this device joined the network it is on now (`NetworkJoinClock`); nil
+    ///     when unknown. A device is pinged only after a scan reconciled since then: profile IDs
+    ///     are keyed by interface and subnet, so two LANs with one subnet share an ID.
+    ///   - now: the clock that stamps measurements and reads "last seen N ago".
     public init(
         pinger: any PingServiceProtocol,
         currentNetwork: @escaping @Sendable @MainActor () -> NetworkProfile?,
         connection: @escaping @Sendable @MainActor () -> Connection,
         isScanning: @escaping @Sendable @MainActor () -> Bool,
+        joinedAt: @escaping @Sendable @MainActor () -> Date?,
         now: @escaping @Sendable () -> Date = Date.init,
-        deadline: Duration = AskLiveTools.deadline
+        deadline: Duration = AskLiveTools.deadline,
+        callLimit: Int? = nil
     ) {
         self.pinger = pinger
         self.currentNetwork = currentNetwork
         self.connection = connection
         self.isScanning = isScanning
+        self.joinedAt = joinedAt
         self.now = now
         self.deadline = deadline
+        self.callLimit = callLimit
+    }
+
+    /// These tools, allowing at most `limit` live calls per question (the Siri intent's turn).
+    public func limited(to limit: Int) -> AskLiveTools {
+        AskLiveTools(
+            pinger: pinger, currentNetwork: currentNetwork, connection: connection, isScanning: isScanning, joinedAt: joinedAt,
+            now: now, deadline: deadline, callLimit: limit
+        )
     }
 
     /// What one ping run measured, worked out by the app.
@@ -70,34 +89,29 @@ public struct AskLiveTools: Sendable {
         case cancelled
     }
 
-    /// Pings `address` `pingCount` times, inside `deadline`. Never throws: a tool error would roll
-    /// back the model's turn.
+    /// Pings `address` `pingCount` times, inside `deadline`; `PingService.calculateStatistics` works
+    /// out the replies and average. Never throws: a tool error would roll back the model's turn.
     func ping(_ address: String) async -> PingOutcome {
         let pinger = pinger
-        let replies = Mutex<[Double]?>(nil)
-        let finished = await Self.within(deadline) {
-            var times: [Double] = []
-            // A cancelled stream ends early; its result is dropped below.
-            for await result in await pinger.ping(host: address, count: Self.pingCount, timeout: Self.pingTimeout)
-                where !result.isTimeout {
-                times.append(result.time)
+        let results = await Self.within(deadline) { () -> [PingResult]? in
+            var results: [PingResult] = []
+            // A cancelled stream ends early; its result is dropped.
+            for await result in await pinger.ping(host: address, count: Self.pingCount, timeout: Self.pingTimeout) {
+                results.append(result)
             }
-            guard !Task.isCancelled else { return false }
-            // Probes that never came back count as lost: the app sent `pingCount`.
-            replies.withLock { $0 = times }
-            return true
+            return Task.isCancelled ? nil : Array(results.prefix(Self.pingCount))
         }
         guard !Task.isCancelled else { return .cancelled }
-        guard finished, let replied = replies.withLock({ $0 }) else { return .timedOut }
-        let times = Array(replied.prefix(Self.pingCount))
-        let average = times.isEmpty ? nil : times.reduce(0, +) / Double(times.count)
-        return .measured(sent: Self.pingCount, received: times.count, average: average)
+        guard let results else { return .timedOut }
+        // Probes that never came back count as lost: the app sent `pingCount`.
+        let stats = await PingService().calculateStatistics(results, requestedCount: Self.pingCount)
+        let received = stats?.received ?? 0
+        return .measured(sent: Self.pingCount, received: received, average: received > 0 ? stats?.avgTime : nil)
     }
 
-    /// Runs `body` until it finishes or `limit` passes, whichever is first, and cancels the other.
-    /// True when `body` finished and returned true.
-    static func within(_ limit: Duration, _ body: @escaping @Sendable () async -> Bool) async -> Bool {
-        await withTaskGroup(of: Bool?.self) { group in
+    /// `body`'s value if it finishes before `limit` passes; nil otherwise, and `body` is cancelled.
+    static func within<T: Sendable>(_ limit: Duration, _ body: @escaping @Sendable () async -> T?) async -> T? {
+        await withTaskGroup(of: T?.self) { group in
             group.addTask { await body() }
             group.addTask {
                 try? await Task.sleep(for: limit)
@@ -105,46 +119,94 @@ public struct AskLiveTools: Sendable {
             }
             let first = await group.next().flatMap(\.self)
             group.cancelAll()
-            return first ?? false
+            return first
         }
     }
 }
 
-/// A live measurement as the app shows it beside an answer (#579), in the app's words. The model's
-/// text never states it.
+/// A live tool's line as the app shows it beside an answer (#579), in the app's words: a
+/// measurement, or why nothing was measured. The model's text never states either.
 public struct AskMeasurement: Equatable, Sendable, Identifiable {
     /// The pinged device's `LocalDevice.id`; nil for the connection's status.
     public let deviceID: UUID?
-    /// "Synology DS920: 3 of 3 replies, 4 ms average".
+    /// "Synology DS920 (192.168.1.20): 3 of 3 replies, 4 ms average".
     public let text: String
-    public let measuredAt: Date
+    /// When it was measured; nil for a refusal, which measured nothing.
+    public let measuredAt: Date?
+    /// For a ping that disagrees with the device's saved status, what that status was:
+    /// "At the last scan 3 minutes ago it was online." Siri says it after the measurement.
+    public let lastScanNote: String?
 
-    public var id: String { (deviceID?.uuidString ?? "network") + text }
+    /// One line per device (or the connection) per question.
+    public var id: String { deviceID?.uuidString ?? "network" }
 
-    public init(deviceID: UUID?, text: String, measuredAt: Date) {
+    public init(deviceID: UUID?, text: String, measuredAt: Date?, lastScanNote: String? = nil) {
         self.deviceID = deviceID
         self.text = text
         self.measuredAt = measuredAt
+        self.lastScanNote = lastScanNote
     }
 }
 
 public extension AskLiveTools {
-    /// The live tools on the app's own services: Core `PingService`, `monitor`'s connection and the
-    /// routed gateway (never the subnet's first host, which is a guess).
+    /// The live tools on the app's own services: `monitor`'s connection and the routed gateway
+    /// (never the subnet's first host, which is a guess), and `NetworkJoinClock.shared`.
     /// - Parameter currentNetwork: the network this device is on now; by default the saved local
     ///   network while a live interface is on it (`NetworkProfileManager.currentProfile`).
     static func system(
+        pinger: any PingServiceProtocol = PingService(),
         monitor: any NetworkMonitorServiceProtocol,
         currentNetwork: @escaping @Sendable @MainActor () -> NetworkProfile? = { NetworkProfileManager.currentProfile() },
         isScanning: @escaping @Sendable @MainActor () -> Bool
     ) -> AskLiveTools {
         AskLiveTools(
-            pinger: PingService(),
+            pinger: pinger,
             currentNetwork: currentNetwork,
             connection: {
                 Connection(type: monitor.isConnected ? monitor.connectionType : nil, gatewayIP: NetworkUtilities.detectRoutedGateway())
             },
-            isScanning: isScanning
+            isScanning: isScanning,
+            joinedAt: { NetworkJoinClock.shared.joinedAt }
         )
+    }
+}
+
+/// When this device joined the network it is on now (#579), kept in memory: the time of the last
+/// change in the network path (its status, interfaces or gateways). It starts at launch, so a
+/// scan from before launch never establishes the network. A same-subnet move between two LANs
+/// changes the path on the way, so a scan must follow it before a device is pinged.
+@MainActor
+public final class NetworkJoinClock {
+    /// Started once at app launch (both apps touch it at startup).
+    public static let shared = NetworkJoinClock(changes: NetworkJoinClock.systemPathChanges())
+
+    public private(set) var joinedAt: Date
+    private var task: Task<Void, Never>?
+
+    /// - Parameter changes: a key per path update; a new key is a new join.
+    public init(changes: AsyncStream<String>, now: @escaping @Sendable () -> Date = Date.init) {
+        joinedAt = now()
+        task = Task { [weak self] in
+            var last: String?
+            for await key in changes where key != last {
+                last = key
+                self?.joinedAt = now()
+            }
+        }
+    }
+
+    /// The system path's status, interfaces and gateways, one key per update.
+    nonisolated public static func systemPathChanges() -> AsyncStream<String> {
+        AsyncStream { continuation in
+            let monitor = NWPathMonitor()
+            monitor.pathUpdateHandler = { path in
+                let interfaces = path.availableInterfaces.map { "\($0.type)-\($0.name)" }
+                let gateways = path.gateways.map { "\($0)" }
+                continuation.yield((["\(path.status)"] + interfaces + gateways).joined(separator: "|"))
+            }
+            continuation.onTermination = { _ in monitor.cancel() }
+            // NWPathMonitor.start(queue:) is an Apple API that requires a DispatchQueue.
+            monitor.start(queue: DispatchQueue(label: "com.netmonitor.networkJoinClock"))
+        }
     }
 }

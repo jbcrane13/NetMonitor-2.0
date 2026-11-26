@@ -12,8 +12,10 @@ public struct AskRecord: Sendable, Equatable {
     public internal(set) var deviceIDs: [UUID] = []
     /// Events the tools returned, first mention first.
     public internal(set) var eventIDs: [UUID] = []
-    /// What the live tools measured (#579), in order, as the app shows it.
+    /// The live tools' lines (#579), in order, one per device or connection, as the app shows them.
     public internal(set) var measurements: [AskMeasurement] = []
+    /// Whether a live tool ran: then the app's lines are the answer (`AskLiveTextFilter`).
+    public internal(set) var usedLiveTools = false
 }
 
 /// The tools "Ask your network" gives the model (#452), over data the app already holds. The app
@@ -44,9 +46,10 @@ public final class AskToolbox: Sendable {
     private struct State {
         var admitted = 0
         var record = AskRecord()
-        /// A live tool's output by device (nil for the connection), so a repeated call doesn't
-        /// measure again.
+        /// A live tool's output by device (nil for the connection), whatever the outcome, so a
+        /// repeated call neither measures nor refuses again.
         var measured: [UUID?: String] = [:]
+        var liveCalls = 0
     }
 
     /// - Parameters:
@@ -203,13 +206,19 @@ public final class AskToolbox: Sendable {
             return state.record.calls <= Self.softCap
         }
         guard allowed else { return Self.limitMessage }
+        let withinLimit = state.withLock { state in
+            state.liveCalls += 1
+            state.record.usedLiveTools = true
+            return live?.callLimit.map { state.liveCalls <= $0 } ?? true
+        }
+        guard withinLimit else { return Self.liveLimitMessage }
         let (devices, output, measurement) = await body()
         state.withLock { state in
             state.record.outputs.append(output)
             for id in devices where !state.record.deviceIDs.contains(id) {
                 state.record.deviceIDs.append(id)
             }
-            if let measurement {
+            if let measurement, !state.record.measurements.contains(where: { $0.id == measurement.id }) {
                 state.record.measurements.append(measurement)
             }
         }
@@ -400,11 +409,19 @@ public final class AskToolbox: Sendable {
 extension AskToolbox {
     static let liveUnavailable = "Live measurements aren't available here. Answer from the saved results."
     static let scanRunning = "A device scan is running, so nothing was measured. Answer from the saved results."
+    static let liveLimitMessage = "Live check limit reached. Do not call pingDevice or networkStatus again. Answer now."
+    static let scanFirst = "Run a scan first: this network hasn't been checked since you joined it."
 
-    /// Pings the one device `device` names at its current address (#594: a device of several
-    /// interfaces is pinged on the current one), `AskLiveTools.pingCount` times. Refused during a
-    /// scan, and for an address outside the network this device is on now: an old address on
-    /// another network may be someone else's. The result is the app's, never saved as presence.
+    /// Pings the one device `id` names at its current address (#594: a device of several
+    /// interfaces is pinged on the current one), `AskLiveTools.pingCount` times. Refused:
+    /// - during a scan;
+    /// - before a scan reconciled since this device joined its network: profile IDs are keyed by
+    ///   interface and subnet, so a same-subnet LAN reads as the same network until one runs;
+    /// - for an address outside the network this device is on now;
+    /// - for a device that wasn't Online (or in grace) at that scan: its address may be someone
+    ///   else's now.
+    /// Every outcome is kept for the question, so a repeat neither pings nor refuses again. The
+    /// result is the app's line, never saved as presence.
     public func pingDevice(_ id: String) async -> String {
         await runLive {
             guard let live else { return ([], Self.liveUnavailable, nil) }
@@ -416,30 +433,51 @@ extension AskToolbox {
             if let earlier = state.withLock({ $0.measured[device.id] }) {
                 return ([device.id], earlier, nil)
             }
-            let name = name(device), address = InsightRequest.line(device.ipAddress, limit: 60)
-            guard await !live.isScanning() else {
-                return ([device.id], Self.scanRunning, AskMeasurement(
-                    deviceID: device.id, text: "\(name): not pinged, a device scan is running", measuredAt: live.now()
-                ))
-            }
-            guard await isOnCurrentNetwork(device.ipAddress, live: live) else {
-                return ([device.id], "\(name) was not pinged: its address \(address) is not on the network this device is on now.",
-                        AskMeasurement(deviceID: device.id, text: "\(name): not pinged, not on the network this device is on now",
-                                       measuredAt: live.now()))
-            }
-            let outcome = await live.ping(device.ipAddress)
-            let measuredAt = live.now()
-            let (fact, shown) = Self.describe(outcome)
-            let output = "Pinged \(name) at \(address): \(fact)."
-            if case .measured = outcome {
+            let (output, line) = await ping(device, live: live)
+            if line != nil {
                 state.withLock { $0.measured[device.id] = output }
             }
-            guard outcome != .cancelled else { return ([device.id], output, nil) }
-            return ([device.id], output, AskMeasurement(deviceID: device.id, text: "\(name): \(shown)", measuredAt: measuredAt))
+            return ([device.id], output, line)
         }
     }
 
-    /// The current connection: its type, and pings to the gateway and to the internet
+    /// One device's ping, or why it wasn't pinged, as the model's fact and the app's line. A
+    /// cancelled run has no line.
+    private func ping(_ device: AskDevice, live: AskLiveTools) async -> (String, AskMeasurement?) {
+        let name = name(device), address = InsightRequest.line(device.ipAddress, limit: 60)
+        let label = "\(name) (\(address))"
+        func refusal(_ fact: String, _ shown: String) -> (String, AskMeasurement?) {
+            ("\(name) was not pinged: \(fact)", AskMeasurement(deviceID: device.id, text: "\(label): not pinged, \(shown)", measuredAt: nil))
+        }
+        if await live.isScanning() {
+            return (Self.scanRunning, AskMeasurement(deviceID: device.id, text: "\(label): not pinged, a device scan is running",
+                                                     measuredAt: nil))
+        }
+        guard let joined = await live.joinedAt(), let lastScan = snapshot.lastScan, lastScan > joined else {
+            return ("\(Self.scanFirst) \(name) was not pinged.",
+                    AskMeasurement(deviceID: device.id, text: "\(label): not pinged. \(Self.scanFirst)", measuredAt: nil))
+        }
+        guard await isOnCurrentNetwork(device.ipAddress, live: live) else {
+            return refusal("its address is not on the network this device is on now.", "not on the network this device is on now")
+        }
+        guard device.status == .online else {
+            let ago = snapshot.ago(device.lastSeen)
+            return refusal("it didn't answer the last scan; it was last seen at this address \(ago).",
+                           "last seen at this address \(ago)")
+        }
+        let outcome = await live.ping(device.ipAddress)
+        guard outcome != .cancelled else { return ("\(label): not measured, cancelled.", nil) }
+        let (fact, shown) = Self.describe(outcome)
+        var note: String?
+        if case let .measured(_, received, _) = outcome, received == 0 {
+            // It was Online at the scan; a silent ping disagrees, so Siri says both.
+            note = "At the last scan \(snapshot.ago(lastScan)) it was online."
+        }
+        return ("Pinged \(label): \(fact).", AskMeasurement(deviceID: device.id, text: "\(label): \(shown)", measuredAt: live.now(),
+                                                             lastScanNote: note))
+    }
+
+    /// The current connection: its type, and pings to the gateway and to a public internet address
     /// (`AskLiveTools.internetHost`), run together inside the deadline. Refused during a scan.
     public func networkStatus() async -> String {
         await runLive {
@@ -447,43 +485,45 @@ extension AskToolbox {
             if let earlier = state.withLock({ $0.measured[nil] }) {
                 return ([], earlier, nil)
             }
-            guard await !live.isScanning() else {
-                return ([], Self.scanRunning, AskMeasurement(
-                    deviceID: nil, text: "Connection: not measured, a device scan is running", measuredAt: live.now()
-                ))
-            }
-            let connection = await live.connection()
-            guard let type = connection.type, type != .none else {
-                let output = "No network connection. Nothing was pinged."
+            let (output, line) = await status(live)
+            if line != nil {
                 state.withLock { $0.measured[nil] = output }
-                return ([], output, AskMeasurement(deviceID: nil, text: "No network connection", measuredAt: live.now()))
             }
-            async let internet = live.ping(AskLiveTools.internetHost)
-            var gatewayOutcome: AskLiveTools.PingOutcome?
-            if let gateway = connection.gatewayIP {
-                gatewayOutcome = await live.ping(gateway)
-            }
-            let internetOutcome = await internet
-            let measuredAt = live.now()
-            var facts = ["Connection: \(type.displayName)."]
-            var shown = [type.displayName]
-            if let gateway = connection.gatewayIP, let gatewayOutcome {
-                let (fact, line) = Self.describe(gatewayOutcome)
-                facts.append("Gateway at \(InsightRequest.line(gateway, limit: 60)): \(fact).")
-                shown.append("gateway: \(line)")
-            } else {
-                facts.append("Gateway: not found, so not pinged.")
-                shown.append("gateway: not found")
-            }
-            let (fact, line) = Self.describe(internetOutcome)
-            facts.append("Internet (pinged \(AskLiveTools.internetHost)): \(fact).")
-            shown.append("internet: \(line)")
-            let output = facts.joined(separator: " ")
-            let cancelled = internetOutcome == .cancelled || gatewayOutcome == .cancelled
-            guard !cancelled else { return ([], output, nil) }
-            state.withLock { $0.measured[nil] = output }
-            return ([], output, AskMeasurement(deviceID: nil, text: shown.joined(separator: " · "), measuredAt: measuredAt))
+            return ([], output, line)
         }
+    }
+
+    private func status(_ live: AskLiveTools) async -> (String, AskMeasurement?) {
+        guard await !live.isScanning() else {
+            return (Self.scanRunning, AskMeasurement(deviceID: nil, text: "Connection: not checked, a device scan is running",
+                                                     measuredAt: nil))
+        }
+        let connection = await live.connection()
+        guard let type = connection.type, type != .none else {
+            let line = AskMeasurement(deviceID: nil, text: "No network connection", measuredAt: live.now())
+            return ("No network connection. Nothing was pinged.", line)
+        }
+        async let internet = live.ping(AskLiveTools.internetHost)
+        var gatewayOutcome: AskLiveTools.PingOutcome?
+        if let gateway = connection.gatewayIP {
+            gatewayOutcome = await live.ping(gateway)
+        }
+        let internetOutcome = await internet
+        guard internetOutcome != .cancelled, gatewayOutcome != .cancelled else { return ("Connection: not measured, cancelled.", nil) }
+        var facts = ["Connection: \(type.displayName)."]
+        var shown = [type.displayName]
+        if let gateway = connection.gatewayIP, let gatewayOutcome {
+            let (fact, line) = Self.describe(gatewayOutcome)
+            facts.append("Gateway at \(InsightRequest.line(gateway, limit: 60)): \(fact).")
+            shown.append("gateway: \(line)")
+        } else {
+            facts.append("Gateway: not found, so not pinged.")
+            shown.append("gateway: not found")
+        }
+        let (fact, line) = Self.describe(internetOutcome)
+        facts.append("Internet (pinged the public address \(AskLiveTools.internetHost)): \(fact).")
+        shown.append("internet (\(AskLiveTools.internetHost)): \(line)")
+        return (facts.joined(separator: " "), AskMeasurement(deviceID: nil, text: shown.joined(separator: " · "), measuredAt: live.now()))
     }
 
     /// Whether `address` is inside the network this device is on now, and that network is the one

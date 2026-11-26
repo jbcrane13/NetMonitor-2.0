@@ -170,7 +170,7 @@ struct PingDeviceTool: Tool {
 struct NetworkStatusTool: Tool {
     let toolbox: AskToolbox
     let name = "networkStatus"
-    let description = "Measure the connection now: its type, and pings to the gateway and to the internet."
+    let description = "Check the connection now: its type, and pings to the gateway and to a public internet address (8.8.8.8)."
 
     func call(arguments: AskNoArguments) async throws -> String {
         await toolbox.networkStatus()

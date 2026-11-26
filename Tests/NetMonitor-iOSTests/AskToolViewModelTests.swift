@@ -188,10 +188,10 @@ struct AskToolViewModelTests {
 
     // MARK: - Live tools (#579)
 
-    /// "Is the printer answering right now?" pings the saved printer through the fixture's fake
-    /// pinger: the app's measurement line shows, the model's presence sentence goes, and the
-    /// saved status stays the scan's.
-    @Test func aPingQuestionShowsTheAppsMeasurementAndKeepsTheSavedStatus() async {
+    /// "Is the printer answering right now?" on a network with no scan: the app refuses to ping
+    /// and says to scan first (#579 review), the model's presence sentence goes, and the saved
+    /// status stays the scan's.
+    @Test func aPingQuestionBeforeAnyScanIsRefusedByTheApp() async {
         let printer = LocalDevice(
             ipAddress: AskUITestFixture.printer.ip, macAddress: AskUITestFixture.printer.mac, deviceType: .printer,
             customName: AskUITestFixture.printer.name, status: .offline, networkProfileID: home
@@ -205,18 +205,81 @@ struct AskToolViewModelTests {
             return
         }
         #expect(answer.text == AskUITestFixture.pingShown)
-        #expect(answer.measurements.map(\.text) == [AskUITestFixture.pingMeasurement])
+        #expect(answer.measurements == [AskMeasurement(deviceID: printer.id, text: AskUITestFixture.pingRefusal, measuredAt: nil)])
         #expect(answer.devices.map(\.presence) == [.notCheckedRecently])
         #expect(printer.status == .offline)
     }
 
-    @Test func theIntentSaysWhatTheAppMeasured() async {
-        let snapshot = AskSnapshot(devices: [], events: [], networkProfileID: home, lastScan: nil, now: Date())
+    // MARK: - Intent and live tools
+
+    private func device(_ name: String, ip: String) -> AskDevice {
+        AskDevice(id: UUID(), displayName: name, deviceType: .storage, maker: nil, ipAddress: ip, status: .online,
+                  lastSeen: Date(), lastLatency: nil, latencyHistory: [])
+    }
+
+    private func intentAnswer(_ question: String, script: AskScript, devices: [AskDevice], lastScan: Date?) async -> String {
+        let snapshot = AskSnapshot(devices: devices, events: [], networkProfileID: home, lastScan: lastScan, now: Date())
         let home = home
-        let text = await AskIntentRunner.answer(
-            AskUITestFixture.statusQuestion, model: AskUITestFixture.model(.answer), snapshot: snapshot, isScanning: false,
+        return await AskIntentRunner.answer(
+            question, model: ScriptedAskModel(scripts: [question: script]), snapshot: snapshot, isScanning: false,
             live: AskUITestFixture.live { home }
         )
-        #expect(text == AskUITestFixture.statusAnswer + " " + AskUITestFixture.statusMeasurement + ", measured just now.")
+    }
+
+    @Test func theIntentSaysWhatTheAppMeasured() async {
+        let text = await intentAnswer(AskUITestFixture.statusQuestion, script: AskScript(calls: [.networkStatus], answer: "It is fine."),
+                                      devices: [], lastScan: nil)
+        #expect(text == "Here is the app's live check. " + AskUITestFixture.statusMeasurement + ", measured just now.")
+    }
+
+    /// Siri speaks the measurement, never a chip status that could contradict it.
+    @Test func theIntentPingsAndSpeaksTheMeasurementNotTheChip() async {
+        let nas = device("Garage NAS", ip: AskUITestFixture.printer.ip)
+        let text = await intentAnswer("Is the NAS up?", script: AskScript(calls: [.pingDevice("Garage NAS")], answer: "Yes, it pinged fine."),
+                                      devices: [nas], lastScan: Date())
+        #expect(text.hasPrefix("Here is the app's live check. Garage NAS (192.0.2.57): 3 of 3 replies, 4 ms average, measured just now. "))
+        #expect(!text.contains("Garage NAS: Online"))
+        #expect(!text.contains("below"))
+    }
+
+    /// A silent ping of a device the scan saw Online: the measurement, then the scan's word.
+    @Test func theIntentSaysWhenTheScanDisagreed() async {
+        let quiet = device("Garage NAS", ip: "192.0.2.99")
+        let text = await intentAnswer("Is the NAS up?", script: AskScript(calls: [.pingDevice("Garage NAS")], answer: "No."),
+                                      devices: [quiet], lastScan: Date())
+        #expect(text.contains("Garage NAS (192.0.2.99): no reply to 3 pings, measured just now. At the last scan "))
+        #expect(text.contains(" it was online."))
+    }
+
+    /// Refusals aren't measurements: no "measured just now".
+    @Test func theIntentNeverSaysARefusalWasMeasured() async {
+        let nas = device("Garage NAS", ip: AskUITestFixture.printer.ip)
+        let text = await intentAnswer("Is the NAS up?", script: AskScript(calls: [.pingDevice("Garage NAS")], answer: "No."),
+                                      devices: [nas], lastScan: nil)
+        #expect(text.contains("Garage NAS (192.0.2.57): not pinged. Run a scan first"))
+        #expect(!text.contains("measured just now"))
+    }
+
+    /// At most two live checks in one Siri turn.
+    @Test func theIntentMakesAtMostTwoLiveChecks() async {
+        let devices = (1 ... 3).map { device("Box \($0)", ip: "192.0.2.\(60 + $0)") }
+        let calls = devices.map { AskToolCall.pingDevice($0.displayName) }
+        let text = await intentAnswer("Are the boxes up?", script: AskScript(calls: calls, answer: "No."), devices: devices, lastScan: Date())
+        #expect(text.contains("Box 1 (192.0.2.61)"))
+        #expect(text.contains("Box 2 (192.0.2.62)"))
+        #expect(!text.contains("Box 3 (192.0.2.63)"))
+    }
+
+    /// The whole turn has one deadline: a model that never finishes is cancelled.
+    @Test func theIntentTurnHasADeadline() async {
+        let script = AskScript(calls: [.networkStatus], answer: "Done.", delay: .seconds(60))
+        let snapshot = AskSnapshot(devices: [], events: [], networkProfileID: home, lastScan: nil, now: Date())
+        let home = home
+        let clock = ContinuousClock(), start = clock.now
+        _ = await AskIntentRunner.answer(
+            "Q", model: ScriptedAskModel(scripts: ["Q": script]), snapshot: snapshot, isScanning: false,
+            live: AskUITestFixture.live { home }, deadline: .milliseconds(200)
+        )
+        #expect(clock.now - start < .seconds(10))
     }
 }

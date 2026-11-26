@@ -106,7 +106,11 @@ public enum AskNetwork {
             snapshot.events.first { $0.id == id }.map { AskAnswer.EventCitation(id: id, timestamp: $0.timestamp, title: $0.title) }
         }
         // The model's presence and freshness sentences go first; the rest must pass the checks.
-        let filtered = text.map(withoutHandles).flatMap { AskPresenceFilter.filtered($0, outputs: record.outputs) }
+        var filtered = text.map(withoutHandles).flatMap { AskPresenceFilter.filtered($0, outputs: record.outputs) }
+        // After a live tool, the app's lines are the answer (#579).
+        if record.usedLiveTools {
+            filtered = filtered.flatMap(AskLiveTextFilter.filtered)
+        }
         let accepted = filtered.flatMap { AskAnswerCheck.accepts($0, question: question, record: record, snapshot: snapshot) ? $0 : nil }
         return AskAnswer(
             text: accepted, devices: devices, events: events, freshness: cited.isEmpty ? nil : snapshot.freshnessNote,

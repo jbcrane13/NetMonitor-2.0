@@ -133,35 +133,34 @@ final class AskUITests: IOSUITestCase {
 
     // MARK: - Live tools (#579)
 
-    /// The scripted model pings the printer through the fixture's fake pinger. Its "Yes, … is
-    /// answering right now" is dropped; the app's measurement line shows, and the saved status
-    /// beside the citation stays the scan's.
-    func testAPingQuestionShowsTheAppsMeasurement() {
+    /// The seeded printer is offline and this network has no scan: the app refuses to ping it and
+    /// says to scan first. The model's "Yes, … is answering" is dropped; the saved status beside
+    /// the citation stays the scan's.
+    func testAPingBeforeAnyScanIsRefusedByTheApp() {
         openAsk()
         ask("Is the printer answering right now?")
 
-        let answer = waitForAnswer("It is a printer at 192.0.2.57.")
-        let measurement = ui("ask_label_measurement_1")
-        requireExists(measurement, message: "The app's ping measurement should show under the answer")
-        XCTAssertTrue(measurement.label.hasPrefix("UITest Printer: 3 of 3 replies, 4 ms average, measured at "),
-                      "Measurement: \(measurement.label)")
-        let marker = ui("ask_label_generated")
-        requireExists(marker, message: "The generated marker should show under the answer")
+        let answer = waitForAnswer("It is a printer.")
+        let line = ui("ask_label_measurement_1")
+        requireExists(line, message: "The app's refusal should show under the answer")
+        XCTAssertEqual(line.label,
+                       "UITest Printer (192.0.2.57): not pinged. Run a scan first: this network hasn't been checked since you joined it.")
+        XCTAssertFalse(line.label.contains("measured at"), "A refusal is not a measurement: \(line.label)")
         let citation = ui("ask_citation_device_1")
-        requireExists(citation, message: "The pinged printer should be cited")
+        requireExists(citation, message: "The printer should be cited")
         XCTAssertTrue(citation.label.contains("Not checked recently"), "The saved status stays the scan's: \(citation.label)")
-        keep([answer, measurement, marker, citation], named: "ask-ping-measurement")
+        keep([answer, line, citation], named: "ask-ping-refused")
     }
 
     func testTheConnectionQuestionShowsTheAppsStatusLine() {
         openAsk()
         ask("How is my connection?")
 
-        let answer = waitForAnswer("The connection is Wi-Fi. The gateway is at 192.0.2.1.")
+        let answer = waitForAnswer("The connection is Wi-Fi.")
         let measurement = ui("ask_label_measurement_1")
         requireExists(measurement, message: "The app's connection measurement should show under the answer")
         XCTAssertTrue(measurement.label.hasPrefix(
-            "Wi-Fi · gateway: 3 of 3 replies, 2 ms average · internet: 3 of 3 replies, 15 ms average, measured at "
+            "Wi-Fi · gateway: 3 of 3 replies, 2 ms average · internet (8.8.8.8): 3 of 3 replies, 15 ms average, measured at "
         ), "Measurement: \(measurement.label)")
         keep([answer, measurement], named: "ask-connection-measurement")
     }
@@ -294,5 +293,36 @@ final class AskUnavailableUITests: IOSUITestCase {
         }
         requireExists(roomScanner, timeout: 8, message: "The Monitoring tools should show")
         XCTAssertFalse(ui("tools_card_ask").exists, "The Ask card should be hidden without the model")
+    }
+}
+
+/// #579 review: after a scan of the fake network, an Online device is pinged through the fixture's
+/// fake pinger. The model's "It pinged fine." is about the live result, so the app's line is the
+/// answer, with the address it pinged.
+@MainActor
+final class AskLiveUITests: IOSUITestCase {
+    override var additionalLaunchEnvironment: [String: String] {
+        ["UITEST_ASK": "answer", "UITEST_FAKE_DEVICES": "1"]
+    }
+
+    func testAPingAfterAScanShowsTheAppsMeasurement() {
+        requireExists(app.tabBars.buttons["Map"], timeout: 10, message: "The Map tab should exist").tap()
+        requireExists(ui("networkMap_button_scan"), timeout: 10, message: "The map's Scan button should exist").tap()
+        let spinner = app.activityIndicators.firstMatch
+        _ = spinner.waitForExistence(timeout: 3)
+        XCTAssertTrue(waitForDisappearance(spinner, timeout: 20), "The scan should finish")
+        let notNow = app.buttons["Not Now"]
+        if notNow.waitForExistence(timeout: 2) {
+            notNow.tap()
+        }
+        openAsk()
+        ask("Is 192.168.1.10 answering right now?")
+
+        let answer = waitForAnswer("The app's live check is below.")
+        let line = ui("ask_label_measurement_1")
+        requireExists(line, message: "The app's ping measurement should show under the answer")
+        XCTAssertTrue(line.label.contains("(192.168.1.10): 3 of 3 replies, 4 ms average, measured at "), "Measurement: \(line.label)")
+        XCTAssertFalse(ui("ask_label_generated").exists, "No model text is shown, so nothing is marked as generated")
+        keep([answer, line], named: "ask-ping-after-scan")
     }
 }

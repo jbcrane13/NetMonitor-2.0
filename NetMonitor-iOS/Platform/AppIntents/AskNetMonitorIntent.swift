@@ -10,7 +10,10 @@ struct AskNetMonitorIntent: AppIntent {
     static let title: LocalizedStringResource = "Ask NetMonitor"
     // periphery:ignore
     static let description = IntentDescription(
-        "Ask about the devices and events NetMonitor has saved. Answered on this device.",
+        """
+        Ask about the devices and events NetMonitor has saved, answered on this device. A device check pings it on your \
+        network; a connection check also pings a public internet address (8.8.8.8).
+        """,
         categoryName: "Network Tools"
     )
 
@@ -28,6 +31,10 @@ struct AskNetMonitorIntent: AppIntent {
 @MainActor
 enum AskIntentRunner {
     static let unavailableMessage = "Ask needs the on-device model, which isn't available on this device."
+    /// The whole Siri turn's limit, live checks included (#579): past it the model's turn is cancelled.
+    static let turnDeadline: Duration = .seconds(20)
+    /// Most live checks one Siri turn makes.
+    static let liveCallLimit = 2
 
     /// Answers `question` from the saved store, the event log and the current network.
     static func answer(_ question: String) async -> String {
@@ -48,7 +55,8 @@ enum AskIntentRunner {
     }
 
     static func answer(
-        _ question: String, model: any AskModelProtocol, snapshot: AskSnapshot, isScanning: Bool, live: AskLiveTools? = nil
+        _ question: String, model: any AskModelProtocol, snapshot: AskSnapshot, isScanning: Bool, live: AskLiveTools? = nil,
+        deadline: Duration = turnDeadline
     ) async -> String {
         guard model.isAvailable else { return unavailableMessage }
         guard !isScanning else { return AskState.scanMessage }
@@ -56,12 +64,36 @@ enum AskIntentRunner {
             let names = mention.devices.prefix(5).map(\.displayName)
             return "Which one do you mean: \(ListFormatter.localizedString(byJoining: names))? Ask again with its name."
         }
-        let answer = await AskNetwork.answer(question, snapshot: snapshot, pinnedDeviceID: nil, model: model, live: live)
-        // Siri has no status chips or freshness label: the app's measurements, statuses and line follow the answer.
-        let measured = answer.measurements.map { "\($0.text), measured just now." }
-        let statuses = answer.devices.prefix(5).map { "\($0.name): \($0.presence.label)." }
-        return ([answer.shownText] + measured + statuses + [answer.freshness].compactMap(\.self)).joined(separator: " ")
+        let live = live?.limited(to: liveCallLimit)
+        let task = Task { await AskNetwork.answer(question, snapshot: snapshot, pinnedDeviceID: nil, model: model, live: live) }
+        let timer = Task {
+            try? await Task.sleep(for: deadline)
+            task.cancel()
+        }
+        let answer = await task.value
+        timer.cancel()
+        return spoken(answer)
     }
+
+    /// What Siri says: the answer, the app's live lines, then the statuses and freshness line the
+    /// chips would show. A device that was checked live gets no chip status, which could contradict
+    /// its measurement; when the scan disagreed, its note follows ("At the last scan … online.").
+    static func spoken(_ answer: AskAnswer) -> String {
+        let text = answer.text ?? spokenFallbacks[answer.fallback] ?? answer.fallback
+        var lines = answer.measurements.flatMap { line in
+            [line.measuredAt == nil ? "\(line.text)." : "\(line.text), measured just now."] + [line.lastScanNote].compactMap(\.self)
+        }
+        let checked = Set(answer.measurements.compactMap(\.deviceID))
+        lines += answer.devices.prefix(5).filter { !checked.contains($0.id) }.map { "\($0.name): \($0.presence.label)." }
+        return ([text] + lines + [answer.freshness].compactMap(\.self)).joined(separator: " ")
+    }
+
+    /// The fallbacks that point at something "below", in words for a voice.
+    private static let spokenFallbacks = [
+        AskNetwork.measuredFallback: "Here is the app's live check.",
+        AskNetwork.staleFallback: "These devices haven't been checked recently.",
+        AskNetwork.staleFallbackOne: "This device hasn't been checked recently."
+    ]
 
     /// Most devices the intent reads: the most recently seen first.
     static let deviceLimit = 500

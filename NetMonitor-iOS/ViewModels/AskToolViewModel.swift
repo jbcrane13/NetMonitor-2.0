@@ -53,7 +53,7 @@ final class AskToolViewModel {
     ) -> AskLiveTools {
         #if DEBUG
         if UITestBootstrap.askMode != nil {
-            return AskUITestFixture.live(network: network)
+            return AskUITestFixture.live(fakeDevices: UITestFakeDeviceFeed.isEnabled, network: network)
         }
         #endif
         return .system(monitor: monitor) { discovery.isScanning }

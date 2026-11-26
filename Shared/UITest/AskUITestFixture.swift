@@ -37,14 +37,19 @@ enum AskUITestFixture {
     static let joinedAnswer = "Two devices joined this week: UITest Camera and UITest Speaker."
     static let monthAnswer = "Three devices joined in the last 30 days: UITest Camera, UITest Speaker and UITest Doorbell."
     /// The first sentence states presence, as the real model does; the app drops it and shows its
-    /// own measurement line.
-    static let pingAnswer = "Yes, UITest Printer is answering right now. It is a printer at 192.0.2.57."
-    static let pingShown = "It is a printer at 192.0.2.57."
-    static let statusAnswer = "The connection is Wi-Fi. The gateway is at 192.0.2.1."
-    /// The app's lines for the two live questions.
-    static let pingMeasurement = "UITest Printer: 3 of 3 replies, 4 ms average"
-    static let statusMeasurement = "Wi-Fi · gateway: 3 of 3 replies, 2 ms average · internet: 3 of 3 replies, 15 ms average"
+    /// own line. The seeded printer is offline and this network has no scan, so the app refuses
+    /// to ping it and says to run a scan first.
+    static let pingAnswer = "Yes, UITest Printer is answering right now. It is a printer."
+    static let pingShown = "It is a printer."
+    static let pingRefusal = "UITest Printer (192.0.2.57): not pinged. Run a scan first: this network hasn't been checked since you joined it."
+    /// Under `UITEST_FAKE_DEVICES`, after a scan: the first fake device, Online, answers. The
+    /// model's "It pinged fine." is about the live result, so the app's line is the answer.
+    static let devicePingQuestion = "Is 192.168.1.10 answering right now?"
+    static let devicePingMeasurement = "(192.168.1.10): 3 of 3 replies, 4 ms average"
+    static let statusAnswer = "The connection is Wi-Fi."
+    static let statusMeasurement = "Wi-Fi · gateway: 3 of 3 replies, 2 ms average · internet (8.8.8.8): 3 of 3 replies, 15 ms average"
     static let gatewayIP = "192.0.2.1"
+    static let fakeDeviceIP = "192.168.1.10"
 
     static func model(_ mode: Mode) -> any AskModelProtocol {
         let printer = AskScript(calls: [.findDevices("printer")], answer: printerAnswer, delay: mode == .hold ? .seconds(60) : .zero)
@@ -53,42 +58,46 @@ enum AskUITestFixture {
         let online = AskScript(calls: [.findDevices("all")]) { results in onlineAnswer(results.first ?? "") }
         let ping = AskScript(calls: [.findDevices("printer"), .pingDevice(Self.printer.name)], answer: pingAnswer)
         let status = AskScript(calls: [.networkStatus], answer: statusAnswer)
+        let devicePing = AskScript(calls: [.pingDevice(fakeDeviceIP)], answer: "Yes, it pinged fine.")
         guard mode != .unavailable else { return UnavailableAskModel() }
         return ScriptedAskModel(scripts: [
             printerQuestion: printer, joinedQuestion: joined, monthQuestion: month, onlineQuestion: online,
-            pingQuestion: ping, statusQuestion: status
+            pingQuestion: ping, statusQuestion: status, devicePingQuestion: devicePing
         ])
     }
 
-    /// The live tools under a UI test (#579): nothing real is pinged. The device is on the
-    /// documentation network 192.0.2.0/24, the network asked about, on Wi-Fi.
+    /// The live tools under a UI test (#579): nothing real is pinged. The device is on the network
+    /// asked about, on Wi-Fi, and joined it long ago, so any scan establishes it: the documentation
+    /// network 192.0.2.0/24, or with `fakeDevices` the fake scan's 192.168.1.0/24.
     /// - Parameter network: the network the question is asked about.
-    static func live(network: @escaping @Sendable @MainActor () -> UUID?) -> AskLiveTools {
-        AskLiveTools(
+    static func live(fakeDevices: Bool = false, network: @escaping @Sendable @MainActor () -> UUID?) -> AskLiveTools {
+        let base = fakeDevices ? "192.168.1" : "192.0.2"
+        return AskLiveTools(
             pinger: FakePinger(),
             currentNetwork: {
                 NetworkProfile(
-                    id: network() ?? UUID(), interfaceName: "en0", ipAddress: "192.0.2.10",
+                    id: network() ?? UUID(), interfaceName: "en0", ipAddress: "\(base).200",
                     network: NetworkUtilities.IPv4Network(
-                        networkAddress: NetworkUtilities.ipv4ToUInt32("192.0.2.0") ?? 0,
-                        broadcastAddress: NetworkUtilities.ipv4ToUInt32("192.0.2.255") ?? 0,
-                        interfaceAddress: NetworkUtilities.ipv4ToUInt32("192.0.2.10") ?? 0,
+                        networkAddress: NetworkUtilities.ipv4ToUInt32("\(base).0") ?? 0,
+                        broadcastAddress: NetworkUtilities.ipv4ToUInt32("\(base).255") ?? 0,
+                        interfaceAddress: NetworkUtilities.ipv4ToUInt32("\(base).200") ?? 0,
                         netmask: 0xFFFF_FF00
                     ),
-                    connectionType: .wifi, name: "UITest Network", gatewayIP: gatewayIP, subnet: "192.0.2.0/24",
+                    connectionType: .wifi, name: "UITest Network", gatewayIP: gatewayIP, subnet: "\(base).0/24",
                     isLocal: true, discoveryMethod: .auto
                 )
             },
             connection: { AskLiveTools.Connection(type: .wifi, gatewayIP: gatewayIP) },
-            isScanning: { false }
+            isScanning: { false },
+            joinedAt: { .distantPast }
         )
     }
 
-    /// Answers the printer in 4 ms, the gateway in 2 ms and the internet in 15 ms, 3 of 3 each.
+    /// Answers the printer and the first fake device in 4 ms, the gateway in 2 ms and the internet in 15 ms, 3 of 3 each.
     final class FakePinger: PingServiceProtocol, Sendable {
         func ping(host: String, count: Int, timeout: TimeInterval) async -> AsyncStream<PingResult> {
             let time: Double? = switch host {
-            case printer.ip: 4
+            case printer.ip, fakeDeviceIP: 4
             case gatewayIP: 2
             case AskLiveTools.internetHost: 15
             default: nil

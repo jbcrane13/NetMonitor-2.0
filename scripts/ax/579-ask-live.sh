@@ -3,10 +3,11 @@
 # Launches a Debug build with UI-test arguments and --uitest-ask=answer: a scripted model over the
 # seeded printer ("UITest Printer", offline, 192.0.2.57), and the fixture's live tools, which ping
 # a fake on the documentation network 192.0.2.0/24 (nothing real is pinged). Opens Tools > Ask and
-# asks "Is the printer answering right now?": the model's "Yes, … is answering" is dropped, its
-# other sentence shows, and the app's measurement line shows with its time. The printer's saved
-# status beside the citation stays "Not checked recently". Then "How is my connection?": the
-# app's line gives the connection type and the gateway and internet pings.
+# asks "Is the printer answering right now?": this network has no scan since the Mac joined it, so
+# the app refuses to ping and says to scan first (#627 review), with no "measured at". The model's
+# "Yes, … is answering" is dropped, and the printer's saved status stays "Not checked recently".
+# Then "How is my connection?": the app's line gives the connection type and the gateway and
+# public-address (8.8.8.8) pings.
 # Screenshots are the app window cropped to the Ask sheet: only fixture values.
 # Never touches an installed /Applications copy: it drives only the process it started.
 # Usage: lockf -t 3600 /tmp/nm-mini1-ax.lock scripts/ax/579-ask-live.sh <Debug NetMonitor-macOS.app> <out-dir>
@@ -42,11 +43,12 @@ expect "$("$AX" wait ask_field_question 10)" found "the question field is missin
 
 "$AX" type ask_field_question "Is the printer answering right now?" > /dev/null
 "$AX" press ask_button_ask > /dev/null
-expect "$("$AX" text "It is a printer at 192.0.2.57." 15)" "found text" "the answer is missing"
+expect "$("$AX" text "It is a printer." 15)" "found text" "the answer is missing"
 # The model's presence sentence is the app's to state: it is dropped.
 expect "$("$AX" notext "is answering right now" 2)" "no text" "the model's presence sentence was shown"
-expect "$("$AX" wait ask_label_measurement_1 5)" found "the app's measurement line is missing"
-expect "$("$AX" text "UITest Printer: 3 of 3 replies, 4 ms average, measured at" 3)" "found text" "the measurement has the wrong text"
+expect "$("$AX" wait ask_label_measurement_1 5)" found "the app's line is missing"
+expect "$("$AX" text "UITest Printer (192.0.2.57): not pinged. Run a scan first" 3)" "found text" "the refusal has the wrong text"
+expect "$("$AX" notext "measured at" 2)" "no text" "a refusal was shown as a measurement"
 expect "$("$AX" text "Written by the on-device model from the records below" 3)" "found text" "the generated marker is missing"
 expect "$("$AX" wait ask_citation_device_1 5)" found "the printer is not cited"
 # A live reply is never saved as presence: the citation keeps the scan's status.
@@ -55,8 +57,8 @@ expect "$("$AX" text "Not checked recently" 3)" "found text" "the citation's sav
 
 "$AX" type ask_field_question "How is my connection?" > /dev/null
 "$AX" press ask_button_ask > /dev/null
-expect "$("$AX" text "The connection is Wi-Fi. The gateway is at 192.0.2.1." 15)" "found text" "the connection answer is missing"
-expect "$("$AX" text "Wi-Fi · gateway: 3 of 3 replies, 2 ms average · internet: 3 of 3 replies, 15 ms average, measured at" 5)" \
+expect "$("$AX" text "The connection is Wi-Fi." 15)" "found text" "the connection answer is missing"
+expect "$("$AX" text "Wi-Fi · gateway: 3 of 3 replies, 2 ms average · internet (8.8.8.8): 3 of 3 replies, 15 ms average, measured at" 5)" \
   "found text" "the connection measurement is missing"
 "$AX" capture-in screen_ask "$OUT/579-ask-connection.png"
 echo "PASS"

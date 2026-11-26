@@ -209,6 +209,8 @@ struct NetmonitorApp: App {
                     // Start network monitor early so the first dashboard render
                     // sees real connectivity instead of the default "No Connection".
                     _ = NetworkMonitorService.shared
+                    // When the phone joined its network: Ask pings only after a scan since (#579).
+                    _ = NetworkJoinClock.shared
 
                     // Start event listener to log connectivity/device changes for Timeline.
                     startEventListener()

@@ -231,6 +231,8 @@ struct NetMonitorApp: App {
             )
             connectivity.run(for: profileManager.localProfile)
             connectivityMonitor = connectivity
+            // When the Mac joined its network: Ask pings only after a scan since (#579).
+            _ = NetworkJoinClock.shared
             // Fill the dashboard without waiting for the user to press Scan (#358).
             discovery.rescan(.launch)
             // Rescan when the Mac moves to a different network while the app is open (#359).
