@@ -110,6 +110,34 @@ struct DeviceGroupingViewModelTests {
         #expect(model.suggestions.map(\.primary.id) == [store.wifi], "Apart again: the banner is back")
     }
 
+    /// Codex stop review: a scan that records the Bonjour host on the *other* device saves only that
+    /// row; the shown device's suggestion must still appear.
+    @Test func aSaveElsewhereBringsTheSuggestionToTheShownDevice() async throws {
+        let store = try makeStore()
+        let context = ModelContext(store.container)
+        let wifiID = store.wifi
+        let wifi = try #require(try context.fetch(FetchDescriptor<LocalDevice>(predicate: #Predicate { $0.id == wifiID })).first)
+        wifi.bonjourHost = nil
+        try context.save()
+        let model = DeviceGroupingViewModel()
+        let studio = try #require(store.device(store.ethernet))
+        model.show(studio, in: ModelContext(store.container))
+        #expect(model.suggestions.isEmpty)
+
+        // A scan's context saves the other row's host.
+        let scan = ModelContext(store.container)
+        let scanned = try #require(try scan.fetch(FetchDescriptor<LocalDevice>(predicate: #Predicate { $0.id == wifiID })).first)
+        scanned.bonjourHost = Self.host
+        scanned.bonjourHostSeenAt = Date()
+        try scan.save()
+
+        let deadline = ContinuousClock.now + .seconds(5)
+        while model.suggestions.isEmpty, ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        #expect(model.suggestions.map(\.primary.id) == [store.wifi])
+    }
+
     @Test func notTheSameDeviceOnASuggestionRemovesItForGood() throws {
         let store = try makeStore()
         let model = DeviceGroupingViewModel()

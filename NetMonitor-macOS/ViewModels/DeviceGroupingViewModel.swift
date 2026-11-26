@@ -49,9 +49,22 @@ import SwiftData
     private let toastDuration: Duration
     private let now: () -> Date
 
+    /// Re-reads the shown device's suggestions after any save: a scan can record the Bonjour host
+    /// on the *other* device, which changes nothing the detail view keys on.
+    private var saveObserver: (any NSObjectProtocol)?
+
     init(toastDuration: Duration = .seconds(10), now: @escaping () -> Date = Date.init) {
         self.toastDuration = toastDuration
         self.now = now
+        saveObserver = NotificationCenter.default.addObserver(forName: ModelContext.didSave, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.refreshSuggestions() }
+        }
+    }
+
+    isolated deinit {
+        if let saveObserver {
+            NotificationCenter.default.removeObserver(saveObserver)
+        }
     }
 
     // MARK: - Reading
