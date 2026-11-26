@@ -415,8 +415,12 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
             // Each interface that answered a Mac scan newer than the phone's own (#594 PR2), with
             // the Mac's scan placed on this phone's clock by its age when sent (#619).
             return members.filter { member in
-                // A negative age (a bad clock read on the Mac) counts as a scan at sending.
-                let scannedHere = member.scanAge.map { (receivedAt ?? now).addingTimeInterval(-max($0, 0)) }
+                // A negative, non-finite or absurd age is rejected, never read as a scan at sending
+                // (#585 review): a Mac whose clock went back would renew its old answers.
+                if member.scanAge != nil, MacInventory.validAge(member.scanAge) == nil {
+                    return false
+                }
+                let scannedHere = MacInventory.validAge(member.scanAge).map { (receivedAt ?? now).addingTimeInterval(-$0) }
                 return member.answeredLatestScan && includes(member.ipAddress)
                     && (ownLastScan.map { own in scannedHere.map { $0 > own } ?? false } ?? true)
             }.map { member in

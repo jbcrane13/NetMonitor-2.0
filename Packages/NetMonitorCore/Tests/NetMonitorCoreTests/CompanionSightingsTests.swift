@@ -135,7 +135,7 @@ struct CompanionSightingsTests {
 
     @Test("The Mac's scan is placed on the phone's clock by its age at sending, so clock skew doesn't count (#619)")
     func clockSkewDoesNotCount() {
-        func sightings(macClockAhead skew: TimeInterval, scanAgeAtSend age: TimeInterval, ownLastScan: Date) -> [String] {
+        func sightings(macClockAhead skew: TimeInterval, scanAgeAtSend age: TimeInterval, ownLastScan: Date?) -> [String] {
             let member = MemberInfo(
                 id: UUID(), ipAddress: "192.168.7.40", macAddress: nil, lastSeen: now, answeredLatestScan: true,
                 scanTime: now.addingTimeInterval(skew - age), scanAge: age
@@ -151,9 +151,11 @@ struct CompanionSightingsTests {
         #expect(sightings(macClockAhead: 600, scanAgeAtSend: 60, ownLastScan: now.addingTimeInterval(-30)).isEmpty)
         // 10 minutes slow: its scan a minute ago is newer than the phone's two minutes ago.
         #expect(sightings(macClockAhead: -600, scanAgeAtSend: 60, ownLastScan: now.addingTimeInterval(-120)) == ["192.168.7.40"])
-        // A negative age is a scan at sending, not one in the phone's future.
-        #expect(sightings(macClockAhead: 0, scanAgeAtSend: -3600, ownLastScan: now.addingTimeInterval(-1)) == ["192.168.7.40"])
-        #expect(sightings(macClockAhead: 0, scanAgeAtSend: -3600, ownLastScan: now.addingTimeInterval(1)).isEmpty)
+        // A negative, non-finite or absurd age is rejected, not read as a scan at sending (#585 review):
+        // a Mac whose clock went back would otherwise have its old answers renewed by every list.
+        #expect(sightings(macClockAhead: 0, scanAgeAtSend: -3600, ownLastScan: now.addingTimeInterval(-1)).isEmpty)
+        #expect(sightings(macClockAhead: 0, scanAgeAtSend: -3600, ownLastScan: nil).isEmpty)
+        #expect(sightings(macClockAhead: 0, scanAgeAtSend: 1e300, ownLastScan: nil).isEmpty)
     }
 
     @Test("Only the primary interface's sighting carries the device's name, so a secondary one without a MAC matches its own row (#619)")
