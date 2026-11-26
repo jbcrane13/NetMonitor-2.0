@@ -2,27 +2,32 @@ import Foundation
 import NetworkScanKit
 
 /// Concrete implementation of ScanSchedulerServiceProtocol.
-/// Computes diffs against every device seen before, with a grace period, using
-/// `DeviceChangeTracker` (#393). Must be called from the MainActor.
+/// Its diff is the last applied scan's device events (#603): it subscribes to the
+/// `DeviceEventDispatcher`, which only the reconcile that applied a scan feeds, so it agrees with
+/// the saved rows and the Timeline. Must be called from the MainActor.
 @MainActor
 public final class ScanSchedulerService: ScanSchedulerServiceProtocol {
     public static let shared = ScanSchedulerService()
 
-    /// The previous-scan baseline used before #393; read once to seed the tracker on upgrade.
-    private static let baselineKey = "scanScheduler_baseline"
-    /// iOS has one device list, not one per network, so it uses a single scope.
-    static let trackerScope = "default"
-
-    /// The most recently computed diff. Nil until the first scan runs.
+    /// The last applied scan's diff. Nil until a scan with device events is reconciled; a scan
+    /// with none (or a skipped reconcile) delivers nothing, so the previous diff stays.
     public private(set) var cachedDiff: ScanDiff?
 
     private var scheduledDate: Date?
-    private let defaults: UserDefaults
-    private let tracker: DeviceChangeTracker
+    private let dispatcher: DeviceEventDispatcher
+    private var subscription: UUID?
 
-    public init(defaults: UserDefaults = .standard, policy: DeviceGracePolicy = DeviceGracePolicy()) {
-        self.defaults = defaults
-        tracker = DeviceChangeTracker(defaults: defaults, policy: policy)
+    public init(dispatcher: DeviceEventDispatcher = .shared) {
+        self.dispatcher = dispatcher
+        subscription = dispatcher.subscribe { [weak self] batch in
+            self?.cachedDiff = ScanDiff(batch)
+        }
+    }
+
+    isolated deinit {
+        if let subscription {
+            dispatcher.unsubscribe(subscription)
+        }
     }
 
     // MARK: - ScanSchedulerServiceProtocol
@@ -35,58 +40,10 @@ public final class ScanSchedulerService: ScanSchedulerServiceProtocol {
         cachedDiff
     }
 
-    public func computeDiff(current: [DiscoveredDevice]) -> ScanDiff {
-        computeDiff(current: current, now: Date())
-    }
-
-    /// New = answered for the first time (never on the first scan); removed = unanswered for
-    /// the whole grace period; changed = answered with a new IP address or name (#393).
-    func computeDiff(current: [DiscoveredDevice], now: Date) -> ScanDiff {
-        let observations = current.map {
-            DeviceObservation(ipAddress: $0.ipAddress, macAddress: $0.macAddress, name: $0.matchName, isCached: $0.isCached)
-        }
-        let events = tracker.record(scope: Self.trackerScope, observed: observations, now: now) {
-            loadBaseline().map {
-                KnownDevice(macAddress: $0.macAddress, ipAddress: $0.ipAddress, name: $0.matchName, firstSeen: now, lastSeen: now)
-            }
-        }
-
-        var newDevices: [DiscoveredDevice] = []
-        var removedDevices: [DiscoveredDevice] = []
-        var changedDevices: [DiscoveredDevice] = []
-        for event in events {
-            switch event {
-            case let .firstSeen(observation):
-                newDevices += current.filter { Self.matches($0, observation) }.prefix(1)
-            case let .changed(observation, _):
-                changedDevices += current.filter { Self.matches($0, observation) }.prefix(1)
-            case let .wentOffline(known):
-                removedDevices.append(DiscoveredDevice(
-                    ipAddress: known.ipAddress,
-                    hostname: known.name,
-                    vendor: nil,
-                    macAddress: known.macAddress,
-                    latency: nil,
-                    discoveredAt: known.lastSeen,
-                    source: .local
-                ))
-            case .cameOnline:
-                break
-            }
-        }
-
-        let diff = ScanDiff(
-            newDevices: newDevices,
-            removedDevices: removedDevices,
-            changedDevices: changedDevices,
-            scannedAt: now
-        )
-        cachedDiff = diff
-        return diff
-    }
-
-    private static func matches(_ device: DiscoveredDevice, _ observation: DeviceObservation) -> Bool {
-        device.ipAddress == observation.ipAddress && device.macAddress == observation.macAddress
+    /// The last applied scan's diff; `current` is no longer compared (the reconciler decides what
+    /// changed). Empty, at now, before any scan delivered events.
+    public func computeDiff(current _: [DiscoveredDevice]) -> ScanDiff {
+        cachedDiff ?? ScanDiff(newDevices: [], removedDevices: [], changedDevices: [])
     }
 
     // MARK: - Convenience
@@ -96,14 +53,32 @@ public final class ScanSchedulerService: ScanSchedulerServiceProtocol {
         guard let scheduledDate else { return false }
         return Date() >= scheduledDate
     }
+}
 
-    // MARK: - Persistence
-
-    private func loadBaseline() -> [DiscoveredDevice] {
-        guard
-            let data = defaults.data(forKey: Self.baselineKey),
-            let devices = try? JSONDecoder().decode([DiscoveredDevice].self, from: data)
-        else { return [] }
-        return devices
+public extension ScanDiff {
+    /// An applied scan's device events as a diff (#603): joined devices are new, devices that went
+    /// offline under grace are removed, and an address change or rename is changed. A device back
+    /// online is none of these. Each device is named by its device (`DeviceEvent.name`) and found at
+    /// its current interface; a removed one carries when it last answered.
+    init(_ batch: DeviceEventBatch) {
+        func device(_ event: DeviceEvent, seen: Date) -> DiscoveredDevice {
+            DiscoveredDevice(
+                ipAddress: event.ipAddress, hostname: event.name == event.ipAddress ? nil : event.name, vendor: nil,
+                macAddress: event.macAddress, latency: nil, discoveredAt: seen, source: .local,
+                networkProfileID: event.networkProfileID ?? batch.networkProfileID
+            )
+        }
+        var new: [DiscoveredDevice] = []
+        var removed: [DiscoveredDevice] = []
+        var changed: [DiscoveredDevice] = []
+        for event in batch.events {
+            switch event.kind {
+            case .joined: new.append(device(event, seen: event.lastSeen))
+            case let .wentOffline(since): removed.append(device(event, seen: since))
+            case .addressChanged, .renamed: changed.append(device(event, seen: event.lastSeen))
+            case .cameOnline: break
+            }
+        }
+        self.init(newDevices: new, removedDevices: removed, changedDevices: changed, scannedAt: batch.scanDate)
     }
 }
