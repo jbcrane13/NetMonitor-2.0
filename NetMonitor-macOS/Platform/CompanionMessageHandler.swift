@@ -145,12 +145,13 @@ final class CompanionMessageHandler {
         // Online means it answered the network's latest scan, and that scan is recent (#583,
         // #598): never a row within grace that missed it, nor one only the ARP cache listed.
         let presence = deviceDiscovery.presence()
-        // One entry per device (#594): the primary's ID, name and type, the current interface's
-        // address and MAC, online when any interface answered. Members go in PR2's payload.
+        // One entry per device (#594): the device's ID (its group's, or its row's), the primary's
+        // name and type, the current interface's address and MAC, online when any interface
+        // answered. Members go in PR2's payload. The phone keys nothing on the ID.
         let deviceInfos = deviceDiscovery.projectedDevices.map { device in
             let primary = device.primary
             return DeviceInfo(
-                id: primary.id,
+                id: device.id,
                 ipAddress: device.current.ipAddress,
                 macAddress: device.current.macAddress,
                 // The friendly name when there's no hostname, as 2.2.x sent it: since #462 it's

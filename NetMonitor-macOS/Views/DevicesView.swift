@@ -5,6 +5,7 @@ import NetMonitorCore
 import SwiftData
 import AppKit
 import Darwin
+import os
 
 struct DevicesView: View {
     var isSheet: Bool = false
@@ -560,9 +561,10 @@ struct DevicesView: View {
     private func clearDevices() {
         selectedDeviceID = nil
         coordinator?.cancelSuggestions()
-        let writer = DeviceGroupWriter(context: modelContext)
-        for device in filteredDevices {
-            try? writer.deleteDevice(device.id)
+        do {
+            try DeviceGroupWriter(context: modelContext).deleteDevices(filteredDevices.map(\.id))
+        } catch {
+            Logger.data.error("Failed to clear devices: \(error)")
         }
         reloadDevices()
     }
@@ -628,7 +630,11 @@ struct DevicesView: View {
             }
             coordinator?.cancelSuggestions()
             // Every interface of the device goes (#594).
-            try? DeviceGroupWriter(context: modelContext).deleteDevice(device.id)
+            do {
+                try DeviceGroupWriter(context: modelContext).deleteDevice(device.id)
+            } catch {
+                Logger.data.error("Failed to remove device: \(error)")
+            }
             reloadDevices()
         } label: {
             Label("Remove Device", systemImage: "trash")

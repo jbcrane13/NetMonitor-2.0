@@ -96,7 +96,8 @@ struct DeviceGroupReaderTests {
         }
         #expect(payload.devices.count == 1)
         let info = try #require(payload.devices.first)
-        #expect(info.id == fixture.primary.id)
+        #expect(info.id == devices.first?.id, "The device's ID: its group's")
+        #expect(info.id != fixture.primary.id)
         #expect(info.ipAddress == Self.memberIP)
         #expect(info.macAddress == Self.memberMAC)
         #expect(info.hostname == fixture.primary.matchName)
@@ -350,8 +351,45 @@ struct DeviceGroupReaderTests {
         #expect(fixture.member.notes == "Wi-Fi in the studio")
         #expect(fixture.primary.notes == "Ethernet behind the desk")
 
-        #expect(DeviceInterfacesCard.removalMessage(for: fixture.member) == "Its notes are deleted with it.")
-        #expect(DeviceInterfacesCard.removalMessage(for: fixture.primary) == "Its custom name “Studio Mac” and notes are deleted with it.")
+        #expect(DeviceInterfacesCard.removalMessage(for: fixture.member, references: []) == "This deletes \(Self.memberIP) with its notes.")
+        #expect(
+            DeviceInterfacesCard.removalMessage(for: fixture.primary, references: [])
+                == "This deletes \(Self.primaryIP) with its custom name and its notes."
+        )
+    }
+
+    @Test func removingAnInterfaceARuleOrTargetNamesSaysSo() throws {
+        let fixture = try makeGroup()
+        let bare = LocalDevice(ipAddress: "192.168.77.62", macAddress: "02:00:00:77:00:62", networkProfileID: nil)
+        fixture.context.insert(bare)
+        let target = NetworkTarget(name: "Studio ping", host: "192.168.77.62", targetProtocol: .icmp)
+        let other = NetworkTarget(name: "Router", host: "192.168.77.1", targetProtocol: .icmp)
+        fixture.context.insert(target)
+        fixture.context.insert(other)
+        try fixture.context.save()
+        let rules = [
+            AlertRule(name: "Studio down", trigger: .wentOffline, conditions: AlertRuleConditions(deviceID: bare.id)),
+            AlertRule(name: "Printer down", trigger: .wentOffline, conditions: AlertRuleConditions(deviceID: UUID()))
+        ]
+        let links = [target.id: bare.id]
+
+        let references = InterfaceRemoval.references(to: bare.id, rules: rules, in: fixture.context) { links[$0] }
+        #expect(references == ["the rule ‘Studio down’", "the monitoring target ‘Studio ping’"])
+        #expect(
+            DeviceInterfacesCard.removalMessage(for: bare, references: references)
+                == "This deletes 192.168.77.62. The rule ‘Studio down’ and the monitoring target ‘Studio ping’ name this interface"
+                + " and won't find it after."
+        )
+        #expect(InterfaceRemoval.references(to: fixture.member.id, rules: rules, in: fixture.context) { links[$0] }.isEmpty)
+    }
+
+    @Test func theDetailShowsTheSerialOnlyWhenSet() throws {
+        let fixture = try makeGroup()
+        #expect(fixture.primary.shownSerial == nil)
+        fixture.primary.serialNumber = "  "
+        #expect(fixture.primary.shownSerial == nil)
+        fixture.primary.serialNumber = "C02UITEST0001"
+        #expect(fixture.primary.shownSerial == "C02UITEST0001")
     }
 
     @Test func removingTheOtherInterfaceLeavesOneDevice() throws {
