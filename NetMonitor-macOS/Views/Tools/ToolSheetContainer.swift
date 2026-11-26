@@ -118,9 +118,12 @@ struct ToolSheetContainer<InputArea: View, OutputArea: View, FooterContent: View
     }
 }
 
+// MARK: - Close action
+
 extension EnvironmentValues {
     /// Set where a tool fills the main window's detail pane, so its Close returns to the
-    /// Tools grid; `dismiss()` there clears the selection instead (#545). Sheets leave it nil.
+    /// Tools grid; `dismiss()` there clears the selection instead (#545). Unset (previews),
+    /// Close falls back to `dismiss()`.
     @Entry var closeTool: (() -> Void)?
 }
 
