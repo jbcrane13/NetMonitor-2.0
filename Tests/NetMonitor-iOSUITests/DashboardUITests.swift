@@ -85,11 +85,14 @@ final class DashboardUITests: IOSUITestCase {
             app.text(carrying: "dashboard_card_wan", matching: "ISP"),
             message: "WAN card should have its ISP row"
         )
-        let placeholders = ["WAN INFO", "ISP", "PUBLIC IP", "DNS", "Detecting…", "—"]
-        let ispValue = app.texts(carrying: "dashboard_card_wan").matching(NSPredicate(format: "NOT (label IN %@)", placeholders as NSArray))
-        XCTAssertTrue(
-            ispValue.firstMatch.waitForExistence(timeout: 15),
-            "WAN card should show ISP data (a provider name, public IP or DNS server), not only labels and placeholders"
+        // The card's texts read in order: WAN INFO, ISP, <ISP value>, PUBLIC IP, <IP>, DNS, <DNS>.
+        // The DNS value always renders, so check the ISP value itself, not any value.
+        let ispValue = app.texts(carrying: "dashboard_card_wan").element(boundBy: 2)
+        let detected = NSPredicate(format: "exists == true AND NOT (label IN %@)", ["Detecting…", "—", "ISP", "PUBLIC IP"] as NSArray)
+        let result = XCTWaiter().wait(for: [XCTNSPredicateExpectation(predicate: detected, object: ispValue)], timeout: 15)
+        XCTAssertEqual(
+            result, .completed,
+            "WAN card should show a detected ISP name, not a placeholder (got \"\(ispValue.exists ? ispValue.label : "nothing")\")"
         )
         captureScreenshot(named: "Dashboard_WANCard")
     }
