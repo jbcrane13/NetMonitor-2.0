@@ -47,7 +47,9 @@ struct CompanionSightingsTests {
 
     static let profile = NetworkProfile(
         interfaceName: "en0", ipAddress: "192.168.7.100",
-        network: NetworkUtilities.IPv4Network(networkAddress: 0xC0A80700, broadcastAddress: 0xC0A807FF, interfaceAddress: 0xC0A80764, netmask: 0xFFFFFF00),
+        network: NetworkUtilities.IPv4Network(
+            networkAddress: 0xC0A80700, broadcastAddress: 0xC0A807FF, interfaceAddress: 0xC0A80764, netmask: 0xFFFFFF00
+        ),
         connectionType: .wifi
     )
 
@@ -65,8 +67,8 @@ struct CompanionSightingsTests {
     func inventorySightings(_ list: DeviceListPayload, link: CompanionLinkPath? = CompanionLinkPath(remoteAddress: "192.168.7.2", interface: .wifi),
                             gateway: String? = "192.168.7.1", ownLastScan: Date? = nil) -> [String] {
         let availability = MacInventory.availability(
-            list: list, receivedAt: now, connected: true, link: link,
-            phone: PhoneNetwork(profile: Self.profile, gatewayIP: gateway), viewing: Self.profile.id, now: now
+            list: list, receivedAt: now, link: link, phone: PhoneNetwork(profile: Self.profile, gatewayIP: gateway), viewing: Self.profile.id,
+            presence: PresenceSnapshot(lastScans: [:], now: now)
         )
         return DeviceDiscoveryService.inventorySightings(
             list: list, availability: availability, receivedAt: now, profileID: Self.profile.id, ownLastScan: ownLastScan

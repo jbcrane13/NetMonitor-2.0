@@ -89,8 +89,7 @@ final class MacInventoryModel {
         let networkID = phone?.profile.id
         let availability = MacInventory.availability(
             list: connection.lastDeviceList, receivedAt: connection.lastDeviceListReceivedAt,
-            connected: connection.connectionState.isConnected, link: link, phone: phone, viewing: networkID, now: snapshot.now,
-            policy: snapshot.policy
+            link: connection.connectionState.isConnected ? link : nil, phone: phone, viewing: networkID, presence: snapshot
         )
         let ownScan = discovery.lastScanDate.map { OwnScan(date: $0, devices: discovery.completedScanDevices) }
         overlay = MacInventoryOverlay.make(

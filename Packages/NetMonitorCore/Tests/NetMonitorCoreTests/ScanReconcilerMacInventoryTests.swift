@@ -156,7 +156,8 @@ final class ScanReconcilerMacInventoryTests {
         // The link drops: no sightings from the Mac. Three missed scans and 15 minutes later, offline.
         var all: [DeviceEvent] = []
         for step in 2...5 {
-            all += try events(reconciler.reconcile([phoneSees()], networkProfileID: home, scanDate: minutes(Double(step) * 10), now: minutes(Double(step) * 10)))
+            let time = minutes(Double(step) * 10)
+            all += try events(reconciler.reconcile([phoneSees()], networkProfileID: home, scanDate: time, now: time))
         }
         #expect(try rows(context).first { $0.ipAddress == "192.168.7.20" }?.status == .offline)
         #expect(all.contains {

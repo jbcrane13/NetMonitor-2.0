@@ -118,18 +118,21 @@ public struct MacInventory: Sendable, Equatable {
     public let receivedAt: Date
     public let records: [Record]
 
+    /// - Parameters:
+    ///   - link: the current link's path; nil without a link (not connected).
+    ///   - presence: the phone's clock and grace policy.
     public static func availability(
-        list: DeviceListPayload?, receivedAt: Date?, connected: Bool, link: CompanionLinkPath?, phone: PhoneNetwork?,
-        viewing: UUID?, now: Date, policy: DeviceGracePolicy = DeviceGracePolicy()
+        list: DeviceListPayload?, receivedAt: Date?, link: CompanionLinkPath?, phone: PhoneNetwork?, viewing: UUID?,
+        presence: PresenceSnapshot
     ) -> Availability {
-        guard connected, let list, let receivedAt, let network = list.network,
+        guard let link, let list, let receivedAt, let network = list.network,
               let scanAge = validAge(network.scanAge),
               let phone, phone.profile.id == viewing, let subnet = network.subnet, let macGateway = network.gatewayIP,
               let phoneGateway = phone.gatewayIP else { return .unavailable }
         guard subnet == phone.profile.subnetCIDR, macGateway == phoneGateway else { return .otherNetwork(name: network.name) }
-        guard link?.isOnLink(in: phone.profile.network) == true else { return .unavailable }
+        guard link.isOnLink(in: phone.profile.network) else { return .unavailable }
         let scanTime = receivedAt.addingTimeInterval(-scanAge)
-        guard PresenceFreshness.isRecent(scanTime, now: now, policy: policy) else { return .unavailable }
+        guard PresenceFreshness.isRecent(scanTime, now: presence.now, policy: presence.policy) else { return .unavailable }
         return .live(MacInventory(scanTime: scanTime, receivedAt: receivedAt, records: list.devices.map { record($0, receivedAt: receivedAt) }))
     }
 

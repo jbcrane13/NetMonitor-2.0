@@ -153,7 +153,8 @@ public enum NetworkUtilities {
 
         for ptr in sequence(first: firstAddr, next: { $0.pointee.ifa_next }) {
             let iface = ptr.pointee
-            guard iface.ifa_addr.pointee.sa_family == UInt8(AF_INET), String(cString: iface.ifa_name) == interface, let addrPtr = iface.ifa_addr, let netmaskPtr = iface.ifa_netmask else { continue }
+            guard iface.ifa_addr.pointee.sa_family == UInt8(AF_INET), String(cString: iface.ifa_name) == interface,
+                  let addrPtr = iface.ifa_addr, let netmaskPtr = iface.ifa_netmask else { continue }
 
             let address = UnsafeRawPointer(addrPtr).assumingMemoryBound(to: sockaddr_in.self).pointee
             let mask = UnsafeRawPointer(netmaskPtr).assumingMemoryBound(to: sockaddr_in.self).pointee

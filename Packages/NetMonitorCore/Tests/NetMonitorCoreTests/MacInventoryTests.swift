@@ -42,7 +42,8 @@ struct MacInventoryTests {
         phone: PhoneNetwork? = phone, viewing: UUID? = home.id, now: Date = now
     ) -> MacInventory.Availability {
         MacInventory.availability(
-            list: list, receivedAt: receivedAt, connected: connected, link: link, phone: phone, viewing: viewing, now: now
+            list: list, receivedAt: receivedAt, link: connected ? link : nil, phone: phone, viewing: viewing,
+            presence: PresenceSnapshot(lastScans: [:], now: now)
         )
     }
 
@@ -92,8 +93,8 @@ struct MacInventoryTests {
     @Test func theGraceIsTheCallersPolicy() {
         let list = Self.list([Self.device("192.168.77.20")], scanAge: 60)
         let short = MacInventory.availability(
-            list: list, receivedAt: Self.now, connected: true, link: Self.wifiLink, phone: Self.phone, viewing: Self.home.id,
-            now: Self.now.addingTimeInterval(120), policy: DeviceGracePolicy(interval: 90)
+            list: list, receivedAt: Self.now, link: Self.wifiLink, phone: Self.phone, viewing: Self.home.id,
+            presence: PresenceSnapshot(lastScans: [:], now: Self.now.addingTimeInterval(120), policy: DeviceGracePolicy(interval: 90))
         )
         #expect(short == .unavailable)
     }

@@ -26,8 +26,9 @@ struct MacInventoryOverlayTests {
             list: DeviceListPayload(
                 devices: devices, network: InventoryNetwork(subnet: "192.168.77.0/24", gatewayIP: "192.168.77.254", name: nil, scanAge: 30)
             ),
-            receivedAt: Self.now, connected: true, link: CompanionLinkPath(remoteAddress: "192.168.77.2", interface: .wifi),
-            phone: PhoneNetwork(profile: profile, gatewayIP: "192.168.77.254"), viewing: Self.network, now: Self.now
+            receivedAt: Self.now, link: CompanionLinkPath(remoteAddress: "192.168.77.2", interface: .wifi),
+            phone: PhoneNetwork(profile: profile, gatewayIP: "192.168.77.254"), viewing: Self.network,
+            presence: PresenceSnapshot(lastScans: [:], now: Self.now)
         )
     }
 

@@ -372,8 +372,11 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
 
         return hosts
     }
+}
 
-    // MARK: - Mac Companion Merge
+// MARK: - Mac Companion Merge
+
+extension DeviceDiscoveryService {
 
     /// The oldest a Mac's device list may be and still count as the devices answering now (#598).
     nonisolated public static let companionListFreshness: TimeInterval = 120
@@ -446,8 +449,9 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
         pendingMacSightings = []
         if let list, list.network != nil, let receivedAt, let profile {
             let availability = MacInventory.availability(
-                list: list, receivedAt: receivedAt, connected: macConnected, link: macConnectionService?.linkPath,
-                phone: PhoneNetwork(profile: profile, gatewayIP: NetworkUtilities.detectRoutedGateway()), viewing: profile.id, now: Date()
+                list: list, receivedAt: receivedAt, link: macConnected ? macConnectionService?.linkPath : nil,
+                phone: PhoneNetwork(profile: profile, gatewayIP: NetworkUtilities.detectRoutedGateway()), viewing: profile.id,
+                presence: PresenceSnapshot(lastScans: [:], now: Date())
             )
             pendingMacSightings = Self.inventorySightings(
                 list: list, availability: availability, receivedAt: receivedAt, profileID: profile.id, ownLastScan: ownLastScan
