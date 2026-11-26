@@ -30,6 +30,17 @@ struct CompanionSightingsTests {
         #expect(result.devices.map(\.ipAddress) == ["192.168.7.60"])
     }
 
+    /// #585: a Mac that sends its inventory is shown as the Mac's, never saved, so the phone's own
+    /// scans don't add its devices as sightings: a phone row's last seen stays the phone's own.
+    @Test func aMacThatSendsItsInventoryAddsNoSightings() {
+        let result = DeviceDiscoveryService.companionSightings(
+            list: list, receivedAt: now.addingTimeInterval(-30), macConnected: true, now: now,
+            includes: { $0.hasPrefix("192.168.7.") }, profileID: nil, macOffersInventory: true
+        )
+        #expect(result.devices.isEmpty)
+        #expect(!result.fresh)
+    }
+
     @Test func aListFromADisconnectedMacIsStale() {
         #expect(!sightings(receivedAt: now.addingTimeInterval(-30), connected: false).fresh)
         // A dropped link clears the receive time.

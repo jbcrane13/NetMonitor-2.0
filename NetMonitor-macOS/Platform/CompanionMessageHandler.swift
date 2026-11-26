@@ -22,6 +22,8 @@ final class CompanionMessageHandler {
     private let networkProfileManager: NetworkProfileManager
     /// Answers the iPhone's insight requests with this Mac's model (#457).
     private let insightResponder: CompanionInsightResponder
+    /// The log each device's last change is read from (#585).
+    private let eventService: any NetworkEventServiceProtocol
 
     /// Settings key for "Answer model requests from iPhone"; off when unset.
     nonisolated static let answersInsightKey = "netmonitor.companion.answersInsight"
@@ -40,8 +42,10 @@ final class CompanionMessageHandler {
         wakeOnLanService: WakeOnLANService,
         icmpService: ICMPMonitorService,
         networkProfileManager: NetworkProfileManager,
-        insightService: any InsightServiceProtocol = InsightService.shared
+        insightService: any InsightServiceProtocol = InsightService.shared,
+        eventService: any NetworkEventServiceProtocol = NetworkEventService.shared
     ) {
+        self.eventService = eventService
         self.modelContext = modelContext
         self.monitoringSession = monitoringSession
         self.deviceDiscovery = deviceDiscovery
@@ -79,12 +83,20 @@ final class CompanionMessageHandler {
         }
     }
 
-    /// This Mac's heartbeat, advertising insight while its model can answer and the user
-    /// allows it (#457). An iPhone sends insight requests only after seeing it.
+    /// This Mac's heartbeat: always `inventory.v1` (#585), and insight while its model can answer
+    /// and the user allows it (#457). An iPhone sends insight requests only after seeing it.
     func heartbeat() -> HeartbeatPayload {
-        HeartbeatPayload(capabilities: insightResponder.capabilities(
-            allowed: Self.answersInsight, isScanning: deviceDiscovery.isScanning
-        ))
+        let insight = insightResponder.capabilities(allowed: Self.answersInsight, isScanning: deviceDiscovery.isScanning) ?? []
+        return HeartbeatPayload(capabilities: insight + [CompanionCapability.inventory])
+    }
+
+    /// Calls `send` with the device list after each completed scan, so a connected phone shows
+    /// the Mac's inventory as it is now (#585).
+    func onScanCompleted(_ send: @escaping @MainActor (CompanionMessage) -> Void) {
+        deviceDiscovery.addScanCompletedHandler { [weak self] _, _ in
+            guard let self else { return }
+            send(self.generateDeviceList())
+        }
     }
 
     /// Calls `send` with a fresh heartbeat whenever a scan starts or ends, so a phone stops
@@ -149,6 +161,7 @@ final class CompanionMessageHandler {
         // name and type, the current interface's address and MAC, online when any interface
         // answered. The phone keys nothing on the ID.
         let sentAt = Date()
+        let lastChanges = lastChangeByRow()
         let deviceInfos = deviceDiscovery.projectedDevices.map { device in
             let primary = device.primary
             let scanTime = presence.lastScan(for: primary.networkProfileID)
@@ -176,11 +189,35 @@ final class CompanionMessageHandler {
                 isOnline: presence.answeredLatestScan(device),
                 members: members,
                 // What the Mac shows: any interface online, within grace.
-                isDeviceOnline: presence.freshness(of: device).isOnline
+                isDeviceOnline: presence.freshness(of: device).isOnline,
+                // Ages on this clock, never dates, so the phone never compares clocks (#585, #619).
+                lastSeenAge: sentAt.timeIntervalSince(device.lastSeen),
+                lastChangedAge: device.members.compactMap { lastChanges[$0.id] }.max().map { sentAt.timeIntervalSince($0) },
+                identity: InventoryIdentity(primary.identity)
             )
         }
 
-        return .deviceList(DeviceListPayload(devices: deviceInfos))
+        return .deviceList(DeviceListPayload(devices: deviceInfos, network: inventoryNetwork(presence: presence, sentAt: sentAt)))
+    }
+
+    /// The network the list covers and how old its latest scan is (#585).
+    private func inventoryNetwork(presence: PresenceSnapshot, sentAt: Date) -> InventoryNetwork? {
+        guard let profile = deviceDiscovery.networkProfile else { return nil }
+        return InventoryNetwork(
+            subnet: profile.subnetCIDR, gatewayIP: profile.gatewayIP, name: profile.name,
+            scanAge: presence.lastScan(for: profile.id).map { sentAt.timeIntervalSince($0) }
+        )
+    }
+
+    /// Each row's latest joined or left entry in the event log (#585): entries name the device's
+    /// primary row, newest first.
+    private func lastChangeByRow() -> [UUID: Date] {
+        var latest: [UUID: Date] = [:]
+        for event in eventService.events where event.type == .deviceJoined || event.type == .deviceLeft {
+            guard let id = event.deviceID else { continue }
+            latest[id] = max(latest[id] ?? .distantPast, event.timestamp)
+        }
+        return latest
     }
 
     // MARK: - Private Methods

@@ -269,6 +269,10 @@ struct NetMonitorApp: App {
                 handler?.onScanningChange { heartbeat in
                     Task { await service?.broadcast(.heartbeat(heartbeat)) }
                 }
+                // Each completed scan's inventory goes to the paired phones (#585).
+                handler?.onScanCompleted { list in
+                    Task { await service?.broadcast(list) }
+                }
                 try await companionService?.start(
                     heartbeat: { await handler?.heartbeat() ?? HeartbeatPayload() },
                     messageHandler: { @Sendable message, clientID, authorization in

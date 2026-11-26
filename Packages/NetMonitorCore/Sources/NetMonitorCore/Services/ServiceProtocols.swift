@@ -543,6 +543,8 @@ public protocol MacConnectionServiceProtocol: AnyObject {
     /// When `lastDeviceList` arrived over the current link; nil once that link drops, by any path
     /// (#598). An older list is not evidence of presence now.
     var lastDeviceListReceivedAt: Date? { get }
+    /// Whether the Mac on the current link advertised `inventory.v1` (#585); false once it drops.
+    var macOffersInventory: Bool { get }
     /// The name of the currently connected Mac (nil when not connected).
     var connectedMacName: String? { get }
     /// Whether the service is currently browsing for Macs.
@@ -555,6 +557,8 @@ public protocol MacConnectionServiceProtocol: AnyObject {
 public extension MacConnectionServiceProtocol {
     /// For a conformer that doesn't track it: its list is never fresh.
     var lastDeviceListReceivedAt: Date? { nil }
+    /// For a conformer that doesn't track it: an older Mac, without an inventory.
+    var macOffersInventory: Bool { false }
 }
 
 /// Minimal representation of a discovered Mac peer on the LAN.

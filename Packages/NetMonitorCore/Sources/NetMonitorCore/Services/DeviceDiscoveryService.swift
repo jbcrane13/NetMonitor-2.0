@@ -380,6 +380,8 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
     /// latest scan, when that scan is newer than `ownLastScan` (this phone's own last scan of the
     /// network); a newly received list is not proof of a new scan. The Mac's scan is placed on this
     /// phone's clock as `receivedAt - scanAge`, never by comparing the two devices' clocks (#619).
+    /// A Mac that sends its inventory (`macOffersInventory`, #585) adds nothing: the phone shows its
+    /// list as the Mac's and never saves devices from it.
     nonisolated public static func companionSightings(
         list: DeviceListPayload?,
         receivedAt: Date?,
@@ -387,9 +389,10 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
         now: Date,
         includes: (String) -> Bool,
         profileID: UUID?,
-        ownLastScan: Date? = nil
+        ownLastScan: Date? = nil,
+        macOffersInventory: Bool = false
     ) -> (devices: [DiscoveredDevice], fresh: Bool) {
-        guard let list else { return ([], false) }
+        guard let list, !macOffersInventory else { return ([], false) }
         let fresh = macConnected && receivedAt.map { now.timeIntervalSince($0) < companionListFreshness } == true
         func sighting(ipAddress: String, macAddress: String?, of device: DeviceInfo, named: Bool = true) -> DiscoveredDevice {
             DiscoveredDevice(
@@ -433,7 +436,8 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
             Self.companionSightings(
                 list: macConnectionService?.lastDeviceList, receivedAt: macConnectionService?.lastDeviceListReceivedAt,
                 macConnected: macConnected, now: Date(), includes: { filter.contains(ipAddress: $0) }, profileID: profileID,
-                ownLastScan: ScanHistory().lastScanTime(for: profileID)
+                ownLastScan: ScanHistory().lastScanTime(for: profileID),
+                macOffersInventory: macConnectionService?.macOffersInventory ?? false
             ),
             into: engine.accumulator
         )
