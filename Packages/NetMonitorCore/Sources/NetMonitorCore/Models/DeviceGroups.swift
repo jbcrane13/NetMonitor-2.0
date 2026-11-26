@@ -142,6 +142,9 @@ public enum DeviceGroups {
     /// The rows a network's device list reads (#594, #585): its `limit` most recently seen devices
     /// plus those saved before rows had a network, as complete groups, most recent first, at most
     /// `limit` devices.
+    /// How many devices a device list reads at most.
+    public static let listedRowLimit = 500
+
     @MainActor
     public static func listedRows(network: UUID?, limit: Int, in context: ModelContext) -> [LocalDevice] {
         let scopes: [DeviceScope] = (network.map { [.network($0)] } ?? []) + [.withoutNetwork]

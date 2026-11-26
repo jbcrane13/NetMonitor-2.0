@@ -27,6 +27,19 @@ struct SavedDeviceSummary: Equatable {
         top = answered.prefix(3).map { Entry(name: $0.displayName, ipAddress: $0.ipAddress) }
     }
 
+    /// While the Mac's inventory is live (#585): the devices online as the list shows them (the
+    /// Mac's state where it has a record, and devices only the Mac knows), so the list, the
+    /// dashboard and the widget show one number.
+    init(overlay: MacInventoryOverlay, presence: PresenceSnapshot) {
+        let saved = overlay.devices.filter {
+            overlay.isShown($0, showPast: false, presence: presence) && overlay.freshness(of: $0, presence: presence).isOnline
+        }.map { Entry(name: $0.displayName, ipAddress: $0.ipAddress) }
+        let macOnly = overlay.macOnly.filter(\.state.isOnline).map { Entry(name: $0.name, ipAddress: $0.ipAddress) }
+        let online = (saved + macOnly).sorted { DeviceList.compareIPAddresses($0.ipAddress, $1.ipAddress) }
+        count = online.count
+        top = Array(online.prefix(3))
+    }
+
     /// A scan no saved network describes (#594 review): its own devices, in the scan's order (by
     /// address), as the widget showed every scan before #594.
     init(scan: [DiscoveredDevice]) {
@@ -74,6 +87,16 @@ final class SavedDeviceSummaryModel {
         }
         for network in networks {
             refresh(network: network, in: context, presence: presence, defaults: defaults, reloadWidget: reloadWidget)
+        }
+    }
+
+    /// Publishes `summary` as `network`'s, and to the widget (#585: the Mac's inventory count).
+    func publish(_ summary: SavedDeviceSummary, for network: UUID, to defaults: UserDefaults, reloadWidget: Bool = true) {
+        guard summaries[network] != summary else { return }
+        summaries[network] = summary
+        summary.publish(to: defaults)
+        if reloadWidget {
+            WidgetCenter.shared.reloadTimelines(ofKind: "DeviceGlanceWidget")
         }
     }
 

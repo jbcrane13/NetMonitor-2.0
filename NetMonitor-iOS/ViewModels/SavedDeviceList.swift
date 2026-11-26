@@ -72,45 +72,35 @@ struct SavedDeviceList {
     /// The N in "Show past devices (N)".
     let pastCount: Int
     let presence: PresenceSnapshot
-    /// The Mac's inventory while it is live (#585).
-    let inventory: MacInventory?
-    /// Whether the Mac's list covers another network than this list's, and that network's name.
-    let isMacOnOtherNetwork: Bool
-    let otherNetworkName: String?
-    private let matches: MacInventory.Matches?
+    /// The Mac's inventory for this list's network, computed once by `MacInventoryModel` (#585);
+    /// `.none` when it isn't live or is another network's.
+    let overlay: MacInventoryOverlay
 
     /// - Parameters:
     ///   - saved: saved rows, complete groups (``recentRows(network:in:)``); those of `network`
     ///     (or of none) are listed, one entry per device.
     ///   - live: the scan's devices, during or after it; those matching a saved row (by MAC, else
     ///     address) are that row's device, the rest are listed as found in this scan.
-    ///   - inventory: the connected Mac's inventory for this list's network (#585).
+    ///   - overlay: the connected Mac's inventory (#585), used only when it is this network's.
     init(
         saved: [LocalDevice], live: [DiscoveredDevice] = [], network: UUID?, sort: Sort, showPast: Bool, presence: PresenceSnapshot,
-        inventory availability: MacInventory.Availability = .unavailable
+        overlay: MacInventoryOverlay = .none
     ) {
         let rows = saved.filter { $0.networkProfileID == network || $0.networkProfileID == nil }
         self.presence = presence
+        let overlay = overlay.applies(to: network) ? overlay : .none
+        self.overlay = overlay
         let found = live.filter { device in
             (device.networkProfileID == network || device.networkProfileID == nil) && !rows.contains { Self.matches($0, device) }
         }
-        let shown = DeviceList.devices(rows, filter: DeviceListFilter(showPast: showPast), presence: presence, sort: .ipAddress, ascending: true)
-        pastCount = DeviceList.pastCount(rows, filter: DeviceListFilter(), presence: presence)
-        switch availability {
-        case .live(let live):
-            (inventory, isMacOnOtherNetwork, otherNetworkName) = (live, false, nil)
-        case .otherNetwork(let name):
-            (inventory, isMacOnOtherNetwork, otherNetworkName) = (nil, true, name)
-        case .unavailable:
-            (inventory, isMacOnOtherNetwork, otherNetworkName) = (nil, false, nil)
-        }
-        // Matched against every saved device, past ones too, so none of them shows twice.
-        let matches = inventory?.matches(DeviceGroups.project(rows))
-        self.matches = matches
-        let macOnly = (matches?.macOnly ?? []).filter { record in !found.contains { record.memberAddresses.contains($0.ipAddress) } }
+        // Past devices are filtered after matching: one the Mac has online now is shown (#585 review 4).
+        let all = DeviceList.devices(rows, filter: DeviceListFilter(showPast: true), presence: presence, sort: .ipAddress, ascending: true)
+        let shown = all.filter { overlay.isShown($0, showPast: showPast, presence: presence) }
+        pastCount = all.count { presence.isPast($0) && !overlay.isShown($0, showPast: false, presence: presence) }
+        let macOnly = overlay.macOnly.filter { record in !found.contains { device in record.members.contains { $0.ipAddress == device.ipAddress } } }
         entries = Self.sorted(
             shown.map(Entry.saved) + found.map(Entry.found) + macOnly.map(Entry.mac), by: sort,
-            freshness: { Self.freshness($0, presence, matches) }, latency: { Self.latency($0, presence) }
+            freshness: { Self.freshness($0, presence, overlay) }, latency: { Self.latency($0, presence) }
         )
     }
 
@@ -122,31 +112,31 @@ struct SavedDeviceList {
         DeviceGroups.listedRows(network: network, limit: fetchLimit, in: context)
     }
 
-    static let fetchLimit = 500
+    static let fetchLimit = DeviceGroups.listedRowLimit
 
     /// Devices online now, counting devices found by a recent scan and, while it is live, the Mac's.
     var onlineCount: Int {
-        entries.count { Self.freshness($0, presence, matches).isOnline }
+        entries.count { Self.freshness($0, presence, overlay).isOnline }
     }
 
     // MARK: - The Mac's inventory (#585)
 
     /// "From your Mac · scanned 2 min ago" while the Mac's inventory is live.
     var sourceText: String? {
-        inventory?.sourceText(now: presence.now)
+        overlay.inventory?.sourceText(now: presence.now)
     }
 
     /// The Mac's record of a saved device, while the inventory is live.
     func macRecord(for device: DeviceProjection) -> MacInventory.Record? {
-        matches?.record(for: device)
+        overlay.record(for: device)
     }
 
     /// The device's state: the Mac's while it has a record, else the phone's own.
     func freshness(of device: DeviceProjection) -> PresenceFreshness {
-        macRecord(for: device)?.state ?? presence.freshness(of: device)
+        overlay.freshness(of: device, presence: presence)
     }
 
-    /// "Online · from your Mac · last seen 2 min ago", or the phone's own "Online · Last seen …".
+    /// "Online · from your Mac · Last seen 2 min ago", or the phone's own "Online · Last seen …".
     func statusText(_ device: DeviceProjection) -> String {
         macRecord(for: device)?.statusText(now: presence.now) ?? presence.statusText(device)
     }
@@ -160,10 +150,18 @@ struct SavedDeviceList {
         macRecord(for: device)?.accessibilityText(now: presence.now) ?? presence.accessibilityText(device)
     }
 
-    /// "Seen by this iPhone at 10:42 AM" while the Mac's inventory is shown, so the phone's own
-    /// sighting is never taken for the Mac's.
+    /// "Seen by this iPhone at 10:42 AM": only when the phone's own latest scan saw the device,
+    /// with that scan's time, while the Mac's inventory is shown (#585 review 8).
     func phoneSightingText(_ device: DeviceProjection) -> String? {
-        inventory.map { _ in MacInventory.phoneSightingText(device.lastSeen, now: presence.now) }
+        overlay.phoneSighting(for: device).map { MacInventory.phoneSightingText($0, now: presence.now) }
+    }
+
+    /// "Acme Doorbell 2 · from your Mac": the Mac's maker and model when the phone has neither
+    /// (#585 review 9, #427). Shown only, never saved.
+    func macIdentityText(_ device: DeviceProjection) -> String? {
+        guard device.primary.maker == nil, device.primary.modelName == nil, let record = macRecord(for: device) else { return nil }
+        let identity = [record.maker, record.model].compactMap { $0 }.joined(separator: " ")
+        return identity.isEmpty ? nil : "\(identity) · \(MacInventory.Record.source)"
     }
 
     /// A found device is online while its sighting is within the grace interval; a stopped or
@@ -209,10 +207,10 @@ struct SavedDeviceList {
         }
     }
 
-    private static func freshness(_ entry: Entry, _ presence: PresenceSnapshot, _ matches: MacInventory.Matches?) -> PresenceFreshness {
+    private static func freshness(_ entry: Entry, _ presence: PresenceSnapshot, _ overlay: MacInventoryOverlay) -> PresenceFreshness {
         switch entry {
         case .saved(let device):
-            matches?.record(for: device)?.state ?? presence.freshness(of: device)
+            overlay.freshness(of: device, presence: presence)
         case .found(let device):
             PresenceFreshness.isRecent(device.discoveredAt, now: presence.now, policy: presence.policy) ? .online : .notCheckedRecently
         case .mac(let record):

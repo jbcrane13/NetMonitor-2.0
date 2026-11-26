@@ -19,6 +19,8 @@ struct NetmonitorApp: App {
     @State private var deviceRecordUpdater: DeviceRecordUpdater?
     /// What saved devices' statuses mean now (#583), shared by every device view.
     @State private var presence = DevicePresenceModel()
+    /// The connected Mac's inventory, computed once per change for every device view (#585).
+    @State private var macInventory: MacInventoryModel?
     @Environment(\.scenePhase) private var scenePhase
 
     private static var isUITesting: Bool {
@@ -106,6 +108,17 @@ struct NetmonitorApp: App {
         eventListener.start()
     }
 
+    /// Starts computing the connected Mac's inventory for the device views, once (#585).
+    private func startMacInventory() {
+        guard macInventory == nil else { return }
+        let model = MacInventoryModel(
+            connection: environment.macConnection, discovery: environment.deviceDiscovery, presence: presence,
+            context: sharedModelContainer.mainContext
+        )
+        model.start()
+        macInventory = model
+    }
+
     /// Starts keeping the saved device rows current after each scan, once (#582).
     private func startDeviceRecordUpdater() {
         guard deviceRecordUpdater == nil else { return }
@@ -153,6 +166,7 @@ struct NetmonitorApp: App {
                 .accessibilityIdentifier("screen_main")
                 .environment(environment)
                 .environment(presence)
+                .environment(macInventory)
                 .environment(deepLinkRouter)
                 .onOpenURL { url in
                     deepLinkRouter.handle(url: url)
@@ -178,6 +192,7 @@ struct NetmonitorApp: App {
                     // After any UI-test reset of the scan history; then every minute (#583).
                     presence.refresh()
                     presence.startTicking()
+                    startMacInventory()
 
                     if Self.isUITesting || Self.persistenceOutcome.isDegraded {
                         return

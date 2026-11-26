@@ -623,6 +623,7 @@
 		EACCB1656A85E80B3E9CB759 /* NetMonitorShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 379E2019EA5D0F80F87224BF /* NetMonitorShortcuts.swift */; };
 		EBE7019722D65D9B1001FF5B /* DeviceDetailByIDTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26D323D478605404BE814ABC /* DeviceDetailByIDTests.swift */; };
 		EC466F2D1EF5634D6409813D /* UITestFakeISPService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD27EDA91F54A322B88ED392 /* UITestFakeISPService.swift */; };
+		EC5631DE32065AF3DC2633CC /* MacInventoryModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A8FE400541076FB53B41AB7 /* MacInventoryModelTests.swift */; };
 		ECB3E082FBEC6CDDF61633F6 /* ISPLookupServiceCacheErrorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC50DF5BC553FC2B2E1E51FA /* ISPLookupServiceCacheErrorTests.swift */; };
 		ED2737886E2DF66E43FDE912 /* RoomPlanScannerViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8393BFDDAF199B582E13D567 /* RoomPlanScannerViewModelTests.swift */; };
 		EE0350D8E618851D49CA531A /* ToolResultRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA561BD6AF240A98038ED27A /* ToolResultRow.swift */; };
@@ -663,6 +664,7 @@
 		FB624EE7120D5869300BBE85 /* GeoTraceUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81576F18D180FACEF6FCB355 /* GeoTraceUITests.swift */; };
 		FBCF20A4E3EF9372F9E218C5 /* MacOSToolOutcomeUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F84B2379791919EAF70CBFB5 /* MacOSToolOutcomeUITests.swift */; };
 		FC06ACBC99F5A904C2F8F4FD /* TCPMonitorServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34CAA702CF1D6A96FE8D8D30 /* TCPMonitorServiceTests.swift */; };
+		FC9F52899DC0CAD936B85A45 /* MacInventoryModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80A519E5D2E0C954B630248F /* MacInventoryModel.swift */; };
 		FCA315A518D23CDA19CC8527 /* MacConnectionServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAE65435D045DE3913F261E2 /* MacConnectionServiceTests.swift */; };
 		FCC5D14634F9297C431DD2F7 /* CompanionMessageContractTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 902E1E2A42E01B90226266F6 /* CompanionMessageContractTests.swift */; };
 		FCE225274D7B93E9D455C134 /* WorldPingServiceErrorSurfacingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7937C6318E83D9BD57EF3ACD /* WorldPingServiceErrorSurfacingTests.swift */; };
@@ -1008,6 +1010,7 @@
 		6A1463D0F300F4A83536BF57 /* ScanCommandTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanCommandTests.swift; sourceTree = "<group>"; };
 		6A3C5A26C422CE3455CD55A3 /* TimelineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineView.swift; sourceTree = "<group>"; };
 		6A7BF2688249B6ABE1A6465E /* UITestFakeMacPairing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UITestFakeMacPairing.swift; sourceTree = "<group>"; };
+		6A8FE400541076FB53B41AB7 /* MacInventoryModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacInventoryModelTests.swift; sourceTree = "<group>"; };
 		6AB25CE919BD8A2180679117 /* MacHealthSampler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacHealthSampler.swift; sourceTree = "<group>"; };
 		6AC7F633EA592CA1A5D2F95C /* CompanionMessageHandlerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionMessageHandlerTests.swift; sourceTree = "<group>"; };
 		6B192A3420B4F00F8DFB10D8 /* DNSLookupToolUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DNSLookupToolUITests.swift; sourceTree = "<group>"; };
@@ -1062,6 +1065,7 @@
 		800862C95652A6E5E6BE1CE5 /* ToolsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolsViewModel.swift; sourceTree = "<group>"; };
 		8060BA1D46DE89D4DF06753D /* WakeOnLANToolUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WakeOnLANToolUITests.swift; sourceTree = "<group>"; };
 		807B3D0AEC9A52A4C5756B8E /* ScanNetworkIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanNetworkIntent.swift; sourceTree = "<group>"; };
+		80A519E5D2E0C954B630248F /* MacInventoryModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacInventoryModel.swift; sourceTree = "<group>"; };
 		80FE23B27BDE116B2FF20485 /* NetMonitor-macOSUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "NetMonitor-macOSUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		810C19CFD5E59DF141347B97 /* EventListenerNetworkIDTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventListenerNetworkIDTests.swift; sourceTree = "<group>"; };
 		81576F18D180FACEF6FCB355 /* GeoTraceUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeoTraceUITests.swift; sourceTree = "<group>"; };
@@ -1608,6 +1612,7 @@
 				EFE78C1F67A9AB5870386650 /* MacBrowser.swift */,
 				2224DE47C4DB83B5ED7E474B /* MacConnectionService.swift */,
 				9590A0B22E01E5724C247890 /* MacConnectionService+Inventory.swift */,
+				80A519E5D2E0C954B630248F /* MacInventoryModel.swift */,
 				FB2BABE6B146199DA5F47AA0 /* MonitoringTargetProbe.swift */,
 				603D57D4202F475E3E7CB108 /* PDFReportGenerator.swift */,
 				A8B8513299797FF31C370525 /* PhoneInsight.swift */,
@@ -1997,6 +2002,7 @@
 				5457005C18CFFE85234D3D65 /* MacConnectionServicePairingTests.swift */,
 				6FD6C6F1D69669E8BECE28CF /* MacConnectionServiceReceiveBufferTests.swift */,
 				AAE65435D045DE3913F261E2 /* MacConnectionServiceTests.swift */,
+				6A8FE400541076FB53B41AB7 /* MacInventoryModelTests.swift */,
 				00E1674589A71F5BF148C46E /* MonitoringTargetProbeTests.swift */,
 				4B552D58968F75459B0868D2 /* NetMonitor_iOSTests.swift */,
 				AE584A8394FFA0BFC9255154 /* NetworkEventServiceTests.swift */,
@@ -3108,6 +3114,7 @@
 				21D7499FA2514861569D6047 /* MacConnectionServicePairingTests.swift in Sources */,
 				A8D65DDFD2B7DE5CBD3E95D8 /* MacConnectionServiceReceiveBufferTests.swift in Sources */,
 				FCA315A518D23CDA19CC8527 /* MacConnectionServiceTests.swift in Sources */,
+				EC5631DE32065AF3DC2633CC /* MacInventoryModelTests.swift in Sources */,
 				67A14F64E06F67AD2C5D5442 /* MockInsightService.swift in Sources */,
 				06BCBD8250060728E8A46DEE /* MockURLProtocol.swift in Sources */,
 				1734360857A9CB1899C0731C /* MonitoringTargetProbeTests.swift in Sources */,
@@ -3249,6 +3256,7 @@
 				CC7EDFA21B8413C0ACF4080C /* MacConnectionService+Inventory.swift in Sources */,
 				AAA4FFC237B612D2669BD194 /* MacConnectionService.swift in Sources */,
 				FD2DC3C468C344D70D9040A3 /* MacInsightConsentPrompt.swift in Sources */,
+				FC9F52899DC0CAD936B85A45 /* MacInventoryModel.swift in Sources */,
 				DFDE9EB7E6C9B9E7160E7108 /* MacInventoryViews.swift in Sources */,
 				5CBC25455BD53E05AF8525E6 /* MacPairingView.swift in Sources */,
 				D653F4116C56708DB58398CB /* MetricCard.swift in Sources */,

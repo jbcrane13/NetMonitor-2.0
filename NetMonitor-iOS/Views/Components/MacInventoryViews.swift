@@ -7,28 +7,29 @@ struct MacInventoryBanner: View {
     let list: SavedDeviceList
 
     var body: some View {
-        if let source = list.sourceText {
-            Label(source, systemImage: "desktopcomputer")
+        switch list.overlay.availability {
+        case .live(let inventory):
+            Label(inventory.sourceText(now: list.presence.now), systemImage: "desktopcomputer")
                 .font(.caption)
                 .foregroundStyle(Theme.Colors.accent)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, Theme.Layout.screenPadding)
                 .accessibilityElement(children: .combine)
                 .accessibilityIdentifier("deviceList_banner_macInventory")
-        } else if list.isMacOnOtherNetwork {
-            Label(otherNetworkText, systemImage: "desktopcomputer.trianglebadge.exclamationmark")
+        case .otherNetwork(let name):
+            Label(
+                "Your Mac is scanning another network\(name.map { " (\($0))" } ?? ""). Showing this iPhone's scans.",
+                systemImage: "desktopcomputer.trianglebadge.exclamationmark"
+            )
                 .font(.caption)
                 .foregroundStyle(Theme.Colors.textSecondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, Theme.Layout.screenPadding)
                 .accessibilityElement(children: .combine)
                 .accessibilityIdentifier("deviceList_banner_macOtherNetwork")
+        case .unavailable:
+            EmptyView()
         }
-    }
-
-    private var otherNetworkText: String {
-        let network = list.otherNetworkName.map { " (\($0))" } ?? ""
-        return "Your Mac is scanning another network\(network). Showing this iPhone's scans."
     }
 }
 
@@ -37,8 +38,8 @@ struct MacInventoryBanner: View {
 struct MacOnlyDeviceRow: View {
     let record: MacInventory.Record
     let now: Date
-    /// The screen's identifier prefix: `deviceList` or `dashboard`.
-    var screen = "deviceList"
+    /// The row's identifier, in its screen's format.
+    let accessibilityID: String
 
     var body: some View {
         HStack(spacing: Theme.Layout.itemSpacing) {
@@ -74,7 +75,7 @@ struct MacOnlyDeviceRow: View {
         .opacity(record.state.isOnline ? 1 : 0.7)
         .accessibilityElement(children: .combine)
         .accessibilityValue([record.accessibilityText(now: now), record.changedText(now: now)].compactMap { $0 }.joined(separator: ". "))
-        .accessibilityIdentifier("\(screen)_row_device_\(record.ipAddress.replacingOccurrences(of: ".", with: "_"))")
+        .accessibilityIdentifier(accessibilityID)
     }
 }
 

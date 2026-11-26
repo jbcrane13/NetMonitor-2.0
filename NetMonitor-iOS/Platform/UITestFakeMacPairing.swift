@@ -29,9 +29,6 @@ final class FakeCompanionMac: Sendable {
     private let dropsConnections: Bool
     /// The inventory this Mac sends for `refreshDevices` (#585); with one it advertises `inventory.v1`.
     private let inventory: DeviceListPayload?
-    /// Stops listening and closes every link this long after first sending the inventory, as a
-    /// Mac that went to sleep or left the network would (#585).
-    private let stopsAfterInventory: Duration?
     private let state = Mutex(State())
 
     /// One link's fixed facts.
@@ -48,7 +45,6 @@ final class FakeCompanionMac: Sendable {
         var connectionCount = 0
         /// Pairing links waiting for both verdicts: link → (phone pin, Mac said yes, phone said yes).
         var verdicts: [UUID: (pin: Data, mac: Bool, phone: Bool)] = [:]
-        var stopScheduled = false
     }
 
     init(
@@ -60,11 +56,9 @@ final class FakeCompanionMac: Sendable {
         pairedPins: [Data] = [],
         revealsWrongNonce: Bool = false,
         dropsConnections: Bool = false,
-        inventory: DeviceListPayload? = nil,
-        stopsAfterInventory: Duration? = nil
+        inventory: DeviceListPayload? = nil
     ) throws {
         self.inventory = inventory
-        self.stopsAfterInventory = stopsAfterInventory
         self.name = name
         self.confirmation = confirmation
         self.confirmDelay = confirmDelay
@@ -199,7 +193,6 @@ final class FakeCompanionMac: Sendable {
             }
             if case .command(let command) = message, command.action == .refreshDevices, let inventory {
                 send(.deviceList(inventory), on: connection)
-                scheduleStop()
             }
         case .pairRequest:
             guard case .pairRequest(let request) = message,
@@ -237,20 +230,6 @@ final class FakeCompanionMac: Sendable {
     /// The heartbeat this Mac sends: `inventory.v1` while it has an inventory.
     private var heartbeat: HeartbeatPayload {
         HeartbeatPayload(capabilities: inventory == nil ? nil : [CompanionCapability.inventory])
-    }
-
-    /// Stops once, `stopsAfterInventory` after the inventory first went out.
-    private func scheduleStop() {
-        guard let delay = stopsAfterInventory else { return }
-        let first = state.withLock { state in
-            defer { state.stopScheduled = true }
-            return !state.stopScheduled
-        }
-        guard first else { return }
-        Task {
-            try? await Task.sleep(for: delay)
-            self.stop()
-        }
     }
 
     /// Pins the phone once both the stand-in user and the phone have said yes.
@@ -293,9 +272,8 @@ enum UITestFakeMacPairing {
         let code = ProcessInfo.processInfo.environment["UITEST_PAIRING_CODE"].flatMap(CompanionPairingCode.init(typed:)) ?? .random()
         let environment = ProcessInfo.processInfo.environment
         let inventory = environment["UITEST_FAKE_MAC_INVENTORY"] == "1" ? inventoryFixture : nil
-        let stop = environment["UITEST_FAKE_MAC_STOP_AFTER"].flatMap(Int.init).map { Duration.seconds($0) }
         guard let fake = try? FakeCompanionMac(
-            port: port, code: code, confirmDelay: .seconds(3), inventory: inventory, stopsAfterInventory: stop
+            port: port, code: code, confirmDelay: .seconds(3), inventory: inventory
         ) else { return nil }
         Task { _ = try? await fake.start() }
         return fake
@@ -308,7 +286,9 @@ enum UITestFakeMacPairing {
     static let macOnlyDoorbellIP = "192.168.1.60"
 
     private static var inventoryFixture: DeviceListPayload {
-        let subnet = NetworkProfileManager().activeProfile?.subnetCIDR ?? "192.168.1.0/24"
+        let local = CurrentNetwork.detected() ?? NetworkProfileManager().localProfile
+        let subnet = local?.subnetCIDR ?? "192.168.1.0/24"
+        let gateway = NetworkUtilities.detectRoutedGateway() ?? fallbackGateway
         let doorbell = DeviceIdentity(maker: IdentityValue("Acme", source: .upnp), model: IdentityValue("Doorbell 2", source: .upnp))
         return DeviceListPayload(
             devices: [
@@ -321,9 +301,42 @@ enum UITestFakeMacPairing {
                     isOnline: true, isDeviceOnline: true, lastSeenAge: 120, lastChangedAge: 3600, identity: InventoryIdentity(doorbell)
                 )
             ],
-            network: InventoryNetwork(subnet: subnet, gatewayIP: nil, name: "UITest Network", scanAge: 60)
+            network: InventoryNetwork(subnet: subnet, gatewayIP: gateway, name: "UITest Network", scanAge: 60)
         )
     }
+
+    /// Whether the fake Mac is in use.
+    static var isActive: Bool { fake != nil }
+
+    /// The fake Mac leaves: it stops listening and closes every link, as a Mac that went to sleep
+    /// or left the network would. UI tests press Settings ▸ "Fake Mac leaves" (#585).
+    static func leave() {
+        fake?.stop()
+    }
+
+    /// Stand-ins for what a UI test can't have (#585): the UI-test scan's network stands for the
+    /// phone's current one, and the fake Mac on loopback for a Mac on the Wi-Fi link. Without the
+    /// fake devices or the fake Mac, `phone` and `link` are returned as they are.
+    static func standIns(phone: PhoneNetwork?, link: CompanionLinkPath?) -> (PhoneNetwork?, CompanionLinkPath?) {
+        guard UITestBootstrap.isUITesting, let phone else { return (phone, link) }
+        var standIn = phone
+        if UITestFakeDeviceFeed.isEnabled {
+            let local = phone.profile
+            standIn = PhoneNetwork(
+                profile: NetworkProfile(
+                    id: UITestBootstrap.networkProfileID, interfaceName: local.interfaceName, ipAddress: local.ipAddress,
+                    network: local.network, connectionType: local.connectionType, name: local.name, gatewayIP: local.gatewayIP,
+                    subnet: local.subnet, isLocal: true, discoveryMethod: .auto
+                ),
+                gatewayIP: phone.gatewayIP ?? fallbackGateway
+            )
+        }
+        guard isActive else { return (standIn, link) }
+        return (standIn, CompanionLinkPath(remoteAddress: phone.profile.ipAddress, interface: .wifi))
+    }
+
+    /// The gateway both the fake Mac and the phone use when the simulator's route can't be read.
+    static let fallbackGateway = "192.0.2.1"
 
     /// The fake Mac as the browser would list it.
     static var discovered: (mac: DiscoveredMac, endpoint: NWEndpoint)? {

@@ -20,6 +20,8 @@ struct DeviceListView: View {
     /// The network's saved devices, paged by device (#594).
     @State private var saved = SavedDeviceRows()
     @Environment(DevicePresenceModel.self) private var presenceModel: DevicePresenceModel?
+    /// The connected Mac's inventory, computed once per change (#585).
+    @Environment(MacInventoryModel.self) private var inventoryModel: MacInventoryModel?
     @State private var sortOrder: SavedDeviceList.Sort = .ip
     /// Past devices (unseen for a week) are hidden each time the list opens, never remembered
     /// hidden: the list always says how many there are, so none is hidden without a way back.
@@ -38,7 +40,7 @@ struct DeviceListView: View {
         let presence = presenceModel?.snapshot ?? DevicePresenceModel.noScans
         let list = SavedDeviceList(
             saved: saved.rows, live: discoveredDevices, network: networkID, sort: sortOrder, showPast: showPastDevices,
-            presence: presence, inventory: MacConnectionService.shared.inventory(for: networkProfile, now: presence.now)
+            presence: presence, overlay: inventoryModel?.overlay ?? .none
         )
         ScrollView {
             if saved.isLoaded, list.entries.isEmpty, list.pastCount == 0, !isScanning {
@@ -99,7 +101,12 @@ struct DeviceListView: View {
                 case .found(let device):
                     foundLink(device, in: list)
                 case .mac(let record):
-                    GlassCard { MacOnlyDeviceRow(record: record, now: list.presence.now) }
+                    GlassCard {
+                        MacOnlyDeviceRow(
+                            record: record, now: list.presence.now,
+                            accessibilityID: "deviceList_row_device_\(record.ipAddress.replacingOccurrences(of: ".", with: "_"))"
+                        )
+                    }
                 }
             }
 
@@ -174,6 +181,7 @@ struct DeviceListView: View {
                         accessibilityID: "deviceList_label_presence_\(device.ipAddress.replacingOccurrences(of: ".", with: "_"))"
                     )
                         .accessibilityHidden(true)
+                    macIdentity(device, in: list)
                     phoneSighting(device, in: list)
                 }
 
@@ -217,7 +225,19 @@ struct DeviceListView: View {
         }
     }
 
-    /// "Seen by this iPhone at 10:42 AM" while the Mac's inventory is shown (#585).
+    /// The Mac's maker and model when the phone has neither (#585, #427).
+    @ViewBuilder
+    private func macIdentity(_ device: DeviceProjection, in list: SavedDeviceList) -> some View {
+        if let text = list.macIdentityText(device) {
+            Text(text)
+                .font(.caption2)
+                .foregroundStyle(Theme.Colors.textTertiary)
+                .lineLimit(1)
+                .accessibilityIdentifier("deviceList_label_macIdentity_\(device.ipAddress.replacingOccurrences(of: ".", with: "_"))")
+        }
+    }
+
+    /// "Seen by this iPhone at 10:42 AM" when the phone's own latest scan saw it (#585).
     @ViewBuilder
     private func phoneSighting(_ device: DeviceProjection, in list: SavedDeviceList) -> some View {
         if let text = list.phoneSightingText(device) {

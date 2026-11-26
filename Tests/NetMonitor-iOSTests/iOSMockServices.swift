@@ -304,6 +304,7 @@ final class MockMacConnectionService: MacConnectionServiceProtocol {
     var connectedMacName: String? = nil
     var isBrowsing: Bool = false
     var discoveredMacs: [DiscoveredMac] = []
+    var linkPath: CompanionLinkPath?
 
     func send(command: CommandPayload) async {}
 }

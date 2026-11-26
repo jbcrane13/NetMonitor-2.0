@@ -31,10 +31,8 @@ final class MacConnectionService: MacConnectionServiceProtocol {
     private(set) var lastDeviceList: DeviceListPayload?
     /// When `lastDeviceList` arrived over the current link; nil once the link drops (#598).
     private(set) var lastDeviceListReceivedAt: Date?
-    /// Whether the Mac on this link advertised `inventory.v1` (#585): the phone then shows its
-    /// device list as the Mac's and adds none of it to its own scans. False once the link ends; set
-    /// only by `receivedInventoryOffer(_:)` and the link's teardown.
-    var macOffersInventory = false
+    /// The link's inventory offer and path (#585), reset with the link.
+    private(set) var inventoryLink = CompanionInventoryLink()
     /// The Mac this phone is paired with (#590).
     private(set) var pairedMac: PairedMacRecord?
     private(set) var linkProblem: MacLinkProblem?
@@ -63,7 +61,7 @@ final class MacConnectionService: MacConnectionServiceProtocol {
     private var lastConnectedMacName: String?
     private var shouldAutoReconnect = false
     private var linkSession = CompanionLinkSession(heartbeatInterval: MacConnectionService.heartbeatInterval)
-    let networkProfileManager: NetworkProfileManager
+    private let networkProfileManager: NetworkProfileManager
     private let macStore: PairedMacStore
     private let defaults: UserDefaults
     /// How long an attempt may take to reach the Mac's serverHello before it counts as failed.
@@ -77,7 +75,6 @@ final class MacConnectionService: MacConnectionServiceProtocol {
     // MARK: - Constants
 
     private static let heartbeatInterval: TimeInterval = 15
-    private static let heartbeatVersion = "1.0"
     /// Forget This Mac couldn't delete the key: it must not be loaded or used until it is.
     static let pendingForgetKey = "netmonitor.companion.pendingForget"
 
@@ -248,7 +245,7 @@ extension MacConnectionService {
         connectedMacName = nil
         // The Mac's device list stays for display, but is no longer evidence of presence (#598).
         lastDeviceListReceivedAt = nil
-        macOffersInventory = false
+        inventoryLink = CompanionInventoryLink()
         session = nil
         awaitingHello = false
         insightClient.disconnected()
@@ -289,6 +286,7 @@ extension MacConnectionService {
                 return
             }
             session = verified
+            inventoryLink.path = CompanionLinkPath(connection.currentPath)
             awaitingHello = true
             frameDecoder = CompanionFrameDecoder()
             scheduleReceive(connection: connection, generation: generation)
@@ -361,7 +359,9 @@ extension MacConnectionService {
                         Self.logger.error("Rejected \(batch.errors.count) companion frame(s)")
                     }
 
-                    if isComplete || error != nil {
+                    // A rejected frame (too large, unreadable) leaves the stream out of step: end the link,
+                    // which ends the Mac's inventory too, and connect again (#585 review 12).
+                    if isComplete || error != nil || !batch.errors.isEmpty {
                         self.linkFailed(generation: generation, reason: error?.localizedDescription)
                     } else if self.connectionGeneration == generation {
                         self.scheduleReceive(connection: connection, generation: generation)
@@ -420,7 +420,7 @@ extension MacConnectionService {
         case .heartbeat(let payload):
             Self.logger.debug("Heartbeat received")
             insightClient.received(heartbeat: payload)
-            receivedInventoryOffer(payload)
+            inventoryLink.received(payload) { Task { await send(command: CommandPayload(action: .refreshDevices)) } }
         case .insightResponse(let payload):
             insightClient.received(payload)
         case .command, .insightRequest, .pairRequest, .unpair, .serverHello, .pairChallenge, .pairResult:
@@ -471,7 +471,7 @@ extension MacConnectionService {
     private func sendHeartbeat() async {
         let message = CompanionMessage.heartbeat(HeartbeatPayload(
             timestamp: Date(),
-            version: Self.heartbeatVersion
+            version: "1.0"
         ))
         await sendMessage(message)
     }

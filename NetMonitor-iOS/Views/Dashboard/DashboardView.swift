@@ -718,6 +718,7 @@ struct LocalDevicesCard: View {
     /// The network's saved devices, paged by device (#594).
     @State private var saved = SavedDeviceRows()
     @Environment(DevicePresenceModel.self) private var presenceModel: DevicePresenceModel?
+    @Environment(MacInventoryModel.self) private var inventoryModel: MacInventoryModel?
     @Environment(\.horizontalSizeClass) private var sizeClass
 
     init(viewModel: DashboardViewModel) {
@@ -734,7 +735,7 @@ struct LocalDevicesCard: View {
         let list = SavedDeviceList(
             saved: saved.rows, live: viewModel.discoveredDevices,
             network: viewModel.deviceNetworkID, sort: .status, showPast: false, presence: presence,
-            inventory: MacConnectionService.shared.inventory(for: viewModel.activeNetwork, now: presence.now)
+            overlay: inventoryModel?.overlay ?? .none
         )
         NavigationLink(value: DeviceListRoute()) {
             card(list)
@@ -775,7 +776,7 @@ struct LocalDevicesCard: View {
                             DeviceRow(device: device, isOnline: list.freshness(of: device).isOnline)
                                 .accessibilityValue(list.foundText(device))
                         case .mac(let record):
-                            MacOnlyDeviceRow(record: record, now: list.presence.now, screen: "dashboard")
+                            MacOnlyDeviceRow(record: record, now: list.presence.now, accessibilityID: "dashboard_device_row_\(record.ipAddress)")
                         }
                         if entry.id != entries.last?.id {
                             Divider()

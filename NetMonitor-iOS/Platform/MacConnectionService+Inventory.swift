@@ -1,49 +1,58 @@
 import Foundation
 import NetMonitorCore
-import SwiftData
+import Network
 
 // MARK: - The Mac's inventory (#585)
 
+/// What the current link says about the Mac's inventory: whether the Mac offered it and the path
+/// the link runs on. Reset with the link.
+struct CompanionInventoryLink {
+    private(set) var offersInventory = false
+    var path: CompanionLinkPath?
+
+    /// Records a heartbeat, and calls `request` the first time one on this link offers the
+    /// inventory, so the phone asks for it at once; the Mac then sends it after each scan.
+    mutating func received(_ heartbeat: HeartbeatPayload, request: () -> Void) {
+        guard heartbeat.offersInventory, !offersInventory else { return }
+        offersInventory = true
+        request()
+    }
+}
+
 extension MacConnectionService {
-    /// The first heartbeat offering the inventory on a link asks for it at once; the Mac then
-    /// sends it after each scan.
-    func receivedInventoryOffer(_ heartbeat: HeartbeatPayload) {
-        guard heartbeat.offersInventory, !macOffersInventory else { return }
-        macOffersInventory = true
-        Task { await send(command: CommandPayload(action: .refreshDevices)) }
-    }
+    /// Whether the Mac on this link advertised `inventory.v1`; false once the link ends.
+    var macOffersInventory: Bool { inventoryLink.offersInventory }
+    /// The link's path, read when it came up; nil without a link.
+    var linkPath: CompanionLinkPath? { inventoryLink.path }
+}
 
-    /// The connected Mac's inventory for `network`, as of `now`: live only over the current link,
-    /// from a Mac that offered it, for the same subnet, with a recent scan.
-    func inventory(for network: NetworkProfile?, now: Date) -> MacInventory.Availability {
-        MacInventory.availability(
-            list: lastDeviceList, receivedAt: lastDeviceListReceivedAt, connected: connectionState.isConnected,
-            offersInventory: macOffersInventory, subnet: network?.subnetCIDR, now: now
-        )
-    }
-
-    /// The Mac's record of `device`, matched among the saved devices the list shows with it, as the
-    /// list matches them, so detail and the list agree (#585).
-    func macRecord(of device: DeviceProjection, in context: ModelContext, now: Date) -> MacInventory.Record? {
-        let networkID = device.primary.networkProfileID
-        return Self.macRecord(
-            of: device, availability: inventory(for: profile(for: networkID), now: now),
-            rows: SavedDeviceList.recentRows(network: networkID, in: context)
-        )
-    }
-
-    /// `device`'s record among `rows` (the network's saved rows and those without a network).
-    static func macRecord(of device: DeviceProjection, availability: MacInventory.Availability, rows: [LocalDevice]) -> MacInventory.Record? {
-        guard case .live(let inventory) = availability else { return nil }
-        return inventory.matches(DeviceGroups.project(rows)).record(for: device)
-    }
-
-    /// The profile of a saved network, as the list picks it: rows saved without a network, and the
-    /// UI-test network, are listed with the current network.
-    func profile(for networkID: UUID?) -> NetworkProfile? {
-        guard let networkID, !(UITestFakeDeviceFeed.isEnabled && networkID == UITestBootstrap.networkProfileID) else {
-            return networkProfileManager.activeProfile
+extension CompanionLinkPath {
+    /// The link's interface and the Mac's address on it, from the connection's current path. A VPN
+    /// tunnel is `.other`.
+    init?(_ path: NWPath?) {
+        guard let path else { return nil }
+        let interface: Interface = if path.usesInterfaceType(.other) {
+            .other
+        } else if path.usesInterfaceType(.wifi) {
+            .wifi
+        } else if path.usesInterfaceType(.wiredEthernet) {
+            .wiredEthernet
+        } else if path.usesInterfaceType(.cellular) {
+            .cellular
+        } else if path.usesInterfaceType(.loopback) {
+            .loopback
+        } else {
+            .other
         }
-        return networkProfileManager.profiles.first { $0.id == networkID }
+        var address: String?
+        if case .hostPort(let host, _) = path.remoteEndpoint {
+            switch host {
+            case .ipv4(let ipv4): address = "\(ipv4)"
+            case .ipv6(let ipv6): address = "\(ipv6)"
+            case .name(let name, _): address = name
+            @unknown default: address = nil
+            }
+        }
+        self.init(remoteAddress: address, interface: interface)
     }
 }
