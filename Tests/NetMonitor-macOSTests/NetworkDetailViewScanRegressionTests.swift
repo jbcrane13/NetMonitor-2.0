@@ -41,7 +41,8 @@ struct NetworkDetailViewScanRegressionTests {
             pipelineFactory: { _ in
                 ScanPipeline(steps: [ScanPipeline.Step(phases: [HoldingScanPhase()], concurrent: false)])
             },
-            scanHistory: .forTesting()
+            scanHistory: .forTesting(),
+            dispatcher: DeviceEventDispatcher()
         )
     }
 

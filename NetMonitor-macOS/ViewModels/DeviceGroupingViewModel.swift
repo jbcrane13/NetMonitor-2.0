@@ -18,6 +18,26 @@ import SwiftData
         let canUndo: Bool
     }
 
+    /// The action Edit › Undo reverses, which names it there.
+    enum Action {
+        case group
+        case separate
+
+        var undoName: String {
+            switch self {
+            case .group: "Group Devices"
+            case .separate: "Separate Device"
+            }
+        }
+    }
+
+    /// The device a detail view shows (its primary row), where its rows are, and that view's token.
+    private struct Shown {
+        let primary: UUID
+        let container: ModelContainer
+        let viewer: UUID?
+    }
+
     /// A "Same device as…" the user said was a different device before: waiting for "Group them
     /// anyway?".
     struct PendingOverride: Equatable {
@@ -39,8 +59,8 @@ import SwiftData
     /// The picker's search; set through ``search(_:)``.
     private(set) var search = ""
 
-    /// The device detail shows (its primary row) and where its rows are.
-    private var shown: (primary: UUID, container: ModelContainer)?
+    /// The device detail shows; nil once it closes.
+    private var shown: Shown?
     /// The network's rows read when the picker opened; the search filters them.
     private var pickerRows: [LocalDevice] = []
     private var last: (undo: DeviceGroupUndo, container: ModelContainer, anchor: UUID)?
@@ -49,15 +69,17 @@ import SwiftData
     private let toastDuration: Duration
     private let now: () -> Date
 
-    /// Re-reads the shown device's suggestions after any save: a scan can record the Bonjour host
-    /// on the *other* device, which changes nothing the detail view keys on.
+    /// Re-reads the shown device's suggestions after a save in its container: a scan can record
+    /// the Bonjour host on the *other* device, which changes nothing the detail view keys on.
     private var saveObserver: (any NSObjectProtocol)?
 
     init(toastDuration: Duration = .seconds(10), now: @escaping () -> Date = Date.init) {
         self.toastDuration = toastDuration
         self.now = now
-        saveObserver = NotificationCenter.default.addObserver(forName: ModelContext.didSave, object: nil, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated { self?.refreshSuggestions() }
+        saveObserver = NotificationCenter.default.addObserver(forName: ModelContext.didSave, object: nil, queue: .main) { [weak self] note in
+            // The notification's object is the context that saved.
+            let container = (note.object as? ModelContext)?.container
+            MainActor.assumeIsolated { self?.saved(in: container) }
         }
     }
 
@@ -69,15 +91,23 @@ import SwiftData
 
     // MARK: - Reading
 
-    /// Detail shows `device`: reads its suggestions.
-    func show(_ device: DeviceProjection, in context: ModelContext) {
-        shown = (device.primary.id, context.container)
+    /// The detail view `viewer` shows `device`: reads its suggestions.
+    func show(_ device: DeviceProjection, in context: ModelContext, viewer: UUID) {
+        shown = Shown(primary: device.primary.id, container: context.container, viewer: viewer)
         refreshSuggestions()
+    }
+
+    /// The detail view `viewer` closed: forgets its device, unless another view shows one since
+    /// (grouping recreates the detail view, and the old one can close after the new one opened).
+    func hide(viewer: UUID) {
+        guard shown?.viewer == viewer else { return }
+        shown = nil
+        suggestions = []
     }
 
     /// "Same device as…" opened for `device`: reads its network's rows once.
     func openPicker(for device: DeviceProjection, in context: ModelContext) {
-        shown = (device.primary.id, context.container)
+        shown = Shown(primary: device.primary.id, container: context.container, viewer: shown?.viewer)
         pickerRows = Self.networkRows(of: device, in: context)
         search = ""
         refreshCandidates()
@@ -106,6 +136,11 @@ import SwiftData
     private static func device(of rowID: UUID, in context: ModelContext) -> DeviceProjection? {
         guard let row = try? context.fetch(FetchDescriptor<LocalDevice>(predicate: #Predicate { $0.id == rowID })).first else { return nil }
         return try? DeviceGroups.device(of: row, in: context)
+    }
+
+    private func saved(in container: ModelContainer?) {
+        guard let container, container === shown?.container else { return }
+        refreshSuggestions()
     }
 
     private func refreshSuggestions() {
@@ -137,7 +172,8 @@ import SwiftData
         let rowIDs = DeviceGroupingChoices.rowIDs(joining: other, to: device)
         do {
             let undo = try DeviceGroupWriter(context: context).groupForUser(rowIDs, primary: device.primary.id)
-            completed(undo, container: context.container, anchor: device.primary.id, message: DeviceGroupingChoices.grouped(with: other.displayName))
+            let message = DeviceGroupingChoices.grouped(with: other.displayName)
+            completed(undo, .group, container: context.container, anchor: device.primary.id, message: message)
         } catch DeviceGroupWriter.Refusal.excluded {
             pendingOverride = PendingOverride(rowIDs: rowIDs, anchor: device.primary.id, otherName: other.displayName)
         } catch {
@@ -151,7 +187,8 @@ import SwiftData
         pendingOverride = nil
         do {
             let undo = try DeviceGroupWriter(context: context).groupForUser(pending.rowIDs, primary: pending.anchor, overridingExclusions: true)
-            completed(undo, container: context.container, anchor: pending.anchor, message: DeviceGroupingChoices.grouped(with: pending.otherName))
+            let message = DeviceGroupingChoices.grouped(with: pending.otherName)
+            completed(undo, .group, container: context.container, anchor: pending.anchor, message: message)
         } catch {
             fail("group anyway", title: "Couldn't group the devices", error)
         }
@@ -179,7 +216,7 @@ import SwiftData
         let remaining = device.members.first { $0.id != member.id }?.id ?? member.id
         do {
             let undo = try DeviceGroupWriter(context: context).ungroupForUser(member.id)
-            completed(undo, container: context.container, anchor: remaining, message: DeviceGroupingChoices.separated(address))
+            completed(undo, .separate, container: context.container, anchor: remaining, message: DeviceGroupingChoices.separated(address))
         } catch {
             fail("separate", title: "Couldn't separate \(address)", error)
         }
@@ -198,7 +235,7 @@ import SwiftData
         } catch {
             show(Toast(message: DeviceGroupingChoices.undoUnavailable, canUndo: false))
             if !(error is DeviceGroupWriter.Refusal) {
-                Logger.data.error("Undoing a device-group action failed: \(error)")
+                Logger.data.error("Undoing a device-group action failed: \(String(describing: type(of: error)), privacy: .public)")
             }
         }
         refreshSuggestions()
@@ -216,25 +253,20 @@ import SwiftData
 
     // MARK: - Helpers
 
-    static func actionName(for message: String) -> String {
-        message.hasPrefix("Grouped") ? "Group Devices" : "Separate Device"
-    }
-
-    private func completed(_ undo: DeviceGroupUndo, container: ModelContainer, anchor: UUID, message: String) {
+    private func completed(_ undo: DeviceGroupUndo, _ action: Action, container: ModelContainer, anchor: UUID, message: String) {
         select(anchor)
         // The shown device's ID may have changed (a row became a group): follow its anchor row.
-        shown = (anchor, container)
+        shown = Shown(primary: anchor, container: container, viewer: shown?.viewer)
         refreshSuggestions()
         guard !undo.isEmpty else { return }
         last = (undo, container, anchor)
         if let undoManager {
-            let name = Self.actionName(for: message)
             undoManager.removeAllActions(withTarget: self)
             undoManager.registerUndo(withTarget: self) { model in
                 MainActor.assumeIsolated { model.undo() }
             }
             // Edit › Undo's action name ("Undo Group Devices") where the menu shows names.
-            undoManager.setActionName(name)
+            undoManager.setActionName(action.undoName)
         }
         show(Toast(message: message, canUndo: true))
     }

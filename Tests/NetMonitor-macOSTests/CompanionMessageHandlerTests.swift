@@ -376,7 +376,8 @@ struct CompanionMessageHandlerTests {
             modelContext: context,
             bonjourScanner: BonjourDiscoveryService(),
             networkProfileManager: networkProfileManager,
-            scanHistory: .forTesting()
+            scanHistory: .forTesting(),
+            dispatcher: DeviceEventDispatcher()
         )
 
         let handler = CompanionMessageHandler(

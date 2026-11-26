@@ -25,7 +25,8 @@ struct DeviceDiscoveryCoordinatorExtendedTests {
             networkProfileManager: NetworkProfileManager(),
             // Empty pipeline: lifecycle assertions only, no real LAN scan (#309).
             pipelineFactory: { _ in ScanPipeline(steps: []) },
-            scanHistory: .forTesting()
+            scanHistory: .forTesting(),
+            dispatcher: DeviceEventDispatcher()
         )
     }
 

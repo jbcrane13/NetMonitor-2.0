@@ -28,7 +28,8 @@ struct SecurityReadoutScanTests {
                 ])
             },
             portChecker: { _, _, _ in false },
-            scanHistory: .forTesting()
+            scanHistory: .forTesting(),
+            dispatcher: DeviceEventDispatcher()
         )
 
         coordinator.startScan()

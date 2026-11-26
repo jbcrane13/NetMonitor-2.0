@@ -137,7 +137,7 @@ final class DeviceDiscoveryCoordinator {
         clock: @escaping @MainActor () -> Date = Date.init,
         presenceClock: @escaping @MainActor () -> Date = Date.init,
         reconcilerFetch: @escaping @MainActor (ModelContext) throws -> [LocalDevice] = ScanReconciler.fetchAllRows,
-        dispatcher: any DeviceEventDispatching = DeviceEventDispatcher.shared
+        dispatcher: any DeviceEventDispatching
     ) {
         self.modelContext = modelContext
         self.bonjourScanner = bonjourScanner

@@ -209,7 +209,8 @@ struct NetMonitorApp: App {
                 networkProfileManager: profileManager,
                 reviewPrompt: RateAppService.reviewPrompt,
                 // The on-device model suggests what unidentified devices are (#449).
-                suggester: DeviceSuggester(service: InsightService.shared, store: DeviceSuggestionStore())
+                suggester: DeviceSuggester(service: InsightService.shared, store: DeviceSuggestionStore()),
+                dispatcher: DeviceEventDispatcher.shared
             )
             deviceDiscovery = discovery
             // Network events and app-scope connectivity, before the first scan (#491).
@@ -337,7 +338,8 @@ struct NetMonitorApp: App {
             suggester: Self.uiTestSuggester,
             scanHistory: UITestScanFixture.scanHistory(),
             clock: UITestScanFixture.scanClock ?? Date.init,
-            presenceClock: UITestScanFixture.presenceClock ?? Date.init
+            presenceClock: UITestScanFixture.presenceClock ?? Date.init,
+            dispatcher: DeviceEventDispatcher.shared
         )
         deviceDiscovery = discovery
         // Settings > Companion over in-memory credentials; the listener stays off, so a UI-test

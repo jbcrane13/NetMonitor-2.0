@@ -51,7 +51,8 @@ struct DeviceDiscoveryCoordinatorErrorTests {
                 userDefaults: makeFreshDefaults().0,
                 activeProfilesProvider: { [] }
             ),
-            scanHistory: .forTesting()
+            scanHistory: .forTesting(),
+            dispatcher: DeviceEventDispatcher()
         )
     }
 
@@ -216,7 +217,8 @@ struct DeviceDiscoveryCoordinatorErrorTests {
                     throw StoreUnavailable()
                 }
                 return try ScanReconciler.fetchAllRows(context)
-            }
+            },
+            dispatcher: DeviceEventDispatcher()
         )
         let scan = [LocalDiscoveredDevice(ipAddress: "192.168.1.1", macAddress: "CC:CC:CC:CC:CC:01", hostname: nil)]
         let now = Date()

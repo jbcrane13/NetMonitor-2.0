@@ -32,7 +32,8 @@ struct DeviceDiscoveryCoordinatorSaveErrorTests {
                 userDefaults: makeFreshDefaults().0,
                 activeProfilesProvider: { [] }
             ),
-            scanHistory: .forTesting()
+            scanHistory: .forTesting(),
+            dispatcher: DeviceEventDispatcher()
         )
     }
 
