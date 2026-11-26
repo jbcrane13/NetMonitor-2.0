@@ -27,8 +27,8 @@ extension MacConnectionService {
 }
 
 extension CompanionLinkPath {
-    /// The link's interface and the Mac's address on it, from the connection's current path. A VPN
-    /// tunnel is `.other`.
+    /// The link's interface, its BSD name and the Mac's address on it, from the connection's current
+    /// path. A VPN tunnel is `.other`; an AWDL peer-to-peer link names `awdl0` and never counts.
     init?(_ path: NWPath?) {
         guard let path else { return nil }
         let interface: Interface = if path.usesInterfaceType(.other) {
@@ -53,6 +53,8 @@ extension CompanionLinkPath {
             @unknown default: address = nil
             }
         }
-        self.init(remoteAddress: address, interface: interface)
+        // The interface the path uses: the first available one of a type it uses.
+        let name = path.availableInterfaces.first { path.usesInterfaceType($0.type) }?.name
+        self.init(remoteAddress: address, interface: interface, interfaceName: name)
     }
 }

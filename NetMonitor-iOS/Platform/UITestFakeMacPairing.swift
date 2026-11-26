@@ -338,7 +338,10 @@ enum UITestFakeMacPairing {
             )
         }
         guard isActive else { return (standIn, link) }
-        return (standIn, CompanionLinkPath(remoteAddress: phone.profile.ipAddress, interface: .wifi))
+        return (
+            standIn,
+            CompanionLinkPath(remoteAddress: phone.profile.ipAddress, interface: .wifi, interfaceName: phone.profile.interfaceName)
+        )
     }
 
     /// The gateway both the fake Mac and the phone use when the simulator's route can't be read.

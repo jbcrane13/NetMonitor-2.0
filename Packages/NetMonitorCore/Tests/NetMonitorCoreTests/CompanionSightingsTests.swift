@@ -67,7 +67,7 @@ struct CompanionSightingsTests {
         )
     }
 
-    func inventorySightings(_ list: DeviceListPayload, link: CompanionLinkPath? = CompanionLinkPath(remoteAddress: "192.168.7.2", interface: .wifi),
+    func inventorySightings(_ list: DeviceListPayload, link: CompanionLinkPath? = CompanionLinkPath(remoteAddress: "192.168.7.2", interface: .wifi, interfaceName: "en0"),
                             gateway: String? = "192.168.7.1", ownLastScan: Date? = nil) -> [String] {
         let availability = MacInventory.availability(
             list: list, receivedAt: now, link: link, phone: PhoneNetwork(profile: Self.profile, gatewayIP: gateway), viewing: Self.profile.id,
@@ -87,8 +87,25 @@ struct CompanionSightingsTests {
         #expect(inventorySightings(inventory(scanAge: 60), ownLastScan: now.addingTimeInterval(-30)).isEmpty)
     }
 
+    /// #624 verification C: the scan path uses the phone's current network, not the scanned or selected
+    /// profile. A selected "Office" with the same CIDR and gateway, scanned at home, refreshes nothing.
+    @Test func aSelectedProfileThatIsntTheCurrentNetworkRefreshesNothing() {
+        let office = NetworkProfile(
+            id: UUID(), interfaceName: "en0", ipAddress: "192.168.7.100", network: Self.profile.network, connectionType: .wifi,
+            name: "Office", gatewayIP: "192.168.7.1", subnet: "192.168.7.0/24", isLocal: false, discoveryMethod: .manual
+        )
+        func sightings(scanned: NetworkProfile) -> [String] {
+            DeviceDiscoveryService.inventoryMacSightings(
+                list: inventory(), receivedAt: now, link: CompanionLinkPath(remoteAddress: "192.168.7.2", interface: .wifi, interfaceName: "en0"),
+                current: Self.profile, scanned: scanned, gateway: "192.168.7.1", ownLastScan: nil, now: now
+            ).map(\.ipAddress)
+        }
+        #expect(sightings(scanned: Self.profile) == ["192.168.7.60"])
+        #expect(sightings(scanned: office).isEmpty)
+    }
+
     @Test func anInventoryThatIsntLiveGivesNothing() {
-        #expect(inventorySightings(inventory(), link: CompanionLinkPath(remoteAddress: "192.168.7.2", interface: .other)).isEmpty)
+        #expect(inventorySightings(inventory(), link: CompanionLinkPath(remoteAddress: "192.168.7.2", interface: .other, interfaceName: "en0")).isEmpty)
         #expect(inventorySightings(inventory(), gateway: "192.168.7.254").isEmpty)
         #expect(inventorySightings(inventory(scanAge: -1)).isEmpty)
     }

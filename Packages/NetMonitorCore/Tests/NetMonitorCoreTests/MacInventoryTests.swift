@@ -19,7 +19,7 @@ struct MacInventoryTests {
         connectionType: .wifi
     )
     static let phone = PhoneNetwork(profile: home, gatewayIP: gateway)
-    static let wifiLink = CompanionLinkPath(remoteAddress: "192.168.77.10", interface: .wifi)
+    static let wifiLink = CompanionLinkPath(remoteAddress: "192.168.77.10", interface: .wifi, interfaceName: "en0")
 
     static func device(
         _ ip: String, mac: String = "", name: String? = nil, online: Bool = true, deviceOnline: Bool? = nil,
@@ -129,19 +129,52 @@ struct MacInventoryTests {
             }
             return false
         }
-        #expect(live(CompanionLinkPath(remoteAddress: "192.168.77.10", interface: .wifi)))
-        #expect(live(CompanionLinkPath(remoteAddress: "192.168.77.10", interface: .wiredEthernet)))
+        #expect(live(CompanionLinkPath(remoteAddress: "192.168.77.10", interface: .wifi, interfaceName: "en0")))
+        #expect(live(CompanionLinkPath(remoteAddress: "192.168.77.10", interface: .wiredEthernet, interfaceName: "en0")))
         // Bonjour often resolves the Mac to its scoped IPv6 link-local address: on-link by definition.
-        #expect(live(CompanionLinkPath(remoteAddress: "fe80::1c2b:3aff:fe4d:5e6f%en0", interface: .wifi)))
-        #expect(!live(CompanionLinkPath(remoteAddress: "192.168.77.10", interface: .cellular)))
+        #expect(live(CompanionLinkPath(remoteAddress: "fe80::1c2b:3aff:fe4d:5e6f%en0", interface: .wifi, interfaceName: "en0")))
+        #expect(!live(CompanionLinkPath(remoteAddress: "192.168.77.10", interface: .cellular, interfaceName: "en0")))
         // A VPN tunnel is `.other`.
-        #expect(!live(CompanionLinkPath(remoteAddress: "192.168.77.10", interface: .other)))
-        #expect(!live(CompanionLinkPath(remoteAddress: "127.0.0.1", interface: .loopback)))
+        #expect(!live(CompanionLinkPath(remoteAddress: "192.168.77.10", interface: .other, interfaceName: "en0")))
+        #expect(!live(CompanionLinkPath(remoteAddress: "127.0.0.1", interface: .loopback, interfaceName: "en0")))
         // Routed from another site with the same CIDR: the Mac's address isn't on this link.
-        #expect(!live(CompanionLinkPath(remoteAddress: "10.8.0.4", interface: .wifi)))
-        #expect(!live(CompanionLinkPath(remoteAddress: "2001:db8::4", interface: .wifi)))
-        #expect(!live(CompanionLinkPath(remoteAddress: nil, interface: .wifi)))
+        #expect(!live(CompanionLinkPath(remoteAddress: "10.8.0.4", interface: .wifi, interfaceName: "en0")))
+        #expect(!live(CompanionLinkPath(remoteAddress: "2001:db8::4", interface: .wifi, interfaceName: "en0")))
+        #expect(!live(CompanionLinkPath(remoteAddress: nil, interface: .wifi, interfaceName: "en0")))
         #expect(!live(nil))
+    }
+
+    /// #624 verification C: the link must run on the phone's own local-network interface. A
+    /// peer-to-peer (AWDL) link or another interface never counts; an `fe80::` peer only when scoped
+    /// to that interface; global and ULA IPv6 peers fail closed.
+    @Test func theLinkMustBeOnThePhonesLocalInterface() {
+        let list = Self.list([Self.device("192.168.77.20")])
+        func live(_ address: String, _ interface: CompanionLinkPath.Interface = .wifi, name: String?) -> Bool {
+            if case .live = Self.availability(list, link: CompanionLinkPath(remoteAddress: address, interface: interface, interfaceName: name)) {
+                return true
+            }
+            return false
+        }
+        #expect(!live("192.168.77.10", name: "awdl0"))
+        #expect(!live("192.168.77.10", name: "llw0"))
+        #expect(!live("192.168.77.10", .wiredEthernet, name: "en1"))
+        #expect(!live("192.168.77.10", name: nil))
+        #expect(live("fe80::1c2b:3aff:fe4d:5e6f%en0", name: "en0"))
+        #expect(!live("fe80::1c2b:3aff:fe4d:5e6f%awdl0", name: "en0"))
+        #expect(!live("fe80::1c2b:3aff:fe4d:5e6f", name: "en0"))
+        #expect(!live("fd00::4", name: "en0"))
+    }
+
+    /// #624 verification F: a list the Mac had to trim says so.
+    @Test func aTrimmedListSaysItIsPartial() throws {
+        let list = DeviceListPayload(
+            devices: [Self.device("192.168.77.20")],
+            network: InventoryNetwork(subnet: "192.168.77.0/24", gatewayIP: Self.gateway, name: "Home", scanAge: 60), truncated: true
+        )
+        let inventory = try Self.live(list)
+        #expect(inventory.isPartial)
+        #expect(inventory.sourceText(now: Self.now) == "From your Mac · scanned 1 min ago · partial list")
+        #expect(try !Self.live(Self.list([])).isPartial)
     }
 
     // MARK: - Wire numbers
@@ -285,7 +318,10 @@ struct MacInventoryTests {
     @Test func aPastRowIsNeverMatchedByAddress() throws {
         let inventory = try Self.live(Self.list([Self.device("192.168.77.20", name: "printer")]))
         let past = Self.row("192.168.77.20", name: "printer", lastSeen: Self.now - 8 * 86400)
-        #expect(Self.matches(inventory, [past], past: [past.id]).record(for: past) == nil)
+        let unmatched = Self.matches(inventory, [past], past: [past.id])
+        #expect(unmatched.record(for: past) == nil)
+        // #624 verification B: the record doesn't vanish: it is the Mac's alone.
+        #expect(unmatched.macOnly.map(\.name) == ["printer"])
         // By MAC it is the same device, past or not.
         let macInventory = try Self.live(Self.list([Self.device("192.168.77.20", mac: "02:AA:00:00:00:09", name: "printer")]))
         let pastWithMAC = Self.row("192.168.77.20", mac: "02:AA:00:00:00:09", name: "printer", lastSeen: Self.now - 8 * 86400)

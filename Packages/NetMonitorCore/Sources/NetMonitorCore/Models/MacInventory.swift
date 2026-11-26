@@ -11,21 +11,28 @@ public struct CompanionLinkPath: Sendable, Equatable {
     /// The Mac's address, as the connection resolved it (an IPv6 address may carry `%scope`).
     public let remoteAddress: String?
     public let interface: Interface
+    /// The BSD name of the interface the link runs on ("en0"); nil when unknown.
+    public let interfaceName: String?
 
-    public init(remoteAddress: String?, interface: Interface) {
+    public init(remoteAddress: String?, interface: Interface, interfaceName: String?) {
         self.remoteAddress = remoteAddress
         self.interface = interface
+        self.interfaceName = interfaceName
     }
 
-    /// Whether the Mac is on this link of `network`: over Wi-Fi or Ethernet (not a VPN tunnel,
-    /// cellular or loopback), at an IPv4 address inside it or an IPv6 link-local address, which
-    /// can't be routed.
-    public func isOnLink(in network: NetworkUtilities.IPv4Network) -> Bool {
-        guard interface == .wifi || interface == .wiredEthernet, let address = remoteAddress else { return false }
+    /// Whether the Mac is on `network`'s link, the one the phone reaches it on (`localInterface`,
+    /// e.g. "en0"): over Wi-Fi or Ethernet on that very interface (never a VPN tunnel, cellular,
+    /// loopback or a peer-to-peer AWDL/`llw` link), at an IPv4 address inside the network or an
+    /// `fe80::` address scoped to that interface, which can't be routed. A global or ULA IPv6
+    /// address, or an unscoped `fe80::`, fails closed (#624).
+    public func isOnLink(in network: NetworkUtilities.IPv4Network, interface localInterface: String) -> Bool {
+        guard interface == .wifi || interface == .wiredEthernet, let name = interfaceName, name == localInterface,
+              !name.hasPrefix("awdl"), !name.hasPrefix("llw"), let address = remoteAddress else { return false }
         if network.contains(ipAddress: address) {
             return true
         }
-        return address.lowercased().hasPrefix("fe80:")
+        let lowered = address.lowercased()
+        return lowered.hasPrefix("fe80:") && lowered.hasSuffix("%" + name.lowercased())
     }
 }
 
@@ -120,6 +127,8 @@ public struct MacInventory: Sendable, Equatable {
     /// When the list arrived, on the phone's clock.
     public let receivedAt: Date
     public let records: [Record]
+    /// The Mac had to trim its list to fit one frame (#624): some of its devices aren't in it.
+    public let isPartial: Bool
 
     /// - Parameters:
     ///   - link: the current link's path; nil without a link (not connected).
@@ -133,10 +142,13 @@ public struct MacInventory: Sendable, Equatable {
               let phone, phone.profile.id == viewing, let subnet = network.subnet, let macGateway = network.gatewayIP,
               let phoneGateway = phone.gatewayIP else { return .unavailable }
         guard subnet == phone.profile.subnetCIDR, macGateway == phoneGateway else { return .otherNetwork(name: network.name) }
-        guard link.isOnLink(in: phone.profile.network) else { return .unavailable }
+        guard link.isOnLink(in: phone.profile.network, interface: phone.profile.interfaceName) else { return .unavailable }
         let scanTime = receivedAt.addingTimeInterval(-scanAge)
         guard PresenceFreshness.isRecent(scanTime, now: presence.now, policy: presence.policy) else { return .unavailable }
-        return .live(MacInventory(scanTime: scanTime, receivedAt: receivedAt, records: list.devices.map { record($0, receivedAt: receivedAt) }))
+        return .live(MacInventory(
+            scanTime: scanTime, receivedAt: receivedAt, records: list.devices.map { record($0, receivedAt: receivedAt) },
+            isPartial: list.truncated == true
+        ))
     }
 
     /// An age from the wire, when it is finite and between 0 and `maximumAge`.
@@ -145,9 +157,9 @@ public struct MacInventory: Sendable, Equatable {
         return age
     }
 
-    /// "From your Mac · scanned 2 min ago".
+    /// "From your Mac · scanned 2 min ago", and "· partial list" when the Mac trimmed it.
     public func sourceText(now: Date) -> String {
-        "From your Mac · scanned \(PresenceFreshness.relativeText(since: scanTime, now: max(now, receivedAt)))"
+        "From your Mac · scanned \(PresenceFreshness.relativeText(since: scanTime, now: max(now, receivedAt)))" + (isPartial ? " · partial list" : "")
     }
 
     /// "Seen by this iPhone at 10:42 AM", or "… on Nov 24 at 10:42 AM" before today: the phone's
@@ -219,10 +231,11 @@ public struct MacInventory: Sendable, Equatable {
         for (index, assigned) in assignment.enumerated() {
             guard let assigned else { continue }
             let record = observations[index].record, device = rows[assigned].device
-            touched.insert(record)
             let byMAC = DeviceMatcher.normalizedMAC(observations[index].candidate.macAddress)
                 .map { $0 == DeviceMatcher.normalizedMAC(rows[assigned].row.macAddress) } ?? false
+            // A record whose only candidate is a past row by address stays the Mac's alone (#624).
             guard byMAC || !isPast(devices[device]) else { continue }
+            touched.insert(record)
             devicesByRecord[record, default: []].insert(device)
         }
         var recordsByDevice: [Int: [Int]] = [:]

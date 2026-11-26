@@ -424,6 +424,16 @@ extension NetworkProfileManager {
     }
 
     /// The saved local network, chosen as ``localProfile`` chooses it. Read only.
+    /// The network this device is on now (#582, #585): the saved local network when a live
+    /// interface is on that same network (interface and subnet); nil without a live interface, or on a
+    /// network not saved yet. Read only.
+    nonisolated public static func currentProfile(
+        active: () -> [NetworkProfile] = detectActiveProfiles, saved: () -> NetworkProfile? = { savedLocalProfile() }
+    ) -> NetworkProfile? {
+        guard let local = saved() else { return nil }
+        return active().contains { $0.interfaceName == local.interfaceName && $0.subnet == local.subnet } ? local : nil
+    }
+
     nonisolated public static func savedLocalProfile(in userDefaults: UserDefaults = .standard) -> NetworkProfile? {
         let saved = savedProfiles(in: userDefaults)
         return saved.first { $0.isLocal && $0.discoveryMethod == .auto } ?? saved.first(where: \.isLocal)

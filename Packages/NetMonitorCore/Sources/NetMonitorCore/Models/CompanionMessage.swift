@@ -256,10 +256,13 @@ public struct DeviceListPayload: Codable, Sendable {
     /// The network the list covers and how old its latest scan was (#585). Nil from a Mac before
     /// `inventory.v1`.
     public let network: InventoryNetwork?
+    /// True when the Mac trimmed the list to fit one frame (#624); nil otherwise and from older Macs.
+    public let truncated: Bool?
 
-    public init(devices: [DeviceInfo], network: InventoryNetwork? = nil) {
+    public init(devices: [DeviceInfo], network: InventoryNetwork? = nil, truncated: Bool? = nil) {
         self.devices = devices
         self.network = network
+        self.truncated = truncated
     }
 }
 

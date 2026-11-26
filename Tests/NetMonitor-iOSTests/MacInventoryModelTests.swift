@@ -34,7 +34,7 @@ struct MacInventoryModelTests {
         try container.mainContext.save()
         let connection = MockMacConnectionService()
         connection.connectionState = .connected
-        connection.linkPath = CompanionLinkPath(remoteAddress: "192.168.77.2", interface: .wifi)
+        connection.linkPath = CompanionLinkPath(remoteAddress: "192.168.77.2", interface: .wifi, interfaceName: "en0")
         connection.lastDeviceList = DeviceListPayload(
             devices: [
                 DeviceInfo(ipAddress: "192.168.77.20", macAddress: "", hostname: "tv", isOnline: true, lastSeenAge: 30),

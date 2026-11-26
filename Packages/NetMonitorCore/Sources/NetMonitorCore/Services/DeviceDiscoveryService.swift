@@ -448,15 +448,15 @@ extension DeviceDiscoveryService {
         let list = macConnectionService?.lastDeviceList, receivedAt = macConnectionService?.lastDeviceListReceivedAt
         let ownLastScan = ScanHistory().lastScanTime(for: profile?.id)
         pendingMacSightings = []
-        if let list, list.network != nil, let receivedAt, let profile {
-            let availability = MacInventory.availability(
-                list: list, receivedAt: receivedAt, link: macConnected ? macConnectionService?.linkPath : nil,
-                phone: PhoneNetwork(profile: profile, gatewayIP: NetworkUtilities.detectRoutedGateway()), viewing: profile.id,
-                presence: PresenceSnapshot(lastScans: [:], now: Date())
-            )
-            pendingMacSightings = Self.inventorySightings(
-                list: list, availability: availability, receivedAt: receivedAt, profileID: profile.id, ownLastScan: ownLastScan
-            )
+        if let list, list.network != nil {
+            // The phone's current network, not the scanned or selected profile (#624).
+            pendingMacSightings = profile.map { scanned in
+                Self.inventoryMacSightings(
+                    list: list, receivedAt: receivedAt, link: macConnected ? macConnectionService?.linkPath : nil,
+                    current: NetworkProfileManager.currentProfile(), scanned: scanned, gateway: NetworkUtilities.detectRoutedGateway(),
+                    ownLastScan: ownLastScan, now: Date()
+                )
+            } ?? []
             return
         }
         await Self.mergeCompanion(
@@ -466,6 +466,20 @@ extension DeviceDiscoveryService {
             ),
             into: engine.accumulator
         )
+    }
+
+    /// An inventory Mac's answers for a scan of `scanned` (#585, #624): only while its inventory is live
+    /// for the network the phone is on now (`current`), and `scanned` is that network.
+    nonisolated public static func inventoryMacSightings(
+        list: DeviceListPayload, receivedAt: Date?, link: CompanionLinkPath?, current: NetworkProfile?, scanned: NetworkProfile,
+        gateway: String?, ownLastScan: Date?, now: Date
+    ) -> [DiscoveredDevice] {
+        guard let receivedAt else { return [] }
+        let availability = MacInventory.availability(
+            list: list, receivedAt: receivedAt, link: link, phone: current.map { PhoneNetwork(profile: $0, gatewayIP: gateway) },
+            viewing: scanned.id, presence: PresenceSnapshot(lastScans: [:], now: now)
+        )
+        return inventorySightings(list: list, availability: availability, receivedAt: receivedAt, profileID: scanned.id, ownLastScan: ownLastScan)
     }
 
     /// An inventory Mac's answers as sightings (#585): each interface that answered the Mac's latest
