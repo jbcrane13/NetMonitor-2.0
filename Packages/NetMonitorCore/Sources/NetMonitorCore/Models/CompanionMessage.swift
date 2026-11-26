@@ -267,13 +267,16 @@ public struct DeviceListPayload: Codable, Sendable {
 /// subnet. `scanAge` is how long before sending the Mac's latest scan of it was, on the Mac's
 /// clock alone, so the phone places the scan on its own clock (#619).
 public struct InventoryNetwork: Codable, Sendable, Equatable {
-    /// CIDR, as `NetworkProfile.subnetCIDR` writes it ("192.168.1.0/24").
-    public let subnet: String
+    /// CIDR, as `NetworkProfile.subnetCIDR` writes it ("192.168.1.0/24"); nil when the Mac has no
+    /// network, and then the phone shows nothing from the list.
+    public let subnet: String?
+    /// The Mac's routed gateway on that network (not the profile's first-host guess); nil when its
+    /// route lookup failed.
     public let gatewayIP: String?
     public let name: String?
     public let scanAge: TimeInterval?
 
-    public init(subnet: String, gatewayIP: String?, name: String?, scanAge: TimeInterval?) {
+    public init(subnet: String?, gatewayIP: String?, name: String?, scanAge: TimeInterval?) {
         self.subnet = subnet
         self.gatewayIP = gatewayIP
         self.name = name

@@ -59,9 +59,23 @@ public enum PresenceFreshness: String, CaseIterable, Sendable, Equatable {
         "Last seen \(relativeText(since: lastSeen, now: now))"
     }
 
+    /// The app's one status wording (#583, #585): "Online · Last seen 5 min ago", with the source
+    /// after the state when it isn't this device's own ("Online · from your Mac · Last seen …").
+    public static func statusText(_ state: PresenceFreshness, lastSeen: Date?, now: Date, source: String? = nil) -> String {
+        ([state.label, source] + [lastSeen.map { lastSeenText(since: $0, now: now) }]).compactMap { $0 }.joined(separator: " · ")
+    }
+
+    /// "Online, last seen 5 min ago" (or "Online, from your Mac, last seen …"), for VoiceOver.
+    public static func accessibilityText(_ state: PresenceFreshness, lastSeen: Date?, now: Date, source: String? = nil) -> String {
+        ([state.label, source] + [lastSeen.map { "last seen \(relativeText(since: $0, now: now))" }]).compactMap { $0 }
+            .joined(separator: ", ")
+    }
+
     /// The app's one relative-time wording: "just now", "5 min ago", "3 hours ago", "2 days ago".
+    /// Safe for any interval: a non-finite one reads "just now", a vast one a capped number of days.
     public static func relativeText(since date: Date, now: Date) -> String {
-        let seconds = max(0, now.timeIntervalSince(date))
+        let interval = now.timeIntervalSince(date)
+        let seconds = interval.isFinite ? min(max(0, interval), 1e12) : 0
         if seconds < 60 {
             return "just now"
         }
@@ -134,11 +148,11 @@ public struct PresenceSnapshot: Sendable, Equatable {
 
     /// "Online · Last seen 5 min ago": the visible status line.
     public func statusText(_ device: LocalDevice) -> String {
-        "\(freshness(of: device).label) · \(lastSeenText(device))"
+        PresenceFreshness.statusText(freshness(of: device), lastSeen: device.lastSeen, now: now)
     }
 
     /// "Online, last seen 5 min ago": what VoiceOver says for a row's presence, once.
     public func accessibilityText(_ device: LocalDevice) -> String {
-        "\(freshness(of: device).label), last seen \(relativeLastSeen(device))"
+        PresenceFreshness.accessibilityText(freshness(of: device), lastSeen: device.lastSeen, now: now)
     }
 }
