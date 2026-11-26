@@ -44,4 +44,11 @@ struct DeviceGroupingChoicesTests {
         member.groupSource = "user"
         #expect(DeviceGroupingChoices.label(for: member) == nil)
     }
+
+    @Test("Repeated controls' IDs: underscores for an address, the device's ID for a banner")
+    func accessibilityIDs() {
+        #expect(DeviceGroupingChoices.AccessibilityID.sameDeviceAsRow("192.168.1.12") == "sameDeviceAs_row_192_168_1_12")
+        let id = UUID()
+        #expect(DeviceGroupingChoices.AccessibilityID.suggestionBanner(id) == "deviceDetail_banner_suggestion_\(id.uuidString)")
+    }
 }

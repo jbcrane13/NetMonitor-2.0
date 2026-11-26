@@ -405,6 +405,27 @@ struct DeviceGroupWriterTests {
 
 }
 
+// MARK: - Identity checks before an automatic join (#619)
+
+extension DeviceGroupWriterTests {
+    @Test("An automatic join is refused when any member of the result names another maker; the user's own isn't")
+    func automaticJoinRevalidatesIdentity() throws {
+        let apple = try row("10.0.0.10"), spare = try row("10.0.0.11"), samsung = try row("10.0.0.40")
+        apple.vendor = "Apple, Inc."
+        samsung.vendor = "Samsung Electronics"
+        try context.save()
+        try writer.group([apple.id, spare.id], primary: apple.id, source: .user)
+        let rows = try context.fetch(FetchDescriptor<LocalDevice>())
+        let named = rows.filter { [spare.id, samsung.id].contains($0.id) }
+        #expect(throws: DeviceGroupWriter.Refusal.conflictingIdentity) {
+            try DeviceGroupWriter.join(named, members: DeviceGroups.withGroupMembers(named, among: rows), primary: nil, source: .bonjour)
+        }
+        #expect(try fresh(samsung).deviceGroupID == nil)
+        _ = try writer.groupForUser([apple.id, samsung.id], primary: apple.id)
+        #expect(try fresh(samsung).deviceGroupID == fresh(apple).deviceGroupID, "the user may group what the scan won't")
+    }
+}
+
 // MARK: - The shown device anchors "Same device as…" (#594 PR2)
 
 extension DeviceGroupWriterTests {

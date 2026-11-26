@@ -119,3 +119,49 @@ struct AlertRuleSubjectGroupTests {
         #expect(other.onlineInterfaceIDs.isEmpty, "the only other interface is offline")
     }
 }
+
+/// #619 review: an outage's state follows the device through grouping and separating, so a
+/// recovery under a new identity ends it and a later outage alerts again.
+@Suite("Alert rule outages across identity changes")
+struct AlertRuleIdentityChangeTests {
+    let alpha = UUID(), bravo = UUID(), group = UUID()
+
+    func single(_ row: UUID) -> AlertRuleSubject {
+        AlertRuleSubject(name: "Mac mini", ipAddress: "10.0.0.10", deviceID: row)
+    }
+
+    func grouped(_ row: UUID) -> AlertRuleSubject {
+        var subject = single(row)
+        subject.deviceGroupID = group
+        subject.groupMemberIDs = [alpha, bravo]
+        return subject
+    }
+
+    @Test("A device's outage, its recovery as a group, a split, then a second outage: the second alerts")
+    func recoveryUnderAGroupEndsTheRowsOutage() {
+        let rule = AlertRule(name: "Mac offline", trigger: .wentOffline, conditions: AlertRuleConditions(deviceID: alpha))
+        var evaluator = AlertRuleEvaluator()
+        #expect(evaluator.evaluate([AlertRuleEvent(kind: .wentOffline, subject: single(alpha))], rules: [rule]).count == 1)
+        _ = evaluator.evaluate([AlertRuleEvent(kind: .cameOnline, subject: grouped(alpha))], rules: [rule])
+        // Separated again: alpha is a device of one row.
+        #expect(evaluator.evaluate([AlertRuleEvent(kind: .wentOffline, subject: single(alpha))], rules: [rule]).count == 1)
+    }
+
+    @Test("A group's outage ends when one of its rows comes back on its own, so the regrouped device alerts again")
+    func recoveryOfAFormerMemberEndsTheGroupsOutage() {
+        let rule = AlertRule(name: "Mac offline", trigger: .wentOffline, conditions: AlertRuleConditions(deviceID: alpha))
+        var evaluator = AlertRuleEvaluator()
+        #expect(evaluator.evaluate([AlertRuleEvent(kind: .wentOffline, subject: grouped(alpha))], rules: [rule]).count == 1)
+        _ = evaluator.evaluate([AlertRuleEvent(kind: .cameOnline, subject: single(alpha))], rules: [rule])
+        // Undo restores the same group ID.
+        #expect(evaluator.evaluate([AlertRuleEvent(kind: .wentOffline, subject: grouped(alpha))], rules: [rule]).count == 1)
+    }
+
+    @Test("While a row's outage stands, the group it joins doesn't alert for it again")
+    func anOpenOutageCoversTheNewIdentity() {
+        let rule = AlertRule(name: "Mac offline", trigger: .wentOffline, conditions: AlertRuleConditions(deviceID: alpha))
+        var evaluator = AlertRuleEvaluator()
+        #expect(evaluator.evaluate([AlertRuleEvent(kind: .wentOffline, subject: single(alpha))], rules: [rule]).count == 1)
+        #expect(evaluator.evaluate([AlertRuleEvent(kind: .wentOffline, subject: grouped(alpha))], rules: [rule]).isEmpty)
+    }
+}

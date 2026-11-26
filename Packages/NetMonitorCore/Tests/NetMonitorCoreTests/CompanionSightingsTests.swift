@@ -104,7 +104,7 @@ struct CompanionSightingsTests {
         func member(_ ip: String, mac: String? = nil, answered: Bool = true) -> MemberInfo {
             MemberInfo(
                 id: UUID(), ipAddress: ip, macAddress: mac, lastSeen: answered ? scan : now.addingTimeInterval(-9000),
-                answeredLatestScan: answered, scanTime: scan
+                answeredLatestScan: answered, scanTime: scan, scanAge: now.timeIntervalSince(scan)
             )
         }
         let members = [member("192.168.7.10", mac: "AA:BB:CC:00:00:10"), member("192.168.7.40"), member("192.168.7.41", answered: false)]
@@ -120,6 +120,26 @@ struct CompanionSightingsTests {
         #expect(sightings(ownLastScan: nil) == ["192.168.7.10", "192.168.7.40"])
         #expect(sightings(ownLastScan: scan.addingTimeInterval(-1)) == ["192.168.7.10", "192.168.7.40"])
         #expect(sightings(ownLastScan: scan).isEmpty, "a Mac scan no newer than the phone's own adds nothing")
+    }
+
+    @Test("The Mac's scan is placed on the phone's clock by its age at sending, so clock skew doesn't count (#619)")
+    func clockSkewDoesNotCount() {
+        func sightings(macClockAhead skew: TimeInterval, scanAgeAtSend age: TimeInterval, ownLastScan: Date) -> [String] {
+            let member = MemberInfo(
+                id: UUID(), ipAddress: "192.168.7.40", macAddress: nil, lastSeen: now, answeredLatestScan: true,
+                scanTime: now.addingTimeInterval(skew - age), scanAge: age
+            )
+            let list = DeviceListPayload(devices: [DeviceInfo(
+                ipAddress: "192.168.7.40", macAddress: "", hostname: "studio", isOnline: true, members: [member], isDeviceOnline: true
+            )])
+            return DeviceDiscoveryService.companionSightings(
+                list: list, receivedAt: now, macConnected: true, now: now, includes: { _ in true }, profileID: nil, ownLastScan: ownLastScan
+            ).devices.map(\.ipAddress)
+        }
+        // The Mac's clock runs 10 minutes fast: its scan a minute ago is older than the phone's 30 s ago.
+        #expect(sightings(macClockAhead: 600, scanAgeAtSend: 60, ownLastScan: now.addingTimeInterval(-30)).isEmpty)
+        // 10 minutes slow: its scan a minute ago is newer than the phone's two minutes ago.
+        #expect(sightings(macClockAhead: -600, scanAgeAtSend: 60, ownLastScan: now.addingTimeInterval(-120)) == ["192.168.7.40"])
     }
 
     @Test func oldAndNewPayloadsDecodeBothWays() throws {

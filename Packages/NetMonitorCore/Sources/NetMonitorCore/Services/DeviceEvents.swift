@@ -111,11 +111,12 @@ public final class DeviceEventDispatcher: DeviceEventDispatching {
 ///
 /// - Rows' **saved** states before and after the whole reconcile are compared, never display
 ///   freshness. A device is offline when every interface is saved offline.
-/// - Each device after the scan is judged against its own members' states before: a union of
-///   devices that were all offline and now answer is one `cameOnline`; a split device is judged
-///   by the members it kept. Membership changes alone are no event.
-/// - `addressChanged` only when the same row is the current interface before and after and its
-///   address changed; `renamed` only when the same row is the primary and its match name changed
+/// - Each device after the scan is judged against its own members' states before: when any
+///   device it came from was offline (every row of that device) and it now answers, that is one
+///   `cameOnline`, a union with a device that never left included; a split device is judged by
+///   the members it kept. Membership changes alone are no event.
+/// - `addressChanged` when a member row's own address changed (a DHCP move), whichever member is
+///   current, naming that row's new address; `renamed` only when the same row is the primary and its match name changed
 ///   from one value to another.
 /// - `joined` for a device whose every member was created this scan, except on the network's
 ///   first recorded scan (the baseline).
@@ -152,15 +153,17 @@ public enum DeviceEventReducer {
 
     public static func reduce(before: [RowState], after: [RowState], isBaseline: Bool) -> [DeviceEvent] {
         let beforeByID = Dictionary(before.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let offlineBefore = Set(Dictionary(grouping: before, by: \.deviceID).filter { $0.value.allSatisfy { $0.status == .offline } }.keys)
         let devices = Dictionary(grouping: after, by: \.deviceID)
         return devices.keys.sorted { $0.uuidString < $1.uuidString }.compactMap { deviceID in
             guard let members = devices[deviceID], let primary = members.first(where: \.isPrimary) ?? members.first,
                   let current = members.first(where: \.isCurrent) ?? members.first else { return nil }
             let earlier = members.compactMap { beforeByID[$0.id] }
-            func event(_ kind: DeviceEvent.Kind) -> DeviceEvent {
-                DeviceEvent(
+            func event(_ kind: DeviceEvent.Kind, interface: RowState? = nil) -> DeviceEvent {
+                let interface = interface ?? current
+                return DeviceEvent(
                     kind: kind, deviceID: deviceID, rowID: primary.id, memberIDs: Set(members.map(\.id)), name: primary.displayName,
-                    matchName: primary.matchName, ipAddress: current.ipAddress, macAddress: current.macAddress,
+                    matchName: primary.matchName, ipAddress: interface.ipAddress, macAddress: interface.macAddress,
                     networkProfileID: primary.networkProfileID, firstSeen: members.map(\.firstSeen).min() ?? primary.firstSeen,
                     lastSeen: members.map(\.lastSeen).max() ?? primary.lastSeen
                 )
@@ -168,20 +171,61 @@ public enum DeviceEventReducer {
             guard !earlier.isEmpty else { return isBaseline ? nil : event(.joined) }
             let wasOffline = earlier.allSatisfy { $0.status == .offline }
             let isOffline = members.allSatisfy { $0.status == .offline }
-            if wasOffline, !isOffline {
+            // A device that was offline (every row of it before) and is now part of this online
+            // device came back, even when it joined one that never left (#619).
+            let predecessorWasOffline = earlier.contains { offlineBefore.contains($0.deviceID) }
+            if predecessorWasOffline, !isOffline {
                 return event(.cameOnline)
             }
             if !wasOffline, isOffline {
                 return event(.wentOffline(since: members.map(\.lastSeen).max() ?? primary.lastSeen))
             }
-            if let old = beforeByID[current.id], old.isCurrent, old.ipAddress != current.ipAddress {
-                return event(.addressChanged(from: old.ipAddress))
+            // A row's own address changing is a real move, whichever member is current (#619);
+            // the current interface first, then in member order.
+            if let moved = members.first(where: { row in beforeByID[row.id].map { $0.ipAddress != row.ipAddress } == true }),
+               let old = beforeByID[moved.id] {
+                return event(.addressChanged(from: old.ipAddress), interface: moved)
             }
             if let old = beforeByID[primary.id], old.isPrimary, let oldName = old.matchName, let newName = primary.matchName, oldName != newName {
                 return event(.renamed(from: oldName))
             }
             return nil
         }
+    }
+}
+
+// MARK: - Timeline titles
+
+/// The Timeline's titles for device events, in one place for both apps and the readers that parse
+/// them (`ChangeDigestBuilder`, `AskToolbox`) (#619): "Device Joined: name", "Device Back Online:
+/// name", "Device Left: name". Address and name changes log nothing.
+public enum DeviceTimelineTitle {
+    public static let joined = "Device Joined"
+    public static let backOnline = "Device Back Online"
+    public static let left = "Device Left"
+
+    /// The title's prefix for an event, nil for one the Timeline doesn't log.
+    public static func prefix(for kind: DeviceEvent.Kind) -> String? {
+        switch kind {
+        case .joined: joined
+        case .cameOnline: backOnline
+        case .wentOffline: left
+        case .addressChanged, .renamed: nil
+        }
+    }
+
+    /// The same for the `DeviceChangeEvent` form.
+    public static func prefix(for change: DeviceChangeEvent) -> String? {
+        switch change {
+        case .firstSeen: joined
+        case .cameOnline: backOnline
+        case .wentOffline: left
+        case .changed: nil
+        }
+    }
+
+    public static func title(_ prefix: String, name: String) -> String {
+        "\(prefix): \(name)"
     }
 }
 
@@ -192,22 +236,18 @@ public extension DeviceEvent {
     /// carrying the device's primary row ID.
     var change: DeviceChangeEvent {
         let seen = DeviceObservation(ipAddress: ipAddress, macAddress: macAddress, name: matchName, deviceID: rowID)
-        func known(ipAddress: String, name: String?, isOffline: Bool) -> KnownDevice {
-            var device = KnownDevice(
-                macAddress: macAddress, ipAddress: ipAddress, name: name, firstSeen: firstSeen, lastSeen: lastSeen, isOffline: isOffline
-            )
-            device.deviceID = rowID
-            return device
+        func known(ipAddress: String, name: String?) -> KnownDevice {
+            KnownDevice(macAddress: macAddress, ipAddress: ipAddress, name: name, firstSeen: firstSeen, lastSeen: lastSeen, deviceID: rowID)
         }
         switch kind {
         case .joined: return .firstSeen(seen)
         case .cameOnline: return .cameOnline(seen)
         case let .wentOffline(since):
-            var gone = known(ipAddress: ipAddress, name: matchName, isOffline: true)
+            var gone = known(ipAddress: ipAddress, name: matchName)
             gone.lastSeen = since
             return .wentOffline(gone)
-        case let .addressChanged(from): return .changed(seen, previous: known(ipAddress: from, name: matchName, isOffline: false))
-        case let .renamed(from): return .changed(seen, previous: known(ipAddress: ipAddress, name: from, isOffline: false))
+        case let .addressChanged(from): return .changed(seen, previous: known(ipAddress: from, name: matchName))
+        case let .renamed(from): return .changed(seen, previous: known(ipAddress: ipAddress, name: from))
         }
     }
 }

@@ -98,6 +98,22 @@ struct DeviceGroupingPlanTests {
         #expect(result == [[wired.id, wifi.id]])
     }
 
+    @Test("A quiet member of the existing group counts: an Apple primary and a Samsung newcomer never group (#619)")
+    func identityAcrossTheWholeGroup() {
+        let group = UUID()
+        let apple = row("10.0.0.10", vendor: "Apple, Inc.", group: group)
+        let unidentified = row("10.0.0.11", group: group)
+        unidentified.groupPrimaryID = apple.id
+        let samsung = row("10.0.0.40", vendor: "Samsung Electronics")
+        let scan = [seen("10.0.0.11", hosts: ["studio.local"]), seen("10.0.0.40", hosts: ["studio.local"])]
+        #expect(plan(scan, [apple, unidentified, samsung]).isEmpty)
+        apple.vendor = nil
+        apple.modelName = "Macmini9,1"
+        samsung.vendor = nil
+        samsung.modelName = "SM-G991B"
+        #expect(plan(scan, [apple, unidentified, samsung]).isEmpty, "models too")
+    }
+
     @Test("The plan doesn't depend on the scan's order (every permutation, repeated MACs and a conflicting claim)")
     func permutations() {
         let rows = [row("10.0.0.10"), row("10.0.0.40"), row("10.0.0.50"), row("10.0.0.60")]

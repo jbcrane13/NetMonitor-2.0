@@ -39,6 +39,8 @@ public struct DeviceGroupWriter {
         case tooFewMembers
         /// The rows changed since the operation an undo would reverse (#594 PR2).
         case undoUnavailable
+        /// An automatic grouping whose rows' models or makers name different devices (#619).
+        case conflictingIdentity
 
         /// The refusal for two rows, whichever order they were found in.
         public static func excluded(between first: UUID, and second: UUID) -> Refusal {
@@ -169,6 +171,11 @@ public struct DeviceGroupWriter {
         guard Set(members.map(\.networkProfileID)).count <= 1 else { throw Refusal.differentNetworks }
         if let pair = DeviceGroups.excludedPair(in: members) {
             throw Refusal.excluded(between: pair.0, and: pair.1)
+        }
+        // Scan evidence never joins rows that say they're different hardware, checked again here
+        // because an earlier join in the same scan can change a group (#619). The user may.
+        if source == .bonjour, DeviceGrouping.hasConflictingIdentity(members) {
+            throw Refusal.conflictingIdentity
         }
         // "Same device as…" (#594 PR2, v3 §3): the device the user is on keeps its group and its
         // primary; every row that joins it is re-keyed to it, as the user's grouping.

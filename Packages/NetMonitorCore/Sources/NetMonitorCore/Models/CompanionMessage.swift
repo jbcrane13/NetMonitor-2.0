@@ -330,16 +330,25 @@ public struct MemberInfo: Codable, Sendable, Equatable, Identifiable {
     public let macAddress: String?
     public let lastSeen: Date
     public let answeredLatestScan: Bool
-    /// When the Mac's latest scan of the network was reconciled; nil when it has none.
+    /// When the Mac's latest scan of the network was reconciled, on the Mac's clock; nil when it
+    /// has none.
     public let scanTime: Date?
+    /// How long before the list was sent that scan was, measured on the Mac's clock alone. The
+    /// phone places the scan on its own clock as `receivedAt - scanAge`, so the two devices' wall
+    /// clocks are never compared (#619).
+    public let scanAge: TimeInterval?
 
-    public init(id: UUID, ipAddress: String, macAddress: String?, lastSeen: Date, answeredLatestScan: Bool, scanTime: Date?) {
+    public init(
+        id: UUID, ipAddress: String, macAddress: String?, lastSeen: Date, answeredLatestScan: Bool, scanTime: Date?,
+        scanAge: TimeInterval? = nil
+    ) {
         self.id = id
         self.ipAddress = ipAddress
         self.macAddress = macAddress
         self.lastSeen = lastSeen
         self.answeredLatestScan = answeredLatestScan
         self.scanTime = scanTime
+        self.scanAge = scanAge
     }
 }
 

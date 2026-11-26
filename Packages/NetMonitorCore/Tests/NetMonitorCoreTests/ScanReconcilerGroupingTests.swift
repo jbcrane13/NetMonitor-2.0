@@ -126,15 +126,18 @@ final class ScanReconcilerGroupingTests {
         #expect(try reconcile([routerSeen, seen("10.0.0.10", hosts: ["studio.local"])], at: 15).isEmpty)
     }
 
-    @Test("A real DHCP move of the current interface during a scan that groups is an address change")
+    @Test("A real DHCP move during a scan that groups is an address change, even when another member is current")
     func dhcpMoveDuringGrouping() throws {
         try reconcile([routerSeen, seen("10.0.0.10", mac: "AA:BB:CC:00:00:10")], at: 0)
-        let events = try reconcile(
-            [routerSeen, seen("10.0.0.12", mac: "AA:BB:CC:00:00:10", hosts: ["studio.local"]), seen("10.0.0.40", hosts: ["studio.local"])], at: 5
-        )
-        #expect(try devices().contains { $0.isGroup })
+        let events = try reconcile([
+            routerSeen, seen("10.0.0.12", mac: "AA:BB:CC:00:00:10", hosts: ["studio.local"]),
+            seen("10.0.0.5", mac: "AA:BB:CC:00:00:05", hosts: ["studio.local"])
+        ], at: 5)
+        let device = try #require(try devices().first { $0.isGroup })
+        #expect(device.current.ipAddress == "10.0.0.5", "the moved row is not the current interface")
         // The Wi-Fi interface joining is membership only; the wired interface's move is real.
         #expect(kinds(events) == [.addressChanged(from: "10.0.0.10")])
+        #expect(events.first?.ipAddress == "10.0.0.12", "the event names the moved interface's new address")
     }
 
     @Test("A real rename of the primary is one event; a row joining another's group renames nothing")
@@ -273,5 +276,42 @@ final class ScanReconcilerGroupingTests {
         ], at: 15)
         #expect(throws: DeviceGroupWriter.Refusal.undoUnavailable) { try writer.undo(again) }
         #expect(try devices().first { $0.isGroup }?.members.count == 3)
+    }
+
+    @Test("An offline device joining an online one under one host is that device back online: one event (#619)")
+    func unionWithAnOnlineMemberComesOnlineOnce() throws {
+        let wired = "AA:BB:CC:00:00:10", wifi = "AA:BB:CC:00:00:40"
+        try reconcile([routerSeen], at: 0)
+        try reconcile([routerSeen, seen("10.0.0.10", mac: wired), seen("10.0.0.40", name: "studio-wifi", mac: wifi)], at: 5)
+        var left: [DeviceEvent] = []
+        for time in [25.0, 45, 65] {
+            left += try reconcile([routerSeen, seen("10.0.0.40", name: "studio-wifi", mac: wifi)], at: time)
+        }
+        #expect(left.map(\.name) == ["studio"])
+        let events = try reconcile([
+            routerSeen, seen("10.0.0.10", mac: wired, hosts: ["studio.local"]),
+            seen("10.0.0.40", name: "studio-wifi", mac: wifi, hosts: ["studio.local"])
+        ], at: 70)
+        #expect(try devices().contains { $0.isGroup })
+        #expect(kinds(events) == [.cameOnline])
+    }
+
+    @Test("A member split off keeps its own saved presence, with no event (#619)")
+    func splitIsQuiet() throws {
+        try reconcile([routerSeen], at: 0)
+        try reconcile([routerSeen, seen("10.0.0.10", hosts: ["studio.local"]), seen("10.0.0.40", hosts: ["studio.local"])], at: 5)
+        let wifiRow = try #require(try context.fetch(FetchDescriptor<LocalDevice>()).first { $0.ipAddress == "10.0.0.40" })
+        try DeviceGroupWriter(container: container).ungroup(wifiRow.id)
+        #expect(try reconcile([routerSeen, seen("10.0.0.10", hosts: ["studio.local"]), seen("10.0.0.40", hosts: ["studio.local"])], at: 10).isEmpty)
+    }
+
+    @Test("The Timeline titles come from one place, and the digest reads the same prefix (#619)")
+    func timelineTitles() {
+        #expect(DeviceTimelineTitle.prefix(for: .joined) == "Device Joined")
+        #expect(DeviceTimelineTitle.prefix(for: .cameOnline) == "Device Back Online")
+        #expect(DeviceTimelineTitle.prefix(for: .wentOffline(since: start)) == "Device Left")
+        #expect(DeviceTimelineTitle.prefix(for: .addressChanged(from: "10.0.0.1")) == nil)
+        #expect(DeviceTimelineTitle.title("Device Left", name: "printer") == "Device Left: printer")
+        #expect(ChangeDigestBuilder.backOnlinePrefix == DeviceTimelineTitle.backOnline + ": ")
     }
 }

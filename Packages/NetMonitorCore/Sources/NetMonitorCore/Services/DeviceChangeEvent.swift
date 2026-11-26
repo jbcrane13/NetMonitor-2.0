@@ -22,42 +22,25 @@ public struct DeviceObservation: Sendable, Equatable {
     }
 }
 
-/// What the detector remembers about a device between scans (#393).
-public struct KnownDevice: Codable, Sendable, Equatable {
-    /// Normalised hardware address, or nil when the device has none (then it is keyed by IP).
+/// A device as it was before a change (#393): the previous state a `DeviceChangeEvent` carries.
+public struct KnownDevice: Sendable, Equatable {
+    /// Normalised hardware address, or nil when the device has none.
     public var macAddress: String?
     public var ipAddress: String
     public var name: String?
     public var firstSeen: Date
     /// The last time the device answered a scan.
     public var lastSeen: Date
-    /// True once the device has answered a scan; a device only ever cached is not confirmed.
-    public var isConfirmed: Bool
-    /// Consecutive scans the device didn't answer.
-    public var missedScans: Int
-    /// Reported offline after the grace period; cleared when it answers again.
-    public var isOffline: Bool
     /// The saved device's primary row, when the event comes from the reconciler (#603).
     public var deviceID: UUID?
 
-    public init(
-        macAddress: String?,
-        ipAddress: String,
-        name: String?,
-        firstSeen: Date,
-        lastSeen: Date,
-        isConfirmed: Bool = true,
-        missedScans: Int = 0,
-        isOffline: Bool = false
-    ) {
+    public init(macAddress: String?, ipAddress: String, name: String?, firstSeen: Date, lastSeen: Date, deviceID: UUID? = nil) {
         self.macAddress = DeviceMatcher.normalizedMAC(macAddress)
         self.ipAddress = ipAddress
         self.name = name
         self.firstSeen = firstSeen
         self.lastSeen = lastSeen
-        self.isConfirmed = isConfirmed
-        self.missedScans = missedScans
-        self.isOffline = isOffline
+        self.deviceID = deviceID
     }
 }
 
@@ -87,13 +70,23 @@ public struct DeviceGracePolicy: Sendable, Equatable {
 
 // MARK: - The retired change registry
 
-/// The scan-to-scan change registry (#393) that device events replaced (#603): the reconciler's
-/// own events (`DeviceEventReducer`) are the only source now. Its stored state is deleted with the
-/// saved devices; the key goes one release later.
+/// The scan-to-scan change registry (#393) and the iPhone scheduler's baseline that device events
+/// replaced (#603): the reconciler's own events (`DeviceEventReducer`) are the only source now.
+/// Their stored state is removed with the saved devices, and once at launch.
 public enum LegacyDeviceChangeRegistry {
-    static let storageKey = "deviceChangeRegistry"
+    static let storageKeys = ["deviceChangeRegistry", "scanScheduler_baseline"]
+    static let clearedMarker = "legacyDeviceChangeRegistryCleared"
 
     public static func clear(defaults: UserDefaults = .standard) {
-        defaults.removeObject(forKey: storageKey)
+        for key in storageKeys {
+            defaults.removeObject(forKey: key)
+        }
+    }
+
+    /// ``clear(defaults:)`` the first time it is called with `defaults`; later calls do nothing.
+    public static func clearOnce(defaults: UserDefaults = .standard) {
+        guard !defaults.bool(forKey: clearedMarker) else { return }
+        clear(defaults: defaults)
+        defaults.set(true, forKey: clearedMarker)
     }
 }

@@ -67,6 +67,8 @@ struct NetmonitorApp: App {
         // Before `.live()` first loads `NetworkEventService.shared`, so a UI test's legacy
         // events are in place to migrate (#491).
         UITestBootstrap.prepareEventHistoryIfNeeded()
+        // The retired change registry and scan-diff baseline (#603) are dead data now (#619).
+        LegacyDeviceChangeRegistry.clearOnce()
         let environment = AppEnvironment.live()
         _environment = State(initialValue: environment)
         // The Timeline listens for device events from launch (#603), so a scan a background launch

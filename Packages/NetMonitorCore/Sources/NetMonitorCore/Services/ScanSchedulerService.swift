@@ -40,12 +40,6 @@ public final class ScanSchedulerService: ScanSchedulerServiceProtocol {
         cachedDiff
     }
 
-    /// The last applied scan's diff; `current` is no longer compared (the reconciler decides what
-    /// changed). Empty, at now, before any scan delivered events.
-    public func computeDiff(current _: [DiscoveredDevice]) -> ScanDiff {
-        cachedDiff ?? ScanDiff(newDevices: [], removedDevices: [], changedDevices: [])
-    }
-
     // MARK: - Convenience
 
     /// Whether the next scheduled scan window has been reached.

@@ -30,6 +30,25 @@ public enum DeviceGroupingChoices {
         [device.primary.id, other.primary.id]
     }
 
+    // MARK: Accessibility IDs
+
+    /// The IDs both apps give the grouping controls that repeat (#619): an address's dots become
+    /// underscores, as the interface rows' IDs already do.
+    public enum AccessibilityID {
+        public static func sameDeviceAsRow(_ ipAddress: String) -> String {
+            "sameDeviceAs_row_" + key(ipAddress)
+        }
+
+        /// One suggestion banner per suggested device, where a detail lists several.
+        public static func suggestionBanner(_ deviceID: UUID) -> String {
+            "deviceDetail_banner_suggestion_" + deviceID.uuidString
+        }
+
+        static func key(_ ipAddress: String) -> String {
+            ipAddress.replacingOccurrences(of: ".", with: "_")
+        }
+    }
+
     // MARK: Wording
 
     public static func suggestion(_ other: String) -> String { "Same Bonjour name as \(other): same device?" }

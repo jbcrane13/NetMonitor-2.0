@@ -12,7 +12,8 @@ import NetworkScanKit
 /// - none of those addresses, and no real MAC among their observations, claimed another strong host;
 /// - no pair of those rows, or of the members of a group one of them is in, is excluded
 ///   (`notSameAsIDs`);
-/// - their models, and their MAC-prefix makers, don't name different devices or companies;
+/// - the models and MAC-prefix makers of every row of the resulting group (a quiet member of an
+///   existing group included) don't name different devices or companies;
 /// - they are in at most one existing group (two groups never merge automatically).
 ///
 /// The plan reads every claim before deciding anything, so it doesn't depend on the scan's order.
@@ -59,14 +60,19 @@ public enum DeviceGrouping {
         return groups
     }
 
-    /// Exclusions, conflicting models or makers, or two existing groups stop a group.
+    /// Exclusions, conflicting models or makers, or two existing groups stop a group. Every row of
+    /// the resulting group counts, answering or not (#619).
     static func isEligible(_ members: [LocalDevice], among rows: [LocalDevice]) -> Bool {
-        guard Set(members.compactMap(\.deviceGroupID)).count <= 1,
-              DeviceGroups.excludedPair(in: DeviceGroups.withGroupMembers(members, among: rows)) == nil else { return false }
-        let models = Set(members.compactMap(\.modelName).filter { !$0.isEmpty })
-        guard models.count <= 1 else { return false }
-        let makers = Set(members.compactMap(\.vendor).filter { !$0.isEmpty }.map(firstWord))
-        return makers.count <= 1
+        let result = DeviceGroups.withGroupMembers(members, among: rows)
+        return Set(members.compactMap(\.deviceGroupID)).count <= 1
+            && DeviceGroups.excludedPair(in: result) == nil
+            && !hasConflictingIdentity(result)
+    }
+
+    /// Whether `rows` name two different models, or makers from two different companies.
+    static func hasConflictingIdentity(_ rows: [LocalDevice]) -> Bool {
+        Set(rows.compactMap(\.modelName).filter { !$0.isEmpty }).count > 1
+            || Set(rows.compactMap(\.vendor).filter { !$0.isEmpty }.map(firstWord)).count > 1
     }
 
     /// A maker's first word, lowercased: "Apple, Inc." and "Apple" are one company.

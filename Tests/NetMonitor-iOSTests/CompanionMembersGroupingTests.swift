@@ -27,12 +27,15 @@ final class CompanionMembersGroupingTests {
     }
 
     /// The Mac's list: its studio Mac answered its latest scan on Wi-Fi and on Ethernet.
+    /// The Mac sends the list as the phone receives it (10 s ago), its clock in step with the phone's.
+    var sentAt: Date { now.addingTimeInterval(-10) }
+
     func macList(scanTime: Date) -> DeviceListPayload {
         let members = [
             MemberInfo(id: UUID(), ipAddress: "192.168.1.13", macAddress: "00:1B:A9:00:00:13", lastSeen: scanTime, answeredLatestScan: true,
-                       scanTime: scanTime),
+                       scanTime: scanTime, scanAge: sentAt.timeIntervalSince(scanTime)),
             MemberInfo(id: UUID(), ipAddress: "192.168.1.60", macAddress: "00:1B:A9:00:00:60", lastSeen: scanTime, answeredLatestScan: true,
-                       scanTime: scanTime)
+                       scanTime: scanTime, scanAge: sentAt.timeIntervalSince(scanTime))
         ]
         return DeviceListPayload(devices: [
             DeviceInfo(ipAddress: "192.168.1.13", macAddress: "00:1B:A9:00:00:13", hostname: "studio-mac", isOnline: true, members: members,

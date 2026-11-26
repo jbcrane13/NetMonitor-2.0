@@ -169,7 +169,7 @@ public enum ChangeDigestBuilder {
 
     /// The title the Mac gives a known device that answers again (#491 S2): a join event,
     /// stated on its own rather than as a new device.
-    static let backOnlinePrefix = "Device Back Online: "
+    static let backOnlinePrefix = DeviceTimelineTitle.backOnline + ": "
 
     private struct DeviceNames {
         let byAddress: [String: String]

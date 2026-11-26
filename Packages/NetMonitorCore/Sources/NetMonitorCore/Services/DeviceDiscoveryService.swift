@@ -378,7 +378,8 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
     /// disconnected, or its list is old) is left out of the scan (`mergeCompanion`) (#598). A device
     /// with `members` (a Mac with #594 PR2) gives one sighting per interface that answered the Mac's
     /// latest scan, when that scan is newer than `ownLastScan` (this phone's own last scan of the
-    /// network); a newly received list is not proof of a new scan.
+    /// network); a newly received list is not proof of a new scan. The Mac's scan is placed on this
+    /// phone's clock as `receivedAt - scanAge`, never by comparing the two devices' clocks (#619).
     nonisolated public static func companionSightings(
         list: DeviceListPayload?,
         receivedAt: Date?,
@@ -408,10 +409,12 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
                 return device.isOnline && includes(device.ipAddress)
                     ? [sighting(ipAddress: device.ipAddress, macAddress: device.macAddress, of: device)] : []
             }
-            // Each interface that answered a Mac scan newer than the phone's own (#594 PR2).
+            // Each interface that answered a Mac scan newer than the phone's own (#594 PR2), with
+            // the Mac's scan placed on this phone's clock by its age when sent (#619).
             return members.filter { member in
-                member.answeredLatestScan && includes(member.ipAddress)
-                    && (ownLastScan.map { own in member.scanTime.map { $0 > own } ?? false } ?? true)
+                let scannedHere = member.scanAge.map { (receivedAt ?? now).addingTimeInterval(-$0) }
+                return member.answeredLatestScan && includes(member.ipAddress)
+                    && (ownLastScan.map { own in scannedHere.map { $0 > own } ?? false } ?? true)
             }.map { sighting(ipAddress: $0.ipAddress, macAddress: $0.macAddress, of: device) }
         }
         return (devices, fresh)

@@ -419,13 +419,12 @@ public protocol NetworkHealthScoreServiceProtocol: AnyObject, Sendable {
     func calculateScore() async -> NetworkHealthScore
 }
 
-/// Protocol for scheduling recurring scans and detecting changes.
+/// Protocol for scheduling recurring scans and reading the last scan's changes.
 @MainActor
 public protocol ScanSchedulerServiceProtocol: AnyObject, Sendable {
     func scheduleNextScan(interval: TimeInterval)
+    /// The last applied scan's diff, from its device events (#603); nil before any.
     func getLastScanDiff() -> ScanDiff?
-    /// Compare `current` devices against the stored baseline and return the diff.
-    func computeDiff(current: [DiscoveredDevice]) -> ScanDiff
 }
 
 // MARK: - Heatmap Service Protocol

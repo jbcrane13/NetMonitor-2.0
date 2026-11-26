@@ -46,12 +46,10 @@ final class ScanSchedulerServiceTests {
             .reconcile(scan, networkProfileID: home, scanDate: time(index), now: time(index))
     }
 
-    @Test("Before any scan delivered events there is no diff, and computeDiff is empty")
+    @Test("Before any scan delivered events there is no diff")
     func noDiffBeforeEvents() {
         let service = ScanSchedulerService(dispatcher: dispatcher)
         #expect(service.getLastScanDiff() == nil)
-        let diff = service.computeDiff(current: [router])
-        #expect(diff.newDevices.isEmpty && diff.removedDevices.isEmpty && diff.changedDevices.isEmpty)
     }
 
     @Test("The network's first scan is the baseline: nothing is new")
@@ -70,7 +68,6 @@ final class ScanSchedulerServiceTests {
         #expect(diff.newDevices.map(\.ipAddress) == ["192.168.1.57"])
         #expect(diff.newDevices.map(\.displayName) == ["Pixel-8"])
         #expect(diff.scannedAt == time(1))
-        #expect(service.computeDiff(current: []).newDevices.map(\.ipAddress) == ["192.168.1.57"], "computeDiff returns the last diff")
     }
 
     @Test("A device is removed only once it went offline under grace, with when it last answered")
@@ -139,5 +136,19 @@ final class ScanSchedulerServiceTests {
         #expect(service.isScanDue)
         service.scheduleNextScan(interval: 3600)
         #expect(!service.isScanDue)
+    }
+
+    @Test("The retired registry and baseline keys are removed once at launch (#619)")
+    func legacyKeysClearOnce() throws {
+        let suite = "LegacyRegistry.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set(Data([1]), forKey: "deviceChangeRegistry")
+        defaults.set(Data([1]), forKey: "scanScheduler_baseline")
+        LegacyDeviceChangeRegistry.clearOnce(defaults: defaults)
+        #expect(defaults.object(forKey: "deviceChangeRegistry") == nil && defaults.object(forKey: "scanScheduler_baseline") == nil)
+        defaults.set(Data([1]), forKey: "scanScheduler_baseline")
+        LegacyDeviceChangeRegistry.clearOnce(defaults: defaults)
+        #expect(defaults.object(forKey: "scanScheduler_baseline") != nil, "only once")
     }
 }
