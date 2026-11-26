@@ -28,6 +28,7 @@ Network diagnostic tool views for macOS. Each tool opens in the main window's de
 
 ### macOS Tool Pattern
 - Tools fill the detail pane — always wrap in `ToolSheetContainer` for consistent chrome; its Close calls the `closeTool` environment action (back to the Tools grid, #545)
+- Exceptions: Wi-Fi Heatmap (`../Heatmap/WiFiHeatmapView.swift`) and Timeline (`../TimelineView.swift`) are full-pane views without `ToolSheetContainer`, so they have no Close button; the toolbar Back button (`contentView_button_back`) is their only way back to the Tools grid
 - Service protocols from `NetMonitorCore` are injected via `@Environment`
 - Use `Table` (macOS 13+) for result lists with sortable columns where appropriate
 - Input validation: disable the run button until input is non-empty and valid
