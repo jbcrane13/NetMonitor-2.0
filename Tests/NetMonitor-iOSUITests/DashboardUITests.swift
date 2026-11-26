@@ -3,10 +3,11 @@ import XCTest
 @MainActor
 final class DashboardUITests: IOSUITestCase {
 
-    /// A deterministic device set, so the device list shows its header and network badge: with no
-    /// devices it shows only the empty state (#583).
+    /// A deterministic device set, so the device list shows its header and network badge (with no
+    /// devices it shows only the empty state, #583), and a fixture ISP, so the WAN card does not wait
+    /// on an outside lookup.
     override var additionalLaunchEnvironment: [String: String] {
-        ["UITEST_FAKE_DEVICES": "1"]
+        ["UITEST_FAKE_DEVICES": "1", "UITEST_FAKE_ISP": "1"]
     }
 
     // MARK: - Screen Existence
@@ -79,20 +80,18 @@ final class DashboardUITests: IOSUITestCase {
         let panel = ui("dashboard_card_wan")
         scrollToElement(panel)
         requireExists(panel, message: "Connectivity panel should exist on dashboard")
-        // FUNCTIONAL: the ISP row shows a detected provider, not the "Detecting…" or "—" placeholder.
-        // This needs the simulator's host network to answer the ISP lookup.
+        // FUNCTIONAL: the WAN card shows the fixture provider and public IP (UITEST_FAKE_ISP).
         requireExists(
             app.text(carrying: "dashboard_card_wan", matching: "ISP"),
             message: "WAN card should have its ISP row"
         )
-        // The card's texts read in order: WAN INFO, ISP, <ISP value>, PUBLIC IP, <IP>, DNS, <DNS>.
-        // The DNS value always renders, so check the ISP value itself, not any value.
-        let ispValue = app.texts(carrying: "dashboard_card_wan").element(boundBy: 2)
-        let detected = NSPredicate(format: "exists == true AND NOT (label IN %@)", ["Detecting…", "—", "ISP", "PUBLIC IP"] as NSArray)
-        let result = XCTWaiter().wait(for: [XCTNSPredicateExpectation(predicate: detected, object: ispValue)], timeout: 30)
-        XCTAssertEqual(
-            result, .completed,
-            "WAN card should show a detected ISP name, not a placeholder (got \"\(ispValue.exists ? ispValue.label : "nothing")\")"
+        requireExists(
+            app.text(carrying: "dashboard_card_wan", matching: "Example Test ISP"), timeout: 8,
+            message: "WAN card should show the fixture ISP name"
+        )
+        requireExists(
+            app.text(carrying: "dashboard_card_wan", matching: "203\\.0\\.113\\.7"),
+            message: "WAN card should show the fixture public IP"
         )
         captureScreenshot(named: "Dashboard_WANCard")
     }
@@ -291,6 +290,8 @@ final class DashboardUITests: IOSUITestCase {
         requireExists(app.navigationBars["Network Map"], timeout: 8,
                      message: "Network Map screen should appear after tapping Map tab")
 
+        // The Map screen's content, not only its title bar, must be up: a tap in mid-transition is dropped.
+        requireExists(app.byID("screen_networkMap"), timeout: 8, message: "Network Map content should load")
         // A tap right after the Map tab's transition is sometimes dropped: tap again (up to 3 times) if nothing shows.
         for _ in 0..<3 where !app.byID("screen_tools").exists {
             tabBar.buttons["Tools"].tap()
