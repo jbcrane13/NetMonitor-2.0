@@ -538,8 +538,8 @@ extension BackgroundTaskService {
         await deviceEventNotifier?.posted()
     }
 
-    /// Alerts for a scheduled scan's new and missing devices, with the user's toggles applied.
-    /// The UI-test notification demo calls this too. A diff from device events names each device
+    /// Alerts for an applied scan's new and missing devices, foreground or background (from the
+    /// device-event notifier), with the user's toggles applied. The UI-test notification demo calls this too. A diff from device events names each device
     /// by its device (#594, #603) and has one entry per device, however many interfaces it has.
     func notifyScanChanges(_ diff: ScanDiff, wordBodies: Bool = true) async {
         let notifyNew     = (UserDefaults.standard.object(forKey: "scheduledScan_notifyNew") as? Bool) ?? true
